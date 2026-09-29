@@ -22,135 +22,18 @@ pub enum Law {
     SingleRequest,
 }
 
-/// Closures: the request ends here, nothing beyond the stated steps.
-const NOTHING_ELSE: &[&str] = &[
-    "nothing else",
-    "nothing more",
-    "no other step",
-    "no other action",
-    "no further action",
-    "that's all",
-    "that is all",
-    "rien d'autre",
-    "rien de plus",
-    "c'est tout",
-    "aucune autre action",
-    "nada mas",
-    "eso es todo",
-    "ninguna otra accion",
-    "nada mais",
-    "sem mais nada",
-    "mais nada",
-    "nient'altro",
-    "niente altro",
-    "nient altro",
-    "nessun'altra azione",
-    "sonst nichts",
-    "sonst nix",
-    "nichts weiter",
-    "nichts anderes",
-    "keine weitere aktion",
-    // « stop after these steps » / « stop there »: the same closure, stated as a halt.
-    "stop after",
-    "stop there",
-    "stop here",
-    "arrete-toi apres",
-    "arrete-toi la",
-    "arretez-vous apres",
-    "arretez-vous la",
-    "detente despues",
-    "detente ahi",
-    "detente aqui",
-    "fermati dopo",
-    "fermati li",
-    "fermati qui",
-    "hor danach auf",
-    "halt danach an",
-    "para depois",
-    "pare depois",
-    "pare ai",
-];
+/// Closures: the request ends here, nothing beyond the stated steps; « stop after these
+/// steps » and « stop there » are the same closure, stated as a halt.
+const NOTHING_ELSE: &str = include_str!("../assets/law_nothing_else.txt");
 
 /// No destination beyond the stated ones.
-const NO_OTHER_FILE: &[&str] = &[
-    "no other file",
-    "no other files",
-    "aucun autre fichier",
-    "pas d'autre fichier",
-    "ningun otro archivo",
-    "ningun otro fichero",
-    "nessun altro file",
-    "nenhum outro ficheiro",
-    "nenhum outro arquivo",
-    "keine andere datei",
-    "keine weitere datei",
-];
+const NO_OTHER_FILE: &str = include_str!("../assets/law_no_other_file.txt");
 
 /// No language model in the workflow.
-const NO_MODEL: &[&str] = &[
-    "no language model",
-    "without a language model",
-    "without any language model",
-    "no llm",
-    "without an llm",
-    "no model call",
-    "zero model call",
-    "zero model calls",
-    "sans modele de langage",
-    "sans aucun modele de langage",
-    "aucun modele de langage",
-    "sans llm",
-    "sin modelo de lenguaje",
-    "sin ningun modelo de lenguaje",
-    "ningun modelo de lenguaje",
-    "sin llm",
-    "nessun modello di linguaggio",
-    "senza modello di linguaggio",
-    "senza alcun modello di linguaggio",
-    "senza llm",
-    "kein sprachmodell",
-    "ohne sprachmodell",
-    "ohne llm",
-    "sem modelo de linguagem",
-    "sem nenhum modelo de linguagem",
-    "nenhum modelo de linguagem",
-    "sem llm",
-];
+const NO_MODEL: &str = include_str!("../assets/law_no_model.txt");
 
 /// One outbound request for the whole run.
-const SINGLE_REQUEST: &[&str] = &[
-    "a single http request",
-    "a single request",
-    "a single post",
-    "one single request",
-    "one single post",
-    "one http request",
-    "only one request",
-    "only one post",
-    "une seule requete",
-    "une seule requete http",
-    "un seul post",
-    "un seul appel http",
-    "un seul envoi",
-    "una sola peticion",
-    "una unica peticion",
-    "una sola solicitud",
-    "un solo post",
-    "un unico post",
-    "una sola richiesta",
-    "un'unica richiesta",
-    "una unica richiesta",
-    "un solo post http",
-    "eine einzige anfrage",
-    "ein einziger post",
-    "nur eine anfrage",
-    "nur ein post",
-    "um unico pedido",
-    "um so pedido",
-    "um unico post",
-    "uma unica requisicao",
-    "uma so requisicao",
-];
+const SINGLE_REQUEST: &str = include_str!("../assets/law_single_request.txt");
 
 /// Nouns of the material a context sentence describes.
 const MATERIAL: &str = include_str!("../assets/material_nouns.txt");
@@ -181,10 +64,6 @@ fn padded(text: &str) -> String {
     out
 }
 
-fn hit(padded: &str, table: &[&str]) -> bool {
-    table.iter().any(|m| padded.contains(&format!(" {m} ")))
-}
-
 /// The same hit over an embedded table, one word or phrase per line.
 fn hit_lines(padded: &str, table: &str) -> bool {
     table.lines().any(|m| padded.contains(&format!(" {m} ")))
@@ -196,16 +75,16 @@ fn hit_lines(padded: &str, table: &str) -> bool {
 pub fn laws(text: &str) -> Vec<Law> {
     let padded = padded(text);
     let mut out = Vec::new();
-    if hit(&padded, NO_MODEL) {
+    if hit_lines(&padded, NO_MODEL) {
         out.push(Law::NoModel);
     }
-    if hit(&padded, SINGLE_REQUEST) {
+    if hit_lines(&padded, SINGLE_REQUEST) {
         out.push(Law::SingleRequest);
     }
-    if hit(&padded, NO_OTHER_FILE) {
+    if hit_lines(&padded, NO_OTHER_FILE) {
         out.push(Law::NoOtherFile);
     }
-    if hit(&padded, NOTHING_ELSE) && super::cardinality::bound(text).is_none() {
+    if hit_lines(&padded, NOTHING_ELSE) && super::cardinality::bound(text).is_none() {
         out.push(Law::NothingElse);
     }
     out
@@ -213,12 +92,13 @@ pub fn laws(text: &str) -> Vec<Law> {
 
 /// A sentence that describes the material rather than demanding work: a declarative joint
 /// beside a noun of the material, with no effect word, no measurable bound, no prohibition
-/// and no gate in it. « The file has the columns a,b,c », « both requirements are checked on
-/// the produced file », « Le fichier ./x.csv contient les colonnes … ».
+/// and no gate in it, and not a selection of the material's rows. « The file has the columns
+/// a,b,c », « both requirements are checked on the produced file », « Le fichier ./x.csv
+/// contient les colonnes … ».
 #[must_use]
 pub fn context_statement(text: &str) -> bool {
     let padded = padded(text);
-    if !hit_lines(&padded, MATERIAL) || !hit_lines(&padded, DECLARATIVE) {
+    if !hit_lines(&padded, MATERIAL) || !hit_lines(&padded, DECLARATIVE) || selection_demand(text) {
         return false;
     }
     let lower = text.to_lowercase();
@@ -228,6 +108,61 @@ pub fn context_statement(text: &str) -> bool {
         && !super::gates::starts_with_prohibition(&lower)
         && super::gates::final_gate(&lower).is_none()
         && super::gates::named_gate(&lower).is_none()
+}
+
+/// A clause that selects rows of the material (R4 A10): led by a keep or an exclusion lead of
+/// the rule grammar (« keep the rows whose … », « garde les lignes dont … », « ignore the rows
+/// where … ») over a noun of the material. It demands an operation even where the grammar
+/// cannot read its predicate (« … whose status is a »): named work, never a description the
+/// material realizes nor a prompt's guidance.
+#[must_use]
+pub fn selection_demand(text: &str) -> bool {
+    let padded = padded(text);
+    let lead = padded.split_whitespace().next().unwrap_or_default();
+    (super::stages::keep_lead(lead) || super::rules::exclusion_lead(lead))
+        && hit_lines(&padded, MATERIAL)
+}
+
+/// Whether a clause restricts the material or conditions an operation (R4 A11): a keep or an
+/// exclusion lead, a negation (its pronouns and determiners too), « only », an exception, a
+/// condition, or a structure law (« nothing else », « no other file », a single request). It
+/// never asks for nothing. A path or a URL is a literal, never a word of the clause (the `out`
+/// of `./out/result.json` is no exclusion).
+#[must_use]
+pub fn restricts(text: &str) -> bool {
+    let words: Vec<&str> = text
+        .split_whitespace()
+        .filter(|token| !token.contains(['/', '\\']))
+        .collect();
+    !laws(text).is_empty()
+        || super::rule_tokens::fold(&words.join(" "))
+            .split(|c: char| !c.is_alphanumeric())
+            .any(|w| {
+                super::stages::restriction_word(w)
+                    || super::stages::keep_lead(w)
+                    || super::rules::exclusion_lead(w)
+            })
+}
+
+/// Whether a text's words are function words around one computation head the reader reads
+/// (« then compute », « calcule »): the head of a clause whose object the grammar read (R4 A11).
+#[must_use]
+pub fn only_a_compute_head(text: &str) -> bool {
+    let content: Vec<&str> = text
+        .split(|c: char| !(c.is_alphanumeric() || c == '\''))
+        .filter(|word| !word.is_empty() && !super::paths::function_word(word))
+        .collect();
+    !content.is_empty() && super::lexicon::compute_head(&content.join(" "))
+}
+
+/// Whether every word of a text is a function word of the reader's closed table (an article,
+/// a preposition, a connective such as « then », « et », « und »): words that state no operation
+/// of their own. An empty text has none.
+#[must_use]
+pub fn only_function_words(text: &str) -> bool {
+    text.split(|c: char| !(c.is_alphanumeric() || c == '\''))
+        .filter(|word| !word.is_empty())
+        .all(super::paths::function_word)
 }
 
 /// Whether a constraint needs no operation to carry it: a context statement or a structure
@@ -240,6 +175,29 @@ pub fn binds_no_operation(text: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A clause that restricts is never one a judge may call asking for nothing (R4 A11).
+    #[test]
+    fn a_restriction_is_read_in_its_words_and_its_structure_laws() {
+        for text in [
+            "Once the brief is read, nothing else runs",
+            "keep only the rows whose status is a",
+            "ignore the cancelled rows",
+            "sans les lignes annulées",
+            "ninguna fila cancelada",
+            "keine stornierten Zeilen",
+            "write it to ./out.md and nothing else",
+        ] {
+            assert!(restricts(text), "{text}");
+        }
+        for text in [
+            "write the sum to ./out/result.json",
+            "read ./data/input.csv",
+            "thanks",
+        ] {
+            assert!(!restricts(text), "{text}");
+        }
+    }
 
     #[test]
     fn structure_laws_are_read_in_six_languages() {
@@ -309,6 +267,40 @@ mod tests {
             "Nothing else.",
         ] {
             assert!(!context_statement(text), "{text}");
+        }
+    }
+
+    /// A selection of the material's rows is a demand in every language the grammar leads
+    /// with, whatever literal its predicate compares (R4 A10): « whose status is a » defeats
+    /// the rule grammar, never the category. The context sentences stay context; a keep of
+    /// something else than rows (« keep the tone formal ») stays a constraint of the prose.
+    #[test]
+    fn a_selection_of_the_rows_is_a_demand_never_context() {
+        for text in [
+            "keep the rows whose status is a",
+            "keep only the records where the grade is a",
+            "ignore the rows whose status is a",
+            "garde les lignes dont le statut est a",
+            "conserva le righe il cui codice contiene a",
+            "mantén las filas cuyo estado es a",
+            "behalte die Zeilen, deren Status a ist",
+        ] {
+            assert!(selection_demand(text), "{text}");
+            assert!(!context_statement(text), "{text}");
+            assert!(!binds_no_operation(text), "{text}");
+        }
+        for text in [
+            "Le fichier ./cave/recolte-2026.csv contient les colonnes parcelle,cepage,kg,degre",
+            "which has the columns loan_id,member,title,due_date,returned",
+            "Both requirements are mandatory and are checked on the produced file",
+            "The file ./people.json is a JSON array of records",
+            "La tabla tiene las columnas id,nombre,total",
+            "Die Datei hat die Spalten artikel,stueck",
+            "O ficheiro tem as colunas paciente,data,medico",
+            "Il file ha le colonne codice,prezzo",
+            "keep the tone formal",
+        ] {
+            assert!(!selection_demand(text), "{text}");
         }
         assert!(binds_no_operation("Nothing else."));
         assert!(binds_no_operation("which has the columns a,b,c"));

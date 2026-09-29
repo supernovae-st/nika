@@ -815,6 +815,27 @@ value carries its own type.
 
 ## Escaping
 
+**Single-brace reference lookalikes (normative)** · on every string surface
+that supports interpolation, `${` followed by optional whitespace, one of
+`inputs`, `const`, `secrets`, `with`, `tasks`, `group`, `item`, or `index`,
+optional whitespace and a dot MUST be rejected as `NIKA-VAR-005`. The finding
+MUST name both the double-brace `${{ ... }}` reference spelling and a quoted
+CEL string island for intended literal text. A missing closing brace
+does not make this head a literal. This is a refusal, never a second
+interpolation syntax and never an inferred dependency edge. Here whitespace
+means the Unicode `White_Space` property (not the broader Python `isspace` set).
+No automatic fix may choose between a reference and intended literal text.
+
+The rule applies outside real double-brace islands; it MUST NOT reinterpret a
+quoted CEL string within a real island. An escaped opener is not an island
+and does not hide a later single-brace reference head.
+Ordinary dollars (`price is $5`), shell parameters (`${HOME}` and
+`${name:-default}`), and identifiers merely beginning with a namespace name
+remain literal. To intentionally produce a lookalike, use a CEL string
+literal, for example `${{ '${ const.seed }' }}`. An unused-declaration hint
+MUST NOT recommend removing a declaration named by a recognized typo head;
+repairing the opener takes precedence over that deletion advice.
+
 To embed a literal `${{` in a string · use `\${{` (backslash escape). The engine MUST honor this.
 
 ```yaml

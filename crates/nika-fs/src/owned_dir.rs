@@ -207,16 +207,23 @@ impl OwnedDir {
     /// # Errors
     /// Returns an error when the child cannot be opened, written, or synchronized safely.
     pub fn append_line(&self, name: &str, line: &str) -> io::Result<()> {
-        let mut file = self.open_file(
-            name,
-            OFlag::O_CREAT
-                | OFlag::O_APPEND
-                | OFlag::O_WRONLY
-                | OFlag::O_NOFOLLOW
-                | OFlag::O_CLOEXEC,
-        )?;
-        file.write_all(line.as_bytes())?;
-        file.write_all(b"\n")?;
+        let flags = OFlag::O_APPEND | OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+        let mut file = match self.open_file(name, flags | OFlag::O_CREAT) {
+            // Some filesystems report ENOENT when another creator wins the race.
+            // Reopen the now-existing child once, without creating it or writing
+            // anything yet. Never retry an uncertain write or change exclusivity.
+            Err(error) if error.kind() == io::ErrorKind::NotFound => self.open_file(name, flags)?,
+            result => result?,
+        };
+        // One append operation includes the terminator. A short write is an
+        // uncertain partial effect, never a successful line or an automatic retry.
+        let framed = format!("{line}\n");
+        if file.write(framed.as_bytes())? != framed.len() {
+            return Err(io::Error::new(
+                io::ErrorKind::WriteZero,
+                "incomplete appended line",
+            ));
+        }
         file.sync_all()
     }
 
@@ -447,6 +454,36 @@ fn io_error(error: nix::errno::Errno) -> io::Error {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn concurrent_appenders_keep_each_line_and_terminator_together() {
+        let root = tempfile::tempdir().expect("root");
+        let dir = OwnedDir::open(root.path()).expect("directory");
+        let barrier = std::sync::Barrier::new(4);
+        std::thread::scope(|scope| {
+            for worker in 0..4 {
+                let dir = &dir;
+                let barrier = &barrier;
+                scope.spawn(move || {
+                    barrier.wait();
+                    for row in 0..32 {
+                        let line = format!("{worker}:{row}:{}", "x".repeat(2048));
+                        dir.append_line("rows.ndjson", &line).expect("whole row");
+                    }
+                });
+            }
+        });
+        let text = dir.read("rows.ndjson").expect("all rows");
+        let actual: std::collections::BTreeSet<_> = text.lines().map(str::to_owned).collect();
+        let expected: std::collections::BTreeSet<_> = (0..4)
+            .flat_map(|worker| {
+                (0..32).map(move |row| format!("{worker}:{row}:{}", "x".repeat(2048)))
+            })
+            .collect();
+        assert_eq!(actual, expected);
+        assert_eq!(text.lines().count(), 128);
+        assert!(text.ends_with('\n'));
+    }
 
     #[test]
     fn owned_directory_operations_round_trip() {

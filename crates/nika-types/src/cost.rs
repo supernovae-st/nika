@@ -48,6 +48,12 @@ pub enum UnpricedReason {
     /// draws quota or extra-usage, not metered USD here. Never « free »,
     /// never a fake zero (D-2026-08-04-N1 · A-7).
     SubscriptionQuota,
+    /// The provider reported complete usage and a USD tariff applied to the
+    /// route, yet no estimate was accepted: the meters contradicted the
+    /// admitted request or the response (over the output bound or the
+    /// context, another response model, inconsistent or unpriceable meters).
+    /// The spend is real and stays unknown; the price is not missing.
+    UsageRejected,
 }
 
 impl UnpricedReason {
@@ -60,6 +66,7 @@ impl UnpricedReason {
             Self::MissingCatalogPrice => "missing_catalog_price",
             Self::ProviderDidNotReportUsage => "provider_did_not_report_usage",
             Self::SubscriptionQuota => "subscription_quota",
+            Self::UsageRejected => "usage_rejected",
         }
     }
 }
@@ -297,12 +304,14 @@ mod tests {
             UnpricedReason::SubscriptionQuota.as_str(),
             "subscription_quota"
         );
+        assert_eq!(UnpricedReason::UsageRejected.as_str(), "usage_rejected");
         let all = [
             UnpricedReason::LocalModel,
             UnpricedReason::MockProvider,
             UnpricedReason::MissingCatalogPrice,
             UnpricedReason::ProviderDidNotReportUsage,
             UnpricedReason::SubscriptionQuota,
+            UnpricedReason::UsageRejected,
         ];
         for (i, a) in all.iter().enumerate() {
             for b in &all[i + 1..] {

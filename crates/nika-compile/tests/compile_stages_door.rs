@@ -9,8 +9,24 @@
 use nika_compile::{CompileRequest, CompileStatus, Strategy, compile};
 use serde_json::Value;
 
+mod common;
+
+/// The fixtures as the CLI observes them (R4 S1: an unobserved key is asked, not read).
+fn world() -> Value {
+    let sales: &[&str] = &["client", "amount", "country"];
+    let tickets: &[&str] = &["id", "status", "priority"];
+    let people: &[&str] = &["name", "email", "phone"];
+    let ventas: &[&str] = &["cliente", "importe"];
+    common::observed(&[
+        ("./sales.csv", sales),
+        ("./tickets.json", tickets),
+        ("./people.json", people),
+        ("./ventas.csv", ventas),
+    ])
+}
+
 fn ready(intent: &str) -> Value {
-    let out = compile(&CompileRequest::create(intent)).unwrap();
+    let out = compile(&CompileRequest::create(intent).with_knowledge(world())).unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
     assert!(
@@ -23,7 +39,7 @@ fn ready(intent: &str) -> Value {
 fn expression(doc: &Value) -> String {
     let jq = doc["tasks"]["compute"]["invoke"]["args"]["expression"].as_str();
     assert!(jq.is_some(), "no jq on `compute`: {doc:#}");
-    jq.unwrap_or_default().to_owned()
+    common::short(jq.unwrap_or_default())
 }
 
 fn writes(doc: &Value) -> Vec<String> {
@@ -94,7 +110,10 @@ fn a_spanish_filter_with_a_plural_write_head_compiles_at_the_door() {
         "Lee ./ventas.csv, conserva solo las filas cuyo importe supera 200 y escríbelas en ./grandes.csv",
     );
     let jq = expression(&doc);
-    assert!(jq.contains("(.importe | tonumber) > 200"), "{jq}");
+    assert!(
+        jq.contains(r#"((.importe | num) | dkey) > ("200" | dkey)"#),
+        "{jq}"
+    );
     assert_eq!(writes(&doc), ["./grandes.csv"]);
 }
 

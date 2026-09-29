@@ -27,6 +27,11 @@ use nika_session::{
     SessionRuntime, TurnOutcome, UserIntelligencePreference,
 };
 
+/// The verifier's closed choice, approved (native step 1, R4 A11): the explicit answer scripted at
+/// the judge's position, after a candidate READY in its authoring round. The judge's call is a
+/// real call, counted like any other.
+const JUDGE_APPROVES: &str = r#"{"choice":"faithful"}"#;
+
 const INPUT: &str = "Prépare la copie de entree.txt dans sortie.txt.";
 const NATIVE_INPUT: &str =
     "Je veux que sortie.txt contienne exactement les octets présents dans entree.txt.";
@@ -134,7 +139,7 @@ fn invalid_zero_and_positive_bounded_prepare_never_reach_the_wire() {
     assert_eq!(
         std::fs::read_dir(root).expect("root").count(),
         0,
-        "no proposal/Run/file effect"
+        "no save/Run/file effect before explicit consent"
     );
 }
 
@@ -163,7 +168,13 @@ fn amendment_protocol(input: &str, scenario: &str, native: bool) {
         .expect("candidate")
         .replace("./notes/brief.md", "./entree.txt")
         .replace("./out/copie.md", "./sortie.txt");
-    let seat = LoopbackSeat::start(vec![native_answer(&candidate)]);
+    // On the default strategy: COLD's plan request (a native-shaped answer is no plan, so the
+    // door escalates), the native request (READY), then its judgment (native step 1).
+    let seat = LoopbackSeat::start(vec![
+        native_answer(&candidate),
+        native_answer(&candidate),
+        JUDGE_APPROVES.to_owned(),
+    ]);
     child_run(&root, &home, &seat, scenario);
     seat.shutdown();
     let bodies = seat.bodies();
@@ -171,6 +182,11 @@ fn amendment_protocol(input: &str, scenario: &str, native: bool) {
         assert!(
             !bodies.is_empty(),
             "native authoring must actually reach the wire"
+        );
+        assert_eq!(
+            bodies.len(),
+            3,
+            "COLD, native, judgment; the monetary revision calls no one: {bodies:#?}"
         );
         assert!(
             bodies
@@ -201,8 +217,13 @@ fn child() {
             let input =
                 format!("Prépare la copie de entree.txt dans sortie.txt, budget {value} dollars.");
             let out = runtime.turn(&input);
-            assert!(matches!(out, TurnOutcome::Refusal(_)), "{out:?}");
-            assert!(runtime.pending_proposal().is_none());
+            let valid = matches!(value, "0" | "0,50" | "2");
+            if valid {
+                assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
+            } else {
+                assert!(matches!(out, TurnOutcome::Refusal(_)), "{out:?}");
+            }
+            assert_eq!(runtime.pending_proposal().is_some(), valid);
             assert!(runtime.pending_question().is_none());
         }
         return;

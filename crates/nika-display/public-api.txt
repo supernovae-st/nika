@@ -1,5 +1,8 @@
 pub mod nika_display
 pub mod nika_display::check_render
+pub mod nika_display::check_render::review
+pub fn nika_display::check_render::review::effect_rows(report: &nika_check::CheckReport) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_display::check_render::review::finding_rows(report: &nika_check::CheckReport) -> (alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<alloc::string::String>)
 pub enum nika_display::check_render::RepairTarget
 pub nika_display::check_render::RepairTarget::NonRegularSource
 pub nika_display::check_render::RepairTarget::RegistryArtifact

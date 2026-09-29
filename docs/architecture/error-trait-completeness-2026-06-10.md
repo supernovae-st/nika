@@ -79,6 +79,7 @@ timeout boundary (spec 03 · catchable · never retryable).
 | `ApprovalHistoryError` (nika-serve) | **transport-surface** · L4 monotonic approval-history authority refusal converted immediately into `JobStoreError` at the durable server boundary. It never crosses into the workflow/verb plane; zero NIKA registry range is owed. |
 | `ServerError` (nika-serve) | **transport-surface** · L4 HTTP listener lifecycle refusal mapped to bounded status/code JSON at the socket. It never crosses into the workflow/verb plane; zero NIKA registry range is owed (W06). |
 | `RunShapeError` (nika-service-execution) | **transport-surface** · host-side static unknown-cost Run shape refusal (`request_bound` · `project_file_path`), typed per refusal condition instead of a `String`. It never crosses into the workflow/verb plane: every consumer (the host Run cost review, Check readiness, the read/write witness) renders `Display`, the unchanged refusal wording, at its own boundary; zero NIKA registry range is owed (crate spec §Finite unknown-cost Run shape). |
+| `RunTimeModelRefusal` (nika-service-execution) | **transport-surface** · host-side static refusal of a run-time `model:` value that its inputs, defaults or const decide before any effect (`run_time_models` · C4), typed as `FreeShape` or `UnknownCost` instead of a `String`. It never crosses into the workflow/verb plane: its consumer (the host Run cost review) renders `Display` at its own boundary; zero NIKA registry range is owed (crate spec §Finite unknown-cost Run shape). Revisit trigger: a consumer that propagates it into the workflow/verb plane owes the `NikaErrorCode` impl and a registry range. |
 
 | `AuthoringContextError` (nika-session) | **wrapped-intermediate** · configuration, missing knowledge and changed-snapshot refusals become `AuthoringError::Context` before the seated authoring boundary. The Session renders this wrapper as a refusal with no write or substituted context. Its existing `AuthoringError` admission trigger still owns eventual registry classification; this intermediate enum does not mint a second range. |
 | `PendingTransformError` (nika-compile) | **wrapped-intermediate** · stale or malformed continuations are rendered as the existing authoring outcome diagnostic, not machinery errors; no execution authority or new error-code range is created. |
@@ -128,5 +129,18 @@ timeout boundary (spec 03 · catchable · never retryable).
    FILE-class `VerbOutput`. Exempted `transport-surface` (allowlist row
    · the RecoverError/PackError precedent); the spec-side mint for
    fortress refusals is NEP-0012 ratification's owed.
+
+7. **`Refusal`** (nika-dap `cost_journal/reconcile.rs`) — the cost-journal
+   inspection/reconciliation API's typed refusal (born typed 2026-09-28).
+   It is never evaluated as a workflow task diagnostic. `Display` and its
+   stable `kind` slug are rendered by `nika trace cost` in its versioned
+   inspect/reconcile documents. Environment refusals exit 3, other refusals
+   exit 2; inspecting an absent journal returns an empty report and exit 0.
+   Its public slugs are
+   `busy`, `no_journal`, `other_project`, `unknown_run`, `inspect_first`,
+   `not_reconcilable`, `stale`, `invalid` and `io`. Exempted
+   `transport-surface` by the RecoverError / PackError / DecodeRefusal
+   precedent. Zero NIKA range owed; propagating this refusal into a
+   workflow task would require a separate registry/spec decision.
 
 🦋

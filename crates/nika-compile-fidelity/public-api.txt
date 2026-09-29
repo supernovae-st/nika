@@ -56,6 +56,7 @@ pub fn nika_compile_fidelity::fidelity::effect_and_gate_tasks(doc: &serde_json::
 pub fn nika_compile_fidelity::fidelity::invented(intent: &str, literals: &[alloc::string::String], allowed: &[alloc::string::String], out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::invented_gates(plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::laws(intent: &str, plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, allowed: &[alloc::string::String], waived: &[alloc::string::String], clarified: &[alloc::string::String], out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
+pub fn nika_compile_fidelity::fidelity::laws_observed(intent: &str, plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, allowed: &[alloc::string::String], waived: &[alloc::string::String], clarified: &[alloc::string::String], world: core::option::Option<&serde_json::value::Value>, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::prohibitions(plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::raw_text_as_records(doc: &serde_json::value::Value, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::stated_paths(intent: &str, doc: &serde_json::value::Value, waived: &[alloc::string::String], clarified: &[alloc::string::String], out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
@@ -63,6 +64,9 @@ pub fn nika_compile_fidelity::fidelity::strings(value: &serde_json::value::Value
 pub fn nika_compile_fidelity::fidelity::tool_of<'a>(doc: &'a serde_json::value::Value, task: &str) -> &'a str
 pub fn nika_compile_fidelity::fidelity::unbound_final_gate(plan: &nika_compile_reader::plan::Plan) -> bool
 pub fn nika_compile_fidelity::fidelity::unsettled_performed(plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value) -> alloc::vec::Vec<alloc::string::String>
+pub mod nika_compile_fidelity::predicate
+pub fn nika_compile_fidelity::predicate::rederives(rule: &nika_compile_reader::rules::Rule, intent: &str, slots: &[nika_compile_reader::plan::Slot], columns: &[alloc::string::String]) -> bool
+pub fn nika_compile_fidelity::predicate::typed_rule(intent: &str, evidence: &str, computation: &serde_json::value::Value, unknowns: &[alloc::string::String], columns: &[alloc::string::String]) -> core::option::Option<(nika_compile_reader::rules::Rule, alloc::vec::Vec<nika_compile_reader::plan::Slot>)>
 pub mod nika_compile_fidelity::sketch
 pub enum nika_compile_fidelity::sketch::Verb
 pub nika_compile_fidelity::sketch::Verb::Agent

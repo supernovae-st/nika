@@ -65,7 +65,8 @@ use nika_kernel::io::clock::ClockDyn;
 use nika_kernel::io::fs::{FsListDyn, FsMetaDyn, FsReadDyn, FsWriteDyn};
 use nika_kernel::io::http::{HttpGetDyn, HttpPostDyn};
 use nika_kernel::runtime::tool_executor::{
-    ToolBatchDyn, ToolCall, ToolErrorMeta, ToolExecError, ToolExecuteDyn, ToolResult,
+    ToolBatchDyn, ToolCall, ToolErrorDetails, ToolErrorMeta, ToolExecError, ToolExecuteDyn,
+    ToolResult,
 };
 
 pub use defs::{TOOLS_EXPORT_VERSION, tool_defs, tools_json};
@@ -688,12 +689,40 @@ fn render(call_id: &str, outcome: BuiltinOutcome) -> ToolResult {
             // error flattening to a non-retryable `NIKA-451`. `content` keeps
             // the `<code> · <message>` text view the agent loop reads.
             ToolResult::error(call_id, format!("{} · {}", failure.code, failure.message))
-                .with_error_meta(ToolErrorMeta::new(
-                    Some(failure.code.to_owned()),
-                    failure.transient,
-                ))
+                .with_error_meta(
+                    ToolErrorMeta::new(Some(failure.code.to_owned()), failure.transient)
+                        .with_details(public_details(failure.details.as_ref())),
+                )
         }
     }
+}
+
+/// The failure facts that cross into the engine's error plane (stdlib §Status
+/// as data): a typed allowlist owned at this one builtin→wire seam. Only the
+/// received HTTP `status_code` (an integer an HTTP transport can report,
+/// 100..=999) and the call's `accepted` set (re-read through its one validator,
+/// `nika_cap::fetch_response_statuses`) cross. Every other key (a provider's
+/// text, a URL, a body, a wrapped cause) and every malformed value stay
+/// behind, never coerced.
+fn public_details(details: Option<&serde_json::Value>) -> ToolErrorDetails {
+    let mut public = ToolErrorDetails::new();
+    let Some(details) = details.and_then(serde_json::Value::as_object) else {
+        return public;
+    };
+    if let Some(status) = details
+        .get("status_code")
+        .and_then(serde_json::Value::as_u64)
+        .and_then(|status| u16::try_from(status).ok())
+        .filter(|status| (100..=999).contains(status))
+    {
+        public = public.with_status_code(status);
+    }
+    if let Some(accepted) = details.get("accepted").and_then(|set| {
+        nika_cap::fetch_response_statuses(&serde_json::json!({ "accept": set })).ok()
+    }) {
+        public = public.with_accepted(accepted);
+    }
+    public
 }
 
 impl<F, H, C, Em, P, W> ToolExecuteDyn for BuiltinDispatcher<F, H, C, Em, P, W>
@@ -1117,6 +1146,197 @@ mod tests {
                 .error_meta
                 .is_none()
         );
+    }
+
+    /// The P7 law (stdlib §Status as data): the received status and the
+    /// accepted set cross the seam as typed facts; nothing else does, and a
+    /// malformed fact is dropped, never coerced into another one.
+    #[test]
+    fn render_failure_forwards_only_validated_status_facts() {
+        use serde_json::json;
+        let details_of = |details: serde_json::Value| {
+            render(
+                "t",
+                Err(BuiltinFailure::new("NIKA-BUILTIN-FETCH-001", "HTTP 503").with_details(details)),
+            )
+            .error_meta
+            .expect("a failure carries metadata")
+            .details
+        };
+        let facts = |status: u16, accepted: Option<Vec<u16>>| {
+            let details = ToolErrorDetails::new().with_status_code(status);
+            Some(accepted.map_or(details.clone(), |set| details.with_accepted(set)))
+        };
+        // What the producers set today, and exactly what crosses.
+        assert_eq!(details_of(json!({"status_code": 503})), facts(503, None));
+        assert_eq!(
+            details_of(json!({"status_code": 404, "accepted": [404], "cause": "not json"})),
+            facts(404, Some(vec![404]))
+        );
+        assert_eq!(
+            details_of(
+                json!({"status_code": 400, "code": "content_policy_violation",
+                "type": "image_generation_user_error", "moderation_details": {"hate": true}})
+            ),
+            facts(400, None)
+        );
+        assert_eq!(
+            details_of(json!({"status_code": 429, "status": "RESOURCE_EXHAUSTED"})),
+            facts(429, None)
+        );
+        for nothing in [
+            json!({"block_reason": "SAFETY"}),
+            json!({"pixels": 99, "max": 10}),
+            json!("status 503"),
+            json!([503]),
+            json!(null),
+            json!({}),
+        ] {
+            assert_eq!(details_of(nothing.clone()), None, "{nothing}");
+        }
+        for bad in [
+            json!("503"),
+            json!(503.0),
+            json!(99),
+            json!(1000),
+            json!(-1),
+            json!(true),
+            json!(70000),
+        ] {
+            assert_eq!(details_of(json!({"status_code": bad})), None, "{bad}");
+        }
+        for bad in [
+            json!([200, 200]),
+            json!(["${{ inputs.code }}"]),
+            json!([199]),
+            json!([600]),
+            json!([404.0]),
+            json!(404),
+            json!([]),
+            json!((200..217).collect::<Vec<_>>()),
+        ] {
+            assert_eq!(
+                details_of(json!({"status_code": 503, "accepted": bad})),
+                facts(503, None),
+                "{bad}"
+            );
+        }
+        // The text the agent loop reads never changes.
+        let failed = render(
+            "t",
+            Err(BuiltinFailure::new(
+                "NIKA-BUILTIN-FETCH-001",
+                "HTTP 503 from https://x.test/busy",
+            )
+            .with_details(json!({"status_code": 503, "accepted": [200]}))),
+        );
+        assert_eq!(
+            failed.content,
+            "NIKA-BUILTIN-FETCH-001 · HTTP 503 from https://x.test/busy"
+        );
+        let plain = render("t", Err(BuiltinFailure::new("NIKA-BUILTIN-FETCH-001", "x")));
+        assert_eq!(plain.error_meta.expect("meta").details, None);
+    }
+
+    /// Producer to wire: the real `nika:fetch` failures through the dispatcher
+    /// carry their status facts; a transport failure fabricates none.
+    #[tokio::test]
+    async fn fetch_failures_through_the_dispatcher_carry_their_status_facts() {
+        use serde_json::json;
+        async fn fetched(http: MockHttp, args: serde_json::Value) -> ToolResult {
+            dispatcher(MockFs::new(), http, MockClock::new())
+                .execute(call("nika:fetch", args))
+                .await
+                .expect("dispatches")
+        }
+        let busy = fetched(
+            MockHttp::new().enqueue_ok(503, "busy"),
+            json!({"url": "https://service.test/busy", "mode": "raw", "response": {"accept": [200]}}),
+        )
+        .await;
+        let meta = busy.error_meta.expect("coded");
+        assert_eq!(
+            meta.details,
+            Some(
+                ToolErrorDetails::new()
+                    .with_status_code(503)
+                    .with_accepted(vec![200])
+            )
+        );
+        assert!(meta.transient, "a keyless GET 503 stays retryable");
+        let missing = fetched(
+            MockHttp::new().enqueue_ok(404, "gone"),
+            json!({"url": "https://service.test/missing"}),
+        )
+        .await;
+        assert_eq!(
+            missing.error_meta.expect("coded").details,
+            Some(ToolErrorDetails::new().with_status_code(404))
+        );
+        let html = fetched(
+            MockHttp::new().enqueue_ok(404, "<html>not json</html>"),
+            json!({"url": "https://service.test/html", "mode": "jq", "jq": ".",
+                "response": {"accept": [404]}}),
+        )
+        .await;
+        assert!(html.content.contains("not JSON"), "{}", html.content);
+        assert_eq!(
+            html.error_meta.expect("coded").details,
+            Some(
+                ToolErrorDetails::new()
+                    .with_status_code(404)
+                    .with_accepted(vec![404])
+            )
+        );
+        let refused = fetched(
+            MockHttp::new().enqueue_err(nika_kernel::io::http::HttpError::Connection {
+                reason: "refused".to_owned(),
+            }),
+            json!({"url": "https://service.test/x", "response": {"accept": [200]}}),
+        )
+        .await;
+        assert_eq!(refused.error_meta.expect("coded").details, None);
+    }
+
+    /// A boundary refusal (the `permits.net.http` escape · the SSRF floor)
+    /// happens before any response, so it reports no status facts, even on
+    /// an opted-in call. The agent loop's hard stop keys on that undetailed
+    /// report (nika-verb-agent `security_boundary_code`): a refusal that
+    /// gained facts would silently become feedback to the model.
+    #[tokio::test]
+    async fn a_boundary_refusal_carries_no_status_facts() {
+        use nika_kernel::io::http::HttpError;
+        let refusals = [
+            (
+                HttpError::SsrfBlocked {
+                    url: "http://169.254.169.254/".to_owned(),
+                },
+                "NIKA-SEC-005",
+            ),
+            (
+                HttpError::HostNotAllowed {
+                    host: "elsewhere.test".to_owned(),
+                },
+                "NIKA-SEC-004",
+            ),
+        ];
+        for (err, code) in refusals {
+            let refused = dispatcher(
+                MockFs::new(),
+                MockHttp::new().enqueue_err(err),
+                MockClock::new(),
+            )
+            .execute(call(
+                "nika:fetch",
+                serde_json::json!({"url": "https://service.test/x",
+                        "response": {"accept": [200]}}),
+            ))
+            .await
+            .expect("dispatches");
+            let meta = refused.error_meta.expect("coded");
+            assert_eq!(meta.spec_code.as_deref(), Some(code));
+            assert_eq!(meta.details, None, "{code}");
+        }
     }
 
     #[tokio::test]

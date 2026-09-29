@@ -339,6 +339,23 @@ pub fn retry_is_effect_safe<'a>(
 /// above). Spec `stdlib/builtins-v0.1.md` §nika:fetch · traverse.
 pub const MAX_TRAVERSE_PAGES: u64 = 25;
 
+/// Single-fetch arguments excluded by `traverse:`. The static shape
+/// checker and runtime crawl parser share this closed vocabulary.
+pub const TRAVERSE_EXCLUDED_KEYS: [&str; 8] = [
+    "mode",
+    "selector",
+    "jq",
+    "body",
+    "form",
+    "multipart",
+    "headers",
+    "response",
+];
+
+/// Maximum number of explicitly named final statuses in one fetch
+/// response observation policy. Shared by shape validation and tool schema.
+pub const MAX_FETCH_RESPONSE_STATUSES: usize = 16;
+
 /// `nika:fetch` `multipart:` part-key vocabulary — the CLOSED shape
 /// (`{name, value}` text XOR `{name, path, filename?, content_type?}`
 /// file), shared by the static shape rule (`nika-schema`) and the

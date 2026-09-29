@@ -241,7 +241,8 @@ fn prequestion_typeahead_paste_and_ctrl_c_never_approve_the_session_question() {
     // details: the same review's evidence, answering nothing.
     p.send("details\r").unwrap();
     p.expect("invocation").unwrap();
-    p.expect("endpoint").unwrap();
+    // The route is named by its origin, never its path (8e5eb213d).
+    p.expect("origin").unwrap();
     p.expect("reply ›").unwrap();
     assert_eq!(calls(root.path()), 0);
     // A paste after the question is data in the composer; Ctrl+C cancels.

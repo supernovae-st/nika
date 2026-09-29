@@ -572,26 +572,39 @@ fn local_and_mock_seats_still_admit_under_a_cap() {
 }
 
 /// The honest boundary of the fix: with NO cap armed the admission gate
-/// makes no budget claim — the FORM law (NIKA-PROVIDER) still speaks
-/// loud at dispatch, per task, and the run fails there as today. What
-/// changed is that an ARMED cap can no longer be disarmed by an
-/// uncataloged id.
-#[test]
-fn without_a_cap_the_gate_makes_no_budget_claim() {
+/// makes no budget claim. What #1368 changed is that an ARMED cap can no
+/// longer be disarmed by an uncataloged id. B9 (decision B): the MODELS rung
+/// `nika check` applies to this literal seat now speaks at admission for
+/// every embedder, where the FORM law used to fail the run at dispatch:
+/// NIKA-1707 with the resolver's own words, before the prologue.
+#[tokio::test]
+async fn without_a_cap_the_gate_makes_no_budget_claim() {
     let wf = parse(&gauntlet_wf("claude-opus-4.1"));
     let report = nika_check::check(&wf);
+    let err = gates(
+        &wf,
+        &report,
+        &BTreeMap::new(),
+        None,
+        None,
+        (None, &[], None),
+    )
+    .expect_err("the MODELS rung refuses a seat the resolver cannot name");
     assert!(
-        gates(
-            &wf,
-            &report,
-            &BTreeMap::new(),
-            None,
-            None,
-            (None, &[], None)
-        )
-        .is_ok(),
-        "no budget armed → no budget-floor claim (dispatch owns the FORM refusal)"
+        !matches!(err, RuntimeError::BudgetFloor { .. }),
+        "no budget armed → no budget-floor claim"
     );
+    let RuntimeError::ReportMismatch { detail } = &err else {
+        panic!("the MODELS rung must return a report mismatch");
+    };
+    let refusal = nika_providers::resolve_refusal("claude-opus-4.1").expect("the resolver refuses");
+    assert!(
+        detail.contains("`claude-opus-4.1`") && detail.contains(&refusal.why),
+        "the refusal must name the requested model and resolver reason"
+    );
+    // The zero-effect boundary: the whole run refuses before any event.
+    let err = run_refused(&runtime_with(MockShell::new()), &wf).await;
+    assert_eq!(err.spec_code(), "NIKA-1707");
 }
 
 /// The run-level pin: the refusal precedes the prologue — zero events,

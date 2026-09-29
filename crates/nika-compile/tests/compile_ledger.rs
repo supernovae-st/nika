@@ -11,7 +11,42 @@ use nika_compile::{
     CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind, TriggerKind, TriggerStatus,
     outcome_document,
 };
+use nika_compile_cognition::{Cognition, NoProvider, compile_with_cognition};
 use serde_json::{Value, json};
+
+mod common;
+use common::{JudgedSeat, NoChoice};
+
+/// The same answer round under this round's judge, the explicit approving double over a seat
+/// that settles no other choice (R4 A11): a record's unverified remainder is judged, its closed
+/// duties replay as they are.
+async fn judged(intent: &str, record: &Value, answers: &[(&str, &str)]) -> CompileOutcome {
+    let mut request = CompileRequest::create(intent).with_plan(record.clone());
+    for (key, literal) in answers {
+        request = request.answer(*key, *literal);
+    }
+    let judge = JudgedSeat::approving(&NoChoice);
+    let cognition = Cognition::<NoProvider> {
+        provider: None,
+        seat: Some(&judge),
+    };
+    compile_with_cognition(&request, cognition).await.unwrap()
+}
+
+/// A plain replay of `record` names `clause`, which no element of the seat's plan names, as its
+/// remainder INCOMPLETE (Q2, R4 A11).
+fn names_its_remainder(intent: &str, record: &Value, clause: &str) {
+    let plain = replay(intent, record, &[MODEL]);
+    assert_eq!(plain.status, CompileStatus::Incomplete, "{plain:#?}");
+    let open = &plain.provenance.decision.as_ref().unwrap()["pending"]["open"];
+    assert!(
+        open.as_array()
+            .unwrap()
+            .iter()
+            .any(|duty| duty["clause"] == clause && duty["witness"].is_null()),
+        "{open:#}"
+    );
+}
 
 /// The answer-round door the CLI control uses: a trusted recorded plan replayed for its
 /// intent, zero provider calls.
@@ -79,8 +114,8 @@ fn chapters_record() -> Value {
 // kind, its state and the element carrying it. A READY candidate has no unresolved duty;
 // a constraint no step can carry ends INCOMPLETE naming it, never a green run on a dropped
 // instruction.
-#[test]
-fn the_ledger_names_the_carrier_of_every_stated_duty_and_refuses_a_silent_one() {
+#[tokio::test]
+async fn the_ledger_names_the_carrier_of_every_stated_duty_and_refuses_a_silent_one() {
     let out = replay(CHAPTERS, &chapters_record(), &[MODEL]);
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let record = out.provenance.decision.clone().unwrap();
@@ -127,7 +162,10 @@ fn the_ledger_names_the_carrier_of_every_stated_duty_and_refuses_a_silent_one() 
     let mut gated = headline_record(None);
     gated["effects"][0]["policy"] = json!("human_first");
     gated["constraints"] = json!(["a single line, under 90 characters"]);
-    let out = replay(HEADLINE, &gated, &[MODEL]);
+    // The seat's record names no element for « nothing else runs », a restriction: a plain
+    // replay names it INCOMPLETE (Q2); a round that judges it reads the carriers below.
+    names_its_remainder(HEADLINE, &gated, "nothing else runs");
+    let out = judged(HEADLINE, &gated, &[MODEL]).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let record = out.provenance.decision.clone().unwrap();
     let by_kind: Vec<(&str, &str, &str)> = record["ledger"]
@@ -471,20 +509,22 @@ fn headline_record(trigger: Option<&str>) -> Value {
       "obligations":[],"bindings":[],"constraints":[],"unknowns":[],"trigger":trigger,"strategy":"cold"})
 }
 
-#[test]
-fn a_trigger_over_the_request_s_own_material_never_declares_an_item() {
-    let sequenced = replay(
+#[tokio::test]
+async fn a_trigger_over_the_request_s_own_material_never_declares_an_item() {
+    // « nothing else runs » is judged in the round (R4 A11): this test reads the emitted source.
+    let sequenced = judged(
         HEADLINE,
         &headline_record(Some("once the brief is read")),
         &[MODEL],
-    );
+    )
+    .await;
     assert_eq!(sequenced.status, CompileStatus::Ready, "{sequenced:#?}");
     let doc = document(&sequenced);
     assert!(doc.get("inputs").is_none(), "{doc:#}");
     let prompt = tasks(&doc)["draft"]["infer"]["prompt"].as_str().unwrap();
     assert!(!prompt.contains("inputs.item"), "{prompt}");
     // Metamorphic pair: the sequencing trigger changes nothing in the emitted source.
-    let plain = replay(HEADLINE, &headline_record(None), &[MODEL]);
+    let plain = judged(HEADLINE, &headline_record(None), &[MODEL]).await;
     assert_eq!(sequenced.candidate, plain.candidate);
     // No material of its own: the item IS the material, as before.
     let intent = "For each incoming brief, write a formal headline to ./out/headline.txt.";
@@ -740,8 +780,8 @@ fn a_quantified_request_without_a_corpus_asks_where_the_items_live() {
 // ── a ranking without its count asks how many rows to keep ───────────────────────
 // wave28 v2-53: « die meistverkauften Artikel » with no count compiled to a full descending
 // sort; the seed wanted the count asked. The answer bounds the sort.
-#[test]
-fn a_ranking_without_its_count_asks_how_many_rows_then_keeps_them() {
+#[tokio::test]
+async fn a_ranking_without_its_count_asks_how_many_rows_then_keeps_them() {
     let intent = "Read ./shop/sales.csv (columns item,units) and write the top-selling items by units to ./out/top.csv.";
     let record = json!({"operations":[
         {"op":"read","detail":"./shop/sales.csv","evidence":"Read ./shop/sales.csv (columns item,units)","categories":[]},
@@ -755,7 +795,9 @@ fn a_ranking_without_its_count_asks_how_many_rows_then_keeps_them() {
     assert!(asked.candidate.is_none(), "{asked:#?}");
     assert_eq!(keys(&asked), ["const.top_n"], "{asked:#?}");
     assert!(label(&asked, "const.top_n").contains("top-selling"));
-    let out = replay(intent, &record, &[("const.top_n", r#""3""#)]);
+    // The seat typed the ranking; no law reads it from the words, so the answered round judges
+    // that remainder (R4 A11) before this test reads the emitted cut.
+    let out = judged(intent, &record, &[("const.top_n", r#""3""#)]).await;
     let doc = document(&out);
     let expression = tasks(&doc)["compute"]["invoke"]["args"]["expression"]
         .as_str()

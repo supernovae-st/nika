@@ -84,16 +84,12 @@ where
         a.sent()?;
     }
     *sent = true;
-    let requested_endpoint = crate::retry::BillingRoute::new(
-        rp.profile.id.into(),
-        rp.wire_model.clone(),
-        rp.base_url.clone(),
-    )
-    .map(|r| r.endpoint);
-    *call = Some(nika_types::cost::InferenceCall::new());
-    if let Some(c) = call {
-        c.requested_endpoint = requested_endpoint;
-    }
+    open_call(rp, call);
+    // What the body carried, read back from the bytes this dispatch sends (R4 B16).
+    let wire = http_req
+        .body
+        .as_deref()
+        .map(nika_kernel::ai::provider::ReasoningWire::of_body);
     let resp = http.post(http_req).await.map_err(|e| map_http_err(&e))?;
     *route = crate::retry::BillingRoute::new(
         rp.profile.id.into(),
@@ -107,6 +103,11 @@ where
         return Err(account.refuse("transport endpoint changed; charge unknown"));
     }
     if !(200..300).contains(&resp.status) {
+        // A 429/503 received from the unchanged endpoint is answered; every
+        // other status stays with the attempt's drop: Uncertain.
+        if let Some(a) = &mut attempt {
+            a.answered(resp.status, &resp.final_url);
+        }
         return Err(status_error(
             resp.status,
             &resp.body,
@@ -114,12 +115,39 @@ where
             &rp.wire_model,
         ));
     }
-    let response = parse_response(rp, &resp.body, &names)?;
+    let mut response = parse_response(rp, &resp.body, &names)?;
+    response.reasoning_wire = wire;
     crate::retry::record(call, route.as_ref(), Some(&response), declared.as_ref());
-    if let Some(a) = &mut attempt {
-        a.settle(&response)?;
+    if let Some(a) = &mut attempt
+        && let Err(refused) = a.settle(&response)
+    {
+        // The account now holds this charge as unknown: the dispatch keeps
+        // its usage evidence but never a price beside that uncertainty.
+        if let Some(c) = call {
+            c.estimated_usd = None;
+        }
+        return Err(refused);
     }
     Ok(response)
+}
+
+/// Open this dispatch's cost record at the endpoint its request is sent to, and journal the
+/// dispatch as sent.
+fn open_call(
+    rp: &ResolvedProvider<impl Sized>,
+    call: &mut Option<nika_types::cost::InferenceCall>,
+) {
+    let requested_endpoint = crate::retry::BillingRoute::new(
+        rp.profile.id.into(),
+        rp.wire_model.clone(),
+        rp.base_url.clone(),
+    )
+    .map(|r| r.endpoint);
+    *call = Some(nika_types::cost::InferenceCall::new());
+    if let Some(c) = call {
+        c.requested_endpoint = requested_endpoint;
+    }
+    crate::dispatch_journal::sent(call.as_ref());
 }
 
 #[cfg(test)]
@@ -196,6 +224,7 @@ fn build_request(
         obj.remove("max_completion_tokens");
         obj.insert(tariff.output_token_param.into(), json!(max));
     }
+    super::reasoning::apply(&mut body, &req, rp.profile.id, &rp.wire_model, &rp.base_url)?;
     super::json_mode::bounded_reasoning(&mut body, &req, rp.profile.id, &rp.wire_model);
     let bytes = serde_json::to_vec(&body).map_err(|e| ProviderError::Other {
         reason: format!("request serialization failed: {e}"),
@@ -478,7 +507,9 @@ fn parse_response(
         });
     }
 
-    let usage = v.pointer("/usage").map(usage_from).unwrap_or_default();
+    let reported_usage = v.pointer("/usage").and_then(usage_from);
+    let usage_reported = reported_usage.is_some();
+    let usage = reported_usage.unwrap_or_default();
 
     let raw_finish = v
         .pointer("/choices/0/finish_reason")
@@ -492,13 +523,10 @@ fn parse_response(
     {
         resp.stop_reason = StopReason::ContentFilter;
     }
-    // The budget law (R3-F1): an omitting backend gets an UNREPORTED
-    // mark, not a fabricated zero the budgets would trust — and an EMPTY
-    // usage object carries no signal, same class as the omission.
-    resp.usage_reported = v.pointer("/usage").is_some_and(|u| {
-        !u.is_null()
-            && (u.pointer("/prompt_tokens").is_some() || u.pointer("/completion_tokens").is_some())
-    });
+    // Both base counters must be actual unsigned integers. Missing, partial or
+    // malformed usage stays unreported, never a fabricated reported zero.
+    // Complete priced meters remain the separate admission law below.
+    resp.usage_reported = usage_reported;
     if super::admission::complete_usage(rp.profile.id, &v) {
         resp.usage_completeness = nika_kernel::ai::provider::UsageCompleteness::Complete;
     }
@@ -532,17 +560,14 @@ fn parse_response(
 /// under `prompt_tokens_details`; both spellings land in
 /// `cache_read_tokens`, so `usd_for_split` prices the hit portion at the
 /// catalog's cache-read rate instead of the full input rate.
-fn usage_from(u: &Value) -> TokenUsage {
+fn usage_from(u: &Value) -> Option<TokenUsage> {
     let at = |key: &str| u.pointer(key).and_then(Value::as_u64);
-    let mut usage = TokenUsage::new(
-        at("/prompt_tokens").unwrap_or_default(),
-        at("/completion_tokens").unwrap_or_default(),
-    );
+    let mut usage = TokenUsage::new(at("/prompt_tokens")?, at("/completion_tokens")?);
     usage.cache_read_tokens =
         at("/prompt_tokens_details/cached_tokens").or_else(|| at("/prompt_cache_hit_tokens"));
     usage.reasoning_tokens = at("/completion_tokens_details/reasoning_tokens");
     usage.total_tokens = at("/total_tokens");
-    usage
+    Some(usage)
 }
 
 fn map_finish(raw: Option<&str>) -> StopReason {
@@ -657,7 +682,9 @@ impl EventMapper for CompatMapper {
             // cached prompt must not price at the full input rate the
             // day a verb streams. `stream_options.include_usage` is
             // already requested above.
-            out.push(Ok(InferEvent::Usage(usage_from(u))));
+            if let Some(usage) = usage_from(u) {
+                out.push(Ok(InferEvent::Usage(usage)));
+            }
         }
         out
     }

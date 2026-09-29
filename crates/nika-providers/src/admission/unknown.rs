@@ -71,16 +71,27 @@ pub struct UnknownCostChoice {
     model: String,
     endpoint: String,
     max_requests: u32,
+    /// Requests in flight at once when widened past one; absent is the
+    /// historical one-at-a-time choice, serialized byte for byte as before.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_in_flight: Option<u32>,
+    /// The Run authored retries: only then does a received 429/503 answer its
+    /// attempt; absent (false) keeps the historical bytes and Uncertain law.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    authored_retry: bool,
     max_output_tokens: u32,
     timeout_ms: u64,
     declared_tariff: Option<super::DeclaredTariff>,
 }
 impl UnknownCostChoice {
     /// Bind an explicit choice to one candidate, invocation and full request
-    /// route. Every request has finite output/time bounds; retry is always zero
-    /// and only one request may be in flight. Endpoint bytes are never shortened.
+    /// route. Every request has finite output/time bounds; no transport retry,
+    /// and one request in flight unless [`Self::with_max_in_flight`] widens it.
+    /// The endpoint must be canonical ([`crate::canonical_endpoint`]): its bytes
+    /// are exactly what the transport dials and are never shortened or rewritten.
     /// # Errors
-    /// Empty identity, credentials/query/fragment, zero or unrepresentable bounds.
+    /// Empty identity, a noncanonical endpoint (credentials, query, fragment, a
+    /// form the URL parser would rewrite, an `@`), zero or unrepresentable bounds.
     #[allow(
         clippy::too_many_arguments,
         reason = "the immutable choice requires independent identity and finite bound axes"
@@ -100,9 +111,8 @@ impl UnknownCostChoice {
         if [&candidate, &invocation, &provider, &model]
             .iter()
             .any(|s| s.trim().is_empty())
-            || !endpoint.starts_with("https://")
-            || endpoint.contains(['?', '#', '@'])
-            || endpoint.chars().any(char::is_whitespace)
+            || !crate::canonical_endpoint(&endpoint)
+            || endpoint.contains('@')
             || max_requests == 0
             || max_output_tokens == 0
             || timeout_ms == 0
@@ -118,10 +128,33 @@ impl UnknownCostChoice {
             model,
             endpoint,
             max_requests,
+            max_in_flight: None,
+            authored_retry: false,
             max_output_tokens,
             timeout_ms,
             declared_tariff: None,
         })
+    }
+    /// The Run authored retries inside the confirmed total: a 429 or 503
+    /// received from the reserved endpoint answers its attempt (usage and USD
+    /// cost unknown) instead of leaving the account Uncertain.
+    #[must_use]
+    pub fn with_authored_retry(mut self) -> Self {
+        self.authored_retry = true;
+        self
+    }
+    /// At most `n` of this choice's requests in flight at once, inside the same
+    /// confirmed total; each reservation takes one of both atomically.
+    /// # Errors
+    /// Zero, or more than the confirmed total.
+    pub fn with_max_in_flight(mut self, n: u32) -> Result<Self, ProviderError> {
+        if n == 0 || n > self.max_requests {
+            return Err(denied(
+                "unknown-cost concurrency must be positive and within the confirmed total",
+            ));
+        }
+        self.max_in_flight = (n > 1).then_some(n);
+        Ok(self)
     }
     /// Exact selected adapter namespace.
     #[must_use]
@@ -137,6 +170,12 @@ impl UnknownCostChoice {
     #[must_use]
     pub fn endpoint(&self) -> &str {
         &self.endpoint
+    }
+    /// The selected endpoint's origin ([`crate::route_origin`]): what a durable
+    /// record names in its place. `None` when it has none to project.
+    #[must_use]
+    pub fn origin(&self) -> Option<String> {
+        crate::route_origin(&self.endpoint)
     }
     /// Attach an explicitly declared estimate. This does not turn unknown-cost
     /// authorization into a dollar guarantee or permit a hard-cap override.
@@ -206,7 +245,7 @@ impl InferenceAdmission {
             s.unknown = Some(choice);
             s.overridden_defaults = policy.defaults;
         }
-        account.1 = false;
+        account.1.bound = false;
         Ok(account)
     }
     /// Bind a handle to the candidate and invocation independently known by
@@ -223,7 +262,13 @@ impl InferenceAdmission {
                 "unknown-cost choice belongs to a different candidate or invocation",
             ));
         }
-        Ok(Self(self.0.clone(), true))
+        Ok(Self(
+            self.0.clone(),
+            super::scope::HandleScope {
+                bound: true,
+                ..self.1
+            },
+        ))
     }
     pub(crate) fn check_route(
         &self,
@@ -231,9 +276,16 @@ impl InferenceAdmission {
         model: &str,
         endpoint: &str,
     ) -> Result<(), ProviderError> {
+        if !self.tracks_route(provider, model, endpoint) {
+            return Err(denied(
+                "route is outside this declared-free observation account",
+            ));
+        }
         let s = self.lock()?;
         if let Some(c) = &s.unknown {
-            if !self.1 || !c.matches(provider, model, endpoint) || s.status != AdmissionState::Open
+            if !self.1.bound
+                || !c.matches(provider, model, endpoint)
+                || s.status != AdmissionState::Open
             {
                 return Err(denied(
                     "unknown-cost choice is unbound, closed, or names a different route/model",
@@ -273,13 +325,13 @@ impl InferenceAdmission {
         };
         if output == 0
             || output > choice.max_output_tokens
-            || s.unknown_active
+            || s.unknown_in_flight >= choice.max_in_flight.unwrap_or(1)
             || s.unknown_attempts.len() >= choice.max_requests as usize
         {
             return Err(s.refuse("unknown-cost request/output/concurrency bound exhausted"));
         }
         let id = s.unknown_attempts.len();
-        s.unknown_active = true;
+        s.unknown_in_flight += 1;
         let pricing = choice.declared_tariff.as_ref().map_or_else(
             || {
                 crate::retry::BillingRoute::new(provider.into(), model.into(), endpoint.into())
@@ -408,9 +460,30 @@ impl UnknownAttempt {
         if let Some(cost) = estimate {
             s.estimated = super::add(s.estimated, cost)?;
         }
-        s.unknown_active = false;
+        s.unknown_in_flight = s.unknown_in_flight.saturating_sub(1);
         self.done = true;
         Ok(())
+    }
+    /// A 429 or 503 received from the reserved endpoint of a choice whose Run
+    /// authored retries: the attempt is answered, its usage and USD cost stay
+    /// unknown (never « not billed »). The account keeps its state, so only an
+    /// authored retry inside the confirmed total may dispatch again, and only
+    /// while it is Open. Any other status, endpoint or choice is left to
+    /// `Drop`: Uncertain, no further dispatch.
+    pub(super) fn answered(&mut self, status: u16, final_url: &str) {
+        if !self.sent || self.done || !self.choice.authored_retry || !matches!(status, 429 | 503) {
+            return;
+        }
+        if final_url != self.choice.endpoint {
+            return;
+        }
+        let Ok(mut s) = self.account.lock() else {
+            return;
+        };
+        s.unknown_attempts[self.id].note =
+            format!("answered HTTP {status}; usage and USD cost unknown");
+        s.unknown_in_flight = s.unknown_in_flight.saturating_sub(1);
+        self.done = true;
     }
 }
 impl Drop for UnknownAttempt {
@@ -419,7 +492,7 @@ impl Drop for UnknownAttempt {
             return;
         }
         if let Ok(mut s) = self.account.lock() {
-            s.unknown_active = false;
+            s.unknown_in_flight = s.unknown_in_flight.saturating_sub(1);
             if self.sent {
                 s.status = AdmissionState::Uncertain;
                 s.unknown_attempts[self.id].note = "possibly billed; no automatic retry".into();

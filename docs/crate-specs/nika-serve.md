@@ -167,12 +167,12 @@ keeps its parser, core call, slot and request deadline, byte for byte.
 | concern | contract |
 |---|---|
 | operator seat | ONE direct provider model (a harness seat, an unknown provider or a missing key refuses startup) · strategy fixed `only`, one sample, no decision seat · bounds: output tokens per call 1..=32768 (default 8192), call timeout ≤ 600 s (120), request deadline ≤ 3600 s (300), repairs 0..=5 (3) · optional Foundry snapshot opened, verified and pinned (manifest and rows sha256) at attach through the shared `nika_cli_host::compile::{config, knowledge}` · replay store 1..=1024 rounds (32) for ≤ 24 h (30 min) · all validated in `BoundServer::attach` before bind (`ServerError::NativeAuthoring`) |
-| fresh request | `{compile_version: 2, cognition: "explicitProvider", mode: "create", intent, workflow_id?, answers?, limits?}` or `mode: "edit"` with `source` and `change` (a `change.text` requires `original_intent`; `set_constant` refuses it; `workflow_id` is create-only) · `limits: {repairs?, max_tokens?, call_timeout_ms?, deadline_ms?}` may only narrow the operator's bounds (above → `422 compile_limit`, never clamped) · `answers["intent.clarification"]` → `422 compile_new_intent_required` |
+| fresh request | `{compile_version: 2, cognition: "explicitProvider", mode: "create", intent, workflow_id?, answers?, limits?}` or `mode: "edit"` with `source` and `change` (a `change.text` requires `original_intent`; `set_constant` refuses it; `workflow_id` is create-only) · `limits: {max_calls?, repairs?, max_tokens?, call_timeout_ms?, deadline_ms?}` may only narrow the operator's bounds (above → `422 compile_limit`, never clamped) · `answers["intent.clarification"]` → `422 compile_new_intent_required` |
 | replay request | the same input repeated byte for byte with `cognition: "deterministicOnly"` and `replay_token` (64 lowercase hex); no `limits` · zero provider calls |
 | shape policy | the generation-1 policy plus: a literal that repeats an object key at any depth (or nests 128 or more arrays/objects deep, the JSON parser's recursion ceiling) → `422 malformed_compile_request`; caller-named model, endpoint, credential, path, snapshot, strategy or plan fields are unknown fields |
 | answer | 200 with the core's unchanged `outcome_document` (`compile_version` 2 iff a call happened; a skeleton, a structured constant or a replay answers 1) · `Cache-Control: no-store` · a fresh round that leaves a native plan carries `Nika-Compile-Replay: <token>` |
 | knowledge | every generation-2 round reopens the pinned snapshot and compares its manifest and rows (`409 compile_context_changed` before any call); a fresh round composes the pack for its intent (a revision's `original_intent` + change) and records the identity with the snapshot directory and files root removed; `pack_sha256` and the instruction sha256 in the receipt name what the seat read |
-| provider | a per-request client over the runtime's provider transport (`provider_http` · `ProviderRegistry`) behind a gate: at most `1 + repairs` LOGICAL calls (one `infer` each, the receipt's `calls`), none once the round must stop, and every `ProviderError` reaches the core as a fixed reason (HTTP status, rate limit, credentials refused, model not served, connection cut) — never the provider's text · one logical call may be several HTTP attempts: the transport resends the same request after a 429, 503 or 529 (at most 3 more, inside the call's timeout), so the HTTP envelope is at most `4 × (1 + repairs)` requests · the receipt's backend is `{kind: direct_api, provider, cost_basis}` |
+| provider | a per-request `ProviderRegistry` over the shared single-attempt authoring transport, with separate model-invocation and physical-request envelopes · each defaults to one; `max_calls` is the explicit grant · no redirect; provider retries consume the same request grant · no invocation once the round must stop · every `ProviderError` reaches the core as a fixed reason, never provider text · the additive backend receipt records provider, requested and observed model identities, authority counters, usage completeness and unverified billing |
 | deadlines and slots | on a native server the route leaves `/v1/compile` to bound itself: intake, generation 1 and replays keep the request deadline (`408 request_timeout`); a fresh round runs under its seat deadline, ABSOLUTE from admission (`408 compile_deadline_exceeded`: the work stopped or never began, nothing kept, a call in flight may still be billed) — a round that starts after it (a busy blocking pool) never begins, the stop is raced against the work and checked before every call, and an outcome that arrives after it is never answered or kept · the compile slot, then a replay place, are taken before any call and live inside the blocking work, so a disconnected or timed-out caller never frees them early (`503 compile_busy` · `503 compile_replay_capacity`) |
 | shutdown | a stopping server first joins its connections, then halts every native round of its seat (no further call, `503 stopping` for a round still answering) and waits — within the shutdown grace, else `ServerError::ShutdownTimeout` — until every compile slot is free before the authority drains; a round's provider request is dropped, not awaited |
 | replay store | in memory, per bound server: a restart or another instance knows no token (`409 compile_replay_unavailable`) · the exact input tuple is compared (`409 compile_replay_input_changed`) · expiry on the monotonic clock, never renewed · ≤ 2 MiB per round (larger: no token, the answer unchanged) · 256-bit `getrandom` tokens, never reflected in a refusal |
@@ -180,9 +180,8 @@ keeps its parser, core call, slot and request deadline, byte for byte.
 | effects | none beyond the seat's calls: no job, run, approval, trace, schedule, file, registry entry or permission; `POST /v1/jobs` judges any candidate again |
 
 Limits: the store is not a deduplication of paid work — a first answer lost in
-transit leaves no token and a new fresh round spends again; the compiler never
-repeats a logical call (the provider transport's own 429/503/529 resend is the
-one exception, counted as HTTP attempts, never as calls). Remote billing cannot
+transit leaves no token and a new fresh round spends again. Any additional
+model request, including a repair, consumes the explicit grant. Remote billing cannot
 be stopped by a local deadline or a shutdown. Harness seats,
 decision seats, other strategies, knowledge pack files and the observed-world
 reader are not served remotely.
@@ -433,7 +432,9 @@ capabilities require their own typed authorities and tests before projection.
 `{ workflow, inputs?, access? }`. A present `inputs` must be a JSON object,
 and a present access pin must be a nonempty string; null never erases either.
 Other envelope fields are refused. Inputs use the declared workflow keys and
-the canonical TypeExpr fit, with the runtime's required-input refusal before a
+the canonical TypeExpr fit (`AdmittedExecution::check_inputs`, whose typed
+refusals this door answers as 422 `unknown_input` · `invalid_input_type` ·
+`input_type_mismatch`), with the runtime's required-input refusal before a
 job is persisted. There is no CLI coercion, `@env:` lookup or expression
 interpretation: JSON strings are literal data. Declared defaults remain in the
 workflow; source, permits and model are never rewritten.
@@ -468,14 +469,131 @@ an attacker controlling the entire local store and its unkeyed hashes.
 
 ## Resident Run cost admission
 
-The production `ResidentExecutionBackend` checks the frozen access plan against
-Run route pricing before starting the effecting worker. Named jobs, snapshot jobs
-and resident schedule fires share that gate. An admitted API lane that needs a
-fresh unknown-cost choice is refused: this host has no monetary review protocol.
-The job can already have been accepted with HTTP 202; its terminal result is
-`failed` with code `admission_refused`, before any model or tool effect.
+Since C6 (2026-09-28) the production `ResidentExecutionBackend` judges every job
+with no reviewed authority (named, snapshot and scheduled) through the one host
+evaluator `nika run` uses (`nika_cli_host::run_cost::prepare`), replacing the
+resident's private route gate. Exact priced routes such as DeepSeek direct,
+catalog-priced native models at their default endpoint and explicit local lanes
+keep their composition. Exact declared-free or run-time routes bind the per-Run
+observer account (C4 parity), passed to the service through
+`ServiceExecutionOptions::with_runtime_config` and closed at the Run's end. An
+admitted API lane that needs a fresh unknown-cost choice is refused before the
+worker starts, after the evaluator took the project's cost lease and recorded
+what earlier Runs left (as `nika run` without a channel does). The job may
+already hold HTTP 202; its terminal result is `failed`/`admission_refused`, and
+the message names the door. Scheduled occurrences stay refused: no schedule
+carries review authority. Custom backends own their implementation.
 
-Exact priced routes such as DeepSeek direct, catalog-priced native models at their
-default endpoint and explicit local lanes retain their existing rules. A numeric
-ceiling cannot substitute for the missing review. Custom execution backends own
-their implementation of this host policy.
+### The cost-review door (C6 · R4 111)
+
+A server started with `--cost-review` (`ServerConfig::with_cost_review`) seats
+`POST /v1/cost-reviews`, `GET /v1/cost-reviews/{id}` and
+`POST /v1/cost-reviews/{id}/decision`, advertises health `costReviewV1`, and
+serves its contract as an RFC 7386 patch over the committed document
+(`server/cost_review/openapi.json`, `openapi::served`). Without it every door
+route, and a job carrying `cost_review`, answers 403 `cost_review_unavailable`,
+and nothing else changes.
+
+- **Authority from startup composition only.** The review's host evidence is
+  `CostHostEvidence::new(true, policy, machine, occurrence)`: no policy source in
+  this build (not applicable), the server's per-run ceiling as the machine layer
+  (a present ceiling, the default 1 USD included, is an observed hard cap, so an
+  unknown-cost review refuses 422 `cost_review_refused` and names the disarm;
+  only an explicit startup `--run-cost-ceiling none` is observed absent), and a
+  manual job request (not a scheduled occurrence). No request field widens it.
+  A zero ceiling is valid and binding (`ServerLimits::valid` accepts finite
+  values >= 0): every review refuses under it, and a priced job fails at the
+  runtime's cost-floor gate before its first event; declarations stay positive.
+- **A review is one fresh decision, never a job.** The by-name request is
+  captured, its plan resolved and judged by the shared evaluator; an
+  unknown-cost route yields a `ReviewedRun` holding the project's cost lease
+  (one live review or Run per project). The public document shows the route's
+  origin (scheme, host, effective port), the question, bounds, defaults, host
+  evidence, credential custody (`HOST_SERVER_MEMORY` for an admitted API lane),
+  the journal witness and the declared effects; never the endpoint path, a
+  credential or the private nonce. `witness_sha256` digests a fresh private
+  32-byte nonce with the exact private binding (candidate, full endpoint,
+  request, the document) and is compared in constant time.
+- **States.** pending → approved (one `approve_once`) → admitting (one winner)
+  → consumed (a job exists) · refused (a re-observed witness changed: no job) ·
+  failed (confirmed, but no job: the account settles with nothing sent);
+  declined and expired release the lease. 300 s monotonic lifetime from
+  creation, swept every second. The newest 256 terminal reviews are retained.
+  Nothing is refunded; nothing survives a restart (ids become 404
+  `review_unknown`; a replayed key prepares a new pending review, never an
+  approval).
+  The lifecycle itself (states, lifetime, one winner, first verdict,
+  retention, keys, witness comparison, job claims) is DAP's
+  `cost_journal::Reviews` / `Claims`, held under the door's lock; Serve keeps
+  the HTTP handlers, the startup evidence and the public document.
+- **Admission.** A job with `cost_review` must carry the review's witness and
+  exactly its request; the world is captured again by name and must be the
+  reviewed bytes; `ReviewedRun::confirm` then re-observes the source, the held
+  project root and `.nika/`, the journal's exact bytes, configuration, bound
+  files and route before the account exists and the `prepared` row is written.
+  The coordinator attaches the captured world and authority to the created job
+  before its task is queued; its first run claims them (a duplicate never runs)
+  and executes under the review's execution identity, plan and account
+  (`ExecutionBackend::execute_reviewed`, whose default refuses), settling the
+  account at the end. An `Idempotency-Key` replay answers the existing job
+  before the review is read.
+
+### Cost-review version 2 (B12 · 2026-09-28)
+
+The seated door also serves `POST /v2/cost-reviews`, `GET /v2/cost-reviews/{id}`
+and `POST /v2/cost-reviews/{id}/decision`. Health then lists `costReviewV1` and
+`costReviewV2`, and the served contract merges `cost_review/openapi-v2.json`
+beside the version-1 patch. A version-2 review frames a finite fan or an
+authored retry through the same shared evaluator (`ReviewedRun::dispatch_bound`,
+Service's `DispatchBound`). Its closed document is `cost_review_version: 2`,
+with `bounds` carrying `max_in_flight` and `transport_retries: 0`, and a typed
+`dispatch` (`requests`, `max_in_flight`, `authored_retry` and one row per infer
+task). The witness digests that document, so the approval confirms exactly the
+reviewed total, width and retry law. The job reference is unchanged: one
+`POST /v1/jobs` carrying the review id and witness. A zero-item fan answers
+200 `review_required: false`, `observer: true`, and its job binds the per-Run
+observer that sends nothing. The answer comes from the evaluator's own
+`RunCostPlan::Zero` and carries the zero reason; an exact declared-free route's
+`Observer` keeps its own reason. An unreviewed job over the same zero-item fan
+binds that observer too (the one `Zero` arm of the production gate). The job's
+validated inputs decide: its declared default, or any item, refuses as
+unreviewed.
+
+Version 1 stays byte-for-byte closed. A fan or an authored retry (a zero-item
+fan included) refuses 422 `cost_review_refused` and names `POST /v2/cost-reviews`.
+A single-attempt sequential Run keeps its version-1 document, whose question
+equals version 2's. The versions never cross. A review answers `GET` and
+`decision` only on the version that created it (404 `review_unknown`
+elsewhere), and an `Idempotency-Key` binds its version with its request bytes,
+so a replay on the other version answers 409 `idempotency_conflict`.
+
+Two C6 teaching defects are corrected in the same door. The per-run ceiling's
+remedy follows only the evaluator's `RunCostPlan::HardCapped` refusal, never an
+unrelated shape, project or lease refusal. The one shared `bound_message`
+(`server/error.rs`, used by job records too) keeps this server's exact closed
+route literals (`/v1/cost-reviews`, `/v2/cost-reviews`, `/v1/jobs`) once
+trailing punctuation is trimmed; every other path-like token is still dropped.
+
+## Native authoring request authority
+
+The shared cognition authority bounds model invocations and physical HTTP requests separately.
+A native round permits one request by default. The operator can grant more with
+`NativeAuthoring::with_max_calls` or `nika serve --authoring-max-calls`;
+generation-2 `limits.max_calls` can only narrow
+that ceiling. Repair preferences never grant calls. Explicit repair preferences
+that exceed the grant refuse before the provider is contacted. The transport
+follows no redirect and performs no automatic protocol-NACK retry. Provider
+retries and structured-output fallbacks each consume the same physical-request
+grant; an authorized resend can make physical requests exceed logical calls.
+
+The additive authoring backend receipt retains requested and provider-reported
+model identities and the authority's sent/refused counters. Provider-reported
+tokens do not prove invoiced cost. Generation-1 and deterministic replay contact
+no authoring model. This bounded request grant does not implement a USD ledger
+or interrupted-run reconciliation.
+
+Authoring receipt truth: the native Gate retains a local invocation-ceiling refusal as `admission_refused`, with the operator `max_calls` remedy, instead of labeling it a provider failure. `unreported_models` counts responses that omit an identity, independently from the observed-model list. The door records `cost_basis: unpriced; billing_unverified`; token totals never establish a tariff or invoice. An explicit repair preference that conflicts with a narrowed call grant names `limits.repairs` in its refusal and still sends zero requests.
+
+Direct API authoring endpoint metadata comes from the exact seated registry: `host` strips user info, path, query and fragment; `base_url_overridden` compares the effective URL with its profile seed when available. `endpoint_basis: operator_configuration` distinguishes this configuration from an authenticated remote identity or an observed model. Session host diagnostics use the same redaction.
+
+Both compile response generations describe the decision, plan, strategy and suggested file fields emitted by the shared compiler wire owner. A generation-1 replay preserves those observations without another provider call. Mixed-usage authoring counters are partial observed sums when `backend.usage_complete` is false, never totals for an unobserved round.

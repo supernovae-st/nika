@@ -10,13 +10,20 @@
 //! requirement outside the bytes). The view never certifies that the
 //! reader read everything: a clause the compiler did not read is not here,
 //! and the footer says so. A missing ledger renders « unavailable », never
-//! an invented coverage.
+//! an invented coverage; an entry the view cannot read is disclosed, never
+//! counted as done.
+//!
+//! Owned here, beside the ledger it projects (moved from `nika-session`
+//! 2026-09-28, whose `nika_session::meaning` re-exports this module). Pure:
+//! an outcome or a ledger in, words out.
 
 use std::fmt::Write as _;
 
-use nika_onboard::compile::CompileOutcome;
-use nika_schema::raw::{RawAction, RawInvokeTarget};
+use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
+use nika_schema::{FileId, ParseMode};
 use serde_json::Value;
+
+use super::CompileOutcome;
 
 /// One clause's fate.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -89,7 +96,7 @@ pub fn clauses(out: &CompileOutcome) -> Option<Vec<Clause>> {
 
 /// The clauses of a ledger as the wire carries it (an array of duties:
 /// `kind · state · evidence · realized_by · note`); a duty of an unknown
-/// state is left out rather than guessed.
+/// state is left out rather than guessed (the views disclose it).
 #[must_use]
 pub fn clauses_of(ledger: &Value) -> Vec<Clause> {
     ledger
@@ -146,10 +153,17 @@ pub fn assurance(clause: &Clause, candidate: Option<&str>) -> &'static str {
     }
 }
 
+/// A candidate's workflow by the one strict law every in-memory candidate is
+/// read with (the session's review reads it the same way): strict mode, one
+/// anonymous file; bytes the parser refuses carry no verb.
+fn parse(candidate: &str) -> Option<RawWorkflow> {
+    nika_schema::parse(candidate, FileId::new(0), ParseMode::Strict).ok()
+}
+
 /// The verb of the task that carries a clause, from the candidate's bytes.
 fn carrier_verb(clause: &Clause, candidate: Option<&str>) -> Option<&'static str> {
     let id = clause.carrier.as_deref()?;
-    let wf = crate::review::parse(candidate?)?;
+    let wf = parse(candidate?)?;
     let task = wf.tasks.iter().find(|t| t.value.id.value == id)?;
     Some(match &task.value.action {
         RawAction::Infer(_) => "infer",
@@ -173,12 +187,31 @@ pub fn render(out: &CompileOutcome) -> Option<String> {
     Some(render_ledger(ledger, out.candidate.as_deref()))
 }
 
-/// The Meaning view of a ledger and the candidate its carriers name.
+/// How many of a ledger's entries the view cannot read (an unknown, missing
+/// or mistyped state, or no duty at all); `None` when the ledger itself is
+/// not a list of duties.
+fn unread(ledger: &Value) -> Option<usize> {
+    ledger
+        .as_array()
+        .map(|duties| duties.iter().filter(|d| clause_of(d).is_none()).count())
+}
+
+/// The view's closing words: it counts what it read, never certifies.
+const FOOTER: &str = "\n  this lists what the compiler read; a clause it did not read is not here — if something you asked is missing, say it again in its own words";
+
+/// The Meaning view of a ledger and the candidate its carriers name. An
+/// entry it cannot read is disclosed and never counted: no completeness is
+/// claimed over what was not read.
 #[must_use]
 pub fn render_ledger(ledger: &Value, candidate: Option<&str>) -> String {
-    let clauses = clauses_of(ledger);
     let mut text = "Meaning · your request, clause by clause".to_owned();
-    if clauses.is_empty() {
+    let Some(unread) = unread(ledger) else {
+        text.push_str("\n  ! the compiler's ledger could not be read (it is not a list of duties) — no clause is shown, none is counted");
+        text.push_str(FOOTER);
+        return text;
+    };
+    let clauses = clauses_of(ledger);
+    if clauses.is_empty() && unread == 0 {
         text.push_str("\n  (the compiler recorded no clause for this request)");
     }
     for clause in &clauses {
@@ -208,14 +241,22 @@ pub fn render_ledger(ledger: &Value, candidate: Option<&str>) -> String {
         .iter()
         .filter(|c| c.disposition == Disposition::External)
         .count();
+    if unread > 0 {
+        let _ = write!(
+            text,
+            "\n  ! {unread} ledger entr{} could not be read (an unknown or missing state) — not shown, never counted as done",
+            if unread == 1 { "y" } else { "ies" }
+        );
+    }
     let _ = write!(
         text,
         "\n  {} clause(s) the compiler read · {open} waiting for you · {external} outside the bytes",
         clauses.len()
     );
-    text.push_str(
-        "\n  this lists what the compiler read; a clause it did not read is not here — if something you asked is missing, say it again in its own words",
-    );
+    if unread > 0 {
+        let _ = write!(text, " · {unread} unreadable, not counted");
+    }
+    text.push_str(FOOTER);
     text
 }
 
@@ -271,6 +312,12 @@ pub fn delta(base: &Value, revised: &Value) -> Option<String> {
             let _ = write!(text, "\n  = « {evidence} » · kept as it was");
         }
     }
+    // Entries the view cannot read are not compared: a delta over them claims nothing.
+    if [base, revised].into_iter().any(|l| unread(l) != Some(0)) {
+        text.push_str(
+            "\n  ! some ledger entries could not be read — not compared, never counted as kept",
+        );
+    }
     if changed == 0 {
         let _ = write!(
             text,
@@ -282,8 +329,10 @@ pub fn delta(base: &Value, revised: &Value) -> Option<String> {
     Some(text)
 }
 
-/// The line when no ledger exists: never an invented coverage.
-pub const UNAVAILABLE: &str = "Meaning · unavailable for this candidate (the compiler recorded no ledger) — the review above and `/show` are what there is";
+/// The line when no ledger exists: never an invented coverage. It names no
+/// host's protocol; the reader adds its own way on.
+pub const UNAVAILABLE: &str =
+    "Meaning · unavailable for this candidate (the compiler recorded no ledger)";
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
@@ -292,7 +341,7 @@ mod tests {
 
     fn fixture(name: &str) -> Value {
         let path = format!(
-            "{}/tests/fixtures/compile/{name}.json",
+            "{}/src/compile/meaning/fixtures/{name}.json",
             env!("CARGO_MANIFEST_DIR")
         );
         serde_json::from_str(&std::fs::read_to_string(path).expect("fixture")).expect("json")
@@ -393,7 +442,10 @@ mod tests {
                 && view.contains("× « ignore"),
             "{view}"
         );
-        assert!(view.contains("1 waiting for you"), "{view}");
+        assert!(
+            view.contains("1 waiting for you · 0 outside the bytes · 1 unreadable, not counted"),
+            "{view}"
+        );
     }
 
     /// A discussion line has no ledger: the view is unavailable, not empty
@@ -403,6 +455,11 @@ mod tests {
         let doc = fixture("discussion");
         assert!(doc["provenance"]["decision"].is_null(), "{doc}");
         assert!(UNAVAILABLE.contains("unavailable"));
+        // The owner's words name no host's protocol (E8): its reader adds its own way on.
+        assert!(
+            !UNAVAILABLE.contains('/') && !UNAVAILABLE.contains('`'),
+            "{UNAVAILABLE}"
+        );
     }
 
     /// A revision's delta: the clause the words added, the one they
@@ -450,5 +507,183 @@ mod tests {
             "{same}"
         );
         assert!(delta(&serde_json::json!([]), &serde_json::json!(null)).is_none());
+    }
+
+    /// One represented clause carried by task `t`, of kind `kind`.
+    fn carried(kind: &str) -> Clause {
+        clauses_of(&serde_json::json!([
+            {"kind": kind, "state": "realized", "evidence": "e", "realized_by": "t"}
+        ]))
+        .remove(0)
+    }
+
+    /// A candidate whose task `t` is `action` (YAML, one line).
+    fn with_task(action: &str) -> String {
+        format!("nika: w\nmodel: mock/echo\ntasks:\n  t:\n    {action}\n")
+    }
+
+    /// No candidate, or bytes the strict parser refuses — malformed, a key only a
+    /// lenient read would take, not a workflow — carry no verb: the clause is
+    /// « carried by the program », never a guessed task; a well-formed candidate
+    /// holding the carrier gives its verb.
+    #[test]
+    fn a_candidate_the_strict_parser_refuses_carries_no_verb() {
+        let effect = carried("effect");
+        let valid = with_task("exec: { command: [\"true\"] }");
+        assert!(parse(&valid).is_some(), "{valid}");
+        assert_eq!(assurance(&effect, Some(&valid)), "a task that runs");
+        let unknown_key = format!("{valid}flavour: strict refuses it\n");
+        for bytes in [
+            None,
+            Some("nika: [unclosed"),
+            Some("hello"),
+            Some(unknown_key.as_str()),
+        ] {
+            assert!(bytes.is_none_or(|b| parse(b).is_none()), "{bytes:?}");
+            assert_eq!(
+                assurance(&effect, bytes),
+                "carried by the program",
+                "{bytes:?}"
+            );
+        }
+        // Bytes the law reads but that hold no carrying task give no verb either:
+        // an empty candidate (the strict law reads it as a workflow with no task)
+        // and a carrier the candidate does not hold.
+        assert!(parse("").is_some_and(|wf| wf.tasks.is_empty()));
+        assert_eq!(assurance(&effect, Some("")), "carried by the program");
+        let mut elsewhere = effect;
+        elsewhere.carrier = Some("absent".to_owned());
+        assert_eq!(
+            assurance(&elsewhere, Some(&valid)),
+            "carried by the program"
+        );
+    }
+
+    /// The carrier's verb decides the assurance; a `gate` kind is a human gate
+    /// whatever carries it.
+    #[test]
+    fn each_carrier_verb_says_its_assurance() {
+        for (action, said) in [
+            (
+                "infer: { prompt: \"p\" }",
+                "asked of the model in its prompt · a guideline, not a check",
+            ),
+            ("exec: { command: [\"true\"] }", "a task that runs"),
+            ("agent: { prompt: \"p\" }", "a task that runs"),
+            (
+                "invoke: { tool: \"nika:assert\", args: { condition: true } }",
+                "checked at run before the effect",
+            ),
+            (
+                "invoke: { tool: \"nika:prompt\", args: { mode: confirm, message: \"ok?\" } }",
+                "a human gate · the run pauses and asks you",
+            ),
+            (
+                "invoke: { tool: \"nika:write\", args: { path: \"./a\", content: \"x\" } }",
+                "a task that runs",
+            ),
+        ] {
+            let candidate = with_task(action);
+            assert!(parse(&candidate).is_some(), "{candidate}");
+            assert_eq!(
+                assurance(&carried("effect"), Some(&candidate)),
+                said,
+                "{action}"
+            );
+        }
+        let exec = with_task("exec: { command: [\"true\"] }");
+        assert_eq!(
+            assurance(&carried("gate"), Some(&exec)),
+            "a human gate · the run pauses and asks you"
+        );
+    }
+
+    /// A ledger that is not an array, and duties of an unknown, missing or
+    /// mistyped state, are left out — never guessed — and disclosed (E8):
+    /// over entries it could not read the view never says the compiler
+    /// recorded no clause or that nothing waits; only a truly empty ledger
+    /// says so. A revision between two clause-less ledgers says nothing; one
+    /// over unreadable entries says they were not compared.
+    #[test]
+    fn an_unknown_ledger_state_is_left_out_and_disclosed_never_guessed() {
+        let json = |v: &str| serde_json::from_str::<Value>(v).expect("json");
+        for ledger in ["null", r#"{"state": "realized"}"#, r#""realized""#, "42"].map(json) {
+            assert!(clauses_of(&ledger).is_empty(), "{ledger}");
+            let view = render_ledger(&ledger, None);
+            assert!(
+                view.contains("could not be read (it is not a list of duties)")
+                    && !view.contains("waiting for you")
+                    && !view.contains("recorded no clause"),
+                "{view}"
+            );
+            assert!(delta(&ledger, &json("[]")).is_none(), "{ledger}");
+        }
+        let unreadable = json(
+            r#"[null, 1, "realized", {}, {"state": 5}, {"state": "REALIZED"}, {"state": ""}]"#,
+        );
+        assert!(clauses_of(&unreadable).is_empty());
+        let view = render_ledger(&unreadable, None);
+        assert!(
+            view.contains("! 7 ledger entries could not be read")
+                && view.contains(
+                    "0 waiting for you · 0 outside the bytes · 7 unreadable, not counted"
+                )
+                && !view.contains("recorded no clause"),
+            "{view}"
+        );
+        assert!(delta(&unreadable, &json("[]")).is_none());
+        let empty = render_ledger(&json("[]"), None);
+        assert!(
+            empty.contains("(the compiler recorded no clause for this request)")
+                && empty.contains("0 waiting for you · 0 outside the bytes\n")
+                && !empty.contains("could not be read"),
+            "{empty}"
+        );
+        // A clause it reads beside an entry it cannot: shown, disclosed, and a
+        // revision over them compares only what was read, saying so.
+        let mixed = json(
+            r#"[{"state": "unresolved", "kind": "input", "evidence": "which file"}, {"state": "pending", "kind": "effect", "evidence": "send it"}]"#,
+        );
+        let view = render_ledger(&mixed, None);
+        assert!(
+            view.contains("? « which file »")
+                && !view.contains("send it")
+                && view.contains("! 1 ledger entry could not be read")
+                && view.contains(
+                    "1 waiting for you · 0 outside the bytes · 1 unreadable, not counted"
+                ),
+            "{view}"
+        );
+        let revised = delta(&mixed, &mixed).expect("a clause on both sides");
+        assert!(
+            revised.contains("not compared, never counted as kept")
+                && revised.contains("nothing changed in what the compiler read"),
+            "{revised}"
+        );
+        let clean = delta(
+            &json(r#"[{"state": "realized", "kind": "effect"}]"#),
+            &json("[]"),
+        );
+        assert!(!clean.expect("a dropped clause").contains("not compared"));
+        // A duty's missing words are said by its kind; the carrier's older key
+        // still reads; a binding named in the note keeps it outside the bytes.
+        let odd = serde_json::json!([
+            {"state": "realized", "kind": "effect", "carrier": "t"},
+            {"state": "realized", "kind": "trigger", "evidence": "daily", "note": "requires binding"},
+            {"state": "realized", "evidence": 7}
+        ]);
+        let clauses = clauses_of(&odd);
+        assert_eq!(clauses.len(), 3);
+        assert_eq!(clauses[0].carrier.as_deref(), Some("t"));
+        assert_eq!(clauses[1].disposition, Disposition::External);
+        assert_eq!(
+            (clauses[2].evidence.as_str(), clauses[2].kind.as_str()),
+            ("", "")
+        );
+        let view = render_ledger(&odd, None);
+        assert!(
+            view.contains("✓ (effect)") && view.contains("(`t`)"),
+            "{view}"
+        );
     }
 }

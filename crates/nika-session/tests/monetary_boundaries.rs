@@ -587,11 +587,77 @@ fn attached_currency_validation_keeps_decimal_and_data_controls() {
     ] {
         let dir = tempfile::tempdir().expect("fixture");
         let (mut session, calls) = open(dir.path());
-        let input = format!("What can you tell me about stars and {clause}?");
+        // R4 A6 reads a bare currency as a separate monetary segment. A bare
+        // `and 2USD` could instead finish a business range; it is not a ceiling.
+        let input = if clause == "2USD" {
+            format!("What can you tell me about stars, {clause}?")
+        } else {
+            format!("What can you tell me about stars and {clause}?")
+        };
         session.turn(&input);
         let money = session.monetary_decision().expect("money or data");
         assert_eq!(money.original_intent, input);
         assert_eq!(money.effective_usd, Some(amount), "{input}");
         assert_eq!(calls.counts(), (0, expected_calls), "{input}");
+    }
+}
+
+#[test]
+fn clause_restatement_keeps_the_admitted_budget_before_and_after_the_changed_words() {
+    let work = "Read ./data/orders.csv, compute the total amount per customer and post the result to a webhook";
+    for (prefix, suffix, amount) in [
+        ("", "", 0.25),
+        ("", ". Budget: $0.", 0.0),
+        ("Budget: $0. ", "", 0.0),
+        ("", ". Budget: $2.", 2.0),
+    ] {
+        let dir = tempfile::tempdir().expect("fixture");
+        std::fs::create_dir(dir.path().join("data")).expect("data directory");
+        std::fs::write(
+            dir.path().join("data/orders.csv"),
+            "customer,amount\nacme,10\nacme,7\nbeta,5\n",
+        )
+        .expect("business input");
+        // Keep the real local answer routing; a classifier double that always
+        // says UNKNOWN would hold the webhook question for an unrelated reason.
+        let selected = ResolvedSessionIntelligence::resolve(
+            &UserIntelligencePreference::new(IntelligenceKind::None, None),
+            &IntelligenceCensus::empty(),
+        );
+        let mut session = SessionRuntime::open(
+            dir.path(),
+            selected,
+            Box::new(nika_session::reasoner::NoReasoner),
+        );
+        let request = format!("{prefix}{work}{suffix}");
+        assert!(matches!(
+            session.turn(&request),
+            TurnOutcome::Question { .. }
+        ));
+        let answer = session.turn("the total of the amount column for each customer");
+        assert!(
+            matches!(answer, TurnOutcome::Question { .. }),
+            "the restatement must retain the pending webhook question"
+        );
+        if let TurnOutcome::Question { question, .. } = &answer {
+            assert!(
+                question.contains("HTTPS endpoint"),
+                "next question: {question}"
+            );
+        }
+        let final_answer = session.turn("http://127.0.0.1:8123/orders");
+        let diagnostic = match &final_answer {
+            TurnOutcome::Question { question, .. } | TurnOutcome::Facts(question) => {
+                question.as_str()
+            }
+            _ => "another outcome class",
+        };
+        assert!(
+            matches!(final_answer, TurnOutcome::Proposal { .. }),
+            "budget placement ({prefix:?}, {suffix:?}): {diagnostic}"
+        );
+        let money = session.monetary_decision().expect("admitted ceiling");
+        assert_eq!(money.effective_usd, Some(amount));
+        assert!(!dir.path().join(WORKFLOW).exists());
     }
 }

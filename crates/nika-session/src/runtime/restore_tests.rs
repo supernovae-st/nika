@@ -207,7 +207,7 @@ fn restore_is_neither_advertised_nor_granted_without_a_usable_draft() {
     let unreadable = refused(s.turn("/restore"));
     assert_eq!(unreadable.class, RefusalClass::NotAllowed);
     assert!(
-        unreadable.text.contains("cannot be used by this engine")
+        unreadable.text.contains("cannot be read by this engine")
             && unreadable.text.contains("stays kept unchanged"),
         "{}",
         unreadable.text
@@ -271,4 +271,117 @@ fn restore_never_answers_or_discards_what_already_waits() {
     assert!(s.pending_proposal().is_none(), "nothing was proposed");
     assert!(s.restored_draft_id().is_some(), "the draft stays kept");
     assert_eq!(calls(&seen), before, "/restore asks no model");
+}
+
+/// A journal continuing the S1 pause (its `resumed_from` names that run), ending with `last`.
+fn s1_continuation(last: (&str, &str)) -> String {
+    let frame = |(kind, fields): (&str, &str)| {
+        format!(
+            r#"{{"id":{{"uuid":"01a0e819-b6cd-70f2-8edf-c29fbd00bc4d"}},"timestamp":1790600394445000000,"kind":"{kind}","execution":{{"uuid":"01a0e819-b6c9-7781-bb7b-48dc617a41fb"}},"run":null,"correlation":null,"fields":[{fields}]}}"#
+        )
+    };
+    let started = r#"{"key":"workflow","value":"gate-keyed"},{"key":"project_root_fingerprint","value":"68bc0fa6f93982fd69bcd7dc3b4074d55f54a57579461599d47765293bdbf7cd"},{"key":"resumed_from","value":"01a0e819b689730eab2140ea767e53b6"}"#;
+    format!(
+        "{}\n{}\n",
+        frame(("workflow_started", started)),
+        frame(last)
+    )
+}
+
+const SETTLED: (&str, &str) = (
+    "workflow_completed",
+    r#"{"key":"workflow","value":"gate-keyed"},{"key":"status","value":"succeeded"}"#,
+);
+const PAUSED_AGAIN: (&str, &str) = (
+    "workflow_paused",
+    r#"{"key":"task","value":"ask"},{"key":"mode","value":"confirm"},{"key":"message","value":"Ship it again?"}"#,
+);
+
+/// A project whose S1 run paused at `ask` (the engine's real journal), observed and recorded by
+/// a first session: the root, the paused journal, that session and the question it asked.
+fn paused_at_s1() -> (
+    tempfile::TempDir,
+    std::path::PathBuf,
+    SessionRuntime,
+    String,
+) {
+    let root = tempfile::tempdir().expect("project");
+    std::fs::create_dir_all(root.path().join("notes")).expect("notes");
+    std::fs::write(root.path().join("notes/brief.md"), "# Brief\n").expect("brief");
+    let traces = root.path().join(".nika/traces");
+    std::fs::create_dir_all(&traces).expect("traces");
+    let trace = traces.join("2026-09-28T12-59-54Z-53b6.ndjson");
+    std::fs::write(&trace, super::durable_tests::S1_PAUSED).expect("the paused journal");
+    let (mut first, _) = open(root.path());
+    let (id, _) = proposed(first.turn(COPY));
+    assert!(matches!(
+        first.consent_to(&id, "yes"),
+        TurnOutcome::Facts(_)
+    ));
+    assert!(matches!(
+        first.turn("run it"),
+        TurnOutcome::RunRequested { .. }
+    ));
+    let TurnOutcome::GateAsk { question, .. } = first.observe_run(4, Some(&trace)) else {
+        panic!("a pause with a gate asks");
+    };
+    (root, trace, first, question)
+}
+
+/// C10 · Q8 · O-B1 · before any answer the question names the completed task a resume runs
+/// again, live (the minimized S1 journal keeps no resume key for `before`); an answer to a gate
+/// a continuation overtook is never sent, so nothing runs twice.
+#[test]
+fn an_answer_to_a_gate_a_continuation_overtook_is_not_sent() {
+    let (_root, trace, mut first, question) = paused_at_s1();
+    assert!(question.contains("run again, live · before"), "{question}");
+    let gate = first.waiting_gate().expect("the gate waits");
+    let continued = trace.with_file_name("2026-09-28T12-59-54Z-41fb.ndjson");
+    std::fs::write(&continued, s1_continuation(SETTLED)).expect("a continuation");
+    let out = first.answer_gate_for(&gate, "yes");
+    assert!(
+        matches!(&out, TurnOutcome::Facts(text)
+            if text.contains("ended succeeded") && text.contains("your answer was not sent")),
+        "{out:?}"
+    );
+    assert!(
+        first.waiting_gate().is_none(),
+        "nothing waits, nothing resumed"
+    );
+}
+
+/// C7b §3.4 · O-B1 after a close: with no continuation the gate is offered again, the task a
+/// resume runs again named (Q8); a continuation that settled is said and nothing waits; one
+/// that paused again offers its own gate. Opening asks no model.
+#[test]
+fn a_reopened_session_offers_a_paused_gate_only_as_its_journals_stand() {
+    for continuation in [None, Some(SETTLED), Some(PAUSED_AGAIN)] {
+        let (root, trace, first, _) = paused_at_s1();
+        drop(first);
+        let head = trace.with_file_name("2026-09-28T13-00-00Z-41fb.ndjson");
+        if let Some(last) = continuation {
+            std::fs::write(&head, s1_continuation(last)).expect("a continuation");
+        }
+        let (mut again, seen) = open(root.path());
+        let notice = again.restore_state().expect("a record restores");
+        let offered = again
+            .pending_gate
+            .as_ref()
+            .map(|g| (g.trace.clone(), g.message.clone()));
+        let (says, expected) = match continuation {
+            None => ("no continuation of this run", Some((trace, "Ship it?"))),
+            Some(SETTLED) => ("ended succeeded", None),
+            Some(_) => ("paused again here", Some((head, "Ship it again?"))),
+        };
+        assert!(notice.contains(says), "{notice}");
+        assert_eq!(
+            offered,
+            expected.map(|(t, m)| (t, m.to_owned())),
+            "{notice}"
+        );
+        if continuation.is_none() {
+            assert!(notice.contains("run again, live · before"), "Q8: {notice}");
+        }
+        assert_eq!(calls(&seen), 0, "opening asks no model");
+    }
 }

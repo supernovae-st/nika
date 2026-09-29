@@ -21,6 +21,9 @@ const WITHHELD: &str = "sk-withheld-S06-0123456789abcdef";
 pub(super) fn operator(seat: &Seat) -> NativeAuthoring {
     NativeAuthoring::new(SEAT, seat.providers())
         .with_max_tokens(4096)
+        // 3 + repairs (nv1b): the candidate, its repair and the judge's two whole-request
+        // questions.
+        .with_max_calls(4)
         .with_repairs(1)
 }
 
@@ -350,7 +353,7 @@ async fn provider_failures_reach_the_document_as_fixed_reasons_and_a_withheld_va
         start_native(&world, compile_limits(), operator(&seat).with_repairs(0)).await;
     let response = server.request(&compile_request(&fresh(&json!({})))).await;
     assert_eq!(response.status, 200, "{}", response.body);
-    for needle in [SENTINEL, "internal.example", "127.0.0.1", "/etc/"] {
+    for needle in [SENTINEL, "internal.example", "/etc/"] {
         assert!(
             !response.body.contains(needle),
             "{needle}: {}",
@@ -358,6 +361,17 @@ async fn provider_failures_reach_the_document_as_fixed_reasons_and_a_withheld_va
         );
     }
     let document = response.json();
+    let mut without_host = document.clone();
+    let host = without_host["provenance"]["authoring"]["backend"]
+        .as_object_mut()
+        .expect("backend")
+        .remove("host")
+        .expect("configured host");
+    assert!(host.as_str().expect("host").starts_with("127.0.0.1:"));
+    assert!(
+        !without_host.to_string().contains("127.0.0.1"),
+        "the endpoint is only configuration evidence"
+    );
     assert_eq!(document["status"], "incomplete");
     assert_eq!(document["provenance"]["authoring"]["calls"], 1);
     let failure = document["diagnostics"]
@@ -403,25 +417,27 @@ async fn provider_failures_reach_the_document_as_fixed_reasons_and_a_withheld_va
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn the_repair_rounds_are_the_call_budget_and_a_caller_can_only_narrow_them() {
+async fn explicit_repair_preferences_run_within_the_grant_and_a_caller_can_narrow_them() {
     let broken = native_answer("nika: broken\ntasks: {}\n");
     let fixed = native_answer(&candidate(RUN_MODEL, false));
-    // The operator's one repair: the refused candidate, then the repaired one — two calls.
+    // The operator's one repair: the refused candidate, the repaired one, then its judgment
+    // (native step 1) — three calls.
     let world = TestWorld::new();
     let seat = Seat::start(vec![
         Reply::Text(broken.clone()),
         Reply::Text(fixed.clone()),
+        Reply::Text(JUDGE_APPROVES.to_owned()),
     ]);
     let (server, _backend) = start_native(&world, compile_limits(), operator(&seat)).await;
     let response = server.request(&compile_request(&fresh(&json!({})))).await;
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
     assert_eq!(
-        document["provenance"]["authoring"]["calls"], 2,
+        document["provenance"]["authoring"]["calls"], 3,
         "{document:#}"
     );
     assert_eq!(document["status"], "ready", "{document:#}");
-    assert_eq!(seat.calls(), 2);
+    assert_eq!(seat.calls(), 3);
     server.stop().await.expect("clean stop");
     // The caller narrows to zero repairs: one call, the refused candidate stays refused.
     let world = TestWorld::new();
@@ -785,6 +801,7 @@ fn the_flags_seat_only_what_the_operator_names() {
         .expect("untouched")
         .expect("config");
     assert!(format!("{untouched:?}").contains("native_authoring: None"));
+    assert!(crate::seat_native_authoring_with_calls(Some(config()), &unnamed, Some(2)).is_err());
     assert_eq!(
         seat_native_authoring(None, &named).err(),
         Some(NativeAuthoringError::NeedsListener)
@@ -793,6 +810,10 @@ fn the_flags_seat_only_what_the_operator_names() {
         .expect("seated")
         .expect("config");
     let described = format!("{seated:?}");
+    let granted = crate::seat_native_authoring_with_calls(Some(config()), &named, Some(2))
+        .expect("seated with grant")
+        .expect("config");
+    assert!(format!("{granted:?}").contains("max_calls: Some(2)"));
     for part in [
         "model: \"vllm/s06-seat\"",
         "max_tokens: 1024",

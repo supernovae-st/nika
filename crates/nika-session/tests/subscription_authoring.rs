@@ -29,6 +29,11 @@ use nika_session::turn::{
 use nika_session::{SessionRuntime, TurnOutcome};
 use serde_json::{Value, json};
 
+/// The verifier's closed choice, approved (native step 1, R4 A11): the explicit answer scripted at
+/// the judge's position, after a candidate READY in its authoring round. The judge's call is a
+/// real call, counted like any other.
+const JUDGE_APPROVES: &str = r#"{"choice":"faithful"}"#;
+
 fn shell(path: &Path) -> String {
     format!("'{}'", path.display().to_string().replace('\'', "'\\''"))
 }
@@ -53,7 +58,12 @@ fn install_fixture(dir: &Path, scenario: &str) {
         answer
     };
     let second = common::native_answer(&common::candidate("openai/gpt-4.1-mini", true));
-    for (name, text) in [("one", answer), ("two", second)] {
+    // The third call of a READY revision is its judgment (native step 1): answered explicitly.
+    for (name, text) in [
+        ("one", answer),
+        ("two", second),
+        ("three", JUDGE_APPROVES.to_owned()),
+    ] {
         std::fs::write(dir.join(name), events(&text, scenario == "tool")).unwrap();
     }
     let observed = dir.join("observed");
@@ -73,11 +83,12 @@ if [ -f {observed}/count ]; then n=$(/bin/cat {observed}/count); fi
 printf '%s' "$((n+1))" > {observed}/count
 printf '%s\n' "$@" > {observed}/argv-$n
 /bin/cat > {observed}/prompt-$n
-if [ "$n" = 0 ] || [ {bad} = yes ]; then /bin/cat {one}; else /bin/cat {two}; fi
+if [ "$n" = 0 ] || [ {bad} = yes ]; then /bin/cat {one}; elif [ "$n" = 2 ]; then /bin/cat {three}; else /bin/cat {two}; fi
 "#,
         observed = shell(&observed),
         one = shell(&dir.join("one")),
         two = shell(&dir.join("two")),
+        three = shell(&dir.join("three")),
         bad = if matches!(scenario, "tool" | "suffix") {
             "yes"
         } else {
@@ -313,8 +324,8 @@ fn child() {
 fn subscription_authors_then_answers_and_revises_through_the_same_native_compiler() {
     let out = run("route");
     assert_eq!(
-        out["calls"], 2,
-        "answer continuation makes no new call: {out:#}"
+        out["calls"], 3,
+        "question round, revision, judgment; the answer continuation makes no new call: {out:#}"
     );
     assert_eq!(out["steps"][1]["kind"], "proposal");
     assert_eq!(out["steps"][2]["kind"], "proposal");
@@ -380,7 +391,10 @@ fn missing_capability_refuses_and_no_intelligence_stays_deterministic() {
 #[test]
 fn replay_retains_subscription_receipt_without_optional_knowledge() {
     let out = run("no-knowledge");
-    assert_eq!(out["calls"], 2, "replay adds no call: {out:#}");
+    assert_eq!(
+        out["calls"], 3,
+        "question round, revision, judgment; replay adds no call: {out:#}"
+    );
     for text in [
         out["details_answer"].as_str().unwrap(),
         out["meaning_answer"]["text"].as_str().unwrap(),

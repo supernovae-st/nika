@@ -9,7 +9,7 @@ use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;
-use common::{Provider, keys, policy};
+use common::{Judged, Provider, keys, policy};
 
 /// sv3-13 as the seat read it: one correct typed rule whose detail is a paraphrase in two
 /// sentences; the request states the rule in one.
@@ -37,7 +37,10 @@ async fn a_stated_rule_stands_for_the_seats_paraphrased_detail() {
     let provider = Provider::new(roast_proposal());
     // No language step remains (the grouped total is the write): nothing asks a model.
     let req = CompileRequest::create(ROAST).with_authoring_policy(policy());
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&req, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert!(
         !keys(&out).contains(&"const.rule_expression"),
         "the rule the seat stated is the computation; nothing to ask: {out:#?}"

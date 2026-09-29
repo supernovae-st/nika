@@ -56,8 +56,7 @@ pub(super) enum AnswerReading {
 }
 
 /// What a value question says when no intelligence reads its reply.
-pub(super) const AS_TYPED_NOTICE: &str =
-    "no intelligence reads this reply: it is taken exactly as you type it — say the value alone";
+pub(super) const AS_TYPED_NOTICE: &str = "no intelligence reads this reply: say the value alone (one word, a number, a path), or put a longer value in quotes — it is taken exactly as you type it";
 
 /// A question whose answer is a business value the compiler bakes as a literal. The
 /// seat's `model` (provider selection keeps its own door), the replacement request
@@ -86,6 +85,13 @@ fn keeps_the_reading(question: &CompileQuestion) -> bool {
         && question.key != "intent.clarification"
         && !question.key.starts_with("gap.")
         && !super::authoring::asks_for_syntax(question)
+}
+
+/// A value the compiler reads again in words rather than bakes as a literal — the cadence of a
+/// stated trigger (« chaque vendredi à 10h »), which its cadence grammar parses: with no
+/// intelligence it keeps its words like a restatement; with one, its typed reading applies.
+fn restated_in_words(question: &CompileQuestion) -> bool {
+    question.key == "trigger.cadence"
 }
 
 /// Whether `text` is one of the keys the question offers, exactly.
@@ -128,6 +134,13 @@ fn offered_keys(question: &CompileQuestion) -> String {
 fn as_typed(line: &str) -> bool {
     let line = line.trim();
     !line.contains(char::is_whitespace) || serde_json::from_str::<serde_json::Value>(line).is_ok()
+}
+
+/// A line owed no one-time review (F2): an offered key alone, a value alone, or a question.
+pub(super) fn owes_no_review(question: &CompileQuestion, line: &str) -> bool {
+    (is_offered_choice(question) && names_an_offer_alone(question, line))
+        || (!is_offered_choice(question) && as_typed(line))
+        || line.trim_end().ends_with('?')
 }
 
 /// The one bounded reading: the question in its own words, the reply verbatim, and one
@@ -258,7 +271,26 @@ impl SessionRuntime {
 
     /// The notice a value question carries when its reply is taken as typed.
     pub(super) fn as_typed_notice(&self, question: &CompileQuestion) -> Option<&'static str> {
-        (is_value_question(question) && !self.reads_answers()).then_some(AS_TYPED_NOTICE)
+        (is_value_question(question) && !restated_in_words(question) && !self.reads_answers())
+            .then_some(AS_TYPED_NOTICE)
+    }
+
+    /// When no intelligence routed the line, whether it still answers the open question by the
+    /// question's declared protocol — never because the route could not tell. A value binds
+    /// through its typed reading when a reader exists (a verbatim value or nothing), else only
+    /// when it stands alone (`as_typed`: one token, a JSON literal, a longer value in quotes),
+    /// as the question says: a sentence is never a value because nothing could read it. The
+    /// doors whose answer is words (the replacement request, a clause's disposition, a rule
+    /// restated in words) keep them when nothing reads replies; an offered choice is read
+    /// against its offers; any other answer binds only standing alone.
+    pub(super) fn answers_by_protocol(&self, round: &AuthoringRound, line: &str) -> bool {
+        round.current().is_some_and(|question| {
+            if is_value_question(question) && !restated_in_words(question) {
+                self.reads_answers() || as_typed(line)
+            } else {
+                !self.reads_answers() || is_offered_choice(question) || as_typed(line)
+            }
+        })
     }
 
     /// The typed reading of `line` as the answer to `question`: as typed, a verbatim
@@ -331,6 +363,15 @@ impl SessionRuntime {
             AnswerReading::Part(value) => value,
             AnswerReading::Waits(why) => return self.answer_waits(round, &why),
         };
+        // An explicit Create clarification makes its answer the request (C11): new bytes carry
+        // only the spans admitted for them; identical bytes keep their own.
+        let fresh = round
+            .replacement(&value)
+            .filter(|text| *text != round.intent);
+        let money = match fresh.map(|text| self.built_money(&text, line)).transpose() {
+            Ok(money) => money,
+            Err(refusal) => return refusal,
+        };
         let asked = self.question_id_of(&round);
         let Some(key) = round.answer_current(&value) else {
             return TurnOutcome::Refusal(Refusal::new(
@@ -338,6 +379,9 @@ impl SessionRuntime {
                 "no authoring question waits",
             ));
         };
+        if let Some(spans) = money {
+            round.money = spans;
+        }
         self.questions.close(asked);
         if value == line {
             self.remember(line, &format!("(answered {key})"));
@@ -349,7 +393,7 @@ impl SessionRuntime {
     }
 
     /// The question keeps waiting, said with the reason nothing was bound.
-    fn answer_waits(&mut self, round: AuthoringRound, why: &str) -> TurnOutcome {
+    pub(super) fn answer_waits(&mut self, round: AuthoringRound, why: &str) -> TurnOutcome {
         let (key, text) = round.current().map_or_else(
             || (String::new(), why.to_owned()),
             |q| {

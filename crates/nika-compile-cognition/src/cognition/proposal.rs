@@ -9,7 +9,7 @@
 use super::backstops::{gate_finds_its_effect, reconcile_refund_backstop};
 use super::{backstop, plan_record, record_ledger};
 use crate::gates::starts_with_prohibition;
-use crate::plan::{Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step};
+use crate::plan::{EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step};
 use crate::words::{
     CONVERSION_WORDS, LANGUAGE_WORDS, content_words, fold_words, only_format_words,
     serialization_draft,
@@ -18,7 +18,10 @@ use crate::{CompileOutcome, DiagnosticKind, QuestionType, lexicon::Reading};
 use nika_kernel::ai::provider::{ContentBlock, InferResponse, StopReason};
 use serde::Deserialize;
 
+mod effects;
 mod material;
+mod seat_rules;
+pub(super) use seat_rules::told;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -51,7 +54,11 @@ pub(super) struct ProposedEffect {
     target: String,
     policy: String,
     evidence: String,
+    /// A write of one computed value alone (E38): read on a write only, absent reads as false.
+    #[serde(default)]
+    alone: bool,
 }
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct ProposedObligation {
@@ -344,7 +351,28 @@ pub(super) fn decode(response: &InferResponse, out: &mut CompileOutcome) -> Opti
             return None;
         }
     };
-    if let Ok(plan) = serde_json::from_str(super::first_json_object(text).unwrap_or(text)) {
+    let json = match super::answer_objects(text, |o| {
+        super::answer_shaped::<Proposal>(o, &["steps"])
+    }) {
+        super::Objects::One { answer, unread } => {
+            super::record_objects(out, "unread_objects", &unread);
+            answer
+        }
+        super::Objects::None => super::syntax_target(text)
+            .or_else(|| super::first_json_object(text))
+            .unwrap_or(text),
+        super::Objects::Two(objects) | super::Objects::Undecided(objects) => {
+            super::record_objects(out, "competing_objects", &objects);
+            crate::finding(
+                out,
+                DiagnosticKind::Unknown,
+                "authoring_plan",
+                "The authoring response carries two plans, or one beside an object that never closes; neither was read. No source was emitted.",
+            );
+            return None;
+        }
+    };
+    if let Ok(plan) = serde_json::from_str(json) {
         Some(plan)
     } else {
         crate::finding(
@@ -1107,14 +1135,15 @@ pub(super) fn merge(
         }
         if op == Op::Compute
             && let Some(computation) = step.computation.as_ref().filter(|c| c.present)
-            && let Some((rule, slots)) = crate::predicate::typed_rule(
+            && let Ok(meaning) = serde_json::to_value(computation)
+            && let Some((rule, slots)) = nika_compile_fidelity::predicate::typed_rule(
                 intent,
                 &evidence,
-                computation,
+                &meaning,
                 &proposal.unknowns,
                 &reading.columns,
             )
-            && !plan.rules.iter().any(|r| r.text() == rule.text())
+            && seat_rules::join(&mut plan, rule)
         {
             for slot in slots {
                 if plan.slots.iter().any(|s| s.key == slot.key) {
@@ -1132,7 +1161,6 @@ pub(super) fn merge(
                 slotted.push(slot.label.clone());
                 plan.slots.push(slot);
             }
-            plan.rules.push(rule);
         }
         plan.push_step(Step::new(op, evidence, step.detail, step.categories));
     }
@@ -1191,31 +1219,7 @@ pub(super) fn merge(
             );
             return None;
         };
-        if let Some(existing) = plan
-            .effects
-            .iter_mut()
-            .find(|e| e.verb == verb && same_write(verb, &e.target, &effect.target))
-        {
-            // The deterministic policy is the floor: a model may only strengthen a plain
-            // request. Any other disagreement about a recognized effect is a human question.
-            if !effect.target.trim().is_empty() {
-                existing.target.clone_from(&effect.target);
-                existing.evidence.clone_from(&evidence);
-            }
-            if existing.policy == EffectPolicy::Automatic && policy != EffectPolicy::Automatic {
-                existing.policy = policy;
-            } else if existing.policy != policy {
-                plan.unknowns.push(format!(
-                    "The proposal reads `{}` as {} while the request's explicit wording reads {}; the disagreement is not settled by a model.",
-                    verb.word(),
-                    policy.word(),
-                    existing.policy.word()
-                ));
-            }
-        } else {
-            plan.effects
-                .push(Effect::new(verb, effect.target, evidence, policy));
-        }
+        effects::merge(&mut plan, effect, verb, evidence, policy);
     }
     gate_finds_its_effect(&mut plan);
     for obligation in proposal.obligations {

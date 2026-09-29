@@ -2,6 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 #![allow(clippy::unwrap_used)]
 use super::*;
+use nika_providers::ProvidersConfig;
 const MODEL: &str = "openai/gpt-oss-120b";
 const SOURCE: &str = "nika: bounded\nmodel: openai/gpt-oss-120b\ntasks:\n  draft:\n    infer: { prompt: text, max_tokens: 32, schema: { type: string } }\n";
 
@@ -39,13 +40,15 @@ fn parsed(source: &str) -> RawWorkflow {
     .unwrap()
 }
 
+/// The host's Check layering over the L3 judgment: an unknown-cost route that
+/// Check itself finds clean is never run ready.
 #[test]
 fn structured_unknown_route_is_clean_but_needs_run_choice() {
     let config = ProvidersConfig::new()
         .with_base_url("openai", "https://api.scaleway.ai/example-project/v1");
     let wf = parsed(SOURCE);
     assert!(nika_check::check(&wf).is_clean());
-    let blocker = readiness_with_config(&wf, &plan(), &config).unwrap();
+    let blocker = nika_service_execution::run_cost::readiness(&wf, &plan(), &config).unwrap();
     let count = 3; // Production default: initial call plus two schema re-asks.
     assert!(
         blocker.contains(&format!("at most {count} requests")),
@@ -60,27 +63,4 @@ fn structured_unknown_route_is_clean_but_needs_run_choice() {
         vec![blocker],
     );
     assert_eq!(layers.run_ready(), Some(false));
-}
-
-#[test]
-fn unbounded_unknown_and_wrong_endpoint_stay_unready() {
-    let wf = parsed(&SOURCE.replace(", max_tokens: 32", ""));
-    let config = ProvidersConfig::new()
-        .with_base_url("openai", "https://api.scaleway.ai/example-project/v1");
-    let blocker = readiness_with_config(&wf, &plan(), &config).unwrap();
-    assert!(blocker.contains("cannot obtain a bounded choice"));
-    let config = ProvidersConfig::new().with_base_url("openai", "http://localhost:12345/v1");
-    assert!(readiness_with_config(&parsed(SOURCE), &plan(), &config).is_some());
-}
-
-#[test]
-fn no_model_plan_has_no_monetary_blocker() {
-    let plan = nika_providers::resolve_execution_plan(&[], &[], None);
-    let wf = parsed(
-        "nika: local\npermits: { tools: ['nika:assert'] }\ntasks:\n  ok:\n    invoke: { tool: 'nika:assert', args: { condition: true } }\n",
-    );
-    assert_eq!(
-        readiness_with_config(&wf, &plan, &ProvidersConfig::new()),
-        None
-    );
 }

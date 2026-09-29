@@ -64,7 +64,7 @@ fn gate_completion_preserves_prior_zero_rejected_and_reconfirmation_guards() {
                 let dir = tempfile::tempdir().unwrap();
                 let mut s = open(dir.path());
                 if account_first {
-                    s.admit_money("budget 3 USD", false).unwrap();
+                    s.admit_money("budget 3 USD", false, false).unwrap();
                     s.reason_with_money("charge before revocation", false)
                         .unwrap();
                 }
@@ -72,7 +72,7 @@ fn gate_completion_preserves_prior_zero_rejected_and_reconfirmation_guards() {
                 if prior == "reconfirm" {
                     s.money.reconfirm = true;
                 } else {
-                    let _ = s.admit_money(prior, false);
+                    let _ = s.admit_money(prior, false, false);
                 }
                 let receipt = s.inference_receipt().unwrap();
                 let draft = s.money.draft.clone();
@@ -125,7 +125,7 @@ fn uncertain_account_and_shared_handle_survive_gate_completion_and_run_default()
     for addressed in [false, true] {
         let dir = tempfile::tempdir().unwrap();
         let mut s = open(dir.path());
-        s.admit_money("budget 3 USD", false).unwrap();
+        s.admit_money("budget 3 USD", false, false).unwrap();
         let account = s.money.account.clone().unwrap();
         assert!(s.reason_with_money("hello", false).is_err());
         let receipt = s.inference_receipt().unwrap();
@@ -210,7 +210,7 @@ fn restoring_an_unmetered_saved_run_never_replaces_a_later_session_refusal() {
         let mut s = open(dir.path());
         s.turn("Read ./entree.txt and write it to ./sortie.txt");
         assert!(matches!(s.consent("yes"), TurnOutcome::Facts(_)));
-        let _ = s.admit_money(prior, false);
+        let _ = s.admit_money(prior, false, false);
         let guard = s.money.inference_guard.clone();
         assert!(
             matches!(s.turn("run compiled-workflow.nika"), TurnOutcome::RunRequested { ref run, .. } if run.max_cost_usd.to_bits() == 0.25_f64.to_bits())
@@ -323,10 +323,10 @@ fn fresh_prepare_defaults_never_replace_a_session_inference_constraint() {
         let dir = tempfile::tempdir().unwrap();
         let mut s = open(dir.path());
         match prior {
-            "zero" => s.admit_money("budget 0 USD", false).unwrap(),
-            "rejected" => assert!(s.admit_money("budget NaN USD", false).is_err()),
+            "zero" => s.admit_money("budget 0 USD", false, false).unwrap(),
+            "rejected" => assert!(s.admit_money("budget NaN USD", false, false).is_err()),
             _ => {
-                s.admit_money("budget 3 USD", false).unwrap();
+                s.admit_money("budget 3 USD", false, false).unwrap();
                 let result = s.reason_with_money("charge before new work", false);
                 assert_eq!(result.is_ok(), prior == "spent");
             }

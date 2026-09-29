@@ -400,10 +400,13 @@ is the final assistant message (string).
 The agent may also grant itself **`nika:compose`**, a second loop-only
 builtin (also valid ONLY inside an `agent:` whitelist · standalone is
 `NIKA-BUILTIN-COMPOSE-001`). It lets the model **self-check a workflow it is
-drafting**: pass a `workflow_yaml` string, get the full `nika check` verdict
-back (conformance + secret-flow + permits + the termination/cost certificate)
-as the tool result. It **never executes** the draft: verification yields an
-artifact + its certificate, and running it stays a separate, gated decision.
+drafting**: pass a `workflow_yaml` string and receive the in-memory static
+report (Core conformance, secret-flow and capability-escape counts, and a
+termination/cost certificate summary). `valid` reports parsing and Core
+conformance only: child files are not read, composition is not resolved, and
+execution is not admitted. Check the saved file and its children through the
+file-aware `nika check` before claiming it is ready to run. The intrinsic
+**never executes** the draft; running it remains a separate, gated decision.
 The teaching shape is
 [`examples/15-compose-self-check.nika`](../examples/15-compose-self-check.nika)
 (`nika:done` first so `mock/echo` closes at turn one). See

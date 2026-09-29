@@ -193,8 +193,10 @@ pub nika_compile_reader::aggregate::Shape::distinct_by: alloc::vec::Vec<alloc::s
 pub nika_compile_reader::aggregate::Shape::group_by: core::option::Option<alloc::string::String>
 pub nika_compile_reader::aggregate::Shape::join_on: core::option::Option<alloc::string::String>
 pub nika_compile_reader::aggregate::Shape::limit: core::option::Option<u32>
+pub nika_compile_reader::aggregate::Shape::numbers: alloc::vec::Vec<alloc::string::String>
 pub nika_compile_reader::aggregate::Shape::renames: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub nika_compile_reader::aggregate::Shape::sort_by: core::option::Option<(alloc::string::String, bool)>
+pub nika_compile_reader::aggregate::Shape::ties_first_in_file: bool
 impl core::clone::Clone for nika_compile_reader::aggregate::Shape
 pub fn nika_compile_reader::aggregate::Shape::clone(&self) -> nika_compile_reader::aggregate::Shape
 impl core::cmp::Eq for nika_compile_reader::aggregate::Shape
@@ -421,6 +423,7 @@ pub fn nika_compile_reader::lexicon::fold_apostrophes(intent: &str) -> alloc::st
 pub fn nika_compile_reader::lexicon::read(intent: &str) -> nika_compile_reader::lexicon::Reading
 pub fn nika_compile_reader::lexicon::settle_retrieval(detail_lower: &str, options: &[nika_compile_reader::plan::Op]) -> core::option::Option<nika_compile_reader::plan::Op>
 pub fn nika_compile_reader::lexicon::slug(phrase: &str) -> alloc::string::String
+pub fn nika_compile_reader::lexicon::split_clauses(sentence: &str) -> alloc::vec::Vec<&str>
 pub fn nika_compile_reader::lexicon::split_sentences(intent: &str) -> alloc::vec::Vec<&str>
 pub mod nika_compile_reader::objects
 #[non_exhaustive] pub struct nika_compile_reader::objects::Facet
@@ -761,6 +764,7 @@ pub unsafe fn nika_compile_reader::plan::Binding::clone_to_uninit(&self, dest: *
 impl<T> core::convert::From<T> for nika_compile_reader::plan::Binding
 pub fn nika_compile_reader::plan::Binding::from(t: T) -> T
 #[non_exhaustive] pub struct nika_compile_reader::plan::Effect
+pub nika_compile_reader::plan::Effect::alone: bool
 pub nika_compile_reader::plan::Effect::evidence: alloc::string::String
 pub nika_compile_reader::plan::Effect::policy: nika_compile_reader::plan::EffectPolicy
 pub nika_compile_reader::plan::Effect::policy_literal: core::option::Option<alloc::string::String>
@@ -845,6 +849,7 @@ pub nika_compile_reader::plan::Plan::trigger: core::option::Option<alloc::string
 pub nika_compile_reader::plan::Plan::unknowns: alloc::vec::Vec<alloc::string::String>
 impl nika_compile_reader::plan::Plan
 pub fn nika_compile_reader::plan::Plan::anchored(&self, intent: &str) -> bool
+pub fn nika_compile_reader::plan::Plan::content_of(&self, effect: &nika_compile_reader::plan::Effect) -> core::option::Option<&str>
 pub fn nika_compile_reader::plan::Plan::from_json(record: &serde_json::value::Value) -> core::result::Result<Self, alloc::string::String>
 pub fn nika_compile_reader::plan::Plan::has(&self, op: nika_compile_reader::plan::Op) -> bool
 pub fn nika_compile_reader::plan::Plan::obligation(&self, word: &str) -> bool
@@ -1123,6 +1128,42 @@ impl<T> core::clone::CloneToUninit for nika_compile_reader::rules::Junction wher
 pub unsafe fn nika_compile_reader::rules::Junction::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_compile_reader::rules::Junction
 pub fn nika_compile_reader::rules::Junction::from(t: T) -> T
+#[non_exhaustive] pub enum nika_compile_reader::rules::NumberPolicy
+pub nika_compile_reader::rules::NumberPolicy::Fail
+pub nika_compile_reader::rules::NumberPolicy::Skip
+impl nika_compile_reader::rules::NumberPolicy
+pub const fn nika_compile_reader::rules::NumberPolicy::word(self) -> &'static str
+impl core::clone::Clone for nika_compile_reader::rules::NumberPolicy
+pub fn nika_compile_reader::rules::NumberPolicy::clone(&self) -> nika_compile_reader::rules::NumberPolicy
+impl core::cmp::Eq for nika_compile_reader::rules::NumberPolicy
+impl core::cmp::PartialEq for nika_compile_reader::rules::NumberPolicy
+pub fn nika_compile_reader::rules::NumberPolicy::eq(&self, other: &nika_compile_reader::rules::NumberPolicy) -> bool
+impl core::fmt::Debug for nika_compile_reader::rules::NumberPolicy
+pub fn nika_compile_reader::rules::NumberPolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_reader::rules::NumberPolicy
+impl core::marker::StructuralPartialEq for nika_compile_reader::rules::NumberPolicy
+impl<T, U> core::convert::Into<U> for nika_compile_reader::rules::NumberPolicy where U: core::convert::From<T>
+pub fn nika_compile_reader::rules::NumberPolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::rules::NumberPolicy where U: core::convert::Into<T>
+pub type nika_compile_reader::rules::NumberPolicy::Error = core::convert::Infallible
+pub fn nika_compile_reader::rules::NumberPolicy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::rules::NumberPolicy where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::rules::NumberPolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::rules::NumberPolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::rules::NumberPolicy where T: core::clone::Clone
+pub type nika_compile_reader::rules::NumberPolicy::Owned = T
+pub fn nika_compile_reader::rules::NumberPolicy::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::rules::NumberPolicy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::rules::NumberPolicy where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::rules::NumberPolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::rules::NumberPolicy where T: ?core::marker::Sized
+pub fn nika_compile_reader::rules::NumberPolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::rules::NumberPolicy where T: ?core::marker::Sized
+pub fn nika_compile_reader::rules::NumberPolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::rules::NumberPolicy where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::rules::NumberPolicy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::rules::NumberPolicy
+pub fn nika_compile_reader::rules::NumberPolicy::from(t: T) -> T
 #[non_exhaustive] pub enum nika_compile_reader::rules::Operand
 pub nika_compile_reader::rules::Operand::Bool(bool)
 pub nika_compile_reader::rules::Operand::Column(alloc::string::String)
@@ -1353,11 +1394,19 @@ pub fn nika_compile_reader::rules::Rule::shaped(&self) -> bool
 pub fn nika_compile_reader::rules::Rule::slots(&self) -> alloc::vec::Vec<alloc::string::String>
 pub const fn nika_compile_reader::rules::Rule::summary(&self) -> bool
 pub fn nika_compile_reader::rules::Rule::text(&self) -> &str
+pub fn nika_compile_reader::rules::Rule::then(&self) -> &[nika_compile_reader::rules::Then]
 pub fn nika_compile_reader::rules::Rule::to_json(&self) -> serde_json::value::Value
 pub fn nika_compile_reader::rules::Rule::totals_names(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_reader::rules::Rule::typed(text: &str, clauses: alloc::vec::Vec<nika_compile_reader::rules::Clause>, junction: nika_compile_reader::rules::Junction, shape: nika_compile_reader::aggregate::Shape) -> Self
 pub fn nika_compile_reader::rules::Rule::verified_program(&self) -> core::option::Option<&nika_compile_reader::rules::Program>
 pub fn nika_compile_reader::rules::Rule::with_limit(self, n: u32) -> Self
+impl nika_compile_reader::rules::Rule
+pub fn nika_compile_reader::rules::Rule::number_fields(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_reader::rules::Rule::number_policy(&self, field: &str) -> core::option::Option<nika_compile_reader::rules::NumberPolicy>
+pub fn nika_compile_reader::rules::Rule::plain_sort(&self) -> core::option::Option<&str>
+pub fn nika_compile_reader::rules::Rule::text_equalities(&self) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub fn nika_compile_reader::rules::Rule::with_number_policy(&self, field: &str, policy: nika_compile_reader::rules::NumberPolicy) -> core::option::Option<Self>
+pub fn nika_compile_reader::rules::Rule::with_spellings(&self, field: &str, literal: &str, spellings: &[alloc::string::String]) -> core::option::Option<Self>
 impl nika_compile_reader::rules::Rule
 pub fn nika_compile_reader::rules::Rule::source_fields(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile_reader::rules::Rule::with_source_field(&self, from: &str, to: &str) -> core::option::Option<Self>
@@ -1400,8 +1449,10 @@ pub nika_compile_reader::rules::Shape::distinct_by: alloc::vec::Vec<alloc::strin
 pub nika_compile_reader::rules::Shape::group_by: core::option::Option<alloc::string::String>
 pub nika_compile_reader::rules::Shape::join_on: core::option::Option<alloc::string::String>
 pub nika_compile_reader::rules::Shape::limit: core::option::Option<u32>
+pub nika_compile_reader::rules::Shape::numbers: alloc::vec::Vec<alloc::string::String>
 pub nika_compile_reader::rules::Shape::renames: alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub nika_compile_reader::rules::Shape::sort_by: core::option::Option<(alloc::string::String, bool)>
+pub nika_compile_reader::rules::Shape::ties_first_in_file: bool
 impl core::clone::Clone for nika_compile_reader::aggregate::Shape
 pub fn nika_compile_reader::aggregate::Shape::clone(&self) -> nika_compile_reader::aggregate::Shape
 impl core::cmp::Eq for nika_compile_reader::aggregate::Shape
@@ -1434,6 +1485,42 @@ impl<T> core::clone::CloneToUninit for nika_compile_reader::aggregate::Shape whe
 pub unsafe fn nika_compile_reader::aggregate::Shape::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_compile_reader::aggregate::Shape
 pub fn nika_compile_reader::aggregate::Shape::from(t: T) -> T
+#[non_exhaustive] pub struct nika_compile_reader::rules::Then
+pub nika_compile_reader::rules::Then::clauses: alloc::vec::Vec<nika_compile_reader::rules::Clause>
+pub nika_compile_reader::rules::Then::junction: nika_compile_reader::rules::Junction
+pub nika_compile_reader::rules::Then::shape: nika_compile_reader::aggregate::Shape
+impl nika_compile_reader::rules::Then
+pub fn nika_compile_reader::rules::Then::new(clauses: alloc::vec::Vec<nika_compile_reader::rules::Clause>, junction: nika_compile_reader::rules::Junction, shape: nika_compile_reader::aggregate::Shape) -> Self
+impl core::clone::Clone for nika_compile_reader::rules::Then
+pub fn nika_compile_reader::rules::Then::clone(&self) -> nika_compile_reader::rules::Then
+impl core::cmp::Eq for nika_compile_reader::rules::Then
+impl core::cmp::PartialEq for nika_compile_reader::rules::Then
+pub fn nika_compile_reader::rules::Then::eq(&self, other: &nika_compile_reader::rules::Then) -> bool
+impl core::fmt::Debug for nika_compile_reader::rules::Then
+pub fn nika_compile_reader::rules::Then::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_reader::rules::Then
+impl<T, U> core::convert::Into<U> for nika_compile_reader::rules::Then where U: core::convert::From<T>
+pub fn nika_compile_reader::rules::Then::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_reader::rules::Then where U: core::convert::Into<T>
+pub type nika_compile_reader::rules::Then::Error = core::convert::Infallible
+pub fn nika_compile_reader::rules::Then::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_reader::rules::Then where U: core::convert::TryFrom<T>
+pub type nika_compile_reader::rules::Then::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_reader::rules::Then::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_reader::rules::Then where T: core::clone::Clone
+pub type nika_compile_reader::rules::Then::Owned = T
+pub fn nika_compile_reader::rules::Then::clone_into(&self, target: &mut T)
+pub fn nika_compile_reader::rules::Then::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_reader::rules::Then where T: 'static + ?core::marker::Sized
+pub fn nika_compile_reader::rules::Then::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_reader::rules::Then where T: ?core::marker::Sized
+pub fn nika_compile_reader::rules::Then::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_reader::rules::Then where T: ?core::marker::Sized
+pub fn nika_compile_reader::rules::Then::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_reader::rules::Then where T: core::clone::Clone
+pub unsafe fn nika_compile_reader::rules::Then::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_reader::rules::Then
+pub fn nika_compile_reader::rules::Then::from(t: T) -> T
 pub fn nika_compile_reader::rules::by_construction_tail(text: &str) -> bool
 pub fn nika_compile_reader::rules::keeps_order(text: &str) -> bool
 pub fn nika_compile_reader::rules::line_filter(text: &str) -> core::option::Option<nika_compile_reader::rules::Rule>
@@ -1572,13 +1659,19 @@ pub fn nika_compile_reader::structure::Law::from(t: T) -> T
 pub fn nika_compile_reader::structure::binds_no_operation(text: &str) -> bool
 pub fn nika_compile_reader::structure::context_statement(text: &str) -> bool
 pub fn nika_compile_reader::structure::laws(text: &str) -> alloc::vec::Vec<nika_compile_reader::structure::Law>
+pub fn nika_compile_reader::structure::only_a_compute_head(text: &str) -> bool
+pub fn nika_compile_reader::structure::only_function_words(text: &str) -> bool
+pub fn nika_compile_reader::structure::restricts(text: &str) -> bool
+pub fn nika_compile_reader::structure::selection_demand(text: &str) -> bool
 pub mod nika_compile_reader::text
+pub const nika_compile_reader::text::NUMBER_TEXT: &str
 pub const nika_compile_reader::text::STOPWORDS: &[&str]
 pub fn nika_compile_reader::text::banner_lines(body: &str) -> alloc::vec::Vec<&str>
 pub fn nika_compile_reader::text::banner_sentence(body: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_compile_reader::text::exact_excerpt(intent: &str, evidence: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_compile_reader::text::fold_quote(ch: char) -> char
 pub fn nika_compile_reader::text::is_label(seg: &str) -> bool
+pub fn nika_compile_reader::text::quoted_literal(text: &str) -> core::option::Option<alloc::string::String>
 pub mod nika_compile_reader::trigger_words
 pub const nika_compile_reader::trigger_words::ARRIVAL_WORDS: &[&str]
 pub const nika_compile_reader::trigger_words::AT: &[&str]

@@ -15,6 +15,10 @@
 
 use std::fmt::{self, Write as _};
 
+use nika_onboard::compile::AuthoringReasoning;
+
+use crate::reasoner::ReasonError;
+
 /// The bounded set of conversational acts (small on purpose: a routing
 /// decision, not an intent ontology).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -66,23 +70,23 @@ impl TurnAct {
         Self::Unknown,
     ];
 
-    /// The first label found in a reply, whole word, in the reply's order.
+    /// The one label a reply names, whole word; a reply naming none, or several
+    /// different ones (« not MODIFY, this is DISCUSS »), is UNKNOWN — never
+    /// the first label met.
     #[must_use]
     pub fn parse(reply: &str) -> Self {
         let upper = reply.to_ascii_uppercase();
-        let mut best: Option<(usize, Self)> = None;
-        for act in Self::ALL {
-            if let Some(at) = upper.find(act.label()) {
-                let before = upper[..at].chars().next_back();
-                let after = upper[at + act.label().len()..].chars().next();
-                let whole = !before.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_')
-                    && !after.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_');
-                if whole && best.is_none_or(|(b, _)| at < b) {
-                    best = Some((at, act));
-                }
-            }
+        let word = |c: Option<char>| c.is_some_and(|c| c.is_ascii_alphanumeric() || c == '_');
+        let mut named = Self::ALL.into_iter().filter(|act| {
+            upper.match_indices(act.label()).any(|(at, label)| {
+                !word(upper[..at].chars().next_back())
+                    && !word(upper[at + label.len()..].chars().next())
+            })
+        });
+        match (named.next(), named.next()) {
+            (Some(act), None) => act,
+            _ => Self::Unknown,
         }
-        best.map_or(Self::Unknown, |(_, act)| act)
     }
 }
 
@@ -210,6 +214,24 @@ pub trait TurnClassifier: Send {
 
     /// The act of `raw` in `context`; UNKNOWN when it cannot tell.
     fn classify(&mut self, context: &TurnContext, raw: &str) -> TurnDecision;
+
+    /// Carry the explicit reasoning effort the session names (R4 B16) on every label sent from
+    /// now on, `None` for none. A classifier that cannot carry a named level refuses it (the
+    /// default), and the session refuses the label before calling it: a label is never sent
+    /// without the level. One that makes no model call, or whose backend has no reasoning effort
+    /// (a typed decision service), has nothing to carry: it accepts and never claims the level.
+    ///
+    /// # Errors
+    /// This classifier cannot carry the named level: the reasoner's typed refusal, as
+    /// [`crate::reasoner::SessionReasoner::reason_effort`]'s default gives it.
+    fn carry_effort(&mut self, effort: Option<AuthoringReasoning>) -> Result<(), ReasonError> {
+        effort.map_or(Ok(()), |level| {
+            Err(ReasonError::Provider(format!(
+                "this classifier cannot carry the explicit reasoning effort `{}` · nothing was sent",
+                level.word()
+            )))
+        })
+    }
 }
 
 /// No intelligence: every open line is UNKNOWN, and the runtime keeps
@@ -221,12 +243,18 @@ impl TurnClassifier for ConservativeFallback {
     fn classify(&mut self, _context: &TurnContext, _raw: &str) -> TurnDecision {
         TurnDecision::new(TurnAct::Unknown, RoutingMethod::Fallback)
     }
+
+    /// No model call: nothing to carry.
+    fn carry_effort(&mut self, _: Option<AuthoringReasoning>) -> Result<(), ReasonError> {
+        Ok(())
+    }
 }
 
 /// The session's intelligence as the classifier: the routing prompt, one
 /// label read whole; a path that cannot answer is the fallback (UNKNOWN).
 pub struct ReasonerClassifier {
     reasoner: Box<dyn crate::reasoner::SessionReasoner>,
+    effort: Option<nika_onboard::compile::AuthoringReasoning>,
 }
 
 impl ReasonerClassifier {
@@ -234,7 +262,26 @@ impl ReasonerClassifier {
     /// conversation's, so the route follows the chosen intelligence).
     #[must_use]
     pub fn new(reasoner: Box<dyn crate::reasoner::SessionReasoner>) -> Self {
-        Self { reasoner }
+        Self {
+            reasoner,
+            effort: None,
+        }
+    }
+
+    /// Every label asks this explicit reasoning effort (R4 B16), on the same label call; a
+    /// reasoner that cannot carry it refuses the label before any call.
+    #[must_use]
+    pub fn asking(mut self, effort: Option<nika_onboard::compile::AuthoringReasoning>) -> Self {
+        self.effort = effort;
+        self
+    }
+}
+
+/// A label's reply as the route it decides; a path that cannot answer is the fallback.
+fn decided(reply: Result<crate::reasoner::Reply, ReasonError>) -> TurnDecision {
+    match reply {
+        Ok(reply) => TurnDecision::new(TurnAct::parse(&reply.text), RoutingMethod::Model),
+        Err(e) => TurnDecision::failed(&e.to_string()),
     }
 }
 
@@ -245,20 +292,25 @@ impl TurnClassifier for ReasonerClassifier {
         raw: &str,
         account: &nika_providers::InferenceAdmission,
     ) -> TurnDecision {
-        match self
-            .reasoner
-            .reason_label_with_admission(&routing_prompt(context, raw), account)
-        {
-            Ok(reply) => TurnDecision::new(TurnAct::parse(&reply.text), RoutingMethod::Model),
-            Err(e) => TurnDecision::failed(&e.to_string()),
-        }
+        let prompt = routing_prompt(context, raw);
+        decided(match self.effort {
+            Some(effort) => (self.reasoner).reason_effort(&prompt, true, Some(account), effort),
+            None => self.reasoner.reason_label_with_admission(&prompt, account),
+        })
     }
 
     fn classify(&mut self, context: &TurnContext, raw: &str) -> TurnDecision {
-        match self.reasoner.reason_label(&routing_prompt(context, raw)) {
-            Ok(reply) => TurnDecision::new(TurnAct::parse(&reply.text), RoutingMethod::Model),
-            Err(e) => TurnDecision::failed(&e.to_string()),
-        }
+        let prompt = routing_prompt(context, raw);
+        decided(match self.effort {
+            Some(effort) => self.reasoner.reason_effort(&prompt, true, None, effort),
+            None => self.reasoner.reason_label(&prompt),
+        })
+    }
+
+    /// The level rides every label from now on ([`Self::asking`], as a hook).
+    fn carry_effort(&mut self, effort: Option<AuthoringReasoning>) -> Result<(), ReasonError> {
+        self.effort = effort;
+        Ok(())
     }
 }
 
@@ -352,15 +404,23 @@ impl RouteRecord {
 mod tests {
     use super::*;
 
-    /// The label is read whole, first in the reply's order; an unknown reply is UNKNOWN.
+    /// The label is read whole and must be the only one the reply names: a reply
+    /// naming two different labels is UNKNOWN (V9 P1 · a reasoning seat that
+    /// leaks « not MODIFY, this is DISCUSS » once revised a proposal); an
+    /// unknown reply is UNKNOWN.
     #[test]
-    fn a_label_is_parsed_whole_and_first() {
+    fn a_reply_names_exactly_one_label_or_it_is_unknown() {
         assert_eq!(TurnAct::parse("MODIFY"), TurnAct::Modify);
         assert_eq!(TurnAct::parse("Label: discuss."), TurnAct::Discuss);
-        assert_eq!(
-            TurnAct::parse("I think MIXED (a yes and MODIFY)"),
-            TurnAct::Mixed
-        );
+        assert_eq!(TurnAct::parse("DISCUSS. Label: DISCUSS"), TurnAct::Discuss);
+        assert_eq!(TurnAct::parse("MODIFYING, so MODIFY"), TurnAct::Modify);
+        for two in [
+            "I think MIXED (a yes and MODIFY)",
+            "not MODIFY, this is DISCUSS",
+            "DISCUSS or MODIFY",
+        ] {
+            assert_eq!(TurnAct::parse(two), TurnAct::Unknown, "{two}");
+        }
         assert_eq!(TurnAct::parse("NEW_WORK"), TurnAct::NewWork);
         assert_eq!(TurnAct::parse("REQUEST_RUN"), TurnAct::RequestRun);
         assert_eq!(TurnAct::parse("CANCEL"), TurnAct::Cancel);

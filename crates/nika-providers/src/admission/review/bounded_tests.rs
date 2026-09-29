@@ -51,6 +51,138 @@ fn bound_is_displayed_without_overflow_and_zero_is_refused() {
     );
 }
 
+const SEQUENTIAL_RUN_QUESTION: &str = "USD cost is unknown; a charge is possible on deepseek/unpriced-bounded-fixture.\nAt most 2 requests; each at most 8192 output tokens and 120 seconds (at most 240 seconds of model wait). Any schema re-asks consume this same request bound. No automatic transport retry.\nOverrides only the shown defaults (invocation: none; project: none); no hard cap is overridden.\nContinue once? yes / no";
+#[test]
+fn a_sequential_run_review_keeps_its_historical_question_bytes() {
+    let run = review().for_run(2).expect("bound");
+    assert_eq!(run.question(), SEQUENTIAL_RUN_QUESTION);
+}
+#[test]
+fn host_evidence_names_its_own_refusal_before_any_review() {
+    let local = CostHostEvidence::unmanaged_interactive_local();
+    assert_eq!(local.unknown_cost_refusal(), None);
+    assert!(CostHostEvidence::default().unknown_cost_refusal().is_some());
+    let absent = |origin: &str| CapEvidence::NotApplicable {
+        origin: origin.into(),
+    };
+    let machine = CapEvidence::Observed {
+        cap: HardMonetaryCap::Capped(Cost::new(1)),
+        origin: "machine ceiling".into(),
+    };
+    let capped = CostHostEvidence::new(true, absent("policy"), machine, absent("occurrence"));
+    let why = capped.unknown_cost_refusal().expect("a hard cap refuses");
+    let framed = CostReview::new(
+        "candidate".into(),
+        "invocation".into(),
+        route(),
+        capped,
+        None,
+        None,
+    );
+    assert_eq!(framed.expect_err("the same refusal"), why);
+}
+#[test]
+fn session_and_single_attempt_reviews_keep_the_conservative_uncertain_law() {
+    // Neither authored a task retry, so a received 503 never answers its
+    // attempt: the account is Uncertain and nothing else may be sent.
+    let route = route();
+    for review in [review().for_session(), review().for_run(2).expect("bound")] {
+        let account = review.confirm("candidate", &route).expect("fresh yes");
+        let reserve = || account.reserve(&route.provider, &route.model, &route.endpoint, 32);
+        let mut call = reserve().expect("first");
+        call.sent().expect("send");
+        call.answered(503, &route.endpoint);
+        drop(call);
+        assert!(reserve().is_err());
+        let receipt = account.snapshot().expect("receipt");
+        assert_eq!(receipt.state, crate::AdmissionState::Uncertain);
+        let choice = serde_json::to_value(receipt.unknown_cost).expect("choice");
+        assert!(choice.get("authored_retry").is_none(), "{choice}");
+    }
+}
+#[test]
+fn a_fan_review_shows_its_breakdown_and_confirms_its_concurrency() {
+    let sequential = review()
+        .for_run(2)
+        .expect("bound")
+        .with_concurrency(1)
+        .expect("one at a time")
+        .with_breakdown(Vec::new())
+        .with_authored_retry(false);
+    assert_eq!(sequential.question(), SEQUENTIAL_RUN_QUESTION);
+    assert_eq!(review().for_session().max_in_flight(), 1);
+    for width in [0, 7] {
+        let widened = review().for_run(6).expect("bound").with_concurrency(width);
+        assert!(widened.is_err(), "{width}");
+    }
+    let line = "`review`: 3 items × 2 attempts = 6 requests, at most 3 at once";
+    let fan = review()
+        .for_run(6)
+        .expect("bound")
+        .with_concurrency(3)
+        .expect("within the total")
+        .with_breakdown(vec![line.into()])
+        .with_authored_retry(true);
+    assert_eq!(fan.max_in_flight(), 3);
+    let question = fan.question();
+    let shown = format!(
+        "No automatic transport retry.\n{line}\nAt most 3 in flight at once; authored retries and schema re-asks consume this same request bound.\nTask retries authored in the workflow (retry.max_attempts) may send a new request only after a completed response or a received 429 or 503; the transport never resends on its own, and any other failure stops every further request.\nOverrides only"
+    );
+    assert!(question.contains("At most 6 requests;"), "{question}");
+    assert!(question.contains(&shown), "{question}");
+    let route = route();
+    let account = fan.confirm("candidate", &route).expect("fresh yes");
+    let reserve = || account.reserve(&route.provider, &route.model, &route.endpoint, 32);
+    let held: Vec<_> = (0..3).map(|_| reserve().expect("in flight")).collect();
+    assert!(reserve().is_err(), "a fourth waits for a free slot");
+    drop(held); // never sent: released, still counted
+    let mut answered = reserve().expect("fourth");
+    answered.sent().expect("send");
+    answered.answered(429, &route.endpoint); // the confirmed choice carries the retry law
+    drop(answered);
+    let rest: Vec<_> = (0..2).map(|_| reserve().expect("in the total")).collect();
+    drop(rest);
+    assert!(reserve().is_err(), "the confirmed total is spent");
+    let receipt = account.snapshot().expect("receipt");
+    assert_eq!(receipt.state, crate::AdmissionState::Open);
+    assert_eq!(receipt.unknown_calls, 1);
+}
+/// B12 r5 · the review names the triple it admits, and the confirmed choice
+/// enforces exactly that triple: a host shows the owner's answer.
+#[test]
+fn a_review_names_the_bounds_its_confirmed_choice_enforces() {
+    let session = review().for_session();
+    assert_eq!(
+        session.bounds(),
+        (
+            SESSION_REVIEW_MAX_REQUESTS,
+            SESSION_REVIEW_MAX_OUTPUT_TOKENS,
+            SESSION_REVIEW_TIMEOUT
+        )
+    );
+    let run = review().for_run(6).expect("bound");
+    let (requests, tokens, timeout) = run.bounds();
+    assert_eq!(
+        (requests, tokens, timeout),
+        (6, RUN_REVIEW_MAX_OUTPUT_TOKENS, RUN_REVIEW_TIMEOUT)
+    );
+    let account = run.confirm("candidate", &route()).expect("fresh yes");
+    let receipt = account.snapshot().expect("receipt");
+    let choice = serde_json::to_value(receipt.unknown_cost).expect("choice");
+    let millis = u64::try_from(timeout.as_millis()).expect("millis");
+    assert_eq!(
+        (
+            &choice["max_requests"],
+            &choice["max_output_tokens"],
+            &choice["timeout_ms"]
+        ),
+        (
+            &serde_json::json!(requests),
+            &serde_json::json!(tokens),
+            &serde_json::json!(millis)
+        )
+    );
+}
 #[test]
 fn a_session_review_admits_the_sessions_widened_output_and_a_run_review_does_not() {
     let route = route();

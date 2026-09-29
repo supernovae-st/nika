@@ -21,10 +21,14 @@ fn revised() -> String {
     reply.to_string()
 }
 
-/// The loopback seat: the original candidate, then the seat's revision. Any further request
-/// would be counted.
+/// The loopback seat: the original candidate, the judge's approval of it (native step 1),
+/// then the seat's revision. Any further request would be counted.
 fn seat(revision: &str) -> Peer {
-    Peer::start(vec![(200, response(&native())), (200, response(revision))])
+    Peer::start(vec![
+        (200, response(&native())),
+        (200, response(JUDGE_APPROVES)),
+        (200, response(revision)),
+    ])
 }
 
 /// The door's classifier: the change is a MODIFY wherever it is said; any other line is an
@@ -66,7 +70,8 @@ fn session(dir: &Path, home: Option<&Path>) -> SessionRuntime {
         s.enable_history(home).expect("history");
     }
     s.with_classifier(Box::new(Acts));
-    s.admit_money("budget 2 USD", false).expect("allowance");
+    s.admit_money("budget 2 USD", false, false)
+        .expect("allowance");
     s
 }
 
@@ -125,7 +130,11 @@ fn a_revision_question_is_answered_into_the_revised_proposal_saved_only() {
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().expect("root");
     let (mut s, was) = asked(dir.path(), None);
-    assert_eq!(peer.bodies().len(), 2, "one call authored, one revised");
+    assert_eq!(
+        peer.bodies().len(),
+        3,
+        "one call authored, one judged, one revised"
+    );
     let before = files(dir.path());
     // The question owns the next line; the proposal it revises waits aside, never consentable.
     assert_eq!(s.phase(), SessionPhase::QuestionPending);
@@ -156,7 +165,7 @@ fn a_revision_question_is_answered_into_the_revised_proposal_saved_only() {
         panic!("the revised proposal: {out:?}");
     };
     assert_ne!(*id, was.id);
-    assert_eq!(peer.bodies().len(), 2, "an answer replays: no call");
+    assert_eq!(peer.bodies().len(), 3, "an answer replays: no call");
     assert!(s.pending_question().is_none());
     let revision = s.pending.clone().expect("the revised proposal waits");
     let bytes = bytes_of(&revision);
@@ -176,7 +185,7 @@ fn a_revision_question_is_answered_into_the_revised_proposal_saved_only() {
     assert_eq!(saved.expect("saved"), bytes);
     assert!(!dir.path().join("revised.txt").exists());
     assert!(!dir.path().join("sortie.txt").exists());
-    assert_eq!(peer.bodies().len(), 2);
+    assert_eq!(peer.bodies().len(), 3);
 }
 
 #[test]
@@ -205,7 +214,7 @@ fn a_cancelled_revision_question_restores_the_proposal_it_revised() {
     let saved = std::fs::read_to_string(dir.path().join(was.set.changes[0].path()));
     assert_eq!(saved.expect("saved"), bytes_of(&was.set));
     assert!(!dir.path().join("sortie.txt").exists());
-    assert_eq!(peer.bodies().len(), 2);
+    assert_eq!(peer.bodies().len(), 3);
 }
 
 /// A `yes` at the question is its answer, never a consent: the revised proposal is proposed
@@ -249,7 +258,7 @@ fn a_waiting_revision_keeps_the_proposal_it_revises_as_the_draft() {
     assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
     let again = resumed.pending.clone().expect("proposed again");
     assert_eq!(bytes_of(&again), bytes_of(&was.set));
-    assert_eq!(peer.bodies().len(), 2);
+    assert_eq!(peer.bodies().len(), 3);
 }
 
 /// Each disposition is its own question of the same EDIT (`gap.1`, then `gap.2`), and a change
@@ -280,7 +289,7 @@ fn every_disposition_and_a_change_at_the_question_stay_in_the_revision() {
     assert!(bytes.contains("./revised.txt"), "{bytes}");
     assert_eq!(
         peer.bodies().len(),
-        2,
+        3,
         "answers replay: nothing read afresh"
     );
 }
@@ -312,7 +321,7 @@ fn a_saved_workflows_revision_question_is_answered_through_its_edit() {
     assert!(bytes.contains("./revised.txt"), "{bytes}");
     let now = std::fs::read_to_string(dir.path().join(&saved)).expect("still saved");
     assert_eq!(now, base, "nothing written before a consent");
-    assert_eq!(peer.bodies().len(), 2);
+    assert_eq!(peer.bodies().len(), 3);
 }
 
 /// A refused spending line at the question expires what waits, the set-aside proposal with it:
@@ -334,5 +343,5 @@ fn a_refused_budget_at_the_question_expires_the_proposal_it_set_aside() {
     let mut resumed = open(dir.path());
     resumed.enable_history(home.path()).expect("history");
     assert_eq!(resumed.restored_draft_id(), None, "no draft outlives it");
-    assert_eq!(peer.bodies().len(), 2);
+    assert_eq!(peer.bodies().len(), 3);
 }

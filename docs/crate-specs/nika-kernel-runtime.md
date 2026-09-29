@@ -29,3 +29,9 @@ MUTATION inherited · BENCHMARKS/CANARY/PARITY N/A.
 
 - Depends ONLY on `nika-kernel-core` (+ external workspace deps).
 - Agent/checkpoint trait growth (L2 verb admission) lands HERE.
+- A failed `ToolResult` carries its tool's own `ToolErrorMeta` (spec code,
+  retry class) and, since 2026-09-28, optional typed `ToolErrorDetails`:
+  the final HTTP `status_code` the call received and the `accepted` set it
+  declared. The type is closed: no free-form data or provider text crosses
+  the seam, empty details stay absent, and `to_value()` projects only the
+  facts present under the spec's names (the error object's `details`).

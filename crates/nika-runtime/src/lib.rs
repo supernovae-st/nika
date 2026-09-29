@@ -133,8 +133,9 @@ type ValueBags<'a> = (
 );
 
 pub use admit::{
-    access_pin_refusal, budget_floor_refusal, budget_floor_refusal_seated, first_modelless_task,
-    floor_refusal, modelless_refusal, plan_refusal, required_inputs_refusal, scope_to_task,
+    access_pin_refusal, budget_floor_refusal, budget_floor_refusal_bound,
+    budget_floor_refusal_seated, effective_workflow, first_modelless_task, floor_refusal,
+    modelless_refusal, plan_refusal, required_inputs_refusal, resolve_model_expr, scope_to_task,
     unbounded_breakdown,
 };
 pub use compose::{
@@ -1014,7 +1015,8 @@ where
         // Secrets resolve once; misses stay unbound and fail closed.
         let secrets = secret::resolve_secrets(self.secrets.as_ref(), &wf.secrets);
         let mut scrub = secret::RedactingSink::new(sink, &secrets);
-        let sink: &mut dyn EventSink = &mut scrub;
+        let admission = self.config.inference_admission.as_ref();
+        let sink: &mut dyn EventSink = &mut cost_choice::ObservedSink(&mut scrub, admission);
         // Resume identities and leak guards are derived once per run.
         let resume_ctx = self.resume_context(wf, &secrets);
         // The declared capability boundary flows to every dispatch scope.

@@ -21,6 +21,7 @@ const UNPRICED: &str = "deepseek/s81-unpriced-fixture";
 const UNPRICED_WIRE: &str = "s81-unpriced-fixture";
 const WAIT: Duration = Duration::from_secs(60);
 const RECORD: &str = ".nika/session-state.json";
+const CANARY: &str = "private-route-canary";
 
 /// A loopback provider that holds its first request open: `wait_received`
 /// is the start gate (a request is in transport), then `answer` or `hang_up`
@@ -355,7 +356,7 @@ fn a_catalog_request_is_recorded_before_transport_and_settles_either_way() {
         let _transport = test_transport::install(&peer.url);
         let dir = tempfile::tempdir().unwrap();
         let mut s = open(dir.path());
-        s.admit_money("budget 2 USD", false).expect("admit");
+        s.admit_money("budget 2 USD", false, false).expect("admit");
         assert!(
             crate::SessionState::load(dir.path()).unwrap().is_none(),
             "nothing is written before a dispatch"
@@ -507,6 +508,7 @@ fn a_contradicted_or_failed_no_budget_call_is_never_retried_or_priced() {
         assert_eq!(last["unbudgeted"], true, "{status}");
         assert_eq!(last["state"], "Uncertain", "{status}");
         assert_eq!(last["unknown_calls"], 1, "{status}");
+        assert_eq!(last["schema"], DURABLE, "{status}: the durable form (E35)");
         let estimated = &last["attempts"][0]["estimated_nano_usd"];
         assert_eq!(estimated, &Value::Null, "{status}: never an invented price");
         assert_eq!(last_history_event(home.path())["effect"], "unknown");
@@ -521,6 +523,8 @@ fn a_contradicted_or_failed_no_budget_call_is_never_retried_or_priced() {
         assert_eq!(effect, "no_uncertainty_reported", "{status}");
         let kept = crate::SessionState::load(dir.path()).unwrap().unwrap();
         assert_eq!(kept.inference_observations.len(), 2, "{status}");
+        let durable = |o: &Value| o["schema"] == DURABLE;
+        assert!(kept.inference_observations.iter().all(durable), "{status}");
     }
 }
 
@@ -544,4 +548,295 @@ fn an_unknown_priced_route_keeps_its_review_and_is_never_observed_instead() {
     );
     let observations = s.cost_observations();
     assert!(observations.iter().all(|o| o["unbudgeted"] != true));
+}
+
+const DURABLE: &str = "nika/inference-cost-observation@2";
+
+/// An unknown-cost account over a canonical route whose path carries a private segment.
+fn private_account() -> nika_providers::InferenceAdmission {
+    let base = format!("https://example.test/{CANARY}/v1");
+    let config = nika_providers::ProvidersConfig::new().with_base_url("deepseek", &base);
+    let route = nika_runtime::cost_choice::CostRoute::observe(MODEL, config).unwrap();
+    nika_runtime::cost_choice::CostReview::new(
+        "candidate".into(),
+        "session".into(),
+        route.clone(),
+        CostHostEvidence::unmanaged_interactive_local(),
+        None,
+        None,
+    )
+    .unwrap()
+    .for_session()
+    .confirm("candidate", &route)
+    .unwrap()
+}
+
+/// E35: at the dispatch boundary the record names a private route by its origin (`@2`), never
+/// its path; the live account keeps its exact endpoint, a restart reads the record with the same
+/// meaning, and an entry recorded earlier is carried as written (no migration here).
+#[test]
+fn a_private_route_is_recorded_by_its_origin_at_the_dispatch_boundary() {
+    let dir = tempfile::tempdir().unwrap();
+    let earlier = json!({"schema": "nika/inference-cost-observation@1", "state": "Closed",
+        "note": format!("recorded earlier at https://example.test/{CANARY}-earlier/v1")});
+    let mut record = crate::SessionState::new("2026-09-28T00:00:00Z".to_owned());
+    record.inference_observations.push(earlier.clone());
+    record.save(dir.path()).unwrap();
+    let mut s = open(dir.path());
+    assert!(s.restore_state().is_some());
+    let account = private_account();
+    s.money.account = Some(account.clone());
+    s.unknown_cost.active = true;
+    s.save_dispatch_boundary().unwrap();
+    let record = crate::SessionState::load(dir.path()).unwrap().unwrap();
+    let line = in_flight(&record.decisions);
+    assert_eq!(line.len(), 1, "{:?}", record.decisions);
+    assert!(!line[0].contains(CANARY), "{}", line[0]);
+    let origin = format!("{MODEL} at https://example.test:443");
+    assert!(line[0].contains(&origin), "{}", line[0]);
+    assert_eq!(
+        record.inference_observations[0], earlier,
+        "carried as written"
+    );
+    let observation = &record.inference_observations[1];
+    assert!(!observation.to_string().contains(CANARY), "{observation}");
+    assert_eq!(observation["schema"], DURABLE);
+    assert_eq!(
+        observation["unknown_cost"]["origin"],
+        "https://example.test:443"
+    );
+    let exact = account.snapshot().unwrap().observation().to_string();
+    assert!(
+        exact.contains(CANARY),
+        "the live account keeps its exact route"
+    );
+    drop(s);
+    let mut resumed = open(dir.path());
+    let notice = resumed.restore_state().unwrap();
+    assert!(notice.contains(DISPATCH_PREFIX), "{notice}");
+    assert!(notice.contains("nothing was replayed"), "{notice}");
+    assert!(!notice.contains(CANARY), "{notice}");
+    assert!(
+        resumed.money.reconfirm,
+        "a paid observation still restricts"
+    );
+    let status = resumed.status();
+    assert!(
+        status.contains("1 paid dispatch(es) left without a recorded settlement"),
+        "{status}"
+    );
+}
+
+/// E35: a private-route account that a fresh one-time review supersedes is kept by its origin,
+/// while the account itself keeps its exact endpoint.
+#[test]
+fn a_superseded_private_account_is_kept_by_its_origin() {
+    let mut body = response("Hello");
+    body["model"] = json!(UNPRICED_WIRE);
+    let peer = Peer::start(vec![(200, body)]);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = open_unpriced(dir.path());
+    let superseded = private_account();
+    s.money.account = Some(superseded.clone());
+    asked_cost(&s.turn("hello"));
+    let out = s.turn("yes");
+    assert!(matches!(out, TurnOutcome::Reply(_)), "{out:?}");
+    assert_eq!(peer.bodies().len(), 1);
+    let record = crate::SessionState::load(dir.path()).unwrap().unwrap();
+    let text = serde_json::to_string(&record.inference_observations).unwrap();
+    assert!(!text.contains(CANARY), "{text}");
+    let kept = &record.inference_observations[0];
+    assert_eq!(kept["schema"], DURABLE);
+    assert_eq!(kept["unknown_cost"]["origin"], "https://example.test:443");
+    let exact = superseded.snapshot().unwrap().observation().to_string();
+    assert!(exact.contains(CANARY), "the account keeps its exact route");
+}
+
+/// C11 F2 · at a live round whose question asks for words, a chosen seat whose unknown cost
+/// awaits its one-time review asks that review for the line instead of refusing it as unreadable;
+/// nothing is sent before the yes, and declining keeps the question waiting unchanged.
+#[test]
+fn a_live_round_reaches_the_one_time_review_for_words_only_the_seat_reads() {
+    let peer = Peer::start(vec![]);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("data")).unwrap();
+    let csv = "customer,amount,status\nacme,10,late\nbeta,5,ok\nacme,7,ok\n";
+    std::fs::write(dir.path().join("data/orders.csv"), csv).unwrap();
+    let mut s = under_an_unpriced_seat(dir.path());
+    let request = "Read ./data/orders.csv, compute the total amount per customer and post the result to a webhook";
+    let TurnOutcome::Question { key, .. } = s.turn(request) else {
+        panic!("the deterministic round asks first");
+    };
+    assert!(
+        peer.bodies().is_empty(),
+        "the deterministic reading sends nothing"
+    );
+    asked_cost(&s.turn("the total of the amount column for each customer"));
+    assert!(peer.bodies().is_empty(), "nothing before the one-time yes");
+    let out = s.turn("no");
+    assert!(
+        matches!(&out, TurnOutcome::Question { key: waiting, .. } if *waiting == key),
+        "declining keeps the question: {out:?}"
+    );
+    assert!(peer.bodies().is_empty(), "declining sends nothing");
+}
+
+/// The unpriced route's Session with the default authoring strategy (escalate).
+fn under_an_unpriced_seat(root: &Path) -> SessionRuntime {
+    let mut s = open_unpriced(root);
+    s.set_authoring_context(crate::authoring::AuthoringContext::from_settings(
+        &nika_cli_host::compile::config::AuthoringSettings::none(),
+        &nika_cli_host::compile::config::AuthoringSettings::none(),
+    ));
+    s
+}
+
+/// A brief round under the unpriced seat, answered to its endpoint question (a value question):
+/// the model, when asked, is said as a value alone and bound with no reading.
+fn at_the_endpoint(root: &Path) -> (SessionRuntime, String) {
+    std::fs::create_dir_all(root.join("notes")).unwrap();
+    std::fs::write(root.join("notes/brief.md"), "# Brief\n\nOctober launch.\n").unwrap();
+    let mut s = under_an_unpriced_seat(root);
+    let brief =
+        "Read ./notes/brief.md, draft a 3-bullet summary of it and post the summary to a webhook";
+    let mut asked = s.turn(brief);
+    if matches!(&asked, TurnOutcome::Question { key, .. } if key == "model") {
+        asked = s.turn("mock/echo");
+    }
+    let TurnOutcome::Question { key, .. } = asked else {
+        panic!("the endpoint question: {asked:?}");
+    };
+    (s, key)
+}
+
+/// C11 F2 · at a value question a value said in words, which only the chosen seat can read,
+/// reaches the one-time review, while a value alone binds with no reading and a question about
+/// the question keeps its free local answer; declining sends nothing and keeps the question.
+#[test]
+fn a_value_in_words_reaches_the_review_while_an_exact_value_or_a_question_does_not() {
+    let peer = Peer::start(vec![]);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().unwrap();
+    let (mut s, key) = at_the_endpoint(dir.path());
+    let aside = s.turn("which endpoint will it post to?");
+    assert!(
+        matches!(aside, TurnOutcome::Aside(_)),
+        "a question stays local: {aside:?}"
+    );
+    asked_cost(&s.turn("post it to https://hooks.example.com/orders please"));
+    let out = s.turn("no");
+    assert!(
+        matches!(&out, TurnOutcome::Question { key: waiting, .. } if *waiting == key),
+        "declining keeps the question: {out:?}"
+    );
+    let out = s.turn("https://hooks.example.com/orders");
+    assert!(
+        matches!(out, TurnOutcome::Proposal { .. }),
+        "a value alone binds: {out:?}"
+    );
+    assert!(peer.bodies().is_empty(), "nothing was sent");
+}
+
+/// C11 F2 · under a restored exposure the review a value in words would need is refused before
+/// anything is sent: the restriction still holds every paid continuation.
+#[test]
+fn a_restored_exposure_refuses_the_review_before_anything_is_sent() {
+    let peer = Peer::start(vec![]);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().unwrap();
+    let (mut s, _) = at_the_endpoint(dir.path());
+    s.money.reconfirm = true;
+    let out = s.turn("post it to https://hooks.example.com/orders please");
+    assert!(
+        matches!(&out, TurnOutcome::Refusal(r) if r.text.contains("restored inference exposure is unknown")),
+        "{out:?}"
+    );
+    assert!(peer.bodies().is_empty(), "nothing was sent");
+}
+
+/// C11 F2 · after the one-time yes the reviewed seat, and only it, reads the value said in words:
+/// one request judges the line, one reads the value, both name the reviewed route's model, and
+/// the value read binds the endpoint (the round reaches its proposal).
+#[test]
+fn after_the_one_time_yes_the_reviewed_seat_reads_the_value() {
+    let mut judged = response("ANSWER");
+    judged["model"] = json!(UNPRICED_WIRE);
+    let mut read = response("https://hooks.example.com/orders");
+    read["model"] = json!(UNPRICED_WIRE);
+    let peer = Peer::start(vec![(200, judged), (200, read)]);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().unwrap();
+    let (mut s, _) = at_the_endpoint(dir.path());
+    asked_cost(&s.turn("post it to https://hooks.example.com/orders please"));
+    assert!(peer.bodies().is_empty(), "nothing before the yes");
+    let out = s.turn("yes");
+    assert!(
+        matches!(&out, TurnOutcome::Proposal { preview, .. }
+            if preview.contains("read your answer as « https://hooks.example.com/orders »")),
+        "the value read binds the endpoint: {out:?}"
+    );
+    let bodies = peer.bodies();
+    assert_eq!(bodies.len(), 2, "one judgement, one reading");
+    assert!(
+        bodies.iter().all(|b| b["model"] == UNPRICED_WIRE),
+        "only the reviewed route: {bodies:?}"
+    );
+}
+
+/// E35 · an unreadable durable observation (a projection the provider could not write, kept as
+/// null) stays fail-closed and visible: a restart keeps the restriction, counts it among the
+/// charges that may have been billed and names it in the status, and so does a live session.
+#[test]
+fn an_unreadable_durable_observation_stays_fail_closed_and_visible() {
+    let named = "1 cost observation(s) unreadable: never read as settled";
+    let dir = tempfile::tempdir().unwrap();
+    let mut record = crate::SessionState::new("2026-09-29T00:00:00Z".to_owned());
+    record.inference_observations.push(Value::Null);
+    record.save(dir.path()).unwrap();
+    let mut s = open(dir.path());
+    assert!(s.restore_state().is_some());
+    assert!(s.money.reconfirm, "an unreadable entry still restricts");
+    assert_eq!(
+        s.uncertain_charges(),
+        1,
+        "an unreadable entry may have been billed"
+    );
+    let status = s.status();
+    assert!(status.contains(named), "{status}");
+    let live = tempfile::tempdir().unwrap();
+    let mut s = open(live.path());
+    s.unknown_cost.observations.push(Value::Null);
+    assert_eq!(
+        s.uncertain_charges(),
+        1,
+        "live, it may have been billed as well"
+    );
+    let status = s.status();
+    assert!(status.contains(named), "{status}");
+}
+
+/// C11 F2 r3 · a live round with no open question still owes the one-time review for words only
+/// the chosen seat can read, while a question keeps its free local answer (E's r2 review).
+#[test]
+fn a_question_less_live_round_owes_the_review_for_words_but_not_for_a_question() {
+    let peer = Peer::start(vec![]);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = under_an_unpriced_seat(dir.path());
+    s.authoring = Some(crate::authoring::AuthoringRound::new(
+        "Read ./a.md and write ./b.md",
+    ));
+    assert!(
+        s.authoring.as_ref().is_some_and(|r| r.current().is_none()),
+        "no open question"
+    );
+    let local = s.turn("what happens now?");
+    assert!(
+        !matches!(&local, TurnOutcome::Question { key, .. } if key == "unknown_cost"),
+        "a question stays local: {local:?}"
+    );
+    asked_cost(&s.turn("make it shorter"));
+    assert!(peer.bodies().is_empty(), "nothing was sent");
 }

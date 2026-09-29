@@ -6,11 +6,26 @@
 //! expression. Measured: 15/60 sealed seeds asked `const.rule_expression` on lane10.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use nika_compile::{CompileRequest, CompileStatus, compile};
-use nika_compile_cognition::compile_with_provider;
+use nika_compile_cognition::{
+    Cognition, NoProvider, compile_with_cognition, compile_with_provider,
+};
 use serde_json::{Value, json};
+use std::sync::atomic::Ordering;
 
 mod common;
-use common::{Rotating, keys, policy};
+use common::{Judged, JudgedSeat, NoChoice, Rotating, keys, policy};
+
+/// An answer round under this round's judge, the explicit approving double over a seat that
+/// settles no other choice (R4 A11): the outcome and the questions it judged.
+async fn judged_replay(request: &CompileRequest) -> (nika_compile::CompileOutcome, u32) {
+    let judge = JudgedSeat::approving(&NoChoice);
+    let cognition = Cognition::<NoProvider> {
+        provider: None,
+        seat: Some(&judge),
+    };
+    let out = compile_with_cognition(request, cognition).await.unwrap();
+    (out, judge.judged.load(Ordering::SeqCst))
+}
 
 const SHARED: &str = "Read ./data/people.json (name, email), keep the people whose email domain appears more than once, and write them to ./out/shared.json";
 
@@ -50,25 +65,42 @@ async fn a_verified_program_runs_as_the_compute_task_and_replays_with_zero_calls
         transform(PROGRAM, &shared_two(), &["email"]).to_string(),
     ]);
     let req = CompileRequest::create(SHARED).with_authoring_policy(policy());
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let judged = Judged::approving(&provider);
+    let out = compile_with_provider(&req, &judged).await.unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(keys(&out).is_empty(), "{out:#?}");
     let candidate = out.candidate.as_deref().expect("a candidate");
     assert!(candidate.contains("group_by(.email"), "{candidate}");
     assert!(!candidate.contains("rule_expression"), "{candidate}");
     assert!(candidate.contains("compute_guard"), "{candidate}");
+    // The plan and the program, then the judge: the two clauses the program realizes, which no
+    // law reads from the bytes, and the whole request.
+    assert_eq!(judged.judged.load(Ordering::SeqCst), 3);
     assert_eq!(
         out.provenance.authoring.as_ref().unwrap().calls,
-        2,
+        2 + 3,
         "{out:#?}"
     );
     assert_eq!(transforms(&out)[0]["accepted"], true, "{out:#?}");
     let record = out.provenance.plan.clone().unwrap();
     assert_eq!(record["rules"][0]["program"]["jq"], PROGRAM, "{record:#}");
-    let replayed = compile(&CompileRequest::create(SHARED).with_plan(record)).unwrap();
-    assert_eq!(replayed.status, CompileStatus::Ready, "{replayed:#?}");
+    // Q2: a plain replay reads no judgment from the record; its unverified remainder stays
+    // INCOMPLETE with zero calls, the same bytes emitted.
+    let request = CompileRequest::create(SHARED).with_plan(record);
+    let replayed = compile(&request).unwrap();
+    assert_eq!(replayed.status, CompileStatus::Incomplete, "{replayed:#?}");
     assert_eq!(replayed.candidate, out.candidate);
     assert!(replayed.provenance.authoring.is_none());
+    // A round with a judge settles exactly that remainder, the two clauses, and is READY.
+    let (judged_round, asked) = judged_replay(&request).await;
+    assert_eq!(
+        judged_round.status,
+        CompileStatus::Ready,
+        "{judged_round:#?}"
+    );
+    assert_eq!(judged_round.candidate, out.candidate);
+    assert_eq!(asked, 2);
 }
 
 #[tokio::test]
@@ -171,7 +203,10 @@ async fn the_existing_verified_transform_keeps_working_with_matching_observation
         .with_knowledge(json!({"observed":[{"path":"./data/people.json",
             "state":"observed", "columns":["name", "email"],
             "common_columns":["name", "email"], "complete":false}]}));
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&req, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(transforms(&out)[0]["accepted"], true);
 }
@@ -249,12 +284,17 @@ fn answered(record: Value) -> CompileRequest {
 async fn a_field_answer_regenerates_once_and_the_verified_program_replays_without_a_provider() {
     let first = pending_fields().await;
     let provider = Rotating::new(vec![addressed_program().to_string()]);
-    let out = compile_with_provider(&answered(first.provenance.plan.unwrap()), &provider)
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let judged = Judged::approving(&provider);
+    let out = compile_with_provider(&answered(first.provenance.plan.unwrap()), &judged)
         .await
         .unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
-    assert_eq!(provider.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
-    assert_eq!(out.provenance.authoring.as_ref().unwrap().calls, 1);
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
+    // The regeneration is the plan's first candidate: its two unread clauses and the whole
+    // request are judged in this round.
+    assert_eq!(judged.judged.load(Ordering::SeqCst), 3);
+    assert_eq!(out.provenance.authoring.as_ref().unwrap().calls, 1 + 3);
     assert!(!keys(&out).contains(&"const.rule_expression"));
     assert!(
         out.candidate
@@ -265,10 +305,20 @@ async fn a_field_answer_regenerates_once_and_the_verified_program_replays_withou
     let record = out.provenance.plan.clone().unwrap();
     assert!(record.get("pending_transform").is_none());
     assert!(record.get("verified_transform").is_some());
-    let replay = compile(&CompileRequest::create(SHARED).with_plan(record)).unwrap();
-    assert_eq!(replay.status, CompileStatus::Ready, "{replay:#?}");
+    // Q2: the verified record replays its bytes with zero calls, its remainder INCOMPLETE until
+    // a round's judge settles it.
+    let request = CompileRequest::create(SHARED).with_plan(record);
+    let replay = compile(&request).unwrap();
+    assert_eq!(replay.status, CompileStatus::Incomplete, "{replay:#?}");
     assert_eq!(replay.candidate, out.candidate);
     assert!(replay.provenance.authoring.is_none());
+    let (judged_round, asked) = judged_replay(&request).await;
+    assert_eq!(
+        judged_round.status,
+        CompileStatus::Ready,
+        "{judged_round:#?}"
+    );
+    assert_eq!(asked, 2);
 }
 #[tokio::test]
 async fn provider_failure_keeps_the_answer_and_spends_a_durable_bounded_attempt() {
@@ -298,9 +348,12 @@ async fn provider_failure_keeps_the_answer_and_spends_a_durable_bounded_attempt(
     let req = CompileRequest::create(SHARED)
         .with_plan(record)
         .with_authoring_policy(policy());
-    let retried = compile_with_provider(&req, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let retried = compile_with_provider(&req, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert_eq!(retried.status, CompileStatus::Ready, "{retried:#?}");
-    assert_eq!(provider.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
 }
 #[tokio::test]
 async fn unoffered_or_invalid_field_answers_never_call_the_provider() {
@@ -325,7 +378,7 @@ async fn unoffered_or_invalid_field_answers_never_call_the_provider() {
         );
         assert!(!keys(&out).contains(&"const.rule_expression"));
     }
-    assert_eq!(provider.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 0);
 }
 #[tokio::test]
 async fn changed_source_or_intent_invalidates_pending_choices_without_a_call() {
@@ -367,7 +420,7 @@ async fn changed_source_or_intent_invalidates_pending_choices_without_a_call() {
     let out = compile_with_provider(&req, &provider).await.unwrap();
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(out.provenance.plan.is_none());
-    assert_eq!(provider.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 0);
 }
 #[tokio::test]
 async fn invalid_regeneration_is_not_admitted_and_attempts_cannot_loop() {
@@ -388,7 +441,7 @@ async fn invalid_regeneration_is_not_admitted_and_attempts_cannot_loop() {
             .with_plan(record)
             .with_authoring_policy(policy());
     }
-    assert_eq!(provider.calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
 }
 #[tokio::test]
 async fn regeneration_neither_saves_nor_runs_the_authored_workflow() {
@@ -427,7 +480,10 @@ async fn regeneration_neither_saves_nor_runs_the_authored_workflow() {
         .with_plan(initial.provenance.plan.unwrap())
         .with_authoring_policy(policy())
         .answer("const.rule_field_1", "\"address\"");
-    let out = compile_with_provider(&req, &regen).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&req, &Judged::approving(&regen))
+        .await
+        .unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(!std::path::Path::new(&source).exists());
     assert!(!std::path::Path::new(&output).exists());
@@ -438,9 +494,13 @@ async fn regeneration_neither_saves_nor_runs_the_authored_workflow() {
 async fn verified_field_receipts_cannot_survive_a_source_change_or_a_new_answer() {
     let first = pending_fields().await;
     let provider = Rotating::new(vec![addressed_program().to_string()]);
-    let ready = compile_with_provider(&answered(first.provenance.plan.unwrap()), &provider)
-        .await
-        .unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let ready = compile_with_provider(
+        &answered(first.provenance.plan.unwrap()),
+        &Judged::approving(&provider),
+    )
+    .await
+    .unwrap();
     assert_eq!(ready.status, CompileStatus::Ready, "{ready:#?}");
     let record = ready.provenance.plan.unwrap();
     let changed_answer = compile(
@@ -493,7 +553,7 @@ async fn edits_unknown_pending_versions_and_changed_plans_do_not_reuse_a_choice(
         assert!(out.provenance.plan.is_none());
         assert!(out.candidate.is_none());
     }
-    assert_eq!(provider.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 0);
 }
 
 struct InspectRegeneration;
@@ -533,9 +593,11 @@ impl nika_kernel::ai::provider::ProviderInferDyn for InspectRegeneration {
 #[tokio::test]
 async fn regeneration_sends_original_intent_and_answer_as_data_under_the_existing_bounds() {
     let initial = pending_fields().await;
+    // The judge's questions are answered by the explicit approving double (R4 A11): the
+    // inspected provider sees the regeneration call alone.
     let out = compile_with_provider(
         &answered(initial.provenance.plan.unwrap()),
-        &InspectRegeneration,
+        &Judged::approving(&InspectRegeneration),
     )
     .await
     .unwrap();
@@ -551,5 +613,5 @@ async fn having_a_provider_without_an_authoring_policy_does_not_authorize_regene
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(out.candidate.is_none());
     assert!(!keys(&out).contains(&"const.rule_expression"));
-    assert_eq!(provider.calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 0);
 }

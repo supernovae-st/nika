@@ -860,6 +860,60 @@ fn has_auth_header(head: &str) -> bool {
 }
 
 #[tokio::test]
+async fn explicit_authorization_replaces_url_basic_auth_on_every_same_origin_hop() {
+    let _net = net_guard();
+    for key in ["authorization", "Authorization", "AUTHORIZATION"] {
+        let (addr, heads, _) =
+            serve_recording_full(vec![redirect_response("/next"), ok_response("ok", "")]).await;
+        let mut req = HttpRequest::get(format!("http://user:pass@{addr}/start"));
+        req.headers.insert(key.into(), "Bearer explicit-key".into());
+        mechanics_client().get(req).await.unwrap();
+        let captured = heads.lock().unwrap().clone();
+        assert_eq!(captured.len(), 2);
+        for head in captured {
+            let auth: Vec<_> = head
+                .lines()
+                .filter(|line| line.to_ascii_lowercase().starts_with("authorization:"))
+                .map(|line| line.split_once(':').unwrap().1.trim())
+                .collect();
+            assert_eq!(auth, ["Bearer explicit-key"], "explicit {key} wins once");
+        }
+    }
+}
+
+#[tokio::test]
+async fn url_basic_auth_remains_when_no_explicit_authorization_was_supplied() {
+    let _net = net_guard();
+    let (addr, heads, _) = serve_recording_full(vec![ok_response("ok", "")]).await;
+    mechanics_client()
+        .get(HttpRequest::get(format!("http://user:pass@{addr}/start")))
+        .await
+        .unwrap();
+    let captured = heads.lock().unwrap().clone();
+    let auth: Vec<_> = captured[0]
+        .lines()
+        .filter(|line| line.to_ascii_lowercase().starts_with("authorization:"))
+        .map(|line| line.split_once(':').unwrap().1.trim())
+        .collect();
+    assert_eq!(auth, ["Basic dXNlcjpwYXNz"]);
+}
+
+#[tokio::test]
+async fn ambiguous_explicit_authorization_refuses_before_any_request() {
+    let _net = net_guard();
+    let (addr, heads, _) = serve_recording_full(vec![ok_response("ok", "")]).await;
+    let mut req = HttpRequest::get(format!("http://{addr}/start"));
+    req.headers
+        .insert("Authorization".into(), "Bearer first".into());
+    req.headers
+        .insert("authorization".into(), "Bearer second".into());
+    let result = mechanics_client().get(req).await;
+    assert!(matches!(result, Err(HttpError::Other { reason })
+        if reason == "multiple explicit Authorization headers are ambiguous"));
+    assert!(heads.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
 async fn authorization_stripped_on_cross_origin_redirect() {
     let _net = net_guard();
     // hop1 redirects to a DIFFERENT host (target) — Authorization must
@@ -908,6 +962,86 @@ async fn authorization_kept_on_same_origin_redirect() {
         has_auth_header(&captured[1]),
         "same-origin hop 2 must KEEP Authorization"
     );
+}
+
+#[tokio::test]
+async fn redirect_location_never_introduces_cross_origin_basic_credentials() {
+    let _net = net_guard();
+    for streaming in [false, true] {
+        let (target, heads, _) = serve_recording_full(vec![ok_response("landed", "")]).await;
+        let hop = serve(vec![redirect_response(&format!(
+            "http://redirect-user:redirect-password@{target}/final"
+        ))])
+        .await;
+        let mut req = HttpRequest::get(format!("http://{hop}/start"));
+        req.headers
+            .insert("Authorization".into(), "Bearer original".into());
+        let client = mechanics_client();
+        if streaming {
+            client.send_streaming(req).await.unwrap();
+        } else {
+            assert_eq!(&client.get(req).await.unwrap().body[..], b"landed");
+        }
+        let captured = heads.lock().unwrap();
+        assert_eq!(captured.len(), 1);
+        assert!(
+            !has_auth_header(&captured[0]),
+            "a Location cannot restore credentials on a new origin"
+        );
+    }
+}
+
+#[tokio::test]
+async fn redirect_location_parse_errors_never_echo_response_secrets() {
+    let _net = net_guard();
+    for streaming in [false, true] {
+        let hop = serve(vec![redirect_response(
+            "http://redirect-user:redirect-password@[invalid-ipv6]/private?token=redirect-query",
+        )])
+        .await;
+        let req = HttpRequest::get(format!("http://{hop}/start"));
+        let client = mechanics_client();
+        let error = if streaming {
+            client
+                .send_streaming(req)
+                .await
+                .expect_err("invalid Location")
+        } else {
+            client.get(req).await.expect_err("invalid Location")
+        };
+        let diagnostic = format!("{error} {error:?}");
+        for secret in [
+            "redirect-user",
+            "redirect-password",
+            "redirect-query",
+            "/private",
+        ] {
+            assert!(
+                !diagnostic.contains(secret),
+                "response-derived secrets must not enter errors"
+            );
+        }
+        assert!(diagnostic.contains("invalid redirect Location"));
+    }
+}
+
+#[tokio::test]
+async fn url_basic_auth_survives_relative_same_origin_redirect() {
+    let _net = net_guard();
+    let (addr, heads, _) =
+        serve_recording_full(vec![redirect_response("/next"), ok_response("ok", "")]).await;
+    mechanics_client()
+        .get(HttpRequest::get(format!("http://user:pass@{addr}/start")))
+        .await
+        .unwrap();
+    let captured = heads.lock().unwrap();
+    assert_eq!(captured.len(), 2);
+    for head in captured.iter() {
+        assert!(
+            head.lines()
+                .any(|line| line.eq_ignore_ascii_case("authorization: Basic dXNlcjpwYXNz"))
+        );
+    }
 }
 
 // ─── TLS backend (https path · no fixture server) ───────────────────

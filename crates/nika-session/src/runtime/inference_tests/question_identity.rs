@@ -377,7 +377,7 @@ fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String
         seen: Arc::clone(&routings),
     }));
     // The loopback substitution admits bounded calls only: an explicit Session allowance.
-    s.admit_money("budget 2 USD", false)
+    s.admit_money("budget 2 USD", false, false)
         .map_err(|out| format!("{out:?}"))?;
     let out = s.turn(DIALOG_11);
     let TurnOutcome::Question { key, .. } = &out else {

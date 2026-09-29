@@ -14,6 +14,15 @@ use serde_json::Value;
 
 const WEEKDAYS: &str = "Every weekday at 8, read ./tickets.json, keep only the rows whose status is open and write them to ./open.json";
 
+mod common;
+
+/// The schedule fixture over its source as the CLI observes it (R4 S1).
+fn weekdays() -> CompileRequest {
+    let tickets: &[&str] = &["id", "status"];
+    CompileRequest::create(WEEKDAYS)
+        .with_knowledge(common::observed(&[("./tickets.json", tickets)]))
+}
+
 fn question<'a>(out: &'a CompileOutcome, key: &str) -> &'a CompileQuestion {
     out.questions
         .iter()
@@ -27,7 +36,7 @@ fn keys(out: &CompileOutcome) -> Vec<&str> {
 
 #[test]
 fn a_schedule_asks_its_four_binding_values_without_blocking_the_candidate() {
-    let out = compile(&CompileRequest::create(WEEKDAYS)).unwrap();
+    let out = compile(&weekdays()).unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
     let trigger = out.requested_trigger.as_ref().expect("a trigger");
@@ -104,7 +113,7 @@ fn a_schedule_asks_its_four_binding_values_without_blocking_the_candidate() {
 #[test]
 fn answered_binding_values_are_admitted_against_the_grammar_and_echoed() {
     let out = compile(
-        &CompileRequest::create(WEEKDAYS)
+        &weekdays()
             .answer("trigger.timezone", r#""Europe/Paris""#)
             .answer("trigger.missed", r#""rattraper-une-fois""#)
             .answer("trigger.overlap", r#""file""#)
@@ -123,7 +132,7 @@ fn answered_binding_values_are_admitted_against_the_grammar_and_echoed() {
     assert_eq!(doc["requested_trigger"]["ceiling"], "0.25");
     // A wrong value is a finding, the question stays and nothing is guessed.
     let out = compile(
-        &CompileRequest::create(WEEKDAYS)
+        &weekdays()
             .answer("trigger.missed", r#""catch-up""#)
             .answer("trigger.ceiling", "-1"),
     )
@@ -138,9 +147,13 @@ fn answered_binding_values_are_admitted_against_the_grammar_and_echoed() {
     );
     assert!(out.requested_trigger.as_ref().unwrap().missed.is_none());
     // No trigger, no binding question.
-    let out = compile(&CompileRequest::create(
-        "Read ./tickets.json, keep only the rows whose status is open and write them to ./open.json",
-    ))
+    let tickets: &[&str] = &["id", "status"];
+    let out = compile(
+        &CompileRequest::create(
+            "Read ./tickets.json, keep only the rows whose status is open and write them to ./open.json",
+        )
+        .with_knowledge(common::observed(&[("./tickets.json", tickets)])),
+    )
     .unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(keys(&out).is_empty(), "{out:#?}");
@@ -152,7 +165,7 @@ fn answered_binding_values_are_admitted_against_the_grammar_and_echoed() {
 /// either grammar fails here before it reaches a product.
 #[test]
 fn the_choice_options_are_the_grammars_own_spellings() {
-    let out = compile(&CompileRequest::create(WEEKDAYS)).unwrap();
+    let out = compile(&weekdays()).unwrap();
     let overlap: Vec<String> = question(&out, "trigger.overlap")
         .options
         .iter()

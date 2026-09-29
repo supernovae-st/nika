@@ -316,11 +316,16 @@ fn a_stated_aggregate_is_the_shape_after_the_filter() {
         Some(".records | {\"total\": (map(.amount | tonumber) | add // 0)}".to_owned())
     );
     assert_eq!(
-        jq("the total of the amount column ; whose client is acme"),
+        jq("whose client is acme ; the total of the amount column"),
         Some(
             "[.records[] | select(.client == \"acme\")] | {\"total\": (map(.amount | tonumber) | add // 0)}"
                 .to_owned()
         )
+    );
+    // A filter stated after a total has no row left to read: never moved before it (R4 F5).
+    assert_eq!(
+        jq("the total of the amount column ; whose client is acme"),
+        None
     );
     let rule = synthesize("la moyenne de la colonne montant", &[]).expect("a rule");
     assert_eq!(rule.totals_names(), ["moyenne"]);
@@ -404,14 +409,18 @@ fn a_join_a_top_n_a_projection_and_a_dedup_lower_after_the_filter() {
             "{text}"
         );
     }
-    // Two stages of the same kind, or a dedup beside a top-N, are not one computation.
+    // Two stages of the same kind are not one computation; a dedup and a top-N run in the
+    // order the request states them (R4 F5).
     assert_eq!(
         jq("sort the rows by amount ; sort the rows by client"),
         None
     );
     assert_eq!(
         jq("remove the duplicate lines ; keep the 2 rows with the highest amount"),
-        None
+        Some(format!(
+            ".records | {} | sort_by(.amount | tonumber? // .) | reverse | .[:2]",
+            crate::aggregate::DISTINCT
+        ))
     );
 }
 
@@ -443,4 +452,295 @@ fn a_negation_among_the_lead_words_is_read_as_nothing_never_inverted() {
         jq("whose status is not closed"),
         Some("[.records[] | select(.status != \"closed\")]".to_owned())
     );
+}
+
+/// The exclusion leads before they became data (rules.rs at 4bddf8a14, sha256 15e84e0e…):
+/// the asset holds exactly these words, in this order.
+#[test]
+fn the_exclusion_leads_are_the_frozen_list() {
+    let frozen = "exclude excludes excluding drop drops remove removes delete deletes discard discards omit omits skip skips ignore ignores strip out exclus exclure excluez supprime supprimez supprimer retire retirez retirer enleve enlevez enlever elimine eliminez eliminer ignorez ecarte ecartez elimina quita descarta excluye omite rimuovi escludi scarta entferne losche verwerfe";
+    let read: Vec<&str> = EXCLUSION_LEADS.lines().collect();
+    assert_eq!(read, frozen.split(' ').collect::<Vec<_>>());
+}
+
+/// A stage the words before the relative clause state runs after the clause (R4 F1): « count
+/// the rows where status is paid » is a filter AND a count, never the filter alone.
+#[test]
+fn a_counted_lead_keeps_its_filter_and_its_count() {
+    let paid = "[.records[] | select(.status == \"paid\")]";
+    for (text, expected) in [
+        (
+            "count the rows where status is paid",
+            format!("{paid} | {{\"count\": length}}"),
+        ),
+        (
+            "count the orders where status is paid",
+            format!("{paid} | {{\"count\": length}}"),
+        ),
+        (
+            "count the rows where status is paid and amount_usd is over 10",
+            "[.records[] | select(.status == \"paid\" and (.amount_usd | tonumber) > 10)] | {\"count\": length}".to_owned(),
+        ),
+        (
+            "count the rows where status is paid or where status is open",
+            "[.records[] | select(.status == \"paid\" or .status == \"open\")] | {\"count\": length}".to_owned(),
+        ),
+        (
+            "compte les lignes dont le statut est payé",
+            "[.records[] | select(.statut == \"payé\")] | {\"count\": length}".to_owned(),
+        ),
+        (
+            "the number of rows whose status is paid",
+            format!("{paid} | {{\"number\": length}}"),
+        ),
+        (
+            "count the rows per client where status is paid",
+            format!(
+                "{paid} | group_by(.client) | map({{\"client\": (.[0] | .client), \"count\": length}})"
+            ),
+        ),
+        (
+            "the total of the amount column where status is paid",
+            format!("{paid} | {{\"total\": (map(.amount | tonumber) | add // 0)}}"),
+        ),
+    ] {
+        assert_eq!(jq(text), Some(expected), "{text}");
+    }
+    let rule = synthesize("count the rows where status is paid", &[]).expect("a rule");
+    assert!(rule.filters() && rule.shaped());
+    assert_eq!(rule.fields(), ["status"]);
+    assert_eq!(rule.totals_names(), ["count"]);
+}
+
+/// Words before the relative clause the grammar cannot account for leave the clause unread
+/// (R4 F1): a stage word it does not read whole over the rows, or a modifier after a determiner,
+/// is never dropped while the filter alone reads READY.
+#[test]
+fn a_lead_the_grammar_cannot_account_for_is_never_dropped() {
+    for text in [
+        "count the paid rows where amount_usd is over 10",
+        "how many rows where status is paid",
+        "sort the rows where status is paid",
+        "sum the amounts where status is paid",
+        "the total amount of the rows where status is paid",
+        "the paid rows where amount_usd > 10",
+        "keep the open tickets whose priority is high",
+        "keep the rows with the highest amount whose status is paid",
+        "les lignes payées dont le montant est plus grand que 10",
+        "count total_eur > 100",
+        // A filter stated after a count has no row left to read.
+        "count the rows where status is paid ; keep the rows where amount > 10",
+        "keep the rows where amount > 10 and count the rows where status is paid",
+    ] {
+        assert_eq!(synthesize(text, &[]), None, "{text}");
+    }
+}
+
+/// The clause's own verb, the grammar's words and the records' noun carry nothing a filter
+/// drops: the leads read before keep reading the same filter, byte for byte.
+#[test]
+fn a_plain_lead_reads_the_same_filter() {
+    let paid = Some("[.records[] | select(.status == \"paid\")]".to_owned());
+    for text in [
+        "keep the rows where status is paid",
+        "filter the rows where status is paid",
+        "list the orders whose status is paid",
+        "show me the orders whose status is paid",
+        "give me rows where status is paid",
+        "select the tickets whose status is paid",
+        "les lignes dont le status est paid",
+        "ne garde que les lignes dont le status est paid",
+    ] {
+        assert_eq!(jq(text), paid, "{text}");
+    }
+}
+
+/// The order a request states is the order the rule runs (R4 F5): a filter after a top-N keeps
+/// only the top rows it matches, a top-N after a filter ranks the matching rows; the two are
+/// different computations, never one lowered in a fixed order.
+#[test]
+fn stages_run_in_the_order_the_request_states() {
+    let top2 = "sort_by(.amount_usd | tonumber? // .) | reverse | .[:2]";
+    let paid = "select(.status == \"paid\")";
+    for (text, expected) in [
+        (
+            "keep the rows where status is paid ; keep the 2 rows with the highest amount_usd",
+            format!("[.records[] | {paid}] | {top2}"),
+        ),
+        (
+            "keep the 2 rows with the highest amount_usd ; keep the rows where status is paid",
+            format!(".records | {top2} | map({paid})"),
+        ),
+        (
+            "keep the rows where status is paid ; keep the 2 rows with the highest amount_usd ; keep the rows where amount_usd is over 50",
+            format!(
+                "[.records[] | {paid}] | {top2} | map(select((.amount_usd | tonumber) > 50))"
+            ),
+        ),
+        (
+            "keep the 2 rows with the highest amount_usd ; count them",
+            format!(".records | {top2} | {{\"count\": length}}"),
+        ),
+        (
+            "keep the 2 rows with the highest amount_usd ; count the rows where status is paid",
+            format!(".records | {top2} | map({paid}) | {{\"count\": length}}"),
+        ),
+        (
+            "sort the rows by amount ; count the rows per client",
+            ".records | sort_by(.amount | tonumber? // .) | group_by(.client) | map({\"client\": (.[0] | .client), \"count\": length})".to_owned(),
+        ),
+    ] {
+        assert_eq!(jq(text), Some(expected), "{text}");
+    }
+    let rule = synthesize(
+        "keep the 2 rows with the highest amount_usd ; keep the rows where status is paid",
+        &[],
+    )
+    .expect("a rule");
+    assert_eq!(rule.then().len(), 1, "one ordered step");
+    assert_eq!(rule.then()[0].clauses[0].field, "status");
+    assert_eq!(rule.fields(), ["amount_usd", "status"]);
+}
+
+/// A reorder needs a stated precondition (R4 F5): a filter moves only before stages that neither
+/// drop a row nor read a number (whole-row duplicates removed, a projection keeping what it
+/// reads). After a sort or a grouping it runs in a later step, so a number the stated order reads
+/// stays under its policy (reproduced on the emitted program in the cognition transform tests).
+#[test]
+fn a_filter_moves_before_a_stage_only_where_it_commutes() {
+    assert_eq!(
+        jq("keep only the id and status of each ticket ; keep the tickets whose status is paid"),
+        Some(
+            "[.records[] | select(.status == \"paid\")] | map({\"id\": .id, \"status\": .status})"
+                .to_owned()
+        )
+    );
+    assert_eq!(
+        jq("remove the duplicate lines ; keep the rows whose status is paid"),
+        Some(format!(
+            "[.records[] | select(.status == \"paid\")] | {}",
+            crate::aggregate::DISTINCT
+        ))
+    );
+    assert_eq!(
+        jq("sort the rows by amount ; keep the rows whose status is paid"),
+        Some(
+            ".records | sort_by(.amount | tonumber? // .) | map(select(.status == \"paid\"))"
+                .to_owned()
+        )
+    );
+    assert_eq!(
+        jq("count the rows per client ; keep the rows whose client is acme"),
+        Some(".records | group_by(.client) | map({\"client\": (.[0] | .client), \"count\": length}) | map(select(.client == \"acme\"))".to_owned())
+    );
+    // Nothing a later step could read: a produced count (HAVING), a filter after totals.
+    for text in [
+        "count the rows per client ; keep the rows whose count is above 2",
+        "count the rows ; keep the rows where status is paid",
+        "keep only the id and title of each ticket ; whose status is open",
+    ] {
+        assert_eq!(synthesize(text, &[]), None, "{text}");
+    }
+}
+
+/// An ordered step is recorded only when there is one: every other record keeps its bytes, and
+/// a chain replays whole (R4 F5).
+#[test]
+fn an_ordered_step_is_recorded_and_read_back_whole() {
+    let plain = synthesize("keep the rows where status is paid", &[]).expect("a rule");
+    assert!(plain.to_json().get("then").is_none());
+    let rule = synthesize(
+        "keep the 2 rows with the highest amount_usd ; keep the rows where status is paid",
+        &[],
+    )
+    .expect("a rule");
+    let record = rule.to_json();
+    assert_eq!(record["then"][0]["clauses"][0]["field"], "status");
+    assert_eq!(record["then"][0]["junction"], "and");
+    assert_eq!(Rule::from_json(&record), Some(rule));
+    let mut forged = record.clone();
+    forged["then"][0]["shape"]["join_on"] = serde_json::json!("id");
+    assert_eq!(Rule::from_json(&forged), None, "a step never joins");
+}
+
+/// A later step reads its numbers under the one number law (R4 A5/A8): its fields bind a
+/// policy like the first step's.
+#[test]
+fn a_later_step_reads_its_numbers_under_the_law() {
+    let rule = synthesize(
+        "keep the 2 rows with the highest amount ; keep the rows where qty is above 5",
+        &[],
+    )
+    .expect("a rule");
+    assert_eq!(rule.number_fields(), ["amount", "qty"]);
+    let bound = rule
+        .with_number_policy("qty", NumberPolicy::Fail)
+        .expect("a later step reads qty as a number");
+    assert!(
+        numbers::short(&bound.jq())
+            .ends_with("| map(select(((.qty | num) | dkey) > (\"5\" | dkey)))"),
+        "{}",
+        bound.jq()
+    );
+}
+
+/// A clause that orders every row states its direction with its superlative; a ranking keeps a
+/// subset whose count the request owes (R4 A11). « sort them by amount, most expensive first »
+/// asked how many rows to keep, and refused the program that sorts them all.
+#[test]
+fn a_stated_sort_is_no_ranking_without_its_count() {
+    let mut rule = synthesize("sort the rows by amount descending", &[]).expect("a rule");
+    for (text, ranking) in [
+        ("sort them by amount, most expensive first", false),
+        (
+            "trie les lignes par montant, les plus chers en premier",
+            false,
+        ),
+        ("the most expensive rows by amount", true),
+        ("sort them by amount and keep the most expensive", true),
+    ] {
+        rule.text = text.to_owned();
+        assert_eq!(rule.ranking_without_count(), ranking, "{text}");
+    }
+}
+
+/// A text comparison reads the field as text and applies its jq function to the operand read
+/// as text; a denied one is its complement. The bytes are pinned for every operand kind: the
+/// slot a request alludes to, a literal (escaped), a number, a truth and another column.
+#[test]
+fn a_text_comparison_reads_its_operand_as_text() {
+    let numbers = numbers::Numbers::new();
+    let slot = || Operand::Slot("who".into());
+    for (clause, expected) in [
+        (
+            Clause::new("name", Comparator::Contains, slot()),
+            "(.name | tostring | contains($in.slots.who | tostring))",
+        ),
+        (
+            Clause::new("unit price", Comparator::NotStartsWith, slot()),
+            "((.[\"unit price\"] | tostring | startswith($in.slots.who | tostring)) | not)",
+        ),
+        (
+            Clause::new("name", Comparator::EndsWith, Operand::Text("a\"b".into())),
+            "(.name | tostring | endswith(\"a\\\"b\"))",
+        ),
+        (
+            Clause::new("name", Comparator::NotContains, Operand::Number("5".into())),
+            "((.name | tostring | contains(\"5\")) | not)",
+        ),
+        (
+            Clause::new("name", Comparator::Contains, Operand::Bool(true)),
+            "(.name | tostring | contains(\"true\"))",
+        ),
+        (
+            Clause::new(
+                "name",
+                Comparator::NotEndsWith,
+                Operand::Column("other".into()),
+            ),
+            "((.name | tostring | endswith((.other | tostring))) | not)",
+        ),
+    ] {
+        assert_eq!(clause.jq(&numbers), expected, "{clause:?}");
+    }
 }

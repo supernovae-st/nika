@@ -159,14 +159,21 @@ fn green_sample_suite_opens_deploy_and_runs_cleanup() {
     pipeline(0);
 }
 
-#[test]
-fn structured_capture_preserves_denial_without_exposing_file_contents() {
-    let rig = Rig::new();
+fn denied_capture(rig: &Rig, recover: bool) -> Output {
     std::fs::write(rig.work.join("denied.txt"), "unreadable-fixture-canary")
         .expect("denied fixture");
     let yaml = nika_pack::example("03-exec-pipeline").expect("embedded");
     let mut doc: Value = serde_yaml_bw::from_str(yaml).expect("YAML");
     doc["tasks"]["test"]["exec"]["shell"] = "cat denied.txt".into();
+    if !recover {
+        // The lesson now declares recovery. Remove it for the capture boundary:
+        // an authority error must not become structured output on its own.
+        doc["tasks"]["test"]
+            .as_object_mut()
+            .expect("test task")
+            .remove("on_error");
+    }
+    doc["outputs"]["capture"] = "${{ tasks.test.output }}".into();
     // The deliberate cat probe earns a native-first hint; ordinary check
     // admits the workflow so the OS, rather than the static linter, judges it.
     std::fs::write(
@@ -176,14 +183,20 @@ fn structured_capture_preserves_denial_without_exposing_file_contents() {
     .expect("negative probe");
     let check = rig.nika(&["check", "lesson.nika", "--json"]);
     assert!(check.status.success(), "{}", transcript(&check));
-    let out = rig.nika(&[
+    rig.nika(&[
         "run",
         "lesson.nika",
         "--model",
         "mock/echo",
         "--output",
         "json",
-    ]);
+    ])
+}
+
+#[test]
+fn structured_capture_preserves_denial_without_exposing_file_contents() {
+    let rig = Rig::new();
+    let out = denied_capture(&rig, false);
     let events = rig.verified_events();
     if cfg!(target_os = "macos") {
         // Seatbelt returns EPERM: an authority refusal cannot become data.
@@ -201,6 +214,35 @@ fn structured_capture_preserves_denial_without_exposing_file_contents() {
     assert!(!transcript(&out).contains("unreadable-fixture-canary"));
     assert!(!has_task(&events, "task_completed", "deploy"));
     assert!(cleanup_succeeded(&events));
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn explicit_rehearsal_recovery_labels_the_refusal_and_keeps_deploy_closed() {
+    let rig = Rig::new();
+    let out = denied_capture(&rig, true);
+    assert!(out.status.success(), "{}", transcript(&out));
+    let values: Value = serde_json::from_slice(&out.stdout).expect("outputs");
+    assert_eq!(values["suite_exit_code"], 1);
+    assert_eq!(
+        values["capture"]["stdout"],
+        "no suite ran: the sandbox refused the confined shell\n"
+    );
+    let events = rig.verified_events();
+    assert!(events.iter().any(|event| {
+        event["kind"] == "task_recovered"
+            && field(event, "task") == Some(&Value::from("test"))
+            && field(event, "code") == Some(&Value::from("NIKA-SEC-001"))
+    }));
+    assert!(!has_task(&events, "task_started", "deploy"));
+    assert!(!has_task(&events, "task_completed", "deploy"));
+    assert!(cleanup_succeeded(&events));
+    assert!(!transcript(&out).contains("unreadable-fixture-canary"));
+    assert!(
+        !serde_json::to_string(&events)
+            .expect("events")
+            .contains("unreadable-fixture-canary")
+    );
 }
 
 #[test]

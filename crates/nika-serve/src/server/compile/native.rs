@@ -10,14 +10,15 @@
 //! optional Foundry knowledge snapshot, opened, verified and pinned when the listener attaches
 //! through the configuration parser and knowledge reader every door shares
 //! (`nika_cli_host::compile::{config, knowledge}`). The strategy is fixed: the seat writes the
-//! candidate itself (`only`), one sample, so a request makes at most `1 + repairs` logical calls
-//! (the provider transport may resend one after a 429, 503 or 529, inside that call's wait). A
-//! caller opts in per request and may narrow each bound, never widen one; it names no model,
-//! endpoint, credential, path or strategy. The key the seat's provider resolves is withheld from
-//! every answer, however the operator supplied it.
+//! candidate itself (`only`), one sample, at the reasoning effort the operator names. A round
+//! permits one physical request by default; the operator must explicitly grant `max_calls` for
+//! more. Repair preferences are not grants. Redirects are disabled; provider resends consume
+//! that grant. A caller opts in per request and may narrow each bound, never widen one; it names
+//! no model, endpoint, credential, path, strategy or effort. The key the seat's provider
+//! resolves is withheld from every answer, however the operator supplied it.
 
 use std::fmt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -31,16 +32,10 @@ use super::super::config::ServerConfig;
 use super::replay::Replays;
 use super::v2::Bounds;
 
-const DEFAULT_MAX_TOKENS: u32 = 8192;
-const DEFAULT_CALL_TIMEOUT: Duration = Duration::from_secs(120);
 const DEFAULT_DEADLINE: Duration = Duration::from_secs(300);
-const DEFAULT_REPAIRS: u32 = 3;
 const DEFAULT_REPLAY_ENTRIES: usize = 32;
 const DEFAULT_REPLAY_TTL: Duration = Duration::from_secs(30 * 60);
-const MAX_OUTPUT_TOKENS: u32 = 32_768;
-const MAX_CALL_TIMEOUT: Duration = Duration::from_secs(600);
 const MAX_DEADLINE: Duration = Duration::from_secs(3600);
-const MAX_REPAIRS: u32 = 5;
 const MAX_REPLAY_ENTRIES: usize = 1024;
 const MAX_REPLAY_TTL: Duration = Duration::from_secs(24 * 3600);
 
@@ -50,11 +45,8 @@ const MAX_REPLAY_TTL: Duration = Duration::from_secs(24 * 3600);
 pub struct NativeAuthoring {
     model: String,
     providers: ProvidersConfig,
-    max_tokens: u32,
-    call_timeout: Duration,
-    deadline: Duration,
-    repairs: u32,
-    knowledge: Option<(PathBuf, Option<String>)>,
+    bounds: Bounds,
+    named: config::AuthoringSettings,
     replay_entries: usize,
     replay_ttl: Duration,
     withheld: Vec<Secret>,
@@ -63,18 +55,24 @@ pub struct NativeAuthoring {
 impl NativeAuthoring {
     /// Seat `model` (`provider/name`, a direct provider) with the provider configuration
     /// (keys, endpoints) the composition root resolved. Defaults: 8192 output tokens and
-    /// 120 s per call, 3 repair rounds, a 300 s deadline per request, no knowledge, 32 kept
-    /// rounds for 30 minutes. Validated when the listener attaches, before it binds.
+    /// 120 s per call, 3 desired repair rounds within ONE authorized request, a 300 s deadline,
+    /// no knowledge, 32 kept rounds for 30 minutes. Use `with_max_calls` to grant more requests.
+    /// Validated when the listener attaches, before it binds.
     #[must_use]
     pub fn new(model: impl Into<String>, providers: ProvidersConfig) -> Self {
         Self {
             model: model.into(),
             providers,
-            max_tokens: DEFAULT_MAX_TOKENS,
-            call_timeout: DEFAULT_CALL_TIMEOUT,
-            deadline: DEFAULT_DEADLINE,
-            repairs: DEFAULT_REPAIRS,
-            knowledge: None,
+            bounds: Bounds {
+                max_tokens: config::DEFAULT_MAX_TOKENS,
+                call_timeout: config::DEFAULT_CALL_TIMEOUT,
+                deadline: DEFAULT_DEADLINE,
+                repairs: config::DEFAULT_REPAIRS,
+                repairs_explicit: false,
+                max_calls: None,
+                grant: "operator: NativeAuthoring::with_max_calls",
+            },
+            named: config::AuthoringSettings::none().with_strategy(NativeMode::Only.word()),
             replay_entries: DEFAULT_REPLAY_ENTRIES,
             replay_ttl: DEFAULT_REPLAY_TTL,
             withheld: Vec::new(),
@@ -84,29 +82,37 @@ impl NativeAuthoring {
     /// Output tokens per call (1..=32768).
     #[must_use]
     pub const fn with_max_tokens(mut self, tokens: u32) -> Self {
-        self.max_tokens = tokens;
+        self.bounds.max_tokens = tokens;
         self
     }
 
-    /// The wait for one logical call (up to 600 s). The compiler never repeats a call; the
-    /// provider transport may resend it after a 429, 503 or 529, inside this wait.
+    /// The wait for one model invocation (up to 600 s); resends consume the request grant.
     #[must_use]
     pub const fn with_call_timeout(mut self, timeout: Duration) -> Self {
-        self.call_timeout = timeout;
+        self.bounds.call_timeout = timeout;
         self
     }
 
     /// One request's whole deadline (up to 3600 s): its work stops there.
     #[must_use]
     pub const fn with_deadline(mut self, deadline: Duration) -> Self {
-        self.deadline = deadline;
+        self.bounds.deadline = deadline;
         self
     }
 
-    /// Repair rounds per request (0..=5): at most `1 + repairs` logical calls.
+    /// Desired repair rounds (0..=5), which require an explicit sufficient `max_calls` grant.
     #[must_use]
     pub const fn with_repairs(mut self, repairs: u32) -> Self {
-        self.repairs = repairs;
+        self.bounds.repairs = repairs;
+        self.bounds.repairs_explicit = true;
+        self
+    }
+
+    /// Authorize at most this many model invocations and physical HTTP requests per round.
+    /// Absent this grant the ceiling is one; zero refuses before the listener binds.
+    #[must_use]
+    pub const fn with_max_calls(mut self, max_calls: u32) -> Self {
+        self.bounds.max_calls = Some(max_calls);
         self
     }
 
@@ -118,7 +124,14 @@ impl NativeAuthoring {
         dir: impl Into<PathBuf>,
         exclude_corpus: Option<String>,
     ) -> Self {
-        self.knowledge = Some((dir.into(), exclude_corpus));
+        self.named = self.named.with_knowledge(dir, exclude_corpus);
+        self
+    }
+
+    /// The reasoning effort word every seat call asks (low · high · max).
+    #[must_use]
+    pub fn with_reasoning(mut self, word: impl Into<String>) -> Self {
+        self.named = self.named.with_reasoning(word);
         self
     }
 
@@ -145,11 +158,8 @@ impl fmt::Debug for NativeAuthoring {
         formatter
             .debug_struct("NativeAuthoring")
             .field("model", &self.model)
-            .field("max_tokens", &self.max_tokens)
-            .field("call_timeout", &self.call_timeout)
-            .field("deadline", &self.deadline)
-            .field("repairs", &self.repairs)
-            .field("knowledge", &self.knowledge.is_some())
+            .field("bounds", &self.bounds)
+            .field("knowledge", &self.named.knowledge.is_some())
             .finish_non_exhaustive()
     }
 }
@@ -186,53 +196,13 @@ impl NikaErrorCode for NativeAuthoringError {
     }
 }
 
-/// `nika serve`'s explicit native authoring seat (the `nika compile` flag words, no
-/// environment fallback). Absent `--authoring-model`, nothing is read and nothing changes.
-#[derive(Debug, Clone, Default, clap::Args)]
-pub struct NativeAuthoringArgs {
-    /// Seat native authoring on POST /v1/compile generation 2 with this direct provider model
-    /// (`provider/name`); each caller still opts in (`cognition: "explicitProvider"`). Its key
-    /// and endpoint are read from the environment now, never per request. Requires `--bind`.
-    #[arg(
-        long = "authoring-model",
-        value_name = "PROVIDER/NAME",
-        requires = "bind"
-    )]
-    pub model: Option<String>,
-    /// Output tokens per call (1..=32768, default 8192); a caller may only narrow it.
-    #[arg(long = "authoring-max-tokens", value_name = "N", requires = "model")]
-    pub max_tokens: Option<u32>,
-    /// Seconds per logical call (1..=600, default 120); the transport may resend one after a
-    /// 429, 503 or 529 inside it, the compiler never repeats it.
-    #[arg(long = "authoring-timeout", value_name = "SECONDS", requires = "model")]
-    pub timeout: Option<u64>,
-    /// Seconds per request (1..=3600, default 300): the work stops and the request answers 408.
-    #[arg(
-        long = "authoring-deadline",
-        value_name = "SECONDS",
-        requires = "model"
-    )]
-    pub deadline: Option<u64>,
-    /// Repair rounds per request (0..=5, default 3): at most 1 + N logical calls.
-    #[arg(long = "authoring-repairs", value_name = "N", requires = "model")]
-    pub repairs: Option<u32>,
-    /// A Foundry knowledge snapshot directory, verified and pinned at start; the seat reads
-    /// the pack composed for each request's intent.
-    #[arg(long = "knowledge", value_name = "DIR", requires = "model")]
-    pub knowledge: Option<PathBuf>,
-    /// A corpus whose examples the knowledge door never recalls.
-    #[arg(
-        long = "knowledge-exclude",
-        value_name = "CORPUS",
-        requires = "knowledge"
-    )]
-    pub knowledge_exclude: Option<String>,
-}
+pub use nika_cli_host::compile::NativeAuthoringArgs;
 
 /// Attach the seat `nika serve --authoring-model` names to the listener configuration. Absent
 /// the flag, the configuration is returned untouched and nothing is read. Named, the provider
-/// configuration (`config_from_env`, its own key precedence) is read once, now; the seat — and
-/// the key it resolves, withheld from every answer — is validated when the listener attaches.
+/// configuration (`config_from_env`, its own key precedence) and the effort word (the flag,
+/// else `NIKA_AUTHORING_REASONING`) are read once, now; the seat — and the key it resolves,
+/// withheld from every answer — is validated when the listener attaches.
 ///
 /// # Errors
 /// [`NativeAuthoringError::NeedsListener`] when no listener is configured.
@@ -240,13 +210,36 @@ pub fn seat_native_authoring(
     http: Option<ServerConfig>,
     flags: &NativeAuthoringArgs,
 ) -> Result<Option<ServerConfig>, NativeAuthoringError> {
+    seat_native_authoring_with_calls(http, flags, None)
+}
+
+/// Attach the operator's seat with an optional explicit physical-request ceiling.
+/// The existing flag structure remains source-compatible; absent a grant, one request
+/// is authorized. A grant without an authoring model is refused.
+///
+/// # Errors
+/// Returns the same seating errors as [`seat_native_authoring`], or a bound error
+/// when a request grant has no model to authorize.
+pub fn seat_native_authoring_with_calls(
+    http: Option<ServerConfig>,
+    flags: &NativeAuthoringArgs,
+    max_calls: Option<u32>,
+) -> Result<Option<ServerConfig>, NativeAuthoringError> {
     let Some(model) = flags.model.as_deref() else {
+        if max_calls.is_some() {
+            return Err(NativeAuthoringError::Bound(
+                "authoring max_calls requires a model",
+            ));
+        }
         return Ok(http);
     };
     let Some(config) = http else {
         return Err(NativeAuthoringError::NeedsListener);
     };
     let mut seat = NativeAuthoring::new(model, nika_runtime::compose::config_from_env());
+    if let Some(calls) = max_calls {
+        seat = seat.with_max_calls(calls);
+    }
     if let Some(tokens) = flags.max_tokens {
         seat = seat.with_max_tokens(tokens);
     }
@@ -262,6 +255,9 @@ pub fn seat_native_authoring(
     if let Some(dir) = &flags.knowledge {
         seat = seat.with_knowledge(dir, flags.knowledge_exclude.clone());
     }
+    if let Some(word) = config::reasoning_word(flags.reasoning.as_deref()) {
+        seat = seat.with_reasoning(word);
+    }
     Ok(Some(config.with_native_authoring(seat)))
 }
 
@@ -272,6 +268,8 @@ pub(in crate::server) struct Seat {
     pub(super) provider: String,
     pub(super) providers: ProvidersConfig,
     pub(super) bounds: Bounds,
+    /// The shared configuration: strategy `only`, the snapshot, the reasoning effort.
+    pub(super) authoring: config::AuthoringConfig,
     knowledge: Option<Pin>,
     /// The seat's resolved key and the operator's further values: never answered.
     withheld: Vec<Secret>,
@@ -280,10 +278,8 @@ pub(in crate::server) struct Seat {
     halt: tokio::sync::watch::Sender<bool>,
 }
 
-/// The snapshot pinned at attach: its directory and exclusion, and the bytes it was read with.
+/// The bytes the snapshot the shared configuration names was read with at attach.
 struct Pin {
-    dir: PathBuf,
-    exclude: Option<String>,
     manifest_sha256: String,
     rows_sha256: String,
 }
@@ -292,16 +288,19 @@ struct Pin {
 pub(super) struct ContextChanged;
 
 impl Seat {
-    /// Validate a seat: bounds, a direct provider model that resolves with its key, the
-    /// snapshot opened and pinned. The key the provider resolved — whatever supplied it — joins
-    /// the withheld values.
+    /// Validate a seat: bounds, a direct provider model that resolves with its key, the shared
+    /// configuration (strategy `only`, a snapshot, the effort word named; only that word can
+    /// refuse there), no environment read. The provider's key joins the withheld values.
     pub(in crate::server) fn open(config: &NativeAuthoring) -> Result<Self, NativeAuthoringError> {
         let bounds = bounds(config)?;
         let (provider, key) = direct_provider(&config.model, &config.providers)?;
-        let knowledge = match &config.knowledge {
-            Some((dir, exclude)) => Some(pin(dir, exclude.clone())?),
-            None => None,
-        };
+        let none = config::AuthoringSettings::none();
+        let authoring =
+            config::resolve(&config.named, &none).map_err(|error| NativeAuthoringError::Model {
+                model: config.model.clone(),
+                reason: error.to_string(),
+            })?;
+        let knowledge = pin(&authoring)?;
         let mut withheld = config.withheld.clone();
         withheld.extend(key);
         Ok(Self {
@@ -309,6 +308,7 @@ impl Seat {
             provider,
             providers: config.providers.clone(),
             bounds,
+            authoring,
             knowledge,
             withheld,
             replays: Replays::new(config.replay_entries, config.replay_ttl),
@@ -331,16 +331,23 @@ impl Seat {
     pub(super) fn context(
         &self,
     ) -> Result<Option<(knowledge::Snapshot, Option<&str>)>, ContextChanged> {
-        let Some(pin) = &self.knowledge else {
+        let (
+            Some(pin),
+            Some(config::KnowledgeSource::Snapshot {
+                dir,
+                exclude_corpus,
+            }),
+        ) = (&self.knowledge, &self.authoring.knowledge)
+        else {
             return Ok(None);
         };
-        let snapshot = knowledge::Snapshot::open(&pin.dir).map_err(|_| ContextChanged)?;
+        let snapshot = knowledge::Snapshot::open(dir).map_err(|_| ContextChanged)?;
         if snapshot.manifest_sha256() != pin.manifest_sha256
             || snapshot.rows_sha256() != pin.rows_sha256
         {
             return Err(ContextChanged);
         }
-        Ok(Some((snapshot, pin.exclude.as_deref())))
+        Ok(Some((snapshot, exclude_corpus.as_deref())))
     }
 
     /// Whether a document carries a withheld value, raw or as a JSON string carries it
@@ -372,17 +379,14 @@ fn contains(haystack: &[u8], needle: &[u8]) -> bool {
 }
 
 fn bounds(config: &NativeAuthoring) -> Result<Bounds, NativeAuthoringError> {
+    let bounds = config.bounds;
     let refuse = |why| Err(NativeAuthoringError::Bound(why));
-    if !(1..=MAX_OUTPUT_TOKENS).contains(&config.max_tokens) {
-        return refuse("authoring output tokens per call must be 1..=32768");
-    }
-    if config.call_timeout.is_zero() || config.call_timeout > MAX_CALL_TIMEOUT {
-        return refuse("the authoring timeout per call must be above zero and at most 600 s");
-    }
-    if config.deadline.is_zero() || config.deadline > MAX_DEADLINE {
+    config::check_call_bounds(bounds.max_tokens, bounds.call_timeout)
+        .map_err(NativeAuthoringError::Bound)?;
+    if bounds.deadline.is_zero() || bounds.deadline > MAX_DEADLINE {
         return refuse("the authoring deadline per request must be above zero and at most 3600 s");
     }
-    if config.repairs > MAX_REPAIRS {
+    if bounds.repairs > config::MAX_REPAIRS {
         return refuse("authoring repair rounds must be 0..=5");
     }
     if !(1..=MAX_REPLAY_ENTRIES).contains(&config.replay_entries)
@@ -391,12 +395,12 @@ fn bounds(config: &NativeAuthoring) -> Result<Bounds, NativeAuthoringError> {
     {
         return refuse("kept answer rounds must be 1..=1024 for at most 24 h");
     }
-    Ok(Bounds {
-        max_tokens: config.max_tokens,
-        call_timeout: config.call_timeout,
-        deadline: config.deadline,
-        repairs: config.repairs,
-    })
+    if bounds.authority().is_err() {
+        return refuse(
+            "authoring max_calls must be positive and honor explicitly configured repairs",
+        );
+    }
+    Ok(bounds)
 }
 
 /// A direct provider model that resolves now (known provider, its key present): its canonical
@@ -428,29 +432,16 @@ fn direct_provider(
     ))
 }
 
-/// Pin a snapshot through the configuration parser every door shares: the strategy is the
-/// seat's (`only`), the knowledge a snapshot directory with its exclusion.
-fn pin(dir: &Path, exclude: Option<String>) -> Result<Pin, NativeAuthoringError> {
-    let named = config::AuthoringSettings::none()
-        .with_strategy(NativeMode::Only.word())
-        .with_knowledge(dir, exclude);
-    let resolved = config::resolve(&named, &config::AuthoringSettings::none())
-        .map_err(|error| NativeAuthoringError::Knowledge(error.to_string()))?;
-    let Some(config::KnowledgeSource::Snapshot {
-        dir,
-        exclude_corpus,
-    }) = resolved.knowledge
-    else {
-        return Err(NativeAuthoringError::Knowledge(
-            "only a snapshot directory can be pinned".to_owned(),
-        ));
+/// Pin the snapshot the shared configuration resolved, if any: its bytes as read when the
+/// listener attaches.
+fn pin(authoring: &config::AuthoringConfig) -> Result<Option<Pin>, NativeAuthoringError> {
+    let Some(config::KnowledgeSource::Snapshot { dir, .. }) = &authoring.knowledge else {
+        return Ok(None);
     };
-    let snapshot = knowledge::Snapshot::open(&dir)
+    let snapshot = knowledge::Snapshot::open(dir)
         .map_err(|error| NativeAuthoringError::Knowledge(error.to_string()))?;
-    Ok(Pin {
+    Ok(Some(Pin {
         manifest_sha256: snapshot.manifest_sha256().to_owned(),
         rows_sha256: snapshot.rows_sha256(),
-        dir,
-        exclude: exclude_corpus,
-    })
+    }))
 }

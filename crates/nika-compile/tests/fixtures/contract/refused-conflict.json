@@ -16,6 +16,29 @@
       "compiler_version": "0.121.0",
       "decision": {
         "intent_sha256": "5867022fb30356e348ff06f6f31d9a5538c6bcd9cfe99d6ae36ba6ff779274d4",
+        "ledger": [
+          {
+            "evidence": "Extrais les coordonnées de chaque candidature",
+            "kind": "transformation",
+            "note": null,
+            "realized_by": null,
+            "state": "unresolved"
+          },
+          {
+            "evidence": "prépare un accusé de réception",
+            "kind": "transformation",
+            "note": null,
+            "realized_by": null,
+            "state": "unresolved"
+          },
+          {
+            "evidence": "Envoie ensuite une invitation / Il est aussi absolument interdit d'envoyer une invitation",
+            "kind": "effect",
+            "note": "requested and prohibited at once",
+            "realized_by": null,
+            "state": "contradicted"
+          }
+        ],
         "retrieval": {
           "by_intent": [
             {
@@ -160,7 +183,7 @@
         "unknowns": []
       },
       "skeleton": null,
-      "spec_pin": "95ed1acf09c7798314a36fb208c9a5546b6ca658",
+      "spec_pin": "0275d4b3b6088cb7807467beff067964006a4473",
       "strategy": "hot",
       "suggested_file": null
     },

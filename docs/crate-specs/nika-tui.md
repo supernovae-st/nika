@@ -12,7 +12,7 @@
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 (workspace-inherited) |
 | Publish | `false` |
-| Dependencies | **read from `Cargo.toml`, which is authoritative** · `ratatui` 0.30 (features `scrolling-regions` · `unstable-rendered-line-info`) · `crossterm` 0.29 (`event-stream` · `bracketed-paste`) · `ratatui-textarea` 0.9 · `tokio` · `unicode-width` · lateral L4 `nika-session` (the live conversation) and `nika-cli-host` (the one-use Run child, no admission authority) · dev: `expectrl` (the PTY proof). `tachyonfx` and `nika-tui-core` are not dependencies yet; ADR-139 §Consequences leaves tachyonfx and the web-studio port out of the first product. |
+| Dependencies | **read from `Cargo.toml`, which is authoritative** · `ratatui` 0.30 (features `scrolling-regions` · `unstable-rendered-line-info`) · `crossterm` 0.29 (`event-stream` · `bracketed-paste`) · `ratatui-textarea` 0.9 · `tokio` · `unicode-width` · lateral L4 `nika-session` (the live conversation), `nika-cli-host` (the one-use Run child, no admission authority) and `nika-display` (the theme seam: roles, verb and state glyphs, motion frames; already under the other two) · dev: `expectrl` (the PTY proof), `sha2` (the logomark provenance proof). `tachyonfx` and `nika-tui-core` are not dependencies yet; ADR-139 §Consequences leaves tachyonfx and the web-studio port out of the first product. |
 | NIKA codes | none owed — the renderer refuses nothing · it displays the refusal the engine rendered |
 | Depends on | **T28 admitted** (`nika-tui-core` out of wip, done 2026-08-14) · ADR-139 proposed (confirmed or overturned by the two UX-1 prototypes on the same fixtures) |
 
@@ -38,19 +38,108 @@ Today the crate renders the live Session: `nika-session` turn outcomes
 become typed beats, and the CLI door injects the runners. The
 `nika-tui-core` board law and the tachyonfx effects are not wired yet.
 
-## 2. The semantic layer becomes enforceable here (planned)
+## 2. The semantic layer becomes enforceable here
 
-The known hole in the porting map (§4) closes in this crate:
+The known hole in the porting map (§4) closes in this crate, without a second
+palette: the roles are the engine's closed set, `nika_display::theme::Role`
+(the accent, the three verdicts, dim, strong and the four verb chips), and
+`visual::role::style` resolves each at paint time to the Ratatui colour of the
+same ANSI-16 slot the CLI frames paint (a test pins the ten slots to the
+theme's own SGR codes). Hues stay the user's terminal theme's; without colour
+no role carries a hue, and dim and strong remain weights. The renderer's block
+faces, status marker and prompt marker ask for a role, never a colour: the busy
+marker wears the accent (cyan), a gate or a proposal the warning slot, a
+refusal the failure slot. The studio's palette-extent gate and the board roles
+(`BarWork`, `BarIdle`, `BarCritical`) arrive with the board.
 
-```rust
-pub enum Role { BarWork, BarIdle, BarCritical, /* … */ }
-impl Role { pub fn color(self, theme: &Theme) -> Color { /* the table */ } }
-```
+The rest of the visual vocabulary (`visual`, task T-nika-tui-assets) is the
+same kind of borrowing:
 
-A `Role` resolved at paint time makes the semantic layer enforceable:
-citing a palette primitive in a widget becomes a type error. The studio's
-palette-extent gate then measures what it claims to measure. `Role` is not
-implemented yet.
+- `visual::icon` names the workspace objects a screen shows (project,
+  workflow, conversation, run, activation, file, memory, connection,
+  settings, pinned, search, choose) with a label that is always drawn, a
+  Unicode glyph drawn only when it takes one cell in both the narrow and the
+  CJK width tables (three proposals, the run, file and memory glyphs, fall
+  back for that reason), and an ASCII twin. Verbs and task states are not
+  icons: their glyphs are the theme seam's `◇ ▷ ◆ ✦` and state column.
+- `visual::logomark` holds the Supernovae butterfly, the only brand mark:
+  five renditions (12×6 to 48×20) sampled from `media/brand/nika-logomark.svg`
+  (a test pins its sha256, so a changed mark flags stale renditions), chosen
+  whole by `Size::largest_within`, revealed once through five ordered-dither
+  frames between 0 and 600 ms and final at 760 ms, shown final at once under
+  reduced motion. It never loops and never stands for work in progress.
+
+Nothing in `visual` reads the clock, the environment or a file; the caller
+passes the elapsed time, the colour and ASCII choices and reduced motion. Where
+the layout places the mark and the icons is UI-LAYOUT's work.
+
+### The workspace screen (T-nika-tui-layout · in progress)
+
+`workspace` builds the full-terminal screen on fixtures; nothing opens it yet,
+and the inline presentation and the plain loop are unchanged.
+
+- `workspace::geometry::Geometry::of` places the header, the project aside,
+  the object in view, the conversation with its composer and the pinned
+  activity row. The composer and the object come first: below 100 columns the
+  conversation sits under the object and keeps at least half the rows; from 100
+  columns it stands beside the object (36 to 56 columns); from 120 columns the
+  project aside appears (20 to 32 columns); from 30 rows the header takes a
+  second row. Below 60×16 there is no workspace and the caller keeps the inline
+  presentation. The regions cover the screen exactly without overlap at 80×24,
+  100×32, 120×40 and 160×48, with and without a pinned row.
+- `workspace::header` paints where the human stands from a `Place` the Session
+  projects: the active project (icon, name, chevron), its location, the host,
+  then the observed facts (git or no git, `nika.yaml` or no `nika.yaml`); an
+  unobserved fact is not written, a missing project reads `no project`. A narrow
+  row cuts the location from its start, never the project name; the ASCII column
+  replaces glyphs, separators and the ellipsis.
+- `workspace::aside` lists what the project holds in two projections, Nika and
+  Files (the chosen one underlined), with the object in view marked; an overflow
+  ends on a `+N more` row and a listing the Session marks partial says so on its
+  last row instead of pretending to show the whole disk.
+- `workspace::pinned` paints the pinned run: its owning project, workflow and
+  run, its state as the theme's glyph and role with the Session's words, and the
+  one useful action offered. A narrow row drops the action, then cuts the
+  workflow's end; the run and its state words stay.
+- `visual::state` re-reads the theme's task-state column (glyph and role, both
+  glyph columns) as data for Ratatui; a test pins every state to what
+  `nika_display::theme::Theme::glyph` paints.
+- `workspace::object` paints the centre. An open object is named by its kind's
+  icon and its name, and its given lines are cut at the edge, never wrapped
+  (the viewers of T-nika-tui-viewers will paint graphs, sources, diffs, checks,
+  results and proofs there). With nothing open it welcomes: the largest
+  butterfly that fits whole above the Session's first words (16×8 in the 80×24
+  object rows, 48×20 from 120×40), revealed once from the caller's clock, final
+  at once under reduced motion.
+- `workspace::conversation` names who the next message goes to: the title row
+  gives the thread and its project, the composer's placeholder the full
+  recipient (`Message to studio / release checklist`), and the context row
+  keeps apart what is only on screen and what is attached. What the next
+  message carries keeps priority on a narrow panel; the on-screen part is cut
+  first, then dropped.
+- `workspace::screen::draw` composes one frame from a `Screen` (place, aside,
+  object, thread, pinned run): the transcript, status, composer and hint are
+  painted by the same functions as the focus presentation. Beside the object
+  a rule column and a blank column separate the panel; under it, the panel's
+  title is a rule across. Below 60×16 it draws nothing and returns `false`, so
+  the caller keeps the inline presentation.
+- `workspace::focus` says which region holds the keyboard. The composer has
+  it by default, so typing never needs a first move; `F6` moves to the next
+  region and `Shift+F6` back (a folded aside is skipped), `Esc` returns to the
+  composer, and `Tab` stays the composer's completion key. In the aside the
+  arrows move a reversed selection (a weight, readable without colour) that
+  the listing always shows, and `Enter` opens the entry: the object in view
+  changes, the conversation does not, and nothing is attached to the next
+  message. In the object the arrows and page keys scroll its lines under a
+  title row that stays. `screen::extent` gives the key handler what the
+  regions hold at the current size.
+- The ASCII glyph column is the theme's decision (`--ascii`, CI logs, a legacy
+  console), passed by the CLI door as `app::Options::ascii` and held in
+  `UiState::ascii`. Under it every glyph the renderer writes takes its twin in
+  all three presentations: the block faces (`>`, `||`, `x`), the loader
+  (`| / - \`, `*` when still), the prompt markers, the focus rule and the
+  separators of its own status and hints. The Session's words (replies, the
+  status line, the lifecycle rail) are shown as written, never rewritten.
 
 ## 3. What is ported as is (the map, §5 · planned)
 

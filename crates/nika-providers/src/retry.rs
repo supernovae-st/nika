@@ -63,6 +63,12 @@ impl BillingRoute {
             endpoint,
         })
     }
+    /// The endpoint's origin ([`crate::route_origin`]): what a durable record
+    /// names in its place. `None` when it has none to project.
+    #[must_use]
+    pub fn origin(&self) -> Option<String> {
+        crate::route_origin(&self.endpoint)
+    }
     /// Exact dated tariff if known. Non-USD is never converted here.
     #[must_use]
     pub fn tariff(&self) -> Option<nika_catalog::admission::InferenceTariff> {

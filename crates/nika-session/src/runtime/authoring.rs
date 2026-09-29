@@ -11,18 +11,30 @@
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
+use nika_onboard::compile::round::{change_money, compiled};
 use nika_onboard::compile::{CompileOutcome, CompileQuestion, CompileRequest, revise_intent};
+// The compiler's reasons in a human's words and its questions' own grammar live beside the
+// reading they refine (C10).
+pub(crate) use nika_onboard::compile::reading::human_reasons;
+pub(super) use nika_onboard::compile::reading::{asks_for_syntax, clause_of};
+use nika_onboard::compile::reading::{
+    clauses_understood, incomplete_words, question_words, syntax_question,
+};
+use nika_onboard::compile::seat::{priced_words, unpriced_cloud, unpriced_warning};
 
 use super::{SessionRuntime, TurnOutcome, ceiling_in, named_files};
 use crate::activity::{Activity, Phase};
 use crate::authoring::{
-    AuthoringContext, AuthoringError, AuthoringRound, AuthoringSeat, Reading,
-    compile_deterministic, compile_in, is_cancel, is_greeting, is_why, reasons,
+    AuthoringContext, AuthoringError, AuthoringRound, AuthoringSeat, Reading, compile_in,
+    is_cancel, is_greeting, reasons,
 };
 use crate::change::{RunRequest, check_on_disk};
 use crate::outcome::{ProposalId, Refusal, RefusalClass};
 use crate::review;
-use crate::turn::{RoutingMethod, SessionPhase, TurnAct};
+use crate::turn::{RouteRecord, RoutingMethod, SessionPhase, TurnAct, TurnDecision};
+
+/// The seat of the readings the session settles without a model: zero calls, the project observed.
+pub(super) const DETERMINISTIC: AuthoringSeat = AuthoringSeat::Deterministic { why: None };
 
 impl SessionRuntime {
     /// The authoring question the next line answers, when one is open.
@@ -64,14 +76,10 @@ impl SessionRuntime {
         request: &CompileRequest,
         intent: &str,
     ) -> Result<CompileOutcome, AuthoringError> {
+        let context = self.project_context();
         if self.money_blocks_cognition() {
-            return compile_deterministic(request);
+            return compile_in(&DETERMINISTIC, &context, request, intent);
         }
-        // The session's own project root, never the process's working directory.
-        let context = self
-            .authoring_context
-            .clone()
-            .with_project_root(self.snapshot.root.clone());
         self.seated(&self.seat, |account| match account {
             Some(a) => crate::authoring::compile_in_with_admission(
                 &self.seat, &context, request, intent, a,
@@ -80,11 +88,12 @@ impl SessionRuntime {
         })
     }
 
-    /// Every seated round observes the files its request names under the session's own
-    /// project root (never the process's working directory, never through a link outside it).
-    fn observe_project(&mut self) {
+    /// The session's authoring context rooted at its own project, never the process's working
+    /// directory: every round observes the files it names there, never through a link outside it
+    /// (R4 S1). A seated round roots the session's context with it; a deterministic one reads it.
+    pub(super) fn project_context(&self) -> AuthoringContext {
         let root = self.snapshot.root.clone();
-        self.authoring_context.set_project_root(&root);
+        self.authoring_context.clone().with_project_root(root)
     }
 
     /// A free-text line as work to build: the deterministic ladder first
@@ -97,23 +106,22 @@ impl SessionRuntime {
         if is_greeting(intent) {
             return None;
         }
-        let round = AuthoringRound::new(intent);
-        let out = match compile_deterministic(&round.request()) {
+        let mut round = AuthoringRound::new(intent);
+        round.money.clone_from(&self.money.admitted);
+        let context = self.project_context();
+        let out = match compile_in(&DETERMINISTIC, &context, &round.request(), intent) {
             Ok(out) => out,
             Err(e) => return Some(self.machinery(&e)),
         };
-        // What the reading understood, from the compiler's own ledger —
-        // never a count invented from the prose.
+        // What the compiler's ledger recorded of the reading — a count,
+        // never a claim that it was verified.
         if let Some(n) = clauses_understood(&out) {
             self.activity(&Activity::done(
                 Phase::Understanding,
-                format!(
-                    "understood {n} requirement{}",
-                    if n == 1 { "" } else { "s" }
-                ),
+                format!("recorded {n} requirement{}", if n == 1 { "" } else { "s" }),
             ));
         }
-        let reading = Reading::of(out);
+        let reading = as_written(Reading::of(out), &round, &context, intent);
         // Only work owns the automation goal. Keep this round before any
         // seat/admission failure; an earlier conversation is not its request.
         if !matches!(reading, Reading::NotWork(_)) {
@@ -155,6 +163,13 @@ impl SessionRuntime {
                 }
             }
             Reading::Unsettled(out) => Some(match &self.seat {
+                // The ceiling refuses the seat (R4 A6): what the reader could not settle is
+                // still said — a directive that also names a field is the human's to restate.
+                AuthoringSeat::Provider { .. } | AuthoringSeat::Harness { .. }
+                    if self.money_blocks_cognition() =>
+                {
+                    self.refused_unsettled(out)
+                }
                 AuthoringSeat::Provider { .. } | AuthoringSeat::Harness { .. } => {
                     self.compile_under_seat(round)
                 }
@@ -169,13 +184,21 @@ impl SessionRuntime {
                     self.machinery(&AuthoringError::Seat(why.clone()))
                 }
                 AuthoringSeat::Deterministic { why } => {
-                    let text = honest_incomplete(&out, why.as_deref());
+                    let text = incomplete_words(&out, why.as_deref());
                     self.last_outcome = Some(out);
                     TurnOutcome::Facts(text)
                 }
             }),
             reading => Some(self.settle(round, reading)),
         }
+    }
+
+    /// Work the reader could not settle, under a ceiling that refuses the seat (R4 A6): the
+    /// refusal says the compiler's reasons, never the bare ceiling; `why` keeps the outcome.
+    fn refused_unsettled(&mut self, out: CompileOutcome) -> TurnOutcome {
+        let text = incomplete_words(&out, Some(&self.cognition_blocked()));
+        self.last_outcome = Some(out);
+        TurnOutcome::Refusal(Refusal::new(RefusalClass::NotAllowed, text))
     }
 
     /// The same Compile, under the seat the human permitted, for work the
@@ -186,7 +209,7 @@ impl SessionRuntime {
         if self.money_blocks_cognition() {
             return self.cognition_money_refusal();
         }
-        self.observe_project();
+        self.authoring_context = self.project_context();
         self.activity(&Activity::now(Phase::Authoring, self.authoring_note()));
         match self.compile_round(&round, &self.seat) {
             Ok(out) => match Reading::of(out) {
@@ -245,10 +268,16 @@ impl SessionRuntime {
     /// A change, a mixed line or new work said at a question: the request
     /// is read again with the human's own words (the round is dropped, the
     /// plan read a different request). Never a paraphrase.
-    fn restate_round(&mut self, round: &AuthoringRound, line: &str) -> TurnOutcome {
+    pub(super) fn restate_round(&mut self, round: &AuthoringRound, line: &str) -> TurnOutcome {
         let intent = format!("{}. {}", round.intent, line.trim());
+        // Its directives, the request's own and the added ones, are spans of this very string (C11).
+        let money = match self.built_money(&intent, line) {
+            Ok(money) => money,
+            Err(refusal) => return refusal,
+        };
         self.remember(line, "(the request read again with these words)");
-        let again = AuthoringRound::new(intent);
+        let mut again = AuthoringRound::new(intent);
+        again.money = money;
         match self.compile_request(&again.request(), &again.intent) {
             Ok(out) => {
                 let reading = Reading::of(out);
@@ -260,7 +289,7 @@ impl SessionRuntime {
 
     /// Propose the revised bytes and the Meaning delta while retaining the
     /// original request and the human's change as the source of truth.
-    fn propose_revision(&mut self, goal: &str, out: &CompileOutcome) -> TurnOutcome {
+    fn propose_revision(&mut self, round: &AuthoringRound, out: &CompileOutcome) -> TurnOutcome {
         let delta = self
             .last_outcome
             .as_ref()
@@ -272,7 +301,7 @@ impl SessionRuntime {
                     .and_then(|d| d.get("ledger").cloned()),
             )
             .and_then(|(before, after)| crate::meaning::delta(&before, &after));
-        match self.propose(goal, out) {
+        match self.propose(round, out) {
             TurnOutcome::Proposal { id, preview } => {
                 // The Meaning and details doors must describe the bytes now
                 // awaiting consent. Keep the earlier reading if proposal fails.
@@ -317,6 +346,8 @@ impl SessionRuntime {
         // knowledge is composed for that same request from the pinned snapshot.
         let mut round = AuthoringRound::new(goal.clone());
         round.edit = Some((base, change.trim().to_owned(), original));
+        // The line's own admitted directives, as the law reads the change the EDIT holds (B15).
+        round.money = change_money(change.trim(), !self.money.admitted.is_empty());
         let request = round.request();
         let revised = revise_intent(&request).unwrap_or_else(|| goal.clone());
         let out = match self.compile_request(&request, &revised) {
@@ -326,7 +357,7 @@ impl SessionRuntime {
         match Reading::of(out) {
             Reading::Ready(out) => {
                 self.remember(change, "(revised the saved workflow)");
-                self.propose(&goal, &out)
+                self.propose(&round, &out)
             }
             // What the revision asks waits in its round: the same EDIT, answered.
             reading if round.asks(&reading) => self.settle(round, reading),
@@ -392,7 +423,7 @@ impl SessionRuntime {
         match Reading::of(out) {
             Reading::Ready(out) => {
                 self.remember(change, "(revised the proposal)");
-                self.propose_revision(&goal, &out)
+                self.propose_revision(&round, &out)
             }
             // What the revision asks (a value, a clause's disposition) waits in its round; the
             // proposal it revises waits aside, never consentable meanwhile (`keep_revising`).
@@ -447,7 +478,7 @@ impl SessionRuntime {
     /// are named); a compiler failure is a refusal that names it; an
     /// authoring configuration that cannot be honored is refused before
     /// anything is sent — never authored without the knowledge it names.
-    fn machinery(&mut self, error: &AuthoringError) -> TurnOutcome {
+    pub(super) fn machinery(&mut self, error: &AuthoringError) -> TurnOutcome {
         match error {
             AuthoringError::Seat(_) => self.recovery(
                 Some(RefusalClass::IntelligenceRefused),
@@ -471,7 +502,7 @@ impl SessionRuntime {
 
     /// What a reading becomes for the human: a proposal, a question, an
     /// honest incomplete, a refusal.
-    fn settle(&mut self, mut round: AuthoringRound, reading: Reading) -> TurnOutcome {
+    pub(super) fn settle(&mut self, mut round: AuthoringRound, reading: Reading) -> TurnOutcome {
         // The compiler's reading is what `/meaning` shows, clause by clause.
         self.last_outcome = Some(reading.outcome().clone());
         // A revision left unsettled may still ask its clauses' dispositions (`absorb`).
@@ -483,13 +514,13 @@ impl SessionRuntime {
             // The revised proposal replaces the one it revises: the delta reads from that one.
             Reading::Ready(out) if self.revising.is_some() => {
                 self.last_outcome = self.revising.as_ref().and_then(|(_, base)| base.clone());
-                self.propose_revision(&round.intent, &out)
+                self.propose_revision(&round, &out)
             }
-            Reading::Ready(out) => self.propose(&round.intent, &out),
+            Reading::Ready(out) => self.propose(&round, &out),
             Reading::Questions(out) => {
                 round.absorb(&out);
                 let Some(question) = round.current() else {
-                    return TurnOutcome::Facts(honest_incomplete(&out, None));
+                    return TurnOutcome::Facts(incomplete_words(&out, None));
                 };
                 let key = question.key.clone();
                 // A rule the compiler can only ask as code is never asked
@@ -509,7 +540,8 @@ impl SessionRuntime {
                         self.remember(&round.intent, &text);
                         return TurnOutcome::Facts(text);
                     }
-                    let text = syntax_question_text(clause.as_deref().unwrap_or_default());
+                    let clause = clause.as_deref().unwrap_or_default();
+                    let text = format!("{}{REPLY_HINT}", syntax_question(clause));
                     self.intent.unresolved = vec![text.clone()];
                     self.remember(&round.intent, &text);
                     self.questions.ask();
@@ -538,7 +570,7 @@ impl SessionRuntime {
                 }
             }
             Reading::Unsettled(out) | Reading::NotWork(out) => {
-                TurnOutcome::Facts(honest_incomplete(&out, None))
+                TurnOutcome::Facts(incomplete_words(&out, None))
             }
             // A turn the session could not finish: the recovery card (what
             // is kept · what did not happen · the ways on), never a bare
@@ -560,20 +592,30 @@ impl SessionRuntime {
                     reasons(&out).join(" · ")
                 ),
             )),
+            // A reading this session does not know yet is refused, never proposed.
+            other => TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::AuthoringRefused,
+                format!(
+                    "the compiler refused this request — {}",
+                    reasons(other.outcome()).join(" · ")
+                ),
+            )),
         }
     }
 
-    /// The Ready candidate as the proposal the consent line answers:
+    /// The Ready candidate of `round` as the proposal the consent line answers:
     /// exact bytes, a fresh destination, the same check facade.
-    fn propose(&mut self, goal: &str, out: &CompileOutcome) -> TurnOutcome {
-        match review::propose(&self.snapshot.root, goal, out) {
+    fn propose(&mut self, round: &AuthoringRound, out: &CompileOutcome) -> TurnOutcome {
+        match review::propose(&self.snapshot.root, &round.intent, out) {
             Ok(set) => {
                 let bytes = self.draft_preview(&set);
                 let id = ProposalId::of(&bytes);
+                // What the candidate records of its sources is bound before any yes (F4).
+                self.bind_basis(&id, &set, compiled(round.request(), out), out);
                 let preview = self.draft_review(&set, out, &bytes);
                 self.authoring = None;
                 self.intent.unresolved.clear();
-                self.remember(goal, &format!("(proposed {id})"));
+                self.remember(&round.intent, &format!("(proposed {id})"));
                 // The schedule the request asked for rides beside the set:
                 // « activate » declares it once the program is saved.
                 self.pending_trigger.clone_from(&out.requested_trigger);
@@ -586,8 +628,9 @@ impl SessionRuntime {
     }
 
     /// The human's line as the answer to the open question: typed to its
-    /// shape, bound to its key, and the same plan replayed. A cancel word
-    /// drops the round; an empty line is not an answer.
+    /// shape, bound to its key, and the same plan replayed. Its protocol
+    /// (`why` · a cancel word · a command) was answered before any review
+    /// (`question_protocol`); an empty line is not an answer.
     pub(super) fn answer_question_unrecorded(&mut self, line: &str) -> TurnOutcome {
         let Some(round) = self.authoring.take() else {
             return TurnOutcome::Refusal(Refusal::new(
@@ -595,29 +638,9 @@ impl SessionRuntime {
                 "no authoring question waits",
             ));
         };
-        // « why? » beside the question: what the value is for, from the
-        // compiler's own words; the question keeps waiting.
-        if is_why(line) {
-            let text = round.current().map_or_else(
-                || "no authoring question waits".to_owned(),
-                |q| super::aside::explain_question(q, &round),
-            );
-            self.authoring = Some(round);
-            return TurnOutcome::Aside(text);
-        }
         // `drop` is the disposition a clause's question names (`gap.N`): its answer there.
         let disposes = line.trim().eq_ignore_ascii_case("drop")
             && round.current().is_some_and(|q| q.key.starts_with("gap."));
-        if is_cancel(line) && !disposes {
-            let asked = self.question_id_of(&round);
-            self.questions.close(asked);
-            self.intent.unresolved.clear();
-            self.remember(line, "(authoring discarded)");
-            return TurnOutcome::Facts(
-                "authoring discarded · nothing was written · describe the work again when ready"
-                    .to_owned(),
-            );
-        }
         // An empty line takes the offered default and nothing else: the
         // `model` question's default is the seat the human already chose.
         let seat_default = match (round.current().map(|q| q.key.as_str()), &self.seat) {
@@ -654,9 +677,11 @@ impl SessionRuntime {
                 .current()
                 .and_then(|q| clause_of(&q.label))
                 .unwrap_or_default();
-            let intent = round.intent.replacen(&clause, line.trim(), 1);
-            let mut restated = AuthoringRound::new(intent);
-            restated.restatements = round.restatements.saturating_add(1);
+            let mut restated = round.restate_clause(&clause, line.trim());
+            restated.money = match self.built_money(&restated.intent, line) {
+                Ok(money) => money,
+                Err(refusal) => return refusal,
+            };
             let asked = self.question_id_of(&round);
             self.questions.close(asked);
             self.remember(line, &format!("(restated « {clause} » in words)"));
@@ -688,7 +713,8 @@ impl SessionRuntime {
     /// first); the deterministic seat settles what it reads.
     pub(super) fn compile_again(&mut self, round: AuthoringRound) -> TurnOutcome {
         if self.money_blocks_cognition() {
-            return match compile_deterministic(&round.request()) {
+            let (context, contextual) = (self.project_context(), round.effective_intent());
+            return match compile_in(&DETERMINISTIC, &context, &round.request(), &contextual) {
                 Ok(out) => self.settle(round, Reading::of(out)),
                 Err(e) => self.machinery(&e),
             };
@@ -697,7 +723,7 @@ impl SessionRuntime {
         if self.seat.has_model() && round.edit.is_none() {
             return self.compile_under_seat(round);
         }
-        self.observe_project();
+        self.authoring_context = self.project_context();
         match self.compile_round(&round, &self.seat) {
             Ok(out) => {
                 let reading = Reading::of(out);
@@ -710,7 +736,9 @@ impl SessionRuntime {
     /// Open language at a question, routed: a question about the question
     /// explains it (`Err`, the question still waits), a change or new work
     /// reads the request again with the words (`Err`), a run is refused
-    /// (`Err`); an answer, or a line nothing could read, binds (`Ok`).
+    /// (`Err`); an ANSWER binds (`Ok`) — the route's, or the question's
+    /// declared protocol when nothing could judge the line — and UNKNOWN
+    /// binds nothing (`Err`, the question still waits).
     fn route_at_question(
         &mut self,
         round: AuthoringRound,
@@ -719,17 +747,25 @@ impl SessionRuntime {
         // Open language at a question: its act is a bounded decision — an
         // answer binds, a question about the question explains it (the
         // question still waits), a change reads the request again with the
-        // human's words; without any intelligence a line is the answer.
+        // human's words; UNKNOWN binds nothing.
         let decision = self.classify(SessionPhase::QuestionPending, line);
-        // A `?` is a hint, never a veto: it decides only when nothing could
-        // judge the line — an unread question is then asked, not bound.
-        let act = if decision.act == TurnAct::Unknown
-            && decision.method == RoutingMethod::Fallback
-            && line.trim_end().ends_with('?')
-        {
-            TurnAct::Discuss
-        } else {
-            decision.act
+        let act = match (decision.act, decision.method) {
+            // A `?` is a hint, never a veto: it decides only when nothing could
+            // judge the line — an unread question is then asked, not bound.
+            (TurnAct::Unknown, RoutingMethod::Fallback) if line.trim_end().ends_with('?') => {
+                TurnAct::Discuss
+            }
+            // Nothing could judge the line: it answers only by the question's
+            // declared protocol, and the route records that it did.
+            (TurnAct::Unknown, RoutingMethod::Fallback)
+                if self.answers_by_protocol(&round, line) =>
+            {
+                let answer = TurnDecision::new(TurnAct::Answer, RoutingMethod::Protocol);
+                let record = RouteRecord::new(SessionPhase::QuestionPending, line, &answer);
+                self.routes.push(record);
+                TurnAct::Answer
+            }
+            (act, _) => act,
         };
         match act {
             TurnAct::Cancel => {
@@ -762,9 +798,21 @@ impl SessionRuntime {
                         .to_owned(),
                 ));
             }
-            // ANSWER, or a line the route could not read: the answer to the
-            // question asked (a short line at a question is the answer).
-            TurnAct::Answer | TurnAct::Unknown => {}
+            // ANSWER — the route's, or the declared protocol's — binds through
+            // the typed reading of the question asked.
+            TurnAct::Answer => {}
+            // UNKNOWN — a line the route could not read, a route that failed,
+            // a line no protocol answers — binds nothing: the question waits,
+            // unchanged, and says how to go on.
+            TurnAct::Unknown => {
+                // Nothing reads replies: a value question's sentence waits for the value alone.
+                let why = if decision.method == RoutingMethod::Fallback && !self.reads_answers() {
+                    "that line is not a value on its own and no intelligence reads replies — nothing was bound · put a longer value in quotes".to_owned()
+                } else {
+                    Self::unknown_route_text(SessionPhase::QuestionPending, decision.method)
+                };
+                return Err(self.answer_waits(round, &why));
+            }
         }
         Ok(round)
     }
@@ -917,18 +965,7 @@ impl SessionRuntime {
                 "no run waits on an input",
             ));
         };
-        // « why? » beside the input: what it is and who declares it; the
-        // input keeps waiting.
-        if is_why(line) {
-            let text = match inputs.first_needed() {
-                Some(name) => {
-                    super::aside::explain_input(&inputs.workflow, name, inputs.remaining())
-                }
-                None => "no input waits".to_owned(),
-            };
-            self.run_inputs = Some(inputs);
-            return TurnOutcome::Aside(text);
-        }
+        // Its « why? » is the turn's (`read_only_turn`): it never reaches here.
         if is_cancel(line) {
             self.intent.unresolved.clear();
             self.remember(line, "(run request discarded)");
@@ -936,6 +973,16 @@ impl SessionRuntime {
                 "run discarded · nothing ran · say « run it » again when the inputs are ready"
                     .to_owned(),
             );
+        }
+        // A command-shaped line is never an input's value.
+        if let Some(text) = super::protocol::unserved_command(line) {
+            self.run_inputs = Some(inputs);
+            return TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::WrongState,
+                format!(
+                    "{text}\n  the input still waits · reply on the next line · `cancel` drops the run"
+                ),
+            ));
         }
         let value = line.trim();
         if value.is_empty() {
@@ -945,6 +992,8 @@ impl SessionRuntime {
                 "the input needs a value — nothing answers for you (`cancel` drops the run)",
             ));
         }
+        // A value in quotes is its content: the escape for a word the protocol would take.
+        let value = serde_json::from_str::<String>(value).unwrap_or_else(|_| value.to_owned());
         let name = inputs.needed.remove(0);
         inputs.given.push(format!("{name}={value}"));
         self.intent.unresolved.clear();
@@ -1027,27 +1076,14 @@ fn input_question(workflow: &std::path::Path, name: &str, remaining: usize) -> S
     )
 }
 
-/// The question as the human reads it: the compiler's label, why it
-/// cannot invent the value, what it could not settle, how to abandon.
+/// How a human answers a question, abandons it or asks why: the raw key stays out of the human's
+/// line (« why? » names it, with what the value is for); the prompt that follows (`reply ›`) says
+/// whose turn it is.
+const REPLY_HINT: &str = "\n  reply on the next line · `cancel` drops this · `why?` explains";
+
+/// The question as the human reads it ([`question_words`]), then how to answer or abandon it.
 pub(super) fn question_text(question: &CompileQuestion, reasons: &[String]) -> String {
-    let mut text = question.label.clone();
-    if !question.why.is_empty() {
-        text.push_str("\n  (");
-        text.push_str(&question.why);
-        text.push(')');
-    }
-    if !reasons.is_empty() {
-        text.push_str("\n  what I could not settle:");
-        for reason in reasons {
-            text.push_str("\n    · ");
-            text.push_str(reason);
-        }
-    }
-    // The raw key stays out of the human's line: « why? » names it, with
-    // what the value is for; the prompt that follows (`reply ›`) says whose
-    // turn it is.
-    text.push_str("\n  reply on the next line · `cancel` drops this · `why?` explains");
-    text
+    format!("{}{REPLY_HINT}", question_words(question, reasons))
 }
 
 /// The card when nothing could be built, in the reading's own truth: a
@@ -1099,57 +1135,30 @@ pub(super) fn cannot_express_text(out: &CompileOutcome) -> String {
     text
 }
 
-/// The words when a run model names a CLOUD model the catalog does not
-/// price: a run under a spending ceiling would refuse it (NIKA-1709), so
-/// the question says so now and names the priced models of that provider.
-/// `None` when the model is priced, when the provider is a local engine
-/// (unpriced by nature, never refused), or when the line is not
-/// `provider/model` (the compiler judges it).
 /// Is `line` the seat the human already chose (`<provider>/<model>`,
 /// spacing aside)? The seat is never refused at the model question.
 pub(super) fn is_own_seat(seat: &AuthoringSeat, line: &str) -> bool {
     matches!(seat, AuthoringSeat::Provider { model } if model.trim() == line.trim())
 }
 
+/// The words when a run model names a CLOUD model the catalog does not
+/// price: a run under a spending ceiling would refuse it (NIKA-1709), so
+/// the question says so now and names the priced models of that provider.
+/// `None` when the model is priced, when the provider is a local engine
+/// (unpriced by nature, never refused), or when the line is not
+/// `provider/model` (the compiler judges it).
 pub(super) fn unpriced_model_text(answer: &str) -> Option<String> {
     let (row, model, priced) = unpriced_cloud(answer)?;
-    let mut text = format!(
-        "`{row}/{model}` is not priced in Nika's catalog: a run under a spending ceiling would refuse it (NIKA-1709 · unpriced cloud spend cannot be bounded)."
-    );
-    if priced.is_empty() {
-        let _ = write!(
-            text,
-            "\n  no priced model is known for `{row}` yet — name a priced <provider>/<model>, or `cancel`"
-        );
+    let way = if priced.is_empty() {
+        "name a priced <provider>/<model>, or `cancel`"
     } else {
-        let _ = write!(
-            text,
-            "\n  priced for `{row}`: {} — name one of them (the question still waits)",
-            priced.join(" · ")
-        );
-    }
-    Some(text)
-}
-
-/// A CLOUD model the catalog does not price, as (the provider's row id,
-/// the model, the priced models of that provider). `None` when the model
-/// is priced, when the provider is a local engine (unpriced by nature,
-/// never refused), or when the line is not `provider/model`.
-fn unpriced_cloud(answer: &str) -> Option<(String, String, Vec<String>)> {
-    let (provider, model) = answer.trim().split_once('/')?;
-    let row = nika_catalog::all_providers()
-        .iter()
-        .find(|p| p.id == provider || p.aliases.contains(&provider))?;
-    if !row.requires_key || nika_catalog::find_pricing_scoped(row.id, model).is_some() {
-        return None;
-    }
-    let priced = row
-        .models
-        .iter()
-        .filter(|m| nika_catalog::find_pricing_scoped(row.id, m.model).is_some())
-        .map(|m| format!("{}/{}", row.id, m.model))
-        .collect();
-    Some((row.id.to_owned(), model.to_owned(), priced))
+        "name one of them (the question still waits)"
+    };
+    Some(format!(
+        "{} (NIKA-1709 · unpriced cloud spend cannot be bounded).\n  {} — {way}",
+        unpriced_warning(&format!("{row}/{model}")),
+        priced_words(&row, &priced)
+    ))
 }
 
 /// The seat's offer under the model question: Enter takes it, or another
@@ -1167,27 +1176,12 @@ pub(super) fn seat_offer(seat: &AuthoringSeat) -> Option<String> {
     if let Some((row, _, priced)) = unpriced_cloud(model) {
         let _ = write!(
             offer,
-            "\n  `{model}` is not priced in Nika's catalog: a run under a spending ceiling would refuse it (NIKA-1709)"
+            "\n  {} (NIKA-1709) · {}",
+            unpriced_warning(model),
+            priced_words(&row, &priced)
         );
-        if priced.is_empty() {
-            let _ = write!(offer, " · no priced model is known for `{row}` yet");
-        } else {
-            let _ = write!(offer, " · priced for `{row}`: {}", priced.join(" · "));
-        }
     }
     Some(offer)
-}
-
-/// How many clauses the compiler's ledger holds for this reading —
-/// « understood N requirements » — `None` when the outcome carries no ledger.
-fn clauses_understood(out: &CompileOutcome) -> Option<usize> {
-    let ledger = out
-        .provenance
-        .decision
-        .as_ref()?
-        .get("ledger")?
-        .as_array()?;
-    (!ledger.is_empty()).then_some(ledger.len())
 }
 
 impl SessionRuntime {
@@ -1201,33 +1195,6 @@ impl SessionRuntime {
     }
 }
 
-/// A question that asks the human for code (a jq or CEL expression, a
-/// `const.*_expression` value): a product defect when it reaches them.
-pub(super) fn asks_for_syntax(question: &CompileQuestion) -> bool {
-    let label = question.label.to_ascii_lowercase();
-    question.key.ends_with("_expression")
-        || label.contains("jq expression")
-        || label.contains(" jq ")
-        || label.contains("cel expression")
-}
-
-/// The clause the compiler quotes in its question (between backticks),
-/// as the request carries it.
-pub(super) fn clause_of(label: &str) -> Option<String> {
-    let start = label.find('`')? + 1;
-    let end = start + label[start..].find('`')?;
-    let clause = label[start..end].trim();
-    (!clause.is_empty()).then(|| clause.to_owned())
-}
-
-/// The clause asked in words — never a syntax — with what to say and
-/// what Nika does with it.
-fn syntax_question_text(clause: &str) -> String {
-    format!(
-        "One thing I need from you, in words: how to do « {clause} ». Say it as you would to a colleague — what to keep, what to compute, over which column (e.g. « the total of the amount column » · « the rows whose status is paid »); your words take the place of « {clause} » in your request and Nika reads it again. No code is needed.\n  reply on the next line · `cancel` drops this · `why?` explains"
-    )
-}
-
 /// The honest incomplete when the rule stays code after the human's words
 /// (or the clause is not in the request as quoted): the way on, no syntax.
 fn syntax_incomplete(clause: Option<&str>) -> String {
@@ -1237,106 +1204,25 @@ fn syntax_incomplete(clause: Option<&str>) -> String {
     )
 }
 
-/// An incomplete the human can act on: what the reader could not settle,
-/// and the next safe step — never a substitute workflow.
-fn honest_incomplete(out: &CompileOutcome, why: Option<&str>) -> String {
-    let mut text = "I read this as work but cannot build it yet:".to_owned();
-    let reasons = human_reasons(reasons(out));
-    if reasons.is_empty() {
-        text.push_str("\n  · the request names no operation I can read");
-    }
-    for reason in reasons {
-        text.push_str("\n  · ");
-        text.push_str(&reason);
-    }
-    text.push_str("\n  ");
-    text.push_str(why.unwrap_or(
-        "say what to read, what to produce and where to write it, e.g. « read ./docs, draft a digest and write it to ./digest.md »",
-    ));
-    text
-}
-
-/// The compiler's reasons a human can act on: its machine sentences (the
-/// plan's own vocabulary, an unmapped part with nothing after the colon)
-/// dropped, duplicates folded, the rest verbatim.
-pub(crate) fn human_reasons(reasons: Vec<String>) -> Vec<String> {
-    let mut kept: Vec<String> = Vec::new();
-    for reason in reasons {
-        let r = reason.trim();
-        let machine = r.contains("semantic plan") || r.ends_with(": .") || r.ends_with(':');
-        if machine || r.is_empty() {
-            continue;
+/// A line the reader does not settle once its admitted directives are blanked is routed as
+/// written (R4 A6): conversation stays conversation, unread work stays work.
+fn as_written(
+    reading: Reading,
+    round: &AuthoringRound,
+    context: &AuthoringContext,
+    intent: &str,
+) -> Reading {
+    match reading {
+        Reading::NotWork(out) | Reading::Unsettled(out) if !round.money.is_empty() => {
+            let mut written = round.clone();
+            written.money.clear();
+            match compile_in(&DETERMINISTIC, context, &written.request(), intent).map(Reading::of) {
+                Ok(Reading::NotWork(_)) => Reading::NotWork(out),
+                _ => Reading::Unsettled(out),
+            }
         }
-        let said = human_reason(r);
-        if kept.contains(&said) {
-            continue;
-        }
-        kept.push(said);
+        reading => reading,
     }
-    kept
-}
-
-/// One compiler reason in the human's words — the compiler's fidelity
-/// grammar is a closed set (« Candidate N is not feasible: … », « dropped
-/// the recognized operation `x` (evidence) », « the path `p` is no longer
-/// carried … », « the literal `v` is not in the request »); any other line
-/// is kept as the compiler said it.
-fn human_reason(raw: &str) -> String {
-    let r = raw.trim().trim_end_matches('.');
-    // A cut answer is the seat's output limit, an internal cause: its command-line advice
-    // (`--authoring-max-tokens`) is no gesture a Session has, and the request is not at fault.
-    if r.contains("--authoring-max-tokens") {
-        let tokens: String = r
-            .chars()
-            .skip_while(|c| !c.is_ascii_digit())
-            .take_while(char::is_ascii_digit)
-            .collect();
-        let limit = if tokens.is_empty() {
-            "its output limit".to_owned()
-        } else {
-            format!("its {tokens}-token output limit")
-        };
-        return format!(
-            "the model's answer was cut at {limit} before it was complete — an internal limit of this attempt, not a problem with your request"
-        );
-    }
-    let r = match r.find("is not feasible: ") {
-        Some(at) if r.starts_with("Candidate ") => &r[at + "is not feasible: ".len()..],
-        _ => r,
-    };
-    let quoted = |s: &str| -> Option<(String, String)> {
-        let start = s.find('`')?;
-        let end = s[start + 1..].find('`')? + start + 1;
-        Some((s[start + 1..end].to_owned(), s[end + 1..].to_owned()))
-    };
-    if let Some(rest) = r.strip_prefix("dropped the recognized operation ")
-        && let Some((op, tail)) = quoted(rest)
-    {
-        let evidence = tail
-            .trim()
-            .trim_start_matches('(')
-            .trim_end_matches(')')
-            .trim_end_matches(',')
-            .trim();
-        return if evidence.is_empty() {
-            format!("the draft lost the « {op} » step")
-        } else {
-            format!("the draft lost « {evidence} » (the {op} step)")
-        };
-    }
-    if let Some(rest) = r.strip_prefix("the path ")
-        && let Some((path, tail)) = quoted(rest)
-        && tail.contains("no longer carried")
-    {
-        return format!("the draft dropped « {path} »: nothing reads or writes it any more");
-    }
-    if let Some(rest) = r.strip_prefix("the literal ")
-        && let Some((value, tail)) = quoted(rest)
-        && tail.contains("not in the request")
-    {
-        return format!("the draft invented a value (« {value} ») your request never gave");
-    }
-    r.to_owned()
 }
 
 /// The first word of an explicit run line (EN/FR). The French imperative
@@ -1384,7 +1270,7 @@ fn run_line_is_plain(lower: &str) -> bool {
         })
 }
 
-fn run_prefix(input: &str) -> Option<String> {
+pub(super) fn run_prefix(input: &str) -> Option<String> {
     let lower = input.trim().to_lowercase();
     let first = lower
         .split(|c: char| c.is_whitespace() || c == ',' || c == ':')

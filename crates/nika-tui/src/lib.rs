@@ -34,6 +34,14 @@
 //! driven by the `nika-tui-proto` binary in both presentations; the real
 //! session runtime is wired in the next wave through the same
 //! [`model::Beat`] vocabulary.
+//!
+//! Every colour and glyph comes through [`visual`]: the engine's theme roles
+//! resolved at paint time, the workspace icons with their ASCII twins, and the
+//! butterfly sampled from the repository's own logomark. The full-terminal
+//! workspace screen ([`workspace`]) is being built on fixtures: its geometry,
+//! header, project aside, object in view, conversation panel and pinned row
+//! compose one frame ([`workspace::screen::draw`]), the keyboard moves between
+//! them ([`workspace::focus`]), and nothing opens it yet.
 
 pub mod app;
 pub mod composer;
@@ -42,3 +50,5 @@ pub mod model;
 pub mod render;
 pub mod session;
 pub mod terminal;
+pub mod visual;
+pub mod workspace;

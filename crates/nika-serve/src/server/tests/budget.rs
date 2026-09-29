@@ -103,14 +103,13 @@ async fn an_explicitly_disarmed_default_leaves_a_manual_job_unceilinged() {
     server.stop().await.expect("clean stop");
 }
 
-/// (c) A configured default that is zero, negative, NaN, or infinite
-/// would silently DISARM the guard it claims to arm (the CLI's
-/// `--max-cost-usd` parser refuses the same class) — startup refuses.
+/// (c) A configured default that is negative, NaN, or infinite would
+/// silently DISARM the guard it claims to arm — startup refuses.
 #[tokio::test(flavor = "multi_thread")]
 async fn an_invalid_default_budget_ceiling_refuses_before_state_io() {
     let world = TestWorld::new();
     let backend = Arc::new(BudgetBackend::default());
-    for ceiling in [0.0, -0.5, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+    for ceiling in [-0.5, f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
         let config = ResidentConfig::new(&world.state)
             .with_limits(limits().with_default_max_cost_usd(Some(ceiling)));
         assert!(
@@ -121,4 +120,38 @@ async fn an_invalid_default_budget_ceiling_refuses_before_state_io() {
             "ceiling {ceiling} must refuse at startup"
         );
     }
+}
+
+/// (d) C6 · a zero default is a valid, BINDING ceiling, never a disarm: the
+/// server starts under it and a manual job carries exactly 0 to the runtime,
+/// whose cost-floor gate refuses any priced work before its first event
+/// (the production path is exercised in `cost_review::a_zero_ceiling_is_a_binding_veto`).
+#[tokio::test(flavor = "multi_thread")]
+async fn a_zero_default_is_a_binding_ceiling_never_a_disarm() {
+    let world = TestWorld::new();
+    let backend = Arc::new(BudgetBackend::default());
+    let server = world
+        .start(
+            backend.clone(),
+            limits().with_default_max_cost_usd(Some(0.0)),
+        )
+        .await;
+    let created = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika"}"#,
+            "manual-zero-ceiling",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(created.status, 202, "{}", created.body);
+    let id = created.json()["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &id, "succeeded")
+        .await
+        .expect("succeeded");
+    assert_eq!(
+        backend.max_cost_usd(),
+        Some(0.0),
+        "zero rides to the runtime as a ceiling, never as its absence"
+    );
+    server.stop().await.expect("clean stop");
 }

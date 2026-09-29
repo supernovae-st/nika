@@ -14,7 +14,18 @@
 
 use super::aggregate::{self, AggOp, Aggregation, COLUMN_WORDS, ROW_WORDS, Shape};
 use super::rule_cues::{COPULAS, NEGATIONS, RELATIVES};
-use super::rule_tokens::fold;
+use super::rule_tokens::{fold, hinted, section};
+use super::rules::{Clause, Junction, Operand};
+use std::sync::LazyLock;
+
+/// The closed word tables of the stages, one `[name]` section each, words in their order
+/// (data only: the grammar below reads them; `tests::tables_are_the_frozen_lists` pins them).
+const STAGE_WORDS: &str = include_str!("../assets/stage_words.txt");
+
+/// The words of the `[name]` section of `stage_words.txt`, in file order.
+fn table(name: &str) -> Vec<&'static str> {
+    section(STAGE_WORDS, name)
+}
 
 /// One word of a stated stage: as written, folded, and whether a comma followed it.
 struct Word {
@@ -24,7 +35,7 @@ struct Word {
 }
 
 /// A pronoun hyphenated to its verb ("fusionne-les", "compte-les"): split off as a word.
-const HYPHENATED_PRONOUNS: &[&str] = &["-les", "-la", "-le", "-lo", "-li", "-moi", "-nous"];
+static HYPHENATED_PRONOUNS: LazyLock<Vec<&str>> = LazyLock::new(|| table("hyphenated_pronouns"));
 
 fn words(text: &str) -> Vec<Word> {
     let mut out = Vec::new();
@@ -75,28 +86,18 @@ fn words(text: &str) -> Vec<Word> {
     out
 }
 
-const DETERMINERS: &[&str] = &[
-    "the", "a", "an", "le", "la", "les", "l", "un", "une", "el", "los", "las", "il", "lo", "i",
-    "gli", "die", "der", "das", "den", "dem", "its", "their", "leur", "leurs", "ses", "sa", "son",
-    "sus", "su", "all", "tous", "toutes", "tutti", "tutte", "todos", "todas", "alle",
-];
+static DETERMINERS: LazyLock<Vec<&str>> = LazyLock::new(|| table("determiners"));
 
 /// A distributive word a tail may carry ("of each ticket").
-const EACH: &[&str] = &[
-    "each", "every", "chaque", "chacun", "chacune", "ogni", "ciascun", "ciascuna", "cada", "jede",
-    "jeden", "jedes", "jeder",
-];
+static EACH: LazyLock<Vec<&str>> = LazyLock::new(|| table("each"));
 
 /// A pronoun standing for the rows ("count them per client", "compte-les par client").
-const PRONOUNS: &[&str] = &["them", "les", "las", "los", "li", "le", "sie"];
+static PRONOUNS: LazyLock<Vec<&str>> = LazyLock::new(|| table("pronouns"));
 
-const COUNT_VERBS: &[&str] = &[
-    "count", "counts", "compte", "comptez", "compter", "cuenta", "contar", "conta", "contare",
-    "zahle", "zahl", "zahlen",
-];
+static COUNT_VERBS: LazyLock<Vec<&str>> = LazyLock::new(|| table("count_verbs"));
 
 /// One word that opens a grouping ("per client", "by client", "par client").
-const GROUP_WORDS: &[&str] = &["per", "by", "par", "por", "pro"];
+static GROUP_WORDS: LazyLock<Vec<&str>> = LazyLock::new(|| table("group_words"));
 /// Two words that open a grouping ("for each client", "pour chaque client").
 const GROUP_PHRASES: &[(&str, &str)] = &[
     ("for", "each"),
@@ -111,337 +112,57 @@ const GROUP_PHRASES: &[(&str, &str)] = &[
     ("fur", "jedes"),
 ];
 
-const SORT_VERBS: &[&str] = &[
-    "sort",
-    "sorts",
-    "order",
-    "rank",
-    "trie",
-    "triez",
-    "trier",
-    "ordonne",
-    "ordonnez",
-    "ordonner",
-    "ordena",
-    "ordenar",
-    "ordina",
-    "ordinare",
-    "sortiere",
-    "sortieren",
-];
+static SORT_VERBS: LazyLock<Vec<&str>> = LazyLock::new(|| table("sort_verbs"));
 /// The word between a sort and its key.
-const BY_WORDS: &[&str] = &["by", "par", "por", "per", "secondo", "nach"];
+static BY_WORDS: LazyLock<Vec<&str>> = LazyLock::new(|| table("by_words"));
 /// Words a sort clause may carry without changing it ("in descending order").
-const SORT_FILLERS: &[&str] = &[
-    "in",
-    "en",
-    "order",
-    "ordre",
-    "orden",
-    "ordine",
-    "reihenfolge",
-    "of",
-    "de",
-    "du",
-    "des",
-    "del",
-    "della",
-    "von",
-    "dans",
-    "value",
-    "values",
-    "valeur",
-    "valeurs",
-];
-const DESCENDING: &[&str] = &[
-    "descending",
-    "desc",
-    "decreasing",
-    "decroissant",
-    "decroissante",
-    "decroissants",
-    "decroissantes",
-    "decreciente",
-    "descendente",
-    "decrescente",
-    "absteigend",
-];
-const ASCENDING: &[&str] = &[
-    "ascending",
-    "asc",
-    "increasing",
-    "croissant",
-    "croissante",
-    "croissants",
-    "croissantes",
-    "creciente",
-    "ascendente",
-    "crescente",
-    "aufsteigend",
-];
+static SORT_FILLERS: LazyLock<Vec<&str>> = LazyLock::new(|| table("sort_fillers"));
+static DESCENDING: LazyLock<Vec<&str>> = LazyLock::new(|| table("descending"));
+static ASCENDING: LazyLock<Vec<&str>> = LazyLock::new(|| table("ascending"));
 
 /// Words that lead a kept selection ("keep", "garde", "ne … que", "select").
-const KEEP_LEADS: &[&str] = &[
-    "keep",
-    "keeps",
-    "garde",
-    "gardez",
-    "garder",
-    "conserve",
-    "conservez",
-    "conserver",
-    "retain",
-    "retains",
-    "retiens",
-    "retenez",
-    "select",
-    "selects",
-    "take",
-    "prends",
-    "prenez",
-    "ne",
-    "n",
-    "conserva",
-    "mantieni",
-    "manten",
-    "behalte",
-    "behalten",
-];
-const ONLY_WORDS: &[&str] = &[
-    "only",
-    "que",
-    "seulement",
-    "just",
-    "solo",
-    "soltanto",
-    "nur",
-];
+static KEEP_LEADS: LazyLock<Vec<&str>> = LazyLock::new(|| table("keep_leads"));
+static ONLY_WORDS: LazyLock<Vec<&str>> = LazyLock::new(|| table("only_words"));
 /// Words a top-N clause may carry between its number and its measure.
-const TOPN_FILLERS: &[&str] = &[
-    "with", "having", "by", "avec", "au", "a", "aux", "con", "por", "per", "dal", "dalla", "del",
-    "della", "mit", "plus", "most", "the", "value", "values", "valeur", "valeurs", "first",
-    "d'abord", "en", "premier", "primero", "prima", "zuerst", "primeiro",
-];
+static TOPN_FILLERS: LazyLock<Vec<&str>> = LazyLock::new(|| table("topn_fillers"));
 /// The words an identity tail opens with (« same columns », « mêmes colonnes », « mismas
 /// columnas »): the stage is complete, the rest states what it keeps by construction.
-const IDENTITY_LEADS: &[&str] = &[
-    "same",
-    "memes",
-    "meme",
-    "mismas",
-    "mismo",
-    "misma",
-    "stesse",
-    "stesso",
-    "denselben",
-    "dieselben",
-    "gleichen",
-    "gleiche",
-    "mesmas",
-    "mesma",
-    "identiques",
-    "unchanged",
-];
+static IDENTITY_LEADS: LazyLock<Vec<&str>> = LazyLock::new(|| table("identity_leads"));
 /// A rank word: the measure's highest values first (`true`) or lowest first (`false`).
-const RANK_HIGH: &[&str] = &[
-    "highest", "largest", "biggest", "greatest", "top", "maximum", "max", "eleve", "elevee",
-    "eleves", "elevees", "grand", "grande", "grands", "grandes", "haut", "haute", "hauts",
-    "hautes", "gros", "grosse", "mayor", "mayores", "alto", "alta", "altos", "altas", "maggiore",
-    "maggiori", "hochsten", "grossten",
-];
-const RANK_LOW: &[&str] = &[
-    "lowest",
-    "smallest",
-    "least",
-    "minimum",
-    "min",
-    "bas",
-    "basse",
-    "basses",
-    "petit",
-    "petite",
-    "petits",
-    "petites",
-    "faible",
-    "faibles",
-    "menor",
-    "menores",
-    "bajo",
-    "baja",
-    "bajos",
-    "bajas",
-    "minore",
-    "minori",
-    "basso",
-    "bassa",
-    "niedrigsten",
-    "kleinsten",
-];
+static RANK_HIGH: LazyLock<Vec<&str>> = LazyLock::new(|| table("rank_high"));
+static RANK_LOW: LazyLock<Vec<&str>> = LazyLock::new(|| table("rank_low"));
 
 /// A word between two listed fields.
-const LIST_WORDS: &[&str] = &["and", "et", "y", "e", "ed", "und", "&"];
+static LIST_WORDS: LazyLock<Vec<&str>> = LazyLock::new(|| table("list_words"));
 /// Words that open the scope of a projection ("of each ticket", "de chaque ticket").
-const TAIL_OPENERS: &[&str] = &[
-    "of", "from", "for", "in", "de", "des", "d", "du", "di", "von", "pour", "para", "dans",
-];
+static TAIL_OPENERS: LazyLock<Vec<&str>> = LazyLock::new(|| table("tail_openers"));
 
-const REMOVE_VERBS: &[&str] = &[
-    "remove",
-    "removes",
-    "drop",
-    "drops",
-    "delete",
-    "deletes",
-    "strip",
-    "discard",
-    "supprime",
-    "supprimez",
-    "supprimer",
-    "enleve",
-    "enlevez",
-    "enlever",
-    "elimine",
-    "eliminez",
-    "eliminer",
-    "retire",
-    "retirez",
-    "retirer",
-    "elimina",
-    "quita",
-    "rimuovi",
-    "entferne",
-    "entfernen",
-    "losche",
-];
-const ANY_WORDS: &[&str] = &[
-    "any", "all", "tous", "toutes", "todos", "todas", "tutti", "tutte",
-];
-const DUPLICATE_WORDS: &[&str] = &[
-    "duplicate",
-    "duplicated",
-    "duplicates",
-    "doublon",
-    "doublons",
-    "duplique",
-    "dupliquee",
-    "dupliques",
-    "dupliquees",
-    "duplicado",
-    "duplicada",
-    "duplicados",
-    "duplicadas",
-    "duplicato",
-    "duplicata",
-    "duplicati",
-    "doppelte",
-    "doppelten",
-    "duplikate",
-];
-const UNIQUE_WORDS: &[&str] = &[
-    "unique",
-    "uniques",
-    "distinct",
-    "distincts",
-    "distincte",
-    "distinctes",
-    "unico",
-    "unica",
-    "unicos",
-    "unicas",
-    "univoco",
-    "univoci",
-    "distinti",
-    "distinte",
-    "eindeutige",
-    "eindeutigen",
-];
+static REMOVE_VERBS: LazyLock<Vec<&str>> = LazyLock::new(|| table("remove_verbs"));
+static ANY_WORDS: LazyLock<Vec<&str>> = LazyLock::new(|| table("any_words"));
+static DUPLICATE_WORDS: LazyLock<Vec<&str>> = LazyLock::new(|| table("duplicate_words"));
+static UNIQUE_WORDS: LazyLock<Vec<&str>> = LazyLock::new(|| table("unique_words"));
 
 /// The verbs of a rename, six languages ("rename", "renomme", "renombra", "rinomina",
 /// "benenne", "renomeia"), unaccented as the folded word.
-const RENAME_VERBS: &[&str] = &[
-    "rename",
-    "renames",
-    "renomme",
-    "renommez",
-    "renommer",
-    "renombra",
-    "renombre",
-    "renombrar",
-    "rinomina",
-    "rinominare",
-    "benenne",
-    "umbenennen",
-    "renomeia",
-    "renomeie",
-    "renomear",
-];
+static RENAME_VERBS: LazyLock<Vec<&str>> = LazyLock::new(|| table("rename_verbs"));
 /// The word between the old name and the new one ("rename country to region", "renomme
 /// country en region", "renombra country a region", "rinomina country in region",
 /// "benenne country in region um", "renomeia country para region").
-const RENAME_TO: &[&str] = &[
-    "to", "as", "en", "a", "in", "para", "als", "zu", "nach", "como",
-];
+static RENAME_TO: LazyLock<Vec<&str>> = LazyLock::new(|| table("rename_to"));
 /// A particle a rename may end with ("benenne … um").
-const RENAME_TAILS: &[&str] = &["um"];
+static RENAME_TAILS: LazyLock<Vec<&str>> = LazyLock::new(|| table("rename_tails"));
 
-const JOIN_VERBS: &[&str] = &[
-    "merge",
-    "merges",
-    "join",
-    "joins",
-    "combine",
-    "combines",
-    "fusionne",
-    "fusionnez",
-    "fusionner",
-    "joindre",
-    "combinez",
-    "combiner",
-    "unisci",
-    "unire",
-    "combina",
-    "fusiona",
-    "fusionar",
-    "junta",
-    "juntar",
-    "verbinde",
-    "verbinden",
-];
+static JOIN_VERBS: LazyLock<Vec<&str>> = LazyLock::new(|| table("join_verbs"));
 /// What a join may name before its column: the sources, never a third thing.
-const JOIN_OBJECTS: &[&str] = &[
-    "them",
-    "both",
-    "two",
-    "files",
-    "file",
-    "rows",
-    "records",
-    "tables",
-    "table",
-    "sources",
-    "datasets",
-    "data",
-    "csvs",
-    "deux",
-    "fichiers",
-    "fichier",
-    "lignes",
-    "enregistrements",
-    "due",
-    "righe",
-    "ambos",
-    "archivos",
-    "filas",
-    "registros",
-    "beide",
-    "dateien",
-    "zeilen",
-    "together",
-    "ensemble",
-];
-const ON_WORDS: &[&str] = &[
-    "on", "sur", "by", "par", "por", "su", "per", "secondo", "nach", "uber", "using", "via",
-];
+static JOIN_OBJECTS: LazyLock<Vec<&str>> = LazyLock::new(|| table("join_objects"));
+static ON_WORDS: LazyLock<Vec<&str>> = LazyLock::new(|| table("on_words"));
+/// A negation, « only », an exception or a condition (R4 A11).
+static RESTRICTION_WORDS: LazyLock<Vec<&str>> = LazyLock::new(|| table("restriction_words"));
+
+/// A folded word that restricts the material or conditions an operation (R4 A11).
+pub(crate) fn restriction_word(folded: &str) -> bool {
+    RESTRICTION_WORDS.contains(&folded)
+}
 
 fn folded(words: &[Word], at: usize) -> Option<&str> {
     words.get(at).map(|w| w.folded.as_str())
@@ -449,16 +170,6 @@ fn folded(words: &[Word], at: usize) -> Option<&str> {
 
 fn is(words: &[Word], at: usize, table: &[&str]) -> bool {
     folded(words, at).is_some_and(|w| table.contains(&w))
-}
-
-fn normalized(name: &str) -> String {
-    fold(name).replace([' ', '-'], "_")
-}
-
-/// The hint column a name designates, in the hint's own spelling.
-fn hinted(name: &str, columns: &[String]) -> Option<String> {
-    let wanted = normalized(name);
-    columns.iter().find(|c| normalized(c) == wanted).cloned()
 }
 
 /// A function word that never names a column.
@@ -513,7 +224,7 @@ fn skip(words: &[Word], at: &mut usize, table: &[&str]) {
 /// determiners and a column word allowed around it.
 fn split_group(words: &[Word], columns: &[String]) -> Option<(usize, String)> {
     for start in (0..words.len()).rev() {
-        let width = if is(words, start, GROUP_WORDS) {
+        let width = if is(words, start, &GROUP_WORDS) {
             1
         } else if GROUP_PHRASES
             .iter()
@@ -524,7 +235,7 @@ fn split_group(words: &[Word], columns: &[String]) -> Option<(usize, String)> {
             continue;
         };
         let mut at = start + width;
-        skip(words, &mut at, DETERMINERS);
+        skip(words, &mut at, &DETERMINERS);
         skip(words, &mut at, COLUMN_WORDS);
         let name = column(words.get(at)?, columns)?;
         at += 1;
@@ -542,10 +253,10 @@ fn count_or_aggregate(words: &[Word], columns: &[String]) -> Option<Shape> {
         Some((start, name)) => (words.get(..start)?, Some(name)),
         None => (words, None),
     };
-    let aggregation = if is(head, 0, COUNT_VERBS) {
+    let aggregation = if is(head, 0, &COUNT_VERBS) {
         let mut at = 1;
-        skip(head, &mut at, DETERMINERS);
-        if !(is(head, at, ROW_WORDS) || is(head, at, PRONOUNS)) || at + 1 != head.len() {
+        skip(head, &mut at, &DETERMINERS);
+        if !(is(head, at, ROW_WORDS) || is(head, at, &PRONOUNS)) || at + 1 != head.len() {
             return None;
         }
         Aggregation {
@@ -569,6 +280,209 @@ fn count_or_aggregate(words: &[Word], columns: &[String]) -> Option<Shape> {
     })
 }
 
+/// A count or an aggregate the words before a relative clause state over the rows it keeps
+/// (R4 F1): « count the rows where … », « the number of rows whose … », « the total of the
+/// amount column where … », read whole by the same forms. The noun the rows are named by
+/// (« count the orders where … ») stands for them in a count, as a row word does.
+pub(crate) fn lead_stage(text: &str, columns: &[String]) -> Option<Shape> {
+    let mut words = words(text);
+    if let Some(shape) = count_or_aggregate(&words, columns) {
+        return Some(shape);
+    }
+    let noun = words.last_mut()?;
+    if function_word(&noun.folded) || column(noun, &[]).is_none() {
+        return None;
+    }
+    "rows".clone_into(&mut noun.original);
+    "rows".clone_into(&mut noun.folded);
+    count_or_aggregate(&words, columns)
+        .filter(|shape| shape.aggregations.iter().all(|a| a.op == AggOp::Count))
+}
+
+/// A word that states a stage of its own (a count, a sort, a rank, a removal of duplicates, a
+/// join, a rename): never a word the lead of a filter drops (R4 F1).
+pub(crate) fn operation_word(folded: &str) -> bool {
+    [
+        &COUNT_VERBS,
+        &SORT_VERBS,
+        &RANK_HIGH,
+        &RANK_LOW,
+        &REMOVE_VERBS,
+        &DUPLICATE_WORDS,
+        &UNIQUE_WORDS,
+        &JOIN_VERBS,
+        &RENAME_VERBS,
+    ]
+    .iter()
+    .any(|table| table.contains(&folded))
+}
+
+/// A word the lead of a filter carries without stating anything (a keep verb, « only », a
+/// determiner): after the clause's own verb, the lead holds only these up to the rows' noun.
+pub(crate) fn lead_word(folded: &str) -> bool {
+    KEEP_LEADS.contains(&folded) || ONLY_WORDS.contains(&folded) || DETERMINERS.contains(&folded)
+}
+
+/// A verb that keeps the rows it describes (« keep », « garde », « conserva », « behalte »).
+pub(crate) fn keep_lead(folded: &str) -> bool {
+    KEEP_LEADS.contains(&folded)
+}
+
+/// Folded words that order every row (R4 A11): led by a sort verb, keeping no subset (no keep
+/// verb, no « only »), as in « sort them by `amount_usd`, most expensive first ».
+pub(crate) fn sorts_every_row(words: &[&str]) -> bool {
+    words.first().is_some_and(|word| SORT_VERBS.contains(word))
+        && !words
+            .iter()
+            .any(|w| KEEP_LEADS.contains(w) || ONLY_WORDS.contains(w))
+}
+
+/// One step a reading builds (R4 F5): a filter, then stages in the fixed per-step lowering
+/// order; the first becomes the rule's own filter and shape, every later one a `Then`.
+#[derive(Default)]
+pub(crate) struct Step {
+    pub(crate) clauses: Vec<Clause>,
+    pub(crate) junction: Option<Junction>,
+    pub(crate) shape: Shape,
+}
+
+/// The ranks of a shape's stages in `Shape::lower`'s fixed order.
+fn ranks(s: &Shape) -> Vec<u8> {
+    [
+        (s.join_on.is_some(), 0),
+        (!s.distinct_by.is_empty(), 1),
+        (s.group_by.is_some() || !s.aggregations.is_empty(), 2),
+        (!s.derived.is_empty(), 3),
+        (s.sort_by.is_some(), 4),
+        (s.limit.is_some(), 5),
+        (!s.columns.is_empty(), 6),
+        (!s.renames.is_empty(), 7),
+        (s.distinct, 8),
+    ]
+    .into_iter()
+    .filter_map(|(present, rank)| present.then_some(rank))
+    .collect()
+}
+
+/// The source columns a stage reads.
+fn stage_reads(s: &Shape) -> Vec<&str> {
+    let sort = s.sort_by.iter().map(|(field, _)| field.as_str());
+    let fields = s.aggregations.iter().filter_map(|a| a.field.as_deref());
+    let keys = s.distinct_by.iter().chain(&s.columns).map(String::as_str);
+    s.group_by
+        .as_deref()
+        .into_iter()
+        .chain(sort)
+        .chain(fields)
+        .chain(keys)
+        .collect()
+}
+
+/// Whether a later step can read `reads` from the rows `s` wrote: source rows after a filter,
+/// a sort, a cut or duplicates removed; the kept columns after a projection; the key alone
+/// after a grouping (a produced value is no column the guard can check); nothing after
+/// totals, a rename or a derived value (R4 F5).
+fn rows_read(s: &Shape, reads: &[&str]) -> bool {
+    let closed = s.is_totals() || !s.renames.is_empty() || !s.derived.is_empty();
+    let kept = |r: &&str| {
+        s.group_by.as_deref().is_none_or(|key| key == *r)
+            && (s.columns.is_empty() || s.columns.iter().any(|c| c == r))
+    };
+    !closed && reads.iter().all(kept)
+}
+
+/// Where a segment's clauses go (R4 F5). They join the last step when a row filter reading
+/// `reads` keeps the same rows and the same failures before its stages as after them: after a
+/// join (which always runs first), whole-row duplicates removed, or a projection keeping the
+/// read columns, stages that neither drop a row nor read a number. Otherwise they open a step on
+/// the rows the last step wrote, or the text is not read (`None`): never a filter moved before a
+/// sort, a cut, a grouping or a total, whose numbers the stated order reads under their policy.
+pub(crate) fn place_clauses(
+    steps: &mut Vec<Step>,
+    clauses: Vec<Clause>,
+    junction: Option<Junction>,
+) -> Option<()> {
+    let reads: Vec<&str> = clauses
+        .iter()
+        .flat_map(|c| {
+            let other = match &c.value {
+                Operand::Column(other) => Some(other.as_str()),
+                _ => None,
+            };
+            std::iter::once(c.field.as_str()).chain(other)
+        })
+        .filter(|f| *f != ".")
+        .collect();
+    let last = steps.last_mut()?;
+    let s = &last.shape;
+    let readable = rows_read(s, &reads);
+    let before = s.limit.is_none()
+        && s.distinct_by.is_empty()
+        && s.derived.is_empty()
+        && s.sort_by.is_none()
+        && s.group_by.is_none()
+        && s.aggregations.is_empty();
+    if !(before && readable) {
+        if !readable {
+            return None;
+        }
+        steps.push(Step {
+            clauses,
+            junction,
+            shape: Shape::default(),
+        });
+        return Some(());
+    }
+    let or = |j: Option<Junction>| j == Some(Junction::Or);
+    if !last.clauses.is_empty() && (or(junction) || or(last.junction)) {
+        return None;
+    }
+    if last.clauses.is_empty() {
+        last.junction = junction;
+    }
+    for clause in clauses {
+        if !last.clauses.contains(&clause) {
+            last.clauses.push(clause);
+        }
+    }
+    Some(())
+}
+
+/// Where a stage goes (R4 F5). It joins the last step when `Shape::lower` runs it after every
+/// stage already there over names still readable, or when a sort or a cut follows a projection
+/// keeping its key (a projection is row-wise); otherwise it opens a step on the rows the last
+/// step wrote. The same stage twice, or a join after the first step, is not read (`None`).
+pub(crate) fn place_stage(steps: &mut Vec<Step>, stage: Shape) -> Option<()> {
+    let last = steps.last_mut()?;
+    let (before, after) = (ranks(&last.shape), ranks(&stage));
+    if before.iter().any(|r| after.contains(r)) {
+        return None;
+    }
+    let reads = stage_reads(&stage);
+    let s = &last.shape;
+    let produced = s.produced();
+    let readable = !s.is_totals()
+        && (s.group_by.is_none() || reads.iter().all(|r| produced.contains(r)))
+        && (s.columns.is_empty() || reads.iter().all(|r| s.columns.iter().any(|c| c == r)));
+    let in_order = before.iter().max() < after.iter().min();
+    let row_wise = after.iter().all(|r| matches!(r, 4 | 5)) && before.iter().all(|r| *r == 6);
+    if readable
+        && (in_order || row_wise)
+        && let Some(merged) = s.clone().merge(stage.clone())
+    {
+        last.shape = merged;
+        return Some(());
+    }
+    if stage.join_on.is_some() || !rows_read(s, &reads) {
+        return None;
+    }
+    steps.push(Step {
+        shape: stage,
+        ..Step::default()
+    });
+    Some(())
+}
+
 fn direction(folded: &str) -> Option<bool> {
     if DESCENDING.contains(&folded) {
         Some(true)
@@ -583,12 +497,12 @@ fn direction(folded: &str) -> Option<bool> {
 /// décroissant"): one column after a `by` word, at most one direction; without a direction
 /// the sort is ascending, which is what the word means. Without a key, `None`.
 fn sort(words: &[Word], columns: &[String]) -> Option<Shape> {
-    if !is(words, 0, SORT_VERBS) {
+    if !is(words, 0, &SORT_VERBS) {
         return None;
     }
     let mut at = 1;
-    skip(words, &mut at, DETERMINERS);
-    if is(words, at, ROW_WORDS) || is(words, at, PRONOUNS) {
+    skip(words, &mut at, &DETERMINERS);
+    if is(words, at, ROW_WORDS) || is(words, at, &PRONOUNS) {
         at += 1;
     }
     let mut by = false;
@@ -647,7 +561,7 @@ fn count(folded: &str) -> Option<u32> {
 
 /// The words that lead a measure after an entity noun (« issues by rating », « corredores
 /// por tiempo », « Kunden nach Umsatz »).
-const MEASURE_LEADS: &[&str] = &["by", "par", "por", "per", "nach", "selon", "según", "segun"];
+static MEASURE_LEADS: LazyLock<Vec<&str>> = LazyLock::new(|| table("measure_leads"));
 
 /// The first N rows by a measure ("keep the 2 rows with the highest amount", "the top 3 rows
 /// by amount", "garde les 2 lignes au montant le plus élevé"): a number, a row noun, one
@@ -729,12 +643,12 @@ fn top_n(words: &[Word], columns: &[String]) -> Option<Shape> {
 /// "keep only the important fields" lists nothing the grammar can name.
 fn projection(words: &[Word], columns: &[String]) -> Option<Shape> {
     let mut at = 0;
-    skip(words, &mut at, KEEP_LEADS);
+    skip(words, &mut at, &KEEP_LEADS);
     if at == 0 {
         return None;
     }
-    skip(words, &mut at, ONLY_WORDS);
-    skip(words, &mut at, DETERMINERS);
+    skip(words, &mut at, &ONLY_WORDS);
+    skip(words, &mut at, &DETERMINERS);
     let column_word_before = is(words, at, COLUMN_WORDS);
     if column_word_before {
         at += 1;
@@ -744,7 +658,7 @@ fn projection(words: &[Word], columns: &[String]) -> Option<Shape> {
         let word = words.get(at)?;
         fields.push(column(word, columns)?);
         at += 1;
-        if is(words, at, LIST_WORDS) {
+        if is(words, at, &LIST_WORDS) {
             at += 1;
         } else if !word.comma_after {
             break;
@@ -754,10 +668,10 @@ fn projection(words: &[Word], columns: &[String]) -> Option<Shape> {
         at += 1;
     }
     let mut scoped = false;
-    if is(words, at, TAIL_OPENERS) {
+    if is(words, at, &TAIL_OPENERS) {
         at += 1;
-        skip(words, &mut at, EACH);
-        skip(words, &mut at, DETERMINERS);
+        skip(words, &mut at, &EACH);
+        skip(words, &mut at, &DETERMINERS);
         // The scope noun ("ticket") names the records, never a column: name-shaped is enough.
         column(words.get(at)?, &[])?;
         at += 1;
@@ -780,24 +694,24 @@ fn dedup(words: &[Word]) -> Option<Shape> {
         ..Shape::default()
     };
     let mut at = 0;
-    if is(words, 0, KEEP_LEADS) {
-        skip(words, &mut at, KEEP_LEADS);
-        skip(words, &mut at, ONLY_WORDS);
-        skip(words, &mut at, DETERMINERS);
-        if !is(words, at, UNIQUE_WORDS) {
+    if is(words, 0, &KEEP_LEADS) {
+        skip(words, &mut at, &KEEP_LEADS);
+        skip(words, &mut at, &ONLY_WORDS);
+        skip(words, &mut at, &DETERMINERS);
+        if !is(words, at, &UNIQUE_WORDS) {
             return None;
         }
         at += 1;
         return (is(words, at, ROW_WORDS) && at + 1 == words.len()).then(distinct);
     }
-    if !is(words, 0, REMOVE_VERBS) {
+    if !is(words, 0, &REMOVE_VERBS) {
         return None;
     }
     at = 1;
-    skip(words, &mut at, DETERMINERS);
-    skip(words, &mut at, ANY_WORDS);
-    skip(words, &mut at, DETERMINERS);
-    if is(words, at, DUPLICATE_WORDS) {
+    skip(words, &mut at, &DETERMINERS);
+    skip(words, &mut at, &ANY_WORDS);
+    skip(words, &mut at, &DETERMINERS);
+    if is(words, at, &DUPLICATE_WORDS) {
         at += 1;
         if is(words, at, ROW_WORDS) {
             at += 1;
@@ -809,7 +723,7 @@ fn dedup(words: &[Word]) -> Option<Shape> {
     }
     at += 1;
     let pair = (folded(words, at), folded(words, at + 1));
-    if is(words, at, DUPLICATE_WORDS) {
+    if is(words, at, &DUPLICATE_WORDS) {
         at += 1;
     } else if pair == (Some("en"), Some("double")) || pair == (Some("in"), Some("doppio")) {
         at += 2;
@@ -823,7 +737,7 @@ fn dedup(words: &[Word]) -> Option<Shape> {
 /// sur la colonne id"): the column is the key; the sources are what the request read.
 /// "merge them" names no key: `None`.
 fn join(words: &[Word], columns: &[String]) -> Option<Shape> {
-    if !is(words, 0, JOIN_VERBS) {
+    if !is(words, 0, &JOIN_VERBS) {
         return None;
     }
     let mut at = 1;
@@ -836,11 +750,11 @@ fn join(words: &[Word], columns: &[String]) -> Option<Shape> {
         }
         at += 1;
     }
-    if !is(words, at, ON_WORDS) {
+    if !is(words, at, &ON_WORDS) {
         return None;
     }
     at += 1;
-    skip(words, &mut at, DETERMINERS);
+    skip(words, &mut at, &DETERMINERS);
     skip(words, &mut at, COLUMN_WORDS);
     let name = column(words.get(at)?, columns)?;
     at += 1;
@@ -856,7 +770,7 @@ fn join(words: &[Word], columns: &[String]) -> Option<Shape> {
 /// unresolved (the human names the column) instead of an external merge effect.
 pub(crate) fn join_without_key(text: &str) -> bool {
     let words = words(text);
-    is(&words, 0, JOIN_VERBS)
+    is(&words, 0, &JOIN_VERBS)
         && words.len() >= 2
         && words.get(1..).unwrap_or_default().iter().all(|w| {
             JOIN_OBJECTS.contains(&w.folded.as_str()) || DETERMINERS.contains(&w.folded.as_str())
@@ -868,26 +782,26 @@ pub(crate) fn join_without_key(text: &str) -> bool {
 /// of the hint or a name-shaped word, the new name a name-shaped word the request states;
 /// nothing else may follow. Without both names, `None`: the human is asked.
 fn rename(words: &[Word], columns: &[String]) -> Option<Shape> {
-    if !is(words, 0, RENAME_VERBS) {
+    if !is(words, 0, &RENAME_VERBS) {
         return None;
     }
     let mut at = 1;
-    skip(words, &mut at, DETERMINERS);
+    skip(words, &mut at, &DETERMINERS);
     skip(words, &mut at, COLUMN_WORDS);
     let from = column(words.get(at)?, columns)?;
     at += 1;
     skip(words, &mut at, COLUMN_WORDS);
-    if !is(words, at, RENAME_TO) {
+    if !is(words, at, &RENAME_TO) {
         return None;
     }
     at += 1;
-    skip(words, &mut at, DETERMINERS);
+    skip(words, &mut at, &DETERMINERS);
     skip(words, &mut at, COLUMN_WORDS);
     // The new name is what the request writes: never hinted, name-shaped.
     let to = column(words.get(at)?, &[])?;
     at += 1;
     skip(words, &mut at, COLUMN_WORDS);
-    skip(words, &mut at, RENAME_TAILS);
+    skip(words, &mut at, &RENAME_TAILS);
     (at == words.len() && from != to).then(|| Shape {
         renames: vec![(from, to)],
         ..Shape::default()
@@ -913,12 +827,166 @@ pub(crate) fn stated(text: &str, columns: &[String]) -> Option<Shape> {
 mod tests {
     use super::*;
 
+    /// The stage tables before they became data (stages.rs at 4bddf8a14, sha256 669a2916…,
+    /// extracted mechanically): the asset holds exactly these words, in this order, one
+    /// section each, and every table reads its own section. No word was added or dropped.
+    const FROZEN: &[(&str, &str)] = &[
+        ("hyphenated_pronouns", "-les -la -le -lo -li -moi -nous"),
+        (
+            "determiners",
+            "the a an le la les l un une el los las il lo i gli die der das den dem its their leur leurs ses sa son sus su all tous toutes tutti tutte todos todas alle",
+        ),
+        (
+            "each",
+            "each every chaque chacun chacune ogni ciascun ciascuna cada jede jeden jedes jeder",
+        ),
+        ("pronouns", "them les las los li le sie"),
+        (
+            "count_verbs",
+            "count counts compte comptez compter cuenta contar conta contare zahle zahl zahlen",
+        ),
+        ("group_words", "per by par por pro"),
+        (
+            "sort_verbs",
+            "sort sorts order rank trie triez trier ordonne ordonnez ordonner ordena ordenar ordina ordinare sortiere sortieren",
+        ),
+        ("by_words", "by par por per secondo nach"),
+        (
+            "sort_fillers",
+            "in en order ordre orden ordine reihenfolge of de du des del della von dans value values valeur valeurs",
+        ),
+        (
+            "descending",
+            "descending desc decreasing decroissant decroissante decroissants decroissantes decreciente descendente decrescente absteigend",
+        ),
+        (
+            "ascending",
+            "ascending asc increasing croissant croissante croissants croissantes creciente ascendente crescente aufsteigend",
+        ),
+        (
+            "keep_leads",
+            "keep keeps garde gardez garder conserve conservez conserver retain retains retiens retenez select selects take prends prenez ne n conserva mantieni manten behalte behalten",
+        ),
+        ("only_words", "only que seulement just solo soltanto nur"),
+        (
+            "topn_fillers",
+            "with having by avec au a aux con por per dal dalla del della mit plus most the value values valeur valeurs first d'abord en premier primero prima zuerst primeiro",
+        ),
+        (
+            "identity_leads",
+            "same memes meme mismas mismo misma stesse stesso denselben dieselben gleichen gleiche mesmas mesma identiques unchanged",
+        ),
+        (
+            "rank_high",
+            "highest largest biggest greatest top maximum max eleve elevee eleves elevees grand grande grands grandes haut haute hauts hautes gros grosse mayor mayores alto alta altos altas maggiore maggiori hochsten grossten",
+        ),
+        (
+            "rank_low",
+            "lowest smallest least minimum min bas basse basses petit petite petits petites faible faibles menor menores bajo baja bajos bajas minore minori basso bassa niedrigsten kleinsten",
+        ),
+        ("list_words", "and et y e ed und &"),
+        (
+            "tail_openers",
+            "of from for in de des d du di von pour para dans",
+        ),
+        (
+            "remove_verbs",
+            "remove removes drop drops delete deletes strip discard supprime supprimez supprimer enleve enlevez enlever elimine eliminez eliminer retire retirez retirer elimina quita rimuovi entferne entfernen losche",
+        ),
+        ("any_words", "any all tous toutes todos todas tutti tutte"),
+        (
+            "duplicate_words",
+            "duplicate duplicated duplicates doublon doublons duplique dupliquee dupliques dupliquees duplicado duplicada duplicados duplicadas duplicato duplicata duplicati doppelte doppelten duplikate",
+        ),
+        (
+            "unique_words",
+            "unique uniques distinct distincts distincte distinctes unico unica unicos unicas univoco univoci distinti distinte eindeutige eindeutigen",
+        ),
+        (
+            "rename_verbs",
+            "rename renames renomme renommez renommer renombra renombre renombrar rinomina rinominare benenne umbenennen renomeia renomeie renomear",
+        ),
+        ("rename_to", "to as en a in para als zu nach como"),
+        ("rename_tails", "um"),
+        (
+            "join_verbs",
+            "merge merges join joins combine combines fusionne fusionnez fusionner joindre combinez combiner unisci unire combina fusiona fusionar junta juntar verbinde verbinden",
+        ),
+        (
+            "join_objects",
+            "them both two files file rows records tables table sources datasets data csvs deux fichiers fichier lignes enregistrements due righe ambos archivos filas registros beide dateien zeilen together ensemble",
+        ),
+        (
+            "on_words",
+            "on sur by par por su per secondo nach uber using via",
+        ),
+        ("measure_leads", "by par por per nach selon según segun"),
+        (
+            "restriction_words",
+            "not no never without except unless only if when but pas jamais sans sauf excepte seulement uniquement si quand lorsque nunca sin excepto salvo solo solamente cuando non mai senza tranne eccetto soltanto quando nicht nie ohne ausser nur wenn falls nao sem exceto apenas nothing none nobody neither nor rien aucun aucune ni nada ninguno ninguna ningun nadie niente nulla nessuno nessuna nichts kein keine keinen keinem keiner keines weder nenhum nenhuma ninguem nem",
+        ),
+    ];
+
+    #[test]
+    fn tables_are_the_frozen_lists() {
+        let statics: [(&str, &[&str]); 31] = [
+            ("hyphenated_pronouns", &HYPHENATED_PRONOUNS),
+            ("determiners", &DETERMINERS),
+            ("each", &EACH),
+            ("pronouns", &PRONOUNS),
+            ("count_verbs", &COUNT_VERBS),
+            ("group_words", &GROUP_WORDS),
+            ("sort_verbs", &SORT_VERBS),
+            ("by_words", &BY_WORDS),
+            ("sort_fillers", &SORT_FILLERS),
+            ("descending", &DESCENDING),
+            ("ascending", &ASCENDING),
+            ("keep_leads", &KEEP_LEADS),
+            ("only_words", &ONLY_WORDS),
+            ("topn_fillers", &TOPN_FILLERS),
+            ("identity_leads", &IDENTITY_LEADS),
+            ("rank_high", &RANK_HIGH),
+            ("rank_low", &RANK_LOW),
+            ("list_words", &LIST_WORDS),
+            ("tail_openers", &TAIL_OPENERS),
+            ("remove_verbs", &REMOVE_VERBS),
+            ("any_words", &ANY_WORDS),
+            ("duplicate_words", &DUPLICATE_WORDS),
+            ("unique_words", &UNIQUE_WORDS),
+            ("rename_verbs", &RENAME_VERBS),
+            ("rename_to", &RENAME_TO),
+            ("rename_tails", &RENAME_TAILS),
+            ("join_verbs", &JOIN_VERBS),
+            ("join_objects", &JOIN_OBJECTS),
+            ("on_words", &ON_WORDS),
+            ("measure_leads", &MEASURE_LEADS),
+            ("restriction_words", &RESTRICTION_WORDS),
+        ];
+        for ((name, words), (read, held)) in FROZEN.iter().zip(statics) {
+            let frozen: Vec<&str> = words.split(' ').collect();
+            assert_eq!(name, &read, "the tables keep their order");
+            assert_eq!(super::table(name), frozen, "{name}");
+            assert_eq!(held, frozen.as_slice(), "{name}");
+        }
+        let sections = STAGE_WORDS.lines().filter(|l| l.starts_with('[')).count();
+        assert_eq!(
+            sections,
+            FROZEN.len(),
+            "no section beyond the frozen tables"
+        );
+    }
+
     fn cols(names: &[&str]) -> Vec<String> {
         names.iter().map(|n| (*n).to_owned()).collect()
     }
 
     fn lowered(text: &str) -> Option<String> {
-        stated(text, &[]).map(|s| s.lower(".records".to_owned()))
+        stated(text, &[]).map(|s| {
+            s.lower(
+                ".records".to_owned(),
+                &crate::rules::numbers::Numbers::new(),
+            )
+        })
     }
 
     #[test]
@@ -1049,7 +1117,10 @@ mod tests {
                 "top five issues by rating, highest first, same columns",
                 &[]
             )
-            .map(|s| s.lower(".records".to_owned())),
+            .map(|s| s.lower(
+                ".records".to_owned(),
+                &crate::rules::numbers::Numbers::new()
+            )),
             Some(".records | sort_by(.rating | tonumber? // .) | reverse | .[:5]".to_owned())
         );
         assert_eq!(
@@ -1206,7 +1277,10 @@ mod tests {
         assert_eq!(both.group_by.as_deref(), Some("client"));
         assert_eq!(both.limit, Some(2));
         assert_eq!(
-            both.lower(".records".to_owned()),
+            both.lower(
+                ".records".to_owned(),
+                &crate::rules::numbers::Numbers::new()
+            ),
             ".records | group_by(.client) | map({\"client\": (.[0] | .client), \"count\": length}) | sort_by(.count) | reverse | .[:2]",
             "a sort on a produced name compares the number it already is"
         );

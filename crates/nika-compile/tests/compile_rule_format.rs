@@ -10,7 +10,7 @@ use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;
-use common::{Provider, keys, policy};
+use common::{Judged, Provider, keys, policy};
 
 const PODIO: &str = "./carrera/resultados.csv → los tres corredores más rápidos (menor tiempo_seg), del más rápido al más lento, mismas columnas → ./out/podio.csv";
 
@@ -29,8 +29,13 @@ fn podio_proposal() -> Value {
 #[tokio::test]
 async fn a_format_the_rule_states_is_carried_by_the_compute_task() {
     let provider = Provider::new(podio_proposal());
-    let req = CompileRequest::create(PODIO).with_authoring_policy(policy());
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    let seen: &[&str] = &["corredor", "dorsal", "tiempo_seg"];
+    let req = (CompileRequest::create(PODIO).with_authoring_policy(policy()))
+        .with_knowledge(common::observed(&[("./carrera/resultados.csv", seen)]));
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&req, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert!(
         !out.diagnostics
             .iter()
@@ -40,7 +45,10 @@ async fn a_format_the_rule_states_is_carried_by_the_compute_task() {
     assert!(!keys(&out).contains(&"intent.clarification"), "{out:#?}");
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let source = out.candidate.as_deref().unwrap();
-    assert!(source.contains("sort_by(.tiempo_seg"), "{source}");
+    assert!(
+        common::compute(source).contains("sort_by((.tiempo_seg | num) | dkey)"),
+        "{source}"
+    );
     assert!(source.contains("[:3]"), "{source}");
 }
 
@@ -64,7 +72,9 @@ fn rail_proposal() -> Value {
 #[tokio::test]
 async fn a_single_digit_in_a_drafts_paraphrase_is_not_an_invented_literal() {
     let provider = Provider::new(rail_proposal());
-    let req = CompileRequest::create(RAIL).with_authoring_policy(policy());
+    let seen: &[&str] = &["id", "line", "minutes", "cause"];
+    let req = (CompileRequest::create(RAIL).with_authoring_policy(policy()))
+        .with_knowledge(common::observed(&[("./rail/incidents.json", seen)]));
     let out = compile_with_provider(&req, &provider).await.unwrap();
     assert!(
         !out.diagnostics

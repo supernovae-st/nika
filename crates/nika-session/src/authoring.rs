@@ -28,17 +28,21 @@
 //! the references, and whether the native door presented them to the seat.
 
 use std::collections::BTreeMap;
+#[cfg(test)]
+#[path = "authoring/money_restatement_tests.rs"]
+mod money_restatement_tests;
 use std::sync::Arc;
 use std::time::Duration;
 
-use nika_cli_host::compile::knowledge::{PACK_BUILDER, pack_sha256};
-use nika_event::source_id::sha256_hex;
 use nika_onboard::compile::{
-    AuthoringKnowledge, AuthoringPolicy, AuthoringReceipt, Cognition, CompileError, CompileOutcome,
-    CompileQuestion, CompileRequest, CompileStatus, DiagnosticKind, NativeMode, QuestionType,
-    Strategy, compile, compile_with_cognition, revise_intent,
+    AuthoringPolicy, AuthoringReceipt, Cognition, CompileError, CompileOutcome, CompileQuestion,
+    CompileRequest, NativeMode, compile, compile_with_cognition, revise_intent, round,
 };
-use serde_json::{Value, json};
+// The records a compile outcome carries live beside the snapshot door (C7 · D1).
+use nika_onboard::knowledge::pin::{
+    carried_record, composed_record, observed_in, stamp, stamp_seat,
+};
+use serde_json::Value;
 
 use crate::intelligence::{IntelligenceKind, ResolvedSessionIntelligence};
 use crate::reasoner::SessionReasoner;
@@ -46,38 +50,15 @@ use crate::reasoner::SessionReasoner;
 mod context;
 pub(crate) mod decision;
 mod harness;
-pub use context::{AuthoringContext, AuthoringContextError, KnowledgePin};
+pub use context::{AuthoringContext, AuthoringContextError};
 pub use decision::{DECISION_ENV, DECISION_SCHEMA, DecisionSetup, MAX_DECISION_CALLS};
-
-/// The compiler's question for a whole replacement request (its own key).
-const CLARIFICATION_KEY: &str = "intent.clarification";
-
-/// The stronger authoring model of a provider, when the catalog holds one
-/// the preflight proved — the escalation the product law permits (quality
-/// first): `None` when the model already is the strongest, or unknown.
-#[must_use]
-pub fn stronger_model(model: &str) -> Option<&'static str> {
-    stronger_model_under(model, false)
-}
-
-/// The table behind [`stronger_model`], with the gateway fact explicit: an
-/// OpenAI-compatible base URL (Scaleway's gateway, a local server) serves
-/// its OWN models under the `openai` provider id — the provider's flagship
-/// is not there, so no escalation is offered across it.
-#[must_use]
-pub fn stronger_model_under(model: &str, openai_base_overridden: bool) -> Option<&'static str> {
-    let (provider, name) = model.split_once('/')?;
-    let strongest = match provider {
-        "openai" if openai_base_overridden => return None,
-        "openai" => "openai/gpt-5.2",
-        "xai" => "xai/grok-4.7",
-        "deepseek" => "deepseek/deepseek-v4-pro",
-        "gemini" => "gemini/gemini-2.5-pro",
-        "mistral" => "mistral/mistral-large-latest",
-        _ => return None,
-    };
-    (format!("{provider}/{name}") != strongest).then_some(strongest)
-}
+// What an outcome means and the literal a line is live beside the compile unit (C7).
+use nika_onboard::compile::reading::{CLARIFICATION_KEY, clarified};
+pub use nika_onboard::compile::reading::{Reading, literal_for, reasons};
+pub use nika_onboard::knowledge::pin::KnowledgePin;
+// The static flagship table lives beside the seat facts it sits with (C11); the gateway fact it
+// takes is read here, through the engine's registry.
+pub use nika_onboard::compile::seat::{stronger_model, stronger_model_under};
 
 /// Whether the `openai` provider's base URL is overridden in this
 /// environment (an OpenAI-compatible gateway), read through the engine's
@@ -111,8 +92,7 @@ pub fn gateway_host(provider: &str) -> Option<String> {
 /// The host part of a URL (`https://api.scaleway.ai/v1` → `api.scaleway.ai`).
 #[must_use]
 pub fn host_of(url: &str) -> String {
-    let rest = url.split("://").nth(1).unwrap_or(url);
-    rest.split('/').next().unwrap_or(rest).to_owned()
+    nika_cli_host::compile::authoring_host(url).unwrap_or_else(|| "unknown endpoint".to_owned())
 }
 /// The hard output ceiling of one Session authoring call (the compiler's own maximum: a
 /// reasoning seat spends part of it on its reasoning, and a complete candidate needs the rest).
@@ -313,6 +293,9 @@ pub struct AuthoringRound {
     /// A revision's EDIT — the exact base, the human's change, the request the base answered:
     /// every request of the round is that EDIT, never a fresh CREATE.
     pub(crate) edit: Option<(String, String, Option<String>)>,
+    /// The monetary directives of `intent` the money gate admitted (R4 A6): every request of the
+    /// round tells the compiler they are the Session's ceiling, never business clauses.
+    pub(crate) money: Vec<std::ops::Range<usize>>,
 }
 
 impl AuthoringRound {
@@ -329,6 +312,7 @@ impl AuthoringRound {
             knowledge: None,
             authoring_receipt: None,
             edit: None,
+            money: Vec::new(),
         }
     }
 
@@ -337,15 +321,12 @@ impl AuthoringRound {
     /// the request (the compiler's own law), else the request as stated.
     #[must_use]
     pub fn effective_intent(&self) -> String {
-        if self.edit.is_some() {
-            return revise_intent(&self.request()).unwrap_or_else(|| self.intent.clone());
-        }
-        self.answers
-            .get(CLARIFICATION_KEY)
-            .and_then(|literal| serde_json::from_str::<Value>(literal).ok())
-            .and_then(|value| value.as_str().map(str::to_owned))
-            .filter(|text| !text.trim().is_empty())
-            .unwrap_or_else(|| self.intent.clone())
+        let read = if self.edit.is_some() {
+            revise_intent(&self.request())
+        } else {
+            clarified(&self.answers)
+        };
+        read.unwrap_or_else(|| self.intent.clone())
     }
 
     /// This round through the seat under the session's authoring context: a
@@ -367,28 +348,26 @@ impl AuthoringRound {
             Attach::Compose(&intent)
         };
         let mut out = compile_attached(seat, context, &self.request(), attach, None)?;
-        self.carry_subscription_receipt(&mut out);
+        round::carry_receipt(
+            &mut out,
+            self.continuation
+                .as_ref()
+                .and(self.authoring_receipt.as_ref()),
+        );
         Ok(out)
     }
 
-    /// The typed request this round is: the intent (a revision's EDIT), every
-    /// answer, the recorded plan when one settled.
+    /// The typed request this round is ([`round::request`]): the intent (a revision's EDIT),
+    /// every answer, the recorded plan when one settled, the admitted monetary directives.
     #[must_use]
     pub fn request(&self) -> CompileRequest {
-        let mut request = match &self.edit {
-            Some((base, change, original)) => original.iter().fold(
-                CompileRequest::edit(base.clone(), change.clone()),
-                |edit, original| edit.with_original_intent(original.clone()),
-            ),
-            None => CompileRequest::create(self.intent.clone()),
-        };
-        for (key, literal) in &self.answers {
-            request = request.answer(key.clone(), literal.clone());
-        }
-        if let Some(plan) = &self.continuation {
-            request = request.with_plan(plan.clone());
-        }
-        request
+        round::request(
+            &self.intent,
+            self.edit.as_ref(),
+            &self.answers,
+            self.continuation.as_ref(),
+            &self.money,
+        )
     }
 
     /// Keep what the outcome settled: the plan once a strategy settled it
@@ -397,50 +376,23 @@ impl AuthoringRound {
     /// presented a pack, the mandatory questions in the compiler's order (a
     /// revision's clause dispositions too), its reasons.
     pub fn absorb(&mut self, out: &CompileOutcome) {
-        if self.continuation.is_none() && out.provenance.strategy.is_some() {
-            self.continuation.clone_from(&out.provenance.plan);
-            if self.continuation.is_some() {
-                self.knowledge = presented_knowledge(out);
-                self.authoring_receipt = out
-                    .provenance
-                    .authoring
-                    .as_ref()
-                    .filter(|r| {
-                        r.backend
-                            .as_ref()
-                            .is_some_and(|b| b["kind"] == "harness_infer")
-                    })
-                    .cloned();
-            }
+        if let Some(plan) = round::reanchored(self.continuation.as_ref(), out) {
+            // The compiler re-anchored the plan to a changed source (R4 A6): the next answer
+            // binds against the observation its question showed; no approval rides along.
+            self.continuation = Some(plan);
         }
-        let revision = self.edit.is_some();
-        self.questions = out
-            .questions
-            .iter()
-            // A revision's Ready also waits on its clauses' dispositions (`gap.N`); a
-            // replacement request would be a fresh CREATE, never its EDIT.
-            .filter(|q| q.mandatory || (revision && q.key.starts_with("gap.")))
-            .filter(|q| !(revision && q.key == CLARIFICATION_KEY))
-            .cloned()
-            .collect();
-        self.reasons = out
-            .diagnostics
-            .iter()
-            .filter(|d| matches!(d.kind, DiagnosticKind::Unknown | DiagnosticKind::Missed))
-            .map(|d| d.message.clone())
-            .collect();
-    }
-
-    fn carry_subscription_receipt(&self, out: &mut CompileOutcome) {
-        if self.continuation.is_none() || out.provenance.authoring.is_some() {
-            return;
+        if self.continuation.is_none()
+            && let Some(settled) = round::settled(out)
+        {
+            self.continuation = Some(settled.plan);
+            self.knowledge = settled.knowledge;
+            self.authoring_receipt = settled.receipt;
         }
-        if let Some(mut receipt) = self.authoring_receipt.clone() {
-            if let Some(backend) = receipt.backend.as_mut().and_then(Value::as_object_mut) {
-                backend.insert("carried_from_authoring_round".into(), Value::Bool(true));
-            }
-            out.provenance.authoring = Some(receipt);
-        }
+        (self.questions, self.reasons) = round::open(out, self.edit.is_some());
+        // An answer the compiler asks for again (stale, refused) is no answer (R4 A6).
+        let asked = &self.questions;
+        self.answers
+            .retain(|key, _| !asked.iter().any(|q| &q.key == key));
     }
 
     /// The question the next line answers, when one is open.
@@ -458,14 +410,65 @@ impl AuthoringRound {
             && probe.current().is_some()
     }
 
-    /// Answer the current question with the human's line, typed to the
-    /// question's shape; the key it answered.
+    /// Read one clause again while retaining only unchanged, previously admitted monetary
+    /// text. Offsets follow the replacement's byte length; new or overlapping text gains no
+    /// admission. Answers and the old plan belong to the old request and are not carried.
+    pub(crate) fn restate_clause(&self, clause: &str, answer: &str) -> Self {
+        let mut next = Self::new(self.intent.replacen(clause, answer, 1));
+        next.restatements = self.restatements.saturating_add(1);
+        if let Some(start) = self.intent.find(clause) {
+            let end = start + clause.len();
+            next.money = self
+                .money
+                .iter()
+                .filter_map(|span| {
+                    if span.end <= start {
+                        Some(span.clone())
+                    } else if span.start >= end {
+                        let after = start + answer.len();
+                        Some(after + (span.start - end)..after + (span.end - end))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+        }
+        next
+    }
+
+    /// Answer the current question with the human's line, typed to the question's shape; the key it
+    /// answered. An explicit Create clarification makes its answer the request (C11): what the
+    /// earlier intent was answered and planned with is dropped, the chosen seat stays, and its
+    /// lexical money spans stay only on identical bytes (the caller installs the spans admitted
+    /// for new ones). A revision keeps its change.
     pub fn answer_current(&mut self, line: &str) -> Option<String> {
         let question = self.questions.first()?.clone();
         let literal = literal_for(&question, line);
+        if question.key == CLARIFICATION_KEY && self.edit.is_none() {
+            self.answers.retain(|key, _| key == "model");
+            (self.continuation, self.knowledge, self.authoring_receipt) = (None, None, None);
+            if let Some(text) = self.replacement(line) {
+                if text != self.intent {
+                    self.money.clear();
+                }
+                self.intent = text;
+                self.questions.remove(0);
+                return Some(question.key);
+            }
+        }
         self.answers.insert(question.key.clone(), literal);
         self.questions.remove(0);
         Some(question.key)
+    }
+
+    /// The Create text an answer at an explicit Create clarification makes the request, as the
+    /// compiler reads that answer; `None` at any other question, in a revision, or when blank.
+    pub(crate) fn replacement(&self, line: &str) -> Option<String> {
+        let question = (self.questions.first()).filter(|q| q.key == CLARIFICATION_KEY)?;
+        let literal = literal_for(question, line);
+        (self.edit.is_none())
+            .then(|| clarified(&BTreeMap::from([(CLARIFICATION_KEY.to_owned(), literal)])))
+            .flatten()
     }
     /// Compile this same round under the aggregate account (replay stays free).
     /// # Errors
@@ -483,27 +486,6 @@ impl AuthoringRound {
             Attach::Compose(&intent)
         };
         compile_attached(seat, context, &self.request(), attach, Some(account))
-    }
-}
-
-/// The human's line as the JSON literal the question's shape takes: a
-/// `Text` question takes the line as one string; a `Literal` question
-/// takes the line verbatim when it already is JSON (`5` · `true` ·
-/// `["a"]`), else as a string (`./notes` is a path, not a parse error);
-/// a `Choice` takes the line verbatim when it already is a JSON string
-/// (`"montant"`, the shape the compiler asks of a choice), else as one.
-#[must_use]
-pub fn literal_for(question: &CompileQuestion, line: &str) -> String {
-    let line = line.trim();
-    let already = match question.answer_type {
-        QuestionType::Literal => serde_json::from_str::<Value>(line).is_ok(),
-        QuestionType::Choice => matches!(serde_json::from_str::<Value>(line), Ok(Value::String(_))),
-        _ => false,
-    };
-    if already {
-        line.to_owned()
-    } else {
-        Value::String(line.to_owned()).to_string()
     }
 }
 
@@ -527,15 +509,24 @@ pub fn is_cancel(line: &str) -> bool {
     )
 }
 
+/// A closed line's words whatever the typography: spaces as one (a no-break
+/// space, or the narrow one French sets before `?`), the closing marks set
+/// aside, a typographic apostrophe as `'`, lower case. It adds no word.
+fn closed_words(line: &str, closing: &[char]) -> String {
+    line.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .trim_end_matches(|c: char| c == ' ' || closing.contains(&c))
+        .replace(['\u{2018}', '\u{2019}'], "'")
+        .to_lowercase()
+}
+
 /// The few words that ask WHY beside what waits (a question, a gate) —
 /// answered from the machine's state, consuming nothing. A closed set of
 /// whole lines, punctuation aside.
 #[must_use]
 pub fn is_why(line: &str) -> bool {
-    let word = line
-        .trim()
-        .trim_end_matches(['?', '!', '.', ' '])
-        .to_lowercase();
+    let word = closed_words(line, &['?', '!', '.']);
     matches!(
         word.as_str(),
         "why"
@@ -558,10 +549,7 @@ pub fn is_why(line: &str) -> bool {
 /// Meaning view from the compiler's ledger; beside a proposal it holds it.
 #[must_use]
 pub fn is_meaning(line: &str) -> bool {
-    let word = line
-        .trim()
-        .trim_end_matches(['?', '!', '.', ' '])
-        .to_lowercase();
+    let word = closed_words(line, &['?', '!', '.']);
     matches!(
         word.as_str(),
         "/meaning"
@@ -579,10 +567,7 @@ pub fn is_meaning(line: &str) -> bool {
 /// recovery card, from memory, never by another call.
 #[must_use]
 pub fn is_what_happened(line: &str) -> bool {
-    let word = line
-        .trim()
-        .trim_end_matches(['?', '!', '.', ' '])
-        .to_lowercase();
+    let word = closed_words(line, &['?', '!', '.']);
     matches!(
         word.as_str(),
         "what happened"
@@ -604,10 +589,7 @@ pub fn is_what_happened(line: &str) -> bool {
 /// lesson). A closed set of whole lines, punctuation aside.
 #[must_use]
 pub fn is_greeting(input: &str) -> bool {
-    let word = input
-        .trim()
-        .trim_end_matches(['!', '.', '?', ',', ' '])
-        .to_lowercase();
+    let word = closed_words(input, &['!', '.', '?', ',']);
     matches!(
         word.as_str(),
         "hello"
@@ -623,106 +605,6 @@ pub fn is_greeting(input: &str) -> bool {
             | "bye"
             | "au revoir"
     )
-}
-
-/// What one compile outcome means for the conversation — a closed
-/// reading of the compiler's own typed fields, never of its prose.
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum Reading {
-    /// A candidate exists and every mandatory question is answered.
-    Ready(CompileOutcome),
-    /// Mandatory questions remain: the next line answers the first.
-    Questions(CompileOutcome),
-    /// Work was read but not settled under this seat's policy (the
-    /// compiler says so): a wider policy may settle it, or the human
-    /// rephrases. How the compiler tried is its own business.
-    Unsettled(CompileOutcome),
-    /// Nothing recognizable as work: no route, no plan, no question.
-    NotWork(CompileOutcome),
-    /// The authoring budget (time) ran out before a trusted candidate;
-    /// not a verdict on the request.
-    BudgetExhausted(CompileOutcome),
-    /// The authorized authoring call failed at the provider; nothing was
-    /// substituted.
-    ProviderFailed(CompileOutcome),
-    /// The compiler refused the request under its own policy.
-    Refused(CompileOutcome),
-}
-
-impl Reading {
-    /// Classify an outcome by its typed fields.
-    #[must_use]
-    pub fn of(out: CompileOutcome) -> Self {
-        if out.status == CompileStatus::Refused {
-            return Self::Refused(out);
-        }
-        if out.status == CompileStatus::Ready && out.candidate.is_some() {
-            return Self::Ready(out);
-        }
-        // `intent.clarification` is the compiler asking for a whole new
-        // request: not a hole a line fills but a reading a seat may settle —
-        // or the human rephrases. Every other mandatory key is a hole.
-        if out
-            .questions
-            .iter()
-            .any(|q| q.mandatory && q.key != CLARIFICATION_KEY)
-        {
-            return Self::Questions(out);
-        }
-        let provider_findings: Vec<&str> = out
-            .diagnostics
-            .iter()
-            .filter(|d| d.target == "authoring_provider")
-            .map(|d| d.message.as_str())
-            .collect();
-        if provider_findings.iter().any(|m| m.contains("timed out")) {
-            return Self::BudgetExhausted(out);
-        }
-        if !provider_findings.is_empty() {
-            return Self::ProviderFailed(out);
-        }
-        let routed = out
-            .provenance
-            .decision
-            .as_ref()
-            .and_then(|d| d.get("route"))
-            .is_some();
-        if routed || out.provenance.plan.is_some() {
-            return Self::Unsettled(out);
-        }
-        Self::NotWork(out)
-    }
-
-    /// The outcome behind the reading.
-    #[must_use]
-    pub fn outcome(&self) -> &CompileOutcome {
-        match self {
-            Self::Ready(o)
-            | Self::Questions(o)
-            | Self::Unsettled(o)
-            | Self::NotWork(o)
-            | Self::BudgetExhausted(o)
-            | Self::ProviderFailed(o)
-            | Self::Refused(o) => o,
-        }
-    }
-}
-
-/// The compiler's own reasons in an outcome (unknown · missed · refused),
-/// for the human — never parsed back into state.
-#[must_use]
-pub fn reasons(out: &CompileOutcome) -> Vec<String> {
-    out.diagnostics
-        .iter()
-        .filter(|d| {
-            matches!(
-                d.kind,
-                DiagnosticKind::Unknown | DiagnosticKind::Missed | DiagnosticKind::Refused
-            )
-        })
-        .map(|d| d.message.clone())
-        .collect()
 }
 
 /// Compile one request deterministically: exact skeletons, the support
@@ -755,8 +637,8 @@ pub fn compile_through(
 }
 
 /// Compile one request through the seat under the session's authoring
-/// context: a deterministic seat compiles deterministically (zero calls; the
-/// context and its knowledge are never read); a provider seat carries the
+/// context: a deterministic seat compiles deterministically (zero calls; its
+/// knowledge is never read, the project it roots is observed); a provider seat carries the
 /// context's strategy on its one policy (the deterministic ladder first, the
 /// compiler's own order) and, when a snapshot is pinned, the pack composed for
 /// `intent` — the request as the compiler reads it (a revision's request with
@@ -812,8 +694,24 @@ fn compile_attached(
     attach: Attach<'_>,
     admission: Option<&nika_providers::InferenceAdmission>,
 ) -> Result<CompileOutcome, AuthoringError> {
+    // The project as it is NOW, for the intent the compiler reads (a fresh request, its
+    // answers' round, a revision's request with its change), on every seat (R4 S1): the files
+    // it names, observed by the shared bounded observer under the root — never outside it.
+    let contextual = match attach {
+        Attach::Compose(intent) | Attach::Carried(_, intent) => intent,
+    };
+    let observed = context
+        .project_root()
+        .filter(|_| !contextual.trim().is_empty())
+        .and_then(|root| nika_cli_host::compile::observe::world(root, contextual));
+    let mut request = request.clone();
+    if let Some(world) = &observed {
+        request = request.with_knowledge(world.clone());
+    }
     let model = match seat {
-        AuthoringSeat::Deterministic { .. } => return compile_deterministic(request),
+        AuthoringSeat::Deterministic { .. } => {
+            return Ok(observed_in(compile(&request)?, observed.as_ref()));
+        }
         AuthoringSeat::Unavailable { why } => return Err(AuthoringError::Seat(why.clone())),
         AuthoringSeat::Provider { model } => model.clone(),
         AuthoringSeat::Harness { seat, model } => {
@@ -822,36 +720,32 @@ fn compile_attached(
                     "a subscription is not a billed-provider admission account".into(),
                 ));
             }
+            // Its adapter cannot carry an explicit effort: said, never silently dropped (R4 B16).
+            if let Some(level) = context.reasoning() {
+                return Err(AuthoringError::Seat(format!(
+                    "the subscription seat `{seat}` cannot carry the explicit reasoning effort `{}` · nothing was sent",
+                    level.word()
+                )));
+            }
             model.clone().unwrap_or_else(|| format!("{seat}/default"))
         }
     };
     if let Some(why) = context.refusal() {
         return Err(AuthoringError::Context(why.clone()));
     }
-    let mut request = request.clone().with_authoring_policy(session_policy(
-        &model,
-        matches!(seat, AuthoringSeat::Harness { .. }),
-        context.strategy(),
-    ));
+    let harness = matches!(seat, AuthoringSeat::Harness { .. });
+    let policy = session_policy(&model, harness, context.strategy());
+    // Every authoring and repair call asks the named effort; the caps stay the policy's (R4 B16).
+    request = request.with_authoring_policy(match context.reasoning() {
+        Some(level) => policy.with_reasoning(level),
+        None => policy,
+    });
     let pack = match attach {
         Attach::Compose(intent) => context.compose(intent)?,
         Attach::Carried(..) => None,
     };
     if let Some(pack) = &pack {
         request = request.with_authoring_knowledge(pack.clone());
-    }
-    // The project as it is NOW, for the intent the compiler reads (a fresh request, its
-    // answers' round, a revision's request with its change): the files it names, observed by
-    // the shared bounded observer under the session's root — never outside it.
-    let contextual = match attach {
-        Attach::Compose(intent) | Attach::Carried(_, intent) => intent,
-    };
-    let observed = context
-        .project_root()
-        .filter(|_| !contextual.trim().is_empty())
-        .and_then(|root| nika_cli_host::compile::observe::world(root, contextual));
-    if let Some(world) = &observed {
-        request = request.with_knowledge(world.clone());
     }
     let mut out = match seat {
         AuthoringSeat::Harness { seat, model } => {
@@ -864,164 +758,13 @@ fn compile_attached(
         (Attach::Carried(record, _), _, _) => record.map(carried_record),
         _ => None,
     };
-    stamp(&mut out, context, knowledge.as_ref());
-    if let (Some(world), Some(record)) = (&observed, out.provenance.decision.as_mut()) {
-        record["session"]["observed"] = observed_record(world, out.provenance.authoring.as_ref());
-    }
-    Ok(out)
-}
-
-/// What the session observed and presented, in brief: each named path, its state, its kind and
-/// how many columns or keys it holds (the names themselves ride the request, not the receipt).
-fn observed_record(world: &Value, receipt: Option<&AuthoringReceipt>) -> Value {
-    let presented = receipt.is_some_and(|receipt| {
-        receipt
-            .context
-            .iter()
-            .any(|call| call["call"].as_str().is_some_and(reads_knowledge))
-    });
-    let rows: Vec<Value> = world["observed"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .map(|row| {
-            json!({
-                "path": row["path"],
-                "state": row["state"],
-                "kind": row["kind"],
-                "columns": row["columns"].as_array().map_or(0, Vec::len),
-            })
-        })
-        .collect();
-    json!({ "attached": true, "presented": presented, "under": "project root", "rows": rows })
-}
-
-/// The session's record of the pack it attached to one call: the pinned
-/// identity, the builder, the pack's digest, every reference (kind · id ·
-/// bytes · sha256), whether the compiler's native door presented it to the
-/// seat (its own record names the same pack digest) and, when it did, the
-/// instruction digest of every call that carried it.
-fn composed_record(pin: &KnowledgePin, pack: &AuthoringKnowledge, out: &CompileOutcome) -> Value {
-    let digest = pack
-        .identity
-        .pointer("/door/pack_sha256")
-        .and_then(Value::as_str)
-        .map_or_else(|| pack_sha256(pack), str::to_owned);
-    let presented = out
-        .provenance
-        .decision
-        .as_ref()
-        .and_then(|d| d.pointer("/native/knowledge/identity/door/pack_sha256"))
-        .and_then(Value::as_str)
-        == Some(digest.as_str());
-    let calls: Vec<Value> = out
-        .provenance
-        .authoring
-        .as_ref()
-        .filter(|_| presented)
-        .map(|receipt| {
-            receipt
-                .context
-                .iter()
-                .filter(|call| {
-                    call.get("call")
-                        .and_then(Value::as_str)
-                        .is_some_and(reads_knowledge)
-                })
-                .map(|call| json!({"call": call["call"], "instruction_sha256": call["instruction_sha256"]}))
-                .collect()
-        })
-        .unwrap_or_default();
-    let why = (!presented).then(|| match out.provenance.strategy {
-        Some(strategy) if strategy != Strategy::Native => format!(
-            "the request settled on the {} path; only the native door reads knowledge",
-            strategy.word()
-        ),
-        _ => "the native door did not present the pack to the seat".to_owned(),
-    });
-    // What authored with the pack — the round's receipt in brief — kept with the record, so a
-    // candidate an answer round replays (zero calls) still names its model, host and usage.
-    let seat = out
-        .provenance
-        .authoring
-        .as_ref()
-        .filter(|_| presented)
-        .map(|receipt| {
-            json!({
-                "model": receipt.model,
-                "calls": receipt.calls,
-                "input_tokens": receipt.input_tokens,
-                "output_tokens": receipt.output_tokens,
-                "elapsed_ms": receipt.elapsed_ms,
-                "backend": receipt.backend,
-            })
-        });
-    json!({
-        "identity": pin.record(),
-        "pack_builder": PACK_BUILDER,
-        "pack_sha256": digest,
-        "references": pack.references.iter().map(|r| json!({
-            "kind": r.kind,
-            "id": r.id,
-            "bytes": r.text.len(),
-            "sha256": sha256_hex(r.text.as_bytes()),
-        })).collect::<Vec<_>>(),
-        "repairs": pack.repairs.len(),
-        "presented": presented,
-        "why": why,
-        "calls": calls,
-        "seat": seat,
-        "carried": false,
-    })
-}
-
-/// The calls of the native door — the only ones whose instruction carries the
-/// pack: the native candidate, the sketch and its fills, and their repairs.
-fn reads_knowledge(call: &str) -> bool {
-    ["native", "sketch", "fill"]
-        .iter()
-        .any(|door| call == *door || call.starts_with(&format!("{door}-")))
-}
-
-/// The record of the round that authored a replayed candidate, carried: this
-/// call presented nothing and called nobody.
-fn carried_record(record: &Value) -> Value {
-    let mut carried = record.clone();
-    if let Some(map) = carried.as_object_mut() {
-        map.insert("carried".to_owned(), Value::Bool(true));
-    }
-    carried
-}
-
-/// The session's knowledge record in an outcome when the native door
-/// presented the pack (what an answer round carries).
-fn presented_knowledge(out: &CompileOutcome) -> Option<Value> {
-    let record = out
-        .provenance
-        .decision
-        .as_ref()?
-        .pointer("/session/authoring/knowledge")?;
-    (record.get("presented") == Some(&Value::Bool(true))).then(|| record.clone())
-}
-
-/// Stamp the session's record beside the compiler's (`decision.session`), as a
-/// host transport stamps its backend into the receipt: the strategy and its
-/// source, the knowledge attached (or none).
-fn stamp(out: &mut CompileOutcome, context: &AuthoringContext, knowledge: Option<&Value>) {
-    let mut record = json!({"authoring": {
-        "strategy": context.strategy().word(),
-        "source": context.source(),
-        "knowledge": knowledge,
-    }});
-    let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
-    // The decision seat's receipt, stamped by the seated call, stays beside it.
-    if let Some(seat) = decision.pointer("/session/decision_seat").cloned() {
-        record["decision_seat"] = seat;
-    }
-    if let Some(map) = decision.as_object_mut() {
-        map.insert("session".to_owned(), record);
-    }
-    out.provenance.decision = Some(decision);
+    stamp(
+        &mut out,
+        context.strategy().word(),
+        context.source(),
+        knowledge.as_ref(),
+    );
+    Ok(observed_in(out, observed.as_ref()))
 }
 
 /// One request on the provider seat the human chose: the provider plane's
@@ -1064,38 +807,27 @@ fn seated(
                 .map(|seat| seat as &dyn nika_onboard::compile::decide::DecisionSeat),
         },
     )))?;
-    // What the seat was asked, sent, answered or refused (`decision.session.decision_seat`),
-    // beside the compiler's own record of the same questions.
-    if let Some(receipt) = consulted.as_ref().and_then(decision::SessionSeat::receipt) {
-        let record = out.provenance.decision.get_or_insert_with(|| json!({}));
-        if let Some(record) = record.as_object_mut()
-            && let Some(session) = record
-                .entry("session")
-                .or_insert_with(|| json!({}))
-                .as_object_mut()
+    // What the seat was asked, sent, answered or refused, beside the compiler's own record of
+    // the same questions. A separate backend: a named level is never sent to it nor claimed (B19).
+    if let Some(mut receipt) = consulted.as_ref().and_then(decision::SessionSeat::receipt) {
+        if let Some(level) = request
+            .authoring
+            .as_ref()
+            .and_then(|policy| policy.reasoning)
         {
-            session.insert("decision_seat".to_owned(), receipt);
+            receipt["reasoning_effort"] = Value::from(format!(
+                "not applicable · the named level `{}` rides the LLM calls only; the TypeSafe request carries no effort",
+                level.word()
+            ));
         }
+        stamp_seat(&mut out, receipt);
     }
     // The receipt names its backend as the CLI's does, with the host the
     // calls really went to (an overridden base URL is a gateway: said).
     if let Some(receipt) = out.provenance.authoring.as_mut() {
-        let id = model.split('/').next().unwrap_or(model);
-        let host = registry.effective_base_url(id).map(host_of);
-        let seed = registry
-            .profiles()
-            .iter()
-            .find(|p| p.id == nika_providers::canonical_provider(id))
-            .map(|p| host_of(p.base_url));
-        receipt.backend.get_or_insert_with(|| {
-            json!({
-                "kind": "direct_api",
-                "provider": id,
-                "host": host,
-                "base_url_overridden": host.is_some() && host != seed,
-                "cost_basis": "measured_by_tokens_at_catalog_price",
-            })
-        });
+        receipt
+            .backend
+            .get_or_insert_with(|| nika_cli_host::compile::authoring_backend(&registry, model));
     }
     Ok(out)
 }
@@ -1104,6 +836,18 @@ fn seated(
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use nika_onboard::compile::{CompileStatus, Strategy};
+    use serde_json::json;
+
+    #[test]
+    fn host_diagnostics_never_include_userinfo_or_query_values() {
+        assert_eq!(
+            host_of(
+                "https://test-user:test-sentinel@gateway.invalid:8443/private?key=test-sentinel#frag"
+            ),
+            "gateway.invalid:8443"
+        );
+    }
 
     /// The stronger model is the provider's strongest, never the same one twice.
     #[test]
@@ -1148,10 +892,6 @@ mod tests {
         }
     }
 
-    fn read(intent: &str) -> Reading {
-        Reading::of(compile_deterministic(&CompileRequest::create(intent)).expect("compiles"))
-    }
-
     #[test]
     fn the_seat_follows_the_reasoner_the_human_chose() {
         let api = ProviderReasoner {
@@ -1188,37 +928,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn the_reading_is_the_compilers_typed_fields() {
-        assert!(matches!(
-            read("hello there, how are you today?"),
-            Reading::NotWork(_)
-        ));
-        assert!(matches!(
-            read("Read ./notes/brief.md and write it to ./out/copy.md"),
-            Reading::Ready(_)
-        ));
-        match read(
-            "Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md",
-        ) {
-            Reading::Questions(out) => {
-                assert_eq!(out.questions[0].key, "model");
-                assert!(
-                    out.provenance.plan.is_some(),
-                    "the HOT plan is recorded for replay"
-                );
-            }
-            other => panic!("a draft needs its model, asked: {other:?}"),
-        }
-        assert!(matches!(
-            read("Read ./a.md and do something clever with it, then write ./b.md"),
-            Reading::Unsettled(_)
-        ));
-        match read("chain") {
-            Reading::Questions(out) => assert_eq!(out.questions[0].key, "tasks.think.infer.prompt"),
-            other => panic!("a skeleton with holes asks: {other:?}"),
-        }
-    }
+    // The reading and a line's literal descended with their tests to
+    // `nika_onboard::compile::reading` (C7); the session re-exports them.
 
     #[test]
     fn an_answer_round_replays_the_same_plan_with_zero_calls() {
@@ -1260,27 +971,6 @@ mod tests {
         );
     }
 
-    /// The compiler's own questions of each shape: a skeleton's prompt
-    /// hole is text, a skeleton's constant hole is a literal.
-    fn question_of(skeleton: &str, shape: QuestionType) -> CompileQuestion {
-        let out = compile_deterministic(&CompileRequest::create(skeleton)).expect("compiles");
-        let question = out.questions.into_iter().next().expect("one hole");
-        assert_eq!(question.answer_type, shape, "{skeleton}");
-        question
-    }
-
-    #[test]
-    fn a_line_is_typed_to_the_questions_shape() {
-        let text = question_of("chain", QuestionType::Text);
-        let literal = question_of("bounded-batch", QuestionType::Literal);
-        assert_eq!(literal_for(&text, "mock/echo"), "\"mock/echo\"");
-        assert_eq!(literal_for(&text, " 5 "), "\"5\"");
-        assert_eq!(literal_for(&literal, "5"), "5");
-        assert_eq!(literal_for(&literal, "true"), "true");
-        assert_eq!(literal_for(&literal, "./notes"), "\"./notes\"");
-        assert_eq!(literal_for(&literal, "[\"a\"]"), "[\"a\"]");
-    }
-
     #[test]
     fn cancel_words_and_greetings_are_closed_protocol_sets() {
         assert!(is_cancel("cancel"));
@@ -1295,6 +985,54 @@ mod tests {
             "a sentence is not a bare greeting"
         );
         assert!(!is_greeting("hello.nika"), "a file is not a greeting");
+    }
+
+    /// C10 · a replacement's proposal keeps its own round for the source basis: the replacing
+    /// words and the answer given after them, never an earlier request's answer or plan, with
+    /// the observation its compile round was given; the law folds the replacement and holds it.
+    #[test]
+    fn a_replacement_proposal_keeps_its_own_round_for_the_source_basis() {
+        let orders = "read ./orders.csv, keep only the rows whose status is open and write them to ./out.json";
+        let world =
+            json!({"observed": [{"path": "./orders.csv", "state": "absent", "complete": false}]});
+        let skeleton = compile_deterministic(&CompileRequest::create("bounded-batch"));
+        let mut clarify = skeleton.expect("compiles").questions[0].clone();
+        clarify.key = CLARIFICATION_KEY.to_owned();
+        clarify.answer_type = nika_onboard::compile::QuestionType::Text;
+        let mut round = AuthoringRound::new("make my project better");
+        round
+            .answers
+            .insert("const.rule_field_2".to_owned(), "\"amount\"".to_owned());
+        round.continuation = Some(json!({"strategy": "hot"}));
+        round.questions = vec![clarify];
+        round.answer_current(orders);
+        // The question round of the replacing words, as the cognition door folds them.
+        let folded = CompileRequest::create(orders).with_knowledge(world.clone());
+        round.absorb(&compile_deterministic(&folded).expect("asks"));
+        assert_eq!(
+            round.answer_current("status").as_deref(),
+            Some("const.rule_field_1")
+        );
+        let answered = CompileRequest::create(orders)
+            .with_plan(round.continuation.clone().expect("the question plan"))
+            .answer("const.rule_field_1", "\"status\"")
+            .with_knowledge(world.clone());
+        let out = compile_deterministic(&answered).expect("the answer round");
+        assert_eq!(out.status, CompileStatus::Ready, "{out:?}");
+        let out = observed_in(out, Some(&world));
+        let kept = nika_onboard::compile::round::compiled(round.request(), &out).expect("rebuilt");
+        // C11: the replacement is the request itself, never an answer riding the old text.
+        assert_eq!(
+            kept.answers.keys().collect::<Vec<_>>(),
+            ["const.rule_field_1"],
+            "the earlier answer is gone"
+        );
+        assert_eq!(kept.knowledge.as_ref(), Some(&world));
+        let decision = out.provenance.decision.as_ref();
+        assert_eq!(
+            nika_onboard::compile::basis_for(&kept, decision, Some(&world)),
+            nika_onboard::compile::Basis::Holds(1)
+        );
     }
 
     /// A round keeps the knowledge record of the call that authored its
@@ -1335,22 +1073,8 @@ mod tests {
         assert_eq!(round.effective_intent(), "the whole request");
     }
 
-    #[test]
-    fn only_the_native_doors_calls_read_knowledge() {
-        for call in [
-            "native",
-            "native-repair",
-            "sketch",
-            "sketch-repair",
-            "fill",
-            "fill-repair",
-        ] {
-            assert!(reads_knowledge(call), "{call}");
-        }
-        for call in ["plan", "repair", "transform", "natives"] {
-            assert!(!reads_knowledge(call), "{call}");
-        }
-    }
+    // `reads_knowledge` descended with the records it serves (C7 · D1): its test lives in
+    // `nika_onboard::knowledge::pin`.
 
     #[test]
     fn a_deterministic_seat_never_contacts_a_model() {
@@ -1362,5 +1086,85 @@ mod tests {
         .expect("compiles");
         assert!(out.provenance.authoring.is_none());
         assert!(matches!(Reading::of(out), Reading::NotWork(_)));
+    }
+
+    /// C10 · a complete replacement request (`intent.clarification`) drops what the earlier
+    /// intent was answered and planned with: an old column answer cannot ride into the new
+    /// request, while the chosen seat stays and an answer given after the replacement is kept.
+    /// C11: the replacement is the request's Create text, and the old lexical money spans do not
+    /// ride its changed bytes (the account's ceiling is Session's, apart). An ordinary answer
+    /// keeps the round, and a revision never replaces its change.
+    #[test]
+    fn a_replacement_request_starts_its_round_again_but_keeps_the_seat_and_the_money() {
+        let asked = compile_deterministic(&CompileRequest::create("bounded-batch"))
+            .expect("compiles")
+            .questions;
+        let ask = |key: &str| {
+            let mut question = asked[0].clone();
+            question.key = key.to_owned();
+            question.answer_type = nika_onboard::compile::QuestionType::Text;
+            question
+        };
+        let earlier = || {
+            let mut round = AuthoringRound::new("keep the rows of ./data/input.csv over 250");
+            round.money = std::slice::from_ref(&(0..4)).to_vec();
+            round
+                .answers
+                .insert("const.rule_field_1".to_owned(), "\"amount\"".to_owned());
+            round
+                .answers
+                .insert("model".to_owned(), "\"mock/echo\"".to_owned());
+            round.continuation = Some(json!({"strategy": "hot"}));
+            round.knowledge = Some(json!({"pack_sha256": "abc"}));
+            round.authoring_receipt = Some(AuthoringReceipt::new("claude-code/default"));
+            round
+        };
+        let mut round = earlier();
+        round.questions = vec![ask(CLARIFICATION_KEY), ask("const.rule_field_1")];
+        let replacement = "read ./other.csv and keep the rows whose price is over 3";
+        assert_eq!(
+            round.answer_current(replacement).as_deref(),
+            Some(CLARIFICATION_KEY)
+        );
+        assert_eq!(
+            round.answers.keys().collect::<Vec<_>>(),
+            ["model"],
+            "the old column answer is gone, the chosen seat stays"
+        );
+        assert!(round.continuation.is_none() && round.knowledge.is_none());
+        assert!(round.authoring_receipt.is_none());
+        assert!(round.money.is_empty(), "no old offsets ride the new bytes");
+        assert_eq!(
+            (round.intent.as_str(), round.effective_intent()),
+            (replacement, replacement.to_owned())
+        );
+        assert!(
+            round.request().plan.is_none(),
+            "no old plan rides the request"
+        );
+        round.answer_current("price");
+        assert_eq!(
+            round.answers["const.rule_field_1"], "\"price\"",
+            "a new answer is kept"
+        );
+
+        let mut ordinary = earlier();
+        ordinary.questions = vec![ask("const.limit")];
+        ordinary.answer_current("5");
+        assert_eq!(
+            ordinary.answers.len(),
+            3,
+            "an ordinary answer keeps the round"
+        );
+        assert!(ordinary.continuation.is_some() && ordinary.authoring_receipt.is_some());
+
+        let mut revision = earlier();
+        revision.edit = Some(("nika: base\n".to_owned(), "add a step".to_owned(), None));
+        revision.questions = vec![ask(CLARIFICATION_KEY)];
+        revision.answer_current("something else");
+        assert!(
+            revision.answers.contains_key("const.rule_field_1") && revision.continuation.is_some(),
+            "a revision never replaces its change"
+        );
     }
 }

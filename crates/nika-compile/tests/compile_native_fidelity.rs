@@ -28,7 +28,7 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 mod common;
-use common::Rotating;
+use common::{Judged, Rotating};
 
 /// The reader sees the gate and no effect word it knows in this request (its plan carries
 /// `lexicon::GATE_WITHOUT_EFFECT`): the Law 3b case, asserted below before it is used.
@@ -379,7 +379,10 @@ async fn native_fidelity_keeps_relative_multiword_paths_whole_before_ready() {
         let fixed = literal_copy(source, destination);
         let provider = Rotating::new(vec![answer(&bad), answer(&fixed)]);
         let req = CompileRequest::create(intent).with_authoring_policy(policy(1));
-        let out = compile_with_provider(&req, &provider).await.unwrap();
+        // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+        let out = compile_with_provider(&req, &Judged::approving(&provider))
+            .await
+            .unwrap();
         let judged = rounds(&out);
         assert_eq!(judged.len(), 2, "{intent}: {out:#?}");
         for path in [source, destination] {
@@ -567,9 +570,13 @@ async fn a_typed_whole_source_name_is_read_whole_at_the_native_door() {
     let req = CompileRequest::create(OPENING)
         .with_authoring_policy(policy(0))
         .answer("const.source_paths", TYPED);
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&req, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
-    assert_eq!(out.provenance.authoring.as_ref().unwrap().calls, 1);
+    // The candidate and the whole-request judgment.
+    assert_eq!(out.provenance.authoring.as_ref().unwrap().calls, 2);
     assert_eq!(rounds(&out), [Vec::<String>::new()], "{out:#?}");
     assert_eq!(native(&out)["accepted"], true, "{out:#?}");
     assert_eq!(intent_of(&out), intent_sha256(OPENING));
@@ -602,9 +609,13 @@ async fn a_separately_stated_suffix_stays_owed_at_the_native_door() {
     assert!(out.candidate.is_none(), "{out:#?}");
     assert_eq!(unrealized(&rounds(&out)[0]), ["équipe.txt"], "{out:#?}");
     let provider = Rotating::new(vec![answer(COPY_WHOLE), answer(MERGE_BOTH)]);
-    let out = compile_with_provider(&typed(1), &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&typed(1), &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
-    assert_eq!(out.provenance.authoring.as_ref().unwrap().calls, 2);
+    // The candidate, its repair and the whole-request judgment.
+    assert_eq!(out.provenance.authoring.as_ref().unwrap().calls, 3);
     let rounds = rounds(&out);
     assert_eq!(unrealized(&rounds[0]), ["équipe.txt"], "{rounds:?}");
     assert!(rounds[1].is_empty(), "{rounds:?}");
@@ -623,12 +634,16 @@ async fn a_typed_whole_source_name_is_read_whole_at_the_sketch_door() {
     let req = CompileRequest::create(OPENING)
         .with_authoring_policy(sketch_policy())
         .answer("const.source_paths", TYPED);
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&req, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
     let receipt = out.provenance.authoring.as_ref().unwrap();
-    assert_eq!(receipt.calls, 2);
+    assert_eq!(receipt.calls, 3);
     assert_eq!(receipt.context[0]["call"], "sketch");
     assert_eq!(receipt.context[1]["call"], "fill");
+    assert_eq!(receipt.context[2]["call"], "judge_request");
     assert_eq!(
         native(&out)["sketch"],
         json!({"accepted": true, "tasks": 2, "holes": 1}),
@@ -763,7 +778,10 @@ async fn a_source_answer_never_stands_for_the_destination_at_the_native_door() {
     let req = CompileRequest::create(DESTINED)
         .with_authoring_policy(policy(0))
         .answer("const.source_paths", TYPED);
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&req, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
     assert_eq!(rounds(&out), [Vec::<String>::new()], "{out:#?}");
     assert_eq!(intent_of(&out), intent_sha256(DESTINED));
@@ -801,7 +819,10 @@ async fn a_source_answer_never_stands_for_the_destination_at_the_sketch_door() {
     let req = CompileRequest::create(DESTINED)
         .with_authoring_policy(sketch_policy())
         .answer("const.source_paths", TYPED);
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&req, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
     assert_eq!(intent_of(&out), intent_sha256(DESTINED));
     let doc = document(&out);
@@ -817,7 +838,10 @@ async fn a_rooted_path_keeps_its_own_suffix_at_the_native_door() {
     let req = CompileRequest::create(ARCHIVED)
         .with_authoring_policy(policy(0))
         .answer("const.source_paths", TYPED);
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&req, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
     assert_eq!(rounds(&out), [Vec::<String>::new()], "{out:#?}");
     assert_eq!(intent_of(&out), intent_sha256(ARCHIVED));

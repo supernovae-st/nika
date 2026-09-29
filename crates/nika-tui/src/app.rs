@@ -45,6 +45,8 @@ pub struct Options {
     pub presentation: Presentation,
     /// Colour allowed.
     pub color: bool,
+    /// The ASCII glyph column (the caller's theme decision).
+    pub ascii: bool,
     /// Proof hook: panic after this many submitted lines.
     pub panic_after: Option<usize>,
     /// Proof hook: leave cleanly after this many submitted lines.
@@ -67,6 +69,7 @@ impl Options {
         Self {
             presentation,
             color: false,
+            ascii: false,
             panic_after: None,
             exit_after: None,
             term: None,
@@ -171,7 +174,8 @@ pub fn run_on<C: Conversation + 'static>(
 ) -> io::Result<Exit> {
     let Taken { owner, screen } = taken;
     let size = crossterm::terminal::size().unwrap_or((80, 24));
-    let state = UiState::new(options.presentation, options.color, size);
+    let mut state = UiState::new(options.presentation, options.color, size);
+    state.ascii = options.ascii;
     let mut shell = Shell {
         owner,
         screen,
@@ -529,12 +533,12 @@ impl<C: Conversation + 'static> Shell<C> {
             return Ok(());
         }
         let width = self.state.size.0.max(1);
-        let color = self.state.color;
+        let (color, ascii) = (self.state.color, self.state.ascii);
         let pending: Vec<Committed> = self.state.uncommitted().to_vec();
         for block in &pending {
-            let rows = render::wrapped_rows(&render::block_lines(block, color), width);
+            let rows = render::wrapped_rows(&render::block_lines(block, color, ascii), width);
             self.screen
-                .insert_before(rows, |buf| render::render_block(block, color, buf))?;
+                .insert_before(rows, |buf| render::render_block(block, color, ascii, buf))?;
         }
         self.state.committed_inline = self.state.transcript.len();
         Ok(())

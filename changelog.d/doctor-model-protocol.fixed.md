@@ -1,0 +1,1 @@
+- **Local model protocol diagnosis.** `nika doctor --ping` now checks a bounded compatible model list separately from an open port. A mute listener, unrelated server or malformed response cannot establish model availability. The probe runs no inference, sends no credentials and downloads nothing; advertised models remain untested.

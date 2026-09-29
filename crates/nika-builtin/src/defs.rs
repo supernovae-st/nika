@@ -73,6 +73,7 @@ pub fn tools_json() -> serde_json::Value {
         .map(|d| {
             let bare = d.name.strip_prefix("nika:").unwrap_or(&d.name);
             let entry = nika_catalog::find_builtin(bare);
+            let agent_only = nika_cap::builtin_invoke_refusal(&d.name).is_some();
             serde_json::json!({
                 "name": d.name,
                 "category": entry.map(|b| b.category.as_str()),
@@ -80,6 +81,9 @@ pub fn tools_json() -> serde_json::Value {
                 "parameters": d.parameters,
                 "args": entry.map_or(&[][..], |b| b.args),
                 "required": entry.map_or(&[][..], |b| b.required),
+                "standalone_invoke": !agent_only,
+                "legal_contexts": if agent_only { &["agent_tool"][..] }
+                    else { &["invoke", "agent_tool"][..] },
             })
         })
         .collect();
@@ -133,7 +137,7 @@ fn core_defs() -> Vec<ToolDef> {
         ),
         def(
             "done",
-            "Mark the current agent loop complete (the loop-completion sentinel · agent loops only).",
+            "Agent tools only: mark the current loop complete (the loop-completion sentinel).",
             serde_json::json!({ "result": { "description": "optional final value (any JSON)" } }),
             &[],
         ),
@@ -166,7 +170,10 @@ fn file_defs() -> Vec<ToolDef> {
             "Write a FILE · returns the path. path names a file, never a directory — to create a directory, write its first file with create_dirs: true; never write an empty file at a directory's path (a file there blocks the directory and nothing deletes it). create_dirs (default false) creates the missing parent directories; overwrite defaults true.",
             serde_json::json!({
                 "path": s("destination path"),
-                "content": s("the content to write"),
+                "content": {
+                    "not": { "type": "null" },
+                    "description": "value to write — strings are written verbatim; objects, arrays, numbers and booleans become compact JSON. Pass structured output directly, without a tojson pre-pass. An opaque bytes_base64 value is decoded to bytes. Null is refused; use the string \"null\" for that literal text."
+                },
                 "overwrite": { "type": "boolean" },
                 "create_dirs": { "type": "boolean" }
             }),
@@ -329,7 +336,7 @@ fn net_defs() -> Vec<ToolDef> {
     vec![
         def(
             "fetch",
-            "HTTP request + content extraction · returns the extracted body (non-2xx is an error). SSRF-defended.",
+            "HTTP request + content extraction · default: extracted body, non-2xx is an error. response.accept opts into exact named statuses as {status_code, url, body}; no response headers. SSRF-defended.",
             serde_json::json!({
                 "url": s("the URL"),
                 "method": s("GET (default) | POST | PUT | DELETE | PATCH | HEAD"),
@@ -337,7 +344,12 @@ fn net_defs() -> Vec<ToolDef> {
                 "body": { "description": "request body (objects auto-JSON) · at most one of body/form/multipart" },
                 "form": { "type": "object", "description": "application/x-www-form-urlencoded scalar fields · POST/PUT/PATCH only" },
                 "multipart": { "type": "array", "description": "multipart/form-data parts · {name, value} text or {name, path, filename?, content_type?} file (path is permits.fs.read-gated · ≤32 MiB total) · POST/PUT/PATCH only" },
-                "traverse": { "type": "object", "description": "bounded same-origin crawl · { max_pages: 1..=25 (required), respect_robots?: bool (default true) } · GET only · excludes mode/selector/jq/body/form/multipart · emits { url, page_count, pages[], assets } page digests" },
+                "traverse": { "type": "object", "description": "bounded same-origin crawl · { max_pages: 1..=25 (required), respect_robots?: bool (default true) } · GET only · excludes mode/selector/jq/body/form/multipart/headers/response · emits { url, page_count, pages[], assets } page digests" },
+                "response": {
+                    "type": "object", "additionalProperties": false, "required": ["accept"],
+                    "description": "Observe exactly the accepted final HTTP statuses as {status_code, url, body}; body uses mode extraction, url omits userinfo/query/fragment, headers are absent. Unlisted statuses still fail. Excludes traverse.",
+                    "properties": { "accept": { "type": "array", "minItems": 1, "maxItems": nika_types::net::MAX_FETCH_RESPONSE_STATUSES, "uniqueItems": true, "items": { "type": "integer", "minimum": 200, "maximum": 599 } } }
+                },
                 "mode": s("markdown (default) | article | text | selector | jq | metadata | links | feed | sitemap | raw"),
                 "selector": s("CSS selector (mode: selector only)"),
                 "jq": s("a jq expression (mode: jq only · the one data language)")
@@ -363,7 +375,7 @@ fn introspection_defs() -> Vec<ToolDef> {
     vec![
         def(
             "compose",
-            "Statically check a Nika workflow draft you wrote · returns the full `nika check` verdict as JSON (conformance + secret-flow + permits + the termination/cost certificate) · NEVER executes it. Iterate until valid, then deliver the draft. Agent loops only.",
+            "Agent tools only: statically check a Nika workflow draft you wrote · returns the full `nika check` verdict as JSON (conformance + secret-flow + permits + the termination/cost certificate) · NEVER executes it. Iterate until valid, then deliver the draft.",
             serde_json::json!({ "workflow_yaml": s("the complete workflow YAML draft") }),
             &["workflow_yaml"],
         ),
@@ -382,7 +394,15 @@ fn media_defs() -> Vec<ToolDef> {
             "chart",
             "Render a DETERMINISTIC chart artifact from rows + a semantic spec (bar | line | area_band | scatter | heatmap) — byte-identical SVG saved at `out`, sha256 in outputs (the trace-chain receipt) · optional Vega-Lite sibling via compile_to. Pure compute + one permit-gated write: no network, no clock, re-runs are idempotent.",
             serde_json::json!({
-                "data": s("rows · array of flat objects (strings + numbers) · or { path: <json file> }"),
+                "data": {
+                    "description": "rows · array of flat objects (strings + numbers) · or { path: <json file> }",
+                    "anyOf": [
+                        { "type": "array", "items": {
+                            "type": "object", "additionalProperties": { "type": ["string", "number"] }
+                        } },
+                        { "type": "object", "properties": { "path": { "type": "string" } }, "required": ["path"] }
+                    ]
+                },
                 "semantics": { "type": "object", "description": "field → usd | duration_ms | tokens | count | delta | percent | timestamp | category (drives formatting + palettes · delta ⇒ diverging anchored 0)" },
                 "chart": { "type": "object", "description": "{ type, x, y, y_lo?, y_hi? (area_band bounds), y2? (actual overlay), color? (series split · heatmap value), title?, width?, height? } — x/y/… are field names" },
                 "out": s("artifact path ending .svg (fs-permit gated · parents created · idempotent)"),
@@ -417,7 +437,10 @@ fn media_defs() -> Vec<ToolDef> {
                 "prompt": s("the creative brief the provider renders"),
                 "mode": s("generate (default · text→image) | edit (source image(s) + instruction)"),
                 "image": s("mode:edit · one source image PATH (read · permit-gated fs.read)"),
-                "images": s("mode:edit · source image PATHS (multi-ref · capped per provider)"),
+                "images": {
+                    "type": "array", "items": { "type": "string", "pattern": "\\S" },
+                    "description": "mode:edit · source image PATHS (multi-ref · capped per provider)"
+                },
                 "mask": s("mode:edit · optional pixel-mask PATH (openai/local only · refused elsewhere)"),
                 "n": { "type": "integer", "description": "variant count 1..=10 (gemini runs n sequential calls)" },
                 "aspect_ratio": s("1:1 | 16:9 | 9:16 | 4:3 | 3:4 | 3:2 | 2:3 | 21:9"),
@@ -456,6 +479,132 @@ fn media_defs() -> Vec<ToolDef> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn chart_discovery_admits_runtime_data_shapes() {
+        let tools = tools_json();
+        let chart = tools["tools"]
+            .as_array()
+            .expect("tools")
+            .iter()
+            .find(|tool| tool["name"] == "nika:chart")
+            .expect("chart");
+        let schema = jsonschema::validator_for(&chart["parameters"]).expect("schema");
+        let rows = serde_json::json!([{"team":"A","count":3},{"team":"B","count":5}]);
+        let fs = nika_kernel_mock::MockFs::new().with_file("rows.json", rows.to_string());
+        for data in [rows, serde_json::json!({"path":"rows.json"})] {
+            let args = serde_json::json!({"data":data,"chart":{"type":"bar","x":"team","y":"count"},"out":"chart.svg"});
+            assert!(
+                crate::chart::render(&fs, args.as_object().expect("args"))
+                    .await
+                    .is_ok()
+            );
+            assert!(
+                schema.is_valid(&args),
+                "discovery rejected runtime chart input: {args}"
+            );
+        }
+        for data in [
+            serde_json::json!("rows.json"),
+            serde_json::json!([true]),
+            serde_json::json!([{"count":null}]),
+            serde_json::json!({"path":5}),
+        ] {
+            let args = serde_json::json!({"data":data,"chart":{"type":"bar","x":"team","y":"count"},"out":"chart.svg"});
+            assert!(
+                !schema.is_valid(&args),
+                "discovery admitted invalid chart input: {args}"
+            );
+            assert!(
+                crate::chart::render(&fs, args.as_object().expect("args"))
+                    .await
+                    .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn image_discovery_admits_runtime_reference_arrays() {
+        let tools = tools_json();
+        let image = tools["tools"]
+            .as_array()
+            .expect("tools")
+            .iter()
+            .find(|tool| tool["name"] == "nika:image_generate")
+            .expect("image");
+        let schema = jsonschema::validator_for(&image["parameters"]).expect("schema");
+        for images in [
+            serde_json::json!(["a.png"]),
+            serde_json::json!(["a.png", "b.png"]),
+        ] {
+            let args = serde_json::json!({"provider":"mock","mode":"edit","prompt":"merge the references","output_dir":"out","images":images});
+            let parsed = crate::image::args::parse(args.as_object().expect("args"))
+                .expect("runtime arguments");
+            assert_eq!(
+                parsed.input_paths.len(),
+                images.as_array().expect("images").len()
+            );
+            assert!(
+                schema.is_valid(&args),
+                "discovery rejected runtime reference array: {args}"
+            );
+        }
+        for images in [
+            serde_json::json!("a.png"),
+            serde_json::json!(null),
+            serde_json::json!([5]),
+            serde_json::json!([" "]),
+        ] {
+            let args = serde_json::json!({"provider":"mock","mode":"edit","prompt":"merge the references","output_dir":"out","images":images});
+            assert!(
+                !schema.is_valid(&args),
+                "discovery admitted invalid reference array: {args}"
+            );
+            assert!(crate::image::args::parse(args.as_object().expect("args")).is_err());
+        }
+    }
+
+    #[tokio::test]
+    async fn write_discovery_admits_the_values_the_writer_accepts() {
+        let payload = tools_json();
+        let write = payload["tools"]
+            .as_array()
+            .expect("tools")
+            .iter()
+            .find(|tool| tool["name"] == "nika:write")
+            .expect("write definition");
+        let validator = jsonschema::validator_for(&write["parameters"]).expect("parameter schema");
+        let fs = nika_kernel_mock::MockFs::new();
+        for content in [
+            serde_json::json!("literal text"),
+            serde_json::json!({"count": 5}),
+            serde_json::json!([{"id": "001"}]),
+            serde_json::json!(0),
+            serde_json::json!(false),
+            serde_json::json!({"bytes_base64": "AP8="}),
+        ] {
+            let args = serde_json::json!({"path": "result.json", "content": content});
+            let written = crate::file::write(&fs, args.as_object().expect("args")).await;
+            assert!(written.is_ok(), "runtime rejected {args}: {written:?}");
+            assert!(
+                validator.is_valid(&args),
+                "discovery rejected valid writer input: {args}"
+            );
+        }
+        let absent = serde_json::json!({"path": "missing.json"});
+        let null = serde_json::json!({"path": "missing.json", "content": null});
+        for args in [absent, null] {
+            assert!(
+                !validator.is_valid(&args),
+                "invalid writer input admitted: {args}"
+            );
+            assert!(
+                crate::file::write(&fs, args.as_object().expect("args"))
+                    .await
+                    .is_err()
+            );
+        }
+    }
 
     #[test]
     fn value_tools_teach_explicit_decoding_without_adding_path_authority() {
@@ -502,6 +651,29 @@ mod tests {
             nika_catalog::all_builtins().len(),
             "the join is total — defs and catalog are the same set",
         );
+    }
+
+    #[test]
+    fn discovery_names_agent_only_tools_and_keeps_invoke_controls() {
+        let payload = tools_json();
+        let tools = payload["tools"].as_array().expect("tools array");
+        for name in ["nika:compose", "nika:done", "nika:jq", "nika:inspect"] {
+            let tool = tools
+                .iter()
+                .find(|tool| tool["name"] == name)
+                .expect("tool");
+            let agent_only = matches!(name, "nika:compose" | "nika:done");
+            assert_eq!(tool["standalone_invoke"], !agent_only, "{name}");
+            assert_eq!(
+                tool["legal_contexts"],
+                if agent_only {
+                    serde_json::json!(["agent_tool"])
+                } else {
+                    serde_json::json!(["invoke", "agent_tool"])
+                },
+                "{name}"
+            );
+        }
     }
 
     #[test]

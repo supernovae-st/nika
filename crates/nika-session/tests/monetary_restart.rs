@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-//! Restart through public doors, with counting cognition and a synthetic pause.
+//! Restart through public doors, with counting cognition and the engine's own paused journals
+//! (the C7b `S1` and `T1` public runs) staged under `.nika/traces`, where a reopened session
+//! judges a gate before it offers it again.
 //! No provider or engine process is started by these tests.
 #![allow(clippy::expect_used, clippy::panic)]
 use nika_session::state::SessionState;
@@ -17,6 +19,35 @@ use std::sync::{
 
 const COPY: &str = "Read ./entree.txt and write it to ./sortie.txt";
 const QUESTION: &str = "What can you tell me about stars?";
+/// The paused journal of the C7b `S1` public run (C6 binary, minimized, every frame kept): the
+/// engine's own run identity, gate `ask`.
+const S1_PAUSED: (&str, &str) = (
+    "2026-09-28T12-59-54Z-53b6.ndjson",
+    r#"{"id":{"uuid":"01a0e819-b68b-7649-85b2-39277be74e66"},"timestamp":1790600394379000000,"kind":"workflow_started","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"7466341540fd02fca9ec21937862176b7821a52495b86d81bb5f30d16c8462dc","fields":[{"key":"workflow","value":"gate-keyed"},{"key":"project_root_fingerprint","value":"68bc0fa6f93982fd69bcd7dc3b4074d55f54a57579461599d47765293bdbf7cd"}]}
+{"id":{"uuid":"01a0e819-b68c-726d-a8e3-3ef859c76d0f"},"timestamp":1790600394380000000,"kind":"task_scheduled","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"527926e042b24c4415b65b50cca37f0f1f609ec9f52478191a9faf23491600c3","fields":[{"key":"task","value":"before"}]}
+{"id":{"uuid":"01a0e819-b68d-735a-9777-3c6706958b21"},"timestamp":1790600394381000000,"kind":"task_scheduled","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"eee513cc41db18434eb38cbf51b55d48946fbea527dc0f80777a31deaff40551","fields":[{"key":"task","value":"ask"}]}
+{"id":{"uuid":"01a0e819-b68d-735a-9777-3c683f5bba50"},"timestamp":1790600394381000000,"kind":"task_scheduled","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"0c76a73643ecc528974ba46ceb6025423d93139955cbd8807ee4549ed3be67f9","fields":[{"key":"task","value":"after_gate"}]}
+{"id":{"uuid":"01a0e819-b690-75e2-8832-255d6a8aeee0"},"timestamp":1790600394384000000,"kind":"task_started","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"1ee9c3dc4a185833b486d65cc324a5022fc69a96f4f39707ff60d4f19e4493a2","fields":[{"key":"task","value":"before"}]}
+{"id":{"uuid":"01a0e819-b690-75e2-8832-255ea327f97a"},"timestamp":1790600394384000000,"kind":"permit_checked","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"a7f5e04b1f6ddcd5ee13fa89aed3240f228b59b4ea4620fbb6c51bd442e8c5d8","fields":[{"key":"task","value":"before"},{"key":"decision","value":"allow"},{"key":"why","value":"permits.tools covers the id"}]}
+{"id":{"uuid":"01a0e819-b690-75e2-8832-255f93243257"},"timestamp":1790600394384000000,"kind":"task_completed","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"1e89b99a6737b7686166dd97a346879fb2d829c2ca73b550ba2a9b00967273b7","fields":[{"key":"task","value":"before"}]}
+{"id":{"uuid":"01a0e819-b691-7011-a1fc-369f8aa8657f"},"timestamp":1790600394385000000,"kind":"workflow_paused","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"33180c9c50ec797c947a4969df6319a91f404bad00f875bcfd7d44e02bdccba0","fields":[{"key":"workflow","value":"gate-keyed"},{"key":"task","value":"ask"},{"key":"mode","value":"confirm"},{"key":"message","value":"Ship it?"},{"key":"status","value":"paused"},{"key":"cause","value":"human_gate"}]}
+"#,
+);
+/// Another run's paused journal (the C7b `T1` public run): another gate identity.
+const T1_PAUSED: (&str, &str) = (
+    "2026-09-28T12-59-36Z-9a41.ndjson",
+    r#"{"id":{"uuid":"01a0e819-71c9-7715-93d4-1573aa3681ab"},"timestamp":1790600376777000000,"kind":"workflow_started","execution":{"uuid":"01a0e819-71c4-7308-ae2d-839c28959a41"},"run":null,"correlation":null,"chain":"7466341540fd02fca9ec21937862176b7821a52495b86d81bb5f30d16c8462dc","fields":[{"key":"workflow","value":"gate-keyed"},{"key":"project_root_fingerprint","value":"4e3fa6930c69d22160a6848d9f54e2a9682204ce9b0bc02888ad067c84b656d3"}]}
+{"id":{"uuid":"01a0e819-71ca-7735-9a13-fdc763c04d79"},"timestamp":1790600376778000000,"kind":"task_scheduled","execution":{"uuid":"01a0e819-71c4-7308-ae2d-839c28959a41"},"run":null,"correlation":null,"chain":"e09aae0d994d24d936ed18cdca50c1decab36fc3fb09cfb4e1a318fd7e91f28c","fields":[{"key":"task","value":"before"}]}
+{"id":{"uuid":"01a0e819-71ca-7735-9a13-fdc884de3c0c"},"timestamp":1790600376778000000,"kind":"task_scheduled","execution":{"uuid":"01a0e819-71c4-7308-ae2d-839c28959a41"},"run":null,"correlation":null,"chain":"6dde84a55121d4570e233095bd7c9753e58d79ddb3d690318d8d869c98898969","fields":[{"key":"task","value":"ask"}]}
+{"id":{"uuid":"01a0e819-71ca-7735-9a13-fdc9b18e9c3c"},"timestamp":1790600376778000000,"kind":"task_scheduled","execution":{"uuid":"01a0e819-71c4-7308-ae2d-839c28959a41"},"run":null,"correlation":null,"chain":"a03af3d59c3b0326bce200b443ce35d4a91cb43c0278a20b6dd5dd9ed18e28d9","fields":[{"key":"task","value":"after_gate"}]}
+{"id":{"uuid":"01a0e819-71cd-7227-bcb3-ebc83f76de15"},"timestamp":1790600376781000000,"kind":"task_started","execution":{"uuid":"01a0e819-71c4-7308-ae2d-839c28959a41"},"run":null,"correlation":null,"chain":"f702107b5cc3687dd71afb0be317481dfbecf06bd9ef47ae77cbc29098a763a0","fields":[{"key":"task","value":"before"}]}
+{"id":{"uuid":"01a0e819-71cd-7227-bcb3-ebc984c9ef4a"},"timestamp":1790600376781000000,"kind":"permit_checked","execution":{"uuid":"01a0e819-71c4-7308-ae2d-839c28959a41"},"run":null,"correlation":null,"chain":"7d881cb52f88094c03ebedf8318dd4e061412fc5d6a59cd921a457a7c5baf8a2","fields":[{"key":"task","value":"before"},{"key":"decision","value":"allow"},{"key":"why","value":"permits.tools covers the id"}]}
+{"id":{"uuid":"01a0e819-71cd-7227-bcb3-ebcaa3ea49c7"},"timestamp":1790600376781000000,"kind":"task_completed","execution":{"uuid":"01a0e819-71c4-7308-ae2d-839c28959a41"},"run":null,"correlation":null,"chain":"db1db29798bd9ebef63043ad9ec51680ca48deaac51618700a1a6850c9dcbf8e","fields":[{"key":"task","value":"before"}]}
+{"id":{"uuid":"01a0e819-71ce-7736-b844-f5081003d240"},"timestamp":1790600376782000000,"kind":"workflow_paused","execution":{"uuid":"01a0e819-71c4-7308-ae2d-839c28959a41"},"run":null,"correlation":null,"chain":"4d4f3e8f9c41210104fbce2cba848f83655fe6882e4060994e625391ff2772f2","fields":[{"key":"workflow","value":"gate-keyed"},{"key":"task","value":"ask"},{"key":"mode","value":"confirm"},{"key":"message","value":"Ship it?"},{"key":"status","value":"paused"},{"key":"cause","value":"human_gate"}]}
+"#,
+);
+/// The pause these tests used to craft: one frame, no run identity.
+const FORGED: &str = r#"{"kind":"workflow_paused","fields":[{"key":"task","value":"approve"},{"key":"mode","value":"confirm"},{"key":"message","value":"Proceed?"}]}"#;
 
 #[derive(Clone, Default)]
 struct Calls(Arc<AtomicUsize>);
@@ -54,13 +85,20 @@ fn boot(root: &Path, home: Option<&Path>) -> (SessionRuntime, Calls) {
     s.restore_state();
     (s, calls)
 }
+/// A journal staged in the project's trace store, where the engine writes its own.
+fn stage(root: &Path, (name, body): (&str, &str)) -> PathBuf {
+    let traces = root.join(".nika/traces");
+    std::fs::create_dir_all(&traces).expect("trace store");
+    let trace = traces.join(name);
+    std::fs::write(&trace, body).expect("journal");
+    trace
+}
 fn pause(s: &mut SessionRuntime, root: &Path) -> PathBuf {
     std::fs::write(root.join("entree.txt"), "A\n").expect("source");
     assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
     assert!(matches!(s.consent("yes"), TurnOutcome::Facts(_)));
     assert!(matches!(s.turn("run it"), TurnOutcome::RunRequested { .. }));
-    let trace = root.join("paused.ndjson");
-    std::fs::write(&trace, r#"{"kind":"workflow_paused","fields":[{"key":"task","value":"approve"},{"key":"mode","value":"confirm"},{"key":"message","value":"Proceed?"}]}"#).expect("synthetic pause");
+    let trace = stage(root, S1_PAUSED);
     assert!(matches!(
         s.observe_run(4, Some(&trace)),
         TurnOutcome::GateAsk { .. }
@@ -250,12 +288,11 @@ fn unreadable_state_without_history_is_not_evidence_of_a_free_allowance() {
 fn a_different_gate_cannot_release_a_restored_monetary_hold() {
     let root = tempfile::tempdir().expect("root");
     let (mut first, _) = boot(root.path(), None);
-    let original_trace = pause(&mut first, root.path());
+    pause(&mut first, root.path());
     first.answer_gate("budget 0 USD");
     // A later public host observation changes which gate waits. Keep the prior
     // monetary marker intact: the new trace is not its completion evidence.
-    let other_trace = root.path().join("other-paused.ndjson");
-    std::fs::copy(&original_trace, &other_trace).expect("other trace identity");
+    let other_trace = stage(root.path(), T1_PAUSED);
     assert!(matches!(
         first.observe_run(4, Some(&other_trace)),
         TurnOutcome::GateAsk { .. }
@@ -273,4 +310,66 @@ fn a_different_gate_cannot_release_a_restored_monetary_hold() {
     let (mut again, calls) = boot(root.path(), None);
     assert!(matches!(again.turn(QUESTION), TurnOutcome::Refusal(_)));
     assert_eq!(calls.count(), 0);
+}
+
+/// Forged control (C7b §3.4): the crafted one-frame pause names no run. It is asked while the
+/// session that observed it lives, but after a close it cannot be judged from `.nika/traces` and
+/// is never offered again, and the monetary hold its answer left is not released by it.
+#[test]
+fn a_forged_pause_is_never_offered_after_a_close_and_releases_nothing() {
+    let root = tempfile::tempdir().expect("root");
+    let (mut first, _) = boot(root.path(), None);
+    std::fs::write(root.path().join("entree.txt"), "A\n").expect("source");
+    assert!(matches!(first.turn(COPY), TurnOutcome::Proposal { .. }));
+    assert!(matches!(first.consent("yes"), TurnOutcome::Facts(_)));
+    assert!(matches!(
+        first.turn("run it"),
+        TurnOutcome::RunRequested { .. }
+    ));
+    let forged = root.path().join("paused.ndjson");
+    std::fs::write(&forged, FORGED).expect("forged pause");
+    assert!(matches!(
+        first.observe_run(4, Some(&forged)),
+        TurnOutcome::GateAsk { .. }
+    ));
+    assert!(matches!(
+        first.answer_gate("budget 0 USD"),
+        TurnOutcome::Refusal(_)
+    ));
+    drop(first);
+    let (mut resumed, calls) = boot(root.path(), None);
+    assert!(
+        resumed.waiting_gate().is_none(),
+        "a forged pause is never offered"
+    );
+    assert!(matches!(resumed.turn(QUESTION), TurnOutcome::Refusal(_)));
+    assert_eq!(calls.count(), 0);
+    assert!(!root.path().join("sortie.txt").exists());
+}
+
+/// Forged control: a byte copy of a real journal staged as another gate carries the same run
+/// identity twice; after a close it cannot be judged and is never offered, and the hold stays.
+#[test]
+fn a_byte_copy_of_a_journal_is_never_offered_as_another_gate() {
+    let root = tempfile::tempdir().expect("root");
+    let (mut first, _) = boot(root.path(), None);
+    pause(&mut first, root.path());
+    first.answer_gate("budget 0 USD");
+    let copy = stage(
+        root.path(),
+        ("2026-09-28T13-00-00Z-copy.ndjson", S1_PAUSED.1),
+    );
+    assert!(matches!(
+        first.observe_run(4, Some(&copy)),
+        TurnOutcome::GateAsk { .. }
+    ));
+    drop(first);
+    let (mut resumed, calls) = boot(root.path(), None);
+    assert!(
+        resumed.waiting_gate().is_none(),
+        "one run identity in two journals"
+    );
+    assert!(matches!(resumed.turn(QUESTION), TurnOutcome::Refusal(_)));
+    assert_eq!(calls.count(), 0);
+    assert!(!root.path().join("sortie.txt").exists());
 }

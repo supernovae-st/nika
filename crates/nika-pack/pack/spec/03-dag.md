@@ -709,8 +709,17 @@ for_each:
   for the same intent.
 - **Every item's terminal is recorded** · the fan-out's terminal frame
   carries `items` (one row per item in input order · `index` · `item` ·
-  `status` ∈ `ok` · `recovered` · `failed` · `never_started` · `code` and
+  `status` ∈ `ok` · `recovered` · `failed` · `cancelled` · `never_started` · `code` and
   `message` when an error was recorded) · see [17 §the kind vocabulary](./17-trace.md#the-kind-vocabulary-normative--closed-per-minor).
+- **Started is not settled** · `never_started` means the iteration's execution
+  never began. An iteration whose execution began but was abandoned without a
+  recorded terminal outcome is `cancelled`, including when fail-fast or the
+  task's cancellation drops its pending execution. Already recorded outcomes
+  retain their status. Cancellation does not wait for the remaining iterations
+  merely to fill the item table. Neither `cancelled` nor `never_started` is a
+  provider billing verdict; `cancelled` cannot prove absence of external effects
+  or physical requests. The `cancelled` item status is a next-MINOR extension of
+  the reference engine's 0.121 vocabulary; see the compatibility rule in §17.
 - **Use cases** · « process N URLs · report which failed but don't abort »
   (false) vs « if any LLM call fails, the whole batch is invalid » (true).
 

@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `for_each:` fan-out (spec 03) — collection resolve, ordered fold.
-//! Dispatch (`run_fan_out` · `run_iteration`) stays in the parent.
+//! `for_each:` fan-out (spec 03) — collection resolve, completion-order
+//! collection, input-order fold. Dispatch (`run_fan_out` · `run_iteration`)
+//! stays in the parent.
 
 use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
 
 use futures_util::StreamExt;
 use nika_schema::raw::ForEachValue;
@@ -58,10 +60,25 @@ pub(super) struct FanOutAccum {
     pub(super) items: Vec<Value>,
 }
 
+/// Drive the batch in COMPLETION order (spec 03): under `fail_fast` the first
+/// failure to complete stops it, whatever its index; the caller then drops what
+/// is still in flight (`cancelled`) or queued (`never_started`). Every
+/// iteration that completed before the stop is kept, folded in INPUT order.
 pub(super) async fn collect_fan_out<S>(stream: &mut S, total: usize, fail_fast: bool) -> FanOutAccum
 where
-    S: futures_util::Stream<Item = RanTask> + Unpin,
+    S: futures_util::Stream<Item = (usize, RanTask)> + Unpin,
 {
+    let mut done = BTreeMap::new();
+    while let Some((index, ran)) = stream.next().await {
+        let failed = matches!(
+            ran.result,
+            RunResult::Failed { .. } | RunResult::PendingRecovery(_)
+        );
+        done.insert(index, ran);
+        if fail_fast && failed {
+            break;
+        }
+    }
     let mut acc = FanOutAccum {
         outputs: Vec::with_capacity(total),
         retries: Vec::new(),
@@ -77,21 +94,17 @@ where
         first_recovered_from: None,
         items: Vec::new(),
     };
-
-    while let Some(iter_ran) = stream.next().await {
-        if consume_iteration(&mut acc, iter_ran, fail_fast) {
-            break;
-        }
+    for (index, ran) in done {
+        consume_iteration(&mut acc, index, ran);
     }
     acc
 }
 
-fn consume_iteration(acc: &mut FanOutAccum, iter_ran: RanTask, fail_fast: bool) -> bool {
+fn consume_iteration(acc: &mut FanOutAccum, index: usize, iter_ran: RanTask) {
     acc.retries.extend(iter_ran.retries);
     acc.agent_events.extend(iter_ran.agent_events);
     acc.decisions.extend(iter_ran.decisions);
     let identity = identity_from_note(&iter_ran.note);
-    let index = index_from_note(&iter_ran.note).unwrap_or(acc.items.len());
     match iter_ran.result {
         RunResult::Success {
             value,
@@ -120,7 +133,6 @@ fn consume_iteration(acc: &mut FanOutAccum, iter_ran: RanTask, fail_fast: bool) 
             }
             acc.outputs.push(value);
             fold_spend(acc, tokens, cost_usd, cost_unpriced);
-            false
         }
         RunResult::SkippedWithError { error, .. } => {
             acc.items
@@ -131,7 +143,6 @@ fn consume_iteration(acc: &mut FanOutAccum, iter_ran: RanTask, fail_fast: bool) 
             if acc.first_recovered_from.is_none() {
                 acc.first_recovered_from = Some(error);
             }
-            false
         }
         RunResult::Failed { error, .. } => {
             acc.items
@@ -141,7 +152,6 @@ fn consume_iteration(acc: &mut FanOutAccum, iter_ran: RanTask, fail_fast: bool) 
             if acc.first_error.is_none() {
                 acc.first_error = Some(error);
             }
-            fail_fast
         }
         RunResult::PendingRecovery(pending) => {
             acc.items.push(item_row(
@@ -155,7 +165,6 @@ fn consume_iteration(acc: &mut FanOutAccum, iter_ran: RanTask, fail_fast: bool) 
             if acc.first_error.is_none() {
                 acc.first_error = Some(pending.render_error);
             }
-            fail_fast
         }
     }
 }
@@ -346,24 +355,42 @@ fn item_row(index: usize, identity: &str, status: &str, error: Option<&TaskError
     row
 }
 
-/// The iteration index the note carries (`for_each[<index>]=<identity>`).
-fn index_from_note(note: &str) -> Option<usize> {
-    note.strip_prefix("for_each[")?
-        .split_once(']')?
-        .0
-        .parse()
-        .ok()
+/// One flag per item, raised when its iteration begins (spec 03 · 17).
+pub(super) fn unstarted(total: usize) -> Vec<AtomicBool> {
+    (0..total).map(|_| AtomicBool::new(false)).collect()
 }
 
-/// The fan-out's item table as ONE compact JSON text (#1276 · #1397): the
-/// consumed rows in input order, then a `never_started` row for every item
-/// the batch stopped before (`fail_fast` · the budget). Rendered on the
-/// terminal frame as `items`.
-pub(super) fn items_json(mut rows: Vec<Value>, items: &[Value]) -> String {
-    for (index, item) in items.iter().enumerate().skip(rows.len()) {
-        rows.push(item_row(index, &item_identity(item), "never_started", None));
+/// Drive one iteration; its FIRST poll marks it begun (building it does not).
+/// The output keeps the item's index: the batch completes out of order.
+pub(super) async fn started_on_first_poll<F: std::future::Future>(
+    index: usize,
+    flag: Option<&AtomicBool>,
+    iteration: F,
+) -> (usize, F::Output) {
+    if let Some(flag) = flag {
+        flag.store(true, Relaxed);
     }
-    serde_json::to_string(&rows).unwrap_or_else(|_| "[]".to_owned())
+    (index, iteration.await)
+}
+
+/// The fan-out's item table as ONE compact JSON text (#1276 · #1397): one row
+/// per item, in input order. A kept iteration has its own row; an item the
+/// batch stopped without one (`fail_fast` · the budget) is `cancelled` if it
+/// began, else `never_started`; neither has an output or is a billing verdict
+/// (spec 17). Rendered on the terminal frame as `items`.
+pub(super) fn items_json(rows: Vec<Value>, items: &[Value], started: &[AtomicBool]) -> String {
+    let mut rows = rows.into_iter().peekable();
+    let table: Vec<Value> = (items.iter().enumerate())
+        .map(|(index, item)| {
+            rows.next_if(|row| row["index"] == index)
+                .unwrap_or_else(|| {
+                    let began = started.get(index).is_some_and(|f| f.load(Relaxed));
+                    let status = if began { "cancelled" } else { "never_started" };
+                    item_row(index, &item_identity(item), status, None)
+                })
+        })
+        .collect();
+    serde_json::to_string(&table).unwrap_or_else(|_| "[]".to_owned())
 }
 
 fn identity_from_note(note: &str) -> String {
@@ -438,6 +465,90 @@ mod tests {
         )
     }
 
+    fn ok_iter(index: usize, item: &str) -> RanTask {
+        ran(
+            &iteration_note(index, item),
+            RunResult::Success {
+                value: Value::String(item.into()),
+                tokens: None,
+                recovered_from: None,
+                warning: None,
+                child: None,
+                cost_usd: None,
+                cost_unpriced: None,
+                model: None,
+                access: None,
+            },
+        )
+    }
+
+    /// Collect a batch whose remaining iterations never complete: a
+    /// collector that waited for them fails the bound instead of hanging.
+    async fn collect_then_nothing(done: Vec<(usize, RanTask)>, fail_fast: bool) -> FanOutAccum {
+        let mut stream = futures_util::stream::iter(done).chain(futures_util::stream::pending());
+        let collected = collect_fan_out(&mut stream, 3, fail_fast);
+        tokio::time::timeout(std::time::Duration::from_secs(5), collected)
+            .await
+            .expect("the first completed failure stops the batch")
+    }
+
+    /// The table of `alpha · beta · gamma` where `began` items were polled.
+    fn table(acc: FanOutAccum, began: &[usize]) -> Vec<Value> {
+        let items = ["alpha", "beta", "gamma"].map(Value::from);
+        let started = unstarted(3);
+        for index in began {
+            started[*index].store(true, Relaxed);
+        }
+        serde_json::from_str(&items_json(acc.items, &items, &started)).expect("rows")
+    }
+
+    /// B10 · spec 03: iterations arrive in COMPLETION order. A later item's
+    /// failure that completes first stops the batch at once, whatever its
+    /// index: the rows still read in input order, the slower earlier sibling
+    /// that began is `cancelled`, the queued one `never_started`, and the
+    /// parent error is the failure that completed.
+    #[tokio::test]
+    async fn a_later_failure_that_completes_first_stops_the_batch() {
+        let acc = collect_then_nothing(vec![(1, failed_iter(1, "beta"))], true).await;
+        let error = acc.first_error.clone().expect("the completed failure");
+        assert!(error.message.contains("beta"), "{}", error.message);
+        let rows = table(acc, &[0, 1]);
+        let words: Vec<&str> = rows.iter().filter_map(|r| r["status"].as_str()).collect();
+        assert_eq!(words, ["cancelled", "failed", "never_started"]);
+        assert_eq!(rows[1]["code"], "NIKA-EXEC-001");
+    }
+
+    /// B10 · a sibling that completed before the stop keeps its own terminal:
+    /// a success is never relabelled `cancelled` because an earlier-index
+    /// sibling was slower than the failure.
+    #[tokio::test]
+    async fn a_success_completed_before_the_stop_keeps_its_row() {
+        let done = vec![(2, ok_iter(2, "gamma")), (1, failed_iter(1, "beta"))];
+        let acc = collect_then_nothing(done, true).await;
+        let rows = table(acc, &[0, 1, 2]);
+        let words: Vec<&str> = rows.iter().filter_map(|r| r["status"].as_str()).collect();
+        assert_eq!(words, ["cancelled", "failed", "ok"]);
+    }
+
+    /// B10 · whatever the completion order, the kept iterations fold in INPUT
+    /// order: outputs, rows and the parent error read as the input does.
+    #[tokio::test]
+    async fn completed_iterations_fold_in_input_order() {
+        let mut stream = futures_util::stream::iter([
+            (2, ok_iter(2, "gamma")),
+            (0, ok_iter(0, "alpha")),
+            (1, ok_iter(1, "beta")),
+        ]);
+        let acc = collect_fan_out(&mut stream, 3, true).await;
+        assert!(acc.first_error.is_none());
+        assert_eq!(acc.outputs, ["alpha", "beta", "gamma"].map(Value::from));
+        let indexes: Vec<&Value> = acc.items.iter().map(|r| &r["index"]).collect();
+        assert_eq!(
+            indexes,
+            [0, 1, 2].map(Value::from).iter().collect::<Vec<_>>()
+        );
+    }
+
     #[test]
     fn item_identity_strings_are_bare() {
         assert_eq!(item_identity(&Value::String("gamma".into())), "gamma");
@@ -504,9 +615,9 @@ mod tests {
     #[tokio::test]
     async fn collect_fan_out_keeps_every_failed_identity() {
         let mut stream = futures_util::stream::iter([
-            failed_iter(0, "alpha"),
-            failed_iter(1, "beta"),
-            failed_iter(2, "gamma"),
+            (0, failed_iter(0, "alpha")),
+            (1, failed_iter(1, "beta")),
+            (2, failed_iter(2, "gamma")),
         ]);
         let acc = collect_fan_out(&mut stream, 3, false).await;
         assert_eq!(
@@ -545,7 +656,7 @@ mod tests {
             Value::String("gamma".into()),
         ];
         let consumed = vec![item_row(0, "alpha", "ok", None)];
-        let text = items_json(consumed, &items);
+        let text = items_json(consumed, &items, &unstarted(3));
         let rows: Vec<Value> = serde_json::from_str(&text).expect("a JSON array");
         assert_eq!(rows.len(), 3);
         assert_eq!(rows[0]["status"], "ok");
@@ -556,6 +667,46 @@ mod tests {
             rows[1].get("code").is_none(),
             "no error on a never-started row"
         );
+    }
+
+    /// B8 · spec 03/17: an item whose iteration began but left no recorded
+    /// terminal is `cancelled`; one that never began stays `never_started`.
+    /// Neither row carries a code, a message or an output.
+    #[test]
+    fn items_json_tells_a_began_item_from_one_never_started() {
+        let items = [
+            Value::String("alpha".into()),
+            Value::String("beta".into()),
+            Value::String("gamma".into()),
+        ];
+        let started = unstarted(3);
+        started[0].store(true, Relaxed);
+        started[1].store(true, Relaxed);
+        let consumed = vec![item_row(0, "alpha", "failed", Some(&boom("x")))];
+        let text = items_json(consumed, &items, &started);
+        let rows: Vec<Value> = serde_json::from_str(&text).expect("a JSON array");
+        let words: Vec<&str> = rows.iter().filter_map(|r| r["status"].as_str()).collect();
+        assert_eq!(words, ["failed", "cancelled", "never_started"]);
+        for row in &rows[1..] {
+            assert_eq!(row.as_object().map(serde_json::Map::len), Some(3), "{row}");
+        }
+    }
+
+    /// B8 · building the iteration's future is not execution: the flag rises
+    /// on the first poll, never at construction.
+    #[test]
+    fn the_started_flag_rises_on_the_first_poll_only() {
+        use std::future::Future as _;
+        let flag = AtomicBool::new(false);
+        let mut iteration = std::pin::pin!(started_on_first_poll(
+            0,
+            Some(&flag),
+            std::future::pending::<()>()
+        ));
+        assert!(!flag.load(Relaxed), "constructed, not polled");
+        let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
+        assert!(iteration.as_mut().poll(&mut cx).is_pending());
+        assert!(flag.load(Relaxed), "the first poll began it");
     }
 
     #[tokio::test]
@@ -582,7 +733,7 @@ mod tests {
                 access: None,
             },
         );
-        let mut stream = futures_util::stream::iter([ok, skip]);
+        let mut stream = futures_util::stream::iter([(0, ok), (1, skip)]);
         let acc = collect_fan_out(&mut stream, 2, false).await;
         assert!(acc.first_error.is_none(), "skip does not fail the parent");
         assert_eq!(acc.recovered_items, vec!["beta"]);

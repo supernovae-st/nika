@@ -149,6 +149,19 @@ impl ExecutionAccessPlan {
             })
     }
 
+    /// Whether an admitted lane serves `provider` (a canonical provider id,
+    /// named by the lane's model prefix) on the API access class: the lane
+    /// whose key the executing process itself reads.
+    #[must_use]
+    pub fn admits_api_lane(&self, provider: &str) -> bool {
+        self.admitted().any(|(model, lane)| {
+            model
+                .split_once('/')
+                .is_some_and(|(id, _)| crate::canonical_provider(id) == provider)
+                && lane.plan.chosen == AccessClass::Api
+        })
+    }
+
     /// The first refused lane, in model order.
     #[must_use]
     pub fn first_refused(&self) -> Option<(&str, &AccessRefusal)> {
@@ -429,6 +442,47 @@ mod tests {
 
     fn infer(model: &str) -> ModelNeed {
         ModelNeed::new(model, true, false)
+    }
+
+    /// C6 · the API-lane predicate: only an admitted lane on the API class
+    /// counts, matched by the canonical provider its model names; a local
+    /// lane, a refused lane and another provider do not.
+    #[test]
+    fn an_api_lane_is_admitted_only_for_its_own_provider_on_the_api_class() {
+        let lane = |model: &str, provider: &str, chosen: AccessClass| {
+            let billing = chosen.default_billing();
+            let plan = AccessPlan::new(
+                model,
+                provider,
+                provider,
+                chosen,
+                billing,
+                false,
+                Vec::new(),
+            );
+            LaneVerdict::Admitted(ResolvedLane::new(plan, 1))
+        };
+        let mut lanes = BTreeMap::new();
+        lanes.insert(
+            "openai/gpt-4.1-mini".to_owned(),
+            lane("openai/gpt-4.1-mini", "openai", AccessClass::Api),
+        );
+        lanes.insert(
+            "ollama/llama3".to_owned(),
+            lane("ollama/llama3", "ollama", AccessClass::Local),
+        );
+        let plan = ExecutionAccessPlan::new(lanes, None, None, None);
+        assert!(plan.admits_api_lane("openai"));
+        assert!(
+            !plan.admits_api_lane("ollama"),
+            "a local lane is not an API lane"
+        );
+        assert!(
+            !plan.admits_api_lane("anthropic"),
+            "no lane names this provider"
+        );
+        let empty = ExecutionAccessPlan::new(BTreeMap::new(), None, None, None);
+        assert!(!empty.admits_api_lane("openai"));
     }
 
     /// The S18 shape (measured on 0.118.7): the operator's key is set

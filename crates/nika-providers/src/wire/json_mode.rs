@@ -70,6 +70,7 @@ pub(crate) fn bounded_reasoning(
         )
         || !req.max_tokens.is_some_and(|cap| cap > 0 && cap <= 8192)
         || req.thinking_budget.is_some()
+        || req.reasoning_effort.is_some()
         || !nika_catalog::model_capabilities(provider, model)
             .supported_parameters
             .contains(&nika_catalog::ParamFlag::ReasoningEffort)

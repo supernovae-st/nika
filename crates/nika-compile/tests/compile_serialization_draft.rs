@@ -9,7 +9,7 @@ use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;
-use common::{Provider, keys, policy};
+use common::{Judged, Provider, keys, policy};
 
 /// sv3-01 as the seat read it: a filter, then a draft « to prepare the filtered CSV
 /// content for writing », then the write.
@@ -36,7 +36,10 @@ async fn a_draft_that_only_serializes_computed_rows_is_not_assembled() {
         "préparer le contenu CSV filtré pour écriture vers ./out/retards.csv en gardant les mêmes colonnes et le même ordre",
     ));
     let req = CompileRequest::create(PRETS).with_authoring_policy(policy());
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&req, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert!(
         !keys(&out).contains(&"model"),
         "no language step remains, so no model is asked: {out:#?}"

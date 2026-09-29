@@ -134,6 +134,9 @@ struct CapsPatchEntry {
     max_output_tokens: Option<u32>,
     #[serde(default)]
     json_mode: Option<JsonModeToml>,
+    /// The reasoning effort levels the exact model documents (R4 B16): `low`, `high`, `max`.
+    #[serde(default)]
+    reasoning_efforts: Option<Vec<String>>,
 }
 
 // ─── Public codegen entry ────────────────────────────────────────────────
@@ -327,6 +330,13 @@ fn validate_caps_patch(
     validate_token_limit_param(patch.token_limit_param.as_deref(), where_)?;
     validate_modality_lists(patch, where_)?;
     validate_param_flags(patch.supported_parameters.as_deref(), where_)?;
+    for level in patch.reasoning_efforts.iter().flatten() {
+        if reasoning_level_variant(level).is_none() {
+            return Err(format!(
+                "{where_}: unknown reasoning level {level:?} (expected low, high or max)"
+            ));
+        }
+    }
 
     if let (Some(ctx), Some(max_out)) = (patch.context_window_tokens, patch.max_output_tokens)
         && max_out > ctx
@@ -466,6 +476,7 @@ fn caps_all_none(p: &CapsPatchEntry) -> bool {
         && p.context_window_tokens.is_none()
         && p.max_output_tokens.is_none()
         && p.json_mode.is_none()
+        && p.reasoning_efforts.is_none()
 }
 
 fn validate_caps_require_all(p: &CapsPatchEntry, where_: &str) -> Result<(), String> {
@@ -484,6 +495,7 @@ fn validate_caps_require_all(p: &CapsPatchEntry, where_: &str) -> Result<(), Str
             "supports_system_messages",
             p.supports_system_messages.is_none(),
         ),
+        ("reasoning_efforts", p.reasoning_efforts.is_none()),
     ];
     for (name, is_none) in missing {
         if *is_none {
@@ -730,6 +742,27 @@ fn emit_tokenizer_variant(t: TokenizerFamilyToml) -> &'static str {
     }
 }
 
+/// The `ReasoningLevel` variant a TOML word names, if any.
+fn reasoning_level_variant(word: &str) -> Option<&'static str> {
+    match word {
+        "low" => Some("Low"),
+        "high" => Some("High"),
+        "max" => Some("Max"),
+        _ => None,
+    }
+}
+
+/// The levels in declaration order (low, high, max), each once.
+fn emit_reasoning_level_slice(list: &[String]) -> String {
+    let variants: Vec<String> = ["low", "high", "max"]
+        .into_iter()
+        .filter(|word| list.iter().any(|l| l == word))
+        .filter_map(reasoning_level_variant)
+        .map(|v| format!("crate::types::model::ReasoningLevel::{v}"))
+        .collect();
+    format!("&[{}]", variants.join(", "))
+}
+
 fn emit_json_mode_variant(j: JsonModeToml) -> &'static str {
     match j {
         JsonModeToml::Unavailable => "crate::types::JsonMode::Unavailable",
@@ -807,6 +840,12 @@ fn emit_cap_patch(p: &CapsPatchEntry) -> String {
         "json_mode",
         p.json_mode.as_ref(),
         |j: &JsonModeToml| emit_json_mode_variant(*j).to_string(),
+    );
+    emit_opt(
+        &mut out,
+        "reasoning_efforts",
+        p.reasoning_efforts.as_deref(),
+        |list: &[String]| emit_reasoning_level_slice(list),
     );
     out.push('}');
     out
@@ -939,7 +978,28 @@ mod tests {
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: None,
+            reasoning_efforts: Some(vec![]),
         }
+    }
+
+    #[test]
+    fn reasoning_levels_are_closed_words_emitted_in_declaration_order() {
+        let p = CapsPatchEntry {
+            reasoning_efforts: Some(vec!["medium".to_string()]),
+            ..minimal_defaults()
+        };
+        let err = validate_caps_patch(&p, "rule \"x\"", false).unwrap_err();
+        assert!(err.contains("unknown reasoning level \"medium\""), "{err}");
+        let listed = ["max", "low", "high", "max"].map(str::to_string);
+        assert_eq!(
+            emit_reasoning_level_slice(&listed),
+            "&[crate::types::model::ReasoningLevel::Low, crate::types::model::ReasoningLevel::High, crate::types::model::ReasoningLevel::Max]"
+        );
+        assert_eq!(emit_reasoning_level_slice(&[]), "&[]");
+        let mut defaults = minimal_defaults();
+        defaults.reasoning_efforts = None;
+        let err = validate_caps_patch(&defaults, "[defaults]", true).unwrap_err();
+        assert!(err.contains("reasoning_efforts"), "{err}");
     }
 
     #[test]
@@ -1148,6 +1208,7 @@ input_modalities = ["text"]
 output_modalities = ["text"]
 supported_parameters = []
 supports_system_messages = true
+reasoning_efforts = []
 
 [[rules]]
 name = "x"
@@ -1179,6 +1240,7 @@ input_modalities = ["text"]
 output_modalities = ["text"]
 supported_parameters = []
 supports_system_messages = true
+reasoning_efforts = []
 
 [[rules]]
 name = "x"

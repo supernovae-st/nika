@@ -14,7 +14,9 @@
 //! the grammar does not cover is `None`: the human is asked, nothing is guessed. Every
 //! expression shape emitted here was run on the engine's jq before it was written down.
 
-use super::rule_tokens::{ATTEMPT_UNITS, Kind, SIZE_UNITS, Token, fold, number, phrase, tokenize};
+use super::rule_tokens::{
+    ATTEMPT_UNITS, Kind, SIZE_UNITS, Token, hinted, normalized, number, phrase, tokenize,
+};
 use serde_json::{Value, json};
 
 pub use super::aggregate::{AggOp, Aggregation, ArithOp, Derived, Shape, Term};
@@ -25,7 +27,10 @@ use super::rule_cues::{
 
 mod fields;
 mod lines;
+pub(crate) mod numbers;
+mod record;
 pub use lines::{by_construction_tail, line_filter};
+pub use numbers::NumberPolicy;
 
 /// Whether a constraint only says the rows keep their order (« garde l'ordre », « keep the
 /// order », « en el mismo orden »): a computation that does not sort keeps the source order
@@ -180,6 +185,16 @@ pub fn numeric_cue(phrase: &str) -> Option<Comparator> {
     cue_in(NUMERIC_CUES, phrase)
 }
 
+/// Whether a text states a numeric comparison anywhere, typed or not (« above the agreed
+/// threshold » compares to a value the grammar cannot type).
+pub(crate) fn compares(text: &str) -> bool {
+    let tokens = tokenize(text);
+    (0..tokens.len()).any(|at| {
+        (1..=CUE_WIDTH)
+            .any(|width| phrase(&tokens, at, width).is_some_and(|p| numeric_cue(&p).is_some()))
+    })
+}
+
 fn equality_cue(phrase: &str) -> Option<Comparator> {
     cue_in(EQUALITY_CUES, phrase)
 }
@@ -205,16 +220,6 @@ pub(crate) fn identifier_shaped(word: &str) -> bool {
     let inner_upper = word.chars().skip(1).any(char::is_uppercase);
     let lower = word.chars().any(char::is_lowercase);
     starts && joined && (word.contains('_') || (digit && letter) || (inner_upper && lower))
-}
-
-fn normalized(name: &str) -> String {
-    fold(name).replace([' ', '-'], "_")
-}
-
-/// The hint column a name designates, in the hint's own spelling.
-fn hinted(name: &str, columns: &[String]) -> Option<String> {
-    let wanted = normalized(name);
-    columns.iter().find(|c| normalized(c) == wanted).cloned()
 }
 
 /// A token that names a column: a hint column when a hint exists, else an identifier.
@@ -252,6 +257,9 @@ pub struct Clause {
     pub field: String,
     pub comparator: Comparator,
     pub value: Operand,
+    /// Other exact spellings a text equality also matches: the bounded canonical-spelling
+    /// expansion the compiler grounds in observed values (R4 A5), never read from words.
+    spellings: Vec<String>,
 }
 
 impl Clause {
@@ -262,6 +270,7 @@ impl Clause {
             field: field.into(),
             comparator,
             value,
+            spellings: Vec::new(),
         }
     }
 }
@@ -301,6 +310,59 @@ pub struct Rule {
     /// the compiler on the seat's own example before it was bound: it runs verbatim over
     /// `.records`, and the columns it declares are the guard's fields.
     program: Option<Program>,
+    /// The number policies the compiler stated from what it observed (R4 A5), by field.
+    numbers: numbers::Numbers,
+    /// The steps that run after the filter and the shape, in the order the request states.
+    then: Vec<Then>,
+}
+
+/// One step a rule runs on the rows the step before it wrote, in the order the request states
+/// it (R4 F5, V9 A10): its filter, then its stages, under the rule's one lowering.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Then {
+    pub clauses: Vec<Clause>,
+    pub junction: Junction,
+    pub shape: Shape,
+}
+
+impl Then {
+    /// One ordered step: the filter it applies and the stages after it.
+    #[must_use]
+    pub fn new(clauses: Vec<Clause>, junction: Junction, shape: Shape) -> Self {
+        Self {
+            clauses,
+            junction,
+            shape,
+        }
+    }
+    fn to_json(&self) -> Value {
+        let clauses: Vec<Value> = self.clauses.iter().map(Clause::to_json).collect();
+        json!({"clauses": clauses, "junction": self.junction.word(), "shape": self.shape.to_json()})
+    }
+    fn from_json(value: &Value) -> Option<Self> {
+        let clauses = value.get("clauses")?.as_array()?;
+        let clauses = clauses
+            .iter()
+            .map(Clause::from_json)
+            .collect::<Option<_>>()?;
+        let junction = match value.get("junction")?.as_str()? {
+            "and" => Junction::And,
+            "or" => Junction::Or,
+            _ => return None,
+        };
+        let shape = Shape::from_json(Some(value.get("shape")?))?;
+        Some(Self::new(clauses, junction, shape))
+    }
+}
+
+/// The filter a list of clauses states, joined by one junction.
+fn predicate(clauses: &[Clause], junction: Junction, numbers: &numbers::Numbers) -> String {
+    clauses
+        .iter()
+        .map(|clause| clause.jq(numbers))
+        .collect::<Vec<_>>()
+        .join(&format!(" {} ", junction.word()))
 }
 
 /// A verified program and the columns it reads.
@@ -329,24 +391,36 @@ pub(crate) fn key(field: &str) -> String {
     }
 }
 
+/// A textual comparison of `field` read as text: `function` applied to `argument`, negated when
+/// the comparator denies it (« does not contain »).
+fn textual(field: &str, function: &str, argument: &str, negated: bool) -> String {
+    let test = format!("({field} | tostring | {function}({argument}))");
+    if negated {
+        format!("({test} | not)")
+    } else {
+        test
+    }
+}
+
 impl Clause {
-    fn jq(&self) -> String {
+    fn jq(&self, numbers: &numbers::Numbers) -> String {
         let field = key(&self.field);
+        let skip = |name: &str| numbers.get(name) == Some(&NumberPolicy::Skip);
+        // A field with no stated policy reads as a recorded plan always read it (R4 A5).
+        let law = |k: &str, name: &str| match numbers.get(name) {
+            Some(_) => numbers::number(k, name),
+            None => format!("({k} | tonumber)"),
+        };
+        let read = law(&field, &self.field);
         if let Operand::Slot(slug) = &self.value {
             let slot = format!("$in.slots.{slug}");
             if let Some((function, negated)) = self.comparator.textual() {
-                let test = format!("({field} | tostring | {function}({slot} | tostring))");
-                return if negated {
-                    format!("({test} | not)")
-                } else {
-                    test
-                };
+                return textual(&field, function, &format!("{slot} | tostring"), negated);
             }
             return if self.comparator.numeric() {
-                format!(
-                    "({field} | tonumber) {} ({slot} | tonumber)",
-                    self.comparator.symbol()
-                )
+                let (op, bound) = (self.comparator.symbol(), numbers.contains_key(&self.field));
+                let test = numbers::compared(&read, op, &format!("({slot} | tonumber)"), bound);
+                numbers::guarded(skip(&self.field), &field, test)
             } else {
                 format!(
                     "({field} | tostring) {} ({slot} | tostring)",
@@ -361,34 +435,55 @@ impl Clause {
                 Operand::Column(other) => format!("({} | tostring)", key(other)),
                 Operand::Slot(slug) => format!("($in.slots.{slug} | tostring)"),
             };
-            let test = format!("({field} | tostring | {function}({literal}))");
-            return if negated {
-                format!("({test} | not)")
-            } else {
-                test
-            };
+            return textual(&field, function, &literal, negated);
         }
         match (&self.value, self.comparator.numeric()) {
+            // A bound number compares with the literal as the request states it (R4 A8).
             (Operand::Number(n), _) => {
-                format!("({field} | tonumber) {} {n}", self.comparator.symbol())
+                let bound = numbers.contains_key(&self.field);
+                let other = if bound {
+                    json!(n).to_string()
+                } else {
+                    n.clone()
+                };
+                let test = numbers::compared(&read, self.comparator.symbol(), &other, bound);
+                numbers::guarded(skip(&self.field), &field, test)
             }
-            (Operand::Column(other), true) => format!(
-                "({field} | tonumber) {} ({} | tonumber)",
-                self.comparator.symbol(),
-                key(other)
-            ),
+            (Operand::Column(other), true) => {
+                let right = key(other);
+                let bound = numbers.contains_key(&self.field) || numbers.contains_key(other);
+                let (op, other_law) = (self.comparator.symbol(), law(&right, other));
+                let test = numbers::compared(&read, op, &other_law, bound);
+                let test = numbers::guarded(skip(other), &right, test);
+                numbers::guarded(skip(&self.field), &field, test)
+            }
             (Operand::Column(other), false) => {
                 format!("{field} {} {}", self.comparator.symbol(), key(other))
+            }
+            (Operand::Text(text), _) if !self.spellings.is_empty() => {
+                let join = if self.comparator == Comparator::Ne {
+                    " and "
+                } else {
+                    " or "
+                };
+                let arms: Vec<String> = std::iter::once(text)
+                    .chain(&self.spellings)
+                    .map(|s| format!("{field} {} {}", self.comparator.symbol(), json!(s)))
+                    .collect();
+                format!("({})", arms.join(join))
             }
             (Operand::Text(text), _) => {
                 format!("{field} {} {}", self.comparator.symbol(), json!(text))
             }
             // A JSON file holds the boolean, a CSV its spelling: both are the same truth.
             // A slot is rendered before this match; the arm keeps it exhaustive.
-            (Operand::Slot(slug), true) => format!(
-                "({field} | tonumber) {} ($in.slots.{slug} | tonumber)",
-                self.comparator.symbol()
-            ),
+            (Operand::Slot(slug), true) => {
+                let test = format!(
+                    "{read} {} ($in.slots.{slug} | tonumber)",
+                    self.comparator.symbol()
+                );
+                numbers::guarded(skip(&self.field), &field, test)
+            }
             (Operand::Slot(slug), false) => format!(
                 "({field} | tostring) {} ($in.slots.{slug} | tostring)",
                 self.comparator.symbol()
@@ -408,18 +503,29 @@ impl Clause {
             Operand::Column(c) => (c.clone(), "column"),
             Operand::Slot(s) => (s.clone(), "slot"),
         };
-        json!({"field": self.field, "comparator": self.comparator.symbol(), "value": value, "value_kind": kind})
+        let mut record = json!({"field": self.field, "comparator": self.comparator.symbol(), "value": value, "value_kind": kind});
+        if !self.spellings.is_empty() {
+            record["spellings"] = json!(self.spellings);
+        }
+        record
     }
     fn from_json(value: &Value) -> Option<Self> {
+        // Spellings are grounded again from what is observed on every compile, never replayed.
+        if value.get("spellings").is_some() {
+            return None;
+        }
         let field = value.get("field")?.as_str()?.trim().to_owned();
         let comparator = Comparator::from_word(value.get("comparator")?.as_str()?)?;
         let literal = value.get("value")?.as_str()?.to_owned();
         let operand = match value.get("value_kind").and_then(Value::as_str) {
-            Some("number") => Operand::Number(literal),
+            Some("number") if super::rule_tokens::recorded_number(&literal) => {
+                Operand::Number(literal)
+            }
             Some("bool") => Operand::Bool(literal == "true"),
             Some("column") => Operand::Column(literal),
             Some("slot") => Operand::Slot(literal),
-            _ => Operand::Text(literal),
+            Some(_) => Operand::Text(literal), // faithful reports an unknown present kind
+            None => return None,
         };
         if field.is_empty() {
             return None;
@@ -428,6 +534,7 @@ impl Clause {
             field,
             comparator,
             value: operand,
+            spellings: Vec::new(),
         })
     }
 }
@@ -445,6 +552,8 @@ impl Rule {
             shape,
             lines: false,
             program: None,
+            numbers: numbers::Numbers::new(),
+            then: Vec::new(),
         }
     }
     /// A rule whose computation is a verified program the seat wrote: no typed stage, the
@@ -462,6 +571,8 @@ impl Rule {
                 jq: jq.to_owned(),
                 columns,
             }),
+            numbers: numbers::Numbers::new(),
+            then: Vec::new(),
         }
     }
     /// The verified program the rule carries, when a seat wrote it.
@@ -472,20 +583,41 @@ impl Rule {
     /// The columns the computation writes, in order, when it fixes them.
     #[must_use]
     pub fn output_columns(&self) -> Option<Vec<String>> {
-        self.shape.output_columns()
+        self.last_shape().output_columns()
     }
     /// The output keys the computation renames (source name, stated name).
     #[must_use]
     pub fn renames(&self) -> &[(String, String)] {
-        &self.shape.renames
+        &self.last_shape().renames
+    }
+    /// The steps that run after the filter and the shape, in the order the request states
+    /// them (R4 F5): each on the rows the step before it wrote.
+    #[must_use]
+    pub fn then(&self) -> &[Then] {
+        &self.then
+    }
+    /// Every step, the rule's own filter and shape first.
+    pub(crate) fn steps(&self) -> impl Iterator<Item = (&[Clause], &Shape)> {
+        let then = self.then.iter().map(|s| (s.clauses.as_slice(), &s.shape));
+        std::iter::once((self.clauses.as_slice(), &self.shape)).chain(then)
+    }
+    /// The shape of the last step that shapes the rows: what the computation writes.
+    fn last_shape(&self) -> &Shape {
+        let mut shaped = self.then.iter().rev().map(|s| &s.shape);
+        shaped
+            .find(|s| **s != Shape::default())
+            .unwrap_or(&self.shape)
     }
     /// A ranking (« the top-selling », « les plus vendus », « die meistverkauften ») sorted
-    /// descending without the count of rows to keep: the count is asked, never assumed.
+    /// descending without the count of rows to keep: the count is asked, never assumed. A
+    /// clause that orders every row states its direction with the superlative (R4 A11).
     #[must_use]
     pub fn ranking_without_count(&self) -> bool {
+        let folded = super::rule_tokens::fold(&self.text);
         self.shape.limit.is_none()
             && self.shape.sort_by.as_ref().is_some_and(|(_, desc)| *desc)
             && super::aggregate::ranking_cue(&self.text)
+            && !super::stages::sorts_every_row(&folded.split_whitespace().collect::<Vec<_>>())
     }
     /// The same computation keeping the first `n` rows after its sort.
     #[must_use]
@@ -521,7 +653,8 @@ impl Rule {
             && s.aggregations.is_empty()
             && s.sort_by.is_none()
             && s.limit.is_none()
-            && s.columns.is_empty();
+            && s.columns.is_empty()
+            && self.then.is_empty();
         only_distinct.then(|| Self {
             lines: true,
             ..self.clone()
@@ -530,13 +663,13 @@ impl Rule {
     /// The names of the totals, when the computation is totals over every row.
     #[must_use]
     pub fn totals_names(&self) -> Vec<String> {
-        self.shape.totals_names()
+        self.last_shape().totals_names()
     }
     /// Whether the computation keeps or drops rows (a row filter), as opposed to a pure
     /// aggregation, sort or projection over every row.
     #[must_use]
     pub fn filters(&self) -> bool {
-        !self.clauses.is_empty()
+        self.steps().any(|(clauses, _)| !clauses.is_empty())
     }
     /// The excerpt the rule was read from.
     #[must_use]
@@ -547,10 +680,14 @@ impl Rule {
     /// projection, a limit, a rename or a join): a plain rule only keeps or drops rows.
     #[must_use]
     pub fn shaped(&self) -> bool {
-        self.shape != Shape::default() || self.program.is_some()
+        self.shape != Shape::default() || self.program.is_some() || !self.then.is_empty()
     }
     /// The inverse of [`Rule::to_json`], for a recorded plan replayed on an answer round.
     pub(crate) fn from_json(value: &Value) -> Option<Self> {
+        // Number policies are grounded again from the answers on every compile, never replayed.
+        if value.get("numbers").is_some() {
+            return None;
+        }
         let text = value.get("text")?.as_str()?.to_owned();
         let clauses = value
             .get("clauses")?
@@ -558,7 +695,7 @@ impl Rule {
             .iter()
             .map(Clause::from_json)
             .collect::<Option<Vec<_>>>()?;
-        let shape = Shape::from_json(value.get("shape"))?;
+        let shape = Shape::from_json(Some(value.get("shape")?))?;
         let program = value.get("program").filter(|p| !p.is_null()).map(|p| {
             Some(Program {
                 jq: p.get("jq")?.as_str()?.to_owned(),
@@ -575,19 +712,30 @@ impl Rule {
             Some(program) => Some(program?),
             None => None,
         };
-        if clauses.is_empty() && shape == Shape::default() && program.is_none() {
-            return None;
-        }
         let junction = match value.get("junction").and_then(Value::as_str) {
             Some("or") => Junction::Or,
-            _ => Junction::And,
+            Some(_) => Junction::And, // faithful rejects unknown present values
+            None if clauses.len() == 1 => Junction::And, // the original single-clause format
+            None => return None,
         };
-        let summary = value
-            .get("summary")
-            .and_then(Value::as_bool)
-            .unwrap_or(false);
+        let then = match value.get("then") {
+            Some(steps) => steps
+                .as_array()?
+                .iter()
+                .map(Then::from_json)
+                .collect::<Option<_>>()?,
+            None => Vec::new(),
+        };
+        let summary = value.get("summary")?.as_bool().unwrap_or(false);
         let lines = value.get("lines").and_then(Value::as_bool).unwrap_or(false);
-        Some(Self {
+        // An empty rule is the identity a conversion states, re-read by its binding law; a flag
+        // over no clause and no stage is no complete rule.
+        let empty = clauses.is_empty() && shape == Shape::default() && program.is_none();
+        let empty = empty && then.is_empty();
+        if empty && (summary || lines) {
+            return None;
+        }
+        let rule = Self {
             text,
             clauses,
             junction,
@@ -595,7 +743,10 @@ impl Rule {
             shape,
             lines,
             program,
-        })
+            numbers: numbers::Numbers::new(),
+            then,
+        };
+        record::valid(&rule).then_some(rule)
     }
     /// Whether the text also asked for the count and totals the summary stage computes.
     #[must_use]
@@ -618,45 +769,42 @@ impl Rule {
         if let Some(key) = &self.shape.join_on {
             push(key);
         }
-        for key in &self.shape.distinct_by {
-            push(key);
-        }
-        for clause in &self.clauses {
-            if clause.field != "." {
-                push(&clause.field);
+        for (clauses, shape) in self.steps() {
+            for key in &shape.distinct_by {
+                push(key);
             }
-            if let Operand::Column(other) = &clause.value {
-                push(other);
+            for clause in clauses {
+                if clause.field != "." {
+                    push(&clause.field);
+                }
+                if let Operand::Column(other) = &clause.value {
+                    push(other);
+                }
             }
-        }
-        let shape = &self.shape;
-        let produced = shape.produced();
-        if let Some(group) = &shape.group_by {
-            push(group);
-        }
-        for aggregation in &shape.aggregations {
-            if let Some(field) = &aggregation.field {
+            let produced = shape.produced();
+            if let Some(group) = &shape.group_by {
+                push(group);
+            }
+            for aggregation in &shape.aggregations {
+                if let Some(field) = &aggregation.field {
+                    push(field);
+                }
+            }
+            if let Some((field, _)) = &shape.sort_by
+                && !produced.contains(&field.as_str())
+            {
                 push(field);
             }
-        }
-        if let Some((field, _)) = &shape.sort_by
-            && !produced.contains(&field.as_str())
-        {
-            push(field);
-        }
-        if produced.is_empty() {
-            for column in &shape.columns {
-                push(column);
+            if produced.is_empty() {
+                for column in &shape.columns {
+                    push(column);
+                }
             }
         }
         out
     }
     fn predicate(&self) -> String {
-        self.clauses
-            .iter()
-            .map(Clause::jq)
-            .collect::<Vec<_>>()
-            .join(&format!(" {} ", self.junction.word()))
+        predicate(&self.clauses, self.junction, &self.numbers)
     }
     /// The computation over the parsed records: the join of the sources when the rule joins,
     /// the filter, then the shape's stages in their fixed order; over the lines of a text
@@ -680,7 +828,14 @@ impl Rule {
         } else {
             format!("[.records[] | select({})]", self.predicate())
         };
-        let mut jq = self.shape.lower(filtered);
+        let mut jq = self.shape.lower(filtered, &self.numbers);
+        for step in &self.then {
+            if !step.clauses.is_empty() {
+                let kept = predicate(&step.clauses, step.junction, &self.numbers);
+                jq = format!("{jq} | map(select({kept}))");
+            }
+            jq = step.shape.lower(jq, &self.numbers);
+        }
         if self.lines {
             jq.push_str(" | join(\"\\n\") | if length > 0 then . + \"\\n\" else . end");
         }
@@ -695,8 +850,8 @@ impl Rule {
     /// The slugs of the slots the clauses compare to, in clause order.
     #[must_use]
     pub fn slots(&self) -> Vec<String> {
-        self.clauses
-            .iter()
+        self.steps()
+            .flat_map(|(clauses, _)| clauses)
             .filter_map(|c| match &c.value {
                 Operand::Slot(slug) => Some(slug.clone()),
                 _ => None,
@@ -720,6 +875,7 @@ impl Rule {
         let has = self
             .fields()
             .iter()
+            .filter(|f| self.numbers.get(*f) != Some(&NumberPolicy::Skip))
             .map(|f| format!(" and has({})", json!(f)))
             .collect::<Vec<_>>()
             .concat();
@@ -766,6 +922,7 @@ impl Rule {
             "jq": self.jq(),
             "synthesized": true,
             "summary": self.summary,
+            "junction": self.junction.word(),
             "shape": self.shape.to_json(),
             "lines": self.lines,
             "program": self.program.as_ref().map(|p| json!({"jq": p.jq, "columns": p.columns})),
@@ -775,8 +932,16 @@ impl Rule {
             record["field"] = clause["field"].clone();
             record["comparator"] = clause["comparator"].clone();
             record["value"] = clause["value"].clone();
-        } else {
-            record["junction"] = json!(self.junction.word());
+        }
+        if !self.then.is_empty() {
+            record["then"] = self.then.iter().map(Then::to_json).collect();
+        }
+        if !self.numbers.is_empty() {
+            record["numbers"] = self
+                .numbers
+                .iter()
+                .map(|(f, p)| (f.clone(), json!(p.word())))
+                .collect();
         }
         record
     }
@@ -895,10 +1060,14 @@ enum Left {
     Unnamed,
 }
 
-/// The last relative marker in a region: its index and width.
+/// The last relative marker in a region: its index and width. A word inside a wider marker
+/// just found (« cui » of « la cui ») is that marker, never a second one after it.
 fn last_relative(region: &[Token]) -> Option<(usize, usize)> {
-    let mut found = None;
+    let mut found: Option<(usize, usize)> = None;
     for at in 0..region.len() {
+        if found.is_some_and(|(start, width)| at < start + width) {
+            continue;
+        }
         for width in [2, 1] {
             if phrase(region, at, width).is_some_and(|p| RELATIVES.contains(&p.as_str())) {
                 found = Some((at, width));
@@ -916,56 +1085,12 @@ fn last_relative(region: &[Token]) -> Option<(usize, usize)> {
 /// A verb that drops the rows it describes ("exclude the rows whose …", "filter out …",
 /// "supprime les lignes dont …"): the clauses name what leaves, and the grammar reads no
 /// polarity there. Reading them as a keep would run the complement of the request.
-const EXCLUSION_LEADS: &[&str] = &[
-    "exclude",
-    "excludes",
-    "excluding",
-    "drop",
-    "drops",
-    "remove",
-    "removes",
-    "delete",
-    "deletes",
-    "discard",
-    "discards",
-    "omit",
-    "omits",
-    "skip",
-    "skips",
-    "ignore",
-    "ignores",
-    "strip",
-    "out",
-    "exclus",
-    "exclure",
-    "excluez",
-    "supprime",
-    "supprimez",
-    "supprimer",
-    "retire",
-    "retirez",
-    "retirer",
-    "enleve",
-    "enlevez",
-    "enlever",
-    "elimine",
-    "eliminez",
-    "eliminer",
-    "ignorez",
-    "ecarte",
-    "ecartez",
-    "elimina",
-    "quita",
-    "descarta",
-    "excluye",
-    "omite",
-    "rimuovi",
-    "escludi",
-    "scarta",
-    "entferne",
-    "losche",
-    "verwerfe",
-];
+const EXCLUSION_LEADS: &str = include_str!("../assets/exclusion_leads.txt");
+
+/// Whether a folded word is one of the exclusion leads.
+pub(crate) fn exclusion_lead(word: &str) -> bool {
+    EXCLUSION_LEADS.lines().any(|lead| lead == word)
+}
 
 fn negated_lead(lead: &[Token]) -> bool {
     let words: Vec<&str> = lead.iter().filter_map(Token::word).collect();
@@ -976,7 +1101,7 @@ fn negated_lead(lead: &[Token]) -> bool {
                 .is_some_and(|window| window.contains(&"que"));
         }
         NEGATIONS.contains(word)
-            || EXCLUSION_LEADS.contains(word)
+            || exclusion_lead(word)
             || matches!(
                 *word,
                 "never"
@@ -994,12 +1119,23 @@ fn negated_lead(lead: &[Token]) -> bool {
     })
 }
 
-/// The field named left of the comparison. `None` when the lead carries a number, a
-/// symbol, a quote or a negation the grammar did not consume; `Unnamed` when nothing
-/// there names a column.
-fn left_field(tokens: &[Token], from: usize, anchor: &Anchor, columns: &[String]) -> Option<Left> {
+/// What the words before a clause's field state (R4 F1).
+enum Lead {
+    /// Nothing the filter drops: the clause's own verb, the grammar's words, the rows' noun.
+    Plain,
+    /// A count or an aggregate the stage grammar reads whole over the rows the clause keeps.
+    Stage(Box<Shape>),
+}
+
+/// The words left of the comparison: the lead (before a relative marker, or before the last
+/// word when none) and the phrase naming the field, and whether a relative marker split them.
+fn split_region<'a>(
+    tokens: &'a [Token],
+    from: usize,
+    anchor: &Anchor,
+) -> (&'a [Token], &'a [Token], bool) {
     let region = tokens.get(from..anchor.field_end).unwrap_or_default();
-    let (lead, phrase, relative) = match last_relative(region) {
+    match last_relative(region) {
         Some((at, width)) => (
             region.get(..at).unwrap_or_default(),
             region.get(at + width..).unwrap_or_default(),
@@ -1009,10 +1145,51 @@ fn left_field(tokens: &[Token], from: usize, anchor: &Anchor, columns: &[String]
             Some((last, lead)) => (lead, std::slice::from_ref(last), false),
             None => (region, region, false),
         },
-    };
-    if lead.iter().any(|t| t.word().is_none()) || negated_lead(lead) {
+    }
+}
+
+/// How a clause's lead is read (R4 F1): a count or an aggregate the stage grammar reads whole
+/// over the rows a relative clause keeps runs after the filter (« count the rows where … »);
+/// another word stating a stage of its own, or a word that is no function word after the first
+/// one (a modifier: « the paid rows where … », « les lignes payées dont … »), leaves the clause
+/// unread (`None`), never read without it. The clause's own verb (« filter », « show me »), the
+/// grammar's function words and the rows' noun state nothing the filter drops.
+fn lead_reading(lead: &[Token], relative: bool, columns: &[String]) -> Option<Lead> {
+    let words: Vec<&str> = lead.iter().filter_map(Token::word).collect();
+    if words.is_empty() {
+        return Some(Lead::Plain);
+    }
+    if relative {
+        let text = lead
+            .iter()
+            .map(|t| t.original.as_str())
+            .collect::<Vec<_>>()
+            .join(" ");
+        if let Some(stage) = super::stages::lead_stage(&text, columns) {
+            return Some(Lead::Stage(Box::new(stage)));
+        }
+    }
+    if words
+        .iter()
+        .any(|w| super::stages::operation_word(w) || listed(SUMMARY_CORE, w))
+    {
         return None;
     }
+    let function = |w: &&str| super::stages::lead_word(w) || ARTICLES.contains(w);
+    let noun = words.len() - usize::from(relative);
+    let first = words.iter().position(function).unwrap_or(noun);
+    let between = words.get(first..noun).unwrap_or_default();
+    between.iter().all(function).then_some(Lead::Plain)
+}
+
+/// The field named left of the comparison, from the phrase [`split_region`] cut; `Unnamed`
+/// when nothing there names a column.
+fn left_field(
+    phrase: &[Token],
+    relative: bool,
+    anchor: &Anchor,
+    columns: &[String],
+) -> Option<Left> {
     let mut phrase = phrase;
     while let Some((head, rest)) = phrase.split_first()
         && head.word().is_some_and(|w| ARTICLES.contains(&w))
@@ -1114,11 +1291,22 @@ fn residual(tokens: &[Token], from: usize) -> Option<usize> {
     }
 }
 
-/// One clause from `from`: the clause and the index of the token after it.
-fn parse_clause(tokens: &[Token], from: usize, columns: &[String]) -> Option<(Clause, usize)> {
+/// One clause from `from`: the clause, the index of the token after it and what its lead
+/// states. `None` when the lead carries a number, a symbol, a quote, a negation or words the
+/// grammar cannot account for.
+fn parse_clause(
+    tokens: &[Token],
+    from: usize,
+    columns: &[String],
+) -> Option<(Clause, usize, Lead)> {
     let anchor = (from..tokens.len()).find_map(|at| anchor_at(tokens, at))?;
     let (comparator, value_from) = comparator_after(tokens, &anchor)?;
-    let left = left_field(tokens, from, &anchor, columns)?;
+    let (lead, phrase, relative) = split_region(tokens, from, &anchor);
+    if lead.iter().any(|t| t.word().is_none()) || negated_lead(lead) {
+        return None;
+    }
+    let lead = lead_reading(lead, relative, columns)?;
+    let left = left_field(phrase, relative, &anchor, columns)?;
     let (value, mut next) = parse_value(tokens, value_from, comparator, columns)?;
     let numeric_value = matches!(value, Operand::Number(_));
     if numeric_value && unit_after(tokens, next) {
@@ -1141,14 +1329,7 @@ fn parse_clause(tokens: &[Token], from: usize, columns: &[String]) -> Option<(Cl
         return None;
     }
     let next = residual(tokens, next)?;
-    Some((
-        Clause {
-            field,
-            comparator,
-            value,
-        },
-        next,
-    ))
+    Some((Clause::new(field, comparator, value), next, lead))
 }
 
 /// Sentences and `;`-joined rules, each of which must parse whole.
@@ -1159,7 +1340,71 @@ fn segments(text: &str) -> impl Iterator<Item = &str> {
         .filter(|s| !s.is_empty())
 }
 
-/// The rule the text states, or `None` when any part is outside the grammar.
+/// What one segment states: clauses and their junction, the stage its lead or its whole words
+/// state, and whether a count-or-total request trails its clauses.
+#[derive(Default)]
+struct Segment {
+    clauses: Vec<Clause>,
+    junction: Option<Junction>,
+    stage: Option<Shape>,
+    summary: bool,
+}
+
+/// One segment read whole, or `None` when any part is outside the grammar: clauses joined by
+/// one junction, the stage the first clause's lead states running after them, or a whole
+/// segment stating a stage (an aggregate, a count per column, a sort, a top-N, a projection, a
+/// removal of duplicates, a join).
+fn read_segment(
+    tokens: &[Token],
+    segment: &str,
+    columns: &[String],
+    read_before: bool,
+) -> Option<Segment> {
+    let mut read = Segment::default();
+    let mut at = 0;
+    loop {
+        let Some((clause, next, lead)) = parse_clause(tokens, at, columns) else {
+            if at == 0
+                && let Some(stage) = super::stages::stated(segment, columns)
+            {
+                read.stage = Some(stage);
+                return Some(read);
+            }
+            // After a clause, a count-or-total request is the summary stage's work.
+            let trailing = (at > 0 || read_before) && read.junction != Some(Junction::Or);
+            read.summary = trailing && summary_residual(tokens, at, columns);
+            return read.summary.then_some(read);
+        };
+        // The stage the first clause's lead states runs after every clause of its segment.
+        if let Lead::Stage(stage) = lead {
+            if at != 0 {
+                return None;
+            }
+            read.stage = Some(*stage);
+        }
+        // The same clause twice (a promoted constraint beside the seat's paraphrase of it) is
+        // one clause.
+        if !read.clauses.contains(&clause) {
+            read.clauses.push(clause);
+        }
+        let Some(token) = tokens.get(next) else {
+            return Some(read);
+        };
+        let joined = junction_of(token)?;
+        if read.junction.is_some_and(|j| j != joined) {
+            return None;
+        }
+        read.junction = Some(joined);
+        at = next + 1;
+        if at >= tokens.len() {
+            return None;
+        }
+    }
+}
+
+/// The rule the text states, or `None` when any part is outside the grammar. Its segments keep
+/// the order the request states (R4 F5): each one's clauses and stage go where
+/// `stages::place_clauses` and `stages::place_stage` put them, in one step or a later one.
 #[must_use]
 pub fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
     let text = text.trim();
@@ -1167,71 +1412,46 @@ pub fn synthesize(text: &str, columns: &[String]) -> Option<Rule> {
     if let Some(rule) = line_filter(text) {
         return Some(rule);
     }
-    let mut clauses = Vec::new();
-    let mut junction: Option<Junction> = None;
+    let mut steps = vec![super::stages::Step::default()];
     let mut summary = false;
-    let mut shape = Shape::default();
     for segment in segments(text) {
         let tokens = tokenize(segment);
         if tokens.is_empty() {
             continue;
         }
-        if !clauses.is_empty() {
-            if junction == Some(Junction::Or) {
-                return None;
-            }
-            junction = Some(Junction::And);
+        // Clauses joined by « or » admit no later segment: their junctions would mix.
+        if steps.iter().any(|s| s.junction == Some(Junction::Or)) {
+            return None;
         }
-        let mut at = 0;
-        loop {
-            let Some((clause, next)) = parse_clause(&tokens, at, columns) else {
-                // A whole segment stating a stage (an aggregate over a column, a count per
-                // column, a sort, a top-N, a projection, a removal of duplicates, a join) is
-                // the shape's work: the filter (if any) runs first, the stages follow.
-                if at == 0
-                    && let Some(stage) = super::stages::stated(segment, columns)
-                {
-                    shape = shape.merge(stage)?;
-                    break;
-                }
-                // After a clause, a count-or-total request is the summary stage's work.
-                let trailing = (at > 0 || !clauses.is_empty()) && junction != Some(Junction::Or);
-                if trailing && summary_residual(&tokens, at, columns) {
-                    summary = true;
-                    break;
-                }
-                return None;
-            };
-            // The same clause twice (a promoted constraint beside the seat's paraphrase
-            // of it) is one clause.
-            if !clauses.contains(&clause) {
-                clauses.push(clause);
-            }
-            let Some(token) = tokens.get(next) else {
-                break;
-            };
-            let joined = junction_of(token)?;
-            if junction.is_some_and(|j| j != joined) {
-                return None;
-            }
-            junction = Some(joined);
-            at = next + 1;
-            if at >= tokens.len() {
-                return None;
-            }
+        let read_before = steps.iter().any(|s| !s.clauses.is_empty());
+        let read = read_segment(&tokens, segment, columns, read_before)?;
+        summary |= read.summary;
+        if !read.clauses.is_empty() {
+            super::stages::place_clauses(&mut steps, read.clauses, read.junction)?;
+        }
+        if let Some(stage) = read.stage {
+            super::stages::place_stage(&mut steps, stage)?;
         }
     }
-    if clauses.is_empty() && shape == Shape::default() {
+    let mut steps = steps.into_iter();
+    let first = steps.next()?;
+    let and = |junction: Option<Junction>| junction.unwrap_or(Junction::And);
+    let then: Vec<Then> = steps
+        .map(|s| Then::new(s.clauses, and(s.junction), s.shape))
+        .collect();
+    if first.clauses.is_empty() && first.shape == Shape::default() && then.is_empty() {
         return None;
     }
     Some(Rule {
         text: text.to_owned(),
-        clauses,
-        junction: junction.unwrap_or(Junction::And),
+        clauses: first.clauses,
+        junction: and(first.junction),
         summary,
-        shape,
+        shape: first.shape,
         lines: false,
         program: None,
+        numbers: numbers::Numbers::new(),
+        then,
     })
 }
 

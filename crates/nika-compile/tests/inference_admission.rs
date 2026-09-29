@@ -91,7 +91,7 @@ impl Drop for Metered {
 mod common;
 
 mod native {
-    use super::common::keys;
+    use super::common::{Judged, keys};
     use super::{MODEL, Metered as Rotating};
     use nika_compile::{
         AuthoringPolicy, CompileRequest, CompileStatus, NativeMode, Strategy, compile,
@@ -486,7 +486,8 @@ outputs:
         .with_original_intent(RECAP_INTENT)
         .with_authoring_policy(policy(NativeMode::Only, 1))
         .answer("model", r#""mock/echo""#);
-        let out = Box::pin(compile_with_provider(&req, &provider))
+        // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+        let out = Box::pin(compile_with_provider(&req, &Judged::approving(&provider)))
             .await
             .unwrap();
         // The answer round of the same revision replays the record with zero calls (the CLI keys
@@ -569,10 +570,13 @@ mod cold {
         .as_array_mut()
         .unwrap()
         .push(json!({"op":"compute","detail":"le problème","evidence":"classe le problème","computation":{"present":true}}));
+        // The judge's answer is scripted on the metered wire (R4 A11): its call is admitted,
+        // sent and counted like the three samples.
         let provider = Rotating::new(vec![
             invented.to_string(),
             plan().to_string(),
             plan().to_string(),
+            json!({"choice": "faithful"}).to_string(),
         ]);
         let req = CompileRequest::create(INTENT)
             .with_authoring_policy(policy().with_samples(3))
@@ -586,12 +590,12 @@ mod cold {
         let out = Box::pin(compile_with_provider(&req, &provider))
             .await
             .unwrap();
-        assert_eq!(provider.calls.load(Ordering::SeqCst), 3);
+        assert_eq!(provider.calls.load(Ordering::SeqCst), 3 + 1);
         assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
         assert_eq!(out.provenance.strategy, Some(Strategy::Cold));
         let receipt = out.provenance.authoring.as_ref().unwrap();
-        assert_eq!(receipt.calls, 3);
-        assert_eq!(receipt.input_tokens, Some(300));
+        assert_eq!(receipt.calls, 3 + 1);
+        assert_eq!(receipt.input_tokens, Some(400));
         let doc = outcome_document(&out);
         assert_eq!(
             doc["provenance"]["decision"]["cold_samples"]["requested"],
@@ -668,9 +672,15 @@ mod transform {
     }
     #[tokio::test]
     async fn a_verified_program_runs_as_the_compute_task_and_replays_with_zero_calls() {
+        // The judge's answers are scripted on the metered wire (R4 A11): the two clauses no law
+        // reads from the bytes, then the whole request, each call admitted and counted.
+        let carried = json!({"choice": "carried"}).to_string();
         let provider = Rotating::new(vec![
             plan().to_string(),
             transform(PROGRAM, &shared_two(), &["email"]).to_string(),
+            carried.clone(),
+            carried.clone(),
+            json!({"choice": "faithful"}).to_string(),
         ]);
         let req = CompileRequest::create(SHARED).with_authoring_policy(policy());
         let out = Box::pin(compile_with_provider(&req, &provider))
@@ -684,16 +694,31 @@ mod transform {
         assert!(candidate.contains("compute_guard"), "{candidate}");
         assert_eq!(
             out.provenance.authoring.as_ref().unwrap().calls,
-            2,
+            2 + 3,
             "{out:#?}"
         );
         assert_eq!(transforms(&out)[0]["accepted"], true, "{out:#?}");
         let record = out.provenance.plan.clone().unwrap();
         assert_eq!(record["rules"][0]["program"]["jq"], PROGRAM, "{record:#}");
-        let replayed = compile(&CompileRequest::create(SHARED).with_plan(record)).unwrap();
-        assert_eq!(replayed.status, CompileStatus::Ready, "{replayed:#?}");
+        // Q2: the plain replay reads no judgment from the record; its unverified remainder
+        // stays INCOMPLETE, the same bytes emitted, zero calls.
+        let replayed = compile(&CompileRequest::create(SHARED).with_plan(record.clone())).unwrap();
+        assert_eq!(replayed.status, CompileStatus::Incomplete, "{replayed:#?}");
         assert_eq!(replayed.candidate, out.candidate);
         assert!(replayed.provenance.authoring.is_none());
+        // An answer round with its judge settles exactly that remainder: the two clauses,
+        // judged and metered; the closed duties and the whole request ask nothing again.
+        let judge = Rotating::new(vec![carried.clone(), carried]);
+        let round = CompileRequest::create(SHARED)
+            .with_plan(record)
+            .with_authoring_policy(policy());
+        let judged = Box::pin(compile_with_provider(&round, &judge))
+            .await
+            .unwrap();
+        assert_eq!(judged.status, CompileStatus::Ready, "{judged:#?}");
+        assert_eq!(judged.candidate, out.candidate);
+        assert_eq!(judge.calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+        assert_eq!(judged.provenance.authoring.as_ref().unwrap().calls, 2);
     }
 }
 

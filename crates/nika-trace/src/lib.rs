@@ -14,10 +14,14 @@
 //! `explain --forecast`, and the `run_view` facts behind the native
 //! session's result, gate and `/proof` views (read laterally by
 //! `nika-session`). The compute (chain walk · anchor wire · recover ·
-//! store scan) stays in `nika-dap` (the 2026-07-09 W0 descent); this
-//! member is the render/routing half. `nika-cli` re-exports every public
-//! item at its historical `verbs::` path, so call sites and the bin
-//! dispatch read unchanged — one architectural unit, two members.
+//! store scan and survey · journal identity) stays in `nika-dap` (the
+//! 2026-07-09 W0 descent); this member is the render/routing half. The
+//! `lineage` view is derived from DAP's survey the same way `run_view` is
+//! derived from a journal: a read-only fold for the session and trace
+//! readers, never admission, verification or continuation authority.
+//! `nika-cli` re-exports every public item at its historical `verbs::`
+//! path, so call sites and the bin dispatch read unchanged — one
+//! architectural unit, two members.
 
 #![forbid(unsafe_code)]
 #![cfg_attr(
@@ -37,9 +41,13 @@ pub(crate) use nika_cli_host::text;
 pub(crate) use nika_dap::{anchor, seal};
 pub use nika_display as display;
 
+pub mod cost;
 pub mod dispatch;
 pub mod evidence;
 pub mod forecast;
+pub mod lineage;
+#[cfg(test)]
+mod lineage_tests;
 pub mod receipt;
 pub mod run_view;
 pub mod trace;

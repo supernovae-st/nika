@@ -55,9 +55,45 @@ pub(super) fn draft_law() -> String {
 /// The record keyed by the invocation's `record_id` in an object directory.
 pub(super) const SELECT_BY_KEY: &str = ". as $lookup | ($lookup.directory | fromjson)[$lookup.id]";
 
-/// The first record whose field equals the literal identifier or its canonical numeric
-/// spelling in an array directory; the keyed entry in an object directory.
-pub const SELECT_BY_FIELD: &str = ". as $l | ($l.directory | fromjson) | if type == \"array\" then (map(select(type == \"object\" and (.[$l.field] == $l.id or ((.[$l.field] | type) == \"number\" and (.[$l.field] | tostring) == $l.id)))) | .[0]) else .[$l.id] end";
+/// The ONE record whose field equals the literal identifier or its canonical numeric spelling
+/// in an array directory (R4 A7): no match is `null` (the lookup's admit refuses it), copies
+/// equal as JSON values are that one record, and matches that differ stop the run, naming their
+/// count, the field and the identifier — input order is never a reason to pick one. An object
+/// directory yields its keyed entry.
+pub const SELECT_BY_FIELD: &str = r#". as $l | ($l.directory | fromjson) | if type == "array" then (map(select(type == "object" and (.[$l.field] == $l.id or ((.[$l.field] | type) == "number" and (.[$l.field] | tostring) == $l.id)))) | . as $m | if all(.[]; . == $m[0]) then $m[0] else error("\($m | length) records have `\($l.field)` \($l.id) and they differ: no single record can be chosen, and input order is no reason to pick one") end) else .[$l.id] end"#;
+
+/// The exact decimal order laws (R4 A8) in the one jq the runtime runs: the exact order key, the
+/// rank cut and the transport guard (`laws/order.jq`, readable, counted with this crate).
+pub(super) const ORDER: &str = include_str!("laws/order.jq");
+
+/// The exact decimal arithmetic laws (R4 A8), after [`ORDER`]: bounded exact sums, averages and
+/// stated roundings, and the output rule that writes a result only where a JSON number carries it
+/// (`laws/arithmetic.jq`, readable, counted with this crate).
+pub(super) const ARITHMETIC: &str = include_str!("laws/arithmetic.jq");
+
+/// The decode of a JSON source, guarded: every number the next task may read or write (all of
+/// them, or those under the named record fields) keeps its exact value through the JSON transport
+/// between tasks, or the run stops before any effect naming it (R4 A8).
+pub(super) fn guarded_parse(fields: Option<&[String]>) -> String {
+    let scope = fields.map_or_else(|| "null".to_owned(), |f| json!(f).to_string());
+    format!("{ORDER}\nfromjson | dguard({scope})")
+}
+
+/// A rule's jq with the decimal laws it calls in front of it (unchanged when it calls none).
+pub(super) fn with_decimal(jq: &str) -> String {
+    if jq.contains("_out(") {
+        format!("{ORDER}\n{ARITHMETIC}\n{jq}")
+    } else if ["dkey", "dtie("].iter().any(|law| jq.contains(law)) {
+        format!("{ORDER}\n{jq}")
+    } else {
+        jq.to_owned()
+    }
+}
+
+/// A record a lookup selects crosses to the next task with every number exact, or stops.
+pub(super) fn guarded_lookup(select: &str) -> String {
+    format!("{ORDER}\n{select} | dguard(null)")
+}
 
 /// The header order of a CSV source: its first line, `\r` trimmed, split on commas,
 /// the surrounding double quotes stripped from each cell. A quoted header holding a

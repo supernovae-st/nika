@@ -15,6 +15,13 @@ const GRANTS_SHELL: fn(&Permits) -> bool = Permits::allows_exec;
 
 type TestResult<T> = Result<T, Box<dyn std::error::Error>>; // box-dyn-ok(test-harness): cfg(test) fixtures use heterogeneous setup and execution failures
 
+/// A probe cell already holding `rows`: planning never reads the machine.
+fn preset(
+    rows: Vec<nika_providers::probe::ProviderProbe>,
+) -> Arc<OnceLock<Vec<nika_providers::probe::ProviderProbe>>> {
+    Arc::new(OnceLock::from(rows))
+}
+
 fn admitted_driver(files: &[(&str, &str)]) -> TestResult<ServiceExecutionDriver> {
     admitted_driver_with_override(files, None)
 }
@@ -65,7 +72,7 @@ tasks:
     infer: { prompt: hi }
 "#;
     let mut driver = admitted_driver(&[("root.nika", root)])?;
-    driver.access_probes.clear();
+    driver.access_probes = preset(Vec::new());
     Ok(driver)
 }
 
@@ -126,7 +133,7 @@ async fn execute_derives_an_omitted_plan_from_its_census_and_effective_model() -
 async fn resident_and_local_runs_rejudge_the_effective_model_before_any_event() -> TestResult<()> {
     let root = "nika: root\nmodel: openai/gpt-5.2\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  first:\n    invoke: { tool: \"nika:jq\", args: { input: 7, expression: \".\" } }\n  say:\n    after: { first: success }\n    infer: { prompt: hi, max_tokens: 32 }\n";
     let mut driver = admitted_driver_with_override(&[("root.nika", root)], Some("mock/echo"))?;
-    driver.access_probes.clear();
+    driver.access_probes = preset(Vec::new());
     let result = driver.execute(ServiceExecutionOptions::new()).await?;
     assert_eq!(result.status(), ServiceExecutionStatus::Refused);
     assert!(
@@ -170,7 +177,7 @@ async fn resident_and_local_runs_rejudge_the_effective_model_before_any_event() 
 async fn an_effective_override_supplies_a_missing_envelope_model() -> TestResult<()> {
     let root = "nika: root\ntasks:\n  explicit:\n    infer: { model: mock/echo, prompt: first }\n  missing:\n    after: { explicit: success }\n    infer: { prompt: second }\n";
     let mut driver = admitted_driver(&[("root.nika", root)])?;
-    driver.access_probes.clear();
+    driver.access_probes = preset(Vec::new());
     let plan = driver.resolve_access_plan(None, None);
     assert!(plan.is_admitted());
     assert!(plan.lane("mock/echo").is_some());
@@ -215,7 +222,7 @@ tasks:
     infer: { prompt: second }
 "#;
     let mut driver = admitted_driver(&[("root.nika", root)])?;
-    driver.access_probes.clear();
+    driver.access_probes = preset(Vec::new());
     let plan = driver.resolve_access_plan(Some("mock/echo"), None);
     assert!(plan.lane("mock/echo").is_some());
     assert!(
@@ -379,13 +386,13 @@ fn root_and_child_plans_read_the_same_driver_probe_snapshot() -> TestResult<()> 
     let mut driver = admitted_driver(&[("root.nika", root), ("child.nika", child)])?;
     // Replace the captured facts, not the process environment: the production
     // resolver must read this field rather than probe again. No seat is run.
-    driver.access_probes = vec![codex_probe()];
+    driver.access_probes = preset(vec![codex_probe()]);
     let root_plan = driver.resolve_access_plan(None, None);
     assert_eq!(root_plan.seat.as_deref(), Some("codex"));
     let runtime = driver
         .compose("openai/gpt-4.1")?
         .with_access_plan(root_plan.clone())?;
-    driver.access_probes.clear();
+    driver.access_probes = preset(Vec::new());
     assert!(driver.resolve_access_plan(None, None).seat.is_none());
     let child_driver = &runtime.child_driver;
     let (_, _, workflow, report) = child_driver
@@ -727,5 +734,426 @@ async fn the_options_plan_is_executed_as_resolved() -> TestResult<()> {
     assert_eq!(code, "NIKA-1800", "{message}");
     assert!(result.events().is_empty(), "nothing ran");
     assert!(result.settlement().is_none());
+    Ok(())
+}
+
+/// C4 · a host account never moves where effects land (the configured local
+/// composition keeps `production_runtime`'s root), and a nested child of the
+/// configured Run composes with that same account: its terminal frame carries
+/// the shared receipt, where the unconfigured Run's child carries none.
+#[tokio::test]
+async fn a_configured_run_keeps_its_root_and_hands_its_account_to_children() -> TestResult<()> {
+    let root = "nika: root\nmodel: mock/echo\ntasks:\n  say:\n    infer: { prompt: parent }\n  call:\n    invoke: { workflow: ./child.nika }\n";
+    let child = "nika: child\nmodel: mock/echo\ntasks:\n  say:\n    infer: { prompt: child }\n";
+    let directory = tempfile::tempdir()?;
+    std::fs::write(directory.path().join("root.nika"), root)?;
+    std::fs::write(directory.path().join("child.nika"), child)?;
+    let project = OwnedDir::open(directory.path())?;
+    let service = nika_execution::ExecutionService::default();
+    let admitted = service.admit_with_model_override(&project, Path::new("root.nika"), None)?;
+    let session = service.begin(admitted);
+    let trace = RecordedChildTrace::default();
+    let driver = ServiceExecutionDriver::for_local_interface(session.context(), directory.path())
+        .ok_or("admitted context lost its root")?
+        .with_child_trace_factory(Arc::new(trace.clone()));
+    let mut config = RuntimeConfig::new(None, 0);
+    config.inference_admission = Some(nika_providers::InferenceAdmission::observe_run());
+    let mut roots = Vec::new();
+    for configured in [false, true] {
+        let plan = access::resolve_plan_over(
+            driver.workflow(),
+            driver.report(),
+            Some("mock/echo"),
+            Some("mock"),
+            &[],
+        );
+        let composed = if configured {
+            driver.compose_with_config("mock/echo", config.clone())?
+        } else {
+            driver.compose("mock/echo")?
+        };
+        let runtime = composed
+            .with_access_probes(Vec::new())
+            .with_access_plan(plan)?;
+        let mut stamper = RunSeams::of(None).stamper();
+        let mut events = RecordedEvents::default();
+        let result = runtime.run(stamper.as_mut(), &mut events).await?;
+        assert_eq!(result.settlement.state, RunState::Succeeded);
+        let started = events
+            .0
+            .iter()
+            .find(|event| event.kind == EventKind::WorkflowStarted)
+            .ok_or("a boot frame")?;
+        roots.push(
+            started
+                .str_field("project_root_fingerprint")
+                .map(str::to_owned),
+        );
+    }
+    assert!(roots[0].is_some());
+    assert_eq!(
+        roots[0], roots[1],
+        "an account never moves the project root"
+    );
+    let child_events = trace.0.lock().expect("trace lock");
+    let stamped: Vec<bool> = child_events
+        .iter()
+        .filter(|event| event.is_terminal())
+        .map(|event| event.str_field("inference_admission").is_some())
+        .collect();
+    assert_eq!(
+        stamped,
+        [false, true],
+        "only the configured Run's child shares it"
+    );
+    Ok(())
+}
+
+/// C6 · `execute` composes with a host-bound configuration exactly as
+/// `compose_with_config` does: the configured Run's terminal frame carries
+/// its account's receipt, the default composition's carries none.
+#[tokio::test]
+async fn execute_composes_with_a_host_bound_runtime_config() -> TestResult<()> {
+    let root = "nika: root\nmodel: mock/echo\ntasks:\n  say:\n    infer: { prompt: hi }\n";
+    let directory = tempfile::tempdir()?;
+    std::fs::write(directory.path().join("root.nika"), root)?;
+    let project = OwnedDir::open(directory.path())?;
+    let service = nika_execution::ExecutionService::default();
+    let mut stamped = Vec::new();
+    for configured in [false, true] {
+        let admitted = service.admit_with_model_override(&project, Path::new("root.nika"), None)?;
+        let session = service.begin(admitted);
+        let driver = ServiceExecutionDriver::new(session.context(), directory.path())
+            .ok_or("admitted context lost its root")?;
+        let plan =
+            access::resolve_plan_over(driver.workflow(), driver.report(), None, Some("mock"), &[]);
+        let trace = RecordedChildTrace::default();
+        let lane = trace.clone();
+        let mirror: MirrorFactory = Arc::new(move || Box::new(lane.clone()));
+        let mut options = ServiceExecutionOptions::new()
+            .with_access_plan(plan)
+            .with_mirror(mirror);
+        if configured {
+            let mut config = RuntimeConfig::new(None, 0);
+            config.inference_admission = Some(nika_providers::InferenceAdmission::observe_run());
+            options = options.with_runtime_config(config);
+        }
+        let result = driver.execute(options).await?;
+        assert_eq!(result.status(), ServiceExecutionStatus::Succeeded);
+        let events = trace.0.lock().expect("trace lock");
+        stamped.push(
+            events
+                .iter()
+                .filter(|event| event.is_terminal())
+                .any(|event| event.str_field("inference_admission").is_some()),
+        );
+    }
+    assert_eq!(stamped, [false, true], "only the configured Run is metered");
+    Ok(())
+}
+
+/// C6 (moved with the host's file witness) · the files a Run binds, in task
+/// order: a read input, then write targets where only a literal
+/// `create_dirs: true` lets a missing parent through (false, absent and
+/// templated never do); a dynamic path is that task's refusal, in its place.
+#[test]
+fn bound_files_name_reads_writes_and_refusals_in_task_order() -> TestResult<()> {
+    let wf = nika_schema::parse(
+        "nika: t\npermits:\n  tools: [nika:read, nika:write]\n  fs: { read: [./in/**], write: [./out/**] }\ninputs:\n  p: { type: string, default: x }\nconst:\n  mk: true\ntasks:\n  r:\n    invoke: { tool: nika:read, args: { path: ./in/brief.md } }\n  a:\n    invoke: { tool: nika:write, args: { path: ./out/a.txt, content: x, create_dirs: true } }\n  b:\n    invoke: { tool: nika:write, args: { path: ./out/b.txt, content: x, create_dirs: false } }\n  c:\n    invoke: { tool: nika:write, args: { path: ./out/c.txt, content: x } }\n  d:\n    invoke: { tool: nika:write, args: { path: ./out/d.txt, content: x, create_dirs: \"${{ const.mk }}\" } }\n  e:\n    invoke: { tool: nika:read, args: { path: \"${{ inputs.p }}\" } }\n",
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )?;
+    let bound = run_cost::bound_files(&wf);
+    let file = |path: &str, write| {
+        Ok(run_cost::BoundFile {
+            path: PathBuf::from(path),
+            write,
+        })
+    };
+    assert_eq!(
+        bound,
+        [
+            file("in/brief.md", None),
+            file("out/a.txt", Some(true)),
+            file("out/b.txt", Some(false)),
+            file("out/c.txt", Some(false)),
+            file("out/d.txt", Some(false)),
+            Err(run_cost::RunShapeError::DynamicPath),
+        ]
+    );
+    Ok(())
+}
+
+/// C6 · Run readiness (moved from the host with its law): an unbounded unknown
+/// route, a wrong endpoint, no model and a declared-free shape, judged here.
+const READINESS_MODEL: &str = "openai/gpt-oss-120b";
+const READINESS_SOURCE: &str = "nika: bounded\nmodel: openai/gpt-oss-120b\ntasks:\n  draft:\n    infer: { prompt: text, max_tokens: 32, schema: { type: string } }\n";
+
+fn readiness_plan() -> nika_providers::ExecutionAccessPlan {
+    use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
+    nika_providers::resolve_execution_plan(
+        &[nika_providers::ModelNeed::new(READINESS_MODEL, true, false)],
+        &[ProviderProbe::new(
+            "openai",
+            true,
+            true,
+            "OPENAI_API_KEY",
+            false,
+            ProviderReadiness::new(
+                true,
+                true,
+                None,
+                None,
+                true,
+                ExecutionLocus::Cloud,
+                nika_types::access::AccessClass::Api,
+            ),
+            "https://api.scaleway.ai/example-project/v1",
+        )],
+        Some("api"),
+    )
+}
+
+fn readiness_parsed(source: &str) -> RawWorkflow {
+    nika_schema::parse(
+        source,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .unwrap()
+}
+
+#[test]
+fn unbounded_unknown_and_wrong_endpoint_stay_unready() {
+    let wf = readiness_parsed(&READINESS_SOURCE.replace(", max_tokens: 32", ""));
+    let config = nika_providers::ProvidersConfig::new()
+        .with_base_url("openai", "https://api.scaleway.ai/example-project/v1");
+    let blocker = run_cost::readiness(&wf, &readiness_plan(), &config).unwrap();
+    assert!(blocker.contains("cannot obtain a bounded choice"));
+    let config =
+        nika_providers::ProvidersConfig::new().with_base_url("openai", "http://localhost:12345/v1");
+    assert!(
+        run_cost::readiness(
+            &readiness_parsed(READINESS_SOURCE),
+            &readiness_plan(),
+            &config
+        )
+        .is_some()
+    );
+}
+
+#[test]
+fn no_model_plan_has_no_monetary_blocker() {
+    let plan = nika_providers::resolve_execution_plan(&[], &[], None);
+    let wf = readiness_parsed(
+        "nika: local\npermits: { tools: ['nika:assert'] }\ntasks:\n  ok:\n    invoke: { tool: 'nika:assert', args: { condition: true } }\n",
+    );
+    assert_eq!(
+        run_cost::readiness(&wf, &plan, &nika_providers::ProvidersConfig::new()),
+        None
+    );
+}
+
+/// C2 · Check mirrors the Run: bounded text on an exact declared-free route
+/// is run ready; the same route with vision is not, and says which task.
+#[test]
+fn a_declared_free_route_is_ready_for_text_and_names_an_unsupported_shape() {
+    use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
+    let free = "openrouter/qwen/qwen3.8-27b:free";
+    let plan = nika_providers::resolve_execution_plan(
+        &[nika_providers::ModelNeed::new(free, true, false)],
+        &[ProviderProbe::new(
+            "openrouter",
+            true,
+            true,
+            "OPENROUTER_API_KEY",
+            false,
+            ProviderReadiness::new(
+                true,
+                true,
+                None,
+                None,
+                true,
+                ExecutionLocus::Cloud,
+                nika_types::access::AccessClass::Api,
+            ),
+            "https://openrouter.ai/api/v1/chat/completions",
+        )],
+        Some("api"),
+    );
+    let text = format!(
+        "nika: free\nmodel: {free}\npermits: {{}}\ntasks:\n  draft:\n    infer: {{ prompt: text, max_tokens: 64 }}\n"
+    );
+    let config = nika_providers::ProvidersConfig::new();
+    assert_eq!(
+        run_cost::readiness(&readiness_parsed(&text), &plan, &config),
+        None
+    );
+    let vision = text.replace(
+        "max_tokens: 64",
+        "max_tokens: 64, vision: [{ source: file, path: './image.png' }]",
+    );
+    let blocker = run_cost::readiness(&readiness_parsed(&vision), &plan, &config).unwrap();
+    assert!(blocker.contains("task `draft`"), "{blocker}");
+    assert!(blocker.contains("with vision"), "{blocker}");
+}
+
+/// A probe source planning can be caught reading: one codex seat row.
+fn codex_rows() -> Vec<nika_providers::probe::ProviderProbe> {
+    vec![codex_probe()]
+}
+
+const MODEL_FREE: &str = "nika: root\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  one:\n    invoke: { tool: \"nika:jq\", args: { input: 1, expression: \".\" } }\n";
+
+/// C5 (d) · a model-free world never collects this machine's rows (no
+/// harness CLI is spawned for its plan): with no pin and no static lane the
+/// plan is the same for ANY rows, so the lazy plan equals the eager one.
+#[test]
+fn a_model_free_world_never_collects_probe_rows() -> TestResult<()> {
+    let mut driver = admitted_driver(&[("root.nika", MODEL_FREE)])?;
+    driver.probe_source = codex_rows;
+    let lazy = driver.resolve_access_plan(None, None);
+    assert!(driver.access_probes.get().is_none(), "no row was collected");
+    assert_eq!(
+        lazy,
+        driver.resolve_access_plan_over(None, None, &codex_rows())
+    );
+    assert_eq!(lazy, driver.resolve_access_plan_over(None, None, &[]));
+    let overridden = driver.resolve_access_plan(Some("mock/echo"), None);
+    assert!(
+        driver.access_probes.get().is_none(),
+        "an override alone adds no lane"
+    );
+    assert_eq!(
+        overridden,
+        driver.resolve_access_plan_over(Some("mock/echo"), None, &codex_rows())
+    );
+    Ok(())
+}
+
+/// A pin or a static model lane reads the rows exactly as the eager driver
+/// did, and one collection serves every later plan.
+#[test]
+fn a_pin_or_a_static_lane_collects_the_rows() -> TestResult<()> {
+    let mut pinned = admitted_driver(&[("root.nika", MODEL_FREE)])?;
+    pinned.probe_source = codex_rows;
+    let plan = pinned.resolve_access_plan(None, Some("codex"));
+    assert_eq!(
+        pinned.access_probes.get().map(Vec::len),
+        Some(1),
+        "a pin reads the rows"
+    );
+    assert_eq!(
+        plan,
+        pinned.resolve_access_plan_over(None, Some("codex"), &codex_rows())
+    );
+    let root = "nika: root\nmodel: openai/gpt-4.1\ntasks:\n  say:\n    infer: { prompt: hi }\n";
+    let mut modeled = admitted_driver(&[("root.nika", root)])?;
+    modeled.probe_source = codex_rows;
+    let plan = modeled.resolve_access_plan(None, None);
+    assert_eq!(
+        plan.seat.as_deref(),
+        Some("codex"),
+        "the static lane read the rows"
+    );
+    assert_eq!(
+        plan,
+        modeled.resolve_access_plan_over(None, None, &codex_rows())
+    );
+    modeled.probe_source = Vec::new;
+    assert_eq!(
+        modeled.resolve_access_plan(None, None),
+        plan,
+        "the collected snapshot serves later plans; the source is not read again"
+    );
+    Ok(())
+}
+
+/// The whole captured world counts: a model-free parent collects nothing,
+/// and its child's static model lane collects the family's rows at the
+/// child's own planning (a resumed leg plans through the same door).
+#[test]
+fn a_model_free_parent_collects_rows_when_its_child_plans_a_static_lane() -> TestResult<()> {
+    let root = "nika: root\ntasks:\n  call:\n    invoke: { workflow: ./child.nika }\n";
+    let child =
+        "nika: child\nmodel: openai/gpt-4.1\ntasks:\n  say:\n    infer: { prompt: child }\n";
+    let mut driver = admitted_driver(&[("root.nika", root), ("child.nika", child)])?;
+    driver.probe_source = codex_rows;
+    let root_plan = driver.resolve_access_plan(None, None);
+    assert!(root_plan.lanes.is_empty());
+    assert!(
+        driver.access_probes.get().is_none(),
+        "the parent alone reads no row"
+    );
+    let runtime = driver.compose("")?.with_access_plan(root_plan)?;
+    let child_driver = &runtime.child_driver;
+    let (_, _, workflow, report) = child_driver
+        .load_child(&child_call())
+        .map_err(|error| std::io::Error::other(error.message))?;
+    let child_plan = child_driver.child_access_plan(&workflow, &report);
+    assert_eq!(
+        child_plan.seat.as_deref(),
+        Some("codex"),
+        "the child's lane read the rows"
+    );
+    assert_eq!(
+        driver.access_probes.get().map(Vec::len),
+        Some(1),
+        "one cell for the driver family"
+    );
+    Ok(())
+}
+
+/// Rows a host attaches preset the child's cell: the source is never read.
+#[test]
+fn attached_rows_preset_the_child_cell_without_collecting() -> TestResult<()> {
+    let root = "nika: root\ntasks:\n  call:\n    invoke: { workflow: ./child.nika }\n";
+    let child =
+        "nika: child\nmodel: openai/gpt-4.1\ntasks:\n  say:\n    infer: { prompt: child }\n";
+    let mut driver = admitted_driver(&[("root.nika", root), ("child.nika", child)])?;
+    driver.probe_source = codex_rows;
+    let runtime = driver
+        .compose("")?
+        .with_access_probes(Vec::new())
+        .with_access_plan(driver.resolve_access_plan(None, None))?;
+    let child_driver = &runtime.child_driver;
+    let (_, _, workflow, report) = child_driver
+        .load_child(&child_call())
+        .map_err(|error| std::io::Error::other(error.message))?;
+    let child_plan = child_driver.child_access_plan(&workflow, &report);
+    assert!(
+        child_plan.seat.is_none(),
+        "the attached (empty) rows, not the source"
+    );
+    assert!(
+        driver.access_probes.get().is_none(),
+        "the parent never collected"
+    );
+    Ok(())
+}
+
+/// C6 · a transport caller's provenance: each bound key is the caller's, an
+/// unbound defaulted input stays the file's, an unbound input with no default
+/// has no origin (absent is honest), and a bound default becomes the caller's.
+#[test]
+fn caller_origins_mark_bound_keys_and_keep_default_file_provenance() -> TestResult<()> {
+    let source = "nika: bound\ninputs:\n  ticket: {type: string, required: true}\n  region: {type: string, default: eu}\n  note: {type: string, required: false}\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";
+    let wf = nika_schema::parse(source, FileId::new(0), ParseMode::Strict)?;
+    let bound = BTreeMap::from([("ticket".to_owned(), serde_json::json!("T-1"))]);
+    let expected = BTreeMap::from([
+        ("region".to_owned(), InputOrigin::File),
+        ("ticket".to_owned(), InputOrigin::ApiCaller),
+    ]);
+    assert_eq!(
+        caller::caller_origins(&wf, &bound, InputOrigin::ApiCaller),
+        expected
+    );
+    let both = BTreeMap::from([
+        ("ticket".to_owned(), serde_json::json!("T-1")),
+        ("region".to_owned(), serde_json::json!("us")),
+    ]);
+    let origins = caller::caller_origins(&wf, &both, InputOrigin::ApiCaller);
+    assert_eq!(origins.get("region"), Some(&InputOrigin::ApiCaller));
+    assert_eq!(origins.get("note"), None);
     Ok(())
 }

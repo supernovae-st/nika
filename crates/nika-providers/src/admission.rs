@@ -7,17 +7,26 @@ use nika_types::cost::Cost;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 mod declared;
+mod observation;
 mod review;
 pub use review::{
     CapEvidence, CostChallenge, CostHostEvidence, CostResponse, CostReview, CostRoute,
     PendingCostReview, RUN_REVIEW_MAX_OUTPUT_TOKENS, RUN_REVIEW_TIMEOUT,
     SESSION_REVIEW_MAX_OUTPUT_TOKENS, SESSION_REVIEW_MAX_REQUESTS, SESSION_REVIEW_TIMEOUT,
-    monetary_default, native_catalog_price_known,
+    monetary_default, native_catalog_price_known, unknown_cost_route,
 };
+mod scope;
 mod unknown;
 pub use declared::{DeclaredTariff, TariffUnit};
+pub use observation::{
+    observation_consistent, observation_readable, observation_request_ids, observation_route,
+};
 pub use unknown::{HardMonetaryCap, UnknownAttemptReceipt, UnknownCostChoice, UnknownCostPolicy};
 
+#[cfg(test)]
+mod observation_tests;
+#[cfg(test)]
+mod scope_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
@@ -65,10 +74,21 @@ pub struct AttemptReceipt {
     /// Outcome, including unknown charge and pre-dispatch rejection.
     pub note: String,
 }
+impl AttemptReceipt {
+    /// The endpoint's origin ([`crate::route_origin`]): what a durable record
+    /// names in its place. `None` when it has none to project.
+    #[must_use]
+    pub fn origin(&self) -> Option<String> {
+        crate::route_origin(&self.endpoint)
+    }
+}
 /// A snapshot of actual local decisions. No field grants execution authority.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct InferenceReceipt {
+    /// Only exact declared-free routes are observed by this account. Its
+    /// subtotal cannot describe excluded paid, local or unknown-cost work.
+    pub scoped_to_declared_free: bool,
     /// Explicit unknown-cost scope, absent for strict numeric admission.
     pub unknown_cost: Option<UnknownCostChoice>,
     /// Sent calls excluded from the known USD subtotal, never priced as zero.
@@ -103,7 +123,7 @@ pub struct InferenceReceipt {
 #[derive(Debug)]
 struct State {
     unknown: Option<UnknownCostChoice>,
-    unknown_active: bool,
+    unknown_in_flight: u32,
     unknown_attempts: Vec<UnknownAttemptReceipt>,
     overridden_defaults: [Option<Cost>; 2],
     limit: Cost,
@@ -117,7 +137,7 @@ struct State {
 }
 /// Clones share the same atomic allowance across factories, repairs and revisions.
 #[derive(Clone, Debug)]
-pub struct InferenceAdmission(Arc<Mutex<State>>, bool);
+pub struct InferenceAdmission(Arc<Mutex<State>>, scope::HandleScope);
 
 pub(crate) fn denied(reason: impl Into<String>) -> ProviderError {
     ProviderError::AdmissionDenied {
@@ -162,7 +182,7 @@ impl InferenceAdmission {
         Self(
             Arc::new(Mutex::new(State {
                 unknown: None,
-                unknown_active: false,
+                unknown_in_flight: 0,
                 unknown_attempts: Vec::new(),
                 overridden_defaults: [None, None],
                 limit,
@@ -174,7 +194,10 @@ impl InferenceAdmission {
                 refusal: None,
                 attempts: Vec::new(),
             })),
-            true,
+            scope::HandleScope {
+                bound: true,
+                routes: scope::RouteSelection::All,
+            },
         )
     }
     fn lock(&self) -> Result<MutexGuard<'_, State>, ProviderError> {
@@ -228,6 +251,7 @@ impl InferenceAdmission {
     pub fn snapshot(&self) -> Result<InferenceReceipt, ProviderError> {
         let s = self.lock()?;
         Ok(InferenceReceipt {
+            scoped_to_declared_free: self.observes_declared_free_only(),
             unknown_cost: s.unknown.clone(),
             unknown_calls: s
                 .unknown_attempts
@@ -284,6 +308,11 @@ impl InferenceAdmission {
         endpoint: &str,
         output: u32,
     ) -> Result<Attempt, ProviderError> {
+        if !self.tracks_route(provider, model, endpoint) {
+            return Err(denied(
+                "route is outside this declared-free observation account",
+            ));
+        }
         if let Some(attempt) = self.reserve_unknown(provider, model, endpoint, output)? {
             return Ok(Attempt::Unknown(attempt));
         }
@@ -299,7 +328,7 @@ impl InferenceAdmission {
         let Ok(total) = s.committed().and_then(|committed| add(committed, quote)) else {
             return Err(s.refuse("admission arithmetic overflow"));
         };
-        if !s.unbudgeted && (s.limit.nano_usd == 0 || total.nano_usd > s.limit.nano_usd) {
+        if !s.unbudgeted && total.nano_usd > s.limit.nano_usd {
             return Err(
                 s.refuse("remaining catalog allowance cannot cover the full-context reservation")
             );
@@ -350,6 +379,13 @@ impl Attempt {
             Self::Unknown(a) => a.settle(response),
         }
     }
+    /// A received 429/503 settles an unknown-cost attempt as answered; every
+    /// other attempt and status keeps its drop semantics.
+    pub(crate) fn answered(&mut self, status: u16, final_url: &str) {
+        if let Self::Unknown(a) = self {
+            a.answered(status, final_url);
+        }
+    }
 }
 pub(crate) struct PricedAttempt {
     account: InferenceAdmission,
@@ -367,8 +403,7 @@ impl PricedAttempt {
         }
         let mut s = self.account.lock()?;
         if s.status != AdmissionState::Open
-            || (!s.unbudgeted
-                && (s.committed()?.nano_usd > s.limit.nano_usd || s.limit.nano_usd == 0))
+            || (!s.unbudgeted && s.committed()?.nano_usd > s.limit.nano_usd)
         {
             return Err(s.refuse("allowance revoked or lowered before dispatch"));
         }
@@ -414,8 +449,11 @@ impl PricedAttempt {
         s.active = Cost::new(s.active.nano_usd - self.quote.nano_usd);
         s.estimated = total;
         s.attempts[self.id].estimated = Some(cost);
-        s.attempts[self.id].note =
-            "complete usage priced at pinned catalog tariff; invoice unknown".into();
+        s.attempts[self.id].note = if self.tariff.provider == "openrouter" && self.quote == Cost::zero() {
+            "complete usage priced at pinned catalog tariff; provider-reported usage.cost=0, non-BYOK; invoice unknown"
+        } else {
+            "complete usage priced at pinned catalog tariff; invoice unknown"
+        }.into();
         self.done = true;
         Ok(())
     }
@@ -448,9 +486,15 @@ impl Drop for PricedAttempt {
 #[path = "admission/wire_tests.rs"]
 mod wire_tests;
 
+#[cfg(test)]
+#[path = "admission/zero_wire_tests.rs"]
+mod zero_wire_tests;
+
 impl InferenceReceipt {
-    /// Durable observation for traces/recovery, NEVER restorable execution
-    /// authority. Old receipts are not recomputed against the current catalog.
+    /// The exact observation (`@1`), naming every endpoint whole, NEVER
+    /// restorable execution authority. `durable_observation` is its durable form
+    /// (`@2`, origins in place of endpoints) that a record should keep. Old
+    /// receipts are not recomputed against the current catalog.
     /// Nano-currency amounts are decimal strings to preserve the full i128 range.
     /// Only an unbudgeted receipt carries `"unbudgeted": true`, with a null limit.
     #[must_use]
@@ -482,6 +526,9 @@ impl InferenceReceipt {
         });
         if self.unbudgeted {
             observation["unbudgeted"] = serde_json::Value::Bool(true);
+        }
+        if self.scoped_to_declared_free {
+            observation["scoped_to_declared_free"] = serde_json::Value::Bool(true);
         }
         observation
     }

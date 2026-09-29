@@ -8,7 +8,10 @@ use crate::reasoner::ScriptedReasoner;
 use crate::runtime::tests::{COPY, COPY_DEST, Failing, SMALL_TALK, ready};
 use std::sync::{Arc, atomic::AtomicUsize};
 
-const CURRENT: &str = "Prépare la copie de entree.txt dans sortie.txt, budget 0,50 dollar.";
+// A request that needs a model (R4 A6): the copy this fixture used to state became deterministic
+// work once its « budget 0,50 dollar » stopped reading as an unresolved business clause.
+const CURRENT: &str =
+    "Prépare un résumé en trois points de entree.txt dans sortie.txt, budget 0,50 dollar.";
 const DRAFT: &str = "Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md";
 
 fn notes(root: &Path) {

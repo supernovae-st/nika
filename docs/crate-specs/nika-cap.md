@@ -19,6 +19,13 @@
 
 ## 1. Purpose
 
+The current crate also owns pure builtin argument-shape checks. The
+`fetch_response` module validates the closed single-fetch response policy
+defined by `nika-spec stdlib/builtins-v0.1.md`: the checker defers unresolved
+expressions while still checking literal siblings, and the builtin consumes
+the strict resolved parser. A parsed status list grants no network authority.
+The shared size bound and traverse exclusions live in `nika-types::net`.
+
 `nika-cap` is the canonical home for the **declared capability boundary**
 vocabulary — the `permits:` block (spec `01-envelope.md` §permits): the
 workflow author's entire blast radius, declared in-file, as data (`Permits`,
@@ -200,6 +207,36 @@ the pure algebra today, unwired, costs ~110 LOC and mirrors the
 reservations this codebase already carries for `InferRequest`/`CatalogEntry`.
 Wiring either into `nika-policy` is explicitly **out of scope** for this
 admission.
+
+### 3.4 The jq std shadows and their probe set (`expr.rs`)
+
+`JQ_STD_SHADOWS` (`src/jq_std_shadows.jq`) is the one text every jq consumer
+chains after jaq-json, beside `JQ_CLOCK_DEFS`: the `nika:jq` builtin, output
+bindings, the static checker and the compile verifier. It holds the
+runtime's corrections to jaq's std:
+
+- `scan(re; flags)` and `scan(re)` are global, as jq defines them (jaq-std
+  3.0.x yields the first match only).
+- `tonumber` emits exactly one finite number. A number operand is kept; a
+  text is read with `fromjson` and must hold one JSON number. Empty or
+  whitespace-only text, several values, non-numbers, NaN, `Infinity`,
+  `-Infinity` and an overflowing text such as `1e400` fail. A non-finite
+  value fails with `tonumber: not a finite number` before any predicate,
+  comparison, sort, minimum, maximum or aggregate reads it, and the message
+  prints no cell text. An explicit `try` or `?` still owns its skip policy.
+
+Named limits: `fromjson` is unchanged and still reads NaN, the infinities and
+overflowing decimals, and values a program computes (`infinite`, `1 / 0`,
+`pow(10; 400)`) are not guarded. A text that is not JSON fails with the
+reader's own message, which quotes the text; naming the field or column
+belongs to the programs the typed compiler emits.
+
+`JQ_STD_SHADOW_PROBES` (`src/jq_std_shadows_probes.json`) is data, not
+behaviour: `shadows` lists each definition the text defines (`name/arity`),
+and each probe holds a program, its input and either its one output or an
+error text the consumer's refusal contains. The three evaluators run every
+probe; the checker compiles every program and loads every shadow. Both are
+additive constants, and the crate keeps no jaq dependency.
 
 ---
 
@@ -451,3 +488,5 @@ the workflow vocabulary leaves (types · error · catalog · cap). The exemption
 the conscious DAG decision ADR-027 requires; the alternative (keeping permits
 inline) would deny `nika-policy`/runtime the lean, parser-free reuse that is the
 whole reason to extract `nika-cap`.
+
+The standalone-invoke context law is exported as `builtin_invoke_refusal`. Both static checking and builtin discovery use it: `nika:done` and `nika:compose` require the agent loop. An absent refusal is not proof of valid arguments, permits or an installed unknown tool. Compose checks a draft; it does not spawn or run it.

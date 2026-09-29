@@ -8,6 +8,50 @@ use nika_kernel::ai::provider::{InferEvent, InferRequest, Message, Role};
 
 use super::openai_compat::{infer, infer_stream};
 use crate::test_support::{FakeHttp, collect, resolved_with};
+use serde_json::json;
+
+/// A present field is not a measured count. Neither wire door may turn an absent,
+/// malformed or partial pair into reported zero usage.
+#[tokio::test]
+async fn both_usage_doors_require_a_valid_pair_of_token_counts() {
+    for (usage, reported) in [
+        (json!(null), false),
+        (json!({}), false),
+        (json!({"prompt_tokens": 4}), false),
+        (json!({"completion_tokens": 2}), false),
+        (json!({"prompt_tokens": "4", "completion_tokens": 2}), false),
+        (json!({"prompt_tokens": 4, "completion_tokens": -2}), false),
+        (json!({"prompt_tokens": 4.5, "completion_tokens": 2}), false),
+        (
+            json!({"prompt_tokens": 4, "completion_tokens": null}),
+            false,
+        ),
+        (json!({"prompt_tokens": 4, "completion_tokens": 2}), true),
+        (json!({"prompt_tokens": 0, "completion_tokens": 0}), true),
+    ] {
+        let body = json!({"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}], "usage": usage});
+        let fake = FakeHttp::with_json(200, &body.to_string());
+        let rp = resolved_with(&fake, "openai", "sk-test");
+        let response = infer(&rp, req(vec![Message::text(Role::User, "x")]))
+            .await
+            .expect("content");
+        assert_eq!(response.usage_reported, reported, "{usage}");
+        let sse = format!("data: {{\"choices\":[],\"usage\":{usage}}}\n\ndata: [DONE]\n\n");
+        let fake = FakeHttp::with_stream(200, &sse, 8);
+        let rp = resolved_with(&fake, "openai", "sk-test");
+        let stream = infer_stream(&rp, req(vec![Message::text(Role::User, "x")]))
+            .await
+            .expect("opens");
+        let events = collect(stream).await;
+        assert_eq!(
+            events
+                .iter()
+                .any(|event| matches!(event, Ok(InferEvent::Usage(_)))),
+            reported,
+            "{usage}"
+        );
+    }
+}
 
 fn req(messages: Vec<Message>) -> InferRequest {
     InferRequest::new("test-model", messages)

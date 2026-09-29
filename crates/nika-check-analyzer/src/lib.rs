@@ -40,6 +40,7 @@
     )
 )]
 
+mod builtin_floor;
 mod builtin_shape;
 mod capacity;
 mod dag;
@@ -50,6 +51,7 @@ mod jq_lint;
 pub mod model_scope;
 pub mod native_first;
 pub mod read_paths;
+mod rendered;
 mod scan;
 mod schema_lint;
 mod schema_paths;
@@ -58,6 +60,7 @@ pub mod settle;
 pub mod silent_literal;
 pub mod static_args;
 mod static_ref;
+mod task_scope;
 mod thinking;
 pub mod types_contract;
 
@@ -68,9 +71,14 @@ use nika_schema::raw::{RawTask, RawWorkflow};
 use nika_schema::source::Spanned;
 use nika_schema::types::AfterPredicate;
 
+pub use builtin_floor::{priced_builtin_floor, unpriced_cloud_seat};
 pub use capacity::{CapacityFinding, capacity_findings};
 pub use edges::{Edge, EdgeKind, RecoveryRead, Route, SettledState, role_of_field, witness_routes};
+pub use rendered::{
+    rendered_collections, rendered_models, resolve_model_expr, resolved_infer_models,
+};
 pub use static_ref::{bare_static_ref, static_literal_of};
+pub use task_scope::scope_to_task;
 pub use thinking::{
     MIN_REASONING_MAX_TOKENS, REASONING_COMFORT_MAX_TOKENS, ThinkingFinding, catalog_knows,
     reasoning_cap_hints, thinking_findings,

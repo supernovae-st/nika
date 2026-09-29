@@ -151,13 +151,14 @@ fn display_uses_the_account_catalog_and_keeps_native_currency_separate() {
     assert!(!text.contains("/v1/chat/completions"), "{text}");
     let details = p.challenge().details();
     for fact in [
-        "Endpoint: https://api.scaleway.ai/v1/chat/completions\n",
+        "Origin: https://api.scaleway.ai:443\n",
         "Source SHA-256: sha-source\n",
         "Input SHA-256: sha-inputs\n",
         "no currency conversion",
     ] {
         assert!(details.contains(fact), "{fact}: {details}");
     }
+    assert!(!details.contains("/v1/chat/completions"), "{details}");
 }
 
 /// A review whose every identity is a token no sentence of the copy contains.
@@ -223,19 +224,22 @@ fn the_first_screen_reads_as_one_decision_and_keeps_identities_on_details() {
         );
     }
     let details = c.details();
+    assert!(!details.contains(&c.route.endpoint), "{details}");
     for evidence in [
         format!("challenge {}", c.nonce),
-        format!("Endpoint: {}\n", c.route.endpoint),
+        format!("Origin: {}\n", c.route.origin()),
         "Source SHA-256: src-7f3a\n".into(),
         "Input SHA-256: in-7f3a\n".into(),
         "Candidate: cand-7f3a\n".into(),
         "Invocation: inv-7f3a\n".into(),
         "Native currency: price and invoice unknown\n".into(),
         "Host and cap evidence: candidate cand-7f3a".into(),
-        "NotApplicable".into(),
+        // Each layer reads as its public view, never a debug dump.
+        r#""class":"not_applicable""#.into(),
     ] {
         assert!(details.contains(&evidence), "{evidence}: {details}");
     }
+    assert!(!details.contains("NotApplicable"), "{details}");
     assert!(details.ends_with("\nContinue once? yes / no"), "{details}");
 }
 
@@ -253,6 +257,10 @@ fn both_screens_are_pure_projections_of_the_same_challenge() {
     );
 }
 
+/// The first screen shows the URL parser's origin without its default port: a
+/// canonical route keeps the exact value it always showed, a credential or a
+/// form with no origin reads `unknown origin` (refused, never stripped), and
+/// no path, backslash form included, ever reaches it.
 #[test]
 fn the_origin_keeps_scheme_and_host_and_the_body_drops_only_the_closing_line() {
     for (endpoint, shown) in [
@@ -262,10 +270,14 @@ fn the_origin_keeps_scheme_and_host_and_the_body_drops_only_the_closing_line() {
         ),
         (
             "https://user:secret@h.example:8443/v1?key=x#frag",
-            "https://h.example:8443",
+            "unknown origin",
         ),
         ("https://api.deepseek.com", "https://api.deepseek.com"),
-        ("host.example/v1", "host.example"),
+        ("host.example/v1", "unknown origin"),
+        ("https://gw.example\\secret\\v1", "https://gw.example"),
+        ("https://Gw.Example:443/v1", "https://gw.example"),
+        ("https://h.example:8443/v1", "https://h.example:8443"),
+        ("http://[::1]:8080/v1", "http://[::1]:8080"),
     ] {
         assert_eq!(origin(endpoint), shown, "{endpoint}");
     }

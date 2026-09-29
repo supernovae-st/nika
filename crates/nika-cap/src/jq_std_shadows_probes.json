@@ -1,0 +1,179 @@
+{
+  "shadows": ["scan/1", "scan/2", "tonumber/0"],
+  "probes": [
+    {
+      "name": "one_operand_is_exactly_one_number",
+      "program": "[.[] | try tonumber catch .]",
+      "input": ["", " \t\n", "1 2"],
+      "output": ["cannot parse as one number", "cannot parse as one number", "cannot parse as one number"]
+    },
+    {
+      "name": "a_json_text_that_is_not_a_number_is_refused",
+      "program": "[.[] | try tonumber catch .]",
+      "input": ["null", "true", "[]", "{}"],
+      "output": ["cannot parse as one number", "cannot parse as one number", "cannot parse as one number", "cannot parse as one number"]
+    },
+    {
+      "name": "a_text_that_is_not_json_is_refused",
+      "program": "[.[] | try tonumber catch \"refused\"]",
+      "input": ["abc", "12abc", "0x10", "nan"],
+      "output": ["refused", "refused", "refused", "refused"]
+    },
+    {
+      "name": "a_value_neither_text_nor_number_is_refused",
+      "program": "[.[] | try tonumber catch .]",
+      "input": [null, false, [], {}],
+      "output": ["cannot parse as one number", "cannot parse as one number", "cannot parse as one number", "cannot parse as one number"]
+    },
+    {
+      "name": "a_number_text_keeps_its_value",
+      "program": "[.[] | tonumber]",
+      "input": ["0", " 12 ", "-2.5", "1e2", "18446744073709551615"],
+      "output": [0, 12, -2.5, 100.0, 18446744073709551615]
+    },
+    {
+      "name": "a_number_operand_is_itself",
+      "program": "[.[] | tonumber]",
+      "input": [42, -2.5, 0],
+      "output": [42, -2.5, 0]
+    },
+    {
+      "name": "an_explicit_try_keeps_its_skip_policy",
+      "program": "[.[] | try tonumber] | add",
+      "input": ["", "abc", "2"],
+      "output": 2
+    },
+    {
+      "name": "fromjson_keeps_its_stream",
+      "program": "[fromjson]",
+      "input": "1 2",
+      "output": [1, 2]
+    },
+    {
+      "name": "an_uncaught_refusal_is_named",
+      "program": "[.[] | tonumber] | add",
+      "input": ["", "2"],
+      "error": "cannot parse as one number"
+    },
+    {
+      "name": "a_non_finite_text_is_refused_by_name",
+      "program": "[.[] | try tonumber catch .]",
+      "input": ["NaN", "Infinity", "-Infinity", "+Infinity", "1e400", "-1e400"],
+      "output": ["tonumber: not a finite number", "tonumber: not a finite number", "tonumber: not a finite number", "tonumber: not a finite number", "tonumber: not a finite number", "tonumber: not a finite number"]
+    },
+    {
+      "name": "a_non_finite_number_operand_is_refused_by_name",
+      "program": "[infinite, -infinite, nan] | map(try tonumber catch .)",
+      "input": null,
+      "output": ["tonumber: not a finite number", "tonumber: not a finite number", "tonumber: not a finite number"]
+    },
+    {
+      "name": "a_predicate_never_drops_nan",
+      "program": "try ([.[] | tonumber | select(. > 5)] | length) catch .",
+      "input": ["NaN", "7"],
+      "output": "tonumber: not a finite number"
+    },
+    {
+      "name": "a_predicate_never_keeps_nan",
+      "program": "try ([.[] | tonumber | select(. < 0)] | length) catch .",
+      "input": ["NaN", "7"],
+      "output": "tonumber: not a finite number"
+    },
+    {
+      "name": "a_comparison_never_reads_nan",
+      "program": "try ((.[0] | tonumber) < (.[1] | tonumber)) catch .",
+      "input": ["NaN", "1"],
+      "output": "tonumber: not a finite number"
+    },
+    {
+      "name": "a_sort_never_reads_infinity",
+      "program": "try ([.[] | tonumber] | sort | map(tostring)) catch .",
+      "input": ["Infinity", "1"],
+      "output": "tonumber: not a finite number"
+    },
+    {
+      "name": "a_sort_key_never_reads_nan",
+      "program": "try (sort_by(tonumber) | .[0]) catch .",
+      "input": ["1", "NaN"],
+      "output": "tonumber: not a finite number"
+    },
+    {
+      "name": "min_and_max_never_read_infinity",
+      "program": "try ([.[] | tonumber] | [min, max] | map(tostring)) catch .",
+      "input": ["-Infinity", "1"],
+      "output": "tonumber: not a finite number"
+    },
+    {
+      "name": "a_sum_never_reads_an_overflow",
+      "program": "try ([.[] | tonumber] | add | tostring) catch .",
+      "input": ["1e400", "1"],
+      "output": "tonumber: not a finite number"
+    },
+    {
+      "name": "an_explicit_try_skips_a_non_finite_operand",
+      "program": "[.[] | try tonumber] | add",
+      "input": ["NaN", "Infinity", "2"],
+      "output": 2
+    },
+    {
+      "name": "a_default_never_hides_the_refusal",
+      "program": "try ((map(tonumber) | add) // 0) catch .",
+      "input": ["NaN", "2"],
+      "output": "tonumber: not a finite number"
+    },
+    {
+      "name": "an_uncaught_non_finite_refusal_is_named",
+      "program": "[.[] | tonumber | select(. > 5)]",
+      "input": ["NaN", "7"],
+      "error": "tonumber: not a finite number"
+    },
+    {
+      "name": "the_refusal_precedes_the_output_guard",
+      "program": "[.[] | tonumber] | sort",
+      "input": ["1", "Infinity"],
+      "error": "tonumber: not a finite number"
+    },
+    {
+      "name": "finite_extremes_keep_their_sign",
+      "program": "[.[] | tonumber | [type, . > 0, . < 0]]",
+      "input": ["1e308", "-1e308", "0", "-0", "5e-324"],
+      "output": [["number", true, false], ["number", false, true], ["number", false, false], ["number", false, false], ["number", true, false]]
+    },
+    {
+      "name": "finite_extremes_keep_their_value",
+      "program": "map(tonumber) == [1e308, -1e308, 0, -0, 5e-324]",
+      "input": ["1e308", "-1e308", "0", "-0", "5e-324"],
+      "output": true
+    },
+    {
+      "name": "finite_extremes_order_and_sum",
+      "program": "map(tonumber) | [min == -1e308, max == 1e308, (sort | first) == -1e308, add > 0]",
+      "input": ["1e308", "-1e308", "0", "-0", "5e-324"],
+      "output": [true, true, true, true]
+    },
+    {
+      "name": "fromjson_still_reads_non_finite_numbers",
+      "program": "[.[] | fromjson | isinfinite or isnan]",
+      "input": ["NaN", "Infinity", "-Infinity", "1e400"],
+      "output": [true, true, true, true]
+    },
+    {
+      "name": "computed_non_finite_numbers_are_not_guarded",
+      "program": "[infinite, -infinite, nan, 1 / 0, pow(10; 400)] | map(isinfinite or isnan)",
+      "input": null,
+      "output": [true, true, true, true, true]
+    },
+    {
+      "name": "scan_is_global",
+      "program": "[scan(\"an\")]",
+      "input": "banana",
+      "output": ["an", "an"]
+    },
+    {
+      "name": "scan_with_flags_is_global",
+      "program": "[scan(\"a\"; \"i\")]",
+      "input": "bAnana",
+      "output": ["A", "a", "a"]
+    }
+  ]
+}

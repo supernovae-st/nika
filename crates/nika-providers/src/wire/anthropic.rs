@@ -54,6 +54,7 @@ where
     if let Some(c) = call {
         c.requested_endpoint = requested_endpoint;
     }
+    crate::dispatch_journal::sent(call.as_ref());
     let resp = http.post(http_req).await.map_err(|e| map_http_err(&e))?;
     *route = crate::retry::BillingRoute::new(
         rp.profile.id.into(),
@@ -122,6 +123,7 @@ fn build_request(
     stream: bool,
     names: &ToolNameMap,
 ) -> Result<HttpRequest, ProviderError> {
+    super::reasoning::unsupported(req, rp.profile.id, &rp.wire_model)?;
     let key = rp.key.as_ref().ok_or_else(|| ProviderError::AuthFailed {
         reason: "anthropic requires an API key".to_owned(),
     })?;

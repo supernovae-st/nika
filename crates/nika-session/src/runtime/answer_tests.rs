@@ -463,11 +463,12 @@ fn an_opaque_identifier_binds_verbatim() {
     assert_eq!(prompts.try_iter().count(), 0, "one token is its own value");
 }
 
-/// Without an intelligence the deterministic law stands — the reply is the value as typed —
-/// and a value question says so; the seat's `model`, the replacement request and the
-/// value questions of a reading session carry no such notice.
+/// Without an intelligence a value binds as typed only when it stands alone — one token, a
+/// JSON literal, a longer value in quotes — and a value question says so (E5 FB2: a sentence
+/// never becomes the value because nothing could read it); the seat's `model`, the
+/// replacement request and the value questions of a reading session carry no such notice.
 #[test]
-fn without_an_intelligence_the_reply_is_taken_as_typed_and_the_question_says_so() {
+fn without_an_intelligence_a_value_stands_alone_or_in_quotes_and_the_question_says_so() {
     let root = world();
     let mut s = literal(root.path());
     let key = at_a_skeleton_question(&mut s, "aggregate-by-key");
@@ -476,9 +477,22 @@ fn without_an_intelligence_the_reply_is_taken_as_typed_and_the_question_says_so(
         s.as_typed_notice(&question),
         Some(super::answer::AS_TYPED_NOTICE)
     );
-    let line = "Use euros, the code EUR.";
-    let _ = s.turn(line);
-    assert_eq!(answered(&s, line), Some(format!("(answered {key})")));
+    let asked = s.pending_question_id().expect("waits");
+    let sentence = "Use euros, the code EUR.";
+    let out = s.turn(sentence);
+    assert_eq!(
+        answered(&s, sentence),
+        None,
+        "a sentence was bound: {out:?}"
+    );
+    assert!(
+        matches!(&out, TurnOutcome::Question { question, .. } if question.contains("in quotes")),
+        "{out:?}"
+    );
+    assert_eq!(s.pending_question_id(), Some(asked));
+    let quoted = "\"Use euros, the code EUR.\"";
+    let _ = s.turn(quoted);
+    assert_eq!(answered(&s, quoted), Some(format!("(answered {key})")));
 
     let draft = compile(&CompileRequest::create(
         "Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md",
@@ -496,6 +510,65 @@ fn without_an_intelligence_the_reply_is_taken_as_typed_and_the_question_says_so(
     );
     let (reader, _prompts) = reading(root.path(), vec![]);
     assert_eq!(reader.as_typed_notice(&question), None);
+}
+
+/// E5 FB2 at a path question, no intelligence: « tell me more » and « why is that » are never
+/// the destination; the file name alone binds, and a path with a space binds in quotes —
+/// without its quotes.
+#[test]
+fn without_an_intelligence_a_sentence_is_never_the_path() {
+    for (line, bound) in [
+        ("tell me more", None),
+        ("why is that", None),
+        ("sortie.txt", Some("sortie.txt")),
+        (
+            "\"exports/rapport final.txt\"",
+            Some("exports/rapport final.txt"),
+        ),
+    ] {
+        let root = world();
+        let mut s = literal(root.path());
+        at_the_destination(&mut s);
+        let asked = s.pending_question_id().expect("waits");
+        let out = s.turn(line);
+        let Some(value) = bound else {
+            assert_eq!(answered(&s, line), None, "{line}: {out:?}");
+            assert_eq!(s.pending_question_id(), Some(asked), "{line}");
+            continue;
+        };
+        assert!(
+            matches!(out, TurnOutcome::Proposal { .. }),
+            "{line}: {out:?}"
+        );
+        let source = candidate(&s);
+        assert!(
+            source.contains(&format!("destination_path: \"{value}\""))
+                && source.contains(&format!("write: [\"{value}\"]")),
+            "{line}: {source}"
+        );
+    }
+}
+
+/// The nearest wrong fix (E5 FB2): a door whose answer IS words — here the replacement
+/// request — still takes a sentence as typed without an intelligence; only value questions
+/// ask for the value alone.
+#[test]
+fn without_an_intelligence_a_restatement_still_takes_its_words() {
+    let root = world();
+    let mut s = literal(root.path());
+    at_a_skeleton_question(&mut s, "aggregate-by-key");
+    let mut round = s.authoring.clone().expect("a round");
+    let mut clarification = round.questions[0].clone();
+    clarification.key = "intent.clarification".to_owned();
+    clarification.answer_type = QuestionType::Text;
+    round.questions = vec![clarification];
+    s.authoring = Some(round);
+    let line = "Read ./entree.txt and write it to ./out/copie.txt";
+    let _ = s.turn(line);
+    assert_eq!(
+        answered(&s, line).as_deref(),
+        Some("(answered intent.clarification)")
+    );
 }
 
 // A choice among offered keys (DIALOG-03, 2026-09-24): « Additionne une colonne de ventes.csv

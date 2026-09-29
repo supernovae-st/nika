@@ -389,7 +389,10 @@ async fn attached_knowledge_reaches_the_first_open_generation_with_answers_and_w
         .with_knowledge(world)
         .answer("model", "\"deepseek/deepseek-flash\"");
     let seat = Seat::new([reply(&good())]);
-    let out = compile_with_provider(&request, &seat).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&request, &Judged::approving(&seat))
+        .await
+        .unwrap();
     assert_eq!(seat.calls(), 1);
     assert_eq!(
         out.provenance.authoring.as_ref().unwrap().context[0]["call"],

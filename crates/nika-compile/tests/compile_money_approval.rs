@@ -9,7 +9,7 @@ use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;
-use common::{Provider, keys, policy};
+use common::{Judged, Provider, keys, policy};
 
 /// The reader recognizes every clause; the refund states no approval.
 const AUTOMATIC: &str = "Consulte le client, classe le problème, puis harmonise le ton de la réponse. Rembourse ensuite le client.";
@@ -65,10 +65,12 @@ async fn an_automatic_refund_is_one_closed_choice_never_the_catch_all() {
 #[tokio::test]
 async fn human_first_answer_gates_the_refund_and_forbidden_omits_it() {
     let provider = Provider::new(proposal());
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let judged = Judged::approving(&provider);
     let gated = compile_with_provider(
         &answered(CompileRequest::create(AUTOMATIC).with_authoring_policy(policy()))
             .answer("effect.refund.approval", r#""human_first""#),
-        &provider,
+        &judged,
     )
     .await
     .unwrap();
@@ -97,7 +99,7 @@ async fn human_first_answer_gates_the_refund_and_forbidden_omits_it() {
             .answer("model", r#""mock/echo""#)
             .answer("const.customer_directory", r#""customers.json""#)
             .answer("effect.refund.approval", r#""forbidden""#),
-        &provider,
+        &judged,
     )
     .await
     .unwrap();

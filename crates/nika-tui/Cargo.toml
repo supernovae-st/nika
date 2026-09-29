@@ -29,9 +29,11 @@ unicode-width    = "0.2"
 nika-session     = { path = "../nika-session", version = "0.121.0", default-features = false }   # the live conversation (UX-2): TurnOutcome → beats, L4 lateral like nika-cli
 
 nika-cli-host    = { path = "../nika-cli-host", version = "0.121.0", default-features = false } # live one-use child review, no admission authority
+nika-display     = { path = "../nika-display", version = "0.121.0" }   # the theme seam (Role · verb and state glyphs), already under nika-session and nika-cli-host
 
 [dev-dependencies]
 expectrl = { workspace = true }   # PTY proof · the terminal is restored on every exit path (unix)
+sha2     = { workspace = true }   # the logomark provenance proof: the renditions still name the repository's own mark
 
 [[bin]]
 name = "nika-tui-proto"

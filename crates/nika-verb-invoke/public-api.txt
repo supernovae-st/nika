@@ -38,6 +38,10 @@ pub type nika_verb_invoke::mcp::McpDefsFn = (dyn core::ops::function::Fn() -> al
 #[non_exhaustive] pub enum nika_verb_invoke::VerbInvokeError
 pub nika_verb_invoke::VerbInvokeError::Dispatch
 pub nika_verb_invoke::VerbInvokeError::Dispatch::source: nika_kernel_runtime::tool_executor::ToolExecError
+#[non_exhaustive] pub nika_verb_invoke::VerbInvokeError::ToolReportedDetailed
+pub nika_verb_invoke::VerbInvokeError::ToolReportedDetailed::content_tail: alloc::string::String
+pub nika_verb_invoke::VerbInvokeError::ToolReportedDetailed::meta: nika_kernel_runtime::tool_executor::ToolErrorMeta
+pub nika_verb_invoke::VerbInvokeError::ToolReportedDetailed::tool: alloc::string::String
 pub nika_verb_invoke::VerbInvokeError::ToolReportedError
 pub nika_verb_invoke::VerbInvokeError::ToolReportedError::content_tail: alloc::string::String
 pub nika_verb_invoke::VerbInvokeError::ToolReportedError::spec_code: core::option::Option<alloc::string::String>
@@ -46,6 +50,9 @@ pub nika_verb_invoke::VerbInvokeError::ToolReportedError::transient: bool
 pub nika_verb_invoke::VerbInvokeError::UnresolvableTool
 pub nika_verb_invoke::VerbInvokeError::UnresolvableTool::detail: alloc::string::String
 pub nika_verb_invoke::VerbInvokeError::UnresolvableTool::tool: alloc::string::String
+impl nika_verb_invoke::VerbInvokeError
+pub fn nika_verb_invoke::VerbInvokeError::details(&self) -> core::option::Option<&nika_kernel_runtime::tool_executor::ToolErrorDetails>
+pub fn nika_verb_invoke::VerbInvokeError::details_of(err: &dyn nika_error::traits::NikaErrorCode) -> core::option::Option<&nika_kernel_runtime::tool_executor::ToolErrorDetails>
 impl core::error::Error for nika_verb_invoke::VerbInvokeError
 pub fn nika_verb_invoke::VerbInvokeError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
 impl core::fmt::Debug for nika_verb_invoke::VerbInvokeError

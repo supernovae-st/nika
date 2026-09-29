@@ -7,7 +7,7 @@
 #   sealed outcome_class enum) · the 15 ledger sections (canon/EXCEPTIONS.md ·
 #   SSOT-1 §18) stay AUTHORED and are carried verbatim — editing those is legal.
 # regenerate: python3 scripts/ssot-compiler.py --emit-canon
-# body-sha256: 08be2c088e773fbee89f1f959d815502f29c3c21a52256379b1dc0691fcceb2b
+# body-sha256: 7215e163e8352820d7b6694772ba53270e18d9d3acd86e451afed211e37e36b4
 #   (digest of every byte below the end-of-header line · detached self-hash per PAA-006)
 # ---- end generated header (SSOT-1 §21-23 · the canon flip · C0)
 # nika canonical registry · the single source of truth for Nika canonical facts
@@ -373,7 +373,7 @@ error_codes:
     - { code: NIKA-VAR-002, category: variable_error, transient: "false", failure: "binding cardinality — a jq binding emitted zero or multiple values" }
     - { code: NIKA-VAR-003, category: validation_error, transient: "false", failure: "provably-invalid path into a declared schema (static walk)" }
     - { code: NIKA-VAR-004, category: variable_error, transient: "false", failure: "jq runtime error while evaluating a binding" }
-    - { code: NIKA-VAR-005, category: validation_error, transient: "false", failure: "static expression violation — outside cel-subset/0.1 · chained relation · unknown function · non-boolean when: root · jq compile error" }
+    - { code: NIKA-VAR-005, category: validation_error, transient: "false", failure: "static expression violation — outside cel-subset/0.1 · chained relation · unknown function · non-boolean when: root · jq compile error · single-brace dotted reference lookalike" }
     - { code: NIKA-VAR-006, category: variable_error, transient: "false", failure: "expression type error at evaluation — cross-type compare · non-boolean when: value · for_each over a non-array" }
     - { code: NIKA-VAR-007, category: variable_error, transient: "false", failure: "bytes value substituted into a string position" }
     - { code: NIKA-VAR-008, category: validation_error, transient: "false", failure: "unclosed ${{ opener" }

@@ -38,6 +38,7 @@ pub struct ResidentExecutionCoordinator {
     store: StoreHandle,
     jobs: tokio::sync::mpsc::Sender<ExecutionTask>,
     limits: ServerLimits,
+    reviewed: std::sync::Arc<super::cost_review::Reviewed>,
 }
 
 impl fmt::Debug for ResidentExecutionCoordinator {
@@ -54,11 +55,13 @@ impl ResidentExecutionCoordinator {
         store: StoreHandle,
         jobs: tokio::sync::mpsc::Sender<ExecutionTask>,
         limits: ServerLimits,
+        reviewed: std::sync::Arc<super::cost_review::Reviewed>,
     ) -> Self {
         Self {
             store,
             jobs,
             limits,
+            reviewed,
         }
     }
 
@@ -105,10 +108,15 @@ impl ResidentExecutionCoordinator {
             world,
             access_pin,
             std::collections::BTreeMap::new(),
+            None,
         )
         .await
     }
 
+    /// A reviewed admission (`reviewed`) attaches its captured world and cost
+    /// authority to the created job before its task is queued; any other
+    /// outcome drops it, which settles its account with nothing sent.
+    #[allow(clippy::too_many_arguments)]
     pub(super) async fn admit_manual_inputs(
         &self,
         key: IdempotencyKey,
@@ -117,6 +125,7 @@ impl ResidentExecutionCoordinator {
         world: String,
         access_pin: Option<String>,
         inputs: std::collections::BTreeMap<String, serde_json::Value>,
+        reviewed: Option<(nika_execution::ExecutionSession, super::CostAuthority)>,
     ) -> Result<Admission, ServerError> {
         let permit = self
             .jobs
@@ -137,6 +146,10 @@ impl ResidentExecutionCoordinator {
             .await?;
         match &admission {
             Admission::Created(record) => {
+                if let Some(reviewed) = reviewed {
+                    self.reviewed
+                        .attach(record.id().as_str(), Box::new(reviewed));
+                }
                 permit.send(
                     ExecutionTask::new(record.id().clone(), self.limits.default_max_cost_usd())
                         .with_access_pin(record.access_pin().map(str::to_owned)),

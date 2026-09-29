@@ -85,8 +85,8 @@ room nika run --no-progress --color never "$NAME" --max-cost-usd "$BUDGET" \
 code=$?
 set -e
 [ "$code" -eq 2 ] || fail "nika run --max-cost-usd $BUDGET exited $code, not 2 (the refusal)"
-grep -q '^NIKA-1709 · refusing to start: ' "$RAW/cost-ceiling-run.txt" ||
-  fail "the run did not refuse on its budget (NIKA-1709)"
+grep -q '^NIKA-1709 · refusing to start: ' "$RAW/cost-ceiling-run.txt" \
+  || fail "the run did not refuse on its budget (NIKA-1709)"
 if grep -q 'NIKA-1800' "$RAW/cost-ceiling-run.txt"; then
   fail "the run reached the access check: the budget no longer refuses first"
 fi

@@ -1,0 +1,130 @@
+{
+  "bindings": [
+    {
+      "literal": "./out/shared.json",
+      "role": "path"
+    },
+    {
+      "literal": "./data/people.json",
+      "role": "path"
+    },
+    {
+      "literal": "./out/shared.json",
+      "role": "path"
+    }
+  ],
+  "constraints": [],
+  "effects": [
+    {
+      "evidence": "write them to ./out/shared.json",
+      "policy": "automatic",
+      "policy_literal": null,
+      "target": "./out/shared.json",
+      "verb": "write"
+    }
+  ],
+  "obligations": [],
+  "observed_world": {
+    "observed": [
+      {
+        "columns": [
+          "id",
+          "address"
+        ],
+        "common_columns": [
+          "id",
+          "address"
+        ],
+        "complete": false,
+        "path": "./data/people.json",
+        "peek_sha256": "e14-synthetic-observation",
+        "state": "observed"
+      }
+    ]
+  },
+  "operations": [
+    {
+      "categories": [],
+      "detail": "./data/people.json (name, email)",
+      "evidence": "Read ./data/people.json (name, email)",
+      "op": "read"
+    },
+    {
+      "categories": [],
+      "detail": "people who share an email domain with at least one other person",
+      "evidence": "keep the people whose email domain appears more than once",
+      "op": "compute"
+    }
+  ],
+  "rules": [
+    {
+      "clauses": [],
+      "fields": [
+        "address"
+      ],
+      "jq": "(.records | group_by(.address | split(\"@\")[1]) | map(select(length > 1)) | add // [])",
+      "junction": "and",
+      "lines": false,
+      "program": {
+        "columns": [
+          "address"
+        ],
+        "jq": "(.records | group_by(.address | split(\"@\")[1]) | map(select(length > 1)) | add // [])"
+      },
+      "shape": {
+        "aggregations": [],
+        "columns": [],
+        "derived": [],
+        "descending": false,
+        "distinct": false,
+        "distinct_by": [],
+        "group_by": null,
+        "join_on": null,
+        "limit": null,
+        "renames": [],
+        "sort_by": null
+      },
+      "summary": false,
+      "synthesized": true,
+      "text": "people who share an email domain with at least one other person"
+    }
+  ],
+  "slots": [],
+  "strategy": "cold",
+  "trigger": null,
+  "unknowns": [],
+  "verified_transform": {
+    "attempts": 1,
+    "detail": "people who share an email domain with at least one other person",
+    "evidence": "keep the people whose email domain appears more than once",
+    "fields": [
+      {
+        "answer": "address",
+        "name": "email"
+      }
+    ],
+    "intent": "Read ./data/people.json (name, email), keep the people whose email domain appears more than once, and write them to ./out/shared.json",
+    "intent_sha256": "aee6d03e542cea715efa07c5359a5ee31dc426a601fad2525c70e78641ac752d",
+    "offered": [
+      "id",
+      "address"
+    ],
+    "plan_sha256": "0ed7d2b88578b8fbdb1b5e65cb79be1609d310580ab200268c0d95ecf4571f68",
+    "schema": "nika/pending-transform@1",
+    "source": {
+      "columns": [
+        "id",
+        "address"
+      ],
+      "common_columns": [
+        "id",
+        "address"
+      ],
+      "complete": false,
+      "path": "./data/people.json",
+      "peek_sha256": "e14-synthetic-observation",
+      "state": "observed"
+    },
+    "verified_rule": "69887248ec3d5e5758b7835d1011b6af8b512fb65e8fa64b8b5a8d66b65b0185"
+  }
+}

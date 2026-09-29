@@ -24,11 +24,11 @@
 //! Billed-then-failed spend IS metered (2026-07-08): the verbs
 //! decorate their loop-scoped errors with the incurred spend, the
 //! dispatch prices it, and the attempt loop debits it PER ATTEMPT —
-//! a retry storm cannot spend past the budget invisibly. Remaining
-//! unmetered classes (documented, not silent): a `timeout:`-killed
-//! attempt (the cancelled future reported nothing — nothing can
-//! honestly ride) and `on_finally` cleanups (best-effort lane ·
-//! outcome dropped by design).
+//! a retry storm cannot spend past the budget invisibly. An attempt
+//! dropped before it returns (a `fail_fast` sibling · a `timeout:`)
+//! debits every provider request it sent through the dispatch journal
+//! (B7), unanswered ones unpriced. Remaining unmetered class: `on_finally`
+//! cleanups (best-effort lane · outcome dropped by design).
 
 use std::collections::BTreeMap;
 use std::sync::Mutex;
@@ -63,7 +63,7 @@ pub(crate) struct LedgerSnapshot {
     pub priced_calls: u32,
     pub unpriced_calls: u32,
     pub budget: Option<f64>,
-    /// Spend per attribution key (`provider/model` · tool id).
+    /// Spend per attribution key (`provider/model @ origin` · tool id).
     pub by_source: BTreeMap<String, f64>,
     /// The run's elapsed time when known (#1247 · [`RunLedger::snapshot_at`]).
     pub elapsed: Option<std::time::Duration>,
@@ -143,18 +143,7 @@ impl RunLedger {
             self.debit(source, cost, unpriced);
             return;
         };
-        let mut known = 0.0;
-        for call in &split.inference_calls {
-            let estimate = call
-                .known_estimate()
-                .map(nika_types::cost::Cost::to_usd_f64);
-            known += estimate.unwrap_or(0.0);
-            let route = call
-                .route
-                .as_ref()
-                .map(|r| format!("{}/{} @ {}", r.provider, r.model, r.endpoint));
-            self.debit(route.as_deref(), estimate, estimate.is_none());
-        }
+        let known = self.debit_calls(&split.inference_calls);
         // Dispatch cost is the same known invocation subtotal plus known tools.
         // No unknown invocation is replaced by this remainder.
         if let Some(total) = cost {
@@ -164,6 +153,22 @@ impl RunLedger {
                 self.debit(key.as_deref(), Some(tools), false);
             }
         }
+    }
+
+    /// Debit each provider request by its own evidence, once: a known estimate
+    /// under its route, anything else unpriced (never a known zero). Also the
+    /// fold of a dropped attempt's journaled requests. Returns the known USD.
+    pub(crate) fn debit_calls(&self, calls: &[nika_types::cost::InferenceCall]) -> f64 {
+        let mut known = 0.0;
+        for call in calls {
+            let estimate = call
+                .known_estimate()
+                .map(nika_types::cost::Cost::to_usd_f64);
+            known += estimate.unwrap_or(0.0);
+            let route = call.route.as_ref().map(nika_providers::route_label);
+            self.debit(route.as_deref(), estimate, estimate.is_none());
+        }
+        known
     }
 
     /// Fold one successful dispatch — THE leaf debit site (plain tasks

@@ -59,7 +59,7 @@ fn a_priced_call_without_a_budget_is_observed_never_admitted() {
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
     let mut s = open(dir.path());
-    s.admit_money("hello", false)
+    s.admit_money("hello", false, false)
         .expect("no money is not a refusal");
     assert_eq!(
         s.monetary_decision().unwrap().inference,
@@ -126,7 +126,7 @@ fn explicit_zero_and_an_insufficient_ceiling_never_fall_back_to_observation() {
         let _transport = test_transport::install(&peer.url);
         let dir = tempfile::tempdir().unwrap();
         let mut s = open(dir.path());
-        s.admit_money(money, false).expect("admitted money");
+        s.admit_money(money, false, false).expect("admitted money");
         assert!(s.reason_with_money("hello", false).is_err(), "{money}");
         assert!(peer.bodies().is_empty(), "{money}: nothing was sent");
         let observed = s.money.observed.snapshot().unwrap();
@@ -154,6 +154,9 @@ fn every_dispatch_site_rides_the_one_no_budget_observation() {
         (200, response("Hello")),
         (200, response("ANSWER")),
         (200, response(&native())),
+        (200, response(JUDGE_APPROVES)),
+        (200, response(&native())),
+        (200, response(JUDGE_APPROVES)),
     ]);
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
@@ -167,17 +170,18 @@ fn every_dispatch_site_rides_the_one_no_budget_observation() {
     // A revision rides the same bracket (S102 left this site unrecorded).
     s.compile_request(&round.request(), WORK).expect("revision");
     let r = s.money.observed.snapshot().unwrap();
-    assert_eq!(r.attempts.len(), 5);
+    // Two of the seven are the judge's (native step 1): the round's and the revision's.
+    assert_eq!(r.attempts.len(), 7);
     assert!(
         r.attempts.iter().all(|a| a.sent && a.estimated.is_some()),
         "{r:?}"
     );
-    assert_eq!(peer.bodies().len(), 5);
+    assert_eq!(peer.bodies().len(), 7);
     assert!(s.inference_receipt().unwrap().is_none());
     let kept = crate::SessionState::load(dir.path()).unwrap().unwrap();
     assert_eq!(kept.inference_observations.len(), 1);
     let attempts = kept.inference_observations[0]["attempts"].as_array();
-    assert_eq!(attempts.map(Vec::len), Some(5));
+    assert_eq!(attempts.map(Vec::len), Some(7));
 }
 
 #[test]
@@ -290,7 +294,7 @@ fn a_later_ceiling_keeps_the_observation_and_never_claims_to_cover_it() {
     let dir = tempfile::tempdir().unwrap();
     let mut s = open(dir.path());
     s.reason_with_money("hello", false).expect("observed");
-    s.admit_money("budget 2 USD", false)
+    s.admit_money("budget 2 USD", false, false)
         .expect("a ceiling from now on");
     s.reason_with_money("hello again", false).expect("admitted");
     let admitted = s.inference_receipt().unwrap().unwrap();
@@ -324,4 +328,269 @@ fn a_later_ceiling_keeps_the_observation_and_never_claims_to_cover_it() {
         "{status}"
     );
     assert_eq!(peer.bodies().len(), 2);
+}
+
+/// The ticket request of the money directive tests (R4 A6): a key the file's header declares.
+const TICKETS: &str =
+    "Read ./tickets.csv, keep only the rows whose status is open and write them to ./open.csv";
+
+fn tickets_csv(root: &Path, header: &str) {
+    std::fs::write(
+        root.join("tickets.csv"),
+        format!("{header}\n1,open,10\n2,closed,20\n3,open,30\n"),
+    )
+    .expect("fixture");
+}
+
+/// The workflow bytes the pending proposal would write.
+fn proposed(s: &SessionRuntime) -> String {
+    s.pending.as_ref().expect("a proposal").changes[0]
+        .content()
+        .to_owned()
+}
+
+/// A request's monetary directive is its ceiling, never a business clause (R4 A6 · D6-S2/S3):
+/// every equivalent spelling admits the same $0, the work is read without it (READY with the
+/// plain rule, zero calls on the chosen seat), and the original request stays bound.
+#[test]
+fn every_spelling_of_a_zero_ceiling_is_the_ceiling_never_a_clause() {
+    for suffix in [
+        ". Budget: $0.",
+        ", budget=0",
+        ", budget: 0",
+        " --max-cost-usd 0",
+        " with a budget of 0 USD",
+        ". Plafond de 0 dollars.",
+    ] {
+        let peer = Peer::start(vec![]);
+        let _transport = test_transport::install(&peer.url);
+        let dir = tempfile::tempdir().unwrap();
+        tickets_csv(dir.path(), "id,status,amount");
+        let mut s = open(dir.path());
+        let request = format!("{TICKETS}{suffix}");
+        let out = s.turn(&request);
+        assert!(
+            matches!(out, TurnOutcome::Proposal { .. }),
+            "{request}: {out:?}"
+        );
+        let bytes = proposed(&s);
+        assert!(bytes.contains(".status == \"open\""), "{bytes}");
+        assert!(
+            !bytes.contains("budget") && !bytes.contains("dollar"),
+            "{bytes}"
+        );
+        let money = s.monetary_decision().expect("admitted");
+        assert_eq!(money.effective_usd, Some(0.0), "{request}");
+        assert_eq!(money.original_intent, request);
+        assert!(s.money_blocks_cognition(), "{request}");
+        assert!(peer.bodies().is_empty(), "{request}: no provider request");
+        assert!(!dir.path().join("open.csv").exists());
+    }
+}
+
+/// Words that only look like money stay the request's data (R4 A6): a field named `budget`, a
+/// quoted value, a price the rule compares. No ceiling is admitted from them and none refused.
+#[test]
+fn a_budget_field_a_quoted_value_and_a_price_are_data_never_money() {
+    let peer = Peer::start(vec![]);
+    let _transport = test_transport::install(&peer.url);
+    for (header, request, word) in [
+        (
+            "id,status,budget",
+            "Read ./tickets.csv, keep only the rows whose budget is above 15 and write them to ./big.csv",
+            ".budget",
+        ),
+        (
+            "id,status,amount",
+            "Read ./tickets.csv, keep only the rows whose status is \"budget=0\" and write them to ./open.csv",
+            "budget=0",
+        ),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        tickets_csv(dir.path(), header);
+        let mut s = open(dir.path());
+        let out = s.turn(request);
+        assert!(
+            matches!(out, TurnOutcome::Proposal { .. }),
+            "{request}: {out:?}"
+        );
+        assert!(proposed(&s).contains(word), "{}", proposed(&s));
+        let money = s.monetary_decision().expect("observed");
+        assert_eq!(money.explicit_amount, None, "{request}");
+        assert!(money.refusal.is_none(), "{request}");
+    }
+    assert!(peer.bodies().is_empty());
+}
+
+/// A ceiling without a currency whose anchor is a column of the named file reads both ways
+/// (R4 A6): the $0 holds on the chosen seat, the work is read neither way, and the refusal says
+/// the compiler's reason — never the bare ceiling, never a guessed rule.
+#[test]
+fn a_ceiling_that_also_names_a_field_is_said_never_read_either_way() {
+    let peer = Peer::start(vec![]);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().unwrap();
+    tickets_csv(dir.path(), "id,status,budget");
+    let mut s = open(dir.path());
+    let TurnOutcome::Refusal(refusal) = s.turn(&format!("{TICKETS}, budget=0")) else {
+        panic!("a refusal that says the reason");
+    };
+    assert_eq!(refusal.class, RefusalClass::NotAllowed);
+    for said in [
+        "`budget=0` reads as the monetary ceiling",
+        "observed field `budget`",
+        "no further cognition admitted",
+    ] {
+        assert!(refusal.text.contains(said), "{said}: {}", refusal.text);
+    }
+    assert!(s.pending_proposal().is_none() && s.pending_question().is_none());
+    let money = s.monetary_decision().expect("admitted");
+    assert_eq!(money.effective_usd, Some(0.0));
+    assert!(peer.bodies().is_empty(), "no provider request");
+    assert!(!dir.path().join("open.csv").exists());
+}
+
+/// A Session on a route whose USD cost the catalog cannot qualify (the unknown-cost fixture's
+/// unpriced model): every priced call there needs its own review first.
+fn open_unpriced(root: &Path) -> SessionRuntime {
+    const UNPRICED: &str = "deepseek/s81-unpriced-fixture";
+    let mut s = open(root);
+    s.intelligence.model = Some(UNPRICED.into());
+    s.reasoner = Box::new(ProviderReasoner {
+        model: UNPRICED.into(),
+        label: "selected unpriced route".into(),
+    });
+    s.refresh_seat();
+    s.set_cost_host_evidence(
+        nika_runtime::cost_choice::CostHostEvidence::unmanaged_interactive_local(),
+    );
+    s
+}
+
+/// The gate that keeps the deterministic ladder free of cost consent reads a work request with
+/// its own monetary directives admitted (R4 A6): on an unpriced route the stated ceiling is the
+/// same READY proposal, never a cost review or a zero-constraint refusal, and nothing is sent.
+#[test]
+fn a_ceiling_on_an_unpriced_route_keeps_the_deterministic_round() {
+    let peer = Peer::start(vec![]);
+    let _transport = test_transport::install(&peer.url);
+    for (suffix, usd) in [
+        (". Budget: $5.", 5.0),
+        (" --max-cost-usd 0", 0.0),
+        (". Plafond de 0 dollars.", 0.0),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        tickets_csv(dir.path(), "id,status,amount");
+        let mut s = open_unpriced(dir.path());
+        let request = format!("{TICKETS}{suffix}");
+        let out = s.turn(&request);
+        assert!(
+            matches!(out, TurnOutcome::Proposal { .. }),
+            "{request}: {out:?}"
+        );
+        assert!(!s.waiting_cost_choice(), "{request}");
+        let money = s.monetary_decision().expect("admitted");
+        assert_eq!(money.effective_usd, Some(usd), "{request}");
+        assert!(proposed(&s).contains(".status == \"open\""));
+    }
+    assert!(peer.bodies().is_empty(), "no provider request");
+}
+
+/// An explicit zero forbids every call on any route, so no cost review is staged for it (R4 A6):
+/// on an unpriced route, a directive that also names a field and work that needs a model are
+/// refused with the reader's own reasons, never « the explicit zero constraint forbids this call »
+/// alone, and nothing is sent.
+#[test]
+fn a_zero_ceiling_on_an_unpriced_route_stages_no_review() {
+    let peer = Peer::start(vec![]);
+    let _transport = test_transport::install(&peer.url);
+    for (header, request, said) in [
+        (
+            "id,status,budget",
+            format!("{TICKETS}, budget=0"),
+            "observed field `budget`",
+        ),
+        (
+            "id,status,amount",
+            "Prépare un résumé en trois points de entree.txt dans sortie.txt, budget 0 dollar."
+                .to_owned(),
+            "no further cognition admitted",
+        ),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        tickets_csv(dir.path(), header);
+        let mut s = open_unpriced(dir.path());
+        let TurnOutcome::Refusal(refusal) = s.turn(&request) else {
+            panic!("{request}: a refusal that says the reason");
+        };
+        assert!(refusal.text.contains(said), "{request}: {}", refusal.text);
+        assert!(!s.waiting_cost_choice(), "{request}");
+        assert!(s.pending_proposal().is_none() && s.pending_question().is_none());
+        assert_eq!(
+            s.monetary_decision().expect("admitted").effective_usd,
+            Some(0.0)
+        );
+    }
+    assert!(peer.bodies().is_empty(), "no provider request");
+}
+
+/// A positive ceiling is admitted the same way and the deterministic reading needs no call; a
+/// malformed, negative, non-finite or conflicting ceiling refuses before any effect (R4 A6).
+#[test]
+fn a_positive_ceiling_reads_deterministically_and_a_bad_one_refuses_first() {
+    let peer = Peer::start(vec![]);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().unwrap();
+    tickets_csv(dir.path(), "id,status,amount");
+    let mut s = open(dir.path());
+    let request = format!("{TICKETS}. Budget: $5.");
+    assert!(matches!(s.turn(&request), TurnOutcome::Proposal { .. }));
+    assert_eq!(
+        s.monetary_decision().expect("admitted").effective_usd,
+        Some(5.0)
+    );
+    for suffix in [
+        ". Budget: $abc.",
+        ", budget=-1",
+        ". Budget: NaN.",
+        ". Budget: inf.",
+        ". Budget: $1. Cap: $2.",
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        tickets_csv(dir.path(), "id,status,amount");
+        let mut s = open(dir.path());
+        let request = format!("{TICKETS}{suffix}");
+        let out = s.turn(&request);
+        assert!(
+            matches!(out, TurnOutcome::Refusal(ref r) if r.class == RefusalClass::NotAllowed),
+            "{request}: {out:?}"
+        );
+        assert!(s.pending_proposal().is_none() && s.pending_question().is_none());
+        let money = s.monetary_decision().expect("the refusal is observed");
+        assert!(
+            money.effective_usd.is_none() && money.refusal.is_some(),
+            "{request}"
+        );
+        assert!(!dir.path().join("open.csv").exists());
+    }
+    assert!(peer.bodies().is_empty());
+}
+
+/// The copy the s49 recovery fixture used to state (R4 A6): with its « budget 0,50 dollar » read
+/// as the ceiling, the copy is deterministic work, proposed with zero provider calls on the chosen
+/// seat; the fixture that needed a provider now states a summary.
+#[test]
+fn the_former_recovery_copy_is_deterministic_work_under_its_ceiling() {
+    let peer = Peer::start(vec![]);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().unwrap();
+    let mut s = open(dir.path());
+    let request = "Prépare la copie de entree.txt dans sortie.txt, budget 0,50 dollar.";
+    let out = s.turn(request);
+    assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
+    let money = s.monetary_decision().expect("admitted");
+    assert_eq!(money.effective_usd, Some(0.5));
+    assert_eq!(money.original_intent, request);
+    assert!(peer.bodies().is_empty(), "no provider request");
+    assert!(!dir.path().join("sortie.txt").exists());
 }

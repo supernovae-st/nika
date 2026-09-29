@@ -138,11 +138,12 @@ async fn a_stopping_server_cancels_and_joins_its_native_rounds_before_it_returns
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_logical_call_the_transport_resends_after_a_503_is_one_call_in_the_receipt() {
+async fn an_authorized_503_resend_is_counted_as_a_second_physical_request() {
     let world = TestWorld::new();
     let seat = Seat::start(vec![
         Reply::Busy,
         Reply::Text(native_answer(&candidate(RUN_MODEL, false))),
+        Reply::Text(JUDGE_APPROVES.to_owned()),
     ]);
     let (server, _backend) =
         start_native(&world, compile_limits(), operator(&seat).with_repairs(0)).await;
@@ -150,11 +151,20 @@ async fn a_logical_call_the_transport_resends_after_a_503_is_one_call_in_the_rec
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
     assert_eq!(document["status"], "ready", "{document:#}");
-    // One logical call (the gate's budget, the receipt's count) · two HTTP requests on the wire,
-    // the same request resent by the provider transport after the 503.
-    assert_eq!(document["provenance"]["authoring"]["calls"], 1);
-    let bodies = seat.bodies();
-    assert_eq!(bodies.len(), 2, "503 then 200");
-    assert_eq!(bodies[0], bodies[1], "the same request resent");
+    // The candidate and its judgment (native step 1): two journaled calls.
+    assert_eq!(document["provenance"]["authoring"]["calls"], 2);
+    assert_eq!(
+        seat.bodies().len(),
+        3,
+        "the explicit grant covers the resend and the judgment"
+    );
+    assert_eq!(
+        document["provenance"]["authoring"]["backend"]["authority"]["http_requests"]["sent"],
+        3
+    );
+    assert_eq!(
+        document["provenance"]["authoring"]["backend"]["authority"]["invocations"]["sent"],
+        2
+    );
     server.stop().await.expect("clean stop");
 }

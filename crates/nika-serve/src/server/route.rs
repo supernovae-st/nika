@@ -27,42 +27,38 @@ use super::registry::{list_workflows_under, valid_workflow_name, within_scope, w
 use super::sse;
 
 const IDEMPOTENCY_KEY: &str = "idempotency-key";
-pub(super) const SNAPSHOT_WIRE_UNIT_CEILING: usize = 256;
-const UNIT_COUNT_PROBE_MARKER: &str = "nika snapshot wire unit count exceeded";
-
-#[derive(serde::Deserialize)]
-struct SnapshotWireProbe<'a> {
-    root: &'a str,
-    #[serde(default)]
-    digest: Option<&'a str>,
-    #[serde(borrow)]
-    units: BoundedWireUnits<'a>,
-}
-
-struct BoundedWireUnits<'a>(Vec<SnapshotWireUnit<'a>>);
-
-#[derive(serde::Deserialize)]
-struct SnapshotWireUnit<'a> {
-    path: &'a str,
-    #[serde(default)]
-    digest: Option<&'a str>,
-    bytes_hex: &'a str,
-}
-
 /// The by-name form of the job door (ADR-131 · #1441): the world lives in
 /// the served registry and the resident captures it — the one owner.
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-struct JobByName {
+pub(super) struct JobByName {
     /// Owned, not borrowed: a name with an escape (`nested\\root`) must
     /// still reach the name judge, which refuses it as not served.
-    workflow: String,
+    pub(super) workflow: String,
     /// Literal JSON values; a present null is not an absent map.
     #[serde(default, deserialize_with = "present_inputs")]
-    inputs: Option<BTreeMap<String, serde_json::Value>>,
+    pub(super) inputs: Option<BTreeMap<String, serde_json::Value>>,
     /// Same vocabulary as `--access`. Only absence inherits the unpinned plan.
     #[serde(default, deserialize_with = "present_access")]
-    access: Option<String>,
+    pub(super) access: Option<String>,
+    /// One approved cost review this admission consumes (C6); never null.
+    #[serde(default, deserialize_with = "present_review")]
+    pub(super) cost_review: Option<ReviewReference>,
+}
+
+/// `{"review_id", "witness_sha256"}`: which review, and proof its caller saw it.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ReviewReference {
+    review_id: String,
+    witness_sha256: String,
+}
+
+fn present_review<'de, D>(deserializer: D) -> Result<Option<ReviewReference>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    <ReviewReference as serde::Deserialize>::deserialize(deserializer).map(Some)
 }
 
 /// Only envelope keys, without retaining snapshot units or caller values.
@@ -111,49 +107,17 @@ where
     <String as serde::Deserialize>::deserialize(deserializer).map(Some)
 }
 
-impl<'de: 'a, 'a> serde::Deserialize<'de> for BoundedWireUnits<'a> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        struct UnitsVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for UnitsVisitor {
-            type Value = BoundedWireUnits<'de>;
-
-            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("a bounded execution snapshot unit array")
-            }
-
-            fn visit_seq<A>(self, mut sequence: A) -> Result<Self::Value, A::Error>
-            where
-                A: serde::de::SeqAccess<'de>,
-            {
-                let mut units = Vec::new();
-                while let Some(unit) = sequence.next_element()? {
-                    if units.len() == SNAPSHOT_WIRE_UNIT_CEILING {
-                        return Err(serde::de::Error::custom(UNIT_COUNT_PROBE_MARKER));
-                    }
-                    units.push(unit);
-                }
-                Ok(BoundedWireUnits(units))
-            }
-        }
-
-        deserializer.deserialize_seq(UnitsVisitor)
-    }
-}
-
 pub(crate) async fn handle(
     request: Request<Incoming>,
     state: Arc<AppState>,
 ) -> Result<Response<ResponseBody>, Infallible> {
-    let response = if request.uri().path() == "/health" && request.method() == Method::GET {
+    let path = request.uri().path();
+    let response = if path == "/health" && request.method() == Method::GET {
         json_response(
             StatusCode::OK,
-            &HealthResponse::current(true, state.native.is_some()),
+            &HealthResponse::current(true, state.native.is_some(), state.cost_review.is_some()),
         )
-    } else if request.uri().path().starts_with("/v1/") {
+    } else if path.starts_with("/v1/") || review_path(path).is_some() {
         protected(request, state).await
     } else {
         ApiError::route_not_found().into_response()
@@ -222,12 +186,29 @@ async fn route_authenticated(
             super::schedule_http::put(request, id.to_owned(), state).await
         }
         (&Method::POST, "/v1/jobs") => create_job(request, state).await,
+        (&Method::POST, "/v1/cost-reviews") => super::cost_review::create(request, state, 1).await,
+        (&Method::POST, "/v2/cost-reviews") => super::cost_review::create(request, state, 2).await,
+        (&Method::POST, path) if review_path(path).is_some() => {
+            match review_route(path).and_then(|(v, id, action)| action.map(|a| (v, id, a))) {
+                Some((version, id, "decision")) => {
+                    let id = id.to_owned();
+                    super::cost_review::decide(request, id, state, version).await
+                }
+                _ => ApiError::route_not_found().into_response(),
+            }
+        }
+        (&Method::GET, path) if review_path(path).is_some_and(|(_, rest)| !rest.is_empty()) => {
+            match review_route(path) {
+                Some((version, id, None)) => super::cost_review::get(id, &state, version),
+                _ => ApiError::route_not_found().into_response(),
+            }
+        }
         (&Method::POST, "/v1/check") => check_snapshot(request, state).await,
         (&Method::POST, "/v1/compile") => super::compile::handle(request, state).await,
         (&Method::POST, path) if path.ends_with("/cancel") => cancel_job(path, &state).await,
         (&Method::GET, "/v1/openapi.json") => json_response(
             StatusCode::OK,
-            &super::openapi::live(state.native.is_some()),
+            &super::openapi::served(state.native.is_some(), state.cost_review.is_some()),
         ),
         (&Method::GET, "/v1/workflows") => list_registry(&state).await,
         (&Method::GET, path) if path.starts_with("/v1/workflows/") => {
@@ -245,24 +226,33 @@ async fn route_authenticated(
     }
 }
 
+/// The cost-review version a path addresses and what follows its root (empty or `/…`).
+fn review_path(path: &str) -> Option<(u64, &str)> {
+    let v1 = path.strip_prefix("/v1/cost-reviews").map(|rest| (1, rest));
+    let (version, rest) = v1.or_else(|| Some((2, path.strip_prefix("/v2/cost-reviews")?)))?;
+    (rest.is_empty() || rest.starts_with('/')).then_some((version, rest))
+}
+
+/// `/v{n}/cost-reviews/{id}` or `/v{n}/cost-reviews/{id}/{action}`.
+fn review_route(path: &str) -> Option<(u64, &str, Option<&str>)> {
+    let (version, rest) = review_path(path)?;
+    let rest = rest.strip_prefix('/')?;
+    let (id, action) = rest
+        .split_once('/')
+        .map_or((rest, None), |(id, a)| (id, Some(a)));
+    (!id.is_empty() && action.is_none_or(|a| !a.contains('/'))).then_some((version, id, action))
+}
+
 fn schedule_route(path: &str) -> Option<&str> {
     let id = path.strip_prefix("/v1/schedules/")?;
     (!id.is_empty() && !id.contains('/')).then_some(id)
 }
 
 async fn create_job(request: Request<Incoming>, state: Arc<AppState>) -> Response<ResponseBody> {
-    if let Some(error) = refuse_snapshot_envelope(&request) {
-        return error.into_response();
-    }
-    let key = match idempotency_key(request.headers()) {
-        Ok(key) => key,
-        Err(error) => return error.into_response(),
+    let (key, digest, body) = match intake(request, &state, idempotency_key).await {
+        Ok(parts) => parts,
+        Err(response) => return response,
     };
-    let body = match collect_body(request, state.limits.max_body_bytes()).await {
-        Ok(body) => body,
-        Err(error) => return error.into_response(),
-    };
-    let digest = RequestDigest::from_bytes(Sha256::digest(&body).into());
     // ADR-132 · the freeze audit: a key already bound replays its job
     // BEFORE the resident touches the registry or the body again — a
     // lost-response retry finds its job even after the workflow changed,
@@ -282,6 +272,14 @@ async fn create_job(request: Request<Incoming>, state: Arc<AppState>) -> Respons
     // --sdk-snapshot` prints (digests optional: computed when absent,
     // checked when present).
     match named_job(&body) {
+        Ok(Some(mut job)) if job.cost_review.is_some() => {
+            let reference = job
+                .cost_review
+                .take()
+                .map(|r| (r.review_id, r.witness_sha256));
+            let reference = reference.unwrap_or_default();
+            return super::cost_review::admit(state, key, digest, job, reference).await;
+        }
         Ok(Some(job)) => {
             let admitted = match admit_by_name(&job.workflow, &state).await {
                 Ok(admitted) => admitted,
@@ -315,10 +313,29 @@ async fn create_job(request: Request<Incoming>, state: Arc<AppState>) -> Respons
     admit_job(state, key, digest, workflow, world, None, BTreeMap::new()).await
 }
 
+/// The preamble of a POST that admits a job or a review, in this order: the
+/// JSON gate, the request `key` (the idempotency key, or nothing), then the
+/// bounded body and its digest.
+pub(super) async fn intake<K>(
+    request: Request<Incoming>,
+    state: &AppState,
+    key: impl FnOnce(&hyper::HeaderMap) -> Result<K, ApiError>,
+) -> Result<(K, RequestDigest, Bytes), Response<ResponseBody>> {
+    if let Some(error) = refuse_snapshot_envelope(&request) {
+        return Err(error.into_response());
+    }
+    let key = key(request.headers()).map_err(ApiError::into_response)?;
+    let body = collect_body(request, state.limits.max_body_bytes())
+        .await
+        .map_err(ApiError::into_response)?;
+    let digest = RequestDigest::from_bytes(Sha256::digest(&body).into());
+    Ok((key, digest, body))
+}
+
 /// The by-name form, when the body is one (`{"workflow": "<name>"}` with no
 /// `units`); `Ok(None)` for a snapshot body. Optional `access` is the CLI
 /// pin. An empty pin is NIKA-1802 — never silently unpinned.
-fn named_job(body: &[u8]) -> Result<Option<JobByName>, ApiError> {
+pub(super) fn named_job(body: &[u8]) -> Result<Option<JobByName>, ApiError> {
     // Inspect only envelope keys; do not allocate unbounded snapshot units
     // before the existing streaming unit-count guard gets to judge them.
     let Ok(EnvelopeKeys(object)) = serde_json::from_slice::<EnvelopeKeys>(body) else {
@@ -361,7 +378,7 @@ fn empty_access_pin() -> ApiError {
 /// name must be one `GET /v1/workflows` lists — valid, inside the scope,
 /// present — then the resident captures its world exactly as a schedule
 /// does, through the one `ExecutionService`.
-async fn admit_by_name(
+pub(super) async fn admit_by_name(
     name: &str,
     state: &AppState,
 ) -> Result<nika_execution::AdmittedExecution, Response<ResponseBody>> {
@@ -492,88 +509,43 @@ fn malformed_snapshot_encoding() -> ApiError {
     )
 }
 
+/// The execution crate's pre-decode envelope probe, answered in this door's words.
 fn validate_wire_envelope(encoded: &str) -> Result<(), ApiError> {
-    let probe = match serde_json::from_str::<SnapshotWireProbe<'_>>(encoded) {
-        Ok(probe) => probe,
-        Err(error) if error.to_string().contains(UNIT_COUNT_PROBE_MARKER) => {
-            return Err(ApiError::new(
-                StatusCode::PAYLOAD_TOO_LARGE,
-                "snapshot_unit_count_limit",
-                "snapshot exceeds the wire unit-count limit",
-            ));
-        }
-        Err(_) => {
-            return Err(ApiError::new(
-                StatusCode::UNPROCESSABLE_ENTITY,
-                "malformed_snapshot",
-                "request body is not a valid execution snapshot",
-            ));
-        }
-    };
-    if probe.root.len() > MAX_EXECUTION_SNAPSHOT_PATH_BYTES
-        || probe
-            .units
-            .0
-            .iter()
-            .any(|unit| unit.path.len() > MAX_EXECUTION_SNAPSHOT_PATH_BYTES)
-    {
-        return Err(ApiError::new(
+    use nika_execution::{WireLimits, WireRefusal, check_wire};
+    let limits = WireLimits::new(
+        MAX_EXECUTION_SNAPSHOT_PATH_BYTES,
+        MAX_EXECUTION_SNAPSHOT_METADATA_BYTES,
+    );
+    let (status, code, message) = match check_wire(encoded, limits) {
+        Ok(()) => return Ok(()),
+        Err(WireRefusal::UnitCount) => (
+            StatusCode::PAYLOAD_TOO_LARGE,
+            "snapshot_unit_count_limit",
+            "snapshot exceeds the wire unit-count limit",
+        ),
+        Err(WireRefusal::PathLimit) => (
             StatusCode::PAYLOAD_TOO_LARGE,
             "snapshot_path_limit",
             "snapshot logical path exceeds the encoded metadata limit",
-        ));
-    }
-    if probe.digest.is_some_and(|digest| !canonical_digest(digest))
-        || probe
-            .units
-            .0
-            .iter()
-            .any(|unit| unit.digest.is_some_and(|digest| !canonical_digest(digest)))
-    {
-        return Err(ApiError::new(
+        ),
+        Err(WireRefusal::Digest) => (
             StatusCode::UNPROCESSABLE_ENTITY,
             "malformed_snapshot_digest",
             "snapshot digests must be canonical lowercase SHA-256",
-        ));
-    }
-    if probe
-        .units
-        .0
-        .iter()
-        .any(|unit| malformed_hex(unit.bytes_hex))
-    {
-        return Err(ApiError::new(
+        ),
+        Err(WireRefusal::Hex) => (
             StatusCode::UNPROCESSABLE_ENTITY,
             "malformed_snapshot_hex",
             "snapshot unit bytes must be even-length lowercase hexadecimal",
-        ));
-    }
-    let hex_bytes = probe
-        .units
-        .0
-        .iter()
-        .try_fold(0usize, |total, unit| {
-            total.checked_add(unit.bytes_hex.len())
-        })
-        .ok_or_else(snapshot_metadata_limit)?;
-    if encoded.len().saturating_sub(hex_bytes) > MAX_EXECUTION_SNAPSHOT_METADATA_BYTES {
-        return Err(snapshot_metadata_limit());
-    }
-    Ok(())
-}
-
-fn canonical_digest(value: &str) -> bool {
-    value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
-}
-
-fn malformed_hex(value: &str) -> bool {
-    !value.len().is_multiple_of(2)
-        || !value
-            .bytes()
-            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+        ),
+        Err(WireRefusal::MetadataLimit) => return Err(snapshot_metadata_limit()),
+        Err(_) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "malformed_snapshot",
+            "request body is not a valid execution snapshot",
+        ),
+    };
+    Err(ApiError::new(status, code, message))
 }
 
 fn snapshot_metadata_limit() -> ApiError {
@@ -595,7 +567,7 @@ async fn admit_job(
 ) -> Response<ResponseBody> {
     match state
         .coordinator
-        .admit_manual_inputs(key, digest, workflow, world, access_pin, inputs)
+        .admit_manual_inputs(key, digest, workflow, world, access_pin, inputs, None)
         .await
     {
         Ok(admission) => admission_response(admission),
@@ -605,7 +577,7 @@ async fn admit_job(
 
 /// The admission's own words on the wire: created (202), replayed (200), a
 /// key already bound to other bytes (409).
-fn admission_response(admission: Admission) -> Response<ResponseBody> {
+pub(super) fn admission_response(admission: Admission) -> Response<ResponseBody> {
     match admission {
         Admission::Conflict(_) => ApiError::new(
             StatusCode::CONFLICT,
@@ -622,7 +594,7 @@ fn admission_response(admission: Admission) -> Response<ResponseBody> {
 
 /// The admission refusals the resident types (capacity · a busy store · a
 /// full queue); the rest is an internal error.
-fn admission_error(error: &super::ServerError) -> Response<ResponseBody> {
+pub(super) fn admission_error(error: &super::ServerError) -> Response<ResponseBody> {
     match error {
         super::ServerError::JobStore(crate::JobStoreError::CapacityExceeded) => job_capacity(),
         super::ServerError::JobStore(crate::JobStoreError::Busy)
@@ -895,7 +867,7 @@ pub(super) async fn drain_oversized_body(request: Request<Incoming>) {
     while matches!(body.frame().await, Some(Ok(_))) {}
 }
 
-fn idempotency_key(headers: &hyper::HeaderMap) -> Result<IdempotencyKey, ApiError> {
+pub(super) fn idempotency_key(headers: &hyper::HeaderMap) -> Result<IdempotencyKey, ApiError> {
     let mut values = headers.get_all(IDEMPOTENCY_KEY).iter();
     let value = values.next().ok_or_else(invalid_idempotency_key)?;
     if values.next().is_some() {

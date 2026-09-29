@@ -41,7 +41,9 @@
 
 pub mod admission;
 pub use admission::{AdmissionState, AttemptReceipt, InferenceAdmission, InferenceReceipt};
+pub mod authoring;
 pub mod census;
+pub mod dispatch_journal;
 #[cfg(test)]
 mod parity_tests;
 pub mod plan;
@@ -52,6 +54,8 @@ pub mod resolve_access;
 pub mod retry;
 #[cfg(test)]
 mod retry_tests;
+pub mod route_identity;
+pub mod spend;
 mod sse;
 #[cfg(test)]
 mod test_support;
@@ -77,3 +81,7 @@ pub use resolve_access::{
     first_ready_harness, provider_of, refuse_pin, refuse_pin_for_verbs, resolve_access,
 };
 pub use retry::{Backoff, ClockBackoff, MAX_RETRIES, MAX_RETRY_AFTER, TransportReport};
+pub use route_identity::{
+    canonical_endpoint, durable_calls, durable_pricing, project_observation, project_route,
+    route_label, route_origin,
+};

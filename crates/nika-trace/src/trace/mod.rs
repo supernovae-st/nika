@@ -445,7 +445,9 @@ pub fn item_summary_lines(view: &RunView, trace: &str, theme: Theme) -> Vec<Stri
             }
             let tally = |status: &str| rows.iter().filter(|r| r.status == status).count();
             let mut parts = vec![format!("{} ok", tally("ok"))];
-            for status in ["recovered", "failed", "never_started"] {
+            // Spec 17 · `cancelled` (began, abandoned) is not `never_started`;
+            // a word outside the vocabulary is never tallied as either.
+            for status in ["recovered", "failed", "cancelled", "never_started"] {
                 let n = tally(status);
                 if n > 0 {
                     parts.push(format!("{n} {}", item_status_word(status)));

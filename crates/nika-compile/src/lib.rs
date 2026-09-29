@@ -68,8 +68,10 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+mod admitted;
 mod approval;
 mod assemble;
+mod binding;
 mod bindings;
 mod doors;
 mod edit;
@@ -77,7 +79,9 @@ mod edit_source;
 mod laws;
 mod ledger;
 mod materialize;
+pub mod money;
 mod network;
+pub mod observation;
 mod observed;
 pub(crate) mod pattern;
 mod pending_transform;
@@ -108,13 +112,14 @@ pub use doors::intent_sha256;
 pub use materialize::{MaterializeError, materialize_ready};
 pub use nika_compile_reader::hot::{fold, stated_destinations, stated_sources};
 pub use nika_compile_reader::text;
+pub use observed::basis::{Basis, basis, basis_for};
 pub use retrieve::{Hit, HitKind, retrieve, retrieve_by_ops};
 pub use types::{
-    AuthoringCognition, AuthoringKnowledge, AuthoringPolicy, AuthoringReceipt, ChoiceOffer,
-    CompileDiagnostic, CompileError, CompileOutcome, CompilePreview, CompileProvenance,
-    CompileQuestion, CompileRequest, CompileStatus, DiagnosticKind, HotPolicy, KnowledgeReference,
-    NativeMode, PreviewScope, QuestionType, RepresentationError, Strategy, TriggerKind,
-    TriggerRequirement, TriggerStatus,
+    AuthoringCognition, AuthoringKnowledge, AuthoringPolicy, AuthoringReasoning, AuthoringReceipt,
+    ChoiceOffer, CompileDiagnostic, CompileError, CompileOutcome, CompilePreview,
+    CompileProvenance, CompileQuestion, CompileRequest, CompileStatus, DiagnosticKind, HotPolicy,
+    KnowledgeReference, NativeMode, PreviewScope, QuestionType, RepresentationError, Strategy,
+    TriggerKind, TriggerRequirement, TriggerStatus,
 };
 pub use wire::{COMPILE_WIRE_VERSION, outcome_document};
 
@@ -127,6 +132,17 @@ pub mod surface;
 /// failure. Missing values, invalid answers and unsupported user requests are outcomes.
 #[must_use = "the candidate and its authoring questions must be reviewed"]
 pub fn compile(request: &CompileRequest) -> Result<CompileOutcome, CompileError> {
+    // The monetary directives the caller admitted are read as its ceiling, never as business
+    // clauses (R4 A6): the reading has none left, so this recursion is one step deep.
+    match admitted::read(request) {
+        Ok(Some((reading, money))) => {
+            let mut outcome = compile(&reading)?;
+            admitted::record(request, money, &mut outcome);
+            return Ok(outcome);
+        }
+        Ok(None) => {}
+        Err(why) => return Ok(admitted::refused(&why)),
+    }
     let mut outcome = initial();
     if let Some(record) = request
         .plan

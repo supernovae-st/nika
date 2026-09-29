@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use nika_check::CheckReport;
 use nika_fs::OwnedDir;
-use nika_schema::ResolvedSkills;
 use nika_schema::raw::RawWorkflow;
+use nika_schema::{ResolvedSkills, VarDecl};
 use nika_types::id::{ExecutionId, TraceId};
+use nika_types::types::{fits, parse_type};
+use serde_json::Value;
 
 use crate::{ExecutionError, ExecutionSnapshot, SnapshotLimits, SnapshotUnitKind};
 
@@ -279,6 +282,48 @@ impl AdmittedExecution {
     pub const fn skills(&self) -> &ResolvedSkills {
         &self.skills
     }
+
+    /// Check a caller's literal inputs against the admitted workflow's
+    /// declarations (descended from Serve's job door, C6): every key is
+    /// declared and every value of a typed declaration fits its type. No
+    /// coercion, environment lookup or evaluation; whether a required input
+    /// is missing stays the runtime's judgment.
+    ///
+    /// # Errors
+    /// The first refusal, in key order.
+    pub fn check_inputs(&self, inputs: &BTreeMap<String, Value>) -> Result<(), InputRefusal> {
+        for (name, value) in inputs {
+            let declared = self
+                .workflow
+                .inputs
+                .iter()
+                .find(|(key, _)| key.value == *name);
+            let Some((_, declaration)) = declared else {
+                return Err(InputRefusal::Undeclared);
+            };
+            if let VarDecl::Typed { r#type, .. } = declaration {
+                let ty = parse_type(&r#type.value, &BTreeSet::new(), "inputs")
+                    .map_err(|_| InputRefusal::UnresolvedType)?;
+                if !fits(value, &ty, &BTreeMap::new()) {
+                    return Err(InputRefusal::Mismatch);
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Why a caller's literal inputs refuse against an admitted workflow's
+/// declarations. A transport maps each refusal to its own wire answer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum InputRefusal {
+    /// A key the workflow does not declare.
+    Undeclared,
+    /// A declared type that cannot be resolved.
+    UnresolvedType,
+    /// A value that does not conform to its declared type.
+    Mismatch,
 }
 
 /// Read-only execution input handed to an injected runtime runner.
@@ -640,5 +685,47 @@ mod tests {
         assert_eq!(verdict.trace_id(), trace_id);
         assert_eq!(verdict.snapshot_digest(), digest);
         assert_eq!(verdict.outcome(), "model=mock/echo;max_cost_usd=0");
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod input_tests {
+    use std::collections::BTreeMap;
+    use std::path::Path;
+
+    use serde_json::{Value, json};
+
+    use super::{ExecutionService, InputRefusal};
+
+    const ROOT: &str = "nika: bound\ninputs:\n  count: {type: integer, required: true}\n  tags: {type: {array: string}, required: true}\n  region: {type: string, default: eu}\npermits: {tools: ['nika:jq']}\ntasks:\n  echo:\n    invoke:\n      tool: nika:jq\n      args: {input: '${{ inputs.count }}', expression: '.'}\n";
+
+    /// C6 · the literal input law a job door maps: declared keys whose values
+    /// fit their declared types pass, an undeclared key or a misfit refuses
+    /// typed, and a missing required input is not this law's to judge.
+    #[test]
+    fn literal_inputs_fit_their_declared_types_or_refuse_typed() {
+        let tmp = tempfile::tempdir().expect("project");
+        let owned = nika_fs::OwnedDir::open(tmp.path()).expect("owned project");
+        let admitted = ExecutionService::default()
+            .admit_root_bytes(&owned, Path::new("-"), ROOT.as_bytes())
+            .expect("admitted");
+        let check = |pairs: Value| {
+            let inputs: BTreeMap<String, Value> = serde_json::from_value(pairs).expect("object");
+            admitted.check_inputs(&inputs)
+        };
+        assert_eq!(
+            check(json!({"count": 3, "tags": ["a"], "region": "us"})),
+            Ok(())
+        );
+        assert_eq!(
+            check(json!({})),
+            Ok(()),
+            "required inputs are the runtime's"
+        );
+        assert_eq!(check(json!({"ninja": true})), Err(InputRefusal::Undeclared));
+        assert_eq!(check(json!({"count": "3"})), Err(InputRefusal::Mismatch));
+        assert_eq!(check(json!({"tags": [1]})), Err(InputRefusal::Mismatch));
+        assert_eq!(check(json!({"region": null})), Err(InputRefusal::Mismatch));
     }
 }

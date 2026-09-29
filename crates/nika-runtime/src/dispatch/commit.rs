@@ -820,4 +820,242 @@ mod e2e {
             "the ctx mutation is caught: an empty-args map gained a member"
         );
     }
+
+    // ── A tool's typed failure details (stdlib §Status as data) ──────────
+
+    /// Run a check-clean workflow on the REAL builtin plane over scripted
+    /// HTTP: `nika:fetch` runs its own policy, status, extraction and render
+    /// allowlist; the agent (if any) answers from `provider`.
+    async fn run_plane(
+        yaml: &str,
+        http: &nika_kernel_mock::MockHttp,
+        provider: MockProvider,
+    ) -> (RunOutcome, VecSink) {
+        let wf = nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_check::check(&wf);
+        assert!(report.is_clean(), "fixture checks: {:?}", report.findings);
+        let plane = || {
+            Arc::new(nika_builtin::BuiltinDispatcher::new(
+                Arc::new(nika_kernel_mock::MockFs::new()),
+                Arc::new(http.clone()),
+                Arc::new(MockClock::new()),
+                Arc::new(nika_builtin::NullEmitter::default()),
+                Arc::new(nika_builtin::NonInteractive::default()),
+                Arc::new(nika_builtin::NoWorkflow::default()),
+            ))
+        };
+        let defs =
+            MockToolDefinitionProvider::with_defs(vec![nika_kernel::provider::ToolDef::new(
+                "nika:fetch",
+                "fetch",
+                serde_json::json!({}),
+            )]);
+        let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
+        let runtime = Runtime::new(
+            ExecVerb::new(Arc::new(MockShell::new())),
+            Arc::new(InvokeVerb::new(plane())),
+            InferVerb::new(registry, "mock/echo"),
+            AgentVerb::new(
+                Arc::new(provider),
+                Arc::new(InvokeVerb::new(plane())),
+                Arc::new(defs),
+                "mock/echo",
+            ),
+            MockClock::new(),
+            RuntimeConfig::default(),
+        );
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        let outcome = runtime
+            .run(&wf, &report, &mut stamper, &mut sink)
+            .await
+            .expect("clean run");
+        (outcome, sink)
+    }
+
+    const FETCH: &str = "NIKA-BUILTIN-FETCH-001";
+    const PERMITS: &str =
+        "permits: { tools: [\"nika:fetch\", \"nika:jq\"], net: { http: [\"service.test\"] } }\n";
+
+    /// The terminal frame's `outcome` of a task, parsed.
+    fn terminal_outcome(sink: &VecSink, task: &str) -> Value {
+        let frame = sink
+            .events()
+            .iter()
+            .rev()
+            .find(|e| {
+                matches!(
+                    e.kind,
+                    nika_event::EventKind::TaskCompleted
+                        | nika_event::EventKind::TaskFailed
+                        | nika_event::EventKind::TaskSkipped
+                ) && str_field(e, "task") == Some(task)
+            })
+            .expect("the terminal frame");
+        serde_json::from_str(str_field(frame, "outcome").expect("outcome rides")).expect("JSON")
+    }
+
+    /// Retry exhaustion: exactly three requests, and the last attempt's
+    /// status facts ride `tasks.X.error` and the terminal frame.
+    #[tokio::test]
+    async fn an_unlisted_status_keeps_its_facts_through_retry_exhaustion() {
+        let http = nika_kernel_mock::MockHttp::new()
+            .enqueue_ok(503, "busy")
+            .enqueue_ok(503, "busy")
+            .enqueue_ok(503, "busy");
+        let yaml = format!(
+            "nika: details\n{PERMITS}tasks:\n  probe:\n    retry: {{ max_attempts: 3, backoff_ms: 1, on_codes: [\"{FETCH}\"] }}\n    invoke: {{ tool: \"nika:fetch\", args: {{ url: \"https://service.test/busy\", mode: raw, response: {{ accept: [200] }} }} }}\n"
+        );
+        let (outcome, sink) = run_plane(&yaml, &http, MockProvider::new("mock")).await;
+        assert!(!outcome.ok);
+        assert_eq!(http.sent_requests().len(), 3, "exactly the bounded retries");
+        let facts = serde_json::json!({"status_code": 503, "accepted": [200]});
+        let error = outcome.records["probe"].error.as_ref().expect("failure");
+        assert_eq!(error.code, FETCH);
+        assert!(error.transient);
+        assert!(
+            error
+                .message
+                .ends_with("HTTP 503 from https://service.test/busy")
+        );
+        assert_eq!(error.to_value()["details"], facts);
+        let frame = terminal_outcome(&sink, "probe");
+        assert_eq!(frame["cause"], "retry_exhausted");
+        assert_eq!(frame["payload"]["attempts"], 3);
+        assert_eq!(frame["payload"]["error"], error.to_value());
+    }
+
+    /// No policy: the status alone. An accepted status whose extraction
+    /// fails: both facts. A transport failure: none (never fabricated), and
+    /// the error keeps its three-field shape.
+    #[tokio::test]
+    async fn each_failure_carries_exactly_the_facts_it_observed() {
+        let cases = [
+            (
+                nika_kernel_mock::MockHttp::new().enqueue_ok(404, "gone"),
+                "url: \"https://service.test/missing\"",
+                Some(serde_json::json!({"status_code": 404})),
+            ),
+            (
+                nika_kernel_mock::MockHttp::new().enqueue_ok(404, "<html>not json</html>"),
+                "url: \"https://service.test/html\", mode: jq, jq: \".\", response: { accept: [404] }",
+                Some(serde_json::json!({"status_code": 404, "accepted": [404]})),
+            ),
+            (
+                nika_kernel_mock::MockHttp::new().enqueue_err(
+                    nika_kernel::io::http::HttpError::Connection {
+                        reason: "refused".to_owned(),
+                    },
+                ),
+                "url: \"https://service.test/x\", response: { accept: [200] }",
+                None,
+            ),
+        ];
+        for (http, args, facts) in cases {
+            let yaml = format!(
+                "nika: details\n{PERMITS}tasks:\n  probe:\n    invoke: {{ tool: \"nika:fetch\", args: {{ {args} }} }}\n"
+            );
+            let (outcome, sink) = run_plane(&yaml, &http, MockProvider::new("mock")).await;
+            assert_eq!(http.sent_requests().len(), 1, "{args}");
+            let error = outcome.records["probe"].error.as_ref().expect("failure");
+            assert_eq!(error.code, FETCH, "{args}");
+            let value = error.to_value();
+            assert_eq!(value.get("details").cloned(), facts, "{args}");
+            if facts.is_none() {
+                let keys: Vec<&String> = value.as_object().expect("object").keys().collect();
+                assert_eq!(keys, ["code", "message", "transient"], "{args}");
+            }
+            assert_eq!(terminal_outcome(&sink, "probe")["payload"]["error"], value);
+        }
+    }
+
+    /// `on_error: skip` keeps the error readable, facts included: a
+    /// downstream reader binds `tasks.probe.error.details.*` (spec 04 CEL).
+    /// An accepted status, by contrast, is data: a success, not a failure.
+    #[tokio::test]
+    async fn a_skipped_failures_facts_are_readable_and_an_accepted_status_is_data() {
+        let http = nika_kernel_mock::MockHttp::new()
+            .enqueue_ok(503, "busy")
+            .enqueue_ok(503, "down for maintenance");
+        let yaml = format!(
+            "nika: details\n{PERMITS}tasks:\n  probe:\n    on_error: {{ skip: true }}\n    invoke: {{ tool: \"nika:fetch\", args: {{ url: \"https://service.test/busy\", mode: raw, response: {{ accept: [200] }} }} }}\n  code:\n    after: {{ probe: skipped }}\n    with: {{ c: \"${{{{ tasks.probe.error.details.status_code }}}}\", a: \"${{{{ tasks.probe.error.details.accepted }}}}\" }}\n    invoke: {{ tool: \"nika:jq\", args: {{ input: {{ c: \"${{{{ with.c }}}}\", a: \"${{{{ with.a }}}}\" }}, expression: \".\" }} }}\n  observe:\n    after: {{ code: success }}\n    invoke: {{ tool: \"nika:fetch\", args: {{ url: \"https://service.test/busy\", mode: raw, response: {{ accept: [503] }} }} }}\n"
+        );
+        let (outcome, sink) = run_plane(&yaml, &http, MockProvider::new("mock")).await;
+        assert!(
+            outcome.ok,
+            "a skipped failure and an observation settle the run"
+        );
+        let skipped = terminal_outcome(&sink, "probe");
+        assert_eq!(skipped["cause"], "error_skip");
+        assert_eq!(
+            skipped["payload"]["error"]["details"],
+            serde_json::json!({"status_code": 503, "accepted": [200]})
+        );
+        assert_eq!(
+            outcome.records["code"].output,
+            serde_json::json!({"c": 503, "a": [200]}),
+            "the CEL reads keep their types"
+        );
+        assert_eq!(
+            outcome.records["observe"].output,
+            serde_json::json!({"status_code": 503, "url": null, "body": "down for maintenance"})
+        );
+        assert!(outcome.records["observe"].error.is_none());
+    }
+
+    /// The agent-tool seam: a failed fetch inside an agent loop is fed back
+    /// to the model as the same text as before (no details, no JSON), and the
+    /// agent task does not absorb the tool's failure.
+    #[tokio::test]
+    async fn an_agent_tool_failure_feeds_back_the_same_text_without_details() {
+        use nika_kernel::provider::{ContentBlock, InferResponse, StopReason, TokenUsage};
+        let response = |content, stop| InferResponse::new(content, TokenUsage::new(10, 5), stop);
+        let provider = MockProvider::new("mock")
+            .enqueue_response(response(
+                vec![ContentBlock::ToolUse {
+                    id: "fetch-call".to_owned(),
+                    name: "nika:fetch".to_owned(),
+                    input: serde_json::json!({"url": "https://service.test/busy", "mode": "raw",
+                        "response": {"accept": [200]}}),
+                }],
+                StopReason::ToolUse,
+            ))
+            .enqueue_response(response(
+                vec![ContentBlock::Text {
+                    text: "done".to_owned(),
+                }],
+                StopReason::EndTurn,
+            ));
+        let probe = provider.clone();
+        let http = nika_kernel_mock::MockHttp::new().enqueue_ok(503, "busy");
+        let yaml = format!(
+            "nika: details\nmodel: mock/echo\n{PERMITS}tasks:\n  ask:\n    agent: {{ prompt: \"probe the service\", tools: [\"nika:fetch\"], max_turns: 3 }}\n"
+        );
+        let (outcome, _) = run_plane(&yaml, &http, provider).await;
+        assert_eq!(http.sent_requests().len(), 1);
+        assert!(
+            outcome.records["ask"].error.is_none(),
+            "the agent task absorbed nothing"
+        );
+        let fed_back: Vec<String> = probe.captured_requests()[1]
+            .messages
+            .iter()
+            .flat_map(|message| message.content.iter())
+            .filter_map(|block| match block {
+                ContentBlock::ToolResult { content, .. } => Some(content.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            fed_back,
+            [format!(
+                "NIKA-451 · tool `nika:fetch` reported an error: {FETCH} · HTTP 503 from https://service.test/busy"
+            )]
+        );
+    }
 }

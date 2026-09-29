@@ -15,14 +15,15 @@ use super::cardinality::parallel_bound;
 use super::paths::{self, PathShape, Structured};
 use super::plan::{Effect, EffectPolicy, EffectVerb, Op, Plan, Step};
 use super::rules;
-use super::shape;
 use super::support::{admit_directory, admit_endpoint, admit_model, admit_policy, answer, reject};
 use super::{CompileOutcome, CompileRequest, DiagnosticKind, QuestionType};
+use super::{shape, text};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
 mod computation;
-use computation::synthesized_rule;
+pub(super) use computation::{Operation, Witness, found, operations, read_whole};
+use computation::{stated_witness, synthesized_rule};
 mod write_path;
 
 const MODEL_LABEL: &str = "Which explicit runtime provider/model should run the language steps (extract, classify, draft)?";
@@ -130,6 +131,11 @@ pub(super) struct WriteEffect {
     /// The facet of the fetched page the write's clause names ("the page title to
     /// ./title.txt"): the write carries the fetch's own mode, never a draft.
     pub facet: Option<super::network::Facet>,
+    /// The exact text the write's clause states as a quoted literal (« write 'hello' to
+    /// ./a.txt »): a constant of the workflow, never drafted.
+    pub content: Option<String>,
+    /// The plan states the file holds one computed value alone, not the object naming it (E38).
+    pub alone: bool,
 }
 
 /// The settled bindings of one plan.
@@ -166,6 +172,8 @@ pub(super) struct Bindings {
     pub slots: Vec<(String, Value)>,
     /// The slots still asked, by key.
     pub pending_slots: Vec<String>,
+    /// What the synthesized computation is judged against (R4 A3), when one is bound.
+    pub witness: Option<Witness>,
 }
 
 impl Bindings {
@@ -241,6 +249,16 @@ impl Bindings {
                 .writes
                 .iter()
                 .any(|w| Structured::of(&w.path).is_some())
+    }
+    /// The record fields whose numbers a JSON decode must keep exact (R4 A8): every number
+    /// (`None`) unless one synthesized rule is the records' only consumer (no per-record
+    /// classification, no endpoint payload, no join) and fixes what it writes (named columns,
+    /// groups or totals); then the source fields it reads, those it writes included, suffice.
+    pub(super) fn guard_scope(&self) -> Option<Vec<String>> {
+        let rule = self.synthesized()?;
+        let alone = !self.classify_per_record && self.wired.is_empty() && !rule.joins();
+        let fixed = rule.output_columns().is_some() || !rule.totals_names().is_empty();
+        (alone && fixed).then(|| rule.source_fields())
     }
     pub(super) fn ready(&self, plan: &Plan) -> bool {
         (!uses_model(plan) || self.model.is_some())
@@ -437,18 +455,20 @@ pub(super) fn bind(
     // declares an input the run could not supply. A search's query is that item only when
     // the request supplies no material or an event delivers it (`bind_search_query`).
     let search_query = bind_search_query(plan, has_corpus, request, out, recognized);
-    let item = !has_corpus || (plan.has(Op::Search) && matches!(search_query, Need::Absent));
-    let mut consumed = Vec::new();
-    let mut max_parallel = None;
-    if fan_out {
-        for constraint in &plan.constraints {
-            if let Some(bound) = parallel_bound(constraint) {
-                consumed.push(constraint.clone());
-                max_parallel = Some(bound);
-                break;
-            }
-        }
-    }
+    // Literals the request writes are material of its own: with no step, no emitted effect
+    // but a stated literal reads an invocation item (« write 'hello' to ./a.txt »).
+    let emitted =
+        |e: &&Effect| !matches!(e.policy, EffectPolicy::Forbidden | EffectPolicy::Conflict);
+    let stated = plan.steps.is_empty()
+        && plan.effects.iter().any(|e| plan.content_of(e).is_some())
+        && plan
+            .effects
+            .iter()
+            .filter(emitted)
+            .all(|e| plan.content_of(e).is_some());
+    let item =
+        (!has_corpus && !stated) || (plan.has(Op::Search) && matches!(search_query, Need::Absent));
+    let (mut consumed, max_parallel) = concurrency(plan, fan_out);
     // The request distributes its draft over the files: the fan-in realizes the order
     // and the headings itself, so those instructions leave the prompts.
     let distributed = shape::per_item(intent, plan);
@@ -483,12 +503,27 @@ pub(super) fn bind(
         classify_per_record,
         slots: Vec::new(),
         pending_slots: Vec::new(),
+        witness: None,
     };
     bind_slots(plan, request, out, recognized, &mut b);
-    b.rule = bind_computation(plan, intent, &b, request, out, recognized);
+    (b.rule, b.witness) = bind_computation(plan, intent, &b, request, out, recognized);
     bind_effects(plan, distributed, request, out, recognized, &mut b);
     bind_named_outputs(plan, request, out, recognized, &mut b);
     b
+}
+
+/// The first constraint bounding a fan-out's concurrency, consumed by the structure, and its
+/// bound; none without a fan-out.
+fn concurrency(plan: &Plan, fan_out: bool) -> (Vec<String>, Option<u32>) {
+    if !fan_out {
+        return (Vec::new(), None);
+    }
+    plan.constraints
+        .iter()
+        .find_map(|constraint| parallel_bound(constraint).map(|bound| (constraint, bound)))
+        .map_or((Vec::new(), None), |(constraint, bound)| {
+            (vec![constraint.clone()], Some(bound))
+        })
 }
 
 /// Bind the explicit or synthesized computation after its source and slots are known.
@@ -499,25 +534,33 @@ fn bind_computation(
     request: &CompileRequest,
     out: &mut CompileOutcome,
     recognized: &mut BTreeSet<String>,
-) -> Need<RuleBinding> {
-    Need::from_step(plan.step(Op::Compute), |step| {
+) -> (Need<RuleBinding>, Option<Witness>) {
+    let mut witness = None;
+    let rule = Need::from_step(plan.step(Op::Compute), |step| {
         // A rule the request states over a parsed source is code the compiler writes;
         // an explicit answer still wins, and anything outside the grammar is asked.
         if !request.answers.contains_key("const.rule_expression")
             && let Some(rule) = synthesized_rule(plan, step, intent, bindings, request)
         {
+            let stated = stated_witness(plan, step, intent, bindings, request, &rule);
             let rule = match &bindings.read {
                 Need::Bound(Source::File(path)) => {
                     super::observed::ground_rule(rule, path, request, out, recognized)?
                 }
                 _ => rule,
             };
-            return ranked(rule, request, out, recognized).map(RuleBinding::Synthesized);
+            // Every number the bound rule reads is read under one law, its policy stated (R4 A5).
+            let rule = ranked(rule, request, out, recognized)?;
+            witness = Some(stated);
+            return Some(RuleBinding::Synthesized(super::observed::numbered(
+                rule, out,
+            )));
         }
         recognized.insert("const.rule_expression".to_owned());
         let label = rule_label(plan, bindings, &step.detail);
         answer(request, out, "const.rule_expression", &label, true).map(RuleBinding::Answered)
-    })
+    });
+    (rule, witness)
 }
 
 /// A carry of held material (« post it to `<url>` »); a body whose keys the request states
@@ -1147,6 +1190,7 @@ fn bind_effects(
             taken.insert(path.clone());
             if let Some(existing) = b.writes.iter_mut().find(|w| w.path == path) {
                 existing.gated |= gated;
+                existing.alone |= effect.alone;
                 existing.evidences.push(effect.evidence.clone());
                 continue;
             }
@@ -1175,6 +1219,8 @@ fn bind_effects(
                 evidences: vec![effect.evidence.clone()],
                 category,
                 facet,
+                content: plan.content_of(effect).and_then(text::quoted_literal),
+                alone: effect.alone,
             });
             continue;
         }
@@ -1339,6 +1385,8 @@ fn bind_named_outputs(
                 evidences: Vec::new(),
                 category: None,
                 facet: None,
+                content: None,
+                alone: false,
             }),
             Some(Value::Bool(false)) => super::finding(
                 out,

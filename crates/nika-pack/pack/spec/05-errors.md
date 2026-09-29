@@ -190,7 +190,7 @@ these from this file alone.
 | `NIKA-VAR-002` | binding cardinality — a jq binding emitted zero or multiple values (evaluation-time · data-dependent) | `variable_error` | false |
 | `NIKA-VAR-003` | provably-invalid path into a declared `schema:` (static walk · [04](./04-variables.md)) | `validation_error` | false |
 | `NIKA-VAR-004` | jq runtime error while evaluating a binding | `variable_error` | false |
-| `NIKA-VAR-005` | static expression violation — outside the `cel-subset/0.1` grammar · chained relation · unknown function · statically-non-boolean `when:` root · jq compile error | `validation_error` | false |
+| `NIKA-VAR-005` | static expression violation — outside the `cel-subset/0.1` grammar · chained relation · unknown function · statically-non-boolean `when:` root · jq compile error · single-brace dotted reference lookalike ([04 §Escaping](./04-variables.md#escaping)) | `validation_error` | false |
 | `NIKA-VAR-006` | expression type error at evaluation — cross-type compare · non-boolean `when:` value · `for_each` over a non-array | `variable_error` | false |
 | `NIKA-VAR-007` | bytes value substituted into a string position | `variable_error` | false |
 | `NIKA-VAR-008` | unclosed `${{` opener | `validation_error` | false |

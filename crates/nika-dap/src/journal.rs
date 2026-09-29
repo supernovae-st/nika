@@ -353,6 +353,47 @@ impl TraceFileSink {
         }
     }
 
+    /// Settle an opened journal the resident way (C6, from Serve): `seal`
+    /// first, then the durability point, so the seal's own bytes are covered;
+    /// the head the receipt names. `Ok(None)` when no journal was opened.
+    /// # Errors
+    /// The lane's buffered write or durability error.
+    pub fn settle_sealed(
+        &mut self,
+        seal: impl FnOnce(&mut Self),
+    ) -> std::io::Result<Option<String>> {
+        let lane_error = |sink: &Self| {
+            sink.error()
+                .map(|e| std::io::Error::new(e.kind(), e.to_string()))
+        };
+        if let Some(error) = lane_error(self) {
+            return Err(error);
+        }
+        if self.path().is_none() {
+            return Ok(None);
+        }
+        seal(self);
+        self.finalize();
+        lane_error(self).map_or_else(|| Ok(Some(self.chain_head().to_owned())), Err)
+    }
+
+    /// The END its owner writes when it stops a run the runtime never settled
+    /// (a cancel grace, an execution ceiling, a shutdown): `run_settled`
+    /// `interrupted`, never a frame claiming the runtime's own settlement,
+    /// `cause: operator` only when the operator asked. A journal never opened
+    /// stays untouched; a write failure is the lane's own buffered error.
+    pub fn interrupt(&mut self, execution: ExecutionId, operator: bool) {
+        if self.path().is_none() {
+            return;
+        }
+        let mut record = serde_json::json!({"kind": "run_settled", "status": "interrupted", "execution": execution});
+        if operator {
+            record["cause"] = serde_json::Value::from("operator");
+        }
+        let _written = self.write_record(&record);
+        self.finalize();
+    }
+
     /// Create the directory + the journal file, addressed by the bound trace
     /// identity or, for a legacy caller, the first event's identity.
     ///
@@ -578,6 +619,15 @@ fn trace_file_name(ts: Timestamp, id: Uuid) -> String {
     let simple = id.as_simple().to_string();
     let short = &simple[simple.len().saturating_sub(4)..];
     format!("{}-{short}.ndjson", compact_ts(ts))
+}
+
+/// Whether a store file name could be the journal of trace `id`: its short
+/// id, or the full-id name taken on a same-second collision. Names only: the
+/// caller confirms the execution the file's first frame records.
+pub(crate) fn may_name_trace(name: &str, id: Uuid) -> bool {
+    let simple = id.as_simple().to_string();
+    let short = &simple[simple.len().saturating_sub(4)..];
+    name.ends_with(&format!("-{short}.ndjson")) || name.ends_with(&format!("-{simple}.ndjson"))
 }
 
 /// Fans one event stream into two sinks — `emit` delivers to BOTH (one

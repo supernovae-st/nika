@@ -3,15 +3,205 @@ pub use nika_compile::fold
 pub use nika_compile::stated_destinations
 pub use nika_compile::stated_sources
 pub use nika_compile::text
+pub mod nika_compile::money
+#[non_exhaustive] pub struct nika_compile::money::Directive
+pub nika_compile::money::Directive::anchor: core::option::Option<alloc::string::String>
+pub nika_compile::money::Directive::currency: bool
+pub nika_compile::money::Directive::span: core::ops::range::Range<usize>
+impl core::clone::Clone for nika_compile::money::Directive
+pub fn nika_compile::money::Directive::clone(&self) -> nika_compile::money::Directive
+impl core::cmp::Eq for nika_compile::money::Directive
+impl core::cmp::PartialEq for nika_compile::money::Directive
+pub fn nika_compile::money::Directive::eq(&self, other: &nika_compile::money::Directive) -> bool
+impl core::fmt::Debug for nika_compile::money::Directive
+pub fn nika_compile::money::Directive::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile::money::Directive
+impl<D> owo_colors::OwoColorize for nika_compile::money::Directive
+impl<Q, K> equivalent::Equivalent<K> for nika_compile::money::Directive where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::money::Directive::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile::money::Directive where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::money::Directive::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile::money::Directive where U: core::convert::From<T>
+pub fn nika_compile::money::Directive::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::money::Directive where U: core::convert::Into<T>
+pub type nika_compile::money::Directive::Error = core::convert::Infallible
+pub fn nika_compile::money::Directive::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::money::Directive where U: core::convert::TryFrom<T>
+pub type nika_compile::money::Directive::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::money::Directive::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile::money::Directive where T: core::clone::Clone
+pub type nika_compile::money::Directive::Owned = T
+pub fn nika_compile::money::Directive::clone_into(&self, target: &mut T)
+pub fn nika_compile::money::Directive::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile::money::Directive where T: 'static + ?core::marker::Sized
+pub fn nika_compile::money::Directive::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::money::Directive where T: ?core::marker::Sized
+pub fn nika_compile::money::Directive::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::money::Directive where T: ?core::marker::Sized
+pub fn nika_compile::money::Directive::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile::money::Directive where T: core::clone::Clone
+pub unsafe fn nika_compile::money::Directive::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile::money::Directive
+pub fn nika_compile::money::Directive::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile::money::Directive where T: core::clone::Clone
+pub fn nika_compile::money::Directive::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile::money::Directive where T: 'static
+pub fn nika_compile::money::Directive::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile::money::Directive
+pub type nika_compile::money::Directive::Output = T
+#[non_exhaustive] pub struct nika_compile::money::Directives
+pub nika_compile::money::Directives::found: alloc::vec::Vec<nika_compile::money::Directive>
+pub nika_compile::money::Directives::money: nika_compile::money::ParsedMoney
+impl core::clone::Clone for nika_compile::money::Directives
+pub fn nika_compile::money::Directives::clone(&self) -> nika_compile::money::Directives
+impl core::cmp::PartialEq for nika_compile::money::Directives
+pub fn nika_compile::money::Directives::eq(&self, other: &nika_compile::money::Directives) -> bool
+impl core::default::Default for nika_compile::money::Directives
+pub fn nika_compile::money::Directives::default() -> nika_compile::money::Directives
+impl core::fmt::Debug for nika_compile::money::Directives
+pub fn nika_compile::money::Directives::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile::money::Directives
+impl<D> owo_colors::OwoColorize for nika_compile::money::Directives
+impl<T, U> core::convert::Into<U> for nika_compile::money::Directives where U: core::convert::From<T>
+pub fn nika_compile::money::Directives::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::money::Directives where U: core::convert::Into<T>
+pub type nika_compile::money::Directives::Error = core::convert::Infallible
+pub fn nika_compile::money::Directives::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::money::Directives where U: core::convert::TryFrom<T>
+pub type nika_compile::money::Directives::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::money::Directives::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile::money::Directives where T: core::clone::Clone
+pub type nika_compile::money::Directives::Owned = T
+pub fn nika_compile::money::Directives::clone_into(&self, target: &mut T)
+pub fn nika_compile::money::Directives::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile::money::Directives where T: 'static + ?core::marker::Sized
+pub fn nika_compile::money::Directives::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::money::Directives where T: ?core::marker::Sized
+pub fn nika_compile::money::Directives::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::money::Directives where T: ?core::marker::Sized
+pub fn nika_compile::money::Directives::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile::money::Directives where T: core::clone::Clone
+pub unsafe fn nika_compile::money::Directives::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile::money::Directives
+pub fn nika_compile::money::Directives::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile::money::Directives where T: core::clone::Clone
+pub fn nika_compile::money::Directives::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile::money::Directives where T: 'static
+pub fn nika_compile::money::Directives::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile::money::Directives
+pub type nika_compile::money::Directives::Output = T
+#[non_exhaustive] pub struct nika_compile::money::ParsedMoney
+pub nika_compile::money::ParsedMoney::amount: core::option::Option<f64>
+pub nika_compile::money::ParsedMoney::literal: core::option::Option<alloc::string::String>
+pub nika_compile::money::ParsedMoney::money_only: bool
+pub nika_compile::money::ParsedMoney::replaced_default: core::option::Option<f64>
+pub nika_compile::money::ParsedMoney::unbound_number: bool
+impl core::clone::Clone for nika_compile::money::ParsedMoney
+pub fn nika_compile::money::ParsedMoney::clone(&self) -> nika_compile::money::ParsedMoney
+impl core::cmp::PartialEq for nika_compile::money::ParsedMoney
+pub fn nika_compile::money::ParsedMoney::eq(&self, other: &nika_compile::money::ParsedMoney) -> bool
+impl core::default::Default for nika_compile::money::ParsedMoney
+pub fn nika_compile::money::ParsedMoney::default() -> nika_compile::money::ParsedMoney
+impl core::fmt::Debug for nika_compile::money::ParsedMoney
+pub fn nika_compile::money::ParsedMoney::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile::money::ParsedMoney
+impl<D> owo_colors::OwoColorize for nika_compile::money::ParsedMoney
+impl<T, U> core::convert::Into<U> for nika_compile::money::ParsedMoney where U: core::convert::From<T>
+pub fn nika_compile::money::ParsedMoney::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::money::ParsedMoney where U: core::convert::Into<T>
+pub type nika_compile::money::ParsedMoney::Error = core::convert::Infallible
+pub fn nika_compile::money::ParsedMoney::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::money::ParsedMoney where U: core::convert::TryFrom<T>
+pub type nika_compile::money::ParsedMoney::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::money::ParsedMoney::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile::money::ParsedMoney where T: core::clone::Clone
+pub type nika_compile::money::ParsedMoney::Owned = T
+pub fn nika_compile::money::ParsedMoney::clone_into(&self, target: &mut T)
+pub fn nika_compile::money::ParsedMoney::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile::money::ParsedMoney where T: 'static + ?core::marker::Sized
+pub fn nika_compile::money::ParsedMoney::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::money::ParsedMoney where T: ?core::marker::Sized
+pub fn nika_compile::money::ParsedMoney::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::money::ParsedMoney where T: ?core::marker::Sized
+pub fn nika_compile::money::ParsedMoney::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile::money::ParsedMoney where T: core::clone::Clone
+pub unsafe fn nika_compile::money::ParsedMoney::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile::money::ParsedMoney
+pub fn nika_compile::money::ParsedMoney::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile::money::ParsedMoney where T: core::clone::Clone
+pub fn nika_compile::money::ParsedMoney::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile::money::ParsedMoney where T: 'static
+pub fn nika_compile::money::ParsedMoney::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile::money::ParsedMoney
+pub type nika_compile::money::ParsedMoney::Output = T
+pub const nika_compile::money::INVALID: &str
+pub fn nika_compile::money::directives(request: &str) -> core::result::Result<nika_compile::money::Directives, &'static str>
+pub fn nika_compile::money::parse(input: &str) -> core::result::Result<nika_compile::money::ParsedMoney, &'static str>
+pub mod nika_compile::observation
+#[non_exhaustive] pub struct nika_compile::observation::Sample
+pub nika_compile::observation::Sample::columns: alloc::vec::Vec<alloc::string::String>
+pub nika_compile::observation::Sample::common: core::option::Option<alloc::vec::Vec<alloc::string::String>>
+pub nika_compile::observation::Sample::delimiter: core::option::Option<char>
+pub nika_compile::observation::Sample::kinds: serde_json::value::Value
+pub nika_compile::observation::Sample::values: alloc::vec::Vec<(alloc::string::String, serde_json::value::Value)>
+impl core::clone::Clone for nika_compile::observation::Sample
+pub fn nika_compile::observation::Sample::clone(&self) -> nika_compile::observation::Sample
+impl core::cmp::PartialEq for nika_compile::observation::Sample
+pub fn nika_compile::observation::Sample::eq(&self, other: &nika_compile::observation::Sample) -> bool
+impl core::fmt::Debug for nika_compile::observation::Sample
+pub fn nika_compile::observation::Sample::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile::observation::Sample
+impl<D> owo_colors::OwoColorize for nika_compile::observation::Sample
+impl<T, U> core::convert::Into<U> for nika_compile::observation::Sample where U: core::convert::From<T>
+pub fn nika_compile::observation::Sample::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::observation::Sample where U: core::convert::Into<T>
+pub type nika_compile::observation::Sample::Error = core::convert::Infallible
+pub fn nika_compile::observation::Sample::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::observation::Sample where U: core::convert::TryFrom<T>
+pub type nika_compile::observation::Sample::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::observation::Sample::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile::observation::Sample where T: core::clone::Clone
+pub type nika_compile::observation::Sample::Owned = T
+pub fn nika_compile::observation::Sample::clone_into(&self, target: &mut T)
+pub fn nika_compile::observation::Sample::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile::observation::Sample where T: 'static + ?core::marker::Sized
+pub fn nika_compile::observation::Sample::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::observation::Sample where T: ?core::marker::Sized
+pub fn nika_compile::observation::Sample::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::observation::Sample where T: ?core::marker::Sized
+pub fn nika_compile::observation::Sample::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile::observation::Sample where T: core::clone::Clone
+pub unsafe fn nika_compile::observation::Sample::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile::observation::Sample
+pub fn nika_compile::observation::Sample::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile::observation::Sample where T: core::clone::Clone
+pub fn nika_compile::observation::Sample::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile::observation::Sample where T: 'static
+pub fn nika_compile::observation::Sample::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile::observation::Sample
+pub type nika_compile::observation::Sample::Output = T
+pub fn nika_compile::observation::csv(head: &str, tsv: bool) -> nika_compile::observation::Sample
+pub fn nika_compile::observation::jsonl(head: &str) -> alloc::vec::Vec<serde_json::value::Value>
+pub fn nika_compile::observation::number_text(text: &str) -> bool
+pub fn nika_compile::observation::records(rows: &[serde_json::value::Value]) -> nika_compile::observation::Sample
 pub mod nika_compile::surface
+pub mod nika_compile::surface::admitted
+pub fn nika_compile::surface::admitted::read(request: &nika_compile::CompileRequest) -> core::result::Result<core::option::Option<(nika_compile::CompileRequest, serde_json::value::Value)>, alloc::string::String>
+pub fn nika_compile::surface::admitted::record(request: &nika_compile::CompileRequest, money: serde_json::value::Value, out: &mut nika_compile::CompileOutcome)
+pub fn nika_compile::surface::admitted::refused(why: &str) -> nika_compile::CompileOutcome
+pub fn nika_compile::surface::admitted::replacement(request: &nika_compile::CompileRequest, text: &str) -> core::result::Result<core::option::Option<(alloc::string::String, serde_json::value::Value)>, alloc::string::String>
 pub mod nika_compile::surface::assemble
 pub fn nika_compile::surface::assemble::assemble(plan: &nika_compile_reader::plan::Plan, intent: &str, request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome) -> core::result::Result<(), nika_compile::CompileError>
+pub fn nika_compile::surface::assemble::assemble_judged(plan: &nika_compile_reader::plan::Plan, intent: &str, request: &nika_compile::CompileRequest, judgments: &[nika_compile::surface::Judgment], whole: bool, out: &mut nika_compile::CompileOutcome) -> core::result::Result<(), nika_compile::CompileError>
+pub fn nika_compile::surface::assemble::refuse_contradiction(plan: &nika_compile_reader::plan::Plan, out: &mut nika_compile::CompileOutcome) -> bool
 pub fn nika_compile::surface::assemble::unfed(plan: &nika_compile_reader::plan::Plan, intent: &str, out: &mut nika_compile::CompileOutcome) -> bool
 pub mod nika_compile::surface::observed
 pub fn nika_compile::surface::observed::columns(world: core::option::Option<&serde_json::value::Value>, path: &str) -> core::option::Option<alloc::vec::Vec<alloc::string::String>>
+pub fn nika_compile::surface::observed::equivalent_spellings(literal: &str, observed: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_compile::surface::observed::field_answer(request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome, key: &str, label: &str, columns: &[alloc::string::String]) -> core::option::Option<serde_json::value::Value>
 pub fn nika_compile::surface::observed::for_intent(world: core::option::Option<&serde_json::value::Value>, intent: &str) -> core::option::Option<alloc::vec::Vec<alloc::string::String>>
 pub fn nika_compile::surface::observed::record(request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome)
+pub fn nika_compile::surface::observed::stated_spellings(clause: &str, observed: &[alloc::string::String], columns: &[alloc::string::String]) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub fn nika_compile::surface::observed::world(request: &nika_compile::CompileRequest) -> core::option::Option<&serde_json::value::Value>
 pub mod nika_compile::surface::pending_transform
 #[non_exhaustive] pub enum nika_compile::surface::pending_transform::PendingTransformError
@@ -23,6 +213,7 @@ pub nika_compile::surface::pending_transform::PendingTransformError::InvalidPlan
 pub nika_compile::surface::pending_transform::PendingTransformError::MissingRecord
 pub nika_compile::surface::pending_transform::PendingTransformError::MissingSourcePath
 pub nika_compile::surface::pending_transform::PendingTransformError::PrematureRule
+pub nika_compile::surface::pending_transform::PendingTransformError::UnboundRule(alloc::string::String)
 impl core::convert::From<serde_json::error::Error> for nika_compile::surface::pending_transform::PendingTransformError
 pub fn nika_compile::surface::pending_transform::PendingTransformError::from(source: serde_json::error::Error) -> Self
 impl core::error::Error for nika_compile::surface::pending_transform::PendingTransformError
@@ -193,6 +384,53 @@ impl<T> typenum::type_operators::Same for nika_compile::surface::support::Resolv
 pub type nika_compile::surface::support::ResolveError::Output = T
 pub fn nika_compile::surface::support::assemble(plan: &nika_compile::surface::support::Plan, request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome) -> core::result::Result<(), nika_compile::CompileError>
 pub fn nika_compile::surface::support::resolve(intent: &str) -> core::result::Result<core::option::Option<nika_compile::surface::support::Plan>, nika_compile::surface::support::ResolveError>
+#[non_exhaustive] pub enum nika_compile::surface::Disposition
+pub nika_compile::surface::Disposition::Carried
+pub nika_compile::surface::Disposition::NoOperation
+impl core::clone::Clone for nika_compile::surface::Disposition
+pub fn nika_compile::surface::Disposition::clone(&self) -> nika_compile::surface::Disposition
+impl core::cmp::Eq for nika_compile::surface::Disposition
+impl core::cmp::PartialEq for nika_compile::surface::Disposition
+pub fn nika_compile::surface::Disposition::eq(&self, other: &nika_compile::surface::Disposition) -> bool
+impl core::fmt::Debug for nika_compile::surface::Disposition
+pub fn nika_compile::surface::Disposition::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile::surface::Disposition
+impl core::marker::StructuralPartialEq for nika_compile::surface::Disposition
+impl<D> owo_colors::OwoColorize for nika_compile::surface::Disposition
+impl<Q, K> equivalent::Equivalent<K> for nika_compile::surface::Disposition where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::surface::Disposition::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile::surface::Disposition where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::surface::Disposition::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile::surface::Disposition where U: core::convert::From<T>
+pub fn nika_compile::surface::Disposition::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::surface::Disposition where U: core::convert::Into<T>
+pub type nika_compile::surface::Disposition::Error = core::convert::Infallible
+pub fn nika_compile::surface::Disposition::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::surface::Disposition where U: core::convert::TryFrom<T>
+pub type nika_compile::surface::Disposition::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::surface::Disposition::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile::surface::Disposition where T: core::clone::Clone
+pub type nika_compile::surface::Disposition::Owned = T
+pub fn nika_compile::surface::Disposition::clone_into(&self, target: &mut T)
+pub fn nika_compile::surface::Disposition::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile::surface::Disposition where T: 'static + ?core::marker::Sized
+pub fn nika_compile::surface::Disposition::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::surface::Disposition where T: ?core::marker::Sized
+pub fn nika_compile::surface::Disposition::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::surface::Disposition where T: ?core::marker::Sized
+pub fn nika_compile::surface::Disposition::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile::surface::Disposition where T: core::clone::Clone
+pub unsafe fn nika_compile::surface::Disposition::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile::surface::Disposition
+pub fn nika_compile::surface::Disposition::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile::surface::Disposition where T: core::clone::Clone
+pub fn nika_compile::surface::Disposition::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile::surface::Disposition where T: 'static
+pub fn nika_compile::surface::Disposition::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile::surface::Disposition where T: core::marker::Copy
+pub fn nika_compile::surface::Disposition::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile::surface::Disposition
+pub type nika_compile::surface::Disposition::Output = T
 #[non_exhaustive] pub enum nika_compile::surface::EditChange
 pub nika_compile::surface::EditChange::Constant
 pub nika_compile::surface::EditChange::Constant::literal_json: alloc::string::String
@@ -319,6 +557,106 @@ impl<T> nika_error::traits::AsAny for nika_compile::surface::AdmissionError wher
 pub fn nika_compile::surface::AdmissionError::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile::surface::AdmissionError
 pub type nika_compile::surface::AdmissionError::Output = T
+#[non_exhaustive] pub struct nika_compile::surface::Binding
+pub nika_compile::surface::Binding::answers: alloc::string::String
+pub nika_compile::surface::Binding::candidate: alloc::string::String
+pub nika_compile::surface::Binding::observed: alloc::string::String
+pub nika_compile::surface::Binding::original: core::option::Option<alloc::string::String>
+pub nika_compile::surface::Binding::plan: alloc::string::String
+pub nika_compile::surface::Binding::request: alloc::string::String
+impl nika_compile::surface::Binding
+pub fn nika_compile::surface::Binding::of(intent: &str, request: &nika_compile::CompileRequest, plan: &nika_compile_reader::plan::Plan, candidate: &str) -> Self
+impl core::clone::Clone for nika_compile::surface::Binding
+pub fn nika_compile::surface::Binding::clone(&self) -> nika_compile::surface::Binding
+impl core::cmp::Eq for nika_compile::surface::Binding
+impl core::cmp::PartialEq for nika_compile::surface::Binding
+pub fn nika_compile::surface::Binding::eq(&self, other: &nika_compile::surface::Binding) -> bool
+impl core::fmt::Debug for nika_compile::surface::Binding
+pub fn nika_compile::surface::Binding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile::surface::Binding
+impl<D> owo_colors::OwoColorize for nika_compile::surface::Binding
+impl<Q, K> equivalent::Equivalent<K> for nika_compile::surface::Binding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::surface::Binding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile::surface::Binding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::surface::Binding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile::surface::Binding where U: core::convert::From<T>
+pub fn nika_compile::surface::Binding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::surface::Binding where U: core::convert::Into<T>
+pub type nika_compile::surface::Binding::Error = core::convert::Infallible
+pub fn nika_compile::surface::Binding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::surface::Binding where U: core::convert::TryFrom<T>
+pub type nika_compile::surface::Binding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::surface::Binding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile::surface::Binding where T: core::clone::Clone
+pub type nika_compile::surface::Binding::Owned = T
+pub fn nika_compile::surface::Binding::clone_into(&self, target: &mut T)
+pub fn nika_compile::surface::Binding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile::surface::Binding where T: 'static + ?core::marker::Sized
+pub fn nika_compile::surface::Binding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::surface::Binding where T: ?core::marker::Sized
+pub fn nika_compile::surface::Binding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::surface::Binding where T: ?core::marker::Sized
+pub fn nika_compile::surface::Binding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile::surface::Binding where T: core::clone::Clone
+pub unsafe fn nika_compile::surface::Binding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile::surface::Binding
+pub fn nika_compile::surface::Binding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile::surface::Binding where T: core::clone::Clone
+pub fn nika_compile::surface::Binding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile::surface::Binding where T: 'static
+pub fn nika_compile::surface::Binding::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile::surface::Binding
+pub type nika_compile::surface::Binding::Output = T
+#[non_exhaustive] pub struct nika_compile::surface::Judgment
+pub nika_compile::surface::Judgment::binding: nika_compile::surface::Binding
+pub nika_compile::surface::Judgment::clause: alloc::string::String
+pub nika_compile::surface::Judgment::disposition: nika_compile::surface::Disposition
+pub nika_compile::surface::Judgment::question: alloc::string::String
+pub nika_compile::surface::Judgment::seat: alloc::string::String
+pub nika_compile::surface::Judgment::span: (usize, usize)
+impl nika_compile::surface::Judgment
+pub fn nika_compile::surface::Judgment::new(clause: &str, span: (usize, usize), disposition: nika_compile::surface::Disposition, seat: &str, question: &str, binding: nika_compile::surface::Binding) -> Self
+impl core::clone::Clone for nika_compile::surface::Judgment
+pub fn nika_compile::surface::Judgment::clone(&self) -> nika_compile::surface::Judgment
+impl core::cmp::Eq for nika_compile::surface::Judgment
+impl core::cmp::PartialEq for nika_compile::surface::Judgment
+pub fn nika_compile::surface::Judgment::eq(&self, other: &nika_compile::surface::Judgment) -> bool
+impl core::fmt::Debug for nika_compile::surface::Judgment
+pub fn nika_compile::surface::Judgment::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile::surface::Judgment
+impl<D> owo_colors::OwoColorize for nika_compile::surface::Judgment
+impl<Q, K> equivalent::Equivalent<K> for nika_compile::surface::Judgment where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::surface::Judgment::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile::surface::Judgment where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::surface::Judgment::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile::surface::Judgment where U: core::convert::From<T>
+pub fn nika_compile::surface::Judgment::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::surface::Judgment where U: core::convert::Into<T>
+pub type nika_compile::surface::Judgment::Error = core::convert::Infallible
+pub fn nika_compile::surface::Judgment::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::surface::Judgment where U: core::convert::TryFrom<T>
+pub type nika_compile::surface::Judgment::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::surface::Judgment::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile::surface::Judgment where T: core::clone::Clone
+pub type nika_compile::surface::Judgment::Owned = T
+pub fn nika_compile::surface::Judgment::clone_into(&self, target: &mut T)
+pub fn nika_compile::surface::Judgment::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile::surface::Judgment where T: 'static + ?core::marker::Sized
+pub fn nika_compile::surface::Judgment::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::surface::Judgment where T: ?core::marker::Sized
+pub fn nika_compile::surface::Judgment::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::surface::Judgment where T: ?core::marker::Sized
+pub fn nika_compile::surface::Judgment::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile::surface::Judgment where T: core::clone::Clone
+pub unsafe fn nika_compile::surface::Judgment::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile::surface::Judgment
+pub fn nika_compile::surface::Judgment::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile::surface::Judgment where T: core::clone::Clone
+pub fn nika_compile::surface::Judgment::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile::surface::Judgment where T: 'static
+pub fn nika_compile::surface::Judgment::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile::surface::Judgment
+pub type nika_compile::surface::Judgment::Output = T
 #[non_exhaustive] pub struct nika_compile::surface::Ledger
 impl nika_compile::surface::Ledger
 pub fn nika_compile::surface::Ledger::extract(plan: &nika_compile_reader::plan::Plan) -> Self
@@ -384,6 +722,7 @@ pub fn nika_compile::surface::record_ledger(out: &mut nika_compile::CompileOutco
 pub fn nika_compile::surface::record_retrieval(out: &mut nika_compile::CompileOutcome, intent: &str, plan: core::option::Option<&nika_compile_reader::plan::Plan>)
 pub fn nika_compile::surface::record_route(out: &mut nika_compile::CompileOutcome, route: &[alloc::string::String])
 pub fn nika_compile::surface::replay(intent: &str, record: &serde_json::value::Value, request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome) -> core::result::Result<(), nika_compile::CompileError>
+pub fn nika_compile::surface::replay_judged(intent: &str, record: &serde_json::value::Value, request: &nika_compile::CompileRequest, judgments: &[nika_compile::surface::Judgment], whole: bool, out: &mut nika_compile::CompileOutcome) -> core::result::Result<(), nika_compile::CompileError>
 pub fn nika_compile::surface::sha256(text: &str) -> alloc::string::String
 pub fn nika_compile::surface::spec_pin() -> &'static str
 pub fn nika_compile::surface::unresolved(reading: &nika_compile_reader::lexicon::Reading, out: &mut nika_compile::CompileOutcome)
@@ -437,6 +776,108 @@ impl<T> outref::AsOut<T> for nika_compile::AuthoringCognition where T: core::mar
 pub fn nika_compile::AuthoringCognition::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> typenum::type_operators::Same for nika_compile::AuthoringCognition
 pub type nika_compile::AuthoringCognition::Output = T
+#[non_exhaustive] pub enum nika_compile::AuthoringReasoning
+pub nika_compile::AuthoringReasoning::High
+pub nika_compile::AuthoringReasoning::Low
+pub nika_compile::AuthoringReasoning::Max
+impl nika_compile::AuthoringReasoning
+pub const nika_compile::AuthoringReasoning::WORDS: [&'static str; 3]
+pub fn nika_compile::AuthoringReasoning::parse(word: &str) -> core::option::Option<Self>
+pub const fn nika_compile::AuthoringReasoning::word(self) -> &'static str
+impl core::clone::Clone for nika_compile::AuthoringReasoning
+pub fn nika_compile::AuthoringReasoning::clone(&self) -> nika_compile::AuthoringReasoning
+impl core::cmp::Eq for nika_compile::AuthoringReasoning
+impl core::cmp::PartialEq for nika_compile::AuthoringReasoning
+pub fn nika_compile::AuthoringReasoning::eq(&self, other: &nika_compile::AuthoringReasoning) -> bool
+impl core::fmt::Debug for nika_compile::AuthoringReasoning
+pub fn nika_compile::AuthoringReasoning::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_compile::AuthoringReasoning
+pub fn nika_compile::AuthoringReasoning::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_compile::AuthoringReasoning
+impl core::marker::StructuralPartialEq for nika_compile::AuthoringReasoning
+impl<D> owo_colors::OwoColorize for nika_compile::AuthoringReasoning
+impl<Q, K> equivalent::Equivalent<K> for nika_compile::AuthoringReasoning where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::AuthoringReasoning::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile::AuthoringReasoning where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::AuthoringReasoning::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile::AuthoringReasoning where U: core::convert::From<T>
+pub fn nika_compile::AuthoringReasoning::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::AuthoringReasoning where U: core::convert::Into<T>
+pub type nika_compile::AuthoringReasoning::Error = core::convert::Infallible
+pub fn nika_compile::AuthoringReasoning::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::AuthoringReasoning where U: core::convert::TryFrom<T>
+pub type nika_compile::AuthoringReasoning::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::AuthoringReasoning::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile::AuthoringReasoning where T: core::clone::Clone
+pub type nika_compile::AuthoringReasoning::Owned = T
+pub fn nika_compile::AuthoringReasoning::clone_into(&self, target: &mut T)
+pub fn nika_compile::AuthoringReasoning::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile::AuthoringReasoning where T: 'static + ?core::marker::Sized
+pub fn nika_compile::AuthoringReasoning::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::AuthoringReasoning where T: ?core::marker::Sized
+pub fn nika_compile::AuthoringReasoning::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::AuthoringReasoning where T: ?core::marker::Sized
+pub fn nika_compile::AuthoringReasoning::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile::AuthoringReasoning where T: core::clone::Clone
+pub unsafe fn nika_compile::AuthoringReasoning::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile::AuthoringReasoning
+pub fn nika_compile::AuthoringReasoning::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile::AuthoringReasoning where T: core::clone::Clone
+pub fn nika_compile::AuthoringReasoning::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile::AuthoringReasoning where T: 'static
+pub fn nika_compile::AuthoringReasoning::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile::AuthoringReasoning where T: core::marker::Copy
+pub fn nika_compile::AuthoringReasoning::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile::AuthoringReasoning
+pub type nika_compile::AuthoringReasoning::Output = T
+#[non_exhaustive] pub enum nika_compile::Basis
+pub nika_compile::Basis::Holds(usize)
+pub nika_compile::Basis::Moved(alloc::vec::Vec<alloc::string::String>)
+pub nika_compile::Basis::None
+pub nika_compile::Basis::Unjudged(alloc::vec::Vec<alloc::string::String>)
+impl nika_compile::Basis
+pub fn nika_compile::Basis::sources(decision: core::option::Option<&serde_json::value::Value>) -> alloc::vec::Vec<alloc::string::String>
+impl core::clone::Clone for nika_compile::Basis
+pub fn nika_compile::Basis::clone(&self) -> nika_compile::Basis
+impl core::cmp::Eq for nika_compile::Basis
+impl core::cmp::PartialEq for nika_compile::Basis
+pub fn nika_compile::Basis::eq(&self, other: &nika_compile::Basis) -> bool
+impl core::fmt::Debug for nika_compile::Basis
+pub fn nika_compile::Basis::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile::Basis
+impl<D> owo_colors::OwoColorize for nika_compile::Basis
+impl<Q, K> equivalent::Equivalent<K> for nika_compile::Basis where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::Basis::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile::Basis where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::Basis::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile::Basis where U: core::convert::From<T>
+pub fn nika_compile::Basis::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::Basis where U: core::convert::Into<T>
+pub type nika_compile::Basis::Error = core::convert::Infallible
+pub fn nika_compile::Basis::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::Basis where U: core::convert::TryFrom<T>
+pub type nika_compile::Basis::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::Basis::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile::Basis where T: core::clone::Clone
+pub type nika_compile::Basis::Owned = T
+pub fn nika_compile::Basis::clone_into(&self, target: &mut T)
+pub fn nika_compile::Basis::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile::Basis where T: 'static + ?core::marker::Sized
+pub fn nika_compile::Basis::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::Basis where T: ?core::marker::Sized
+pub fn nika_compile::Basis::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::Basis where T: ?core::marker::Sized
+pub fn nika_compile::Basis::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile::Basis where T: core::clone::Clone
+pub unsafe fn nika_compile::Basis::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile::Basis
+pub fn nika_compile::Basis::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile::Basis where T: core::clone::Clone
+pub fn nika_compile::Basis::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile::Basis where T: 'static
+pub fn nika_compile::Basis::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile::Basis
+pub type nika_compile::Basis::Output = T
 #[non_exhaustive] pub enum nika_compile::CompileError
 pub nika_compile::CompileError::MissingSkeleton(alloc::string::String)
 pub nika_compile::CompileError::Registry(nika_schema::error::SchemaError)
@@ -1069,6 +1510,7 @@ pub nika_compile::AuthoringPolicy::initial_max_tokens: core::option::Option<u32>
 pub nika_compile::AuthoringPolicy::max_tokens: u32
 pub nika_compile::AuthoringPolicy::model: alloc::string::String
 pub nika_compile::AuthoringPolicy::native: nika_compile::NativeMode
+pub nika_compile::AuthoringPolicy::reasoning: core::option::Option<nika_compile::AuthoringReasoning>
 pub nika_compile::AuthoringPolicy::repairs: u32
 pub nika_compile::AuthoringPolicy::samples: u32
 pub nika_compile::AuthoringPolicy::timeout: core::time::Duration
@@ -1076,6 +1518,7 @@ impl nika_compile::AuthoringPolicy
 pub fn nika_compile::AuthoringPolicy::new(model: impl core::convert::Into<alloc::string::String>, max_tokens: u32, timeout: core::time::Duration) -> Self
 pub fn nika_compile::AuthoringPolicy::with_initial_max_tokens(self, initial: u32) -> Self
 pub fn nika_compile::AuthoringPolicy::with_native(self, native: nika_compile::NativeMode) -> Self
+pub fn nika_compile::AuthoringPolicy::with_reasoning(self, reasoning: nika_compile::AuthoringReasoning) -> Self
 pub fn nika_compile::AuthoringPolicy::with_repairs(self, repairs: u32) -> Self
 pub fn nika_compile::AuthoringPolicy::with_samples(self, samples: u32) -> Self
 impl core::clone::Clone for nika_compile::AuthoringPolicy
@@ -1437,20 +1880,25 @@ pub nika_compile::CompileRequest::authoring_knowledge: core::option::Option<nika
 pub nika_compile::CompileRequest::hot: nika_compile::HotPolicy
 pub nika_compile::CompileRequest::input: nika_compile::surface::Input
 pub nika_compile::CompileRequest::knowledge: core::option::Option<serde_json::value::Value>
+pub nika_compile::CompileRequest::money: alloc::vec::Vec<core::ops::range::Range<usize>>
 pub nika_compile::CompileRequest::original_intent: core::option::Option<alloc::string::String>
 pub nika_compile::CompileRequest::plan: core::option::Option<serde_json::value::Value>
+pub nika_compile::CompileRequest::stated_money: bool
 pub nika_compile::CompileRequest::workflow_id: core::option::Option<alloc::string::String>
 impl nika_compile::CompileRequest
 pub fn nika_compile::CompileRequest::answer(self, key: impl core::convert::Into<alloc::string::String>, literal_json: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_compile::CompileRequest::create(intent: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_compile::CompileRequest::edit(base_workflow: impl core::convert::Into<alloc::string::String>, change_request: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_compile::CompileRequest::set_constant(base_workflow: impl core::convert::Into<alloc::string::String>, name: impl core::convert::Into<alloc::string::String>, literal_json: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_compile::CompileRequest::with_admitted_money(self, spans: alloc::vec::Vec<core::ops::range::Range<usize>>) -> Self
 pub fn nika_compile::CompileRequest::with_authoring_knowledge(self, pack: nika_compile::AuthoringKnowledge) -> Self
 pub fn nika_compile::CompileRequest::with_authoring_policy(self, policy: nika_compile::AuthoringPolicy) -> Self
 pub fn nika_compile::CompileRequest::with_hot_policy(self, hot: nika_compile::HotPolicy) -> Self
 pub fn nika_compile::CompileRequest::with_knowledge(self, snapshot: serde_json::value::Value) -> Self
 pub fn nika_compile::CompileRequest::with_original_intent(self, intent: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_compile::CompileRequest::with_plan(self, plan: serde_json::value::Value) -> Self
+pub fn nika_compile::CompileRequest::with_replaced_input(self, text: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_compile::CompileRequest::with_stated_money(self) -> Self
 pub fn nika_compile::CompileRequest::with_workflow_id(self, id: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_compile::CompileRequest
 pub fn nika_compile::CompileRequest::clone(&self) -> nika_compile::CompileRequest
@@ -1663,6 +2111,8 @@ pub fn nika_compile::TriggerRequirement::as_any(&self) -> &(dyn core::any::Any +
 impl<T> typenum::type_operators::Same for nika_compile::TriggerRequirement
 pub type nika_compile::TriggerRequirement::Output = T
 pub const nika_compile::COMPILE_WIRE_VERSION: u32
+pub fn nika_compile::basis(decision: core::option::Option<&serde_json::value::Value>, fresh: core::option::Option<&serde_json::value::Value>, intent: &str) -> nika_compile::Basis
+pub fn nika_compile::basis_for(request: &nika_compile::CompileRequest, decision: core::option::Option<&serde_json::value::Value>, fresh: core::option::Option<&serde_json::value::Value>) -> nika_compile::Basis
 pub fn nika_compile::compile(request: &nika_compile::CompileRequest) -> core::result::Result<nika_compile::CompileOutcome, nika_compile::CompileError>
 pub fn nika_compile::finding(out: &mut nika_compile::CompileOutcome, kind: nika_compile::DiagnosticKind, target: &str, message: impl core::convert::Into<alloc::string::String>)
 pub fn nika_compile::finish(source: alloc::string::String, out: &mut nika_compile::CompileOutcome)

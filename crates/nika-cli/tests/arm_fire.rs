@@ -38,6 +38,15 @@ fn bin_with_stream_setup(setup: &str) -> Command {
     cmd
 }
 
+/// Establish EPIPE before starting the child. Closing a captured reader only after
+/// spawn races the child and concurrent process creation in the integration suite.
+#[cfg(unix)]
+fn broken_pipe() -> std::process::Stdio {
+    let (reader, writer) = nix::unistd::pipe().expect("create pipe");
+    drop(reader);
+    std::process::Stdio::from(writer)
+}
+
 /// A tempdir project: the registry + the workflow shelf.
 fn project(tag: &str, registry: &str, workflows: &[(&str, &str)]) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("nika-arm-fire-{tag}-{}", std::process::id()));
@@ -448,10 +457,9 @@ fn direct_run_with_broken_output_pipe_returns_141_with_finalized_trace() {
         cmd.args(["run", "workflows/doctor.nika"])
             .args(extra)
             .current_dir(&dir)
-            .stdout(std::process::Stdio::piped())
+            .stdout(broken_pipe())
             .stderr(std::process::Stdio::piped());
-        let mut child = cmd.spawn().expect("spawn direct run with output pipe");
-        drop(child.stdout.take());
+        let child = cmd.spawn().expect("spawn direct run with output pipe");
         let out = child.wait_with_output().expect("broken-pipe run settles");
         assert_eq!(out.status.code(), Some(141), "{tag}: BrokenPipe stays 141");
         if tag == "ndjson" {
@@ -512,14 +520,13 @@ fn arm_fire_with_broken_run_pipe_settles_exact_trace() {
         DAILY_3AM,
         &[("doctor.nika", CLOSED_STDOUT)],
     );
-    let mut child = bin()
+    let child = bin()
         .args(["arm", "fire", "doctor", "--now", "2026-08-19T03:02:00Z"])
         .current_dir(&dir)
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .stderr(broken_pipe())
         .spawn()
         .expect("spawn arm fire with diagnostic pipe");
-    drop(child.stderr.take());
     let out = child.wait_with_output().expect("broken-pipe fire settles");
     assert_eq!(
         out.status.code(),

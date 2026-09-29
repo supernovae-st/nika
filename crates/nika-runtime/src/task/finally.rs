@@ -12,12 +12,13 @@ use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::clock::ClockDyn;
 use nika_kernel::http::HttpPostDyn;
 use nika_kernel::process::ShellRunDyn;
-use nika_kernel::tool_executor::ToolExecuteDyn;
-use nika_schema::raw::{RawTask, RawWorkflow};
+use nika_kernel::tool_executor::{ToolExecuteDyn, ToolRunStart};
+use nika_schema::raw::{RawAction, RawTask, RawWorkflow};
 use nika_schema::types::AfterPredicate;
 
 use crate::Runtime;
 use crate::expr::Scope;
+use crate::ledger::RunLedger;
 use crate::record::{TaskRecord, TaskStatus};
 
 use super::{RanTask, RunResult, eval_gate, render_boundary_with, runtime_error_record};
@@ -101,6 +102,23 @@ pub(crate) fn unwind_tasks_of<'a>(
         .collect()
 }
 
+/// B11 · A4: the cleanup actions that can spend. A model call, an agent loop,
+/// a child workflow, and the two builtins compose hands the provider client
+/// and keys (image and speech generation) can spend; `exec` and every other
+/// builtin are housekeeping. A verb this runtime does not know fails closed.
+fn can_spend(action: &RawAction) -> bool {
+    match action {
+        RawAction::Exec(_) => false,
+        RawAction::Invoke(invoke) => invoke.tool().is_none_or(|tool| {
+            matches!(
+                tool.value.as_str(),
+                "nika:image_generate" | "nika:tts_generate"
+            )
+        }),
+        _ => true,
+    }
+}
+
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C>
 where
     S: ShellRunDyn + Sync,
@@ -110,6 +128,27 @@ where
     D: ToolDefinitionProviderDyn,
     C: ClockDyn + Sync,
 {
+    /// Settle a task that STARTED after its cleanup lane (spec 03 · success
+    /// AND failure · before the failure propagates in the DAG). The lane's
+    /// decisions ride a dedicated witness (the parent's is already drained)
+    /// merged right after.
+    pub(crate) async fn settle_after_finally(
+        &self,
+        (task, wf, scope): (&RawTask, &RawWorkflow, &Scope<'_>),
+        mut ran: RanTask,
+        integrity: &nika_cap::Integrity,
+        seams: (&RunLedger, ToolRunStart),
+        started: std::time::Instant,
+    ) -> super::SettleAs {
+        let witness = std::sync::Arc::new(crate::witness::PermitWitness::new());
+        let finally = self.run_finally(task, wf, scope, &ran, integrity, &witness, seams);
+        ran.cleanup_declassified =
+            nika_builtin::witness::scope_attempt_witness(witness.clone(), finally).await;
+        ran.decisions.extend(witness.take());
+        ran.duration_ms = self.since_ms(started);
+        super::SettleAs::Ran(Box::new(ran))
+    }
+
     /// Run the cleanup mini-tasks (spec 03 §`on_finally` · sequential ·
     /// best-effort · a failure/timeout/skip is journaled on the
     /// witness, never propagated · per-cleanup timeout 30s).
@@ -121,7 +160,7 @@ where
         ran: &RanTask,
         integrity: &nika_cap::Integrity,
         witness: &crate::witness::PermitWitness,
-        run_start: nika_kernel::tool_executor::ToolRunStart,
+        seams: (&RunLedger, ToolRunStart),
     ) -> Vec<super::DeclassifyEvidence> {
         // The cleanup bodies are TASKS now, joined by an `unwind` edge
         // (spec 03 §unwind). They run in DECLARATION order — the source
@@ -157,7 +196,7 @@ where
         let mut receipts = Vec::new();
         for (index, cleanup) in cleanups {
             let mut entries = self
-                .run_one_cleanup(cleanup, wf, &cleanup_scope, witness, index, run_start)
+                .run_one_cleanup(cleanup, wf, &cleanup_scope, witness, index, seams)
                 .await;
             for entry in &mut entries {
                 entry.task = Some(cleanup.id.value.clone());
@@ -180,7 +219,7 @@ where
         scope: &Scope<'_>,
         witness: &crate::witness::PermitWitness,
         index: usize,
-        run_start: nika_kernel::tool_executor::ToolRunStart,
+        (ledger, run_start): (&RunLedger, ToolRunStart),
     ) -> Vec<super::DeclassifyEvidence> {
         // Cleanup is an ordinary task: materialize its own bindings before
         // the gate, using the parent's fresh record and the run authorities.
@@ -200,7 +239,7 @@ where
             }
         };
         let scope = &scope.with_task_context(Some(&with_ns), None, None, scope.permits());
-        if !Self::cleanup_gate_open(cleanup, scope, witness, index) {
+        if !Self::cleanup_may_run(cleanup, scope, witness, index, ledger) {
             return Vec::new();
         }
         let limit = cleanup
@@ -237,11 +276,8 @@ where
             &cleanup_buffer,
             crate::dispatch::DispatchCtx {
                 deadline: Some(limit),
-                // best-effort lane: no ledger here — a finally child
-                // inherits no cost bound (the lane has no budget
-                // admission by design); the select timer below still
-                // bounds it in TIME.
-                child_budget: None,
+                // law 6 · a cleanup child inherits the run's remaining budget.
+                child_budget: ledger.remaining_usd(),
                 // a finally mini-task carries no inert: door (NEP-0006)
                 // — a code-bearing cleanup fetch refuses like any other.
                 inert: None,
@@ -249,15 +285,19 @@ where
                 // a cleanup mini-task never carries a gate answer (B5).
                 gate_answer: None,
                 run_start,
+                attempt: Some((ledger, wf, cleanup)),
             },
             None,
         ));
         let timer = std::pin::pin!(self.clock.sleep(limit));
         match futures_util::future::select(attempt, timer).await {
-            futures_util::future::Either::Left((dispatched, _)) => {
-                if let Err(failed) = dispatched.result {
-                    Self::journal_cleanup_failure(witness, index, &failed.record);
-                } else {
+            futures_util::future::Either::Left((dispatched, _)) => match dispatched.result {
+                Err(failed) => {
+                    let record = failed.debit_and_fold(ledger, &mut None, &mut None);
+                    Self::journal_cleanup_failure(witness, index, &record);
+                }
+                Ok(ok) => {
+                    ledger.debit_ok(&ok);
                     witness.record(
                         "on_finally",
                         format!("cleanup #{index}"),
@@ -265,7 +305,7 @@ where
                         "cleanup completed successfully (best-effort lane)",
                     );
                 }
-            }
+            },
             futures_util::future::Either::Right(((), _)) => {
                 Self::journal_cleanup_timeout(witness, index, limit);
             }
@@ -273,11 +313,14 @@ where
         declassified
     }
 
-    fn cleanup_gate_open(
+    /// Whether a cleanup may start: its own `when:` gate is open and, once
+    /// the run's budget is crossed, it cannot spend (B11 · A4).
+    fn cleanup_may_run(
         cleanup: &RawTask,
         scope: &Scope<'_>,
         witness: &crate::witness::PermitWitness,
         index: usize,
+        ledger: &RunLedger,
     ) -> bool {
         if let Some(gate) = cleanup.when.as_ref() {
             // Closed gate OR eval error → the cleanup is skipped
@@ -294,6 +337,19 @@ where
                 );
                 return false;
             }
+        }
+        // Best-effort is never money authority: the main lane starts no
+        // task once the budget is crossed, and a cleanup that can spend
+        // does not start either. Housekeeping still runs.
+        if ledger.tripped() && can_spend(&cleanup.action) {
+            let refused = nika_dataflow::TaskErrorRecord::new(
+                "NIKA-1704",
+                "refused before dispatch: the run's --max-cost-usd budget is already crossed, \
+                 so a cleanup that can spend does not start (housekeeping cleanups still run)",
+                false,
+            );
+            Self::journal_cleanup_failure(witness, index, &refused);
+            return false;
         }
         true
     }
@@ -339,6 +395,44 @@ where
                  (spec 03 §unwind)",
                 limit.as_secs()
             ),
+        );
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    /// A4's classification: model calls, agents, child workflows and the two
+    /// provider-backed media builtins can spend; `exec` and the other
+    /// builtins (writes, fetches, pure compute) are housekeeping.
+    #[test]
+    fn the_spending_cleanups_are_the_model_child_and_media_calls() {
+        let wf = nika_schema::parse(
+            "nika: kinds\npermits: {}\ntasks:\n  infer_task:\n    infer: { prompt: p, model: mock/echo, max_tokens: 8 }\n  agent_task:\n    agent: { prompt: p, model: mock/echo, max_turns: 2 }\n  child_task:\n    invoke: { workflow: ./child.nika }\n  image_task:\n    invoke: { tool: \"nika:image_generate\", args: { prompt: p, output_dir: out } }\n  speech_task:\n    invoke: { tool: \"nika:tts_generate\", args: { text: p, output_dir: out } }\n  exec_task:\n    exec: { command: [\"true\"] }\n  write_task:\n    invoke: { tool: \"nika:write\", args: { path: out.txt, content: p } }\n  fetch_task:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com\" } }\n  jq_task:\n    invoke: { tool: \"nika:jq\", args: { input: {}, expression: \".\" } }\n",
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let spends: Vec<(&str, bool)> = wf
+            .tasks
+            .iter()
+            .map(|t| (t.value.id.value.as_str(), can_spend(&t.value.action)))
+            .collect();
+        assert_eq!(
+            spends,
+            [
+                ("infer_task", true),
+                ("agent_task", true),
+                ("child_task", true),
+                ("image_task", true),
+                ("speech_task", true),
+                ("exec_task", false),
+                ("write_task", false),
+                ("fetch_task", false),
+                ("jq_task", false),
+            ]
         );
     }
 }

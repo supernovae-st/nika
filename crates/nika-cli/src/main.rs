@@ -13,6 +13,7 @@
 use std::io::IsTerminal;
 use std::path::PathBuf;
 
+mod arm_args;
 mod arms;
 mod init_args;
 mod lazy;
@@ -201,7 +202,7 @@ enum Command {
     /// Read-only — it schedules nothing (the file proposes, the machine
     /// disposes). Exit `0` clean · `2` the registry refuses.
     #[command(hide = true, display_order = 72)]
-    Arm(verbs::arm::args::ArmArgs),
+    Arm(arm_args::ArmOptions),
     /// Resident ARM firer by default (the SAME `fire`, wall clock in place of the OS).
     /// `--bind` + `--workflows` + `--token-file` opens authenticated loopback HTTP.
     /// Exit `0` clean · `1` otherwise.
@@ -282,7 +283,7 @@ enum Command {
     /// Compile a skeleton, bounded support intent or conservative edit into a reviewable workflow.
     /// No destination: preview only; unknown intent stays incomplete.
     #[command(display_order = 11, after_help = help_card::COMPILE_EXITS)]
-    Compile(verbs::compile::CompileArgs),
+    Compile(verbs::compile::CompileCommand),
     /// Generate shell completions (bash · zsh · fish · elvish · powershell).
     #[command(hide = true, display_order = 63)]
     Completions {
@@ -294,7 +295,7 @@ enum Command {
     #[command(hide = true, display_order = 31)]
     Trace {
         #[command(subcommand)]
-        action: verbs::trace::TraceAction,
+        action: nika_trace::trace::action::TraceCommand,
     },
     /// The hook's judge (hidden — the wired `guard-run.sh` shim calls it,
     /// agents never type it): read a host hook payload (`--stdin`) or one
@@ -384,8 +385,8 @@ struct GuardArgs {
 /// The doctor arm's flags (the `GuardArgs` tuple-variant precedent).
 #[derive(Args)]
 struct DoctorArgs {
-    /// TCP-probe the local provider ports (loopback/configured only ·
-    /// 300ms cap · nothing is sent on the socket). Offline without it.
+    /// Probe local ports and compatible model lists (configured endpoints only;
+    /// bounded GET, no inference or download). Offline without it.
     #[arg(long)]
     ping: bool,
     /// Emit the machine projection (summary + findings[] — agents/CI
@@ -840,7 +841,7 @@ fn dispatch_verb(
             forecast,
         } => emit(&explain_dispatch(&code, json, forecast, plain_theme)),
         Command::Key { action } => emit(&verbs::key::run(action)),
-        Command::Arm(a) => emit(&verbs::arm::run(a)),
+        Command::Arm(a) => emit(&arm_args::run(a)),
         Command::Serve(a) => emit(&verbs::serve::run(&a)),
         Command::Sign(args) => emit(&verbs::sign::run(&args)),
         Command::Doctor(args) => doctor_verb(&args, plain_theme),
@@ -864,13 +865,13 @@ fn dispatch_verb(
         }),
         Command::Try(a) => try_args::listing(&a, plain_theme)
             .map_or_else(|| try_args::rehearse(&a, plain_theme), |o| emit(&o)),
-        Command::Compile(args) => emit(&verbs::compile::run(&args)),
+        Command::Compile(command) => emit(&command.run()),
         Command::Completions { shell } => {
             write_completions(shell, &mut std::io::stdout());
             0
         }
         Command::Trace { action } => {
-            nika_trace::dispatch::trace_verb(action, plain_theme, color.choice(), link_when)
+            nika_trace::dispatch::trace_command(action, plain_theme, color.choice(), link_when)
         }
         Command::Guard(args) => guard_verb(&args, plain_theme),
         // The language server OWNS stdout (JSON-RPC) — it must not go through
@@ -1237,9 +1238,12 @@ mod tests {
             .expect("parses");
         assert!(matches!(
             cli.command,
-            Some(Command::Compile(verbs::compile::CompileArgs {
-                intent: Some(_),
-                dest: Some(_),
+            Some(Command::Compile(verbs::compile::CompileCommand {
+                args: verbs::compile::CompileArgs {
+                    intent: Some(_),
+                    dest: Some(_),
+                    ..
+                },
                 ..
             }))
         ));

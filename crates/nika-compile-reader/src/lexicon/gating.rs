@@ -10,38 +10,11 @@ use super::{ReadState, Reading};
 
 /// Sending words, folded: a gate phrase that names them (« avant tout envoi », « rien ne
 /// doit partir », « before sending ») gates the outbound effects, never a write.
-const SENDING_WORDS: &[&str] = &[
-    "envoi",
-    "envoyer",
-    "envoyez",
-    "envoyé",
-    "partir",
-    "expédier",
-    "send",
-    "sending",
-    "sent",
-    "post",
-    "posting",
-    "enviar",
-    "envío",
-    "envio",
-    "envíe",
-    "envíes",
-    "invio",
-    "inviare",
-    "invii",
-    "spedire",
-    "senden",
-    "versand",
-    "versenden",
-    "verschicken",
-    "schicken",
-    "enviei",
-];
+const SENDING_WORDS: &str = include_str!("../../assets/gate_sending_words.txt");
 
 pub(super) fn names_sending(text: &str) -> bool {
     text.split(|c: char| !c.is_alphanumeric())
-        .any(|w| SENDING_WORDS.contains(&w))
+        .any(|w| SENDING_WORDS.lines().any(|s| s == w))
 }
 
 /// A gate phrase with no named effect gates the last automatic effect; one that names

@@ -301,10 +301,18 @@ fn bound_token(raw: &str, max: usize) -> String {
         .collect()
 }
 
-fn bound_message(raw: &str) -> String {
+/// This server's own public route literals: guidance names the route to use,
+/// so a bounded message keeps such a token whole (B12).
+const ROUTES: [&str; 3] = ["/v1/cost-reviews", "/v2/cost-reviews", "/v1/jobs"];
+
+/// The one public-message bound (job records use it too): path-like tokens
+/// are dropped, except an exact route literal once trailing punctuation is
+/// trimmed; at most 240 bytes.
+pub(crate) fn bound_message(raw: &str) -> String {
     let mut out = String::new();
     for token in raw.split_whitespace() {
-        if token.starts_with('/') || token.contains(":\\") {
+        let route = ROUTES.contains(&token.trim_end_matches([',', '.', ';', ':', ')']));
+        if (token.starts_with('/') && !route) || token.contains(":\\") {
             continue;
         }
         if !out.is_empty() {
@@ -317,4 +325,33 @@ fn bound_message(raw: &str) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod bound_tests {
+    use super::bound_message;
+
+    /// C6 defect 2: the guidance keeps the route it names, while every other
+    /// path-like token (a near miss included) is still scrubbed.
+    #[test]
+    fn only_exact_closed_route_literals_survive_the_path_scrub() {
+        let guidance = "admits POST /v1/cost-reviews, then one job; a fan: POST /v2/cost-reviews (costReviewV2); POST /v1/jobs.";
+        assert_eq!(bound_message(guidance), guidance);
+        for near in [
+            "/v1/cost-reviews/rev-1",
+            "/v1/cost-reviews/",
+            "/v1/cost-reviewsX",
+            "/v1/cost-review",
+            "/v10/cost-reviews",
+            "//v1/cost-reviews",
+            "/x/v1/cost-reviews",
+            "/v2/cost-reviews/x",
+            "/v3/cost-reviews",
+            "/v1/jobs/42",
+            "/Users/someone/.nika",
+        ] {
+            assert_eq!(bound_message(&format!("at {near} now")), "at now", "{near}");
+        }
+        assert_eq!(bound_message(r"at C:\Users\x now"), "at now");
+    }
 }

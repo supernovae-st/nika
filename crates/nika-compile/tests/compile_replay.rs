@@ -22,6 +22,8 @@ use std::{
     time::Duration,
 };
 
+mod common;
+
 /// A clause the deterministic reader cannot consume ("harmonise le ton") forces COLD.
 const COLD_INTENT: &str = "Pour chaque demande, consulte le client, classe le problème, puis harmonise le ton de la réponse. Demande un accord humain avant le remboursement.";
 /// Every clause explicit: the deterministic reader admits it without any seat.
@@ -118,9 +120,10 @@ async fn a_recorded_cold_plan_replays_the_same_candidate_with_zero_calls() {
         "the plan record names its strategy"
     );
     // The original answer round: the provider is called again and may drift.
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
     let original = compile_with_provider(
         &answered(CompileRequest::create(COLD_INTENT).with_authoring_policy(policy())),
-        &provider,
+        &common::Judged::approving(&provider),
     )
     .await
     .unwrap();

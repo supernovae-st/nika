@@ -13,8 +13,8 @@
 //! never the whole file.
 
 use super::native::{
-    self, Answer, Prelude, Question, Talk, cold, conclude, decode, floor_refuses, judge, prelude,
-    repair_message, system_message,
+    self, Answer, Prelude, Question, Shaped, Talk, cold, conclude, decode, floor_refuses, judge,
+    prelude, repair_message, system_message,
 };
 use super::{AuthoringPolicy, CompileOutcome, CompileRequest, Strategy};
 use crate::fidelity::{self, Diagnostic};
@@ -49,6 +49,14 @@ struct Filling {
     notes: String,
 }
 
+impl Shaped for SketchAnswer {
+    const KEYS: &'static [&'static str] = &["tasks"];
+}
+
+impl Shaped for Filling {
+    const KEYS: &'static [&'static str] = &["fills"];
+}
+
 /// The sketch instruction in the embedded pack, read beside the card.
 const SKETCH: &str = include_str!("../../assets/native_authoring_sketch.md");
 
@@ -62,7 +70,7 @@ fn schema(text: &str) -> Value {
 
 /// One call under the schema: the seat's text decoded as `T`, or the end of the talk (a
 /// failed call is journaled here; the decoder journals the rest).
-async fn call<T: serde::de::DeserializeOwned, P: ProviderInferDyn>(
+async fn call<T: Shaped, P: ProviderInferDyn>(
     talk: &mut Talk,
     round: u32,
     role: &'static str,
@@ -307,6 +315,7 @@ async fn fill<P: ProviderInferDyn>(
                 questions: answer.questions.clone(),
                 gaps: answer.gaps.clone(),
                 notes: answer.notes.clone(),
+                dual: None,
             });
         }
         talk.refused = Some(candidate);
@@ -389,6 +398,9 @@ pub(super) async fn author<P: ProviderInferDyn>(
         &mut out,
     );
     out.provenance.strategy = Some(Strategy::Native);
+    if accepted.is_some() {
+        out = super::verify::judged_native(intent, reading, policy, provider, request, out).await;
+    }
     Ok(out)
 }
 

@@ -38,6 +38,17 @@ pub enum CapEvidence {
     Unknown,
 }
 impl CapEvidence {
+    /// The layer for a public surface: its class, its origin, its cap. No credential rides it.
+    fn view(&self) -> serde_json::Value {
+        match self {
+            Self::Observed { cap, origin } => serde_json::json!({
+                "class": "observed", "origin": origin, "cap": cap_view(*cap)}),
+            Self::NotApplicable { origin } => {
+                serde_json::json!({"class": "not_applicable", "origin": origin})
+            }
+            Self::Unknown => serde_json::json!({"class": "unknown"}),
+        }
+    }
     fn cap(&self) -> HardMonetaryCap {
         match self {
             Self::Observed { cap, origin } if !origin.trim().is_empty() => *cap,
@@ -89,6 +100,28 @@ impl CostHostEvidence {
             CapEvidence::NotApplicable { origin: "local interactive CLI composition: no machine monetary-cap source configured or supported".into() },
             CapEvidence::NotApplicable { origin: "observed interactive invocation, not an ARM/scheduled occurrence".into() })
     }
+    /// The evidence as a public surface shows it: whether the host permits an
+    /// unknown-cost choice and, per layer, what it observed. Never a credential.
+    #[must_use]
+    pub fn view(&self) -> serde_json::Value {
+        serde_json::json!({
+            "allowed": self.allowed,
+            "policy": self.layers[0].view(),
+            "machine": self.layers[1].view(),
+            "occurrence": self.layers[2].view(),
+        })
+    }
+    /// The refusal this evidence gives every unknown-cost choice (a hard cap,
+    /// a denied or unknown layer) before any review is framed, in the words
+    /// [`CostReview::new`] gives; `None` when a fresh choice may be reviewed.
+    /// A host teaches its own cap's remedy beside this refusal only.
+    #[must_use]
+    pub fn unknown_cost_refusal(&self) -> Option<String> {
+        self.policy(None, None)
+            .validate()
+            .err()
+            .map(|e| e.to_string())
+    }
     fn policy(&self, invocation: Option<Cost>, project: Option<Cost>) -> UnknownCostPolicy {
         UnknownCostPolicy::new(
             self.allowed,
@@ -98,6 +131,14 @@ impl CostHostEvidence {
             invocation,
             project,
         )
+    }
+}
+
+fn cap_view(cap: HardMonetaryCap) -> serde_json::Value {
+    match cap {
+        HardMonetaryCap::Absent => serde_json::json!("absent"),
+        HardMonetaryCap::Capped(limit) => serde_json::json!({"capped_usd": limit.to_string()}),
+        _ => serde_json::json!("unknown"),
     }
 }
 
@@ -112,9 +153,12 @@ pub struct CostRoute {
 }
 impl CostRoute {
     /// Keyless route observation using the same configuration as the caller.
-    /// Unknown-cost transport currently supports HTTPS OpenAI-compatible text only.
+    /// Unknown-cost transport currently supports HTTPS OpenAI-compatible text only,
+    /// on an endpoint in its canonical form ([`crate::canonical_endpoint`]): one
+    /// the URL parser would rewrite, or one with userinfo, a query or a fragment,
+    /// is refused before any review, naming at most its origin.
     /// # Errors
-    /// Unsupported adapter, malformed model or missing endpoint.
+    /// Unsupported adapter, malformed model, missing or noncanonical endpoint.
     pub fn observe(model: &str, config: ProvidersConfig) -> Result<Self, String> {
         let (provider, name) = model
             .split_once('/')
@@ -135,11 +179,26 @@ impl CostRoute {
         if !endpoint.starts_with("https://") || name.is_empty() {
             return Err("unknown-cost admission requires an exact HTTPS route and model".into());
         }
+        if !crate::canonical_endpoint(endpoint) {
+            let origin = crate::route_origin(endpoint).unwrap_or_else(|| "this provider".into());
+            return Err(format!(
+                "unknown-cost admission requires the endpoint configured for {origin} in its canonical form (as the URL parser writes it, with a path and no userinfo, query or fragment): nothing was reviewed or sent"
+            ));
+        }
         Ok(Self {
             provider: provider.into(),
             model: profile.resolve_model(name).into(),
             endpoint: endpoint.into(),
         })
+    }
+    /// Scheme, host and effective port of the endpoint, from the URL parser
+    /// ([`crate::route_origin`]): where the request goes, never userinfo, path,
+    /// query or fragment, and `unknown origin` when it has none to project (a
+    /// credential is refused, never stripped). The exact endpoint stays bound
+    /// through the review's private witness.
+    #[must_use]
+    pub fn origin(&self) -> String {
+        crate::route_origin(&self.endpoint).unwrap_or_else(|| "unknown origin".into())
     }
     /// Whether numeric USD catalog admission cannot qualify this exact route.
     #[must_use]
@@ -168,6 +227,24 @@ pub fn native_catalog_price_known(model: &str, config: ProvidersConfig) -> bool 
         })
 }
 
+/// The Run's monetary class of one API route: one predicate for a literal
+/// route the Run reviews before it starts and a route rendered at run time.
+/// `Ok(None)`: a qualified admission tariff or a native catalog price admits
+/// it. `Ok(Some(route))`: its USD cost is unknown, so only a fresh choice may.
+/// # Errors
+/// Neither an unknown-cost route nor a native price can judge the model.
+pub fn unknown_cost_route(
+    model: &str,
+    config: ProvidersConfig,
+) -> Result<Option<CostRoute>, String> {
+    match CostRoute::observe(model, config.clone()) {
+        Ok(route) if route.needs_unknown_choice() => Ok(Some(route)),
+        Ok(_) => Ok(None),
+        Err(_) if native_catalog_price_known(model, config) => Ok(None),
+        Err(why) => Err(why),
+    }
+}
+
 /// The per-request output ceiling of a Run review (and of any review not built for a Session).
 pub const RUN_REVIEW_MAX_OUTPUT_TOKENS: u32 = 8192;
 /// The per-request deadline of a Run review (and of any review not built for a Session).
@@ -193,6 +270,9 @@ pub struct CostReview {
     evidence: CostHostEvidence,
     defaults: [Option<Cost>; 2],
     max_requests: u32,
+    max_in_flight: u32,
+    breakdown: Vec<String>,
+    authored_retry: bool,
     max_output_tokens: u32,
     request_timeout: Duration,
     reviewed_at: std::time::Instant,
@@ -240,6 +320,9 @@ impl CostReview {
             evidence,
             defaults: [invocation_default, project_default],
             max_requests: 1,
+            max_in_flight: 1,
+            breakdown: Vec::new(),
+            authored_retry: false,
             max_output_tokens: RUN_REVIEW_MAX_OUTPUT_TOKENS,
             request_timeout: RUN_REVIEW_TIMEOUT,
             reviewed_at: nika_kernel::clock::ClockDyn::now(clock.as_ref()),
@@ -282,6 +365,17 @@ impl CostReview {
         self.request_timeout
     }
 
+    /// The requests, per-request output tokens and per-request deadline this
+    /// review would admit, together: the triple a host shows, from its owner.
+    #[must_use]
+    pub fn bounds(&self) -> (u32, u32, Duration) {
+        (
+            self.max_requests,
+            self.max_output_tokens,
+            self.request_timeout,
+        )
+    }
+
     /// A Run host derives this upper bound from checked, sequential direct infers.
     /// This builder creates no authority; confirmation still binds one invocation.
     /// # Errors
@@ -292,6 +386,40 @@ impl CostReview {
         }
         self.max_requests = max_requests;
         Ok(self)
+    }
+
+    /// At most `max_in_flight` of the Run's requests at once, inside the same
+    /// total; the confirmed choice reserves both atomically.
+    /// # Errors
+    /// Zero, or more than the review's total.
+    pub fn with_concurrency(mut self, max_in_flight: u32) -> Result<Self, String> {
+        if max_in_flight == 0 || max_in_flight > self.max_requests {
+            return Err("unknown-cost concurrency must be positive and within the total".into());
+        }
+        self.max_in_flight = max_in_flight;
+        Ok(self)
+    }
+
+    /// The finite breakdown the question shows, one line per task.
+    #[must_use]
+    pub fn with_breakdown(mut self, lines: Vec<String>) -> Self {
+        self.breakdown = lines;
+        self
+    }
+
+    /// Whether the Run authored retries inside its total: only then may a
+    /// received 429 or 503 be followed by another request, and the question
+    /// says so.
+    #[must_use]
+    pub fn with_authored_retry(mut self, authored: bool) -> Self {
+        self.authored_retry = authored;
+        self
+    }
+
+    /// The requests this review would admit in flight at once.
+    #[must_use]
+    pub fn max_in_flight(&self) -> u32 {
+        self.max_in_flight
     }
 
     fn choice(&self) -> Result<UnknownCostChoice, String> {
@@ -305,6 +433,14 @@ impl CostReview {
             self.max_output_tokens,
             self.request_timeout,
         )
+        .and_then(|choice| choice.with_max_in_flight(self.max_in_flight))
+        .map(|choice| {
+            if self.authored_retry {
+                choice.with_authored_retry()
+            } else {
+                choice
+            }
+        })
         .map_err(|e| e.to_string())
     }
     fn policy(&self) -> UnknownCostPolicy {
@@ -317,8 +453,32 @@ impl CostReview {
             .defaults
             .map(|c| c.map_or_else(|| "none".into(), |v| v.to_string()));
         let seconds = self.request_timeout.as_secs();
+        // A fan or an authored retry shows its breakdown and concurrency; a
+        // sequential Run keeps its historical words byte for byte.
+        let concurrency = (self.max_in_flight > 1 || !self.breakdown.is_empty()).then(|| {
+            format!(
+                "At most {} in flight at once; authored retries and schema re-asks consume this same request bound.",
+                self.max_in_flight
+            )
+        });
+        // A task retry the workflow authored is the runtime's, never a hidden
+        // resend by the transport, which stays at zero.
+        let retry = self.authored_retry.then(|| {
+            "Task retries authored in the workflow (retry.max_attempts) may send a new request only after a completed response or a received 429 or 503; the transport never resends on its own, and any other failure stops every further request.".to_owned()
+        });
+        let mut multiplicity = String::new();
+        for line in self
+            .breakdown
+            .iter()
+            .cloned()
+            .chain(concurrency)
+            .chain(retry)
+        {
+            multiplicity.push('\n');
+            multiplicity.push_str(&line);
+        }
         format!(
-            "USD cost is unknown; a charge is possible on {}/{}.\nAt most {} requests; each at most {} output tokens and {} seconds (at most {} seconds of model wait). Any schema re-asks consume this same request bound. No automatic transport retry.\nOverrides only the shown defaults (invocation: {}; project: {}); no hard cap is overridden.\nContinue once? yes / no",
+            "USD cost is unknown; a charge is possible on {}/{}.\nAt most {} requests; each at most {} output tokens and {} seconds (at most {} seconds of model wait). Any schema re-asks consume this same request bound. No automatic transport retry.{multiplicity}\nOverrides only the shown defaults (invocation: {}; project: {}); no hard cap is overridden.\nContinue once? yes / no",
             self.route.provider,
             self.route.model,
             self.max_requests,
@@ -330,11 +490,16 @@ impl CostReview {
         )
     }
     /// Exact review identity and evidence for a details surface, not a credential.
+    /// The route is named by its origin, never its path; the host evidence by its
+    /// public view (each layer's class, origin and cap), never a debug dump.
     #[must_use]
     pub fn details(&self) -> String {
         format!(
-            "candidate {} · invocation {} · endpoint {} · host {:?}",
-            self.candidate, self.invocation, self.route.endpoint, self.evidence
+            "candidate {} · invocation {} · origin {} · host {}",
+            self.candidate,
+            self.invocation,
+            self.route.origin(),
+            self.evidence.view()
         )
     }
     /// Consume the review after the host receives explicit confirmation and
@@ -489,6 +654,192 @@ mod tests {
             .checked_sub(Duration::from_secs(301))
             .unwrap();
         assert!(expired.confirm("candidate-a", &route()).is_err());
+    }
+    const SENTINEL: &str = "C6-SECRET-PATH-TOKEN";
+
+    /// The origin is the URL parser's (`route_origin`): a canonical route keeps
+    /// the exact origin it always showed, a credential is refused rather than
+    /// stripped, and a backslash never carries a path into it.
+    #[test]
+    fn the_origin_keeps_scheme_host_and_effective_port_only() {
+        let at = |endpoint: &str| CostRoute {
+            provider: "deepseek".into(),
+            model: "m".into(),
+            endpoint: endpoint.into(),
+        };
+        for (endpoint, origin) in [
+            (
+                "https://api.deepseek.com/v1",
+                "https://api.deepseek.com:443",
+            ),
+            (
+                "https://127.0.0.1:18443/v1/C6-SECRET-PATH-TOKEN",
+                "https://127.0.0.1:18443",
+            ),
+            (
+                "https://user:C6-SECRET-PATH-TOKEN@host.example/v1",
+                "unknown origin",
+            ),
+            (
+                "https://host.example/v1?key=C6-SECRET-PATH-TOKEN#frag",
+                "https://host.example:443",
+            ),
+            ("http://[::1]:8080/v1", "http://[::1]:8080"),
+            ("https://[::1]/v1", "https://[::1]:443"),
+            (
+                "https://127.0.0.1:18443\\C6-SECRET-PATH-TOKEN\\v1",
+                "https://127.0.0.1:18443",
+            ),
+            (
+                "https://Host.Example/C6-SECRET-PATH-TOKEN",
+                "https://host.example:443",
+            ),
+        ] {
+            let seen = at(endpoint).origin();
+            assert_eq!(seen, origin, "{endpoint}");
+            assert!(!seen.contains(SENTINEL));
+        }
+    }
+
+    /// Endpoints the URL parser would rewrite or that carry what a route must
+    /// not: backslash, userinfo, query, fragment, case, an explicit default
+    /// port, a raw Unicode host, a space and no path.
+    const NONCANONICAL: [&str; 9] = [
+        "https://127.0.0.1:18443\\C6-SECRET-PATH-TOKEN\\v1",
+        "https://user:C6-SECRET-PATH-TOKEN@gateway.example/v1",
+        "https://gateway.example/v1?key=C6-SECRET-PATH-TOKEN",
+        "https://gateway.example/v1#C6-SECRET-PATH-TOKEN",
+        "https://Gateway.Example/C6-SECRET-PATH-TOKEN/v1",
+        "https://gateway.example:443/C6-SECRET-PATH-TOKEN/v1",
+        "https://gätéway.example/C6-SECRET-PATH-TOKEN/v1",
+        "https://gateway.example/C6 SECRET PATH TOKEN/v1",
+        "https://gateway.example",
+    ];
+
+    #[test]
+    fn a_noncanonical_endpoint_is_refused_before_any_review() {
+        for endpoint in NONCANONICAL {
+            let config = ProvidersConfig::new().with_base_url("deepseek", endpoint);
+            let refused =
+                CostRoute::observe("deepseek/deepseek-v4-pro", config.clone()).expect_err(endpoint);
+            assert!(
+                !refused.contains("SECRET") && !refused.contains("/v1"),
+                "{endpoint}: {refused}"
+            );
+            assert!(
+                unknown_cost_route("deepseek/deepseek-v4-pro", config).is_err(),
+                "{endpoint}"
+            );
+            let route = CostRoute {
+                provider: "deepseek".into(),
+                model: "deepseek-v4-pro".into(),
+                endpoint: endpoint.into(),
+            };
+            let review = CostReview::new(
+                "c".into(),
+                "i".into(),
+                route,
+                CostHostEvidence::unmanaged_interactive_local(),
+                None,
+                None,
+            );
+            assert!(review.is_err(), "{endpoint}: no review, so no request");
+        }
+        let canonical = ProvidersConfig::new()
+            .with_base_url("deepseek", format!("https://gateway.example/{SENTINEL}/v1"));
+        let route = CostRoute::observe("deepseek/deepseek-v4-pro", canonical).expect("canonical");
+        assert_eq!(route.origin(), "https://gateway.example:443");
+        assert!(
+            route.endpoint.contains(SENTINEL),
+            "the exact route stays in memory"
+        );
+    }
+
+    #[test]
+    fn review_and_challenge_screens_name_the_origin_never_the_path() {
+        let config = ProvidersConfig::new()
+            .with_base_url("deepseek", format!("https://gateway.example/{SENTINEL}/v1"));
+        let route = CostRoute::observe("deepseek/deepseek-v4-pro", config).expect("route");
+        let review = CostReview::new(
+            "c".into(),
+            "i".into(),
+            route,
+            CostHostEvidence::unmanaged_interactive_local(),
+            None,
+            None,
+        )
+        .expect("review");
+        let details = review.details();
+        assert!(
+            details.contains("origin https://gateway.example:443 ·"),
+            "{details}"
+        );
+        assert!(!details.contains(SENTINEL), "{details}");
+        // The host evidence reads as its public view, never a Rust debug dump.
+        assert!(details.contains(r#"host {"allowed":true,"#), "{details}");
+        assert!(!details.contains("CostHostEvidence"), "{details}");
+        let pending = PendingCostReview::new(review, "s".into(), "i".into());
+        let challenge = pending.challenge();
+        for screen in [challenge.display(), challenge.details()] {
+            assert!(!screen.contains(SENTINEL), "{screen}");
+        }
+        assert!(
+            challenge
+                .display()
+                .contains(" at https://gateway.example\n")
+        );
+        assert!(
+            challenge
+                .details()
+                .contains("Origin: https://gateway.example:443\n")
+        );
+        let ipc = serde_json::to_string(challenge).expect("challenge");
+        assert!(ipc.contains(SENTINEL), "the host IPC keeps the exact route");
+    }
+    #[test]
+    fn the_evidence_view_names_each_layer() {
+        let view = CostHostEvidence::new(
+            true,
+            CapEvidence::NotApplicable {
+                origin: "test composition".into(),
+            },
+            CapEvidence::Observed {
+                cap: HardMonetaryCap::Capped(Cost::new(2_000_000_000)),
+                origin: "machine cap".into(),
+            },
+            CapEvidence::Unknown,
+        )
+        .view();
+        assert_eq!(view["allowed"], true);
+        assert_eq!(view["policy"]["class"], "not_applicable");
+        assert_eq!(view["machine"]["class"], "observed");
+        assert_eq!(
+            view["machine"]["cap"]["capped_usd"],
+            Cost::new(2_000_000_000).to_string()
+        );
+        assert_eq!(view["occurrence"], serde_json::json!({"class": "unknown"}));
+    }
+    #[test]
+    fn native_price_text_never_carries_an_override_endpoint() {
+        let config = ProvidersConfig::new()
+            .with_base_url("deepseek", format!("https://127.0.0.1:18443/v1/{SENTINEL}"));
+        let route = CostRoute::observe("deepseek/deepseek-v4-pro", config).expect("override route");
+        assert!(
+            route.endpoint.contains(SENTINEL),
+            "the private witness keeps the exact route"
+        );
+        let review = CostReview::new(
+            "c".into(),
+            "i".into(),
+            route,
+            CostHostEvidence::unmanaged_interactive_local(),
+            None,
+            None,
+        )
+        .expect("review");
+        let pending = PendingCostReview::new(review, "s".into(), "i".into());
+        assert!(!pending.challenge().native_price.contains(SENTINEL));
+        assert!(!pending.challenge().route.origin().contains(SENTINEL));
     }
     #[test]
     fn selected_adapter_is_not_substituted_for_unsupported_subscription() {

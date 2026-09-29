@@ -14,10 +14,10 @@ use sha2::{Digest as _, Sha256};
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use tokio::sync::oneshot;
 
-use super::route::SNAPSHOT_WIRE_UNIT_CEILING;
 use super::test_support::assert_allowlisted;
 use super::*;
 use crate::{MAX_EXECUTION_SNAPSHOT_METADATA_BYTES, MAX_EXECUTION_SNAPSHOT_PATH_BYTES};
+use nika_execution::WIRE_UNIT_CEILING as SNAPSHOT_WIRE_UNIT_CEILING;
 
 pub(super) const TOKEN: &str = "remote-test-token-012345678901234567890123456789";
 pub(super) const WORKFLOW: &str = "nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n";
@@ -448,6 +448,10 @@ mod budget;
 mod cancel_race;
 #[cfg(test)]
 mod compile;
+#[cfg(unix)]
+mod cost_review;
+#[cfg(unix)]
+mod cost_review_v2;
 #[cfg(test)]
 mod durable_queue;
 #[cfg(test)]
@@ -1053,16 +1057,21 @@ pub(super) async fn wait_for_status(
     id: &str,
     expected: &str,
 ) -> Result<(), String> {
-    for _ in 0..200 {
+    let mut last = String::new();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    while tokio::time::Instant::now() < deadline {
         let response = server
             .request(&get_request(&format!("/v1/jobs/{id}/status")))
             .await;
         if response.status == 200 && response.json()["status"] == expected {
             return Ok(());
         }
+        last = format!("HTTP {}: {}", response.status, response.body);
         tokio::time::sleep(Duration::from_millis(5)).await;
     }
-    Err(format!("job {id} never reached {expected}"))
+    Err(format!(
+        "job {id} never reached {expected}; last observation: {last}"
+    ))
 }
 
 async fn wire_request(address: SocketAddr, request: &str) -> WireResponse {

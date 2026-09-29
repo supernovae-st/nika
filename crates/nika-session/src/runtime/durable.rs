@@ -14,6 +14,8 @@ use super::inference::{
     DISPATCH_PREFIX, GATE_MONEY_PREFIX, OBSERVED_PREFIX, RECONFIRM, gate_money_marker,
     is_money_marker,
 };
+use super::round::KeptRound;
+use nika_trace::lineage::{Standing, lineage_of};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
@@ -51,7 +53,13 @@ impl SessionRuntime {
         }
         self.history = HistoryMode::Blocked("conversation history did not open".to_owned());
         let history = History::open(home, &self.snapshot.root).map_err(history_refusal)?;
-        self.restore_intent(IntentDraft {
+        // The round kept beside its projected labels: the one durable copy, read, never live.
+        self.restored_round = history
+            .state
+            .round
+            .clone()
+            .map(|raw| KeptRound::new(raw, history.state.unresolved.clone()));
+        let expired = self.restore_intent(IntentDraft {
             goal: history.state.goal.clone(),
             decisions: history.state.decisions.clone(),
             unresolved: history.state.unresolved.clone(),
@@ -66,15 +74,21 @@ impl SessionRuntime {
         }
         let notice = history.restored.then(|| {
             let mut text = "conversation restored · previous proposals and gates require fresh validation".to_owned();
+            text.push_str(&expired);
             if history.uncertain {
                 text.push_str("\ninterrupted operation: its result may be unknown; inspect effects and receipts before retrying · nothing was replayed");
             }
             if let Some(restored) = &self.restored_draft {
                 text.push('\n');
                 text.push_str(&draft::restored_line(restored, self.money.reconfirm));
-                if self.restored_draft_id().is_some() {
+                // While a kept round can be continued, `/restore` continues it first.
+                if self.restored_draft_id().is_some() && !self.round_is_continuable() {
                     text.push_str(super::restore::RESTORE_HINT);
                 }
+            }
+            if let Some(line) = self.round_line() {
+                text.push('\n');
+                text.push_str(&line);
             }
             text
         });
@@ -91,9 +105,10 @@ impl SessionRuntime {
             self.pending_gate = None;
             return TurnOutcome::Quit;
         }
-        // `/restore` records itself as the re-proposal act; what already waits refuses it.
+        // `/restore` records itself as the continuation or re-proposal act; what already waits
+        // refuses it.
         if input.trim() == "/restore" {
-            return self.restore_draft();
+            return self.restore_kept();
         }
         let operation = if self.local_run_line(input) {
             Operation::Run
@@ -231,7 +246,7 @@ impl SessionRuntime {
         {
             self.money.reconfirm = true;
         }
-        self.restore_intent(IntentDraft {
+        let expired = self.restore_intent(IntentDraft {
             goal: state.goal,
             decisions: state.decisions,
             unresolved: state.unresolved,
@@ -240,6 +255,7 @@ impl SessionRuntime {
             "session record restored (.nika/{STATE_FILE} · written {})",
             state.updated_at
         );
+        notice.push_str(&expired);
         for line in self
             .intent
             .decisions
@@ -255,11 +271,27 @@ impl SessionRuntime {
             ..
         }) = state.pending
         {
-            match PendingGate::from_trace(&workflow, &trace) {
-                Some(gate) => {
-                    let _ = write!(notice, "\n{}", gate.question());
+            // The pause is offered only where the journals beside it show no continuation that
+            // settled it, runs it or cannot be judged (C7b §3.4).
+            match PendingGate::from_trace(&workflow, &trace)
+                .map(|gate| self.gate_standing(gate, false))
+            {
+                Some(Ok(gate)) => {
+                    let seen = if gate.trace == trace {
+                        "no continuation of this run in .nika/traces"
+                    } else {
+                        "the run was continued outside this session and paused again here"
+                    };
+                    let _ = write!(
+                        notice,
+                        "\n{}\n  ({seen} · the engine's approval still judges your answer)",
+                        gate.question()
+                    );
                     self.last_workflow = Some(workflow);
                     self.pending_gate = Some(gate);
+                }
+                Some(Err(why)) => {
+                    let _ = write!(notice, "\n  {why}");
                 }
                 None => {
                     let _ = write!(
@@ -276,7 +308,22 @@ impl SessionRuntime {
 
     // Conversation and structured state can have different last-write times.
     // Replace ordinary prose, but never erase independently recorded constraints.
-    fn restore_intent(&mut self, mut restored: IntentDraft) {
+    fn restore_intent(&mut self, mut restored: IntentDraft) -> String {
+        // Labels remain historical evidence, but no authoring/input round was
+        // restored to accept an answer. Name that expiry before dropping them
+        // from the current projection; opening neither calls nor writes. The
+        // labels a readable kept round owns are its own line's, never expired.
+        let kept = self.kept_round_labels();
+        restored.unresolved.retain(|label| !kept.contains(label));
+        let expired = if restored.unresolved.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "\nprevious unanswered questions expired: {} · state the request again to continue",
+                restored.unresolved.join(" · ")
+            )
+        };
+        restored.unresolved.clear();
         for marker in self.intent.decisions.iter().filter(|d| is_money_marker(d)) {
             if !restored.decisions.contains(marker) {
                 restored.decisions.push(marker.clone());
@@ -288,6 +335,64 @@ impl SessionRuntime {
             .decisions
             .iter()
             .any(|d| d == RECONFIRM || d.starts_with(DISPATCH_PREFIX));
+        expired
+    }
+
+    /// Where the paused run of `gate` stands now, from the journals beside it (C7b §3.4): the
+    /// gate this session may offer — its own, or the one a continuation paused at again — or why
+    /// it offers none. One read of one directory: never an authorization, never atomic, never
+    /// exactly-once; the engine's approval still judges any answer. `observed` is a pause this
+    /// session saw itself: when the only doubt is that pause's own journal naming no run (not an
+    /// engine journal) or no trace store existing at all, no continuation can be followed and
+    /// it stands, as it did.
+    fn gate_standing(&self, gate: PendingGate, observed: bool) -> Result<PendingGate, String> {
+        let dir = self.snapshot.root.join(nika_dap::store::TRACE_DIR);
+        let paused = dir.join(gate.trace.file_name().unwrap_or_default());
+        let task = gate.task.clone();
+        match lineage_of(&dir, &paused).standing(&paused, observed) {
+            Standing::Stands => Ok(gate),
+            Standing::PausedAgain(trace) => PendingGate::from_trace(&gate.workflow, &trace)
+                .ok_or_else(|| {
+                    format!(
+                        "the run paused at `{task}` was continued outside this session and paused again, but that pause cannot be read (trace `{}`) · nothing is offered",
+                        trace.file_name().unwrap_or_default().to_string_lossy()
+                    )
+                }),
+            Standing::Settled { state, trace } => Err(format!(
+                "the run paused at `{task}` was continued outside this session and ended {} (trace `{trace}`) · nothing waits · nothing was replayed",
+                state.as_str()
+            )),
+            Standing::Running(liveness) => Err(format!(
+                "the run paused at `{task}` was continued outside this session and has not settled ({}) · nothing waits here · nothing was replayed",
+                liveness.map_or("liveness unknown", |l| l.as_str())
+            )),
+            Standing::Undecided(reasons) => Err(format!(
+                "the run paused at `{task}` cannot be judged from .nika/traces ({}) · nothing is offered · `nika trace ls`, then a deliberate `nika run … --resume`, which the engine's approval guards",
+                reasons.join(" · ")
+            )),
+            _ => Err(format!(
+                "the run paused at `{task}` has a lineage this engine cannot read · nothing is offered"
+            )),
+        }
+    }
+
+    /// Before any resume: the gate still stands as it was offered, or the answer is not sent —
+    /// a continuation the journals show (settled, running, paused again, several) or journals
+    /// that can no longer be read withhold it.
+    pub(super) fn stale_gate(&mut self, gate: &PendingGate) -> Option<TurnOutcome> {
+        match self.gate_standing(gate.clone(), true) {
+            Ok(now) if now.trace == gate.trace => None,
+            Ok(head) => {
+                let question = head.question();
+                self.pending_gate = Some(head);
+                Some(TurnOutcome::Facts(format!(
+                    "the run was continued outside this session and waits again at another pause · your answer was not sent\n{question}"
+                )))
+            }
+            Err(why) => Some(TurnOutcome::Facts(format!(
+                "{why} · your answer was not sent"
+            ))),
+        }
     }
 
     fn restore_money_guards(&mut self) {
@@ -453,6 +558,7 @@ impl SessionRuntime {
         if self.pending.is_some() {
             self.restored_draft = None;
         }
+        self.drop_replaced_round();
         // A choice that resumed a waiting line is judged by that line's
         // own outcome: the record sees what the human's request became.
         let judged = match &outcome {
@@ -539,6 +645,7 @@ impl SessionRuntime {
                 .or(self.revising.as_ref().map(|(set, _)| set))
                 .and_then(|set| draft::capture(&self.proposal_id(set), set))
                 .or_else(|| self.restored_draft.as_ref().map(|r| r.raw().clone())),
+            round: self.round_to_keep(),
         }
     }
 }

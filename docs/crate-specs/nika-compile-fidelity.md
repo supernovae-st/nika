@@ -29,6 +29,36 @@ module paths:
 use nika_compile_fidelity::{fidelity, sketch};
 ```
 
+The typed computation law (`predicate::typed_rule`) descended here from
+`nika-compile-cognition` on 2026-09-28 (R4 S0 B3), verbatim: the part-by-part validation of
+a seat's typed computation against the request and its deterministic lowering. Creation and
+replay must run one law — a seat's computation is admitted by it, and a recorded rule is
+re-derived by it when a record comes back — and the replay door in `nika-compile` cannot
+reach cognition. The seat's wire stays decoded in cognition, strictly and once; the meaning
+crosses as the same JSON, read here with the same field rules (listed keys only, a missing or
+null optional read as empty, required fields present). No struct is exposed and no manifest
+changed; the walk kept its length (272 lines, the same fn-length ceiling, relocated).
+`predicate::rederives` is the replay's fixpoint of that law: a recorded seat-typed rule read
+back as its meaning (the inverse of the lowering: a slot by its recorded label, a truth value
+by a word of the request that spells it) must validate and lower to exactly the recorded
+rule, every slot it asks recorded. It binds the rule to the law, not to its meaning (the law
+grounds a comparator, an aggregate, a junction or a direction nowhere): that hole is open.
+A literal of the computation (a compared value, a number, a derived number, a limit) must be
+stated in the reader's own clause that holds its evidence (`clause_scope`: the request's
+sentences cut by `lexicon::split_clauses`, never the seat's citation boundary): a number the
+request states only in another clause, such as a schedule's hour, is not admitted and the rule
+is asked (option 2, measured: with the seat's citation as the scope one legitimate positive
+broke, a threshold stated in the same clause just outside the citation; with the clause, none).
+Output names stay words of the whole request and fields stay among its columns.
+
+Two stages E38 needed are admitted beside the walk (`with_order`, one line in it: the walk
+measures 272 lines, its documented hard ceiling, never above): a tie rule (`ties`, `first_in_file` or empty) settles a
+stated sort over rows still in file order, never a grouping; the output columns written as JSON
+numbers (`numbers`) are projected columns, each named once, never over totals. Any other word,
+or either where it cannot hold, is no rule. `meaning_of` reads both back (absent as unstated), so `rederives` holds a rule
+that states them. Neither is grounded in the request's words: a seat that states a tie rule
+the request never states is a claim the judges read, as for a direction.
+
 The fidelity move preserves the existing onboarding facade entry points. Direct Rust
 imports of `nika_compile_reader::{candidate, fidelity, sketch}` must instead name
 `nika_compile_fidelity`; these reader paths are removed. Nothing of this crate is
@@ -70,6 +100,25 @@ needs keeps its default.
   candidate that drafts and writes nothing is refused by name (`UNWRITTEN DESTINATION`), at the
   native and sketch doors as at the assembler's emission. Law 1 witnesses stated paths only,
   and Law 22 leaves writes to their paths, so such a write was judged by neither.
+- Added after the move, Law 1's observed placement (`fidelity::laws_observed`, the door that
+  also takes the host's observation; `laws` runs it with none and is unchanged). It applies to
+  a bare file name the request states (`orders.csv`: one component, with no directory, home,
+  glob or placeholder) that no `permits.fs` entry covers. Its source occurrences are realized
+  by the one file the compile request's knowledge places under that name, when three things
+  hold:
+  - exactly one positive row (`state: observed`) has a path whose last component is that name,
+    byte for byte (`./data/orders.csv`);
+  - `permits.fs.read` covers that file;
+  - a `nika:read` path or a `nika:glob` pattern opens it, literally or through a bare
+    `${{ const.<name> }}`.
+
+  The refusal (`UNREALIZED PATH`, unchanged) stands otherwise: no observation, only absent,
+  unreadable or outside rows, two observed files of that name, another name (`orders_old.csv`,
+  `Orders.csv`), or no task opening it. A destination occurrence keeps its own law. The law
+  reads only the rows it is given (the knowledge the host's observer builds, `nika-cli-host`
+  `compile/observe.rs`), never the disk. The native door passes its observation. The sketch
+  door's structural law admits only stated paths, and the deterministic door reads the stated
+  literal, so neither ever reads an observed path, and both keep `laws`.
 - The reader's modules are bound at the crate root under the names the moved files always
   used (`crate::plan`, `super::hot::fold`, `crate::lexicon::GATE_WITHOUT_EFFECT`); the member
   re-exports nothing of the reader.

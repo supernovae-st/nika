@@ -79,8 +79,18 @@ impl<T: ToolExecuteDyn + Send + Sync> InvokeVerb<T> {
 | Code | Variant | Spec mapping | transient |
 |---|---|---|---|
 | NIKA_450 | `UnresolvableTool { tool, detail }` (bad namespace · mcp missing slash · dispatcher NotFound) | NIKA-INVOKE-001 | `false` |
-| NIKA_451 | `ToolReportedError { tool, content_tail }` (`is_error: true`) | none (engine-internal · no spec row) | `false` |
+| NIKA_451 | `ToolReportedError { tool, content_tail, spec_code, transient }` (`is_error: true`) | the tool's own spec code when it surfaced one (`NIKA-BUILTIN-FETCH-001`), else none (engine-internal) | the tool's retry class · `false` for a text-only tool |
+| NIKA_451 | `ToolReportedDetailed { tool, content_tail, meta }` (`is_error: true` with typed `ToolErrorDetails`) | as the row above | as the row above |
 | NIKA_452 | `Dispatch` (wraps `ToolExecError` Timeout/ExecutionFailed/NotAvailable) | tool_error | inherited |
+
+A tool that surfaced typed failure details (`nika:fetch`: the received
+`status_code`, the declared `accepted` set) yields `ToolReportedDetailed`: the
+same message, codes and retry class as the coded report, plus its `meta`. The
+variant is separate (and `#[non_exhaustive]`) so `ToolReportedError` keeps its
+fields; a failure without details is exactly the report it always was.
+`VerbInvokeError::details()` reads the details, and `details_of(&dyn
+NikaErrorCode)` reads them through the engine's verb-agnostic seam (the runtime
+settles every verb error there); any other error answers `None`.
 
 NIKA_453–459 reserved (future: args-schema validation NIKA-INVOKE-002 when the
 verb gains tool-schema awareness · today schema validation is the tool's own).

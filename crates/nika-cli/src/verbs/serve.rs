@@ -18,56 +18,8 @@ use jiff::{SignedDuration, Zoned};
 use nika_cadence::registry::{ArmRegistry, Locus};
 use std::path::{Path, PathBuf};
 
-const SHUTDOWN_HELP: &str = "Shutdown (persistent mode): Ctrl-C/SIGINT and SIGTERM stop HTTP admissions \
-and new scheduling, then drain running AND queued jobs for up to 30 seconds \
-with four workers. On grace expiry, running jobs become interrupted and \
-jobs still queued remain queued. Restart with the same --state-root resumes queued \
-jobs from their captured snapshots; interrupted jobs are not retried. SIGKILL \
-skips cleanup: the next start interrupts ownerless running jobs and resumes \
-queued jobs. A completed drain exits 0; grace expiry exits 1. The 30-second \
-grace bounds execution draining, not filesystem cleanup or a stuck backend. \
-Allow extra time before a supervisor forces SIGKILL.";
+pub use nika_cli_host::serve_args::ServeArgs;
 
-/// `nika serve` — the resident firer's args, plus the explicit HTTP pair.
-#[derive(Debug, Clone, clap::Args)]
-#[command(after_long_help = SHUTDOWN_HELP)]
-pub struct ServeArgs {
-    /// Fire what is due once, then exit — the rehearsal.
-    #[arg(long)]
-    pub once: bool,
-    /// Say what WOULD fire, run nothing.
-    #[arg(long)]
-    pub dry: bool,
-    /// Inject the clock (RFC 3339 · D5) — the harness.
-    #[arg(long, hide = true, value_name = "RFC3339")]
-    pub now: Option<String>,
-    /// Stop the loop at this instant (RFC 3339) — the harness.
-    #[arg(long, hide = true, value_name = "RFC3339")]
-    pub until: Option<String>,
-    /// Bind an authenticated HTTP listener. Requires `--workflows` and `--token-file`.
-    #[arg(long, value_name = "ADDR")]
-    pub bind: Option<String>,
-    /// The served registry: the listener lists, schedules and ADMITS BY NAME
-    /// (`POST /v1/jobs {"workflow": "<name>"}`) only the `.nika` workflows
-    /// under this directory, named from the project root. A remote world
-    /// rides the snapshot `nika check <file> --json --sdk-snapshot` prints.
-    /// Requires `--bind`.
-    #[arg(long, value_name = "DIR")]
-    pub workflows: Option<PathBuf>,
-    /// Acknowledge a non-loopback `--bind`. Authentication is unchanged.
-    /// TLS is a reverse proxy — this process does not terminate it.
-    #[arg(long)]
-    pub allow_remote: bool,
-    /// Owner-only Bearer file (32–512 visible ASCII bytes, mode 0600). Never argv.
-    /// Mint: umask 077 && openssl rand -hex 24 > .nika/serve.token && chmod 600 .nika/serve.token
-    #[arg(long, value_name = "FILE")]
-    pub token_file: Option<PathBuf>,
-    /// Durable job-state root. Defaults to `<cwd>/.nika/serve`.
-    #[arg(long, value_name = "DIR")]
-    pub state_root: Option<PathBuf>,
-    #[command(flatten)]
-    pub(crate) authoring: nika_serve::NativeAuthoringArgs,
-}
 /// The injected edges — `Zoned::now` + `tokio::time::sleep`, or the
 /// harness's scripted clock whose sleep ADVANCES it (trap ② avoided).
 /// The scripted cell is shared with the overlap-wait seam: a
@@ -110,8 +62,16 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
     )
     .map_err(nika_serve::launch_operator_message)
     .map_err(&fail)?;
-    let http = nika_serve::seat_native_authoring(http, &args.authoring)
-        .map_err(|error| fail(format!("serve · {error}")))?;
+    let http = nika_serve::seat_native_authoring_with_calls(
+        http,
+        &args.authoring,
+        args.authoring_max_calls,
+    )
+    .map_err(|error| fail(format!("serve · {error}")))?;
+    let ceiling = args.run_cost_ceiling.as_deref();
+    let http = nika_serve::server::seat_cost_review(http, args.cost_review, ceiling)
+        .map_err(nika_serve::launch_operator_message)
+        .map_err(&fail)?;
     let now = instant(args.now.as_deref()).map_err(&fail)?;
     let until = instant(args.until.as_deref()).map_err(&fail)?;
     if now.is_some() && !args.once && until.is_none() {
@@ -555,6 +515,32 @@ mod tests {
     mod resident_tests;
 
     #[test]
+    fn authoring_request_grant_requires_a_seat_and_preserves_the_explicit_value() {
+        let command = || <ServeArgs as clap::Args>::augment_args(clap::Command::new("serve"));
+        assert!(
+            command()
+                .try_get_matches_from(["serve", "--authoring-max-calls", "2"])
+                .is_err()
+        );
+        let matches = command()
+            .try_get_matches_from([
+                "serve",
+                "--bind",
+                "127.0.0.1:0",
+                "--authoring-model",
+                "vllm/test",
+                "--authoring-max-calls",
+                "2",
+                "--authoring-repairs",
+                "1",
+            ])
+            .expect("explicit operator grant");
+        let args = <ServeArgs as clap::FromArgMatches>::from_arg_matches(&matches).expect("args");
+        assert_eq!(args.authoring_max_calls, Some(2));
+        assert_eq!(args.authoring.repairs, Some(1));
+    }
+
+    #[test]
     fn serve_help_states_the_queue_grace_and_restart_contract() {
         let help = <ServeArgs as clap::Args>::augment_args(clap::Command::new("serve"))
             .render_long_help()
@@ -733,18 +719,7 @@ mod tests {
     }
 
     fn serve_args() -> ServeArgs {
-        ServeArgs {
-            once: false,
-            dry: false,
-            now: None,
-            until: None,
-            bind: None,
-            workflows: None,
-            allow_remote: false,
-            token_file: None,
-            state_root: None,
-            authoring: nika_serve::NativeAuthoringArgs::default(),
-        }
+        ServeArgs::default()
     }
 
     /// The run seam that must NEVER fire — the skip-only ticks (the
@@ -906,18 +881,8 @@ mod tests {
 
     #[test]
     fn a_scripted_clock_without_a_bound_refuses() {
-        let args = ServeArgs {
-            once: false,
-            dry: false,
-            now: Some("2026-08-19T03:02:00Z".to_owned()),
-            until: None,
-            bind: None,
-            workflows: None,
-            allow_remote: false,
-            token_file: None,
-            state_root: None,
-            authoring: nika_serve::NativeAuthoringArgs::default(),
-        };
+        let mut args = ServeArgs::default();
+        args.now = Some("2026-08-19T03:02:00Z".to_owned());
         let out = run(&args);
         assert_eq!(out.code, exit::WORKFLOW, "{}", out.text);
         assert!(out.text.contains("--until"), "{}", out.text);

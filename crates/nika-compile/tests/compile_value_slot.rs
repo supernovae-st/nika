@@ -75,7 +75,9 @@ async fn an_alluded_value_is_asked_as_a_const_and_read_by_the_rule() {
     let compute = doc["tasks"]["compute"]["invoke"]["args"]["expression"]
         .as_str()
         .unwrap_or_default();
-    assert!(compute.starts_with(". as $in | "), "{source}");
+    // The exact decimal laws (R4 A8) ride in front; the rule itself binds the slots first.
+    let rule = compute.rsplit('\n').next().unwrap_or_default();
+    assert!(rule.starts_with(". as $in | "), "{source}");
     assert!(
         compute.contains(&format!("($in.slots.{slug} | tonumber)")),
         "the rule compares to the slot, never to the words: {source}"

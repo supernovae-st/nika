@@ -28,6 +28,7 @@ jaq-core = { workspace = true }
 jaq-std  = { workspace = true }
 jaq-json = { workspace = true }
 nika-cap = { path = "../nika-cap", version = "0.121.0" }
+unicode-normalization = { workspace = true, default-features = false } # the relation-canonical spelling probe compares texts under NFC (B24, prototype)
 
 [package.metadata.lore]
 daemon        = "forgeron"

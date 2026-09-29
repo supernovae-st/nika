@@ -69,6 +69,8 @@ use nika_kernel::http::HttpPostDyn;
 use nika_providers::{ProviderRegistry, TransportReport};
 
 pub use errors::VerbInferError;
+/// The explicit reasoning effort an input may ask (R4 B16), at the path its callers read.
+pub use nika_kernel::ai::provider::ReasoningEffort;
 pub use vision::VisionPart;
 
 /// Default schema-validation retry budget (provider re-calls AFTER the
@@ -93,6 +95,9 @@ pub struct InferInput {
     pub schema: Option<serde_json::Value>,
     /// Extended-thinking token budget (spec `thinking.budget_tokens`).
     pub thinking_budget: Option<u32>,
+    /// An explicit reasoning effort (R4 B16): sent only on a route whose catalog qualifies the
+    /// level, refused before any request elsewhere; `None` keeps the route's own default.
+    pub reasoning_effort: Option<ReasoningEffort>,
     /// The task-level `timeout:` budget (spec 03) — plumbed to the
     /// provider transport deadline so the HTTP effect's fixed default
     /// cannot undercut a longer task budget (F1 · a local model
@@ -116,6 +121,7 @@ impl InferInput {
             max_tokens: None,
             schema: None,
             thinking_budget: None,
+            reasoning_effort: None,
             timeout: None,
             vision: Vec::new(),
         }
@@ -776,6 +782,7 @@ fn build_request(
     request.temperature = input.temperature;
     request.max_tokens = input.max_tokens;
     request.thinking_budget = input.thinking_budget;
+    request.reasoning_effort = input.reasoning_effort;
     // The task `timeout:` rides every round-trip of this task (schema
     // retries included) — the OUTER attempt-loop budget still enforces
     // the real total; this only stops the transport from undercutting it.

@@ -22,6 +22,7 @@ mod interrupted;
 mod no_budget;
 mod observed_project;
 mod question_identity;
+mod read_only;
 mod recovery;
 mod restart;
 mod revision_question;
@@ -45,6 +46,10 @@ fn native() -> String {
     json!({"candidate":candidate,"questions":[],"gaps":[],"notes":"copy the exact bytes"})
         .to_string()
 }
+/// The verifier's closed choice, approved (native step 1, R4 A11): the explicit answer a test
+/// scripts at the judge's position, after a native candidate READY in its authoring round. The
+/// judge's call is a real request, counted and journaled like any other.
+pub(crate) const JUDGE_APPROVES: &str = r#"{"choice":"faithful"}"#;
 fn open(root: &Path) -> SessionRuntime {
     std::fs::write(root.join("entree.txt"), "A\n").expect("input");
     let selected = ResolvedSessionIntelligence {
@@ -82,7 +87,10 @@ fn open(root: &Path) -> SessionRuntime {
 fn positive_authoring_amendment_and_save_share_one_account() {
     // This wording enters authoring directly. Classifier/conversation/compiler
     // aggregation is exercised separately below through those real consumers.
-    let peer = Peer::start(vec![(200, response(&native()))]);
+    let peer = Peer::start(vec![
+        (200, response(&native())),
+        (200, response(JUDGE_APPROVES)),
+    ]);
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().expect("root");
     let mut s = open(dir.path());
@@ -92,7 +100,7 @@ fn positive_authoring_amendment_and_save_share_one_account() {
         panic!("positive authoring: {out:?}");
     };
     let before = s.inference_receipt().expect("receipt").expect("account");
-    assert_eq!(before.attempts.len(), 1);
+    assert_eq!(before.attempts.len(), 2, "the native call and the judge's");
     assert!(before.estimated.nano_usd > 0);
     assert_eq!(before.billed, None);
     assert_eq!(s.monetary_decision().expect("money").original_intent, input);
@@ -105,14 +113,19 @@ fn positive_authoring_amendment_and_save_share_one_account() {
             .iter()
             .all(|b| b["model"] == "deepseek-v4-pro")
     );
-    assert!(peer.bodies()[0].to_string().contains(&input));
+    // The seat reads the work; the admitted ceiling is the Session's, never work (R4 B15).
+    let asked = peer.bodies()[0].to_string();
+    assert!(
+        asked.contains(WORK) && !asked.contains("budget 2 USD"),
+        "{asked}"
+    );
     assert!(!dir.path().join("sortie.txt").exists());
     let out = s.consent("budget 3 USD");
     let TurnOutcome::Proposal { id, .. } = out else {
         panic!("amend: {out:?}");
     };
     assert_ne!(old, id);
-    assert_eq!(peer.bodies().len(), 1);
+    assert_eq!(peer.bodies().len(), 2);
     assert_eq!(
         s.inference_receipt().unwrap().unwrap().estimated,
         before.estimated
@@ -122,7 +135,7 @@ fn positive_authoring_amendment_and_save_share_one_account() {
     assert!(
         matches!(s.turn("run it"),TurnOutcome::RunRequested{ref run,..} if run.max_cost_usd.to_bits() == 3.0_f64.to_bits())
     );
-    assert_eq!(peer.bodies().len(), 1);
+    assert_eq!(peer.bodies().len(), 2);
 }
 #[test]
 fn fresh_classifier_conversation_and_compiler_do_not_reset_exposure() {
@@ -130,22 +143,27 @@ fn fresh_classifier_conversation_and_compiler_do_not_reset_exposure() {
         (200, response("NEW_WORK")),
         (200, response("Hello")),
         (200, response(&native())),
+        (200, response(JUDGE_APPROVES)),
     ]);
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
     let mut s = open(dir.path());
-    s.admit_money("budget 2 USD", false).expect("admit");
+    s.admit_money("budget 2 USD", false, false).expect("admit");
     assert_eq!(s.classify(SessionPhase::Idle, WORK).act, TurnAct::NewWork);
     s.reason_with_money("explain this work", false)
         .expect("reason");
     let round = AuthoringRound::new(WORK);
     s.compile_round(&round, &s.seat).expect("compile");
     let r = s.inference_receipt().unwrap().unwrap();
-    assert_eq!(r.attempts.len(), 3);
-    assert_eq!(peer.bodies().len(), 3);
+    assert_eq!(
+        r.attempts.len(),
+        4,
+        "classifier, conversation, native, judge"
+    );
+    assert_eq!(peer.bodies().len(), 4);
     assert_eq!(peer.bodies()[0]["max_tokens"], 4096);
     assert_eq!(peer.bodies()[1]["max_tokens"], 8192);
-    s.admit_money("budget 2 USD", true).unwrap();
+    s.admit_money("budget 2 USD", true, false).unwrap();
     assert_eq!(
         s.inference_receipt().unwrap().unwrap().estimated,
         r.estimated
@@ -157,7 +175,7 @@ fn fresh_classifier_conversation_and_compiler_do_not_reset_exposure() {
         .amend(r.estimated)
         .unwrap();
     assert!(s.reason_with_money("another", false).is_err());
-    assert_eq!(peer.bodies().len(), 3);
+    assert_eq!(peer.bodies().len(), 4);
 }
 #[test]
 fn zero_invalid_and_unknown_charge_remain_guarded_across_questions() {
@@ -170,12 +188,12 @@ fn zero_invalid_and_unknown_charge_remain_guarded_across_questions() {
         let _transport = test_transport::install(&peer.url);
         let dir = tempfile::tempdir().unwrap();
         let mut s = open(dir.path());
-        s.admit_money("budget 2 USD", false).unwrap();
+        s.admit_money("budget 2 USD", false, false).unwrap();
         assert!(s.reason_with_money("hello", false).is_err());
         let r = s.inference_receipt().unwrap().unwrap();
         assert_eq!(r.state, AdmissionState::Uncertain);
         assert!(r.held_unknown.nano_usd > 0);
-        s.admit_money("budget 3 USD", true).unwrap();
+        s.admit_money("budget 3 USD", true, false).unwrap();
         assert!(s.money_blocks_cognition());
         let _ = s.turn("what happened?");
         assert_eq!(peer.bodies().len(), 1);
@@ -184,7 +202,7 @@ fn zero_invalid_and_unknown_charge_remain_guarded_across_questions() {
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
     let mut s = open(dir.path());
-    s.admit_money("budget 2 USD", false).unwrap();
+    s.admit_money("budget 2 USD", false, false).unwrap();
     s.reason_with_money("hello", false).unwrap();
     for value in ["budget 0 USD", "budget NaN USD"] {
         let _ = s.turn(value);
@@ -250,7 +268,7 @@ fn a_fresh_unmetered_factory_cannot_escape_the_active_account() {
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
     let mut s = open(dir.path());
-    s.admit_money("budget 2 USD", false).unwrap();
+    s.admit_money("budget 2 USD", false, false).unwrap();
     s.factory = Some(Box::new(|_| Box::new(UnmeteredReasoner)));
     assert_eq!(s.classify(SessionPhase::Idle, WORK).act, TurnAct::Unknown);
     assert!(peer.bodies().is_empty());
@@ -262,7 +280,7 @@ fn both_confirm_gate_doors_hold_paid_accounts_without_resume_or_calls() {
     for addressed in [false, true] {
         let dir = tempfile::tempdir().unwrap();
         let mut s = open(dir.path());
-        s.admit_money("budget 2 USD", false).unwrap();
+        s.admit_money("budget 2 USD", false, false).unwrap();
         s.reason_with_money("hello", false).unwrap();
         let before = peer.bodies().len();
         let receipt = s.inference_receipt().unwrap();

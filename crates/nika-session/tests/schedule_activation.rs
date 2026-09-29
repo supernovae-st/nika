@@ -148,9 +148,6 @@ fn incomplete_conflicting_and_unsupported_periods_never_declare_a_schedule() {
         "Every day",
         "Tous les matins",
         "Every week at 9",
-        "Every 2 days at 9",
-        "Toutes les 2 semaines à 9h",
-        "Every 5 hours",
         "Every month at 9",
         "Chaque mois à 9h",
         "Every day and every 2 hours at 9",
@@ -169,6 +166,41 @@ fn incomplete_conflicting_and_unsupported_periods_never_declare_a_schedule() {
         assert!(matches!(session.consent("yes"), TurnOutcome::Refusal(_)));
         assert!(!dir.path().join("nika.yaml").exists());
         assert!(!dir.path().join("out/copy.md").exists());
+    }
+}
+
+#[test]
+fn unbindable_periods_require_explicit_authoring_clarification_before_save() {
+    for phrase in [
+        "Every 2 days at 9",
+        "Toutes les 2 semaines à 9h",
+        "Every 5 hours",
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("notes")).unwrap();
+        std::fs::write(dir.path().join("notes/brief.md"), "unchanged input\n").unwrap();
+        let mut session = open(dir.path());
+        let out = session.turn(&intent(phrase));
+        assert!(matches!(out, TurnOutcome::Question { ref key, .. } if key == "trigger.cadence"));
+        assert!(session.pending_proposal().is_none());
+        assert!(session.pending_activation().is_none());
+        assert_eq!(session.lifecycle().saved, Stage::Pending);
+        let invalid = session.turn("yes");
+        assert!(
+            matches!(invalid, TurnOutcome::Question { ref key, .. } if key == "trigger.cadence")
+        );
+        assert!(!dir.path().join("nika.yaml").exists());
+        assert!(!dir.path().join("out/copy.md").exists());
+        let clarified = session.turn("Every Monday at 09:00");
+        let TurnOutcome::Proposal { id, .. } = clarified else {
+            panic!("clarified cadence did not produce a proposal");
+        };
+        assert!(matches!(
+            session.consent_to(&id, "yes"),
+            TurnOutcome::Facts(_)
+        ));
+        let (id, _) = review(&mut session, dir.path());
+        declared(&mut session, dir.path(), &id, "TZ=Europe/Paris 0 9 * * 1");
     }
 }
 

@@ -67,3 +67,31 @@ input_nano_per_token = 150
 output_nano_per_token = 600
 # No cache discount is qualified. Cache input costs the input rate.
 cached_nano_per_token = 150
+
+# This admission covers only bounded text requests to the exact free variant.
+# The model itself also accepts images/video; those uses are not qualified here.
+# No inference from a :free suffix, absent component, or 0/0
+# models.dev row. No plugin, media-generation, BYOK or dynamic-router claim.
+# The official model page also declares this variant free:
+# https://openrouter.ai/qwen/qwen3.8-27b:free
+# Both byte hashes below name the complete observed GET /api/v1/models body.
+# Use its smaller max_completion_tokens bound, not the model-page context size.
+[[tariffs]]
+provider = "openrouter"
+billing_provider = "openrouter"
+currency = "USD"
+output_token_param = "max_tokens"
+model = "qwen/qwen3.8-27b:free"
+endpoints = ["https://openrouter.ai/api/v1/chat/completions"]
+source = "https://openrouter.ai/api/v1/models"
+limits_source = "https://openrouter.ai/api/v1/models"
+route_source = "https://openrouter.ai/docs/api/api-reference/chat/send-chat-completion-request"
+as_of = "2026-09-27"
+source_sha256 = "0ca04895657af0cb2ad9ff33f4a43898711d21730f410822e097b4dd45ef94ec"
+limits_sha256 = "0ca04895657af0cb2ad9ff33f4a43898711d21730f410822e097b4dd45ef94ec"
+context_tokens = 262144
+max_output_tokens = 235929
+declared_free = true
+input_nano_per_token = 0
+output_nano_per_token = 0
+cached_nano_per_token = 0

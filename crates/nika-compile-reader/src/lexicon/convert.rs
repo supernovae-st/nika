@@ -14,37 +14,7 @@ use super::super::rules::{Junction, Rule, Shape};
 use super::{Reading, push_rule};
 
 /// The conversion heads, six languages, folded as the clause is.
-const CONVERT_HEADS: &[&str] = &[
-    "convert",
-    "converts",
-    "convertis",
-    "convertissez",
-    "convertir",
-    "convierte",
-    "convierta",
-    "convertid",
-    "converti",
-    "convertite",
-    "convertire",
-    "konvertiere",
-    "konvertieren",
-    "konvertier",
-    "wandle",
-    "wandeln",
-    "converta",
-    "converte",
-    "converter",
-    "transform",
-    "transforme",
-    "transformez",
-    "transforma",
-    "transformiere",
-    "export",
-    "exporte",
-    "exportez",
-    "exporta",
-    "exportiere",
-];
+const CONVERT_HEADS: &str = include_str!("../../assets/convert_heads.txt");
 
 /// A clause that converts one structured file into another: the head first, then exactly two
 /// file paths of two structured formats, the source before the destination. Anything else is
@@ -54,7 +24,7 @@ pub(super) fn read(text: &str, original: &str, reading: &mut Reading) -> bool {
         .split(|c: char| !c.is_alphanumeric())
         .next()
         .unwrap_or_default();
-    if !CONVERT_HEADS.contains(&head) {
+    if !CONVERT_HEADS.lines().any(|h| h == head) {
         return false;
     }
     let files: Vec<String> = paths::literals(original)
@@ -70,7 +40,15 @@ pub(super) fn read(text: &str, original: &str, reading: &mut Reading) -> bool {
     let (Some(from), Some(to)) = (Structured::of(source), Structured::of(destination)) else {
         return false;
     };
-    if from == to {
+    // A clause whose segments also state a rule (a filter or a stage the grammar reads), or
+    // whose words compare (« …, sort them by amount », « …, keeping only the rows whose amount
+    // is above the agreed threshold »), is no plain conversion: the identity would swallow it.
+    let states = |segment: &str| super::super::rules::synthesize(segment, &reading.columns);
+    let rules = original
+        .split([',', ';'])
+        .any(|segment| states(segment).is_some())
+        || super::super::rules::compares(original);
+    if from == to || rules {
         return false;
     }
     for path in [source, destination] {
@@ -94,13 +72,12 @@ pub(super) fn read(text: &str, original: &str, reading: &mut Reading) -> bool {
     );
     super::effects::push_effect(
         &mut reading.plan,
-        Effect {
-            verb: EffectVerb::Write,
-            target: destination.clone(),
-            evidence: original.to_owned(),
-            policy: EffectPolicy::Automatic,
-            policy_literal: None,
-        },
+        Effect::new(
+            EffectVerb::Write,
+            destination.clone(),
+            original,
+            EffectPolicy::Automatic,
+        ),
     );
     true
 }

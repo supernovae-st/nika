@@ -713,7 +713,7 @@ fn settle_skip_with_error(
 
 /// Push the spend pair onto a frame's fields — absent stays absent
 /// (never a fake zero), the WHY rides when named.
-fn push_spend_fields(
+pub(crate) fn push_spend_fields(
     fields: &mut Vec<(&'static str, FieldValue)>,
     cost_usd: Option<f64>,
     cost_unpriced: Option<nika_types::cost::UnpricedReason>,

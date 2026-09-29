@@ -33,6 +33,23 @@ use crate::compile::{AuthoringKnowledge, KnowledgeReference};
 use nika_event::source_id::sha256_hex;
 use serde_json::{Value, json};
 
+/// The pinned snapshot identity and the records a session stamps on an outcome (C7 · D1).
+pub mod pin;
+
+/// The snapshot identity as an answer may carry it: every hash, count and selection, no host
+/// path (the snapshot directory, the files root).
+pub fn redact_host_paths(identity: &mut serde_json::Value) {
+    if let Some(identity) = identity.as_object_mut() {
+        identity.remove("dir");
+        if let Some(verification) = identity
+            .get_mut("verification")
+            .and_then(serde_json::Value::as_object_mut)
+        {
+            verification.remove("files_root");
+        }
+    }
+}
+
 /// This builder's version, stated beside the snapshot digest (v2: every presented byte is
 /// verified against the manifest's pins, and the pack states its own digest; v3: relevance
 /// survives deduplication, each recalled family gets its block in turn, the receipt separates
@@ -56,6 +73,8 @@ const PRINCIPLES: usize = 3;
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum KnowledgeError {
+    /// This reader does not implement the configured knowledge-source kind.
+    UnsupportedSource,
     /// The directory holds no readable Foundry snapshot manifest.
     NotASnapshot {
         /// The directory named.
@@ -86,6 +105,9 @@ pub enum KnowledgeError {
 impl std::fmt::Display for KnowledgeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::UnsupportedSource => {
+                f.write_str("this knowledge source is not supported by this reader")
+            }
             Self::NotASnapshot { dir, why } => {
                 write!(f, "`{}` is not a knowledge snapshot ({why})", dir.display())
             }

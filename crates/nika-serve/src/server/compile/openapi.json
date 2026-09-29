@@ -1,6 +1,6 @@
 {
   "CompileOutcome": {
-    "description": "The engine-owned machine document of one authoring result — the document `nika compile --json` prints, without the CLI-only `written`. No field grants authority, writes or executes source.",
+    "description": "The engine-owned machine document of one authoring result \u2014 the document `nika compile --json` prints, without the CLI-only `written`. No field grants authority, writes or executes source.",
     "properties": {
       "candidate": {
         "description": "Ordinary `.nika` source; may still be incomplete",
@@ -74,6 +74,16 @@
           "compiler_version": {
             "type": "string"
           },
+          "decision": {
+            "description": "Bounded compiler decision evidence, including deterministic and replay outcomes; it grants no execution or spending authority.",
+            "type": "object",
+            "additionalProperties": true
+          },
+          "plan": {
+            "description": "The compiler record retained in this outcome; a server replay uses its opaque token rather than accepting this object as authority.",
+            "type": "object",
+            "additionalProperties": true
+          },
           "skeleton": {
             "type": [
               "string",
@@ -82,6 +92,17 @@
           },
           "spec_pin": {
             "type": "string"
+          },
+          "strategy": {
+            "description": "The compiler strategy that produced this outcome.",
+            "type": "string"
+          },
+          "suggested_file": {
+            "description": "A suggested candidate file name, never a file written by compilation.",
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -126,7 +147,7 @@
               "type": "array"
             },
             "type": {
-              "description": "text: a JSON string · literal: one JSON value · choice: a JSON string that is the `key` of one of `options`",
+              "description": "text: a JSON string \u00b7 literal: one JSON value \u00b7 choice: a JSON string that is the `key` of one of `options`",
               "enum": [
                 "text",
                 "literal",
@@ -159,7 +180,7 @@
       },
       "requested_trigger": {
         "additionalProperties": true,
-        "description": "The trigger the request names (kind · source_hint · event_hint · cadence · at · payload_input · status · timezone · missed · overlap · ceiling · cron), stated beside the candidate whose bytes carry no cadence, host or event. A requirement the operator binds through the schedule contract, never a grant or a schedule row. timezone, missed, overlap and ceiling are the answered binding values (null until answered). cron is the exact five-field schedule projection when supported and fully specified, otherwise null; older engines omit it. It never supplies a missing time or timezone.",
+        "description": "The trigger the request names (kind \u00b7 source_hint \u00b7 event_hint \u00b7 cadence \u00b7 at \u00b7 payload_input \u00b7 status \u00b7 timezone \u00b7 missed \u00b7 overlap \u00b7 ceiling \u00b7 cron), stated beside the candidate whose bytes carry no cadence, host or event. A requirement the operator binds through the schedule contract, never a grant or a schedule row. timezone, missed, overlap and ceiling are the answered binding values (null until answered). cron is the exact five-field schedule projection when supported and fully specified, otherwise null; older engines omit it. It never supplies a missing time or timezone.",
         "type": [
           "object",
           "null"
@@ -194,7 +215,7 @@
     "properties": {
       "answers": {
         "additionalProperties": true,
-        "description": "Question key → one JSON literal with its type preserved, judged exactly as sent (at most 65536 bytes each)",
+        "description": "Question key \u2192 one JSON literal with its type preserved, judged exactly as sent (at most 65536 bytes each)",
         "maxProperties": 64,
         "propertyNames": {
           "maxLength": 256
@@ -292,7 +313,7 @@
               }
             }
           },
-          "description": "Authoring outcome — ready, incomplete and refused are all data"
+          "description": "Authoring outcome \u2014 ready, incomplete and refused are all data"
         },
         "401": {
           "content": {
@@ -342,7 +363,7 @@
               }
             }
           },
-          "description": "malformed_compile_request · compile_version_unsupported · compile_mode_unsupported · compile_cognition_unsupported · compile_limit"
+          "description": "malformed_compile_request \u00b7 compile_version_unsupported \u00b7 compile_mode_unsupported \u00b7 compile_cognition_unsupported \u00b7 compile_limit"
         },
         "500": {
           "content": {
@@ -362,10 +383,10 @@
               }
             }
           },
-          "description": "compile_busy — every compile slot is in use"
+          "description": "compile_busy \u2014 every compile slot is in use"
         }
       },
-      "summary": "Author a candidate workflow without running it (stateless · source-only)"
+      "summary": "Author a candidate workflow without running it (stateless \u00b7 source-only)"
     }
   }
 }

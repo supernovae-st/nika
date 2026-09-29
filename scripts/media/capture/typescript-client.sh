@@ -147,8 +147,8 @@ grep -qxF "receipt verified" output.txt || {
   cat output.txt >&2
   exit 1
 }
-cmp -s output.txt .readme-output.txt ||
-  echo "note: the output differs from the README's documented output" >&2
+cmp -s output.txt .readme-output.txt \
+  || echo "note: the output differs from the README's documented output" >&2
 
 # ── what the engine says about that run and that file ──────────────────
 shopt -s nullglob

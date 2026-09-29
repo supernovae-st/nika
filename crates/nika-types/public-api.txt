@@ -883,6 +883,7 @@ pub nika_types::cost::UnpricedReason::MissingCatalogPrice
 pub nika_types::cost::UnpricedReason::MockProvider
 pub nika_types::cost::UnpricedReason::ProviderDidNotReportUsage
 pub nika_types::cost::UnpricedReason::SubscriptionQuota
+pub nika_types::cost::UnpricedReason::UsageRejected
 impl nika_types::cost::UnpricedReason
 pub const fn nika_types::cost::UnpricedReason::as_str(self) -> &'static str
 impl core::clone::Clone for nika_types::cost::UnpricedReason
@@ -2418,8 +2419,10 @@ pub fn nika_types::memory::Score::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::memory::Score where T: for<'de> serde_core::de::Deserialize<'de>
 pub mod nika_types::net
 pub const nika_types::net::HOST_EXTRACTION_VECTORS: &[(&str, core::option::Option<&str>)]
+pub const nika_types::net::MAX_FETCH_RESPONSE_STATUSES: usize
 pub const nika_types::net::MAX_TRAVERSE_PAGES: u64
 pub const nika_types::net::MULTIPART_PART_KEYS: [&str; 5]
+pub const nika_types::net::TRAVERSE_EXCLUDED_KEYS: [&str; 8]
 pub fn nika_types::net::host_glob_matches(glob: &str, host: &str) -> bool
 pub fn nika_types::net::host_in_allowlist(allowlist: &[alloc::string::String], host: &str) -> bool
 pub fn nika_types::net::host_is_blocked(host: &str) -> bool

@@ -363,22 +363,19 @@ mod billed_then_failed {
         let FieldValue::String(encoded) = &calls.value else {
             panic!("inference_calls is a JSON string");
         };
-        let calls: Vec<nika_types::cost::InferenceCall> =
-            serde_json::from_str(encoded).expect("typed call observations");
+        // The durable call projection (`nika/route-identity@1`), not the record.
+        let calls: serde_json::Value =
+            serde_json::from_str(encoded).expect("durable call observations");
         // The legacy API error reports no new call: do not invent its evidence.
-        assert_eq!(calls.len(), 1);
-        assert_eq!(
-            calls[0]
-                .usage
-                .as_ref()
-                .expect("reported meters")
-                .input_tokens,
-            40
-        );
-        assert!(!calls[0].usage_complete);
-        assert!(calls[0].route.is_none());
-        assert!(calls[0].pricing.is_none());
-        assert!(calls[0].known_estimate().is_none());
+        let [call] = calls.as_array().expect("an array").as_slice() else {
+            panic!("one observed call: {calls}");
+        };
+        assert_eq!(call["usage"]["input_tokens"], 40, "reported meters");
+        assert_eq!(call["usage_complete"], false);
+        assert!(call["route"].is_null() && call["requested_origin"].is_null());
+        assert!(call["pricing"].is_null());
+        assert_eq!(call["estimate_known"], false);
+        assert_eq!(call["withheld"], serde_json::json!([]));
         // The run totals see the failed task's spend too.
         assert_eq!(outcome.total_cost_usd, Some(0.06));
         assert_eq!(outcome.priced_calls, 1, "the failed attempt debited");

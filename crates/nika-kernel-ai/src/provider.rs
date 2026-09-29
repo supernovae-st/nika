@@ -182,6 +182,43 @@ impl ProviderExtras {
     }
 }
 
+/// An explicit reasoning effort a caller asks of a model (R4 B16): the closed levels a model
+/// catalog can qualify. Absent, an adapter keeps its route's own default; an explicit level on a
+/// route whose catalog does not qualify it refuses before any request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ReasoningEffort {
+    /// The `low` level.
+    Low,
+    /// The `high` level.
+    High,
+    /// The `max` level.
+    Max,
+}
+
+impl ReasoningEffort {
+    /// The wire word of this level.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Low => "low",
+            Self::High => "high",
+            Self::Max => "max",
+        }
+    }
+
+    /// The level an exact wire word names; no other spelling is a level.
+    #[must_use]
+    pub fn parse(word: &str) -> Option<Self> {
+        match word {
+            "low" => Some(Self::Low),
+            "high" => Some(Self::High),
+            "max" => Some(Self::Max),
+            _ => None,
+        }
+    }
+}
+
 // ─── InferRequest ────────────────────────────────────────────────────
 
 /// An LLM inference request.
@@ -206,6 +243,9 @@ pub struct InferRequest {
     pub stop_sequences: Vec<String>,
     /// Extended thinking token budget.
     pub thinking_budget: Option<u32>,
+    /// An explicit reasoning effort (R4 B16). `None` keeps the route's own default; a level
+    /// the route's catalog does not qualify refuses before any request.
+    pub reasoning_effort: Option<ReasoningEffort>,
     /// Provider-specific extra parameters.
     pub extra: ProviderExtras,
     /// Memory directive (Connectome hook, Phase 1).
@@ -248,6 +288,7 @@ impl InferRequest {
             response_format: ResponseFormat::default(),
             stop_sequences: Vec::new(),
             thinking_budget: None,
+            reasoning_effort: None,
             extra: ProviderExtras::new(),
             memory: None,
             cancel: None,
@@ -275,6 +316,39 @@ pub enum UsageCompleteness {
     Unknown,
     /// All tariff-relevant counts and subset relations were validated.
     Complete,
+}
+
+/// The reasoning keys one dispatched request body carried, read back from its serialized bytes
+/// (R4 B16): what went on the wire, never what the request configured. What the provider
+/// served internally is not observable from them.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ReasoningWire {
+    /// The body's `thinking.type` (`enabled`, `disabled`), when it carried one.
+    pub thinking: Option<String>,
+    /// The body's `reasoning_effort`, when it carried one.
+    pub effort: Option<String>,
+}
+
+impl ReasoningWire {
+    /// The keys as given.
+    #[must_use]
+    pub fn new(thinking: Option<String>, effort: Option<String>) -> Self {
+        Self { thinking, effort }
+    }
+
+    /// The reasoning keys of a serialized JSON request body; a body that is no JSON object
+    /// carries none.
+    #[must_use]
+    pub fn of_body(body: &[u8]) -> Self {
+        let body: serde_json::Value = serde_json::from_slice(body).unwrap_or_default();
+        let word = |pointer: &str| {
+            body.pointer(pointer)
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+        };
+        Self::new(word("/thinking/type"), word("/reasoning_effort"))
+    }
 }
 
 /// Reason the model stopped generating.
@@ -338,6 +412,9 @@ pub struct InferResponse {
     pub trust_level: Option<nika_error::trust::TrustLevel>,
     /// `OTel` `GenAI` semconv bridge (Q13). Populated by the provider impl.
     pub gen_ai: crate::genai::GenAiAttrs,
+    /// The reasoning keys the adapter read back from the body it dispatched (R4 B16); `None`
+    /// when the adapter does not observe them.
+    pub reasoning_wire: Option<ReasoningWire>,
 }
 
 impl InferResponse {
@@ -361,6 +438,7 @@ impl InferResponse {
             span_id: None,
             trust_level: None,
             gen_ai: crate::genai::GenAiAttrs::new(),
+            reasoning_wire: None,
         }
     }
 
@@ -754,6 +832,40 @@ mod tests {
         assert_eq!(json, "\"tool_use\"");
     }
 
+    #[test]
+    fn a_reasoning_level_is_its_exact_word_and_nothing_else() {
+        for level in [
+            ReasoningEffort::Low,
+            ReasoningEffort::High,
+            ReasoningEffort::Max,
+        ] {
+            assert_eq!(ReasoningEffort::parse(level.word()), Some(level));
+        }
+        for word in ["medium", "MAX", " max", "", "minimal", "maximum"] {
+            assert_eq!(ReasoningEffort::parse(word), None, "{word:?}");
+        }
+        assert_eq!(InferRequest::new("m", vec![]).reasoning_effort, None);
+    }
+
+    #[test]
+    fn the_wire_reasoning_is_read_back_from_the_dispatched_bytes() {
+        let sent = br#"{"model":"m","thinking":{"type":"enabled"},"reasoning_effort":"max"}"#;
+        assert_eq!(
+            ReasoningWire::of_body(sent),
+            ReasoningWire::new(Some("enabled".into()), Some("max".into()))
+        );
+        let legacy = br#"{"model":"m","reasoning_effort":"low"}"#;
+        assert_eq!(
+            ReasoningWire::of_body(legacy),
+            ReasoningWire::new(None, Some("low".into()))
+        );
+        for none in [&br#"{"model":"m"}"#[..], b"not json", b"[1]", b""] {
+            assert_eq!(ReasoningWire::of_body(none), ReasoningWire::default());
+        }
+        let response = InferResponse::new(vec![], TokenUsage::new(0, 0), StopReason::EndTurn);
+        assert_eq!(response.reasoning_wire, None);
+    }
+
     fn _assert_send_sync<T: Send + Sync>() {}
 
     #[test]
@@ -764,6 +876,8 @@ mod tests {
         _assert_send_sync::<TokenUsage>();
         _assert_send_sync::<ToolDef>();
         _assert_send_sync::<ProviderExtras>();
+        _assert_send_sync::<ReasoningEffort>();
+        _assert_send_sync::<ReasoningWire>();
     }
 
     /// Verify `ProviderMeta` default: `supports_response_format` returns false.

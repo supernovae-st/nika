@@ -70,6 +70,7 @@ input_modalities         = ["text", "image"]
 output_modalities        = ["text"]
 supported_parameters     = []
 supports_system_messages = true
+reasoning_efforts        = []
 
 # ─── 49 rules — ordered, FIRST MATCH WINS ───────────────────────────────────
 

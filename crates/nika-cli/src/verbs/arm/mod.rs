@@ -40,9 +40,9 @@
 //! ladder already located (the one-walk law, shared with the ceiling ·
 //! retention · registry rungs).
 
-use nika_cadence::next::next_slots;
+use nika_arm::readiness::{STATUS_SCOPE, ScheduleReadinessReceipt};
 use nika_cadence::parse::{parse_registry, validate};
-use nika_cadence::registry::Cadence;
+use nika_cadence::registry::ArmRegistry;
 use nika_vocab::project;
 
 use super::VerbOutput;
@@ -51,6 +51,7 @@ pub mod args;
 pub mod emit;
 pub mod fire;
 pub mod migrate;
+mod readiness;
 pub use nika_arm::state;
 
 /// How many upcoming slots each beat shows.
@@ -80,6 +81,77 @@ pub fn run(args: args::ArmArgs) -> VerbOutput {
             run_at(&cwd)
         }
     }
+}
+
+/// The schedule readiness receipts (version 2), without spending, claiming
+/// or scheduling. Every beat is reported; refused or unattributed firing
+/// evidence exits 3, and that exit certifies none of the other entries.
+/// Only the bare report accepts JSON; mutation and unit-emission options refuse.
+#[must_use]
+pub fn run_json(args: &args::ArmArgs) -> VerbOutput {
+    let refusal = |code: &str, message: String| {
+        serde_json::json!({"schedule_readiness_version": 2,
+            "error": {"code": code, "message": message}})
+        .to_string()
+    };
+    if args.sub.is_some() || args.emit.is_some() || emits_requested(args) {
+        let message =
+            "arm --json reports readiness; it cannot fire, migrate, disarm or emit a unit";
+        return VerbOutput::file(refusal("invalid_arm_options", message.to_owned()));
+    }
+    let cwd = match std::env::current_dir() {
+        Ok(cwd) => cwd,
+        Err(error) => return VerbOutput::env(refusal("project_unavailable", error.to_string())),
+    };
+    let (path, registry) = match load(&cwd) {
+        Ok(loaded) => loaded,
+        Err(out) => {
+            return VerbOutput {
+                code: out.code,
+                text: serde_json::json!({"schedule_readiness_version": 2, "schedules": [],
+                "registry": {"exit": out.code, "message": out.text}})
+                .to_string(),
+            };
+        }
+    };
+    let receipts = receipts(&registry, &path, &jiff::Zoned::now());
+    let refused = refused_labels(&receipts);
+    let schedules: Vec<_> = receipts
+        .iter()
+        .map(ScheduleReadinessReceipt::to_json)
+        .collect();
+    let text = serde_json::json!({"schedule_readiness_version": 2, "project_file": path,
+        "status_scope": STATUS_SCOPE, "schedules": schedules, "evidence_refused": refused})
+    .to_string();
+    if refused.is_empty() {
+        VerbOutput::ok(text)
+    } else {
+        VerbOutput::env(text)
+    }
+}
+
+/// One receipt per beat, in registry order — both views render these.
+fn receipts<'a>(
+    registry: &'a ArmRegistry,
+    path: &std::path::Path,
+    now: &jiff::Zoned,
+) -> Vec<ScheduleReadinessReceipt<'a>> {
+    let labels = fire::labels(registry);
+    (0..registry.beat_count())
+        .filter_map(|index| {
+            let label = labels.get(index).map_or("?", String::as_str);
+            readiness::receipt(registry, index, label, path, now)
+        })
+        .collect()
+}
+
+/// The labels whose firing evidence is refused or not theirs (exit 3).
+fn refused_labels(receipts: &[ScheduleReadinessReceipt<'_>]) -> Vec<String> {
+    receipts
+        .iter()
+        .filter(|receipt| receipt.evidence_refused())
+        .map(|receipt| receipt.label().to_owned())
+        .collect()
 }
 
 /// Any `--emit`-family flag set WITHOUT `--emit`? Those flags only make
@@ -168,13 +240,15 @@ pub fn run_at(start: &std::path::Path) -> VerbOutput {
     report(&registry, &path)
 }
 
-/// The green report — one block per beat, and the next slots for each.
+/// The report — one receipt block per beat (status, blockers, unknowns,
+/// the proof line and the next slots), the same receipts `--json` prints.
 ///
-/// The block also tells PROUVÉ from DÉCLARÉ (law N3's honesty: the
-/// registry DECLARES, only the sidecar PROVES the machine fired), and
-/// after the beats the ORPHELINS — the sidecar directories no registry
-/// entry names (law N4: reported, NEVER erased).
-fn report(registry: &nika_cadence::registry::ArmRegistry, path: &std::path::Path) -> VerbOutput {
+/// The proof line tells PROUVÉ (the current generation, and only what it
+/// proves) from HISTORIQUE · HÉRITÉ · NON ATTRIBUÉ and from DÉCLARÉ (law
+/// N3's honesty: the registry DECLARES, only the sidecar PROVES the
+/// machine fired); after the beats come the ORPHELINS — the sidecar
+/// directories no registry entry names (law N4: reported, NEVER erased).
+fn report(registry: &ArmRegistry, path: &std::path::Path) -> VerbOutput {
     use std::fmt::Write as _;
 
     if registry.beat_count() == 0 {
@@ -188,9 +262,7 @@ fn report(registry: &nika_cadence::registry::ArmRegistry, path: &std::path::Path
         || std::path::PathBuf::from("."),
         std::path::Path::to_path_buf,
     );
-    let sidecar = state::ArmState::at_project(&root);
-    let labels = fire::labels(registry);
-    let now = jiff::Zoned::now();
+    let receipts = receipts(registry, path, &jiff::Zoned::now());
     let mut out = String::new();
     let _ = writeln!(
         out,
@@ -198,54 +270,11 @@ fn report(registry: &nika_cadence::registry::ArmRegistry, path: &std::path::Path
         crate::text::count(registry.beat_count(), "beat"),
         path.display()
     );
-
-    for (index, beat) in registry.beats().enumerate() {
-        let state = if beat.is_active() { "armed" } else { "idle " };
-        let _ = writeln!(
-            out,
-            "\n  [{state}] {} · {}",
-            beat.workflow,
-            beat.cadence.trim()
-        );
-        if let Err(error) = proof_line(
-            &sidecar,
-            labels.get(index).map_or("?", String::as_str),
-            beat,
-            &now.timestamp(),
-            &mut out,
-        ) {
-            return VerbOutput::env(format!(
-                "arm report refused · corrupt sidecar for {}: {error}",
-                labels.get(index).map_or("?", String::as_str)
-            ));
-        }
-        // An inactive beat is REPORTED, never COMPUTED — asking a
-        // disarmed beat for its next slot would print a date nobody
-        // will ever see fire.
-        if !beat.is_active() {
-            continue;
-        }
-        match Cadence::parse(&beat.cadence) {
-            Err(e) => {
-                let _ = writeln!(out, "         ✗ {e}");
-            }
-            Ok(cadence) => {
-                let mut any = false;
-                for slot in next_slots(&cadence, &now, SLOTS_SHOWN) {
-                    any = true;
-                    let _ = writeln!(out, "         → {}", slot.at.strftime("%Y-%m-%d %H:%M %Z"));
-                }
-                if !any {
-                    let _ = writeln!(
-                        out,
-                        "         → no upcoming slot (a webhook beat fires on its event)"
-                    );
-                }
-            }
-        }
+    for receipt in &receipts {
+        let _ = writeln!(out, "\n{}", receipt.human_lines(SLOTS_SHOWN).join("\n"));
     }
 
-    let orphans = sidecar.orphans(&labels);
+    let orphans = state::ArmState::at_project(&root).orphans(&fire::labels(registry));
     if !orphans.is_empty() {
         let _ = writeln!(out, "\norphelins (N4 — rapportés, JAMAIS effacés):");
         for name in orphans {
@@ -253,75 +282,25 @@ fn report(registry: &nika_cadence::registry::ArmRegistry, path: &std::path::Path
         }
     }
 
-    let _ = write!(
-        out,
-        "\nnothing was scheduled — `nika arm` READS the file. \
-         The machine that fires them is the arming edge."
-    );
-    VerbOutput::ok(out)
-}
-
-/// The proof line of one beat: `✓ PROUVÉ` when the sidecar attests the
-/// machine fired (last.json), `DÉCLARÉ` when only the registry speaks.
-/// The history's tallies (`x sauts / y tirs`) and the declared
-/// `tolérance: m/k` ride the same line when they exist; `par:` is
-/// shown for what it is — déclaré, non vérifié (N3).
-fn proof_line(
-    sidecar: &state::ArmState,
-    label: &str,
-    beat: &nika_cadence::Beat,
-    now: &jiff::Timestamp,
-    out: &mut String,
-) -> std::io::Result<()> {
-    use std::fmt::Write as _;
-
-    let mut line = match sidecar.last(label)? {
-        Some(last) => {
-            let generation = last
-                .generation
-                .as_ref()
-                .map_or(String::new(), |generation| {
-                    format!(" · gen {}", generation.short())
-                });
-            format!(
-                "✓ PROUVÉ · {} · {} · slot {}{generation}",
-                last.kind.as_str(),
-                last.fired_at,
-                last.slot
-            )
-        }
-        None => "· DÉCLARÉ — le registre le dit, la machine ne l'a jamais tiré".to_owned(),
-    };
-    if let Some(folded) = sidecar.folded(label, now)? {
-        let lifecycle =
-            folded
-                .slot()
-                .and_then(|slot| slot.get(..8))
-                .map_or(String::new(), |slot| {
-                    if folded.is_beyond_last() {
-                        format!(" · slot courant {slot}")
-                    } else {
-                        String::new()
-                    }
-                });
-        let _ = write!(line, " · état {}{lifecycle}", folded.state().as_str());
-    }
-    if let Some((skips, fires)) = sidecar.tallies(label) {
-        let _ = write!(
-            line,
-            " · {} / {}",
-            crate::text::count(skips, "saut"),
-            crate::text::count(fires, "tir")
+    let refused = refused_labels(&receipts);
+    if !refused.is_empty() {
+        let _ = writeln!(
+            out,
+            "\n✗ exit 3 · firing evidence refused or unattributed for {} — each block above stands on its own receipt; this exit certifies none of them",
+            refused.join(" · ")
         );
     }
-    if let Some(tol) = &beat.tolerance {
-        let _ = write!(line, " · tolérance {tol}");
+    let _ = write!(
+        out,
+        "\nREADY · UNREADY · DORMANT judge the current configuration only — never OS activation, acquired authority or the current window.\n\
+         nothing was scheduled — `nika arm` READS the file. \
+         The machine that fires them is the arming edge."
+    );
+    if refused.is_empty() {
+        VerbOutput::ok(out)
+    } else {
+        VerbOutput::env(out)
     }
-    let _ = writeln!(out, "         {line}");
-    if let Some(par) = &beat.par {
-        let _ = writeln!(out, "         par: {par} — déclaré · non vérifié");
-    }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -466,18 +445,29 @@ mod tests {
             "    jusqu_au: \"2099-12-31\"\n",
         );
         let dir = project_at("proof", body);
+        std::fs::create_dir(dir.path().join("workflows")).expect("workflow directory");
+        for name in ["prouve", "declare"] {
+            std::fs::write(
+                dir.path().join(format!("workflows/{name}.nika")),
+                "nika: proof-fixture\npermits: {exec: [echo]}\ntasks:\n  echo:\n    exec: { command: [echo, proof] }\n",
+            ).expect("capturable workflow");
+        }
         let sidecar = state::ArmState::at_project(dir.path());
         let registry = parse_registry(body).expect("cadence registry");
+        let project = nika_fs::OwnedDir::open(dir.path()).expect("project");
+        let admitted = nika_execution::ExecutionService::default()
+            .admit(&project, std::path::Path::new("workflows/prouve.nika"))
+            .expect("admitted world");
         let generation = nika_cadence::ArmGeneration::compute(
             registry.beats().next().expect("first beat"),
-            &"b".repeat(64),
+            admitted.snapshot().digest(),
         );
         let generation_short = generation.short().to_owned();
         // prouve: the machine fired twice, skipped once — the sidecar
         // attests (last.json + the history's tallies).
         let mut fired = state::HistoryEntry::new(
-            Some("2026-08-18T07:07:00Z".parse().expect("ts")),
-            "2026-08-18T07:07:04Z".parse().expect("ts"),
+            Some("2026-08-17T07:07:00Z".parse().expect("ts")),
+            "2026-08-17T07:07:04Z".parse().expect("ts"),
             state::FireKind::Fired,
         );
         fired.trace = Some(".nika/traces/2026-08-18T07-07-04Z_cafe.ndjson".to_owned());
@@ -498,7 +488,12 @@ mod tests {
 
         let out = run_at(dir.path());
         assert_eq!(out.code, exit::OK, "{}", out.text);
-        assert!(out.text.contains("✓ PROUVÉ"), "{}", out.text);
+        assert!(
+            out.text
+                .contains("✓ PROUVÉ (génération + créneau · ni projet ni hôte)"),
+            "{}",
+            out.text
+        );
         assert!(
             out.text.contains(&format!("gen {generation_short}")),
             "the report shows the pinned generation: {}",
@@ -559,8 +554,16 @@ mod tests {
             let out = run_at(dir.path());
             assert_eq!(out.code, exit::ENV, "{mutation}: {}", out.text);
             assert!(
-                out.text.contains("arm report refused · corrupt sidecar"),
+                out.text.contains("(firing_evidence_invalid)")
+                    && out
+                        .text
+                        .contains("✗ exit 3 · firing evidence refused or unattributed for doctor"),
                 "{mutation}: {}",
+                out.text
+            );
+            assert!(
+                out.text.contains("[DORMANT]"),
+                "every beat stays reported: {}",
                 out.text
             );
             assert!(!out.text.contains("DÉCLARÉ"), "{mutation}: {}", out.text);
@@ -713,7 +716,7 @@ mod tests {
         );
         assert!(out.text.contains("1 beat"), "{}", out.text);
         assert!(
-            out.text.contains("[idle ]"),
+            out.text.contains("[DORMANT]") && !out.text.contains('→'),
             "actif: false is REPORTED, never computed: {}",
             out.text
         );

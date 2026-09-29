@@ -72,8 +72,8 @@ for pinned in \
   '--trace-verdict "${TRACE_VERDICT}" \' \
   '--engine-version "${ENGINE_VERSION}" \' \
   '--out "${RUNNER_TEMP}/comment.md"'; do
-  grep -qF -- "$pinned" "$ACTION/action.yml" ||
-    fail "action.yml no longer runs: $pinned — update this replay"
+  grep -qF -- "$pinned" "$ACTION/action.yml" \
+    || fail "action.yml no longer runs: $pinned — update this replay"
 done
 
 # the engine version the action passes to the renderer is the release it
@@ -124,15 +124,15 @@ read -r clean_check clean_inspect < <(replay clean)
 # ── the story the clip tells must still be true ─────────────────────────
 [ "$red_check" = "2" ] || fail "the red push must fail nika check with exit 2 (got $red_check)"
 [ "$clean_check" = "0" ] || fail "the clean push must pass nika check (got exit $clean_check)"
-head -1 "$RAW/pr-check-comment-red.md" | grep -q '^❌ \*\*nika check\*\* — 1 finding(s)' ||
-  fail "the red comment no longer opens with one finding"
+head -1 "$RAW/pr-check-comment-red.md" | grep -q '^❌ \*\*nika check\*\* — 1 finding(s)' \
+  || fail "the red comment no longer opens with one finding"
 # shellcheck disable=SC2016 # the backticks are the comment's markdown
-grep -qF '| conformance | `NIKA-DAG-002` |' "$RAW/pr-check-comment-red.md" ||
-  fail "the red comment no longer names NIKA-DAG-002"
-head -1 "$RAW/pr-check-comment-clean.md" | grep -q '^✅ \*\*nika check\*\* — clean' ||
-  fail "the clean comment is not clean"
-grep -q '^```mermaid$' "$RAW/pr-check-comment-clean.md" ||
-  fail "the clean comment carries no DAG"
+grep -qF '| conformance | `NIKA-DAG-002` |' "$RAW/pr-check-comment-red.md" \
+  || fail "the red comment no longer names NIKA-DAG-002"
+head -1 "$RAW/pr-check-comment-clean.md" | grep -q '^✅ \*\*nika check\*\* — clean' \
+  || fail "the clean comment is not clean"
+grep -q '^```mermaid$' "$RAW/pr-check-comment-clean.md" \
+  || fail "the clean comment carries no DAG"
 
 # exit codes, the action's step names and the hashes of the files replayed
 python3 - "$ACTION" "$RAW/pr-check-comment-run.json" "$WORKFLOW" "$VERSION" \

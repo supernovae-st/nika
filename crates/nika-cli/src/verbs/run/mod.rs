@@ -424,7 +424,8 @@ fn answered_leg(
         inputs,
         setup,
         max_cost_usd,
-        None, // a resumed leg never inherits unknown-cost authority
+        // A resumed leg never inherits unknown-cost authority: only a fresh observer.
+        nika_cli_host::run_cost::leg_observer(wf, &plan, model_override),
         (no_trace_file, output_json),
         &world,
     ) {
@@ -1390,10 +1391,11 @@ fn map_run_result(result: Result<RunOutcome, RuntimeError>) -> (u8, RunOutcome) 
                 {
                     let _ = writeln!(stderr, "nika run: {tail}");
                 }
-            } else if let RuntimeError::ReportMismatch { .. } = err {
-                // Audit-before-run (spec §4): the report does not describe
-                // THESE bytes — the file-findings class (the F-P2
-                // judged-vs-booted binding), never a system breach.
+            } else if let RuntimeError::ReportMismatch { .. } | RuntimeError::BudgetFloor { .. } =
+                err
+            {
+                // The FILE class (RUN_EXITS): the report does not describe THESE bytes (spec
+                // §4 · F-P2 judged-vs-booted), or the cost floor refuses (NIKA-1709).
                 let _ = writeln!(stderr, "nika run: {err}");
                 return (
                     exit::FILE,

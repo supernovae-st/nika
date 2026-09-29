@@ -20,13 +20,16 @@ serde        = { workspace = true } # bounded JSON rejects duplicate response fi
 serde_json   = { workspace = true }
 bytes        = { workspace = true }
 futures-core = { workspace = true }
+# task_local only: the dispatch journal outlives a dropped dispatch (the
+# runtime scopes each attempt with it and keeps its own zero tokio edge).
+tokio        = { workspace = true }
+url          = { workspace = true } # route identity: the WHATWG parse the transport connects with (nika-types net law)
 
 [features]
 # Composer + CLI admission: include shipped agentic-CLI rows (never handshake).
 access-harness = ["dep:nika-harness"]
 
 [dev-dependencies]
-tokio      = { workspace = true }
 proptest   = { workspace = true }
 jsonschema = { workspace = true }   # mock_schema tests validate the synthesized instance with the SAME crate the verb's floor uses
 

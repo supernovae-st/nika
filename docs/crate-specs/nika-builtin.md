@@ -4,8 +4,8 @@
 |---|---|
 | Status | **SPEC** (Gate 1 · authored 2026-06-11 · announce-ladder step s16) |
 | Layer | **L1.5** — the builtin tool layer · above the L1 effects it composes · below the L2 verbs that dispatch into it |
-| Design | the 24 canonical stdlib builtins behind ONE dispatcher implementing the three kernel tool seams (`ToolExecuteDyn` + `ToolBatchDyn` + `ToolDefinitionProviderDyn`) |
-| Normative source | `nika-spec stdlib/builtins-v0.1.md` (the 24 · contracts · error codes) + `stdlib/extract-modes-v0.1.md` (fetch modes) + `spec/05-errors.md` (4-segment code grammar) — **this doc never restates a contract, it cites** |
+| Design | the 28 canonical stdlib builtins behind ONE dispatcher implementing the three kernel tool seams (`ToolExecuteDyn` + `ToolBatchDyn` + `ToolDefinitionProviderDyn`) |
+| Normative source | `nika-spec stdlib/builtins-v0.1.md` (contracts · error codes) + `stdlib/extract-modes-v0.1.md` (fetch modes) + `spec/05-errors.md` (4-segment code grammar) — **this doc never restates a contract, it cites** |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (Diamond caps) — one module per builtin family |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
@@ -17,9 +17,9 @@
 The real tool layer. `nika-verb-invoke` and `nika-verb-agent` dispatch over
 the kernel `ToolExecuteDyn` seam, and the agent enumerates definitions over
 `ToolDefinitionProviderDyn` — until now only mocks implement either. This
-crate is the production implementation: a **closed registry of the 24
-stdlib v0.1 builtins** (core 6 · file 5 · data 8 · introspection 2 ·
-network 2 · media 1), each a thin composition over kernel effect seams, plus the
+crate is the production implementation: a **closed registry of the 28
+stdlib builtins** (core 6 · file 5 · data 9 · introspection 2 ·
+network 2 · media 4), each a thin composition over kernel effect seams, plus the
 model-facing `ToolDef` (name · description · JSON-Schema params) for every
 tool.
 
@@ -28,9 +28,9 @@ tool.
 ```text
                     ┌───────────────────────────────────────┐
  verbs (L2) ──────▶ │ BuiltinDispatcher<F, H, C, E, P, W>   │  implements
-   invoke · agent   │   the closed 24-registry              │  ToolExecuteDyn
+   invoke · agent   │   the closed 28-registry              │  ToolExecuteDyn
                     │   route(name) → the builtin fn        │  ToolBatchDyn
- agent tool-defs ─▶ │   tool_defs() → 24 × ToolDef          │  ToolDefinitionProviderDyn
+ agent tool-defs ─▶ │   tool_defs() → 28 × ToolDef          │  ToolDefinitionProviderDyn
                     └──┬────┬────┬────┬─────┬────┬──────────┘
                        │    │    │    │     │    │
                   F: Fs │ H: HttpClient │ C: ClockDyn │ E: Emitter
@@ -98,7 +98,7 @@ compact JSON). One rendering, one seam.
 | uuid | `uuid` (workspace) | v7 default / v4 · tests pin FORMAT + version nibble (not value) |
 | date | `jiff` 0.2 (Unlicense OR MIT · bundles IANA tzdb — sovereign, zero system dependency) + `ClockDyn` | the spec's FULL six ops (now · add · subtract · format · parse · diff) · `op:now` rides `ClockDyn::system_now` (hermetic under MockClock) + IANA `tz:` · format/parse speak strftime · diff returns an integer in `unit:` (seconds default · ms/min/h/days) · `-001` |
 | hash | `blake3` + `sha2` (both workspace) | blake3 default · md5/sha1 → `-001` |
-| fetch | `HttpGetDyn`/`HttpPostDyn` + `nika-extract` (8 modes) + `data::jq` (mode jq) | non-2xx → `-001` with `BuiltinFailure.transient` per the normative status table (5xx/408/429 true · other 4xx false) · transport timeouts/connection failures transient too · SSRF lives in the L1 http effect (3-layer · s5 · verified) — this layer does NOT re-implement it · **the `mode:` surface is WIRED (step 13)**: 8 modes via `nika-extract` (default markdown) · `mode: jq` composes `data::jq` (the one jq engine · one-output law reused not re-implemented) · `raw`/`jq` strict-UTF-8 (non-UTF-8 → `-001` per spec raw contract) · extraction modes charset-aware decode from `Content-Type` (encoding_rs) · the whole parse runs on `spawn_blocking` (a 64 MiB HTML parse must not starve the executor · the `data::jq` precedent) |
+| fetch | `HttpGetDyn`/`HttpPostDyn` + `nika-extract` (8 modes) + `data::jq` (mode jq) | without `response.accept`, non-2xx → `-001`; an explicit exact set is parsed by `nika-cap` and observed by `net/response.rs` as status, sanitized final URL (nullable), and extracted body; unlisted statuses still fail with `BuiltinFailure.transient` per the normative status table (5xx/408/429 true · other 4xx false) · transport timeouts/connection failures transient too · SSRF lives in the L1 http effect (3-layer · s5 · verified) — this layer does NOT re-implement it · **the `mode:` surface is WIRED (step 13)**: 8 modes via `nika-extract` (default markdown) · `mode: jq` composes `data::jq` (the one jq engine · one-output law reused not re-implemented) · `raw`/`jq` strict-UTF-8 (non-UTF-8 → `-001` per spec raw contract) · extraction modes charset-aware decode from `Content-Type` (encoding_rs) · the whole parse runs on `spawn_blocking` (a 64 MiB HTML parse must not starve the executor · the `data::jq` precedent) |
 | notify | `HttpPostDyn` | `webhook` MUST · other channels `-001` unconfigured · non-2xx `-002` carries `transient` per the same status table |
 | inspect | `WorkflowIntrospect` | 4 views · `-001` unknown view |
 | image_generate | the image plane (`HttpPostDyn` · OPTIONAL) + `Fs*Dyn` + `ClockDyn` + `Emitter` + `FsBoundary` | stdlib §Media (ADR-105) · module family `src/image/` (args · sniff · mock · save · manifest · embed · openai · gemini · xai · local) · local compat wire (sovereign · engine-config base URL) / openai `gpt-image-2` native `n` / gemini `gemini-3.1-flash-image` n-sequential / xai `grok-imagine-image` aspect+resolution classes / deterministic mock (hand-rolled stored-deflate PNG · validated by the independent `png` dev-dep) · header-only decode validation (magic authority · no pixel decode) · boundary-gated atomic saves + collision probing + idempotent re-runs · `manifest_version: 1` provenance + in-PNG `nika` tEXt chunk (deterministic · survives cp) · exact `cost_usd` (xai ticks) metered into the run ledger · base64 never rides outputs (`debug:` echo sanitized) · keys = composition-root `ImageKeys` (env ladder · zeroizing) · codes `-001..-007` |
@@ -126,17 +126,23 @@ after an uncertain result.
   its running computation or bound its memory. A jaq step budget or
   process isolation with resource limits remains deferred (see
   `crates/nika-builtin/src/data.rs` and `route_jq` in `src/lib.rs`).
-- **`BuiltinFailure.transient`** is typed at the failure plane; the wire
-  `ToolResult` has no metadata slot yet — the flag projects when the kernel
-  grows one (both types `#[non_exhaustive]`, strictly additive).
+- **`BuiltinFailure.transient`** is typed at the failure plane and projects
+  onto the wire `ToolResult.error_meta` (`ToolErrorMeta`) with the spec code.
+  **`BuiltinFailure.details`** stays a free-form object at the failure plane;
+  `render()` is the one seam that decides what crosses: only the received
+  HTTP `status_code` (an integer 100..=999) and the call's `accepted` set
+  (re-read through `nika_cap::fetch_response_statuses`) become typed
+  `ToolErrorDetails` (stdlib §Status as data). Provider text, URLs, bodies,
+  wrapped causes and malformed values stay behind, and the model-facing
+  `content` text is unchanged.
 
 ## §5 · Testing strategy
 
 Mock-first over kernel-mock (`MockFs` · `MockHttp` · `MockClock` ·
 `NullEventSink`) + local mocks for the two owned seams. Per-builtin unit
 tests pin the spec contract lines (codes · defaults · sort orders ·
-exactly-one-output). Dispatcher tests pin: routing totality (all 24
-addressable · unknown → NotFound) · `tool_defs()` returns 24 schemas ·
+exactly-one-output). Dispatcher tests pin: routing totality (all 28
+addressable · unknown → NotFound) · `tool_defs()` returns 28 schemas ·
 done rejected · batch = sequential map. Property: jq exactly-one-output
 over arbitrary JSON · glob/grep determinism · sniff totality on arbitrary
 bytes (+ magic-prefixed tails) · sanitize_component traversal-freedom.
@@ -178,3 +184,49 @@ MCP half (`mcp:server/*` via live `tools/list`) arrives with `nika-mcp`
 | 12 ATOMIC COMMIT | ⏳ this admission commit removes `nika-builtin` from `workspace.metadata.diamond.wip`. |
 
 🦋 Nika — workflow engine for AI, AGPL, SuperNovae Studio.
+
+The version-1 tools projection includes additive `legal_contexts` and `standalone_invoke` fields. These derive from the same capability law as Check: `compose` and `done` are agent-tool-only; the remaining catalog builtins also support standalone invoke. Context eligibility does not grant permits or validate arguments.
+
+Single-page fetch extraction strips URL userinfo from the resolution base,
+matching traversal's existing law. The post-redirect landing path still resolves
+relative references, with the original request URL as the fallback when a
+transport supplies no final URL. This sanitizes inherited transport credentials;
+it does not rewrite arbitrary response content or query parameters. HTTP
+requests and their authentication remain the transport's responsibility.
+
+### Write argument discovery
+
+The model-facing `nika:write` parameter schema and its CLI/MCP projection
+admit the non-null values the existing writer consumes: strings verbatim,
+structured JSON without a serialization pre-pass, and the opaque bytes
+representation. Null remains a missing-value error; the string `"null"`
+writes that literal text. This repairs the former string-only discovery
+hint without changing file effects, permits, overwrite policy or runtime
+serialization. Parameter validation is still not proof of base64 validity,
+filesystem authority or successful publication.
+
+### Media argument discovery
+
+The model-facing `nika:chart.data` schema admits inline arrays of flat rows
+whose cells are strings or numbers, and objects naming a JSON file through
+`path`. The chart renderer still checks channels, semantic types, file contents
+and output authority. `nika:image_generate.images` is an array of nonblank
+path strings; edit mode, provider limits and input authority remain runtime
+checks. These declarations let a consumer validate the same shapes that the
+existing builtins consume, without a string-serialization pre-pass. They do
+not establish that an input file exists or that rendering will succeed.
+
+## Numeric conversion cardinality
+
+The runtime jq builtin and fetch jq mode share this evaluator. Its `tonumber` and `scan` are
+the shared `nika_cap::JQ_STD_SHADOWS` (nika-cap spec §3.4), and its tests run the shared probe
+set `nika_cap::JQ_STD_SHADOW_PROBES`.
+
+`tonumber` preserves a finite numeric input or parses one finite numeric value from a text
+input. Empty or whitespace-only text, several JSON values in one text, non-numeric values, NaN
+and the infinities (an overflowing text such as `1e400` included) fail with a named error; an
+enclosing aggregate cannot silently omit or double-count that operand, and no predicate,
+comparison or sort reads a non-finite one. An explicitly authored `try` or `?` still controls
+error handling. `fromjson` retains its stream semantics and still reads non-finite values.
+This correction does not promise arbitrary decimal arithmetic or a field name in the generic
+error; typed numeric laws remain responsible for those contracts.

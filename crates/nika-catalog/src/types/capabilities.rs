@@ -21,7 +21,7 @@
 //! is useless without the generated rule table. The gate lives at the
 //! `pub mod capabilities;` declaration in `types/mod.rs`.
 
-use super::model::{ModelCapabilities, TokenLimitParam};
+use super::model::{ModelCapabilities, ReasoningLevel, TokenLimitParam};
 use super::region::Region;
 use super::{JsonMode, Modality, ParamFlag, TokenizerFamily};
 
@@ -91,6 +91,9 @@ pub struct CapPatch {
     pub max_output_tokens: Option<u32>,
     /// Per-field override for [`ModelCapabilities::json_mode`].
     pub json_mode: Option<JsonMode>,
+    // ── R4 B16 addition ────────────────────────────────────────────────
+    /// Per-field override for [`ModelCapabilities::reasoning_efforts`].
+    pub reasoning_efforts: Option<&'static [ReasoningLevel]>,
 }
 
 impl CapPatch {
@@ -136,6 +139,7 @@ impl CapPatch {
             context_window_tokens,
             max_output_tokens,
             json_mode,
+            reasoning_efforts,
         );
         self
     }
@@ -158,6 +162,59 @@ impl CapPatch {
     /// asserts are zero-cost in prod.
     #[must_use]
     pub(crate) fn materialize(self, defaults: &Self) -> ModelCapabilities {
+        self.debug_assert_complete(defaults);
+        ModelCapabilities {
+            token_limit_param: self
+                .token_limit_param
+                .or(defaults.token_limit_param)
+                .unwrap_or(TokenLimitParam::MaxTokens),
+            supports_temperature: self
+                .supports_temperature
+                .or(defaults.supports_temperature)
+                .unwrap_or(true),
+            supports_stop_sequences: self
+                .supports_stop_sequences
+                .or(defaults.supports_stop_sequences)
+                .unwrap_or(true),
+            reasoning: self.reasoning.or(defaults.reasoning).unwrap_or(false),
+            input_modalities: self
+                .input_modalities
+                .or(defaults.input_modalities)
+                .unwrap_or(&[Modality::Text, Modality::Image]),
+            output_modalities: self
+                .output_modalities
+                .or(defaults.output_modalities)
+                .unwrap_or(&[Modality::Text]),
+            // tokenizer: ModelCapabilities.tokenizer is already Option<T>,
+            // so a missing patch+defaults collapse to None naturally.
+            tokenizer: self.tokenizer.or(defaults.tokenizer),
+            supported_parameters: self
+                .supported_parameters
+                .or(defaults.supported_parameters)
+                .unwrap_or(&[]),
+            supports_system_messages: self
+                .supports_system_messages
+                .or(defaults.supports_system_messages)
+                .unwrap_or(true),
+            // context_window_tokens / max_output_tokens: like tokenizer,
+            // these use `.or()` with NO `unwrap_or` fallback. None means
+            // "not specified by the capability rule" — the caller should
+            // look up the provider's model entry for per-model values.
+            context_window_tokens: self
+                .context_window_tokens
+                .or(defaults.context_window_tokens),
+            max_output_tokens: self.max_output_tokens.or(defaults.max_output_tokens),
+            json_mode: self.json_mode.or(defaults.json_mode),
+            reasoning_efforts: self
+                .reasoning_efforts
+                .or(defaults.reasoning_efforts)
+                .unwrap_or(&[]),
+        }
+    }
+
+    /// The debug-mode invariants of [`Self::materialize`]: every field it unwraps is set by
+    /// this patch or by the defaults. A no-op in release builds.
+    fn debug_assert_complete(&self, defaults: &Self) {
         debug_assert!(
             self.token_limit_param
                 .or(defaults.token_limit_param)
@@ -204,49 +261,12 @@ impl CapPatch {
                 .is_some(),
             "[defaults].supports_system_messages missing",
         );
-        ModelCapabilities {
-            token_limit_param: self
-                .token_limit_param
-                .or(defaults.token_limit_param)
-                .unwrap_or(TokenLimitParam::MaxTokens),
-            supports_temperature: self
-                .supports_temperature
-                .or(defaults.supports_temperature)
-                .unwrap_or(true),
-            supports_stop_sequences: self
-                .supports_stop_sequences
-                .or(defaults.supports_stop_sequences)
-                .unwrap_or(true),
-            reasoning: self.reasoning.or(defaults.reasoning).unwrap_or(false),
-            input_modalities: self
-                .input_modalities
-                .or(defaults.input_modalities)
-                .unwrap_or(&[Modality::Text, Modality::Image]),
-            output_modalities: self
-                .output_modalities
-                .or(defaults.output_modalities)
-                .unwrap_or(&[Modality::Text]),
-            // tokenizer: ModelCapabilities.tokenizer is already Option<T>,
-            // so a missing patch+defaults collapse to None naturally.
-            tokenizer: self.tokenizer.or(defaults.tokenizer),
-            supported_parameters: self
-                .supported_parameters
-                .or(defaults.supported_parameters)
-                .unwrap_or(&[]),
-            supports_system_messages: self
-                .supports_system_messages
-                .or(defaults.supports_system_messages)
-                .unwrap_or(true),
-            // context_window_tokens / max_output_tokens: like tokenizer,
-            // these use `.or()` with NO `unwrap_or` fallback. None means
-            // "not specified by the capability rule" — the caller should
-            // look up the provider's model entry for per-model values.
-            context_window_tokens: self
-                .context_window_tokens
-                .or(defaults.context_window_tokens),
-            max_output_tokens: self.max_output_tokens.or(defaults.max_output_tokens),
-            json_mode: self.json_mode.or(defaults.json_mode),
-        }
+        debug_assert!(
+            self.reasoning_efforts
+                .or(defaults.reasoning_efforts)
+                .is_some(),
+            "[defaults].reasoning_efforts missing",
+        );
     }
 }
 
@@ -345,6 +365,12 @@ impl CapPatchBuilder {
     #[must_use]
     pub fn json_mode(mut self, v: JsonMode) -> Self {
         self.inner.json_mode = Some(v);
+        self
+    }
+    /// Set [`CapPatch::reasoning_efforts`].
+    #[must_use]
+    pub fn reasoning_efforts(mut self, v: &'static [ReasoningLevel]) -> Self {
+        self.inner.reasoning_efforts = Some(v);
         self
     }
     /// Consume the builder, returning the assembled [`CapPatch`].
@@ -569,6 +595,7 @@ mod tests {
             .context_window_tokens(128_000)
             .max_output_tokens(8_192)
             .json_mode(JsonMode::Object)
+            .reasoning_efforts(&[ReasoningLevel::Max])
             .build();
 
         assert_eq!(
@@ -592,6 +619,7 @@ mod tests {
         assert_eq!(patch.context_window_tokens, Some(128_000));
         assert_eq!(patch.max_output_tokens, Some(8_192));
         assert_eq!(patch.json_mode, Some(JsonMode::Object));
+        assert_eq!(patch.reasoning_efforts, Some(&[ReasoningLevel::Max][..]));
     }
 
     fn toml_like_defaults() -> CapPatch {
@@ -611,7 +639,32 @@ mod tests {
             context_window_tokens: None,
             max_output_tokens: None,
             json_mode: None,
+            reasoning_efforts: Some(&[]),
         }
+    }
+
+    #[test]
+    fn reasoning_levels_merge_and_materialize_only_where_a_rule_lists_them() {
+        const LEVELS: &[ReasoningLevel] = &[
+            ReasoningLevel::Low,
+            ReasoningLevel::High,
+            ReasoningLevel::Max,
+        ];
+        let defaults = toml_like_defaults();
+        let listed = CapPatchBuilder::default().reasoning_efforts(LEVELS).build();
+        assert_eq!(listed.materialize(&defaults).reasoning_efforts, LEVELS);
+        let unlisted = CapPatchBuilder::default().reasoning(true).build();
+        assert!(unlisted.materialize(&defaults).reasoning_efforts.is_empty());
+        assert_eq!(
+            defaults.merge_with(listed).reasoning_efforts,
+            Some(LEVELS),
+            "a rule's levels win over the defaults' none"
+        );
+        assert_eq!(
+            listed.merge_with(unlisted).reasoning_efforts,
+            Some(LEVELS),
+            "a rule silent on levels keeps the ones below it"
+        );
     }
 
     #[test]
@@ -673,6 +726,8 @@ mod tests {
             context_window_tokens: Some(128_000),
             max_output_tokens: Some(32_768),
             json_mode: Some(JsonMode::Schema),
+            // R4 B16
+            reasoning_efforts: Some(&[ReasoningLevel::High]),
         };
         let merged = base.merge_with(patch);
         // Session 2a
@@ -696,6 +751,8 @@ mod tests {
         assert_eq!(merged.context_window_tokens, Some(128_000));
         assert_eq!(merged.max_output_tokens, Some(32_768));
         assert_eq!(merged.json_mode, Some(JsonMode::Schema));
+        // R4 B16
+        assert_eq!(merged.reasoning_efforts, Some(&[ReasoningLevel::High][..]));
     }
 
     #[test]

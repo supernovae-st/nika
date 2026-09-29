@@ -23,18 +23,19 @@ use super::bindings::{self, Bindings, Need, RuleBinding, Source};
 use super::laws::{
     FOLD_DOCUMENTS, FOLD_DRAFTS, FOLD_FIELDS, INFER_TIMEOUT, LINES, SELECT_BY_FIELD, SELECT_BY_KEY,
     SOURCE_COLUMNS, SOURCE_COLUMNS_UNION, SUMMARY, ZIP, anchor_law, bullet_layout, category_schema,
-    draft_law, draft_schema, extract_schema, per_item_extract_law, per_item_law,
-    per_item_translation_law, translation, translation_law,
+    draft_law, draft_schema, extract_schema, guarded_lookup, guarded_parse, per_item_extract_law,
+    per_item_law, per_item_translation_law, translation, translation_law, with_decimal,
 };
-use super::ledger::{DutyKind, Ledger};
+use super::ledger::{DutyKind, Judgment, Ledger};
 use super::paths::{self, Structured};
 use super::plan::{EffectPolicy, Op, Plan, Step};
 use super::realize::{
-    record_ledger, refused_contradiction, repeated_effect_asked, settle_candidate, shared_approval,
+    Judged, record_ledger, refused_contradiction, repeated_effect_asked, settle_candidate,
+    shared_approval,
 };
 use super::shape;
 use super::support::invoke;
-use super::writes::emit_writes;
+use super::writes::{alone_holds, emit_writes};
 use super::{CompileError, CompileOutcome, CompileRequest, DiagnosticKind, QuestionType};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
@@ -84,6 +85,9 @@ pub(super) struct Doc {
     /// The names a typed computation produces as totals over every row (`tickets`,
     /// `total_cents`): the keys an outbound payload may name.
     pub(super) totals: Vec<String>,
+    /// Every total the typed computation states, a name a template selects or not: a write of
+    /// one value alone needs exactly one (E38).
+    pub(super) stated_totals: Vec<String>,
     /// Which emitted element carries which stated duty: (kind, evidence, task id).
     pub(super) carriers: Vec<(DutyKind, String, String)>,
     /// The stated bounds a run-time law over the drafted body verifies: (constraint, task).
@@ -123,6 +127,7 @@ impl Doc {
             computed_columns: None,
             renames: Vec::new(),
             totals: Vec::new(),
+            stated_totals: Vec::new(),
             carriers: Vec::new(),
             verified_bounds: Vec::new(),
             shared_review: None,
@@ -339,19 +344,39 @@ pub fn assemble(
     request: &CompileRequest,
     out: &mut CompileOutcome,
 ) -> Result<(), CompileError> {
+    assemble_judged(plan, intent, request, &[], false, out)
+}
+
+/// The same assembly under the judgments a judge's seat made over the candidate's pending
+/// clauses (R4 A11): each settles its clause only under the binding the core recomputes from
+/// the request, the stated plan and the bytes it emits, a binding of context and bytes, not a
+/// round nonce. With `whole` (a model's plan), the whole request waits for its judgment too.
+///
+/// # Errors
+/// Returns the same machinery failures as [`assemble`].
+pub fn assemble_judged(
+    plan: &Plan,
+    intent: &str,
+    request: &CompileRequest,
+    judgments: &[Judgment],
+    whole: bool,
+    out: &mut CompileOutcome,
+) -> Result<(), CompileError> {
+    let given = plan;
     // The requester's decisions over the plan come first (a money movement's approval):
     // the assembler works on the decided plan; the recorded plan stays as it was read.
     let mut recognized: BTreeSet<String> = BTreeSet::new();
     let mut decided = plan.clone();
     super::approval::decide(&mut decided, request, out, &mut recognized);
     let plan = &decided;
+    // The stated ledger rides in the decision record from the first round, a refusal's too
+    // (the contradicted or unsupported clauses it refuses); the realized one replaces it when
+    // the candidate is emitted.
+    let stated = Ledger::extract(plan);
+    record_ledger(out, &stated);
     if refused(plan, out) {
         return Ok(());
     }
-    // The stated ledger rides in the decision record from the first round; the realized
-    // one replaces it when the candidate is emitted.
-    let stated = Ledger::extract(plan);
-    record_ledger(out, &stated);
     if refused_contradiction(&stated, out) {
         return Ok(());
     }
@@ -398,20 +423,12 @@ pub fn assemble(
     emit_revision_check(&mut d, plan, &b);
     // One approval clause covering several effects is one gate: the human answers once and
     // every gated effect waits for that answer, instead of one prompt per effect.
-    d.gated_actions = b
-        .writes
-        .iter()
-        .filter(|w| w.gated)
-        .map(|w| format!("write {}", w.path))
-        .chain(
-            b.wired
-                .iter()
-                .filter(|w| w.gated)
-                .map(|w| format!("{} · {}", w.verb.word(), w.target.trim())),
-        )
-        .collect();
+    d.gated_actions = gated_actions(&b);
     d.share_gates = d.gated_actions.len() >= 2 && shared_approval(intent, plan);
-    if !emit_writes(&mut d, &b.writes, out) || !super::network::emit_endpoints(&mut d, &b, out) {
+    if !alone_holds(&d, &b.writes, out)
+        || !emit_writes(&mut d, &b.writes, out)
+        || !super::network::emit_endpoints(&mut d, &b, out)
+    {
         return Ok(());
     }
     if b.dedup.bound().is_some() {
@@ -427,8 +444,30 @@ pub fn assemble(
             plan,
             answers: &request.answers,
         },
+        &Judged {
+            request,
+            stated: given,
+            judgments,
+            whole,
+        },
         out,
     )
+}
+
+/// The actions an approval gates, the writes then the wired effects, each named as the one gate
+/// they share names it.
+fn gated_actions(b: &bindings::Bindings) -> Vec<String> {
+    b.writes
+        .iter()
+        .filter(|w| w.gated)
+        .map(|w| format!("write {}", w.path))
+        .chain(
+            b.wired
+                .iter()
+                .filter(|w| w.gated)
+                .map(|w| format!("{} · {}", w.verb.word(), w.target.trim())),
+        )
+        .collect()
 }
 
 /// A trigger the request names is deployment, not workflow: stated beside the candidate
@@ -464,30 +503,40 @@ fn state_trigger(
 /// The one review task every gated effect waits for when the request states one approval.
 pub(super) const SHARED_REVIEW: &str = "approval_review";
 
-/// Refusals and human-only regions come first: nothing below them is assembled.
-fn refused(plan: &Plan, out: &mut CompileOutcome) -> bool {
-    if let Some(conflict) = plan
+/// An effect the request both asks for and prohibits stays the human's (R4 S0): the refusal
+/// states the effect and both clauses, and asks for a replacement request that resolves it —
+/// no candidate, and no seat ever reads it to choose a side. Returns whether it refused.
+pub fn refuse_contradiction(plan: &Plan, out: &mut CompileOutcome) -> bool {
+    let Some(conflict) = plan
         .effects
         .iter()
         .find(|e| e.policy == EffectPolicy::Conflict)
-    {
-        out.status = super::CompileStatus::Refused;
-        super::finding(
-            out,
-            DiagnosticKind::RequiresHuman,
-            "intent",
-            format!(
-                "Contradictory instructions for `{}`: it is both requested and prohibited ({}). The contradiction stays visible; no workflow resolves it.",
-                conflict.verb.word(),
-                conflict.evidence
-            ),
-        );
-        super::question(
-            out,
-            "intent.clarification",
-            "Supply a complete replacement request that resolves the contradiction, including every operation still wanted.",
-            QuestionType::Text,
-        );
+    else {
+        return false;
+    };
+    out.status = super::CompileStatus::Refused;
+    super::finding(
+        out,
+        DiagnosticKind::RequiresHuman,
+        "intent",
+        format!(
+            "Contradictory instructions for `{}`: it is both requested and prohibited ({}). The contradiction stays visible; no workflow resolves it.",
+            conflict.verb.word(),
+            conflict.evidence
+        ),
+    );
+    super::question(
+        out,
+        "intent.clarification",
+        "Supply a complete replacement request that resolves the contradiction, including every operation still wanted.",
+        QuestionType::Text,
+    );
+    true
+}
+
+/// Refusals and human-only regions come first: nothing below them is assembled.
+fn refused(plan: &Plan, out: &mut CompileOutcome) -> bool {
+    if refuse_contradiction(plan, out) {
         return true;
     }
     if !plan.unknowns.is_empty() {
@@ -588,7 +637,7 @@ fn emit_lookup(d: &mut Doc, b: &Bindings) {
     d.tool(
         "lookup_record",
         "nika:jq",
-        json!({"input": input, "expression": expression}),
+        json!({"input": input, "expression": guarded_lookup(expression)}),
         Some(json!({"directory": "${{ tasks.lookup_read.output }}"})),
         false,
     );
@@ -625,7 +674,7 @@ fn emit_read(d: &mut Doc, plan: &Plan, b: &Bindings) {
                 if format == Structured::Csv && writes_csv(b) {
                     emit_source_columns(d);
                 }
-                emit_parse(d, format);
+                emit_parse(d, format, b.guard_scope().as_deref());
             } else if b.rule_over_lines() {
                 emit_parse_lines(d);
             }
@@ -683,12 +732,12 @@ fn emit_parse_lines(d: &mut Doc) {
 
 /// Several structured files a rule joins are decoded apart: one array of records per file,
 /// in item order, so the join reads `.records[0]`, `.records[1]`, … as the request listed
-/// the files.
+/// the files. A JSON file's every number keeps its exact value past the decode, or it stops.
 fn emit_parse_each(d: &mut Doc, format: Structured) {
     let (tool, args) = match format {
         Structured::Json => (
             "nika:jq",
-            json!({"input": "${{ item }}", "expression": "fromjson"}),
+            json!({"input": "${{ item }}", "expression": guarded_parse(None)}),
         ),
         other => (
             "nika:convert",
@@ -704,14 +753,16 @@ fn emit_parse_each(d: &mut Doc, format: Structured) {
 }
 
 /// A structured source is decoded once for code rules; prompts keep the raw text. Emitted
-/// only when a code rule, an endpoint payload or a structured write consumes the records.
-fn emit_parse(d: &mut Doc, format: Structured) {
+/// only when a code rule, an endpoint payload or a structured write consumes the records. A
+/// JSON source's numbers in `scope` (every one, or the fields a sole rule reads) keep their
+/// exact value past the decode, or the run stops.
+fn emit_parse(d: &mut Doc, format: Structured, scope: Option<&[String]>) {
     let with = json!({"document": "${{ tasks.read_source.output }}"});
     match format {
         Structured::Json => d.tool(
             "parse_source",
             "nika:jq",
-            json!({"input": "${{ with.document }}", "expression": "fromjson"}),
+            json!({"input": "${{ with.document }}", "expression": guarded_parse(scope)}),
             Some(with),
             false,
         ),
@@ -907,12 +958,10 @@ fn emit_step(d: &mut Doc, plan: &Plan, b: &Bindings, guide: &str, step: &Step) {
                 );
                 emit_computed(d, plan, false);
                 d.carry(DutyKind::Transformation, &evidence, "compute");
-                d.carry(DutyKind::Filter, &evidence, "compute");
             }
             Some(RuleBinding::Synthesized(rule)) => {
                 emit_synthesized_rule(d, plan, rule);
                 d.carry(DutyKind::Transformation, &evidence, "compute");
-                d.carry(DutyKind::Filter, &evidence, "compute");
             }
             None => {}
         },
@@ -1005,13 +1054,14 @@ fn emit_synthesized_rule(d: &mut Doc, plan: &Plan, rule: &super::rules::Rule) {
     d.tool(
         "compute",
         "nika:jq",
-        json!({"input": input, "expression": rule.jq()}),
+        json!({"input": input, "expression": with_decimal(&rule.jq())}),
         Some(json!({"records": records})),
         true,
     );
     d.computed_columns = rule.output_columns();
     d.renames = rule.renames().to_vec();
     d.totals = rule.totals_names();
+    d.stated_totals.clone_from(&d.totals);
     emit_computed(d, plan, rule.summary());
     // Totals over every row are the outputs the request named, one by one.
     d.totals = rule

@@ -30,6 +30,9 @@ struct Tariff {
     input_nano_per_token: u64,
     output_nano_per_token: u64,
     cached_nano_per_token: u64,
+    /// A curated whole-request text tariff, never inferred from omitted rates.
+    #[serde(default)]
+    declared_free: bool,
 }
 pub(crate) fn generate(raw: &[u8]) -> Result<String, CodegenError> {
     let text = std::str::from_utf8(raw)
@@ -69,9 +72,7 @@ pub(crate) fn generate(raw: &[u8]) -> Result<String, CodegenError> {
             || (r.currency == "USD" && (r.source_sha256.is_empty() || r.limits_sha256.is_empty()))
             || r.context_tokens == 0
             || r.max_output_tokens == 0
-            || r.input_nano_per_token == 0
-            || r.output_nano_per_token == 0
-            || r.cached_nano_per_token == 0
+            || !valid_rates(&r)
             || r.cached_nano_per_token > r.input_nano_per_token
             || [
                 r.input_nano_per_token,
@@ -117,6 +118,19 @@ pub(crate) fn generate(raw: &[u8]) -> Result<String, CodegenError> {
     }
     out.push_str("];\n");
     Ok(out)
+}
+
+fn valid_rates(tariff: &Tariff) -> bool {
+    let rates = [
+        tariff.input_nano_per_token,
+        tariff.output_nano_per_token,
+        tariff.cached_nano_per_token,
+    ];
+    if tariff.declared_free {
+        rates.iter().all(|rate| *rate == 0)
+    } else {
+        rates.iter().all(|rate| *rate > 0)
+    }
 }
 
 /// Project exact first-party USD facts from their owning admission source.
@@ -221,5 +235,25 @@ mod tests {
         ] {
             assert!(generate(bad.as_bytes()).is_err());
         }
+    }
+
+    #[test]
+    fn free_tariffs_require_an_explicit_complete_zero_declaration() {
+        let text = std::str::from_utf8(DATA).expect("utf8");
+        let out = generate(DATA).expect("curated tariffs");
+        assert!(out.contains("qwen/qwen3.8-27b:free"));
+        assert!(out.contains("input: 0, output: 0, cached: 0"));
+        for bad in [
+            text.replace("declared_free = true", "declared_free = false"),
+            text.replace("declared_free = true\n", ""),
+            text.replace("input_nano_per_token = 0\n", "input_nano_per_token = 1\n"),
+            text.replace("output_nano_per_token = 0\n", "output_nano_per_token = 1\n"),
+            text.replace("cached_nano_per_token = 0\n", "cached_nano_per_token = 1\n"),
+            text.replace("cached_nano_per_token = 0\n", ""),
+        ] {
+            assert!(generate(bad.as_bytes()).is_err(), "{bad}");
+        }
+        let free = text.rsplit("[[tariffs]]").next().expect("last tariff");
+        assert!(generate(format!("{text}\n[[tariffs]]{free}").as_bytes()).is_err());
     }
 }

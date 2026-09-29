@@ -17,7 +17,7 @@ use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::http::HttpPostDyn;
 use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
-use nika_schema::raw::{RawAction, RawCommand, VisionInput};
+use nika_schema::raw::{RawAction, RawCommand, RawTask, RawWorkflow, VisionInput};
 use nika_types::cost::UnpricedReason;
 use nika_verb_agent::AgentInput;
 use nika_verb_exec::{CaptureMode, ExecCommand, ExecValue};
@@ -251,7 +251,7 @@ impl Dispatched {
     fn verb_err(note: String, err: &dyn NikaErrorCode) -> Self {
         Self {
             note,
-            result: Err(FailedDispatch::unspent(TaskErrorRecord::new(
+            result: Err(FailedDispatch::unspent(TaskErrorRecord::detailed(
                 // The USER-FACING spec code (`NIKA-EXEC-001` · not the engine
                 // `NIKA-440`) — the identifier the author is forced (by `nika
                 // check`) to write in `on_codes:`, and the one `tasks.X.error
@@ -260,6 +260,9 @@ impl Dispatched {
                 err.spec_code(),
                 err.to_string(),
                 err.is_transient(),
+                // A tool's typed failure facts (`nika:fetch` · Status as data).
+                nika_verb_invoke::VerbInvokeError::details_of(err)
+                    .map(nika_kernel::tool_executor::ToolErrorDetails::to_value),
             ))),
         }
     }
@@ -272,21 +275,11 @@ impl Dispatched {
         err: &dyn NikaErrorCode,
         spend: (Option<f64>, Option<String>, Option<UnpricedReason>),
     ) -> Self {
-        let (cost_usd, cost_source, cost_unpriced) = spend;
-        Self {
-            note,
-            result: Err(FailedDispatch {
-                record: TaskErrorRecord::new(err.spec_code(), err.to_string(), err.is_transient()),
-                retry_forbidden: false,
-                cost_usd,
-                cost_source,
-                cost_unpriced,
-                evidence: None,
-                access: None,
-                usage: None,
-                access_refused: None,
-            }),
+        let mut dispatched = Self::verb_err(note, err);
+        if let Err(failed) = &mut dispatched.result {
+            (failed.cost_usd, failed.cost_source, failed.cost_unpriced) = spend;
         }
+        dispatched
     }
 
     /// Carry a resolved replay veto without changing the error or its evidence.
@@ -472,6 +465,10 @@ pub(crate) struct DispatchCtx<'a> {
     pub gate_answer: Option<serde_json::Value>,
     /// The run's immutable opening instant, shared by every retry/fan-out.
     pub run_start: nika_kernel::tool_executor::ToolRunStart,
+    /// The attempt loop's seams, `None` off it: the ledger a dropped attempt's
+    /// provider requests fold into (B7 · a `fail_fast` sibling · a `timeout:`),
+    /// and the workflow and task a seat only the run decides is judged in (B9).
+    pub attempt: Option<(&'a crate::ledger::RunLedger, &'a RawWorkflow, &'a RawTask)>,
 }
 
 impl<'a> DispatchCtx<'a> {
@@ -492,6 +489,7 @@ impl<'a> DispatchCtx<'a> {
             witness,
             gate_answer: None,
             run_start: nika_kernel::tool_executor::ToolRunStart::new(0),
+            attempt: None,
         }
     }
 }
@@ -524,7 +522,36 @@ where
     /// `taint` — the F-O1 PR-2 per-template oracle: the exec/mcp re-gates
     /// label each RAW template against it and match the RENDERED value
     /// against the step's permit (NEP-0004 law 2 · `dispatch/regate.rs`).
+    ///
+    /// With `ctx.attempt` (the attempt loop), the provider requests are
+    /// journaled: a dispatch dropped before it returns still debits every
+    /// request it sent, once (B7 · E17-F1); a returned one carries its own.
     pub(crate) async fn dispatch(
+        &self,
+        action: &RawAction,
+        scope: &Scope<'_>,
+        taint: &crate::integrity::ValueTaint<'_>,
+        agent_buffer: &crate::agent_events::BufferingObserver,
+        ctx: DispatchCtx<'_>,
+        contract: Option<&crate::contract::TaskContract<'_>>,
+    ) -> Dispatched {
+        let Some((ledger, _, _)) = ctx.attempt else {
+            return self
+                .dispatch_verb(action, scope, taint, agent_buffer, ctx, contract)
+                .await;
+        };
+        // Boxed: a nested run (a workflow invoking a workflow) polls this
+        // from a deeper stack than a 2 MiB thread affords with it inline.
+        nika_providers::dispatch_journal::DispatchJournal::observe(
+            Box::pin(self.dispatch_verb(action, scope, taint, agent_buffer, ctx, contract)),
+            |lost| {
+                ledger.debit_calls(&lost);
+            },
+        )
+        .await
+    }
+
+    async fn dispatch_verb(
         &self,
         action: &RawAction,
         scope: &Scope<'_>,
@@ -542,10 +569,7 @@ where
                 self.dispatch_shell(inner, scope, taint, &ctx, contract)
                     .await
             }
-            RawAction::Infer(inner) => {
-                self.dispatch_infer(inner, scope, ctx.deadline, contract)
-                    .await
-            }
+            RawAction::Infer(inner) => self.dispatch_infer(inner, scope, &ctx, contract).await,
             RawAction::Agent(inner) => {
                 self.dispatch_agent(inner, scope, agent_buffer, &ctx, contract)
                     .await
@@ -557,6 +581,31 @@ where
                 format!("verb not wired in the runtime yet: {other:?}"),
             ),
         }
+    }
+
+    /// B9 phase C · a seat only the run decides, refused before any provider
+    /// or seat request when the launch gates' own laws refuse it
+    /// ([`crate::admit::run_decided_refusal`]). Never transient and never
+    /// retried: it spent nothing and records no provider attempt.
+    fn pre_send_refusal(
+        &self,
+        seat: &str,
+        verb: &str,
+        ctx: &DispatchCtx<'_>,
+    ) -> Option<Dispatched> {
+        let (_, wf, task) = ctx.attempt?;
+        let on_harness = self.seat_for(seat).is_some();
+        let (code, why) = crate::admit::run_decided_refusal(
+            (wf, task),
+            (&self.var_overrides, self.model_override.as_deref()),
+            seat,
+            ctx.child_budget,
+            on_harness,
+        )?;
+        Some(
+            Dispatched::comp_refusal(&format!("{verb} · {seat}"), code, why)
+                .with_retry_forbidden(true),
+        )
     }
 
     async fn dispatch_invoke(
@@ -781,7 +830,7 @@ where
         &self,
         action: &nika_schema::raw::RawInferAction,
         scope: &Scope<'_>,
-        deadline: Option<std::time::Duration>,
+        ctx: &DispatchCtx<'_>,
         contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> Dispatched {
         let prompt = match expr::render(&action.prompt.value, scope) {
@@ -791,7 +840,7 @@ where
         let mut input = InferInput::new(prompt);
         // The task `timeout:` flows to the provider transport deadline —
         // the outer attempt-loop select still enforces the total budget.
-        input.timeout = deadline;
+        input.timeout = ctx.deadline;
         input.system = match render_opt(action.system.as_ref(), scope) {
             Ok(v) => v,
             Err(err) => return Dispatched::template_err("infer · ?", &err),
@@ -820,6 +869,9 @@ where
             .model
             .clone()
             .unwrap_or_else(|| self.infer.default_model().to_owned());
+        if let Some(refused) = self.pre_send_refusal(&lane_model, "infer", ctx) {
+            return refused;
+        }
         let access = self.lane_plan(&lane_model);
         #[cfg(feature = "access-harness")]
         if let Some(seat_id) = self.seat_for(&lane_model) {
@@ -902,6 +954,9 @@ where
             .model
             .clone()
             .unwrap_or_else(|| self.agent.default_model().to_owned());
+        if let Some(refused) = self.pre_send_refusal(&lane_model, "agent", ctx) {
+            return refused;
+        }
         let access = self.lane_plan(&lane_model);
         let seat = self.seat_for(&lane_model).map(str::to_owned);
         input.native_only = self.access_plan.is_some() && seat.is_none();
@@ -1255,13 +1310,6 @@ mod infer_deadline_tests {
     }
 }
 
-#[cfg(feature = "access-harness")]
-// The #824 model-template parity proofs (the house `tests.rs`
-// convention — `run_and_capture` is `pub(super)` for that sibling).
-#[cfg(test)]
-mod tests;
-#[cfg(test)]
-mod tests_agent_deadline;
 /// #651 (OBS-E promoted) — an `infer` whose visible answer is BLANK while
 /// the provider billed real tokens settles the task FAILED with the typed
 /// `NIKA-INFER-004`, and the run verdict follows (no more « 7/7 done ·
@@ -1270,208 +1318,11 @@ mod tests_agent_deadline;
 /// `ProviderRegistry` · `ollama` profile · zero network).
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
-mod infer_empty_answer_tests {
-    use std::collections::{BTreeMap, VecDeque};
-    use std::sync::{Arc, Mutex};
-
-    use bytes::Bytes;
-    use nika_kernel::http::{
-        HttpError, HttpPostDyn, HttpRequest, HttpResponse, HttpStreamResponse,
-    };
-    use nika_kernel_mock::{
-        MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
-    };
-    use nika_providers::{ProviderRegistry, ProvidersConfig};
-    use nika_verb_agent::AgentVerb;
-    use nika_verb_exec::ExecVerb;
-    use nika_verb_invoke::InvokeVerb;
-
-    use crate::{DeterministicStamper, RunOutcome, Runtime, RuntimeConfig, TaskStatus, VecSink};
-
-    /// Serves the queued canned bodies (one per round-trip) · counts every
-    /// provider request it saw.
-    struct ScriptedHttp {
-        bodies: Mutex<VecDeque<&'static str>>,
-        calls: Mutex<usize>,
-    }
-
-    impl ScriptedHttp {
-        fn serving(bodies: &[&'static str]) -> Arc<Self> {
-            Arc::new(Self {
-                bodies: Mutex::new(bodies.iter().copied().collect()),
-                calls: Mutex::new(0),
-            })
-        }
-
-        fn calls(&self) -> usize {
-            *self.calls.lock().expect("test mutex")
-        }
-    }
-
-    impl HttpPostDyn for ScriptedHttp {
-        async fn post(&self, request: HttpRequest) -> Result<HttpResponse, HttpError> {
-            *self.calls.lock().expect("test mutex") += 1;
-            let body = self
-                .bodies
-                .lock()
-                .expect("test mutex")
-                .pop_front()
-                .ok_or_else(|| HttpError::Other {
-                    reason: "ScriptedHttp: no canned response queued".to_owned(),
-                })?;
-            Ok(HttpResponse::new(
-                200,
-                BTreeMap::new(),
-                Bytes::from_static(body.as_bytes()),
-                request.url,
-            ))
-        }
-
-        async fn send_streaming(
-            &self,
-            _request: HttpRequest,
-        ) -> Result<HttpStreamResponse, HttpError> {
-            Err(HttpError::Unsupported {
-                reason: "streaming not exercised here".to_owned(),
-            })
-        }
-    }
-
-    /// A speaking loopback stub so the B-5 liveness gate passes (the
-    /// localhost-is-shared law: a live/dead ollama on the host must never
-    /// decide this test).
-    #[allow(clippy::disallowed_methods)] // test seam — the probe's own worker pattern
-    fn spawn_stub_server() -> u16 {
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
-        let port = listener.local_addr().expect("addr").port();
-        std::thread::spawn(move || {
-            while let Ok((mut stream, _)) = listener.accept() {
-                use std::io::Write as _;
-                let _ = stream.write_all(b"HTTP/1.0 404 Not Found\r\n\r\n");
-            }
-        });
-        port
-    }
-
-    /// The blank-answer repro body: empty visible content · real billed
-    /// output tokens (the reasoning trace ate the budget).
-    const EMPTY_WITH_SPEND: &str = r#"{"choices":[{"message":{"content":""},"finish_reason":"length"}],"usage":{"prompt_tokens":7,"completion_tokens":512}}"#;
-
-    async fn run_workflow(yaml: &str, http: Arc<ScriptedHttp>) -> RunOutcome {
-        let wf = nika_schema::parse(
-            yaml,
-            nika_schema::FileId::new(0),
-            nika_schema::ParseMode::Strict,
-        )
-        .expect("fixture parses");
-        let report = nika_check::check(&wf);
-        assert!(report.is_clean(), "fixture passes the ladder");
-        let registry = Arc::new(ProviderRegistry::new(
-            http,
-            ProvidersConfig::new().with_base_url(
-                "ollama",
-                format!("http://127.0.0.1:{}", spawn_stub_server()),
-            ),
-        ));
-        let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
-        let runtime = Runtime::new(
-            ExecVerb::new(Arc::new(MockShell::new())),
-            Arc::clone(&invoke),
-            nika_verb_infer::InferVerb::new(registry, "ollama/llama3.2"),
-            AgentVerb::new(
-                Arc::new(MockProvider::new("mock")),
-                invoke,
-                Arc::new(MockToolDefinitionProvider::new()),
-                "mock/echo",
-            ),
-            MockClock::new(),
-            RuntimeConfig::default(),
-        );
-        let mut stamper = DeterministicStamper::new();
-        let mut sink = VecSink::new();
-        runtime
-            .run(&wf, &report, &mut stamper, &mut sink)
-            .await
-            .expect("the run completes (a workflow failure is data)")
-    }
-
-    /// The issue's repro: the blank answer fails the task TYPED, the run
-    /// verdict goes red, and the declared `retry:` does NOT fire — the
-    /// remedy is `max_tokens`, never a re-ask at the same budget.
-    #[tokio::test]
-    async fn empty_answer_settles_failed_typed_and_the_run_goes_red() {
-        let http = ScriptedHttp::serving(&[EMPTY_WITH_SPEND]);
-        let outcome = run_workflow(
-            "nika: w\nmodel: ollama/llama3.2\ntasks:\n  ask:\n    retry: { max_attempts: 3, backoff_ms: 1, backoff_strategy: fixed, jitter: false }\n    infer: { prompt: \"hello\" }\n",
-            Arc::clone(&http),
-        )
-        .await;
-        assert!(!outcome.ok, "an empty answer is no longer a green run");
-        let rec = &outcome.records["ask"];
-        assert_eq!(rec.status, TaskStatus::Failure, "the task settles failed");
-        let err = rec.error.as_ref().expect("the failure carries its record");
-        assert_eq!(err.code, "NIKA-INFER-004", "the typed wire code");
-        assert!(
-            err.message.contains("infer produced an empty answer"),
-            "the warn's teaching survives the promotion: {}",
-            err.message
-        );
-        assert!(
-            err.message.contains("max_tokens"),
-            "the likely fix is named: {}",
-            err.message
-        );
-        assert!(!err.transient, "never retry-eligible by default");
-        assert_eq!(
-            rec.attempts,
-            Some(1),
-            "the declared retry: does NOT fire on a non-transient code"
-        );
-        assert_eq!(http.calls(), 1, "exactly one billed round-trip");
-    }
-
-    /// The authored escape hatch stays bounded: `on_codes: [NIKA-INFER-004]`
-    /// opts into retries (same policy as every typed infer failure) — and
-    /// the budget caps them, never a forever-loop.
-    #[tokio::test]
-    async fn empty_answer_retry_is_opt_in_and_bounded() {
-        let http = ScriptedHttp::serving(&[EMPTY_WITH_SPEND, EMPTY_WITH_SPEND, EMPTY_WITH_SPEND]);
-        let outcome = run_workflow(
-            "nika: w\nmodel: ollama/llama3.2\ntasks:\n  ask:\n    retry: { max_attempts: 3, backoff_ms: 1, backoff_strategy: fixed, jitter: false, on_codes: [NIKA-INFER-004] }\n    infer: { prompt: \"hello\" }\n",
-            Arc::clone(&http),
-        )
-        .await;
-        assert!(!outcome.ok);
-        let rec = &outcome.records["ask"];
-        assert_eq!(rec.status, TaskStatus::Failure);
-        assert_eq!(
-            rec.error.as_ref().expect("error record").code,
-            "NIKA-INFER-004"
-        );
-        assert_eq!(rec.attempts, Some(3), "the authored retries ran");
-        assert_eq!(
-            http.calls(),
-            3,
-            "bounded at max_attempts — never retried forever"
-        );
-    }
-
-    /// Non-regression: a real answer with the same wire shape settles
-    /// green, no error attached.
-    #[tokio::test]
-    async fn a_real_answer_still_settles_green() {
-        let http = ScriptedHttp::serving(&[
-            r#"{"choices":[{"message":{"content":"Paris"},"finish_reason":"stop"}],"usage":{"prompt_tokens":7,"completion_tokens":50}}"#,
-        ]);
-        let outcome = run_workflow(
-            "nika: w\nmodel: ollama/llama3.2\ntasks:\n  ask:\n    infer: { prompt: \"capital of France?\" }\n",
-            Arc::clone(&http),
-        )
-        .await;
-        assert!(outcome.ok, "a non-empty answer stays green");
-        let rec = &outcome.records["ask"];
-        assert_eq!(rec.status, TaskStatus::Success);
-        assert!(rec.error.is_none(), "no failure rides a real answer");
-        assert_eq!(http.calls(), 1);
-    }
-}
+mod infer_empty_answer_tests;
+#[cfg(feature = "access-harness")]
+// The #824 model-template parity proofs (the house `tests.rs`
+// convention — `run_and_capture` is `pub(super)` for that sibling).
+#[cfg(test)]
+mod tests;
+#[cfg(test)]
+mod tests_agent_deadline;

@@ -478,6 +478,8 @@ fn a_failed_intelligence_leaves_a_recovery_card_repeated_without_a_call() {
     };
     assert_eq!(again, card.text);
     assert!(matches!(s.turn("de quoi ?"), TurnOutcome::Facts(ref t) if *t == card.text));
+    // E8: with nothing waiting, « why? » is about that failure — the same card, from memory.
+    assert!(matches!(s.turn("why?"), TurnOutcome::Facts(ref t) if *t == card.text));
     assert_eq!(
         calls.load(Ordering::SeqCst),
         1,

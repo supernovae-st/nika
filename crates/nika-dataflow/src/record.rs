@@ -175,6 +175,11 @@ pub struct TaskErrorRecord {
     pub message: String,
     /// Retry eligibility class (spec 05 · `error.transient`).
     pub transient: bool,
+    /// Structured details (spec 05 §error structure · an optional object): a
+    /// verb's typed facts beside its message (`nika:fetch`: the received
+    /// `status_code`, the `accepted` set it declared). `None` = absent, and
+    /// the record keeps its historical `{code, message, transient}` bytes.
+    pub details: Option<serde_json::Map<String, Value>>,
 }
 
 impl TaskErrorRecord {
@@ -186,17 +191,42 @@ impl TaskErrorRecord {
             code: code.into(),
             message: message.into(),
             transient,
+            details: None,
         }
     }
 
-    /// The record as a JSON value (the `${{ tasks.X.error }}` shape).
+    /// [`Self::new`] with structured details. Only a non-empty JSON object is
+    /// details (spec 05); anything else leaves them absent, so the record
+    /// keeps its historical shape.
+    #[must_use]
+    pub fn detailed(
+        code: impl Into<String>,
+        message: impl Into<String>,
+        transient: bool,
+        details: Option<Value>,
+    ) -> Self {
+        Self {
+            details: match details {
+                Some(Value::Object(details)) if !details.is_empty() => Some(details),
+                _ => None,
+            },
+            ..Self::new(code, message, transient)
+        }
+    }
+
+    /// The record as a JSON value (the `${{ tasks.X.error }}` shape): the
+    /// `details` key appears only when details are present.
     #[must_use]
     pub fn to_value(&self) -> Value {
-        serde_json::json!({
+        let mut value = serde_json::json!({
             "code": self.code,
             "message": self.message,
             "transient": self.transient,
-        })
+        });
+        if let Some(details) = &self.details {
+            value["details"] = Value::Object(details.clone());
+        }
+        value
     }
 }
 
@@ -598,6 +628,7 @@ mod tests {
             code: "NIKA-1402".to_owned(),
             message: "boom".to_owned(),
             transient: false,
+            details: None,
         });
         let err = rec.field("error").expect("resolves");
         assert_eq!(err["code"], "NIKA-1402");
@@ -613,6 +644,7 @@ mod tests {
             code: "NIKA-EXEC-001".to_owned(),
             message: "boom".to_owned(),
             transient: false,
+            details: None,
         };
 
         // success(normal) · value + attempts · NO recovered_from.
@@ -660,6 +692,62 @@ mod tests {
         assert_eq!(parse(&budget)["payload"]["reason"], "budget");
         let operator = TaskRecord::unran(TaskStatus::Cancelled, TerminalCause::Operator);
         assert_eq!(parse(&operator)["payload"]["reason"], "operator");
+    }
+
+    /// Absent details keep the historical bytes; only a non-empty object is
+    /// details; present details reach every projection of the record:
+    /// `tasks.X.error`, the failure and `error_skip` payloads, `recovered_from`.
+    #[test]
+    fn error_details_are_additive_and_reach_every_projection() {
+        let plain = TaskErrorRecord::new("NIKA-BUILTIN-FETCH-001", "HTTP 503", true);
+        assert_eq!(
+            plain.to_value().to_string(),
+            r#"{"code":"NIKA-BUILTIN-FETCH-001","message":"HTTP 503","transient":true}"#
+        );
+        for not_details in [
+            None,
+            Some(serde_json::json!({})),
+            Some(serde_json::json!("status 503")),
+            Some(serde_json::json!([503])),
+            Some(Value::Null),
+        ] {
+            let record =
+                TaskErrorRecord::detailed("NIKA-BUILTIN-FETCH-001", "HTTP 503", true, not_details);
+            assert_eq!(record, plain);
+        }
+        let facts = serde_json::json!({"status_code": 503, "accepted": [200]});
+        let detailed = TaskErrorRecord::detailed(
+            "NIKA-BUILTIN-FETCH-001",
+            "HTTP 503",
+            true,
+            Some(facts.clone()),
+        );
+        assert_eq!(
+            detailed.to_value().to_string(),
+            r#"{"code":"NIKA-BUILTIN-FETCH-001","details":{"accepted":[200],"status_code":503},"message":"HTTP 503","transient":true}"#
+        );
+        let parse = |rec: &TaskRecord| -> Value {
+            serde_json::from_str(&outcome_json(rec)).expect("outcome is one JSON document")
+        };
+        let mut failed = TaskRecord::unran(TaskStatus::Failure, TerminalCause::RetryExhausted);
+        failed.error = Some(detailed.clone());
+        failed.attempts = Some(3);
+        assert_eq!(failed.field("error").expect("resolves")["details"], facts);
+        assert_eq!(parse(&failed)["payload"]["error"]["details"], facts);
+        let mut skipped = TaskRecord::unran(TaskStatus::Skipped, TerminalCause::ErrorSkip);
+        skipped.error = Some(detailed.clone());
+        assert_eq!(skipped.field("error").expect("resolves")["details"], facts);
+        assert_eq!(parse(&skipped)["payload"]["error"]["details"], facts);
+        let mut recovered = TaskRecord::unran(TaskStatus::Success, TerminalCause::Recovered);
+        recovered.attempts = Some(1);
+        recovered.recovered_from = Some(detailed);
+        assert_eq!(
+            parse(&recovered)["payload"]["recovered_from"]["details"],
+            facts
+        );
+        // A recovered task's `error` stays defined-null (spec 04): the facts
+        // ride `recovered_from`, never a second error slot.
+        assert_eq!(recovered.field("error"), Some(Value::Null));
     }
 
     #[test]

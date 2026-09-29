@@ -5,7 +5,7 @@
 | Status | **WIP → ADMISSION** (One Door · wave 4 · ADR-125). In `workspace.metadata.diamond.wip` until the 12 gates land (Gate 5 mutation and Gate 11 swarm owed). |
 | Layer | **L4 — interface** (the human's terminal) · a host runtime over the installed engine · **sync** on the terminal, one current-thread runtime per inference · lateral `nika-session → nika-cli-host` for the ONE probe and the ONE oracle facade (the ADR-124 precedent) · lateral `nika-session → nika-trace` for the run facts behind the result, gate and `/proof` views (never back). |
 | Sub-tier | L4-surface — bare `nika` on an interactive terminal (the `nika-tui` renderer by default · the plain loop with `--plain` or `NIKA_TUI=0`, and as the renderer's fallback · a pipe gets the concierge). The session opens on the human's request; the deterministic compiler and the engine facts answer with no choice made. The first line only an intelligence can answer asks, in context, how Nika should think with the human (an AI app they already have · an API · a local engine · none · in that order, in human words), resumes that line exactly as typed once chosen, and keeps the answer at `~/.nika/session-intelligence.json`. The session observes the project once, answers Nika facts from the engine, hands the chosen intelligence a minimal typed bundle, and reads every reply through the hallucination guard. |
-| Design | Eight modules, one law each: `identity` (the six laws + the language digest) · `snapshot` (the proven root · the project file · the ONE walker) · `intelligence` (the census · the persisted choice · the resolution that refuses, never replaces · the data locus) · `reasoner` (ONE inference over the seat, the provider registry, or none — never a temporary workflow) · `broker` (the bundle: named files inside the root, bounded, redacted, with provenance · the environment never injected) · `guard` (builtins · models · codes · MCP servers · verbs · fields · claimed ignorance, corrected under the reply) · `facts` (the workflows · the builtins · the providers · a verdict through the facade · a code through the ladder · a shape through the ONE router) · `change` (ADR-126 · the typed change set a reply proposes: previewed from the exact bytes the apply consumes · witnessed against stale targets · landed atomically only on the consent line · the real check after it lands · a run requested only on a clean check · the pending gate read from a paused trace) · `runtime` (the loop · the proposal · the consent · the run observed). Owns nothing the engine owns. |
+| Design | Eight modules, one law each: `identity` (the six laws + the language digest) · `snapshot` (the proven root · the project file · the ONE walker) · `intelligence` (the census · the persisted choice · the resolution that refuses, never replaces · the data locus) · `reasoner` (ONE inference over the seat, the provider registry, or none — never a temporary workflow) · `broker` (the bundle: named files inside the root, bounded, redacted, with provenance · the environment never injected) · `guard` (builtins · models · codes · MCP servers · verbs · fields · claimed ignorance, corrected under the reply) — owned by `nika-onboard` since 2026-09-29 and re-exported here unchanged · `facts` (the workflows · the builtins · the providers · a verdict through the facade · a code through the ladder · a shape through the ONE router) · `change` (ADR-126 · the typed change set a reply proposes: previewed from the exact bytes the apply consumes · witnessed against stale targets · landed atomically only on the consent line · the real check after it lands · a run requested only on a clean check · the pending gate read from a paused trace) · `runtime` (the loop · the proposal · the consent · the run observed). Owns nothing the engine owns. |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (Diamond caps) |
 | IMPL | projected, never hand-typed: `scripts/crate-metrics.sh nika-session` (src LOC · largest file · unit and integration tests) |
 | Crate version | tracks workspace · License `AGPL-3.0-or-later` · Edition 2024 · Publish `false` (Foundation crate · ADR-022) |
@@ -17,7 +17,7 @@
 
 ## What it must NOT own
 
-The workflow grammar · the builtin catalog · the model catalog · the error definitions · the check semantics · the runtime · the ARM semantics · the trace verification · what a run's trace proves · the project file grammar. It queries those authorities (`nika_pack` · `nika_builtin` · `nika_catalog` · `nika_error` · `nika_cli_host::oracle` · `nika_dap::inventory` · `nika_vocab::project` · `nika_onboard::routing` · `nika_trace::run_view`).
+The workflow grammar · the builtin catalog · the model catalog · the error definitions · the check semantics · the runtime · the ARM semantics · the trace verification · what a run's trace proves · the project file grammar · the Meaning projection of the compiler's ledger · the round's pure law and its codec · the compiler's reasons in a human's words. It queries those authorities (`nika_pack` · `nika_builtin` · `nika_catalog` · `nika_error` · `nika_cli_host::oracle` · `nika_dap::inventory` · `nika_vocab::project` · `nika_onboard::routing` · `nika_trace::run_view` · `nika_onboard::compile::meaning` · `nika_onboard::compile::round` · `nika_onboard::compile::reading`).
 
 ## Run facts: read here, owned by the trace reader
 
@@ -30,12 +30,69 @@ crate already hosts. What stays here is the session's side of the
 boundary: when a view is shown, which trace is under the root, the gate's
 question and the tasks a yes lets happen (read from the workflow's bytes),
 and the observation line that stands alone when no journal can be read.
-The seam is four read-only doors, `RunFacts::{read, result, gate, proof}`;
-the facts' fields stay private to `nika-trace`. A private
+The seam is five read-only doors, `RunFacts::{read, result, gate, proof,
+pause_gate}`; the facts' fields stay private to `nika-trace`. A paused run's
+gate (`change::PendingGate::from_trace`) is read through `pause_gate`: the
+first pause's task, message and mode, as the session always read them, since
+C9 (2026-09-28) no longer parsed a second time here. A private
 `use nika_trace::run_view` in `lib.rs` keeps the session's one path,
 `crate::run_view`. The paused/resumed trace fixtures moved with their
 tests; `tests/fixtures/traces/copy.ndjson` stays here too, because the
 runtime's observation test reads it.
+
+## Meaning: shown here, owned beside the compiler's ledger
+
+The Meaning view (what survived of a request, clause by clause, from the
+compiler's own obligation ledger) is a pure projection of that ledger, so it
+lives in `nika_onboard::compile::meaning` since 2026-09-28, beside the
+`CompileOutcome` it reads; the move also brought this crate back under its
+production-LOC wall. `nika_session::meaning` stays a documented re-export of
+that module: the same types, functions and constant under the old path, which
+`tests/meaning_reexport.rs` compiles against as an external consumer. The
+candidate's bytes are read by the same strict `nika_schema` law as the
+review's. What stays here is the session's side: `/meaning` shows the view and
+holds a waiting proposal, and a revision's delta rides beside the revised
+proposal. The owner's « unavailable » line names no protocol; the session adds
+its own way on (the review above and `/show`). The three recorded outcomes its
+tests read moved with them.
+
+## Source basis at the yes (C9 · F4)
+
+A proposal is consented to as the program its recorded source facts justified.
+`runtime/fresh.rs` binds what the compile outcome recorded of its sources (its
+decision record and the request it read) to the proposal's identity and exact
+bytes where it is proposed (`propose`, which a revision's proposal goes
+through too); a money-only amendment names the same bytes anew and keeps it.
+At the yes, before any write, consent record or money effect, the session
+observes exactly the recorded sources again through the host's one bounded
+observer and the compiler judges them for the request that compiled the bytes
+(`nika_onboard::compile::basis_for`, the grounding law that admitted them). The
+proposal keeps that exact request beside its bytes: its answers, the plan it
+continued with that plan's earlier observation, and apart from them the
+observation its own round was given (`compile::round::compiled`: the world the
+outcome's plan recorded when the session's record names that very observation by
+its identity, `world_sha256`; none when it was given none; no basis at all when
+an attached observation was not recorded or its record names no identity). A field the human named by answering is recovered by the
+compiler's zero-call replay of that request, never from a recorded label, and
+the observation made at the yes is only ever the fresh side (C10). A moved basis (a column renamed or removed,
+a source gone or unreadable, a key some sampled records now lack, a number
+field no longer all numbers) or one that cannot be judged withdraws the
+proposal: nothing lands, the reason names the changed dependency, the goal
+stays and the request said again grounds itself on the project as it is. New,
+removed or reordered rows, another column order and a new peek hash hold it,
+and the report says the facts were judged. A proposal no compile bound (a kept
+draft proposed again) takes its basis from a zero-call deterministic compile
+of its request only when that gives its exact bytes; otherwise it is withdrawn
+when its workflow reads project files (the check facade's own permits), and
+lands with its freshness said unjudged when it reads none. A decision that
+records no source fact is said so when its workflow reads files, never
+presented as fresh. A field an answer asserted over a JSONL source, or a JSON file the
+observer could not read whole, holds while nothing observed whole disproves it:
+such a sample is partial, and a bounded sample disproves nothing an answer
+asserted (a CSV header, or a JSON file read whole, does).
+The run's own guards (`compute_admit`, the number policy)
+stay the check at use: the observation is bounded, and nothing is atomic
+between the yes and the run.
 
 ## Exact schedule activation
 
@@ -46,7 +103,10 @@ before a declaration proposal, naming the need to restate a supported period
 and explicit daily/weekly time; there is no implicit 08:00 or Monday.
 
 The existing activation questions still require timezone, missed-run policy
-and positive per-occurrence ceiling. The full `TZ=...` expression is validated
+and positive per-occurrence ceiling. The zone answer is judged by `nika-cadence`
+itself when it is given (a name its bundled IANA base lacks, or `/Europe/Paris`,
+is refused at once and the question keeps waiting), never by a second shape
+rule. The full `TZ=...` expression is validated
 by `nika-cadence`, shown with its field meanings, zero interval phase and local
 clock/DST semantics, and recorded unchanged only after explicit declaration
 consent. The canonical overlap/after-skip defaults are unchanged. A recognized
@@ -72,7 +132,10 @@ unavailable/unsupported harness capabilities refuse visibly. No intelligence
 continues to compile deterministic requests without calling a model.
 
 Initial authoring, recorded clarification continuations and revisions use the
-same native Compiler and the same pinned authoring context. Revisions retain
+same native Compiler and the same pinned authoring context. An answer round adopts
+the plan the Compiler re-anchored to a changed source and drops every answer the outcome asks
+again (`AuthoringRound::absorb`, R4 A6): the same goal keeps its round, only a fresh explicit
+answer binds, and a verified or pending transform is never carried to another source. Revisions retain
 the exact base bytes, original request and raw change. A failed edit keeps the
 previous proposal or saved workflow; Session never substitutes a model
 paraphrase as the source of a fresh Create request. The adapter passes
@@ -108,6 +171,25 @@ monetary refusals remain in force; this connection adds neither an account nor
 an exemption from those guards. A proposal still requires fresh review and
 consent, revisions expire the old identity, and authoring grants no Save or Run.
 
+Every authoring round observes the files its request names under the session's
+own project root, with the shared bounded observer (never the process's working
+directory, never through a link outside the root), the deterministic rounds
+included: the initial ladder, an answer or a revision compiled again, and the
+deterministic fallback while money blocks cognition (R4 S1). One observation
+site serves every seat. A round compiled on the session's own seat roots the
+session's context in place, as before; the initial ladder, a request read again
+with its change and the money fallback compile under a rooted copy instead, so
+they never change the session's context nor the identity of the questions it
+asks. The compiler grounds a rule's keys in that observation: a key the file
+holds is ready with no call, a word it does not spell is a closed choice of its
+keys, and an answer given for another revision of the file is asked again; the
+decision records both (`decision.session.observed`, `decision.grounding`).
+`compile_in` observes on a deterministic seat only when its context roots a
+project. `compile_through` (the default context) and the public
+`compile_deterministic` keep their pure contract: with no root nothing is
+observed, a key a request merely names is then asked, and a library caller
+supplies its own world as knowledge.
+
 The hermetic `subscription_authoring` integration suite injects only a fixture
 executable: actual public Session, native Compiler, continuation, knowledge
 consumer evidence and proposal identity remain real. These fixtures are not
@@ -126,22 +208,76 @@ ceiling before transport; a failed or empty answer remains a failed reading,
 not a fallback classification. Hermetic wire tests prove these limits and
 zero-call monetary refusals; they do not establish real-model routing quality.
 
+A persisted explicit `none` choice has no conversational reasoner, even when
+the host installs a factory for changing that choice later. It stays on the
+protocol fallback: a typed model answer can reach review without calling that
+factory again. An injected classifier retains its route, and a real classifier's
+failed or unknown answer still binds nothing. Reaching review grants no consent.
+
 ## Monetary admission
 
 Session reads explicit monetary intent before the compiler, classifier or
 reasoner sees new work, including Prepare. Currency or a monetary anchor gives
 a number that meaning; times, quantities, quoted data and path tokens do not.
 Amounts must be finite and nonnegative. Decimal comma is accepted, explicit
-zero is distinct from unset, and conflicting amounts refuse. Compact forms
-such as `budget=0`, `budget:0,50` and `2USD` accept sentence punctuation;
-malformed amounts refuse before cognition. Explicit money
-replaces a project default; the default is not an independent cap. A stated
-default being replaced must match the observed default. Project discovery
-errors remain visible and refuse admission instead of silently becoming an
-absent default. The original intent reaches the compiler unchanged.
+zero is distinct from unset, and conflicting amounts refuse. Compact forms such
+as `budget=0`, `budget:0,50` and `2USD` accept sentence punctuation; malformed
+amounts refuse before cognition. Explicit money replaces a project default; the
+default is not an independent cap. A stated default being replaced must match
+the observed default. Project discovery errors remain visible and refuse
+admission instead of silently becoming an absent default. The original intent
+reaches the compiler unchanged. A work request, a consent line and an answer
+line are read by their monetary directives only (R4 A6 · B15): a word inside a
+business clause, a field named `budget`, a business amount, a negative value, a
+quoted value or a path is never money and never refused as money, whatever its
+currency. Run and gate lines keep the whole-line reading. A consent line
+changes money only when the whole line is a money amendment, which gets a fresh
+proposal identity; a business revision never changes money by a numeric
+coincidence. The unknown-cost review reads its zero and its default the same
+way. The seat of a metered round reads the request with its admitted directives
+blanked, never as work. The directives the
+gate admitted ride with the authoring round (`AuthoringRound::money`), so the
+compiler's deterministic door reads the rest of the request without them: « ….
+Budget: $0. » keeps the business round (READY or a field question, zero calls)
+where the unresolved clause used to need a seat the zero ceiling refused. A
+line that still does not settle is routed as written (conversation stays
+conversation, unread work stays work); UNKNOWN, exposure and reconfirmation are
+never reset by it. When the ceiling refuses the seat, such a line is refused
+with the compiler's reasons, never the bare ceiling: « budget=0 » over a file
+with a `budget` column reads both ways and is the human's to restate. The
+unknown-cost gate's own deterministic check reads a line the same way: on a
+route whose USD cost the catalog cannot qualify (a gateway), a stated ceiling
+never turns deterministic work into a cost review, a route refusal or a
+zero-constraint refusal; a malformed ceiling is left to the money gate. An
+explicit zero stages no cost review at all, since nothing can be sent under it
+on any route: the deterministic reading, a question, or a refusal with the
+reader's reasons follows.
+
+At a live authoring question, an offered choice key alone or a value that binds
+without interpretation needs no unknown-cost review. A question ending in `?`
+keeps its local answer. Other words meet the selected seat's one-time cost
+review before any classification or value reading; declining keeps the pending
+question, and restored exposure refuses the review without sending a request.
+A live round with no current question exempts only the local `?` path.
 Once attached currency is recognized, amount validation cannot fall back to
 filename handling: `budget=0.5oopsUSD` refuses, while `budget=0.txt` and quoted
 or explicit path data retain their data meaning.
+Compact anchors also open trailing currency directives attached to the work («
+… stars and budget=0.5USD »), never inside a relative clause: « … rows whose
+status is open and budget=1500USD » is data.
+An unanchored currency needs its own sentence or comma segment (`…, 2USD`);
+`and 2USD` or `et 2USD` could finish a business range and is never stripped as
+a ceiling. Currency inside a business predicate remains business data. A
+standalone malformed currency segment is refused.
+Monetary conjunctions are read together, so `budget 1 USD and cap 2 USD`
+refuses instead of selecting the last amount. An empty monetary anchor and
+an invalid non-path amount between an anchor and currency also refuse.
+An explicit old-default reference remains part of the admission decision
+and must match the observed project default.
+The lexical reader is the compile unit's `money` module (R4 A6), moved
+unchanged from `runtime/money_parse.rs` and re-exported as
+`nika_onboard::compile::money`: the compiler and Session read one law;
+admission, its account and its refusals stay Session's.
 
 `SessionRuntime::monetary_decision()` exposes the actual decision, original
 intent, monetary input, amount token, effective USD amount, source, project
@@ -196,13 +332,28 @@ Amendments change the total allowance without erasing settled or held exposure;
 questions, new factory instances, model changes and repairs never reset it.
 An uncertain account cannot reopen. After restart the previous aggregate cannot
 be proved: restored paid work requires an explicit new-scope reconfirmation and
-its previous invoice remains unknown. A bounded session never automatically
+its previous invoice remains unknown. A ceiling stated after the restart (a
+request's own directive, or a kept round's read again at `/restore`) belongs to
+that round: its answers state no money and keep it, never refused as the
+restored exposure, while Session inference stays blocked and new work stating
+no ceiling is still refused (C11). A bounded session never automatically
 changes the selected authoring model to a stronger one.
+
+Restoring a kept authoring round may replay its deterministic reading without
+an allowance and without a model call, including under restored uncertain
+exposure. This exception belongs only to that replay: it neither clears the
+exposure nor admits fresh work or paid cognition. A null or otherwise unreadable
+durable cost observation remains uncertain. Every Session inference status
+states how many such observations are unreadable and never treats them as settled.
 
 A prepared decision participates in the exact proposal preview and identity.
 A monetary-only amendment can revise Session's own ceiling without changing
 workflow bytes or calling a model; it creates a new proposal requiring fresh
-consent. Invalid amendments expire pending authority. Save retains the ceiling
+consent. Invalid amendments expire pending authority. A line that states no
+money at a consent prompt whose cognition is blocked (a restored exposure, a
+zero or closed allowance, a held gate amendment) has nothing to admit and
+nothing reads it: the proposal waits with its identity, answered from its own
+observed effects and that reason; only `yes` applies it. Save retains the ceiling
 against that proposal and the exact saved workflow bytes within the current
 runtime. A separate Run carries it in `RunRequest::max_cost_usd`; an explicit
 Run ceiling can replace it, and changed bytes require a fresh decision. Neither
@@ -283,7 +434,10 @@ mechanics, not a live provider qualification.
 - the first screen speaks the atelier order in human words, never a class name;
 - on the real binary (`session_pty.rs`): a pipe is the concierge, the TTY is the session, the first run asks once, the kept choice never asks again, `nika thread` is the parser's own refusal;
 - a reply carrying a file is a proposal and nothing is written before the consent line (`no` discards · a classified cancellation discards the whole pending proposal without effects · questions keep the proposal pending · `yes` lands the exact bytes the preview printed, byte for byte); an update is witnessed and a stale target applies nothing; a path outside the root or a file the human never named is refused before any preview; the fix ladder's prepass repairs the reply's dead forms before the preview and says so; the preview's effect rows come from the report's own permits and requirements; the real check follows every workflow written; « create and run it » requests the run ONLY on a clean on-disk check and findings stop it; the door's observation of the run is a fact; the last run is read from its trace, never from memory;
-- an authoring value said in words binds through its typed reading (`runtime/answer_tests.rs`): a JSON literal or one token is the value as typed, with no call; several words are read once through the metered label seat and bind only as whole tokens copied verbatim from the human's line (a piece cut out of a token — an extension, the name under a folder, the local part of an address — binds nothing), said beside the outcome; whole tokens bound the copy but do not prove its meaning — which tokens are the value is the model's reading, reviewed by the human before consent; no value, several values, an invented or partial copy, a failed call or a spending limit bind nothing and the question waits, saying why; with no intelligence chosen the reply is the value as typed and the question says so; a choice among offered keys (an open column among the observed `montant · autre`) binds an offered key typed alone — or written as its JSON string — with no call, and under a chosen intelligence the same one bounded reading is shown the exact keys offered now and binds only a copy that IS one of them, verbatim and whole in the human's line (« La colonne montant. » → `montant`, said beside the proposal); a line carrying no offered key is not read, and a key the line does not carry, a word not offered, a piece of a word, a trailing second answer, an empty or failed reply or a spending limit bind nothing and the choice waits; which offered key a line chooses — one of several, not the one it rejects — is the reading's, never the first match's; without an intelligence the line is the answer as typed and the compiler, the final authority, keeps the choice asked with its offered keys; the seat's `model`, the replacement request, a clause's disposition and a rule asked in words keep their own doors; a reading is never a consent;
+- an authoring value said in words binds through its typed reading (`runtime/answer_tests.rs`): a JSON literal or one token is the value as typed, with no call; several words are read once through the metered label seat and bind only as whole tokens copied verbatim from the human's line (a piece cut out of a token — an extension, the name under a folder, the local part of an address — binds nothing), said beside the outcome; whole tokens bound the copy but do not prove its meaning — which tokens are the value is the model's reading, reviewed by the human before consent; no value, several values, an invented or partial copy, a failed call or a spending limit bind nothing and the question waits, saying why; with no intelligence chosen a value binds only as it stands alone — one token, a JSON literal, a longer value in quotes (its content, never its quotes) — and the question says so, while a sentence (« tell me more » at a path) binds nothing and the question waits; a stated trigger's cadence, which the compiler reads again in words, keeps its words; a choice among offered keys (an open column among the observed `montant · autre`) binds an offered key typed alone — or written as its JSON string — with no call, and under a chosen intelligence the same one bounded reading is shown the exact keys offered now and binds only a copy that IS one of them, verbatim and whole in the human's line (« La colonne montant. » → `montant`, said beside the proposal); a line carrying no offered key is not read, and a key the line does not carry, a word not offered, a piece of a word, a trailing second answer, an empty or failed reply or a spending limit bind nothing and the choice waits; which offered key a line chooses — one of several, not the one it rejects — is the reading's, never the first match's; without an intelligence the line is the answer as typed and the compiler, the final authority, keeps the choice asked with its offered keys; the seat's `model`, the replacement request, a clause's disposition and a rule asked in words keep their own doors; a reading is never a consent;
+- a run's declared input takes the line as typed (words and paths alike, no call), and a value in quotes is its content, never its quotes — the escape for a word the protocol would take (`"why"` binds `why`, where `why` alone explains);
+- a closed line (`why`, « qu'as-tu compris ? », « what happened? », a greeting) is the same line whatever its typography — a no-break or narrow no-break space before its mark, a typographic apostrophe — and reads from state with nothing routed; the closed sets gain no word;
+- a turn that fails leaves a recovery card, repeated from memory with no call by « what happened? » and, when nothing else waits, by `why`;
 - a run that paused at a human gate (exit 4) returns to the session as the gate's own question, read from the trace's pause event; the human's line becomes the resume the door runs (`--resume <trace> --answer <task>=<value>`), an empty line is refused and nothing answers for them, a gate is answered once; the repair round lands a witnessed update from « fix it » and the on-disk check reads clean.
 - the controlled episode over the public seams (`episode_tests`): a local brief proposed from fixture pages lands on a consent that names it, byte for byte, the run handed back as data (the session never executes); the destination's preimage appearing, changing or disappearing after the preview — alone or as the second file of a set — refuses as stale with not one byte of the tree moved and the proposal undecided, and the next revision witnesses what is there now; a restarted host holds no consent from before; a missing grant is named at preview from the checker's own finding and stops the run, never the preparation; the player's prompt carries the bundle and never the oracle outside the root, an unnamed page body or the environment, and is not consulted between the preview and the consent.
 
@@ -337,6 +491,7 @@ a workflow, a reply or retrieved context.
 | `NIKA_<PROVIDER>_API_KEY` or the catalog's variable (`DEEPSEEK_API_KEY` …) | Presence only, for the census; the provider client reads the value when it calls |
 | `~/.nika/session-intelligence.json` | The kept choice (kind · model · time); a corrupt file reads as never chosen |
 | `NIKA_AUTHORING_STRATEGY` · `NIKA_KNOWLEDGE` · `NIKA_KNOWLEDGE_EXCLUDE` | The authoring context, through the parser `nika compile` uses; a named snapshot is opened and pinned now. `NIKA_KNOWLEDGE_PACK` is refused: a pack was composed for one request |
+| `NIKA_AUTHORING_REASONING` | The explicit reasoning effort every seated authoring call asks (`low` · `high` · `max`), through the same parser; a host's typed word outranks it |
 | `NIKA_SESSION_DECISION_MODEL` with `TYPESAFE_API_KEY` | The optional decision seat (`typesafe/<jev>` only) |
 | `NIKA_TUI` | `0` · `off` · `false` · `no` · `plain` keep bare `nika` on the plain loop |
 
@@ -345,6 +500,66 @@ clean install therefore presents no snapshot: native authoring composes the
 embedded language card, the request, answers and observed world. Release
 archives carry no snapshot. An operator who wants these values in every
 session sets them in the login environment.
+
+## Explicit authoring reasoning (R4 B16 · C11)
+
+The session resolves an explicit reasoning effort once, through the shared parser
+(`compile_config::reasoning`), apart from the rest of the configuration: another refusal
+(a strategy word, a snapshot) never drops a valid level. A host's typed word
+(`AuthoringSettings::with_reasoning`) outranks `NIKA_AUTHORING_REASONING` and never
+falls back to it. Any word other than `low`, `high` or `max` is refused at the first
+seated turn, as an unknown strategy is, and every label and conversational turn
+refuses it before any reasoner, dispatch record or byte: a refused word is never read
+as no level. `AuthoringContext::reasoning()` keeps the level. Its Debug appends it only
+when one is named, so every question identity and unknown-cost binding hashed without
+one keeps its bytes, and a named level binds them. `/status` says « reasoning effort
+<w> asked of every LLM call ». With the operator-selected decision seat, it adds that this
+TypeSafe seat is a separate backend and no effort is sent to it (B19).
+
+On a provider seat every authoring call asks it through the one policy
+(`AuthoringPolicy::with_reasoning`): the plan, its evidence repair, the native
+candidate and its repairs, a sketch, a transform. The provider writes `thinking`
+enabled and `reasoning_effort` only on a direct route whose catalog lists the level
+(`deepseek/deepseek-v4-pro`), and refuses before any byte elsewhere (another model or
+provider, a gateway, a base-URL override). The caps stay the policy's: an effort never
+changes a cap and a cap never chooses an effort. A subscription seat refuses a named
+level before any call, since its adapter cannot carry it. The TypeSafe/Jev decision
+seat is a separate backend, outside the level's scope (B19). Its contract carries no
+reasoning effort, so none is sent to it or claimed for it. With a named level, its receipt
+(`decision.session.decision_seat`) says `reasoning_effort: not applicable …`. The receipt
+records, per call, the level configured, the keys read back from the bytes sent, and
+`served: unknown`: what the provider spent internally is not observable here.
+
+The conversation's own calls ask it too: every turn-routing label and every
+conversational turn. A label asks the level through the classifier that sends it
+(`TurnClassifier::carry_effort`, B19):
+- the fresh `ReasonerClassifier` the factory builds for each routed turn carries it
+  (`asking` is its builder form), and so does a door's classifier (`with_classifier`) that can;
+- the trait's default refuses a named level with the reasoner's typed `ReasonError` (never a
+  bare string), so a classifier that cannot carry it is never called with it;
+- the no-call `ConservativeFallback` accepts it.
+
+A refused word, or a level the classifier cannot carry, fails the route before any record or
+byte. Each call reads the level the session holds when it is made, so a
+host's `set_authoring_context` after open takes effect at the next call. They go through
+`SessionReasoner::reason_effort`. `ProviderReasoner` makes the same call it makes
+without a level, with the same ceiling, temperature and words, and carries the level
+through the verb's conduit (`InferInput.reasoning_effort` in `nika-verb-infer`), so the
+provider's route qualification above applies unchanged. Any other reasoner refuses a
+named level before calling (the trait's default): the level is never dropped. A session
+naming none makes the calls it made before.
+
+`/details` reads the receipt: every authoring call that asked a level gets one line, each
+fact apart. The line gives the level configured and the keys read back from the body
+sent (`unobserved` when none was read back, never assumed from the level). It also says
+the served effort is unknown, and gives the reasoning tokens, the usage reported (or why
+no answer came) and the model the response named. A call that asked no level adds
+nothing, and the subscription lines are unchanged. The headline counts only what the
+receipt shows (B19): a call refused before sending is never said to be sent, and a call whose
+record shows no response is unobserved, never answered. When every attempt was refused, it reads
+« nothing was sent to ». The knowledge-record lines of
+`/details` come from Onboard's `pin::knowledge_lines` (B19, descended with their bytes
+unchanged).
 
 ## Persisted state and version compatibility
 
@@ -355,6 +570,13 @@ session sets them in the login environment.
 | `<root>/.nika/session-state.json` | the project's structured record (#1464) |
 | `<root>/.nika/consents.ndjson` | the consent journal (#1465): which files Save wrote |
 
+The record's `inference_observations` keep each new account observation in its
+durable form (`InferenceReceipt::durable_observation`,
+`nika/inference-cost-observation@2`, E35): origins replace endpoints, and the
+accounting fields its restore reads keep their meaning. The in-flight line names
+the route by its origin. An entry recorded earlier is carried as written, never
+rewritten or migrated. The live account keeps its exact route and authority.
+
 Since `4c728c980`, a closed Run request is journaled as its own `run`
 operation, apart from a conversation turn, so its ceiling never amends Session
 inference. This reader accepts earlier histories and keeps their legacy
@@ -364,3 +586,71 @@ guessed. Rolling an installation back restores the executable and its
 configuration, not the history format. There is no reverse migration, and
 deleting history is not a way to reset spending uncertainty. The user-facing
 account is in `docs/usage/conversational-session.md`.
+
+The Session direct-API authoring descriptor uses `cost_basis: unpriced; billing_unverified`. Token observations and endpoint diagnostics do not establish a tariff or provider invoice.
+
+Direct API authoring endpoint metadata comes from the exact seated registry: `host` strips user info, path, query and fragment; `base_url_overridden` compares the effective URL with its profile seed when available. `endpoint_basis: operator_configuration` distinguishes this configuration from an authenticated remote identity or an observed model. Session host diagnostics use the same redaction.
+
+On reopening, an input round is not restored; an authoring round whose
+question waited is kept (C7). The home History is its one durable copy
+(`Saved.round`, the schema-1 record of `nika_onboard::compile::round`); the
+project's structured record keeps none, and the unanswered labels the kept
+round owns are not announced as expired (any other label still is). The
+recovery notice, `/meaning`, `/why` and `/status` name the kept round
+read-only: its request as typed and, when a clause answered in words rebuilt
+it, as rebuilt (the goal saved beside the round; `/restore` keeps it as typed),
+its settled answers and the question that waited.
+Opening rewrites neither store, calls no model and grants no consent; the
+live intent's `unresolved` stays empty, so no line is bound to the kept
+question before `/restore`. `/restore` continues it only when asked: the
+money gate reads the request again (no admitted span, account, review or
+consent is restored; a revision's words are its change, read as the live
+revision reads them, never the goal it was kept with), a saved workflow's
+revision whose base moved or
+vanished is held with nothing compiled, and the recorded plan is replayed by
+the deterministic compiler against the observation it recorded — no provider
+call, no workflow executed — so the question is asked again under this session's
+identity (one minted by the closed session is refused). The next answer is an
+ordinary answer round against the project as it is then, and any provider
+call passes the current admission. A round the redactor changed, one over its
+bound, another schema or a malformed record stays kept byte for byte, is
+named, and is never continued. New work replaces a kept round. Conservative
+monetary restrictions retain their existing restoration laws.
+
+The round's pure law lives beside its codec (C10): `AuthoringRound` keeps its
+path, fields, constructor and every method with its signature — `compile` and
+`compile_with_admission` stay inherent — and delegates the typed request, what
+an outcome settled, the questions it leaves, a re-anchored plan and a carried
+receipt to `nika_onboard::compile::round`. The kept round's read-only lines
+are built from that codec's `RoundWords`. A kept draft and a kept round share
+one refusal: something else waits, this engine cannot read the kept value, or
+none is kept; either stays kept.
+
+The preview's rows of a check report (the first findings and hints, the effect rows and
+the spend) are read from `nika_display::check_render::review` (C10): strings, order and
+limits are unchanged, and the change primitive keeps the verdict, the path and the audit's
+authority. A saved workflow's revision carries the monetary directives the gate admitted in
+the line that said the change, as the money law reads the change the EDIT holds
+(`compile::round::change_money`, B15); a revision said at the consent prompt carries none,
+and a money-only consent line keeps its fresh-proposal path.
+A complete Create replacement (`intent.clarification`) becomes the request text and drops
+what the earlier intent was answered and planned with, including its knowledge and receipt.
+The chosen seat and aggregate account stay. Lexical budget spans stay only for identical
+bytes; changed text carries only directives read from those exact replacement bytes.
+A replacement without a directive retains the account ceiling but carries no old spans.
+A restatement binds both original and added directives against the combined text and
+refuses conflicting amounts. A clause restated in words also verifies that the budget
+in the rebuilt request agrees with the ceiling admitted for the answer; a changed
+clause cannot leave the account and compiled request naming different amounts.
+A revision keeps its change and does not become a Create.
+
+A gate restored at open is offered only as its journals stand (C7b §3.4,
+`nika_trace::lineage`): with no continuation it waits again; a continuation
+that settled, still runs or cannot be judged is said and nothing waits; one
+that paused again offers its own gate. The same standing is read again before
+any resume, and an answer to a gate a continuation overtook is not sent. Before
+any answer, the gate's question names the completed tasks a resume is sure to
+run again, live (`run_view::live_again`, judged by the resume's own fold);
+nothing is said when the fold's plan carries every completion, which promises
+nothing more: the run serves a carried completion only while its definition and
+inputs are unchanged (C10 · Q8).

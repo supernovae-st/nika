@@ -6,9 +6,11 @@
 //! harness through ACP (`<harness>/<model>`); `--decision-model` seats one bounded-choice
 //! capability (WARM): `typesafe/<jev>` through System One, any other `provider/name` through
 //! a closed JSON-schema enum.
+use super::{authoring_http, config};
+use nika_kernel::http::HttpPostDyn;
+use nika_onboard::compile::authority::{Authority, Envelope, Seat, Wire, usage_complete};
 use nika_onboard::compile::{
-    AuthoringPolicy, Cognition, CompileOutcome, CompileRequest, NativeMode, NoProvider,
-    compile_with_cognition,
+    Cognition, CompileOutcome, CompileRequest, NoProvider, compile_with_cognition,
     decide::{DecisionSeat, ProviderChoice},
 };
 use std::{sync::Arc, time::Duration};
@@ -21,80 +23,87 @@ fn names_a_harness(args: &super::CompileArgs) -> bool {
     })
 }
 
-/// The authoring caps: quality first — a reasoning seat spends its cap on its reasoning and a
-/// strong seat writes a whole candidate — the defaults are the policy's ceilings, not a thrifty
-/// guess (the product reality check of 2026-09-22 measured 7/7 gpt-5-mini probes truncated at
-/// 2048 tokens and 7/7 cut at 30 s). A harness (the operator's own agent through ACP) thinks
-/// and tools longer than one API call: its default deadline is 300 s; every seat may be bounded
-/// up to 600 s and 32768 tokens.
-fn caps(args: &super::CompileArgs) -> Result<(u32, u64), String> {
-    let max_tokens = args.authoring_max_tokens.unwrap_or(8192);
-    let timeout = args
-        .authoring_timeout
-        .unwrap_or(if names_a_harness(args) { 300 } else { 120 });
-    if !(1..=32_768).contains(&max_tokens) || !(1..=600).contains(&timeout) {
-        return Err(
-            "Authoring limits must be 1..32768 output tokens and 1..600 seconds.".to_owned(),
-        );
-    }
-    Ok((max_tokens, timeout))
-}
-
-/// The request with its authoring policy, when a seat is named: the strategy is the one the
-/// shared configuration resolved (the flag over the environment, else escalate).
+/// The per-call bounds every call keeps (the shared producer's: the operator's caps, else the
+/// defaults) and the request with its authoring policy when a seat is named: the strategy and
+/// reasoning effort the configuration resolved (the flags over the environment), with the
+/// operator's samples and repairs.
 fn with_policy(
     request: &CompileRequest,
     args: &super::CompileArgs,
-    (max_tokens, timeout): (u32, u64),
-    strategy: NativeMode,
-) -> CompileRequest {
-    match args.authoring_model.as_deref() {
-        Some(model) => request.clone().with_authoring_policy(
-            AuthoringPolicy::new(model, max_tokens, Duration::from_secs(timeout))
-                .with_samples(args.authoring_samples.unwrap_or(1))
-                .with_native(strategy)
-                .with_repairs(args.authoring_repairs.unwrap_or(3)),
-        ),
-        None => request.clone(),
-    }
+    config: &config::AuthoringConfig,
+) -> Result<(CompileRequest, (u32, Duration)), String> {
+    let timeout = args.authoring_timeout.map(Duration::from_secs);
+    let bounds = config::call_bounds(args.authoring_max_tokens, timeout, names_a_harness(args))?;
+    let Some(model) = args.authoring_model.as_deref() else {
+        return Ok((request.clone(), bounds));
+    };
+    let policy = config
+        .policy(model, bounds.0, bounds.1)?
+        .with_samples(args.authoring_samples.unwrap_or(1))
+        .with_repairs(args.authoring_repairs.unwrap_or(config::DEFAULT_REPAIRS));
+    Ok((request.clone().with_authoring_policy(policy), bounds))
 }
 
-/// The receipt names its backend: the harness that answered, or the direct provider.
+/// The receipt names its backend (the harness that answered, or the direct provider), the model
+/// the operator requested beside the identities the responses reported (and how many reported
+/// none), and the authority's account: what was sent and refused, apart from the core's own
+/// journal of attempts.
 fn stamp_backend(
     outcome: &mut CompileOutcome,
     args: &super::CompileArgs,
     described: Option<serde_json::Value>,
+    ((observed, unreported), authority): ((Vec<String>, u32), serde_json::Value),
 ) {
     if let Some(receipt) = outcome.provenance.authoring.as_mut() {
-        receipt.backend = Some(described.unwrap_or_else(|| {
+        let mut backend = described.unwrap_or_else(|| {
             serde_json::json!({
                 "kind": "direct_api",
                 "provider": args.authoring_model.as_deref().and_then(|m| m.split('/').next()),
-                "cost_basis": "measured_by_tokens_at_catalog_price",
+                "cost_basis": "unpriced; billing_unverified",
             })
-        }));
+        });
+        backend["requested_model"] = serde_json::json!(args.authoring_model);
+        backend["observed_models"] = serde_json::json!(observed);
+        backend["unreported_models"] = serde_json::json!(unreported);
+        backend["usage_complete"] = serde_json::json!(usage_complete(&receipt.context));
+        backend["authority"] = authority;
+        if args.decision_model.is_some() {
+            backend["authority"]["decision_seat"] = serde_json::json!(
+                "outside this authority: its own client, protocol retries included"
+            );
+        }
+        receipt.backend = Some(backend);
     }
 }
 
+/// Compile under the seats the flags name. The caps are every door's (the operator's, else the
+/// defaults: a reasoning seat spends its cap on its reasoning, so the default is the policy's
+/// ceiling, never a thrifty guess; a harness waits 300 s), and never move with the effort; the
+/// decision call asks the same effort under the declared authoring cap (R4 B16).
 pub(super) fn compile(
     request: &CompileRequest,
     args: &super::CompileArgs,
-    strategy: NativeMode,
+    config: &config::AuthoringConfig,
+    authority: &Authority,
 ) -> Result<CompileOutcome, String> {
-    let (max_tokens, timeout) = caps(args)?;
-    let request = with_policy(request, args, (max_tokens, timeout), strategy);
+    let (request, (max_tokens, timeout)) = with_policy(request, args, config)?;
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .map_err(|e| e.to_string())?;
     runtime.block_on(async {
         let registry = provider_registry()?;
-        let harness = harness_seat(args)?;
-        let provider = match args.authoring_model.as_deref() {
+        let invocations = authority.envelope();
+        let requests = authority.envelope();
+        let harness = harness_seat(args)?.map(|seat| Seat::new(seat, invocations.clone()));
+        let (provider, backend) = match args.authoring_model.as_deref() {
             Some(model) if harness.is_none() => {
-                Some(registry.resolve(model).map_err(|e| e.to_string())?)
+                let registry = authoring_registry(requests.clone())?;
+                let backend = super::authoring_backend(&registry, model);
+                let seat = registry.resolve(model).map_err(|e| e.to_string())?;
+                (Some(Seat::new(seat, invocations.clone())), Some(backend))
             }
-            _ => None,
+            _ => (None, None),
         };
         let decision_provider = match args.decision_model.as_deref() {
             Some(model) if !model.starts_with("typesafe/") => {
@@ -107,7 +116,11 @@ pub(super) fn compile(
             .as_ref()
             .zip(args.decision_model.as_deref())
             .map(|(provider, model)| {
-                ProviderChoice::new(provider, model, Duration::from_secs(timeout))
+                let choice = ProviderChoice::new(provider, model, timeout);
+                match config.reasoning {
+                    Some(level) => choice.with_reasoning(level, max_tokens),
+                    None => choice,
+                }
             });
         let seat: Option<&dyn DecisionSeat> = match (&typesafe, &provider_choice) {
             (Some(seat), _) => Some(seat),
@@ -151,14 +164,33 @@ pub(super) fn compile(
         };
         let mut outcome = outcome.map_err(|e| e.to_string())?;
         #[cfg(feature = "access-harness")]
-        let described = harness
-            .as_ref()
-            .map(super::harness_seat::HarnessSeat::descriptor);
+        let described = harness.as_ref().map(|seat| seat.inner().descriptor());
         #[cfg(not(feature = "access-harness"))]
         let described: Option<serde_json::Value> = None;
-        stamp_backend(&mut outcome, args, described);
+        let reported = match (&harness, &provider) {
+            (Some(seat), _) => (seat.observed(), seat.unreported()),
+            (None, Some(seat)) => (seat.observed(), seat.unreported()),
+            (None, None) => (Vec::new(), 0),
+        };
+        // A harness is counted in invocations; its own requests are not observable here.
+        let wire = harness.is_none().then_some(requests.as_ref());
+        let account = authority.record(&invocations, wire);
+        let backend = described.or(backend);
+        stamp_backend(&mut outcome, args, backend, (reported, account));
         Ok(outcome)
     })
+}
+
+/// The registry of the authoring seat: the shared authoring transport, under the authority's
+/// wire counter (the decision seat keeps its own authority and client).
+fn authoring_registry(
+    requests: Arc<Envelope>,
+) -> Result<nika_providers::ProviderRegistry<Wire<impl HttpPostDyn>>, String> {
+    let http = authoring_http().map_err(|e| e.to_string())?;
+    Ok(nika_providers::ProviderRegistry::new(
+        Arc::new(Wire::new(http, requests)),
+        nika_runtime::compose::config_from_env(),
+    ))
 }
 
 /// The provider registry over the PROVIDER client, not the fetch client: the same fixed

@@ -3,6 +3,8 @@
 
 //! CLI transport and explicit materialization for the stateless Compile core.
 mod authoring;
+mod authority;
+pub use authority::{authoring_backend, authoring_host, authoring_http, redact_authoring_error};
 pub mod config;
 #[cfg(feature = "access-harness")]
 mod harness_seat;
@@ -10,6 +12,8 @@ pub mod knowledge;
 pub mod observe;
 mod render;
 mod sidecar;
+pub use crate::serve_args::NativeAuthoringArgs;
+
 pub mod typesafe;
 
 use crate::output::{VerbOutput, exit};
@@ -20,6 +24,10 @@ use std::path::Path;
 /// Explicit CLI inputs. No terminal conversation or ambient authoring policy.
 #[derive(Debug, clap::Args)]
 #[group(id = "compile_options", multiple = true)]
+// A reasoning effort needs a seat to ask it: the authoring model, the decision model or both.
+#[command(group(
+    clap::ArgGroup::new("seat").args(["authoring_model", "decision_model"]).multiple(true)
+))]
 // Four independent CLI flags ARE four bools — the clap-surface idiom
 // (same as RunArgs), not a state machine to encode.
 #[allow(clippy::struct_excessive_bools)]
@@ -41,7 +49,9 @@ pub struct CompileArgs {
     /// Answer a stable question: `KEY=JSON_LITERAL` (repeatable).
     #[arg(long = "answer")]
     pub answers: Vec<String>,
-    /// Explicitly permit one provider call to interpret free intent (wire generation 2).
+    /// Explicitly seat one authoring model to interpret free intent (wire generation 2): one
+    /// request unless `--authoring-max-calls` authorizes more (an ACP harness counts one
+    /// invocation, its own requests unknown).
     #[arg(long, conflicts_with = "list")]
     pub authoring_model: Option<String>,
     /// Maximum authoring output tokens; requires explicit authoring model.
@@ -54,8 +64,9 @@ pub struct CompileArgs {
     /// HOT admission contract: strict (default), legacy (pre-refactor, ablation) or off (never HOT for prose).
     #[arg(long, value_parser = ["strict", "legacy", "off"])]
     pub hot_policy: Option<String>,
-    /// Independent COLD proposals to compare (1..=5); each is one call. Requires the authoring model.
-    #[arg(long, requires = "authoring_model")]
+    /// Independent COLD proposals to compare (1..=5); each is one call, within
+    /// `--authoring-max-calls`. Requires the authoring model.
+    #[arg(long, requires = "authoring_model", value_parser = clap::value_parser!(u32).range(1..=5))]
     pub authoring_samples: Option<u32>,
     /// When the seat writes the candidate itself (a native `.nika` judged by the parser, the
     /// Check and the fidelity laws): `escalate` (default) after the private plan fails a human,
@@ -64,9 +75,14 @@ pub struct CompileArgs {
     /// never. Requires the authoring model.
     #[arg(long, requires = "authoring_model", value_parser = ["escalate", "only", "sketch", "off"])]
     pub authoring_strategy: Option<String>,
-    /// Repair rounds a native candidate may buy from the compiler's diagnostics (0..=5, default 3).
-    #[arg(long, requires = "authoring_model")]
+    /// Repair rounds a native candidate may buy from the compiler's diagnostics (0..=5, default 3),
+    /// each one call within `--authoring-max-calls`: a repair count is not an authority.
+    #[arg(long, requires = "authoring_model", value_parser = clap::value_parser!(u32).range(0..=5))]
     pub authoring_repairs: Option<u32>,
+    /// The reasoning effort every authoring and decision call asks (low · high · max), sent only
+    /// where the route qualifies it; `NIKA_AUTHORING_REASONING` names one when the flag is absent.
+    #[arg(long, requires = "seat")]
+    pub authoring_reasoning: Option<String>,
     /// A knowledge snapshot directory (manifest.json · one JSONL per kind · relations.jsonl): the seat
     /// reads the pack composed for this intent beside the card; the provenance names the snapshot.
     /// `NIKA_KNOWLEDGE` in the environment names one when the flag is absent.
@@ -84,6 +100,7 @@ pub struct CompileArgs {
     #[arg(long, requires = "authoring_model", conflicts_with = "knowledge")]
     pub knowledge_pack: Option<std::path::PathBuf>,
     /// Explicitly seat one bounded-decision capability (`typesafe/jev-1.13.0` or `provider/name`) for finite ambiguities.
+    /// Its requests ride its own client, protocol retries included: outside `--authoring-max-calls`.
     #[arg(long, conflicts_with_all = ["base", "list"])]
     pub decision_model: Option<String>,
     /// Replace the explicitly named destination.
@@ -101,9 +118,73 @@ pub struct CompileArgs {
     pub list: bool,
 }
 
-/// Compile once; only a Ready result with an explicit destination writes files.
+/// The authoring authority a CLI compile runs under: how many requests the authoring seat may
+/// be sent. Absent, exactly one.
+#[derive(Clone, Debug, Default, clap::Args)]
+#[non_exhaustive]
+pub struct AuthoringAuthority {
+    /// Authoring requests this compile may send, 1 when absent: the plan and its evidence repair,
+    /// the native candidate and its repairs alike, counted where they leave (an ACP harness: its
+    /// invocations). A request past it is refused before any byte leaves. Requires the
+    /// authoring model.
+    #[arg(long, requires = "authoring_model", value_parser = clap::value_parser!(u32).range(1..))]
+    pub authoring_max_calls: Option<u32>,
+}
+
+impl AuthoringAuthority {
+    /// The default authority: one authoring request.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            authoring_max_calls: None,
+        }
+    }
+
+    /// At most `calls` authoring requests, kept as given: zero is refused before any request,
+    /// never raised to one.
+    #[must_use]
+    pub fn with_max_calls(mut self, calls: u32) -> Self {
+        self.authoring_max_calls = Some(calls);
+        self
+    }
+}
+
+/// The compile arm: the stable compile flags and, beside them, the authoring authority
+/// (`--authoring-max-calls`) that bounds how many requests the authoring seat is sent.
+#[derive(Debug, clap::Args)]
+#[non_exhaustive]
+pub struct CompileCommand {
+    #[command(flatten)]
+    pub args: CompileArgs,
+    #[command(flatten)]
+    pub authority: AuthoringAuthority,
+}
+
+impl CompileCommand {
+    /// The compile flags beside the authority they run under.
+    #[must_use]
+    pub const fn new(args: CompileArgs, authority: AuthoringAuthority) -> Self {
+        Self { args, authority }
+    }
+
+    /// Compile once as the command line states it.
+    #[must_use]
+    pub fn run(&self) -> VerbOutput {
+        run_with(&self.args, &self.authority)
+    }
+}
+
+/// Compile once under the default authority (one authoring request); only a Ready result with
+/// an explicit destination writes files.
 #[must_use]
 pub fn run(args: &CompileArgs) -> VerbOutput {
+    run_with(args, &AuthoringAuthority::default())
+}
+
+/// Compile once under an explicit authoring authority; only a Ready result with an explicit
+/// destination writes files.
+#[must_use]
+pub fn run_with(args: &CompileArgs, authority: &AuthoringAuthority) -> VerbOutput {
     if args.list {
         return render::listing(args.json);
     }
@@ -127,35 +208,23 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
         .iter()
         .any(|name| Some(name.as_str()) == args.intent.as_deref().map(str::trim));
     let cognition = (args.authoring_model.is_some() || args.decision_model.is_some()) && !named;
-    // The authoring configuration (the strategy · the knowledge source): the flags over the
-    // environment, through the parser every door shares; read only when an authoring seat is
-    // named — the deterministic door never reads it.
-    let authoring_config = if cognition && args.authoring_model.is_some() {
-        match config::resolve(
-            &explicit_settings(args),
-            &config::AuthoringSettings::from_env(),
-        ) {
-            Ok(config) => Some(config),
-            Err(error) => {
-                return render::failure(
-                    "authoring_config",
-                    &error.to_string(),
-                    exit::ENV,
-                    args.json,
-                );
-            }
-        }
-    } else {
-        None
+    let Setup {
+        config: authoring_config,
+        authority: resolved,
+    } = match authoring_setup(args, authority, cognition) {
+        Ok(setup) => setup,
+        Err(failure) => return failure,
     };
-    if cognition {
-        request = observed_world(args, request);
+    // Every free-intent door grounds the keys a rule reads in what the host observes (R4 S1):
+    // the deterministic door too, never only a seat; a named skeleton or template reads no file.
+    if !named && let Ok(root) = std::env::current_dir() {
+        request = observed_world(&root, &effective_intent(args, cognition), request);
     }
     // The knowledge door: the source the configuration names, its pack for the intent the
     // compiler reads composed here and stated to the seat beside the card; a source that
     // cannot be honored refuses, never a silent card alone.
     if let Some(config) = &authoring_config {
-        request = match knowledge_door(config, args, request) {
+        request = match config.with_knowledge(request, &effective_intent(args, true)) {
             Ok(request) => request,
             Err(error) => {
                 return render::failure("knowledge", &error.to_string(), exit::ENV, args.json);
@@ -169,13 +238,9 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
         None => intent_sha256(&effective_intent(args, cognition)),
     });
     let (request, note) = sidecar::replay(sha.as_deref(), args, request);
-    let result = if cognition {
-        let strategy = authoring_config
-            .as_ref()
-            .map_or(config::DEFAULT_STRATEGY, |config| config.strategy);
-        authoring::compile(&request, args, strategy)
-    } else {
-        compile(&request).map_err(|error| error.to_string())
+    let result = match (&resolved, &authoring_config) {
+        (Some(resolved), Some(config)) => authoring::compile(&request, args, config, resolved),
+        _ => compile(&request).map_err(|error| error.to_string()),
     };
     let outcome = match result {
         Ok(outcome) => outcome,
@@ -200,11 +265,60 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
             },
         );
     }
-    render::outcome(&outcome, written, note.as_ref(), args.json)
+    // A named destination this compile did not write (R4 A6): what is there remains; only its
+    // presence is read, never through a link, never its bytes.
+    let existing = dest
+        .filter(|path| written.is_none() && Path::new(path.as_str()).symlink_metadata().is_ok())
+        .map(String::as_str);
+    render::outcome(&outcome, written, existing, note.as_ref(), args.json)
+}
+
+/// What a seated compile reads before any file is observed or any request sent: the authoring
+/// configuration (the strategy · the knowledge source · the reasoning effort: the flags over the
+/// environment, through the parser every door shares; a decision seat alone reads the effort
+/// only, the deterministic door nothing), then the authority under that strategy. A typed
+/// multiplicity the authority cannot honor is refused here, with zero calls.
+fn authoring_setup(
+    args: &CompileArgs,
+    authority: &AuthoringAuthority,
+    cognition: bool,
+) -> Result<Setup, VerbOutput> {
+    if !cognition {
+        return Ok(Setup {
+            config: None,
+            authority: None,
+        });
+    }
+    let (explicit, env) = (
+        explicit_settings(args),
+        config::AuthoringSettings::from_env(),
+    );
+    let (explicit, env) = match args.authoring_model {
+        Some(_) => (explicit, env),
+        None => (explicit.reasoning_only(), env.reasoning_only()),
+    };
+    let resolved = config::resolve(&explicit, &env).map_err(|error| {
+        render::failure("authoring_config", &error.to_string(), exit::ENV, args.json)
+    })?;
+    let authority = authority::resolve(args, authority.authoring_max_calls, resolved.strategy)
+        .map_err(|refusal| {
+            render::failure("authoring_authority", &refusal, exit::FILE, args.json)
+        })?;
+    Ok(Setup {
+        config: Some(resolved),
+        authority: Some(authority),
+    })
+}
+
+/// What a seated compile resolved before any request, each absent without a seat.
+struct Setup {
+    config: Option<config::AuthoringConfig>,
+    authority: Option<nika_onboard::compile::authority::Authority>,
 }
 
 /// The request the arguments state: an edit of the base (with the original intent beside it
-/// when stated) or a creation (named after its destination), the HOT policy, the answers.
+/// when stated) or a creation (named after its destination), the HOT policy, the answers, and
+/// the money the operator states in its words, which this door meters for no seat (R4 B15).
 fn build_request(args: &CompileArgs, dest: Option<&String>) -> Result<CompileRequest, VerbOutput> {
     let mut request = if let Some(base) = &args.base {
         let source = match std::fs::read_to_string(base) {
@@ -253,7 +367,7 @@ fn build_request(args: &CompileArgs, dest: Option<&String>) -> Result<CompileReq
         };
         request = request.answer(key, literal);
     }
-    Ok(request)
+    Ok(request.with_stated_money())
 }
 
 /// The intent the compiler will actually read, as the sha key must see it: the
@@ -274,15 +388,17 @@ fn effective_intent(args: &CompileArgs, cognition: bool) -> String {
         .unwrap_or(intent)
 }
 
-/// An authoring seat reads the shape of the files the request names (a header, a key set, a
-/// categorical column's values — never a row), observed under the working directory.
-fn observed_world(args: &CompileArgs, request: CompileRequest) -> CompileRequest {
-    match (args.intent.as_deref(), std::env::current_dir()) {
-        (Some(intent), Ok(cwd)) => match observe::world(&cwd, intent) {
-            Some(world) => request.with_knowledge(world),
-            None => request,
-        },
-        _ => request,
+/// The shape of the files the effective request names (a header, a key set, a categorical
+/// column's short repeated values — never a row), observed under the project root `root` only:
+/// a seat authors against it, and the grounding law grounds a rule's keys in it on every door.
+/// This is the host observation; a library or Serve caller supplies its own world as knowledge.
+fn observed_world(root: &Path, intent: &str, request: CompileRequest) -> CompileRequest {
+    if intent.trim().is_empty() {
+        return request;
+    }
+    match observe::world(root, intent) {
+        Some(world) => request.with_knowledge(world),
+        None => request,
     }
 }
 
@@ -303,41 +419,10 @@ fn explicit_settings(args: &CompileArgs) -> config::AuthoringSettings {
     if let Some(corpus) = &args.knowledge_exclude {
         settings = settings.with_knowledge_exclude(corpus.clone());
     }
-    settings
-}
-
-/// The knowledge door: a pre-composed pack enters as composed (an empty one carries no
-/// knowledge); a snapshot composes the pack for the intent the compiler reads (a revision's
-/// request with its change, a clarification's replacement), every presented byte verified
-/// against the snapshot's manifest. The provenance names the snapshot and the selection.
-///
-/// # Errors
-/// A pack that is not a pack, a directory that is not a snapshot, a stale snapshot.
-fn knowledge_door(
-    config: &config::AuthoringConfig,
-    args: &CompileArgs,
-    request: CompileRequest,
-) -> Result<CompileRequest, knowledge::KnowledgeError> {
-    match &config.knowledge {
-        None => Ok(request),
-        Some(config::KnowledgeSource::Pack { file }) => {
-            Ok(match knowledge::pack_from_file(file)? {
-                Some(pack) => request.with_authoring_knowledge(pack),
-                None => request,
-            })
-        }
-        Some(config::KnowledgeSource::Snapshot {
-            dir,
-            exclude_corpus,
-        }) => {
-            let intent = revise_intent(&request).unwrap_or_else(|| effective_intent(args, true));
-            if intent.trim().is_empty() {
-                return Ok(request);
-            }
-            let pack = knowledge::Snapshot::open(dir)?.pack(&intent, exclude_corpus.as_deref())?;
-            Ok(request.with_authoring_knowledge(pack))
-        }
+    if let Some(word) = &args.authoring_reasoning {
+        settings = settings.with_reasoning(word.clone());
     }
+    settings
 }
 
 fn workflow_id(dest: &str) -> String {
@@ -485,5 +570,54 @@ mod tests {
         );
         // The exclusion still needs an authoring seat, as every knowledge flag does.
         assert!(Door::try_parse_from(["compile", "x", "--knowledge-exclude", "heldout"]).is_err());
+    }
+
+    /// Every free-intent door carries the host observation of the files its request states (R4
+    /// S1): the bounded, project-confined observer's keys and short repeated values only. An
+    /// absent file and a link out of the project are named states, never keys, and a unique
+    /// secret-like value never leaves its file.
+    #[test]
+    fn a_free_intent_carries_the_observation_of_what_it_states() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let rows = r#"[{"id":"a","status":"open","token":"sk-live-51H8aZ3xQvYb0987654321abcdefghij"},
+            {"id":"b","status":"open","token":"sk-live-51H8aZ3xQvYb0987654321zyxwvutsrq"}]"#;
+        std::fs::write(root.join("tickets.json"), rows).unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::write(outside.path().join("secret.json"), r#"[{"hidden":"v"}]"#).unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(outside.path().join("secret.json"), root.join("linked.json"))
+            .unwrap();
+        let intent = "Read ./tickets.json, ./linked.json and ./missing.json, keep only the rows whose status is open and write them to ./open.json";
+        let request = observed_world(root, intent, CompileRequest::create(intent));
+        let world = request.knowledge.expect("the stated files are observed");
+        let text = world.to_string();
+        let row = |path: &str| {
+            let rows = world["observed"].as_array().unwrap();
+            rows.iter().find(|r| r["path"] == path).cloned()
+        };
+        let tickets = row("./tickets.json").unwrap();
+        assert_eq!(tickets["state"], "observed", "{text}");
+        assert_eq!(
+            tickets["columns"],
+            serde_json::json!(["id", "status", "token"])
+        );
+        assert!(tickets["peek_sha256"].is_string(), "{text}");
+        assert!(
+            !text.contains("sk-live"),
+            "no unique value leaves its file: {text}"
+        );
+        assert_eq!(row("./missing.json").unwrap()["state"], "absent", "{text}");
+        #[cfg(unix)]
+        {
+            assert_eq!(row("./linked.json").unwrap()["state"], "outside_project");
+            assert!(
+                !text.contains("hidden"),
+                "nothing is read through the link: {text}"
+            );
+        }
+        // A request that states nothing is observed as nothing.
+        let silent = observed_world(root, "  ", CompileRequest::create("  "));
+        assert!(silent.knowledge.is_none());
     }
 }

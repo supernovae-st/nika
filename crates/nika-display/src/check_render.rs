@@ -1407,6 +1407,8 @@ mod layers;
 pub use layers::VerdictLayers;
 use layers::{access_rung, layers_line};
 mod permits_glance;
+/// The rows a review shows of one report: effects, spend, first findings and hints (C10).
+pub mod review;
 mod slots;
 use footer::hints_and_verdict;
 

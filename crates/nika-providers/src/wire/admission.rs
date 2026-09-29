@@ -4,7 +4,9 @@
 use crate::admission::Attempt;
 use crate::registry::ResolvedProvider;
 use nika_kernel::ai::provider::{ContentBlock, InferRequest, ProviderError};
-use serde_json::Value;
+use serde_json::{Map, Value};
+
+mod openrouter;
 
 pub(crate) fn reserve<H>(
     rp: &ResolvedProvider<H>,
@@ -39,12 +41,15 @@ pub(crate) fn reserve<H>(
         .map(Some)
 }
 
-/// Only the qualified `DeepSeek` shape has proved complete tariff meters here.
+/// Provider-specific text receipts must prove every qualified cost meter.
 /// Missing/invalid optional detail, conflicting cache aliases and unknown cost
 /// axes are not allowed to become a zero discount.
 pub(crate) fn complete_usage(provider: &str, v: &Value) -> bool {
     if provider == "openai" {
         return complete_compat_usage(v);
+    }
+    if provider == "openrouter" {
+        return openrouter::complete_zero_usage(v);
     }
     if provider != "deepseek" {
         return false;
@@ -110,6 +115,21 @@ fn complete_compat_usage(v: &Value) -> bool {
     let Some(u) = v.get("usage").and_then(Value::as_object) else {
         return false;
     };
+    complete_text_meters(u, &[]) && u.keys().all(|k| is_text_meter(k))
+}
+
+fn is_text_meter(key: &str) -> bool {
+    matches!(
+        key,
+        "prompt_tokens"
+            | "completion_tokens"
+            | "total_tokens"
+            | "prompt_tokens_details"
+            | "completion_tokens_details"
+    )
+}
+
+fn complete_text_meters(u: &Map<String, Value>, zero_axes: &[(&str, &str)]) -> bool {
     let at = |k: &str| u.get(k).and_then(Value::as_u64);
     let (Some(input), Some(output), Some(total)) = (
         at("prompt_tokens"),
@@ -129,22 +149,16 @@ fn complete_compat_usage(v: &Value) -> bool {
             let Some(details) = details.as_object() else {
                 return false;
             };
-            if details
-                .iter()
-                .any(|(k, n)| k != key || n.as_u64().is_none_or(|n| n > bound))
-            {
+            if details.iter().any(|(k, n)| {
+                if k == key {
+                    n.as_u64().is_none_or(|n| n > bound)
+                } else {
+                    !zero_axes.contains(&(field, k.as_str())) || n.as_u64() != Some(0)
+                }
+            }) {
                 return false;
             }
         }
     }
-    u.keys().all(|k| {
-        matches!(
-            k.as_str(),
-            "prompt_tokens"
-                | "completion_tokens"
-                | "total_tokens"
-                | "prompt_tokens_details"
-                | "completion_tokens_details"
-        )
-    })
+    true
 }

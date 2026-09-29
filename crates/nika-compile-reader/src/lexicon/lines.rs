@@ -143,13 +143,7 @@ fn push_write(path: &str, original: &str, reading: &mut Reading) {
     });
     super::effects::push_effect(
         &mut reading.plan,
-        Effect {
-            verb: EffectVerb::Write,
-            target: path.to_owned(),
-            evidence: original.to_owned(),
-            policy: EffectPolicy::Automatic,
-            policy_literal: None,
-        },
+        Effect::new(EffectVerb::Write, path, original, EffectPolicy::Automatic),
     );
 }
 

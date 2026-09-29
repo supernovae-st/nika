@@ -62,11 +62,16 @@ pub fn eval_binding(
     let val = read::parse_single(&bytes)
         .map_err(|e| runtime_err(name, &format!("input not JSON: {e:?}")))?;
 
+    // The runtime builtin's own std shadows (the global `scan`, one finite number
+    // from `tonumber`): one text in nika-cap, so a binding reads what `nika:jq` reads.
+    let shadows = jaq_core::load::parse(nika_cap::JQ_STD_SHADOWS, |parser| parser.defs())
+        .ok_or_else(|| runtime_err(name, "internal: the jq std shadows do not parse"))?;
     let defs = jaq_core::defs()
         .chain(
             jaq_std::defs().filter(|definition| nika_cap::install_jq_definition(definition.name)),
         )
         .chain(jaq_json::defs())
+        .chain(shadows)
         .chain(clock_defs(name)?);
     // The typed nika-cap policy removes every host-reaching native. Clock
     // spellings return through pure definitions over the caller's value.
@@ -388,3 +393,6 @@ mod tests {
         ));
     }
 }
+
+#[cfg(test)]
+mod tests_number;

@@ -20,9 +20,29 @@
 //! claim — the runtime re-vets everything.
 
 use nika_types::extract::{EXTRACT_MODE_NAMES, ExtractMode};
-use nika_types::net::MAX_TRAVERSE_PAGES;
+use nika_types::net::{MAX_TRAVERSE_PAGES, TRAVERSE_EXCLUDED_KEYS};
 
 use crate::{HashAlgorithm, HashEncoding};
+
+/// Why a builtin cannot be called by a standalone `invoke`, when it needs
+/// the agent loop. This context law also feeds discovery; argument validity
+/// and permits remain separate checks. Unknown names carry no context claim.
+#[must_use]
+pub fn builtin_invoke_refusal(tool: &str) -> Option<&'static str> {
+    match tool {
+        "nika:done" => Some(
+            "is the agent-loop completion sentinel — valid ONLY inside an \
+             `agent:` tools whitelist · never a standalone invoke \
+             (02-verbs.md §loop semantics · NIKA-BUILTIN-DONE-001)",
+        ),
+        "nika:compose" => Some(
+            "is the agent-loop static workflow checker — valid ONLY inside an \
+             `agent:` tools whitelist · never a standalone invoke \
+             (02-verbs.md §loop semantics · NIKA-BUILTIN-COMPOSE-001)",
+        ),
+        _ => None,
+    }
+}
 
 /// Every statically-checkable arg-shape finding for one `invoke:` of
 /// `tool` with `args` — empty when the shape holds (or when the tool
@@ -30,24 +50,11 @@ use crate::{HashAlgorithm, HashEncoding};
 /// concern (pure data in, messages out).
 #[must_use]
 pub fn builtin_shape_findings(tool: &str, args: Option<&serde_json::Value>) -> Vec<String> {
-    let mut out = Vec::new();
+    let mut out: Vec<String> = builtin_invoke_refusal(tool)
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
     match tool {
-        "nika:done" => out.push(
-            "is the agent-loop completion sentinel — valid ONLY inside an \
-             `agent:` tools whitelist · never a standalone invoke \
-             (02-verbs.md §loop semantics · NIKA-BUILTIN-DONE-001)"
-                .to_owned(),
-        ),
-        // The done sentinel's sibling (agent battery A3 · 2026-07-11): the
-        // runtime refuses a standalone `nika:compose` (COMPOSE-001) but the
-        // check blessed it — the same check≡run seam class as the SSRF
-        // floor. Both loop-only builtins (ADR-096) now refuse at check.
-        "nika:compose" => out.push(
-            "is the agent-loop sub-workflow spawner — valid ONLY inside an \
-             `agent:` tools whitelist · never a standalone invoke \
-             (02-verbs.md §loop semantics · NIKA-BUILTIN-COMPOSE-001)"
-                .to_owned(),
-        ),
         "nika:wait" => {
             let has = |key: &str| -> bool {
                 matches!(args, Some(serde_json::Value::Object(map)) if map.contains_key(key))
@@ -422,6 +429,11 @@ fn check_fetch_shape(args: Option<&serde_json::Value>, out: &mut Vec<String>) {
         check_fetch_traverse_shape(object, out);
         return; // traverse owns the whole surface — no mode pairing below
     }
+    if let Some(response) = object.and_then(|map| map.get("response"))
+        && let Err(finding) = crate::fetch_response::check(response)
+    {
+        out.push(finding);
+    }
     let mode = match object.and_then(|map| map.get("mode")) {
         // Absent → the spec default (markdown).
         None => Some(ExtractMode::Markdown),
@@ -500,7 +512,7 @@ fn check_fetch_traverse_shape(
     out: &mut Vec<String>,
 ) {
     let has = |key: &str| object.is_some_and(|map| map.contains_key(key));
-    for key in ["mode", "selector", "jq", "body", "form", "multipart"] {
+    for key in TRAVERSE_EXCLUDED_KEYS {
         if has(key) {
             out.push(format!(
                 "`traverse:` excludes `{key}:` — the crawl emits the fixed \

@@ -4,7 +4,8 @@
 
 use serde_json::{Value, json};
 
-use super::rules::key;
+use super::rules::numbers::{Numbers, number, numbered};
+use super::rules::{NumberPolicy, key};
 
 /// An aggregate over a group or over every row: sum, count, average, minimum, maximum.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -68,23 +69,70 @@ impl Aggregation {
             round,
         }
     }
-    pub(crate) fn jq(&self) -> String {
-        let values = self
+    pub(crate) fn jq(&self, numbers: &Numbers) -> String {
+        let values = self.field.as_deref().map(|f| {
+            let k = key(f);
+            let Some(policy) = numbers.get(f) else {
+                return format!("map({k} | tonumber)");
+            };
+            if *policy == NumberPolicy::Skip {
+                let what = format!("its {} cannot be stated", self.name);
+                let none = matches!(self.op, AggOp::Avg | AggOp::Min | AggOp::Max);
+                format!(
+                    "({} | map({}))",
+                    numbered(&k, f, &what, none),
+                    number(&k, f)
+                )
+            } else {
+                format!("map({})", number(&k, f))
+            }
+        });
+        // Under a stated policy an average, minimum or maximum of no number is no value: the run
+        // stops, from an empty input too, and an average divides by the numbers it kept (R4 A5).
+        let empty = self
             .field
             .as_deref()
-            .map(|f| format!("map({} | tonumber)", key(f)));
-        let core = match (self.op, values) {
-            (AggOp::Sum, Some(v)) => format!("({v} | add // 0)"),
-            (AggOp::Avg, Some(v)) => {
+            .filter(|f| numbers.contains_key(*f))
+            .map(|f| {
+                json!(format!(
+                    "no `{f}` is a number: its {} cannot be stated",
+                    self.name
+                ))
+            });
+        let or_stop = |v: &str, why: &Value, op: &str| {
+            format!("({v} | if length == 0 then error({why}) else {op} end)")
+        };
+        // A bound number aggregates exactly (R4 A8): rounded only as the request states it, half
+        // away from zero, or the run stops naming what no JSON number carries.
+        if let (Some(v), Some(why)) = (&values, &empty) {
+            let what = json!(format!("`{}`", self.name));
+            let round = self.round.map_or_else(String::new, |n| format!("; {n}"));
+            let law = |name: &str| format!("{name}({what}{round})");
+            match self.op {
+                AggOp::Sum => return format!("({v} | {})", law("dsum_out")),
+                AggOp::Avg => return or_stop(v, why, &law("davg_out")),
+                AggOp::Min => return or_stop(v, why, &law("dmin_out")),
+                AggOp::Max => return or_stop(v, why, &law("dmax_out")),
+                AggOp::Count => {}
+            }
+        }
+        let core = match (self.op, values, empty) {
+            (AggOp::Sum, Some(v), _) => format!("({v} | add // 0)"),
+            (AggOp::Avg, Some(v), Some(why)) => or_stop(&v, &why, "add / length"),
+            (AggOp::Min, Some(v), Some(why)) => or_stop(&v, &why, "min"),
+            (AggOp::Max, Some(v), Some(why)) => or_stop(&v, &why, "max"),
+            (AggOp::Avg, Some(v), None) => {
                 format!("(if length == 0 then 0 else (({v} | add) / length) end)")
             }
-            (AggOp::Min, Some(v)) => format!("({v} | min)"),
-            (AggOp::Max, Some(v)) => format!("({v} | max)"),
-            (AggOp::Count, _) | (_, None) => "length".to_owned(),
+            (AggOp::Min, Some(v), None) => format!("({v} | min)"),
+            (AggOp::Max, Some(v), None) => format!("({v} | max)"),
+            (AggOp::Count, _, _) | (_, None, _) => "length".to_owned(),
         };
         match self.round {
             Some(n) => {
-                let factor = 10_u64.pow(n);
+                let Some(factor) = 10_u64.checked_pow(n) else {
+                    return "error(\"recorded rounding precision overflows\")".to_owned();
+                };
                 format!("(({core} * {factor} | round) / {factor})")
             }
             None => core,
@@ -105,10 +153,20 @@ impl Aggregation {
             .map(str::trim)
             .filter(|f| !f.is_empty())
             .map(str::to_owned);
-        let round = value
-            .get("round")
-            .and_then(Value::as_u64)
-            .and_then(|n| u32::try_from(n).ok());
+        let round = match value.get("round") {
+            None | Some(Value::Null) => None,
+            Some(value) => {
+                let n = u32::try_from(value.as_u64()?).ok()?;
+                // Keep the same domain as semantic generation; no precision escalation.
+                if n > 6 {
+                    return None;
+                }
+                Some(n)
+            }
+        };
+        if op != AggOp::Count && field.is_none() {
+            return None;
+        }
         Some(Self {
             field,
             op,
@@ -177,6 +235,7 @@ impl Term {
         value
             .get("number")
             .and_then(Value::as_str)
+            .filter(|n| super::rule_tokens::recorded_number(n))
             .map(|n| Self::Number(n.to_owned()))
     }
 }
@@ -238,9 +297,13 @@ pub struct Shape {
     pub aggregations: Vec<Aggregation>,
     /// The column sorted on and whether the order is descending.
     pub sort_by: Option<(String, bool)>,
+    /// The request's tie rule for that sort (E38): rows with equal keys keep their file order.
+    pub ties_first_in_file: bool,
     /// The first N rows after the sort: a top-N the request states with its rank measure.
     pub limit: Option<u32>,
     pub columns: Vec<String>,
+    /// Projected columns written as JSON numbers, read under the number law with FAIL (E38).
+    pub numbers: Vec<String>,
     /// Outputs defined as arithmetic over the aggregates.
     pub derived: Vec<Derived>,
     /// Duplicates removed after the projection, the first occurrence kept in place.
@@ -356,6 +419,8 @@ impl Shape {
         self.join_on = once(self.join_on, other.join_on).ok()?;
         self.group_by = once(self.group_by, other.group_by).ok()?;
         self.sort_by = once(self.sort_by, other.sort_by).ok()?;
+        self.ties_first_in_file |= other.ties_first_in_file;
+        self.numbers.extend(other.numbers);
         self.limit = once(self.limit, other.limit).ok()?;
         for aggregation in other.aggregations {
             if !self.aggregations.contains(&aggregation) {
@@ -389,7 +454,18 @@ impl Shape {
             }
             self.renames.push(rename);
         }
-        Some(self)
+        self.holds().then_some(self)
+    }
+    /// Whether a tie rule settles a sort of rows still in file order (no grouping, no join) and
+    /// each number column is one the rows are projected on, named once (E38).
+    fn holds(&self) -> bool {
+        let tied = self.sort_by.is_some() && self.group_by.is_none() && self.join_on.is_none();
+        let projected = |(at, name): (usize, &String)| {
+            self.columns.contains(name) && !self.numbers[..at].contains(name)
+        };
+        let numbers = self.numbers.iter().enumerate().all(projected);
+        (tied || !self.ties_first_in_file)
+            && (self.numbers.is_empty() || numbers && !self.is_totals())
     }
     /// The names the shape produces: the group column and every aggregate.
     pub(crate) fn produced(&self) -> Vec<&str> {
@@ -441,10 +517,12 @@ impl Shape {
     }
     /// The stages after the filter, lowered in a fixed order onto the filtered rows: the
     /// grouping with its aggregates or the totals, then the sort, then the first N rows,
-    /// then the projection, then the removal of duplicates. A sort on a source column
-    /// compares numbers when the text holds one (a CSV cell is text, `"900" < "1000"` only
-    /// as numbers) and the text itself otherwise; a produced name is already typed.
-    pub(crate) fn lower(&self, filtered: String) -> String {
+    /// then the projection, then the removal of duplicates. A sort on a source column whose
+    /// policy the compiler stated reads its key under the number law (R4 A5), never jq's total
+    /// order; without one it compares numbers when the text holds one (a CSV cell is text,
+    /// `"900" < "1000"` only as numbers) and the text itself otherwise, as a recorded plan
+    /// always read it; a produced name is already typed.
+    pub(crate) fn lower(&self, filtered: String, numbers: &Numbers) -> String {
         let mut jq = filtered;
         if !self.distinct_by.is_empty() {
             jq = format!("{jq} | {}", distinct_by(&self.distinct_by));
@@ -452,7 +530,7 @@ impl Shape {
         let entries = |aggregations: &[Aggregation]| {
             aggregations
                 .iter()
-                .map(|a| format!("{}: {}", json!(a.name), a.jq()))
+                .map(|a| format!("{}: {}", json!(a.name), a.jq(numbers)))
                 .collect::<Vec<_>>()
                 .join(", ")
         };
@@ -484,27 +562,40 @@ impl Shape {
             };
         }
         if let Some((field, descending)) = &self.sort_by {
+            let policy = numbers.get(field).copied();
             let by = if self.produced().contains(&field.as_str()) {
                 key(field)
+            } else if policy.is_some() {
+                if policy == Some(NumberPolicy::Skip) {
+                    let kept = numbered(&key(field), field, "no row can be ranked", false);
+                    jq = format!("{jq} | {kept}");
+                }
+                format!("{} | dkey", number(&key(field), field))
             } else {
                 format!("{} | tonumber? // .", key(field))
             };
-            jq = format!("{jq} | sort_by({by})");
+            // A stated tie rule keeps equal keys in file order (E38): the rows reversed first.
+            let flip = self.ties_first_in_file && *descending;
+            jq = format!(
+                "{jq}{} | sort_by({by})",
+                if flip { " | reverse" } else { "" }
+            );
             if *descending {
                 jq.push_str(" | reverse");
+            }
+            // A cut through distinct records that tie on a bound number has no answer (R4 A8),
+            // unless the request states the tie rule (E38).
+            if let (Some(n), Some(_), false) = (self.limit, policy, self.ties_first_in_file) {
+                let out = self.projection().unwrap_or_else(|| ".".to_owned());
+                let what = json!(format!("`{field}`"));
+                jq = format!("{jq} | dtie({n}; {by}; {out}; {what})");
             }
         }
         if let Some(n) = self.limit {
             jq = format!("{jq} | .[:{n}]");
         }
-        if !self.columns.is_empty() && !self.is_totals() {
-            let projection = self
-                .columns
-                .iter()
-                .map(|c| format!("{}: {}", json!(c), key(c)))
-                .collect::<Vec<_>>()
-                .join(", ");
-            jq = format!("{jq} | map({{{projection}}})");
+        if let Some(projection) = self.projection() {
+            jq = format!("{jq} | map({projection})");
         }
         if !self.renames.is_empty() && !self.is_totals() {
             let arms = self
@@ -526,12 +617,32 @@ impl Shape {
         }
         jq
     }
+    /// The object one written row is, when the shape projects named columns.
+    fn projection(&self) -> Option<String> {
+        (!self.columns.is_empty() && !self.is_totals()).then(|| {
+            let entries: Vec<String> = self
+                .columns
+                .iter()
+                .map(|c| {
+                    // A column the request writes as a number is read under the law, and written
+                    // only where a JSON number carries it exactly (E38, R4 A8).
+                    let what = json!(format!("`{c}`"));
+                    let read = self
+                        .numbers
+                        .contains(c)
+                        .then(|| format!("({} | dnum_out({what}))", number(&key(c), c)));
+                    format!("{}: {}", json!(c), read.unwrap_or_else(|| key(c)))
+                })
+                .collect();
+            format!("{{{}}}", entries.join(", "))
+        })
+    }
     /// Totals over every row (aggregates without a group): one object, not rows.
     pub(crate) fn is_totals(&self) -> bool {
         self.group_by.is_none() && !self.aggregations.is_empty()
     }
     pub(crate) fn to_json(&self) -> Value {
-        json!({
+        let mut shape = json!({
             "join_on": self.join_on,
             "group_by": self.group_by,
             "aggregations": self.aggregations.iter().map(Aggregation::to_json).collect::<Vec<_>>(),
@@ -543,7 +654,25 @@ impl Shape {
             "distinct": self.distinct,
             "distinct_by": self.distinct_by,
             "renames": self.renames.iter().map(|(from, to)| json!({"from": from, "to": to})).collect::<Vec<_>>(),
-        })
+        });
+        // Recorded only when stated (E38): a record written before them reads as it did.
+        if self.ties_first_in_file {
+            shape["ties"] = json!("first_in_file");
+        }
+        if !self.numbers.is_empty() {
+            shape["numbers"] = json!(self.numbers);
+        }
+        shape
+    }
+    /// The tie rule and the number columns a record states (E38): a tie rule is `first_in_file`
+    /// or absent, the columns a list of names; anything else refuses the record.
+    fn stated_order(value: &Value) -> Option<(bool, Vec<String>)> {
+        let ties = value.get("ties");
+        let ties = ties.map_or(Some(false), |t| (t == "first_in_file").then_some(true))?;
+        let numbers = value
+            .get("numbers")
+            .map(|n| serde_json::from_value(n.clone()).ok());
+        Some((ties, numbers.unwrap_or(Some(Vec::new()))?))
     }
     pub(crate) fn from_json(value: Option<&Value>) -> Option<Self> {
         let Some(value) = value else {
@@ -569,10 +698,8 @@ impl Shape {
                         .collect::<Option<Vec<_>>>()
                 },
             )?;
-        let descending = value
-            .get("descending")
-            .and_then(Value::as_bool)
-            .unwrap_or(false);
+        let descending = value.get("descending") == Some(&Value::Bool(true));
+        let (ties_first_in_file, numbers) = Self::stated_order(value)?;
         let columns = value
             .get("columns")
             .and_then(Value::as_array)
@@ -634,13 +761,16 @@ impl Shape {
             group_by: text("group_by"),
             aggregations,
             sort_by: text("sort_by").map(|f| (f, descending)),
+            ties_first_in_file,
             limit,
             columns,
+            numbers,
             derived,
             distinct,
             distinct_by,
             renames,
         })
+        .filter(Self::holds)
     }
 }
 
@@ -923,7 +1053,10 @@ mod tests {
             distinct_by: vec!["titre".to_owned(), "artiste".to_owned()],
             ..Default::default()
         };
-        let jq = shape.lower("[.records[]]".to_owned());
+        let jq = shape.lower(
+            "[.records[]]".to_owned(),
+            &crate::rules::numbers::Numbers::new(),
+        );
         assert_eq!(
             jq,
             "[.records[]] | reduce .[] as $r ([]; if any(.[]; .titre == ($r | .titre) and .artiste == ($r | .artiste)) then . else . + [$r] end)"
@@ -931,7 +1064,10 @@ mod tests {
         // Before the sort and the limit: a top-N after a dedup is well defined.
         shape.sort_by = Some(("heure".to_owned(), false));
         shape.limit = Some(2);
-        let jq = shape.lower("[.records[]]".to_owned());
+        let jq = shape.lower(
+            "[.records[]]".to_owned(),
+            &crate::rules::numbers::Numbers::new(),
+        );
         assert!(
             jq.find("reduce").unwrap() < jq.find("sort_by").unwrap(),
             "{jq}"
@@ -952,7 +1088,8 @@ mod tests {
 
     #[test]
     fn a_stated_aggregate_lowers_to_one_object_of_totals() {
-        let total = stated("the total of the amount column", &[]).map(|a| a.jq());
+        let total = stated("the total of the amount column", &[])
+            .map(|a| a.jq(&crate::rules::numbers::Numbers::new()));
         assert_eq!(
             total.as_deref(),
             Some("(map(.amount | tonumber) | add // 0)")
@@ -966,8 +1103,90 @@ mod tests {
         assert!(shape.is_totals());
         assert_eq!(shape.totals_names(), ["average"]);
         assert_eq!(
-            shape.lower(".records".to_owned()),
+            shape.lower(
+                ".records".to_owned(),
+                &crate::rules::numbers::Numbers::new()
+            ),
             ".records | {\"average\": (if length == 0 then 0 else ((map(.amount | tonumber) | add) / length) end)}"
+        );
+    }
+
+    // E38 V2 C3: a stated tie rule keeps the file order, ascending and descending, through a
+    // cut and among copies; a number column is read under the law; unstated, nothing changes.
+    #[test]
+    fn a_stated_tie_rule_keeps_the_file_order_and_a_number_column_reads_the_law() {
+        let numbers: crate::rules::numbers::Numbers =
+            [("amount".to_owned(), NumberPolicy::Fail)].into();
+        let key = format!("{} | dkey", number(".amount", "amount"));
+        let mut shape = Shape {
+            sort_by: Some(("amount".to_owned(), true)),
+            limit: Some(2),
+            columns: vec!["id".to_owned(), "amount".to_owned()],
+            ..Shape::default()
+        };
+        let rows = "[.records[]]".to_owned();
+        let out = "{\"id\": .id, \"amount\": .amount}";
+        assert_eq!(
+            shape.lower(rows.clone(), &numbers),
+            format!(
+                "[.records[]] | sort_by({key}) | reverse | dtie(2; {key}; {out}; \"`amount`\") | .[:2] | map({out})"
+            )
+        );
+        shape.ties_first_in_file = true;
+        shape.numbers = vec!["amount".to_owned()];
+        let written = format!(
+            "{{\"id\": .id, \"amount\": ({} | dnum_out(\"`amount`\"))}}",
+            number(".amount", "amount")
+        );
+        assert_eq!(
+            shape.lower(rows.clone(), &numbers),
+            format!("[.records[]] | reverse | sort_by({key}) | reverse | .[:2] | map({written})")
+        );
+        shape.sort_by = Some(("amount".to_owned(), false));
+        assert_eq!(
+            shape.lower(rows.clone(), &numbers),
+            format!("[.records[]] | sort_by({key}) | .[:2] | map({written})")
+        );
+        // Copies removed by key first, in place, then the stable order.
+        shape.distinct_by = vec!["id".to_owned()];
+        let lowered = shape.lower(rows, &numbers);
+        assert!(
+            lowered.find("reduce").unwrap() < lowered.find("sort_by").unwrap(),
+            "{lowered}"
+        );
+        // The record states both only when stated, and reads them back.
+        let record = shape.to_json();
+        assert_eq!(record["ties"], "first_in_file");
+        assert_eq!(record["numbers"], json!(["amount"]));
+        assert_eq!(Shape::from_json(Some(&record)), Some(shape.clone()));
+        let plain = Shape::default().to_json();
+        assert!(plain.get("ties").is_none() && plain.get("numbers").is_none());
+        // A tie rule over no sort, another word, a number column the rows are not projected
+        // on, or one named twice: no shape.
+        for (key, value) in [
+            ("sort_by", Value::Null),
+            ("ties", json!("last_in_file")),
+            ("numbers", json!(["item"])),
+            ("numbers", json!(["amount", "amount"])),
+        ] {
+            let mut bad = record.clone();
+            bad[key] = value;
+            assert_eq!(Shape::from_json(Some(&bad)), None, "{key}");
+        }
+        // Two segments merge a tie rule only over the sort one of them states.
+        let tie_alone = Shape {
+            ties_first_in_file: true,
+            ..Shape::default()
+        };
+        assert_eq!(tie_alone.clone().merge(Shape::default()), None);
+        let sorted = Shape {
+            sort_by: Some(("amount".to_owned(), true)),
+            ..Shape::default()
+        };
+        assert!(
+            tie_alone
+                .merge(sorted)
+                .is_some_and(|s| s.ties_first_in_file)
         );
     }
 }

@@ -6,7 +6,9 @@
 //! it records (the plan's trigger, or a read step after « à partir de »). A recurrence stated
 //! without its cadence (« régulièrement », « from time to time ») is a trigger too, whether it
 //! leads the sentence or sits inside a clause. Beside `lexicon.rs` at the 1,500-line file cap.
-use super::cues::{CADENCE_WORDS, CLOCK_SUFFIXES, HEAD_FILLERS, TRIGGER_PREFIXES};
+use super::cues::{
+    CADENCE_HEAD_PREFIXES, CADENCE_WORDS, CLOCK_SUFFIXES, HEAD_FILLERS, TRIGGER_PREFIXES,
+};
 use super::{Reading, normalize, number_word};
 use crate::plan::{Op, Step};
 use crate::{hot, words};
@@ -20,6 +22,13 @@ use crate::{hot, words};
 /// end (an event, a supplied document: « Dès qu'un ticket arrive, … », « Pour chaque fichier
 /// de ./x, … »); none at all is no head.
 fn head_bounds(body_lower: &str, prefix: &str) -> Option<(usize, usize)> {
+    cadence_bounds(body_lower, prefix)
+        .or_else(|| body_lower.find(',').map(|comma| (comma, comma + 1)))
+}
+
+/// The cadence part of a head (`head_bounds` without its comma fallback): `None` when no cadence
+/// word or clock token follows the prefix.
+fn cadence_bounds(body_lower: &str, prefix: &str) -> Option<(usize, usize)> {
     let tail = body_lower.get(prefix.len()..).unwrap_or_default();
     let mut at = prefix.len();
     let mut end = None;
@@ -43,14 +52,10 @@ fn head_bounds(body_lower: &str, prefix: &str) -> Option<(usize, usize)> {
             break;
         }
     }
-    match end {
-        Some(end) => {
-            let rest = body_lower.get(end..).unwrap_or_default();
-            let skipped = rest.len() - rest.trim_start_matches([' ', ',']).len();
-            Some((end, end + skipped))
-        }
-        None => body_lower.find(',').map(|comma| (comma, comma + 1)),
-    }
+    let end = end?;
+    let rest = body_lower.get(end..).unwrap_or_default();
+    let skipped = rest.len() - rest.trim_start_matches([' ', ',']).len();
+    Some((end, end + skipped))
 }
 
 /// A clock token: `9`, `9:30`, `9h`, `9h30`, `18h`, `9am`, `9pm`.
@@ -73,6 +78,14 @@ pub(super) fn cut_head<'a>(
     text: &str,
     reading: &mut Reading,
 ) -> (&'a str, String) {
+    if let Some(prefix) = CADENCE_HEAD_PREFIXES.iter().find(|p| text.starts_with(*p))
+        && let Some((head_end, rest_start)) = cadence_bounds(text, prefix)
+    {
+        if reading.plan.trigger.is_none() {
+            reading.plan.trigger = text.get(..head_end).map(str::to_owned);
+        }
+        return rest(sentence, text, rest_start);
+    }
     let Some(prefix) = TRIGGER_PREFIXES.iter().find(|p| text.starts_with(*p)) else {
         return recurrence_head(sentence, text, reading);
     };
@@ -178,6 +191,17 @@ pub(super) fn cut_tail<'a>(body: &'a str, body_lower: &str, tails: &mut Vec<Stri
     }
 }
 
+/// A clause's own final cadence (« Read ./tickets.json every weekday at 8, keep … »), cut from
+/// its clause as [`cut_tail`] cuts a sentence's, under the same guards, and settled with the
+/// tails. A clause that opens on a prohibition keeps it: the cadence is the ban's scope.
+pub(super) fn cut_clause_tail<'a>(clause: &'a str, tails: &mut Vec<String>) -> &'a str {
+    let lower = normalize(clause);
+    if lower.len() != clause.len() || super::opens_negated(&lower) {
+        return clause;
+    }
+    cut_tail(clause, &lower, tails)
+}
+
 /// Where a sentence-final cadence runs in a clause body, as `(start, end)` byte offsets of the
 /// lowercase body. It opens on a quantifier that is not the body's first word (that one is a
 /// head, cut before), runs as a head does (`head_bounds`: cadence words, the small words
@@ -234,11 +258,72 @@ fn names_a_period(phrase: &str) -> bool {
 }
 
 /// Whether text ends inside quotes: an odd count of straight double quotes or backticks, or
-/// more opening than closing guillemets or curly double quotes. The unnamed-destination law
-/// reads its connector through the same guard.
+/// more opening than closing guillemets or curly double quotes; a mark after a backslash is
+/// content (« "she said \"hi\"" »). The unnamed-destination law reads its connector through
+/// the same guard.
 pub(crate) fn quoted(before: &str) -> bool {
-    let count = |c: char| before.matches(c).count();
+    let escaped = |at: usize| before.get(..at).is_some_and(|b| b.ends_with('\\'));
+    let count = |c: char| {
+        before
+            .match_indices(c)
+            .filter(|(at, _)| !escaped(*at))
+            .count()
+    };
     count('"') % 2 == 1 || count('`') % 2 == 1 || count('«') > count('»') || count('“') > count('”')
+}
+
+/// The text with its quoted content blanked, marks included, every character replaced by
+/// spaces of its own byte length so each offset still names the same place: a law that reads
+/// words by substring (a waiver, a bypass, an indecision) reads only what is stated outside
+/// quotes.
+pub(crate) fn unquoted(text: &str) -> String {
+    let mark = |c: char| matches!(c, '"' | '\'' | '`' | '«' | '“');
+    let blank =
+        |at: usize, c: char| quoted_at(text, at) || (mark(c) && quoted_at(text, at + c.len_utf8()));
+    (text.char_indices())
+        .map(|(at, c)| {
+            if blank(at, c) {
+                " ".repeat(c.len_utf8())
+            } else {
+                c.to_string()
+            }
+        })
+        .collect()
+}
+
+/// Whether a byte position of the text lies inside quoted content: the quotes [`quoted`]
+/// counts, or a single-quoted literal (« write 'hello' »). A straight single quote opens at
+/// the start or after a space or an opening bracket, before a non-space, and closes after a
+/// non-space, before a space, a punctuation mark or the end; an apostrophe inside a word
+/// (« don't », « n'écris », « l'envoie ») neither opens nor closes. What lies inside quotes
+/// is what the workflow writes, reads or matches, never an instruction to it.
+pub(crate) fn quoted_at(text: &str, pos: usize) -> bool {
+    let Some(before) = text.get(..pos) else {
+        return false;
+    };
+    if quoted(before) {
+        return true;
+    }
+    let mut open = false;
+    let mut prev: Option<char> = None;
+    let mut chars = text.char_indices().peekable();
+    while let Some((at, c)) = chars.next() {
+        if at >= pos {
+            break;
+        }
+        if c == '\'' {
+            let next = chars.peek().map(|(_, n)| *n);
+            if open {
+                open = !(prev.is_some_and(|p| !p.is_whitespace())
+                    && next.is_none_or(|n| !n.is_alphanumeric()));
+            } else {
+                open = prev.is_none_or(|p| p.is_whitespace() || matches!(p, '(' | '[' | ':'))
+                    && next.is_some_and(|n| !n.is_whitespace());
+            }
+        }
+        prev = Some(c);
+    }
+    open
 }
 
 /// Settle the sentence-final cadences once every sentence is read. The widest becomes the

@@ -44,6 +44,12 @@ pub(super) struct Saved {
     /// records that had none, whose bytes stay exactly as before.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pending: Option<serde_json::Value>,
+    /// The authoring round whose question waited when the record was written, as a versioned
+    /// round value (`nika_onboard::compile::round`): the one durable copy of a round (the
+    /// project's structured record keeps none), read only by the round schema, kept unchanged
+    /// otherwise. Absent from records that had none, whose bytes stay exactly as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub round: Option<serde_json::Value>,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]

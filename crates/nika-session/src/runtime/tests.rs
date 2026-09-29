@@ -415,7 +415,7 @@ fn the_review_reads_in_sections_and_meaning_holds_the_proposal() {
 ///
 /// The shared first act: a daily copy stated in words, proposed, saved by
 /// a yes; the save declares nothing.
-fn saved_daily_copy(dir: &Path) -> SessionRuntime {
+pub(super) fn saved_daily_copy(dir: &Path) -> SessionRuntime {
     std::fs::create_dir_all(dir.join("notes")).expect("notes");
     std::fs::write(dir.join("notes/brief.md"), "brief\n").expect("brief");
     let mut s = SessionRuntime::open(
@@ -667,11 +667,11 @@ fn why_beside_a_gate_explains_it_and_holds_it() {
     };
     assert!(
         text.contains("paused at `approve`") && text.contains("write_final · writes a file"),
-        "the gated task is named from the bytes: {text}"
+        "the explanation must name the gate and its pending effect"
     );
     assert!(
         text.contains("nothing after the gate has happened yet"),
-        "{text}"
+        "the explanation must distinguish pending effects from completed effects"
     );
     assert!(s.waiting_gate().is_some(), "the gate still waits");
     assert!(matches!(s.turn("/why"), TurnOutcome::Aside(_)));

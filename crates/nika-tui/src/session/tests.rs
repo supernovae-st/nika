@@ -200,11 +200,15 @@ fn the_session_cost_question_is_fresh_and_its_details_answer_nothing() {
     for evidence in [
         "candidate ",
         "invocation session:",
-        "endpoint https://",
+        "origin https://",
         "host ",
     ] {
         assert!(details.contains(evidence), "{evidence}: {details}");
     }
+    assert!(
+        !details.contains("endpoint "),
+        "the route is named by origin: {details}"
+    );
     assert_eq!(
         question(&live.submit(" DETAILS ").beats),
         details,
@@ -290,9 +294,13 @@ fn a_run_review_keeps_its_contract_and_details_leave_the_challenge_untouched() {
     );
     assert!(live.fresh_input_required());
     let details = question(&live.submit("details").beats);
+    assert!(
+        !details.contains("Endpoint:"),
+        "the route line names its origin: {details}"
+    );
     for evidence in [
         "challenge nonce-s90",
-        "Endpoint: https://api.deepseek.com/v1\n",
+        "Origin: https://api.deepseek.com:443\n",
         "Source SHA-256: src-s90\n",
         "Input SHA-256: in-s90\n",
         "Candidate: cand-s90\n",

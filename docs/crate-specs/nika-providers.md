@@ -215,7 +215,8 @@ is honest at tag time.
 - Depends on: `nika-kernel` (the facade — `ai::provider` traits/DTOs ·
   `http` traits · `secret::Secret` · the L1 convention, exec-runner
   precedent) · `nika-catalog` (`providers` feature · profile rows) ·
-  dev-only: tokio + proptest (nothing network-bound).
+  `tokio` (the workspace pin, since 2026-09-28, for `task_local` only: the
+  dispatch journal) · dev-only: proptest (nothing network-bound).
 - Unblocks: **s9 `nika-verb-infer`** (the INFER half of the announce floor) ·
   later `verb-agent` shares it (D-N17's whole point).
 - `nika-native` (in-process candle/mistral.rs · L1.5 step 30) stays a
@@ -286,6 +287,30 @@ account, and `amend` refuses, so an observation never becomes an allowance.
 Its receipt reads `unbudgeted`; its observation carries `"unbudgeted": true`
 and a null limit. Every other receipt and observation keeps its exact shape.
 
+The observation has a reading law, and it lives beside its serializer, in
+`admission::observation` (E33, moved from nika-dap's cost journal, where it was
+written against this serializer). The functions:
+- `observation_readable`: whether a written observation reads at all. At `@1` it
+  checks a known subtotal that parses, an unknown-call count, and one of the
+  three states. At `@2` (the durable form, E35) it reads only a well-formed
+  observation, one `project_observation` returns unchanged. Any other schema
+  never reads.
+- `observation_consistent`: whether a readable observation is one its account
+  could have written, and if so its state and whether any attempt moved it. An
+  observation fails if any of the following holds; each failure has a fixed
+  reason, the one the journal has always used:
+  - it lacks either attempt list;
+  - an attempt cannot have been written by its account;
+  - the known subtotal is negative;
+  - the known subtotal differs from its attempts' sum;
+  - the unknown-call count differs from its sent attempts.
+- `observation_route` and `observation_request_ids`: the route the unknown-cost
+  choice names and every provider request id the attempts record, read by field.
+  The route is `{provider, model, endpoint}` at `@1` and `{provider, model,
+  origin}` at `@2`, read by the observation's schema.
+
+The cost journal keeps its own phase rules, transitions, leases and digests.
+
 Bounded nonstreaming response parsing refuses duplicate decoded object keys before
 usage validation or model binding, including equal duplicates and nested/escaped
 keys. Such ambiguity retains the sent reservation as unknown charge. Unbounded
@@ -302,17 +327,312 @@ Runtime `cost_choice` path is a narrow compatibility export. Moving ownership
 does not change any finite bound, default override, hard-cap refusal, exact route
 or candidate binding, observation format, or the separate subscription plane.
 
+`admission::unknown_cost_route(model, config)` (C4 · 2026-09-28) is the one
+predicate of a Run's monetary class for one API route: `Ok(None)` when a
+qualified admission tariff or a native catalog price admits it, `Ok(Some(route))`
+when its USD cost is unknown (only a fresh choice may admit it), `Err` when
+nothing can judge it. The host's static review and a route rendered at run time
+use it alike, so they cannot drift. `InferenceAdmission::observe_run()` is
+`observe_declared_free()` for a Run whose `model:` may be rendered at run time:
+`ProviderRegistry::resolve` judges the rendered model's exact route, observes a
+declared-free one as before, and refuses before any byte an API route that
+predicate does not admit, since no fresh choice covers a run-time route. The
+refusal is recorded on the receipt and the account stays Open (nothing was
+sent). Local, mock, native catalog-priced and positive-tariff routes keep their
+host policy and transport; `observe_declared_free()` keeps its pass-through for
+library hosts. When a bounded attempt's settlement refuses complete usage
+(output over the requested bound, input over the tariff context, identity or
+incompleteness), its per-dispatch `InferenceCall` drops `estimated_usd` and keeps
+the usage evidence: no frame prices a charge the account holds unknown (E13 F2).
+
+`CostHostEvidence::unknown_cost_refusal()` (B12 · 2026-09-28) returns the
+refusal the evidence itself gives every unknown-cost choice (a hard cap, a
+denied or unknown layer), in the words `CostReview::new` gives, or `None`. A
+host can therefore teach its own cap's remedy beside that refusal only, never
+beside an unrelated shape, lease or witness refusal.
+
 `CostChallenge::display` is the first screen of a fresh Run decision: the
-provider/model and the endpoint's origin, the review's own unknown-USD, request,
-output-token, time, default and hard-cap sentences, the native catalog line
-(never an invoice, never a converted price) and `yes / no / details`.
-`CostChallenge::details` projects the same challenge whole: nonce, full
-endpoint, source and input digests, candidate, invocation, native price and the
-host/cap evidence record. Both read `&self`; neither changes the challenge, its
-nonce or any authority.
+provider/model and the endpoint's origin (the URL parser's, written without its
+scheme's default port), the review's own unknown-USD, request, output-token,
+time, default and hard-cap sentences, the native catalog line (never an invoice,
+never a converted price) and `yes / no / details`. `CostChallenge::details`
+projects the same challenge: nonce, the route's origin with its effective port
+(`CostRoute::origin`, never the path), source and input digests, candidate,
+invocation, native price and the host/cap evidence record, whose review line
+also names the origin (`CostReview::details`). Both read `&self`; neither
+changes the challenge, its nonce or any authority. The serialized challenge
+itself, the host's IPC with its own lane, keeps the exact route.
 
 `CostReview::for_session` applies the Session preparation bounds: at most seven
 requests, 32768 output tokens and 180 seconds per request. The displayed review
-and consuming admission use these same values. `CostReview::new` and
+and consuming admission use these same values. `CostReview::bounds()` answers
+the three together (requests, per-request output tokens, per-request deadline)
+so a host shows the owner's triple, which the confirmed choice enforces as
+`max_requests`, `max_output_tokens` and `timeout_ms`. `CostReview::new` and
 `with_run_requests` retain the Run per-request limits (8192 tokens, 120 seconds);
-unknown outcomes freeze their account and never grant a transport retry.
+unknown outcomes freeze their account and never grant a transport retry (for a
+Run that authored retries, a received 429 or 503 answers its attempt instead:
+see Dispatch multiplicity).
+
+### Dispatch multiplicity (B12 · 2026-09-28)
+
+A confirmed unknown-cost choice bounds two independent quantities: the original
+total of physical requests (`max_requests`) and the requests in flight at once.
+`UnknownCostChoice::with_max_in_flight(n)` and `CostReview::with_concurrency(n)`
+widen the second past its historical one (`0 < n <= total`, otherwise refused).
+Each reservation takes one of both under the account mutex; the total counts
+every reservation, sent or not, and is never recomputed from a remaining
+snapshot. A reservation's in-flight slot is released exactly once: by complete
+settlement, by an answered status, or by its drop. A sequential choice without
+authored retries serializes byte for byte as before; a widened one adds
+`max_in_flight` to its observation, and one whose Run authored retries adds
+`"authored_retry": true`.
+
+`UnknownCostChoice::with_authored_retry()` (`CostReview::with_authored_retry`)
+records that the Run authored retries inside its total. The authorization law
+is explicit: only a typed authored `retry.max_attempts` above one sets it (the
+host's `DispatchBound::authored_retry`). Fan cardinality, the total and schema
+re-asks never set it, and a schema re-ask, being an extra call inside one
+attempt, is never a transport resend. The flag is part of the confirmed choice
+and its observation. The human approves it through the question (the retry
+line), which the CLI challenge and the Serve witness bind. Only for such a
+choice does a 429 or 503 received from the unchanged reserved endpoint answer
+its attempt. Its usage and USD cost stay unknown: it counts in `unknown_calls`
+and is never marked as not billed. The attempt count and the account state are
+kept; in particular, an answer never lifts an Uncertain left by a sibling. An
+authored retry inside the original total may then reserve again, and only while
+the account is Open. Without authored retries the historical law holds and the
+attempt leaves the account Uncertain. Session reviews, and Run reviews with
+single attempts (every legacy V1 review), keep this conservative law explicitly. Any other status, a changed endpoint, an ambiguous transport
+outcome, a cancelled or timed-out send and an identity contradiction always
+leave the account Uncertain. After that, reserved siblings cannot send, new
+reservations are refused whatever slots are free, and responses already in
+flight are still recorded.
+
+`CostReview::with_breakdown(lines)` adds the host's per-task lines to the
+question, followed by the in-flight bound and, for authored retries, the retry
+rule. A review with neither a breakdown, concurrency nor authored retries keeps
+its historical question bytes.
+
+`ExecutionAccessPlan::admits_api_lane(provider)` (C6, descended from Serve's
+cost-review door) answers whether an admitted lane of that canonical provider,
+named by the lane's model prefix, runs on the API access class: the lane whose
+key the executing process itself reads. A host keeps its own words for that
+credential custody (Serve says `HOST_SERVER_MEMORY`).
+
+## Route identity (owner primitives E30, trace projection E32)
+
+`route_identity` is the one owner projection of a provider endpoint under the
+E29 route-identity law: a durable record or a network document names a route
+`{provider, model, origin}`, and the exact endpoint (path, query, userinfo,
+fragment) stays in process memory, in a host's IPC with its own lane and in
+private witness preimages. Origins come from `url::Url::parse`, the WHATWG parse
+the transport connects with (the `nika_types::net` law against hand-rolled URL
+splitting).
+
+- `route_origin(endpoint)`: `scheme://host:port` with the effective port written
+  out, from the parser's own host serialization (lowercase, punycode, bracketed
+  IPv6, normalized IPv4). `None` when the endpoint does not parse, the scheme is
+  not `https` or `http`, or userinfo is present: a credential is refused, never
+  stripped.
+- `canonical_endpoint(endpoint)`: `https`, a host, no userinfo, query or
+  fragment, and byte-identical to its own serialization. A raw form the parser
+  would rewrite (case, an explicit default port, a Unicode host, a backslash, a
+  space) is refused, never normalized.
+- `route_label(route)`: `{provider}/{model} @ {origin}`, a display and
+  aggregation key. Routes of one origin share it; accounting keeps each call's
+  own record, and nothing admits, prices or consents by a label.
+- `durable_calls(calls)`: one JSON object per `InferenceCall` with exactly
+  `requested_origin`, `route {provider, model, origin}`, `usage`,
+  `usage_complete`, `estimated_usd`, `estimate_known`, `request_id`,
+  `response_model`, `pricing` and `withheld`. `estimate_known` is
+  `known_estimate().is_some()`: the ledger's own verdict, a known call being
+  debited under its label and any other counted unpriced, never as zero. The
+  fields are an allowlist: a new `InferenceCall` field stays out until this owner
+  projects it.
+- `durable_pricing(pricing, calls)`: the durable object of one pricing
+  provenance text, or `null` when the text is not JSON or not one of the four
+  kinds a producer writes. The kinds are read from `kind` and `table_schema`:
+  - a catalog tariff or `unknown` observation (`nika/inference-admission@1.1`);
+  - a vendored snapshot estimate (`nika_catalog::PRICING_SCHEMA`);
+  - an operator-declared tariff.
+
+  Each keeps its own keys as written, names its `route` by origin and carries
+  its own `withheld`.
+
+**Bounded schema.** Only named free text is judged: a declared tariff's
+`billing_provider`, `provenance` and `version`, and a call's `request_id` and
+`response_model`. Such a value becomes `null` with an `endpoint_material` entry
+when it holds endpoint material. Endpoint material is an endpoint's tail after
+its authority, as written or as parsed, or its userinfo. It counts in any form
+the E29 oracle scans: raw, with `/` written as `\`, percent-encoded byte by byte
+in either case, or `\u`-escaped. Everything else is copied as its producer wrote
+it and never read: money, meters, states, the selected provider and model, and
+catalog constants.
+
+Diagnostics stay closed. A key outside a kind's frozen set is dropped and
+counted at its parent (`unrecognized_key`). An unknown kind, or a route that is
+not an object, withholds the whole pricing object (`unrecognized_kind`), and
+unparsable text does too (`unreadable`). A `withheld` entry names a schema
+pointer only, never a key, a value or any input text.
+
+**What this claims.** The projected records hold no endpoint path, query,
+fragment or userinfo in the scanned forms, except inside values copied by
+design, whose content is their producer's. A lone path segment that is not the
+whole tail is not judged. This is not a claim that no other field of a trace, a
+journal or a document holds endpoint material.
+
+**Replay.** A projected call keeps its usage, its recorded rates or table pins
+and its estimate, so the numbers survive. Exact tariff applicability needs the
+endpoint; it is not re-verifiable from durable data
+(`applicability_not_reverifiable`). An origin never prices, admits or consents,
+and no repricer exists.
+
+### Durable cost observation (E35 · W9 with amendments A1, A8-A10)
+
+`project_observation(observation)` is the durable form of an account's cost
+observation, `nika/inference-cost-observation@2`, and
+`InferenceReceipt::durable_observation()` is `project_observation` of the
+receipt's own `observation()`, which stays the exact `@1` in memory. The closed
+schema follows W9 with B12's `max_in_flight` and `authored_retry` (A1):
+- every endpoint (the choice's, a declared tariff's, a catalog attempt's, a
+  pricing route's) becomes its `origin`;
+- money, counters, states, ids, bounds, catalog constants and usage are copied as
+  written, after a type check against the account's own serialization;
+- the named free text is judged as above, and in an observation also its
+  `refusal` and each attempt's `note` (A10), against the material of every
+  endpoint the observation names; the account's own phrases are kept byte for
+  byte;
+- a pricing object follows the W2-W5 kinds and keeps its own `withheld`; one
+  whose projection the `@2` reading refuses (a key of another type) makes the
+  `@1` malformed, so what an `@1` projects to always reads back as itself.
+
+`withheld` names each withheld field by its instance pointer
+(`/unknown_attempts/0/request_id`) and counts an object's unknown keys at that
+object (`/unknown_attempts/1`), never naming them (A8). A pointer is built from
+the schema's static key names and array indices only; no key needs escaping. An
+`@2` is returned unchanged only when it is exactly what a projection writes:
+known keys with their types, canonical origins, and a sorted `withheld` that
+lists null text, null pricing or objects it holds. Anything else, another schema
+or a malformed `@1` or `@2`, is `None`, which the reading law refuses as
+unreadable and never repairs (A9). `project_route(route)` names a recorded route
+by origin (W11). `UnknownCostChoice::origin`, `AttemptReceipt::origin` and
+`BillingRoute::origin` give an exact endpoint's origin.
+
+The claim is the bounded one above, on this schema: a lone path segment that is
+not the whole tail, and values copied by design, are their producer's. Runtime's
+terminal receipt, the Host's new Run-journal observations and Session's new record
+entries use this projection. Historical rows, their derived observations and
+reconciliations, and Session entries recorded earlier remain separate migrations;
+no old record is rewritten.
+
+### Canonical unknown-cost route (E35)
+
+An unknown-cost route binds only a canonical endpoint. `CostRoute::observe`
+refuses one that is not (`canonical_endpoint`: a form the URL parser would
+rewrite, such as a backslash, case, an explicit default port, a raw Unicode host,
+a space or no path, and any userinfo, query or fragment) before a review exists,
+naming at most its origin; `UnknownCostChoice::new` refuses it too, and still
+refuses an `@` anywhere, so no endpoint it refused before is accepted now. No
+review, choice or account can then name it, so nothing is sent.
+`CostRoute::origin` is `route_origin` (`unknown origin` when there is none), so
+the first screen, the details and the served review document name the origin the
+transport dials, and a backslash path never reaches them. Tariff selection is
+unchanged: `BillingRoute::new`, `InferenceTariff::new` and the snapshot estimate
+keep the exact endpoint, and a default catalog route is canonical already.
+
+The runtime's trace writers call `durable_calls`, `durable_pricing` and
+`route_label` (E32). The terminal account receipt, new Host Run-journal rows and
+Session's new record entries use `project_observation`, and Session's in-flight line
+names the route's origin; retry, wire and legacy cost rows keep their current
+projections until later slices replace them. Exact in-memory identity
+is unchanged: pricing, route checks, consent and witnesses keep the full
+endpoint. `InferenceCall` and `InferenceRoute` keep their serde. The origin-only
+display follows the root decisions on the E29 tradeoffs: same-origin aggregation
+is presentation only (T1), and an explicit HTTP default port differs from the
+effective-port display (T8). Legacy journal and inspection projection (T4, T7)
+is a separate, versioned proposal.
+
+## Opt-in local model listing
+
+`probe::probe_model_listing` sends one bodyless GET through the kernel HTTP seam.
+`ModelListing` distinguishes unobserved transport, incompatible HTTP/JSON, an empty
+compatible list and advertised models. Duplicate fields, malformed rows, redirects,
+changed endpoints and bounded-size/cardinality violations never establish availability.
+The host supplies the no-retry transport and opts in. `ProviderReadiness.model_listing`
+is additive; the existing constructor initializes it absent. `model_available` means
+an advertised model exists, not that a selected model supports inference or authoring.
+
+## Local preflight address
+
+`probe::ping_addr` derives the connect-only address that `nika doctor` pings and that
+the B-5 run gate (`local_run_gate`) dials and prints. It uses `url::Url::parse`, the
+WHATWG parse the transport connects with, so the probe dials what the run would hit:
+a validated host (IPv6 in brackets) and the explicit or default `http`/`https` port.
+A backslash, query or fragment after the authority is parsed like a path, query or
+fragment, never read as part of the address, so none of them reaches a refusal.
+Userinfo never does either. Another scheme or an unparseable URL gives `None`:
+nothing is dialed, the doctor lists no ping, and the gate does not apply, so the
+transport's own error stays the answer.
+
+OpenAI-compatible usage requires both prompt and completion counts to parse as unsigned integers. Missing, partial, negative, fractional or string-valued pairs remain unreported at the single-response door and emit no Usage frame at the stream door. Explicit integer zero remains an observed zero. This base-token observation is separate from `usage_completeness`, whose existing tariff-meter validation remains unchanged.
+
+`authoring::redact_authoring_error` projects provider failures without remote text. Local AdmissionDenied keeps its type and only an engine-authored remedy. The Host compatibility re-export shares this exact projection with CLI, Session and Serve; it adds no call, retry or monetary authority.
+
+## Dispatch journal (B7 · 2026-09-28)
+
+`dispatch_journal::DispatchJournal::observe(dispatch, lost)` runs one dispatch
+with its physical requests recorded where the dispatch's own future cannot
+take them down: a `fail_fast` sibling or a `timeout:` drops the future, not the
+request it sent. The registry opens an entry before each wire call (pre-send),
+the wire marks it sent at its send point (nothing awaits before its post), and
+the registry settles it with the returned `InferenceCall` or withdraws it when
+the wire refused first. A dispatch that returns calls nothing; one dropped first
+hands `lost` every sent or returned request, once. A pre-send entry is never
+reported as sent. Outside `observe`, nothing is recorded, so unscoped callers
+are unchanged. The runtime scopes each attempt, and a nested workflow's
+attempts keep their own scope. The scope is a `tokio::task_local`, the only
+production use of this crate's tokio edge.
+
+## Model-spend computation (descended 2026-09-28)
+
+`spend::{spend_for_calls, price_failed_spend, spend_for_model}` turn the
+per-dispatch `InferenceCall` evidence this crate produces into a known USD
+subtotal and the honest-absence reason for the rest. They descended verbatim
+from `nika-runtime`'s `dispatch/spend.rs` at the runtime's 15k wall, beside the
+tariffs and settlement refusals they read. Their bodies descended unchanged;
+the per-call reason was split out afterwards (below). The
+runtime's dispatch seam calls them, and it keeps `failed_usage_split`, which
+builds the runtime's own usage receipt.
+
+The reason a call carries no known estimate (E17-F4, B7) is read from its own
+evidence, never from a fresh catalog lookup:
+- missing or partial meters: `provider_did_not_report_usage`;
+- complete meters while the pricing provenance recorded at dispatch names a
+  USD tariff (catalog or operator-declared): `usage_rejected`. The settlement
+  refused the usage (over the admitted output bound or context, another
+  response model, contradictory meters), and the wire cleared the estimate;
+- otherwise, no USD price for the route (`unknown` provenance, another
+  currency, no safe route): `missing_catalog_price`.
+
+A snapshot-priced route whose usage is rejected before pricing records
+`unknown` provenance and still reads as `missing_catalog_price`. That label
+lives in `retry/billing.rs`, which this change leaves untouched.
+
+## Explicit reasoning effort on qualified routes
+
+An explicit `InferRequest.reasoning_effort` is admitted only when the model's
+catalog lists the requested level and the exact provider, model and endpoint
+match a catalogued direct route. The current qualified model is
+`deepseek/deepseek-v4-pro`; the adapter writes `thinking: {type: enabled}` and
+the requested `reasoning_effort` word. An unqualified endpoint override, alias
+or other model refuses before admission reservation and dispatch. Conflicting
+raw reasoning keys or a thinking-token budget refuse too. The Anthropic, Gemini
+and mock adapters refuse an explicit level rather than silently dropping it.
+
+Without an explicit level, existing route behavior remains: some short
+structured DeepSeek requests receive `low`. A larger output cap never means
+MAX. Buffered responses carry `ReasoningWire` read from the actual serialized
+body immediately before HTTP dispatch; this says what was transmitted, never
+what internal effort the server served. Streaming shares the admission and
+serialization law but does not add a buffered-response evidence field.

@@ -23,6 +23,12 @@ pub(super) enum DutyKind {
     Transformation,
     /// A row selection stated as a rule (a computation whose typed rule keeps or drops rows).
     Filter,
+    /// A count of rows the request states (R4 A3): witnessed by the emitted computation.
+    Count,
+    /// An order the request states: a sort's key and direction (R4 A3).
+    Order,
+    /// The number of rows the request keeps: a cut (R4 A3).
+    Limit,
     /// A change to the outside world: a write, a send, a publish, a payment…
     Effect,
     /// A human gate that must dominate an effect.
@@ -54,6 +60,9 @@ impl DutyKind {
         match self {
             Self::Transformation => "transformation",
             Self::Filter => "filter",
+            Self::Count => "count",
+            Self::Order => "order",
+            Self::Limit => "limit",
             Self::Effect => "effect",
             Self::Gate => "gate",
             Self::Format => "format",
@@ -83,6 +92,9 @@ pub(super) enum DutyState {
     Unsupported,
     /// A demand the compiler refuses to carry (a prohibited effect is refused by omission).
     Refused,
+    /// Stated, and the candidate may carry it, but no law reads from its bytes that it does
+    /// (R4 A11): a judgment bound to the very candidate settles it; nothing READY before.
+    Pending,
 }
 
 impl DutyState {
@@ -94,6 +106,34 @@ impl DutyState {
             Self::Contradicted => "contradicted",
             Self::Unsupported => "unsupported",
             Self::Refused => "refused",
+            Self::Pending => "pending",
+        }
+    }
+}
+
+/// What shows that a duty is carried (R4 A11). The typed reading of the emitted program, a
+/// named element and the human's own answered program are read from the bytes; a step's words
+/// restating the duty (a label) and a task carrying words no law reads are not, and wait for a
+/// judgment bound to the candidate.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum WitnessKind {
+    Typed,
+    Element,
+    Answered,
+    Label,
+    Unverified,
+    Judged,
+}
+
+impl WitnessKind {
+    pub(super) const fn word(self) -> &'static str {
+        match self {
+            Self::Typed => "typed",
+            Self::Element => "element",
+            Self::Answered => "answered",
+            Self::Label => "label",
+            Self::Unverified => "unverified",
+            Self::Judged => "judged",
         }
     }
 }
@@ -109,6 +149,12 @@ pub(super) struct Duty {
     pub realized_by: Option<String>,
     /// Why the duty is in its state when the state is not the plain unresolved one.
     pub note: Option<String>,
+    /// A typed operation's place in the order the request states it (R4 A3).
+    pub position: Option<usize>,
+    /// The source fields a typed operation reads.
+    pub reads: Vec<String>,
+    /// What shows the duty carried, once it is claimed (R4 A11).
+    pub witness: Option<WitnessKind>,
 }
 
 impl Duty {
@@ -119,6 +165,100 @@ impl Duty {
             state: DutyState::Unresolved,
             realized_by: None,
             note: None,
+            position: None,
+            reads: Vec::new(),
+            witness: None,
+        }
+    }
+    /// Stated work a task carries with no typed witness (R4 A3): claimed by `by`, said to be
+    /// unverified, and pending a judgment of the candidate (R4 A11).
+    pub(super) fn unverified(kind: DutyKind, evidence: &str, by: &str, why: &str) -> Self {
+        let mut duty = Self::new(kind, evidence);
+        duty.claim(by, &format!("unverified: {why}"), WitnessKind::Unverified);
+        duty
+    }
+    /// A conversion the reader's own law reads whole from its words (the identity a replay binds
+    /// by that same law): typed when the task runs it, with no operation to hold (R4 A11).
+    pub(super) fn conversion(evidence: &str, by: &str, runs: bool) -> Self {
+        let mut duty = Self::new(DutyKind::Transformation, evidence);
+        if runs {
+            duty.realize(
+                by,
+                Some("the conversion its words state, read by the reader's own law"),
+            );
+            duty.witness = Some(WitnessKind::Typed);
+        } else {
+            duty.note = Some(format!(
+                "`{by}` does not run the conversion its words state"
+            ));
+        }
+        duty
+    }
+    /// A program the human answered as written carries the stated computation: the answer is
+    /// the human's own, no typed reading checks it.
+    pub(super) fn answered(kind: DutyKind, evidence: &str, by: &str) -> Self {
+        let mut duty = Self::new(kind, evidence);
+        duty.realize(
+            by,
+            Some("the answered program runs as written; no typed reading checks it"),
+        );
+        duty.witness = Some(WitnessKind::Answered);
+        duty
+    }
+    /// A clause of the request no duty and no element of the plan names (R4 A11): pending,
+    /// since a judgment of the candidate may still find it carried or asking for nothing.
+    pub(super) fn omitted(clause: &str) -> Self {
+        let mut duty = Self::new(DutyKind::Work, clause);
+        duty.state = DutyState::Pending;
+        duty.note =
+            Some("the request states this clause and no element of the plan names it".to_owned());
+        duty
+    }
+    /// The whole request, for a candidate a model's plan produced (R4 A11): no law reads it
+    /// whole from the bytes, so it waits for a judgment of the candidate against it.
+    pub(super) fn whole(intent: &str) -> Self {
+        let mut duty = Self::new(DutyKind::Work, intent);
+        duty.state = DutyState::Pending;
+        duty.note = Some("the whole request, judged against the candidate".to_owned());
+        duty
+    }
+    /// Claimed by `by` without a witness read from the bytes: pending a judgment (R4 A11).
+    pub(super) fn claim(&mut self, by: &str, note: &str, witness: WitnessKind) {
+        self.state = DutyState::Pending;
+        self.realized_by = Some(by.to_owned());
+        self.note = Some(note.to_owned());
+        self.witness = Some(witness);
+    }
+    /// Settled by a judgment bound to the candidate (R4 A11): carried, or asking for nothing.
+    pub(super) fn judge(&mut self, by: &str, note: String) {
+        self.state = DutyState::Realized;
+        self.realized_by = Some(by.to_owned());
+        self.note = Some(note);
+        self.witness = Some(WitnessKind::Judged);
+    }
+    /// An operation the emitted computation runs that the request does not state (R4 A3): never
+    /// realized, so nothing is READY with it.
+    pub(super) fn unstated(kind: DutyKind, evidence: &str, reads: Vec<String>) -> Self {
+        Self {
+            reads,
+            ..Self::new(kind, evidence)
+        }
+        .with_state(
+            DutyState::Unresolved,
+            "the emitted computation runs this operation, which the request does not state",
+        )
+    }
+    /// A typed operation of a computation, at its place in the order the request states it.
+    pub(super) fn typed(
+        kind: DutyKind,
+        evidence: &str,
+        position: usize,
+        reads: Vec<String>,
+    ) -> Self {
+        Self {
+            position: Some(position),
+            reads,
+            ..Self::new(kind, evidence)
         }
     }
     fn with_state(mut self, state: DutyState, note: &str) -> Self {
@@ -131,15 +271,28 @@ impl Duty {
         self.state = DutyState::Realized;
         self.realized_by = Some(by.to_owned());
         self.note = note.map(str::to_owned);
+        self.witness = Some(WitnessKind::Element);
     }
     pub(super) fn to_json(&self) -> Value {
-        json!({
+        let mut duty = json!({
             "kind": self.kind.word(),
             "evidence": self.evidence,
             "state": self.state.word(),
             "realized_by": self.realized_by,
             "note": self.note,
-        })
+        });
+        if let Some(position) = self.position {
+            duty["position"] = json!(position);
+            duty["reads"] = json!(self.reads);
+        }
+        // Read from the bytes (typed, element) goes unsaid; anything else is named (R4 A11).
+        if let Some(witness) = self
+            .witness
+            .filter(|w| !matches!(w, WitnessKind::Typed | WitnessKind::Element))
+        {
+            duty["witness"] = json!(witness.word());
+        }
+        duty
     }
 }
 
@@ -148,6 +301,14 @@ impl Duty {
 fn constraint_duty(constraint: &str) -> Duty {
     if !super::structure::laws(constraint).is_empty() {
         return Duty::new(DutyKind::Structure, constraint);
+    }
+    // A selection of the material's rows the rule grammar could not read (R4 A10): requested
+    // work, named, never realized by the material nor by a prompt's guidance.
+    if super::structure::selection_demand(constraint) {
+        return Duty::new(DutyKind::Work, constraint).with_state(
+            DutyState::Unresolved,
+            "a selection of the rows the rule grammar cannot read; a restated rule or a model must carry it",
+        );
     }
     if super::structure::context_statement(constraint) {
         let mut duty = Duty::new(DutyKind::Context, constraint);
@@ -260,6 +421,16 @@ impl Ledger {
     pub fn extract_reading(reading: &Reading) -> Self {
         let mut ledger = Self::extract(&reading.plan);
         for clause in &reading.unresolved {
+            // An unread selection is filed as a constraint, whose duty is already the unresolved
+            // work it names, and as unresolved so HOT defers it (R4 A10): one duty.
+            let named = |duty: &Duty| {
+                duty.kind == DutyKind::Work
+                    && duty.state == DutyState::Unresolved
+                    && duty.evidence == clause.trim()
+            };
+            if ledger.duties.iter().any(named) {
+                continue;
+            }
             ledger.duties.push(Duty::new(DutyKind::Work, clause));
         }
         for ambiguity in &reading.ambiguous {
@@ -292,6 +463,49 @@ impl Ledger {
             .filter(|d| d.state == DutyState::Unresolved)
     }
 
+    /// The duties the candidate may carry that no law reads from its bytes (R4 A11): a
+    /// judgment bound to the candidate settles each, nothing READY before.
+    pub(super) fn pending(&self) -> impl Iterator<Item = &Duty> {
+        self.duties.iter().filter(|d| d.state == DutyState::Pending)
+    }
+
+    /// Every clause of the whole request the reader saw, or could not settle, that no duty and
+    /// no element of the plan names (R4 A11): pending work, never dropped. The accounting is
+    /// HOT's own (a text containing the clause, or contained in it), so a plan the reader
+    /// admitted itself names every clause; a seat's plan may leave one out, or file it under a
+    /// label that produces nothing.
+    pub(super) fn cover(&mut self, intent: &str, plan: &Plan) {
+        let reading = super::lexicon::read(intent);
+        let mut omitted: Vec<Duty> = Vec::new();
+        for clause in reading.seen.iter().chain(&reading.unresolved) {
+            let clause = clause.trim();
+            let named = |text: &str| {
+                let text = text.trim();
+                !text.is_empty() && (text.contains(clause) || clause.contains(text))
+            };
+            let carried = self.duties.iter().any(|d| named(&d.evidence))
+                || plan
+                    .steps
+                    .iter()
+                    .any(|s| named(&s.evidence) || named(&s.detail))
+                || plan
+                    .effects
+                    .iter()
+                    .any(|e| named(&e.evidence) || e.policy_literal.as_deref().is_some_and(named))
+                || plan.obligations.iter().any(|o| named(&o.evidence))
+                || plan.rules.iter().any(|r| named(r.text()))
+                || plan.constraints.iter().any(|c| named(c))
+                || plan.bindings.iter().any(|b| named(&b.literal))
+                || plan.trigger.as_deref().is_some_and(named)
+                || reading.policy_clauses.iter().any(|c| named(c));
+            if clause.is_empty() || carried || omitted.iter().any(|d| d.evidence == clause) {
+                continue;
+            }
+            omitted.push(Duty::omitted(clause));
+        }
+        self.duties.extend(omitted);
+    }
+
     /// The duties the request itself makes impossible to honour together.
     pub(super) fn contradicted(&self) -> impl Iterator<Item = &Duty> {
         self.duties
@@ -302,6 +516,86 @@ impl Ledger {
     /// The provenance projection: observational, never authority.
     pub(super) fn to_json(&self) -> Value {
         json!(self.duties.iter().map(Duty::to_json).collect::<Vec<_>>())
+    }
+}
+
+/// What a judgment of a pending clause is bound to (R4 A11): the request as compiled and as
+/// first stated, its answers, the world the host observed, the plan and the candidate's exact
+/// bytes, each by sha256. The core recomputes it from what it compiles, never reads it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Binding {
+    pub request: String,
+    pub original: Option<String>,
+    pub answers: String,
+    pub observed: String,
+    pub plan: String,
+    pub candidate: String,
+}
+
+impl Binding {
+    /// The binding of `candidate`, compiled from `plan` for `intent` under `request`.
+    #[must_use]
+    pub fn of(intent: &str, request: &super::CompileRequest, plan: &Plan, candidate: &str) -> Self {
+        let sha = super::surface::sha256;
+        let observed = request.knowledge.clone().unwrap_or(Value::Null);
+        let stated = match &request.input {
+            super::Input::Create(text) if text != intent => Some(text.as_str()),
+            _ => None,
+        };
+        Self {
+            request: sha(intent),
+            original: request.original_intent.as_deref().or(stated).map(sha),
+            answers: sha(&json!(request.answers).to_string()),
+            observed: sha(&observed.to_string()),
+            plan: sha(&plan.to_json().to_string()),
+            candidate: sha(candidate),
+        }
+    }
+}
+
+/// How a judge settled a pending clause (R4 A11): the candidate carries it, or the clause asks
+/// for no operation at all, never admitted on a clause that restricts or conditions.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Disposition {
+    Carried,
+    NoOperation,
+}
+
+/// One judgment a judge's seat made over one pending clause (R4 A11): it settles the duty whose
+/// excerpt and span it names only under the binding the core recomputes, a binding of context
+/// and bytes, not a round nonce. A record carrying a judgment is data, never one.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Judgment {
+    pub clause: String,
+    pub span: (usize, usize),
+    pub disposition: Disposition,
+    pub seat: String,
+    pub question: String,
+    pub binding: Binding,
+}
+
+impl Judgment {
+    /// A judgment of `clause` at `span` of the request, by `seat` answering `question`.
+    #[must_use]
+    pub fn new(
+        clause: &str,
+        span: (usize, usize),
+        disposition: Disposition,
+        seat: &str,
+        question: &str,
+        binding: Binding,
+    ) -> Self {
+        Self {
+            clause: clause.to_owned(),
+            span,
+            disposition,
+            seat: seat.to_owned(),
+            question: question.to_owned(),
+            binding,
+        }
     }
 }
 
@@ -500,6 +794,31 @@ mod tests {
         assert_eq!(json[0]["state"], "unresolved");
         assert_eq!(json[0]["evidence"], "do the thing");
         assert!(json[0]["realized_by"].is_null());
+    }
+
+    /// An unread selection is filed both as a constraint and as unresolved (R4 A10): the ledger
+    /// names it once, with the constraint's reason; other unresolved work stays its own duty.
+    #[test]
+    fn an_unread_selection_filed_twice_is_one_duty() {
+        let clause = "keep the rows whose status is a";
+        let mut reading = Reading::default();
+        reading.plan.constraints.push(clause.to_owned());
+        reading.unresolved.push(clause.to_owned());
+        reading.unresolved.push("do the thing".to_owned());
+        let ledger = Ledger::extract_reading(&reading);
+        assert_eq!(
+            kinds(&ledger),
+            [
+                (DutyKind::Work, DutyState::Unresolved),
+                (DutyKind::Work, DutyState::Unresolved),
+            ]
+        );
+        let json = ledger.to_json();
+        assert_eq!(json[0]["evidence"], clause);
+        let note = json[0]["note"].as_str().unwrap_or_default();
+        assert!(note.starts_with("a selection of the rows"), "{json:#}");
+        assert_eq!(json[1]["evidence"], "do the thing");
+        assert!(json[1]["note"].is_null());
     }
 
     #[test]

@@ -869,6 +869,9 @@ fn serve_stops_a_pending_native_round_on_sigterm_without_a_repair() {
             "vllm/s06-seat",
             "--authoring-repairs",
             "1",
+            // 3 + repairs (nv1b): the candidate, its repair and the judge's two questions.
+            "--authoring-max-calls",
+            "4",
         ],
         &[("NIKA_VLLM_BASE_URL", base.as_str())],
     );
@@ -906,9 +909,8 @@ fn serve_stops_a_pending_native_round_on_sigterm_without_a_repair() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
-/// A resident job cannot obtain a fresh Run cost review, so an admitted API route whose price
-/// needs one (an OpenAI-compatible override on plain HTTP, which `nika run` refuses before
-/// dispatch) refuses before the worker starts: the job settles failed with `admission_refused`,
+/// An OpenAI-compatible override on plain HTTP fails the exact-HTTPS route admission before
+/// a cost review or a worker can start: the job settles failed with `admission_refused`,
 /// the provider sees no request and the local task ordered before the inference leaves no marker.
 #[cfg(unix)]
 #[test]
@@ -993,7 +995,7 @@ fn an_unreviewed_api_route_refuses_before_any_job_effect() {
     assert!(
         settled["error"]["message"]
             .as_str()
-            .is_some_and(|message| message.contains("price unknown")),
+            .is_some_and(|message| message.contains("exact HTTPS route and model")),
         "{settled}"
     );
     assert!(

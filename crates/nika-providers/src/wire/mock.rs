@@ -119,6 +119,32 @@ pub(crate) fn infer<H>(rp: &ResolvedProvider<H>, request: &InferRequest) -> Infe
     resp
 }
 
+/// The mock's dispatch door (R4 B16): the mock is no qualified route for an explicit reasoning
+/// effort, so a request naming one is refused before anything is answered; any other request
+/// gets the deterministic [`infer`] answer.
+///
+/// # Errors
+/// [`ProviderError::AdmissionDenied`] when the request names a reasoning effort.
+pub(crate) fn answer<H>(
+    rp: &ResolvedProvider<H>,
+    request: &InferRequest,
+) -> Result<InferResponse, ProviderError> {
+    super::reasoning::unsupported(request, rp.profile.id, rp.wire_model())?;
+    Ok(infer(rp, request))
+}
+
+/// The streaming dispatch door, refusing an explicit effort as [`answer`] does.
+///
+/// # Errors
+/// [`ProviderError::AdmissionDenied`] when the request names a reasoning effort.
+pub(crate) fn answer_stream<H>(
+    rp: &ResolvedProvider<H>,
+    request: &InferRequest,
+) -> Result<InferEventStream, ProviderError> {
+    super::reasoning::unsupported(request, rp.profile.id, rp.wire_model())?;
+    Ok(infer_stream(rp, request))
+}
+
 /// Deterministic 3-delta stream: the response text split in three, then
 /// `Usage`, then `Done`.
 pub(crate) fn infer_stream<H>(

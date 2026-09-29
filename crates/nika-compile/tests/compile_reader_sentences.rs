@@ -14,6 +14,8 @@ use nika_compile_reader::plan::{EffectPolicy, EffectVerb, Op};
 use serde_json::Value;
 
 const DIGEST_FR: &str = "fais-moi un digest des notes dans ./notes et écris-le dans ./digest.md";
+
+mod common;
 const RESUME_FR: &str =
     "Lis ./notes/brief.md, rédige un résumé en 3 puces et écris ce résumé dans ./out/resume.md";
 const TRANSLATE_FR: &str =
@@ -354,7 +356,10 @@ fn a_question_is_a_conversation_never_a_rule_read_whole() {
         "Read ./sales.csv, count the rows per client and write the counts to ./per-client.json",
         "Read ./notes/brief.md and write it to ./out/copy.md?",
     ] {
-        let out = compile(&CompileRequest::create(headed)).expect("compile");
+        let tickets: &[&str] = &["id", "status"];
+        let sales: &[&str] = &["client", "amount"];
+        let world = common::observed(&[("./tickets.json", tickets), ("./sales.csv", sales)]);
+        let out = compile(&CompileRequest::create(headed).with_knowledge(world)).expect("compile");
         assert_eq!(out.status, CompileStatus::Ready, "{headed}: {out:#?}");
     }
 }

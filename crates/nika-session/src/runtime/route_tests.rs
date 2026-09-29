@@ -89,6 +89,61 @@ fn session_with(classifier: Box<dyn TurnClassifier>) -> (tempfile::TempDir, Sess
     (dir, s)
 }
 
+/// The real host installs a factory even for the persisted "none" choice.
+/// That choice is a protocol fallback, never a failed model classification.
+#[test]
+fn a_none_factory_is_not_called_to_classify_a_typed_model_answer() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+    let dir = tree();
+    std::fs::create_dir_all(dir.path().join("notes")).expect("notes");
+    std::fs::write(dir.path().join("notes/brief.md"), "brief\n").expect("brief");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&calls);
+    let pref = crate::intelligence::UserIntelligencePreference::new(IntelligenceKind::None, None);
+    let mut session = SessionRuntime::open_with(
+        dir.path(),
+        crate::intelligence::IntelligenceCensus {
+            seats: vec![],
+            api_keys: vec![],
+            locals: vec![],
+        },
+        &pref,
+        None,
+        Box::new(move |_| {
+            counted.fetch_add(1, Ordering::SeqCst);
+            Box::new(NoReasoner)
+        }),
+    );
+    assert_eq!(calls.load(Ordering::SeqCst), 1, "initial host composition");
+    assert!(matches!(
+        session.turn("Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md"),
+        TurnOutcome::Question { .. }
+    ));
+    let answer = session.turn("mock/echo");
+    assert!(
+        matches!(answer, TurnOutcome::Proposal { ref preview, .. } if preview.contains("infer · mock/echo")),
+        "{answer:?}"
+    );
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "no conversational seat requested"
+    );
+    assert!(
+        !dir.path().join("compiled-workflow.nika").exists(),
+        "review is not consent"
+    );
+    assert!(
+        session
+            .routes
+            .iter()
+            .any(|r| r.method == RoutingMethod::Protocol)
+    );
+}
+
 #[test]
 fn a_cancel_label_discards_the_proposal_without_granting_any_effect() {
     let (dir, mut s) = session_with(Box::new(Scripted(BTreeMap::from([(
@@ -263,9 +318,10 @@ fn a_run_line_with_a_change_in_it_is_not_a_run() {
 }
 
 /// At a question: a question about the question explains it and it still
-/// waits; without intelligence a line is the answer (the fallback binds).
+/// waits; without intelligence the question's declared protocol takes the
+/// line as typed (an ANSWER by protocol, never because UNKNOWN binds).
 #[test]
-fn at_a_question_a_question_explains_and_the_fallback_binds() {
+fn at_a_question_a_question_explains_and_the_declared_protocol_binds() {
     let (_dir, mut s) = session_with(Box::new(corpus()));
     let intent = "Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md";
     let TurnOutcome::Question { key, .. } = s.turn(intent) else {
@@ -279,8 +335,8 @@ fn at_a_question_a_question_explains_and_the_fallback_binds() {
     assert!(s.pending_question().is_some(), "the question still waits");
     // An ANSWER binds to the pending key: the question is answered.
     assert!(matches!(s.turn("mock/echo"), TurnOutcome::Proposal { .. }));
-    // Without any intelligence the fallback binds a line as the answer too
-    // (a short line at a question is the answer more often than not).
+    // Without any intelligence nothing reads a reply: the question's declared
+    // protocol takes the line as typed (recorded as ANSWER · Protocol).
     let (_dir2, mut f) = session_with(Box::new(ConservativeFallback));
     assert!(matches!(f.turn(intent), TurnOutcome::Question { .. }));
     // …except a line that ends with `?`: the hint decides only here, when
@@ -474,7 +530,11 @@ fn an_unpriced_cloud_model_is_refused_at_the_question_in_words() {
     assert!(super::authoring::unpriced_model_text("mock/echo").is_none());
     assert!(super::authoring::unpriced_model_text("five lines").is_none());
     // At the question: refused in words, the round waits; a passing answer binds.
-    let (_dir, mut s) = session_with(Box::new(corpus()));
+    // The route reads each model name as the ANSWER it is (UNKNOWN would bind nothing).
+    let (_dir, mut s) = session_with(Box::new(Scripted(BTreeMap::from([
+        ("deepseek/deepseek-unpriced-v0", TurnAct::Answer),
+        ("mock/echo", TurnAct::Answer),
+    ]))));
     let TurnOutcome::Question { key, .. } = s.turn(
         "Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md",
     ) else {

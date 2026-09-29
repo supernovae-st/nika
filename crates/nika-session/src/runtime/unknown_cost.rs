@@ -58,12 +58,12 @@ impl SessionRuntime {
     pub fn cost_observations(&self) -> Vec<serde_json::Value> {
         let mut observations = self.unknown_cost.observations.clone();
         if let Ok(Some(receipt)) = self.inference_receipt() {
-            observations.push(receipt.observation());
+            observations.push(receipt.durable_observation());
         }
         if let Ok(receipt) = self.money.observed.snapshot()
             && !receipt.attempts.is_empty()
         {
-            observations.push(receipt.observation());
+            observations.push(receipt.durable_observation());
         }
         if let Some(setup) = self.authoring_context.decision() {
             observations.extend(setup.observations());
@@ -184,7 +184,18 @@ impl SessionRuntime {
             && self.authoring.is_none()
             && !crate::authoring::is_greeting(input)
         {
-            let round = crate::authoring::AuthoringRound::new(input);
+            // The line's own monetary directives, read as its round reads them once admitted
+            // (R4 A6); a malformed ceiling is the money gate's to refuse, precisely, next. An
+            // explicit zero forbids every call on any route: no review is staged for it, and its
+            // deterministic reading, question or refusal with the reader's reasons follows.
+            let Ok(found) = super::money_parse::directives(input) else {
+                return Ok(());
+            };
+            if found.money.amount == Some(0.0) {
+                return Ok(());
+            }
+            let mut round = crate::authoring::AuthoringRound::new(input);
+            round.money = found.found.into_iter().map(|d| d.span).collect();
             if let Ok(out) = crate::authoring::compile_deterministic(&round.request())
                 && matches!(
                     crate::authoring::Reading::of(out),
@@ -196,13 +207,13 @@ impl SessionRuntime {
                 return Ok(());
             }
         }
-        if self
-            .authoring
-            .as_ref()
-            .is_some_and(|r| r.continuation.is_some())
-        {
-            // A plan replay has no authority to call a provider; the cognition
-            // guard below remains closed unless a fresh review is active.
+        if (self.authoring.as_ref()).is_some_and(|r| {
+            let local = input.trim_end().ends_with('?');
+            r.current()
+                .map_or(local, |q| super::answer::owes_no_review(q, input))
+        }) {
+            // A line bound with no reading, or a question, owes no review; any other line waits for
+            // the chosen seat's one-time review, which a restored exposure refuses (F2).
             return Ok(());
         }
         let route = match self.selected_cost_route() {
@@ -237,7 +248,7 @@ impl SessionRuntime {
                     return Err("a previous dispatch may have been billed; automatic retry and a replacement allowance are blocked".into());
                 }
             }
-            let parsed = super::money_parse::parse(input).map_err(str::to_owned)?;
+            let parsed = super::money_parse::directives(input)?.money;
             if parsed.amount == Some(0.0) {
                 return Err(
                     "the explicit zero constraint forbids this call; no request was sent".into(),
@@ -291,18 +302,11 @@ impl SessionRuntime {
         let Some(pending) = self.unknown_cost.pending.take() else {
             return cost_refusal("no cost review waits".into());
         };
-        // One grammar with the Run's cost decision (EN/FR): an unknown line
-        // is asked again with the same review — it never approves, never
-        // spends and never silently cancels.
+        // One grammar with the Run's cost decision (EN/FR): an unknown line is asked again with the
+        // same review — it never approves, never spends and never silently cancels.
         match super::decision_answer(answer) {
             super::DecisionAnswer::Approve => {}
-            super::DecisionAnswer::Decline => {
-                self.pending = None;
-                self.money.pending = None;
-                self.authoring = None;
-                self.revising = None;
-                return TurnOutcome::Facts("Unknown-cost request cancelled; nothing sent. Describe the next request to review it afresh.".into());
-            }
+            super::DecisionAnswer::Decline => return self.declined_review(),
             super::DecisionAnswer::Details => {
                 self.unknown_cost.pending = Some(pending);
                 return TurnOutcome::Facts(self.cost_choice_details().unwrap_or_default());
@@ -331,8 +335,8 @@ impl SessionRuntime {
             Err(e) => return cost_refusal(e),
         };
         if let Some(old) = self.money.account.take() {
-            if let Ok(receipt) = old.snapshot() {
-                self.unknown_cost.observations.push(receipt.observation());
+            if let Ok(kept) = old.snapshot().map(|r| r.durable_observation()) {
+                self.unknown_cost.observations.push(kept);
             }
             let _ = old.close("superseded by a freshly reviewed invocation");
         }
@@ -363,6 +367,35 @@ impl SessionRuntime {
                 "request may have been billed; observation persistence failed: {error}"
             )),
         }
+    }
+
+    /// A declined review cancels its own call and nothing else: what waited before the line that
+    /// asked it — a proposal, a question, the proposal a revision set aside — waits again,
+    /// unchanged, its identity intact. Only its own answer (`no` · `cancel`) discards it.
+    fn declined_review(&mut self) -> TurnOutcome {
+        const CANCELLED: &str = "Unknown-cost request cancelled; nothing sent.";
+        if let Some(set) = &self.pending {
+            return TurnOutcome::Held {
+                id: self.proposal_id(set),
+                preview: format!(
+                    "{CANCELLED} The proposal is unchanged.\n(the proposal still waits · `yes` applies it · `no` discards it)"
+                ),
+            };
+        }
+        if let Some(round) = &self.authoring
+            && let Some(question) = round.current()
+        {
+            return TurnOutcome::Question {
+                key: question.key.clone(),
+                question: format!(
+                    "{CANCELLED} The question is unchanged.\n{}",
+                    super::authoring::question_text(question, &round.reasons)
+                ),
+            };
+        }
+        TurnOutcome::Facts(format!(
+            "{CANCELLED} Describe the next request to review it afresh."
+        ))
     }
 }
 fn cost_refusal(why: String) -> TurnOutcome {

@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 use nika_onboard::compile::{TriggerKind, TriggerRequirement, TriggerStatus};
 
 use super::{SessionRuntime, TurnOutcome};
-use crate::authoring::{is_cancel, is_why};
+use crate::authoring::is_cancel;
 use crate::change::{ProjectChange, ProjectChangeSet, Witness};
 use crate::outcome::{Refusal, RefusalClass};
 
@@ -51,6 +51,14 @@ impl Activation {
         self.needed.first().copied()
     }
 
+    /// « why? » beside the activation's question: what declaring does and does not do.
+    pub(super) fn why(&self) -> String {
+        format!(
+            "Activating declares the schedule in `nika.yaml`, beside `{}` — the workflow itself is already saved and checked. Declared is not active: a firer on this machine must run it (`nika serve`, or the OS unit `nika arm --emit launchd --write`).\n  the question still waits · reply on the next line · `cancel` drops the activation",
+            self.workflow.display()
+        )
+    }
+
     /// The question for the current key, in the human's words, with the
     /// consequence of the answer.
     pub(super) fn question(&self) -> String {
@@ -81,7 +89,7 @@ impl Activation {
         )
     }
 
-    /// Bind the current key to a line; the shape refusal names the fix.
+    /// Bind the current key to a line; the refusal names the fix.
     pub(super) fn answer(&mut self, line: &str) -> Result<(), String> {
         let key = self
             .current()
@@ -89,13 +97,12 @@ impl Activation {
         let value = line.trim();
         let bound = match key {
             TIMEZONE => {
-                let ok = value.contains('/')
-                    && value
-                        .chars()
-                        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '_' | '-' | '+'));
-                if !ok {
+                // The schedule grammar is the one judge of a zone, asked now rather than
+                // after two more answers (`/Europe/Paris` has a path's shape, no zone's).
+                let probe = format!("TZ={value} 0 0 * * *");
+                if nika_cadence::registry::Cadence::parse(&probe).is_err() {
                     return Err(format!(
-                        "`{value}` is not a time zone name — the form is `Area/City`, e.g. Europe/Paris, America/Montreal"
+                        "`{value}` is not a time zone the schedule knows — answer an IANA name (`Area/City`), e.g. Europe/Paris, America/Montreal"
                     ));
                 }
                 value.to_owned()
@@ -200,19 +207,21 @@ impl SessionRuntime {
                 "no activation question waits",
             ));
         };
-        if is_why(line) {
-            let text = format!(
-                "Activating declares the schedule in `nika.yaml`, beside `{}` — the workflow itself is already saved and checked. Declared is not active: a firer on this machine must run it (`nika serve`, or the OS unit `nika arm --emit launchd --write`).\n  the question still waits · reply on the next line · `cancel` drops the activation",
-                activation.workflow.display()
-            );
-            self.activation = Some(activation);
-            return TurnOutcome::Aside(text);
-        }
         if is_cancel(line) {
             self.intent.unresolved.clear();
             return TurnOutcome::Facts(
                 "activation dropped · nothing was declared · the workflow stays saved and runs when you ask".to_owned(),
             );
+        }
+        // A command-shaped line is never an activation value (`/bogus` is no `Area/City`).
+        if let Some(text) = super::protocol::unserved_command(line) {
+            self.activation = Some(activation);
+            return TurnOutcome::Refusal(Refusal::new(
+                RefusalClass::WrongState,
+                format!(
+                    "{text}\n  the question still waits · reply on the next line · `cancel` drops the activation"
+                ),
+            ));
         }
         if let Err(why) = activation.answer(line) {
             self.activation = Some(activation);

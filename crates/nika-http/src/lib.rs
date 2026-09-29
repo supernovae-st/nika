@@ -377,9 +377,7 @@ impl ReqwestHttp {
             if let Some(deadline) = total_deadline {
                 builder = builder.timeout(deadline);
             }
-            for (key, value) in &headers {
-                builder = builder.header(key.as_str(), value.as_str());
-            }
+            builder = with_request_headers(builder, &headers)?;
             if let Some(bytes) = &body {
                 builder = builder.body(bytes.clone());
             }
@@ -403,9 +401,7 @@ impl ReqwestHttp {
                     .ok_or_else(|| HttpError::Other {
                         reason: format!("redirect {status} without a Location header"),
                     })?;
-                let next = vetted.join(location).map_err(|e| HttpError::Other {
-                    reason: format!("invalid redirect Location {location:?}: {e}"),
-                })?;
+                let next = redirect_target(&vetted, location)?;
                 // Cross-origin hop: strip credential-bearing headers so a
                 // public host can not bounce an Authorization/Cookie to a
                 // DIFFERENT host (the SSRF layer only blocks PRIVATE
@@ -595,6 +591,33 @@ fn strip_sensitive_headers(headers: &mut std::collections::BTreeMap<String, Stri
     headers.retain(|key, _| !is_credential_header(key));
 }
 
+/// Explicit Authorization replaces URL-derived Basic auth; it is a singleton.
+fn with_request_headers(
+    mut builder: reqwest::RequestBuilder,
+    headers: &BTreeMap<String, String>,
+) -> Result<reqwest::RequestBuilder, HttpError> {
+    let mut auth = reqwest::header::HeaderMap::new();
+    for (key, value) in headers {
+        if key.eq_ignore_ascii_case("authorization") {
+            if !auth.is_empty() {
+                return Err(HttpError::Other {
+                    reason: "multiple explicit Authorization headers are ambiguous".to_owned(),
+                });
+            }
+            let mut value =
+                reqwest::header::HeaderValue::from_str(value).map_err(|_| HttpError::Other {
+                    reason: "invalid Authorization header value".to_owned(),
+                })?;
+            value.set_sensitive(true);
+            auth.insert(reqwest::header::AUTHORIZATION, value);
+        } else {
+            builder = builder.header(key.as_str(), value.as_str());
+        }
+    }
+    // Unlike RequestBuilder::header, headers replaces an existing field value.
+    Ok(builder.headers(auth))
+}
+
 /// Remove every [`BODY_HEADERS`] entry (case-insensitive) in place.
 fn strip_body_headers(headers: &mut std::collections::BTreeMap<String, String>) {
     retain_without(headers, BODY_HEADERS);
@@ -611,6 +634,23 @@ fn same_origin(a: &url::Url, b: &url::Url) -> bool {
     a.scheme() == b.scheme()
         && a.host_str() == b.host_str()
         && a.port_or_known_default() == b.port_or_known_default()
+}
+
+/// A response cannot introduce URL credentials on a different origin.
+/// Parse diagnostics deliberately omit the untrusted Location value.
+fn redirect_target(current: &url::Url, location: &str) -> Result<url::Url, HttpError> {
+    let mut next = current.join(location).map_err(|e| HttpError::Other {
+        reason: format!("invalid redirect Location: {e}"),
+    })?;
+    if !same_origin(current, &next) && (!next.username().is_empty() || next.password().is_some()) {
+        next.set_username("").map_err(|()| HttpError::Other {
+            reason: "cannot remove redirect URL credentials".to_owned(),
+        })?;
+        next.set_password(None).map_err(|()| HttpError::Other {
+            reason: "cannot remove redirect URL credentials".to_owned(),
+        })?;
+    }
+    Ok(next)
 }
 
 /// Bound on the SSRF DNS resolution per hop — a slow/hostile resolver

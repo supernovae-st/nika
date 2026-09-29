@@ -140,12 +140,54 @@ async fn a_native_server_publishes_generation_two_and_its_live_payloads_validate
     // A fresh round: one logical call, generation 2, a kept round's token.
     let first = exchange(&server, &request, &answer, &fresh(&json!({}))).await;
     assert_eq!(first.json()["compile_version"], 2);
+    for (field, invalid) in [
+        ("/provenance/authoring/backend/host", json!(false)),
+        (
+            "/provenance/authoring/backend/base_url_overridden",
+            json!("yes"),
+        ),
+        (
+            "/provenance/authoring/backend/endpoint_basis",
+            json!("authenticated_peer"),
+        ),
+        (
+            "/provenance/authoring/backend/usage_complete",
+            json!("unknown"),
+        ),
+        (
+            "/provenance/authoring/backend/authority/http_requests/sent",
+            json!(-1),
+        ),
+        (
+            "/provenance/authoring/backend/observed_models",
+            json!([false]),
+        ),
+    ] {
+        let mut false_receipt = first.json();
+        *false_receipt
+            .pointer_mut(field)
+            .expect("the live receipt has this fact") = invalid;
+        assert!(
+            !answer.is_valid(&false_receipt),
+            "false receipt accepted: {field}"
+        );
+    }
     let token = token_of(&first);
     assert_valid(&schema_at(&document, TOKEN), &json!(token), "token");
     // Its replay: zero calls, generation 1.
     let answers = json!({"answers": {"model": RUN_MODEL}});
     let replayed = exchange(&server, &request, &answer, &replay(&token, &answers)).await;
     assert_eq!(replayed.json()["compile_version"], 1);
+    // Generation-1 replay keeps decision evidence and its public type. Without
+    // this schema field generated SDK types erase an actually observed record.
+    let replay_doc = replayed.json();
+    assert!(replay_doc["provenance"]["decision"].is_object());
+    let decision = &document["components"]["schemas"]["CompileOutcome"]["properties"]["provenance"]
+        ["properties"]["decision"];
+    assert_eq!(decision["type"], "object");
+    let mut invalid_decision = replay_doc.clone();
+    invalid_decision["provenance"]["decision"] = json!(false);
+    assert!(!answer.is_valid(&invalid_decision));
     // A revision in words, and a generation-2 skeleton that needs no call.
     let revision = json!({
         "compile_version": 2, "mode": "edit", "cognition": "explicitProvider",
@@ -329,7 +371,10 @@ fn the_published_ceilings_are_the_ones_a_seat_is_validated_against() {
     let at = || NativeAuthoring::new(SEAT, ProvidersConfig::new());
     let repairs = u32::try_from(max("repairs")).expect("u32");
     let tokens = u32::try_from(max("max_tokens")).expect("u32");
-    assert!(seated(at().with_repairs(repairs)) && !seated(at().with_repairs(repairs + 1)));
+    assert!(
+        seated(at().with_max_calls(repairs + 3).with_repairs(repairs))
+            && !seated(at().with_max_calls(repairs + 4).with_repairs(repairs + 1))
+    );
     assert!(seated(at().with_max_tokens(tokens)) && !seated(at().with_max_tokens(tokens + 1)));
     let call = max("call_timeout_ms");
     assert!(seated(at().with_call_timeout(Duration::from_millis(call))));

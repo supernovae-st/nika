@@ -55,8 +55,9 @@ cp "$FIX/release-notes-changelog.md" "$WORK/CHANGELOG.md"
   nika check --color never --native-strict release-notes.nika \
     >"$ROOT/$RAW/agent-plugin-check-draft.txt" 2>&1 || draft_rc=$?
   [ "$draft_rc" -eq 2 ] || fail "the draft must fail nika check with exit 2 (got $draft_rc)"
-  grep -q '^ ✖ TOOLS .*NIKA-BUILTIN-001.*`nika:read_file`' "$ROOT/$RAW/agent-plugin-check-draft.txt" ||
-    fail "the draft's refusal no longer names the guessed tool nika:read_file"
+  # shellcheck disable=SC2016 # the diagnostic contains literal tool-name backticks
+  grep -q '^ ✖ TOOLS .*NIKA-BUILTIN-001.*`nika:read_file`' "$ROOT/$RAW/agent-plugin-check-draft.txt" \
+    || fail "the draft's refusal no longer names the guessed tool nika:read_file"
 
   # ── the fix: the same file name, the real builtin, a clean audit ──────
   cp "$ROOT/$FIX/release-notes.nika" release-notes.nika
@@ -64,20 +65,20 @@ cp "$FIX/release-notes-changelog.md" "$WORK/CHANGELOG.md"
   nika check --color never --native-strict release-notes.nika \
     >"$ROOT/$RAW/agent-plugin-check-fixed.txt" 2>&1 || fixed_rc=$?
   [ "$fixed_rc" -eq 0 ] || fail "the fixed file must pass nika check (got exit $fixed_rc)"
-  grep -q '^ ✔ TOOLS ' "$ROOT/$RAW/agent-plugin-check-fixed.txt" ||
-    fail "the re-check no longer passes the TOOLS vector"
-  grep -q 'run ready ✔' "$ROOT/$RAW/agent-plugin-check-fixed.txt" ||
-    fail "the fixed file is no longer run ready"
+  grep -q '^ ✔ TOOLS ' "$ROOT/$RAW/agent-plugin-check-fixed.txt" \
+    || fail "the re-check no longer passes the TOOLS vector"
+  grep -q 'run ready ✔' "$ROOT/$RAW/agent-plugin-check-fixed.txt" \
+    || fail "the fixed file is no longer run ready"
 
   # ── the rehearsal: mock/echo, offline ─────────────────────────────────
   run_rc=0
   nika run --no-progress --color never --model mock/echo release-notes.nika \
     >"$ROOT/$RAW/agent-plugin-run.txt" 2>&1 || run_rc=$?
   [ "$run_rc" -eq 0 ] || fail "the rehearsal must settle (got exit $run_rc)"
-  grep -q '^rehearsal: mock/echo' "$ROOT/$RAW/agent-plugin-run.txt" ||
-    fail "the run no longer says it is a rehearsal"
-  grep -q '3/3 done' "$ROOT/$RAW/agent-plugin-run.txt" ||
-    fail "the rehearsal no longer runs all three tasks"
+  grep -q '^rehearsal: mock/echo' "$ROOT/$RAW/agent-plugin-run.txt" \
+    || fail "the run no longer says it is a rehearsal"
+  grep -q '3/3 done' "$ROOT/$RAW/agent-plugin-run.txt" \
+    || fail "the rehearsal no longer runs all three tasks"
   [ -f release-notes.md ] || fail "the rehearsal wrote no release-notes.md"
 
   # ── what the job leaves in the project ────────────────────────────────

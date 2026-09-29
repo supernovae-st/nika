@@ -8,7 +8,9 @@
 use nika_compile::{
     AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind,
 };
-use nika_compile_cognition::compile_with_provider;
+use nika_compile_cognition::{
+    Cognition, NoProvider, compile_with_cognition, compile_with_provider,
+};
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, StopReason,
     TokenUsage,
@@ -33,12 +35,35 @@ fn policy() -> AuthoringPolicy {
     AuthoringPolicy::new("mock/authoring", 1024, Duration::from_secs(2))
 }
 
-async fn compile(intent: &str, plan: &Value, answers: &[(&str, &str)]) -> CompileOutcome {
-    let mut request = CompileRequest::create(intent).with_authoring_policy(policy());
+mod common;
+
+/// The orders sources as the CLI observes them (R4 S1: an unobserved key is asked, not read).
+fn world() -> Value {
+    let keys: &[&str] = &["order_id", "customer", "amount", "amount_eur", "status"];
+    common::observed(&[("./data/orders.csv", keys), ("./data/orders.json", keys)])
+}
+
+fn request(intent: &str, answers: &[(&str, &str)]) -> CompileRequest {
+    let mut request =
+        (CompileRequest::create(intent).with_authoring_policy(policy())).with_knowledge(world());
     for (key, literal) in answers {
         request = request.answer(*key, *literal);
     }
-    compile_with_provider(&request, &Provider(plan.to_string()))
+    request
+}
+
+async fn compile(intent: &str, plan: &Value, answers: &[(&str, &str)]) -> CompileOutcome {
+    compile_with_provider(&request(intent, answers), &Provider(plan.to_string()))
+        .await
+        .unwrap()
+}
+
+/// The same COLD door judged by the explicit approving double (R4 A11): a test that reads the
+/// emitted workflow, not the judgment, names this door.
+async fn compile_approved(intent: &str, plan: &Value, answers: &[(&str, &str)]) -> CompileOutcome {
+    let provider = Provider(plan.to_string());
+    let judged = common::Judged::approving(&provider);
+    compile_with_provider(&request(intent, answers), &judged)
         .await
         .unwrap()
 }
@@ -46,11 +71,29 @@ async fn compile(intent: &str, plan: &Value, answers: &[(&str, &str)]) -> Compil
 /// The answer-round door the CLI control uses: a trusted recorded plan replayed for its
 /// intent, zero provider calls.
 fn replay(intent: &str, record: &Value, answers: &[(&str, &str)]) -> CompileOutcome {
-    let mut request = CompileRequest::create(intent).with_plan(record.clone());
+    let mut request =
+        (CompileRequest::create(intent).with_plan(record.clone())).with_knowledge(world());
     for (key, literal) in answers {
         request = request.answer(*key, *literal);
     }
     nika_compile::compile(&request).unwrap()
+}
+
+/// The same answer round under this round's judge, the explicit approving double over a seat
+/// that settles no other choice (R4 A11): the record's unverified remainder is judged, its
+/// closed duties replay as they are.
+async fn replay_approved(intent: &str, record: &Value, answers: &[(&str, &str)]) -> CompileOutcome {
+    let mut request =
+        (CompileRequest::create(intent).with_plan(record.clone())).with_knowledge(world());
+    for (key, literal) in answers {
+        request = request.answer(*key, *literal);
+    }
+    let judge = common::JudgedSeat::approving(&common::NoChoice);
+    let cognition = Cognition::<NoProvider> {
+        provider: None,
+        seat: Some(&judge),
+    };
+    compile_with_cognition(&request, cognition).await.unwrap()
 }
 
 fn keys(out: &CompileOutcome) -> Vec<&str> {
@@ -71,6 +114,20 @@ fn label(out: &CompileOutcome, key: &str) -> String {
         Some(question) => question.label.clone(),
         None => panic!("no question {key}: {out:#?}"),
     }
+}
+
+/// The rule the compute task runs, its number law folded; the exact decimal laws (R4 A8) a
+/// rule that reads a number carries in front are skipped (`compile_numeric_precision` pins them).
+fn compute_rule(doc: &Value) -> String {
+    let jq = tasks(doc)["compute"]["invoke"]["args"]["expression"]
+        .as_str()
+        .unwrap_or_default();
+    let rule = if jq.starts_with("# Exact decimal") {
+        jq.rsplit('\n').next().unwrap_or_default()
+    } else {
+        jq
+    };
+    common::short(rule)
 }
 
 fn tasks(doc: &Value) -> &serde_json::Map<String, Value> {
@@ -289,7 +346,7 @@ fn operations(out: &CompileOutcome, op: &str) -> Vec<Value> {
 // the request, right after the sources, so the draft sees the computed rows.
 #[tokio::test]
 async fn a_numeric_filter_demoted_to_a_constraint_is_promoted_to_a_compute_stage() {
-    let out = compile(BIG_ORDERS, &demoted_plan(), &[MODEL]).await;
+    let out = compile_approved(BIG_ORDERS, &demoted_plan(), &[MODEL]).await;
     // The promoted rule states its threshold in words: no rule question is asked.
     assert_eq!(keys(&out), Vec::<&str>::new(), "{out:#?}");
     let ops: Vec<&str> = out.provenance.plan.as_ref().unwrap()["operations"]
@@ -335,7 +392,7 @@ async fn a_numeric_filter_demoted_to_a_constraint_is_promoted_to_a_compute_stage
         "{prompt}"
     );
     // Idempotent: a plan that already carries the compute step gains no second one.
-    let again = compile(BIG_ORDERS, &big_orders_plan(), &[MODEL, RULE]).await;
+    let again = compile_approved(BIG_ORDERS, &big_orders_plan(), &[MODEL, RULE]).await;
     let computes = operations(&again, "compute");
     assert_eq!(computes.len(), 1, "{computes:#?}");
     assert_eq!(
@@ -351,15 +408,15 @@ async fn a_numeric_filter_demoted_to_a_constraint_is_promoted_to_a_compute_stage
 // first record, the filter runs as code, and the question is not asked.
 #[tokio::test]
 async fn a_numeric_rule_stated_in_the_request_needs_no_rule_question() {
-    let out = compile(BIG_ORDERS, &big_orders_plan(), &[MODEL]).await;
+    let out = compile_approved(BIG_ORDERS, &big_orders_plan(), &[MODEL]).await;
     assert_eq!(keys(&out), Vec::<&str>::new(), "{out:#?}");
     let doc = document(&out);
     assert!(doc["const"].get("rule_expression").is_none(), "{doc:#}");
     let compute = &tasks(&doc)["compute"];
     assert_eq!(compute["invoke"]["tool"], "nika:jq");
     assert_eq!(
-        compute["invoke"]["args"]["expression"],
-        "[.records[] | select((.amount | tonumber) > 100)]",
+        compute_rule(&doc),
+        "[.records[] | select(((.amount | num) | dkey) > (\"100\" | dkey))]",
         "{doc:#}"
     );
     assert_eq!(
@@ -402,11 +459,11 @@ async fn a_numeric_rule_stated_in_the_request_needs_no_rule_question() {
     assert_eq!(rule["comparator"], ">");
     assert_eq!(rule["value"], "100");
     assert_eq!(
-        rule["jq"],
-        "[.records[] | select((.amount | tonumber) > 100)]"
+        common::short(rule["jq"].as_str().unwrap()),
+        "[.records[] | select(((.amount | num) | dkey) > (\"100\" | dkey))]"
     );
     // An explicit answer still wins over the synthesis: the human's expression runs.
-    let answered = compile(BIG_ORDERS, &big_orders_plan(), &[MODEL, RULE]).await;
+    let answered = compile_approved(BIG_ORDERS, &big_orders_plan(), &[MODEL, RULE]).await;
     let doc = document(&answered);
     assert_eq!(
         tasks(&doc)["compute"]["invoke"]["args"]["expression"],
@@ -469,8 +526,8 @@ fn an_equality_rule_on_a_status_column_is_synthesized() {
     let out = replay(intent, &record, &[]);
     let doc = document(&out);
     assert_eq!(
-        tasks(&doc)["compute"]["invoke"]["args"]["expression"],
-        r#"[.records[] | select(.status == "Shipped" and (.amount_eur | tonumber) >= 120)]"#,
+        compute_rule(&doc),
+        r#"[.records[] | select(.status == "Shipped" and ((.amount_eur | num) | dkey) >= ("120" | dkey))]"#,
         "{doc:#}"
     );
     let rule = &out.provenance.decision.as_ref().unwrap()["rule"];
@@ -504,8 +561,8 @@ fn a_count_and_total_folded_into_the_rule_is_the_summary_stage() {
     assert_eq!(keys(&out), Vec::<&str>::new(), "{out:#?}");
     let doc = document(&out);
     assert_eq!(
-        tasks(&doc)["compute"]["invoke"]["args"]["expression"],
-        "[.records[] | select((.amount | tonumber) > 100)]",
+        compute_rule(&doc),
+        "[.records[] | select(((.amount | num) | dkey) > (\"100\" | dkey))]",
         "{doc:#}"
     );
     assert_eq!(
@@ -531,8 +588,8 @@ fn a_count_and_total_folded_into_the_rule_is_the_summary_stage() {
     let rule = &out.provenance.decision.as_ref().unwrap()["rule"];
     assert_eq!(rule["summary"], true, "{rule:#}");
     assert_eq!(
-        rule["jq"],
-        "[.records[] | select((.amount | tonumber) > 100)]"
+        common::short(rule["jq"].as_str().unwrap()),
+        "[.records[] | select(((.amount | num) | dkey) > (\"100\" | dkey))]"
     );
     // Without the fold, the summary stage is not emitted for a rule nothing later reads. The
     // plain record writes no note, so it answers the request without the note clause: a
@@ -695,7 +752,9 @@ fn a_per_item_request_with_placeholder_outputs_is_refused_not_lowered() {
 const TILL: &str = "Compute the day's sales total from ./till.csv (columns ticket,time,amount_cents): the number of tickets and the sum of amount_cents. Send that summary in one POST to http://127.0.0.1:18471/hooks/till with the JSON body {tickets, total_cents} and write the same object to ./out/till.json.";
 const TILL_PLAIN: &str = "Compute the day's sales total from ./till.csv (columns ticket,time,amount_cents): the number of tickets and the sum of amount_cents. Send that summary in one POST to http://127.0.0.1:18471/hooks/till with the JSON body of the summary and write the same object to ./out/till.json.";
 const TILL_CASHIER: &str = "Compute the day's sales total from ./till.csv (columns ticket,time,amount_cents): the number of tickets and the sum of amount_cents. Send that summary in one POST to http://127.0.0.1:18471/hooks/till with the JSON body {tickets, cashier} and write the same object to ./out/till.json.";
-fn till_record(body: &str) -> Value {
+/// The recorded plan of a till request: the sum is named after words the request states (a
+/// replay re-derives a seat's typed computation, so its output names are the request's).
+fn till_record(body: &str, total: &str) -> Value {
     let compute = "the number of tickets and the sum of amount_cents";
     json!({"operations":[
         {"op":"read","detail":"./till.csv","evidence":"Compute the day's sales total from ./till.csv (columns ticket,time,amount_cents)","categories":[]},
@@ -708,13 +767,20 @@ fn till_record(body: &str) -> Value {
       "rules":[{"text":compute,"clauses":[],"junction":"and","summary":false,
                 "shape":{"group_by":null,
                          "aggregations":[{"field":null,"op":"count","name":"tickets","round":null},
-                                         {"field":"amount_cents","op":"sum","name":"total_cents","round":null}],
+                                         {"field":"amount_cents","op":"sum","name":total,"round":null}],
                          "sort_by":null,"descending":false,"columns":[],"derived":[]}}]})
 }
 
-#[test]
-fn a_body_whose_keys_the_request_states_is_those_keys_over_produced_values() {
-    let out = replay(TILL, &till_record("{tickets, total_cents}"), &[]);
+#[tokio::test]
+async fn a_body_whose_keys_the_request_states_is_those_keys_over_produced_values() {
+    let record = till_record("{tickets, total_cents}", "total_cents");
+    // The seat typed its aggregate; no law reads it from the words, so the plain replay names
+    // that remainder INCOMPLETE (Q2) and the judged round settles it.
+    let plain = replay(TILL, &record, &[]);
+    assert_eq!(plain.status, CompileStatus::Incomplete, "{plain:#?}");
+    let open = &plain.provenance.decision.as_ref().unwrap()["pending"]["open"];
+    assert_eq!(open[0]["witness"], "unverified", "{open:#}");
+    let out = replay_approved(TILL, &record, &[]).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let doc = document(&out);
     assert!(doc.get("inputs").is_none(), "{doc:#}");
@@ -736,7 +802,7 @@ fn a_body_whose_keys_the_request_states_is_those_keys_over_produced_values() {
         "${{ tasks.compute.output.total_cents }}"
     );
     // No stated keys: the payload names the action, its target and every fact, as before.
-    let out = replay(TILL_PLAIN, &till_record("of the summary"), &[]);
+    let out = replay_approved(TILL_PLAIN, &till_record("of the summary", "total"), &[]).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let expression = document(&out)["tasks"]["send_payload"]["invoke"]["args"]["expression"]
         .as_str()
@@ -747,7 +813,11 @@ fn a_body_whose_keys_the_request_states_is_those_keys_over_produced_values() {
         "{expression}"
     );
     // A key nothing produces is asked, never filled with an invented value.
-    let out = replay(TILL_CASHIER, &till_record("{tickets, cashier}"), &[]);
+    let out = replay(
+        TILL_CASHIER,
+        &till_record("{tickets, cashier}", "total"),
+        &[],
+    );
     assert!(out.candidate.is_none(), "{out:#?}");
     assert!(keys(&out).contains(&"intent.clarification"), "{out:#?}");
     assert!(
@@ -780,7 +850,7 @@ fn a_body_whose_keys_the_request_states_is_those_keys_over_produced_values() {
 // the write; .json stays JSON (see two_write_clauses_yield_two_write_tasks_with_typed_content).
 #[tokio::test]
 async fn a_csv_destination_receives_csv_from_the_computed_rows() {
-    let out = compile(BIG_ORDERS, &big_orders_plan(), &[MODEL, RULE]).await;
+    let out = compile_approved(BIG_ORDERS, &big_orders_plan(), &[MODEL, RULE]).await;
     let doc = document(&out);
     assert_eq!(
         doc["const"]["output_path"], "./out/big_orders.csv",
@@ -819,7 +889,7 @@ async fn a_csv_destination_receives_csv_from_the_computed_rows() {
 // no order to keep.
 #[tokio::test]
 async fn a_csv_destination_from_a_csv_source_keeps_the_source_column_order() {
-    let out = compile(BIG_ORDERS, &big_orders_plan(), &[MODEL, RULE]).await;
+    let out = compile_approved(BIG_ORDERS, &big_orders_plan(), &[MODEL, RULE]).await;
     let doc = document(&out);
     let columns = &tasks(&doc)["source_columns"];
     assert_eq!(columns["invoke"]["tool"], "nika:jq", "{doc:#}");
@@ -864,7 +934,7 @@ async fn a_csv_destination_from_a_json_source_has_no_column_order_to_keep() {
     let mut plan = big_orders_plan();
     plan["steps"][0] =
         json!({"op":"read","detail":"./data/orders.json","evidence":"Read ./data/orders.json"});
-    let out = compile(&intent, &plan, &[MODEL, RULE]).await;
+    let out = compile_approved(&intent, &plan, &[MODEL, RULE]).await;
     let doc = document(&out);
     assert_eq!(
         tasks(&doc)["parse_source"]["invoke"]["tool"],
@@ -884,7 +954,7 @@ async fn a_csv_destination_from_a_json_source_has_no_column_order_to_keep() {
 // ── D5 · the anchor law judges the corpus the step consumed ──────────────────────
 #[tokio::test]
 async fn extract_anchors_are_checked_against_the_read_document_not_a_phantom_item() {
-    let out = compile(STOCK, &stock_plan(), &[MODEL]).await;
+    let out = compile_approved(STOCK, &stock_plan(), &[MODEL]).await;
     let doc = document(&out);
     let law = &tasks(&doc)["extract_anchors"]["invoke"]["args"];
     let input = law["input"].as_object().unwrap();
@@ -924,7 +994,7 @@ async fn extract_anchors_are_checked_against_the_read_document_not_a_phantom_ite
 // line wrap.
 #[tokio::test]
 async fn the_draft_law_reads_the_body_it_judges_and_folds_whitespace() {
-    let out = compile(STOCK, &stock_plan(), &[MODEL]).await;
+    let out = compile_approved(STOCK, &stock_plan(), &[MODEL]).await;
     let doc = document(&out);
     let anchors = &tasks(&doc)["draft_anchors"];
     let law = &anchors["invoke"]["args"];
@@ -967,7 +1037,7 @@ async fn the_draft_law_reads_the_body_it_judges_and_folds_whitespace() {
 // ── D2 · no phantom `item` for a file → transform → write workflow ────────────────
 #[tokio::test]
 async fn a_read_transform_write_workflow_declares_no_incoming_item() {
-    let out = compile(STOCK, &stock_plan(), &[MODEL]).await;
+    let out = compile_approved(STOCK, &stock_plan(), &[MODEL]).await;
     let doc = document(&out);
     assert!(doc.get("inputs").is_none(), "{doc:#}");
     let source = out.candidate.as_deref().unwrap();
@@ -998,7 +1068,7 @@ async fn a_per_item_request_without_material_keeps_its_incoming_item() {
         {"op":"classify","detail":"le problème","evidence":"classe le problème"},
         {"op":"draft","detail":"la réponse","evidence":"harmonise le ton de la réponse"}],
       "effects":[],"obligations":[],"constraints":[],"unknowns":[]});
-    let out = compile(
+    let out = compile_approved(
         intent,
         &plan,
         &[MODEL, ("const.customer_directory", r#""./customers.json""#)],
@@ -1019,7 +1089,7 @@ async fn a_per_item_request_without_material_keeps_its_incoming_item() {
 // dropped the draft is not feasible: the compiler asks instead of inventing the content.
 #[tokio::test]
 async fn a_write_after_a_fetch_with_no_draft_is_a_question_not_a_copy() {
-    let out = compile(RFC, &rfc_plan(), &[]).await;
+    let out = compile_approved(RFC, &rfc_plan(), &[]).await;
     assert!(out.candidate.is_none(), "{out:#?}");
     assert!(keys(&out).contains(&"intent.clarification"), "{out:#?}");
     assert!(
@@ -1035,7 +1105,7 @@ async fn a_write_after_a_fetch_with_no_draft_is_a_question_not_a_copy() {
         "detail": "a plain-English brief of under 150 words explaining what the protocol does and why it is a joke, as 5 bullets",
         "evidence": "write a plain-English brief of under 150 words explaining what the protocol does and why it is a joke, as 5 bullets"
     }));
-    let out = compile(RFC, &drafted, &[MODEL]).await;
+    let out = compile_approved(RFC, &drafted, &[MODEL]).await;
     let doc = document(&out);
     assert!(doc.get("inputs").is_none(), "{doc:#}");
     assert_eq!(
@@ -1066,7 +1136,7 @@ async fn a_write_with_nothing_upstream_is_a_finding_not_an_invented_input() {
 // ── D3 + D13 · several read paths are a fan-out, never one joined literal ────────
 #[tokio::test]
 async fn several_read_paths_become_a_bounded_fan_out_with_one_permit_per_path() {
-    let out = compile(CATALOG, &catalog_plan(), &[MODEL]).await;
+    let out = compile_approved(CATALOG, &catalog_plan(), &[MODEL]).await;
     let doc = document(&out);
     let paths = json!([
         "./catalog/solar-lamp.md",
@@ -1117,9 +1187,9 @@ async fn several_read_paths_become_a_bounded_fan_out_with_one_permit_per_path() 
 // ── D8 · "merge … into a single file" is a write to that file, never a POST ──────
 #[tokio::test]
 async fn an_effect_whose_target_names_a_local_file_is_a_write_not_an_endpoint() {
-    let asked = compile(CATALOG, &catalog_plan(), &[]).await;
+    let asked = compile_approved(CATALOG, &catalog_plan(), &[]).await;
     assert_eq!(keys(&asked), ["model"], "{asked:#?}");
-    let out = compile(CATALOG, &catalog_plan(), &[MODEL]).await;
+    let out = compile_approved(CATALOG, &catalog_plan(), &[MODEL]).await;
     let doc = document(&out);
     assert!(doc["const"].get("merge_endpoint").is_none(), "{doc:#}");
     assert!(!out.candidate.as_deref().unwrap().contains("nika:fetch"));
@@ -1139,7 +1209,7 @@ async fn an_effect_whose_target_names_a_local_file_is_a_write_not_an_endpoint() 
 // ── D7 · prose never becomes a path literal ──────────────────────────────────────
 #[tokio::test]
 async fn a_prose_write_target_yields_exactly_its_one_path_token() {
-    let out = compile(
+    let out = compile_approved(
         ORDERS,
         &orders_prose_plan(),
         &[MODEL, ("const.rule_expression", r#"".records""#)],
@@ -1164,11 +1234,11 @@ async fn a_prose_write_target_yields_exactly_its_one_path_token() {
 
 #[tokio::test]
 async fn a_directory_is_never_read_as_one_file_it_asks_for_a_glob_then_fans_out() {
-    let asked = compile(NOTES, &notes_plan(), &[MODEL]).await;
+    let asked = compile_approved(NOTES, &notes_plan(), &[MODEL]).await;
     assert!(asked.candidate.is_none(), "{asked:#?}");
     assert_eq!(keys(&asked), ["const.source_glob"], "{asked:#?}");
     assert!(label(&asked, "const.source_glob").contains("./notes/*.md"));
-    let bare = compile(
+    let bare = compile_approved(
         NOTES,
         &notes_plan(),
         &[MODEL, ("const.source_glob", r#""./notes""#)],
@@ -1176,7 +1246,7 @@ async fn a_directory_is_never_read_as_one_file_it_asks_for_a_glob_then_fans_out(
     .await;
     assert!(bare.candidate.is_none());
     assert_eq!(keys(&bare), ["const.source_glob"], "{bare:#?}");
-    let out = compile(
+    let out = compile_approved(
         NOTES,
         &notes_plan(),
         &[MODEL, ("const.source_glob", r#""./notes/*.md""#)],
@@ -1260,7 +1330,7 @@ async fn a_placeholder_path_asks_for_the_exact_files() {
 // ── D6 · the rule question describes the exact input the rule receives ───────────
 #[tokio::test]
 async fn the_rule_question_names_the_parsed_input_shape_and_the_rule_receives_it() {
-    let asked = compile(ORDERS, &orders_plan(), &[MODEL]).await;
+    let asked = compile_approved(ORDERS, &orders_plan(), &[MODEL]).await;
     let text = label(&asked, "const.rule_expression");
     assert!(text.contains("{document, records}"), "{text}");
     assert!(
@@ -1268,7 +1338,7 @@ async fn the_rule_question_names_the_parsed_input_shape_and_the_rule_receives_it
         "{text}"
     );
     assert!(!text.contains("{item, record, fields}"), "{text}");
-    let out = compile(
+    let out = compile_approved(
         ORDERS,
         &orders_plan(),
         &[
@@ -1305,7 +1375,7 @@ async fn the_rule_question_names_the_parsed_input_shape_and_the_rule_receives_it
 async fn two_write_clauses_yield_two_write_tasks_with_typed_content() {
     // The xai proposal carried ONE write effect; the reader's own write floor carries the
     // other file, and two writes to two files are two effects, never one overwritten target.
-    let out = compile(
+    let out = compile_approved(
         ORDERS,
         &orders_plan(),
         &[MODEL, ("const.rule_expression", r#"".records""#)],
@@ -1350,11 +1420,11 @@ async fn a_named_path_no_effect_writes_is_a_question_then_its_own_write() {
       "effects":[{"verb":"write","target":"./out/note.md","policy":"automatic","evidence":"Write a note to ./out/note.md"}],
       "obligations":[],"constraints":[],"unknowns":[]});
     let rule = ("const.rule_expression", r#"".records""#);
-    let asked = compile(intent, &plan, &[MODEL, rule]).await;
+    let asked = compile_approved(intent, &plan, &[MODEL, rule]).await;
     assert!(asked.candidate.is_none(), "{asked:#?}");
     assert_eq!(keys(&asked), ["effect.write_totals.include"], "{asked:#?}");
     assert!(label(&asked, "effect.write_totals.include").contains("./out/totals.json"));
-    let both = compile(
+    let both = compile_approved(
         intent,
         &plan,
         &[MODEL, rule, ("effect.write_totals.include", "true")],
@@ -1379,7 +1449,7 @@ async fn a_named_path_no_effect_writes_is_a_question_then_its_own_write() {
         doc["outputs"]["write_totals_status"],
         "${{ tasks.write_totals.status }}"
     );
-    let one = compile(
+    let one = compile_approved(
         intent,
         &plan,
         &[MODEL, rule, ("effect.write_totals.include", "false")],
@@ -1406,7 +1476,7 @@ async fn two_explicit_write_effects_are_two_write_tasks() {
         {"verb":"write","target":"./out/totals.json","policy":"automatic","evidence":"write the totals as JSON to ./out/totals.json"},
         {"verb":"write","target":"./out/note.md","policy":"automatic","evidence":"write a note to ./out/note.md"}],
       "obligations":[],"constraints":[],"unknowns":[]});
-    let out = compile(
+    let out = compile_approved(
         intent,
         &plan,
         &[MODEL, ("const.rule_expression", r#"".records""#)],

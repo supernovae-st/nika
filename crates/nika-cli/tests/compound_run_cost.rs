@@ -586,24 +586,57 @@ fn uncertain_first_call_stops_second_and_journal_blocks_replay() {
     let row = observation(root.path());
     assert_eq!(row["observation"]["state"], "Uncertain");
     assert_eq!(row["observation"]["unknown_calls"], 1);
+    let journal = root.path().join(".nika/inference-cost-observations.ndjson");
+    let before = std::fs::read(&journal).unwrap();
     p.send("run one.nika\r").unwrap();
-    p.expect("uncertain").unwrap();
-    p.expect("billing").unwrap();
+    // Single-word needles; the disposition itself is machine-read below.
+    p.expect("billed").unwrap();
     p.expect("environment").unwrap();
-    assert_eq!(calls(root.path()), 1);
-    assert!(
-        std::fs::read_to_string(root.path().join("refusal.txt"))
-            .unwrap()
-            .contains("uncertain")
+    assert_eq!(calls(root.path()), 1, "no second dispatch");
+    assert!(!root.path().join("output.txt").exists(), "no effect");
+    assert_eq!(
+        std::fs::read(&journal).unwrap(),
+        before,
+        "the refusal appends nothing"
+    );
+    // The journal still holds exactly the first Run's unknown charge, and the
+    // second Run was refused with that disposition, rendered by the journal.
+    let exposures = retained(root.path());
+    assert!(exposures.torn.is_empty(), "{exposures:?}");
+    assert_eq!(exposures.runs.len(), 1, "{exposures:?}");
+    assert_eq!(
+        exposures.runs[0].invocation,
+        row["invocation"].as_str().unwrap()
+    );
+    assert_eq!(
+        exposures.runs[0].exposure,
+        nika_dap::cost_journal::Exposure::Uncertain
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("refusal.txt")).unwrap(),
+        nika_dap::cost_journal::refusal(&exposures)
     );
     leave(&mut p);
+}
+
+/// The disposition a later review reads under the lease: nothing is derived
+/// from a settled row, so this appends nothing.
+fn retained(root: &Path) -> nika_dap::cost_journal::Exposures {
+    use nika_dap::cost_journal::{Taken, Writer, fold, take};
+    let nika = nika_fs::OwnedDir::open(root)
+        .unwrap()
+        .open_below(&[".nika"])
+        .unwrap();
+    let writer = Writer::this_process();
+    let Taken::Held(_lease) = take(&nika, &writer).unwrap() else {
+        panic!("no Run holds the cost lease after the fixture exits");
+    };
+    fold(&nika, &writer.host, "compound-test").unwrap()
 }
 
 #[test]
 fn unsupported_shapes_refuse_before_any_model_or_output_effect() {
     let variants = [
-        ONE.replace("    infer:\n", "    retry: { max_attempts: 2, backoff_ms: 1 }\n    infer:\n"),
-        ONE.replace("    infer:\n", "    for_each: { items: [a, b] }\n    infer:\n"),
         ONE.replace("    infer:\n", "    agent:\n").replace("max_tokens:", "max_tokens_total:"),
         ONE.replace("      max_tokens: 32", "      max_tokens: 32\n      model: openai/gpt-4o-mini"),
         ONE.replace("      max_tokens: 32", "      max_tokens: 32\n      thinking: { enabled: true }"),
@@ -613,7 +646,7 @@ fn unsupported_shapes_refuse_before_any_model_or_output_effect() {
     for (index, source) in variants.into_iter().enumerate() {
         // Missing fetch permission and missing nested source are rejected by
         // the normal Check door before the child; other cases reach review.
-        let check_refuses = index >= 5;
+        let check_refuses = index >= 3;
         let root = new_root(&source);
         let mut p = spawn(root.path());
         p.send("run one.nika\r").unwrap();

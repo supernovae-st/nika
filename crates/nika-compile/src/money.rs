@@ -3,17 +3,33 @@
 
 //! One lexical money reader for Prepare and Run. Quotes and path tokens are
 //! data. Only a currency or monetary anchor gives a number monetary meaning.
+//!
+//! Recognition only, never admission (R4 A6): the compile unit owns reading the words of a
+//! request, the Session's money gate owns what an amount admits. Moved unchanged from
+//! `nika-session` (`runtime/money_parse.rs`) so both read one law.
 
-pub(super) const INVALID: &str = "the monetary ceiling must be a finite, nonnegative amount in USD — no work was prepared or run";
+mod directives;
+pub(crate) use directives::stated;
+pub use directives::{Directive, Directives, directives};
+
+/// The refusal when an amount is not a finite, nonnegative USD ceiling.
+pub const INVALID: &str = "the monetary ceiling must be a finite, nonnegative amount in USD — no work was prepared or run";
 const CONFLICTING: &str =
     "the request names different monetary ceilings — name one finite, nonnegative amount in USD";
 
-#[derive(Default)]
-pub(super) struct ParsedMoney {
+/// What one line says about money, lexically.
+#[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
+pub struct ParsedMoney {
+    /// The one explicit ceiling the line states, in USD.
     pub amount: Option<f64>,
+    /// The exact amount token, as written.
     pub literal: Option<String>,
+    /// The default the line says it replaces, when it names one.
     pub replaced_default: Option<f64>,
+    /// A number the line states outside any monetary reading.
     pub unbound_number: bool,
+    /// The line states money and nothing else.
     pub money_only: bool,
 }
 
@@ -39,11 +55,18 @@ fn anchor(word: &str) -> bool {
     )
 }
 
+/// Link words between an anchor and its amount; a lone colon, which French typography sets
+/// apart (« Budget : 0 dollar »), is left empty once its punctuation is trimmed.
 fn filler(word: &str) -> bool {
     matches!(
         word,
-        "of" | "to" | "at" | "under" | "de" | "à" | "is" | ":" | "="
+        "of" | "to" | "at" | "under" | "de" | "à" | "is" | ":" | "=" | ""
     )
+}
+
+/// A skeleton's exact name (« hello », « 01-hello », a template's): the work named whole.
+pub(crate) fn skeleton(name: &str) -> bool {
+    matches!(name, "hello" | "01-hello") || nika_pack::template_names().iter().any(|n| n == name)
 }
 
 fn data(word: &str) -> bool {
@@ -140,7 +163,12 @@ fn compact_literal(raw: &str) -> Option<&str> {
     Some(literal)
 }
 
-pub(super) fn parse(input: &str) -> Result<ParsedMoney, &'static str> {
+/// Read the money one whole line states: Run, gate and consent lines, and a work request.
+///
+/// # Errors
+/// [`INVALID`] for an amount that is not finite and nonnegative; a refusal naming the conflict
+/// when the line states different ceilings or defaults.
+pub fn parse(input: &str) -> Result<ParsedMoney, &'static str> {
     let visible = outside_quotes(input);
     let tokens: Vec<&str> = visible.split_whitespace().map(token).collect();
     let lower: Vec<String> = tokens.iter().map(|t| t.to_lowercase()).collect();
@@ -224,3 +252,6 @@ pub(super) fn parse(input: &str) -> Result<ParsedMoney, &'static str> {
             .all(|(i, w)| used[i] || currency(w) || filler(w) || w.is_empty());
     Ok(parsed)
 }
+
+#[cfg(test)]
+mod tests;

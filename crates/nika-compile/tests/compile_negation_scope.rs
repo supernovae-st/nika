@@ -6,8 +6,8 @@
 //!   leaves the clause to cognition, and a seat realizes it without a new approval gate;
 //! - a ban of another object beside a request of the same verb is targeted, never a
 //!   verb-merged contradiction (« post the digest …; never post the raw CSV »);
-//! - a contradiction between the request's own words for one effect reaches the seat instead of
-//!   dead-ending, and what the seat realizes of it is stated to the review.
+//! - a contradiction between the request's own words for one effect stays the human's (R4 S0,
+//!   superseding the earlier « reaches the seat » reading): refused, no seat call, no candidate.
 //!
 //! Negative controls: a negation that reaches its effect stays a ban (« never email », « ne pas
 //! envoyer », « do not ever send », « ne l'envoie jamais »), a ban of the same object or
@@ -236,23 +236,26 @@ async fn a_banned_destination_is_refused_even_behind_a_gate() {
 }
 
 #[tokio::test]
-async fn a_contradiction_of_the_words_reaches_the_seat_and_is_stated_to_the_review() {
+async fn a_contradiction_of_the_words_stays_the_humans_and_never_reaches_a_seat() {
     let intent = "Lis ./note.txt et envoie-la à https://hooks.example.test/in; ne l'envoie jamais à https://hooks.example.test/in.";
+    // A seat would realize the send if it were asked (the earlier contract let it choose).
     let provider = Rotating::new(vec![answer(&send_note(UNGATED))]);
     let req = CompileRequest::create(intent).with_authoring_policy(policy(NativeMode::Escalate, 1));
     let out = compile_with_provider(&req, &provider).await.unwrap();
-    let route = out.provenance.decision.as_ref().unwrap()["route"].to_string();
-    assert!(route.contains("native: escalated"), "{route}");
-    assert_eq!(accepted(&out), true, "{out:#?}");
+    assert_eq!(
+        provider.calls.load(std::sync::atomic::Ordering::SeqCst),
+        0,
+        "no paid call reads the contradiction"
+    );
+    assert_eq!(out.status, CompileStatus::Refused, "{out:#?}");
+    assert!(out.candidate.is_none(), "{out:#?}");
     let stated = out
         .diagnostics
         .iter()
-        .find(|d| d.target == "reading")
-        .expect("the seat's reading of the contradiction is stated");
-    assert_eq!(
-        stated.kind,
-        nika_compile::DiagnosticKind::Applied,
-        "never a refusal"
-    );
-    assert!(stated.message.contains("`send`"), "{}", stated.message);
+        .find(|d| {
+            d.message
+                .starts_with("Contradictory instructions for `send`")
+        })
+        .expect("the contradiction is stated");
+    assert_eq!(stated.kind, nika_compile::DiagnosticKind::RequiresHuman);
 }

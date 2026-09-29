@@ -38,6 +38,12 @@ fn items_of(sink: &VecSink, kind: EventKind) -> Vec<serde_json::Value> {
 }
 
 async fn run(source: &str, shell: MockShell) -> VecSink {
+    let (outcome, sink) = settle(source, shell).await;
+    assert!(!outcome.ok, "a failed fan-out fails the run");
+    sink
+}
+
+async fn settle(source: &str, shell: MockShell) -> (nika_runtime::RunOutcome, VecSink) {
     let wf = nika_schema::parse(
         source,
         nika_schema::FileId::new(0),
@@ -67,8 +73,45 @@ async fn run(source: &str, shell: MockShell) -> VecSink {
         .run(&wf, &report, &mut stamper, &mut sink)
         .await
         .expect("the run settles");
-    assert!(!outcome.ok, "a failed fan-out fails the run");
-    sink
+    (outcome, sink)
+}
+
+/// B8 · spec 17: a completed batch too large for one frame pages its rows,
+/// keeps every output, and its terminal still counts `items_cancelled`
+/// (zero): every new paged terminal carries that count.
+#[tokio::test]
+async fn a_paged_completed_batch_counts_zero_cancelled() {
+    let items: Vec<String> = (0..1500).map(|n| format!("\"n{n:04}\"")).collect();
+    let source = format!(
+        "nika: fan\npermits: {{ exec: [\"true\"] }}\ntasks:\n  fan:\n    for_each: {{ items: [{}], max_parallel: 4 }}\n    exec: {{ command: [\"true\"] }}\n",
+        items.join(", ")
+    );
+    let shell = (0..1500).fold(MockShell::new(), |shell, _| shell.enqueue_ok("done"));
+    let (outcome, sink) = settle(&source, shell).await;
+    assert!(outcome.ok, "{outcome:?}");
+    let outputs = outcome.records["fan"].output.as_array().expect("outputs");
+    assert_eq!(outputs.len(), 1500, "every item's output is kept");
+    let pages = sink
+        .events()
+        .iter()
+        .filter(|e| e.kind == EventKind::TaskItems)
+        .count();
+    assert!(pages > 1, "the table pages");
+    let done = sink
+        .events()
+        .iter()
+        .find(|e| e.kind == EventKind::TaskCompleted)
+        .expect("the fan-out terminal");
+    for (key, value) in [
+        ("items_total", 1500),
+        ("items_ok", 1500),
+        ("items_recovered", 0),
+        ("items_failed", 0),
+        ("items_cancelled", 0),
+        ("items_never_started", 0),
+    ] {
+        assert_eq!(done.int_field(key), Some(value), "{key}");
+    }
 }
 
 /// `fail_fast: true` · one item ran green, one failed, one never started ·

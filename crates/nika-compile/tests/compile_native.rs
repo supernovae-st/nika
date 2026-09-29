@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use std::time::Duration;
 
 mod common;
-use common::{Rotating, keys};
+use common::{Judged, Rotating, keys};
 
 #[path = "compile_native/response_recovery.rs"]
 mod response_recovery;
@@ -632,7 +632,10 @@ async fn a_change_in_words_revises_the_base_under_the_seat_and_states_the_delta(
     .with_original_intent(RECAP_INTENT)
     .with_authoring_policy(policy(NativeMode::Only, 1))
     .answer("model", r#""mock/echo""#);
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&req, &Judged::approving(&provider))
+        .await
+        .unwrap();
     // The answer round of the same revision replays the record with zero calls (the CLI keys
     // it by the revision's intent), READY with the answer baked in.
     let record = out.provenance.plan.clone().expect("the revision's record");
@@ -860,30 +863,35 @@ async fn a_sketch_is_judged_structurally_then_filled_and_emitted() {
 async fn a_candidate_answered_in_lines_is_judged_and_replayed_without_a_call() {
     let whole = candidate_a("./data/paiements.csv");
     let lines: Vec<&str> = whole.split('\n').collect();
-    let text = json!({"candidate": "", "candidate_lines": lines, "questions": [], "gaps": [], "notes": "line transport"}).to_string();
-    let provider = Rotating::new(vec![text]);
-    let req = CompileRequest::create(CASE_A).with_authoring_policy(policy(NativeMode::Only, 0));
-    let out = compile_with_provider(&req, &provider).await.unwrap();
-    assert_eq!(keys(&out), ["model"], "{out:#?}");
-    assert_eq!(native_record(&out)["accepted"], true, "{out:#?}");
-    let record = out
-        .provenance
-        .plan
-        .clone()
-        .expect("accepted candidate replay record");
-    assert_eq!(
-        record["source"], whole,
-        "line transport preserves source bytes"
-    );
-    let replay = CompileRequest::create(CASE_A)
-        .with_plan(record)
-        .answer("model", r#""mock/echo""#);
-    let ready = compile(&replay).unwrap();
-    assert_eq!(ready.status, CompileStatus::Ready, "{ready:#?}");
-    assert!(
-        ready.provenance.authoring.is_none(),
-        "replay uses no provider"
-    );
+    // Lines alone, or the exact same bytes in both fields: one candidate, one call, although
+    // repairs remain available.
+    for candidate in ["", whole.as_str()] {
+        let text = json!({"candidate": candidate, "candidate_lines": lines, "questions": [], "gaps": [], "notes": "line transport"}).to_string();
+        let provider = Rotating::new(vec![text]);
+        let req = CompileRequest::create(CASE_A).with_authoring_policy(policy(NativeMode::Only, 3));
+        let out = compile_with_provider(&req, &provider).await.unwrap();
+        assert_eq!(provider.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(keys(&out), ["model"], "{out:#?}");
+        assert_eq!(native_record(&out)["accepted"], true, "{out:#?}");
+        let record = out
+            .provenance
+            .plan
+            .clone()
+            .expect("accepted candidate replay record");
+        assert_eq!(
+            record["source"], whole,
+            "line transport preserves source bytes"
+        );
+        let replay = CompileRequest::create(CASE_A)
+            .with_plan(record)
+            .answer("model", r#""mock/echo""#);
+        let ready = compile(&replay).unwrap();
+        assert_eq!(ready.status, CompileStatus::Ready, "{ready:#?}");
+        assert!(
+            ready.provenance.authoring.is_none(),
+            "replay uses no provider"
+        );
+    }
 }
 
 #[tokio::test]
@@ -904,8 +912,6 @@ async fn a_candidate_folded_onto_one_line_is_named_as_such() {
 async fn malformed_line_answers_stop_without_accepting_or_extra_calls() {
     let good = candidate_a("./data/paiements.csv");
     let malformed = vec![
-        json!({"candidate": good, "candidate_lines": good.split('\n').collect::<Vec<_>>()})
-            .to_string(),
         json!({"candidate": " ", "candidate_lines": good.split('\n').collect::<Vec<_>>()})
             .to_string(),
         json!({"candidate_lines": [good]}).to_string(), // embedded LF, not physical lines
@@ -929,11 +935,85 @@ async fn malformed_line_answers_stop_without_accepting_or_extra_calls() {
             "invalid transport must not become a native replay record"
         );
         assert_eq!(provider.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        let round = &native_record(&out)["rounds"][0];
         assert!(
-            native_record(&out)["rounds"][0]["answer"]
+            round["answer"]
                 .as_str()
                 .unwrap()
                 .contains("not a native answer")
+        );
+        assert!(round["failure_class"].is_string(), "{bad}: {round}");
+    }
+}
+
+/// The schema mock (`mock/echo`) fills every required field of the native answer, `candidate`
+/// `mock` and `candidate_lines` `["mock"]`: byte-identical, so ONE candidate, judged and refused
+/// like any text that is not a workflow. The unchanged repair budget governs its calls (the
+/// opening call, then one repair before the identical answer stalls) and the mock's question
+/// and gap never surface.
+#[tokio::test]
+async fn the_schema_mock_is_one_candidate_judged_under_the_unchanged_repair_budget() {
+    use nika_kernel::ai::provider::{InferRequest, InferResponse, ProviderError, ProviderInferDyn};
+    use nika_kernel::http::{
+        HttpError, HttpPostDyn, HttpRequest, HttpResponse, HttpStreamResponse,
+    };
+    use std::sync::atomic::{AtomicU32, Ordering};
+    struct NoWire;
+    impl HttpPostDyn for NoWire {
+        async fn post(&self, _: HttpRequest) -> Result<HttpResponse, HttpError> {
+            Err(HttpError::Connection {
+                reason: "the mock never posts".to_owned(),
+            })
+        }
+        async fn send_streaming(&self, _: HttpRequest) -> Result<HttpStreamResponse, HttpError> {
+            Err(HttpError::Connection {
+                reason: "the mock never streams".to_owned(),
+            })
+        }
+    }
+    struct Counted {
+        mock: nika_providers::ResolvedProvider<NoWire>,
+        calls: AtomicU32,
+    }
+    impl ProviderInferDyn for Counted {
+        async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            self.mock.infer(request).await
+        }
+    }
+    for (repairs, calls) in [(0, 1), (3, 2)] {
+        let registry = nika_providers::ProviderRegistry::new(
+            std::sync::Arc::new(NoWire),
+            nika_providers::ProvidersConfig::new(),
+        );
+        let seat = Counted {
+            mock: registry.resolve("mock/echo").expect("the mock resolves"),
+            calls: AtomicU32::new(0),
+        };
+        let policy = AuthoringPolicy::new("mock/echo", 4096, Duration::from_secs(2))
+            .with_native(NativeMode::Only)
+            .with_repairs(repairs);
+        let req = CompileRequest::create(CASE_A).with_authoring_policy(policy);
+        let out = compile_with_provider(&req, &seat).await.unwrap();
+        assert_eq!(
+            seat.calls.load(Ordering::SeqCst),
+            calls,
+            "repairs {repairs}"
+        );
+        assert_eq!(out.provenance.authoring.as_ref().unwrap().calls, calls);
+        let native = native_record(&out);
+        assert_ne!(native["accepted"], true, "{native:#}");
+        assert_eq!(native["rounds"][0]["candidate"], "mock", "{native:#}");
+        assert_eq!(native["rounds"][0]["transport"]["verdict"], "EQUIVALENT");
+        assert!(out.candidate.is_none(), "{out:#?}");
+        assert!(
+            keys(&out).is_empty(),
+            "the mock's question never surfaces: {out:#?}"
+        );
+        assert_ne!(
+            out.provenance.plan.as_ref().map(|p| &p["strategy"]),
+            Some(&json!("native")),
+            "no native record carries the mock's gap"
         );
     }
 }
@@ -1002,7 +1082,10 @@ tasks:
     let intent = "Read ./input.txt and copy its exact contents to ./output.txt using only deterministic builtin tools.";
     let provider = Rotating::new(vec![answer(source, &json!([]))]);
     let request = CompileRequest::create(intent).with_authoring_policy(policy(NativeMode::Only, 0));
-    let outcome = compile_with_provider(&request, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let outcome = compile_with_provider(&request, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert_eq!(outcome.status, CompileStatus::Ready, "{outcome:#?}");
     assert!(outcome.questions.is_empty());
     assert_eq!(outcome.candidate.as_deref(), Some(source));

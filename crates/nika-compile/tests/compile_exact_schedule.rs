@@ -37,7 +37,6 @@ fn the_coarse_label_is_not_an_exact_schedule_or_a_binding() {
         ("Every Tuesday at 9", "weekly", Some("0 9 * * 2")),
         ("Every Friday at 9", "weekly", Some("0 9 * * 5")),
         ("Every day", "daily", None),
-        ("Every 2 days at 9", "daily", None),
     ] {
         let intent = format!("{phrase}, read ./a.md and write it to ./b.md");
         let out = compile(&CompileRequest::create(intent)).unwrap();
@@ -46,4 +45,20 @@ fn the_coarse_label_is_not_an_exact_schedule_or_a_binding() {
         assert_eq!(trigger.cron.as_deref(), exact);
         assert!(trigger.timezone.is_none());
     }
+    // A period the cron fields cannot hold is no coarse label either (R4 A5 · C1): « every 2
+    // days » is not daily, so no label is recorded and its cadence is asked before READY.
+    let out = compile(&CompileRequest::create(
+        "Every 2 days at 9, read ./a.md and write it to ./b.md",
+    ))
+    .unwrap();
+    let trigger = out.requested_trigger.as_ref().unwrap();
+    assert_eq!(trigger.cadence, None);
+    assert_eq!(trigger.cron, None);
+    assert_ne!(out.status, CompileStatus::Ready, "{out:?}");
+    assert!(
+        out.questions
+            .iter()
+            .any(|q| q.key == "trigger.cadence" && q.mandatory),
+        "{out:?}"
+    );
 }

@@ -13,10 +13,14 @@
 
 use std::{collections::BTreeMap, future::Future, pin::Pin};
 
+use nika_compile::AuthoringReasoning;
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, Message, ProviderInferDyn, ResponseFormat, Role, StopReason,
 };
 use serde_json::{Value, json};
+
+/// The output cap of a bare closed choice, when no reasoning effort is asked of it.
+const CHOICE_MAX_TOKENS: u32 = 256;
 
 /// The reject-all option every closed choice carries.
 pub const NONE_OPTION: &str = "none";
@@ -90,6 +94,9 @@ pub struct ChoiceAnswer {
     pub input_tokens: Option<u64>,
     /// Reported output tokens.
     pub output_tokens: Option<u64>,
+    /// The call's reasoning, each fact apart (configured, transmitted, served, reasoning tokens,
+    /// response model), when the seat observed one (R4 B16).
+    pub reasoning: Option<Value>,
 }
 
 impl ChoiceOption {
@@ -114,6 +121,7 @@ impl ChoiceAnswer {
             model: model.into(),
             input_tokens: None,
             output_tokens: None,
+            reasoning: None,
         }
     }
 }
@@ -140,6 +148,8 @@ pub struct ProviderChoice<'p, P: ProviderInferDyn> {
     provider: &'p P,
     model: String,
     timeout: std::time::Duration,
+    reasoning: Option<AuthoringReasoning>,
+    max_tokens: u32,
 }
 
 impl<'p, P: ProviderInferDyn> ProviderChoice<'p, P> {
@@ -150,7 +160,20 @@ impl<'p, P: ProviderInferDyn> ProviderChoice<'p, P> {
             provider,
             model: model.into(),
             timeout,
+            reasoning: None,
+            max_tokens: CHOICE_MAX_TOKENS,
         }
+    }
+
+    /// Ask the decision call for this reasoning effort under the operator's declared authoring
+    /// output cap (R4 B16): the level is sent only where its route qualifies it, and the cap is
+    /// the authoring calls' own, never the bare choice's 256 tokens a reasoning level could spend
+    /// before it answers. Without it the choice keeps its 256 tokens and its route's default.
+    #[must_use]
+    pub fn with_reasoning(mut self, reasoning: AuthoringReasoning, max_tokens: u32) -> Self {
+        self.reasoning = Some(reasoning);
+        self.max_tokens = max_tokens;
+        self
     }
 }
 
@@ -160,62 +183,24 @@ impl<P: ProviderInferDyn> DecisionSeat for ProviderChoice<'_, P> {
     }
     fn choose<'a>(&'a self, question: &'a ChoiceQuestion) -> ChoiceFuture<'a> {
         Box::pin(async move {
-            let keys = question.keys();
-            let system = format!(
-                "You settle ONE closed choice for a workflow compiler. Read the state and pick exactly one option key. {} Choose \"{NONE_OPTION}\" when no option fits. Return only a JSON object {{\"choice\": <key>}}.",
-                question.instructions
-            );
-            let options: Vec<String> = question
-                .options
-                .iter()
-                .map(|o| format!("- {}: {}", o.key, o.description))
-                .collect();
-            let user = format!(
-                "STATE:\n{}\n\nOPTIONS:\n{}",
-                serde_json::to_string_pretty(&question.state).unwrap_or_default(),
-                options.join("\n")
-            );
-            let mut infer = InferRequest::new(
-                &self.model,
-                vec![
-                    Message::text(Role::System, system),
-                    Message::text(Role::User, user),
-                ],
-            );
-            infer.max_tokens = Some(256);
+            let (messages, schema) = closed_choice(question);
+            let mut infer = InferRequest::new(&self.model, messages);
+            infer.max_tokens = Some(self.max_tokens);
             infer.timeout = Some(self.timeout);
-            infer.response_format = ResponseFormat::JsonSchema(json!({
-                "type": "object", "additionalProperties": false, "required": ["choice"],
-                "properties": {"choice": {"type": "string", "enum": keys}}
-            }));
+            if let Some(reasoning) = self.reasoning {
+                infer.reasoning_effort =
+                    Some(crate::cognition::effort(reasoning).ok_or_else(|| {
+                        DecisionError("the reasoning effort has no provider level".to_owned())
+                    })?);
+            }
+            infer.response_format = ResponseFormat::JsonSchema(schema);
             let response = tokio::time::timeout(self.timeout, self.provider.infer(infer))
                 .await
                 .map_err(|_| {
                     DecisionError("the single decision call timed out; no retry".to_owned())
                 })?
                 .map_err(|e| DecisionError(e.to_string()))?;
-            let text = match response.content.as_slice() {
-                [ContentBlock::Text { text }] if response.stop_reason == StopReason::EndTurn => {
-                    text.clone()
-                }
-                _ => {
-                    return Err(DecisionError(
-                        "the seat did not return one complete JSON text".to_owned(),
-                    ));
-                }
-            };
-            let value: Value = serde_json::from_str(&text)
-                .map_err(|e| DecisionError(format!("the seat answer is not JSON: {e}")))?;
-            let choice = value
-                .get("choice")
-                .and_then(Value::as_str)
-                .ok_or_else(|| DecisionError("the seat answer has no choice".to_owned()))?
-                .to_owned();
-            if !question.options.iter().any(|o| o.key == choice) {
-                return Err(DecisionError(format!(
-                    "the seat chose `{choice}`, which was not offered"
-                )));
-            }
+            let choice = decoded(question, &response)?;
             let mut probabilities = BTreeMap::new();
             probabilities.insert(choice.clone(), 1.0);
             Ok(ChoiceAnswer {
@@ -229,9 +214,72 @@ impl<P: ProviderInferDyn> DecisionSeat for ProviderChoice<'_, P> {
                 output_tokens: response
                     .usage_reported
                     .then_some(response.usage.output_tokens),
+                reasoning: Some(crate::cognition::reasoning_record(
+                    self.reasoning,
+                    Some(&response),
+                )),
             })
         })
     }
+}
+
+/// The two messages and the answer schema of one closed choice, as a provider seat asks it
+/// (R4 A11: the verifier journals the same bytes through the authoring call).
+pub(crate) fn closed_choice(question: &ChoiceQuestion) -> (Vec<Message>, Value) {
+    let system = format!(
+        "You settle ONE closed choice for a workflow compiler. Read the state and pick exactly one option key. {} Choose \"{NONE_OPTION}\" when no option fits. Return only a JSON object {{\"choice\": <key>}}.",
+        question.instructions
+    );
+    let options: Vec<String> = question
+        .options
+        .iter()
+        .map(|o| format!("- {}: {}", o.key, o.description))
+        .collect();
+    let user = format!(
+        "STATE:\n{}\n\nOPTIONS:\n{}",
+        serde_json::to_string_pretty(&question.state).unwrap_or_default(),
+        options.join("\n")
+    );
+    let schema = json!({
+        "type": "object", "additionalProperties": false, "required": ["choice"],
+        "properties": {"choice": {"type": "string", "enum": question.keys()}}
+    });
+    (
+        vec![
+            Message::text(Role::System, system),
+            Message::text(Role::User, user),
+        ],
+        schema,
+    )
+}
+
+/// The option a provider's answer to `question` chooses: one complete JSON text naming an
+/// offered key, or why it does not.
+pub(crate) fn decoded(
+    question: &ChoiceQuestion,
+    response: &nika_kernel::ai::provider::InferResponse,
+) -> Result<String, DecisionError> {
+    let text = match response.content.as_slice() {
+        [ContentBlock::Text { text }] if response.stop_reason == StopReason::EndTurn => text,
+        _ => {
+            return Err(DecisionError(
+                "the seat did not return one complete JSON text".to_owned(),
+            ));
+        }
+    };
+    let value: Value = serde_json::from_str(text)
+        .map_err(|e| DecisionError(format!("the seat answer is not JSON: {e}")))?;
+    let choice = value
+        .get("choice")
+        .and_then(Value::as_str)
+        .ok_or_else(|| DecisionError("the seat answer has no choice".to_owned()))?
+        .to_owned();
+    if !question.options.iter().any(|o| o.key == choice) {
+        return Err(DecisionError(format!(
+            "the seat chose `{choice}`, which was not offered"
+        )));
+    }
+    Ok(choice)
 }
 
 /// Revalidate an answer against the question it claims to answer.
@@ -264,6 +312,7 @@ pub(super) fn record(
             "question": question.id, "options": question.keys(), "choice": answer.choice,
             "probabilities": answer.probabilities, "confidence": answer.confidence,
             "model": answer.model, "input_tokens": answer.input_tokens, "output_tokens": answer.output_tokens,
+            "reasoning": answer.reasoning,
         }),
         Err(error) => {
             json!({"question": question.id, "options": question.keys(), "error": error.0})

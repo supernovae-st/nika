@@ -66,6 +66,10 @@ impl TrustLevel { pub fn join(self, other: Self) -> Self; pub fn meet(self, othe
 
 // ── Cost (cost.rs) ─────────────────────────────────────────────
 pub struct Cost { /* tokens_in/out, dollars, walltime_ms, trust */ }
+#[non_exhaustive] pub enum UnpricedReason {   // the `cost_unpriced` WHY, wire = as_str()
+    LocalModel, MockProvider, MissingCatalogPrice, ProviderDidNotReportUsage,
+    SubscriptionQuota, UsageRejected,
+}
 
 // ── Token usage (token_usage.rs) ───────────────────────────────
 pub struct TokenUsage { /* 18 fields: input/output/cached/reasoning × prompt/completion/tool */ }
@@ -234,6 +238,7 @@ The rename + extraction is a single atomic Phase D commit — no interim state.
 | 2026-04-15 | S1-C | Added 23 L0 types (cost, id, trust, retry, budget, schema, hash, baggage, resource — see HANDOFF S1-C) |
 | 2026-04-16 | Phase B.0 | `publish = false` lock added (commit `a4ed8c309`) |
 | 2026-04-16 | Phase B.0 unblock | Spec written retroactively to satisfy Gate 1 + hygiene vector 6 |
+| 2026-09-28 | B7 | Additive `UnpricedReason::UsageRejected` (`usage_rejected`, E17-F4): complete usage refused under a USD tariff was reported as `missing_catalog_price` |
 | Phase D (planned) | Foundation v0.81 | Rename → `nika-core`, extract schema-ast types, P0 ratchets |
 
 🦋

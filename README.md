@@ -353,9 +353,12 @@ nika compile --base workflow.nika --change 'Set const.topic to "new topic"' --js
 Add `--output edited.nika` to materialize a Ready edit. The base source
 remains explicit. Unresolved intent stays incomplete without a substitute
 workflow. `--authoring-model` explicitly enables bounded model-assisted
-authoring and text revisions; `--authoring-strategy` selects `escalate`,
-`only`, `sketch` or `off`. The compiler checks the proposed source and its
-fidelity to the request. This is not a guarantee of arbitrary-language
+authoring and text revisions. It sends one authoring request unless
+`--authoring-max-calls N` authorizes more (an ACP harness counts one
+invocation, its own requests unknown). `--authoring-strategy` selects
+`escalate`, `only`, `sketch` or `off`; escalation, repairs and samples stay
+within the authorized requests. The compiler checks the proposed source and
+its fidelity to the request. This is not a guarantee of arbitrary-language
 understanding, and Graph editing is not implemented by this CLI.
 
 Compile's Check preview judges source only. `nika check` and `nika run` judge

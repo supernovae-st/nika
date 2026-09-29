@@ -27,6 +27,7 @@ use nika_kernel::ai::provider::{
 };
 use nika_kernel::http::{HttpError, HttpPostDyn, HttpRequest, HttpResponse, HttpStreamResponse};
 use nika_kernel::secret::Secret;
+use nika_types::access::AccessClass;
 
 use crate::profile::{Profile, WireFormat, seed};
 use crate::retry::{self, Backoff, TransportReport};
@@ -99,6 +100,7 @@ pub struct ProviderRegistry<H = NoHttp> {
     /// clock unless the composition injects its own.
     backoff: Arc<dyn Backoff>,
     pub(crate) admission: Option<crate::InferenceAdmission>,
+    admission_http: Option<Arc<H>>,
 }
 
 impl ProviderRegistry<NoHttp> {
@@ -112,6 +114,7 @@ impl ProviderRegistry<NoHttp> {
             config,
             backoff: retry::system_backoff(),
             admission: None,
+            admission_http: None,
         }
     }
 }
@@ -124,6 +127,21 @@ impl<H> ProviderRegistry<H> {
     #[must_use]
     pub fn with_inference_admission(mut self, admission: crate::InferenceAdmission) -> Self {
         self.admission = Some(admission);
+        self.admission_http = None;
+        self
+    }
+
+    /// Attach an account with a separate single-attempt HTTP transport for
+    /// the routes it observes. Other routes keep the registry's original
+    /// transport, including its protocol retry policy and wire family.
+    #[must_use]
+    pub fn with_inference_admission_http(
+        mut self,
+        admission: crate::InferenceAdmission,
+        http: Arc<H>,
+    ) -> Self {
+        self.admission = Some(admission);
+        self.admission_http = Some(http);
         self
     }
 
@@ -192,6 +210,7 @@ where
             config,
             backoff: retry::system_backoff(),
             admission: None,
+            admission_http: None,
         }
     }
 
@@ -281,16 +300,49 @@ where
             .get(profile.id)
             .cloned()
             .unwrap_or_else(|| profile.base_url.to_owned());
+        let wire_model = profile.resolve_model(model_rest).to_owned();
+        let admission = self
+            .admission
+            .as_ref()
+            .filter(|account| account.tracks_route(profile.id, &wire_model, &base_url))
+            .cloned();
+        if admission.is_none() {
+            self.refuse_unreviewed(model, profile.id)?;
+        }
+        let http = if admission.is_some() {
+            self.admission_http.as_ref().map(Arc::clone).or(http)
+        } else {
+            http
+        };
 
         Ok(ResolvedProvider {
             profile: profile.clone(),
-            wire_model: profile.resolve_model(model_rest).to_owned(),
+            wire_model,
             base_url,
             key,
             http,
             backoff: Arc::clone(&self.backoff),
-            admission: self.admission.clone(),
+            admission,
         })
+    }
+
+    /// A Run's observer judges the route actually rendered: one its review
+    /// calls unknown-cost was never chosen, so no byte may leave for it.
+    fn refuse_unreviewed(&self, model: &str, provider: &str) -> Result<(), ProviderError> {
+        let Some(account) = self.admission.as_ref().filter(|a| a.refuses_unknown_cost()) else {
+            return Ok(());
+        };
+        if crate::profile::access_class_for(provider) != AccessClass::Api
+            || matches!(
+                crate::admission::unknown_cost_route(model, self.config.clone()),
+                Ok(None)
+            )
+        {
+            return Ok(());
+        }
+        Err(account.refuse(&format!(
+            "model `{model}` has an unknown USD cost and no fresh choice covers a route rendered at run time: refused before any provider call (a literal `model:` gets the review)"
+        )))
     }
 }
 
@@ -372,10 +424,14 @@ where
             let mut route = None;
             // Keep this alternate wire future boxed as well: even a mock call
             // carries the largest branch in the async state machine.
+            let entry = crate::dispatch_journal::open();
             let result = Box::pin(wire::openai_compat::infer_tracked(
                 self, request, &mut sent, &mut route, &mut call,
             ))
             .await;
+            if let Some(entry) = entry {
+                entry.settle(call.as_ref());
+            }
             report.record(call);
             report.attempts = u32::from(sent);
             return result
@@ -392,7 +448,11 @@ where
             // carry the largest wire future inline, and a nested run (a
             // workflow invoking a workflow) polls it from a deeper stack than
             // a 2 MiB thread affords (the pre-push gate's child-run test).
+            let entry = crate::dispatch_journal::open();
             let result = Box::pin(self.infer_once(request.clone(), &mut route, &mut call)).await;
+            if let Some(entry) = entry {
+                entry.settle(call.as_ref());
+            }
             report.record(call);
             let err = match result {
                 Ok(mut response) => {
@@ -428,7 +488,7 @@ where
                 wire::openai_compat::infer_routed(self, request, route, call).await
             }
             WireFormat::Gemini => wire::gemini::infer_routed(self, request, route, call).await,
-            WireFormat::Mock => Ok(wire::mock::infer(self, &request)),
+            WireFormat::Mock => wire::mock::answer(self, &request),
         }
     }
 
@@ -441,7 +501,7 @@ where
             WireFormat::Anthropic => wire::anthropic::infer_stream(self, request).await,
             WireFormat::OpenAiCompat => wire::openai_compat::infer_stream(self, request).await,
             WireFormat::Gemini => wire::gemini::infer_stream(self, request).await,
-            WireFormat::Mock => Ok(wire::mock::infer_stream(self, &request)),
+            WireFormat::Mock => wire::mock::answer_stream(self, &request),
         }
     }
 }

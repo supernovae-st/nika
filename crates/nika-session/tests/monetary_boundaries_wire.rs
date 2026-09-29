@@ -23,6 +23,21 @@ use nika_session::{
     SessionRuntime, TurnOutcome, UserIntelligencePreference,
 };
 
+/// The paused journal of the C7b `S1` public run (C6 binary, minimized, every frame kept): the
+/// engine's own run identity, which a reopened session judges before it offers the gate again.
+const S1_PAUSED: (&str, &str) = (
+    "2026-09-28T12-59-54Z-53b6.ndjson",
+    r#"{"id":{"uuid":"01a0e819-b68b-7649-85b2-39277be74e66"},"timestamp":1790600394379000000,"kind":"workflow_started","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"7466341540fd02fca9ec21937862176b7821a52495b86d81bb5f30d16c8462dc","fields":[{"key":"workflow","value":"gate-keyed"},{"key":"project_root_fingerprint","value":"68bc0fa6f93982fd69bcd7dc3b4074d55f54a57579461599d47765293bdbf7cd"}]}
+{"id":{"uuid":"01a0e819-b68c-726d-a8e3-3ef859c76d0f"},"timestamp":1790600394380000000,"kind":"task_scheduled","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"527926e042b24c4415b65b50cca37f0f1f609ec9f52478191a9faf23491600c3","fields":[{"key":"task","value":"before"}]}
+{"id":{"uuid":"01a0e819-b68d-735a-9777-3c6706958b21"},"timestamp":1790600394381000000,"kind":"task_scheduled","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"eee513cc41db18434eb38cbf51b55d48946fbea527dc0f80777a31deaff40551","fields":[{"key":"task","value":"ask"}]}
+{"id":{"uuid":"01a0e819-b68d-735a-9777-3c683f5bba50"},"timestamp":1790600394381000000,"kind":"task_scheduled","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"0c76a73643ecc528974ba46ceb6025423d93139955cbd8807ee4549ed3be67f9","fields":[{"key":"task","value":"after_gate"}]}
+{"id":{"uuid":"01a0e819-b690-75e2-8832-255d6a8aeee0"},"timestamp":1790600394384000000,"kind":"task_started","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"1ee9c3dc4a185833b486d65cc324a5022fc69a96f4f39707ff60d4f19e4493a2","fields":[{"key":"task","value":"before"}]}
+{"id":{"uuid":"01a0e819-b690-75e2-8832-255ea327f97a"},"timestamp":1790600394384000000,"kind":"permit_checked","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"a7f5e04b1f6ddcd5ee13fa89aed3240f228b59b4ea4620fbb6c51bd442e8c5d8","fields":[{"key":"task","value":"before"},{"key":"decision","value":"allow"},{"key":"why","value":"permits.tools covers the id"}]}
+{"id":{"uuid":"01a0e819-b690-75e2-8832-255f93243257"},"timestamp":1790600394384000000,"kind":"task_completed","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"1e89b99a6737b7686166dd97a346879fb2d829c2ca73b550ba2a9b00967273b7","fields":[{"key":"task","value":"before"}]}
+{"id":{"uuid":"01a0e819-b691-7011-a1fc-369f8aa8657f"},"timestamp":1790600394385000000,"kind":"workflow_paused","execution":{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"},"run":null,"correlation":null,"chain":"33180c9c50ec797c947a4969df6319a91f404bad00f875bcfd7d44e02bdccba0","fields":[{"key":"workflow","value":"gate-keyed"},{"key":"task","value":"ask"},{"key":"mode","value":"confirm"},{"key":"message","value":"Ship it?"},{"key":"status","value":"paused"},{"key":"cause","value":"human_gate"}]}
+"#,
+);
+
 fn provider(root: &Path) -> SessionRuntime {
     let mut census = IntelligenceCensus::empty();
     census.locals.push("vllm".to_owned());
@@ -63,8 +78,10 @@ fn gate_fixture(root: &Path) {
         session.turn("run it"),
         TurnOutcome::RunRequested { .. }
     ));
-    let trace = root.join("paused.ndjson");
-    std::fs::write(&trace, "{\"kind\":\"workflow_paused\",\"fields\":[{\"key\":\"task\",\"value\":\"approve\"},{\"key\":\"mode\",\"value\":\"confirm\"},{\"key\":\"message\",\"value\":\"Proceed?\"}]}\n").expect("synthetic pause");
+    let traces = root.join(".nika/traces");
+    std::fs::create_dir_all(&traces).expect("trace store");
+    let trace = traces.join(S1_PAUSED.0);
+    std::fs::write(&trace, S1_PAUSED.1).expect("the engine's paused journal");
     assert!(matches!(
         session.observe_run(4, Some(&trace)),
         TurnOutcome::GateAsk { .. }
@@ -175,11 +192,19 @@ fn child() {
         ] {
             let mut session = provider(root);
             let input = format!("{verb} {clause}?");
-            assert!(matches!(session.turn(&input), TurnOutcome::Refusal(_)));
+            let out = session.turn(&input);
+            // A6 permits the deterministic copy to reach review under a valid ceiling;
+            // cognition, save and execution are still unauthorized by this turn.
+            let deterministic = verb.starts_with("Prépare") && amount.is_some();
+            if deterministic {
+                assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
+            } else {
+                assert!(matches!(out, TurnOutcome::Refusal(_)), "{out:?}");
+            }
             let money = session.monetary_decision().expect("money");
             assert_eq!(money.input, input);
             assert_eq!(money.effective_usd, amount);
-            assert!(session.pending_proposal().is_none());
+            assert_eq!(session.pending_proposal().is_some(), deterministic);
             assert!(session.pending_question().is_none());
         }
         for (addressed, start_with_zero) in

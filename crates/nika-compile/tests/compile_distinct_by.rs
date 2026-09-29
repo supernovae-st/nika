@@ -13,7 +13,20 @@ use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;
-use common::{Provider, keys, policy};
+use common::{Judged, Provider, keys, policy};
+
+/// An answer round under this round's judge, the explicit approving double over a seat that
+/// settles no other choice (R4 A11).
+async fn judged_replay(request: &CompileRequest) -> nika_compile::CompileOutcome {
+    let judge = common::JudgedSeat::approving(&common::NoChoice);
+    let cognition = nika_compile_cognition::Cognition::<nika_compile_cognition::NoProvider> {
+        provider: None,
+        seat: Some(&judge),
+    };
+    nika_compile_cognition::compile_with_cognition(request, cognition)
+        .await
+        .unwrap()
+}
 
 const RADIO: &str = "yo dans ./radio/diffusions.json (liste d'objets titre/artiste/heure) y a des doublons, vire les entrées qui ont le meme titre ET le meme artiste qu'une entrée précédente (garde la 1ere), garde l'ordre, et écris la liste qui reste dans ./out/uniques.json";
 
@@ -35,8 +48,13 @@ fn radio_proposal(keys: &[&str]) -> Value {
 #[tokio::test]
 async fn duplicates_by_two_stated_keys_are_a_computation_the_compiler_writes() {
     let provider = Provider::new(radio_proposal(&["titre", "artiste"]));
-    let req = CompileRequest::create(RADIO).with_authoring_policy(policy());
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    let seen: &[&str] = &["titre", "artiste", "heure"];
+    let req = (CompileRequest::create(RADIO).with_authoring_policy(policy()))
+        .with_knowledge(common::observed(&[("./radio/diffusions.json", seen)]));
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&req, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(keys(&out).is_empty(), "{out:#?}");
     let candidate = out.candidate.as_deref().expect("a candidate");
@@ -57,17 +75,24 @@ async fn duplicates_by_two_stated_keys_are_a_computation_the_compiler_writes() {
         .map(|d| d["evidence"].as_str().unwrap_or_default().to_owned())
         .collect();
     assert!(unresolved.is_empty(), "{unresolved:?}\n{ledger:#}");
-    // The recorded plan replays to the same candidate with zero calls.
+    // The recorded plan replays to the same candidate with zero calls; the seat's typed rule
+    // is a remainder no law reads, INCOMPLETE until a round judges it (Q2, R4 A11).
     let record = out.provenance.plan.clone().unwrap();
-    let replayed = compile(&CompileRequest::create(RADIO).with_plan(record)).unwrap();
-    assert_eq!(replayed.status, CompileStatus::Ready, "{replayed:#?}");
+    let request = CompileRequest::create(RADIO).with_plan(record);
+    let replayed = compile(&request).unwrap();
+    assert_eq!(replayed.status, CompileStatus::Incomplete, "{replayed:#?}");
     assert_eq!(replayed.candidate, out.candidate);
+    let judged = judged_replay(&request).await;
+    assert_eq!(judged.status, CompileStatus::Ready, "{judged:#?}");
+    assert_eq!(judged.candidate, out.candidate);
 }
 
 #[tokio::test]
 async fn a_key_the_request_never_names_is_no_rule() {
     let provider = Provider::new(radio_proposal(&["titre", "album"]));
-    let req = CompileRequest::create(RADIO).with_authoring_policy(policy());
+    let seen: &[&str] = &["titre", "artiste", "heure"];
+    let req = (CompileRequest::create(RADIO).with_authoring_policy(policy()))
+        .with_knowledge(common::observed(&[("./radio/diffusions.json", seen)]));
     let out = compile_with_provider(&req, &provider).await.unwrap();
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
     let candidate = out.candidate.as_deref().unwrap_or_default();

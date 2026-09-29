@@ -25,6 +25,101 @@ fn complete() -> InferResponse {
     r.gen_ai.response_model = Some("deepseek-v4-pro".into());
     r
 }
+
+const FREE_MODEL: &str = "qwen/qwen3.8-27b:free";
+const FREE_ENDPOINT: &str = "https://openrouter.ai/api/v1/chat/completions";
+
+#[test]
+fn an_exact_zero_tariff_fits_a_zero_monetary_allowance_and_settles() {
+    let account = InferenceAdmission::new(Cost::zero()).expect("zero allowance");
+    let mut call = account
+        .reserve("openrouter", FREE_MODEL, FREE_ENDPOINT, 512)
+        .expect("known zero is within zero USD");
+    call.sent().expect("dispatch");
+    let mut response = complete();
+    response.gen_ai.response_model = Some(FREE_MODEL.into());
+    call.settle(&response).expect("qualified complete response");
+    let receipt = account.snapshot().expect("receipt");
+    assert_eq!(receipt.estimated, Cost::zero());
+    assert_eq!(receipt.attempts[0].estimated, Some(Cost::zero()));
+    assert_eq!(receipt.unknown_calls, 0);
+    assert_eq!(receipt.billed, None, "a tariff is never an invoice");
+    assert_eq!(receipt.state, AdmissionState::Open);
+    account.close("operator revoked calls").expect("revoke");
+    assert!(
+        account
+            .reserve("openrouter", FREE_MODEL, FREE_ENDPOINT, 512)
+            .is_err()
+    );
+}
+
+#[test]
+fn zero_price_never_discharges_missing_or_contradictory_execution_evidence() {
+    for failure in ["dropped", "usage", "identity", "revoked"] {
+        let account = InferenceAdmission::new(Cost::zero()).expect("zero allowance");
+        let mut call = account
+            .reserve("openrouter", FREE_MODEL, FREE_ENDPOINT, 512)
+            .expect("zero reservation");
+        if failure == "revoked" {
+            account.close("operator revoked calls").expect("revoke");
+            assert!(call.sent().is_err());
+            drop(call);
+            assert_eq!(account.snapshot().expect("receipt").unknown_calls, 0);
+            continue;
+        }
+        call.sent().expect("dispatch");
+        if failure != "dropped" {
+            let mut response = complete();
+            response.gen_ai.response_model = Some(FREE_MODEL.into());
+            if failure == "usage" {
+                response.usage_completeness = UsageCompleteness::Unknown;
+            } else {
+                response.gen_ai.response_model = Some("different-model".into());
+            }
+            assert!(call.settle(&response).is_err());
+        }
+        drop(call);
+        let receipt = account.snapshot().expect("receipt");
+        assert_eq!(receipt.state, AdmissionState::Uncertain, "{failure}");
+        assert_eq!(receipt.unknown_calls, 1, "{failure}");
+        assert_eq!(receipt.attempts[0].estimated, None, "{failure}");
+        assert!(
+            account
+                .reserve("openrouter", FREE_MODEL, FREE_ENDPOINT, 512)
+                .is_err()
+        );
+    }
+}
+
+#[test]
+fn zero_price_route_observation_and_reservation_agree() {
+    use crate::ProvidersConfig;
+    let model = format!("openrouter/{FREE_MODEL}");
+    let known = super::review::CostRoute::observe(&model, ProvidersConfig::new()).expect("route");
+    assert!(!known.needs_unknown_choice());
+    for (model, config) in [
+        (format!("{model}-extra"), ProvidersConfig::new()),
+        ("openrouter/openrouter/free".into(), ProvidersConfig::new()),
+        (
+            "openrouter/google/lyria-3-clip-preview".into(),
+            ProvidersConfig::new(),
+        ),
+        (
+            model,
+            ProvidersConfig::new()
+                .with_base_url("openrouter", "https://gateway.example/v1/chat/completions"),
+        ),
+    ] {
+        let route = super::review::CostRoute::observe(&model, config).expect("route");
+        assert!(route.needs_unknown_choice(), "{model}");
+        assert!(
+            InferenceAdmission::new(Cost::zero())
+                .expect("account")
+                .reserve(&route.provider, &route.model, &route.endpoint, 512)
+                .is_err()
+        );
+    }
+}
 #[test]
 #[allow(
     clippy::disallowed_methods,

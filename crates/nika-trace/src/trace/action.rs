@@ -10,6 +10,21 @@ use std::path::PathBuf;
 
 use clap::{Args, Subcommand};
 
+/// The `nika trace` verb tree with its P4 cost door: `cost` beside every
+/// [`TraceAction`], flattened unchanged. A wrapper, so `TraceAction` keeps its
+/// exact variants (an exhaustive match or a constructor outside this crate
+/// still compiles) and every old command line parses as before.
+#[derive(Subcommand)]
+#[non_exhaustive]
+pub enum TraceCommand {
+    /// This project's unknown cost exposures: inspect them as data, or
+    /// reconcile one Run's (an operator attestation, never verified billing).
+    Cost(crate::cost::CostArgs),
+    /// Every `trace` subcommand before the cost door.
+    #[command(flatten)]
+    Legacy(TraceAction),
+}
+
 #[derive(Subcommand)]
 pub enum TraceAction {
     /// Re-render a run live (replay = re-render, NEVER re-execute).
@@ -214,4 +229,106 @@ pub struct TraceArgs {
     /// never carries them anyway.
     #[arg(long)]
     pub no_outputs: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::panic)]
+    use super::{TraceAction, TraceCommand};
+    use crate::cost::{CostAction, ResolutionArg};
+    use clap::Parser;
+
+    #[derive(Parser)]
+    struct Trace {
+        #[command(subcommand)]
+        command: TraceCommand,
+    }
+
+    fn parse(line: &str) -> Result<TraceCommand, clap::Error> {
+        let words = std::iter::once("trace").chain(line.split_whitespace());
+        Trace::try_parse_from(words).map(|trace| trace.command)
+    }
+
+    /// B6 · every command line the `trace` tree took before the cost door
+    /// parses to the same `TraceAction` through the wrapper, and only `cost`
+    /// reaches the door; evidence the door does not support never parses.
+    #[test]
+    fn every_old_trace_form_parses_unchanged_through_the_wrapper() {
+        let old = [
+            ("replay t.ndjson", "replay"),
+            ("replay --demo", "replay"),
+            ("show t.ndjson --no-outputs", "show"),
+            ("evidence t.ndjson -o pack --json --full", "evidence"),
+            ("receipt explain r.json", "receipt"),
+            ("ls --json", "ls"),
+            ("rm t --force", "rm"),
+            ("rm --all", "rm"),
+            ("rm --older-than 7d", "rm"),
+            ("outputs t.ndjson --json", "outputs"),
+            ("export t.ndjson -o o.jsonl --include-content", "export"),
+            ("verify a.ndjson b.ndjson --json --sealed", "verify"),
+            ("anchor t.ndjson", "anchor"),
+            ("reproduce a.ndjson b.ndjson", "reproduce"),
+            ("peek t.ndjson task --raw", "peek"),
+            ("session t.ndjson wf.nika", "session"),
+            ("flow t.ndjson wf.nika", "flow"),
+        ];
+        for (line, name) in old {
+            let Ok(TraceCommand::Legacy(action)) = parse(line) else {
+                panic!("{line} no longer parses as it did");
+            };
+            assert_eq!(variant(&action), name, "{line}");
+        }
+        assert!(
+            matches!(parse("cost"), Ok(TraceCommand::Cost(args)) if args.action.is_none() && !args.json)
+        );
+        assert!(matches!(parse("cost --json"), Ok(TraceCommand::Cost(args)) if args.json));
+        let line = "cost reconcile exe-1 --project p --prior h --resolution not-billed --reference ticket-9 --json";
+        let Ok(TraceCommand::Cost(args)) = parse(line) else {
+            panic!("{line}");
+        };
+        let Some(CostAction::Reconcile(reconcile)) = args.action else {
+            panic!("{line}");
+        };
+        assert_eq!(
+            [
+                &reconcile.invocation,
+                &reconcile.project,
+                &reconcile.prior,
+                &reconcile.reference
+            ],
+            ["exe-1", "p", "h", "ticket-9"]
+        );
+        assert!(matches!(reconcile.resolution, ResolutionArg::NotBilled) && reconcile.json);
+        for refused in [
+            "cost reconcile exe-1 --project p --prior h --resolution billed --reference x --evidence provider-invoice",
+            "cost reconcile exe-1 --project p --prior h --resolution billed",
+            "cost reconcile exe-1 --prior h --resolution billed --reference x",
+            "cost reconcile exe-1 --project p --prior h --resolution paid --reference x",
+        ] {
+            assert!(parse(refused).is_err(), "{refused}");
+        }
+    }
+
+    /// Each variant by name, with no wildcard: `TraceAction` kept exactly its
+    /// variants (a new one would break this match, as it would any exhaustive
+    /// consumer outside this crate).
+    fn variant(action: &TraceAction) -> &'static str {
+        match action {
+            TraceAction::Replay(_) => "replay",
+            TraceAction::Evidence { .. } => "evidence",
+            TraceAction::Receipt { .. } => "receipt",
+            TraceAction::Show(_) => "show",
+            TraceAction::Ls { .. } => "ls",
+            TraceAction::Rm { .. } => "rm",
+            TraceAction::Outputs { .. } => "outputs",
+            TraceAction::Export { .. } => "export",
+            TraceAction::Verify { .. } => "verify",
+            TraceAction::Anchor { .. } => "anchor",
+            TraceAction::Reproduce { .. } => "reproduce",
+            TraceAction::Peek { .. } => "peek",
+            TraceAction::Session { .. } => "session",
+            TraceAction::Flow { .. } => "flow",
+        }
+    }
 }

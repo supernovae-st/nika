@@ -210,7 +210,8 @@ where
     /// backoff sleeps") · then `on_error:` (spec 05).
     /// One failed attempt's debit + retry decision (spec 05) — split out
     /// of `attempt_loop` for the 100-line fn ratchet · the error rides
-    /// the `FailedOutcome` when the policy admits no more.
+    /// the `FailedOutcome` when the policy admits no more (BOXED · clippy
+    /// `result_large_err` · unboxed at the one caller).
     // REASON: the retry decision reads the task + the dispatch + the
     // ledger + the spend fold + the attempt counters — the loop's own seam.
     #[allow(clippy::too_many_arguments)]
@@ -224,7 +225,7 @@ where
         attempt: u32,
         max_attempts: u32,
         jitter_key: &str,
-    ) -> Result<u64, FailedOutcome> {
+    ) -> Result<u64, Box<FailedOutcome>> {
         // F-P6 · the binding evidence is lifted BEFORE the spend fold
         // consumes the dispatch (a divergence is never transient).
         let evidence = failed.evidence.clone();
@@ -242,12 +243,12 @@ where
             self.retry_delay(task, &error, attempt, max_attempts, jitter_key)
         };
         let Some(delay) = delay else {
-            return Err(
+            return Err(Box::new(
                 FailedOutcome::new(error, *failed_cost, *failed_unpriced, evidence)
                     .with_access(access)
                     .with_access_refused(access_refused)
                     .with_usage(usage),
-            );
+            ));
         };
         Ok(delay)
     }

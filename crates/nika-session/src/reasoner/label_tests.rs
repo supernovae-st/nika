@@ -107,7 +107,7 @@ fn explicit_infer_limit_is_never_raised_to_the_label_default() {
     let _http = test_transport::install(&peer.url);
     let account = account();
     reasoner(MODEL)
-        .infer("bounded", Some(64), Some(&account))
+        .infer("bounded", Some(64), Some(&account), None)
         .unwrap();
     assert_eq!(peer.bodies()[0]["max_tokens"], 64);
     let receipt = account.snapshot().unwrap();

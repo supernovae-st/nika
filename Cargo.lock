@@ -4718,6 +4718,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.20",
  "tokio",
+ "unicode-normalization",
  "url",
 ]
 
@@ -4740,6 +4741,7 @@ dependencies = [
  "serde_yaml_bw",
  "thiserror 2.0.20",
  "tokio",
+ "unicode-normalization",
 ]
 
 [[package]]
@@ -4775,8 +4777,10 @@ dependencies = [
  "nika-check",
  "nika-display",
  "nika-event",
+ "nika-fs",
  "nika-kernel",
  "nika-kernel-mock",
+ "nika-providers",
  "nika-runtime",
  "nika-schema",
  "nika-source",
@@ -4821,6 +4825,7 @@ version = "0.121.0"
 dependencies = [
  "annotate-snippets 0.12.16",
  "anstyle",
+ "nika-cap",
  "nika-catalog",
  "nika-check",
  "nika-dap",
@@ -5184,13 +5189,16 @@ name = "nika-onboard"
 version = "0.121.0"
 dependencies = [
  "nika-bm25",
+ "nika-builtin",
  "nika-catalog",
  "nika-check",
  "nika-compile",
  "nika-compile-cognition",
  "nika-display",
+ "nika-error",
  "nika-event",
  "nika-pack",
+ "nika-providers",
  "nika-schema",
  "nika-source",
  "nika-vocab",
@@ -5246,6 +5254,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "url",
 ]
 
 [[package]]
@@ -5455,13 +5464,13 @@ name = "nika-session"
 version = "0.121.0"
 dependencies = [
  "blake3",
- "nika-builtin",
  "nika-cadence",
  "nika-cap",
  "nika-catalog",
  "nika-check",
  "nika-cli-host",
  "nika-dap",
+ "nika-display",
  "nika-error",
  "nika-event",
  "nika-fs",
@@ -5469,7 +5478,6 @@ dependencies = [
  "nika-http",
  "nika-kernel",
  "nika-onboard",
- "nika-pack",
  "nika-providers",
  "nika-runtime",
  "nika-schema",
@@ -5547,9 +5555,11 @@ dependencies = [
  "crossterm",
  "expectrl",
  "nika-cli-host",
+ "nika-display",
  "nika-session",
  "ratatui",
  "ratatui-textarea",
+ "sha2 0.10.9",
  "tokio",
  "unicode-width 0.2.2",
 ]

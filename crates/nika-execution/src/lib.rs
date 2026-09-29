@@ -15,9 +15,11 @@ pub use error::ExecutionError;
 pub use model_admission::model_admission_findings;
 pub use service::{
     AdmittedExecution, ExecutionContext, ExecutionService, ExecutionSession, ExecutionVerdict,
+    InputRefusal,
 };
 pub use snapshot::{
     CapturedUnit, ExecutionSnapshot, SNAPSHOT_FORMAT_VERSION, SnapshotLimits, SnapshotUnitKind,
+    WIRE_UNIT_CEILING, WireLimits, WireRefusal, check_wire,
 };
 
 #[cfg(test)]

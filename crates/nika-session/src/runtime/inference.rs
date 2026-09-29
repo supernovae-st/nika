@@ -11,10 +11,9 @@ use nika_types::cost::Cost;
 
 pub(super) const GATE_MONEY_PREFIX: &str = "paused gate monetary constraint: ";
 pub(super) const RESTORED_EXPOSURE: &str = "restored inference exposure is unknown; no new catalog allowance can be inferred; billed cost unknown";
-/// A paid dispatch that may be in flight. The line is written into the record
-/// BEFORE any request of it can enter transport, and every write after its
-/// settlement omits it: a record that still carries it was left while a
-/// request may have been sent and billed. It is never authority.
+/// A paid dispatch that may be in flight. The line is written into the record BEFORE any request of
+/// it can enter transport, and every write after its settlement omits it: a record that still
+/// carries it was left while a request may have been sent and billed. It is never authority.
 pub(super) const DISPATCH_PREFIX: &str = "paid inference may have been sent: ";
 /// The same line for a priced dispatch made without any Session budget. It
 /// names exposure only: restoring it demands no ceiling or reconfirmation.
@@ -117,10 +116,15 @@ impl SessionRuntime {
         let observed = self
             .observed_line()
             .map_or_else(String::new, |line| format!(" · {line}"));
-        let decision = decision_line(&self.cost_observations())
-            .map_or_else(String::new, |line| format!(" · {line}"));
+        let costs = self.cost_observations();
+        let decision = decision_line(&costs).map_or_else(String::new, |line| format!(" · {line}"));
+        // A durable observation no reader can read is named, never read as settled (E35).
+        let unread = match costs.iter().filter(|o| !o.is_object()).count() {
+            0 => String::new(),
+            n => format!(" · {n} cost observation(s) unreadable: never read as settled"),
+        };
         let account = format!(
-            "Session inference (separate from proposal/Run): {account}{observed}{decision}"
+            "Session inference (separate from proposal/Run): {account}{observed}{unread}{decision}"
         );
         if self.money.gate.is_some() {
             format!(
@@ -203,6 +207,9 @@ impl SessionRuntime {
         if self.money_blocks_cognition() {
             return Err(ReasonError::Provider(self.inference_line()));
         }
+        // A named level the session cannot ask refuses the turn before any record or byte (R4 B16).
+        let effort = (self.authoring_context.reasoning_asked())
+            .map_err(|why| ReasonError::Provider(format!("{why} · nothing was sent")))?;
         let model = if self.reasoner.supports_admission() {
             self.reasoner.authoring_model()
         } else {
@@ -211,11 +218,15 @@ impl SessionRuntime {
         let (account, entered) = self
             .enter_dispatch(model.as_deref())
             .map_err(|e| ReasonError::Provider(format!("{UNRECORDED}: {e}")))?;
-        let reply = match &account {
-            Some(a) if label => self.reasoner.reason_label_with_admission(prompt, a),
-            Some(a) => self.reasoner.reason_with_admission(prompt, a),
-            None if label => self.reasoner.reason_label(prompt),
-            None => self.reasoner.reason(prompt),
+        // The session's explicit effort rides every call it names one for (R4 B16).
+        let reply = match (&account, effort) {
+            (_, Some(effort)) => {
+                (self.reasoner).reason_effort(prompt, label, account.as_ref(), effort)
+            }
+            (Some(a), None) if label => self.reasoner.reason_label_with_admission(prompt, a),
+            (Some(a), None) => self.reasoner.reason_with_admission(prompt, a),
+            (None, None) if label => self.reasoner.reason_label(prompt),
+            (None, None) => self.reasoner.reason(prompt),
         };
         self.leave_paid_dispatch(entered);
         reply
@@ -282,7 +293,7 @@ impl SessionRuntime {
                         "{}/{} at {}",
                         choice.provider(),
                         choice.model(),
-                        choice.endpoint()
+                        choice.origin().unwrap_or_else(|| "unknown origin".into())
                     ),
                     serde_json::to_value(choice)
                         .ok()
@@ -306,12 +317,11 @@ impl SessionRuntime {
             crate::intelligence::now_rfc3339()
         ))
     }
-    /// Before one dispatch on `model`: the account it rides, its in-flight line
-    /// persisted first (`true`: a line was written). The Session allowance or
-    /// explicit unknown-cost scope governs whatever it carries; the one-time
-    /// invocation wrote its own line before cognition. Without either, a
-    /// qualified priced route is observed on the no-budget account (no
-    /// allowance, no cap) and any other route keeps its unobserved path.
+    /// Before one dispatch on `model`: the account it rides, its in-flight line persisted first
+    /// (`true`: a line was written). The Session allowance or explicit unknown-cost scope governs
+    /// whatever it carries; the one-time invocation wrote its own line before cognition. Without
+    /// either, a qualified priced route is observed on the no-budget account (no allowance, no cap)
+    /// and any other route keeps its unobserved path.
     pub(super) fn enter_dispatch(
         &self,
         model: Option<&str>,
@@ -366,7 +376,7 @@ impl SessionRuntime {
             .unknown_cost
             .observations
             .iter()
-            .filter(|o| o["state"] == "Uncertain")
+            .filter(|o| o["state"] == "Uncertain" || !o.is_object())
             .count();
         // A decision-seat request left without a response may have been billed as well.
         let decisions = self.authoring_context.decision().map_or(0, |setup| {
@@ -378,10 +388,9 @@ impl SessionRuntime {
         });
         self.money.account.as_ref().map_or(0, live) + live(&self.money.observed) + kept + decisions
     }
-    /// New work starts on a clean no-budget account; a continuation (an
-    /// answer, a revision at consent, a repair) stays on the one its work
-    /// began with. An account frozen by a possibly billed request, or left
-    /// with a refusal, is kept as history when it observed anything, and is
+    /// New work starts on a clean no-budget account; a continuation (an answer, a revision at
+    /// consent, a repair) stays on the one its work began with. An account frozen by a possibly
+    /// billed request, or left with a refusal, is kept as history when it observed anything, and is
     /// never reopened.
     pub(super) fn rotate_observation(&mut self) {
         let receipt = self.money.observed.snapshot();
@@ -394,7 +403,8 @@ impl SessionRuntime {
         if let Ok(receipt) = receipt
             && !receipt.attempts.is_empty()
         {
-            self.unknown_cost.observations.push(receipt.observation());
+            let kept = receipt.durable_observation();
+            self.unknown_cost.observations.push(kept);
         }
         self.money.observed = InferenceAdmission::unbudgeted();
     }

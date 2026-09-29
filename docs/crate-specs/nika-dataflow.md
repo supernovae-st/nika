@@ -115,7 +115,15 @@ matching, fields, `Display`, `Diagnostic`, `spec_code()` and `nika_code()`
 remain intact. `RuntimeError::from_cel` still exists and delegates.
 
 The wire form a consumer sees (`tasks.X.error.code`, `on_codes:` filtering,
-the run report) is byte-identical to before the descent. The conversion and
+the run report) is byte-identical to before the descent.
+
+`TaskErrorRecord.details` (2026-09-28) carries a verb's typed facts beside its
+message: the spec error object's optional `details` object (`nika:fetch`: the
+received `status_code`, the declared `accepted` set). `new` leaves it absent,
+and `detailed` keeps only a non-empty object. `to_value` adds the `details` key
+only when present, so an error without details keeps its exact historical bytes
+in `tasks.X.error`, in the terminal outcome payload (`error`, `recovered_from`)
+and in the trace; with details, all of them carry the same object. The conversion and
 public-construction tests in `crates/nika-runtime/src/errors.rs` prove both
 directions of the compatibility seam: dataflow errors map to the old variants,
 and downstream code can still construct and match those variants directly.
@@ -164,3 +172,18 @@ enumerate this effect surface and drive the real rendered-size ceiling.
 - spec `04-variables.md` §task output reference — the record this crate defines
 - spec `05-errors.md` §142 — why an engine-internal code must never reach `tasks.X.error`
 - issue #1203 — the wall that forced the descent
+
+## Numeric conversion cardinality
+
+Named output bindings install the runtime builtin's own std shadows,
+`nika_cap::JQ_STD_SHADOWS` (nika-cap spec §3.4): the same `tonumber` and the global `scan`, which
+bindings lacked before. Their tests run the shared probe set `nika_cap::JQ_STD_SHADOW_PROBES`.
+
+`tonumber` preserves a finite numeric input or parses one finite numeric value from a text
+input. Empty or whitespace-only text, several JSON values in one text, non-numeric values, NaN
+and the infinities (an overflowing text such as `1e400` included) fail with a named error; an
+enclosing aggregate cannot silently omit or double-count that operand, and no predicate,
+comparison or sort reads a non-finite one. An explicitly authored `try` or `?` still controls
+error handling. `fromjson` retains its stream semantics and still reads non-finite values.
+This correction does not promise arbitrary decimal arithmetic or a field name in the generic
+error; typed numeric laws remain responsible for those contracts.

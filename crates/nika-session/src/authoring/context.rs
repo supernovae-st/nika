@@ -20,8 +20,9 @@ use nika_cli_host::compile::config::{
     self, AuthoringConfig, AuthoringSettings, ConfigError, DEFAULT_STRATEGY, KnowledgeSource,
 };
 use nika_cli_host::compile::knowledge::{KnowledgeError, Snapshot};
-use nika_onboard::compile::{AuthoringKnowledge, NativeMode};
-use serde_json::{Value, json};
+use nika_onboard::compile::{AuthoringKnowledge, AuthoringReasoning, NativeMode};
+// The pin owns its identity beside the snapshot door (C7 · D1); the policy stays here.
+use nika_onboard::knowledge::pin::KnowledgePin;
 
 use super::DecisionSetup;
 
@@ -69,64 +70,9 @@ pub enum AuthoringContextError {
     },
 }
 
-/// The identity a session pinned for its knowledge snapshot when it opened.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct KnowledgePin {
-    /// The snapshot directory.
-    pub dir: PathBuf,
-    /// A corpus whose examples are never recalled.
-    pub exclude_corpus: Option<String>,
-    /// The snapshot's version, as its manifest names it.
-    pub version: Option<String>,
-    /// The digest the manifest declares (the exporter's, never recomputed).
-    pub digest: Option<String>,
-    /// The sha256 of the manifest's bytes as read (computed): the pin's integrity, with the rows.
-    pub manifest_sha256: String,
-    /// The digest of the row files as the door read them (computed).
-    pub rows_sha256: String,
-}
-
-impl KnowledgePin {
-    /// The pin's identity record (what a receipt names).
-    #[must_use]
-    pub fn record(&self) -> Value {
-        json!({
-            "version": self.version,
-            "digest": self.digest,
-            "digest_is": "declared by the manifest, not recomputed",
-            "manifest_sha256": self.manifest_sha256,
-            "rows_sha256": self.rows_sha256,
-            "dir": self.dir.display().to_string(),
-            "exclude_corpus": self.exclude_corpus,
-        })
-    }
-
-    /// The pin as a snapshot on disk states it now.
-    fn of(snapshot: &Snapshot) -> (Option<&str>, Option<&str>, &str, String) {
-        (
-            snapshot.version(),
-            snapshot.digest(),
-            snapshot.manifest_sha256(),
-            snapshot.rows_sha256(),
-        )
-    }
-
-    /// The identity in words: version · declared digest · manifest · rows (cut at twelve).
-    fn words(version: Option<&str>, digest: Option<&str>, manifest: &str, rows: &str) -> String {
-        format!(
-            "{} (declared digest {} · manifest {} · rows {})",
-            version.unwrap_or("unversioned"),
-            short(digest.unwrap_or("none")),
-            short(manifest),
-            short(rows)
-        )
-    }
-}
-
 /// The session's authoring configuration: the strategy the one policy carries, the knowledge
 /// snapshot pinned for the session, or the reason the configuration cannot be honored.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct AuthoringContext {
     strategy: NativeMode,
@@ -135,6 +81,30 @@ pub struct AuthoringContext {
     source: &'static str,
     decision: Option<DecisionSetup>,
     project: Option<PathBuf>,
+    /// The explicit reasoning effort every seated call asks for, when one is named, or the word
+    /// the parser refused: resolved apart from the rest, so no other refusal drops it (R4 B16).
+    reasoning: Result<Option<AuthoringReasoning>, ConfigError>,
+}
+
+impl std::fmt::Debug for AuthoringContext {
+    /// The derived form, the reasoning effort appended only when one is named (R4 B16): a context
+    /// naming none keeps the bytes every question identity and cost binding hashed.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut debug = f.debug_struct("AuthoringContext");
+        debug
+            .field("strategy", &self.strategy)
+            .field("knowledge", &self.knowledge)
+            .field("refusal", &self.refusal)
+            .field("source", &self.source)
+            .field("decision", &self.decision)
+            .field("project", &self.project);
+        match &self.reasoning {
+            Ok(Some(level)) => debug.field("reasoning", level),
+            Err(refused) => debug.field("reasoning", refused),
+            Ok(None) => &mut debug,
+        };
+        debug.finish()
+    }
 }
 
 impl Default for AuthoringContext {
@@ -146,6 +116,7 @@ impl Default for AuthoringContext {
             source: "default",
             decision: None,
             project: None,
+            reasoning: Ok(None),
         }
     }
 }
@@ -185,7 +156,7 @@ impl AuthoringContext {
         self.decision.as_ref()
     }
 
-    /// This project root: a seated compile observes the files its request names under it (the
+    /// This project root: every compile observes the files its request names under it (the
     /// shared bounded observer — headers, keys, short categorical values, never a row), never
     /// through a link that leads outside it. Without a root nothing is observed.
     #[must_use]
@@ -194,17 +165,10 @@ impl AuthoringContext {
         self
     }
 
-    /// The project root a seated compile observes under, when one is set.
+    /// The project root every compile observes under, when one is set.
     #[must_use]
     pub fn project_root(&self) -> Option<&std::path::Path> {
         self.project.as_deref()
-    }
-
-    /// Set the project root in place (the session's own root, at each seated compile).
-    pub(crate) fn set_project_root(&mut self, root: &std::path::Path) {
-        if self.project.as_deref() != Some(root) {
-            self.project = Some(root.to_path_buf());
-        }
     }
 
     /// A host's typed values over the environment's (either may name nothing), resolved by the
@@ -218,6 +182,8 @@ impl AuthoringContext {
         } else {
             "default"
         };
+        // The level resolves apart, through the same parser: no other refusal drops it (R4 B16).
+        let reasoning = config::reasoning(explicit, env);
         match Self::pin(explicit, env) {
             Ok((strategy, knowledge)) => Self {
                 strategy,
@@ -226,10 +192,12 @@ impl AuthoringContext {
                 source,
                 decision: None,
                 project: None,
+                reasoning,
             },
             Err(error) => Self {
                 refusal: Some(error),
                 source,
+                reasoning,
                 ..Self::default()
             },
         }
@@ -250,17 +218,7 @@ impl AuthoringContext {
             Some(KnowledgeSource::Snapshot {
                 dir,
                 exclude_corpus,
-            }) => {
-                let snapshot = Snapshot::open(&dir)?;
-                Some(KnowledgePin {
-                    version: snapshot.version().map(str::to_owned),
-                    digest: snapshot.digest().map(str::to_owned),
-                    manifest_sha256: snapshot.manifest_sha256().to_owned(),
-                    rows_sha256: snapshot.rows_sha256(),
-                    dir,
-                    exclude_corpus,
-                })
-            }
+            }) => Some(KnowledgePin::open(dir, exclude_corpus)?),
             Some(KnowledgeSource::Pack { file }) => {
                 return Err(AuthoringContextError::PackForOneRequest { file });
             }
@@ -293,6 +251,18 @@ impl AuthoringContext {
         self.source
     }
 
+    /// The explicit reasoning effort every seated call asks for, when one is named (R4 B16).
+    #[must_use]
+    pub fn reasoning(&self) -> Option<AuthoringReasoning> {
+        self.reasoning.as_ref().ok().copied().flatten()
+    }
+
+    /// The level every call of the conversation asks, or why none may be asked: a word the parser
+    /// refused is never read as no level (R4 B16).
+    pub(crate) fn reasoning_asked(&self) -> Result<Option<AuthoringReasoning>, ConfigError> {
+        self.reasoning.clone()
+    }
+
     /// The `/status` line: the strategy and its source, the pinned knowledge, or the refusal —
     /// and the operator-selected decision seat, when one is named.
     #[must_use]
@@ -307,7 +277,18 @@ impl AuthoringContext {
                 self.source
             );
         }
-        format!("{}{decision}", self.base_line())
+        // Scoped to the LLM calls: the TypeSafe decision seat is a separate backend (B19).
+        let effort = self.reasoning().map_or_else(String::new, |r| {
+            let seat = (self.decision.is_some()).then_some(
+                "; the TypeSafe decision seat is a separate backend: no effort is sent to it",
+            );
+            let seat = seat.unwrap_or_default();
+            format!(
+                " · reasoning effort {} asked of every LLM call{seat}",
+                r.word()
+            )
+        });
+        format!("{}{effort}{decision}", self.base_line())
     }
 
     /// The strategy and knowledge words of the `/status` line.
@@ -319,12 +300,9 @@ impl AuthoringContext {
                 self.source
             ),
             Some(pin) => format!(
-                "authoring context · strategy {strategy} ({}) · knowledge {} · declared digest {} · manifest {} · rows {} · presented only under a selected model seat",
+                "authoring context · strategy {strategy} ({}) · {} · presented only under a selected model seat",
                 self.source,
-                pin.version.as_deref().unwrap_or("unversioned"),
-                short(pin.digest.as_deref().unwrap_or("none")),
-                short(&pin.manifest_sha256),
-                short(&pin.rows_sha256)
+                pin.status_words()
             ),
         }
     }
@@ -345,27 +323,13 @@ impl AuthoringContext {
             return Ok(None);
         };
         let snapshot = Snapshot::open(&pin.dir)?;
-        let (version, digest, manifest, rows) = KnowledgePin::of(&snapshot);
-        if version != pin.version.as_deref()
-            || digest != pin.digest.as_deref()
-            || manifest != pin.manifest_sha256
-            || rows != pin.rows_sha256
-        {
-            return Err(AuthoringContextError::Changed {
-                pinned: KnowledgePin::words(
-                    pin.version.as_deref(),
-                    pin.digest.as_deref(),
-                    &pin.manifest_sha256,
-                    &pin.rows_sha256,
-                ),
-                found: KnowledgePin::words(version, digest, manifest, &rows),
-            });
+        if let Some((pinned, found)) = pin.moved(&snapshot) {
+            return Err(AuthoringContextError::Changed { pinned, found });
         }
         Ok(Some(snapshot.pack(intent, pin.exclude_corpus.as_deref())?))
     }
 }
 
-/// The first twelve characters of a digest.
-fn short(digest: &str) -> String {
-    digest.chars().take(12).collect()
-}
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod tests;

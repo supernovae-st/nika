@@ -13,24 +13,23 @@
 //! provider call; an outcome that arrives once the round must stop is never answered or kept.
 //! The work revalidates the pinned snapshot, composes the pack for the request's intent (host
 //! paths stripped from the recorded identity), and calls the seat's provider through a gate
-//! that makes at most `1 + repairs` logical calls (the provider transport may resend one after
-//! a 429, 503 or 529) and hands the core only fixed, safe failure reasons. The answer is the
+//! that counts both model invocations and physical requests under the operator's explicit
+//! authority, with no redirect or uncounted resend, and hands the core fixed safe reasons. The answer is the
 //! core's own document; a document that carries a withheld value is refused whole. No job,
 //! run, approval, trace, file or permission is created.
 
 use std::collections::BTreeMap;
 use std::future::Future;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
 
 use bytes::Bytes;
 use hyper::header::{CACHE_CONTROL, CONTENT_TYPE, HeaderName, HeaderValue};
 use hyper::{Response, StatusCode};
 use nika_kernel::ai::provider::{InferRequest, InferResponse, ProviderError, ProviderInferDyn};
+use nika_onboard::compile::authority::{Seat as CountedSeat, Wire};
 use nika_onboard::compile::{
-    AuthoringPolicy, Cognition, CompileOutcome, NativeMode, Strategy, compile_with_cognition,
-    outcome_document, revise_intent,
+    Cognition, CompileOutcome, Strategy, compile_with_cognition, outcome_document, revise_intent,
 };
 use nika_providers::ProviderRegistry;
 use serde_json::value::RawValue;
@@ -222,12 +221,14 @@ async fn author(
     bounds: Bounds,
     stop: &Stop,
 ) -> Result<CompileOutcome, Refusal> {
-    let mut request = input.request(answers).with_authoring_policy(
-        AuthoringPolicy::new(seat.model.as_str(), bounds.max_tokens, bounds.call_timeout)
-            .with_native(NativeMode::Only)
-            .with_repairs(bounds.repairs)
-            .with_samples(1),
-    );
+    // The shared producer: the seat's strategy `only` and its reasoning effort (R4 B16).
+    let policy = seat
+        .authoring
+        .policy(&seat.model, bounds.max_tokens, bounds.call_timeout);
+    let policy = policy.map_err(|_| Refusal::Machinery)?;
+    let mut request = input
+        .request(answers)
+        .with_authoring_policy(policy.with_repairs(bounds.repairs));
     if let Some((snapshot, exclude)) = seat.context()? {
         let intent = match input {
             Input::Create { intent, .. } => Some(intent.clone()),
@@ -238,17 +239,23 @@ async fn author(
             let mut pack = snapshot
                 .pack(&intent, exclude)
                 .map_err(|_| Refusal::Context)?;
-            public_identity(&mut pack.identity);
+            nika_onboard::knowledge::redact_host_paths(&mut pack.identity);
             request = request.with_authoring_knowledge(pack);
         }
     }
-    let http = nika_runtime::compose::provider_http().map_err(|_| Refusal::Machinery)?;
-    let provider = ProviderRegistry::new(Arc::new(http), seat.providers.clone())
+    let authority = bounds.authority().map_err(|_| Refusal::Machinery)?;
+    let invocations = authority.envelope();
+    let requests = authority.envelope();
+    let http = nika_cli_host::compile::authoring_http().map_err(|_| Refusal::Machinery)?;
+    let wire = Wire::new(http, Arc::clone(&requests));
+    let registry = ProviderRegistry::new(Arc::new(wire), seat.providers.clone());
+    let mut backend = nika_cli_host::compile::authoring_backend(&registry, &seat.model);
+    backend["provider"] = serde_json::json!(seat.provider);
+    let provider = registry
         .resolve(&seat.model)
         .map_err(|_| Refusal::Machinery)?;
     let gate = Gate {
-        provider,
-        calls: AtomicU32::new(bounds.repairs.saturating_add(1)),
+        provider: CountedSeat::new(provider, Arc::clone(&invocations)),
         stop: stop.clone(),
     };
     let cognition = Cognition {
@@ -259,11 +266,13 @@ async fn author(
         .await
         .map_err(|_| Refusal::Machinery)?;
     if let Some(receipt) = outcome.provenance.authoring.as_mut() {
-        receipt.backend = Some(serde_json::json!({
-            "kind": "direct_api",
-            "provider": seat.provider,
-            "cost_basis": "measured_by_tokens_at_catalog_price",
-        }));
+        backend["usage_complete"] = serde_json::json!(
+            nika_onboard::compile::authority::usage_complete(&receipt.context)
+        );
+        backend["observed_models"] = serde_json::json!(gate.provider.observed());
+        backend["unreported_models"] = serde_json::json!(gate.provider.unreported());
+        backend["authority"] = authority.record(&invocations, Some(&requests));
+        receipt.backend = Some(backend);
     }
     Ok(outcome)
 }
@@ -339,14 +348,13 @@ async fn replay(
     }
 }
 
-/// The ONE provider this request may reach, behind its stop and its call budget: once the
-/// round must stop, or past `1 + repairs` logical calls, nothing is sent; every failure reaches
-/// the core as a fixed reason — never the provider's own text, which can carry an endpoint, a
-/// request body or a credential. One logical call is one `infer`: the provider transport may
-/// resend its request after a 429, 503 or 529 inside it.
+/// Stop a round before another invocation and sanitize provider failures. The enclosed
+/// counted seat and wire enforce independent invocation and physical-request ceilings;
+/// provider retries consume the request grant; redirects are disabled. Provider text never reaches the core:
+/// it can contain an endpoint, request body or credential. A local refusal is the engine's own words
+/// and keeps them: a spent grant names its remedy, an unqualified effort its route (R4 B17).
 struct Gate<P> {
     provider: P,
-    calls: AtomicU32,
     stop: Stop,
 }
 
@@ -358,60 +366,11 @@ impl<P: ProviderInferDyn> ProviderInferDyn for Gate<P> {
                     .to_owned(),
             });
         }
-        if self
-            .calls
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |left| {
-                left.checked_sub(1)
-            })
-            .is_err()
-        {
-            return Err(ProviderError::Other {
-                reason: "this request's authoring calls are spent; nothing was sent".to_owned(),
-            });
-        }
-        self.provider
-            .infer(request)
-            .await
-            .map_err(|error| ProviderError::Other {
-                reason: safe_reason(&error),
-            })
-    }
-}
-
-fn safe_reason(error: &ProviderError) -> String {
-    match error {
-        ProviderError::HttpResponse { details } => {
-            format!("the authoring provider answered HTTP {}", details.status())
-        }
-        ProviderError::Api { status, .. } => {
-            format!("the authoring provider answered HTTP {status}")
-        }
-        ProviderError::RateLimited { .. } => "the authoring provider rate-limited the call".to_owned(),
-        ProviderError::AuthFailed { .. } => {
-            "the authoring provider refused the operator's credentials".to_owned()
-        }
-        ProviderError::ModelNotFound { .. } => {
-            "the authoring provider does not serve the seated model".to_owned()
-        }
-        ProviderError::Connection { .. } => {
-            "the connection to the authoring provider failed or was cut; the call may still be billed"
-                .to_owned()
-        }
-        _ => "the authoring provider call failed".to_owned(),
-    }
-}
-
-/// The snapshot identity as an answer may carry it: every hash, count and selection, no host
-/// path (the snapshot directory, the files root).
-fn public_identity(identity: &mut serde_json::Value) {
-    if let Some(identity) = identity.as_object_mut() {
-        identity.remove("dir");
-        if let Some(verification) = identity
-            .get_mut("verification")
-            .and_then(serde_json::Value::as_object_mut)
-        {
-            verification.remove("files_root");
-        }
+        let result = self.provider.infer(request).await;
+        result.map_err(|error| match error {
+            ProviderError::AdmissionDenied { .. } => error,
+            other => nika_cli_host::compile::redact_authoring_error(other, ""),
+        })
     }
 }
 

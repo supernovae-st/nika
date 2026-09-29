@@ -240,7 +240,7 @@ fn only_a_yes_typed_after_the_prompt_approves_and_it_never_replays() {
     asked(&mut p);
     p.send("/details\r").unwrap();
     p.expect("invocation").unwrap();
-    p.expect("endpoint").unwrap();
+    p.expect("origin https://api.deepseek.com:443").unwrap();
     p.expect("continue once? ›").unwrap();
     assert_eq!(calls(root.path()), 0, "reading the details answered");
     p.send("yes\r").unwrap();

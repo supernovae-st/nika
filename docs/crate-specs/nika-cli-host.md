@@ -67,10 +67,46 @@ typed Compile core; this adapter does not own compiler semantics or runtime
 admission. Shell-word quoting is shared through `output::sh_word` so the
 Compile next step and Run resume teaching use the same escaping law.
 
+Only a Ready compile writes. When a compile that is not Ready was given a
+destination that already holds a file or link (R4 A6), the JSON document adds
+`existing_destination` (that caller-named path, beside `written: null`) and
+the human text ends « existing destination remains at <path>; this compile did
+not write or remove it ». Presence is read with no-follow metadata: the file is
+never read, followed, removed or rewritten (`--force` included), never shown
+as this round's output or judged a workflow, and status, exit code and the
+absent `nika run` next step are unchanged.
+
+The operator's words carry its money (R4 B15). `build_request` marks the
+request `with_stated_money`: the compile core reads every monetary directive of
+the request (of a replacement request on the seats' door; of a revision's
+`--change` and of the positional request its `--base` answered) with the law of
+`nika_compile::money`, blanks it from the business reading and records it in
+`decision.money`; a malformed or conflicting one refuses. This door meters no
+authoring seat, so any stated ceiling, zero or positive, keeps
+`--authoring-model` and `--decision-model` closed: nothing is prepared or sent,
+a HOT-settled request stays READY, and other work stays incomplete with an
+`authoring_money` finding. Naming a model grants no budget. The ceiling never
+enters the workflow bytes and grants no Run authority; `nika run` keeps its own
+`--max-cost-usd`.
+
 The binary and all dispatch remain in `nika-cli`. Existing CLI integration
 tests exercise the re-exported surface and actual process boundary; the
 quoting law itself is unit-tested here, beside `output::sh_word`. No new
 crate, authority boundary, or exception to the size budget is introduced.
+
+`serve_args` owns the resident command's clap vocabulary, including its optional
+native authoring seat. `nika_cli::verbs::serve::ServeArgs` and
+`nika_serve::NativeAuthoringArgs` retain their public paths through re-exports;
+the defining Rust type names now originate in this member. The existing closed
+native-seat flag structure retains its fields and literal-construction API.
+The resident arguments provide `Default`; dispatch and seating remain in their
+existing owners. `compile::authoring_http` shares the single-attempt authoring
+transport with the resident door.
+
+`compile::config` preserves the authoring configuration API as a re-export of
+`nika_onboard::compile_config`. The shared parser, constants, typed errors and
+their tests have one owner beside the authoring facade; existing import paths
+and resolution behavior remain available without a reverse dependency.
 
 ## Knowledge door
 
@@ -90,7 +126,9 @@ its code. The caps stay finite: 3 · 8 · 4 · 3 · 1 rows, 6 KiB per file and
 ## Literal input binding
 
 `literal_inputs::{read, validate}` owns bounded native API value decoding and
-declared-input validation beside the unchanged `var_inputs` operator binder.
+declared-input validation beside the `var_inputs` operator binder (owned by
+`nika_service_execution::inputs` since C5 · 2026-09-28 and re-exported here at
+the same paths).
 The reader consumes at most 1 MiB + 1 bytes; JSON grammar/depth/numbers belong
 to serde_json, with duplicate map keys rejected at every nesting level. Types
 use canonical `parse_type` / `fits`, required values use the runtime refusal,
@@ -113,12 +151,116 @@ host uses the existing event source SHA-256 interface for an ephemeral candidate
 witness over exactly the same source, inputs and project-default observation.
 No dependency on Session or restoration of a persisted decision is permitted.
 
-`run_budget` carries the unchanged normal operator budget preflight beside
-that review, and `run_protocol::emit_diagnostic` preserves its existing stream
-projection. CLI retains thin compatibility exports and still owns dispatch.
+`run_budget` carries the normal operator budget preflight beside that review,
+and `run_protocol::emit_diagnostic` preserves its existing stream projection.
+CLI retains thin compatibility exports and still owns dispatch. Since B11
+(2026-09-28) the preflight is priced over the workflow as the run binds it:
+`preflight_bound` hands `--model` and the invocation's validated input values
+to the runtime's one floor law (`nika_runtime::budget_floor_refusal_bound`), so
+a fan over a bound input is priced at the items given, never at its declared
+default, and the unbounded warning describes that same effective workflow.
+`plan_gate` is the CLI's former cost gate over the frozen plan (the harness
+predicate, then `preflight_bound`), descended here as the same monetary
+adapter. `preflight` keeps its signature and prices no bindings.
 The project default is read through `nika-vocab`; the journal uses `nika-fs`
 `OwnedDir`. Neither move changes default/cap precedence, request/token/time
 bounds, route binding, uncertain-charge stop, or subscription separation.
+Since 2026-09-28 the journal's writer lease, strict fold (a killed Run's
+UNKNOWN, recorded once) and torn-tail append live in `nika_dap::cost_journal`
+(descended at the 15k wall); `run_cost` keeps the question, the live account
+and its rows (`prepared` · `settled` · settle-on-drop). Since C3 the review
+takes the lease and folds (`fold_as`, deriving and appending a killed Run's
+UNKNOWN) before any refusal of its channel or the workflow's shape, so a
+host that cannot ask still leaves the disposition on record and is refused
+with it.
+
+A Run with no unknown-cost route but an exact catalog-declared-free API route
+(C2 · 2026-09-28) gets no question, lease or journal row. `review_with_model`
+also takes the Run's `--model` (the lane its model-less tasks ride; `review`
+keeps its signature and forwards none), refuses
+any task the route's observation cannot admit through the shared
+`nika_service_execution::run_cost::declared_free_shape` (Check's readiness
+mirror consumes the same judgment), then binds a per-Run
+`InferenceAdmission::observe_declared_free()` with the run's own jitter seed.
+That observer never replaces the Run's `--max-cost-usd` preflight or runtime
+budget; the trace's terminal frame carries its receipt, and `finish` only
+closes it. A plan that mixes such a route with an unknown-cost one stays on the
+unknown-cost review, which refuses it before any question.
+
+Since C4 (2026-09-28), a `model:` rendered at run time is admitted as the route
+it renders to. `readiness::unknown_routes` (descended to
+`nika_service_execution::run_cost` in C5 and re-exported `pub(super)`) reads the provider predicate
+`admission::unknown_cost_route`, which the registry applies to rendered routes.
+With no unknown-cost route in the plan, the Run binds `InferenceAdmission::observe_run()`
+whenever a static declared-free lane exists, any infer/agent task's own
+`model:` is an expression, or it invokes a nested workflow, whose routes no
+root plan sees; its children share that one account. Before that, `run_time_models` judges every value its
+inputs, defaults or const already decide, exactly as the literal would be judged.
+An unsupported free shape or an unknown-cost route is refused before any effect
+(exit 3).
+- Values decided later: undecidable values are refused at dispatch by the
+  observer, before provider bytes and after earlier effects.
+- Unknown-cost routes: a dynamic unknown-cost route has no review door; that
+  gap is recorded as open, not supported.
+- Answered legs: an inline answered leg binds `leg_observer`, the same fresh
+  observer a manual `--resume` gets, never unknown-cost authority.
+- Bookkeeping: the observer still has no lease or journal, and the budget
+  preflight and cap are unchanged.
+
+Since C6 (2026-09-28) the review is one shared path every host drives:
+`prepare` runs the evaluator (`RunCostPlan::Unneeded` · `Observer` ·
+`Review`), clearing the project (DAP `cost_journal::clear`) before the host's
+own `ask` gate speaks, then frames one `ReviewedRun` under the host's
+`CostHostEvidence` and its `launch` root. `ReviewedRun::confirm(answer,
+source)` re-observes everything it bound before any authority: the source as
+the host reads it now, the held project root and `.nika/` (a directory
+replaced at the same path refuses), the journal's exact bytes after the
+review's own clear, the project configuration, the bound files (read through
+the held root: DAP `Cleared::observe_file` over Service `bound_files`) and the
+route. Only then is the account confirmed, the Run's `RunJournal` (DAP) bound
+to the held `.nika/` descriptor, and the `prepared` row written.
+The host's `RunAccount` adapter gives DAP the provider-owned durable
+`nika/inference-cost-observation@2` projection for each new prepared or settled
+row. The outer journal schema and custody remain unchanged. If the observation
+cannot be projected, it refuses before append; no exact-endpoint fallback is
+written. The live account keeps its exact route and authority. This changes
+new Run observations only: existing rows, their derivation and reconciliation,
+and Session history retain their current contracts.
+`review_with_model` is that path with the terminal as `ask` and the process's
+current directory as `launch`; its refusals and their order are unchanged.
+Serve's cost-review door (`--cost-review`) drives the same path with its own
+startup-composed evidence. `serve_args` gains `--cost-review` and
+`--run-cost-ceiling <USD|none>` (both require `--bind`). The observer decision
+and account now come from Service (`observes` · `observer`).
+Zero vetoes unknown spend before any question and no review can override
+it: `--max-cost-usd 0` refuses in `prepare`, and a project `ceiling:` must
+be a positive real (nika-vocab refuses 0, negative and NaN at the project
+read, so no review is framed). A positive project ceiling stays an
+overridable default; a model-free plan never reads it (pinned in
+`run_cost::tests`).
+
+Since B12 (2026-09-28) `prepare` frames the review from Service's typed
+`dispatch_bound` over the Run's validated bindings (the operator's value before
+the default) instead of `request_bound`. The review confirms its total
+(`for_run`), its in-flight bound (`with_concurrency`), its per-task breakdown
+(`with_breakdown`) and, only when a task authored `retry.max_attempts` above
+one, the retry law (`with_authored_retry`). `ReviewedRun::dispatch_bound()`
+exposes the same typed value, the single positive-work value. The review's question
+(which the CLI challenge binds) and the Serve witness therefore cover exactly the
+reviewed limits. The order is unchanged: clear, then the host's `ask`, then a
+shape refusal in its own words (`Cardinality` for a count only the run decides).
+One addition comes before `ask`: a zero total returns its own plan,
+`RunCostPlan::Zero(observer)`. That is the no-paid-dispatch observer
+(`observe_run`: no allowance, no lease kept), which grants no unknown-cost
+authority, so an empty fan runs and sends nothing, as B11 left it. The variant,
+never a field on the account, tells it from a declared-free `Observer`. It is
+decided before any cap judgment, because sending nothing needs none.
+`review_with_model` and Serve's unreviewed jobs bind it as they bind an observer.
+Serve's version-2 door answers it as no review; version 1 refuses it. Right before the review is
+framed, host evidence whose own `unknown_cost_refusal()` refuses every
+unknown-cost choice returns `RunCostPlan::HardCapped(words)`. The words are
+unchanged; that variant is the one refusal a host may teach its cap's remedy
+for. `review_with_model` returns it as its refusal, as before.
 
 `lines::fresh_terminal` is the fresh-input boundary of both local spending doors:
 the plain session before its `continue once? ›` prompt, and `ReviewChannel::Terminal`
@@ -183,8 +325,71 @@ The shared knowledge implementation lives in `nika-onboard::knowledge`, beside
 the authoring facade. `compile::knowledge` remains a compatibility re-export;
 CLI flags, host observation, admission and decision-seat adapters stay here.
 
+`compile::observe` keeps the observation's I/O: resolving a stated path under
+the project root and refusing a link out of it, the bounded peek, the whole
+read of a small JSON file. Its pure half (a CSV header's columns and delimiter,
+the records' keys, the short categorical values, the raw kind of every sampled
+value) is the compile unit's law, `nika_onboard::compile::observation` (R4 A5),
+so the CLI and the Session, which share this observer, share one law. The world
+carries the kinds beside the rows (`kinds`, keyed by path: counts only, never a
+value). A small JSON file parsed whole within the bound states its keys as
+complete evidence, keyless records included, so a request that asserts a field
+no record carries is not READY; the kinds still come from the first 200 sampled
+values, and nothing here validates every value. An empty array or no records, a
+failed whole read, a head over the bound and JSONL remain partial evidence.
+That completeness is the one change a row of a whole-parsed JSON file carries;
+otherwise a row keeps the bytes it had, so a plan or a verified transform bound
+to a recorded row stays bound to it.
+
+`--authoring-reasoning low|high|max` (else `NIKA_AUTHORING_REASONING`, read only
+when a seat is named) is the reasoning effort every authoring and decision call
+asks; the flag needs `--authoring-model`, `--decision-model` or both (one clap
+group). The shared Onboard producer (`compile_config`) judges the word for every
+door: the flag outranks the environment and never falls back to it, and any
+other word refuses the configuration (exit 3) before any request. It also owns
+the per-call caps (`call_bounds`: the operator's, else 8192 tokens and 120 s,
+300 s for a harness) and the policy (`AuthoringConfig::policy`), which Serve's
+native seat builds from too; the effort never moves a cap. With a level, the
+decision seat asks it under the declared authoring cap; without one it keeps its
+256-token request. `nika serve --authoring-reasoning` (`NativeAuthoringArgs`,
+requires `--authoring-model`) reads the flag, else the environment, once when
+the seat is named; an unknown word refuses the seat before the listener binds.
+The provider adapter sends a level only on a catalog-qualified route and refuses
+a gateway or base-URL override before a byte leaves; the receipt separates the
+configured level from the keys read back from the dispatched body.
+
+`compile::sidecar` records the plan an answer round replays. A replay whose outcome
+re-anchors the plan to a changed source (its observation or the keys asked again moved, R4 A6)
+replaces the record atomically once the compile succeeded, so the next `--answer` binds against
+the observation the question showed; a write failure keeps the old record and names the error,
+and a verified or pending transform is never re-recorded over another source.
+
 `compile::typesafe::session` carries the bounded operator-selected decision
 adapter and its observation journal beside the one TypeSafe transport. Session
 still decides whether its current monetary account admits a call and persists
 observations; the host helper accepts that explicit verdict, not conversation text.
 The existing Session public selection path remains a compatibility re-export.
+
+## Doctor local protocol evidence
+
+`doctor --ping` keeps TCP reachability separate from a compatible model list. The
+opt-in probe makes one GET to each effective local-protocol base plus `/models`,
+with a one-second request timeout, 256-KiB response bound, no redirects or retries,
+no credentials, inference, download or cloud-profile probe. URL userinfo, query
+and fragment are removed. Responses use the provider-owned strict listing decoder.
+An empty compatible list, incompatible protocol and failed observation are distinct
+from advertised models. JSON exposes `local_model_probes` and `inference_tested:false`;
+human rows state that inference was not tested. No opt-in leaves observations absent.
+The existing `Probe` and render function signatures remain compatible.
+
+The direct-API authoring backend records `cost_basis: unpriced; billing_unverified`. Its usage completeness and requested/observed model evidence are separate observations; this door does not calculate a catalog valuation or certify billing. Harness-provided descriptors retain their own basis.
+
+`redact_authoring_error` re-exports the provider-owned authoring error projection. It preserves local AdmissionDenied with an engine-authored remedy and removes provider text from all other failures. Serve consumes this shared host boundary; the compiler keeps its typed refusal distinction.
+
+Direct API authoring endpoint metadata comes from the exact seated registry: `host` strips user info, path, query and fragment; `base_url_overridden` compares the effective URL with its profile seed when available. `endpoint_basis: operator_configuration` distinguishes this configuration from an authenticated remote identity or an observed model. Session host diagnostics use the same redaction.
+
+`probe::operator_account()` reads the process account from the OS: its uid,
+and its login name when the account database names one. It never reads a
+flag or the environment. This is the principal `nika trace cost reconcile`
+records: attributable, not authenticated, through the existing `nix` user
+feature.

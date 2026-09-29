@@ -88,6 +88,15 @@ policy»). Diamond closes the class:
    bearer token to a DIFFERENT host (SSRF only blocks PRIVATE targets ·
    this is the public→public leak class). Mirrors reqwest's own
    `remove_sensitive_headers`, which `Policy::none()` opted us out of.
+   An explicit `Authorization` header replaces URL-derived Basic auth on
+   each hop. Without an explicit header, URL Basic auth remains supported.
+   Multiple case variants of an explicit Authorization field are ambiguous
+   and refused before sending; diagnostics never include their values.
+   Cross-origin redirects also remove userinfo from the resolved target URL:
+   a response's `Location` cannot introduce Basic credentials after explicit
+   headers were stripped. Relative redirects within the same origin preserve
+   caller-supplied URL Basic auth. Invalid `Location` diagnostics report only
+   the parse failure class, never the response header's credential, path or query.
 6. **Followable-only redirect**: only `301/302/303/307/308` drive the
    loop; `300/304/305/306` return verbatim (304 is a normal conditional-
    GET answer, not an error). 303→GET demotes every method EXCEPT HEAD

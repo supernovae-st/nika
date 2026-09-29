@@ -7,7 +7,7 @@
 //! the Connectome can provide alternative capability sources (overlay from
 //! `pck`, runtime discovery, etc.) without coupling to the concrete struct.
 
-use super::model::{ModelCapabilities, TokenLimitParam};
+use super::model::{ModelCapabilities, ReasoningLevel, TokenLimitParam};
 use super::{JsonMode, Modality, ParamFlag, TokenizerFamily};
 
 /// Read-only view of a model's capabilities.
@@ -51,6 +51,11 @@ pub trait ModelCapabilitiesView {
     fn tokenizer(&self) -> Option<TokenizerFamily>;
     /// API-level parameter capability flags.
     fn supported_parameters(&self) -> &[ParamFlag];
+    /// The reasoning effort levels the exact model documents (R4 B16); a source that does
+    /// not know them qualifies none.
+    fn reasoning_efforts(&self) -> &[ReasoningLevel] {
+        &[]
+    }
 }
 
 impl ModelCapabilitiesView for ModelCapabilities {
@@ -102,6 +107,10 @@ impl ModelCapabilitiesView for ModelCapabilities {
     fn supported_parameters(&self) -> &[ParamFlag] {
         self.supported_parameters
     }
+    #[inline]
+    fn reasoning_efforts(&self) -> &[ReasoningLevel] {
+        self.reasoning_efforts
+    }
 }
 
 #[cfg(test)]
@@ -124,6 +133,9 @@ mod tests {
         assert!(caps.output_modalities().contains(&Modality::Text));
         assert_eq!(caps.tokenizer(), None);
         assert!(caps.supported_parameters().is_empty());
+        assert!(caps.reasoning_efforts().is_empty());
+        let listed = caps.with_reasoning_efforts(&[ReasoningLevel::Max]);
+        assert_eq!(listed.reasoning_efforts(), &[ReasoningLevel::Max]);
     }
 
     #[test]

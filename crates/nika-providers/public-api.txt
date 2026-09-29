@@ -163,6 +163,8 @@ pub nika_providers::admission::AttemptReceipt::response_model: core::option::Opt
 pub nika_providers::admission::AttemptReceipt::sent: bool
 pub nika_providers::admission::AttemptReceipt::tariff: nika_catalog::admission::InferenceTariff
 pub nika_providers::admission::AttemptReceipt::usage: core::option::Option<nika_types::token_usage::TokenUsage>
+impl nika_providers::admission::AttemptReceipt
+pub fn nika_providers::admission::AttemptReceipt::origin(&self) -> core::option::Option<alloc::string::String>
 impl core::clone::Clone for nika_providers::admission::AttemptReceipt
 pub fn nika_providers::admission::AttemptReceipt::clone(&self) -> nika_providers::admission::AttemptReceipt
 impl core::cmp::Eq for nika_providers::admission::AttemptReceipt
@@ -253,7 +255,9 @@ impl<T> serde_core::de::DeserializeOwned for nika_providers::admission::CostChal
 #[non_exhaustive] pub struct nika_providers::admission::CostHostEvidence
 impl nika_providers::admission::CostHostEvidence
 pub fn nika_providers::admission::CostHostEvidence::new(allowed: bool, policy: nika_providers::admission::CapEvidence, machine: nika_providers::admission::CapEvidence, occurrence: nika_providers::admission::CapEvidence) -> Self
+pub fn nika_providers::admission::CostHostEvidence::unknown_cost_refusal(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::admission::CostHostEvidence::unmanaged_interactive_local() -> Self
+pub fn nika_providers::admission::CostHostEvidence::view(&self) -> serde_json::value::Value
 impl core::clone::Clone for nika_providers::admission::CostHostEvidence
 pub fn nika_providers::admission::CostHostEvidence::clone(&self) -> nika_providers::admission::CostHostEvidence
 impl core::default::Default for nika_providers::admission::CostHostEvidence
@@ -314,16 +318,21 @@ pub fn nika_providers::admission::CostResponse::as_any(&self) -> &(dyn core::any
 impl<T> serde_core::de::DeserializeOwned for nika_providers::admission::CostResponse where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_providers::admission::CostReview
 impl nika_providers::admission::CostReview
+pub fn nika_providers::admission::CostReview::bounds(&self) -> (u32, u32, core::time::Duration)
 pub fn nika_providers::admission::CostReview::confirm(self, candidate: &str, route: &nika_providers::admission::CostRoute) -> core::result::Result<nika_providers::admission::InferenceAdmission, alloc::string::String>
 pub fn nika_providers::admission::CostReview::details(&self) -> alloc::string::String
 pub fn nika_providers::admission::CostReview::for_run(self, max_requests: u32) -> core::result::Result<Self, alloc::string::String>
 pub fn nika_providers::admission::CostReview::for_session(self) -> Self
+pub fn nika_providers::admission::CostReview::max_in_flight(&self) -> u32
 pub fn nika_providers::admission::CostReview::max_output_tokens(&self) -> u32
 pub fn nika_providers::admission::CostReview::max_requests(&self) -> u32
 pub fn nika_providers::admission::CostReview::new(candidate: alloc::string::String, invocation: alloc::string::String, route: nika_providers::admission::CostRoute, evidence: nika_providers::admission::CostHostEvidence, invocation_default: core::option::Option<nika_types::cost::Cost>, project_default: core::option::Option<nika_types::cost::Cost>) -> core::result::Result<Self, alloc::string::String>
 pub fn nika_providers::admission::CostReview::new_with_clock<C: nika_kernel_core::io::clock::ClockDyn + core::fmt::Debug + 'static>(candidate: alloc::string::String, invocation: alloc::string::String, route: nika_providers::admission::CostRoute, evidence: nika_providers::admission::CostHostEvidence, invocation_default: core::option::Option<nika_types::cost::Cost>, project_default: core::option::Option<nika_types::cost::Cost>, clock: alloc::sync::Arc<C>) -> core::result::Result<Self, alloc::string::String>
 pub fn nika_providers::admission::CostReview::question(&self) -> alloc::string::String
 pub fn nika_providers::admission::CostReview::request_timeout(&self) -> core::time::Duration
+pub fn nika_providers::admission::CostReview::with_authored_retry(self, authored: bool) -> Self
+pub fn nika_providers::admission::CostReview::with_breakdown(self, lines: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_providers::admission::CostReview::with_concurrency(self, max_in_flight: u32) -> core::result::Result<Self, alloc::string::String>
 impl core::fmt::Debug for nika_providers::admission::CostReview
 pub fn nika_providers::admission::CostReview::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_providers::admission::CostReview
@@ -352,6 +361,7 @@ pub nika_providers::admission::CostRoute::provider: alloc::string::String
 impl nika_providers::admission::CostRoute
 pub fn nika_providers::admission::CostRoute::needs_unknown_choice(&self) -> bool
 pub fn nika_providers::admission::CostRoute::observe(model: &str, config: nika_providers::registry::ProvidersConfig) -> core::result::Result<Self, alloc::string::String>
+pub fn nika_providers::admission::CostRoute::origin(&self) -> alloc::string::String
 impl core::clone::Clone for nika_providers::admission::CostRoute
 pub fn nika_providers::admission::CostRoute::clone(&self) -> nika_providers::admission::CostRoute
 impl core::cmp::Eq for nika_providers::admission::CostRoute
@@ -444,6 +454,10 @@ pub fn nika_providers::admission::InferenceAdmission::unbudgeted() -> Self
 impl nika_providers::admission::InferenceAdmission
 pub fn nika_providers::admission::InferenceAdmission::for_scope(&self, candidate: &str, invocation: &str) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
 pub fn nika_providers::admission::InferenceAdmission::new_unknown(choice: nika_providers::admission::UnknownCostChoice, policy: nika_providers::admission::UnknownCostPolicy) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
+impl nika_providers::admission::InferenceAdmission
+pub fn nika_providers::admission::InferenceAdmission::observe_declared_free() -> Self
+pub fn nika_providers::admission::InferenceAdmission::observe_run() -> Self
+pub fn nika_providers::admission::InferenceAdmission::observes_declared_free_only(&self) -> bool
 impl core::clone::Clone for nika_providers::admission::InferenceAdmission
 pub fn nika_providers::admission::InferenceAdmission::clone(&self) -> nika_providers::admission::InferenceAdmission
 impl core::fmt::Debug for nika_providers::admission::InferenceAdmission
@@ -483,11 +497,14 @@ pub nika_providers::admission::InferenceReceipt::held_unknown: nika_types::cost:
 pub nika_providers::admission::InferenceReceipt::limit: nika_types::cost::Cost
 pub nika_providers::admission::InferenceReceipt::overridden_defaults: [core::option::Option<nika_types::cost::Cost>; 2]
 pub nika_providers::admission::InferenceReceipt::refusal: core::option::Option<alloc::string::String>
+pub nika_providers::admission::InferenceReceipt::scoped_to_declared_free: bool
 pub nika_providers::admission::InferenceReceipt::state: nika_providers::admission::AdmissionState
 pub nika_providers::admission::InferenceReceipt::unbudgeted: bool
 pub nika_providers::admission::InferenceReceipt::unknown_attempts: alloc::vec::Vec<nika_providers::admission::UnknownAttemptReceipt>
 pub nika_providers::admission::InferenceReceipt::unknown_calls: usize
 pub nika_providers::admission::InferenceReceipt::unknown_cost: core::option::Option<nika_providers::admission::UnknownCostChoice>
+impl nika_providers::admission::InferenceReceipt
+pub fn nika_providers::admission::InferenceReceipt::durable_observation(&self) -> serde_json::value::Value
 impl nika_providers::admission::InferenceReceipt
 pub fn nika_providers::admission::InferenceReceipt::observation(&self) -> serde_json::value::Value
 impl core::clone::Clone for nika_providers::admission::InferenceReceipt
@@ -601,8 +618,11 @@ impl nika_providers::admission::UnknownCostChoice
 pub fn nika_providers::admission::UnknownCostChoice::endpoint(&self) -> &str
 pub fn nika_providers::admission::UnknownCostChoice::model(&self) -> &str
 pub fn nika_providers::admission::UnknownCostChoice::new(candidate: alloc::string::String, invocation: alloc::string::String, provider: alloc::string::String, model: alloc::string::String, endpoint: alloc::string::String, max_requests: u32, max_output_tokens: u32, timeout: core::time::Duration) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
+pub fn nika_providers::admission::UnknownCostChoice::origin(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::admission::UnknownCostChoice::provider(&self) -> &str
+pub fn nika_providers::admission::UnknownCostChoice::with_authored_retry(self) -> Self
 pub fn nika_providers::admission::UnknownCostChoice::with_declared_tariff(self, tariff: nika_providers::admission::DeclaredTariff) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
+pub fn nika_providers::admission::UnknownCostChoice::with_max_in_flight(self, n: u32) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
 impl core::clone::Clone for nika_providers::admission::UnknownCostChoice
 pub fn nika_providers::admission::UnknownCostChoice::clone(&self) -> nika_providers::admission::UnknownCostChoice
 impl core::cmp::Eq for nika_providers::admission::UnknownCostChoice
@@ -678,6 +698,13 @@ pub const nika_providers::admission::SESSION_REVIEW_MAX_REQUESTS: u32
 pub const nika_providers::admission::SESSION_REVIEW_TIMEOUT: core::time::Duration
 pub fn nika_providers::admission::monetary_default(amount: core::option::Option<f64>) -> core::result::Result<core::option::Option<nika_types::cost::Cost>, alloc::string::String>
 pub fn nika_providers::admission::native_catalog_price_known(model: &str, config: nika_providers::registry::ProvidersConfig) -> bool
+pub fn nika_providers::admission::observation_consistent(observation: &serde_json::value::Value) -> core::result::Result<(nika_providers::admission::AdmissionState, bool), &'static str>
+pub fn nika_providers::admission::observation_readable(observation: &serde_json::value::Value) -> bool
+pub fn nika_providers::admission::observation_request_ids(observation: &serde_json::value::Value) -> alloc::vec::Vec<&str>
+pub fn nika_providers::admission::observation_route(observation: &serde_json::value::Value) -> serde_json::value::Value
+pub fn nika_providers::admission::unknown_cost_route(model: &str, config: nika_providers::registry::ProvidersConfig) -> core::result::Result<core::option::Option<nika_providers::admission::CostRoute>, alloc::string::String>
+pub mod nika_providers::authoring
+pub fn nika_providers::authoring::redact_authoring_error(error: nika_kernel_ai::provider::ProviderError, admission_remedy: &str) -> nika_kernel_ai::provider::ProviderError
 pub mod nika_providers::census
 pub struct nika_providers::census::AccessCensus
 pub nika_providers::census::AccessCensus::best: core::option::Option<nika_providers::census::AccessPath>
@@ -807,6 +834,41 @@ pub fn nika_providers::census::SeatFact::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::census::SeatFact where T: 'static
 pub fn nika_providers::census::SeatFact::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_providers::census::collect_seats() -> alloc::vec::Vec<nika_providers::census::SeatFact>
+pub mod nika_providers::dispatch_journal
+pub struct nika_providers::dispatch_journal::DispatchJournal(_)
+impl nika_providers::dispatch_journal::DispatchJournal
+pub async fn nika_providers::dispatch_journal::DispatchJournal::observe<F, L>(dispatch: F, lost: L) -> <F as core::future::future::Future>::Output where F: core::future::future::Future, L: core::ops::function::FnOnce(alloc::vec::Vec<nika_types::cost::inference::InferenceCall>)
+impl core::clone::Clone for nika_providers::dispatch_journal::DispatchJournal
+pub fn nika_providers::dispatch_journal::DispatchJournal::clone(&self) -> nika_providers::dispatch_journal::DispatchJournal
+impl core::default::Default for nika_providers::dispatch_journal::DispatchJournal
+pub fn nika_providers::dispatch_journal::DispatchJournal::default() -> nika_providers::dispatch_journal::DispatchJournal
+impl core::fmt::Debug for nika_providers::dispatch_journal::DispatchJournal
+pub fn nika_providers::dispatch_journal::DispatchJournal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_providers::dispatch_journal::DispatchJournal
+impl<T, U> core::convert::Into<U> for nika_providers::dispatch_journal::DispatchJournal where U: core::convert::From<T>
+pub fn nika_providers::dispatch_journal::DispatchJournal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::dispatch_journal::DispatchJournal where U: core::convert::Into<T>
+pub type nika_providers::dispatch_journal::DispatchJournal::Error = core::convert::Infallible
+pub fn nika_providers::dispatch_journal::DispatchJournal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::dispatch_journal::DispatchJournal where U: core::convert::TryFrom<T>
+pub type nika_providers::dispatch_journal::DispatchJournal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::dispatch_journal::DispatchJournal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::dispatch_journal::DispatchJournal where T: core::clone::Clone
+pub type nika_providers::dispatch_journal::DispatchJournal::Owned = T
+pub fn nika_providers::dispatch_journal::DispatchJournal::clone_into(&self, target: &mut T)
+pub fn nika_providers::dispatch_journal::DispatchJournal::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::dispatch_journal::DispatchJournal where T: 'static + ?core::marker::Sized
+pub fn nika_providers::dispatch_journal::DispatchJournal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::dispatch_journal::DispatchJournal where T: ?core::marker::Sized
+pub fn nika_providers::dispatch_journal::DispatchJournal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::dispatch_journal::DispatchJournal where T: ?core::marker::Sized
+pub fn nika_providers::dispatch_journal::DispatchJournal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::dispatch_journal::DispatchJournal where T: core::clone::Clone
+pub unsafe fn nika_providers::dispatch_journal::DispatchJournal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::dispatch_journal::DispatchJournal
+pub fn nika_providers::dispatch_journal::DispatchJournal::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::dispatch_journal::DispatchJournal where T: 'static
+pub fn nika_providers::dispatch_journal::DispatchJournal::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_providers::plan
 #[non_exhaustive] pub enum nika_providers::plan::LaneVerdict
 pub nika_providers::plan::LaneVerdict::Admitted(nika_providers::plan::ResolvedLane)
@@ -850,6 +912,7 @@ pub nika_providers::plan::ExecutionAccessPlan::pin: core::option::Option<alloc::
 pub nika_providers::plan::ExecutionAccessPlan::pin_refusal: core::option::Option<nika_providers::resolve_access::PinRefusal>
 pub nika_providers::plan::ExecutionAccessPlan::seat: core::option::Option<alloc::string::String>
 impl nika_providers::plan::ExecutionAccessPlan
+pub fn nika_providers::plan::ExecutionAccessPlan::admits_api_lane(&self, provider: &str) -> bool
 pub fn nika_providers::plan::ExecutionAccessPlan::admitted(&self) -> impl core::iter::traits::iterator::Iterator<Item = (&str, &nika_providers::plan::ResolvedLane)>
 pub fn nika_providers::plan::ExecutionAccessPlan::first_refused(&self) -> core::option::Option<(&str, &nika_providers::resolve_access::AccessRefusal)>
 pub fn nika_providers::plan::ExecutionAccessPlan::into_decisions(self) -> alloc::vec::Vec<(alloc::string::String, core::result::Result<nika_types::access::AccessPlan, nika_providers::resolve_access::AccessRefusal>)>
@@ -1134,6 +1197,49 @@ impl<T> core::convert::From<T> for nika_providers::probe::PingState
 pub fn nika_providers::probe::PingState::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::PingState where T: 'static
 pub fn nika_providers::probe::PingState::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_providers::probe::ModelListing
+pub nika_providers::probe::ModelListing::failure: core::option::Option<alloc::string::String>
+pub nika_providers::probe::ModelListing::http_status: core::option::Option<u16>
+pub nika_providers::probe::ModelListing::models: alloc::vec::Vec<alloc::string::String>
+pub nika_providers::probe::ModelListing::protocol_compatible: core::option::Option<bool>
+impl nika_providers::probe::ModelListing
+pub fn nika_providers::probe::ModelListing::available(&self) -> core::option::Option<bool>
+pub fn nika_providers::probe::ModelListing::new(reason: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_providers::probe::ModelListing
+pub fn nika_providers::probe::ModelListing::clone(&self) -> nika_providers::probe::ModelListing
+impl core::cmp::Eq for nika_providers::probe::ModelListing
+impl core::cmp::PartialEq for nika_providers::probe::ModelListing
+pub fn nika_providers::probe::ModelListing::eq(&self, other: &nika_providers::probe::ModelListing) -> bool
+impl core::fmt::Debug for nika_providers::probe::ModelListing
+pub fn nika_providers::probe::ModelListing::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::probe::ModelListing
+impl serde_core::ser::Serialize for nika_providers::probe::ModelListing
+pub fn nika_providers::probe::ModelListing::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_providers::probe::ModelListing
+impl<T, U> core::convert::Into<U> for nika_providers::probe::ModelListing where U: core::convert::From<T>
+pub fn nika_providers::probe::ModelListing::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::probe::ModelListing where U: core::convert::Into<T>
+pub type nika_providers::probe::ModelListing::Error = core::convert::Infallible
+pub fn nika_providers::probe::ModelListing::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::probe::ModelListing where U: core::convert::TryFrom<T>
+pub type nika_providers::probe::ModelListing::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::probe::ModelListing::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::probe::ModelListing where T: core::clone::Clone
+pub type nika_providers::probe::ModelListing::Owned = T
+pub fn nika_providers::probe::ModelListing::clone_into(&self, target: &mut T)
+pub fn nika_providers::probe::ModelListing::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::probe::ModelListing where T: 'static + ?core::marker::Sized
+pub fn nika_providers::probe::ModelListing::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::probe::ModelListing where T: ?core::marker::Sized
+pub fn nika_providers::probe::ModelListing::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::probe::ModelListing where T: ?core::marker::Sized
+pub fn nika_providers::probe::ModelListing::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::probe::ModelListing where T: core::clone::Clone
+pub unsafe fn nika_providers::probe::ModelListing::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::probe::ModelListing
+pub fn nika_providers::probe::ModelListing::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::probe::ModelListing where T: 'static
+pub fn nika_providers::probe::ModelListing::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_providers::probe::ProviderProbe
 pub nika_providers::probe::ProviderProbe::endpoint: alloc::string::String
 pub nika_providers::probe::ProviderProbe::fix_var: alloc::string::String
@@ -1186,6 +1292,7 @@ pub nika_providers::probe::ProviderReadiness::access: nika_types::access::Access
 pub nika_providers::probe::ProviderReadiness::configured: bool
 pub nika_providers::probe::ProviderReadiness::execution_locus: nika_providers::probe::ExecutionLocus
 pub nika_providers::probe::ProviderReadiness::model_available: core::option::Option<bool>
+pub nika_providers::probe::ProviderReadiness::model_listing: core::option::Option<nika_providers::probe::ModelListing>
 pub nika_providers::probe::ProviderReadiness::priced: bool
 pub nika_providers::probe::ProviderReadiness::reachable: core::option::Option<bool>
 pub nika_providers::probe::ProviderReadiness::recognized: bool
@@ -1234,6 +1341,7 @@ pub fn nika_providers::probe::env_present(name: &str) -> bool
 pub fn nika_providers::probe::harness_access_probe(id: impl core::convert::Into<alloc::string::String>, serves: alloc::vec::Vec<alloc::string::String>, acp_present: bool, configured: bool, product_present: bool) -> nika_providers::probe::ProviderProbe
 pub fn nika_providers::probe::local_run_gate<H>(registry: &nika_providers::registry::ProviderRegistry<H>, model: &str) -> core::option::Option<nika_providers::probe::LocalLiveness> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
 pub fn nika_providers::probe::ping_addr(url: &str) -> core::option::Option<alloc::string::String>
+pub async fn nika_providers::probe::probe_model_listing<H: nika_kernel_core::io::http::HttpGetDyn>(http: &H, endpoint: &str) -> nika_providers::probe::ModelListing
 pub fn nika_providers::probe::spawn_local_liveness(addr: &str) -> std::sync::mpsc::Receiver<nika_providers::probe::LocalLiveness>
 pub fn nika_providers::probe::spawn_ping(addr: &str, timeout: core::time::Duration) -> std::sync::mpsc::Receiver<core::option::Option<u64>>
 pub mod nika_providers::profile
@@ -1422,6 +1530,7 @@ pub fn nika_providers::registry::ProviderRegistry<H>::effective_base_url(&self, 
 pub fn nika_providers::registry::ProviderRegistry<H>::supports_response_format(&self, model: &str) -> bool
 pub fn nika_providers::registry::ProviderRegistry<H>::with_backoff(self, backoff: alloc::sync::Arc<dyn nika_providers::retry::Backoff>) -> Self
 pub fn nika_providers::registry::ProviderRegistry<H>::with_inference_admission(self, admission: nika_providers::admission::InferenceAdmission) -> Self
+pub fn nika_providers::registry::ProviderRegistry<H>::with_inference_admission_http(self, admission: nika_providers::admission::InferenceAdmission, http: alloc::sync::Arc<H>) -> Self
 impl<H: core::fmt::Debug> core::fmt::Debug for nika_providers::registry::ProviderRegistry<H>
 pub fn nika_providers::registry::ProviderRegistry<H>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_providers::registry::ProviderRegistry<H>
@@ -1706,6 +1815,7 @@ pub nika_providers::retry::BillingRoute::provider: alloc::string::String
 impl nika_providers::retry::BillingRoute
 pub fn nika_providers::retry::BillingRoute::new(provider: alloc::string::String, model: alloc::string::String, endpoint: alloc::string::String) -> core::option::Option<Self>
 pub fn nika_providers::retry::BillingRoute::observation(&self) -> serde_json::value::Value
+pub fn nika_providers::retry::BillingRoute::origin(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::retry::BillingRoute::tariff(&self) -> core::option::Option<nika_catalog::admission::InferenceTariff>
 impl core::clone::Clone for nika_providers::retry::BillingRoute
 pub fn nika_providers::retry::BillingRoute::clone(&self) -> nika_providers::retry::BillingRoute
@@ -1826,6 +1936,18 @@ pub trait nika_providers::retry::Backoff: core::marker::Send + core::marker::Syn
 pub fn nika_providers::retry::Backoff::sleep(&self, duration: core::time::Duration) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = ()> + core::marker::Send + '_)>>
 impl<C: nika_kernel_core::io::clock::ClockDyn + core::fmt::Debug + 'static> nika_providers::retry::Backoff for nika_providers::retry::ClockBackoff<C>
 pub fn nika_providers::retry::ClockBackoff<C>::sleep(&self, duration: core::time::Duration) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = ()> + core::marker::Send + '_)>>
+pub mod nika_providers::route_identity
+pub fn nika_providers::route_identity::canonical_endpoint(endpoint: &str) -> bool
+pub fn nika_providers::route_identity::durable_calls(calls: &[nika_types::cost::inference::InferenceCall]) -> serde_json::value::Value
+pub fn nika_providers::route_identity::durable_pricing(pricing: &str, calls: &[nika_types::cost::inference::InferenceCall]) -> serde_json::value::Value
+pub fn nika_providers::route_identity::project_observation(observation: &serde_json::value::Value) -> core::option::Option<serde_json::value::Value>
+pub fn nika_providers::route_identity::project_route(route: &serde_json::value::Value) -> serde_json::value::Value
+pub fn nika_providers::route_identity::route_label(route: &nika_types::cost::inference::InferenceRoute) -> alloc::string::String
+pub fn nika_providers::route_identity::route_origin(endpoint: &str) -> core::option::Option<alloc::string::String>
+pub mod nika_providers::spend
+pub fn nika_providers::spend::price_failed_spend(spend: core::option::Option<&nika_types::cost::SpendOnFailure>) -> (core::option::Option<f64>, core::option::Option<alloc::string::String>, core::option::Option<nika_types::cost::UnpricedReason>)
+pub fn nika_providers::spend::spend_for_calls(calls: &[nika_types::cost::inference::InferenceCall]) -> (core::option::Option<f64>, core::option::Option<nika_types::cost::UnpricedReason>)
+pub fn nika_providers::spend::spend_for_model(model: &str, usage: &nika_types::token_usage::TokenUsage) -> (core::option::Option<f64>, core::option::Option<nika_types::cost::UnpricedReason>)
 pub mod nika_providers::wire
 #[non_exhaustive] pub enum nika_providers::AdmissionState
 pub nika_providers::AdmissionState::Closed
@@ -2212,6 +2334,8 @@ pub nika_providers::AttemptReceipt::response_model: core::option::Option<alloc::
 pub nika_providers::AttemptReceipt::sent: bool
 pub nika_providers::AttemptReceipt::tariff: nika_catalog::admission::InferenceTariff
 pub nika_providers::AttemptReceipt::usage: core::option::Option<nika_types::token_usage::TokenUsage>
+impl nika_providers::admission::AttemptReceipt
+pub fn nika_providers::admission::AttemptReceipt::origin(&self) -> core::option::Option<alloc::string::String>
 impl core::clone::Clone for nika_providers::admission::AttemptReceipt
 pub fn nika_providers::admission::AttemptReceipt::clone(&self) -> nika_providers::admission::AttemptReceipt
 impl core::cmp::Eq for nika_providers::admission::AttemptReceipt
@@ -2283,6 +2407,7 @@ pub nika_providers::ExecutionAccessPlan::pin: core::option::Option<alloc::string
 pub nika_providers::ExecutionAccessPlan::pin_refusal: core::option::Option<nika_providers::resolve_access::PinRefusal>
 pub nika_providers::ExecutionAccessPlan::seat: core::option::Option<alloc::string::String>
 impl nika_providers::plan::ExecutionAccessPlan
+pub fn nika_providers::plan::ExecutionAccessPlan::admits_api_lane(&self, provider: &str) -> bool
 pub fn nika_providers::plan::ExecutionAccessPlan::admitted(&self) -> impl core::iter::traits::iterator::Iterator<Item = (&str, &nika_providers::plan::ResolvedLane)>
 pub fn nika_providers::plan::ExecutionAccessPlan::first_refused(&self) -> core::option::Option<(&str, &nika_providers::resolve_access::AccessRefusal)>
 pub fn nika_providers::plan::ExecutionAccessPlan::into_decisions(self) -> alloc::vec::Vec<(alloc::string::String, core::result::Result<nika_types::access::AccessPlan, nika_providers::resolve_access::AccessRefusal>)>
@@ -2336,6 +2461,10 @@ pub fn nika_providers::admission::InferenceAdmission::unbudgeted() -> Self
 impl nika_providers::admission::InferenceAdmission
 pub fn nika_providers::admission::InferenceAdmission::for_scope(&self, candidate: &str, invocation: &str) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
 pub fn nika_providers::admission::InferenceAdmission::new_unknown(choice: nika_providers::admission::UnknownCostChoice, policy: nika_providers::admission::UnknownCostPolicy) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
+impl nika_providers::admission::InferenceAdmission
+pub fn nika_providers::admission::InferenceAdmission::observe_declared_free() -> Self
+pub fn nika_providers::admission::InferenceAdmission::observe_run() -> Self
+pub fn nika_providers::admission::InferenceAdmission::observes_declared_free_only(&self) -> bool
 impl core::clone::Clone for nika_providers::admission::InferenceAdmission
 pub fn nika_providers::admission::InferenceAdmission::clone(&self) -> nika_providers::admission::InferenceAdmission
 impl core::fmt::Debug for nika_providers::admission::InferenceAdmission
@@ -2375,11 +2504,14 @@ pub nika_providers::InferenceReceipt::held_unknown: nika_types::cost::Cost
 pub nika_providers::InferenceReceipt::limit: nika_types::cost::Cost
 pub nika_providers::InferenceReceipt::overridden_defaults: [core::option::Option<nika_types::cost::Cost>; 2]
 pub nika_providers::InferenceReceipt::refusal: core::option::Option<alloc::string::String>
+pub nika_providers::InferenceReceipt::scoped_to_declared_free: bool
 pub nika_providers::InferenceReceipt::state: nika_providers::admission::AdmissionState
 pub nika_providers::InferenceReceipt::unbudgeted: bool
 pub nika_providers::InferenceReceipt::unknown_attempts: alloc::vec::Vec<nika_providers::admission::UnknownAttemptReceipt>
 pub nika_providers::InferenceReceipt::unknown_calls: usize
 pub nika_providers::InferenceReceipt::unknown_cost: core::option::Option<nika_providers::admission::UnknownCostChoice>
+impl nika_providers::admission::InferenceReceipt
+pub fn nika_providers::admission::InferenceReceipt::durable_observation(&self) -> serde_json::value::Value
 impl nika_providers::admission::InferenceReceipt
 pub fn nika_providers::admission::InferenceReceipt::observation(&self) -> serde_json::value::Value
 impl core::clone::Clone for nika_providers::admission::InferenceReceipt
@@ -2547,6 +2679,7 @@ pub fn nika_providers::registry::ProviderRegistry<H>::effective_base_url(&self, 
 pub fn nika_providers::registry::ProviderRegistry<H>::supports_response_format(&self, model: &str) -> bool
 pub fn nika_providers::registry::ProviderRegistry<H>::with_backoff(self, backoff: alloc::sync::Arc<dyn nika_providers::retry::Backoff>) -> Self
 pub fn nika_providers::registry::ProviderRegistry<H>::with_inference_admission(self, admission: nika_providers::admission::InferenceAdmission) -> Self
+pub fn nika_providers::registry::ProviderRegistry<H>::with_inference_admission_http(self, admission: nika_providers::admission::InferenceAdmission, http: alloc::sync::Arc<H>) -> Self
 impl<H: core::fmt::Debug> core::fmt::Debug for nika_providers::registry::ProviderRegistry<H>
 pub fn nika_providers::registry::ProviderRegistry<H>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_providers::registry::ProviderRegistry<H>
@@ -2862,11 +2995,16 @@ impl<C: nika_kernel_core::io::clock::ClockDyn + core::fmt::Debug + 'static> nika
 pub fn nika_providers::retry::ClockBackoff<C>::sleep(&self, duration: core::time::Duration) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = ()> + core::marker::Send + '_)>>
 pub fn nika_providers::access_plan_map(models: &[alloc::string::String], probes: &[nika_providers::probe::ProviderProbe], pin: core::option::Option<&str>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::access::AccessPlan>
 pub fn nika_providers::candidates_for(probes: &[nika_providers::probe::ProviderProbe], provider: &str) -> alloc::vec::Vec<nika_providers::resolve_access::AccessCandidate>
+pub fn nika_providers::canonical_endpoint(endpoint: &str) -> bool
 pub fn nika_providers::canonical_provider(id: &str) -> &str
 pub fn nika_providers::catalog_warning(model: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::classify_http_status(status: u16) -> nika_providers::probe::KeyAuth
 pub fn nika_providers::classify_key_value(prefixes: &[&str], value: &str) -> nika_providers::probe::KeyAuth
+pub fn nika_providers::durable_calls(calls: &[nika_types::cost::inference::InferenceCall]) -> serde_json::value::Value
+pub fn nika_providers::durable_pricing(pricing: &str, calls: &[nika_types::cost::inference::InferenceCall]) -> serde_json::value::Value
 pub fn nika_providers::first_ready_harness(probes: &[nika_providers::probe::ProviderProbe]) -> core::option::Option<&str>
+pub fn nika_providers::project_observation(observation: &serde_json::value::Value) -> core::option::Option<serde_json::value::Value>
+pub fn nika_providers::project_route(route: &serde_json::value::Value) -> serde_json::value::Value
 pub fn nika_providers::provider_of(model: &str) -> &str
 pub fn nika_providers::refuse_pin<'m>(models: impl core::iter::traits::collect::IntoIterator<Item = &'m str>, probes: &[nika_providers::probe::ProviderProbe], pin: &str) -> core::option::Option<nika_providers::resolve_access::PinRefusal>
 pub fn nika_providers::refuse_pin_for_verbs<'m>(models: impl core::iter::traits::collect::IntoIterator<Item = &'m str>, probes: &[nika_providers::probe::ProviderProbe], pin: &str, has_infer: bool, has_agent: bool) -> core::option::Option<nika_providers::resolve_access::PinRefusal>
@@ -2874,6 +3012,8 @@ pub fn nika_providers::resolve_access(model: &str, candidates: &[nika_providers:
 pub fn nika_providers::resolve_execution_plan(needs: &[nika_providers::plan::ModelNeed], probes: &[nika_providers::probe::ProviderProbe], pin: core::option::Option<&str>) -> nika_providers::plan::ExecutionAccessPlan
 pub fn nika_providers::resolve_execution_plan_for(needs: &[nika_providers::plan::ModelNeed], probes: &[nika_providers::probe::ProviderProbe], pin: core::option::Option<&str>, verbs: nika_providers::resolve_access::VerbNeeds) -> nika_providers::plan::ExecutionAccessPlan
 pub fn nika_providers::resolve_refusal(model: &str) -> core::option::Option<nika_providers::profile::ResolveRefusal>
+pub fn nika_providers::route_label(route: &nika_types::cost::inference::InferenceRoute) -> alloc::string::String
+pub fn nika_providers::route_origin(endpoint: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::seed() -> alloc::vec::Vec<nika_providers::profile::Profile>
 pub fn nika_providers::server_backed_local(provider: &str) -> bool
 pub fn nika_providers::wired_facet(wired: usize, local: usize) -> alloc::string::String

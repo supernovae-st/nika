@@ -595,27 +595,11 @@ where
             .with_task_context(Some(&with_ns), None, None, permits);
         let started = self.clock.now();
         let witness = std::sync::Arc::new(PermitWitness::new());
-        let attempt = self.attempt_loop(task, &scope, types, ledger, &witness, run_start);
-        let mut ran = nika_builtin::witness::scope_attempt_witness(witness.clone(), attempt).await;
-        // `on_finally:` — the task STARTED (spec 03 · success AND
-        // failure · before the failure propagates in the DAG). The
-        // cleanup lane's decisions ride a dedicated witness (the
-        // parent's is already drained by attempt_loop) merged right after.
-        let finally_witness = std::sync::Arc::new(PermitWitness::new());
-        let finally = self.run_finally(
-            task,
-            wf,
-            &scope,
-            &ran,
-            integrity,
-            &finally_witness,
-            run_start,
-        );
-        ran.cleanup_declassified =
-            nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
-        ran.decisions.extend(finally_witness.take());
-        ran.duration_ms = self.since_ms(started);
-        SettleAs::Ran(Box::new(ran))
+        let attempt = self.attempt_loop((task, wf), &scope, types, ledger, &witness, run_start);
+        let ran = nika_builtin::witness::scope_attempt_witness(witness.clone(), attempt).await;
+        let seams = (ledger, run_start);
+        self.settle_after_finally((task, wf, &scope), ran, integrity, seams, started)
+            .await
     }
 
     /// The `for_each:` fan-out lane (spec 03 · closed at v1).
@@ -650,6 +634,8 @@ where
         let started = self.clock.now();
         let (cap, fail_fast) = Self::fan_out_limits(task, items.len());
         let total = items.len();
+        let began = fan_out::unstarted(total);
+        let mut calls = BTreeMap::new(); // each yielded iteration's calls, by index
         let mut stream = futures_util::stream::iter(
             items
                 .iter()
@@ -657,7 +643,7 @@ where
                 .take_while(|_| !ledger.tripped())
                 .map(|(index, item)| {
                     let locals = IterationLocals { item, index };
-                    self.run_iteration(
+                    let iteration = self.run_iteration(
                         task,
                         wf,
                         records,
@@ -667,14 +653,17 @@ where
                         types,
                         ledger,
                         run_start,
-                    )
+                    );
+                    fan_out::started_on_first_poll(index, began.get(index), iteration)
                 }),
         )
-        .buffered(cap);
+        .buffer_unordered(cap)
+        .inspect(|(i, ran)| drop(calls.insert(*i, ran.usage.clone().map(|u| u.inference_calls))));
 
         let mut acc = fan_out::collect_fan_out(&mut stream, total, fail_fast).await;
         drop(stream);
-        let item_terminals = fan_out::items_json(std::mem::take(&mut acc.items), &items);
+        let calls: Vec<_> = calls.into_values().flatten().flatten().collect();
+        let item_terminals = fan_out::items_json(std::mem::take(&mut acc.items), &items, &began);
         if acc.outputs.len() < total && ledger.tripped() && acc.first_error.is_none() {
             acc.first_error = Some(fan_out::budget_stop_record(total - acc.outputs.len()));
         }
@@ -685,7 +674,7 @@ where
             (acc.first_error, acc.first_recovered_from),
             (acc.cost_sum, acc.unpriced),
         );
-        let mut ran = RanTask {
+        let ran = RanTask {
             note: fan_out::fan_note(
                 total,
                 acc.recovered,
@@ -699,26 +688,13 @@ where
             evidence: None,
             duration_ms: 0,
             items: Some(FanItems::new(item_terminals, acc.recovered)),
-            usage: None, // its iterations carry their own metered terminals
+            usage: UsageSplit::default().with_calls(&calls).carried(),
             result,
         };
-        let finally_scope =
-            Self::fan_out_finally_scope(records, (inputs, consts, secrets), permits);
-        let finally_witness = std::sync::Arc::new(PermitWitness::new());
-        let finally = self.run_finally(
-            task,
-            wf,
-            &finally_scope,
-            &ran,
-            integrity,
-            &finally_witness,
-            run_start,
-        );
-        ran.cleanup_declassified =
-            nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
-        ran.decisions.extend(finally_witness.take());
-        ran.duration_ms = self.since_ms(started);
-        SettleAs::Ran(Box::new(ran))
+        let scope = Self::fan_out_finally_scope(records, (inputs, consts, secrets), permits);
+        let seams = (ledger, run_start);
+        self.settle_after_finally((task, wf, &scope), ran, integrity, seams, started)
+            .await
     }
 
     fn fan_out_limits(task: &RawTask, item_count: usize) -> (usize, bool) {
@@ -801,7 +777,7 @@ where
                 permits,
             );
         let witness = std::sync::Arc::new(PermitWitness::new());
-        let attempt = self.attempt_loop(task, &scope, types, ledger, &witness, run_start);
+        let attempt = self.attempt_loop((task, wf), &scope, types, ledger, &witness, run_start);
         let mut ran = nika_builtin::witness::scope_attempt_witness(witness.clone(), attempt).await;
         // Stamp the lane: without it a 2-iteration fan-out and a retried
         // single lane produce indistinguishable flat streams (review F3).
@@ -814,24 +790,28 @@ where
     }
 
     /// The per-attempt dispatch context (the fn-length law's
-    /// extraction) — the bound `--answer` for THIS task rides it (B5).
+    /// extraction) — the bound `--answer` for THIS task rides it (B5), the
+    /// child budget reads the ledger AT CALL TIME (law 6), the ledger
+    /// takes a dropped attempt's provider requests (B7), and the workflow
+    /// is where a seat only the run decides is judged (B9).
     fn task_ctx<'a>(
         &'a self,
-        task: &'a RawTask,
+        (task, wf): (&'a RawTask, &'a RawWorkflow),
         deadline: Option<std::time::Duration>,
-        child_budget: Option<f64>,
+        ledger: &'a crate::ledger::RunLedger,
         witness: &'a PermitWitness,
         run_start: nika_kernel::tool_executor::ToolRunStart,
     ) -> DispatchCtx<'a> {
-        let mut ctx = DispatchCtx::of_task(task, deadline, child_budget, witness);
+        let mut ctx = DispatchCtx::of_task(task, deadline, ledger.remaining_usd(), witness);
         ctx.gate_answer = self.prompt_answers.get(&task.id.value).cloned();
         ctx.run_start = run_start;
+        ctx.attempt = Some((ledger, wf, task));
         ctx
     }
 
     async fn attempt_loop(
         &self,
-        task: &RawTask,
+        (task, wf): (&RawTask, &RawWorkflow),
         scope: &Scope<'_>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
@@ -853,7 +833,7 @@ where
             // F-O1 PR-2 · the re-gate's per-template oracle — computed ONCE, used per attempt.
             let value_taint = crate::integrity::ValueTaint::of_task(task, scope.records());
             // law 6 · the child budget reads the ledger AT CALL TIME (per attempt).
-            let ctx = || self.task_ctx(task, budget, ledger.remaining_usd(), witness, run_start);
+            let ctx = || self.task_ctx((task, wf), budget, ledger, witness, run_start);
             let attempts = async {
                 let mut attempt = 1_u32;
                 // Spend of FAILED attempts — folded onto the terminal frame.
@@ -897,7 +877,7 @@ where
                                     max_attempts,
                                     &jitter_key,
                                 )
-                                .map_err(|failed| retain_failed_calls(failed, &failed_calls))?;
+                                .map_err(|failed| retain_failed_calls(*failed, &failed_calls))?;
                             retries.push(RetryStamp {
                                 attempt,
                                 max_attempts,
@@ -961,10 +941,10 @@ where
                                 format!("task exceeded its timeout of {} ms", limit.as_millis()),
                                 false, // never retryable (spec 03)
                             ),
-                            // The cancelled in-flight attempt may have
-                            // billed server-side; nothing was reported, so
-                            // nothing can honestly ride (the documented
-                            // timeout-cancellation class).
+                            // The cancelled attempt reported no spend of its
+                            // own; every provider request it sent reached the
+                            // ledger through the dispatch journal, its charge
+                            // unknown unless it returned evidence (B7).
                             cost_usd: None,
                             cost_unpriced: None,
                             // The dropped attempt's binding evidence dies

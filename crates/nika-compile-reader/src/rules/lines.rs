@@ -10,6 +10,12 @@
 //! tail that says so (« telles quelles », « in order », « one per line ») binds nothing
 //! more. Anything else after the literal is not this grammar: the clause stays unread.
 use super::{Clause, Comparator, Junction, Operand, Rule, Shape};
+use crate::rule_tokens::section;
+use std::sync::LazyLock;
+
+/// The data tables of the line grammar, read below (`tests::tables_are_the_frozen_lists`
+/// pins them).
+const LINE_DATA: &str = include_str!("../../assets/line_words.txt");
 
 /// The words that name lines, six languages, folded.
 const LINE_WORDS: &[&str] = &[
@@ -87,91 +93,12 @@ const GERMAN: &[(&str, &str, Comparator)] = &[
 
 /// Quantity words before the literal that a prefix or suffix comparison already covers
 /// (« un ou plusieurs # »: a line that starts with one # starts with the literal).
-const ONE_OR_MORE: &[&str] = &[
-    "un ou plusieurs",
-    "une ou plusieurs",
-    "one or more",
-    "uno o más",
-    "uno o mas",
-    "una o más",
-    "una o mas",
-    "uno o più",
-    "uno o piu",
-    "una o più",
-    "una o piu",
-    "ein oder mehrere",
-    "eine oder mehrere",
-    "um ou mais",
-    "uma ou mais",
-    "au moins un",
-    "au moins une",
-    "at least one",
-    "al menos un",
-    "al menos una",
-    "almeno un",
-    "almeno una",
-    "mindestens ein",
-    "mindestens eine",
-    "pelo menos um",
-    "pelo menos uma",
-];
+static ONE_OR_MORE: LazyLock<Vec<&str>> = LazyLock::new(|| section(LINE_DATA, "one_or_more"));
 
 /// A tail the lines mode realizes by construction, folded: the kept lines are written as
 /// they are, in the source order, one per line.
-const BY_CONSTRUCTION: &[&str] = &[
-    "as they are",
-    "as is",
-    "as-is",
-    "unchanged",
-    "verbatim",
-    "in order",
-    "in the same order",
-    "in their order",
-    "in source order",
-    "one per line",
-    "each on its own line",
-    "telles quelles",
-    "tels quels",
-    "tel quel",
-    "telle quelle",
-    "dans l'ordre",
-    "dans le même ordre",
-    "dans le meme ordre",
-    "une par ligne",
-    "un par ligne",
-    "tal cual",
-    "tal como están",
-    "tal como estan",
-    "sin cambios",
-    "en el mismo orden",
-    "en orden",
-    "una por línea",
-    "una por linea",
-    "uno por línea",
-    "uno por linea",
-    "così come sono",
-    "cosi come sono",
-    "invariate",
-    "nello stesso ordine",
-    "in ordine",
-    "una per riga",
-    "uno per riga",
-    "unverändert",
-    "unverandert",
-    "wie sie sind",
-    "in der reihenfolge",
-    "in derselben reihenfolge",
-    "eine pro zeile",
-    "einen pro zeile",
-    "tal como estão",
-    "tal como estao",
-    "sem alterações",
-    "sem alteracoes",
-    "na mesma ordem",
-    "em ordem",
-    "uma por linha",
-    "um por linha",
-];
+static BY_CONSTRUCTION: LazyLock<Vec<&str>> =
+    LazyLock::new(|| section(LINE_DATA, "by_construction"));
 
 /// Where the literal ends: a closing parenthesis, a comma, a semicolon, an arrow, a
 /// conjunction or a sequencer.
@@ -244,7 +171,7 @@ pub fn by_construction_tail(text: &str) -> bool {
 
 fn strip_literal(raw: &str) -> &str {
     let mut literal = raw.trim();
-    for prefix in ONE_OR_MORE {
+    for prefix in ONE_OR_MORE.iter() {
         if let Some(rest) = literal
             .strip_prefix(prefix)
             .filter(|rest| rest.starts_with(' '))
@@ -309,6 +236,8 @@ pub fn line_filter(text: &str) -> Option<Rule> {
         shape: Shape::default(),
         lines: true,
         program: None,
+        numbers: super::numbers::Numbers::new(),
+        then: Vec::new(),
     })
 }
 
@@ -408,7 +337,10 @@ mod tests {
             Comparator::Contains.negated(),
             Operand::Text("x".into()),
         );
-        assert_eq!(negated.jq(), "((. | tostring | contains(\"x\")) | not)");
+        assert_eq!(
+            negated.jq(&crate::rules::numbers::Numbers::new()),
+            "((. | tostring | contains(\"x\")) | not)"
+        );
     }
 
     #[test]
@@ -423,5 +355,17 @@ mod tests {
         ] {
             assert!(line_filter(text).is_none(), "{text}");
         }
+    }
+
+    /// The line grammar's data tables are the lists that stood in the source, exact and in
+    /// order (R4 A11 descent).
+    #[test]
+    fn tables_are_the_frozen_lists() {
+        let one = "un ou plusieurs|une ou plusieurs|one or more|uno o más|uno o mas|una o más|una o mas|uno o più|uno o piu|una o più|una o piu|ein oder mehrere|eine oder mehrere|um ou mais|uma ou mais|au moins un|au moins une|at least one|al menos un|al menos una|almeno un|almeno una|mindestens ein|mindestens eine|pelo menos um|pelo menos uma";
+        let by = "as they are|as is|as-is|unchanged|verbatim|in order|in the same order|in their order|in source order|one per line|each on its own line|telles quelles|tels quels|tel quel|telle quelle|dans l'ordre|dans le même ordre|dans le meme ordre|une par ligne|un par ligne|tal cual|tal como están|tal como estan|sin cambios|en el mismo orden|en orden|una por línea|una por linea|uno por línea|uno por linea|così come sono|cosi come sono|invariate|nello stesso ordine|in ordine|una per riga|uno per riga|unverändert|unverandert|wie sie sind|in der reihenfolge|in derselben reihenfolge|eine pro zeile|einen pro zeile|tal como estão|tal como estao|sem alterações|sem alteracoes|na mesma ordem|em ordem|uma por linha|um por linha";
+        assert_eq!(*ONE_OR_MORE, one.split('|').collect::<Vec<_>>());
+        assert_eq!(*BY_CONSTRUCTION, by.split('|').collect::<Vec<_>>());
+        let sections = LINE_DATA.lines().filter(|l| l.starts_with('[')).count();
+        assert_eq!(sections, 2, "no section beyond the frozen tables");
     }
 }

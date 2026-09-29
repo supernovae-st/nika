@@ -343,6 +343,48 @@ fn the_gate_prices_the_model_the_run_will_use() {
     );
 }
 
+/// B11 · B1: the launch floor counts a `for_each` over an input from the
+/// value the invocation binds, as the run binds it (a bound value replaces
+/// the declared default). Five items bound over a one-item default refuse
+/// where the default alone fits; one item bound over a five-item default
+/// fits where the default alone refuses; a bound value that is not an array
+/// is an unknown count and never falls back to the default's five.
+#[test]
+fn the_floor_counts_the_fan_the_invocation_binds() {
+    let fan = |default: &str| {
+        parse(&format!(
+            "nika: fan\ninputs:\n  xs: {{ type: {{ array: string }}, required: false, default: {default} }}\ntasks:\n  ask:\n    for_each: {{ items: \"${{{{ inputs.xs }}}}\" }}\n    infer: {{ prompt: hi, max_tokens: 512, model: \"deepseek/deepseek-v4-pro\" }}\n"
+        ))
+    };
+    let one = fan("[\"a\"]");
+    let five = fan("[\"a\", \"b\", \"c\", \"d\", \"e\"]");
+    let per_call = nika_check::check(&one).cost.min_path_total_usd;
+    assert!(per_call > 0.0, "the fixture's call is priced");
+    let floor = |wf: &RawWorkflow, bound: &BTreeMap<String, Value>| {
+        let report = nika_check::check(wf);
+        budget_floor_refusal_bound(wf, &report, Some(3.0 * per_call), None, bound, false)
+    };
+    let bind = |value: Value| BTreeMap::from([("xs".to_owned(), value)]);
+    let unbound = BTreeMap::new();
+    assert!(floor(&one, &unbound).is_none(), "the one-item default fits");
+    assert!(
+        floor(&five, &unbound).is_some(),
+        "the five-item default does not"
+    );
+    assert!(
+        floor(&one, &bind(json!(["a", "b", "c", "d", "e"]))).is_some(),
+        "five items bound over a one-item default refuse"
+    );
+    assert!(
+        floor(&five, &bind(json!(["a"]))).is_none(),
+        "one item bound over a five-item default fits"
+    );
+    assert!(
+        floor(&five, &bind(json!("a"))).is_none(),
+        "a bound non-array is an unknown count, never the default's five"
+    );
+}
+
 /// B24 / issue 1296: check's envelope skips `invoke:`, so a priced
 /// `nika:image_generate` (xAI workhorse $0.02) used to launch, hit
 /// HTTP, then abort NIKA-1704. The admission floor must refuse

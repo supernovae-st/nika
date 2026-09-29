@@ -999,16 +999,20 @@ pub const nika_cap::HUMAN_GATE_TOOL: &str
 pub const nika_cap::JQ_CAPABILITY_POLICY: &[nika_cap::JqCapabilityRule]
 pub const nika_cap::JQ_CLOCK_DEFS: &str
 pub const nika_cap::JQ_RUN_START_VAR: &str
+pub const nika_cap::JQ_STD_SHADOWS: &str
+pub const nika_cap::JQ_STD_SHADOW_PROBES: &str
 pub const nika_cap::PURE_INTERNAL_TOOLS: &[&str]
 pub const nika_cap::RUNNER_FLOOR_ENV_VARS: &[&str]
 pub const nika_cap::WITHHELD_JQ_NATIVES: &[nika_cap::WithheldNative]
 pub fn nika_cap::builtin_effect(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> core::option::Option<nika_cap::BuiltinEffect>
 pub fn nika_cap::builtin_egresses(tool: &str) -> bool
+pub fn nika_cap::builtin_invoke_refusal(tool: &str) -> core::option::Option<&'static str>
 pub fn nika_cap::builtin_shape_findings(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_cap::chart_vl_sibling(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> core::option::Option<alloc::string::String>
 pub fn nika_cap::code_bearing_path_class(path: &str) -> core::option::Option<(&'static str, &'static str)>
 pub fn nika_cap::compose_child_env(lookup: impl core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>, passthrough: &[alloc::string::String], authored: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub fn nika_cap::expand_home_grant(glob: &str, home: &str) -> alloc::string::String
+pub fn nika_cap::fetch_response_statuses(value: &serde_json::value::Value) -> core::result::Result<alloc::vec::Vec<u16>, alloc::string::String>
 pub fn nika_cap::file_plumbing_computed_operand(program: &str, args: &[&str]) -> bool
 pub fn nika_cap::file_plumbing_computed_shell(line: &str) -> bool
 pub fn nika_cap::file_plumbing_host_escape<'a>(program: &str, args: &'a [&str], cwd: core::option::Option<&str>, admits: impl core::ops::function::Fn(&str) -> bool) -> core::option::Option<&'a str>

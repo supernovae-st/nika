@@ -1,0 +1,824 @@
+{
+  "paths": {
+    "/v2/cost-reviews": {
+      "post": {
+        "summary": "Prepare one fresh Run cost review, a finite fan or authored retry included",
+        "description": "Only on a server its operator started with `--cost-review` (health capability `costReviewV2`); any other server answers these routes, and a job carrying `cost_review`, with 403 cost_review_unavailable. The by-name job form only (a snapshot body has no review). The resident captures the workflow's world and resolves its plan exactly as the job would, then runs the same cost evaluator as `nika run`: no unknown-cost route answers 200 `review_required: false`; an unknown-cost route answers 201 with a pending review. Effects: preparing a review takes this project's cost lease and holds it until decline, expiry or one job admission; it may create `.nika/` and the cost journal, and may record an earlier Run whose writer the lease proves gone as UNKNOWN (which then refuses 422 cost_review_refused). It never creates a job, a run or a trace. Idempotency binds to the exact request bytes in a review-local namespace of this server run: a replay answers the same review in its current state; after a restart or eviction the key is forgotten and a replay prepares a NEW pending review (a fresh review, never an approval). Version 2 also reviews a finite fan (a literal list or an input/const array, the caller's value before the default) and an authored `retry.max_attempts`: the review carries the typed `dispatch` bound (the original total of physical requests and the requests in flight at once) that one approval confirms. A fan with zero items answers 200 `review_required: false` with `observer: true`: nothing is sent. Version 1 (`POST /v1/cost-reviews`) keeps its closed document and refuses a fan or an authored retry with 422 cost_review_refused naming this route.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IdempotencyKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CostReviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotent replay (the review in its current state), or no review required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/CostReviewV2"
+                    },
+                    {
+                      "$ref": "#/components/schemas/CostReviewNotRequiredV2"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "A pending review",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostReviewV2"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid idempotency key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "cost_review_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No served workflow by that name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "Request deadline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "idempotency_conflict (the key is bound to other request bytes)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Encoded body limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type or Content-Encoding refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Malformed request, refused capture or inputs, or cost_review_refused: the shared evaluator refused before any question (another review or unknown-cost Run holds this project's cost lease, an earlier Run is unknown or uncertain, a hard cap such as this server's per-run ceiling, a zero invocation ceiling, a refused project file, an unsupported shape or route); the message says which",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Stopping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal_error (no fresh private witness nonce could be drawn: nothing was held)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/cost-reviews/{id}": {
+      "get": {
+        "summary": "Observe one cost review in its current state",
+        "description": "Only on a server its operator started with `--cost-review` (health capability `costReviewV2`); any other server answers these routes, and a job carrying `cost_review`, with 403 cost_review_unavailable. Reading a review approves nothing. After a restart or eviction the id is unknown (404 review_unknown): authority held in memory is lost, never re-granted.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^rev-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The review",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostReviewV2"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "cost_review_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "review_unknown",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/cost-reviews/{id}/decision": {
+      "post": {
+        "summary": "Record one explicit decision on a pending review",
+        "description": "Only on a server its operator started with `--cost-review` (health capability `costReviewV2`); any other server answers these routes, and a job carrying `cost_review`, with 403 cost_review_unavailable. `approve_once` records approval of exactly this witness for one later job admission; `decline` ends the review and releases the project's cost lease. Neither creates a job, a run, a file or an effect. The same decision again answers the review in its current state; a different one refuses 409 review_decided.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^rev-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CostReviewDecision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The review after the decision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CostReviewV2"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error envelope",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "cost_review_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "review_unknown",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "408": {
+            "description": "Request deadline",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "review_witness_mismatch · review_decided",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "review_expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Encoded body limit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Content-Type or Content-Encoding refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "malformed_decision",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CostReviewV2": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One fresh, single-use Run cost review (version 2: a finite fan or authored retry shows its typed dispatch bound) held in this server's memory. It is never a job, a run, a file save or an effect grant: approving it records one decision, and only one explicit POST /v1/jobs carrying its id and witness can use it. The review lives 300 seconds from creation (an approval never extends it); it holds this project's cost lease while pending or approved, so one unknown-cost review or Run holds the project at a time. Terminal reviews are retained for lookup (the newest 256); after a restart or eviction every id is unknown and nothing is re-granted. No field carries a credential, a configured endpoint path, userinfo or query.",
+        "required": [
+          "cost_review_version",
+          "review_id",
+          "witness_sha256",
+          "state",
+          "created_at",
+          "expires_at",
+          "workflow",
+          "access",
+          "execution_id",
+          "project",
+          "program",
+          "inputs",
+          "route",
+          "price",
+          "question",
+          "bounds",
+          "dispatch",
+          "defaults",
+          "host",
+          "prior_journal",
+          "effects",
+          "grants"
+        ],
+        "properties": {
+          "cost_review_version": {
+            "type": "integer",
+            "const": 2
+          },
+          "review_id": {
+            "type": "string",
+            "pattern": "^rev-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "witness_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "Digest of the review's private witness: the candidate (source, caller inputs, project configuration, bound read files), the exact route including its full endpoint, the execution identity, the held project and .nika directory identities, the prior journal, the bounds and the defaults. Echo it on the decision and on the job; any change refuses."
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "approved",
+              "declined",
+              "expired",
+              "admitting",
+              "consumed",
+              "refused",
+              "failed"
+            ],
+            "description": "pending: awaiting one decision · approved: approve_once recorded, no job yet · declined · expired (300 s from creation) · admitting: one job admission holds it now · consumed: that job exists (`job`) · refused: the admission re-observed a changed witness and created no job · failed: the admission confirmed the account but could not create the job, and settled the account. Every terminal state released the project's cost lease; none is ever refunded."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Display projection of the 300-second monotonic lifetime; the server's monotonic clock decides."
+          },
+          "decided_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "workflow": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "access": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 64
+          },
+          "execution_id": {
+            "type": "string",
+            "description": "The execution identity the approved job runs as; the cost journal and the trace name it."
+          },
+          "project": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "root_fingerprint",
+              "basis"
+            ],
+            "properties": {
+              "root_fingerprint": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "basis": {
+                "type": "string",
+                "description": "A host-local display identity of the served root's canonical path: not authenticated and not globally unique. The private witness binds the held directory identities."
+              }
+            }
+          },
+          "program": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "snapshot_digest",
+              "source_sha256"
+            ],
+            "properties": {
+              "snapshot_digest": {
+                "type": "string"
+              },
+              "source_sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          },
+          "inputs": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "names",
+              "source",
+              "sha256"
+            ],
+            "properties": {
+              "names": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "source": {
+                "const": "api_caller"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$",
+                "description": "Caller input values and the bound read files."
+              }
+            }
+          },
+          "route": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "provider",
+              "model",
+              "origin"
+            ],
+            "properties": {
+              "provider": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "origin": {
+                "type": "string",
+                "description": "Scheme, host and effective port of the endpoint the server's own composition selected; never its path, query or userinfo."
+              }
+            }
+          },
+          "price": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "state",
+              "native"
+            ],
+            "properties": {
+              "state": {
+                "const": "unknown"
+              },
+              "native": {
+                "type": "string"
+              }
+            }
+          },
+          "question": {
+            "type": "string",
+            "description": "The decision's own words, as `nika run` asks it."
+          },
+          "bounds": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "max_requests",
+              "max_in_flight",
+              "max_output_tokens",
+              "request_timeout_seconds",
+              "transport_retries"
+            ],
+            "description": "The confirmed account's own limits: the original total of physical requests (sent or not, retries and schema re-asks included) and the requests in flight at once, each reserved atomically; the transport never resends on its own.",
+            "properties": {
+              "max_requests": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "max_in_flight": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "max_output_tokens": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "request_timeout_seconds": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "transport_retries": {
+                "const": 0
+              }
+            }
+          },
+          "defaults": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "invocation_usd",
+              "project_usd",
+              "basis"
+            ],
+            "properties": {
+              "invocation_usd": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "project_usd": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "basis": {
+                "type": "string",
+                "description": "invocation: this server's per-run ceiling (the default every manual job runs under); project: the project's `ceiling:`. Approving overrides them once, as `nika run` does; a zero default refuses and no hard cap is ever overridden."
+              }
+            }
+          },
+          "host": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "authority",
+              "evidence",
+              "credential_custody"
+            ],
+            "properties": {
+              "authority": {
+                "const": "operator_started_cost_review",
+                "description": "From the server's startup composition (`--cost-review`), never from a request."
+              },
+              "evidence": {
+                "type": "object",
+                "description": "allowed, then per layer (policy · machine · occurrence) its class (observed · not_applicable · unknown), its origin and, when observed, its cap (absent · {capped_usd} · unknown)."
+              },
+              "credential_custody": {
+                "enum": [
+                  "LOCAL_PROCESS",
+                  "HOST_SERVER_MEMORY",
+                  "MANAGED_SECRET_STORE",
+                  "REMOTE_PROVIDER",
+                  "UNKNOWN"
+                ]
+              }
+            }
+          },
+          "prior_journal": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "length",
+              "sha256"
+            ],
+            "properties": {
+              "length": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            },
+            "description": "The project's cost journal after this review cleared it; an admission requires the same bytes."
+          },
+          "effects": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "grants": {
+            "type": "string"
+          },
+          "job": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              }
+            }
+          },
+          "account": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "attempts",
+              "marked_sent",
+              "unknown_charge_attempts",
+              "state",
+              "basis"
+            ],
+            "properties": {
+              "attempts": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "marked_sent": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "unknown_charge_attempts": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "state": {
+                "type": "string"
+              },
+              "basis": {
+                "const": "admission-account accounting, not proof of physical dispatch"
+              }
+            }
+          },
+          "refusal": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          },
+          "dispatch": {
+            "$ref": "#/components/schemas/CostDispatchV2"
+          }
+        }
+      },
+      "CostReviewNotRequiredV2": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "cost_review_version",
+          "review_required",
+          "observer",
+          "reason"
+        ],
+        "properties": {
+          "cost_review_version": {
+            "type": "integer",
+            "const": 2
+          },
+          "review_required": {
+            "const": false
+          },
+          "observer": {
+            "type": "boolean",
+            "description": "true: exact declared-free or run-time routes, or an unknown-cost route whose checked bound is zero requests; the job binds a per-Run observer account that never grants unknown-cost authority, as `nika run` does."
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "CostDispatchV2": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "requests",
+          "max_in_flight",
+          "authored_retry",
+          "tasks"
+        ],
+        "description": "The typed worst-case dispatch bound the review confirms, as `nika run` computes it: items × authored attempts × calls per attempt, every product and sum checked.",
+        "properties": {
+          "requests": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "max_in_flight": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "authored_retry": {
+            "type": "boolean",
+            "description": "true only when a task authored `retry.max_attempts` above one: then a 429 or 503 received from the unchanged endpoint may be followed by that task's authored retry inside the total. Fan cardinality, the total and schema re-asks never set it; every other failure stops every further request."
+          },
+          "tasks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CostTaskDispatchV2"
+            }
+          }
+        }
+      },
+      "CostTaskDispatchV2": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "task",
+          "items",
+          "attempts",
+          "calls_per_attempt",
+          "max_parallel",
+          "requests"
+        ],
+        "properties": {
+          "task": {
+            "type": "string"
+          },
+          "items": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "The fan's item count as the run binds it (a literal list or an input/const array, the caller's value before the default); null for a plain task."
+          },
+          "attempts": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Authored `retry.max_attempts` (1 without one)."
+          },
+          "calls_per_attempt": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "The call and the stock schema re-asks inside one attempt; never a transport resend."
+          },
+          "max_parallel": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "requests": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    }
+  }
+}

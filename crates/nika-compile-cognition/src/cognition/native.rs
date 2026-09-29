@@ -24,11 +24,14 @@ use serde_json::{Value, json};
 use super::QuestionType;
 
 mod answer;
+mod ask;
 mod bounds;
 mod decode;
+mod journal;
 mod revision;
 pub(super) use answer::{Answer, Question};
-pub(super) use decode::decode;
+pub(super) use decode::{Shaped, decode};
+pub(super) use journal::record;
 
 fn schema() -> Value {
     serde_json::from_str(include_str!("../../assets/native_answer_schema.json"))
@@ -38,13 +41,11 @@ fn schema() -> Value {
 /// Whether a cold outcome calls for the native strategy: a question that hands the human a
 /// machine's problem (a rewrite, a jq expression, a glob), or a dead end (no candidate and
 /// nothing to answer). A cold outcome waiting on business values is not a failure.
-pub(super) fn escalates(out: &CompileOutcome, reading: &Reading) -> bool {
-    // A refusal is the floor (a bypassed approval, a literal-only policy): no door reopens it.
-    // A contradiction the reader found between the request's own words for one effect is a
-    // reading, not a refusal: the seat reads the request whole, and what it realizes of that
-    // effect is stated to the review.
+pub(super) fn escalates(out: &CompileOutcome) -> bool {
+    // A refusal is the floor (a bypassed approval, a literal-only policy, an effect the words
+    // both ask for and prohibit, which stays the human's): no door reopens it.
     if out.status == CompileStatus::Refused {
-        return words_contradict_only(out, reading);
+        return false;
     }
     // A seat that failed, timed out or was cut at its cap is not asked again through another
     // door: the provider finding stands, and the calls stay bounded.
@@ -62,25 +63,6 @@ pub(super) fn escalates(out: &CompileOutcome, reading: &Reading) -> bool {
         )
     });
     machine || (out.candidate.is_none() && out.questions.is_empty())
-}
-
-/// Whether an outcome's only obstacle is the reader's contradiction for an effect (asked and
-/// banned by the request's own words): no hard refusal, no approval-bypass floor.
-pub(super) fn words_contradict_only(out: &CompileOutcome, reading: &Reading) -> bool {
-    reading
-        .plan
-        .effects
-        .iter()
-        .any(|e| e.policy == crate::plan::EffectPolicy::Conflict)
-        && !reading
-            .plan
-            .unknowns
-            .iter()
-            .any(|u| u.contains("approval-bypass"))
-        && !out
-            .diagnostics
-            .iter()
-            .any(|d| d.kind == DiagnosticKind::Refused)
 }
 
 /// The floor the reader states before any seat writes: a request that reuses, skips or
@@ -149,21 +131,6 @@ fn floor(intent: &str, reading: &Reading) -> Value {
     })
 }
 
-/// The status and the open questions of the cold round, kept in the record as data.
-pub(super) fn cold_report(out: &CompileOutcome) -> Value {
-    let status = match out.status {
-        CompileStatus::Ready => "ready",
-        CompileStatus::Incomplete => "incomplete",
-        CompileStatus::Refused => "refused",
-        _ => "other",
-    };
-    json!({
-        "status": status,
-        "questions": out.questions.iter().map(|q| q.key.clone()).collect::<Vec<_>>(),
-        "diagnostics": out.diagnostics.iter().filter(|d| d.kind != DiagnosticKind::Applied).map(|d| d.message.clone()).collect::<Vec<_>>(),
-    })
-}
-
 /// One conversation with the seat: its messages so far, the journal of every round and the
 /// last diagnostics (a repeat is no progress).
 pub(super) struct Talk {
@@ -178,6 +145,8 @@ pub(super) struct Talk {
     pub(super) route: Vec<String>,
     /// The values the human answered: a candidate may carry them without inventing them.
     pub(super) allowed: Vec<String>,
+    /// The keys the human answered: an ask never asks them again.
+    pub(super) answered: Vec<String>,
     /// The whole names the human typed for the read's source question: the laws read a stated
     /// source through them exactly as the assembler's emission does.
     pub(super) clarified: Vec<String>,
@@ -213,6 +182,7 @@ impl Talk {
             refused: None,
             route,
             allowed,
+            answered: request.answers.keys().cloned().collect(),
             clarified: fidelity::clarified_sources(&request.answers),
             observed: request.knowledge.clone(),
             revision: revision::of(request),
@@ -228,7 +198,7 @@ impl Talk {
 /// The cold round's own report stays in the record; the native round starts clean.
 pub(super) fn cold(out: &mut CompileOutcome) -> Cold {
     let cold = Cold {
-        report: cold_report(out),
+        report: journal::cold_report(out),
         questions: std::mem::take(&mut out.questions),
         diagnostics: std::mem::take(&mut out.diagnostics),
     };
@@ -249,6 +219,9 @@ pub(super) struct Cold {
 enum Round {
     /// The candidate passed every law.
     Accepted(Answer),
+    /// No candidate, only business values or clauses for the human: they answer first, the
+    /// questions as admitted.
+    Asked(Box<Answer>, ask::Admitted),
     /// The diagnostics went back to the seat.
     Repair,
     /// The seat repeated a refused candidate or malformed answer: stop honestly.
@@ -294,7 +267,7 @@ pub(super) async fn author<P: ProviderInferDyn>(
         allowed,
         request,
     );
-    let mut accepted: Option<Answer> = None;
+    let (mut accepted, mut asked): (Option<Answer>, Option<(Answer, ask::Admitted)>) = (None, None);
     let mut round_policy = policy.clone();
     round_policy.max_tokens = policy.initial_max_tokens.unwrap_or(policy.max_tokens);
     for round in 0..=policy.repairs.min(5) {
@@ -314,6 +287,10 @@ pub(super) async fn author<P: ProviderInferDyn>(
                 accepted = Some(answer);
                 break;
             }
+            Round::Asked(answer, admitted) => {
+                asked = Some((*answer, admitted));
+                break;
+            }
             Round::Repair => {}
             Round::Stalled => {
                 talk.route.push("native: no progress".to_owned());
@@ -331,53 +308,23 @@ pub(super) async fn author<P: ProviderInferDyn>(
         accepted.as_ref(),
         revision,
     );
-    conclude(
-        intent,
-        reading,
-        request,
-        accepted.as_ref(),
-        &talk,
-        cold,
-        &mut out,
-    );
+    match asked {
+        Some((answer, admitted)) => ask::conclude(&answer, &admitted, &talk, &mut out),
+        None => conclude(
+            intent,
+            reading,
+            request,
+            accepted.as_ref(),
+            &talk,
+            cold,
+            &mut out,
+        ),
+    }
     out.provenance.strategy = Some(Strategy::Native);
+    if accepted.is_some() {
+        out = super::verify::judged_native(intent, reading, policy, provider, request, out).await;
+    }
     Ok(out)
-}
-
-/// The native record of a conversation: the identity, the knowledge pack, the references sent,
-/// every round, whether a candidate was accepted (else the last refused text), the revision.
-pub(super) fn record(
-    out: &mut CompileOutcome,
-    request: &CompileRequest,
-    cold: &Cold,
-    talk: &Talk,
-    sent: &[Value],
-    accepted: Option<&Answer>,
-    revision: Option<(&str, &str)>,
-) {
-    let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
-    decision["cold"] = cold.report.clone();
-    decision["native"] = json!({
-        "identity": knowledge::identity(),
-        "knowledge": request.authoring_knowledge.as_ref().map(|pack| json!({
-            "identity": pack.identity,
-            "selection": pack.selection,
-        })),
-        "references": sent,
-        "rounds": talk.rounds.clone(),
-        "accepted": accepted.is_some(),
-        "refused_source": accepted.is_none().then(|| talk.refused.clone()).flatten(),
-        "revision": revision.map(|(source, words)| json!({
-            "base_sha256": knowledge::sha256(source),
-            "change": words,
-            "delta": accepted.and_then(|answer| {
-                let base = crate::edit::literal_projection(source)?;
-                let revised = crate::edit::literal_projection(&answer.candidate)?;
-                Some(nika_compile_fidelity::candidate::delta(&base, &revised))
-            }),
-        })),
-    });
-    out.provenance.decision = Some(decision);
 }
 
 /// Every string scalar of a document, once: the literals a base candidate already carries.
@@ -509,6 +456,9 @@ async fn exchange<P: ProviderInferDyn>(
         Ok(answer) => answer,
         Err(decision) => return decision,
     };
+    if ask::only(&answer) {
+        return ask::round(round, answer, text, intent, talk);
+    }
     revision::record_path_changes(
         intent,
         talk.revision.as_ref(),
@@ -534,21 +484,25 @@ async fn exchange<P: ProviderInferDyn>(
     if let Some(diagnostic) = revision::duplicate_write(talk.revision.as_ref(), &answer.candidate) {
         diagnostics.push(diagnostic);
     }
-    talk.rounds.push(json!({
-        "round": round,
-        "candidate_sha256": knowledge::sha256(&answer.candidate),
-        "candidate": answer.candidate,
-        "questions": answer.questions.iter().map(|q| q.key.clone()).collect::<Vec<_>>(),
-        "gaps": answer.gaps.clone(),
-        "notes": answer.notes.clone(),
-        "diagnostics": diagnostics.iter().map(|d| json!({"kind": d.kind, "message": d.message})).collect::<Vec<_>>(),
-    }));
+    talk.rounds
+        .push(journal::judged(round, &answer, &diagnostics));
     if diagnostics.is_empty() {
         return Round::Accepted(answer);
     }
-    let repeated = talk.refused.as_ref() == Some(&answer.candidate)
-        && talk.last.as_ref() == Some(&diagnostics);
-    talk.refused = Some(answer.candidate.clone());
+    send_back(answer.candidate, text, diagnostics, talk)
+}
+
+/// A refused candidate or ask goes back to the seat with its diagnostics, within the repair
+/// budget; the same text refused for the same reasons is no progress.
+fn send_back(
+    candidate: String,
+    text: String,
+    diagnostics: Vec<Diagnostic>,
+    talk: &mut Talk,
+) -> Round {
+    let repeated =
+        talk.refused.as_ref() == Some(&candidate) && talk.last.as_ref() == Some(&diagnostics);
+    talk.refused = Some(candidate);
     if repeated {
         return Round::Stalled;
     }
@@ -578,13 +532,17 @@ pub(super) fn conclude(
         out,
         DiagnosticKind::Applied,
         "authoring_native",
-        journal_line(&talk.rounds),
+        journal::line(&talk.rounds),
     );
     let mut route = talk.route.clone();
     let judged = talk
         .rounds
         .iter()
         .any(|r| r.get("candidate_sha256").is_some() || r.get("sketch_sha256").is_some());
+    // An ask the laws refused was judged too: its budget is spent like a candidate's.
+    let refused_ask = talk.rounds.iter().any(|r| {
+        r.get("asked").is_some() && r["diagnostics"].as_array().is_some_and(|d| !d.is_empty())
+    });
     match accepted {
         Some(answer) => {
             route.push("native: accepted".to_owned());
@@ -615,9 +573,15 @@ pub(super) fn conclude(
         }
         None if !judged => {
             // The door never judged a candidate (a failed call, an answer that was not an
-            // answer): the previous round's questions and diagnostics stand, nothing is
-            // replaced by a clarification the human could not act on.
-            route.push("native: no candidate".to_owned());
+            // answer, an ask the laws refused): the previous round's questions and diagnostics
+            // stand, nothing is replaced by a clarification the human could not act on. A
+            // refused ask spent the budget: the exhaustion is stated as a candidate's is.
+            if refused_ask {
+                route.push("native: exhausted".to_owned());
+                super::super::finding(out, DiagnosticKind::Unknown, "authoring_native", EXHAUSTED);
+            } else {
+                route.push("native: no candidate".to_owned());
+            }
             super::record_route(out, &route);
             out.questions.extend(cold.questions);
             out.diagnostics.extend(cold.diagnostics);
@@ -633,60 +597,13 @@ pub(super) fn conclude(
         None => {
             route.push("native: exhausted".to_owned());
             super::record_route(out, &route);
-            super::super::finding(
-                out,
-                DiagnosticKind::Unknown,
-                "authoring_native",
-                "No candidate passed the checks within the repair budget; the original request, candidates and diagnostics are retained. No workflow was emitted. Inspect the last diagnostic before another bounded attempt.",
-            );
+            super::super::finding(out, DiagnosticKind::Unknown, "authoring_native", EXHAUSTED);
         }
     }
 }
 
-/// One line a human reads: what each round of the conversation decided and why.
-fn journal_line(rounds: &[Value]) -> String {
-    let mut parts = Vec::new();
-    for round in rounds {
-        let n = round["round"].as_u64().unwrap_or_default();
-        if let Some(call) = round["call"].as_str() {
-            parts.push(format!("round {n}: the call {call}"));
-        } else if let Some(answer) = round["answer"].as_str() {
-            parts.push(format!("round {n}: {answer}"));
-        } else {
-            let diagnostics = round["diagnostics"].as_array().cloned().unwrap_or_default();
-            if diagnostics.is_empty() {
-                parts.push(format!("round {n}: accepted"));
-            } else {
-                let heads: Vec<String> = diagnostics
-                    .iter()
-                    .take(3)
-                    .map(|d| {
-                        d["message"]
-                            .as_str()
-                            .unwrap_or_default()
-                            .chars()
-                            .take(90)
-                            .collect()
-                    })
-                    .collect();
-                parts.push(format!(
-                    "round {n}: refused ({} diagnostic(s): {})",
-                    diagnostics.len(),
-                    heads.join(" · ")
-                ));
-            }
-        }
-    }
-    let judged = rounds
-        .iter()
-        .filter(|r| r.get("candidate_sha256").is_some() || r.get("sketch_sha256").is_some())
-        .count();
-    format!(
-        "The authoring conversation recorded {} round(s), including {judged} candidate or sketch judgment(s): {}.",
-        rounds.len(),
-        parts.join("; ")
-    )
-}
+/// An exhausted budget, stated: never a replacement request or a substitute workflow.
+const EXHAUSTED: &str = "No candidate passed the checks within the repair budget; the original request, candidates and diagnostics are retained. No workflow was emitted. Inspect the last diagnostic before another bounded attempt.";
 
 pub(super) fn system_message(references: &[Reference], callables: &[Reference]) -> String {
     let mut text = format!("{}\n\n{}", knowledge::card(), knowledge::CONVENTIONS);
@@ -879,9 +796,10 @@ fn open_column(intent: &str, slug: &str, observed: Option<&Value>) -> Option<Vec
 }
 
 /// A candidate's questions, admitted: `const.<snake_slug>` keys only, each declared under
-/// `const:` in the candidate as a placeholder, at most eight; never a machine's construct;
-/// never a name the observed world states. A column the request leaves open is admitted with
-/// its observed alternatives (`open_column`), the only answers the compiler takes.
+/// `const:` in the candidate as a placeholder (an ask without a candidate declares none), at
+/// most eight; never a machine's construct; never a name the observed world states. A column
+/// the request leaves open is admitted with its observed alternatives (`open_column`), the
+/// only answers the compiler takes.
 fn admitted_questions(
     intent: &str,
     candidate: &str,
@@ -952,7 +870,7 @@ fn admitted_questions(
             || !slug
                 .chars()
                 .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
-            || !consts.contains_key(slug)
+            || (!candidate.is_empty() && !consts.contains_key(slug))
         {
             return Err(Diagnostic {
                 kind: "question",
@@ -985,13 +903,14 @@ pub(super) fn judge(
     let Some(doc) = admit(candidate, questions, &mut out) else {
         return out;
     };
-    fidelity::laws(
+    fidelity::laws_observed(
         intent,
         &reading.plan,
         &doc,
         allowed,
         waived,
         clarified,
+        observed,
         &mut out,
     );
     if let Err(diagnostic) = admitted_questions(intent, candidate, questions, observed) {
@@ -1245,7 +1164,7 @@ mod tests {
     fn a_refusal_or_a_provider_failure_never_escalates_and_a_machine_question_does() {
         let mut refused = outcome();
         refused.status = CompileStatus::Refused;
-        assert!(!escalates(&refused, &crate::lexicon::read("")));
+        assert!(!escalates(&refused));
         let mut failed = outcome();
         crate::finding(
             &mut failed,
@@ -1253,7 +1172,7 @@ mod tests {
             "authoring_provider",
             "timed out",
         );
-        assert!(!escalates(&failed, &crate::lexicon::read("")));
+        assert!(!escalates(&failed));
         let mut machine = outcome();
         crate::question(
             &mut machine,
@@ -1261,7 +1180,7 @@ mod tests {
             "which jq?",
             QuestionType::Text,
         );
-        assert!(escalates(&machine, &crate::lexicon::read("")));
+        assert!(escalates(&machine));
         let mut business = outcome();
         crate::question(
             &mut business,
@@ -1269,12 +1188,14 @@ mod tests {
             "where?",
             QuestionType::Text,
         );
-        assert!(!escalates(&business, &crate::lexicon::read("")));
-        assert!(escalates(&outcome(), &crate::lexicon::read("")));
+        assert!(!escalates(&business));
+        assert!(escalates(&outcome()));
     }
 
     #[test]
-    fn a_refusal_resting_only_on_the_words_contradicting_one_effect_escalates() {
+    fn a_refusal_resting_on_the_words_contradicting_one_effect_never_escalates() {
+        // R4 S0: an effect the request's own words both ask for and prohibit stays the human's;
+        // no seat reads the request to choose a side.
         let contradiction = crate::lexicon::read(
             "Lis ./note.txt et envoie-la à https://hooks.example.test/in; ne l'envoie jamais à https://hooks.example.test/in.",
         );
@@ -1287,27 +1208,7 @@ mod tests {
         );
         let mut refused = outcome();
         refused.status = CompileStatus::Refused;
-        assert!(escalates(&refused, &contradiction));
-        // A hard refusal beside it, or the approval-bypass floor, is never reopened.
-        let mut hard = refused.clone();
-        crate::finding(
-            &mut hard,
-            DiagnosticKind::Refused,
-            "intent",
-            "literal-only policy",
-        );
-        assert!(!escalates(&hard, &contradiction));
-        let mut bypass = contradiction.clone();
-        bypass
-            .plan
-            .unknowns
-            .push("approval-bypass wording".to_owned());
-        assert!(!escalates(&refused, &bypass));
-        // Without a contradiction, a refusal stays the floor.
-        assert!(!escalates(
-            &refused,
-            &crate::lexicon::read("Lis ./note.txt.")
-        ));
+        assert!(!escalates(&refused));
     }
 
     #[test]

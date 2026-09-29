@@ -17,7 +17,7 @@ use nika_onboard::compile::{CompileOutcome, TriggerRequirement};
 
 use crate::authoring::{AuthoringRound, AuthoringSeat};
 use crate::broker::ContextBroker;
-use crate::change::{Applied, PendingGate, ProjectChangeSet, RunRequest, check_on_disk};
+use crate::change::{PendingGate, ProjectChangeSet, RunRequest};
 use crate::guard::KnownWorld;
 use crate::intelligence::{
     IntelligenceCensus, IntelligenceKind, ResolvedSessionIntelligence, UserIntelligencePreference,
@@ -36,13 +36,18 @@ mod durable;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod durable_tests;
+mod fresh;
 mod history;
 mod inference;
+mod landed;
 mod money_gate;
-mod money_parse;
+// The lexical money reader grants no authority; admission stays here.
+use nika_onboard::compile::money as money_parse;
+mod protocol;
 mod question;
 mod recovery;
 mod restore;
+mod round;
 mod route;
 mod run_budget;
 mod unknown_cost;
@@ -76,8 +81,7 @@ pub enum TurnOutcome {
     Help(String),
     /// The human closed the session.
     Quit,
-    /// The turn was refused: the class a host acts on, and the sentence
-    /// that names the fix.
+    /// The turn was refused: the class a host acts on, and the sentence that names the fix.
     Refusal(Refusal),
     /// The session asks the first screen again — the NEXT line is the
     /// answer ([`SessionRuntime::choose`]).
@@ -99,29 +103,26 @@ pub enum TurnOutcome {
         /// The question as the human reads it.
         question: String,
     },
-    /// The compiler's Ready candidate, proposed: the review, then the
-    /// exact preview of the bytes the apply would land. The NEXT line is
-    /// the human's consent ([`SessionRuntime::consent`]); nothing is
-    /// written before it, and consent is never a run.
+    /// The compiler's Ready candidate, proposed: the review, then the exact preview of the bytes
+    /// the apply would land. The NEXT line is the human's consent ([`SessionRuntime::consent`]);
+    /// nothing is written before it, and consent is never a run.
     Proposal {
         /// The identity a consent names ([`SessionRuntime::consent_to`]).
         id: ProposalId,
         /// The exact preview.
         preview: String,
     },
-    /// The set landed and its on-disk check is clean: the door runs the
-    /// workflow once through the SAME run path as `nika run` and reports
-    /// what it observed ([`SessionRuntime::observe_run`]). The apply and
-    /// check report rides along.
+    /// The set landed and its on-disk check is clean: the door runs the workflow once through the
+    /// SAME run path as `nika run` and reports what it observed ([`SessionRuntime::observe_run`]).
+    /// The apply and check report rides along.
     RunRequested {
         /// What apply and the check said.
         report: String,
         /// The run the human asked for.
         run: RunRequest,
     },
-    /// The run paused at a human gate: the question, asked to the human.
-    /// The NEXT line is their answer ([`SessionRuntime::answer_gate`]);
-    /// nothing answers for them.
+    /// The run paused at a human gate: the question, asked to the human. The NEXT line is their
+    /// answer ([`SessionRuntime::answer_gate`]); nothing answers for them.
     GateAsk {
         /// The gate an answer names ([`SessionRuntime::answer_gate_for`]).
         id: GateId,
@@ -138,9 +139,8 @@ pub enum TurnOutcome {
         /// `task=value`, as the human's line became it.
         answer: String,
     },
-    /// An answer BESIDE what waits (« why? » under a question or a gate):
-    /// said from the machine's own state; the question or the gate keeps
-    /// waiting, nothing is consumed, decided or applied.
+    /// An answer BESIDE what waits (« why? » under a question or a gate): said from the machine's
+    /// own state; the question or the gate keeps waiting, nothing is consumed, decided or applied.
     Aside(String),
     /// The intelligence was chosen in the middle of a request: the
     /// choice's own fact, then the outcome of the line that waited for it,
@@ -163,8 +163,7 @@ pub(crate) enum Need {
     Authoring,
 }
 
-/// The help card — the few survivors, and the law that everything
-/// meaningful is reachable in words.
+/// The help card — the few survivors, and the law that everything meaningful is reachable in words.
 pub const HELP: &str = "text                 describe work to build (« read ./notes, draft a summary, write ./out/summary.md ») · Nika compiles it,
                      asks what it cannot invent, shows the workflow, and writes it only when you say yes · consent is never a run
 run …                run the workflow you accepted, or one you name (« run brief.nika with a ceiling of 0.05 ») · a paused run asks you
@@ -209,18 +208,6 @@ fn under(root: &Path, trace: &Path) -> PathBuf {
     }
 }
 
-/// A byte count a human reads (`1.2 KB`, `340 B`).
-#[allow(clippy::cast_precision_loss)] // display-only: a size shown to a human, never computed with
-fn human_size(bytes: u64) -> String {
-    if bytes < 1024 {
-        format!("{bytes} B")
-    } else if bytes < 1024 * 1024 {
-        format!("{:.1} KB", bytes as f64 / 1024.0)
-    } else {
-        format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
-    }
-}
-
 /// How a door builds the reasoner for a resolved choice (`Send`: a host may
 /// hold the runtime on a worker thread while its terminal stays live).
 pub type ReasonerFactory =
@@ -243,8 +230,12 @@ pub struct SessionRuntime {
     home: Option<PathBuf>,
     factory: Option<ReasonerFactory>,
     pending: Option<ProjectChangeSet>,
+    /// The source basis the compiler recorded for the pending proposal, judged at its yes (F4).
+    basis: Option<fresh::ProposalBasis>,
     /// The proposal pending when an earlier session closed: evidence, never authority.
     restored_draft: Option<draft::Restored>,
+    /// The authoring round kept when an earlier session closed: evidence, never authority.
+    restored_round: Option<round::KeptRound>,
     money: money_gate::MoneyState,
     unknown_cost: unknown_cost::UnknownCostState,
     pending_gate: Option<PendingGate>,
@@ -344,7 +335,9 @@ impl SessionRuntime {
             home: None,
             factory: None,
             pending: None,
+            basis: None,
             restored_draft: None,
+            restored_round: None,
             money: money_gate::MoneyState::default(),
             unknown_cost: unknown_cost::UnknownCostState::default(),
             pending_gate: None,
@@ -442,9 +435,8 @@ impl SessionRuntime {
         String::new()
     }
 
-    /// Where the automation stands as separate facts — the rail the
-    /// renderer keeps above the status row: DECLARED is never ACTIVE,
-    /// SAVED is never RUN, findings are not a clean check.
+    /// Where the automation stands as separate facts — the rail the renderer keeps above the status
+    /// row: DECLARED is never ACTIVE, SAVED is never RUN, findings are not a clean check.
     #[must_use]
     pub fn lifecycle(&self) -> crate::lifecycle::Lifecycle {
         let declared_active = self
@@ -452,24 +444,24 @@ impl SessionRuntime {
             .as_ref()
             .and_then(|w| schedule::declared_entry(&self.snapshot.root, w))
             .map(|(_, active, _)| active);
-        crate::lifecycle::Lifecycle::from_facts(&crate::lifecycle::LifecycleFacts {
-            proposal_waits: self.pending.is_some(),
-            composing: self.pending_question().is_some()
-                || self.pending_input().is_some()
-                || self.pending_activation().is_some(),
-            saved: self.last_workflow.is_some(),
-            check_clean: self.last_check_clean,
-            declared_active,
-            run: if self.pending_gate.is_some() {
-                crate::lifecycle::RunFact::GateWaits
-            } else {
-                self.last_run
-                    .as_ref()
-                    .map_or(crate::lifecycle::RunFact::Nothing, |(exit, _)| {
-                        crate::lifecycle::RunFact::Exit(*exit)
-                    })
-            },
-        })
+        let mut facts = crate::lifecycle::LifecycleFacts::new();
+        facts.proposal_waits = self.pending.is_some();
+        facts.composing = self.pending_question().is_some()
+            || self.pending_input().is_some()
+            || self.pending_activation().is_some();
+        facts.saved = self.last_workflow.is_some();
+        facts.check_clean = self.last_check_clean;
+        facts.declared_active = declared_active;
+        facts.run = if self.pending_gate.is_some() {
+            crate::lifecycle::RunFact::GateWaits
+        } else {
+            self.last_run
+                .as_ref()
+                .map_or(crate::lifecycle::RunFact::Nothing, |(exit, _)| {
+                    crate::lifecycle::RunFact::Exit(*exit)
+                })
+        };
+        crate::lifecycle::Lifecycle::from_facts(&facts)
     }
 
     /// `/meaning` — the compiler's reading of the request, clause by
@@ -478,8 +470,13 @@ impl SessionRuntime {
     /// incomplete it is an aside; never a score, never invented.
     fn meaning_unrecorded(&mut self) -> TurnOutcome {
         let view = if let Some(out) = &self.last_outcome {
-            crate::meaning::render(out).unwrap_or_else(|| crate::meaning::UNAVAILABLE.to_owned())
+            let way = " — the review above and `/show` are what there is";
+            crate::meaning::render(out)
+                .unwrap_or_else(|| crate::meaning::UNAVAILABLE.to_owned() + way)
         } else {
+            if let Some(kept) = self.kept_round_meaning() {
+                return kept;
+            }
             if self.money.current.is_some() {
                 return TurnOutcome::Aside(self.money_line());
             }
@@ -671,6 +668,12 @@ impl SessionRuntime {
         if let Some(command) = local_command_of(answer) {
             return self.answer_locally(command);
         }
+        if let Some(outcome) = self.beside(
+            answer,
+            "the first screen still waits · the next line is your choice",
+        ) {
+            return outcome;
+        }
         let pref = match census.choose(answer) {
             Ok(pref) => pref,
             // The screen stays on the table with the line it holds: the
@@ -766,31 +769,31 @@ impl SessionRuntime {
             " (not chosen yet · asked when a turn needs one · `/intelligence` chooses now)"
         };
         format!(
-            "session\n  root: {}\n  {}{chosen}{readiness}\n  {}\n  {}\n  {}\n  /help for the card · /quit to close",
+            "session\n  root: {}\n  {}{chosen}{readiness}\n  {}\n  {}\n  {}{}\n  /help for the card · /quit to close",
             self.snapshot.root.display(),
             self.intelligence_line(),
             self.seat.line(),
             self.authoring_context.line(),
-            self.money_line()
+            self.money_line(),
+            self.kept_round_status()
         )
     }
 
     /// One turn.
     fn turn_unrecorded(&mut self, input: &str) -> TurnOutcome {
+        let original = input;
+        let input = input.trim();
+        // Read-only lines answer first, from the machine's own state: nothing
+        // is spent or changed — a read-only line never discards a proposal.
+        if let Some(outcome) = self.read_only_turn(input) {
+            return outcome;
+        }
         // A new turn discards a pending proposal: consent is the NEXT line
         // and nothing else (the door routes that line to `consent`).
         self.pending = None;
         self.money.pending = None;
-        let original = input;
-        let input = input.trim();
         match input {
             "/quit" | "/exit" => return TurnOutcome::Quit,
-            "/help" => return TurnOutcome::Help(self.help_card()),
-            "/status" => return TurnOutcome::Facts(self.status()),
-            "/why" => return self.explain_pending(),
-            "/meaning" => return self.meaning_unrecorded(),
-            "/proof" => return self.proof_unrecorded(),
-            "/details" => return TurnOutcome::Facts(self.details()),
             "/intelligence" => {
                 return match &self.census {
                     Some(census) => {
@@ -804,17 +807,14 @@ impl SessionRuntime {
             }
             _ => {}
         }
-        // « what happened? » repeats the last recovery card from memory,
-        // whatever waits: it consumes nothing and calls nothing.
-        if crate::authoring::is_what_happened(input)
-            && let Some(card) = self.last_recovery()
-        {
-            return card;
-        }
         // An open authoring question owns the next line — before any
-        // fact, digit or model reads it (`./notes` answers « which folder »).
+        // fact, digit or model reads it (`./notes` answers « which folder »);
+        // its own protocol (`why` · `cancel` · a command) before any review.
         if self.authoring.is_some() {
-            if let Err(refusal) = self.admit_money(original, true) {
+            if let Some(outcome) = self.question_protocol(input) {
+                return self.keep_revising(outcome);
+            }
+            if let Err(refusal) = self.admit_money(original, true, false) {
                 return refusal;
             }
             let outcome = self.answer_question_unrecorded(input);
@@ -849,9 +849,9 @@ impl SessionRuntime {
             self.remember(input, &fact);
             return TurnOutcome::Facts(fact);
         }
-        if !self.local_run_line(original)
-            && let Err(refusal) = self.admit_money(original, false)
-        {
+        if self.local_run_line(original) {
+            self.money.admitted.clear();
+        } else if let Err(refusal) = self.admit_money(original, false, false) {
             return refusal;
         }
         if let Some(outcome) = self.run_turn(original) {
@@ -926,38 +926,6 @@ impl SessionRuntime {
         }
     }
 
-    /// `/why` — the aside for whatever waits: an authoring question, a
-    /// declared input, a gate, a proposal; a fact when nothing waits.
-    fn explain_pending(&self) -> TurnOutcome {
-        if let Some(round) = &self.authoring
-            && let Some(question) = round.current()
-        {
-            return TurnOutcome::Aside(aside::explain_question(question, round));
-        }
-        if let Some(inputs) = &self.run_inputs
-            && let Some(name) = inputs.first_needed()
-        {
-            return TurnOutcome::Aside(aside::explain_input(
-                inputs.workflow(),
-                name,
-                inputs.remaining(),
-            ));
-        }
-        if let Some(gate) = &self.pending_gate {
-            return TurnOutcome::Aside(aside::explain_gate(gate, &self.snapshot.root));
-        }
-        if let Some(set) = &self.pending {
-            return TurnOutcome::Aside(format!(
-                "{}\n(the proposal still waits · `yes` applies it · `no` discards it)",
-                set.effects_fact()
-            ));
-        }
-        TurnOutcome::Facts(
-            "nothing waits for you right now · describe work, ask a fact, or `run …` an accepted workflow"
-                .to_owned(),
-        )
-    }
-
     /// The human's answer to a proposal: `yes` lands the set (every
     /// witness checked before the first write · atomic writes · nothing
     /// outside the set), the real check follows every workflow written,
@@ -996,6 +964,17 @@ impl SessionRuntime {
                 ),
             };
         }
+        // `why` is `/why`; « what happened? » and a command this prompt does
+        // not serve answer beside the proposal, its identity kept: never a
+        // cost review, a route, a revision or a consent.
+        let waits = "(the proposal still waits · `yes` applies it · `no` discards it)";
+        if let Some(outcome) = crate::authoring::is_why(answer)
+            .then(|| TurnOutcome::Aside(format!("{}\n{waits}", set.effects_fact())))
+            .or_else(|| self.beside(answer, waits))
+        {
+            self.pending = Some(set);
+            return outcome;
+        }
         if is_no(answer) {
             self.decided = Some(id);
             return TurnOutcome::Facts(
@@ -1009,6 +988,11 @@ impl SessionRuntime {
             // never a word list, never a consent.
             return self.consent_money_route(set, &id, answer);
         }
+        // The sources the proposal was built on are judged again before anything lands (F4).
+        let basis = match self.basis_at_yes(&set, &id) {
+            Ok(note) => note,
+            Err(withdrawn) => return withdrawn,
+        };
         let applied = match set.apply_attempt() {
             Ok(applied) => applied,
             // No write returned success; the failing target may have changed.
@@ -1028,104 +1012,7 @@ impl SessionRuntime {
                 return TurnOutcome::Refusal(Refusal::new(class, text));
             }
         };
-        self.report_landed(set, &applied, id)
-    }
-
-    /// After a yes lands the set: mark decided, check every workflow,
-    /// re-observe, remember, and request a run only when that check is
-    /// clean. Empty-write and mid-set Io stay on `consent` so a refusal
-    /// never becomes `already_consumed`.
-    fn report_landed(
-        &mut self,
-        set: ProjectChangeSet,
-        applied: &Applied,
-        id: ProposalId,
-    ) -> TurnOutcome {
-        self.save_proposal_money(&set, &id);
-        let evidence = self.evidence_applied(&set, &id, applied);
-        self.decided = Some(id);
-        let written: Vec<String> = applied
-            .written
-            .iter()
-            .map(|p| format!("`{}`", p.display()))
-            .collect();
-        let mut report = format!("applied · wrote {}{evidence}", written.join(" · "));
-        let mut all_clean = true;
-        for wf in set.workflows() {
-            let audit = check_on_disk(&set.root, &wf);
-            all_clean &= audit.clean;
-            let _ = write!(
-                report,
-                "\n  check · `{}` · {}",
-                wf.display(),
-                if audit.clean {
-                    "clean ✔"
-                } else {
-                    "findings ✖"
-                }
-            );
-            for f in &audit.findings {
-                let _ = write!(report, "\n    · {f}");
-            }
-            if let Some(line) =
-                crate::change::compact_hints(&audit.hints, &wf.display().to_string())
-            {
-                let _ = write!(report, "\n    · {line}");
-            }
-        }
-        self.snapshot = ProjectSnapshot::observe(&self.snapshot.cwd);
-        self.remember("(consent)", &report);
-        // The workflow just accepted is the one « run it » names next —
-        // an explicit line, never this consent — and the schedule its
-        // request asked for is what « activate » declares.
-        let landed_workflow = set.workflows().into_iter().next();
-        if let Some(first) = landed_workflow.clone() {
-            // Run evidence belongs to the previous saved bytes. A new Save is not a Run,
-            // including when it replaces the workflow at the same path.
-            self.last_run = None;
-            self.last_workflow = Some(first);
-            self.last_check_clean = Some(all_clean);
-            self.last_trigger = self.pending_trigger.take();
-        }
-        let project_only = landed_workflow.is_none()
-            && set
-                .changes
-                .iter()
-                .any(|c| c.path() == std::path::Path::new("nika.yaml"));
-        match set.run {
-            Some(run) if all_clean => {
-                self.last_workflow = Some(run.workflow.clone());
-                TurnOutcome::RunRequested { report, run }
-            }
-            Some(_) => {
-                report.push_str(
-                    "\n  the run was not started: findings stop it — repair them, then ask to run",
-                );
-                TurnOutcome::Facts(report)
-            }
-            None if project_only => {
-                report.push_str(
-                    "\nDeclared in `nika.yaml` · not active: a firer must run on this machine\n  `nika serve` fires it while it runs · `nika arm --emit launchd --write` installs the OS unit · `nika arm` lists what is declared and proves what fired",
-                );
-                TurnOutcome::Facts(report)
-            }
-            None if all_clean => {
-                report.push_str(
-                    "\nSaved · checked · not active · nothing has run\n  say « run it » to run it once (a ceiling is announced first)",
-                );
-                if let Some(t) = &self.last_trigger
-                    && t.status == nika_onboard::compile::TriggerStatus::RequiresBinding
-                {
-                    let _ = write!(
-                        report,
-                        "\n  say « activate » to declare « {} » in `nika.yaml` (Nika asks the time zone, the missed policy and the ceiling first) · saving activated nothing",
-                        t.source_hint.as_deref().unwrap_or("the schedule")
-                    );
-                }
-                TurnOutcome::Facts(report)
-            }
-            None => TurnOutcome::Facts(report),
-        }
+        self.report_landed(set, &applied, id, basis.as_deref())
     }
 
     /// The proposal waiting for a consent, when one is (its identity: the
@@ -1307,6 +1194,11 @@ impl SessionRuntime {
             self.pending_gate = Some(gate);
             return self.answer_locally(command);
         }
+        if let Some(outcome) = self.beside(line, "the gate still waits · nothing answers for you")
+        {
+            self.pending_gate = Some(gate);
+            return outcome;
+        }
         if line.trim().is_empty() {
             self.pending_gate = Some(gate);
             return TurnOutcome::Refusal(Refusal::new(
@@ -1339,6 +1231,9 @@ impl SessionRuntime {
             };
             self.pending_gate = Some(gate);
             return TurnOutcome::Aside(text);
+        }
+        if let Some(stale) = self.stale_gate(&gate) {
+            return stale;
         }
         self.answered = Some(GateId::new(&gate.trace, &gate.task));
         let answer = gate.answer_arg(line);
@@ -1407,7 +1302,8 @@ impl SessionRuntime {
                 continue;
             };
             if meta.is_file() {
-                produced.push(format!("{path} ({})", human_size(meta.len())));
+                let size = crate::run_view::human_size(meta.len());
+                produced.push(format!("{path} ({size})"));
             }
         }
         (!produced.is_empty()).then(|| format!("produced · {}", produced.join(" · ")))
@@ -1484,6 +1380,12 @@ mod authoring_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod choice_tests;
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod money_answer_tests;
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod reasoning_effort_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod restore_tests;

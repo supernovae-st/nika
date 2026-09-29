@@ -2,7 +2,15 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Positive host observations, never a claim that an unobserved field cannot exist.
 use crate::{ChoiceOffer, CompileOutcome, CompileRequest, DiagnosticKind};
-use serde_json::Value;
+use grounding::Grade;
+pub(crate) use numbers::numbered;
+use serde_json::{Value, json};
+
+/// The recorded source facts of a candidate judged again against a fresh observation (C9 · F4).
+pub(crate) mod basis;
+mod grounding;
+mod numbers;
+mod spellings;
 
 /// Keys observed in one source, with exact spelling. None means no usable observation;
 /// Some(empty) means the host observed records with no common keys. Neither is a schema.
@@ -100,7 +108,11 @@ pub fn field_answer(
     None
 }
 
-/// Only typed source references can be rebound. Program bytes never undergo replacement.
+/// Every source key a typed rule reads is grounded (R4 S1, [`grounding`]) and recorded in the
+/// decision: an admissible key is kept, any other is asked (a closed choice of the observed keys,
+/// or the exact key when nothing was observed), and a key some sampled records lack keeps the
+/// rule pending until the request states what happens to those records. Only typed source
+/// references can be rebound; program bytes never undergo replacement.
 pub(crate) fn ground_rule(
     mut rule: crate::rules::Rule,
     path: &str,
@@ -108,44 +120,182 @@ pub(crate) fn ground_rule(
     out: &mut CompileOutcome,
     recognized: &mut std::collections::BTreeSet<String>,
 ) -> Option<crate::rules::Rule> {
-    let Some(columns) = columns(world(request), path) else {
-        return Some(rule);
+    let intent = match &request.input {
+        crate::types::Input::Create(intent) => intent.clone(),
+        _ => rule.text().to_owned(),
     };
+    let row = grounding::row(world(request), path);
+    let seen = grounding::seen(row);
+    let stated = crate::columns::columns_hint(&intent);
+    let mut entries = Vec::new();
     let mut pending = false;
     for (index, field) in rule.source_fields().into_iter().enumerate() {
-        let intent = match &request.input {
-            crate::types::Input::Create(intent) => intent.as_str(),
-            _ => rule.text(),
-        };
         let approved = crate::pending_transform::approves(request, &rule, path, &field, recognized);
-        if columns.contains(&field) && (names_field(intent, &field) || approved) {
+        let bound_by = if approved {
+            Some("approval")
+        } else {
+            names_field(&intent, &field).then_some("request")
+        };
+        let (grade, everywhere) = grounding::grade(&field, seen.as_ref(), &stated);
+        let text = rule.text().to_owned();
+        let entry = |key: &str, grade, everywhere, bound_by| {
+            (grounding::Entry {
+                rule: &text,
+                key,
+                source: path,
+                row,
+                grade,
+                everywhere,
+                bound_by,
+            })
+            .to_json()
+        };
+        let key = format!("const.rule_field_{}", index + 1);
+        // The answer to a question this conversation asked is read before the fresh
+        // observation's own words: stale after a change, it is asked again (R4 A6 · D6-S1).
+        let owned = !approved && owned(request, &key, &field, path, &stated);
+        if grade != Grade::Inferred && bound_by.is_some() && !owned {
+            entries.push(entry(&field, grade, everywhere, bound_by));
             continue;
         }
-        let key = format!("const.rule_field_{}", index + 1);
         recognized.insert(key.clone());
-        let label = format!(
-            "Which observed field in `{path}` does `{field}` mean in `{}`?",
-            rule.text()
-        );
-        let answer = field_answer(request, out, &key, &label, &columns);
-        match answer.as_ref().and_then(Value::as_str) {
-            Some(name) => {
-                if let Some(rebound) = rule.with_source_field(&field, name) {
-                    rule = rebound;
-                } else {
-                    crate::finding(
-                        out,
-                        DiagnosticKind::Unknown,
-                        &key,
-                        "A program cannot be renamed safely; regenerate the computation using the selected field.",
-                    );
-                    pending = true;
-                }
+        let answered = mapped(request, out, &key, &rule, &field, path, seen.as_ref());
+        let rebound = answered
+            .as_deref()
+            .map(|name| (name, rule.with_source_field(&field, name)));
+        match rebound {
+            Some((name, Some(rebound))) => {
+                let (grade, everywhere) = match &seen {
+                    Some(_) => grounding::grade(name, seen.as_ref(), &stated),
+                    None => (Grade::UserAsserted, true),
+                };
+                entries.push(entry(name, grade, everywhere, Some("answer")));
+                rule = rebound;
             }
-            None => pending = true,
+            Some((_, None)) => {
+                crate::finding(
+                    out,
+                    DiagnosticKind::Unknown,
+                    &key,
+                    "A program cannot be renamed safely; regenerate the computation using the selected field.",
+                );
+                pending = true;
+            }
+            None => {
+                entries.push(entry(&field, grade, everywhere, bound_by));
+                pending = true;
+            }
         }
     }
+    // Every number the rule reads is grounded in the kinds the host observed (R4 A5 · C3/C4).
+    let mut governed = Vec::new();
+    if !pending {
+        let asked;
+        (rule, governed, asked) = numbers::ground(rule, path, request, out, recognized);
+        pending |= asked;
+        // A text equality also matches the observed canonical spellings of its literal (C2).
+        rule = spellings::ground(rule, world(request), path, out);
+    }
+    pending |= settle(out, entries, &governed);
     (!pending).then_some(rule)
+}
+
+/// The key an answer maps the rule's word to, in the context its question was asked: one of the
+/// observed keys, or, when nothing was observed, the exact key the human states. An answer given
+/// for another revision of the source is stale: refused, and the question asked again.
+fn mapped(
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    key: &str,
+    rule: &crate::rules::Rule,
+    field: &str,
+    path: &str,
+    seen: Option<&grounding::Seen>,
+) -> Option<String> {
+    if request.answers.contains_key(key) && grounding::stale(request, path) {
+        crate::finding(
+            out,
+            DiagnosticKind::Missed,
+            key,
+            format!(
+                "`{path}` changed since this question was asked, so its answer maps another revision. Answer again."
+            ),
+        );
+        // The plan this outcome re-anchors to the fresh observation owns the next answer.
+        let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
+        let reasked = decision["reasked"].as_array_mut();
+        match reasked {
+            Some(keys) if !keys.iter().any(|k| k == key) => keys.push(json!(key)),
+            Some(_) => {}
+            None => decision["reasked"] = json!([key]),
+        }
+        out.provenance.decision = Some(decision);
+        let mut fresh = request.clone();
+        fresh.answers.remove(key);
+        return mapped(&fresh, out, key, rule, field, path, seen);
+    }
+    let text = rule.text();
+    if let Some(seen) = seen {
+        let label = format!("Which observed field in `{path}` does `{field}` mean in `{text}`?");
+        return field_answer(request, out, key, &label, &seen.all)
+            .and_then(|value| value.as_str().map(str::to_owned));
+    }
+    if let Some(raw) = request.answers.get(key) {
+        let named = crate::literal_answer(Some(raw), key, out).and_then(|v| {
+            v.as_str()
+                .map(str::trim)
+                .filter(|n| !n.is_empty())
+                .map(str::to_owned)
+        });
+        if named.is_some() {
+            return named;
+        }
+        crate::finding(out, DiagnosticKind::Missed, key, "Name the exact key.");
+    }
+    let label = format!(
+        "`{path}` was not observed: which exact key of its records holds `{field}` in `{text}`?"
+    );
+    crate::question(out, key, &label, crate::QuestionType::Text);
+    None
+}
+
+/// Record the grounding of this rule's keys in the decision (replacing an earlier door's); a
+/// grounded key some sampled records lack opens the missing-records obligation, stated and
+/// asked, never defaulted, unless a number policy question already asks it (`governed`).
+/// Returns whether one is open.
+fn settle(out: &mut CompileOutcome, entries: Vec<Value>, governed: &[String]) -> bool {
+    let asked = |e: &&Value| governed.iter().any(|g| e["field"] == g.as_str());
+    let open: Vec<&Value> = entries
+        .iter()
+        .filter(|e| !e["open"].is_null() && !asked(e))
+        .collect();
+    for entry in &open {
+        let word = |key: &str| entry[key].as_str().unwrap_or_default().to_owned();
+        crate::finding(
+            out,
+            DiagnosticKind::Unknown,
+            "grounding",
+            format!(
+                "`{}` is in only some sampled records of `{}`: what `{}` does with a record lacking it is not stated (a missing or null value compares, sorts and totals differently). Name it in a replacement request, or make every record carry the key.",
+                word("field"),
+                word("source"),
+                word("rule")
+            ),
+        );
+    }
+    let opened = !open.is_empty();
+    if opened {
+        crate::question(
+            out,
+            "intent.clarification",
+            "Supply a complete replacement request that states what happens to the records lacking the key. It explicitly replaces the earlier intent.",
+            crate::QuestionType::Text,
+        );
+    }
+    let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
+    decision["grounding"] = Value::Array(entries);
+    out.provenance.decision = Some(decision);
+    opened
 }
 
 /// Prefer this round's host observation, retaining the previous question's offers on replay.
@@ -157,10 +307,43 @@ pub fn world(request: &CompileRequest) -> Option<&Value> {
         .or_else(|| request.plan.as_ref()?.get("observed_world"))
 }
 
-/// Keep field questions closed on a zero-call answer round, including library callers.
+/// Whether this round's answer for `key` answers a question the conversation asked about
+/// `field`: the recorded round saw no admissible key for the word, or it asked the key again
+/// after the source changed (`reasked`, R4 A6). An answer no question asked stays unowned.
+fn owned(request: &CompileRequest, key: &str, field: &str, path: &str, stated: &[String]) -> bool {
+    let Some(plan) = request
+        .plan
+        .as_ref()
+        .filter(|_| request.answers.contains_key(key))
+    else {
+        return false;
+    };
+    let reasked = plan["reasked"]
+        .as_array()
+        .is_some_and(|keys| keys.iter().any(|k| k == key));
+    let recorded = grounding::seen(grounding::row(plan.get("observed_world"), path));
+    reasked || grounding::grade(field, recorded.as_ref(), stated).0 == Grade::Inferred
+}
+
+/// Keep field questions closed on a zero-call answer round, including library callers. The plan
+/// is re-anchored to this round's observation, with every key asked again after a source change.
 pub fn record(request: &CompileRequest, out: &mut CompileOutcome) {
     if let (Some(world), Some(plan)) = (world(request), out.provenance.plan.as_mut()) {
         plan["observed_world"] = world.clone();
+    }
+    let mut reasked: Vec<Value> = request
+        .plan
+        .as_ref()
+        .and_then(|plan| plan["reasked"].as_array().cloned())
+        .unwrap_or_default();
+    let now = out.provenance.decision.as_ref().map(|d| &d["reasked"]);
+    for key in now.and_then(Value::as_array).into_iter().flatten() {
+        if !reasked.contains(key) {
+            reasked.push(key.clone());
+        }
+    }
+    if let Some(plan) = out.provenance.plan.as_mut().filter(|_| !reasked.is_empty()) {
+        plan["reasked"] = Value::Array(reasked);
     }
     if let (Some(record), Some(plan)) = (request.plan.as_ref(), out.provenance.plan.as_mut())
         && let Some(verified) = record.get("verified_transform")

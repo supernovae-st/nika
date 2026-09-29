@@ -8,9 +8,11 @@
 //! from `nika-session`, which read nothing of its own here: frames in,
 //! text out, plus the ONE verify door this crate already hosts). The
 //! session decides WHEN a view is shown and what it asks; this module says
-//! what the trace proves. The public surface is the four read-only doors of
-//! [`RunFacts`] (`read` · `result` · `gate` · `proof`); its fields and the
-//! per-task, permit, approval, pause and seal facts stay crate-private.
+//! what the trace proves. The public surface is the read-only doors of
+//! [`RunFacts`] (`read` · `result` · `gate` · `proof` · `pause_gate`) and,
+//! for a paused journal's resume, what it would run again ([`resumed_live`]
+//! · [`live_again`]); the facts' fields and the per-task, permit, approval,
+//! pause and seal facts stay crate-private.
 //!
 //! One reading (`RunFacts::read`) feeds three views:
 //! - RESULT · after a run ended: produced · read · sent · asked · approved
@@ -31,6 +33,8 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
+use nika_event::EventKind;
+use nika_types::resource::Value as FieldValue;
 use serde_json::Value;
 
 /// How a task's frames settle it.
@@ -131,6 +135,9 @@ pub struct RunFacts {
     pub(crate) permits: Vec<PermitFact>,
     pub(crate) approvals: Vec<Approval>,
     pub(crate) pause: Option<Pause>,
+    /// The gate the FIRST pause asks, as a host answering it reads the frame ([`Self::pause_gate`]);
+    /// the result and proof views keep reading the last pause, `pause`.
+    pub(crate) gate: Option<Pause>,
     pub(crate) seal: Option<Seal>,
     /// Frames read (lines that parsed as events).
     pub(crate) events: usize,
@@ -151,6 +158,24 @@ fn fields(frame: &Value) -> BTreeMap<String, Value> {
     map
 }
 
+/// A pause frame's gate: the first value of each key (never a later duplicate), a task that is
+/// text and not empty, the pause's defaults for the message and the mode.
+fn first_gate(frame: &Value) -> Option<Pause> {
+    let field = |key: &str| -> Option<String> {
+        let row = frame
+            .get("fields")?
+            .as_array()?
+            .iter()
+            .find(|r| r.get("key").and_then(Value::as_str) == Some(key))?;
+        row.get("value")?.as_str().map(str::to_owned)
+    };
+    Some(Pause {
+        task: field("task").filter(|t| !t.is_empty())?,
+        message: field("message").unwrap_or_else(|| "the run awaits your answer".to_owned()),
+        mode: field("mode").unwrap_or_else(|| "text".to_owned()),
+    })
+}
+
 fn text(map: &BTreeMap<String, Value>, key: &str) -> Option<String> {
     map.get(key).and_then(Value::as_str).map(str::to_owned)
 }
@@ -169,6 +194,7 @@ impl RunFacts {
             trace: trace.to_path_buf(),
             ..Self::default()
         };
+        let mut paused = false;
         for line in raw.lines() {
             let Ok(frame) = serde_json::from_str::<Value>(line) else {
                 continue;
@@ -178,8 +204,24 @@ impl RunFacts {
             };
             facts.events += 1;
             facts.absorb(kind, &fields(&frame));
+            if kind == "workflow_paused" && !paused {
+                paused = true;
+                facts.gate = first_gate(&frame);
+            }
         }
         (facts.events > 0).then_some(facts)
+    }
+
+    /// The gate a paused run asks a host to answer (C9): the task, message and mode of its FIRST
+    /// `workflow_paused` frame, each the first value its fields give that key, with the pause's
+    /// defaults (« the run awaits your answer » · `text`). `None` when the journal records no
+    /// pause, or when that first pause names no task (absent, not text, or empty): a later pause
+    /// never stands in for it. The gate VIEW ([`Self::gate`]) keeps its own inputs.
+    #[must_use]
+    pub fn pause_gate(&self) -> Option<(&str, &str, &str)> {
+        self.gate
+            .as_ref()
+            .map(|g| (g.task.as_str(), g.message.as_str(), g.mode.as_str()))
     }
 
     fn task_mut(&mut self, id: &str) -> &mut TaskFact {
@@ -522,6 +564,9 @@ impl RunFacts {
         } else {
             let _ = write!(view, "\n  so far · {}", so_far.join(" · "));
         }
+        if let Some(again) = live_again(&self.trace) {
+            let _ = write!(view, "\n  {again}");
+        }
         let _ = write!(view, "\n  « {message} »");
         if gated.is_empty() {
             view.push_str("\n  a yes lets happen · the tasks after this gate (the workflow's bytes name them)");
@@ -779,9 +824,52 @@ fn human_ms(ms: u64) -> String {
     }
 }
 
+/// The completed tasks a resume of the paused journal `trace` is sure to run again, live (C10 ·
+/// Q8): each completion its resume plan does not carry (no resume identity, or an output that
+/// does not read back), judged by the resume's own fold ([`nika_dap::resume::fold_plan`]), in
+/// journal order, each named once. Empty when the plan carries every completion, or when the
+/// journal cannot be recovered at all (a resume refuses it then). Empty promises nothing more:
+/// the run serves a carried completion only while its definition and inputs are unchanged.
+#[must_use]
+pub fn resumed_live(trace: &Path) -> Vec<String> {
+    let label = trace.display().to_string();
+    let Some(recovered) = std::fs::read_to_string(trace)
+        .ok()
+        .and_then(|raw| nika_dap::recover::recover_events(&raw, &label).ok())
+    else {
+        return Vec::new();
+    };
+    let plan = nika_dap::resume::fold_plan(&recovered.events).plan;
+    let mut live: Vec<String> = Vec::new();
+    for event in &recovered.events {
+        if let (EventKind::TaskCompleted | EventKind::TaskCacheHit, Some(FieldValue::String(task))) =
+            (&event.kind, event.field("task"))
+            && !plan.contains_key(task)
+            && !live.contains(task)
+        {
+            live.push(task.clone());
+        }
+    }
+    live
+}
+
+/// The line a host says before the answer that resumes `trace`, naming [`resumed_live`]:
+/// `None` when the plan carries every completion (nothing is said then, and nothing promised).
+#[must_use]
+pub fn live_again(trace: &Path) -> Option<String> {
+    let live = resumed_live(trace);
+    (!live.is_empty()).then(|| {
+        format!(
+            "any answer resumes the run, and these completed tasks run again, live · {} (the journal cannot serve them back)",
+            live.join(" · ")
+        )
+    })
+}
+
 /// A byte count a human reads (`1.2 KB`, `340 B`).
 #[allow(clippy::cast_precision_loss)] // display-only: a size shown to a human, never computed with
-fn human_size(bytes: u64) -> String {
+#[must_use]
+pub fn human_size(bytes: u64) -> String {
     if bytes < 1024 {
         format!("{bytes} B")
     } else if bytes < 1024 * 1024 {
@@ -1155,5 +1243,128 @@ mod tests {
         let view = facts.result(root.path(), Path::new("summary.nika"));
         assert!(view.contains("permission, not delivery proof"), "{view}");
         assert!(!view.contains("\n  sent ·"), "{view}");
+    }
+
+    /// A journal of these frames, one per line, in a scratch directory.
+    fn journal(test: &str, frames: &[&str]) -> (Scratch, PathBuf) {
+        let root = tempdir(test);
+        let path = root.path().join("run.ndjson");
+        std::fs::write(&path, frames.join("\n") + "\n").expect("journal");
+        (root, path)
+    }
+
+    fn paused(fields: &str) -> String {
+        format!("{{\"kind\":\"workflow_paused\",\"fields\":[{fields}]}}")
+    }
+
+    /// C9 · the gate a host answers is the FIRST pause's, each key's first value; the result and
+    /// proof views keep the last pause they always read.
+    #[test]
+    fn the_gate_is_the_first_pause_while_the_views_keep_the_last() {
+        let first = paused(
+            r#"{"key":"task","value":"approve"},{"key":"message","value":"ship it?"},{"key":"mode","value":"confirm"},{"key":"task","value":"later"}"#,
+        );
+        let second = paused(r#"{"key":"task","value":"again"},{"key":"message","value":"sure?"}"#);
+        let (_root, path) = journal("gate-two", &[first.as_str(), second.as_str()]);
+        let facts = RunFacts::read(&path).expect("frames");
+        assert_eq!(facts.pause_gate(), Some(("approve", "ship it?", "confirm")));
+        assert_eq!(
+            facts.pause.as_ref().map(|p| p.task.as_str()),
+            Some("again"),
+            "the views read the last pause"
+        );
+    }
+
+    /// C9 · a first pause gives its defaults; one naming no task (absent, not text, empty) asks no
+    /// gate, and a later pause never stands in for it; a journal that never paused asks none.
+    #[test]
+    fn a_first_pause_without_a_task_asks_no_gate() {
+        let bare = paused(r#"{"key":"task","value":"ask"}"#);
+        let (_bare, path) = journal("gate-defaults", &[bare.as_str()]);
+        assert_eq!(
+            RunFacts::read(&path).expect("frames").pause_gate(),
+            Some(("ask", "the run awaits your answer", "text"))
+        );
+        let later = paused(r#"{"key":"task","value":"later"}"#);
+        for first in [
+            paused(r#"{"key":"message","value":"no task"}"#),
+            paused(r#"{"key":"task","value":""}"#),
+            paused(r#"{"key":"task","value":7}"#),
+        ] {
+            let (_none, path) = journal("gate-none", &[first.as_str(), later.as_str()]);
+            assert_eq!(
+                RunFacts::read(&path).expect("frames").pause_gate(),
+                None,
+                "{first}"
+            );
+        }
+        let (_run, path) = journal(
+            "gate-unpaused",
+            &[r#"{"kind":"workflow_started","fields":[]}"#],
+        );
+        assert_eq!(RunFacts::read(&path).expect("frames").pause_gate(), None);
+    }
+
+    /// A real journal frame of `kind` (the engine's own envelope) with these fields.
+    fn frame(kind: &str, fields: &str) -> String {
+        format!(
+            r#"{{"id":{{"uuid":"01a0e819-b68b-7649-85b2-39277be74e66"}},"timestamp":1790600394379000000,"kind":"{kind}","execution":{{"uuid":"01a0e819-b689-730e-ab21-40ea767e53b6"}},"run":null,"correlation":null,"fields":[{fields}]}}"#
+        )
+    }
+
+    /// A completion with its resume identity and the output text it journaled.
+    fn keyed(task: &str, output: &str) -> String {
+        frame(
+            "task_completed",
+            &format!(
+                r#"{{"key":"task","value":"{task}"}},{{"key":"def_hash","value":"{}"}},{{"key":"input_hash","value":"{}"}},{{"key":"output","value":{}}}"#,
+                "d".repeat(64),
+                "e".repeat(64),
+                serde_json::to_string(output).expect("text")
+            ),
+        )
+    }
+
+    /// C10 · Q8 · a resume runs again, live, exactly the completions its own fold cannot serve
+    /// back — no resume identity, or an output that does not read back — each named once in
+    /// journal order, in the gate view and the line a host says before the answer; a journal
+    /// whose plan carries every completion says nothing.
+    #[test]
+    fn a_resume_names_the_completions_it_would_run_again_live() {
+        let started = frame(
+            "workflow_started",
+            r#"{"key":"workflow","value":"gate-keyed"}"#,
+        );
+        let served = keyed("served", "\"kept\"");
+        let keyless = frame("task_completed", r#"{"key":"task","value":"keyless"}"#);
+        let unreadable = keyed("unreadable", "not json");
+        let pause = frame(
+            "workflow_paused",
+            r#"{"key":"task","value":"ask"},{"key":"mode","value":"confirm"},{"key":"message","value":"Ship it?"}"#,
+        );
+        let frames =
+            [&started, &served, &keyless, &unreadable, &keyless, &pause].map(String::as_str);
+        let (_mixed, path) = journal("live-again", &frames);
+        assert_eq!(resumed_live(&path), ["keyless", "unreadable"]);
+        let line = live_again(&path).expect("named before the answer");
+        assert!(
+            line.contains("run again, live · keyless · unreadable"),
+            "{line}"
+        );
+        let facts = RunFacts::read(&path).expect("frames");
+        let view = facts.gate(Path::new("flow.nika"), "Ship it?", "confirm", &[]);
+        assert!(view.contains(&line), "{view}");
+
+        let frames = [&started, &served, &pause].map(String::as_str);
+        let (_served, path) = journal("live-served", &frames);
+        assert!(
+            resumed_live(&path).is_empty(),
+            "the plan carries every completion"
+        );
+        assert_eq!(live_again(&path), None, "no warning for zero tasks");
+        let facts = RunFacts::read(&path).expect("frames");
+        let view = facts.gate(Path::new("flow.nika"), "Ship it?", "confirm", &[]);
+        assert!(!view.contains("run again"), "{view}");
+        assert!(resumed_live(&path.with_file_name("absent.ndjson")).is_empty());
     }
 }

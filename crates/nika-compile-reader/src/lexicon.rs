@@ -12,6 +12,7 @@
 //! AMBIGUOUS and may be settled by a bounded decision seat. Nothing here invents
 //! an operation, an effect or a policy; every element keeps its verbatim clause.
 
+mod admission;
 mod cadence;
 mod convert;
 mod copy;
@@ -30,8 +31,8 @@ use super::plan::{
     Binding, Effect, EffectPolicy, EffectVerb, Obligation, ObligationKind, Op, Plan, Step,
 };
 use super::{gates, hot, objects};
-pub(crate) use cadence::quoted;
-use cadence::{cut_head, cut_tail, record_recurrence, settle_tails};
+use cadence::{cut_clause_tail, cut_head, cut_tail, record_recurrence, settle_tails};
+pub(crate) use cadence::{quoted, quoted_at, unquoted};
 pub use cues::settle_retrieval;
 pub(crate) use cues::{ARTICLES, OBJECT_CONNECTORS};
 use cues::{
@@ -110,116 +111,6 @@ fn push_rule(original: &str, rule: super::rules::Rule, reading: &mut Reading) {
     }
 }
 
-impl Reading {
-    /// Why this reading may NOT be admitted as HOT under the strict contract: every clause
-    /// consumed is not evidence of understanding. A step is explicit when its object is a
-    /// typed literal or a short noun phrase without coordinated residue; an effect when its
-    /// target is short or literal; and nothing ambiguous, unresolved or unknown remains.
-    #[must_use]
-    pub fn hot_rejections(&self) -> Vec<String> {
-        let mut why = Vec::new();
-        if !self.unresolved.is_empty() {
-            why.push(format!("{} unresolved clause(s)", self.unresolved.len()));
-        }
-        if !self.ambiguous.is_empty() {
-            why.push(format!("{} ambiguous clause(s)", self.ambiguous.len()));
-        }
-        if !self.plan.unknowns.is_empty() {
-            why.push("unknown requested work".to_owned());
-        }
-        if self.plan.steps.is_empty() && self.plan.effects.is_empty() {
-            why.push("nothing recognized".to_owned());
-        }
-        for step in &self.plan.steps {
-            let categorical = step.op == Op::Classify && !step.categories.is_empty();
-            // A rule the closed grammar parsed is a typed literal, explicit by construction;
-            // the plan joins a promoted rule to an existing computation with ` ; `, so each
-            // part is judged on its own.
-            let ruled = step.op == Op::Compute
-                && step.detail.split(" ; ").all(|part| {
-                    objects::explicit_object(part)
-                        || self.plan.rules.iter().any(|r| r.text() == part.trim())
-                });
-            // An extract's object is the list of the fields to pull out: a list of short
-            // noun phrases is explicit, whatever its length.
-            let listed = step.op == Op::Extract && objects::explicit_field_list(&step.detail);
-            if !categorical && !ruled && !listed && !objects::explicit_object(&step.detail) {
-                why.push(format!(
-                    "`{}` object is not explicit: {}",
-                    step.op.word(),
-                    step.detail.trim()
-                ));
-            }
-        }
-        for effect in &self.plan.effects {
-            if matches!(
-                effect.policy,
-                EffectPolicy::Automatic | EffectPolicy::HumanFirst
-            ) && !objects::explicit_object(&effect.target)
-            {
-                why.push(format!(
-                    "`{}` target is not explicit: {}",
-                    effect.verb.word(),
-                    effect.target.trim()
-                ));
-            }
-        }
-        if !self.soft_constraints.is_empty() {
-            why.push(format!(
-                "{} prose clause(s) the reader cannot parse",
-                self.soft_constraints.len()
-            ));
-        }
-        // A constraint needs an operation to carry it; reads and writes carry nothing.
-        if !self.plan.constraints.is_empty()
-            && !self.plan.steps.iter().any(|s| s.op.carries_constraints())
-        {
-            why.push(format!(
-                "{} constraint(s) with no operation to carry them",
-                self.plan.constraints.len()
-            ));
-        }
-        // Accounting: a clause the reader saw must be the evidence of something it produced.
-        for clause in &self.seen {
-            // An element read from the prefix of a clause accounts for the clause: the
-            // rest of the clause was its policy (`publish it to ./x.md only after my approval`).
-            let within = |evidence: &str| {
-                !evidence.trim().is_empty()
-                    && (evidence.contains(clause.as_str()) || clause.contains(evidence))
-            };
-            let accounted = self.plan.steps.iter().any(|s| within(&s.evidence))
-                || self.plan.effects.iter().any(|e| within(&e.evidence))
-                || self.plan.obligations.iter().any(|o| within(&o.evidence))
-                || self.plan.rules.iter().any(|r| within(r.text()))
-                || self.policy_clauses.iter().any(|c| within(c))
-                || self
-                    .plan
-                    .constraints
-                    .iter()
-                    .any(|c| c == clause || c.contains(clause.as_str()))
-                || self.unresolved.contains(clause)
-                || self.ambiguous.iter().any(|a| a.clause == *clause)
-                || self
-                    .plan
-                    .trigger
-                    .as_deref()
-                    .is_some_and(|t| clause.to_lowercase().starts_with(t));
-            if !accounted {
-                why.push(format!("unaccounted clause: {clause}"));
-            }
-        }
-        why
-    }
-
-    /// HOT is possible only when every clause was consumed and something was asked.
-    #[must_use]
-    pub fn complete(&self) -> bool {
-        self.unresolved.is_empty()
-            && self.ambiguous.is_empty()
-            && (!self.plan.steps.is_empty() || !self.plan.effects.is_empty())
-    }
-}
-
 /// Typographic apostrophes fold to `'` so byte offsets stay aligned between the
 /// lowercase matching copy and the evidence copy. Callers anchor against this form.
 #[must_use]
@@ -260,6 +151,12 @@ fn written_object(
     let (Some(object), Some(object_lower)) = (detail.get(..pos), detail_lower.get(..pos)) else {
         return;
     };
+    // « write 'hello' to ./a.txt »: one quoted literal is the content, copied, never drafted
+    // nor a reference back; a structured destination still asks how it holds a text.
+    if Structured::of(path).is_none() && crate::text::quoted_literal(object).is_some() {
+        let literal = object.trim().to_owned();
+        return reading.plan.bindings.push(Binding::new("content", literal));
+    }
     let refers_back = {
         let earlier = reading
             .seen
@@ -301,6 +198,23 @@ fn written_object(
     }
 }
 
+/// What a gated write writes when it is a quoted literal (« ask me before writing 'hello' to
+/// ./a.txt »): its words after the verb, read by the write's own law.
+fn gated_literal(own: &str, clause: &str, reading: &mut Reading) {
+    let Some((_, detail)) = own.trim().split_once(char::is_whitespace) else {
+        return;
+    };
+    let (lower, path) = (normalize(detail), objects::stated_path(detail));
+    let at = |p: &str| p.as_ptr() as usize - detail.as_ptr() as usize;
+    let object =
+        path.and_then(|p| objects::destination_at(&lower, at(p)).and_then(|to| detail.get(..to)));
+    if let (Some(path), Some(object)) = (path, object)
+        && crate::text::quoted_literal(object).is_some()
+    {
+        written_object(detail, &lower, path, clause, reading);
+    }
+}
+
 /// The earlier of a listed marker and a structural one, as a byte span.
 fn nearest(
     listed: Option<(usize, usize)>,
@@ -336,15 +250,27 @@ pub const GATE_WITHOUT_EFFECT: &str =
 pub const TWO_TRIGGERS: &str = "the request states two triggers";
 
 /// Sentences of a request: `.`, `!`, `?` end one only before whitespace or the end (a dot
-/// inside `./out/sent.md` or `127.0.0.1` does not); `;` and a newline always do.
+/// inside `./out/sent.md` or `127.0.0.1` does not) and outside quoted content (« write 'Stop.
+/// Never write anything.' » is one sentence); `;` ends one outside quoted content, and a
+/// newline always does.
 pub fn split_sentences(intent: &str) -> Vec<&str> {
     let mut out = Vec::new();
     let mut start = 0;
     let bytes = intent.as_bytes();
+    // A newline inside a quote that closes after it is content (« write 'one <newline> two' to
+    // ./a.txt »); past the last closed quote, an unclosed mark never carries a newline.
+    let outside = |p: &usize| intent.is_char_boundary(*p) && !quoted_at(intent, *p);
+    let closed = (intent.contains('\n'))
+        .then(|| (0..=intent.len()).rev().find(outside))
+        .flatten();
     for (index, byte) in bytes.iter().enumerate() {
         let terminal = match byte {
-            b'.' | b'!' | b'?' => bytes.get(index + 1).is_none_or(u8::is_ascii_whitespace),
-            b';' | b'\n' => true,
+            b'.' | b'!' | b'?' => {
+                bytes.get(index + 1).is_none_or(u8::is_ascii_whitespace)
+                    && !quoted_at(intent, index)
+            }
+            b';' => !quoted_at(intent, index),
+            b'\n' => closed.is_none_or(|c| index > c) || !quoted_at(intent, index),
             _ => false,
         };
         if terminal {
@@ -379,6 +305,13 @@ fn head_of(lower: &str) -> Option<(&'static str, &'static Head)> {
         return head_of_exact(&format!("{first} {rest}"));
     }
     None
+}
+
+/// Whether a phrase is exactly a head the reader reads as a computation (« compute »).
+pub(crate) fn compute_head(phrase: &str) -> bool {
+    let lower = phrase.to_lowercase();
+    head_of_exact(&lower)
+        .is_some_and(|(p, head)| p.len() == lower.len() && matches!(head, Head::Op(Op::Compute)))
 }
 
 pub(crate) fn head_of_exact(lower: &str) -> Option<(&'static str, &'static Head)> {
@@ -503,7 +436,8 @@ const KEEP_OPENERS: &[&str] = &[
 ];
 
 /// Split one sentence body into clauses at connectors followed by a known head.
-fn split_clauses(sentence: &str) -> Vec<&str> {
+#[must_use]
+pub fn split_clauses(sentence: &str) -> Vec<&str> {
     // A sequencing connector always opens a new clause (an unknown verb after
     // `puis` must stay visible, never be swallowed as the previous object);
     // a coordinating comma or `et`/`and` opens one only before a known head.
@@ -522,6 +456,7 @@ fn split_clauses(sentence: &str) -> Vec<&str> {
                 let before = lower.get(..at).unwrap_or_default();
                 if (always || head_of(strip_filler(rest)).is_some() || stage_ahead(rest))
                     && !projection_continues(before, connector, rest)
+                    && !quoted_at(&lower, at)
                 {
                     cuts.push((at, after));
                 }
@@ -555,10 +490,17 @@ struct ReadState {
     tails: Vec<String>,
 }
 
+/// The earliest policy marker of a clause that governs it: a marker inside quoted content
+/// (« write 'do not write anything' ») is what the workflow writes, never a policy.
 fn earliest<'a>(text: &str, markers: &'a [&'a str]) -> Option<(usize, &'a str)> {
     markers
         .iter()
-        .filter_map(|m| text.find(m).map(|p| (p, *m)))
+        .filter_map(|m| {
+            text.match_indices(m)
+                .map(|(p, _)| p)
+                .find(|p| !quoted_at(text, *p))
+                .map(|p| (p, *m))
+        })
         .min_by_key(|(p, m)| (*p, std::cmp::Reverse(m.len())))
 }
 
@@ -619,8 +561,10 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
     if text.is_empty() {
         return;
     }
-    if (text.contains("pose-moi la question") || text.contains("ask me the question"))
-        && !text.contains("pas encore décidé")
+    // The phrases read by substring read only what the clause states outside quotes.
+    let open = unquoted(text);
+    if (open.contains("pose-moi la question") || open.contains("ask me the question"))
+        && !open.contains("pas encore décidé")
     {
         // The companion of an explicit indecision: context, accounted for, never an operation.
         reading.plan.constraints.push(clause.to_owned());
@@ -647,30 +591,18 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
             .unwrap_or(EffectVerb::Other);
         push_effect(
             &mut reading.plan,
-            Effect {
-                verb,
-                target: target.to_owned(),
-                evidence: clause.to_owned(),
-                policy: EffectPolicy::Undecided,
-                policy_literal: None,
-            },
+            Effect::new(verb, target, clause, EffectPolicy::Undecided),
         );
         return;
     }
-    if (text.contains("pas encore décidé")
-        || text.contains("not decided")
+    if (open.contains("pas encore décidé")
+        || open.contains("not decided")
         || text.starts_with("maybe "))
         && let Some(verb) = effect_words(text, &reading.columns).first().copied()
     {
         push_effect(
             &mut reading.plan,
-            Effect {
-                verb,
-                target: text.to_owned(),
-                evidence: clause.to_owned(),
-                policy: EffectPolicy::Undecided,
-                policy_literal: None,
-            },
+            Effect::new(verb, text, clause, EffectPolicy::Undecided),
         );
         return;
     }
@@ -770,7 +702,8 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
     // The final action requires a fresh human validation: a listed wording or the shape
     // (`only after my explicit approval`, `the write needs my approval first`).
     let listed = earliest(text, FINAL_GATE_MARKERS).map(|(p, m)| (p, p + m.len()));
-    if let Some((pos, end)) = nearest(listed, gates::final_gate(text)) {
+    let shaped = gates::final_gate(text).filter(|(p, _)| !quoted_at(text, *p));
+    if let Some((pos, end)) = nearest(listed, shaped) {
         read_prefix(prefix_before(text, pos), clause, reading, state);
         reading.policy_clauses.push(clause.to_owned());
         let after = text.get(end..).unwrap_or_default();
@@ -785,13 +718,12 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
             for verb in verbs {
                 push_effect(
                     &mut reading.plan,
-                    Effect {
+                    Effect::new(
                         verb,
-                        target: objects::destination_target(after).to_owned(),
-                        evidence: clause.to_owned(),
-                        policy: EffectPolicy::HumanFirst,
-                        policy_literal: None,
-                    },
+                        objects::destination_target(after),
+                        clause,
+                        EffectPolicy::HumanFirst,
+                    ),
                 );
             }
         }
@@ -799,26 +731,34 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
     }
     // A gate naming its effect: "ask me before any refund" (a listed wording or the shape).
     let listed = earliest(text, NAMED_GATE_MARKERS).map(|(p, m)| (p, p + m.len()));
-    if let Some((pos, end)) = nearest(listed, gates::named_gate(text)) {
+    let shaped = gates::named_gate(text).filter(|(p, _)| !quoted_at(text, *p));
+    if let Some((pos, end)) = nearest(listed, shaped) {
         read_prefix(prefix_before(text, pos), clause, reading, state);
         reading.policy_clauses.push(clause.to_owned());
         let after = text.get(end..).unwrap_or_default();
-        let target = objects::destination_target(after);
+        // The gated effect's words as the request spells them: its path, what it writes.
+        let from = text.as_ptr() as usize - lower.as_ptr() as usize + end;
+        let own = (clause.len() == lower.len())
+            .then(|| clause.get(from..))
+            .flatten();
+        let target = objects::destination_target(own.unwrap_or(after));
         let verbs = effect_words(after, &reading.columns);
         if verbs.is_empty() {
             gating::gate_last_automatic(reading, state, gating::names_sending(text));
         } else {
+            if verbs.contains(&EffectVerb::Write)
+                && let Some(own) = own
+            {
+                gated_literal(own, clause, reading);
+            }
             for verb in verbs {
                 let literal = (verb.moves_money() && literals::money_literal(clause))
                     .then(|| clause.to_owned());
                 push_effect(
                     &mut reading.plan,
                     Effect {
-                        verb,
-                        target: target.trim().to_owned(),
-                        evidence: clause.to_owned(),
-                        policy: EffectPolicy::HumanFirst,
                         policy_literal: literal,
+                        ..Effect::new(verb, target.trim(), clause, EffectPolicy::HumanFirst)
                     },
                 );
             }
@@ -835,7 +775,11 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         });
     if let Some((pos, target)) = forbidden {
         read_prefix(prefix_before(text, pos), clause, reading, state);
-        let verbs = effect_words(target, &reading.columns);
+        let mut verbs = effect_words(target, &reading.columns);
+        // « do not write anything »: a ban of every write names the write effect itself.
+        if verbs.is_empty() && effects::universal_write(target, true) {
+            verbs.push(EffectVerb::Write);
+        }
         if verbs.is_empty() {
             reading.plan.constraints.push(clause.to_owned());
         } else {
@@ -866,19 +810,22 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
                 };
                 push_effect(
                     &mut reading.plan,
-                    Effect {
-                        verb,
-                        target: objects::destination_target(target).to_owned(),
-                        evidence: clause.to_owned(),
-                        policy,
-                        policy_literal: None,
-                    },
+                    Effect::new(verb, objects::destination_target(target), clause, policy),
                 );
             }
         }
         return;
     }
     read_clause(&lower, clause, reading, &mut state.money_sentences);
+}
+
+/// Whether a body opens on a prohibition (« never … », « ne … », « nunca … »): a cadence in it is
+/// the ban's scope, never a trigger.
+fn opens_negated(lower: &str) -> bool {
+    FORBIDDEN_MARKERS.iter().any(|m| lower.starts_with(m))
+        || ["ne ", "n'", "non ", "nunca "]
+            .iter()
+            .any(|m| lower.starts_with(m))
 }
 
 /// Deterministically read one intent (already folded by [`fold_apostrophes`]).
@@ -905,10 +852,11 @@ pub fn read(intent: &str) -> Reading {
                 literal: sentence.to_owned(),
             });
         }
-        if text.contains("contradiction")
-            || text.contains("contradictory")
-            || text.contains("these two instructions")
-            || text.contains("ces deux consignes")
+        let open = unquoted(text);
+        if open.contains("contradiction")
+            || open.contains("contradictory")
+            || open.contains("these two instructions")
+            || open.contains("ces deux consignes")
         {
             state.conflict_marker = true;
             reading.plan.constraints.push(sentence.to_owned());
@@ -919,11 +867,7 @@ pub fn read(intent: &str) -> Reading {
         if body_lower.is_empty() {
             continue;
         }
-        let negated_sentence = FORBIDDEN_MARKERS.iter().any(|m| body_lower.starts_with(m))
-            || body_lower.starts_with("ne ")
-            || body_lower.starts_with("n'")
-            || body_lower.starts_with("non ")
-            || body_lower.starts_with("nunca ");
+        let negated_sentence = opens_negated(&body_lower);
         // A sentence-final cadence (« … chaque lundi », « … every Monday ») is cut off as a
         // head is, then settled against the heads once every sentence is read.
         let body = if negated_sentence {
@@ -938,6 +882,12 @@ pub fn read(intent: &str) -> Reading {
         };
         reading.clauses += clauses.len();
         for clause in clauses {
+            // A clause's own final cadence is cut as the sentence's is, never in a ban.
+            let clause = if negated_sentence {
+                clause
+            } else {
+                cut_clause_tail(clause, &mut state.tails)
+            };
             reading.seen.push(clause.to_owned());
             read_policy_or_clause(clause, &mut reading, &mut state);
         }
@@ -990,7 +940,15 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
     }
     let negated = NEGATION_OPENERS.iter().any(|m| text.starts_with(m));
     if negated {
-        let verbs = effect_words(text, &reading.columns);
+        let mut verbs = effect_words(text, &reading.columns);
+        // « n'écris rien », « ne rien écrire »: a ban of every write names the write effect.
+        let opened = NEGATION_OPENERS
+            .iter()
+            .find(|m| text.starts_with(**m))
+            .map_or(text, |m| &text[m.len()..]);
+        if verbs.is_empty() && effects::universal_write(opened, true) {
+            verbs.push(EffectVerb::Write);
+        }
         if verbs.is_empty() {
             // A negated clause that still carries an operation head ("n'extraire que …",
             // "ne corrige pas …") restricts work the reader cannot read: cognition, not a constraint.
@@ -1006,27 +964,30 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
             // The negation bans its effect only when its scope reaches it
             // (`effects::negation_reaches`); when another predicate takes it first, the words no
             // longer settle the effect: cognition reads the clause, never a ban, never a request.
-            let after = NEGATION_OPENERS
-                .iter()
-                .find(|m| text.starts_with(**m))
-                .map_or(text, |m| &text[m.len()..]);
-            if !effects::negation_reaches(after, &reading.columns) {
+            if !effects::negation_reaches(opened, &reading.columns) {
                 reading.unresolved.push(original.to_owned());
                 return true;
             }
             for verb in verbs {
                 push_effect(
                     &mut reading.plan,
-                    Effect {
-                        verb,
-                        target: original.to_owned(),
-                        evidence: original.to_owned(),
-                        policy: EffectPolicy::Forbidden,
-                        policy_literal: None,
-                    },
+                    Effect::new(verb, original, original, EffectPolicy::Forbidden),
                 );
             }
         }
+        return true;
+    }
+    // « write nothing »: the positive form of a ban of every write.
+    if effects::universal_write(text, false) {
+        push_effect(
+            &mut reading.plan,
+            Effect::new(
+                EffectVerb::Write,
+                original,
+                original,
+                EffectPolicy::Forbidden,
+            ),
+        );
         return true;
     }
     // « copy ./a.txt as is to ./out/b.txt »: a read and a write of what was read.
@@ -1044,6 +1005,14 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
         {
             push_rule(original, rule, reading);
             return true;
+        }
+        // A selection of the material the grammar cannot read (« keep the rows whose status is
+        // a ») is requested work: unresolved as well, so HOT is never READY on it and a
+        // configured cognition attempts it. Its constraint stays the policy floor a proposal
+        // joins (a recorded plan keeps its identity); a keep of something else (« keep the tone
+        // formal ») is a constraint alone (R4 A10).
+        if super::structure::selection_demand(original) {
+            reading.unresolved.push(original.to_owned());
         }
         reading.plan.constraints.push(original.to_owned());
         return true;
@@ -1118,11 +1087,7 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
     let detail_lower = strip_filler(text.get(consumed_head..).unwrap_or_default());
     let consumed = lower.len() - detail_lower.len();
     let mut detail = remainder(original, lower, consumed).to_owned();
-    let path = detail
-        .split_whitespace()
-        .map(|w| w.trim_end_matches(['.', ',', ';', ')', ':']))
-        .find(|w| (w.starts_with("./") || (w.starts_with('/') && w.contains('.'))) && w.len() > 2)
-        .map(str::to_owned);
+    let path = objects::stated_path(&detail).map(str::to_owned);
     let mut detail_lower = detail_lower;
     let lowered_path: String;
     if let Some(path) = &path
@@ -1173,13 +1138,12 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
                     });
                     push_effect(
                         &mut reading.plan,
-                        Effect {
-                            verb: EffectVerb::Write,
-                            target: target.clone(),
-                            evidence: segment.clone(),
-                            policy: EffectPolicy::Automatic,
-                            policy_literal: None,
-                        },
+                        Effect::new(
+                            EffectVerb::Write,
+                            target.clone(),
+                            segment.clone(),
+                            EffectPolicy::Automatic,
+                        ),
                     );
                     written_object(segment, &segment.to_lowercase(), target, segment, reading);
                 }
@@ -1191,13 +1155,12 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
             });
             push_effect(
                 &mut reading.plan,
-                Effect {
-                    verb: EffectVerb::Write,
-                    target: path.clone(),
-                    evidence: original.to_owned(),
-                    policy: EffectPolicy::Automatic,
-                    policy_literal: None,
-                },
+                Effect::new(
+                    EffectVerb::Write,
+                    path.clone(),
+                    original,
+                    EffectPolicy::Automatic,
+                ),
             );
             written_object(&detail, detail_lower, path, original, reading);
             defer_residue(&detail, path, reading);
@@ -1216,13 +1179,12 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
             });
             push_effect(
                 &mut reading.plan,
-                Effect {
-                    verb: EffectVerb::Write,
-                    target: path.clone(),
-                    evidence: original.to_owned(),
-                    policy: EffectPolicy::Automatic,
-                    policy_literal: None,
-                },
+                Effect::new(
+                    EffectVerb::Write,
+                    path.clone(),
+                    original,
+                    EffectPolicy::Automatic,
+                ),
             );
             return true;
         }
@@ -1288,12 +1250,9 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
                 push_effect(
                     &mut reading.plan,
                     Effect {
-                        verb: *verb,
-                        target: path.clone(),
-                        evidence: original.to_owned(),
-                        policy: EffectPolicy::Automatic,
                         policy_literal: literals::money_literal(original)
                             .then(|| original.to_owned()),
+                        ..Effect::new(*verb, path.clone(), original, EffectPolicy::Automatic)
                     },
                 );
                 if matches!(verb, EffectVerb::Write | EffectVerb::Publish) {
@@ -1460,11 +1419,8 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
             push_effect(
                 &mut reading.plan,
                 Effect {
-                    verb,
-                    target: detail.clone(),
-                    evidence: original.to_owned(),
-                    policy: EffectPolicy::Automatic,
                     policy_literal: literal,
+                    ..Effect::new(verb, detail.clone(), original, EffectPolicy::Automatic)
                 },
             );
         }

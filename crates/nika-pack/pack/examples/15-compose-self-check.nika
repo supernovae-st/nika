@@ -6,9 +6,10 @@
 # 10 taught parent→child composition (`invoke: { workflow: }`). This
 # file is the other compose: `nika:compose` inside an `agent:` whitelist
 # (ADR-096). The model drafts a nine-key workflow as YAML, gets the
-# full `nika check` verdict back as JSON, repairs until `valid`, then
-# calls `nika:done`. Checking never executes the draft (« generation
-# is not permission »).
+# in-memory Core report back as JSON, repairs until `valid`, then
+# calls `nika:done`. Child files are not resolved here: check the saved
+# draft and its children before running. Checking never executes the
+# draft (« generation is not permission »).
 #
 # Demonstrates ·
 #   - `nika:compose` is loop-only · a standalone `invoke:` is

@@ -241,55 +241,7 @@ const REQUIRE: &[&str] = &[
 ];
 /// Asking verbs: a request for approval addressed to a person (a clitic person such as
 /// `demande-moi`, `pídeme` or `pergunte-me` counts as the verb and the person).
-const ASK: &[&str] = &[
-    "ask",
-    "asks",
-    "get",
-    "obtain",
-    "require",
-    "wait",
-    "await",
-    "check",
-    "demande",
-    "demandez",
-    "demander",
-    "attends",
-    "attendez",
-    "attendre",
-    "obtiens",
-    "obtenez",
-    "préviens",
-    "previens",
-    "prévenez",
-    "prevenez",
-    "avertis",
-    "pregunta",
-    "pregúntame",
-    "preguntame",
-    "pide",
-    "pídeme",
-    "pideme",
-    "espera",
-    "consulta",
-    "chiedi",
-    "chiedimi",
-    "domanda",
-    "aspetta",
-    "attendi",
-    "frag",
-    "frage",
-    "fragen",
-    "warte",
-    "hol",
-    "hole",
-    "pergunte",
-    "pergunta",
-    "peça",
-    "peca",
-    "pede",
-    "espere",
-    "aguarde",
-];
+const ASK: &str = include_str!("../assets/gate_ask_verbs.txt");
 /// Connectors that bound a prohibition or an asking verb by an approval: `until`, `before`.
 const UNTIL: &[&str] = &[
     "until", "unless", "without", "before", "till", "sans", "avant", "jusqu'à", "jusqu'a", "tant",
@@ -309,7 +261,7 @@ fn clitic(word: &str) -> Option<(&str, &str)> {
     for suffix in ["mi", "me"] {
         if let Some(verb) = word.strip_suffix(suffix)
             && verb.len() >= 4
-            && ASK.contains(&verb)
+            && ASK.lines().any(|a| a == verb)
         {
             return Some((verb, suffix));
         }
@@ -319,7 +271,8 @@ fn clitic(word: &str) -> Option<(&str, &str)> {
 
 /// The asking verb a token carries, its clitic person set aside.
 fn asking(word: &str) -> bool {
-    ASK.contains(&word) || clitic(word).is_some_and(|(verb, _)| ASK.contains(&verb))
+    ASK.lines().any(|a| a == word)
+        || clitic(word).is_some_and(|(verb, _)| ASK.lines().any(|a| a == verb))
 }
 
 struct Token<'a> {
@@ -410,79 +363,11 @@ pub fn final_gate(lower: &str) -> Option<(usize, usize)> {
 /// « no need to ask me », « sans me demander ») states that no gate is wanted. A waiver is
 /// never a gate; beside a contrary prohibition it is a bypass, and that refusal is the
 /// compiler's judgement, not the reader's.
-const WAIVERS: &[&str] = &[
-    "no need to",
-    "no need for",
-    "needn't",
-    "don't",
-    "do not",
-    "without asking",
-    "without checking",
-    "pas besoin de",
-    "pas la peine de",
-    "inutile de",
-    "sans me",
-    "sans demander",
-    "ne me demande pas",
-    "ne me demandez pas",
-    "no hace falta",
-    "no necesitas",
-    "no es necesario",
-    "sin preguntarme",
-    "sin pedirme",
-    "no me preguntes",
-    "no me pidas",
-    "non serve",
-    "non c'è bisogno di",
-    "non c'e bisogno di",
-    "non occorre",
-    "senza chiedermi",
-    "senza chiedere",
-    "non chiedermi",
-    "nicht nötig",
-    "nicht notwendig",
-    "musst mich nicht",
-    "ohne mich zu fragen",
-    "ohne nachzufragen",
-    "frag mich nicht",
-    "não precisa",
-    "nao precisa",
-    "não é preciso",
-    "nao e preciso",
-    "sem me perguntar",
-    "sem perguntar",
-    "não me pergunte",
-    "nao me pergunte",
-];
+const WAIVERS: &str = include_str!("../assets/gate_waivers.txt");
 
 /// The asking a waiver waives, in the forms a waiver takes (an infinitive, a clitic form):
 /// « me demander », « preguntarme », « chiedermi », « mich fragen », « me perguntar ».
-const WAIVED_ASKING: &[&str] = &[
-    "ask",
-    "asking",
-    "check",
-    "confirm",
-    "demander",
-    "prévenir",
-    "prevenir",
-    "confirmer",
-    "preguntar",
-    "preguntarme",
-    "pedir",
-    "pedirme",
-    "consultar",
-    "consultarme",
-    "chiedere",
-    "chiedermi",
-    "chiedimi",
-    "confermare",
-    "fragen",
-    "nachfragen",
-    "rückfragen",
-    "perguntar",
-    "perguntar-me",
-    "confirmar",
-];
+const WAIVED_ASKING: &str = include_str!("../assets/gate_waived_asking.txt");
 
 /// Negations that flip a waiver into the gate it denies waiving (« mais pas sans me
 /// demander », « but not without asking me »), folded.
@@ -496,8 +381,11 @@ const WAIVER_NEGATIONS: &[&str] = &[
 /// waiving (« mais pas sans me demander ») — and `None` is neither.
 #[must_use]
 pub fn waiver_polarity(lower: &str) -> Option<bool> {
+    // A waiver inside quotes (« 'no need to ask me' ») is content: it waives nothing.
+    let unquoted = crate::lexicon::unquoted(lower);
+    let lower = unquoted.as_str();
     let tokens = tokens(lower);
-    for opener in WAIVERS {
+    for opener in WAIVERS.lines() {
         for (at, _) in lower.match_indices(opener) {
             let end = at + opener.len();
             let bounded = !lower[..at].ends_with(|c: char| c.is_alphanumeric())
@@ -508,14 +396,16 @@ pub fn waiver_polarity(lower: &str) -> Option<bool> {
             // « without asking », « sin preguntarme »: the opener may carry the asking itself.
             let opener_asks = opener
                 .split_whitespace()
-                .any(|w| asking(w) || WAIVED_ASKING.contains(&w));
+                .any(|w| asking(w) || WAIVED_ASKING.lines().any(|a| a == w));
             let asks = tokens
                 .iter()
                 .enumerate()
                 .filter(|(_, t)| t.start >= end)
                 .take(6)
                 .any(|(k, t)| {
-                    asking(t.word) || WAIVED_ASKING.contains(&t.word) || is_approval(&tokens, k)
+                    asking(t.word)
+                        || WAIVED_ASKING.lines().any(|a| a == t.word)
+                        || is_approval(&tokens, k)
                 });
             if !(opener_asks || asks) {
                 continue;
@@ -608,7 +498,8 @@ pub fn gate_phrases(lower: &str) -> usize {
 /// A prohibition bounded by an approval is a gate, not a prohibition: `don't write until i
 /// approve`, `never publish without my approval`, `ne publie rien sans ma validation`.
 pub(crate) fn approval_bound(lower: &str) -> bool {
-    let tokens = tokens(lower);
+    let unquoted = crate::lexicon::unquoted(lower);
+    let tokens = tokens(&unquoted);
     (0..tokens.len()).any(|u| {
         UNTIL.contains(&tokens[u].word)
             && (u + 1..(u + 5).min(tokens.len())).any(|k| is_approval(&tokens, k))
@@ -651,36 +542,7 @@ const APPROVAL_BYPASS: &[&[&str]] = &[
 
 /// Negations and prohibitions in six languages: before a bypass phrase in the same
 /// sentence, they turn it into a gate.
-const NEGATIONS: &[&str] = &[
-    "not",
-    "never",
-    "nothing",
-    "no",
-    "rien",
-    "jamais",
-    "ne",
-    "aucun",
-    "aucune",
-    "interdit",
-    "interdite",
-    "nada",
-    "nunca",
-    "prohibido",
-    "prohibida",
-    "niente",
-    "mai",
-    "non",
-    "vietato",
-    "nichts",
-    "nie",
-    "niemals",
-    "nicht",
-    "verboten",
-    "nao",
-    "não",
-    "proibido",
-    "proibida",
-];
+const NEGATIONS: &str = include_str!("../assets/gate_negations.txt");
 
 /// Whether a recognized bypass phrase is stated as a bypass. The same words inside a
 /// prohibition state a gate: « rien ne doit partir sans mon accord », « never send without
@@ -689,7 +551,8 @@ const NEGATIONS: &[&str] = &[
 /// stays a bypass.
 #[must_use]
 pub fn bypass_stated(lower: &str) -> bool {
-    crate::lexicon::split_sentences(lower)
+    let unquoted = crate::lexicon::unquoted(lower);
+    crate::lexicon::split_sentences(&unquoted)
         .into_iter()
         .any(|sentence| {
             let words: Vec<&str> = sentence
@@ -698,7 +561,10 @@ pub fn bypass_stated(lower: &str) -> bool {
                 .collect();
             APPROVAL_BYPASS.iter().any(|phrase| {
                 words.windows(phrase.len()).enumerate().any(|(at, window)| {
-                    window == *phrase && !words[..at].iter().any(|w| NEGATIONS.contains(w))
+                    window == *phrase
+                        && !words[..at]
+                            .iter()
+                            .any(|w| NEGATIONS.lines().any(|n| n == *w))
                 })
             })
         })
@@ -709,7 +575,7 @@ pub fn bypass_stated(lower: &str) -> bool {
 /// languages); it refuses the recognized bypasses and keeps recognized money movement from
 /// being assembled without a human gate.
 pub fn backstop(intent: &str, plan: &mut Plan) {
-    let text = intent.to_lowercase();
+    let text = crate::lexicon::unquoted(&intent.to_lowercase());
     if bypass_stated(&text) {
         plan.unknowns.push(
             "The request reuses, skips or presupposes an approval (recognized approval-bypass wording); the compiler never grants that authority."

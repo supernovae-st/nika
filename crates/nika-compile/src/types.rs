@@ -24,6 +24,12 @@ pub struct CompileRequest {
     /// The request the base candidate answered, when the caller has it — see
     /// [`Self::with_original_intent`]; an edit's laws read it beside the change.
     pub original_intent: Option<String>,
+    /// The monetary directives of the request the caller admitted as its own authority (R4 A6)
+    /// — see [`Self::with_admitted_money`]; empty when the caller admits none.
+    pub money: Vec<std::ops::Range<usize>>,
+    /// The operator states money in the words the compiler reads, on a door that meters no
+    /// seat (R4 B15) — see [`Self::with_stated_money`].
+    pub stated_money: bool,
 }
 
 /// One reference a knowledge snapshot recalled for the seat: its kind (`pattern` · `block` ·
@@ -142,6 +148,37 @@ impl CompileRequest {
         self.original_intent = Some(intent.into());
         self
     }
+    /// The monetary directives of this request (byte ranges `crate::money::directives` found)
+    /// that the caller admitted as its own ceiling (R4 A6): the compiler reads the request with
+    /// them blanked, never as business clauses, and records them in `decision.money`; the
+    /// caller's admission stays the caller's, the compiler grants and certifies nothing.
+    #[must_use]
+    pub fn with_admitted_money(mut self, spans: Vec<std::ops::Range<usize>>) -> Self {
+        self.money = spans;
+        self
+    }
+    /// The operator states money in the words the compiler reads, on a door that meters no
+    /// seat (R4 B15 · the CLI): every directive of the request — of a replacement request, on
+    /// the seats' door — is the caller's ceiling, read with the law of `crate::money`; a
+    /// malformed or conflicting one refuses, and any stated ceiling, zero or not, opens no seat.
+    #[must_use]
+    pub fn with_stated_money(mut self) -> Self {
+        self.stated_money = true;
+        self
+    }
+    /// The same request with `text` as its complete input: a clarification or any replacement
+    /// the caller answered. The monetary spans it admitted index the bytes it read, so they stay
+    /// only when `text` is those very bytes; a replacement never inherits them, whatever its own
+    /// directives or their offsets (R4 A11).
+    #[must_use]
+    pub fn with_replaced_input(mut self, text: impl Into<String>) -> Self {
+        let text = text.into();
+        if !matches!(&self.input, Input::Create(read) if *read == text) {
+            self.money = Vec::new();
+        }
+        self.input = Input::Create(text);
+        self
+    }
     /// Create from an exact skeleton or bounded support clauses. Other intents
     /// remain incomplete unless an explicit provider authoring call resolves them.
     #[must_use]
@@ -156,6 +193,8 @@ impl CompileRequest {
             knowledge: None,
             authoring_knowledge: None,
             original_intent: None,
+            money: Vec::new(),
+            stated_money: false,
         }
     }
 
@@ -179,6 +218,8 @@ impl CompileRequest {
             knowledge: None,
             authoring_knowledge: None,
             original_intent: None,
+            money: Vec::new(),
+            stated_money: false,
         }
     }
 
@@ -213,6 +254,8 @@ impl CompileRequest {
             knowledge: None,
             authoring_knowledge: None,
             original_intent: None,
+            money: Vec::new(),
+            stated_money: false,
         }
     }
 
@@ -440,6 +483,46 @@ impl NativeMode {
     }
 }
 
+/// An explicit reasoning effort an operator asks of every authoring and decision call
+/// (R4 B16): the closed levels a model catalog can qualify. Absent, each seat's route keeps its
+/// own default.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum AuthoringReasoning {
+    /// The `low` level.
+    Low,
+    /// The `high` level.
+    High,
+    /// The `max` level.
+    Max,
+}
+
+impl AuthoringReasoning {
+    /// The level words, in order.
+    pub const WORDS: [&'static str; 3] = ["low", "high", "max"];
+
+    /// The stable machine word.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Low => "low",
+            Self::High => "high",
+            Self::Max => "max",
+        }
+    }
+
+    /// The level an exact word names; no other spelling is a level.
+    #[must_use]
+    pub fn parse(word: &str) -> Option<Self> {
+        match word {
+            "low" => Some(Self::Low),
+            "high" => Some(Self::High),
+            "max" => Some(Self::Max),
+            _ => None,
+        }
+    }
+}
+
 /// Explicit limits for one authoring call. Ambient credentials are not consent.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -453,8 +536,18 @@ pub struct AuthoringPolicy {
     pub samples: u32,
     pub native: NativeMode,
     pub repairs: u32,
+    /// The explicit reasoning effort every authoring and decision call asks for (R4 B16).
+    pub reasoning: Option<AuthoringReasoning>,
 }
 impl AuthoringPolicy {
+    /// Ask every authoring and decision call for this reasoning effort (R4 B16): sent only on a
+    /// route whose catalog qualifies it, refused before any request elsewhere. The output cap
+    /// stays the policy's own.
+    #[must_use]
+    pub fn with_reasoning(mut self, reasoning: AuthoringReasoning) -> Self {
+        self.reasoning = Some(reasoning);
+        self
+    }
     /// When the native candidate is written (default: after the private plan fails a human).
     #[must_use]
     pub fn with_native(mut self, native: NativeMode) -> Self {
@@ -493,6 +586,7 @@ impl AuthoringPolicy {
             samples: 1,
             native: NativeMode::default(),
             repairs: 3,
+            reasoning: None,
         }
     }
 }

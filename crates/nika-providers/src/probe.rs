@@ -18,11 +18,16 @@
 //! - `collect_local_pings` dials LOCAL surfaces only (loopback seeds or
 //!   the operator's own overrides) — never a vendor endpoint, and
 //!   nothing is ever written on the socket.
+//! - `probe_model_listing` is a separate opt-in bodyless GET: compatible
+//!   schema and advertised model ids, never an inference capability claim.
 
 use std::net::{TcpStream, ToSocketAddrs};
 use std::time::{Duration, Instant};
 
 use crate::ProviderRegistry;
+
+mod model_list;
+pub use model_list::{ModelListing, probe_model_listing};
 
 /// One `--ping` observation · a local port either answered a TCP connect
 /// within the cap or it did not (no request is ever sent on the socket).
@@ -159,10 +164,11 @@ pub struct ProviderReadiness {
     /// Filled ONLY by an explicit opt-in probe (`doctor --ping`) —
     /// `None` without one: no implicit network, ever.
     pub reachable: Option<bool>,
-    /// A model-listing probe against the live endpoint — NOT WIRED yet;
-    /// the rung exists so « configured » is never sold as « the model is
-    /// there ».
+    /// Whether an opt-in compatible listing advertises any model. This does
+    /// not qualify a selected model or prove an inference will succeed.
     pub model_available: Option<bool>,
+    /// The separate protocol/model observation; absent when no probe was requested.
+    pub model_listing: Option<ModelListing>,
     /// The vendored pricing snapshot carries list rates for this provider.
     pub priced: bool,
     /// Where the EFFECTIVE endpoint executes (override-aware · P0-20).
@@ -191,6 +197,7 @@ impl ProviderReadiness {
             configured,
             reachable,
             model_available,
+            model_listing: None,
             priced,
             execution_locus,
             access,
@@ -414,32 +421,21 @@ pub fn env_present(name: &str) -> bool {
     std::env::var_os(name).is_some_and(|v| !v.is_empty())
 }
 
-/// `host:port` extracted from a base URL, for a connect-only probe.
-/// No URL crate: scheme-strip, authority up to the first `/`, default
-/// port per scheme. `None` = unparseable (probed as unreachable).
+/// `host:port` for a connect-only probe, from the WHATWG parse the
+/// transport connects with (`url::Url`), so the probe dials what the run
+/// would hit: a validated host (IPv6 in brackets) and the explicit or
+/// default `http`/`https` port. Path, query, fragment and userinfo never
+/// reach the dial or the text that prints it. `None` = another scheme or
+/// an unparseable URL: nothing is dialed (the doctor lists no ping and the
+/// run gate does not apply).
 #[must_use]
 pub fn ping_addr(url: &str) -> Option<String> {
-    let (default_port, rest) = if let Some(r) = url.strip_prefix("https://") {
-        ("443", r)
-    } else if let Some(r) = url.strip_prefix("http://") {
-        ("80", r)
-    } else {
-        return None;
-    };
-    let authority = rest.split('/').next().unwrap_or_default();
-    // Userinfo is display/credential noise, never part of the dial —
-    // `user:pass@host` must resolve (and print) as `host`.
-    let authority = authority
-        .rsplit_once('@')
-        .map_or(authority, |(_, host)| host);
-    if authority.is_empty() {
+    let url = url::Url::parse(url).ok()?;
+    if !matches!(url.scheme(), "http" | "https") {
         return None;
     }
-    if authority.contains(':') {
-        Some(authority.to_owned())
-    } else {
-        Some(format!("{authority}:{default_port}"))
-    }
+    let port = url.port_or_known_default()?;
+    Some(format!("{}:{port}", url.host_str()?))
 }
 
 /// Connect-only TCP probe (nothing is ever written on the socket).
@@ -771,6 +767,34 @@ mod tests {
         );
         assert_eq!(ping_addr("ftp://nope"), None);
         assert_eq!(ping_addr("http://"), None);
+    }
+
+    #[test]
+    fn ping_addr_dials_only_the_host_and_port_the_transport_parses() {
+        // A backslash, query or fragment right after the authority used to
+        // ride the dial address into the gate's refusal text (E32).
+        for (url, dial) in [
+            ("http://127.0.0.1:38433\\sentinel\\v1", "127.0.0.1:38433"),
+            ("http://127.0.0.1:38433?k=sentinel", "127.0.0.1:38433"),
+            ("http://127.0.0.1:38433#sentinel", "127.0.0.1:38433"),
+            ("http://127.0.0.1:38433/%73entinel/v1", "127.0.0.1:38433"),
+            ("http://[::1]:8080/sentinel", "[::1]:8080"),
+            ("https://[::1]/sentinel", "[::1]:443"),
+            ("HTTP://LocalHost:11434/sentinel", "localhost:11434"),
+            ("http://user:sentinel@host/v1", "host:80"),
+        ] {
+            assert_eq!(ping_addr(url).as_deref(), Some(dial), "{url}");
+        }
+        for url in [
+            "file:///sentinel",
+            "ws://host:1/sentinel",
+            "http://:8080/sentinel",
+            "http://[::1",
+            "sentinel",
+            "http://host:99999/sentinel",
+        ] {
+            assert_eq!(ping_addr(url), None, "{url}");
+        }
     }
 
     #[test]

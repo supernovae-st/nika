@@ -184,7 +184,11 @@ surface). The list below is the CURRENT reality, not the admission draft.
   (`stdlib/builtins-v0.1.md` · `02-verbs` §agent). It respects the closed
   `{nika:, mcp:}` namespace set; the earlier `agent:compose` (a third
   namespace) is gone, and the agent whitelist now enforces the closed set
-  at parse (`validate_whitelist_namespace`).
+  at parse (`validate_whitelist_namespace`). Its `valid` flag covers parsing
+  and Core conformance only. The report includes analysis counts and a bounded
+  certificate summary, but reads no child files and grants no execution.
+  Check the saved draft and its children through the file-aware `nika check`
+  before presenting it as ready to run.
 - **`${{ }}` resolution / glob compilation** — `tools:` globs are matched
   here, but `${{ }}` in prompt/system is upstream-resolved.
 - **Cost/duration limits** — `CostLimit`/`DurationLimit` stop reasons exist in

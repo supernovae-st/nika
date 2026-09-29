@@ -186,6 +186,12 @@ workspace, not two.
 ## §7 · Update log
 
 ```
+2026-09-29  C11 — `InferInput.reasoning_effort: Option<ReasoningEffort>` (R4 B16):
+              the verb carries an explicit level to its provider request
+              (`InferRequest.reasoning_effort`). The provider sends it only on
+              a route whose catalog lists the level and refuses before any
+              byte elsewhere; `None` (what `InferInput::new` sets) keeps the
+              request's bytes. Capture tests: `tests/reasoning.rs`.
 2026-06-11  v0.2 — Gate 11 swarm reconciliation (3 lenses · 0 P0 · P1s fixed
               same session): schema compiled once per run() (invalid schema →
               NIKA-432 · zero provider calls) · attempts widened u8→u32

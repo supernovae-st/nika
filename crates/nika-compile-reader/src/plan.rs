@@ -14,6 +14,8 @@ use serde_json::{Value, json};
 
 use super::rules;
 
+mod record;
+
 /// Closed operation vocabulary. Names are private; the assembler owns their structure.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[non_exhaustive]
@@ -258,10 +260,13 @@ pub struct Effect {
     pub policy: EffectPolicy,
     /// Verbatim policy data found in the intent (caps, eligibility), if any.
     pub policy_literal: Option<String>,
+    /// The plan states the write holds one computed value alone (« a bare JSON number »), not the
+    /// object naming it (E38); never read from the evidence's words.
+    pub alone: bool,
 }
 
 impl Effect {
-    /// One external effect with its policy and no policy literal yet.
+    /// One external effect with its policy, no policy literal yet, and no stated value alone.
     #[must_use]
     pub fn new(
         verb: EffectVerb,
@@ -275,6 +280,7 @@ impl Effect {
             evidence: evidence.into(),
             policy,
             policy_literal: None,
+            alone: false,
         }
     }
 }
@@ -369,8 +375,16 @@ impl Binding {
 }
 
 /// The closed set of binding roles the reader and the composer emit. A recorded plan may
-/// only name one of these: the assembler matches roles by identity.
-const BINDING_ROLES: [&str; 5] = ["url", "email", "path", "timezone", "money_policy"];
+/// only name one of these: the assembler matches roles by identity. A `content` literal is
+/// the quoted text a write carries, verbatim, quotes included.
+const BINDING_ROLES: [&str; 6] = [
+    "url",
+    "email",
+    "path",
+    "timezone",
+    "money_policy",
+    "content",
+];
 
 /// The whole private plan.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -402,6 +416,19 @@ impl Plan {
     #[must_use]
     pub fn step(&self, op: Op) -> Option<&Step> {
         self.steps.iter().find(|s| s.op == op)
+    }
+    /// The quoted literal a write states as its content: the one `content` literal its
+    /// evidence holds, never a guess between two different ones.
+    #[must_use]
+    pub fn content_of(&self, effect: &Effect) -> Option<&str> {
+        let is_stated = |b: &&Binding| b.role == "content" && effect.evidence.contains(&b.literal);
+        let mut stated = self
+            .bindings
+            .iter()
+            .filter(is_stated)
+            .map(|b| b.literal.as_str());
+        let first = stated.next()?;
+        stated.all(|other| other == first).then_some(first)
     }
     #[must_use]
     pub fn retry_bound(&self) -> Option<u32> {
@@ -439,10 +466,15 @@ impl Plan {
                 "op": s.op.word(), "detail": s.detail, "evidence": s.evidence,
                 "categories": s.categories,
             })).collect::<Vec<_>>(),
-            "effects": self.effects.iter().map(|e| json!({
-                "verb": e.verb.word(), "target": e.target, "policy": e.policy.word(),
-                "evidence": e.evidence, "policy_literal": e.policy_literal,
-            })).collect::<Vec<_>>(),
+            "effects": self.effects.iter().map(|e| {
+                let mut effect = json!({
+                    "verb": e.verb.word(), "target": e.target, "policy": e.policy.word(),
+                    "evidence": e.evidence, "policy_literal": e.policy_literal,
+                });
+                // `alone` only when stated: a plan recorded before it reads as it did.
+                if e.alone { effect["alone"] = json!(true); }
+                effect
+            }).collect::<Vec<_>>(),
             "obligations": self.obligations.iter().map(|o| json!({
                 "kind": o.kind.word(),
                 "value": match o.kind { ObligationKind::RetryBound(n) => Some(n), _ => None },
@@ -499,41 +531,41 @@ impl Plan {
         plan.constraints = words(record, "plan", "constraints")?;
         plan.unknowns = words(record, "plan", "unknowns")?;
         plan.trigger = optional_text(record, "plan", "trigger")?;
-        if let Some(rules) = object.get("rules").and_then(Value::as_array) {
-            plan.rules = rules.iter().filter_map(rules::Rule::from_json).collect();
+        for (k, item) in record::optional_array(record, "rules")?.iter().enumerate() {
+            let rule = rules::Rule::from_json(item)
+                .ok_or_else(|| format!("`rules[{k}]` is not a complete recorded rule"))?;
+            record::faithful(item, &rule.to_json(), &format!("rules[{k}]"))?;
+            plan.rules.push(rule);
         }
-        if let Some(slots) = object.get("slots").and_then(Value::as_array) {
-            for (k, item) in slots.iter().enumerate() {
-                let field = |name: &str| {
-                    item.get(name)
-                        .and_then(Value::as_str)
-                        .map(str::to_owned)
-                        .ok_or_else(|| format!("`slots[{k}].{name}` is missing"))
-                };
-                let numeric = item
-                    .get("numeric")
-                    .and_then(Value::as_bool)
-                    .unwrap_or(false);
-                plan.slots
-                    .push(Slot::new(field("key")?, field("label")?, numeric));
-            }
+        for (k, item) in record::optional_array(record, "slots")?.iter().enumerate() {
+            let field = |name: &str| {
+                item.get(name)
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+                    .ok_or_else(|| format!("`slots[{k}].{name}` is missing"))
+            };
+            let numeric = match item.get("numeric") {
+                Some(Value::Bool(value)) => *value,
+                None => return Err(format!("`slots[{k}].numeric` is missing")),
+                Some(_) => return Err(format!("`slots[{k}].numeric` is not a boolean")),
+            };
+            plan.slots
+                .push(Slot::new(field("key")?, field("label")?, numeric));
         }
+        record::slots(&plan)?;
+        record::owned_fields(record, &plan.to_json())?;
         Ok(plan)
     }
-    /// Every evidence excerpt must be a verbatim substring of the intent.
+    /// Every evidence excerpt must be a verbatim substring of the intent, and every rule is
+    /// anchored by its words or, a verified program, by the step it realizes.
     #[must_use]
     pub fn anchored(&self, intent: &str) -> bool {
-        self.steps
-            .iter()
-            .all(|s| !s.evidence.trim().is_empty() && intent.contains(&s.evidence))
-            && self
-                .effects
-                .iter()
-                .all(|e| !e.evidence.trim().is_empty() && intent.contains(&e.evidence))
-            && self
-                .obligations
-                .iter()
-                .all(|o| !o.evidence.trim().is_empty() && intent.contains(&o.evidence))
+        let excerpt = |evidence: &str| !evidence.trim().is_empty() && intent.contains(evidence);
+        let steps = &self.steps;
+        self.rules.iter().all(|r| r.record_anchored(intent, steps))
+            && steps.iter().all(|s| excerpt(&s.evidence))
+            && self.effects.iter().all(|e| excerpt(&e.evidence))
+            && self.obligations.iter().all(|o| excerpt(&o.evidence))
     }
 }
 
@@ -604,6 +636,8 @@ fn effect_from(item: &Value, path: &str) -> Result<Effect, String> {
         evidence: excerpt(item, path)?,
         policy,
         policy_literal: optional_text(item, path, "policy_literal")?,
+        // Recorded `true` or absent; from_json's owned_fields check rejects other values.
+        alone: item.get("alone") == Some(&Value::Bool(true)),
     })
 }
 
@@ -643,6 +677,40 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_recorded_scalar_choice_is_preserved_or_refused_never_dropped() {
+        let mut effect = Effect::new(
+            EffectVerb::Write,
+            "./out.json",
+            "write the total alone to ./out.json",
+            EffectPolicy::Automatic,
+        );
+        effect.alone = true;
+        let mut plan = Plan::default();
+        plan.effects.push(effect);
+        let record = plan.to_json();
+        assert_eq!(Plan::from_json(&record).expect("scalar round trip"), plan);
+        for value in [
+            json!(false),
+            json!(1),
+            json!("true"),
+            json!(null),
+            json!([]),
+            json!({}),
+        ] {
+            let mut malformed = record.clone();
+            malformed["effects"][0]["alone"] = value;
+            let error = Plan::from_json(&malformed).expect_err("no scalar choice is dropped");
+            assert!(error.contains("effects[0].alone"), "{error}");
+        }
+        let mut old = record;
+        old["effects"][0]
+            .as_object_mut()
+            .expect("effect object")
+            .remove("alone");
+        assert!(!Plan::from_json(&old).expect("legacy absent field").effects[0].alone);
+    }
+
+    #[test]
     fn a_full_plan_round_trips_through_its_record() {
         let plan = Plan {
             steps: vec![
@@ -665,6 +733,7 @@ mod tests {
                 evidence: "avant le remboursement".to_owned(),
                 policy: EffectPolicy::HumanFirst,
                 policy_literal: Some("100 EUR max".to_owned()),
+                alone: false,
             }],
             obligations: vec![
                 Obligation {

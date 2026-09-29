@@ -7,6 +7,19 @@
 
 ## Contract
 
+`compile_config` owns the shared authoring strategy and knowledge-source
+configuration parser. Its former `nika_cli_host::compile::config` path remains
+as a re-export, including constructors, constants and error types. This pure
+resolution law remains shared by CLI, session and resident doors; the optional
+environment reader retains the same explicit precedence. Rust type names now
+originate in this member.
+
+`knowledge::redact_host_paths` projects a knowledge-pack identity for remote
+receipt consumers by removing its host directory and verification file root.
+Hashes, counts, selection and every other identity field remain unchanged.
+The resident compile door uses this shared knowledge projection before
+serializing authoring provenance.
+
 The onboarding surfaces share one law (questions before writes · the human
 keeps the hand · the proof inside the first minute):
 
@@ -28,6 +41,11 @@ keeps the hand · the proof inside the first minute):
 
 ## Shared authoring knowledge door
 
+`compile_config::AuthoringConfig::with_knowledge` applies the selected pack or
+snapshot to a request. Revision intent takes precedence over the caller's
+clarified fallback; snapshot exclusions and byte verification stay with the
+knowledge owner. CLI forwards to this shared door.
+
 `knowledge` owns the read-only Foundry snapshot/pack reader and bounded BM25/graph
 composition shared by CLI, Session and Serve. It is separate from the pure
 in-memory Compile core: this adapter reads the explicitly selected snapshot and
@@ -36,6 +54,195 @@ reasons, presented references and byte identities remain observable.
 `nika-cli-host::compile::knowledge` re-exports the same types and functions for
 existing callers. The existing L4 edge remains acyclic; no new crate or compiler
 is introduced. `nika-event` supplies the existing shared SHA-256 byte identity.
+
+`compile::observation` re-exports the pure observation law of the compile unit
+(R4 A5): a host peeks and reads, this law turns the head or the parsed records
+into columns, categorical values and the counted raw kinds the compiler grounds
+a rule's numbers in. The host observer (`nika-cli-host::compile::observe`) is
+its one I/O caller, for the CLI and the Session alike.
+
+## The lexical money reader
+
+`compile::money` re-exports the one lexical money reader of the compile unit (R4 A6):
+what a line states about a USD ceiling. Admission stays with the caller (Session's money
+gate); the reader grants nothing.
+
+## The Meaning projection (read by Session)
+
+`compile::meaning` projects an outcome's obligation ledger
+(`provenance.decision.ledger`) into the Meaning view: each clause's fate
+(represented · needs an answer · external · not expressible · refused ·
+contradicted), its assurance (read from the task that carries it in the
+candidate's bytes, parsed by the one strict `nika_schema` law: strict mode, one
+anonymous file, and bytes it refuses carry no verb), the rendered view and a
+revision's delta. It is pure (an outcome or a ledger in, words out), never
+certifies coverage (a clause the compiler did not read is not listed, and the
+view says so) and renders « unavailable » without a ledger — words that name
+no host's protocol (`UNAVAILABLE`; a host adds its own way on). A ledger that is
+not a list, or an entry of an unknown or missing state, is never guessed and
+never silently dropped: the view says it could not read it and counts none of
+it as done (no « no clause » or « 0 waiting » over unread entries), and a delta
+over unread entries says they were not compared. It moved here from
+`nika-session` on 2026-09-28; `nika_session::meaning` re-exports it unchanged.
+Its tests and their three recorded outcomes live beside it
+(`src/compile/meaning/`).
+
+## The hallucination guard (read by Session)
+
+`guard` reads every reply a Session reasoner writes before a human sees it. A Nika-specific
+named entity (a builtin · a model · an error code · an MCP server · a CLI verb · a workflow
+field) is validated against the installed catalogs and the project's configuration; what
+this engine does not carry is corrected under the reply, never presented as real. It moved
+here from `nika-session` on 2026-09-29 (the `meaning` precedent · D8 headroom);
+`nika_session::guard` re-exports it unchanged. Its model check is
+`nika_providers::resolve_refusal`, the #320 MODELS-rung law: a pure resolution, so this
+crate still never calls a provider. Its tests live beside it (`src/guard.rs`).
+
+## The automation rail (read by Session)
+
+`lifecycle` compiles where an automation stands as separate facts, DRAFT · SAVED · CHECKED ·
+ACTIVE · RUN, each at its own stage (pending · working · done · declared · paused · failed ·
+attention), from the facts a host hands it. It never folds the five into one badge. It is
+pure: no crate, no I/O. It moved here from `nika-session` on 2026-09-29 (the `meaning`
+precedent · D8 headroom); `nika_session::lifecycle` re-exports it unchanged. Its tests live
+beside it (`src/lifecycle.rs`).
+
+## The conversational reading of an outcome (read by Session)
+
+`compile::reading` says what one compile outcome means for a conversation
+(`Reading`: ready, questions, unsettled, not work, budget exhausted, provider
+failed, refused) from the compiler's typed fields — its status, candidate,
+questions, route and plan — and, for a provider failure, from that
+diagnostic's own words (a timeout is recognized by its text): it never parses
+the compiler's prose back into state. `reasons` lists the compiler's unknown,
+missed and refused diagnostics for a human, and `literal_for` is the JSON
+literal a human line is at one question's shape. It descended from
+`nika-session` on 2026-09-28 (C7 · descent 1) with its tests;
+`nika_session::authoring` re-exports all three at their old paths. `Reading` is
+`#[non_exhaustive]`: the session refuses a reading it does not know yet, never
+proposes it. Pure: nothing here calls, reads or decides for a host.
+
+What a host says of the compiler's own grammar lives here too (C10 · D-H):
+`human_reasons` keeps the reasons a human can act on (machine sentences
+dropped, duplicates folded, the fidelity grammar's closed forms said plainly, a
+cut answer named as an internal limit), `clarified` gives the words an
+answered `intent.clarification` puts in place of the request, `asks_for_syntax`
+and `clause_of` read a question that would ask a human for code and the clause
+it quotes, and `clauses_understood` counts the outcome's ledger. They
+descended from `nika-session`, which re-exports the ones its runtime calls.
+The words an outcome gives a human before a host's own protocol words descended
+too (C11): `question_words` (the label, why the value cannot be invented, what
+could not be settled), `syntax_question` (a rule asked in words, never as code) and
+`incomplete_words` (what the reader could not settle and the next safe step). The
+host appends its own reply, cancel and help words. `KnowledgePin::status_words`
+gives a pin's identity in the words a status line says. `compile::AuthoringReasoning`
+re-exports the compiler's explicit effort level beside its policy. `reading::receipt_words`
+gives the authoring receipt as a human reads it: the backend, the calls, tokens and time,
+where the calls went, and the cost basis. The host passes its own words for where a run's
+cost is read. `reasoning_words` gives one explicit-effort call's facts, each apart:
+configured, the keys read back from the sent body (`unobserved` when none was), served
+unknown, the tokens, usage and model reported. A call naming no level adds nothing.
+The headline counts only what each call's record shows (B19), never a subtraction:
+- A call is answered only when its record holds the provider's response (`stop_reason`),
+  whether usage was reported or not.
+- `admission_refused` was refused before sending; `provider_error` and `timeout` may have been
+  sent.
+- Anything else is unobserved: no result, a failure this reader does not know, or a counted
+  call with no record.
+
+When every counted call has one answered record, it reads as before. Otherwise it gives the calls
+attempted, answered, without an answer, refused before sending and unobserved. It also says when
+the receipt records another number of calls than it counts. The destination line then reads
+`nothing was sent to` when nothing was sent (every attempt refused locally, or no call made), and
+`possibly sent to` when none was answered and one may have been sent. A call that asked a level
+and holds no result says `result unobserved` on its own line.
+`compile::seat` (C11, from `nika-session`) holds what the catalog says of a named model or
+an offered seat:
+- `unpriced_cloud`: a cloud model the catalog does not price, which a run under a spending
+  ceiling would refuse (NIKA-1709), with the priced models of its provider;
+- `unpriced_warning` and `priced_words`: the neutral words for that fact;
+- `stronger_model(_under)`: the static table of each provider's stronger authoring model.
+  It is written in the module, never read from the catalog when called, and grants no
+  model anything.
+
+The host keeps its gestures and registry reads.
+
+`compile::{Basis, basis, basis_for}` re-export the compiler's source basis law
+(C9 · F4, `nika_compile::basis`) at the path a host reads the compile unit from:
+a host judges a candidate's recorded source facts against a fresh observation of
+the same sources where a proposal is consented to; `basis_for` judges them for
+the exact request that compiled the candidate, whose answers the compiler
+recovers by a zero-call replay (C10).
+
+## The knowledge pin and its records (read by Session)
+
+`knowledge::pin` owns the identity a session pins for its knowledge snapshot
+(`KnowledgePin`: the declared version and digest, the sha256 of the manifest
+bytes and of the rows as read, opened and compared through the snapshot door
+beside it) and the pure records a session stamps on a compile outcome: what it
+observed (`observed_in`: paths, states, kinds and column counts, never the
+names, and `world_sha256`, the identity of the whole observation attached), composed (`composed_record`: the pinned identity, the pack digest, each
+reference's bytes and sha256, whether the native door presented it and which
+calls carried it), carried (`carried_record`), presented (`presented_knowledge`)
+and the stamp beside the compiler's own record (`stamp`). It descended from
+`nika-session` on 2026-09-28 (C7 · D1); `nika_session::authoring::KnowledgePin`
+re-exports the same type. Nothing here reads the environment, calls a model or
+decides a policy: the session keeps its seat, its strategy and its consent.
+`KnowledgePin::moved` names both identities in words when the snapshot read
+now is no longer the one pinned (C10 · D-K); the session refuses it.
+`stamp_seat` places the decision seat's receipt beside the compiler's own record
+(`decision.session.decision_seat`), which `stamp` keeps (C10). `knowledge_lines` gives the
+session's record (`decision.session.authoring`) in the words `/details` shows (C11 · B19). It
+descended from `nika-session`'s `runtime/details.rs` with its bytes unchanged: the strategy
+and its source, then the pack's identity, digests and references. The pack is presented (with
+the calls that carried it and the seat that authored), attached but never read (and why), or
+carried from the round that authored a replayed candidate.
+
+## The durable authoring round (kept by Session)
+
+`compile::round` is the codec of the round a host keeps across a close (C7): the
+request, the settled answers, the open questions (evidence to display, never a
+question to answer), the compiler's continuation, the knowledge and subscription
+receipt of the call that authored it, and the proposal a revision revises.
+Schema 1 is written and read by hand over `serde_json::Value` (no new
+dependency): every key is always written, and a key this schema does not know, a
+key missing or a value of another type makes the whole value unreadable
+(`RoundReading::Unreadable`, kept byte for byte by its host and never used).
+Every executable text (the request, each answer, an EDIT's path, base, change
+and original) is kept with the sha256 of its exact original; `Capture` passes
+each through the host's redactor, so a text the redactor changed is kept as
+displayed and `RoundRecord::continuable` refuses it (`Unusable::Redacted` · also
+a text altered since). The continuation is kept whole only when the redactor
+leaves it unchanged and the record fits `ROUND_LIMIT` (256 KiB); otherwise only
+its sha256 and why it was withheld are kept, and a round still over the bound is
+not kept at all. At most `MAX_ANSWERS` (64) answers. A record carries no
+account, admission, review, consent, question identity or monetary span: the
+host re-admits the request through its own gates, and the compiler judges the
+answers against the project as it is when the round continues.
+
+`RoundReading::{record, continuable, words}` read a kept value; `RoundWords` is
+the kept round in words (its summary, why its question was asked, why it
+cannot be continued) that a host adds its own way on to (C10 · D-V). Beside
+the codec lives the live round's own law, for the host's round to delegate to
+(C10 · D-R): `request` (the typed request a round is, the admitted monetary
+spans carried as data and never read again), `settled` (the continuation an
+outcome settled, with its knowledge record and a harness's receipt), `open`
+(the questions an outcome leaves and the reasons for them), `reanchored` and
+`carry_receipt`; `KeptEdit::texts` gives an EDIT back as a live round carries
+it.
+`change_money` gives the admitted spans of an EDIT's change exactly as the EDIT holds it:
+the money law's own directives of that change when the host's gate admitted money in the
+line it came from, none otherwise (B15 · C10).
+`compiled` gives the exact request a Ready outcome was compiled from, as a host keeps
+it beside the proposal's bytes for `basis_for`: the round's `request` (its answers and
+the plan it continued, with that plan's earlier observation, never replaced) and, apart
+from it, the observation this round was given: the one the compiler recorded in the
+outcome's plan (`observed_world`) when the host's record names that very observation by
+its identity (`decision.session.observed.world_sha256`, which `observed_in` stamps; the
+record's rows are a names-free summary for display, never an identity). A round given none
+keeps none; an attached observation the outcome did not record, or a record naming no
+identity (an older one), gives `None`, and a host keeps no basis rather than read another
+observation for it (C10).
 
 ## Compile foundation
 
@@ -103,9 +310,32 @@ Exact skeletons, EDIT and support clauses the bounded grammar resolves stay
 deterministic even through the provider seam: an opted-in provider interprets
 only what the grammar cannot, and a grammar-resolved outcome keeps generation 1.
 The CLI opts in with `--authoring-model`, optional `--authoring-max-tokens`
-(default 2048) and `--authoring-timeout` (default 30 seconds). Only then does
-its adapter use the established environment credential/endpoint ladder.
-Serve remains deterministic; it does not accept this authoring policy yet.
+(default 8192) and `--authoring-timeout` (default 120 seconds, 300 for an ACP
+harness). Only then does its adapter use the established environment
+credential/endpoint ladder.
+
+The CLI sends one authoring request unless `--authoring-max-calls N`
+authorizes more; a repair or sample count is not that authority. A request
+past it is refused before any byte leaves. A direct API seat is counted per
+physical HTTP request on a single-attempt transport that follows no redirect,
+so a transport retry is a request too. An ACP harness is counted per
+invocation, and its own requests stay unknown. Repairs, samples, or an
+escalate or sketch strategy typed beyond what the authority can honor under
+the resolved strategy are refused before any request. So is a count the
+compiler would run as another: repairs above 5, samples outside 1 to 5, a
+grant of 0. A typed value the strategy cannot apply is recorded as ignored,
+never refused. A seated `--decision-model` is outside this authority: it
+keeps its own client, protocol retries included, and the receipt says so.
+The authoring receipt's `backend` carries the account (`authority`, whose
+`http_requests` holds `sent`, `refused` and `unknown` in one shape),
+`requested_model`, `observed_models`, `unreported_models` (responses that
+named no model) and `usage_complete`. No dollar ceiling is claimed.
+
+Serve is deterministic by default. `nika serve --authoring-model` seats its
+own native authoring: strategy `only`, at most `1 + repairs` logical calls per
+request, and the provider transport may resend a call's request up to three
+more times after a 429, 503 or 529. The CLI's `--authoring-max-calls` does
+not apply to it, and Serve has no physical request bound yet.
 
 One authoring conversation is several requests of the same intent with more
 answers each round. `CompileRequest::with_plan(plan)` replays the private plan
@@ -126,8 +356,13 @@ under the same engine, and reads the intent again under `--fresh`.
 
 Deterministic outcomes retain the exact generation-1 wire shape. A provider
 attempt emits generation 2 with cognition `explicitProvider` and an
-`authoring` provenance receipt: model, calls, input/output token counts (null
-when unreported), and elapsed milliseconds. No plan IR is public. Generation-1
+`authoring` provenance receipt: model, calls (every attempt, including one a
+local authority refused before sending), input/output token totals (the
+usage the calls reported, null when none did), and elapsed milliseconds. The
+totals are complete only when every call's usage is known: a timeout, an
+unreported usage or a provider failure leaves them a lower bound, and a local
+refusal used none (`authority::usage_complete` reads it from the calls; the
+CLI states it as `backend.usage_complete`). No plan IR is public. Generation-1
 clients must not consume generation 2 until they explicitly support it.
 Authoring usage is not runtime execution proof or an asserted billing cost.
 The generation-2 receipt records `sampling` with null `temperature` and `seed`

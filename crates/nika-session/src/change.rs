@@ -10,6 +10,8 @@ use std::io::Read as _;
 use std::path::{Component, Path, PathBuf};
 
 use nika_cli_host::oracle::{AuditOptions, audit_source};
+// The rows a review shows of a report are the report's render owner's (C10).
+use nika_display::check_render::review::{effect_rows, finding_rows};
 use nika_fs::OwnedDir;
 
 /// The blake3 of the bytes a preview was built over (hex).
@@ -221,39 +223,23 @@ pub struct PendingGate {
 }
 
 impl PendingGate {
-    /// The gate a paused trace carries, when it carries one.
+    /// The gate a paused trace carries, when it carries one: its first pause, as the trace's own
+    /// reader records it ([`crate::run_view::RunFacts::pause_gate`]).
     #[must_use]
     pub fn from_trace(workflow: &Path, trace: &Path) -> Option<Self> {
-        let text = std::fs::read_to_string(trace).ok()?;
-        for line in text.lines() {
-            let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
-                continue;
-            };
-            if v.get("kind").and_then(|k| k.as_str()) != Some("workflow_paused") {
-                continue;
-            }
-            let field = |key: &str| -> Option<String> {
-                v.get("fields")?
-                    .as_array()?
-                    .iter()
-                    .find(|r| r.get("key").and_then(|k| k.as_str()) == Some(key))?
-                    .get("value")?
-                    .as_str()
-                    .map(str::to_owned)
-            };
-            return Some(Self {
-                workflow: workflow.to_path_buf(),
-                trace: trace.to_path_buf(),
-                task: field("task")?,
-                message: field("message")
-                    .unwrap_or_else(|| "the run awaits your answer".to_owned()),
-                mode: field("mode").unwrap_or_else(|| "text".to_owned()),
-            });
-        }
-        None
+        let facts = crate::run_view::RunFacts::read(trace)?;
+        let (task, message, mode) = facts.pause_gate()?;
+        Some(Self {
+            workflow: workflow.to_path_buf(),
+            trace: trace.to_path_buf(),
+            task: task.to_owned(),
+            message: message.to_owned(),
+            mode: mode.to_owned(),
+        })
     }
 
-    /// The question as the session asks it.
+    /// The question as the session asks it, naming before any answer the completed tasks the
+    /// resume would run again (Q8 · [`crate::run_view::live_again`]).
     #[must_use]
     pub fn question(&self) -> String {
         let how = match self.mode.as_str() {
@@ -261,8 +247,10 @@ impl PendingGate {
             "choice" => "one of the choices, as written",
             _ => "in words",
         };
+        let again = crate::run_view::live_again(&self.trace)
+            .map_or_else(String::new, |line| format!("\n  {line}"));
         format!(
-            "the run paused at `{}` and asks you:\n  {}\n  (answer {how} · the answer resumes the run · nothing answers for you)",
+            "the run paused at `{}` and asks you:\n  {}\n  (answer {how} · the answer resumes the run · nothing answers for you){again}",
             self.task, self.message
         )
     }
@@ -599,6 +587,29 @@ impl ProjectChangeSet {
             .map(ProjectChange::path)
             .collect()
     }
+
+    /// The project files the set's workflows read when they run, from the check facade's own
+    /// permits for their exact bytes (typed, never the preview's words).
+    pub(crate) fn project_reads(&self) -> Vec<String> {
+        let mut reads: Vec<String> = Vec::new();
+        for change in self.changes.iter().filter(|c| c.is_workflow()) {
+            let logical = change.path().display().to_string();
+            let audit = audit_source(
+                change.content(),
+                &logical,
+                None,
+                None,
+                AuditOptions::default(),
+            );
+            let needed = audit.ok().and_then(|a| a.report.permits.needed.fs);
+            for path in needed.map(|fs| fs.read).unwrap_or_default() {
+                if !reads.contains(&path) {
+                    reads.push(path);
+                }
+            }
+        }
+        reads
+    }
 }
 
 /// The real check of a workflow as it now sits on disk (after apply) —
@@ -649,20 +660,7 @@ fn fold_audit<E: std::fmt::Display>(
 ) -> WorkflowAudit {
     match judged {
         Ok(audit) => {
-            let findings = audit
-                .report
-                .findings
-                .iter()
-                .take(8)
-                .map(|f| format!("{} · {}", f.code.as_deref().unwrap_or("-"), f.message))
-                .collect();
-            let hints = audit
-                .report
-                .hints
-                .iter()
-                .take(4)
-                .map(|h| format!("{} · {}", h.kind, h.advice))
-                .collect();
+            let (findings, hints) = finding_rows(&audit.report);
             WorkflowAudit {
                 path: path.to_path_buf(),
                 clean: audit.verdict.clean,
@@ -679,112 +677,6 @@ fn fold_audit<E: std::fmt::Display>(
             effects: Vec::new(),
         },
     }
-}
-
-/// What the workflow reaches when it runs, from the report's own
-/// permits (needed) and requirements: one row per effect class present.
-fn effect_rows(report: &nika_check::CheckReport) -> Vec<String> {
-    let mut rows = Vec::new();
-    let needed = &report.permits.needed;
-    if let Some(fs) = &needed.fs {
-        if !fs.read.is_empty() {
-            rows.push(format!("reads {}", fs.read.join(" · ")));
-        }
-        if !fs.write.is_empty() {
-            rows.push(format!("writes {}", fs.write.join(" · ")));
-        }
-    }
-    if let Some(net) = &needed.net
-        && !net.http.is_empty()
-    {
-        rows.push(format!("network {}", net.http.join(" · ")));
-    }
-    match &needed.exec {
-        Some(nika_cap::ExecPermit::Any) => rows.push("runs any program".to_owned()),
-        Some(nika_cap::ExecPermit::Programs(p)) if !p.is_empty() => {
-            rows.push(format!("runs {}", p.join(" · ")));
-        }
-        _ => {}
-    }
-    if let Some(tools) = &needed.tools {
-        if !tools.is_empty() {
-            rows.push(format!("tools {}", tools.join(" · ")));
-        }
-        if tools.iter().any(|t| t == "nika:prompt") {
-            rows.push("pauses for a human answer (`nika:prompt`)".to_owned());
-        }
-    }
-    if let Some(env) = &needed.env
-        && !env.is_empty()
-    {
-        rows.push(format!("environment {}", env.join(" · ")));
-    }
-    for m in &report.requirements.models {
-        rows.push(format!("model {} (tasks {})", m.model, m.tasks.join(" · ")));
-    }
-    for s in &report.requirements.secrets {
-        rows.push(format!(
-            "secret {} (key {} · a reference, never a value)",
-            s.name, s.key
-        ));
-    }
-    rows.extend(spend_rows(&report.cost));
-    rows
-}
-
-/// The spend a run can reach, from the check's own cost envelope, never
-/// from a total read alone. A workflow with no model call spends nothing
-/// on inference. A mock model is a proven zero. A model with no catalog
-/// price is its own row: unknown, never counted as free. A missing token
-/// bound or an unknown fan-out stays unbounded.
-fn spend_rows(cost: &nika_check::CostCeiling) -> Vec<String> {
-    if cost.tasks.is_empty() && cost.composed.is_empty() {
-        return vec![
-            "model output estimate · $0 · no direct model task in these checked bytes".to_owned(),
-        ];
-    }
-    let no_price = cost
-        .tasks
-        .iter()
-        .filter(|t| t.unbounded_reason == Some(nika_check::UnboundedReason::NoPrice))
-        .count();
-    let unbounded = cost
-        .tasks
-        .iter()
-        .filter(|t| {
-            t.usd.is_none() && t.unbounded_reason != Some(nika_check::UnboundedReason::NoPrice)
-        })
-        .count()
-        + cost.composed.iter().filter(|c| c.has_unbounded).count();
-    let mut rows = Vec::new();
-    if no_price > 0 {
-        rows.push(format!(
-            "model output estimate · unknown · {no_price} model task(s) with no catalog price — never counted as free"
-        ));
-    }
-    if unbounded > 0 {
-        rows.push(
-            "model output estimate · unbounded: a token or iteration bound is missing; Run admission is separate"
-                .to_owned(),
-        );
-    }
-    if no_price == 0 && unbounded == 0 {
-        let all_mock = cost.composed.is_empty()
-            && cost.tasks.iter().all(|t| {
-                t.model
-                    .as_deref()
-                    .is_some_and(|m| m == "mock" || m.starts_with("mock/"))
-            });
-        rows.push(if all_mock {
-            "model output estimate · $0 · mock model tasks".to_owned()
-        } else {
-            format!(
-                "model output estimate ≤ ${:.4} at catalog prices · input tokens and other charges excluded",
-                cost.bounded_total_usd
-            )
-        });
-    }
-    rows
 }
 
 /// A relative path with no `..`, no root, no empty component.

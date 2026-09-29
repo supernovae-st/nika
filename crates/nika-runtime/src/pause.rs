@@ -101,29 +101,7 @@ pub(crate) fn prompt_block(
     markers: &BTreeMap<String, Value>,
     approvals: &crate::approval::ApprovalBook,
 ) -> Option<WorkflowPause> {
-    let SettleAs::Ran(ran) = &finish.settle else {
-        return None;
-    };
-    let RunResult::Failed { error, .. } = &ran.result else {
-        return None;
-    };
-    if error.code != PROMPT_BLOCKED_CODE {
-        return None;
-    }
-    let task = wf
-        .tasks
-        .iter()
-        .map(|t| &t.value)
-        .find(|t| t.id.value == finish.id)?;
-    // The author explicitly routed this code (`on_error:` applies to it,
-    // whatever the action) — the rider never overrides authored policy.
-    // (An applying `recover`/`skip` never reaches here — the result is
-    // no longer a failure; this guards the explicit authored route.)
-    if let Some(on_error) = task.on_error.as_ref()
-        && crate::task::on_error_applies(&on_error.value, error)
-    {
-        return None;
-    }
+    let (task, _) = unrouted_failure(finish, wf, PROMPT_BLOCKED_CODE)?;
     let RawAction::Invoke(invoke) = &task.action else {
         return None; // the rider binds the direct builtin invocation only
     };
@@ -155,27 +133,7 @@ pub(crate) fn prompt_block(
 /// ticketless contract, narrowed by the consume-once law; the
 /// question-hash binding (F-P4's harness twin) defers.
 pub(crate) fn harness_gate_block(finish: &Finish, wf: &RawWorkflow) -> Option<WorkflowPause> {
-    let SettleAs::Ran(ran) = &finish.settle else {
-        return None;
-    };
-    let RunResult::Failed { error, .. } = &ran.result else {
-        return None;
-    };
-    if error.code != HARNESS_GATE_CODE {
-        return None;
-    }
-    let task = wf
-        .tasks
-        .iter()
-        .map(|t| &t.value)
-        .find(|t| t.id.value == finish.id)?;
-    // The author explicitly routed this code (`on_error:` wins) — the
-    // rider never overrides authored policy (the prompt rider's honor).
-    if let Some(on_error) = task.on_error.as_ref()
-        && crate::task::on_error_applies(&on_error.value, error)
-    {
-        return None;
-    }
+    let (task, error) = unrouted_failure(finish, wf, HARNESS_GATE_CODE)?;
     if !matches!(task.action, RawAction::Agent(_)) {
         return None; // the gate binds an agent task only
     }
@@ -192,6 +150,28 @@ pub(crate) fn harness_gate_block(finish: &Finish, wf: &RawWorkflow) -> Option<Wo
         question,
         Vec::new(),
     ))
+}
+
+/// The task a gate rider may pause: `finish` failed with the rider's `code`
+/// and no authored `on_error:` claims that code, whatever the action (an
+/// applying `recover`/`skip` never reaches here — the result is no longer a
+/// failure). The rider never overrides authored policy.
+fn unrouted_failure<'f, 'w>(
+    finish: &'f Finish,
+    wf: &'w RawWorkflow,
+    code: &str,
+) -> Option<(&'w RawTask, &'f crate::TaskErrorRecord)> {
+    let SettleAs::Ran(ran) = &finish.settle else {
+        return None;
+    };
+    let RunResult::Failed { error, .. } = &ran.result else {
+        return None;
+    };
+    let mut tasks = wf.tasks.iter().map(|t| &t.value);
+    let task = tasks.find(|t| t.id.value == finish.id)?;
+    let routed = task.on_error.as_ref();
+    let routed = routed.is_some_and(|o| crate::task::on_error_applies(&o.value, error));
+    (error.code == code && !routed).then_some((task, error))
 }
 
 /// Build the pause payload from the prompt's `args:` — rendered when the

@@ -402,3 +402,13 @@ avoid downward quote rounding. Missing, invalid or zero tariff axes are rejected
 by codegen. The first rows use peak DeepSeek rates observed 2026-09-24; no time
 discount is inferred. Pricing can change externally: these are pinned admission
 estimates, not authoritative invoices or a hard external charge guarantee.
+
+## Reasoning-effort capability data
+
+`ModelCapabilities.reasoning_efforts` lists the closed `ReasoningLevel` words
+qualified for a model. Its default is empty, not inherited support from a
+model name or generic reasoning flag. The exact `deepseek-v4-pro` rule lists
+`low`, `high`, and `max`; Flash, historical aliases and gateway routes do not
+inherit that qualification. The provider adapter separately checks the exact
+direct endpoint. Capability data alone proves neither account availability
+nor a successful inference call or the server's internal reasoning effort.

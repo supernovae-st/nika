@@ -231,26 +231,14 @@ fn json_string_value_hint(argument: &str, kind: jsonschema::JsonType) -> String 
     )
 }
 
-/// jq-std defs we SHADOW with the jq-correct semantics (loaded last, so the
-/// compiler's name resolution picks them over the upstream defs).
-///
-/// - `scan` — jaq-std 3.0.1 defines `scan(re; flags): matches(re; flags)[]`
-///   WITHOUT the global flag, so `scan(re)` yields the FIRST match only and
-///   `[.s | scan("\\S+")]` on "one two three" silently returns `["one"]`
-///   (green check · green run · every number wrong — the 2026-07-29
-///   finding). jq defines scan as global by construction (`match(re;
-///   "g"+flags)`). Unfixed upstream on `main` at pin time; the shadow retires
-///   the day a jaq release carries the correction.
-const JQ_STD_CORRECTIONS: &str = r#"
-def scan(re; flags): matches(re; "g" + flags)[] | .[0].string;
-def scan(re): scan(re; "");
-"#;
-
-/// Parse the shadow defs (static string — a parse failure can only come from
-/// an edit of [`JQ_STD_CORRECTIONS`], so it is a typed failure here, never a
-/// panic) into the `Def` items the loader chains after jaq-std's.
+/// Parse the jq-std defs every jq consumer SHADOWS with the jq-correct semantics
+/// ([`nika_cap::JQ_STD_SHADOWS`]: the global `scan`, a `tonumber` that emits
+/// one finite number) into the `Def` items the loader chains after jaq-json's,
+/// so the compiler's name resolution picks them over the upstream defs. A parse
+/// failure can only come from an edit of that static string, so it is a typed
+/// failure here, never a panic.
 fn jq_std_corrections() -> Result<Vec<jaq_core::load::parse::Def<&'static str>>, BuiltinFailure> {
-    jaq_core::load::parse(JQ_STD_CORRECTIONS, |p| p.defs()).ok_or_else(|| {
+    jaq_core::load::parse(nika_cap::JQ_STD_SHADOWS, |p| p.defs()).ok_or_else(|| {
         BuiltinFailure::new(
             "NIKA-BUILTIN-JQ-001",
             "internal: the jq std correction defs failed to parse (static string)",
@@ -922,3 +910,6 @@ pub(crate) fn base64_decode(text: &str) -> Result<Vec<u8>, String> {
 mod tests;
 #[cfg(test)]
 mod tests_columns;
+
+#[cfg(test)]
+mod tests_number;

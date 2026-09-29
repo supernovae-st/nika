@@ -249,13 +249,7 @@ pub(super) fn read(text: &str, original: &str, reading: &mut Reading) -> bool {
     };
     super::push_effect(
         &mut reading.plan,
-        Effect {
-            verb: EffectVerb::Write,
-            target,
-            evidence: original.to_owned(),
-            policy: EffectPolicy::Automatic,
-            policy_literal: None,
-        },
+        Effect::new(EffectVerb::Write, target, original, EffectPolicy::Automatic),
     );
     true
 }

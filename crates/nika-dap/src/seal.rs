@@ -45,12 +45,15 @@ use std::fmt::Write as _;
 use std::io::{Cursor, Write as IoWrite};
 use std::path::{Path, PathBuf};
 
+use nika_event::settlement::{RunCause, RunSettlement};
 use nika_event::{Event, EventKind};
 use nika_types::id::EventId;
 use nika_types::timestamp::Timestamp;
 
 mod key_files;
 mod public_box;
+#[cfg(test)]
+mod served_tests;
 
 pub(crate) use key_files::keyring_entry;
 pub(crate) use public_box::parse_many as parse_public_boxes;
@@ -543,6 +546,74 @@ impl SealTeardown {
     pub fn new() -> Self {
         Self::default()
     }
+
+    /// The teardown a service-bound run attests (spec 17 §the end of the
+    /// run · descended from Serve's resident door, C6): the CLI's attended
+    /// facts as far as a service boundary carries them. The receipt inputs
+    /// (proves · the certificate · the `outcome` word the caller's door
+    /// maps), the budgets ρ from the settlement's own spend (ADR-128 ·
+    /// `spent_usd` only when metered), the caller's `sdk_receipt` binding,
+    /// and the signed-memory fold under `memory_root`. The effects ε and the
+    /// quarantine fold need the per-task records a service boundary redacts:
+    /// their keys stay OUT (absent is honest, never a fabricated zero).
+    #[must_use]
+    pub fn served(
+        workflow: &nika_schema::raw::RawWorkflow,
+        report: &nika_check::CheckReport,
+        outcome: &str,
+        settlement: Option<&RunSettlement>,
+        sdk_receipt: serde_json::Value,
+        memory_root: &Path,
+    ) -> Self {
+        let mut teardown = Self::new();
+        teardown.proves = nika_runtime::proof::ir::semantic_ir_hash(workflow)
+            .map(|hash| hash.as_hex().to_owned());
+        teardown.certificate = serde_json::to_value(&report.certificate).ok();
+        teardown.outcome = Some(outcome.to_owned());
+        teardown.budgets = settlement.map(|settlement| served_budgets(settlement, report));
+        teardown.sdk_receipt = Some(sdk_receipt);
+        let memory = crate::memory::attend(Some(memory_root));
+        teardown.memory = memory.fold;
+        teardown.memory_rejected = memory.rejected;
+        teardown
+    }
+}
+
+/// The workflow hash a run's seal is taken under (the CLI's `seal_hash`): the
+/// per-task Merkle root of the admitted workflow, `None` when it has none.
+#[must_use]
+pub fn workflow_hash(workflow: &nika_schema::raw::RawWorkflow) -> Option<String> {
+    nika_runtime::proof::ir::merkle_by_task(workflow)
+        .map(|proof| proof.workflow.as_hex().to_owned())
+}
+
+/// The budgets ρ a settlement states: `spent_usd` only when something was
+/// metered, the priced and unpriced call counts, whether the budget stopped
+/// the run, and the certificate's ceiling when it names one.
+fn served_budgets(
+    settlement: &RunSettlement,
+    report: &nika_check::CheckReport,
+) -> serde_json::Value {
+    let mut budgets = serde_json::Map::new();
+    if let Some(spent) = settlement.spend.total_cost_usd {
+        budgets.insert("spent_usd".to_owned(), serde_json::json!(spent));
+    }
+    budgets.insert(
+        "priced_calls".to_owned(),
+        settlement.spend.priced_calls.into(),
+    );
+    budgets.insert(
+        "unpriced_calls".to_owned(),
+        settlement.spend.unpriced_calls.into(),
+    );
+    let exceeded = settlement.cause == RunCause::Budget;
+    budgets.insert("budget_exceeded".to_owned(), exceeded.into());
+    if let Some(ceiling) = &report.certificate.usd_micros
+        && let Ok(value) = serde_json::to_value(ceiling)
+    {
+        budgets.insert("ceiling".to_owned(), value);
+    }
+    serde_json::Value::Object(budgets)
 }
 
 /// The seal event with the run's teardown facts folded into `covers`

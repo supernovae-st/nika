@@ -20,7 +20,7 @@ use super::HISTORY;
 pub(crate) struct Replay {
     pub last: Option<LastRecord>,
     pub watermark: Option<Timestamp>,
-    journals: Vec<(String, bool)>,
+    pub(super) journals: Vec<(String, bool)>,
 }
 
 #[non_exhaustive]

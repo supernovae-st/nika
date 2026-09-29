@@ -157,9 +157,11 @@ pub fn nika_dataflow::record::TerminalCause::as_any(&self) -> &(dyn core::any::A
 impl<T> serde_core::de::DeserializeOwned for nika_dataflow::record::TerminalCause where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_dataflow::record::TaskErrorRecord
 pub nika_dataflow::record::TaskErrorRecord::code: alloc::string::String
+pub nika_dataflow::record::TaskErrorRecord::details: core::option::Option<serde_json::map::Map<alloc::string::String, serde_json::value::Value>>
 pub nika_dataflow::record::TaskErrorRecord::message: alloc::string::String
 pub nika_dataflow::record::TaskErrorRecord::transient: bool
 impl nika_dataflow::record::TaskErrorRecord
+pub fn nika_dataflow::record::TaskErrorRecord::detailed(code: impl core::convert::Into<alloc::string::String>, message: impl core::convert::Into<alloc::string::String>, transient: bool, details: core::option::Option<serde_json::value::Value>) -> Self
 pub fn nika_dataflow::record::TaskErrorRecord::new(code: impl core::convert::Into<alloc::string::String>, message: impl core::convert::Into<alloc::string::String>, transient: bool) -> Self
 pub fn nika_dataflow::record::TaskErrorRecord::to_value(&self) -> serde_json::value::Value
 impl core::clone::Clone for nika_dataflow::record::TaskErrorRecord
@@ -450,9 +452,11 @@ impl<T> nika_error::traits::AsAny for nika_dataflow::expr::Scope<'a> where T: 's
 pub fn nika_dataflow::expr::Scope<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_dataflow::TaskErrorRecord
 pub nika_dataflow::TaskErrorRecord::code: alloc::string::String
+pub nika_dataflow::TaskErrorRecord::details: core::option::Option<serde_json::map::Map<alloc::string::String, serde_json::value::Value>>
 pub nika_dataflow::TaskErrorRecord::message: alloc::string::String
 pub nika_dataflow::TaskErrorRecord::transient: bool
 impl nika_dataflow::record::TaskErrorRecord
+pub fn nika_dataflow::record::TaskErrorRecord::detailed(code: impl core::convert::Into<alloc::string::String>, message: impl core::convert::Into<alloc::string::String>, transient: bool, details: core::option::Option<serde_json::value::Value>) -> Self
 pub fn nika_dataflow::record::TaskErrorRecord::new(code: impl core::convert::Into<alloc::string::String>, message: impl core::convert::Into<alloc::string::String>, transient: bool) -> Self
 pub fn nika_dataflow::record::TaskErrorRecord::to_value(&self) -> serde_json::value::Value
 impl core::clone::Clone for nika_dataflow::record::TaskErrorRecord

@@ -10,7 +10,9 @@
     "aggregations",
     "sort_by",
     "order",
+    "ties",
     "columns",
+    "numbers",
     "derived",
     "limit",
     "renames",
@@ -179,6 +181,19 @@
       }
     },
     "distinct_by": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "ties": {
+      "type": "string",
+      "enum": [
+        "first_in_file",
+        ""
+      ]
+    },
+    "numbers": {
       "type": "array",
       "items": {
         "type": "string"

@@ -34,6 +34,7 @@ pub use server::{
     PreparedScheduledRun, ResidentAuthority, ResidentClock, ResidentConfig,
     ResidentExecutionBackend, ResidentExecutionCoordinator, ServerConfig, ServerError,
     ServerLaunchRefuse, ServerLimits, SystemResidentClock, launch_operator_message,
-    optional_server_config, process_shutdown, seat_native_authoring, serve_http, serve_resident,
-    serve_resident_process, server_operator_message,
+    optional_server_config, process_shutdown, seat_native_authoring,
+    seat_native_authoring_with_calls, serve_http, serve_resident, serve_resident_process,
+    server_operator_message,
 };

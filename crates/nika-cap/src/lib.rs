@@ -26,6 +26,7 @@ mod effect;
 mod effect_vocab;
 pub mod env;
 mod expr;
+mod fetch_response;
 mod file_plumbing;
 mod fit;
 mod harness_gate;
@@ -59,10 +60,10 @@ pub use env::{
 // function set the compiler receives rather than a sentence in a document.
 // NOT a permit route: `env` above governs a CHILD PROCESS, never an expression.
 pub use expr::{
-    JQ_CAPABILITY_POLICY, JQ_CLOCK_DEFS, JQ_RUN_START_VAR, JqCapability, JqCapabilityRule, JqClock,
-    JqDisposition, JqSymbolKind, WITHHELD_JQ_NATIVES, WithheldNative, install_jq_definition,
-    install_jq_native, is_withheld_jq_native, jq_capability_rule, withheld_jq_native,
-    withheld_jq_policy_reason, withheld_jq_reason,
+    JQ_CAPABILITY_POLICY, JQ_CLOCK_DEFS, JQ_RUN_START_VAR, JQ_STD_SHADOW_PROBES, JQ_STD_SHADOWS,
+    JqCapability, JqCapabilityRule, JqClock, JqDisposition, JqSymbolKind, WITHHELD_JQ_NATIVES,
+    WithheldNative, install_jq_definition, install_jq_native, is_withheld_jq_native,
+    jq_capability_rule, withheld_jq_native, withheld_jq_policy_reason, withheld_jq_reason,
 };
 pub use file_plumbing::{
     FILE_PLUMBING_PROGRAMS, file_plumbing_computed_operand, file_plumbing_computed_shell,
@@ -72,6 +73,7 @@ pub use file_plumbing::{
 pub use fit::{expand_home_grant, glob_admits, lexically_normalize};
 // P3 B5 · the harness permission-bridge judge (the pure half — the
 // wire facts' translation into the declared boundary's verdict).
+pub use fetch_response::fetch_response_statuses;
 pub use harness_gate::{HarnessAskFacts, HarnessGate, judge_harness_ask};
 pub use hash::{HashAlgorithm, HashEncoding};
 pub use sink::code_bearing_path_class;
@@ -86,7 +88,7 @@ pub use permits::{ExecPermit, FsPermits, NetPermits, Permits, glob_matches};
 // the approval tickets and the certificate all read them without ever
 // reading a declaration.
 pub use effect_vocab::{CertEffects, EffectClass, HUMAN_GATE_TOOL};
-pub use shape::builtin_shape_findings;
+pub use shape::{builtin_invoke_refusal, builtin_shape_findings};
 // NEP-0002 · the lethal-trifecta judge (`NIKA-SEC-009`) — the pure
 // leg-conjunction + path-dominance logic; the projection lives in
 // `nika-schema::check::trifecta` (the PolicySubject / policy_violations split).

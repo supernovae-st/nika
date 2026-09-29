@@ -229,8 +229,9 @@ fn directory_refusal(code: &'static str, path: &str) -> BuiltinFailure {
 
 /// Resolve `content:` to bytes — a string is written VERBATIM; the binary
 /// pass-through object (`{ bytes_base64 }`) is decoded to its raw bytes; ANY
-/// OTHER JSON value (array · object · number · bool · null) serializes to
-/// canonical JSON. Because a string is verbatim, a JSON string you built by
+/// OTHER non-null JSON value (array · object · number · bool) serializes to
+/// compact JSON; null is refused as a missing upstream value. Because a
+/// string is verbatim, a JSON string you built by
 /// hand (e.g. `nika:jq … | tojson`) is NOT double-encoded — the two paths
 /// produce identical bytes.
 fn write_content(args: &Args, code: &'static str) -> Result<Vec<u8>, BuiltinFailure> {

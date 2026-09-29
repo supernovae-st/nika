@@ -31,6 +31,39 @@ module reads and which reads none of them back:
 - `model_scope` · explicit infer/agent model pins and child invocation sites
   that an envelope override does not replace; declaration facts only, with
   no model resolution, billing judgment or child loading
+- `rendered` · the pre-effect model resolver (`resolve_model_expr`,
+  `resolved_infer_models`): a `model:` value as known before any effect,
+  from the operator's bindings, a declared default, a const or a `with:`
+  alias. It descended verbatim from `nika-runtime`'s `admit.rs` (B9 ·
+  2026-09-28) to sit beside `static_literal_of` and `bare_static_ref`, which
+  it builds on, and to give the runtime's 15k wall room for the launch gates
+  that share it. `nika-runtime` re-exports `resolve_model_expr` at its
+  historical path. `rendered_models` applies the same resolver to the whole
+  workflow: every envelope or task `model:` expression a binding, a default,
+  a const or an alias decides becomes that literal, so the launch gates judge
+  the seats the run will use with the checker's own laws; a `model:` only
+  the run decides stays an expression. `rendered_collections` (B11) seats
+  the invocation's bindings the same way for fan-out: a `for_each` over a
+  bare `${{ inputs.<name> }}` the invocation binds iterates the bound value,
+  as the run's own binding does, so the cost floor counts the operator's
+  items (an array's length; anything else an unknown count, never the
+  declared default's). Pure, like the rest of this plane: it resolves
+  values, and it never rules on spend or authority
+- `builtin_floor` · the catalog's static reads the runtime's budget gates
+  price with (`priced_builtin_floor`, `unpriced_cloud_seat`): what a
+  workflow's priced `invoke:` tasks must spend on their cheapest path, and
+  whether a seat is a third-party cloud route the catalog does not price.
+  Descended verbatim from `nika-runtime`'s `admit.rs` (B9 phase C ·
+  2026-09-28) so the runtime's 15k wall has room for the dispatch guard that
+  shares them; the runtime keeps every refusal and its wording
+- `task_scope` · the `--task` ancestor-cone cut (`scope_to_task`): a pure
+  graph walk over `edges::producer_ids` that keeps the target and its
+  ancestors in document order, drops `outputs:`, ends on a cycle with each
+  task once, and refuses an unknown id with the declared set. Descended
+  verbatim from `nika-runtime`'s `admit.rs` (B11 · 2026-09-28) so the
+  runtime's 15k wall has room for the cleanup lane's money law;
+  `nika-runtime` re-exports it at its historical path, and the run verb and
+  the Service keep the gate and the re-check around it
 
 The boundary was measured, not themed · **33** edges point into this
 plane from the rest of `nika-check`, and **0** point back out.
@@ -59,3 +92,18 @@ never name this crate; its `public-api.txt` is the split's receipt.
 - Tests that exercise the ladder end-to-end (`crate::check` ·
   `check_composed`) belong in `nika-check` and reach this plane through
   the re-exported path.
+
+## Numeric conversion cardinality
+
+The static checker loads the runtime's std shadows, `nika_cap::JQ_STD_SHADOWS` (nika-cap spec
+§3.4), checking syntax without executing data. Its tests compile every program of the shared
+probe set `nika_cap::JQ_STD_SHADOW_PROBES` and load every shadow it names.
+
+`tonumber` preserves a finite numeric input or parses one finite numeric value from a text
+input. Empty or whitespace-only text, several JSON values in one text, non-numeric values, NaN
+and the infinities (an overflowing text such as `1e400` included) fail with a named error; an
+enclosing aggregate cannot silently omit or double-count that operand, and no predicate,
+comparison or sort reads a non-finite one. An explicitly authored `try` or `?` still controls
+error handling. `fromjson` retains its stream semantics and still reads non-finite values.
+This correction does not promise arbitrary decimal arithmetic or a field name in the generic
+error; typed numeric laws remain responsible for those contracts.

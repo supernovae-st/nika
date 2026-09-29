@@ -3,23 +3,21 @@
 
 //! Production composition for the resident authority.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use nika_dap::journal::TraceFileSink;
 use nika_error::prelude::{NikaCode, NikaErrorCode, codes};
-use nika_event::settlement::RunCause;
 use nika_service_execution::{
     ServiceExecutionDriver, ServiceExecutionOptions, ServiceExecutionResult, ServiceExecutionStatus,
 };
 use nika_types::cancel::CancelCtx;
-use nika_types::id::ExecutionId;
 
 use super::{
-    BoundServer, CredentialRefuse, ExecutionBackend, ExecutionDisposition, ExecutionOutcome,
-    ResidentAuthority, ResidentConfig, ServerConfig, ServerError,
+    BoundServer, CostAuthority, CredentialRefuse, ExecutionBackend, ExecutionDisposition,
+    ExecutionOutcome, ResidentAuthority, ResidentConfig, ServerConfig, ServerError,
 };
 
 /// Production adapter from admitted execution snapshots to the shared service driver.
@@ -54,8 +52,8 @@ impl ResidentExecutionBackend {
         context: nika_execution::ExecutionContext<'a>,
         max_cost_usd: Option<f64>,
         access_pin: Option<&str>,
-        inputs: BTreeMap<String, serde_json::Value>,
-        cancel: Option<CancelCtx>,
+        (inputs, cancel): (BTreeMap<String, serde_json::Value>, Option<CancelCtx>),
+        authority: Option<CostAuthority>,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
         let display_root = self.display_root.clone();
         let seal = Arc::clone(&self.seal);
@@ -67,8 +65,8 @@ impl ResidentExecutionBackend {
                 context,
                 max_cost_usd,
                 access_pin.as_deref(),
-                inputs,
-                cancel,
+                (inputs, cancel),
+                authority,
             )
             .await
         })
@@ -108,7 +106,7 @@ impl ExecutionBackend for ResidentExecutionBackend {
         &'a self,
         context: nika_execution::ExecutionContext<'a>,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
-        self.drive(context, None, None, BTreeMap::new(), None)
+        self.drive(context, None, None, (BTreeMap::new(), None), None)
     }
 
     fn execute_with_cancel<'a>(
@@ -117,7 +115,13 @@ impl ExecutionBackend for ResidentExecutionBackend {
         max_cost_usd: Option<f64>,
         cancel: CancelCtx,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
-        self.drive(context, max_cost_usd, None, BTreeMap::new(), Some(cancel))
+        self.drive(
+            context,
+            max_cost_usd,
+            None,
+            (BTreeMap::new(), Some(cancel)),
+            None,
+        )
     }
 
     fn execute_with_max_cost<'a>(
@@ -125,7 +129,7 @@ impl ExecutionBackend for ResidentExecutionBackend {
         context: nika_execution::ExecutionContext<'a>,
         max_cost_usd: Option<f64>,
     ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
-        self.drive(context, max_cost_usd, None, BTreeMap::new(), None)
+        self.drive(context, max_cost_usd, None, (BTreeMap::new(), None), None)
     }
 
     fn execute_with_access<'a>(
@@ -139,8 +143,8 @@ impl ExecutionBackend for ResidentExecutionBackend {
             context,
             max_cost_usd,
             access_pin,
-            BTreeMap::new(),
-            Some(cancel),
+            (BTreeMap::new(), Some(cancel)),
+            None,
         )
     }
 
@@ -156,9 +160,20 @@ impl ExecutionBackend for ResidentExecutionBackend {
             context,
             max_cost_usd,
             access_pin,
-            inputs.clone(),
-            Some(cancel),
+            (inputs.clone(), Some(cancel)),
+            None,
         )
+    }
+
+    fn execute_reviewed<'a>(
+        &'a self,
+        context: nika_execution::ExecutionContext<'a>,
+        inputs: &BTreeMap<String, serde_json::Value>,
+        cancel: CancelCtx,
+        authority: CostAuthority,
+    ) -> std::pin::Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
+        let pair = (inputs.clone(), Some(cancel));
+        self.drive(context, None, None, pair, Some(authority))
     }
 
     fn trace_journal_dir(&self) -> Option<PathBuf> {
@@ -204,8 +219,8 @@ async fn drive_resident_execution(
     context: nika_execution::ExecutionContext<'_>,
     max_cost_usd: Option<f64>,
     access_pin: Option<&str>,
-    inputs: BTreeMap<String, serde_json::Value>,
-    operator_cancel: Option<CancelCtx>,
+    (inputs, operator_cancel): (BTreeMap<String, serde_json::Value>, Option<CancelCtx>),
+    authority: Option<CostAuthority>,
 ) -> ExecutionOutcome {
     // The journal a `nika run` would leave, under the project the resident
     // serves: the trace the receipt names exists on disk (#1381). The sink
@@ -222,19 +237,6 @@ async fn drive_resident_execution(
         let lane = JournalLane(Arc::clone(&journal));
         Arc::new(move || Box::new(lane.clone()))
     };
-    // Defaults retain file provenance; explicit HTTP bindings never infer a
-    // person, CI context or environment read from the server process.
-    let mut input_origins = nika_runtime::input_origins(
-        context.workflow(),
-        &BTreeMap::new(),
-        &BTreeSet::new(),
-        false,
-    );
-    input_origins.extend(
-        inputs
-            .keys()
-            .map(|name| (name.clone(), nika_types::InputOrigin::ApiCaller)),
-    );
     let Some(driver) = ServiceExecutionDriver::new(context, display_root.clone()) else {
         return ExecutionOutcome::failed(
             "admission_refused",
@@ -244,19 +246,27 @@ async fn drive_resident_execution(
     // One Door · wave 1b: the resident resolves the SAME frozen plan the
     // CLI door does. A job body `access` is `--access` (a pin is a pin);
     // absent, the unpinned plan. No silent substitution after admission.
-    let plan = driver.resolve_access_plan(None, access_pin);
-    // This door has no Run cost review: an admitted API route whose price
-    // needs a fresh one-time choice refuses here, before the worker starts
-    // (no model, tool or journal effect), where `nika run` without a review
-    // channel refuses the same route. Named, snapshot and scheduled jobs
-    // all reach this seam.
-    if let Some(why) = unknown_cost_refusal(&plan, &nika_runtime::compose::config_from_env()) {
-        return ExecutionOutcome::failed("admission_refused", why);
-    }
+    // A reviewed job (C6) runs the plan its review judged, with its account.
+    let (plan, cost) = if let Some(CostAuthority { plan, cost }) = authority {
+        (plan, Some(cost))
+    } else {
+        let plan = driver.resolve_access_plan(None, access_pin);
+        match unreviewed_cost(&display_root, &driver, &plan, &inputs) {
+            Ok(cost) => (plan, cost),
+            Err(why) => return ExecutionOutcome::failed("admission_refused", why),
+        }
+    };
+    // Only a fresh unknown-cost choice replaces the run's spend ceiling, as
+    // in `nika run`; an observer keeps it.
+    let reviewed = cost
+        .as_ref()
+        .is_some_and(|c| !c.account.observes_declared_free_only());
+    let max_cost_usd = max_cost_usd.filter(|_| !reviewed);
     let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel();
     let _cancel = CancelOnDrop(Some(cancel_tx));
     let job = ResidentJob {
         driver,
+        cost,
         plan,
         mirror,
         journal,
@@ -266,7 +276,6 @@ async fn drive_resident_execution(
         operator_cancel,
         max_cost_usd,
         inputs,
-        input_origins,
     };
     match tokio::task::spawn_blocking(move || run_admitted_resident_job(job, cancel_rx)).await {
         Ok(outcome) => outcome,
@@ -274,39 +283,53 @@ async fn drive_resident_execution(
     }
 }
 
-/// The unattended resident's unknown-cost gate: the same route observation
-/// `nika run` makes before it asks for a review (`run_cost::readiness`).
-/// Only admitted API lanes are observed; a route that needs a fresh
-/// one-time price choice, or that cannot be observed at all and has no
-/// catalog price, refuses. Exact priced routes (`DeepSeek` direct),
-/// catalog-priced native defaults and local lanes pass unchanged. The plan
-/// is never rewritten: no silent route substitution.
-fn unknown_cost_refusal(
+/// A job with no reviewed authority (manual, snapshot or scheduled) goes
+/// through the one host evaluator `nika run` uses: exact priced and local
+/// routes keep their composition, declared-free or run-time routes bind the
+/// per-Run observer, and an unknown-cost route refuses before the worker
+/// starts, after the evaluator recorded what earlier Runs left.
+fn unreviewed_cost(
+    root: &Path,
+    driver: &ServiceExecutionDriver,
     plan: &nika_service_execution::ExecutionAccessPlan,
-    config: &nika_providers::ProvidersConfig,
-) -> Option<String> {
-    use nika_providers::admission::{CostRoute, native_catalog_price_known};
-    for (model, lane) in plan.admitted() {
-        if lane.plan.chosen != nika_types::access::AccessClass::Api {
-            continue;
-        }
-        let reason = match CostRoute::observe(model, config.clone()) {
-            Ok(route) if !route.needs_unknown_choice() => continue,
-            Ok(_) => "its exact route needs a fresh one-time price choice".to_owned(),
-            Err(_) if native_catalog_price_known(model, config.clone()) => continue,
-            Err(why) => why,
-        };
-        return Some(format!(
-            "price unknown for `{model}`: {reason}; an unattended Serve run cannot obtain a fresh \
-             one-time cost review (use an admitted priced route or an interactive local `nika run`)"
-        ));
+    inputs: &BTreeMap<String, serde_json::Value>,
+) -> Result<Option<nika_cli_host::run_cost::RunCost>, String> {
+    use nika_cli_host::run_cost::{RunCostPlan, prepare};
+    use nika_providers::admission::{CapEvidence, CostHostEvidence};
+    let ask = || Err(UNREVIEWED.to_owned());
+    let evidence = CostHostEvidence::new(
+        false,
+        CapEvidence::Unknown,
+        CapEvidence::Unknown,
+        CapEvidence::Unknown,
+    );
+    let execution = driver.execution_id().to_string();
+    let source = driver.root_source();
+    match prepare(
+        root,
+        Some(root),
+        source,
+        execution,
+        driver.workflow(),
+        None,
+        plan,
+        inputs,
+        None,
+        (evidence, &ask),
+    )? {
+        RunCostPlan::Unneeded => Ok(None),
+        RunCostPlan::Observer(cost) | RunCostPlan::Zero(cost) => Ok(Some(*cost)),
+        _ => Err(UNREVIEWED.to_owned()),
     }
-    None
 }
+
+const UNREVIEWED: &str = "price unknown: this Run's exact route needs a fresh one-time cost review, which a job without one never obtains (a server started with --cost-review admits POST /v1/cost-reviews, then one job carrying that review); scheduled occurrences stay refused";
 
 /// Everything the blocking worker holds for one admitted job.
 struct ResidentJob {
     driver: ServiceExecutionDriver,
+    /// The Run's account (a reviewed choice or the observer), settled at its end.
+    cost: Option<nika_cli_host::run_cost::RunCost>,
     plan: nika_service_execution::ExecutionAccessPlan,
     mirror: nika_service_execution::MirrorFactory,
     journal: Arc<Mutex<TraceFileSink>>,
@@ -316,7 +339,6 @@ struct ResidentJob {
     operator_cancel: Option<CancelCtx>,
     max_cost_usd: Option<f64>,
     inputs: BTreeMap<String, serde_json::Value>,
-    input_origins: BTreeMap<String, nika_types::InputOrigin>,
 }
 
 fn run_admitted_resident_job(
@@ -331,6 +353,7 @@ fn run_admitted_resident_job(
     };
     let ResidentJob {
         driver,
+        cost,
         plan,
         mirror,
         journal,
@@ -340,15 +363,21 @@ fn run_admitted_resident_job(
         operator_cancel,
         max_cost_usd,
         inputs,
-        input_origins,
     } = job;
+    // Defaults retain file provenance; explicit HTTP bindings are the API
+    // caller's, never a person, CI context or environment read from here.
+    let origins = driver.caller_origins(&inputs, nika_types::InputOrigin::ApiCaller);
     let options = ServiceExecutionOptions::new()
         .with_inputs(inputs)
-        .with_input_origins(input_origins)
+        .with_input_origins(origins)
         .with_max_cost_usd(max_cost_usd)
         .with_access_plan(plan)
         .with_mirror(mirror)
         .with_cancel_option(operator_cancel.clone());
+    let options = match &cost {
+        Some(cost) => options.with_runtime_config(cost.config.clone()),
+        None => options,
+    };
     let result = rt.block_on(async {
         tokio::select! {
             result = driver.execute(options) => Some(result),
@@ -373,13 +402,26 @@ fn run_admitted_resident_job(
                 Err(evidence) => mapped = mapped.with_evidence(evidence),
                 Ok(None) => {}
             }
-            mapped
+            // The account's final row, uncertainty included; a failure is
+            // possible billing the job must name (as `nika run` does).
+            match cost.as_ref().map(nika_cli_host::run_cost::RunCost::finish) {
+                Some(Err(why)) => mapped.with_error(
+                    "cost_observation_failed",
+                    format!("the Run may have been billed; its cost observation failed: {why}"),
+                ),
+                _ => mapped,
+            }
         }
         Some(Err(_)) => {
             ExecutionOutcome::failed("NIKA-COMP-001", "service runtime could not be composed")
         }
         None => {
-            interrupt_journal(&journal, driver.execution_id(), operator_cancel.as_ref());
+            // The resident stopped a run the runtime never settled (the cancel
+            // grace · the execution ceiling · shutdown): its END, by DAP's law.
+            let operator = operator_cancel
+                .as_ref()
+                .is_some_and(CancelCtx::is_cancelled);
+            journal_guard(&journal).interrupt(driver.execution_id(), operator);
             ExecutionDisposition::Failed.into()
         }
     }
@@ -426,113 +468,38 @@ fn settle_journal(
     seal: &dyn JournalSeal,
     facts: &SealFacts<'_>,
 ) -> Result<Option<String>, crate::JournalEvidence> {
-    let mut trace = journal_guard(journal);
-    if let Some(error) = trace.error() {
-        return Err(crate::JournalEvidence::from_error(error));
-    }
-    if trace.path().is_none() {
-        return Ok(None);
-    }
-    // The workflow hash the CLI seals under (`seal_hash`): the per-task
-    // Merkle root of the admitted workflow.
-    let workflow_hash = nika_runtime::proof::ir::merkle_by_task(facts.driver.workflow())
-        .map(|proof| proof.workflow.as_hex().to_owned());
-    let teardown = resident_teardown(facts);
-    seal.seal(&mut trace, workflow_hash.as_deref(), Some(&teardown));
-    trace.finalize();
-    if let Some(error) = trace.error() {
-        return Err(crate::JournalEvidence::from_error(error));
-    }
-    Ok(Some(trace.chain_head().to_owned()))
-}
-
-/// The teardown facts the seal binds (spec 17 §the end of the run) — the
-/// CLI's `attended_facts` routed through the service boundary: the receipt
-/// inputs (proves · the certificate · the outcome word), the budgets ρ from
-/// the settlement's own spend (ADR-128 · `spent_usd` only when metered), the
-/// SDK receipt binding this door knows, the signed-memory fold under the
-/// served root. The effects ε and the quarantine fold need the per-task
-/// records the service boundary redacts — their keys stay OUT (absent is
-/// honest, never a fabricated zero).
-fn resident_teardown(facts: &SealFacts<'_>) -> nika_dap::seal::SealTeardown {
-    let (workflow, report) = (facts.driver.workflow(), facts.driver.report());
-    let mut teardown = nika_dap::seal::SealTeardown::new();
-    teardown.proves =
-        nika_runtime::proof::ir::semantic_ir_hash(workflow).map(|hash| hash.as_hex().to_owned());
-    teardown.certificate = serde_json::to_value(&report.certificate).ok();
-    teardown.outcome = Some(
-        match facts.outcome.status() {
-            ServiceExecutionStatus::Succeeded => "completed",
-            ServiceExecutionStatus::Paused => "paused",
-            _ => "failed",
-        }
-        .to_owned(),
-    );
-    if let Some(settlement) = facts.outcome.settlement() {
-        let mut budgets = serde_json::Map::new();
-        if let Some(spent) = settlement.spend.total_cost_usd {
-            budgets.insert("spent_usd".to_owned(), serde_json::json!(spent));
-        }
-        budgets.insert(
-            "priced_calls".to_owned(),
-            settlement.spend.priced_calls.into(),
-        );
-        budgets.insert(
-            "unpriced_calls".to_owned(),
-            settlement.spend.unpriced_calls.into(),
-        );
-        budgets.insert(
-            "budget_exceeded".to_owned(),
-            (settlement.cause == RunCause::Budget).into(),
-        );
-        if let Some(ceiling) = &report.certificate.usd_micros
-            && let Ok(value) = serde_json::to_value(ceiling)
-        {
-            budgets.insert("ceiling".to_owned(), value);
-        }
-        teardown.budgets = Some(serde_json::Value::Object(budgets));
-    }
-    let execution = facts.driver.execution_id();
-    teardown.sdk_receipt = Some(serde_json::json!({
-        "receipt_format": 1,
-        "execution_id": execution.to_string(),
-        "trace_id": nika_types::id::TraceId::from(execution).to_string(),
-        "snapshot_digest": facts.snapshot_digest,
-    }));
-    let memory = nika_dap::memory::attend(Some(facts.display_root));
-    teardown.memory = memory.fold;
-    teardown.memory_rejected = memory.rejected;
-    teardown
-}
-
-/// The run's END when the resident stops it (the cancel grace expired · the
-/// execution ceiling · shutdown): the terminal settlement envelope the chain
-/// walk reads as a lifecycle end (spec 17 · `run_settled`), written by the
-/// LIVING writer about the run it interrupted — never a frame claiming the
-/// runtime's own settlement (no invented `workflow_cancelled`). The `cause`
-/// rides only when the operator asked (absent is honest). With the terminal
-/// written, the lease sidecar leaves with the sink (ADR-129).
-fn interrupt_journal(
-    journal: &Mutex<TraceFileSink>,
-    execution: ExecutionId,
-    operator_cancel: Option<&CancelCtx>,
-) {
-    let mut trace = journal_guard(journal);
-    if trace.path().is_none() {
-        return;
-    }
-    let mut record = serde_json::json!({
-        "kind": "run_settled",
-        "status": "interrupted",
-        "execution": execution,
+    let settled = journal_guard(journal).settle_sealed(|trace| {
+        let workflow_hash = nika_dap::seal::workflow_hash(facts.driver.workflow());
+        let teardown = resident_teardown(facts);
+        seal.seal(trace, workflow_hash.as_deref(), Some(&teardown));
     });
-    if operator_cancel.is_some_and(CancelCtx::is_cancelled) {
-        record["cause"] = serde_json::Value::from("operator");
-    }
-    // The sink contract is infallible: a write failure is the lane's own
-    // buffered error, never the job's verdict.
-    let _written = trace.write_record(&record);
-    trace.finalize();
+    settled.map_err(|error| crate::JournalEvidence::from_error(&error))
+}
+
+/// The teardown facts the seal binds, folded by DAP
+/// ([`nika_dap::seal::SealTeardown::served`], the CLI's `attended_facts` as far
+/// as the service boundary carries them) from what this door holds at
+/// settlement: the outcome word it maps from the service status and the SDK
+/// receipt binding the local door signs too.
+fn resident_teardown(facts: &SealFacts<'_>) -> nika_dap::seal::SealTeardown {
+    let outcome = match facts.outcome.status() {
+        ServiceExecutionStatus::Succeeded => "completed",
+        ServiceExecutionStatus::Paused => "paused",
+        _ => "failed",
+    };
+    let driver = facts.driver;
+    let binding = nika_cli_host::run_settlement::local_receipt_binding(
+        driver.execution_id(),
+        facts.snapshot_digest,
+    );
+    nika_dap::seal::SealTeardown::served(
+        driver.workflow(),
+        driver.report(),
+        outcome,
+        facts.outcome.settlement(),
+        binding,
+        facts.display_root,
+    )
 }
 
 /// Why optional HTTP launch flags could not form one complete listener.
@@ -554,6 +521,11 @@ pub enum ServerLaunchRefuse {
     /// The bind string is not a socket address.
     #[error("serve · server configuration refused: bind address is invalid")]
     InvalidBind,
+    /// `--run-cost-ceiling` is neither a finite non-negative USD amount nor `none`.
+    #[error(
+        "serve · --run-cost-ceiling takes a finite non-negative USD amount (0 vetoes every priced run) or `none` (the only disarm)"
+    )]
+    InvalidRunCostCeiling,
 }
 
 impl NikaErrorCode for ServerLaunchRefuse {
@@ -638,6 +610,8 @@ pub fn serve_resident_process(
         .map_err(|error| format!("serve · the signal runtime refused: {error}"))?;
     let backend = Arc::new(ResidentExecutionBackend::new(workflow_root));
     let resident = ResidentConfig::new(state_root).with_workflow_root(workflow_root.to_path_buf());
+    let limits = server.as_ref().and_then(ServerConfig::resident_limits);
+    let resident = resident.with_limits(limits.unwrap_or_default());
     runtime
         .block_on(serve_resident(
             resident,
@@ -646,6 +620,41 @@ pub fn serve_resident_process(
             process_shutdown(),
         ))
         .map_err(server_operator_message)
+}
+
+/// Apply `nika serve --cost-review` and `--run-cost-ceiling <USD|none>` to the
+/// optional listener: the door is seated only on request, and the per-run
+/// ceiling changes only by an explicit amount or an explicit `none` (an
+/// operator disarm for every manual job). Never implied by `--cost-review`.
+///
+/// # Errors
+/// A ceiling that is not a finite non-negative USD amount or `none` (0 is a
+/// binding ceiling, never a disarm), or either option without a listener.
+pub fn seat_cost_review(
+    server: Option<ServerConfig>,
+    cost_review: bool,
+    run_cost_ceiling: Option<&str>,
+) -> Result<Option<ServerConfig>, ServerLaunchRefuse> {
+    let Some(server) = server else {
+        return if cost_review || run_cost_ceiling.is_some() {
+            Err(ServerLaunchRefuse::MissingBindOrWorkflows)
+        } else {
+            Ok(None)
+        };
+    };
+    let server = server.with_cost_review(cost_review);
+    let ceiling = match run_cost_ceiling {
+        None => return Ok(Some(server)),
+        Some("none") => None,
+        Some(amount) => Some(
+            amount
+                .parse::<f64>()
+                .ok()
+                .filter(|usd| usd.is_finite() && *usd >= 0.0)
+                .ok_or(ServerLaunchRefuse::InvalidRunCostCeiling)?,
+        ),
+    };
+    Ok(Some(server.with_run_cost_ceiling(ceiling)))
 }
 
 const TOKEN_FILE_MINT: &str =
@@ -721,6 +730,7 @@ mod tests {
             ServerLaunchRefuse::RehearsalWithListener,
             ServerLaunchRefuse::ScriptedClockWithListener,
             ServerLaunchRefuse::InvalidBind,
+            ServerLaunchRefuse::InvalidRunCostCeiling,
         ];
         assert!(
             refusals

@@ -9,7 +9,7 @@ use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;
-use common::{Provider, keys, policy};
+use common::{Judged, Provider, keys, policy};
 
 const PRETS: &str = "Veuillez lire le fichier ./bibliotheque/prets.csv (colonnes pret_id, lecteur, titre, jours_retard), conserver uniquement les prêts dont le retard dépasse strictement 14 jours, et écrire ces lignes, avec les mêmes colonnes et dans le même ordre, dans ./out/retards.csv.";
 
@@ -43,7 +43,10 @@ fn seven_times() -> Value {
 async fn a_clause_listed_under_seven_operations_is_one_write() {
     let provider = Provider::new(seven_times());
     let req = CompileRequest::create(PRETS).with_authoring_policy(policy());
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&req, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(!keys(&out).contains(&"model"), "{out:#?}");
     let ops: Vec<&str> = out.provenance.plan.as_ref().unwrap()["operations"]
@@ -79,7 +82,10 @@ fn citas_proposal() -> Value {
 async fn a_step_over_a_gate_phrase_is_the_gate_the_effect_carries() {
     let provider = Provider::new(citas_proposal());
     let req = CompileRequest::create(CITAS).with_authoring_policy(policy());
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&req, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert!(!keys(&out).contains(&"model"), "{out:#?}");
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let source = out.candidate.as_deref().unwrap();

@@ -20,6 +20,8 @@ pub(crate) type ProviderHttp = nika_http::ReqwestHttp;
 use std::collections::VecDeque;
 use std::sync::Arc;
 
+use nika_onboard::compile::AuthoringReasoning;
+
 /// Why a reasoner could not answer.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -110,6 +112,25 @@ pub trait SessionReasoner: Send {
         Err(ReasonError::Provider(
             "selected classifier has no catalog admission seam".into(),
         ))
+    }
+
+    /// One turn, or one bounded label, asking an explicit reasoning effort (R4 B16), under the
+    /// shared allowance when one is given. A path that cannot carry an effort refuses it before
+    /// any call: the level is never dropped.
+    ///
+    /// # Errors
+    /// The path cannot carry the effort, or could not answer.
+    fn reason_effort(
+        &mut self,
+        _prompt: &str,
+        _label: bool,
+        _account: Option<&nika_providers::InferenceAdmission>,
+        effort: AuthoringReasoning,
+    ) -> Result<Reply, ReasonError> {
+        Err(ReasonError::Provider(format!(
+            "this intelligence cannot carry the explicit reasoning effort `{}` · nothing was sent",
+            effort.word()
+        )))
     }
 
     /// The `<provider>/<model>` the compiler may author with under this
@@ -274,14 +295,14 @@ impl SessionReasoner for ProviderReasoner {
         prompt: &str,
         account: &nika_providers::InferenceAdmission,
     ) -> Result<Reply, ReasonError> {
-        self.infer(prompt, Some(8192), Some(account))
+        self.infer(prompt, Some(8192), Some(account), None)
     }
     fn reason_label_with_admission(
         &mut self,
         prompt: &str,
         account: &nika_providers::InferenceAdmission,
     ) -> Result<Reply, ReasonError> {
-        self.infer(prompt, Some(self.label_ceiling()), Some(account))
+        self.infer(prompt, Some(self.label_ceiling()), Some(account), None)
     }
 
     fn name(&self) -> String {
@@ -293,11 +314,27 @@ impl SessionReasoner for ProviderReasoner {
     }
 
     fn reason(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
-        self.infer(prompt, None, None)
+        self.infer(prompt, None, None, None)
     }
 
     fn reason_label(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
-        self.infer(prompt, Some(self.label_ceiling()), None)
+        self.infer(prompt, Some(self.label_ceiling()), None, None)
+    }
+
+    /// The same call, the same ceiling, asking the level (R4 B16): the effort never moves a cap.
+    fn reason_effort(
+        &mut self,
+        prompt: &str,
+        label: bool,
+        account: Option<&nika_providers::InferenceAdmission>,
+        effort: AuthoringReasoning,
+    ) -> Result<Reply, ReasonError> {
+        let ceiling = if label {
+            Some(self.label_ceiling())
+        } else {
+            account.map(|_| 8192)
+        };
+        self.infer(prompt, ceiling, account, Some(effort))
     }
 }
 
@@ -324,13 +361,24 @@ impl ProviderReasoner {
     }
 
     /// The one-shot infer verb over the provider registry; a label call
-    /// carries its ceiling and a zero temperature.
+    /// carries its ceiling and a zero temperature, and any call the explicit effort it asks.
     fn infer(
         &self,
         prompt: &str,
         ceiling: Option<u32>,
         admission: Option<&nika_providers::InferenceAdmission>,
+        effort: Option<AuthoringReasoning>,
     ) -> Result<Reply, ReasonError> {
+        let reasoning_effort = effort
+            .map(|level| {
+                nika_verb_infer::ReasoningEffort::parse(level.word()).ok_or_else(|| {
+                    ReasonError::Provider(format!(
+                        "the reasoning effort `{}` has no provider level · nothing was sent",
+                        level.word()
+                    ))
+                })
+            })
+            .transpose()?;
         let http = provider_http_for(admission.is_some()).map_err(ReasonError::Provider)?;
         let mut registry = nika_providers::ProviderRegistry::new(Arc::new(http), provider_config());
         if let Some(a) = admission {
@@ -343,6 +391,7 @@ impl ProviderReasoner {
         if ceiling.is_some() {
             input.temperature = Some(0.0);
         }
+        input.reasoning_effort = reasoning_effort;
         let out = block_on(async { verb.run(input).await })?
             .map_err(|e| ReasonError::Provider(e.to_string()))?;
         Ok(Reply {

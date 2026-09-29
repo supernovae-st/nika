@@ -163,6 +163,7 @@ pub enum Beat {
 /// and never writes it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
+#[allow(clippy::struct_excessive_bools)] // two theme decisions and two loop flags, each independent
 pub struct UiState {
     /// Where the session is drawn.
     pub presentation: Presentation,
@@ -189,6 +190,9 @@ pub struct UiState {
     pub completion: Option<String>,
     /// Colour allowed (the theme's decision, never the renderer's).
     pub color: bool,
+    /// The ASCII glyph column (the theme's decision: `--ascii`, CI logs, a
+    /// legacy console): the renderer's own glyphs take their twins.
+    pub ascii: bool,
     /// Scroll offset of the focus transcript, in blocks from the end.
     pub focus_scroll: usize,
     /// Terminal size as last reported.
@@ -213,6 +217,7 @@ impl UiState {
             interrupt_armed: false,
             completion: None,
             color,
+            ascii: false,
             focus_scroll: 0,
             size,
             quit: false,

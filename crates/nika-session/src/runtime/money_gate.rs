@@ -23,9 +23,15 @@ pub(super) struct MoneyState {
     // It never replaces the Session draft, guard or shared admission account.
     pub gate: Option<MonetaryDecision>,
     pub reconfirm: bool,
+    // The live round was admitted while `reconfirm` held: its answers keep that admission (C11).
+    pub stated_under_reconfirm: bool,
     pub current: Option<MonetaryDecision>,
     pub draft: Option<MonetaryDecision>,
     pub pending: Option<MonetaryDecision>,
+    // The monetary directives of the current work request this gate admitted (R4 A6): the
+    // compiler reads them as this ceiling, never as business clauses. A line no work admission
+    // reads (a local run line) clears them: no admitted directive rides with it.
+    pub admitted: Vec<std::ops::Range<usize>>,
     // Priced calls made without any Session budget ride this account: an
     // observation with no allowance, never admission, a cap or a review.
     pub observed: nika_providers::InferenceAdmission,
@@ -40,9 +46,11 @@ impl Default for MoneyState {
             admission_note: None,
             gate: None,
             reconfirm: false,
+            stated_under_reconfirm: false,
             current: None,
             draft: None,
             pending: None,
+            admitted: Vec::new(),
             observed: nika_providers::InferenceAdmission::unbudgeted(),
             saved: Vec::new(),
         }
@@ -89,16 +97,25 @@ impl SessionRuntime {
         answer: &str,
     ) -> TurnOutcome {
         // Keep custody of the exact reviewed proposal while a cost question waits.
-        if self.unreviewed_unknown_route() {
+        let review = self.unreviewed_unknown_route();
+        if review {
             self.pending = Some(set.clone());
         }
-        if let Err(refusal) = self.admit_money(answer, true) {
+        // Blocked cognition reads nothing, and a line that states no money has nothing
+        // to admit: a restored exposure's refusal would expire the proposal for a line
+        // nobody read. The route holds it with its observed effects (E5 FB3).
+        let law = super::authoring::run_prefix(answer).is_none();
+        let stated = self.read_money(answer, law);
+        let unread = !review
+            && self.money_blocks_cognition()
+            && stated.as_ref().is_ok_and(|(p, _)| p.amount.is_none());
+        if !unread && let Err(refusal) = self.admit_money(answer, true, false) {
             return refusal;
         }
         self.pending = None;
         // A closed monetary-only amendment changes Session's own ceiling,
         // never workflow bytes. It has its own preview and fresh consent id.
-        if money_parse::parse(answer).is_ok_and(|p| p.money_only) {
+        if stated.is_ok_and(|(p, _)| p.money_only) {
             let preview = self.draft_preview(&set);
             let id = ProposalId::of(&preview);
             self.bind_proposal_money(&id);
@@ -218,9 +235,25 @@ impl SessionRuntime {
         self.last_outcome = None;
     }
 
-    // Shared validation precedes either scope's continuation fast path.
-    fn read_money(&self, input: &str) -> Result<ParsedMoney, String> {
-        let parsed = money_parse::parse(input).map_err(str::to_owned)?;
+    // Shared validation precedes either scope's continuation fast path. Work, consent and answer
+    // lines state money only in their directives (R4 A6 · B15); Run and gate lines, the whole line.
+    fn read_money(
+        &self,
+        input: &str,
+        law: bool,
+    ) -> Result<(ParsedMoney, Vec<std::ops::Range<usize>>), String> {
+        let (parsed, spans) = if law {
+            let found = money_parse::directives(input).map_err(str::to_owned)?;
+            (
+                found.money,
+                found.found.into_iter().map(|d| d.span).collect(),
+            )
+        } else {
+            (
+                money_parse::parse(input).map_err(str::to_owned)?,
+                Vec::new(),
+            )
+        };
         if let Some(error) = &self.snapshot.project_error {
             return Err(format!(
                 "project money/default is unavailable: {error} — correct nika.yaml before preparing work"
@@ -236,13 +269,13 @@ impl SessionRuntime {
         if parsed.replaced_default.is_some() && parsed.replaced_default != self.snapshot.ceiling {
             return Err("the stated default to replace does not match the observed project default — confirm one finite, nonnegative amount".into());
         }
-        Ok(parsed)
+        Ok((parsed, spans))
     }
 
     pub(super) fn admit_gate_money(&mut self, input: &str) -> Result<(), TurnOutcome> {
-        let mut decision = match self.read_money(input) {
-            Ok(parsed) if parsed.amount.is_none() => return Ok(()),
-            Ok(parsed) => self.money_decision(input, &parsed),
+        let mut decision = match self.read_money(input, false) {
+            Ok((parsed, _)) if parsed.amount.is_none() => return Ok(()),
+            Ok((parsed, _)) => self.money_decision(input, &parsed),
             Err(reason) => {
                 let decision = self.rejected_money(input, &reason);
                 self.record_gate_money(decision);
@@ -287,13 +320,14 @@ impl SessionRuntime {
         }
     }
 
-    /// Called before any compiler/classifier/reasoner. A continuation with
-    /// no monetary clause keeps the admitted round's money, not a new default,
-    /// and the no-budget observation its work began with.
+    /// Called before any compiler/classifier/reasoner. A continuation with no monetary clause
+    /// keeps the admitted round's money, not a new default, and the no-budget observation its
+    /// work began with; a kept round's zero-call `replay` needs no ceiling under the restriction.
     pub(super) fn admit_money(
         &mut self,
         input: &str,
         continuation: bool,
+        replay: bool,
     ) -> Result<(), TurnOutcome> {
         if !continuation {
             self.rotate_observation();
@@ -303,18 +337,34 @@ impl SessionRuntime {
         if self.money.gate.is_some() {
             return self.admit_gate_money(input);
         }
-        let parsed = match self.read_money(input) {
-            Ok(parsed) => parsed,
-            Err(reason) => return Err(self.refuse_money(input, &reason)),
+        let law = super::authoring::run_prefix(input).is_none();
+        let parsed = match self.read_money(input, law) {
+            Ok((parsed, spans)) => {
+                if !continuation {
+                    self.money.admitted = spans;
+                }
+                parsed
+            }
+            Err(reason) => {
+                self.money.admitted.clear();
+                return Err(self.refuse_money(input, &reason));
+            }
         };
         // The Session restriction cannot replace an independent gate observation.
         // Gate parsing above still holds cognition, but does not consume this flag.
-        if self.money.reconfirm && parsed.amount.is_none() {
+        // A round admitted under it (a stated ceiling or a zero-call replay) answers under it.
+        if self.money.reconfirm
+            && parsed.amount.is_none()
+            && !(replay || (continuation && self.money.stated_under_reconfirm))
+        {
             let why = self.restored_refusal();
             return Err(self.refuse_money(input, &why));
         }
         if continuation && parsed.amount.is_none() {
             return Ok(());
+        }
+        if !continuation {
+            self.money.stated_under_reconfirm = self.money.reconfirm;
         }
         let mut decision = self.money_decision(input, &parsed);
         if continuation && let Some(previous) = &self.money.draft {
@@ -343,6 +393,26 @@ impl SessionRuntime {
         Ok(())
     }
 
+    /// The monetary directives of request bytes Session built from the human's words (a
+    /// replacement, a restatement), as spans of exactly those bytes, never offsets carried from
+    /// another text (C11). A malformed or conflicting amount refuses under the money law, and so
+    /// does a built request stating another ceiling than the account holds.
+    pub(super) fn built_money(
+        &mut self,
+        text: &str,
+        line: &str,
+    ) -> Result<Vec<std::ops::Range<usize>>, TurnOutcome> {
+        let found = money_parse::directives(text).map_err(|why| self.refuse_money(line, why))?;
+        let held = self.money.draft.as_ref().and_then(|d| d.effective_usd);
+        if (found.money.amount)
+            .is_some_and(|stated| held.is_none_or(|h| h.to_bits() != stated.to_bits()))
+        {
+            let why = "the request these words build states another ceiling than the one admitted — say the budget as its own sentence";
+            return Err(self.refuse_money(line, why));
+        }
+        Ok(found.found.into_iter().map(|d| d.span).collect())
+    }
+
     /// Called at every cognition seam. Deterministic reading stays available;
     /// the selected intelligence is never substituted by a monetary decision.
     pub(super) fn money_blocks_cognition(&self) -> bool {
@@ -367,19 +437,24 @@ impl SessionRuntime {
     }
 
     pub(super) fn cognition_money_refusal(&self) -> TurnOutcome {
+        TurnOutcome::Refusal(Refusal::new(
+            RefusalClass::NotAllowed,
+            self.cognition_blocked(),
+        ))
+    }
+
+    /// Why no cognition reads a line now, in the account's own words.
+    pub(super) fn cognition_blocked(&self) -> String {
         let way = if self.money.reconfirm {
             format!(" · {}", super::inference::RESTORED_WAY)
         } else {
             String::new()
         };
-        TurnOutcome::Refusal(Refusal::new(
-            RefusalClass::NotAllowed,
-            format!(
-                "no further cognition admitted on {}: {} · deterministic work remains available; billed cost is unknown{way}",
-                self.reasoner.name(),
-                self.inference_line()
-            ),
-        ))
+        format!(
+            "no further cognition admitted on {}: {} · deterministic work remains available; billed cost is unknown{way}",
+            self.reasoner.name(),
+            self.inference_line()
+        )
     }
 
     pub(super) fn bind_proposal_money(&mut self, id: &ProposalId) {
@@ -428,8 +503,8 @@ impl SessionRuntime {
         workflow: &std::path::Path,
         explicit: Option<f64>,
     ) -> Result<f64, TurnOutcome> {
-        let parsed = self
-            .read_money(input)
+        let (parsed, _) = self
+            .read_money(input, false)
             .map_err(|reason| self.refuse_run_money(input, &reason))?;
         if explicit.is_some() {
             self.money.current =
@@ -483,11 +558,10 @@ impl SessionRuntime {
             self.money.current = Some(self.inference_observation(saved_money.decision.clone()));
             return Ok(());
         }
-        // The existing journal proves that Save occurred, but its v1 schema
-        // does not record spending constraints. After reopening, absence of
-        // an in-memory binding therefore cannot justify a fresh default. Read
-        // at Run even when the host did not call restore_state; do not restore
-        // execution authority or equate distinct files by their bytes.
+        // The existing journal proves that Save occurred, but its v1 schema does not record
+        // spending constraints. After reopening, absence of an in-memory binding therefore cannot
+        // justify a fresh default. Read at Run even when the host did not call restore_state; do
+        // not restore execution authority or equate distinct files by their bytes.
         let records = match ConsentRecord::read_all(&self.snapshot.root) {
             Ok(records) if records.iter().all(|r| r.version == ConsentRecord::VERSION) => records,
             _ => return Err(self.refuse_run_money(input, "saved monetary evidence is unreadable — provide an explicit Run ceiling or prepare and review the workflow again")),

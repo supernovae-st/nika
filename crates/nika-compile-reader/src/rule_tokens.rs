@@ -116,6 +116,29 @@ pub fn fold(text: &str) -> String {
     out
 }
 
+/// A column name as the grammar compares it: folded, spaces and dashes read as underscores.
+pub(crate) fn normalized(name: &str) -> String {
+    fold(name).replace([' ', '-'], "_")
+}
+
+/// The hint column a name designates, in the hint's own spelling.
+pub(crate) fn hinted(name: &str, columns: &[String]) -> Option<String> {
+    let wanted = normalized(name);
+    columns.iter().find(|c| normalized(c) == wanted).cloned()
+}
+
+/// The lines of the `[name]` section of a word asset, in file order: one closed table of
+/// words or phrases, ended by a blank line (data only: each owner's tests pin its sections).
+pub(crate) fn section(asset: &'static str, name: &str) -> Vec<&'static str> {
+    let header = format!("[{name}]");
+    asset
+        .lines()
+        .skip_while(|line| *line != header)
+        .skip(1)
+        .take_while(|line| !line.is_empty())
+        .collect()
+}
+
 // ── tokens ───────────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -215,6 +238,11 @@ pub(crate) fn number(word: &str) -> Option<String> {
         return None;
     }
     Some(format!("{sign}{canonical}"))
+}
+
+/// A recorded numeric operand is closed numeric syntax, never a jq expression or infinity.
+pub(crate) fn recorded_number(text: &str) -> bool {
+    number(text).as_deref() == Some(text) && text.parse::<f64>().is_ok_and(f64::is_finite)
 }
 
 fn push_word(word: &str, out: &mut Vec<Token>) {

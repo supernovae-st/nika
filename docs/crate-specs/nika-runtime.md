@@ -296,17 +296,69 @@ silent).
   a fan-out (Brooker 2015) · replay-stable (the index is part of the
   deterministic coordinates).
 - Iterations dispatch concurrently capped by `max_parallel` (default
-  unbounded) · settle in input order (same ordered-settlement
-  pattern) · `retry:`/`timeout:`/`on_error:` apply per iteration.
-- `fail_fast: true` (default) · first settled error drops the
-  remaining stream (in-flight cancelled · unspawned never start) ·
-  `false` · all iterations run · failed slots contribute `null` at
-  their index (positional alignment survives · spec §null-at-index).
+  unbounded) · are collected in COMPLETION order and folded in input
+  order (rows · outputs · spend) · `retry:`/`timeout:`/`on_error:`
+  apply per iteration.
+- `fail_fast: true` (default) · the first error to COMPLETE, whatever
+  its index, drops the remaining stream at once (in-flight cancelled ·
+  unspawned never start) · `false` · all iterations run · failed slots
+  contribute `null` at their index (positional alignment survives ·
+  spec §null-at-index).
+- B10 · 2026-09-28 · the collector used to read iterations in input
+  order (`buffered`), so an error that completed early waited behind a
+  slower earlier-index sibling: the fan ran on until that sibling's
+  timeout or answer, and the finished error then read `cancelled` (the
+  D6 measurement). `run_fan_out` now drives the batch with
+  `buffer_unordered`, and each iteration carries its index
+  (`started_on_first_poll`). `collect_fan_out` keeps every iteration
+  that completed before the stop, and `items_json` fills each index
+  that has no row. A completed failure or success is therefore never
+  relabelled by a slower sibling. Two iterations completing in the same
+  instant as the stop may still leave one unread (`cancelled`): which
+  one the collector meets first is not a contract.
+- A dropped in-flight iteration, like an attempt its `timeout:` drops,
+  has usually sent its provider request already (B7 · 2026-09-28). The
+  attempt loop runs each dispatch under
+  `nika_providers::dispatch_journal`. A dispatch that returns folds its
+  own evidence as before. One dropped first hands the ledger every
+  request it sent, once: unanswered ones unpriced (never a known zero),
+  answered ones by their own evidence. The drop itself is unchanged
+  (spec 03 aborts the remaining iterations immediately).
+- Item rows tell `cancelled` from `never_started` (B8 · 2026-09-28 ·
+  spec 03/17, a closed-vocabulary extension for the next MINOR after
+  0.121). `run_fan_out` wraps each iteration future in
+  `fan_out::started_on_first_poll`, which raises that item's flag on its
+  first poll (building a future is not execution). After the collector
+  stops, an unconsumed item whose flag rose reads `cancelled` (began,
+  abandoned without a recorded terminal, including, since B10, only an
+  outcome that finished in the same instant as the stop and was never
+  read), and one whose flag never rose
+  reads `never_started` (a queued item, or one the budget never
+  admitted). Recorded rows, outputs and the immediate abort are
+  unchanged; nothing is drained, and neither word is a billing or
+  physical-request verdict (the ledger owns spend, above). Paged
+  terminals always carry `items_cancelled`, including 0.
 - Task output = the array of per-iteration outputs in input order ·
   task status = failure if ANY iteration failed unrecovered.
 - Events: ONE task-level Started/Completed/Failed pair (iterations are
   internal · the note carries `for_each · N items`) — the event
   grammar has no per-iteration id space at v0.1.
+- Call evidence (E33 · 2026-09-28): that one parent frame carries the call
+  records of every iteration the collector read, each record once, in input
+  order, whatever order they completed in.
+  - They ride as `inference_calls` and `cost_unknown_calls`, through the same
+    durable projection as any task's.
+  - The parent's split holds calls only: no meters, `attempts` or single-route
+    `pricing_route` of its own, as for an authored retry's joined attempts.
+    Each call element keeps its own pricing.
+  - A request dropped in flight (a cancelled sibling, or an attempt its
+    `timeout:` cut) returns no transport report, so it has no call record
+    here, and none is invented. The ledger and the observed account keep it
+    (B7).
+  - This is presentation only: the ledger debits at each iteration's dispatch,
+    so no call is charged twice.
+  - Before E33, the parent wrote `usage: None`, and a fan-out's calls reached no
+    frame.
 
 ### 3.8 the unwind cleanup lane (spec 03 §`unwind` · ALWAYS runs · was `on_finally:` until 2026-08-11)
 
@@ -322,6 +374,24 @@ Never-started tasks (skipped gate · cancelled) run NO cleanup. Since
 `graph_format: 3` every cleanup task is a projected node (`kind:
 "finally"` · the author's own task id) — v0's anonymous mini-tasks
 (no id grammar · no engine events) are the shape this lane replaced.
+
+Best-effort is never money authority (B11). A cleanup dispatches on the
+run's own ledger with the main lane's attempt seams: a seat only the run
+decides meets the same pre-send guard (NIKA-1704 before any byte,
+journaled on the cleanup lane), every request it sends is debited once
+(a served answer at its price; a request that failed, or that the
+cleanup's own timer dropped, as an unknown charge through the dispatch
+journal), and a cleanup `invoke: workflow:` child runs under the run's
+remaining budget (law 6). The remaining budget is a snapshot at call
+time, never a reservation. Once the run's budget is crossed, a cleanup
+that can spend (a model call, an agent, a child workflow, image or
+speech generation, or a verb this runtime does not know) is refused
+before dispatch (NIKA-1704, journaled), as the main lane starts no task
+after a trip; `exec` and the other builtins are housekeeping and still
+run. An unknown-cost route stays refused before
+any byte in this lane: the Host's unknown-cost review refuses a workflow
+with an `unwind` task, and the Run observer refuses a route rendered at
+run time.
 
 ### 3.9 Settlement + records + terminal
 
@@ -472,3 +542,91 @@ Runtime environment boundary. Existing variable names, precedence, empty-value
 handling, cloud endpoint overrides and local URL normalization are unchanged.
 The pending cost review contract lives in provider admission; Runtime preserves
 the narrow `cost_choice` compatibility path and the configuration binding test.
+
+A host account that observes declared-free routes only
+(`observes_declared_free_only`) keeps the normal provider client for the
+registry and gets a separate single-attempt client through
+`with_inference_admission_http`; any other account keeps the all-bounded
+client. Whenever a host account is attached, `run` stamps its receipt's durable
+`nika/inference-cost-observation@2` projection as the JSON text field
+`inference_admission` on the terminal frame
+(`cost_choice::ObservedSink`, inside the secret scrub). A scoped receipt says
+`scoped_to_declared_free`: its subtotal is never the whole Run's. A run killed
+before its terminal frame leaves no receipt; that lifecycle stays open. An
+unreadable account or an observation the provider-owned projection cannot read
+is recorded as unreadable, never omitted or passed through with its endpoint.
+
+Task terminal frames write their per-dispatch evidence through the provider
+route-identity owner (E32). `inference_calls` is the JSON text of
+`nika_providers::durable_calls` over the task's call records. `pricing_route`,
+present when every call shares one pricing text, is
+`nika_providers::durable_pricing` of it; the field is omitted when that pricing
+is withheld whole, and the call elements say why. Neither holds an endpoint
+path, query or userinfo. The run ledger's attribution key for an inference call
+is `nika_providers::route_label`, `{provider}/{model} @ {origin}`, so the
+terminal `cost_by_source`, the settlement's `spend.by_source` and the
+`nika:inspect` cost view name origins. Routes of one origin sum under one key:
+the key is presentation, each call is still debited by its own known estimate,
+and the totals and counters are unchanged. The exact endpoints stay in memory
+for pricing and identity. The terminal `inference_admission` projection does
+not change that account, its counters or its authority. `workflow_started`
+carries no route-identity declaration; legacy journals and the Session entries
+recorded before its projection are separate migrations.
+
+`resolve_model_expr` (C4 · 2026-09-28; its body descended to
+`nika-check-analyzer`'s `rendered` module in B9, re-exported here at the same
+path) exports the run-start cap gate's own
+resolved-id walk: a literal, a concatenation, an operator `--var` over the
+declared default, const, or a task's `with:` alias. A host judges a `model:`
+expression before any effect at the value this resolver gives it; `None` means
+only the run decides it (an upstream output, CEL beyond the walk). Dispatch
+still renders every `model:` through the `${{ }}` seam, and the provider
+registry judges that rendered route under a host-bound Run observer.
+
+B9 (2026-09-28) closes the rendered-route bypass at the launch gates, in the
+order trust · required inputs · budget floor · MODELS rung · access plan. The
+floor and the MODELS gate judge one effective workflow: the operator's
+`--model` in the envelope (a task's own `model:` keeps winning), then every
+`model:` the bindings (`--var`, `--inputs-json`), a declared default, a const
+or a `with:` alias decide, rendered to its literal by the analyzer's
+`rendered_models`. A rendered paid route therefore prices exactly as its
+literal twin (NIKA-1709 before the prologue). Since B11 the same effective
+workflow also binds fan-out collections (the analyzer's
+`rendered_collections`): a `for_each` over an input the invocation binds is
+counted from the bound value, as the run binds it (a bound value replaces the
+declared default and never falls back to it; a bound non-array is an unknown
+count). The MODELS gate applies the
+checker's own laws (the resolver's refusal, `thinking_findings`,
+`capacity_findings`) to every such seat, literal or rendered, and refuses with
+`ReportMismatch` (NIKA-1707) naming the findings. This also closes the
+embedder door: `CheckReport::is_clean` leaves the MODELS rung to the CLI, so
+a library host used to run a literal reasoning seat under its 256-token floor.
+A refusal emits no event and runs no task. A `model:` only the run decides is
+not priced at launch; `unbounded_breakdown` names it « decided at run time »,
+never « unpriced ». The static reads these gates price with, the priced
+builtin floor and the unpriced-cloud class (`priced_builtin_floor`,
+`unpriced_cloud_seat`), descended verbatim to the analyzer's `builtin_floor`
+module in B9 phase C; the refusals and their wording stay here.
+
+B9 phase C adds a pre-send guard at dispatch for the seats launch cannot
+judge: an infer/agent task whose own `model:` the pre-effect resolver leaves
+unresolved (a task output, an answer, an item). After the seat renders and
+before any provider or harness request, `admit::run_decided_refusal` judges
+the task as ONE call in the effective workflow (the envelope and the
+operator's `--model` kept, the rendered seat, its `for_each` cleared and its
+gate open, every other field kept) with the launch gates' own laws. The
+MODELS rung refuses with the code of the failure it prevents (NIKA-INFER-004
+for the reasoning seat's cap floor, else NIKA-INFER-001). Under a cap, an
+unpriced cloud seat off a harness, or a one-call floor above the ledger's
+remaining USD, refuses NIKA-1704. The refusal is a task failure: non-
+transient, never replayed (even under `on_codes:`), no ledger debit, no
+provider attempt; the effects of tasks that ran before it stand. The remaining
+USD is a snapshot at call time, the cap minus KNOWN spend: unknown charges
+make it an upper bound, so a refusal is certain and a pass proves no fit.
+Siblings started together each read the same snapshot and may cross together
+(the ledger's wave-boundary NIKA-1704 and the provider admission keep their
+roles); nothing here is a reservation or a hard cap. A child run inherits the
+parent's remaining (law 6) and meets the same gates and guard against its own
+ledger. Internal retries (schema re-asks, provider re-sends) are judged once
+and counted on the ledger as they happen. The `unwind` cleanup lane meets the
+same guard, ledger and child budget (§3.8 · B11).

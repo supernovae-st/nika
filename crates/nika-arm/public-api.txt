@@ -208,6 +208,337 @@ pub type nika_arm::fire::CoordinatedRunSeam = alloc::rc::Rc<dyn core::ops::funct
 pub type nika_arm::fire::ExecutionRunSeam = alloc::rc::Rc<dyn for<'a> core::ops::function::Fn(nika_execution::service::ExecutionContext<'a>, &nika_arm::fire::RunShot) -> nika_arm::fire::RunUpshot>
 pub type nika_arm::fire::RunSeam = alloc::rc::Rc<dyn core::ops::function::Fn(&nika_arm::fire::RunShot) -> nika_arm::fire::RunUpshot>
 pub type nika_arm::fire::WaitSeam = alloc::boxed::Box<dyn core::ops::function::Fn(jiff::signed_duration::SignedDuration) -> nika_arm::fire::Wait>
+pub mod nika_arm::readiness
+#[non_exhaustive] pub enum nika_arm::readiness::ProofBinding
+pub nika_arm::readiness::ProofBinding::CurrentGeneration
+pub nika_arm::readiness::ProofBinding::Declared
+pub nika_arm::readiness::ProofBinding::HistoricalGeneration
+pub nika_arm::readiness::ProofBinding::Legacy
+pub nika_arm::readiness::ProofBinding::Refused
+pub nika_arm::readiness::ProofBinding::Unattributed
+impl nika_arm::readiness::ProofBinding
+pub const fn nika_arm::readiness::ProofBinding::as_str(self) -> &'static str
+impl core::clone::Clone for nika_arm::readiness::ProofBinding
+pub fn nika_arm::readiness::ProofBinding::clone(&self) -> nika_arm::readiness::ProofBinding
+impl core::cmp::Eq for nika_arm::readiness::ProofBinding
+impl core::cmp::PartialEq for nika_arm::readiness::ProofBinding
+pub fn nika_arm::readiness::ProofBinding::eq(&self, other: &nika_arm::readiness::ProofBinding) -> bool
+impl core::fmt::Debug for nika_arm::readiness::ProofBinding
+pub fn nika_arm::readiness::ProofBinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_arm::readiness::ProofBinding
+impl core::marker::StructuralPartialEq for nika_arm::readiness::ProofBinding
+impl<D> owo_colors::OwoColorize for nika_arm::readiness::ProofBinding
+impl<Q, K> equivalent::Equivalent<K> for nika_arm::readiness::ProofBinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::readiness::ProofBinding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_arm::readiness::ProofBinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::readiness::ProofBinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_arm::readiness::ProofBinding where U: core::convert::From<T>
+pub fn nika_arm::readiness::ProofBinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::readiness::ProofBinding where U: core::convert::Into<T>
+pub type nika_arm::readiness::ProofBinding::Error = core::convert::Infallible
+pub fn nika_arm::readiness::ProofBinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::readiness::ProofBinding where U: core::convert::TryFrom<T>
+pub type nika_arm::readiness::ProofBinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::readiness::ProofBinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_arm::readiness::ProofBinding where T: core::clone::Clone
+pub type nika_arm::readiness::ProofBinding::Owned = T
+pub fn nika_arm::readiness::ProofBinding::clone_into(&self, target: &mut T)
+pub fn nika_arm::readiness::ProofBinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_arm::readiness::ProofBinding where T: 'static + ?core::marker::Sized
+pub fn nika_arm::readiness::ProofBinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::readiness::ProofBinding where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ProofBinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::readiness::ProofBinding where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ProofBinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_arm::readiness::ProofBinding where T: core::clone::Clone
+pub unsafe fn nika_arm::readiness::ProofBinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_arm::readiness::ProofBinding
+pub fn nika_arm::readiness::ProofBinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_arm::readiness::ProofBinding where T: core::clone::Clone
+pub fn nika_arm::readiness::ProofBinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_arm::readiness::ProofBinding where T: 'static
+pub fn nika_arm::readiness::ProofBinding::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_arm::readiness::ProofBinding where T: core::marker::Copy
+pub fn nika_arm::readiness::ProofBinding::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_arm::readiness::ProofBinding
+pub type nika_arm::readiness::ProofBinding::Output = T
+#[non_exhaustive] pub enum nika_arm::readiness::ReceiptStatus
+pub nika_arm::readiness::ReceiptStatus::Dormant
+pub nika_arm::readiness::ReceiptStatus::Ready
+pub nika_arm::readiness::ReceiptStatus::Unready
+impl nika_arm::readiness::ReceiptStatus
+pub const fn nika_arm::readiness::ReceiptStatus::as_str(self) -> &'static str
+impl core::clone::Clone for nika_arm::readiness::ReceiptStatus
+pub fn nika_arm::readiness::ReceiptStatus::clone(&self) -> nika_arm::readiness::ReceiptStatus
+impl core::cmp::Eq for nika_arm::readiness::ReceiptStatus
+impl core::cmp::PartialEq for nika_arm::readiness::ReceiptStatus
+pub fn nika_arm::readiness::ReceiptStatus::eq(&self, other: &nika_arm::readiness::ReceiptStatus) -> bool
+impl core::fmt::Debug for nika_arm::readiness::ReceiptStatus
+pub fn nika_arm::readiness::ReceiptStatus::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_arm::readiness::ReceiptStatus
+impl core::marker::StructuralPartialEq for nika_arm::readiness::ReceiptStatus
+impl<D> owo_colors::OwoColorize for nika_arm::readiness::ReceiptStatus
+impl<Q, K> equivalent::Equivalent<K> for nika_arm::readiness::ReceiptStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::readiness::ReceiptStatus::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_arm::readiness::ReceiptStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::readiness::ReceiptStatus::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_arm::readiness::ReceiptStatus where U: core::convert::From<T>
+pub fn nika_arm::readiness::ReceiptStatus::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::readiness::ReceiptStatus where U: core::convert::Into<T>
+pub type nika_arm::readiness::ReceiptStatus::Error = core::convert::Infallible
+pub fn nika_arm::readiness::ReceiptStatus::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::readiness::ReceiptStatus where U: core::convert::TryFrom<T>
+pub type nika_arm::readiness::ReceiptStatus::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::readiness::ReceiptStatus::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_arm::readiness::ReceiptStatus where T: core::clone::Clone
+pub type nika_arm::readiness::ReceiptStatus::Owned = T
+pub fn nika_arm::readiness::ReceiptStatus::clone_into(&self, target: &mut T)
+pub fn nika_arm::readiness::ReceiptStatus::to_owned(&self) -> T
+impl<T> core::any::Any for nika_arm::readiness::ReceiptStatus where T: 'static + ?core::marker::Sized
+pub fn nika_arm::readiness::ReceiptStatus::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::readiness::ReceiptStatus where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ReceiptStatus::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::readiness::ReceiptStatus where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ReceiptStatus::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_arm::readiness::ReceiptStatus where T: core::clone::Clone
+pub unsafe fn nika_arm::readiness::ReceiptStatus::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_arm::readiness::ReceiptStatus
+pub fn nika_arm::readiness::ReceiptStatus::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_arm::readiness::ReceiptStatus where T: core::clone::Clone
+pub fn nika_arm::readiness::ReceiptStatus::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_arm::readiness::ReceiptStatus where T: 'static
+pub fn nika_arm::readiness::ReceiptStatus::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_arm::readiness::ReceiptStatus where T: core::marker::Copy
+pub fn nika_arm::readiness::ReceiptStatus::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_arm::readiness::ReceiptStatus
+pub type nika_arm::readiness::ReceiptStatus::Output = T
+#[non_exhaustive] pub struct nika_arm::readiness::Blocker
+pub nika_arm::readiness::Blocker::code: core::option::Option<alloc::string::String>
+pub nika_arm::readiness::Blocker::kind: alloc::string::String
+pub nika_arm::readiness::Blocker::message: alloc::string::String
+pub nika_arm::readiness::Blocker::reason: core::option::Option<alloc::string::String>
+pub nika_arm::readiness::Blocker::subject: core::option::Option<alloc::string::String>
+impl nika_arm::readiness::Blocker
+pub fn nika_arm::readiness::Blocker::new(kind: impl core::convert::Into<alloc::string::String>, code: core::option::Option<alloc::string::String>, subject: core::option::Option<alloc::string::String>, message: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_arm::readiness::Blocker::with_reason(self, reason: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_arm::readiness::Blocker
+pub fn nika_arm::readiness::Blocker::clone(&self) -> nika_arm::readiness::Blocker
+impl core::cmp::Eq for nika_arm::readiness::Blocker
+impl core::cmp::PartialEq for nika_arm::readiness::Blocker
+pub fn nika_arm::readiness::Blocker::eq(&self, other: &nika_arm::readiness::Blocker) -> bool
+impl core::fmt::Debug for nika_arm::readiness::Blocker
+pub fn nika_arm::readiness::Blocker::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_arm::readiness::Blocker
+impl<D> owo_colors::OwoColorize for nika_arm::readiness::Blocker
+impl<Q, K> equivalent::Equivalent<K> for nika_arm::readiness::Blocker where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::readiness::Blocker::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_arm::readiness::Blocker where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::readiness::Blocker::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_arm::readiness::Blocker where U: core::convert::From<T>
+pub fn nika_arm::readiness::Blocker::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::readiness::Blocker where U: core::convert::Into<T>
+pub type nika_arm::readiness::Blocker::Error = core::convert::Infallible
+pub fn nika_arm::readiness::Blocker::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::readiness::Blocker where U: core::convert::TryFrom<T>
+pub type nika_arm::readiness::Blocker::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::readiness::Blocker::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_arm::readiness::Blocker where T: core::clone::Clone
+pub type nika_arm::readiness::Blocker::Owned = T
+pub fn nika_arm::readiness::Blocker::clone_into(&self, target: &mut T)
+pub fn nika_arm::readiness::Blocker::to_owned(&self) -> T
+impl<T> core::any::Any for nika_arm::readiness::Blocker where T: 'static + ?core::marker::Sized
+pub fn nika_arm::readiness::Blocker::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::readiness::Blocker where T: ?core::marker::Sized
+pub fn nika_arm::readiness::Blocker::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::readiness::Blocker where T: ?core::marker::Sized
+pub fn nika_arm::readiness::Blocker::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_arm::readiness::Blocker where T: core::clone::Clone
+pub unsafe fn nika_arm::readiness::Blocker::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_arm::readiness::Blocker
+pub fn nika_arm::readiness::Blocker::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_arm::readiness::Blocker where T: core::clone::Clone
+pub fn nika_arm::readiness::Blocker::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_arm::readiness::Blocker where T: 'static
+pub fn nika_arm::readiness::Blocker::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::readiness::Blocker
+pub type nika_arm::readiness::Blocker::Output = T
+#[non_exhaustive] pub struct nika_arm::readiness::ProgramFacts
+pub nika_arm::readiness::ProgramFacts::blockers: alloc::vec::Vec<nika_arm::readiness::Blocker>
+pub nika_arm::readiness::ProgramFacts::document: serde_json::value::Value
+pub nika_arm::readiness::ProgramFacts::model_cost_ready: core::option::Option<bool>
+pub nika_arm::readiness::ProgramFacts::program_ready: bool
+pub nika_arm::readiness::ProgramFacts::required_inputs_ready: core::option::Option<bool>
+pub nika_arm::readiness::ProgramFacts::unknowns: alloc::vec::Vec<alloc::string::String>
+impl nika_arm::readiness::ProgramFacts
+pub fn nika_arm::readiness::ProgramFacts::new(program_ready: bool, required_inputs_ready: core::option::Option<bool>, model_cost_ready: core::option::Option<bool>, blockers: alloc::vec::Vec<nika_arm::readiness::Blocker>, unknowns: alloc::vec::Vec<alloc::string::String>, document: serde_json::value::Value) -> Self
+pub fn nika_arm::readiness::ProgramFacts::unavailable(kind: &str, message: alloc::string::String) -> Self
+impl core::clone::Clone for nika_arm::readiness::ProgramFacts
+pub fn nika_arm::readiness::ProgramFacts::clone(&self) -> nika_arm::readiness::ProgramFacts
+impl core::cmp::PartialEq for nika_arm::readiness::ProgramFacts
+pub fn nika_arm::readiness::ProgramFacts::eq(&self, other: &nika_arm::readiness::ProgramFacts) -> bool
+impl core::fmt::Debug for nika_arm::readiness::ProgramFacts
+pub fn nika_arm::readiness::ProgramFacts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_arm::readiness::ProgramFacts
+impl<D> owo_colors::OwoColorize for nika_arm::readiness::ProgramFacts
+impl<T, U> core::convert::Into<U> for nika_arm::readiness::ProgramFacts where U: core::convert::From<T>
+pub fn nika_arm::readiness::ProgramFacts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::readiness::ProgramFacts where U: core::convert::Into<T>
+pub type nika_arm::readiness::ProgramFacts::Error = core::convert::Infallible
+pub fn nika_arm::readiness::ProgramFacts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::readiness::ProgramFacts where U: core::convert::TryFrom<T>
+pub type nika_arm::readiness::ProgramFacts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::readiness::ProgramFacts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_arm::readiness::ProgramFacts where T: core::clone::Clone
+pub type nika_arm::readiness::ProgramFacts::Owned = T
+pub fn nika_arm::readiness::ProgramFacts::clone_into(&self, target: &mut T)
+pub fn nika_arm::readiness::ProgramFacts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_arm::readiness::ProgramFacts where T: 'static + ?core::marker::Sized
+pub fn nika_arm::readiness::ProgramFacts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::readiness::ProgramFacts where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ProgramFacts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::readiness::ProgramFacts where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ProgramFacts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_arm::readiness::ProgramFacts where T: core::clone::Clone
+pub unsafe fn nika_arm::readiness::ProgramFacts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_arm::readiness::ProgramFacts
+pub fn nika_arm::readiness::ProgramFacts::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_arm::readiness::ProgramFacts where T: core::clone::Clone
+pub fn nika_arm::readiness::ProgramFacts::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_arm::readiness::ProgramFacts where T: 'static
+pub fn nika_arm::readiness::ProgramFacts::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::readiness::ProgramFacts
+pub type nika_arm::readiness::ProgramFacts::Output = T
+#[non_exhaustive] pub struct nika_arm::readiness::ProjectBinding
+pub nika_arm::readiness::ProjectBinding::label: alloc::string::String
+pub nika_arm::readiness::ProjectBinding::project_file: alloc::string::String
+pub nika_arm::readiness::ProjectBinding::root_fingerprint: core::option::Option<alloc::string::String>
+impl nika_arm::readiness::ProjectBinding
+pub fn nika_arm::readiness::ProjectBinding::new(root_fingerprint: core::option::Option<alloc::string::String>, project_file: alloc::string::String, label: alloc::string::String) -> Self
+impl core::clone::Clone for nika_arm::readiness::ProjectBinding
+pub fn nika_arm::readiness::ProjectBinding::clone(&self) -> nika_arm::readiness::ProjectBinding
+impl core::cmp::Eq for nika_arm::readiness::ProjectBinding
+impl core::cmp::PartialEq for nika_arm::readiness::ProjectBinding
+pub fn nika_arm::readiness::ProjectBinding::eq(&self, other: &nika_arm::readiness::ProjectBinding) -> bool
+impl core::fmt::Debug for nika_arm::readiness::ProjectBinding
+pub fn nika_arm::readiness::ProjectBinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_arm::readiness::ProjectBinding
+impl<D> owo_colors::OwoColorize for nika_arm::readiness::ProjectBinding
+impl<Q, K> equivalent::Equivalent<K> for nika_arm::readiness::ProjectBinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::readiness::ProjectBinding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_arm::readiness::ProjectBinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::readiness::ProjectBinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_arm::readiness::ProjectBinding where U: core::convert::From<T>
+pub fn nika_arm::readiness::ProjectBinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::readiness::ProjectBinding where U: core::convert::Into<T>
+pub type nika_arm::readiness::ProjectBinding::Error = core::convert::Infallible
+pub fn nika_arm::readiness::ProjectBinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::readiness::ProjectBinding where U: core::convert::TryFrom<T>
+pub type nika_arm::readiness::ProjectBinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::readiness::ProjectBinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_arm::readiness::ProjectBinding where T: core::clone::Clone
+pub type nika_arm::readiness::ProjectBinding::Owned = T
+pub fn nika_arm::readiness::ProjectBinding::clone_into(&self, target: &mut T)
+pub fn nika_arm::readiness::ProjectBinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_arm::readiness::ProjectBinding where T: 'static + ?core::marker::Sized
+pub fn nika_arm::readiness::ProjectBinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::readiness::ProjectBinding where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ProjectBinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::readiness::ProjectBinding where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ProjectBinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_arm::readiness::ProjectBinding where T: core::clone::Clone
+pub unsafe fn nika_arm::readiness::ProjectBinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_arm::readiness::ProjectBinding
+pub fn nika_arm::readiness::ProjectBinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_arm::readiness::ProjectBinding where T: core::clone::Clone
+pub fn nika_arm::readiness::ProjectBinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_arm::readiness::ProjectBinding where T: 'static
+pub fn nika_arm::readiness::ProjectBinding::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::readiness::ProjectBinding
+pub type nika_arm::readiness::ProjectBinding::Output = T
+#[non_exhaustive] pub struct nika_arm::readiness::ReceiptIdentity
+pub nika_arm::readiness::ReceiptIdentity::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
+pub nika_arm::readiness::ReceiptIdentity::project: nika_arm::readiness::ProjectBinding
+pub nika_arm::readiness::ReceiptIdentity::snapshot_digest: core::option::Option<alloc::string::String>
+pub nika_arm::readiness::ReceiptIdentity::workflow_sha256: core::option::Option<alloc::string::String>
+impl nika_arm::readiness::ReceiptIdentity
+pub fn nika_arm::readiness::ReceiptIdentity::new(workflow_sha256: core::option::Option<alloc::string::String>, snapshot_digest: core::option::Option<alloc::string::String>, generation: core::option::Option<nika_cadence::firing::ArmGeneration>, project: nika_arm::readiness::ProjectBinding) -> Self
+impl core::clone::Clone for nika_arm::readiness::ReceiptIdentity
+pub fn nika_arm::readiness::ReceiptIdentity::clone(&self) -> nika_arm::readiness::ReceiptIdentity
+impl core::cmp::Eq for nika_arm::readiness::ReceiptIdentity
+impl core::cmp::PartialEq for nika_arm::readiness::ReceiptIdentity
+pub fn nika_arm::readiness::ReceiptIdentity::eq(&self, other: &nika_arm::readiness::ReceiptIdentity) -> bool
+impl core::fmt::Debug for nika_arm::readiness::ReceiptIdentity
+pub fn nika_arm::readiness::ReceiptIdentity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_arm::readiness::ReceiptIdentity
+impl<D> owo_colors::OwoColorize for nika_arm::readiness::ReceiptIdentity
+impl<Q, K> equivalent::Equivalent<K> for nika_arm::readiness::ReceiptIdentity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::readiness::ReceiptIdentity::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_arm::readiness::ReceiptIdentity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::readiness::ReceiptIdentity::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_arm::readiness::ReceiptIdentity where U: core::convert::From<T>
+pub fn nika_arm::readiness::ReceiptIdentity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::readiness::ReceiptIdentity where U: core::convert::Into<T>
+pub type nika_arm::readiness::ReceiptIdentity::Error = core::convert::Infallible
+pub fn nika_arm::readiness::ReceiptIdentity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::readiness::ReceiptIdentity where U: core::convert::TryFrom<T>
+pub type nika_arm::readiness::ReceiptIdentity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::readiness::ReceiptIdentity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_arm::readiness::ReceiptIdentity where T: core::clone::Clone
+pub type nika_arm::readiness::ReceiptIdentity::Owned = T
+pub fn nika_arm::readiness::ReceiptIdentity::clone_into(&self, target: &mut T)
+pub fn nika_arm::readiness::ReceiptIdentity::to_owned(&self) -> T
+impl<T> core::any::Any for nika_arm::readiness::ReceiptIdentity where T: 'static + ?core::marker::Sized
+pub fn nika_arm::readiness::ReceiptIdentity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::readiness::ReceiptIdentity where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ReceiptIdentity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::readiness::ReceiptIdentity where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ReceiptIdentity::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_arm::readiness::ReceiptIdentity where T: core::clone::Clone
+pub unsafe fn nika_arm::readiness::ReceiptIdentity::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_arm::readiness::ReceiptIdentity
+pub fn nika_arm::readiness::ReceiptIdentity::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_arm::readiness::ReceiptIdentity where T: core::clone::Clone
+pub fn nika_arm::readiness::ReceiptIdentity::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_arm::readiness::ReceiptIdentity where T: 'static
+pub fn nika_arm::readiness::ReceiptIdentity::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::readiness::ReceiptIdentity
+pub type nika_arm::readiness::ReceiptIdentity::Output = T
+#[non_exhaustive] pub struct nika_arm::readiness::ScheduleReadinessReceipt<'a>
+impl<'a> nika_arm::readiness::ScheduleReadinessReceipt<'a>
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::assemble(registry: &'a nika_cadence::registry::ArmRegistry, index: usize, now: &jiff::zoned::Zoned, identity: nika_arm::readiness::ReceiptIdentity, program: nika_arm::readiness::ProgramFacts, evidence: core::io::error::Result<nika_arm::state::ArmInspection>) -> core::option::Option<Self>
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::blockers(&self) -> alloc::vec::Vec<nika_arm::readiness::Blocker>
+pub const fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::evidence_refused(&self) -> bool
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::human_lines(&self, slots_shown: usize) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::label(&self) -> &str
+pub const fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::proof(&self) -> nika_arm::readiness::ProofBinding
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::run_ready_now(&self) -> bool
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::status(&self) -> nika_arm::readiness::ReceiptStatus
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::to_json(&self) -> serde_json::value::Value
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::unknowns(&self) -> alloc::vec::Vec<alloc::string::String>
+impl<'a> core::fmt::Debug for nika_arm::readiness::ScheduleReadinessReceipt<'a>
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_arm::readiness::ScheduleReadinessReceipt<'a>
+impl<T, U> core::convert::Into<U> for nika_arm::readiness::ScheduleReadinessReceipt<'a> where U: core::convert::From<T>
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::readiness::ScheduleReadinessReceipt<'a> where U: core::convert::Into<T>
+pub type nika_arm::readiness::ScheduleReadinessReceipt<'a>::Error = core::convert::Infallible
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::readiness::ScheduleReadinessReceipt<'a> where U: core::convert::TryFrom<T>
+pub type nika_arm::readiness::ScheduleReadinessReceipt<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::readiness::ScheduleReadinessReceipt<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::readiness::ScheduleReadinessReceipt<'a> where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::readiness::ScheduleReadinessReceipt<'a> where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::readiness::ScheduleReadinessReceipt<'a>
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::readiness::ScheduleReadinessReceipt<'a> where T: 'static
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::readiness::ScheduleReadinessReceipt<'a>
+pub type nika_arm::readiness::ScheduleReadinessReceipt<'a>::Output = T
+pub const nika_arm::readiness::STATUS_SCOPE: &str
 pub mod nika_arm::resident
 #[non_exhaustive] pub enum nika_arm::resident::ResidentClaimRefusal
 pub nika_arm::resident::ResidentClaimRefusal::Ledger(core::io::error::Error)
@@ -281,6 +612,32 @@ pub use nika_arm::state::LastRecord
 pub use nika_arm::state::Receipt
 pub use nika_arm::state::RecordOutcome
 pub use nika_arm::state::Unsettled
+#[non_exhaustive] pub struct nika_arm::state::ArmInspection
+impl nika_arm::state::ArmInspection
+pub fn nika_arm::state::ArmInspection::folded(&self) -> core::option::Option<&nika_arm::Folded>
+pub fn nika_arm::state::ArmInspection::last(&self) -> core::option::Option<&nika_cadence::ledger::LastRecord>
+pub fn nika_arm::state::ArmInspection::tallies(&self) -> core::option::Option<(usize, usize)>
+impl<D> owo_colors::OwoColorize for nika_arm::state::ArmInspection
+impl<T, U> core::convert::Into<U> for nika_arm::state::ArmInspection where U: core::convert::From<T>
+pub fn nika_arm::state::ArmInspection::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::state::ArmInspection where U: core::convert::Into<T>
+pub type nika_arm::state::ArmInspection::Error = core::convert::Infallible
+pub fn nika_arm::state::ArmInspection::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::state::ArmInspection where U: core::convert::TryFrom<T>
+pub type nika_arm::state::ArmInspection::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::state::ArmInspection::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::state::ArmInspection where T: 'static + ?core::marker::Sized
+pub fn nika_arm::state::ArmInspection::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::state::ArmInspection where T: ?core::marker::Sized
+pub fn nika_arm::state::ArmInspection::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::state::ArmInspection where T: ?core::marker::Sized
+pub fn nika_arm::state::ArmInspection::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::state::ArmInspection
+pub fn nika_arm::state::ArmInspection::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::state::ArmInspection where T: 'static
+pub fn nika_arm::state::ArmInspection::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::state::ArmInspection
+pub type nika_arm::state::ArmInspection::Output = T
 pub struct nika_arm::state::ArmState
 impl nika_arm::state::ArmState
 pub fn nika_arm::state::ArmState::at_project(project_dir: &std::path::Path) -> Self
@@ -297,6 +654,8 @@ pub fn nika_arm::state::ArmState::record_disarm(&self, label: &str, decided_at: 
 pub fn nika_arm::state::ArmState::root(&self) -> &std::path::Path
 pub fn nika_arm::state::ArmState::tallies(&self, label: &str) -> core::option::Option<(usize, usize)>
 pub fn nika_arm::state::ArmState::unsettled(&self, label: &str) -> core::option::Option<impl core::iter::traits::iterator::Iterator<Item = nika_cadence::ledger::Unsettled> + use<>>
+impl nika_arm::state::ArmState
+pub fn nika_arm::state::ArmState::inspect(&self, label: &str, now: &jiff::timestamp::Timestamp) -> core::io::error::Result<nika_arm::state::ArmInspection>
 impl<D> owo_colors::OwoColorize for nika_arm::state::ArmState
 impl<T, U> core::convert::Into<U> for nika_arm::state::ArmState where U: core::convert::From<T>
 pub fn nika_arm::state::ArmState::into(self) -> U
@@ -402,6 +761,148 @@ impl<T> nika_error::traits::AsAny for nika_arm::state::Rotation where T: 'static
 pub fn nika_arm::state::Rotation::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_arm::state::Rotation
 pub type nika_arm::state::Rotation::Output = T
+pub mod nika_arm::unit_io
+#[non_exhaustive] pub struct nika_arm::unit_io::UnitIoError
+impl nika_arm::unit_io::UnitIoError
+pub fn nika_arm::unit_io::UnitIoError::into_message(self) -> alloc::string::String
+pub fn nika_arm::unit_io::UnitIoError::is_input(&self) -> bool
+impl core::error::Error for nika_arm::unit_io::UnitIoError
+impl core::fmt::Debug for nika_arm::unit_io::UnitIoError
+pub fn nika_arm::unit_io::UnitIoError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_arm::unit_io::UnitIoError
+pub fn nika_arm::unit_io::UnitIoError::fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_arm::unit_io::UnitIoError
+impl<T, U> core::convert::Into<U> for nika_arm::unit_io::UnitIoError where U: core::convert::From<T>
+pub fn nika_arm::unit_io::UnitIoError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::unit_io::UnitIoError where U: core::convert::Into<T>
+pub type nika_arm::unit_io::UnitIoError::Error = core::convert::Infallible
+pub fn nika_arm::unit_io::UnitIoError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::unit_io::UnitIoError where U: core::convert::TryFrom<T>
+pub type nika_arm::unit_io::UnitIoError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::unit_io::UnitIoError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_arm::unit_io::UnitIoError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_arm::unit_io::UnitIoError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_arm::unit_io::UnitIoError where T: 'static + ?core::marker::Sized
+pub fn nika_arm::unit_io::UnitIoError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::unit_io::UnitIoError where T: ?core::marker::Sized
+pub fn nika_arm::unit_io::UnitIoError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::unit_io::UnitIoError where T: ?core::marker::Sized
+pub fn nika_arm::unit_io::UnitIoError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::unit_io::UnitIoError
+pub fn nika_arm::unit_io::UnitIoError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::unit_io::UnitIoError where T: 'static
+pub fn nika_arm::unit_io::UnitIoError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::unit_io::UnitIoError
+pub type nika_arm::unit_io::UnitIoError::Output = T
+pub fn nika_arm::unit_io::binary_path(explicit: core::option::Option<&std::path::Path>) -> core::result::Result<std::path::PathBuf, nika_arm::unit_io::UnitIoError>
+pub fn nika_arm::unit_io::destination(target: nika_cadence::emit::Target, explicit: core::option::Option<&std::path::Path>, home: core::option::Option<std::path::PathBuf>) -> core::result::Result<std::path::PathBuf, nika_arm::unit_io::UnitIoError>
+pub fn nika_arm::unit_io::load_commands(units: &[nika_cadence::emit::Unit], target: nika_cadence::emit::Target, dir: core::option::Option<&std::path::Path>) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, nika_arm::unit_io::UnitIoError>
+pub fn nika_arm::unit_io::persist_env_file(root: &std::path::Path, file: &std::path::Path) -> core::result::Result<(), nika_arm::unit_io::UnitIoError>
+pub fn nika_arm::unit_io::resolve_env_file(explicit: core::option::Option<&std::path::Path>, cwd: &std::path::Path, root: &std::path::Path, dest: core::option::Option<&std::path::Path>) -> core::result::Result<core::option::Option<std::path::PathBuf>, nika_arm::unit_io::UnitIoError>
+pub fn nika_arm::unit_io::write_units(dir: &std::path::Path, log_dir: &std::path::Path, units: &[nika_cadence::emit::Unit]) -> core::result::Result<(), nika_arm::unit_io::UnitIoError>
+#[non_exhaustive] pub enum nika_arm::ProofBinding
+pub nika_arm::ProofBinding::CurrentGeneration
+pub nika_arm::ProofBinding::Declared
+pub nika_arm::ProofBinding::HistoricalGeneration
+pub nika_arm::ProofBinding::Legacy
+pub nika_arm::ProofBinding::Refused
+pub nika_arm::ProofBinding::Unattributed
+impl nika_arm::readiness::ProofBinding
+pub const fn nika_arm::readiness::ProofBinding::as_str(self) -> &'static str
+impl core::clone::Clone for nika_arm::readiness::ProofBinding
+pub fn nika_arm::readiness::ProofBinding::clone(&self) -> nika_arm::readiness::ProofBinding
+impl core::cmp::Eq for nika_arm::readiness::ProofBinding
+impl core::cmp::PartialEq for nika_arm::readiness::ProofBinding
+pub fn nika_arm::readiness::ProofBinding::eq(&self, other: &nika_arm::readiness::ProofBinding) -> bool
+impl core::fmt::Debug for nika_arm::readiness::ProofBinding
+pub fn nika_arm::readiness::ProofBinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_arm::readiness::ProofBinding
+impl core::marker::StructuralPartialEq for nika_arm::readiness::ProofBinding
+impl<D> owo_colors::OwoColorize for nika_arm::readiness::ProofBinding
+impl<Q, K> equivalent::Equivalent<K> for nika_arm::readiness::ProofBinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::readiness::ProofBinding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_arm::readiness::ProofBinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::readiness::ProofBinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_arm::readiness::ProofBinding where U: core::convert::From<T>
+pub fn nika_arm::readiness::ProofBinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::readiness::ProofBinding where U: core::convert::Into<T>
+pub type nika_arm::readiness::ProofBinding::Error = core::convert::Infallible
+pub fn nika_arm::readiness::ProofBinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::readiness::ProofBinding where U: core::convert::TryFrom<T>
+pub type nika_arm::readiness::ProofBinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::readiness::ProofBinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_arm::readiness::ProofBinding where T: core::clone::Clone
+pub type nika_arm::readiness::ProofBinding::Owned = T
+pub fn nika_arm::readiness::ProofBinding::clone_into(&self, target: &mut T)
+pub fn nika_arm::readiness::ProofBinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_arm::readiness::ProofBinding where T: 'static + ?core::marker::Sized
+pub fn nika_arm::readiness::ProofBinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::readiness::ProofBinding where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ProofBinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::readiness::ProofBinding where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ProofBinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_arm::readiness::ProofBinding where T: core::clone::Clone
+pub unsafe fn nika_arm::readiness::ProofBinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_arm::readiness::ProofBinding
+pub fn nika_arm::readiness::ProofBinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_arm::readiness::ProofBinding where T: core::clone::Clone
+pub fn nika_arm::readiness::ProofBinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_arm::readiness::ProofBinding where T: 'static
+pub fn nika_arm::readiness::ProofBinding::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_arm::readiness::ProofBinding where T: core::marker::Copy
+pub fn nika_arm::readiness::ProofBinding::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_arm::readiness::ProofBinding
+pub type nika_arm::readiness::ProofBinding::Output = T
+#[non_exhaustive] pub enum nika_arm::ReceiptStatus
+pub nika_arm::ReceiptStatus::Dormant
+pub nika_arm::ReceiptStatus::Ready
+pub nika_arm::ReceiptStatus::Unready
+impl nika_arm::readiness::ReceiptStatus
+pub const fn nika_arm::readiness::ReceiptStatus::as_str(self) -> &'static str
+impl core::clone::Clone for nika_arm::readiness::ReceiptStatus
+pub fn nika_arm::readiness::ReceiptStatus::clone(&self) -> nika_arm::readiness::ReceiptStatus
+impl core::cmp::Eq for nika_arm::readiness::ReceiptStatus
+impl core::cmp::PartialEq for nika_arm::readiness::ReceiptStatus
+pub fn nika_arm::readiness::ReceiptStatus::eq(&self, other: &nika_arm::readiness::ReceiptStatus) -> bool
+impl core::fmt::Debug for nika_arm::readiness::ReceiptStatus
+pub fn nika_arm::readiness::ReceiptStatus::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_arm::readiness::ReceiptStatus
+impl core::marker::StructuralPartialEq for nika_arm::readiness::ReceiptStatus
+impl<D> owo_colors::OwoColorize for nika_arm::readiness::ReceiptStatus
+impl<Q, K> equivalent::Equivalent<K> for nika_arm::readiness::ReceiptStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::readiness::ReceiptStatus::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_arm::readiness::ReceiptStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::readiness::ReceiptStatus::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_arm::readiness::ReceiptStatus where U: core::convert::From<T>
+pub fn nika_arm::readiness::ReceiptStatus::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::readiness::ReceiptStatus where U: core::convert::Into<T>
+pub type nika_arm::readiness::ReceiptStatus::Error = core::convert::Infallible
+pub fn nika_arm::readiness::ReceiptStatus::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::readiness::ReceiptStatus where U: core::convert::TryFrom<T>
+pub type nika_arm::readiness::ReceiptStatus::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::readiness::ReceiptStatus::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_arm::readiness::ReceiptStatus where T: core::clone::Clone
+pub type nika_arm::readiness::ReceiptStatus::Owned = T
+pub fn nika_arm::readiness::ReceiptStatus::clone_into(&self, target: &mut T)
+pub fn nika_arm::readiness::ReceiptStatus::to_owned(&self) -> T
+impl<T> core::any::Any for nika_arm::readiness::ReceiptStatus where T: 'static + ?core::marker::Sized
+pub fn nika_arm::readiness::ReceiptStatus::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::readiness::ReceiptStatus where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ReceiptStatus::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::readiness::ReceiptStatus where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ReceiptStatus::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_arm::readiness::ReceiptStatus where T: core::clone::Clone
+pub unsafe fn nika_arm::readiness::ReceiptStatus::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_arm::readiness::ReceiptStatus
+pub fn nika_arm::readiness::ReceiptStatus::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_arm::readiness::ReceiptStatus where T: core::clone::Clone
+pub fn nika_arm::readiness::ReceiptStatus::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_arm::readiness::ReceiptStatus where T: 'static
+pub fn nika_arm::readiness::ReceiptStatus::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_arm::readiness::ReceiptStatus where T: core::marker::Copy
+pub fn nika_arm::readiness::ReceiptStatus::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_arm::readiness::ReceiptStatus
+pub type nika_arm::readiness::ReceiptStatus::Output = T
 #[non_exhaustive] pub enum nika_arm::ResidentClaimRefusal
 pub nika_arm::ResidentClaimRefusal::Ledger(core::io::error::Error)
 pub nika_arm::ResidentClaimRefusal::LockHeld
@@ -476,6 +977,8 @@ pub fn nika_arm::state::ArmState::record_disarm(&self, label: &str, decided_at: 
 pub fn nika_arm::state::ArmState::root(&self) -> &std::path::Path
 pub fn nika_arm::state::ArmState::tallies(&self, label: &str) -> core::option::Option<(usize, usize)>
 pub fn nika_arm::state::ArmState::unsettled(&self, label: &str) -> core::option::Option<impl core::iter::traits::iterator::Iterator<Item = nika_cadence::ledger::Unsettled> + use<>>
+impl nika_arm::state::ArmState
+pub fn nika_arm::state::ArmState::inspect(&self, label: &str, now: &jiff::timestamp::Timestamp) -> core::io::error::Result<nika_arm::state::ArmInspection>
 impl<D> owo_colors::OwoColorize for nika_arm::state::ArmState
 impl<T, U> core::convert::Into<U> for nika_arm::state::ArmState where U: core::convert::From<T>
 pub fn nika_arm::state::ArmState::into(self) -> U
@@ -497,6 +1000,56 @@ impl<T> nika_error::traits::AsAny for nika_arm::state::ArmState where T: 'static
 pub fn nika_arm::state::ArmState::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_arm::state::ArmState
 pub type nika_arm::state::ArmState::Output = T
+#[non_exhaustive] pub struct nika_arm::Blocker
+pub nika_arm::Blocker::code: core::option::Option<alloc::string::String>
+pub nika_arm::Blocker::kind: alloc::string::String
+pub nika_arm::Blocker::message: alloc::string::String
+pub nika_arm::Blocker::reason: core::option::Option<alloc::string::String>
+pub nika_arm::Blocker::subject: core::option::Option<alloc::string::String>
+impl nika_arm::readiness::Blocker
+pub fn nika_arm::readiness::Blocker::new(kind: impl core::convert::Into<alloc::string::String>, code: core::option::Option<alloc::string::String>, subject: core::option::Option<alloc::string::String>, message: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_arm::readiness::Blocker::with_reason(self, reason: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_arm::readiness::Blocker
+pub fn nika_arm::readiness::Blocker::clone(&self) -> nika_arm::readiness::Blocker
+impl core::cmp::Eq for nika_arm::readiness::Blocker
+impl core::cmp::PartialEq for nika_arm::readiness::Blocker
+pub fn nika_arm::readiness::Blocker::eq(&self, other: &nika_arm::readiness::Blocker) -> bool
+impl core::fmt::Debug for nika_arm::readiness::Blocker
+pub fn nika_arm::readiness::Blocker::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_arm::readiness::Blocker
+impl<D> owo_colors::OwoColorize for nika_arm::readiness::Blocker
+impl<Q, K> equivalent::Equivalent<K> for nika_arm::readiness::Blocker where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::readiness::Blocker::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_arm::readiness::Blocker where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::readiness::Blocker::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_arm::readiness::Blocker where U: core::convert::From<T>
+pub fn nika_arm::readiness::Blocker::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::readiness::Blocker where U: core::convert::Into<T>
+pub type nika_arm::readiness::Blocker::Error = core::convert::Infallible
+pub fn nika_arm::readiness::Blocker::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::readiness::Blocker where U: core::convert::TryFrom<T>
+pub type nika_arm::readiness::Blocker::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::readiness::Blocker::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_arm::readiness::Blocker where T: core::clone::Clone
+pub type nika_arm::readiness::Blocker::Owned = T
+pub fn nika_arm::readiness::Blocker::clone_into(&self, target: &mut T)
+pub fn nika_arm::readiness::Blocker::to_owned(&self) -> T
+impl<T> core::any::Any for nika_arm::readiness::Blocker where T: 'static + ?core::marker::Sized
+pub fn nika_arm::readiness::Blocker::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::readiness::Blocker where T: ?core::marker::Sized
+pub fn nika_arm::readiness::Blocker::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::readiness::Blocker where T: ?core::marker::Sized
+pub fn nika_arm::readiness::Blocker::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_arm::readiness::Blocker where T: core::clone::Clone
+pub unsafe fn nika_arm::readiness::Blocker::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_arm::readiness::Blocker
+pub fn nika_arm::readiness::Blocker::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_arm::readiness::Blocker where T: core::clone::Clone
+pub fn nika_arm::readiness::Blocker::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_arm::readiness::Blocker where T: 'static
+pub fn nika_arm::readiness::Blocker::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::readiness::Blocker
+pub type nika_arm::readiness::Blocker::Output = T
 #[non_exhaustive] pub struct nika_arm::FireCtx
 impl nika_arm::fire::FireCtx
 pub fn nika_arm::fire::FireCtx::into_registry(self) -> nika_cadence::registry::ArmRegistry
@@ -662,6 +1215,147 @@ impl<T> nika_error::traits::AsAny for nika_arm::fire::PreparedRun where T: 'stat
 pub fn nika_arm::fire::PreparedRun::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_arm::fire::PreparedRun
 pub type nika_arm::fire::PreparedRun::Output = T
+#[non_exhaustive] pub struct nika_arm::ProgramFacts
+pub nika_arm::ProgramFacts::blockers: alloc::vec::Vec<nika_arm::readiness::Blocker>
+pub nika_arm::ProgramFacts::document: serde_json::value::Value
+pub nika_arm::ProgramFacts::model_cost_ready: core::option::Option<bool>
+pub nika_arm::ProgramFacts::program_ready: bool
+pub nika_arm::ProgramFacts::required_inputs_ready: core::option::Option<bool>
+pub nika_arm::ProgramFacts::unknowns: alloc::vec::Vec<alloc::string::String>
+impl nika_arm::readiness::ProgramFacts
+pub fn nika_arm::readiness::ProgramFacts::new(program_ready: bool, required_inputs_ready: core::option::Option<bool>, model_cost_ready: core::option::Option<bool>, blockers: alloc::vec::Vec<nika_arm::readiness::Blocker>, unknowns: alloc::vec::Vec<alloc::string::String>, document: serde_json::value::Value) -> Self
+pub fn nika_arm::readiness::ProgramFacts::unavailable(kind: &str, message: alloc::string::String) -> Self
+impl core::clone::Clone for nika_arm::readiness::ProgramFacts
+pub fn nika_arm::readiness::ProgramFacts::clone(&self) -> nika_arm::readiness::ProgramFacts
+impl core::cmp::PartialEq for nika_arm::readiness::ProgramFacts
+pub fn nika_arm::readiness::ProgramFacts::eq(&self, other: &nika_arm::readiness::ProgramFacts) -> bool
+impl core::fmt::Debug for nika_arm::readiness::ProgramFacts
+pub fn nika_arm::readiness::ProgramFacts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_arm::readiness::ProgramFacts
+impl<D> owo_colors::OwoColorize for nika_arm::readiness::ProgramFacts
+impl<T, U> core::convert::Into<U> for nika_arm::readiness::ProgramFacts where U: core::convert::From<T>
+pub fn nika_arm::readiness::ProgramFacts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::readiness::ProgramFacts where U: core::convert::Into<T>
+pub type nika_arm::readiness::ProgramFacts::Error = core::convert::Infallible
+pub fn nika_arm::readiness::ProgramFacts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::readiness::ProgramFacts where U: core::convert::TryFrom<T>
+pub type nika_arm::readiness::ProgramFacts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::readiness::ProgramFacts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_arm::readiness::ProgramFacts where T: core::clone::Clone
+pub type nika_arm::readiness::ProgramFacts::Owned = T
+pub fn nika_arm::readiness::ProgramFacts::clone_into(&self, target: &mut T)
+pub fn nika_arm::readiness::ProgramFacts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_arm::readiness::ProgramFacts where T: 'static + ?core::marker::Sized
+pub fn nika_arm::readiness::ProgramFacts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::readiness::ProgramFacts where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ProgramFacts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::readiness::ProgramFacts where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ProgramFacts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_arm::readiness::ProgramFacts where T: core::clone::Clone
+pub unsafe fn nika_arm::readiness::ProgramFacts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_arm::readiness::ProgramFacts
+pub fn nika_arm::readiness::ProgramFacts::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_arm::readiness::ProgramFacts where T: core::clone::Clone
+pub fn nika_arm::readiness::ProgramFacts::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_arm::readiness::ProgramFacts where T: 'static
+pub fn nika_arm::readiness::ProgramFacts::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::readiness::ProgramFacts
+pub type nika_arm::readiness::ProgramFacts::Output = T
+#[non_exhaustive] pub struct nika_arm::ProjectBinding
+pub nika_arm::ProjectBinding::label: alloc::string::String
+pub nika_arm::ProjectBinding::project_file: alloc::string::String
+pub nika_arm::ProjectBinding::root_fingerprint: core::option::Option<alloc::string::String>
+impl nika_arm::readiness::ProjectBinding
+pub fn nika_arm::readiness::ProjectBinding::new(root_fingerprint: core::option::Option<alloc::string::String>, project_file: alloc::string::String, label: alloc::string::String) -> Self
+impl core::clone::Clone for nika_arm::readiness::ProjectBinding
+pub fn nika_arm::readiness::ProjectBinding::clone(&self) -> nika_arm::readiness::ProjectBinding
+impl core::cmp::Eq for nika_arm::readiness::ProjectBinding
+impl core::cmp::PartialEq for nika_arm::readiness::ProjectBinding
+pub fn nika_arm::readiness::ProjectBinding::eq(&self, other: &nika_arm::readiness::ProjectBinding) -> bool
+impl core::fmt::Debug for nika_arm::readiness::ProjectBinding
+pub fn nika_arm::readiness::ProjectBinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_arm::readiness::ProjectBinding
+impl<D> owo_colors::OwoColorize for nika_arm::readiness::ProjectBinding
+impl<Q, K> equivalent::Equivalent<K> for nika_arm::readiness::ProjectBinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::readiness::ProjectBinding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_arm::readiness::ProjectBinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::readiness::ProjectBinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_arm::readiness::ProjectBinding where U: core::convert::From<T>
+pub fn nika_arm::readiness::ProjectBinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::readiness::ProjectBinding where U: core::convert::Into<T>
+pub type nika_arm::readiness::ProjectBinding::Error = core::convert::Infallible
+pub fn nika_arm::readiness::ProjectBinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::readiness::ProjectBinding where U: core::convert::TryFrom<T>
+pub type nika_arm::readiness::ProjectBinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::readiness::ProjectBinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_arm::readiness::ProjectBinding where T: core::clone::Clone
+pub type nika_arm::readiness::ProjectBinding::Owned = T
+pub fn nika_arm::readiness::ProjectBinding::clone_into(&self, target: &mut T)
+pub fn nika_arm::readiness::ProjectBinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_arm::readiness::ProjectBinding where T: 'static + ?core::marker::Sized
+pub fn nika_arm::readiness::ProjectBinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::readiness::ProjectBinding where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ProjectBinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::readiness::ProjectBinding where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ProjectBinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_arm::readiness::ProjectBinding where T: core::clone::Clone
+pub unsafe fn nika_arm::readiness::ProjectBinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_arm::readiness::ProjectBinding
+pub fn nika_arm::readiness::ProjectBinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_arm::readiness::ProjectBinding where T: core::clone::Clone
+pub fn nika_arm::readiness::ProjectBinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_arm::readiness::ProjectBinding where T: 'static
+pub fn nika_arm::readiness::ProjectBinding::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::readiness::ProjectBinding
+pub type nika_arm::readiness::ProjectBinding::Output = T
+#[non_exhaustive] pub struct nika_arm::ReceiptIdentity
+pub nika_arm::ReceiptIdentity::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
+pub nika_arm::ReceiptIdentity::project: nika_arm::readiness::ProjectBinding
+pub nika_arm::ReceiptIdentity::snapshot_digest: core::option::Option<alloc::string::String>
+pub nika_arm::ReceiptIdentity::workflow_sha256: core::option::Option<alloc::string::String>
+impl nika_arm::readiness::ReceiptIdentity
+pub fn nika_arm::readiness::ReceiptIdentity::new(workflow_sha256: core::option::Option<alloc::string::String>, snapshot_digest: core::option::Option<alloc::string::String>, generation: core::option::Option<nika_cadence::firing::ArmGeneration>, project: nika_arm::readiness::ProjectBinding) -> Self
+impl core::clone::Clone for nika_arm::readiness::ReceiptIdentity
+pub fn nika_arm::readiness::ReceiptIdentity::clone(&self) -> nika_arm::readiness::ReceiptIdentity
+impl core::cmp::Eq for nika_arm::readiness::ReceiptIdentity
+impl core::cmp::PartialEq for nika_arm::readiness::ReceiptIdentity
+pub fn nika_arm::readiness::ReceiptIdentity::eq(&self, other: &nika_arm::readiness::ReceiptIdentity) -> bool
+impl core::fmt::Debug for nika_arm::readiness::ReceiptIdentity
+pub fn nika_arm::readiness::ReceiptIdentity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_arm::readiness::ReceiptIdentity
+impl<D> owo_colors::OwoColorize for nika_arm::readiness::ReceiptIdentity
+impl<Q, K> equivalent::Equivalent<K> for nika_arm::readiness::ReceiptIdentity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::readiness::ReceiptIdentity::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_arm::readiness::ReceiptIdentity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_arm::readiness::ReceiptIdentity::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_arm::readiness::ReceiptIdentity where U: core::convert::From<T>
+pub fn nika_arm::readiness::ReceiptIdentity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::readiness::ReceiptIdentity where U: core::convert::Into<T>
+pub type nika_arm::readiness::ReceiptIdentity::Error = core::convert::Infallible
+pub fn nika_arm::readiness::ReceiptIdentity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::readiness::ReceiptIdentity where U: core::convert::TryFrom<T>
+pub type nika_arm::readiness::ReceiptIdentity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::readiness::ReceiptIdentity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_arm::readiness::ReceiptIdentity where T: core::clone::Clone
+pub type nika_arm::readiness::ReceiptIdentity::Owned = T
+pub fn nika_arm::readiness::ReceiptIdentity::clone_into(&self, target: &mut T)
+pub fn nika_arm::readiness::ReceiptIdentity::to_owned(&self) -> T
+impl<T> core::any::Any for nika_arm::readiness::ReceiptIdentity where T: 'static + ?core::marker::Sized
+pub fn nika_arm::readiness::ReceiptIdentity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::readiness::ReceiptIdentity where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ReceiptIdentity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::readiness::ReceiptIdentity where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ReceiptIdentity::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_arm::readiness::ReceiptIdentity where T: core::clone::Clone
+pub unsafe fn nika_arm::readiness::ReceiptIdentity::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_arm::readiness::ReceiptIdentity
+pub fn nika_arm::readiness::ReceiptIdentity::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_arm::readiness::ReceiptIdentity where T: core::clone::Clone
+pub fn nika_arm::readiness::ReceiptIdentity::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_arm::readiness::ReceiptIdentity where T: 'static
+pub fn nika_arm::readiness::ReceiptIdentity::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::readiness::ReceiptIdentity
+pub type nika_arm::readiness::ReceiptIdentity::Output = T
 pub struct nika_arm::ResidentClaim
 impl nika_arm::resident::ResidentClaim
 pub fn nika_arm::resident::ResidentClaim::settle(self, exit: u8, trace: core::option::Option<alloc::string::String>, decided_at: jiff::timestamp::Timestamp) -> core::io::error::Result<()>
@@ -778,6 +1472,42 @@ impl<T> nika_error::traits::AsAny for nika_arm::fire::RunUpshot where T: 'static
 pub fn nika_arm::fire::RunUpshot::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_arm::fire::RunUpshot
 pub type nika_arm::fire::RunUpshot::Output = T
+#[non_exhaustive] pub struct nika_arm::ScheduleReadinessReceipt<'a>
+impl<'a> nika_arm::readiness::ScheduleReadinessReceipt<'a>
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::assemble(registry: &'a nika_cadence::registry::ArmRegistry, index: usize, now: &jiff::zoned::Zoned, identity: nika_arm::readiness::ReceiptIdentity, program: nika_arm::readiness::ProgramFacts, evidence: core::io::error::Result<nika_arm::state::ArmInspection>) -> core::option::Option<Self>
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::blockers(&self) -> alloc::vec::Vec<nika_arm::readiness::Blocker>
+pub const fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::evidence_refused(&self) -> bool
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::human_lines(&self, slots_shown: usize) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::label(&self) -> &str
+pub const fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::proof(&self) -> nika_arm::readiness::ProofBinding
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::run_ready_now(&self) -> bool
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::status(&self) -> nika_arm::readiness::ReceiptStatus
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::to_json(&self) -> serde_json::value::Value
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::unknowns(&self) -> alloc::vec::Vec<alloc::string::String>
+impl<'a> core::fmt::Debug for nika_arm::readiness::ScheduleReadinessReceipt<'a>
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_arm::readiness::ScheduleReadinessReceipt<'a>
+impl<T, U> core::convert::Into<U> for nika_arm::readiness::ScheduleReadinessReceipt<'a> where U: core::convert::From<T>
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::readiness::ScheduleReadinessReceipt<'a> where U: core::convert::Into<T>
+pub type nika_arm::readiness::ScheduleReadinessReceipt<'a>::Error = core::convert::Infallible
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::readiness::ScheduleReadinessReceipt<'a> where U: core::convert::TryFrom<T>
+pub type nika_arm::readiness::ScheduleReadinessReceipt<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::readiness::ScheduleReadinessReceipt<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::readiness::ScheduleReadinessReceipt<'a> where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::readiness::ScheduleReadinessReceipt<'a> where T: ?core::marker::Sized
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::readiness::ScheduleReadinessReceipt<'a>
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::readiness::ScheduleReadinessReceipt<'a> where T: 'static
+pub fn nika_arm::readiness::ScheduleReadinessReceipt<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::readiness::ScheduleReadinessReceipt<'a>
+pub type nika_arm::readiness::ScheduleReadinessReceipt<'a>::Output = T
+pub const nika_arm::STATUS_SCOPE: &str
 pub fn nika_arm::claim_for_resident(project_root: &std::path::Path, label: &str, slot: &jiff::zoned::Zoned, slot_id: nika_cadence::firing::SlotId, generation: core::option::Option<nika_cadence::firing::ArmGeneration>, pid: u32, now: &jiff::zoned::Zoned) -> core::result::Result<nika_arm::resident::ResidentClaim, nika_arm::resident::ResidentClaimRefusal>
 pub fn nika_arm::fire_beat(ctx: &nika_arm::fire::FireCtx) -> nika_arm::fire::FireVerdict
 pub fn nika_arm::labels(registry: &nika_cadence::registry::ArmRegistry) -> alloc::vec::Vec<alloc::string::String>
