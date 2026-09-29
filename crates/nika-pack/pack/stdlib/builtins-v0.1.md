@@ -534,13 +534,22 @@ agent:
 ```
 The teaching shape is
 [`examples/15-compose-self-check.nika`](../examples/15-compose-self-check.nika).
-The agent loop's self-verification intrinsic · the model passes a workflow
-YAML draft it wrote, and gets the FULL `nika check` verdict back as JSON:
-conformance violations (with codes + repair hints), secret-flow findings,
-permits escapes, and the termination/cost certificate. It **never executes**
-the draft (« generation is not permission » · the draft is an artifact + its
-certificate · running it stays a separate, gated decision). Iterate until
-`valid` is true, then deliver the draft.
+The agent loop's self-check intrinsic: the model passes a complete workflow
+YAML draft and receives its in-memory static report as JSON. `valid` means
+that parsing succeeded and Core conformance has no violations. The report
+also carries counts of secret-flow findings and capability escapes, plus a
+bounded termination/cost certificate summary; those counts do not become an
+execution-admission verdict.
+
+The intrinsic reads no child files and does not resolve the composition
+graph. A draft that names a missing child can therefore have `valid: true`
+here and still fail the file-aware `nika check`. Save the draft and check the
+actual file and its children before presenting it as ready to run.
+
+It **never executes** the draft or grants its effects. Even a valid draft
+that declares filesystem writes performs no write during this self-check.
+Deliver the draft with this limited report; running it remains a separate,
+gated decision (« generation is not permission »).
 
 Loop-served like `nika:done`: **valid only inside an `agent:` tool whitelist**
 (a standalone `invoke: nika:compose` is rejected · `NIKA-BUILTIN-COMPOSE-001`).

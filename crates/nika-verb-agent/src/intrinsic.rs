@@ -4,11 +4,12 @@
 //! Loop intrinsics — capabilities the agent loop serves ITSELF, never
 //! dispatched to the tool executor (ADR-096).
 //!
-//! `nika:compose` lets the model draft a Nika workflow and get the FULL
-//! static verdict back in-turn: parse + Core conformance + the
-//! secret-flow / permits analyses + the AARA cost-and-termination
-//! certificate (`nika-schema::check` — the same ladder `nika check`
-//! runs). The draft never executes here: composition yields an ARTIFACT
+//! `nika:compose` lets the model draft a Nika workflow and get its in-memory
+//! static report back in-turn: Core conformance, secret-flow / permits
+//! counts and the AARA cost-and-termination certificate summary.
+//! `valid` means parsing and Core conformance only. Child files are not
+//! read or resolved: check the saved file and children before claiming it
+//! is ready to run. The draft never executes here: composition yields an ARTIFACT
 //! plus its certificate, and execution stays a separate, gated decision
 //! («generation is not permission» — the Proposal–Certification–
 //! Execution discipline · Liu Yanglet · Wang · Capponi 2026,
@@ -172,11 +173,13 @@ fn typed_done_parameters(schema: &serde_json::Value) -> serde_json::Value {
 fn compose_def() -> ToolDef {
     ToolDef::new(
         COMPOSE_TOOL,
-        "Statically check a Nika workflow draft you wrote. Returns the full \
-         `nika check` verdict as JSON: conformance violations (with codes and \
-         repair hints), secret-flow findings, permits escapes, and the \
-         termination/cost certificate. Iterate until `valid` is true, then \
-         deliver the draft as your result — checking never executes it.",
+        "Check a complete Nika workflow draft in memory. Returns Core conformance \
+         violations, secret-flow and capability-escape counts, and a bounded \
+         termination/cost certificate summary. `valid` means parsing succeeded \
+         and Core conformance has no violations; it does not admit execution. \
+         Child files are not read or resolved. Check the saved file and its \
+         children with `nika check` before claiming it is ready to run. \
+         Deliver the draft with this limited report; checking never executes it.",
         serde_json::json!({
             "type": "object",
             "properties": {
@@ -199,7 +202,7 @@ pub(crate) struct ComposeOutcome {
     pub(crate) violations: u32,
 }
 
-/// Run the compose gate: parse → full static check → JSON feedback.
+/// Run the compose gate: parse → in-memory static report → JSON feedback.
 ///
 /// Returns `(content, is_error, outcome)` — `is_error` follows the
 /// agentic feedback convention (the model treats it as a failed tool and

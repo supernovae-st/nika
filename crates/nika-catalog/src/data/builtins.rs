@@ -40,8 +40,8 @@ pub static ALL_BUILTINS: &[Builtin] = &[
         &["data", "chart", "out"],
     ),
     // `compose` (the agent loop's self-verification intrinsic — checks a
-    // workflow draft the model wrote · `nika check`: conformance +
-    // secret-flow + permits + the AARA certificate · never executes it ·
+    // workflow draft in memory: `valid` covers parsing + Core conformance;
+    // analysis counts and certificate do not admit execution or resolve children ·
     // loop-only + loop-served like `done` · NIKA-BUILTIN-COMPOSE-001 ·
     // ADR-096 · the static sibling of `inspect`'s runtime view).
     Builtin::with_required(
