@@ -35,47 +35,65 @@ pub mod observed {
     }
 
     /// The literals `clause` states that the host observed spelled with other bytes, as
-    /// `(stated, observed)` pairs in the order observed (R4 A11): a canonical form (NFC or NFD)
-    /// of an observed value other than its own bytes, found in `clause` at exact token boundaries
-    /// (neither a letter, a digit nor a combining mark on either side), never a column name, and
-    /// equivalent under [`equivalent_spellings`]. A value only inside another word, a column
-    /// name, or a clause stating the observed bytes themselves binds nothing.
+    /// `(stated, observed)` pairs in the order observed (R4 A11). Each stated value retains
+    /// its actual bytes, including partly composed forms, and is canonically equivalent to
+    /// the observed value. Its exact token boundaries exclude letters, digits and combining
+    /// marks on either side. Column names and byte-identical values bind nothing.
     #[must_use]
     pub fn stated_spellings(
         clause: &str,
         observed: &[String],
         columns: &[String],
     ) -> Vec<(String, String)> {
-        let mut bound = Vec::new();
-        for value in observed {
-            let forms = [
-                value.nfc().collect::<String>(),
-                value.nfd().collect::<String>(),
-            ];
-            let stated = forms.into_iter().find(|form| {
-                !columns.contains(form)
-                    && token(clause, form)
-                    && !equivalent_spellings(form, std::slice::from_ref(value)).is_empty()
-            });
-            if let Some(stated) = stated {
-                bound.push((stated, value.clone()));
-            }
-        }
-        bound
+        observed
+            .iter()
+            .filter_map(|value| {
+                stated(clause, value, columns).map(|literal| (literal.to_owned(), value.clone()))
+            })
+            .collect()
     }
 
-    /// Whether `word` occurs in `text` bounded on both sides by neither a letter, a digit nor a
-    /// combining mark.
-    fn token(text: &str, word: &str) -> bool {
-        let open = |c: Option<char>| {
-            c.is_none_or(|c| {
-                !c.is_alphanumeric() && !unicode_normalization::char::is_combining_mark(c)
-            })
-        };
-        !word.is_empty()
-            && text.match_indices(word).any(|(at, _)| {
-                open(text[..at].chars().next_back()) && open(text[at + word.len()..].chars().next())
-            })
+    /// Find the original span, not just its NFC and NFD renderings. Canonical decomposition
+    /// length bounds the scan: every source character contributes at least one code point,
+    /// and equivalent spans must have the same decomposed length, even when marks reorder.
+    fn stated<'a>(clause: &'a str, observed: &str, columns: &[String]) -> Option<&'a str> {
+        let expected: String = observed.nfd().collect();
+        let limit = expected.chars().count();
+        if limit == 0 {
+            return None;
+        }
+        for (start, _) in clause.char_indices() {
+            if !boundary(clause[..start].chars().next_back()) {
+                continue;
+            }
+            let mut decomposed = 0;
+            for (offset, character) in clause[start..].char_indices() {
+                let mut bytes = [0; 4];
+                decomposed += character.encode_utf8(&mut bytes).nfd().count();
+                if decomposed > limit {
+                    break;
+                }
+                let end = start + offset + character.len_utf8();
+                let literal = &clause[start..end];
+                if decomposed == limit {
+                    if literal != observed
+                        && boundary(clause[end..].chars().next())
+                        && !columns.iter().any(|column| column == literal)
+                        && literal.nfd().eq(expected.chars())
+                    {
+                        return Some(literal);
+                    }
+                    break;
+                }
+            }
+        }
+        None
+    }
+
+    fn boundary(character: Option<char>) -> bool {
+        character.is_none_or(|c| {
+            !c.is_alphanumeric() && !unicode_normalization::char::is_combining_mark(c)
+        })
     }
 }
 

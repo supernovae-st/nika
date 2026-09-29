@@ -203,6 +203,18 @@ observer did not find categorical, stays byte-exact and is not claimed matched. 
 lives in the binding, never in the plan record: a recorded plan replays with the same bytes and
 is expanded again from its fresh observation; a record that carries spellings is refused.
 
+The pure public surface owns the shared relation:
+`surface::observed::equivalent_spellings(literal, observed)` returns observed
+canonical equivalents with different bytes, in observed order. Typed equalities
+and seat-written programs consume this same relation.
+`surface::observed::stated_spellings(clause, observed, columns)` binds each
+observed value to an actual canonically equivalent span of the clause. The span
+keeps its original bytes, including partly composed forms that are neither NFC
+nor NFD; enumerating those two normal forms alone misses valid statements.
+Letters, digits and combining marks cannot adjoin the span, and a column name
+cannot serve as a value. Multiword values remain whole. No case folding,
+compatibility folding, accent stripping, source rewriting or I/O is introduced.
+
 ## One record by identifier
 
 A lookup by a literal identifier (« Look up ticket 42 in ./tickets.json », « find ticket 42 » in
