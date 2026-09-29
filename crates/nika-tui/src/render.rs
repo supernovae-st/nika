@@ -22,21 +22,37 @@ use crate::composer::Composer;
 use crate::model::{Committed, Kind, Presentation, UiState, Waiting};
 use crate::visual::role;
 
-/// The glyph and the style of one kind of block.
-fn face(kind: Kind, color: bool) -> (&'static str, Style) {
+/// The glyph and the style of one kind of block; `ascii` draws the ASCII twin
+/// of each glyph (the theme's glyph column, never the renderer's choice).
+fn face(kind: Kind, color: bool, ascii: bool) -> (&'static str, Style) {
     let dim = role::style(Role::Dim, color);
     let strong = role::style(Role::Strong, color);
+    let pick = |unicode, twin| if ascii { twin } else { unicode };
     match kind {
         Kind::Banner | Kind::Notice => ("", dim),
-        Kind::Human => ("› ", strong),
+        Kind::Human => (pick("› ", "> "), strong),
         Kind::Reply | Kind::Proposal | Kind::Report => ("", Style::default()),
         Kind::Question => ("? ", Style::default()),
         Kind::Run => ("  ", Style::default()),
-        Kind::Gate => ("⏸ ", role::style(Role::Warn, color)),
+        Kind::Gate => (pick("⏸ ", "|| "), role::style(Role::Warn, color)),
         Kind::Result => ("", strong),
-        Kind::Refusal => ("✖ ", role::style(Role::Bad, color)),
+        Kind::Refusal => (pick("✖ ", "x "), role::style(Role::Bad, color)),
     }
 }
+
+/// The renderer's own words in the glyph column in use: under `ascii` its
+/// markers and separators (`›`, `·`, `…`) take their ASCII twins. Only text the
+/// renderer writes goes through here; the Session's words are never rewritten.
+fn own(text: &str, ascii: bool) -> String {
+    if ascii {
+        text.replace('›', ">").replace('·', "-").replace('…', "...")
+    } else {
+        text.to_owned()
+    }
+}
+
+/// The ASCII twin of the loader's orbit, one motion in four frames.
+const ASCII_SPINNER: [char; 4] = ['|', '/', '-', '\\'];
 
 /// The accent a live marker wears: the theme's accent slot, or bold when
 /// colour is off (a weight, never a hue, marks it then).
@@ -50,8 +66,8 @@ fn accent(color: bool) -> Style {
 
 /// The lines of one block, the glyph on its first line only.
 #[must_use]
-pub fn block_lines(block: &Committed, color: bool) -> Vec<Line<'static>> {
-    let (glyph, style) = face(block.kind, color);
+pub fn block_lines(block: &Committed, color: bool, ascii: bool) -> Vec<Line<'static>> {
+    let (glyph, style) = face(block.kind, color, ascii);
     let indent = " ".repeat(glyph.chars().count());
     block
         .text
@@ -83,8 +99,8 @@ pub fn wrapped_rows(lines: &[Line<'_>], width: u16) -> u16 {
 }
 
 /// Draw a block into a buffer (the `insert_before` callback).
-pub fn render_block(block: &Committed, color: bool, buf: &mut Buffer) {
-    Paragraph::new(block_lines(block, color))
+pub fn render_block(block: &Committed, color: bool, ascii: bool, buf: &mut Buffer) {
+    Paragraph::new(block_lines(block, color, ascii))
         .wrap(Wrap { trim: false })
         .render(buf.area, buf);
 }
@@ -118,15 +134,27 @@ fn status_line(state: &UiState) -> Line<'static> {
     let accent = accent(state.color);
     if state.interrupt_armed {
         return Line::from(Span::styled(
-            "interrupted · Ctrl+C again leaves · any key stays",
+            own(
+                "interrupted · Ctrl+C again leaves · any key stays",
+                state.ascii,
+            ),
             accent,
         ));
     }
     if let Some(label) = &state.busy {
         // The marker turns while a turn runs; still (●) under reduced motion.
+        let still = if state.ascii { "* " } else { "● " };
         let marker = state.spinner.map_or_else(
-            || "● ".to_owned(),
-            |f| format!("{} ", SPINNER[usize::from(f) % SPINNER.len()]),
+            || still.to_owned(),
+            |f| {
+                let f = usize::from(f);
+                let frame = if state.ascii {
+                    ASCII_SPINNER[f % ASCII_SPINNER.len()]
+                } else {
+                    SPINNER[f % SPINNER.len()]
+                };
+                format!("{frame} ")
+            },
         );
         Line::from(vec![
             Span::styled(marker, accent),
@@ -138,20 +166,25 @@ fn status_line(state: &UiState) -> Line<'static> {
             Presentation::Inline => "",
             Presentation::Focus => "focus · Esc returns inline · PgUp/PgDn scroll",
         };
+        let mode = own(mode, state.ascii);
+        let sep = own(" · ", state.ascii);
         let text = match (state.status.is_empty(), mode.is_empty()) {
-            (true, _) => mode.to_owned(),
+            (true, _) => mode,
             (false, true) => state.status.clone(),
-            (false, false) => format!("{} · {mode}", state.status),
+            (false, false) => format!("{}{sep}{mode}", state.status),
         };
         Line::from(Span::styled(text, dim))
     }
 }
 
 fn hint_line(state: &UiState) -> Line<'static> {
-    let text = state
-        .completion
-        .clone()
-        .unwrap_or_else(|| state.waiting.hint().to_owned());
+    let text = own(
+        state
+            .completion
+            .as_deref()
+            .unwrap_or_else(|| state.waiting.hint()),
+        state.ascii,
+    );
     Line::from(Span::styled(
         text,
         Style::default().add_modifier(Modifier::DIM),
@@ -186,7 +219,10 @@ pub(crate) fn render_live(frame: &mut Frame<'_>, state: &UiState, composer: &Com
         _ => role::style(Role::Strong, state.color),
     };
     frame.render_widget(
-        Paragraph::new(Line::from(Span::styled(prompt.to_owned(), marker_style))),
+        Paragraph::new(Line::from(Span::styled(
+            own(prompt, state.ascii),
+            marker_style,
+        ))),
         marker,
     );
     composer.render(editor, frame.buffer_mut());
@@ -206,7 +242,7 @@ pub(crate) fn render_transcript(frame: &mut Frame<'_>, state: &UiState, area: Re
     let mut lines: Vec<Line<'static>> = Vec::new();
     let shown = state.transcript.len().saturating_sub(state.focus_scroll);
     for block in state.transcript.iter().take(shown) {
-        lines.extend(block_lines(block, state.color));
+        lines.extend(block_lines(block, state.color, state.ascii));
         lines.push(Line::default());
     }
     let total = wrapped_rows(&lines, area.width);
@@ -231,9 +267,10 @@ pub fn draw_focus(frame: &mut Frame<'_>, state: &UiState, composer: &Composer) {
     ])
     .areas(area);
     render_transcript(frame, state, transcript);
+    let glyph = if state.ascii { "-" } else { "─" };
     frame.render_widget(
         Paragraph::new(Line::from(Span::styled(
-            "─".repeat(usize::from(rule.width)),
+            glyph.repeat(usize::from(rule.width)),
             Style::default().add_modifier(Modifier::DIM),
         ))),
         rule,
@@ -242,6 +279,7 @@ pub fn draw_focus(frame: &mut Frame<'_>, state: &UiState, composer: &Composer) {
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
@@ -272,7 +310,7 @@ mod tests {
     #[test]
     fn a_block_keeps_its_glyph_on_the_first_line_only() {
         let block = Committed::new(Kind::Gate, "write ./digest.md\noverwrite?");
-        let lines = block_lines(&block, false);
+        let lines = block_lines(&block, false, false);
         assert_eq!(lines.len(), 2);
         assert_eq!(lines[0].spans[0].content.as_ref(), "⏸ ");
         assert_eq!(lines[1].spans[0].content.as_ref(), "  ");
@@ -288,9 +326,9 @@ mod tests {
             "alpha bravo charlie delta echo foxtrot échéance alpha bravo charlie delta echo foxtrot\nContinue once? yes / no",
         );
         for width in [12, 20, 40, 80] {
-            let rows = wrapped_rows(&block_lines(&block, false), width);
+            let rows = wrapped_rows(&block_lines(&block, false, false), width);
             let mut buffer = Buffer::empty(Rect::new(0, 0, width, rows));
-            render_block(&block, false, &mut buffer);
+            render_block(&block, false, false, &mut buffer);
             let shown = (0..rows)
                 .map(|y| row(&buffer, y))
                 .collect::<Vec<_>>()
@@ -412,5 +450,67 @@ mod tests {
         composer.paste(&"x".repeat(2000));
         assert_eq!(live_rows(&state, &composer, 80, 24), 12);
         assert_eq!(live_rows(&state, &composer, 80, 4), 3);
+    }
+
+    #[test]
+    fn the_ascii_column_gives_the_renderer_glyphs_their_twins_and_keeps_the_session_words() {
+        let mut state = state_after_demo(Presentation::Focus);
+        state.ascii = true;
+        let composer = Composer::new();
+        let mut terminal = Terminal::new(TestBackend::new(80, 30)).expect("test terminal");
+        terminal
+            .draw(|frame| draw_focus(frame, &state, &composer))
+            .expect("draw");
+        let buffer = terminal.backend().buffer();
+        let rows: Vec<String> = (0..30).map(|y| row(buffer, y)).collect();
+        let find = |needle: &str| rows.iter().position(|r| r.contains(needle));
+        let prompt = find("reply >").expect("the prompt marker in ASCII");
+        let rule = rows
+            .iter()
+            .position(|r| r.starts_with("---"))
+            .expect("rule");
+        for y in [rule, prompt, prompt + 1] {
+            assert!(rows[y].is_ascii(), "row {y}: {:?}", rows[y]);
+        }
+        assert!(find("focus - Esc returns inline").is_some(), "{rows:#?}");
+        assert!(
+            find("answer the question - an empty line").is_some(),
+            "{rows:#?}"
+        );
+        // The Session's own words are never rewritten by the glyph column.
+        assert!(rows.iter().any(|r| r.contains(" · ")), "{rows:#?}");
+        let human = Committed::new(Kind::Human, "digest my notes");
+        let refusal = Committed::new(Kind::Refusal, "not allowed");
+        let gate = Committed::new(Kind::Gate, "approve the write?");
+        let text = |block: &Committed| -> String {
+            block_lines(block, false, true)[0]
+                .spans
+                .iter()
+                .map(|s| s.content.as_ref())
+                .collect()
+        };
+        assert_eq!(text(&human), "> digest my notes");
+        assert_eq!(text(&refusal), "x not allowed");
+        assert_eq!(text(&gate), "|| approve the write?");
+    }
+
+    #[test]
+    fn the_ascii_loader_turns_through_ascii_frames() {
+        let mut state = UiState::new(Presentation::Inline, false, (40, 4));
+        state.ascii = true;
+        state.apply(Beat::Busy("thinking".to_owned()));
+        for frame in 0..8u8 {
+            state.spinner = Some(frame);
+            let line = status_line(&state);
+            let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+            assert!(text.is_ascii() && text.ends_with("thinking"), "{text:?}");
+        }
+        state.spinner = None;
+        let still: String = status_line(&state)
+            .spans
+            .iter()
+            .map(|s| s.content.as_ref())
+            .collect();
+        assert_eq!(still, "* thinking");
     }
 }

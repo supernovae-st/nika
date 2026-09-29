@@ -58,6 +58,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_tui::app::Exit
 impl<T> typenum::type_operators::Same for nika_tui::app::Exit
 pub type nika_tui::app::Exit::Output = T
 #[non_exhaustive] pub struct nika_tui::app::Options
+pub nika_tui::app::Options::ascii: bool
 pub nika_tui::app::Options::color: bool
 pub nika_tui::app::Options::exit_after: core::option::Option<usize>
 pub nika_tui::app::Options::panic_after: core::option::Option<usize>
@@ -896,6 +897,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_tui::model::Turn
 impl<T> typenum::type_operators::Same for nika_tui::model::Turn
 pub type nika_tui::model::Turn::Output = T
 #[non_exhaustive] pub struct nika_tui::model::UiState
+pub nika_tui::model::UiState::ascii: bool
 pub nika_tui::model::UiState::busy: core::option::Option<alloc::string::String>
 pub nika_tui::model::UiState::color: bool
 pub nika_tui::model::UiState::committed_inline: usize
@@ -990,11 +992,11 @@ pub fn nika_tui::session::Live::submit(&mut self, line: &str) -> nika_tui::model
 pub fn nika_tui::session::Live::submit_with(&mut self, line: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>) -> nika_tui::model::Turn
 pub mod nika_tui::render
 pub use nika_tui::render::SPINNER
-pub fn nika_tui::render::block_lines(block: &nika_tui::model::Committed, color: bool) -> alloc::vec::Vec<ratatui_core::text::line::Line<'static>>
+pub fn nika_tui::render::block_lines(block: &nika_tui::model::Committed, color: bool, ascii: bool) -> alloc::vec::Vec<ratatui_core::text::line::Line<'static>>
 pub fn nika_tui::render::draw_focus(frame: &mut ratatui_core::terminal::frame::Frame<'_>, state: &nika_tui::model::UiState, composer: &nika_tui::composer::Composer)
 pub fn nika_tui::render::draw_inline(frame: &mut ratatui_core::terminal::frame::Frame<'_>, state: &nika_tui::model::UiState, composer: &nika_tui::composer::Composer)
 pub fn nika_tui::render::live_rows(state: &nika_tui::model::UiState, composer: &nika_tui::composer::Composer, width: u16, height: u16) -> u16
-pub fn nika_tui::render::render_block(block: &nika_tui::model::Committed, color: bool, buf: &mut ratatui_core::buffer::buffer::Buffer)
+pub fn nika_tui::render::render_block(block: &nika_tui::model::Committed, color: bool, ascii: bool, buf: &mut ratatui_core::buffer::buffer::Buffer)
 pub fn nika_tui::render::wrapped_rows(lines: &[ratatui_core::text::line::Line<'_>], width: u16) -> u16
 pub mod nika_tui::session
 #[non_exhaustive] pub enum nika_tui::session::Work

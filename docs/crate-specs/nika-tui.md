@@ -122,9 +122,14 @@ and the inline presentation and the plain loop are unchanged.
   painted by the same functions as the focus presentation. Beside the object
   a rule column and a blank column separate the panel; under it, the panel's
   title is a rule across. Below 60×16 it draws nothing and returns `false`, so
-  the caller keeps the inline presentation. The live-area rows (status, hint,
-  block glyphs) have no ASCII twins yet: the chrome is ASCII in the ASCII
-  column, the transcript and the live area are not.
+  the caller keeps the inline presentation.
+- The ASCII glyph column is the theme's decision (`--ascii`, CI logs, a legacy
+  console), passed by the CLI door as `app::Options::ascii` and held in
+  `UiState::ascii`. Under it every glyph the renderer writes takes its twin in
+  all three presentations: the block faces (`>`, `||`, `x`), the loader
+  (`| / - \`, `*` when still), the prompt markers, the focus rule and the
+  separators of its own status and hints. The Session's words (replies, the
+  status line, the lifecycle rail) are shown as written, never rewritten.
 
 ## 3. What is ported as is (the map, §5 · planned)
 

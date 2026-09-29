@@ -382,6 +382,7 @@ pub fn run_tui(theme: Theme) -> u8 {
     use nika_tui::session::{Live, Runners};
     let mut options = nika_tui::app::Options::new(nika_tui::model::Presentation::Inline);
     options.color = theme.color;
+    options.ascii = theme.ascii;
     options.term = term_name();
     options.reduced_motion = reduced_motion();
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));

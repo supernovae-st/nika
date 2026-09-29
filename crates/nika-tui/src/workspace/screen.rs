@@ -211,6 +211,8 @@ mod tests {
     /// Draw `screen` at `width` × `height` after the demo exchange.
     fn draw_at(screen: &Screen, width: u16, height: u16, paint: Paint) -> (bool, Vec<String>) {
         let mut state = UiState::new(Presentation::Focus, false, (width, height));
+        // One glyph column for the whole frame: the caller sets both from its theme.
+        state.ascii = paint.ascii;
         let mut script = Script::demo();
         for beat in script.open() {
             state.apply(beat);
@@ -313,7 +315,17 @@ mod tests {
         let title = find(&rows, "[C] release checklist - studio").expect("title");
         let context = find(&rows, "- nothing attached").expect("context row");
         let object = find(&rows, "[W] release.nika").expect("object title");
-        for y in [0, 1, title, context, object, rows.len() - 1] {
+        let prompt = find(&rows, "reply > ").expect("the prompt marker twin");
+        for y in [
+            0,
+            1,
+            title,
+            context,
+            object,
+            prompt,
+            prompt + 1,
+            rows.len() - 1,
+        ] {
             assert!(rows[y].is_ascii(), "row {y}: {}", rows[y]);
         }
         assert!(rows[2].contains('|'), "the aside edge: {}", rows[2]);
