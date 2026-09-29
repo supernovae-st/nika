@@ -4,7 +4,7 @@
 |---|---|
 | Status | **CANDIDATE** — Gate 1 (this document) authored 2026-08-11. Crafted shim-standalone (50 tests today, 45 at authoring · clippy 0 `-D warnings` · rustfmt clean) · committed with the temporary `[workspace]` shim (`92a0f8497`), then the four pre-freeze corrections of plan §2unvicies (the bitset's ONE encoding · `Slot` declares the DST shift · the field count is the type · the error span). The two items this row used to name (the allowlist row, the shim removal) are BOTH DONE; the row described work already shipped. Remaining before admission, measured 2026-08-13: the Gate 11 P1 below, and Gate 5 at 88 percent against a 90 floor. **W1, measured 2026-08-19**: 79 tests green (`cargo test -p nika-cadence --lib`) · `Cadence::prev_before` (the mirror, 366-day bound) · the `due` planner (`due` · `earliest_next` · `DueKind` · `ON_TIME_WINDOW`) — the pure half the `fire`/`serve` edges read. The L4 `emit` adapter and resident `serve` consumer are now landed (see §3). Gate 5 re-run this wave; the floor holds ≥90. |
 | Layer | L0 — pure, zero I/O, zero async |
-| Design | The arming-registry grammar (the `arm:` block of `nika.yaml`, D-2026-08-10-N3) + the pure next-slot calculator + the W7 typed firing and ledger machines + the named-beat tick classifier (`tick_decision` · `TickDecision` · `v0_unsupported`). Hand-counted 5-field cron (zero cron library — the count is validated BEFORE field semantics, scar #6) · IANA zones resolved from the EMBEDDED tzdb only (`jiff-tzdb`, never the host's zoneinfo) · two cadence forms (cron + readable `lundi 9h07`), display normalizing to the readable one. The machines own no I/O and read no clock: callers inject events, policy, `now`, and borrowed journal text; the L4 adapter alone owns files, locks, fsync, and rotation. |
+| Design | The arming-registry grammar (the `arm:` block of `nika.yaml`, D-2026-08-10-N3) + the pure next-slot calculator + the W7 typed firing and ledger machines + the named-beat tick classifier (`tick_decision` · `TickDecision` · `v0_unsupported`). Hand-counted 5-field cron (zero cron library — the count is validated BEFORE field semantics, scar #6) · IANA zones resolved from the EMBEDDED tzdb only (`jiff-tzdb`, never the host's zoneinfo) · three cadence forms (cron, with `L` for the last day of a month · readable `lundi 9h07` · the anchored interval `every N weeks from DATE HH:MM`), display normalizing a single weekly slot to the readable one. The machines own no I/O and read no clock: callers inject events, policy, `now`, and borrowed journal text; the L4 adapter alone owns files, locks, fsync, and rotation. |
 | LOC budget | ≤5,000 src prod (W7 measured 4,623 after the complete pure ledger/snapshot seam) · ≤15,000 hard cap |
 | File cap | ≤1,500 LOC each (`ledger.rs` remains below 1,500 after W04 identity wiring; execution-link and projection codecs are split into focused submodules; `firing.rs` 1,372) |
 | Function cap | ≤100 lines each (max ~60) |
@@ -65,6 +65,30 @@ there: two readers of one file must never disagree about a key only one
 of them owns (2026-08-18 — refused here as « round 2 », the starter's
 own `traces:` line made `nika arm` refuse a shipped key).
 
+Two forms no plain cron can say were added on 2026-09-29, both under the
+law « never approximated »:
+
+- **The last day of a month** · the whole day-of-month field is `L`
+  (`TZ=Europe/Paris 0 9 L * *`): the 28th, 29th, 30th or 31st, whichever
+  ends that month in that year, in the months the month field keeps.
+  `CronSpec::dom_last()` says it and the `dom` bitset holds the superset
+  `28-31`, so `L` is not a spelling of `28-31` and the two beats differ.
+  `L` mixed with other days (`1,L`, `L-2`, `LW`, `L/2`) or written `l` is
+  refused by name (`cadence.field-syntax` on the day token), and `L` beside a
+  restricted weekday is the Vixie OR refusal. systemd says it exactly
+  (`OnCalendar=*-*~01 …`); launchd wakes on the superset and the firer
+  keeps only the real last day.
+- **The anchored interval** · `every <N> week|weeks from <YYYY-MM-DD>
+  <H:MM|HH:MM>`, `N` in `1..=52` (`Cadence::Every { tz, anchor, weeks }`):
+  the slots are the anchor plus whole `N`-week periods in civil time, each
+  resolved by N1, never before the anchor. The anchor is REQUIRED: it
+  carries which week is on, so « every other week » without it is refused,
+  never guessed (`cadence.phrase-syntax`; a period outside `1..=52` is
+  `cadence.field-range`). The walk is a period count, not a day loop. Both
+  OS targets wake weekly on the anchor's weekday and time; on an off week
+  the firer finds the on-week slot already claimed and skips without a
+  journal line. `describe()` prints the canonical form, which parses back.
+
 It does **not** own: filesystem access (the L4 edge reads the bytes,
 this layer reads the text — a workflow's EXISTENCE is judged there,
 its SHAPE here) · clocks (trap ①: the kernel `Clock` trait has no civil
@@ -111,7 +135,9 @@ due in; 366-day walk; the gap's advanced slot is never RETURNED —
 readable form wins, full fields print `*` — the bitset's one
 encoding) · `next::next_slots(&Cadence, &Zoned, usize) -> impl
 Iterator<Item = Slot>` · `ArmRegistry::{SCHEMA, beats, beat_count}` ·
-`Beat::{locus, overlap, after_skip, is_active}` · `CronSpec` field
+`Beat::{locus, overlap, after_skip, is_active}` · `Cadence::tz()` (the
+zone of a clock cadence, `None` for a webhook) · `CronSpec::dom_last()`
+(the month-end flag beside its `28-31` superset) · `CronSpec` field
 accessors handing out `Field<LO, HI>` (the bitset: `contains` ·
 `iter` — double-ended since W1, the backwards walk rides `.rev()` —
 `single` · `is_full` · 8 bytes · `Copy` · zero alloc) ·
@@ -176,6 +202,17 @@ every fold or write, so archive alteration, reordering, insertion, and deletion
 all fail closed.
 
 ## 4. Tests
+
+The two later forms carry their own module (`tests/forms.rs`, 2026-09-29):
+the month end over 28/29/30/31-day months, leap and century years, the
+month field, the mirror, a month end on a change day (the 2024-03-31 gap
+and the 2021-10-31 fold), the round trip and every refused spelling; the
+anchored interval from before and at its anchor, the off week, a change
+crossed in civil time, `N` = 1 and 52, thirty periods walked, the mirror
+never before the anchor, an anchor in a gap, and its refusals; the OS units
+(systemd `~01`, the launchd superset, the weekly wake) and the firer's fold
+(four month-end wakes give one fire, off-week wakes never fire, across a
+change); both forms canonical in a schedule and planned.
 
 79 today (W1, 2026-08-19 — 50 before the wave; the planner and the
 mirror added the rest), 45 at authoring (the four pre-freeze corrections added five that

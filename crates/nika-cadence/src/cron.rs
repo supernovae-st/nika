@@ -107,6 +107,12 @@ impl<const LO: u8, const HI: u8> Field<LO, HI> {
 /// The five cron fields — one bitset each, 40 bytes, `Copy`, zero alloc.
 /// Every field carries ALL its values (`*` is all bits set): matching is
 /// five `contains`, with no empty-means-all special case.
+///
+/// One day no bitset can hold: the LAST day of a month (`L`), which is the
+/// 28th, 29th, 30th or 31st depending on the month and the year. `dom_last`
+/// says it; the `dom` bitset then holds the superset `28-31` (what an OS
+/// unit that cannot say `L` wakes on) and `covers` keeps only the real last
+/// day. Never approximated: `L` is not a spelling of `28-31`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct CronSpec {
@@ -115,6 +121,7 @@ pub struct CronSpec {
     dom: Field<1, 31>,
     months: Field<1, 12>,
     dow: Field<0, 6>,
+    dom_last: bool,
 }
 
 impl CronSpec {
@@ -148,6 +155,14 @@ impl CronSpec {
         &self.dow
     }
 
+    /// `L` in the day-of-month field: the last civil day of each month the
+    /// month field keeps. The [`dom`](Self::dom) bitset then holds the
+    /// superset `28-31`, never the answer.
+    #[must_use]
+    pub fn dom_last(&self) -> bool {
+        self.dom_last
+    }
+
     /// Build from already-validated fields (the readable form's path).
     pub(crate) fn weekly(hour: u8, minute: u8, weekday: u8) -> Self {
         let mut minutes = Field::empty();
@@ -162,6 +177,7 @@ impl CronSpec {
             dom: Field::full(),
             months: Field::full(),
             dow,
+            dom_last: false,
         }
     }
 
@@ -175,6 +191,9 @@ impl CronSpec {
             return false;
         };
         if !self.months.contains(month) || !self.dom.contains(day) {
+            return false;
+        }
+        if self.dom_last && date.day() != date.days_in_month() {
             return false;
         }
         // jiff offsets Sunday at 1 — this grammar NAMES Sunday at 0.
@@ -217,7 +236,7 @@ const DOW_NAMES: [(&str, u8); 7] = [
 pub(crate) fn parse_cron_fields(tokens: &[&str; 5]) -> Result<CronSpec, CadenceError> {
     let minutes = parse_field(tokens[0], &[], "minute")?;
     let hours = parse_field(tokens[1], &[], "heure")?;
-    let dom = parse_field(tokens[2], &[], "jour-du-mois")?;
+    let (dom, dom_last) = parse_dom(tokens[2])?;
     let months = parse_field(tokens[3], &MONTH_NAMES, "mois")?;
     let dow7: Field<0, 7> = parse_field(tokens[4], &DOW_NAMES, "jour-de-semaine")?;
     // 7 is dimanche — folded into 0, the NAMED origin.
@@ -260,7 +279,32 @@ pub(crate) fn parse_cron_fields(tokens: &[&str; 5]) -> Result<CronSpec, CadenceE
         dom,
         months,
         dow,
+        dom_last,
     })
+}
+
+/// The day-of-month field: `L` alone is the last day of the month (the
+/// superset `28-31` in the bitset, `true` beside it); any other token
+/// holding an `L` is refused by name. `1,L`, `L-2`, `LW` and `L/2` are
+/// other schedulers' dialects, each with its own meaning: accepting one
+/// here would be a guess.
+fn parse_dom(text: &str) -> Result<(Field<1, 31>, bool), CadenceError> {
+    if text == "L" {
+        let mut dom = Field::empty();
+        set_range(&mut dom, 28, 31, 1);
+        return Ok((dom, true));
+    }
+    if text.contains(['L', 'l']) {
+        return Err(CadenceError::file(
+            CadenceErrorKind::FieldSyntax,
+            format!(
+                "day-of-month `{text}`: `L` (the last day of the month) stands alone, in capitals"
+            ),
+            "Write `L` alone for the last day of each month, for example `TZ=Europe/Paris 0 9 L * *`; `1,L`, `L-2`, `LW` and `L/2` are not this grammar",
+        )
+        .on_field("jour-du-mois"));
+    }
+    Ok((parse_field(text, &[], "jour-du-mois")?, false))
 }
 
 /// The longest day a month can have, ever.

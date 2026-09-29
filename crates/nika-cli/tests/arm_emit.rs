@@ -729,3 +729,94 @@ fn systemd_units_verify_or_skip_absent() {
         String::from_utf8_lossy(&result.stderr)
     );
 }
+
+/// The month end and the anchored interval on the real systemd: the
+/// emitted pairs verify, and the month end's `OnCalendar=` (read back from
+/// the timer the verb wrote) elapses on the last day of each month by
+/// systemd's own calendar, never on a 28-31 guess. Skipped, by name, when
+/// the tool is absent.
+#[cfg(target_os = "linux")]
+#[test]
+fn systemd_speaks_the_month_end_and_the_interval_or_skips_absent() {
+    if Command::new("systemd-analyze")
+        .arg("--version")
+        .output()
+        .is_err()
+    {
+        eprintln!(
+            "SKIP systemd_speaks_the_month_end_and_the_interval_or_skips_absent · systemd-analyze absent"
+        );
+        return;
+    }
+    let registry = concat!(
+        "nika: proj\narm:\n",
+        "  - workflow: workflows/close.nika\n    cadence: \"TZ=UTC 0 9 L * *\"\n",
+        "    plafond: 0.05\n    manqué: sauter\n",
+        "  - workflow: workflows/sprint.nika\n",
+        "    cadence: \"TZ=UTC every 2 weeks from 2026-10-05 09:00\"\n",
+        "    plafond: 0.05\n    manqué: sauter\n",
+    );
+    let dir = project("forms", registry);
+    let home = home(&dir);
+    let out_dir = dir.join("units");
+    let out = arm(
+        &dir,
+        &home,
+        &[
+            "arm",
+            "--emit",
+            "systemd",
+            "--write",
+            "--out",
+            out_dir.to_str().expect("utf8"),
+        ],
+    );
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let mut entries: Vec<PathBuf> = std::fs::read_dir(&out_dir)
+        .expect("units dir")
+        .filter_map(std::result::Result::ok)
+        .map(|e| e.path())
+        .collect();
+    entries.sort();
+    assert_eq!(entries.len(), 4, "two timer/service pairs");
+    let verify = Command::new("systemd-analyze")
+        .arg("verify")
+        .args(&entries)
+        .output()
+        .expect("systemd-analyze verify");
+    assert!(
+        verify.status.success(),
+        "systemd-analyze verify: {}{}",
+        String::from_utf8_lossy(&verify.stdout),
+        String::from_utf8_lossy(&verify.stderr)
+    );
+    let timer = std::fs::read_to_string(out_dir.join("nika.arm.close.timer")).expect("timer");
+    let calendar = timer
+        .lines()
+        .find_map(|line| line.strip_prefix("OnCalendar="))
+        .expect("OnCalendar=");
+    assert_eq!(calendar, "*-*~01 09:00:00 UTC");
+    let elapses = Command::new("systemd-analyze")
+        .args(["calendar", "--iterations=13", calendar])
+        .output()
+        .expect("systemd-analyze calendar");
+    let text = String::from_utf8_lossy(&elapses.stdout);
+    let days: Vec<jiff::civil::Date> = text
+        .lines()
+        .filter(|line| line.contains("Next elapse:") || line.contains("Iter. #"))
+        .filter_map(|line| line.split_whitespace().find_map(|w| w.parse().ok()))
+        .collect();
+    assert_eq!(days.len(), 13, "thirteen elapses: {text}");
+    for day in days {
+        assert_eq!(
+            day.day(),
+            day.days_in_month(),
+            "{day} is not a month end: {text}"
+        );
+    }
+}

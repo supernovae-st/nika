@@ -500,3 +500,39 @@ fn a_cadence_change_leaves_the_earlier_record_unattributed() {
     );
     assert!(!moved.human_lines(3).join("\n").contains("PROUVÉ"));
 }
+
+/// The two later cadence forms are clocks like a cron: an anchored
+/// interval and a month end report their zone and their next fire, never
+/// the webhook unknown.
+#[test]
+fn an_anchored_interval_and_a_month_end_read_as_clocks() {
+    for (cadence, now, next) in [
+        (
+            "TZ=Europe/Paris every 2 weeks from 2026-10-05 09:00",
+            "2026-10-06T00:00:00Z",
+            "2026-10-19T09:00:00+02:00[Europe/Paris]",
+        ),
+        (
+            "TZ=Europe/Paris 0 9 L * *",
+            "2026-10-06T00:00:00Z",
+            "2026-10-31T09:00:00+01:00[Europe/Paris]",
+        ),
+    ] {
+        let source = format!(
+            "nika: proj\narm:\n  - workflow: {WORKFLOW}\n    cadence: \"{cadence}\"\n    plafond: 0.05\n{SAUTER}"
+        );
+        let registry = nika_cadence::parse_registry(&source).expect("parse");
+        assert!(
+            nika_cadence::validate(&registry).next().is_none(),
+            "{cadence}"
+        );
+        let dir = project("forms");
+        let doc = receipt(&registry, dir.path(), now, ready()).to_json();
+        assert_eq!(doc["timezone"]["zone"], "Europe/Paris", "{cadence}: {doc}");
+        assert_eq!(doc["next_fire"], next, "{cadence}: {doc}");
+        assert!(
+            !doc.to_string().contains("on-webhook"),
+            "{cadence} is a clock: {doc}"
+        );
+    }
+}

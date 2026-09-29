@@ -80,7 +80,7 @@ pub struct Slot {
 ///
 /// `None` only when the tzdb itself cannot disambiguate (never in
 /// practice — a fold always has two sides and a gap is bounded).
-fn resolve(civil: DateTime, tz: &TimeZone) -> Option<Slot> {
+pub(crate) fn resolve(civil: DateTime, tz: &TimeZone) -> Option<Slot> {
     let amb = tz.to_ambiguous_zoned(civil);
     if !amb.is_ambiguous() {
         return Some(Slot {
@@ -132,6 +132,10 @@ impl Cadence {
                 let zone = bundled_tz(tz)?;
                 spec.next_after(&zone, from)
             }
+            Self::Every { tz, anchor, weeks } => {
+                let zone = bundled_tz(tz)?;
+                crate::every::next_after(&zone, *anchor, *weeks, from)
+            }
         }
     }
 
@@ -153,6 +157,10 @@ impl Cadence {
             Self::Cron { tz, spec } => {
                 let zone = bundled_tz(tz)?;
                 spec.prev_before(&zone, from)
+            }
+            Self::Every { tz, anchor, weeks } => {
+                let zone = bundled_tz(tz)?;
+                crate::every::prev_before(&zone, *anchor, *weeks, from)
             }
         }
     }

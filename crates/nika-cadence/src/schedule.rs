@@ -12,9 +12,9 @@ use std::collections::BTreeMap;
 use jiff::Timestamp;
 use nika_error::prelude::{NikaCode, NikaErrorCode, codes};
 
-use crate::cron::Field;
 use crate::firing::{quoted, sha256_hex};
 use crate::parse::{valid_tolerance, valid_workflow_path};
+use crate::phrase::{show_dom, show_field};
 use crate::registry::{AfterSkip, Beat, Cadence, Locus, MissPolicy, Overlap};
 
 pub const MAX_SCHEDULE_ID_BYTES: usize = 255;
@@ -145,7 +145,7 @@ impl ScheduleDraft {
             .map_err(|error| ScheduleFinding::from_cadence(&error))?
         {
             Cadence::Webhook => ScheduleWhenDraft::Webhook,
-            Cadence::Cron { .. } => ScheduleWhenDraft::Cadence {
+            Cadence::Cron { .. } | Cadence::Every { .. } => ScheduleWhenDraft::Cadence {
                 expression: beat.cadence.clone(),
             },
         };
@@ -594,6 +594,9 @@ fn validate_when(when: ScheduleWhenDraft) -> Result<ScheduleWhen, ScheduleFindin
                 Cadence::Cron { tz, spec } => Ok(ScheduleWhen::Cadence {
                     expression: canonical_cadence(&tz, &spec),
                 }),
+                every @ Cadence::Every { .. } => Ok(ScheduleWhen::Cadence {
+                    expression: every.describe(),
+                }),
             }
         }
         ScheduleWhenDraft::Webhook => Ok(ScheduleWhen::Webhook),
@@ -603,23 +606,12 @@ fn validate_when(when: ScheduleWhenDraft) -> Result<ScheduleWhen, ScheduleFindin
 fn canonical_cadence(tz: &str, spec: &crate::CronSpec) -> String {
     format!(
         "TZ={tz} {} {} {} {} {}",
-        canonical_field(*spec.minutes()),
-        canonical_field(*spec.hours()),
-        canonical_field(*spec.dom()),
-        canonical_field(*spec.months()),
-        canonical_field(*spec.dow())
+        show_field(*spec.minutes()),
+        show_field(*spec.hours()),
+        show_dom(spec),
+        show_field(*spec.months()),
+        show_field(*spec.dow())
     )
-}
-
-fn canonical_field<const LO: u8, const HI: u8>(field: Field<LO, HI>) -> String {
-    if field.is_full() {
-        return "*".to_owned();
-    }
-    field
-        .iter()
-        .map(|v| v.to_string())
-        .collect::<Vec<_>>()
-        .join(",")
 }
 
 const fn miss_word(v: MissPolicy) -> &'static str {

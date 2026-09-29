@@ -267,11 +267,19 @@ pub fn render(
                 arrives: arrives.to_owned(),
             });
         }
-        let Cadence::Cron { tz, spec } = &cadence else {
-            return Err(EmitRefusal::Webhook {
-                beat: label.clone(),
-            });
+        // The anchored interval wakes weekly on its anchor's weekday and
+        // time (no OS calendar says « every other week »): on an off week
+        // the firer finds the on-week slot already claimed and skips.
+        let (tz, spec) = match &cadence {
+            Cadence::Cron { tz, spec } => (tz, *spec),
+            Cadence::Every { tz, anchor, .. } => (tz, crate::every::weekly_wake(*anchor)),
+            _ => {
+                return Err(EmitRefusal::Webhook {
+                    beat: label.clone(),
+                });
+            }
         };
+        let spec = &spec;
         match target {
             Target::Launchd => {
                 if tz != &ctx.machine_tz {

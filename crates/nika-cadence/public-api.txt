@@ -3,6 +3,7 @@ pub mod nika_cadence::cron
 #[non_exhaustive] pub struct nika_cadence::cron::CronSpec
 impl nika_cadence::cron::CronSpec
 pub fn nika_cadence::cron::CronSpec::dom(&self) -> &nika_cadence::cron::Field<1, 31>
+pub fn nika_cadence::cron::CronSpec::dom_last(&self) -> bool
 pub fn nika_cadence::cron::CronSpec::dow(&self) -> &nika_cadence::cron::Field<0, 6>
 pub fn nika_cadence::cron::CronSpec::hours(&self) -> &nika_cadence::cron::Field<0, 23>
 pub fn nika_cadence::cron::CronSpec::minutes(&self) -> &nika_cadence::cron::Field<0, 59>
@@ -1507,6 +1508,10 @@ pub type nika_cadence::registry::AfterSkip::Output = T
 pub nika_cadence::registry::Cadence::Cron
 pub nika_cadence::registry::Cadence::Cron::spec: nika_cadence::cron::CronSpec
 pub nika_cadence::registry::Cadence::Cron::tz: alloc::string::String
+pub nika_cadence::registry::Cadence::Every
+pub nika_cadence::registry::Cadence::Every::anchor: jiff::civil::datetime::DateTime
+pub nika_cadence::registry::Cadence::Every::tz: alloc::string::String
+pub nika_cadence::registry::Cadence::Every::weeks: u8
 pub nika_cadence::registry::Cadence::Webhook
 impl nika_cadence::registry::Cadence
 pub fn nika_cadence::registry::Cadence::describe(&self) -> alloc::string::String
@@ -1515,6 +1520,8 @@ pub fn nika_cadence::registry::Cadence::next_after(&self, from: &jiff::zoned::Zo
 pub fn nika_cadence::registry::Cadence::prev_before(&self, from: &jiff::zoned::Zoned) -> core::option::Option<nika_cadence::next::Slot>
 impl nika_cadence::registry::Cadence
 pub fn nika_cadence::registry::Cadence::parse(raw: &str) -> core::result::Result<Self, nika_cadence::error::CadenceError>
+impl nika_cadence::registry::Cadence
+pub fn nika_cadence::registry::Cadence::tz(&self) -> core::option::Option<&str>
 impl core::clone::Clone for nika_cadence::registry::Cadence
 pub fn nika_cadence::registry::Cadence::clone(&self) -> nika_cadence::registry::Cadence
 impl core::cmp::Eq for nika_cadence::registry::Cadence
@@ -2713,6 +2720,10 @@ pub type nika_cadence::registry::AfterSkip::Output = T
 pub nika_cadence::Cadence::Cron
 pub nika_cadence::Cadence::Cron::spec: nika_cadence::cron::CronSpec
 pub nika_cadence::Cadence::Cron::tz: alloc::string::String
+pub nika_cadence::Cadence::Every
+pub nika_cadence::Cadence::Every::anchor: jiff::civil::datetime::DateTime
+pub nika_cadence::Cadence::Every::tz: alloc::string::String
+pub nika_cadence::Cadence::Every::weeks: u8
 pub nika_cadence::Cadence::Webhook
 impl nika_cadence::registry::Cadence
 pub fn nika_cadence::registry::Cadence::describe(&self) -> alloc::string::String
@@ -2721,6 +2732,8 @@ pub fn nika_cadence::registry::Cadence::next_after(&self, from: &jiff::zoned::Zo
 pub fn nika_cadence::registry::Cadence::prev_before(&self, from: &jiff::zoned::Zoned) -> core::option::Option<nika_cadence::next::Slot>
 impl nika_cadence::registry::Cadence
 pub fn nika_cadence::registry::Cadence::parse(raw: &str) -> core::result::Result<Self, nika_cadence::error::CadenceError>
+impl nika_cadence::registry::Cadence
+pub fn nika_cadence::registry::Cadence::tz(&self) -> core::option::Option<&str>
 impl core::clone::Clone for nika_cadence::registry::Cadence
 pub fn nika_cadence::registry::Cadence::clone(&self) -> nika_cadence::registry::Cadence
 impl core::cmp::Eq for nika_cadence::registry::Cadence
@@ -3996,6 +4009,7 @@ pub type nika_cadence::ledger::Claim::Output = T
 #[non_exhaustive] pub struct nika_cadence::CronSpec
 impl nika_cadence::cron::CronSpec
 pub fn nika_cadence::cron::CronSpec::dom(&self) -> &nika_cadence::cron::Field<1, 31>
+pub fn nika_cadence::cron::CronSpec::dom_last(&self) -> bool
 pub fn nika_cadence::cron::CronSpec::dow(&self) -> &nika_cadence::cron::Field<0, 6>
 pub fn nika_cadence::cron::CronSpec::hours(&self) -> &nika_cadence::cron::Field<0, 23>
 pub fn nika_cadence::cron::CronSpec::minutes(&self) -> &nika_cadence::cron::Field<0, 59>

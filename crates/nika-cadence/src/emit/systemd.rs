@@ -32,7 +32,9 @@ fn list<const LO: u8, const HI: u8>(field: Field<LO, HI>) -> String {
 }
 
 /// The `OnCalendar=` value: `[<dow> ]*-<months>-<dom> <hours>:<minutes>:00 <tz>`.
-/// Seconds are always `00` — the grammar's fields stop at the minute.
+/// Seconds are always `00` — the grammar's fields stop at the minute. The
+/// month's last day is systemd's own `~01` (systemd.time(7): `~` counts
+/// the days from the end of the month), exact, never the `28-31` superset.
 fn on_calendar(tz: &str, spec: &CronSpec) -> String {
     let dow = if spec.dow().is_full() {
         String::new()
@@ -45,10 +47,13 @@ fn on_calendar(tz: &str, spec: &CronSpec) -> String {
             .join(",");
         format!("{days} ")
     };
+    let day = if spec.dom_last() {
+        format!("{}~01", list(*spec.months()))
+    } else {
+        format!("{}-{}", list(*spec.months()), list(*spec.dom()))
+    };
     format!(
-        "{dow}*-{}-{} {}:{}:00 {tz}",
-        list(*spec.months()),
-        list(*spec.dom()),
+        "{dow}*-{day} {}:{}:00 {tz}",
         list(*spec.hours()),
         list(*spec.minutes())
     )

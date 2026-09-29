@@ -675,7 +675,7 @@ fn schedule_side(beat: &Beat, cadence: Option<&Cadence>, now: &Zoned) -> Schedul
             ));
             None
         }
-        Some(Cadence::Cron { tz, .. }) => Some(tz.clone()),
+        Some(Cadence::Cron { tz, .. } | Cadence::Every { tz, .. }) => Some(tz.clone()),
         Some(_) => {
             unknowns.push(
                 "cadence on-webhook: its event route fires it, never the clock (not observed)"
