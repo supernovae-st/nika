@@ -1034,7 +1034,7 @@ fn the_output_conventions_state_the_written_total_law() {
 }
 
 /// A computation the engine does not type is written as the value the jq program a seat
-/// synthesized returns, to a structured and to a prose file alike (R4 A11, E36): measured on the
+/// synthesized returns, to a json and to a prose file alike (R4 A11, E36): measured on the
 /// emitted COLD candidates (the write carries the compute's own output, never a named total nor
 /// a wrapper) and on that program's value over B16's rows (the number 70, not an object). The
 /// conventions state it beside the typed law.
@@ -1060,7 +1060,51 @@ async fn a_synthesized_computation_is_written_as_its_program_returns_it() {
     }
     let conventions = include_str!("../assets/native_output_conventions.md");
     assert!(conventions.contains(
-        "A computation the engine does not type is a jq program a seat synthesizes: the value that program returns, written as it is to any destination"
+        "A computation the engine does not type is a jq program a seat synthesizes: the value that program returns, written as it is to a json or a prose file"
+    ));
+    assert!(!conventions.contains("written as it is to any destination"));
+}
+
+/// To a csv, yaml or toml file the value of a synthesized program is not written as it is: the
+/// emitted COLD candidate converts it first (R4 A11, E36, B22's counterexample), a `nika:convert`
+/// stage from json to the destination's format reading the compute's own output and feeding the
+/// write, so the convert's accepted input shapes apply (no scalar conversion is promised). The
+/// conventions say so.
+#[tokio::test]
+async fn a_synthesized_computation_to_csv_yaml_or_toml_passes_through_convert() {
+    let sum = format!("{GENERATED} // 0");
+    for format in ["csv", "yaml", "toml"] {
+        let write = format!("write the sum to ./out/result.{format}");
+        let clause = (SUM.0, write.as_str());
+        let mut shaped = plan(clause);
+        shaped["effects"][0]["target"] = json!(format!("./out/result.{format}"));
+        let seat = Scripted::new(vec![shaped.to_string(), program(&sum)]);
+        let judge = Judging::new(&seat, approve);
+        let out = compiled_as(&judge, clause, 1).await;
+        assert_eq!(compute(&out), sum, "{write}");
+        let doc: Value = serde_yaml_bw::from_str(out.candidate.as_deref().unwrap()).unwrap();
+        let content = doc["tasks"]["write_output"]["with"]["content"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned();
+        let stage = content
+            .strip_prefix("${{ tasks.")
+            .and_then(|rest| rest.strip_suffix(".output }}"))
+            .unwrap_or_default();
+        let converts = &doc["tasks"][stage];
+        assert_eq!(
+            converts["invoke"]["tool"],
+            json!("nika:convert"),
+            "{write}: {doc:#}"
+        );
+        assert_eq!(converts["invoke"]["args"]["from"], json!("json"), "{write}");
+        assert_eq!(converts["invoke"]["args"]["to"], json!(format), "{write}");
+        let data = &converts["with"]["data"];
+        assert_eq!(data, &json!("${{ tasks.compute.output }}"), "{write}");
+    }
+    let conventions = include_str!("../assets/native_output_conventions.md");
+    assert!(conventions.contains(
+        "to a csv, yaml or toml file it first passes through `nika:convert` from json, whose accepted input shapes apply"
     ));
 }
 

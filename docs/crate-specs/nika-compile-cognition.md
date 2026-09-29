@@ -188,8 +188,10 @@ The output conventions state the compiler's written-total law (R4 A11, E36): a t
 types (a named total over every row) goes to a structured file (json, csv, yaml, toml) as the
 compute's object and to a prose file as its value alone when it is the only total, several
 totals keeping the object; a computation the engine does not type is the jq program a seat
-synthesizes, and the value it returns is written as it is, whatever the destination (the COLD
-transform writes `${{ tasks.compute.output }}` to json and md alike). A shape the request names
+synthesizes, and the value it returns is written as it is to a json or a prose file (the COLD
+transform writes `${{ tasks.compute.output }}` to json and md alike), while to a csv, yaml or
+toml file it passes first through a `nika:convert` stage from json, whose accepted input shapes
+apply (no scalar conversion is promised). A shape the request names
 overrides both as an obligation, and no other wrapper, key or field is added; the deterministic
 compile does not read an explicit bare-number request (« write only the number »), which stays
 INCOMPLETE, never claimed. Tests pin the text against the candidates the compiler emits, typed
