@@ -19,7 +19,11 @@ impl crate::EventSink for ObservedSink<'_> {
             // An unreadable account is said on the frame, never omitted.
             let observed = account.snapshot().map_or_else(
                 |e| serde_json::json!({ "unreadable": e.to_string() }),
-                |receipt| receipt.observation(),
+                |receipt| {
+                    nika_providers::project_observation(&receipt.observation()).unwrap_or_else(|| {
+                        serde_json::json!({ "unreadable": "cost observation cannot be projected" })
+                    })
+                },
             );
             let value = crate::FieldValue::String(observed.to_string());
             event = event.with_field(crate::KeyValue::new("inference_admission", value));
@@ -34,6 +38,61 @@ mod tests {
     use super::*;
     use nika_providers::ProvidersConfig;
     use nika_types::cost::Cost;
+    #[test]
+    fn durable_cost_writers_hide_private_routes_in_terminal_frames() {
+        let route = CostRoute::observe(
+            "deepseek/deepseek-v4-pro",
+            ProvidersConfig::new()
+                .with_base_url("deepseek", "https://example.test/private-route-canary/v1"),
+        )
+        .expect("canonical private route");
+        let account = CostReview::new(
+            "candidate".into(),
+            "run".into(),
+            route.clone(),
+            CostHostEvidence::unmanaged_interactive_local(),
+            None,
+            None,
+        )
+        .expect("review")
+        .confirm("candidate", &route)
+        .expect("fresh authority");
+        let exact = account.snapshot().expect("account").observation();
+        assert!(exact.to_string().contains("private-route-canary"));
+        let mut events = crate::VecSink::new();
+        let mut stamp = crate::DeterministicStamper::new();
+        let mut sink = ObservedSink(&mut events, Some(&account));
+        crate::emit(
+            &mut stamp,
+            &mut sink,
+            nika_event::EventKind::WorkflowStarted,
+            &[],
+        );
+        crate::emit(
+            &mut stamp,
+            &mut sink,
+            nika_event::EventKind::WorkflowCompleted,
+            &[],
+        );
+        let events = events.into_events();
+        assert!(events[0].field("inference_admission").is_none());
+        let text = events[1]
+            .str_field("inference_admission")
+            .expect("terminal receipt");
+        let durable: serde_json::Value = serde_json::from_str(text).expect("JSON");
+        assert_eq!(durable["schema"], "nika/inference-cost-observation@2");
+        assert!(!text.contains("private-route-canary"));
+        assert_eq!(
+            durable["unknown_cost"]["origin"],
+            "https://example.test:443"
+        );
+        assert_eq!(durable["unknown_calls"], exact["unknown_calls"]);
+        assert_eq!(
+            account.snapshot().expect("unchanged account").observation(),
+            exact
+        );
+    }
+
     fn route() -> CostRoute {
         CostRoute::observe("deepseek/deepseek-v4-pro", ProvidersConfig::new())
             .expect("native route")

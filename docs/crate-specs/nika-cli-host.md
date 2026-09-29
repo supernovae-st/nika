@@ -219,6 +219,13 @@ review's own clear, the project configuration, the bound files (read through
 the held root: DAP `Cleared::observe_file` over Service `bound_files`) and the
 route. Only then is the account confirmed, the Run's `RunJournal` (DAP) bound
 to the held `.nika/` descriptor, and the `prepared` row written.
+The host's `RunAccount` adapter gives DAP the provider-owned durable
+`nika/inference-cost-observation@2` projection for each new prepared or settled
+row. The outer journal schema and custody remain unchanged. If the observation
+cannot be projected, it refuses before append; no exact-endpoint fallback is
+written. The live account keeps its exact route and authority. This changes
+new Run observations only: existing rows, their derivation and reconciliation,
+and Session history retain their current contracts.
 `review_with_model` is that path with the terminal as `ask` and the process's
 current directory as `launch`; its refusals and their order are unchanged.
 Serve's cost-review door (`--cost-review`) drives the same path with its own

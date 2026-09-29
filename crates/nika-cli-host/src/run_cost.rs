@@ -54,7 +54,8 @@ struct Account(InferenceAdmission);
 impl cost_journal::RunAccount for Account {
     fn observation(&self) -> std::io::Result<serde_json::Value> {
         let receipt = self.0.snapshot().map_err(std::io::Error::other)?;
-        Ok(receipt.observation())
+        nika_providers::project_observation(&receipt.observation())
+            .ok_or_else(|| std::io::Error::other("cost observation cannot be projected"))
     }
     fn close(&self, why: &str) -> std::io::Result<()> {
         self.0.close(why).map_err(std::io::Error::other)
@@ -433,6 +434,68 @@ mod tests {
             .map(|line| serde_json::from_str(line).unwrap())
             .collect()
     }
+    #[test]
+    fn durable_cost_writers_hide_private_routes_in_new_journal_rows() {
+        let root = tempfile::tempdir().expect("project");
+        let route = CostRoute::observe(
+            "deepseek/deepseek-v4-pro",
+            nika_providers::ProvidersConfig::new()
+                .with_base_url("deepseek", "https://example.test/private-route-canary/v1"),
+        )
+        .expect("canonical private route");
+        let account = CostReview::new(
+            "candidate".into(),
+            "run-1".into(),
+            route.clone(),
+            CostHostEvidence::unmanaged_interactive_local(),
+            None,
+            None,
+        )
+        .expect("review")
+        .confirm("candidate", &route)
+        .expect("fresh authority");
+        assert!(
+            account
+                .snapshot()
+                .expect("account")
+                .observation()
+                .to_string()
+                .contains("private-route-canary")
+        );
+        let cleared = clear_exposure(root.path(), "run-1").expect("fresh project");
+        let journal = RunJournal::new(cleared, "run-1".into(), Box::new(Account(account.clone())));
+        journal.observe("prepared").expect("prepare");
+        journal.settle().expect("settle");
+        let rows = rows(root.path());
+        assert_eq!(rows.len(), 2);
+        for row in &rows {
+            assert_eq!(
+                row["observation"]["schema"],
+                "nika/inference-cost-observation@2"
+            );
+            assert!(!row.to_string().contains("private-route-canary"));
+            assert_eq!(
+                row["observation"]["unknown_cost"]["origin"],
+                "https://example.test:443"
+            );
+        }
+        assert_eq!(rows[0]["observation"]["state"], "Open");
+        assert_eq!(rows[1]["observation"]["state"], "Closed");
+        assert!(
+            account
+                .snapshot()
+                .expect("exact closed account")
+                .observation()
+                .to_string()
+                .contains("private-route-canary")
+        );
+        drop(journal);
+        assert!(
+            clear_exposure(root.path(), "run-2").is_ok(),
+            "new schema stays readable"
+        );
+    }
+
     #[test]
     fn prepared_run_is_not_replayed_and_settled_observation_cannot_restore_authority() {
         let root = tempfile::tempdir().unwrap();

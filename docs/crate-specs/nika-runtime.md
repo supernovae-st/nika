@@ -547,11 +547,14 @@ A host account that observes declared-free routes only
 (`observes_declared_free_only`) keeps the normal provider client for the
 registry and gets a separate single-attempt client through
 `with_inference_admission_http`; any other account keeps the all-bounded
-client. Whenever a host account is attached, `run` stamps its receipt
-observation as the JSON text field `inference_admission` on the terminal frame
+client. Whenever a host account is attached, `run` stamps its receipt's durable
+`nika/inference-cost-observation@2` projection as the JSON text field
+`inference_admission` on the terminal frame
 (`cost_choice::ObservedSink`, inside the secret scrub). A scoped receipt says
 `scoped_to_declared_free`: its subtotal is never the whole Run's. A run killed
-before its terminal frame leaves no receipt; that lifecycle stays open.
+before its terminal frame leaves no receipt; that lifecycle stays open. An
+unreadable account or an observation the provider-owned projection cannot read
+is recorded as unreadable, never omitted or passed through with its endpoint.
 
 Task terminal frames write their per-dispatch evidence through the provider
 route-identity owner (E32). `inference_calls` is the JSON text of
@@ -565,9 +568,10 @@ terminal `cost_by_source`, the settlement's `spend.by_source` and the
 `nika:inspect` cost view name origins. Routes of one origin sum under one key:
 the key is presentation, each call is still debited by its own known estimate,
 and the totals and counters are unchanged. The exact endpoints stay in memory
-for pricing and identity. `inference_admission` keeps the `@1` observation, and
-`workflow_started` carries no route-identity declaration, until the cost
-observation and the journal follow the law.
+for pricing and identity. The terminal `inference_admission` projection does
+not change that account, its counters or its authority. `workflow_started`
+carries no route-identity declaration; legacy journals and Session's durable
+observations are separate migrations.
 
 `resolve_model_expr` (C4 · 2026-09-28; its body descended to
 `nika-check-analyzer`'s `rendered` module in B9, re-exported here at the same
