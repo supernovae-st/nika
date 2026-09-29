@@ -134,7 +134,8 @@ request. The judge answers one closed question per pending clause at each place 
 states it (`carried` · `missing` · `no_operation` when no element claims it, or NONE): the core
 names every statement's span under `decision.pending.open[].spans` and settles a clause the
 request repeats only when each statement is judged. It then answers the whole request (`faithful` ·
-`unfaithful`, then the part it misses, located over the request's own text). Each question
+`unfaithful`, then the part it misses, located over the request's own text cut where
+punctuation ends a phrase, so a path, a URL or a decimal reaches the repair whole). Each question
 shows the request as compiled and as first stated, its answers, the observed world and the
 candidate's own bytes; labels, task names, comments and generator confidence are claims, never
 evidence. A judgment is admitted by the core only under the binding it recomputes (request,

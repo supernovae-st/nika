@@ -92,11 +92,12 @@ fn state(intent: &str, request: &CompileRequest, candidate: &str) -> Value {
     })
 }
 
-/// The parts of the request a localization offers: its own text split at punctuation, never a
-/// reader's reading nor a proposal's region.
+/// The parts of the request a localization offers: its own text cut where punctuation ends a
+/// phrase ([`phrases`]), never a reader's reading nor a proposal's region, so the part a judge
+/// locates reaches the repair whole, its path, URL or decimal included.
 fn parts(intent: &str) -> Vec<String> {
     let mut parts: Vec<String> = Vec::new();
-    for part in intent.split([',', ';', '.', ':']) {
+    for part in phrases(intent) {
         let part = part.trim();
         let content = part.chars().filter(|c| c.is_alphanumeric()).count();
         if part.split_whitespace().count() >= 2 && content >= 4 && !parts.iter().any(|p| p == part)
@@ -106,6 +107,25 @@ fn parts(intent: &str) -> Vec<String> {
     }
     parts.truncate(16);
     parts
+}
+
+/// `text` cut after each comma, semicolon, colon or period that ends a phrase: one followed by
+/// whitespace or the end of the text. A dot or a colon inside a token (`./out/result.json`,
+/// `https://example.com`, `3.5`) is part of that token.
+fn phrases(text: &str) -> Vec<&str> {
+    let mut phrases = Vec::new();
+    let mut start = 0;
+    let mut chars = text.char_indices().peekable();
+    while let Some((at, c)) = chars.next() {
+        let ends = matches!(c, ',' | ';' | ':' | '.')
+            && chars.peek().is_none_or(|(_, next)| next.is_whitespace());
+        if ends {
+            phrases.push(&text[start..at]);
+            start = at + c.len_utf8();
+        }
+    }
+    phrases.push(&text[start..]);
+    phrases
 }
 
 /// The provider's answer as a seat's: its choice, the model asked, the usage it reported.
@@ -697,4 +717,30 @@ pub(super) async fn judged_warm(
     let mut blocked_out = super::settle_judged(Strategy::Warm, plan, intent, request, &[], pre)?;
     blocked(&mut blocked_out, &verdict, 0);
     Ok(blocked_out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parts;
+
+    /// A located part is the request's own phrase: punctuation cuts only where it ends a phrase,
+    /// so a path, a URL and a decimal stay whole (R4 A11, E36: « write the sum to
+    /// ./out/result.json » was offered, and repaired from, as « write the sum to »).
+    #[test]
+    fn a_part_keeps_its_path_url_and_decimal_whole() {
+        let intent = "read ./data/input.csv, keep the rows above 3.5 units; fetch https://example.com/a.b: write the sum to ./out/result.json";
+        assert_eq!(
+            parts(intent),
+            [
+                "read ./data/input.csv",
+                "keep the rows above 3.5 units",
+                "fetch https://example.com/a.b",
+                "write the sum to ./out/result.json",
+            ]
+        );
+        assert_eq!(
+            parts("sum qty per status. Then write it to ./out/a.json."),
+            ["sum qty per status", "Then write it to ./out/a.json"]
+        );
+    }
 }

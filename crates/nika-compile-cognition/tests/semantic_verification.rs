@@ -159,6 +159,20 @@ fn refuse(keys: &[String]) -> &'static str {
     }
 }
 
+/// The verdict of a judge that finds every clause missing and the request unfaithful, and locates
+/// the last part the localization lists (R4 A11, E36).
+fn refuse_last_part(keys: &[String]) -> &'static str {
+    let last = keys.iter().filter(|k| k.starts_with("part-")).next_back();
+    match last.map(String::as_str) {
+        Some("part-0") => "part-0",
+        Some("part-1") => "part-1",
+        Some("part-2") => "part-2",
+        Some("part-3") => "part-3",
+        Some(_) => "another_part",
+        None => refuse(keys),
+    }
+}
+
 /// The verdict of a judge that abstains on every question.
 fn abstain(_: &[String]) -> &'static str {
     "none"
@@ -793,6 +807,25 @@ async fn the_judge_and_the_repair_read_the_preserved_original() {
             assert_eq!(state["original_request"], json!(first), "{state:#}");
         }
     }
+}
+
+/// The part a judge locates reaches the repair as the request's own intact phrase (R4 A11, E36):
+/// « write the sum to ./out/result.json » is never cut at the dots of its path into « write the
+/// sum to », so the repair reads the defect it must correct, target included.
+#[tokio::test]
+async fn a_located_part_reaches_the_repair_whole() {
+    let sum = format!("{GENERATED} // 0");
+    let seat = Scripted::new(vec![
+        plan(SUM).to_string(),
+        program(&sum),
+        plan(SUM).to_string(),
+        program(&sum),
+    ]);
+    let judge = Judging::new(&seat, refuse_last_part);
+    let out = compiled_as(&judge, SUM, 1).await;
+    assert_eq!(authored(&out), ["plan", "transform", "repair", "transform"]);
+    let repair = seat.said(2);
+    assert!(repair.contains(&format!("\n- {}\n", SUM.1)), "{repair}");
 }
 
 /// A judge that abstains settles nothing (R4 A11): no defect to repair from, no repair call,
