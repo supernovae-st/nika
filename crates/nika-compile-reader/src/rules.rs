@@ -391,6 +391,17 @@ pub(crate) fn key(field: &str) -> String {
     }
 }
 
+/// A textual comparison of `field` read as text: `function` applied to `argument`, negated when
+/// the comparator denies it (« does not contain »).
+fn textual(field: &str, function: &str, argument: &str, negated: bool) -> String {
+    let test = format!("({field} | tostring | {function}({argument}))");
+    if negated {
+        format!("({test} | not)")
+    } else {
+        test
+    }
+}
+
 impl Clause {
     fn jq(&self, numbers: &numbers::Numbers) -> String {
         let field = key(&self.field);
@@ -404,12 +415,7 @@ impl Clause {
         if let Operand::Slot(slug) = &self.value {
             let slot = format!("$in.slots.{slug}");
             if let Some((function, negated)) = self.comparator.textual() {
-                let test = format!("({field} | tostring | {function}({slot} | tostring))");
-                return if negated {
-                    format!("({test} | not)")
-                } else {
-                    test
-                };
+                return textual(&field, function, &format!("{slot} | tostring"), negated);
             }
             return if self.comparator.numeric() {
                 let (op, bound) = (self.comparator.symbol(), numbers.contains_key(&self.field));
@@ -429,12 +435,7 @@ impl Clause {
                 Operand::Column(other) => format!("({} | tostring)", key(other)),
                 Operand::Slot(slug) => format!("($in.slots.{slug} | tostring)"),
             };
-            let test = format!("({field} | tostring | {function}({literal}))");
-            return if negated {
-                format!("({test} | not)")
-            } else {
-                test
-            };
+            return textual(&field, function, &literal, negated);
         }
         match (&self.value, self.comparator.numeric()) {
             // A bound number compares with the literal as the request states it (R4 A8).
