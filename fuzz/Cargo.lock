@@ -2440,6 +2440,7 @@ dependencies = [
  "nika-event",
  "nika-fs",
  "nika-kernel",
+ "nika-providers",
  "nika-runtime",
  "nika-schema",
  "nika-source",
