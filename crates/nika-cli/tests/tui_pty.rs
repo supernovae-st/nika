@@ -751,3 +751,126 @@ fn a_refused_run_names_its_reason_inside_the_viewport() {
     assert_eq!(exit_code(&mut session), 0);
     assert!(!tee.text().contains("panicked"), "{}", tee.text());
 }
+
+// ── N1 · `--ascii` keeps the renderer ───────────────────────────────────
+
+/// [`answer_until`] that also keeps, raw, every byte the child wrote up to
+/// `needle`: the log tee writes a chunk that splits a character as numbers,
+/// so a claim about bytes reads the captures themselves.
+fn record_until(session: &mut TeeSession, raw: &mut Vec<u8>, rows: u16, needle: &str) {
+    for _ in 0..6 {
+        let found = match session.expect(expectrl::Any::boxed(vec![
+            Box::new(DA_QUERY),
+            Box::new(CURSOR_QUERY),
+            Box::new(needle.to_owned()),
+        ])) {
+            Ok(found) => found,
+            Err(error) => panic!(
+                "{error}: `{needle}` never came; the child wrote:\n{}",
+                String::from_utf8_lossy(raw)
+            ),
+        };
+        raw.extend_from_slice(found.as_bytes());
+        if found.get(0) == Some(DA_QUERY.as_bytes()) {
+            session.send(DA_ANSWER).expect("answer the attributes");
+        } else if found.get(0) == Some(CURSOR_QUERY.as_bytes()) {
+            session
+                .send(format!("\x1b[{rows};1R"))
+                .expect("answer the report");
+        } else {
+            return;
+        }
+    }
+    panic!("the terminal kept being asked instead of `{needle}` being drawn");
+}
+
+/// Bare `nika <flag>` on an 80×24 PTY, from its question to its prompt, then
+/// left by `leave` (each keystroke sent once the needle before it showed; an
+/// empty needle waits for nothing): every byte it wrote, raw, as text, and
+/// its exit code. The home-isolation warning the door says on stderr before
+/// either presentation starts (this harness's home is a scratch directory)
+/// is left out: it is the same line under both flags and no glyph of the
+/// renderer.
+fn door_text(flag: &str, prompt: &str, leave: &[(&str, &str)]) -> (String, i32) {
+    let (project, home) = rig(flag.trim_start_matches('-'));
+    let mut cmd = tui_command(project.path(), home.path(), "xterm-256color");
+    cmd.arg(flag);
+    let mut session = OsSession::spawn(cmd).expect("pty spawn");
+    session
+        .get_process_mut()
+        .set_window_size(80, 24)
+        .expect("window size");
+    let mut session = expectrl::session::log(session, Tee::default()).expect("log tee");
+    session.set_expect_timeout(Some(Duration::from_secs(120)));
+    let mut raw = Vec::new();
+    record_until(&mut session, &mut raw, 24, "automate?");
+    record_until(&mut session, &mut raw, 24, prompt);
+    for (keys, needle) in leave {
+        session.send(keys).expect("a leaving keystroke");
+        if !needle.is_empty() {
+            record_until(&mut session, &mut raw, 24, needle);
+        }
+    }
+    let rest = session.expect(Eof).expect("closes");
+    raw.extend_from_slice(rest.as_bytes());
+    let text = String::from_utf8(raw).expect("the door writes UTF-8");
+    let text = text
+        .split_inclusive('\n')
+        .filter(|line| !line.contains("nika: home isolation:"))
+        .collect();
+    (text, exit_code(&mut session))
+}
+
+/// L · N1 · `nika --ascii` keeps the renderer and only swaps its glyph
+/// column: the renderer's own probe runs (the device attributes, then the
+/// cursor report the inline viewport anchors on), its prompt, hint and
+/// title take their ASCII twins, and every character above ASCII it writes
+/// is one the Session's own words carry (the banner, the lifecycle rail),
+/// shown as written, never rewritten. `--plain` keeps the plain loop, which
+/// asks the terminal nothing.
+#[test]
+fn ascii_keeps_the_renderer_in_its_twins_and_plain_keeps_the_loop() {
+    let (plain, code) = door_text("--plain", "nika ›", &[("/quit\n", "")]);
+    assert_eq!(code, 0, "--plain leaves cleanly");
+    for probe in [DA_QUERY, CURSOR_QUERY, "\x1b[?2004h"] {
+        assert!(
+            !plain.contains(probe),
+            "--plain reached the renderer ({probe:?}): {plain:?}"
+        );
+    }
+    // Left by the gesture its hint names (`Ctrl+C` twice), so no typed line
+    // is echoed: the echo still repeats the waiting prompt as written, a
+    // renderer need of its own.
+    let (ascii, code) = door_text("--ascii", "nika >", &[("\x03", "again"), ("\x03", "")]);
+    assert_eq!(code, 130, "--ascii leaves by the interruption");
+    for probe in [DA_QUERY, CURSOR_QUERY, "\x1b[?2004h", "\x1b[?2004l"] {
+        assert!(
+            ascii.contains(probe),
+            "--ascii never reached the renderer ({probe:?}): {ascii:?}"
+        );
+    }
+    for twin in [
+        "describe work - /help - Ctrl+T focus view",
+        "\x1b]0;nika - ",
+    ] {
+        assert!(ascii.contains(twin), "no ASCII twin `{twin}`: {ascii:?}");
+    }
+    assert!(!ascii.contains("nika ›"), "the Unicode prompt: {ascii:?}");
+    // The Session's words at open: what the plain loop says before its
+    // prompt (the banner and its notices) and the fresh lifecycle rail.
+    let said = &plain[..plain.find("nika ›").expect("the plain prompt")];
+    let rail = nika_session::Lifecycle::from_facts(&nika_session::LifecycleFacts::new()).rail();
+    let words: std::collections::BTreeSet<char> = said
+        .chars()
+        .chain(rail.chars())
+        .filter(|c| !c.is_ascii())
+        .collect();
+    let strays: std::collections::BTreeSet<char> = ascii
+        .chars()
+        .filter(|c| !c.is_ascii() && !words.contains(c))
+        .collect();
+    assert!(
+        strays.is_empty(),
+        "--ascii wrote {strays:?}, which no word of the Session carries: {ascii:?}"
+    );
+}

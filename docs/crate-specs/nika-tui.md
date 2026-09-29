@@ -135,11 +135,16 @@ and the inline presentation and the plain loop are unchanged.
   regions hold at the current size.
 - The ASCII glyph column is the theme's decision (`--ascii`, CI logs, a legacy
   console), passed by the CLI door as `app::Options::ascii` and held in
-  `UiState::ascii`. Under it every glyph the renderer writes takes its twin in
-  all three presentations: the block faces (`>`, `||`, `x`), the loader
-  (`| / - \`, `*` when still), the prompt markers, the focus rule and the
-  separators of its own status and hints. The Session's words (replies, the
-  status line, the lifecycle rail) are shown as written, never rewritten.
+  `UiState::ascii`: bare `nika --ascii` keeps the renderer, `--plain` and
+  `NIKA_TUI=0` keep the plain loop. Under it the renderer's own glyphs take
+  their twin in all three presentations: the block faces (`>`, `||`, `x`), the
+  loader (`| / - \`, `*` when still), the live prompt marker, the focus rule,
+  the separators of its own status and hints, and the door's title
+  (`nika - <project>`). Two renderer texts keep their `·` and `›` so far: the
+  « action required » title suffix, and the echo of a sent line, which repeats
+  the waiting prompt as written. The Session's words (the banner, replies, the
+  status line, the lifecycle rail) are shown as written, never rewritten, so
+  an ASCII frame still carries their `·` and `○`.
 
 ## 3. What is ported as is (the map, §5 · planned)
 

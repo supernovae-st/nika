@@ -386,8 +386,10 @@ pub fn run_tui(theme: Theme) -> u8 {
     options.term = term_name();
     options.reduced_motion = reduced_motion();
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    // The title's separator is a glyph of this door: it takes the ASCII twin.
+    let sep = if theme.ascii { "-" } else { "·" };
     options.title = Some(format!(
-        "nika · {}",
+        "nika {sep} {}",
         cwd.file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("session")
