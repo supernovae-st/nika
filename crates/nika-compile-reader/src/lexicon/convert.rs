@@ -72,13 +72,12 @@ pub(super) fn read(text: &str, original: &str, reading: &mut Reading) -> bool {
     );
     super::effects::push_effect(
         &mut reading.plan,
-        Effect {
-            verb: EffectVerb::Write,
-            target: destination.clone(),
-            evidence: original.to_owned(),
-            policy: EffectPolicy::Automatic,
-            policy_literal: None,
-        },
+        Effect::new(
+            EffectVerb::Write,
+            destination.clone(),
+            original,
+            EffectPolicy::Automatic,
+        ),
     );
     true
 }

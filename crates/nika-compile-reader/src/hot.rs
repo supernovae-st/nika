@@ -767,13 +767,7 @@ mod tests {
         let mut plan = reading.plan.clone();
         plan.steps.retain(|s| s.op == Op::Read);
         if !plan.effects.iter().any(|e| e.verb == EffectVerb::Write) {
-            plan.effects.push(super::super::plan::Effect {
-                verb: EffectVerb::Write,
-                target: "./out/reposicao.md".to_owned(),
-                evidence: "escreve em ./out/reposicao.md a lista dos produtos cuja quantidade está abaixo do mínimo".to_owned(),
-                policy: super::super::plan::EffectPolicy::Automatic,
-                policy_literal: None,
-            });
+            plan.effects.push(super::super::plan::Effect::new(EffectVerb::Write, "./out/reposicao.md", "escreve em ./out/reposicao.md a lista dos produtos cuja quantidade está abaixo do mínimo", super::super::plan::EffectPolicy::Automatic));
         }
         write_without_producer(&plan, &mut why);
         assert!(
@@ -811,13 +805,12 @@ mod tests {
         );
         // Multilingual nouns: a French réponse, a Spanish informe.
         let mut plan = Plan::default();
-        plan.effects.push(super::super::plan::Effect {
-            verb: EffectVerb::Notify,
-            target: "l'équipe avec la réponse".to_owned(),
-            evidence: "notifie l'équipe avec la réponse".to_owned(),
-            policy: super::super::plan::EffectPolicy::Automatic,
-            policy_literal: None,
-        });
+        plan.effects.push(super::super::plan::Effect::new(
+            EffectVerb::Notify,
+            "l'équipe avec la réponse",
+            "notifie l'équipe avec la réponse",
+            super::super::plan::EffectPolicy::Automatic,
+        ));
         let mut why = Vec::new();
         unproduced_content(&plan, &mut why);
         assert_eq!(

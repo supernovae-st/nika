@@ -591,13 +591,7 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
             .unwrap_or(EffectVerb::Other);
         push_effect(
             &mut reading.plan,
-            Effect {
-                verb,
-                target: target.to_owned(),
-                evidence: clause.to_owned(),
-                policy: EffectPolicy::Undecided,
-                policy_literal: None,
-            },
+            Effect::new(verb, target, clause, EffectPolicy::Undecided),
         );
         return;
     }
@@ -608,13 +602,7 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
     {
         push_effect(
             &mut reading.plan,
-            Effect {
-                verb,
-                target: text.to_owned(),
-                evidence: clause.to_owned(),
-                policy: EffectPolicy::Undecided,
-                policy_literal: None,
-            },
+            Effect::new(verb, text, clause, EffectPolicy::Undecided),
         );
         return;
     }
@@ -730,13 +718,12 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
             for verb in verbs {
                 push_effect(
                     &mut reading.plan,
-                    Effect {
+                    Effect::new(
                         verb,
-                        target: objects::destination_target(after).to_owned(),
-                        evidence: clause.to_owned(),
-                        policy: EffectPolicy::HumanFirst,
-                        policy_literal: None,
-                    },
+                        objects::destination_target(after),
+                        clause,
+                        EffectPolicy::HumanFirst,
+                    ),
                 );
             }
         }
@@ -770,11 +757,8 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
                 push_effect(
                     &mut reading.plan,
                     Effect {
-                        verb,
-                        target: target.trim().to_owned(),
-                        evidence: clause.to_owned(),
-                        policy: EffectPolicy::HumanFirst,
                         policy_literal: literal,
+                        ..Effect::new(verb, target.trim(), clause, EffectPolicy::HumanFirst)
                     },
                 );
             }
@@ -826,13 +810,7 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
                 };
                 push_effect(
                     &mut reading.plan,
-                    Effect {
-                        verb,
-                        target: objects::destination_target(target).to_owned(),
-                        evidence: clause.to_owned(),
-                        policy,
-                        policy_literal: None,
-                    },
+                    Effect::new(verb, objects::destination_target(target), clause, policy),
                 );
             }
         }
@@ -993,13 +971,7 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
             for verb in verbs {
                 push_effect(
                     &mut reading.plan,
-                    Effect {
-                        verb,
-                        target: original.to_owned(),
-                        evidence: original.to_owned(),
-                        policy: EffectPolicy::Forbidden,
-                        policy_literal: None,
-                    },
+                    Effect::new(verb, original, original, EffectPolicy::Forbidden),
                 );
             }
         }
@@ -1009,13 +981,12 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
     if effects::universal_write(text, false) {
         push_effect(
             &mut reading.plan,
-            Effect {
-                verb: EffectVerb::Write,
-                target: original.to_owned(),
-                evidence: original.to_owned(),
-                policy: EffectPolicy::Forbidden,
-                policy_literal: None,
-            },
+            Effect::new(
+                EffectVerb::Write,
+                original,
+                original,
+                EffectPolicy::Forbidden,
+            ),
         );
         return true;
     }
@@ -1167,13 +1138,12 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
                     });
                     push_effect(
                         &mut reading.plan,
-                        Effect {
-                            verb: EffectVerb::Write,
-                            target: target.clone(),
-                            evidence: segment.clone(),
-                            policy: EffectPolicy::Automatic,
-                            policy_literal: None,
-                        },
+                        Effect::new(
+                            EffectVerb::Write,
+                            target.clone(),
+                            segment.clone(),
+                            EffectPolicy::Automatic,
+                        ),
                     );
                     written_object(segment, &segment.to_lowercase(), target, segment, reading);
                 }
@@ -1185,13 +1155,12 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
             });
             push_effect(
                 &mut reading.plan,
-                Effect {
-                    verb: EffectVerb::Write,
-                    target: path.clone(),
-                    evidence: original.to_owned(),
-                    policy: EffectPolicy::Automatic,
-                    policy_literal: None,
-                },
+                Effect::new(
+                    EffectVerb::Write,
+                    path.clone(),
+                    original,
+                    EffectPolicy::Automatic,
+                ),
             );
             written_object(&detail, detail_lower, path, original, reading);
             defer_residue(&detail, path, reading);
@@ -1210,13 +1179,12 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
             });
             push_effect(
                 &mut reading.plan,
-                Effect {
-                    verb: EffectVerb::Write,
-                    target: path.clone(),
-                    evidence: original.to_owned(),
-                    policy: EffectPolicy::Automatic,
-                    policy_literal: None,
-                },
+                Effect::new(
+                    EffectVerb::Write,
+                    path.clone(),
+                    original,
+                    EffectPolicy::Automatic,
+                ),
             );
             return true;
         }
@@ -1282,12 +1250,9 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
                 push_effect(
                     &mut reading.plan,
                     Effect {
-                        verb: *verb,
-                        target: path.clone(),
-                        evidence: original.to_owned(),
-                        policy: EffectPolicy::Automatic,
                         policy_literal: literals::money_literal(original)
                             .then(|| original.to_owned()),
+                        ..Effect::new(*verb, path.clone(), original, EffectPolicy::Automatic)
                     },
                 );
                 if matches!(verb, EffectVerb::Write | EffectVerb::Publish) {
@@ -1454,11 +1419,8 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
             push_effect(
                 &mut reading.plan,
                 Effect {
-                    verb,
-                    target: detail.clone(),
-                    evidence: original.to_owned(),
-                    policy: EffectPolicy::Automatic,
                     policy_literal: literal,
+                    ..Effect::new(verb, detail.clone(), original, EffectPolicy::Automatic)
                 },
             );
         }
