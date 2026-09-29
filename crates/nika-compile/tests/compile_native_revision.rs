@@ -15,7 +15,7 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 mod common;
-use common::{Rotating, keys};
+use common::{Judged, Rotating, keys};
 
 const ORIGINAL: &str = "Copie entree.txt dans a.txt.";
 const CHANGE: &str = "Finalement, utilise b.txt.";
@@ -97,7 +97,8 @@ async fn the_campaign_revision_replaces_the_destination_and_supersedes_the_old_p
     let revised = BASE.replace("a.txt", "b.txt");
     // A faithful first answer is enough: no artificial gap-writing repair.
     let provider = Rotating::new(vec![answer(&revised, &[])]);
-    let out = compile_with_provider(&revise(CHANGE), &provider)
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&revise(CHANGE), &Judged::approving(&provider))
         .await
         .unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
@@ -142,7 +143,10 @@ async fn an_english_replacement_of_a_rooted_path_is_proven_the_same_way() {
     let request = CompileRequest::edit(base, "Use ./out/second.txt instead.")
         .with_original_intent("Copy ./in/source.txt to ./out/first.txt")
         .with_authoring_policy(policy());
-    let out = compile_with_provider(&request, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&request, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let record = out.provenance.plan.clone().unwrap();
     assert_eq!(
@@ -248,7 +252,10 @@ async fn a_destination_replacement_preserves_the_recalled_total_and_full_computa
     let request = CompileRequest::edit(FILTER_TOTAL, FILTER_CHANGE)
         .with_original_intent(FILTER_INTENT)
         .with_authoring_policy(policy());
-    let out = compile_with_provider(&request, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&request, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
     let emitted =
@@ -336,7 +343,10 @@ async fn a_replacement_repairs_the_observed_duplicate_write_but_an_addition_keep
     let request = CompileRequest::edit(FILTER_TOTAL, FILTER_CHANGE)
         .with_original_intent(FILTER_INTENT)
         .with_authoring_policy(policy());
-    let out = compile_with_provider(&request, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&request, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
     assert!(
@@ -357,7 +367,9 @@ async fn a_replacement_repairs_the_observed_duplicate_write_but_an_addition_keep
     )
     .with_original_intent(FILTER_INTENT)
     .with_authoring_policy(policy());
-    let out = compile_with_provider(&request, &addition).await.unwrap();
+    let out = compile_with_provider(&request, &Judged::approving(&addition))
+        .await
+        .unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
 }
 
@@ -413,6 +425,9 @@ async fn the_first_revision_call_carries_observations_without_imposing_supersede
     let request = CompileRequest::edit(FILTER_TOTAL, FILTER_CHANGE)
         .with_original_intent(FILTER_INTENT)
         .with_authoring_policy(policy());
-    let out = compile_with_provider(&request, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&request, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
 }

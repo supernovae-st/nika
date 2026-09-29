@@ -7,7 +7,7 @@ use nika_compile_cognition::compile_with_provider;
 use serde_json::{Value, json};
 
 mod common;
-use common::{Rotating, keys, policy};
+use common::{Judged, Rotating, keys, policy};
 
 const INTENT: &str = "Read sales.csv, keep only rows whose status is paid, write those rows with the same CSV header to paid.csv, and write their total amount as a number to total.txt.";
 
@@ -95,12 +95,16 @@ async fn default_route_escalates_distinct_computations_without_asking_for_jq() {
     let provider = Rotating::new(vec![proposal().to_string(), json!({"candidate":CANDIDATE,"questions":[],"gaps":[],"notes":"Distinct filtered rows and their numeric total"}).to_string()]);
     let req = CompileRequest::create(INTENT)
         .with_authoring_policy(policy().with_native(NativeMode::Escalate));
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&req, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(keys(&out).is_empty(), "{out:#?}");
+    // The COLD plan, the escalated native candidate and the whole-request judgment.
     assert_eq!(
         out.provenance.authoring.as_ref().unwrap().calls,
-        2,
+        3,
         "{out:#?}"
     );
     assert_eq!(out.candidate.as_deref(), Some(CANDIDATE));

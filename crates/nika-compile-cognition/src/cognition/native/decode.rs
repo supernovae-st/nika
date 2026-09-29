@@ -307,8 +307,33 @@ tasks:
         seen: std::sync::Mutex<Vec<String>>,
     }
 
+    /// The approval a verifier question offers (`faithful` for the whole request, `carried` for a
+    /// clause), else `None`: the seat approves the judge's closed choices without counting them,
+    /// as the suites' explicit judge double does (R4 A11); this module reads the native door.
+    fn approval(request: &InferRequest) -> Option<&'static str> {
+        let nika_kernel::ai::provider::ResponseFormat::JsonSchema(schema) =
+            &request.response_format
+        else {
+            return None;
+        };
+        let keys = schema["properties"]["choice"]["enum"].as_array()?;
+        ["faithful", "carried"]
+            .into_iter()
+            .find(|key| keys.iter().any(|k| k == key))
+    }
+
     impl ProviderInferDyn for Seat {
         async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
+            if let Some(key) = approval(&request) {
+                return Ok(InferResponse::new(
+                    vec![ContentBlock::Text {
+                        text: json!({"choice": key}).to_string(),
+                    }],
+                    TokenUsage::new(1, 1),
+                    StopReason::EndTurn,
+                )
+                .with_usage_reported(self.usage_reported));
+            }
             if let Some(ContentBlock::Text { text }) = request
                 .messages
                 .last()

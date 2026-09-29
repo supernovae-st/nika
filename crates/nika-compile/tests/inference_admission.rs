@@ -91,7 +91,7 @@ impl Drop for Metered {
 mod common;
 
 mod native {
-    use super::common::keys;
+    use super::common::{Judged, keys};
     use super::{MODEL, Metered as Rotating};
     use nika_compile::{
         AuthoringPolicy, CompileRequest, CompileStatus, NativeMode, Strategy, compile,
@@ -486,7 +486,8 @@ outputs:
         .with_original_intent(RECAP_INTENT)
         .with_authoring_policy(policy(NativeMode::Only, 1))
         .answer("model", r#""mock/echo""#);
-        let out = Box::pin(compile_with_provider(&req, &provider))
+        // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+        let out = Box::pin(compile_with_provider(&req, &Judged::approving(&provider)))
             .await
             .unwrap();
         // The answer round of the same revision replays the record with zero calls (the CLI keys

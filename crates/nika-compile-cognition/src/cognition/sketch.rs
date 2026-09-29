@@ -398,6 +398,9 @@ pub(super) async fn author<P: ProviderInferDyn>(
         &mut out,
     );
     out.provenance.strategy = Some(Strategy::Native);
+    if accepted.is_some() {
+        out = super::verify::judged_native(intent, reading, policy, provider, request, out).await;
+    }
     Ok(out)
 }
 

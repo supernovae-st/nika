@@ -16,7 +16,7 @@ use serde_json::{Value, json};
 use std::time::Duration;
 
 mod common;
-use common::{Rotating, keys};
+use common::{Judged, Rotating, keys};
 
 const OPEN: &str = "Additionne une colonne de ventes.csv dans total.txt.";
 
@@ -170,7 +170,10 @@ async fn a_column_the_request_names_is_stated_and_never_asked() {
         CompileRequest::create("Additionne la colonne montant de ventes.csv dans total.txt.")
             .with_knowledge(world())
             .with_authoring_policy(policy());
-    let out = compile_with_provider(&request, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&request, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let rounds = out.provenance.decision.as_ref().unwrap()["native"]["rounds"].clone();
     assert!(

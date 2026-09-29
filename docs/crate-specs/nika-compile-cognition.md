@@ -252,6 +252,23 @@ field answer's regeneration is the first candidate of its plan and is judged who
 record or a request carries is read as a judgment. The judge is a model: its approval is bounded
 evidence, not proof; a clause a line break splits across two named elements is judged, not read.
 
+A candidate the native or the sketch door finishes READY is judged against the whole request
+before READY too (`verify::judged_native`, R4 A11, E39 C3). The seat writes the workflow itself
+(the sketch door's seat its tasks and program holes), so no law of the core reads its programs:
+the parser, Check and the fidelity laws only admit it. Once the door's conclusion is READY, the
+authoring provider answers the whole-request question (`faithful` · `unfaithful`, then the part)
+over the candidate's actual final bytes, with the state and reference every verifier question
+carries, through the journaled authoring call under the authoring policy's caps and the same
+physical ceiling; the attempt is recorded under `semantic_verification` and the route says
+`verify: judged (authoring_provider)`. The native doors receive no decision seat, so a seat the
+caller permits does not judge a native candidate. A candidate found unfaithful, or not settled
+(an abstention, a failed call, a call the ceiling refuses), is withdrawn with its questions, its
+requested boundary and its replayable record, and the request stays INCOMPLETE naming the part;
+no repair round follows the judgment. A native outcome that is not READY in its authoring round
+(a business question or the `model` placeholder open) is not judged there, and an answer round
+that finishes a recorded native candidate (`native_replay`, then `native_apply`) is READY with no
+call and no judge: that door is not judged yet.
+
 Every verifier question and the COLD repair carry one compiler-owned reference, apart from the
 untrusted state (`verify::grounding`, R4 A11, E36): the engine's output conventions whole, the
 card's language section and the whole stdlib section of each tool the candidate reaches by the

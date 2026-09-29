@@ -18,7 +18,7 @@ use serde_json::json;
 use std::time::Duration;
 
 mod common;
-use common::{Rotating, keys};
+use common::{Judged, Rotating, keys};
 
 const MODEL: &str = r#""mock/echo""#;
 
@@ -216,10 +216,11 @@ async fn the_native_door_records_the_tail_and_names_two_triggers() {
     let answer =
         json!({"candidate": COPY, "questions": [], "gaps": [], "notes": "copy"}).to_string();
     let provider = Rotating::new(vec![answer.clone()]);
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
     let out = compile_with_provider(
         &CompileRequest::create("Copie ./notes.md dans ./out/copie.md tous les matins")
             .with_authoring_policy(native()),
-        &provider,
+        &Judged::approving(&provider),
     )
     .await
     .unwrap();

@@ -32,7 +32,8 @@ use crate::decide::{
 use crate::lexicon::Reading;
 use crate::plan::Plan;
 use crate::{
-    AuthoringPolicy, CompileError, CompileOutcome, CompileRequest, DiagnosticKind, Strategy,
+    AuthoringPolicy, CompileError, CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind,
+    Strategy,
 };
 
 /// Who judges a candidate: a decision seat the caller permits (its calls and usage are its own,
@@ -963,6 +964,57 @@ pub(super) async fn replayed<P: ProviderInferDyn>(
     crate::replay_judged(intent, saved, request, &[], whole, &mut pre)?;
     blocked(&mut pre, &verdict, 0);
     Ok(pre)
+}
+
+/// A candidate the native or the sketch door finishes READY is judged before READY (R4 A11, E39
+/// C3): the seat wrote the workflow itself (the sketch door's seat its tasks and program holes),
+/// so no law of the core reads its programs, and the parser, Check and the fidelity laws only
+/// admit it. The whole request is judged against the candidate's actual final bytes as a COLD
+/// candidate's is: the same state and reference, the journaled authoring call under the
+/// authoring policy's caps, the authoring provider as judge (the native doors receive no
+/// decision seat). A candidate the judge finds unfaithful, or cannot settle, is withdrawn with
+/// its questions, its requested boundary and its replayable record, so no answer round replays
+/// it, and the request stays INCOMPLETE naming the part; no repair round follows. An outcome
+/// that is not READY (a question open, a refusal) is returned as it is.
+pub(super) async fn judged_native<P: ProviderInferDyn>(
+    intent: &str,
+    reading: &Reading,
+    policy: &AuthoringPolicy,
+    provider: &P,
+    request: &CompileRequest,
+    mut out: CompileOutcome,
+) -> CompileOutcome {
+    let ready = out.status == CompileStatus::Ready;
+    let Some(candidate) = out.candidate.clone().filter(|_| ready) else {
+        return out;
+    };
+    let judge = Judge::Provider(policy, provider);
+    let journaled = journal(&out).len();
+    let mut verdict = Verdict::default();
+    let mut assembled = reading.plan.clone();
+    crate::shape::promote_stated_rules(&mut assembled, intent);
+    let binding = Binding::of(intent, request, &assembled, &candidate);
+    let grounding = grounding(Some(&candidate));
+    verdict.reference = grounding.record;
+    let base = state(intent, request, &candidate);
+    let asked = (&base, grounding.text.as_str());
+    whole(intent, asked, &judge, &binding, &mut verdict, &mut out).await;
+    let calls = &journal(&out)[journaled.min(journal(&out).len())..];
+    verdict.usage = usage(&judge, &verdict, calls);
+    record(&mut out, &judge, &verdict, 0);
+    if verdict.defects.is_empty() && verdict.unknown.is_empty() {
+        route(&mut out, &format!("verify: judged ({})", judge.kind()));
+        return out;
+    }
+    route(&mut out, "verify: not ready");
+    out.status = CompileStatus::Incomplete;
+    out.candidate = None;
+    out.check_preview = None;
+    out.requested_boundary = None;
+    out.questions.clear();
+    out.provenance.plan = None;
+    blocked(&mut out, &verdict, 0);
+    out
 }
 
 /// A WARM candidate is judged by the seat that settled its readings (R4 A11); a part it finds

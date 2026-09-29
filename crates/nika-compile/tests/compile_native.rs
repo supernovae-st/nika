@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use std::time::Duration;
 
 mod common;
-use common::{Rotating, keys};
+use common::{Judged, Rotating, keys};
 
 #[path = "compile_native/response_recovery.rs"]
 mod response_recovery;
@@ -632,7 +632,10 @@ async fn a_change_in_words_revises_the_base_under_the_seat_and_states_the_delta(
     .with_original_intent(RECAP_INTENT)
     .with_authoring_policy(policy(NativeMode::Only, 1))
     .answer("model", r#""mock/echo""#);
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&req, &Judged::approving(&provider))
+        .await
+        .unwrap();
     // The answer round of the same revision replays the record with zero calls (the CLI keys
     // it by the revision's intent), READY with the answer baked in.
     let record = out.provenance.plan.clone().expect("the revision's record");
@@ -1079,7 +1082,10 @@ tasks:
     let intent = "Read ./input.txt and copy its exact contents to ./output.txt using only deterministic builtin tools.";
     let provider = Rotating::new(vec![answer(source, &json!([]))]);
     let request = CompileRequest::create(intent).with_authoring_policy(policy(NativeMode::Only, 0));
-    let outcome = compile_with_provider(&request, &provider).await.unwrap();
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let outcome = compile_with_provider(&request, &Judged::approving(&provider))
+        .await
+        .unwrap();
     assert_eq!(outcome.status, CompileStatus::Ready, "{outcome:#?}");
     assert!(outcome.questions.is_empty());
     assert_eq!(outcome.candidate.as_deref(), Some(source));
