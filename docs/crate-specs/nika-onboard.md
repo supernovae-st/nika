@@ -98,6 +98,15 @@ here from `nika-session` on 2026-09-29 (the `meaning` precedent · D8 headroom);
 `nika_providers::resolve_refusal`, the #320 MODELS-rung law: a pure resolution, so this
 crate still never calls a provider. Its tests live beside it (`src/guard.rs`).
 
+## The automation rail (read by Session)
+
+`lifecycle` compiles where an automation stands as separate facts, DRAFT · SAVED · CHECKED ·
+ACTIVE · RUN, each at its own stage (pending · working · done · declared · paused · failed ·
+attention), from the facts a host hands it. It never folds the five into one badge. It is
+pure: no crate, no I/O. It moved here from `nika-session` on 2026-09-29 (the `meaning`
+precedent · D8 headroom); `nika_session::lifecycle` re-exports it unchanged. Its tests live
+beside it (`src/lifecycle.rs`).
+
 ## The conversational reading of an outcome (read by Session)
 
 `compile::reading` says what one compile outcome means for a conversation

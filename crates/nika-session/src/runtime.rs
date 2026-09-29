@@ -444,24 +444,24 @@ impl SessionRuntime {
             .as_ref()
             .and_then(|w| schedule::declared_entry(&self.snapshot.root, w))
             .map(|(_, active, _)| active);
-        crate::lifecycle::Lifecycle::from_facts(&crate::lifecycle::LifecycleFacts {
-            proposal_waits: self.pending.is_some(),
-            composing: self.pending_question().is_some()
-                || self.pending_input().is_some()
-                || self.pending_activation().is_some(),
-            saved: self.last_workflow.is_some(),
-            check_clean: self.last_check_clean,
-            declared_active,
-            run: if self.pending_gate.is_some() {
-                crate::lifecycle::RunFact::GateWaits
-            } else {
-                self.last_run
-                    .as_ref()
-                    .map_or(crate::lifecycle::RunFact::Nothing, |(exit, _)| {
-                        crate::lifecycle::RunFact::Exit(*exit)
-                    })
-            },
-        })
+        let mut facts = crate::lifecycle::LifecycleFacts::new();
+        facts.proposal_waits = self.pending.is_some();
+        facts.composing = self.pending_question().is_some()
+            || self.pending_input().is_some()
+            || self.pending_activation().is_some();
+        facts.saved = self.last_workflow.is_some();
+        facts.check_clean = self.last_check_clean;
+        facts.declared_active = declared_active;
+        facts.run = if self.pending_gate.is_some() {
+            crate::lifecycle::RunFact::GateWaits
+        } else {
+            self.last_run
+                .as_ref()
+                .map_or(crate::lifecycle::RunFact::Nothing, |(exit, _)| {
+                    crate::lifecycle::RunFact::Exit(*exit)
+                })
+        };
+        crate::lifecycle::Lifecycle::from_facts(&facts)
     }
 
     /// `/meaning` — the compiler's reading of the request, clause by

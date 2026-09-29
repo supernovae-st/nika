@@ -61,6 +61,7 @@ mod gitignore;
 pub mod guard;
 mod intent;
 pub mod knowledge;
+pub mod lifecycle;
 pub mod project_file;
 pub mod recipes;
 pub mod rehearsal;
