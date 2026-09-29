@@ -21,7 +21,7 @@ use serde_json::{Value, json};
 pub(super) const EMPTY_DOMAIN: &str = "on a source with no row, or no row the program keeps, it returns null, which the workflow cannot write: return the value of the empty set (0 for a sum or a count, an empty list for rows) or stop with a stated error";
 
 /// The identity refusal of a sum or a count, repaired from as it is stated.
-pub(super) const EMPTY_SUM: &str = "the clause is a sum or a count: on a source with no row, or no row the program keeps, it must return the number 0 (the sum or the count of nothing), never null and never an error";
+pub(super) const EMPTY_SUM: &str = "the clause is a sum or a count: on a source with no row it must return the number 0 (the sum or the count of nothing), and a number on every source, never null and never an error";
 
 /// Whether a refusal is a domain law's: the refusals a seat is sent back, within the request's
 /// repairs.
@@ -116,8 +116,10 @@ impl Repairs {
 
     /// A program a domain law refused is repaired from once while the allowance lasts: the seat
     /// reads its own program and the stated defect, never the human. Any other refusal stands
-    /// as it is. Each attempt is recorded under `transform_repairs`; the caller admits the
-    /// answer under the same laws.
+    /// as it is. The attempt is told and recorded under `transform_repairs` only once the
+    /// receipt shows what became of its call ([`transport`]): a call the ceiling refused was
+    /// requested, never sent. The caller admits an answer under the same laws; no answer keeps
+    /// the defect, named with what became of the repair.
     pub(super) async fn repair<P: ProviderInferDyn>(
         &mut self,
         policy: &AuthoringPolicy,
@@ -132,12 +134,27 @@ impl Repairs {
             return Err(Refusal(why));
         }
         self.0 -= 1;
+        let journaled = journal(out).len();
+        let mut asked = state.clone();
+        asked["verifier"] = json!({"your_program": program, "refused": why});
+        let answer = super::propose_as(policy, provider, "transform_repair", asked, out).await;
+        let call = transport(&journal(out)[journaled.min(journal(out).len())..]);
+        let (kind, told) = match call {
+            "answered" => (DiagnosticKind::Applied, "its call was sent and answered"),
+            "admission_refused" => (
+                DiagnosticKind::Unknown,
+                "the call ceiling refused its call before any transport",
+            ),
+            "timeout" => (DiagnosticKind::Unknown, "its call was sent and timed out"),
+            "provider_error" => (DiagnosticKind::Unknown, "its call was sent and failed"),
+            _ => (DiagnosticKind::Unknown, "no request was sent"),
+        };
         crate::finding(
             out,
-            DiagnosticKind::Applied,
+            kind,
             "authoring_transform",
             format!(
-                "The seat's program for `{}` was refused: {why}. One bounded repair call sent it that defect.",
+                "The seat's program for `{}` was refused: {why}. A repair from that defect was requested: {told}.",
                 clause.trim()
             ),
         );
@@ -146,12 +163,39 @@ impl Repairs {
             .as_array()
             .cloned()
             .unwrap_or_default();
-        attempts.push(json!({"clause": clause, "refused_jq": program, "why": why}));
+        attempts.push(json!({"clause": clause, "refused_jq": program, "why": why, "call": call}));
         decision["transform_repairs"] = json!(attempts);
         out.provenance.decision = Some(decision);
-        let mut asked = state.clone();
-        asked["verifier"] = json!({"your_program": program, "refused": why});
-        super::propose_as(policy, provider, "transform_repair", asked, out).await
+        answer.map_err(|Refusal(none)| {
+            Refusal(format!(
+                "{why}; the repair from it got no answer ({told}: {none})"
+            ))
+        })
+    }
+}
+
+/// The calls the receipt journaled so far, in call order.
+fn journal(out: &CompileOutcome) -> &[Value] {
+    out.provenance
+        .authoring
+        .as_ref()
+        .map_or(&[], |receipt| receipt.context.as_slice())
+}
+
+/// What became of the last call the receipt journaled in `after`, the entries a repair added
+/// (`answered`, `admission_refused`, `timeout`, `provider_error`), or `not_sent` when it added
+/// none: the receipt, never the request, says whether a call left.
+fn transport(after: &[Value]) -> &'static str {
+    let Some(result) = after.last().map(|entry| &entry["result"]) else {
+        return "not_sent";
+    };
+    if result.get("stop_reason").is_some() {
+        return "answered";
+    }
+    match result["failure_kind"].as_str() {
+        Some("admission_refused") => "admission_refused",
+        Some("timeout") => "timeout",
+        _ => "provider_error",
     }
 }
 
@@ -294,6 +338,21 @@ mod tests {
         let shape = json!([{"status": "shipped", "qty": "40"}]);
         assert_eq!(identity(SUM, rows, &example(), &shape), Ok(()));
         assert_eq!(floor(rows, &example()), Ok(()));
+    }
+
+    /// A repair is told by what its call became in the receipt, never by the request for it.
+    #[test]
+    fn the_receipt_says_what_became_of_a_repair_call() {
+        assert_eq!(transport(&[]), "not_sent");
+        let entry = |result: Value| json!({"call": "transform_repair", "result": result});
+        let answered = entry(json!({"stop_reason": "EndTurn", "usage_reported": true}));
+        assert_eq!(transport(&[answered]), "answered");
+        let refused = entry(json!({"failure_kind": "admission_refused"}));
+        assert_eq!(transport(&[refused]), "admission_refused");
+        let timeout = entry(json!({"failure_kind": "timeout"}));
+        assert_eq!(transport(&[timeout]), "timeout");
+        let failed = entry(json!({"failure_kind": "provider_error"}));
+        assert_eq!(transport(&[failed]), "provider_error");
     }
 
     #[test]

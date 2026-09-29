@@ -20,11 +20,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 /// An injected seat that answers its calls in order and keeps the last message each call sent
-/// (a double: it scripts a provider).
+/// (a double: it scripts a provider, and optionally the admission layer's call ceiling).
 struct Scripted {
     answers: Vec<String>,
     calls: AtomicUsize,
     asked: Mutex<Vec<String>>,
+    /// The first call the double's ceiling refuses before any transport; none by default.
+    refused_from: usize,
 }
 
 impl Scripted {
@@ -33,6 +35,15 @@ impl Scripted {
             answers,
             calls: AtomicUsize::new(0),
             asked: Mutex::new(Vec::new()),
+            refused_from: usize::MAX,
+        }
+    }
+    /// The same double behind a ceiling of `ceiling` calls: each later call is refused as the
+    /// admission layer refuses it, locally, before any provider request.
+    fn ceiling(answers: Vec<String>, ceiling: usize) -> Self {
+        Self {
+            refused_from: ceiling,
+            ..Self::new(answers)
         }
     }
     fn calls(&self) -> usize {
@@ -58,6 +69,14 @@ impl ProviderInferDyn for Scripted {
             .unwrap_or_default();
         self.asked.lock().unwrap().push(last);
         let at = self.calls.fetch_add(1, Ordering::SeqCst);
+        if at >= self.refused_from {
+            return Err(ProviderError::AdmissionDenied {
+                reason: format!(
+                    "the authoring call ceiling of {} calls is reached",
+                    self.refused_from
+                ),
+            });
+        }
         let text = self.answers[at.min(self.answers.len() - 1)].clone();
         Ok(InferResponse::new(
             vec![ContentBlock::Text { text }],
@@ -267,7 +286,43 @@ async fn a_program_null_on_an_empty_source_is_repaired_from_its_defect() {
     assert_eq!(verifier["your_program"], json!(GENERATED));
     let refused = verifier["refused"].as_str().unwrap();
     assert!(refused.contains("the number 0"), "{refused}");
+    let attempt = &out.provenance.decision.as_ref().unwrap()["transform_repairs"][0];
+    assert_eq!(attempt["call"], json!("answered"));
     exact_on_every_fixture(&expression);
+}
+
+/// A repair the call ceiling refuses was requested, never sent (R4 A11, a labelled negative):
+/// the double refuses the third call before any transport, as the admission layer does. The
+/// finding and the attempt say so, the defect stays named, and nothing is READY.
+#[tokio::test]
+async fn a_repair_the_call_ceiling_refuses_is_requested_never_sent() {
+    let seat = Scripted::ceiling(vec![plan(SUM).to_string(), program(GENERATED)], 2);
+    let out = compiled(&seat).await;
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert_eq!(roles(&out), ["plan", "transform", "transform_repair"]);
+    let receipt = out.provenance.authoring.as_ref().unwrap();
+    let refused = &receipt.context[2]["result"]["failure_kind"];
+    assert_eq!(refused, &json!("admission_refused"));
+    let decision = out.provenance.decision.as_ref().unwrap();
+    assert_eq!(
+        decision["transform_repairs"][0]["call"],
+        json!("admission_refused")
+    );
+    let why = decision["transforms"][0]["why"].as_str().unwrap();
+    assert!(why.contains("the number 0"), "{why}");
+    assert!(why.contains("before any transport"), "{why}");
+    let told: Vec<&str> = out
+        .diagnostics
+        .iter()
+        .filter(|d| d.target == "authoring_transform")
+        .map(|d| d.message.as_str())
+        .collect();
+    assert!(
+        told.iter()
+            .any(|m| m.contains("refused its call before any transport")),
+        "{told:?}"
+    );
+    assert!(!told.iter().any(|m| m.contains("was sent")), "{told:?}");
 }
 
 /// A policy granting no repair is obeyed (R4 A11): the refused program buys no second
