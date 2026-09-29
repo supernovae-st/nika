@@ -44,27 +44,6 @@ read: a clarification that replaced the original is that request, never the orig
 revision in words whose change contradicts itself is refused before `native::author` revises
 the base, and `native::escalates` never escalates a refused outcome.
 
-Money is read before every strategy (R4 B15). `compile_with_cognition` reads the directives a
-host admitted (`CompileRequest::with_admitted_money`) or its operator stated
-(`with_stated_money`) through `nika_compile::surface::admitted` before support, HOT, WARM, COLD,
-native and sketch: every seat reads the request with those directives blanked, and the outcome
-records each one beside the original request's identity (`decision.money`). A revision's change
-is read by the same law; on a door that states money so is the request its base answered, and a
-creation's `intent.clarification` replacement is read afresh, the words it replaced stating
-nothing. On a host-admission door, changed clarification bytes discard the spans admitted on
-its earlier request before any money record is attached; unchanged bytes keep their admission
-and the same blanked reading inside the answer. Repeating a request must not reintroduce its
-admitted ceiling as work or open a needless provider call. A host re-admits a replacement by
-submitting its own bytes with their own spans. A request that names a skeleton only once its
-directive is blanked is read as written,
-never as that skeleton, its money recorded. A ceiling no seat can be held to opens none: an
-admitted zero on every door, any stated ceiling on a door that meters no seat, any ceiling of a
-request read as written (a seat would read it as work). The generative and the decision seats
-both stay closed, the deterministic outcome stands (a HOT READY stays READY) and an
-`authoring_money` finding says why no request was sent. A host that meters its seats (Session's
-admission account) keeps them open under a positive ceiling it admitted; the compiler certifies
-no cap.
-
 A field answer's regeneration (`transform::pending::resume`) is claimed only once the replay of
 its verified record kept it: the Applied finding and `transform_regeneration.accepted: true`
 ride that record. A replay that refuses it keeps its own findings; the outcome carries no
@@ -188,11 +167,16 @@ its output conventions. They describe compiler fidelity and prompt behavior,
 not normative language rules; syncing the canonical Spec pack must not delete
 them. Native-call receipts keep the actual card SHA-256 alongside the distinct
 Spec pin and pack version. A missing card is a build error, never empty text.
-The output conventions state the compiler's written-total law (R4 A11, E36): a total over every
-row goes to a structured file (json, csv, yaml, toml) as the compute's object and to a prose file
-as its value alone when it is the only total, several totals keeping the object; a shape the
-request names overrides both, and no other wrapper, key or field is added. A test pins the text
-against the candidates the compiler emits.
+The output conventions state the compiler's written-total law (R4 A11, E36): a total the engine
+types (a named total over every row) goes to a structured file (json, csv, yaml, toml) as the
+compute's object and to a prose file as its value alone when it is the only total, several
+totals keeping the object; a computation the engine does not type is the jq program a seat
+synthesizes, and the value it returns is written as it is, whatever the destination (the COLD
+transform writes `${{ tasks.compute.output }}` to json and md alike). A shape the request names
+overrides both as an obligation, and no other wrapper, key or field is added; the deterministic
+compile does not read an explicit bare-number request (« write only the number »), which stays
+INCOMPLETE, never claimed. Tests pin the text against the candidates the compiler emits, typed
+and synthesized.
 
 ### Explicit reasoning effort (R4 B16)
 

@@ -867,6 +867,7 @@ fn the_output_conventions_state_the_written_total_law() {
     let conventions = include_str!("../assets/native_output_conventions.md");
     for statement in [
         "A total over every row is written as the engine's compute returns it",
+        "A total the engine types (a named total)",
         "to a structured file (json, csv, yaml, toml), the object with one field per named total",
         "to a prose file (md, txt or any other destination), the value alone when it is the only total",
         "several totals keep the object",
@@ -876,6 +877,37 @@ fn the_output_conventions_state_the_written_total_law() {
         assert!(conventions.contains(statement), "{statement}");
     }
     assert!(!conventions.contains("add no wrapper, key or field the request did not ask for"));
+}
+
+/// A computation the engine does not type is written as the value the jq program a seat
+/// synthesized returns, to a structured and to a prose file alike (R4 A11, E36): measured on the
+/// emitted COLD candidates (the write carries the compute's own output, never a named total nor
+/// a wrapper) and on that program's value over B16's rows (the number 70, not an object). The
+/// conventions state it beside the typed law.
+#[tokio::test]
+async fn a_synthesized_computation_is_written_as_its_program_returns_it() {
+    let sum = format!("{GENERATED} // 0");
+    for write in [
+        "write the sum to ./out/result.json",
+        "write the sum to ./out/result.md",
+    ] {
+        let clause = (SUM.0, write);
+        let mut shaped = plan(clause);
+        shaped["effects"][0]["target"] = json!(write.rsplit(' ').next().unwrap());
+        let seat = Scripted::new(vec![shaped.to_string(), program(&sum)]);
+        let judge = Judging::new(&seat, approve);
+        let out = compiled_as(&judge, clause, 1).await;
+        let expression = compute(&out);
+        assert_eq!(expression, sum, "{write}");
+        let doc: Value = serde_yaml_bw::from_str(out.candidate.as_deref().unwrap()).unwrap();
+        let content = &doc["tasks"]["write_output"]["with"]["content"];
+        assert_eq!(content, &json!("${{ tasks.compute.output }}"), "{write}");
+        assert_eq!(run(&expression, &rows(&MAIN)), json!(70), "{write}");
+    }
+    let conventions = include_str!("../assets/native_output_conventions.md");
+    assert!(conventions.contains(
+        "A computation the engine does not type is a jq program a seat synthesizes: the value that program returns, written as it is to any destination"
+    ));
 }
 
 /// A judge that abstains settles nothing (R4 A11): no defect to repair from, no repair call,
