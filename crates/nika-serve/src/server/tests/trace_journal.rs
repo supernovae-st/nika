@@ -119,9 +119,17 @@ async fn wait_until(mut holds: impl FnMut() -> bool, within: Duration) -> bool {
 #[tokio::test(flavor = "multi_thread")]
 async fn verify_route_reports_the_cli_verdict_for_the_jobs_journal() {
     let world = TestWorld::new();
-    let backend = Arc::new(ResidentExecutionBackend::new(&world.workflows));
-    // The custody seal runs inside the run's execution ceiling: on a machine
-    // holding a run key its KDF takes seconds, so the ceiling is the long one.
+    let key = minisign::KeyPair::generate_unencrypted_keypair().expect("test key");
+    let public = key.pk.to_box().expect("public box").to_string();
+    let backend = Arc::new(
+        ResidentExecutionBackend::new(&world.workflows).with_journal_seal(Arc::new(TestSeal {
+            secret: key.sk,
+            public,
+        })),
+    );
+    // This tests journal verification, not the operator's key custody. Use an
+    // owned key so parallel runs cannot contend on a real key's expensive KDF.
+    // Keep the production driver's execution budget and the real seal path.
     let server = world.start(backend, long_execution_limits()).await;
     let id = run_by_name(&server, "root.nika", "journal-verdict").await;
     wait_for_settled(&server, &id, "succeeded")
@@ -129,6 +137,11 @@ async fn verify_route_reports_the_cli_verdict_for_the_jobs_journal() {
         .expect("settled");
     let journals = files_with(&journal_dir(&world), "ndjson");
     assert_eq!(journals.len(), 1, "one job, one journal: {journals:?}");
+    assert_eq!(
+        last_line(&journals[0]).expect("a written journal")["kind"],
+        "run_sealed",
+        "the injected custody still runs the real sealing path"
+    );
     let expected = cli_document(&journals[0], None);
     let verdict = server
         .request(&get_request(&format!("/v1/jobs/{id}/trace/verify")))
