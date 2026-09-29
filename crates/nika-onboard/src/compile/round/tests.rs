@@ -366,6 +366,38 @@ fn a_round_is_named_in_words_and_knows_the_base_it_revises() {
     assert!(!unrevised.revises_base("x"), "a round that revises nothing");
 }
 
+/// C11 · R2 · a request is named as typed and as rebuilt only when a restatement rebuilt the
+/// sentence the human typed; a trailing line break is never shown inside « »; a revision is named
+/// by its own request whatever was typed.
+#[test]
+fn a_request_is_named_as_typed_only_when_a_restatement_rebuilt_it() {
+    assert_eq!(as_typed(None, "Log hi\n"), "« Log hi »");
+    assert_eq!(as_typed(Some("Log hi\n"), "Log hi"), "« Log hi »");
+    assert_eq!(as_typed(Some(" \n"), "Log hi"), "« Log hi »");
+    assert_eq!(
+        as_typed(Some("sum it\n"), "sum the amount column\n"),
+        "« sum it » as you typed it · rebuilt as « sum the amount column »"
+    );
+    let revision = usable(
+        Capture::new("post the totals", &redact)
+            .edit(None, "nika: kept\ntasks: {}\n", "post the totals", None)
+            .questions(&questions())
+            .finish()
+            .expect("kept"),
+    );
+    assert_eq!(
+        revision.request_as_typed(Some("log hi")),
+        "« post the totals »"
+    );
+    let created = usable(plain());
+    let typed = format!("{} in other words", created.request.text.trim_end());
+    let words = created.summary_as_typed(Some(&typed));
+    assert!(
+        words.starts_with(&format!("« {typed} » as you typed it · rebuilt as « ")),
+        "{words}"
+    );
+}
+
 #[test]
 fn a_revision_keeps_its_exact_base_change_and_path() {
     let base = "nika: kept\ntasks: {}\n";

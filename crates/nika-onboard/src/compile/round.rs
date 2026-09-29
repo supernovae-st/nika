@@ -395,6 +395,13 @@ impl RoundRecord {
     /// on, as for `compile::meaning`).
     #[must_use]
     pub fn summary(&self) -> String {
+        self.summary_as_typed(None)
+    }
+
+    /// [`Self::summary`], naming the request as the human `typed` it too when a restatement
+    /// rebuilt it from other words ([`as_typed`]). A revision is named by its own request.
+    #[must_use]
+    pub fn summary_as_typed(&self, typed: Option<&str>) -> String {
         let answers: Vec<String> = self
             .answers
             .iter()
@@ -412,7 +419,15 @@ impl RoundRecord {
             .revises
             .as_ref()
             .map_or_else(String::new, |id| format!(" · it revises proposal {id}"));
-        format!("« {} » · {settled}{waiting}{revises}", self.request.text)
+        let request = self.request_as_typed(typed);
+        format!("{request} · {settled}{waiting}{revises}")
+    }
+
+    /// The request in words ([`as_typed`]), naming what the human `typed` too unless this is a
+    /// revision, which its own request names.
+    #[must_use]
+    pub fn request_as_typed(&self, typed: Option<&str>) -> String {
+        as_typed(typed.filter(|_| self.edit.is_none()), &self.request.text)
     }
 
     /// Whether `content` is the exact base this round revises as a proposal's revision.
@@ -668,12 +683,36 @@ impl RoundReading {
     /// # Errors
     /// Why the kept value cannot be read.
     pub fn words(&self) -> Result<RoundWords, &str> {
+        self.words_as_typed(None)
+    }
+
+    /// [`Self::words`], its summary naming the request as the human `typed` it too
+    /// ([`RoundRecord::summary_as_typed`]).
+    ///
+    /// # Errors
+    /// Why the kept value cannot be read.
+    pub fn words_as_typed(&self, typed: Option<&str>) -> Result<RoundWords, &str> {
         let record = self.record()?;
         Ok(RoundWords {
-            summary: record.summary(),
+            summary: record.summary_as_typed(typed),
             asked: record.pending().map(|q| q.why.clone()),
             blocked: record.continuable().err().map(|why| why.to_string()),
         })
+    }
+}
+
+/// A request in words: « request », or « typed » as you typed it · rebuilt as « request » when a
+/// restatement rebuilt the sentence the human typed. A trailing line break is presentation and is
+/// never shown inside « »; the kept bytes stay as they were.
+#[must_use]
+pub fn as_typed(typed: Option<&str>, request: &str) -> String {
+    let request = request.trim_end();
+    match typed
+        .map(str::trim_end)
+        .filter(|typed| !typed.is_empty() && *typed != request)
+    {
+        Some(typed) => format!("« {typed} » as you typed it · rebuilt as « {request} »"),
+        None => format!("« {request} »"),
     }
 }
 

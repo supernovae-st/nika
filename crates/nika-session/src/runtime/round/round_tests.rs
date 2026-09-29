@@ -937,3 +937,34 @@ fn a_round_admitted_before_the_restriction_is_not_answered_under_it() {
         refusal.text
     );
 }
+
+/// C11 · R2 · a round whose clause the human restated in words is named as typed and as rebuilt,
+/// never the rebuilt sentence alone, and with no line break inside « »: by the notice and by
+/// `/restore`. `/restore` keeps the goal as typed (the live session's own law), so a second
+/// close names both again.
+#[test]
+fn a_restated_round_is_named_as_typed_and_as_rebuilt() {
+    let root = project();
+    let home = tempfile::tempdir().expect("home");
+    let (mut first, _, _) = reopen(root.path(), home.path());
+    question(first.turn(&format!("{ORDERS}\n")));
+    let (key, _) = question(first.turn(&format!("{RULE}\n")));
+    assert_eq!(key, "const.publish_endpoint");
+    drop(first);
+    let rebuilt = ORDERS.replace("the total amount per customer", RULE);
+    let both = format!("« {ORDERS} » as you typed it · rebuilt as « {rebuilt} »");
+    let (mut again, _, notice) = reopen(root.path(), home.path());
+    assert!(notice.contains(&both), "{notice}");
+    assert!(
+        !notice.contains("\n »"),
+        "no line break inside « »: {notice}"
+    );
+    let (_, text) = question(again.turn("/restore"));
+    assert!(text.contains(&both), "{text}");
+    drop(again);
+    let (_, _, notice) = reopen(root.path(), home.path());
+    assert!(
+        notice.contains(&both),
+        "a restore cycle keeps both: {notice}"
+    );
+}

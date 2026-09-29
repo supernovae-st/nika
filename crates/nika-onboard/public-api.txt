@@ -243,6 +243,7 @@ pub fn nika_onboard::compile::round::RoundReading::from_raw(raw: serde_json::val
 pub fn nika_onboard::compile::round::RoundReading::raw(&self) -> &serde_json::value::Value
 pub fn nika_onboard::compile::round::RoundReading::record(&self) -> core::result::Result<&nika_onboard::compile::round::RoundRecord, &str>
 pub fn nika_onboard::compile::round::RoundReading::words(&self) -> core::result::Result<nika_onboard::compile::round::RoundWords, &str>
+pub fn nika_onboard::compile::round::RoundReading::words_as_typed(&self, typed: core::option::Option<&str>) -> core::result::Result<nika_onboard::compile::round::RoundWords, &str>
 impl core::clone::Clone for nika_onboard::compile::round::RoundReading
 pub fn nika_onboard::compile::round::RoundReading::clone(&self) -> nika_onboard::compile::round::RoundReading
 impl core::cmp::Eq for nika_onboard::compile::round::RoundReading
@@ -708,8 +709,10 @@ pub fn nika_onboard::compile::round::RoundRecord::answer_map(&self) -> alloc::co
 pub fn nika_onboard::compile::round::RoundRecord::authoring_receipt(&self) -> core::option::Option<nika_compile::types::AuthoringReceipt>
 pub fn nika_onboard::compile::round::RoundRecord::continuable(&self) -> core::result::Result<(), nika_onboard::compile::round::Unusable>
 pub fn nika_onboard::compile::round::RoundRecord::pending(&self) -> core::option::Option<&nika_onboard::compile::round::KeptQuestion>
+pub fn nika_onboard::compile::round::RoundRecord::request_as_typed(&self, typed: core::option::Option<&str>) -> alloc::string::String
 pub fn nika_onboard::compile::round::RoundRecord::revises_base(&self, content: &str) -> bool
 pub fn nika_onboard::compile::round::RoundRecord::summary(&self) -> alloc::string::String
+pub fn nika_onboard::compile::round::RoundRecord::summary_as_typed(&self, typed: core::option::Option<&str>) -> alloc::string::String
 pub fn nika_onboard::compile::round::RoundRecord::to_value(&self) -> serde_json::value::Value
 impl core::clone::Clone for nika_onboard::compile::round::RoundRecord
 pub fn nika_onboard::compile::round::RoundRecord::clone(&self) -> nika_onboard::compile::round::RoundRecord
@@ -855,6 +858,7 @@ pub type nika_onboard::compile::round::Settled::Output = T
 pub const nika_onboard::compile::round::MAX_ANSWERS: usize
 pub const nika_onboard::compile::round::ROUND_LIMIT: usize
 pub const nika_onboard::compile::round::ROUND_SCHEMA: u64
+pub fn nika_onboard::compile::round::as_typed(typed: core::option::Option<&str>, request: &str) -> alloc::string::String
 pub fn nika_onboard::compile::round::carry_receipt(out: &mut nika_compile::types::CompileOutcome, receipt: core::option::Option<&nika_compile::types::AuthoringReceipt>)
 pub fn nika_onboard::compile::round::change_money(change: &str, admitted: bool) -> alloc::vec::Vec<core::ops::range::Range<usize>>
 pub fn nika_onboard::compile::round::compiled(request: nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome) -> core::option::Option<nika_compile::types::CompileRequest>

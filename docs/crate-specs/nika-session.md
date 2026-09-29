@@ -576,7 +576,9 @@ question waited is kept (C7). The home History is its one durable copy
 project's structured record keeps none, and the unanswered labels the kept
 round owns are not announced as expired (any other label still is). The
 recovery notice, `/meaning`, `/why` and `/status` name the kept round
-read-only: its request, its settled answers and the question that waited.
+read-only: its request as typed and, when a clause answered in words rebuilt
+it, as rebuilt (the goal saved beside the round; `/restore` keeps it as typed),
+its settled answers and the question that waited.
 Opening rewrites neither store, calls no model and grants no consent; the
 live intent's `unresolved` stays empty, so no line is bound to the kept
 question before `/restore`. `/restore` continues it only when asked: the

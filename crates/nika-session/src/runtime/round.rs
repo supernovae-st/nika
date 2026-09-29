@@ -131,9 +131,15 @@ impl SessionRuntime {
             .is_some_and(|(record, content)| record.revises_base(content))
     }
 
+    /// A kept round in words, its request named as typed too: the goal restored beside it.
+    fn kept_words(&self) -> Option<Result<nika_onboard::compile::round::RoundWords, &str>> {
+        let kept = self.restored_round.as_ref()?;
+        Some(kept.reading.words_as_typed(self.intent.goal.as_deref()))
+    }
+
     /// The restore notice's line about a kept round, with the way on when it can be continued.
     pub(super) fn round_line(&self) -> Option<String> {
-        Some(match self.restored_round.as_ref()?.reading.words() {
+        Some(match self.kept_words()? {
             Ok(words) => match words.blocked {
                 None => format!("restored round: {}{ROUND_HINT}", words.summary),
                 Some(why) => format!(
@@ -149,7 +155,7 @@ impl SessionRuntime {
 
     /// `/meaning` beside a round kept but not continued yet (R4 73): what it holds, read-only.
     pub(super) fn kept_round_meaning(&self) -> Option<TurnOutcome> {
-        let text = match self.restored_round.as_ref()?.reading.words() {
+        let text = match self.kept_words()? {
             Ok(words) => format!(
                 "the round kept from your last session, not continued yet: {}\n  its clause-by-clause reading is shown once /restore continues it · nothing was asked or changed",
                 words.summary
@@ -164,7 +170,7 @@ impl SessionRuntime {
     /// `/why` while nothing waits but a round is kept: the question it waited on and why the
     /// compiler asked it, read-only.
     pub(super) fn kept_round_why(&self) -> Option<TurnOutcome> {
-        let text = match self.restored_round.as_ref()?.reading.words() {
+        let text = match self.kept_words()? {
             Ok(words) => format!(
                 "nothing waits now · the round kept from your last session has not continued: {}{}\n  {} · nothing was asked or changed",
                 words.summary,
@@ -182,7 +188,7 @@ impl SessionRuntime {
 
     /// The `/status` line of a kept round: empty when none is kept.
     pub(super) fn kept_round_status(&self) -> String {
-        match self.restored_round.as_ref().map(|k| k.reading.words()) {
+        match self.kept_words() {
             Some(Ok(words)) => format!(
                 "\n  kept round (not continued): {} · {}",
                 words.summary,
@@ -284,13 +290,15 @@ impl SessionRuntime {
         match compile_deterministic(&round.request()) {
             Ok(out) => {
                 self.restored_round = None;
-                self.intent.goal = Some(round.effective_intent());
+                // The goal stays as typed, as live: a restatement rebuilds the request (C11).
+                let goal = &mut self.intent.goal;
+                let typed = goal.get_or_insert_with(|| round.effective_intent()).clone();
+                let asked = record.request_as_typed(Some(&typed));
                 let settled = self.settle(round, Reading::of(out));
                 preface(
                     settled,
                     &format!(
-                        "your request from the last session: « {} » · continued from the kept round: its recorded plan replayed by the deterministic compiler — no AI asked, no workflow executed",
-                        record.request.text
+                        "your request from the last session: {asked} · continued from the kept round: its recorded plan replayed by the deterministic compiler — no AI asked, no workflow executed"
                     ),
                 )
             }
