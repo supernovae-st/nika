@@ -2,7 +2,8 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! An answered field resumes authoring through the existing bounded call and verifier.
 use super::{
-    AuthoringPolicy, CompileOutcome, DiagnosticKind, PendingTransform, ProviderInferDyn, Refusal,
+    AuthoringPolicy, CompileOutcome, DiagnosticKind, PendingTransform, ProposedTransform,
+    ProviderInferDyn, Refusal,
 };
 use crate::{CompileError, CompileRequest, CompileStatus};
 use serde_json::json;
@@ -26,25 +27,21 @@ pub(crate) async fn resume<P: ProviderInferDyn>(
     // These are the deterministic pending requirement, now being fulfilled by this call.
     out.diagnostics
         .retain(|d| d.target != "authoring_transform");
-    let verdict = super::propose(policy, provider, pending.context(), &mut out)
-        .await
-        .and_then(|proposed| {
-            if proposed
-                .columns_read
-                .iter()
-                .any(|c| !pending.columns().contains(c))
-            {
-                return Err(Refusal(
-                    "the regenerated program reads an unobserved field".into(),
-                ));
-            }
-            if !pending.uses_answers(&proposed.columns_read) {
-                return Err(Refusal(
-                    "the regenerated program does not use the answered fields".into(),
-                ));
-            }
-            super::verify(intent, pending.columns(), &proposed).map(|()| proposed)
-        });
+    let answer = super::propose(policy, provider, pending.context(), &mut out).await;
+    let program = answer.as_ref().map(|proposed| proposed.jq.clone()).ok();
+    let verdict = answer.and_then(|proposed| regenerated(intent, &pending, proposed));
+    // The same repair as the first synthesis, within this request's allowance (R4 A11).
+    let mut repairs = super::domain::Repairs::granted(policy);
+    let verdict = match (verdict, program) {
+        (Err(why), Some(jq)) => {
+            let (state, clause) = (pending.context(), pending.detail().to_owned());
+            repairs
+                .repair(policy, provider, &state, &clause, (jq, why), &mut out)
+                .await
+                .and_then(|repaired| regenerated(intent, &pending, repaired))
+        }
+        (verdict, _) => verdict,
+    };
     match verdict {
         Ok(proposed) => {
             let rule = crate::rules::Rule::program(
@@ -81,6 +78,30 @@ pub(crate) async fn resume<P: ProviderInferDyn>(
         }
     }
     Ok(out)
+}
+
+/// The laws a regenerated program is held to: it reads only the observed fields, it uses the
+/// answered ones, and it passes every law of a computation clause's program.
+fn regenerated(
+    intent: &str,
+    pending: &PendingTransform,
+    proposed: ProposedTransform,
+) -> Result<ProposedTransform, Refusal> {
+    if proposed
+        .columns_read
+        .iter()
+        .any(|c| !pending.columns().contains(c))
+    {
+        return Err(Refusal(
+            "the regenerated program reads an unobserved field".into(),
+        ));
+    }
+    if !pending.uses_answers(&proposed.columns_read) {
+        return Err(Refusal(
+            "the regenerated program does not use the answered fields".into(),
+        ));
+    }
+    super::verified(intent, pending.detail(), pending.columns(), &proposed).map(|()| proposed)
 }
 
 /// The regeneration's verdict once the replay of its verified record ran: the program is

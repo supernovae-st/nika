@@ -198,6 +198,7 @@ use crate::plan::{Op, Plan, Step};
 use nika_compile::surface::pending_transform::PendingTransform;
 use nika_kernel::ai::provider::{ContentBlock, Message, ProviderInferDyn, Role, StopReason};
 use serde_json::json;
+mod domain;
 mod pending;
 pub(super) use pending::resume;
 
@@ -259,6 +260,7 @@ pub(super) async fn synthesize<P: ProviderInferDyn>(
         .collect();
     let mut records = Vec::new();
     let mut pending_state = None;
+    let mut repairs = domain::Repairs::granted(policy);
     for step in pending {
         let state = json!({
             "request": intent,
@@ -266,28 +268,24 @@ pub(super) async fn synthesize<P: ProviderInferDyn>(
             "computation": step.detail,
             "columns": hint,
         });
-        let verdict = propose(policy, provider, state, out)
-            .await
-            .and_then(|proposed| {
-                if let Some(columns) = &observed
-                    && let Some(field) = proposed
-                        .columns_read
-                        .iter()
-                        .find(|field| !columns.contains(field))
-                {
-                    let missing: Vec<String> = proposed
-                        .columns_read
-                        .iter()
-                        .filter(|field| !columns.contains(field))
-                        .cloned()
-                        .collect();
-                    pending_state = PendingTransform::new(intent, plan, &step, &missing, request);
-                    return Err(Refusal(format!(
-                        "`{field}` is not among the source's observed fields"
-                    )));
-                }
-                verify(intent, &hint, &proposed).map(|()| proposed)
-            });
+        let answer = propose(policy, provider, state.clone(), out).await;
+        let program = answer.as_ref().map(|proposed| proposed.jq.clone()).ok();
+        let verdict = answer.and_then(|proposed| {
+            let missing = unobserved(observed.as_deref(), &proposed);
+            if let Some(field) = missing.first() {
+                let why = format!("`{field}` is not among the source's observed fields");
+                pending_state = PendingTransform::new(intent, plan, &step, &missing, request);
+                return Err(Refusal(why));
+            }
+            verified(intent, &step.detail, &hint, &proposed).map(|()| proposed)
+        });
+        let verdict = match (verdict, program) {
+            (Err(why), Some(jq)) => repairs
+                .repair(policy, provider, &state, &step.detail, (jq, why), out)
+                .await
+                .and_then(|p| admitted(intent, &step.detail, &hint, observed.as_deref(), p)),
+            (verdict, _) => verdict,
+        };
         match verdict {
             Ok(proposed) => {
                 crate::finding(
@@ -338,11 +336,22 @@ async fn propose<P: ProviderInferDyn>(
     state: Value,
     out: &mut CompileOutcome,
 ) -> Result<ProposedTransform, Refusal> {
+    propose_as(policy, provider, "transform", state, out).await
+}
+
+/// The same call under its own role in the receipt (a repair is journaled as one, R4 A11).
+async fn propose_as<P: ProviderInferDyn>(
+    policy: &AuthoringPolicy,
+    provider: &P,
+    role: &'static str,
+    state: Value,
+    out: &mut CompileOutcome,
+) -> Result<ProposedTransform, Refusal> {
     let messages = vec![
         Message::text(Role::System, INSTRUCTION),
         Message::text(Role::User, state.to_string()),
     ];
-    super::call_with_schema(policy, provider, "transform", messages, schema(), out)
+    super::call_with_schema(policy, provider, role, messages, schema(), out)
         .await
         .ok_or_else(|| Refusal("the seat returned no transform".to_owned()))
         .and_then(|response| match response.content.as_slice() {
@@ -357,6 +366,56 @@ async fn propose<P: ProviderInferDyn>(
             serde_json::from_str::<ProposedTransform>(&text)
                 .map_err(|e| Refusal(format!("the answer is not a transform: {e}")))
         })
+}
+
+/// A repaired program is held to the same laws as the first: every column it reads observed,
+/// then every law of [`verified`].
+fn admitted(
+    intent: &str,
+    clause: &str,
+    hint: &[String],
+    observed: Option<&[String]>,
+    proposed: ProposedTransform,
+) -> Result<ProposedTransform, Refusal> {
+    if let Some(field) = unobserved(observed, &proposed).first() {
+        return Err(Refusal(format!(
+            "`{field}` is not among the source's observed fields"
+        )));
+    }
+    verified(intent, clause, hint, &proposed).map(|()| proposed)
+}
+
+/// The laws a program for a computation clause is held to: every law of [`verify`], then the
+/// domain laws (R4 A11): the identity of a sum or a count the clause states, whose refusal
+/// names the value due, before the floor of every clause.
+fn verified(
+    intent: &str,
+    clause: &str,
+    hint: &[String],
+    proposed: &ProposedTransform,
+) -> Result<(), Refusal> {
+    verify(intent, hint, proposed)?;
+    let (program, expected) = (proposed.jq.trim(), &proposed.expected_output);
+    let example = proposed
+        .example_input
+        .as_array()
+        .map_or(&[][..], Vec::as_slice);
+    domain::identity(clause, program, example, expected)?;
+    domain::floor(program, example)
+}
+
+/// The columns a program reads that the observed source does not carry, in the program's own
+/// order; nothing when no source was observed.
+fn unobserved(observed: Option<&[String]>, proposed: &ProposedTransform) -> Vec<String> {
+    let Some(columns) = observed else {
+        return Vec::new();
+    };
+    proposed
+        .columns_read
+        .iter()
+        .filter(|field| !columns.contains(field))
+        .cloned()
+        .collect()
 }
 
 /// The laws a proposed program must pass before it is bound: it parses and compiles under

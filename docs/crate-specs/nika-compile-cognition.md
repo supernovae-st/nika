@@ -71,6 +71,23 @@ ride that record. A replay that refuses it keeps its own findings; the outcome c
 candidate and no verified record, states `accepted: false` with the refusal as its `why`, and
 the provider call stays spent and counted (E14 FRESH-1 saw `accepted: true` beside a refusal).
 
+A seat's program also answers for sources beside its own example (`transform::domain`, R4
+A11): the source with no row and each source holding one row of the seat's example. It never
+returns null on them, which no write can take (B16's live `… | add` over no shipped row ran
+READY into a failed write). When the clause's leading word is a sum or a count by the Reader's
+closed `AggOp` words, with no ranking cue, and the program's example value is a scalar (a
+number, or one field holding one), it returns exactly 0 in that shape where no row is kept:
+null or a stated error is no sum of nothing. An average, a minimum or a maximum may stop with a
+stated error there; rows and groups of no row are an empty list. A refusal by these laws goes
+back to the seat once with its program and the stated defect (role `transform_repair`), within
+the policy's repairs: one allowance per request, shared by every transform step and a field
+answer's regeneration, never one per clause; zero buys no call, and each attempt is recorded
+under `transform_repairs`. The laws judge values on the seat's own rows. They cover neither
+every predicate that keeps no row nor what the request asks (a program that omits the
+clause's predicate, or returns another shape, holds them), which stays the whole-request
+verifier's; the scalar reading rests on the example the seat chose, so it proves neither that
+the request asked a scalar nor that the sum is complete.
+
 An observed world states names; it does not answer a choice the request leaves open. The
 judge refuses a question for a column, field, key or value an observed file states, except
 one: a `const.<x>_column` · `_col` · `_field` · `_header` question when the request speaks of
