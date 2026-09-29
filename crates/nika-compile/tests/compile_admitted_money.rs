@@ -221,3 +221,93 @@ fn a_phrase_is_money_or_data_by_its_role_never_by_a_field() {
         "{compute}"
     );
 }
+
+/// The directive spans of `text` (as a money gate admits them).
+fn spans(text: &str) -> Vec<std::ops::Range<usize>> {
+    nika_compile::money::directives(text)
+        .unwrap()
+        .found
+        .into_iter()
+        .map(|d| d.span)
+        .collect()
+}
+
+/// The cognition door compiling `request` (the conflict path folds the replacement; no call).
+async fn door(request: CompileRequest) -> CompileOutcome {
+    let provider = common::Provider::new(json!({}));
+    let request = request.with_authoring_policy(common::policy());
+    let out = nika_compile_cognition::compile_with_provider(&request, &provider)
+        .await
+        .unwrap();
+    let calls = provider.calls.load(std::sync::atomic::Ordering::SeqCst);
+    assert_eq!(calls, 0, "{out:#?}");
+    out
+}
+
+/// What the outcome records as the caller's admitted directives, by their words.
+fn admitted_words(out: &CompileOutcome) -> Vec<String> {
+    out.provenance
+        .decision
+        .as_ref()
+        .and_then(|d| d["money"]["directives"].as_array().cloned())
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|d| d["text"].as_str().map(str::to_owned))
+        .collect()
+}
+
+/// A replacement request never inherits the spans the caller admitted on the request it replaces
+/// (R4 A11, C11's adversary): spans index the bytes the caller read. « … Budget: 5 USD »
+/// admitted, replaced by a request whose own « Budget: 9 USD » sits at the same bytes: the new
+/// directive was recorded as the caller's admitted ceiling and blanked from the reading, and a
+/// span landing on no directive refused the replacement. The replacement is now read as it
+/// states itself; unchanged bytes keep their spans, and a caller re-admits on the new bytes. The
+/// replacement contradicts itself, so the door folds it on its conflict path and calls no one.
+#[tokio::test]
+async fn a_replacement_never_inherits_the_spans_admitted_on_another_text() {
+    let new = "write 'hello' to ./a.txt but do not write anything. Budget: 9 USD";
+    let at = spans(new)[0].clone();
+    let old = format!(
+        "{:<width$}Budget: 5 USD",
+        "keep the rows of ./orders.csv.",
+        width = at.start
+    );
+    let old = old.as_str();
+    assert_eq!(spans(old), std::slice::from_ref(&at));
+    assert_eq!(&new[at.clone()], "Budget: 9 USD");
+    let clarified = |base: &str, spans: Vec<std::ops::Range<usize>>, answer: &str| {
+        CompileRequest::create(base)
+            .with_admitted_money(spans)
+            .answer("intent.clarification", json!(answer).to_string())
+    };
+    // Same offset: the new directive is no admission of the caller.
+    let same = door(clarified(old, spans(old), new)).await;
+    assert!(admitted_words(&same).is_empty(), "{same:#?}");
+    // Another offset: no refusal on a span of another text.
+    let short = "keep the rows of ./orders.csv. Budget: 5 USD";
+    let moved = door(clarified(short, spans(short), new)).await;
+    assert!(
+        !says(&moved, "is not a monetary directive of the request"),
+        "{moved:#?}"
+    );
+    assert!(admitted_words(&moved).is_empty(), "{moved:#?}");
+    // Unchanged bytes keep what the caller admitted on them.
+    let kept = door(clarified(new, spans(new), new)).await;
+    assert_eq!(admitted_words(&kept), ["Budget: 9 USD"], "{kept:#?}");
+    // A caller admits on the replacement's own bytes by stating them as its request.
+    let readmitted = door(CompileRequest::create(new).with_admitted_money(spans(new))).await;
+    assert_eq!(
+        admitted_words(&readmitted),
+        ["Budget: 9 USD"],
+        "{readmitted:#?}"
+    );
+    // The same law for any caller folding a replacement.
+    let folded = CompileRequest::create(old)
+        .with_admitted_money(spans(old))
+        .with_replaced_input(new);
+    assert!(folded.money.is_empty());
+    let same_bytes = CompileRequest::create(new)
+        .with_admitted_money(spans(new))
+        .with_replaced_input(new);
+    assert_eq!(same_bytes.money, [at]);
+}

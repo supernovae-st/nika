@@ -1746,6 +1746,7 @@ pub fn nika_compile::CompileRequest::with_hot_policy(self, hot: nika_compile::Ho
 pub fn nika_compile::CompileRequest::with_knowledge(self, snapshot: serde_json::value::Value) -> Self
 pub fn nika_compile::CompileRequest::with_original_intent(self, intent: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_compile::CompileRequest::with_plan(self, plan: serde_json::value::Value) -> Self
+pub fn nika_compile::CompileRequest::with_replaced_input(self, text: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_compile::CompileRequest::with_stated_money(self) -> Self
 pub fn nika_compile::CompileRequest::with_workflow_id(self, id: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_compile::CompileRequest

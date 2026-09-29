@@ -166,6 +166,19 @@ impl CompileRequest {
         self.stated_money = true;
         self
     }
+    /// The same request with `text` as its complete input: a clarification or any replacement
+    /// the caller answered. The monetary spans it admitted index the bytes it read, so they stay
+    /// only when `text` is those very bytes; a replacement never inherits them, whatever its own
+    /// directives or their offsets (R4 A11).
+    #[must_use]
+    pub fn with_replaced_input(mut self, text: impl Into<String>) -> Self {
+        let text = text.into();
+        if !matches!(&self.input, Input::Create(read) if *read == text) {
+            self.money = Vec::new();
+        }
+        self.input = Input::Create(text);
+        self
+    }
     /// Create from an exact skeleton or bounded support clauses. Other intents
     /// remain incomplete unless an explicit provider authoring call resolves them.
     #[must_use]

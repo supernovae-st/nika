@@ -325,8 +325,7 @@ async fn route_create<P: ProviderInferDyn>(
         .iter()
         .any(|e| e.policy == crate::plan::EffectPolicy::Conflict)
     {
-        let mut read_as = assembly_request.clone();
-        read_as.input = Input::Create(intent.to_owned());
+        let read_as = assembly_request.clone().with_replaced_input(intent);
         return super::compile(&read_as);
     }
     let mut route = Vec::new();
