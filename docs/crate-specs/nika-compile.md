@@ -348,8 +348,10 @@ holding every stage in another order is refused.
 The operations the request states are witnessed (R4 A3). Each plan rule, step
 detail and step evidence whose text is an exact excerpt of the request anchors a
 part, read once by the one grammar over
-the binding's columns: the widest readable excerpt stands for excerpts inside it,
-and an unreadable excerpt counts only where no readable one overlaps it. A rule
+the binding's columns: the widest readable excerpt stands for excerpts inside it.
+An unreadable excerpt remains a part unless its words outside the readable
+excerpts are all function words of the reader's closed table. Overlap alone
+never drops the unread selection beside a sort (R4 A10). A rule
 holds the parts when their operations (each filter clause, an « or » of clauses
 as one, each count with its grouping, each sort with its key and direction, each
 cut with its size) appear in its lowered sequence in request order with those
