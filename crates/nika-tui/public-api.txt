@@ -1230,6 +1230,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_tui::terminal::Owner
 impl<T> typenum::type_operators::Same for nika_tui::terminal::Owner
 pub type nika_tui::terminal::Owner::Output = T
 pub const nika_tui::terminal::INLINE_HEIGHT: u16
+pub fn nika_tui::terminal::clear_inline<B: ratatui_core::backend::Backend>(screen: &mut ratatui_core::terminal::Terminal<B>) -> core::result::Result<(), <B as ratatui_core::backend::Backend>::Error>
 pub fn nika_tui::terminal::enter(presentation: nika_tui::model::Presentation, term: core::option::Option<&str>) -> core::io::error::Result<(nika_tui::terminal::Owner, nika_tui::terminal::Screen)>
 pub fn nika_tui::terminal::install_panic_hook()
 pub fn nika_tui::terminal::on_alternate_screen() -> bool
