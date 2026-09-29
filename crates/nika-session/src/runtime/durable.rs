@@ -14,6 +14,7 @@ use super::inference::{
     DISPATCH_PREFIX, GATE_MONEY_PREFIX, OBSERVED_PREFIX, RECONFIRM, gate_money_marker,
     is_money_marker,
 };
+use super::round::KeptRound;
 use nika_trace::lineage::{Standing, lineage_of};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -52,6 +53,12 @@ impl SessionRuntime {
         }
         self.history = HistoryMode::Blocked("conversation history did not open".to_owned());
         let history = History::open(home, &self.snapshot.root).map_err(history_refusal)?;
+        // The round kept beside its projected labels: the one durable copy, read, never live.
+        self.restored_round = history
+            .state
+            .round
+            .clone()
+            .map(|raw| KeptRound::new(raw, history.state.unresolved.clone()));
         let expired = self.restore_intent(IntentDraft {
             goal: history.state.goal.clone(),
             decisions: history.state.decisions.clone(),
@@ -74,9 +81,14 @@ impl SessionRuntime {
             if let Some(restored) = &self.restored_draft {
                 text.push('\n');
                 text.push_str(&draft::restored_line(restored, self.money.reconfirm));
-                if self.restored_draft_id().is_some() {
+                // While a kept round can be continued, `/restore` continues it first.
+                if self.restored_draft_id().is_some() && !self.round_is_continuable() {
                     text.push_str(super::restore::RESTORE_HINT);
                 }
+            }
+            if let Some(line) = self.round_line() {
+                text.push('\n');
+                text.push_str(&line);
             }
             text
         });
@@ -93,9 +105,10 @@ impl SessionRuntime {
             self.pending_gate = None;
             return TurnOutcome::Quit;
         }
-        // `/restore` records itself as the re-proposal act; what already waits refuses it.
+        // `/restore` records itself as the continuation or re-proposal act; what already waits
+        // refuses it.
         if input.trim() == "/restore" {
-            return self.restore_draft();
+            return self.restore_kept();
         }
         let operation = if self.local_run_line(input) {
             Operation::Run
@@ -298,7 +311,10 @@ impl SessionRuntime {
     fn restore_intent(&mut self, mut restored: IntentDraft) -> String {
         // Labels remain historical evidence, but no authoring/input round was
         // restored to accept an answer. Name that expiry before dropping them
-        // from the current projection; opening neither calls nor writes.
+        // from the current projection; opening neither calls nor writes. The
+        // labels a readable kept round owns are its own line's, never expired.
+        let kept = self.kept_round_labels();
+        restored.unresolved.retain(|label| !kept.contains(label));
         let expired = if restored.unresolved.is_empty() {
             String::new()
         } else {
@@ -542,6 +558,7 @@ impl SessionRuntime {
         if self.pending.is_some() {
             self.restored_draft = None;
         }
+        self.drop_replaced_round();
         // A choice that resumed a waiting line is judged by that line's
         // own outcome: the record sees what the human's request became.
         let judged = match &outcome {
@@ -628,6 +645,7 @@ impl SessionRuntime {
                 .or(self.revising.as_ref().map(|(set, _)| set))
                 .and_then(|set| draft::capture(&self.proposal_id(set), set))
                 .or_else(|| self.restored_draft.as_ref().map(|r| r.raw().clone())),
+            round: self.round_to_keep(),
         }
     }
 }

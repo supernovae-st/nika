@@ -5,8 +5,9 @@
 //! proposes the kept draft again through the durable draft's own rebuild, shows the request
 //! it answered first, and grants nothing: no model call, no approval, nothing written until
 //! a fresh yes. It is advertised (help card, completion, recovery notice) only while a kept
-//! draft can be proposed again.
+//! draft can be proposed again, or a kept round continued (`round.rs`, which it serves first).
 
+use super::round::ROUND_HELP;
 use super::{HELP, Refusal, RefusalClass, SLASH_COMMANDS, SessionRuntime, TurnOutcome, draft};
 
 /// The help line of `/restore`, shown only while a kept draft can be proposed again.
@@ -17,24 +18,29 @@ pub(super) const RESTORE_HINT: &str =
     "\n  → type /restore to review it again · no AI asked · nothing is written until you say yes";
 
 /// Where to go when there is nothing to restore.
-const NOTHING_KEPT: &str = " · only a proposal still waiting for your yes or no when a session closes is kept · describe what you want instead";
+const NOTHING_KEPT: &str = " · only a proposal waiting for your yes or no, or a question waiting for your answer, is kept when a session closes · describe what you want instead";
 
 impl SessionRuntime {
-    /// The help card, with `/restore` only while a kept draft can be proposed again.
+    /// The help card, with `/restore` only while a kept round can be continued or a kept
+    /// draft proposed again.
     #[must_use]
     pub fn help_card(&self) -> String {
-        match self.restored_draft_id() {
-            Some(_) => HELP.replacen("\n/help ", &format!("\n{RESTORE_HELP}\n/help "), 1),
-            None => HELP.to_owned(),
-        }
+        let line = if self.round_is_continuable() {
+            ROUND_HELP
+        } else if self.restored_draft_id().is_some() {
+            RESTORE_HELP
+        } else {
+            return HELP.to_owned();
+        };
+        HELP.replacen("\n/help ", &format!("\n{line}\n/help "), 1)
     }
 
     /// The slash commands a door completes now: [`SLASH_COMMANDS`], and `/restore` only
-    /// while a kept draft can be proposed again.
+    /// while a kept round can be continued or a kept draft proposed again.
     #[must_use]
     pub fn slash_commands(&self) -> Vec<&'static str> {
         let mut commands = SLASH_COMMANDS.to_vec();
-        if self.restored_draft_id().is_some() {
+        if self.round_is_continuable() || self.restored_draft_id().is_some() {
             commands.insert(2, "/restore");
         }
         commands
@@ -68,7 +74,9 @@ impl SessionRuntime {
     /// `/restore` while something waits (a proposal, a gate, a choice): refused, and what
     /// waits stays exactly as it was. The kept draft stays kept.
     pub(super) fn restore_while_waiting(&self) -> TurnOutcome {
-        let text = if self.restored_draft_id().is_some() {
+        let text = if self.round_is_continuable() {
+            "something already waits for you; answer or discard it first, then type /restore again · the kept round stays kept"
+        } else if self.restored_draft_id().is_some() {
             "something already waits for you; answer or discard it first, then type /restore again · the kept draft stays kept"
         } else {
             "no kept draft this engine can propose again · what waits for you is unchanged"

@@ -195,6 +195,10 @@ impl SessionRuntime {
                 set.effects_fact()
             ));
         }
+        // A round kept from the last session is read here, never continued (`/restore` is).
+        if let Some(kept) = self.kept_round_why() {
+            return kept;
+        }
         // Nothing waits: the last failure's card answers it, from memory, with no call.
         self.last_recovery()
             .unwrap_or_else(|| TurnOutcome::Facts(NOTHING_WAITS.to_owned()))

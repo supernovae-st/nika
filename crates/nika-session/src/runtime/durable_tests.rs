@@ -307,10 +307,12 @@ fn reopening_does_not_restore_the_authority_of_a_pending_proposal() {
 
 /// The compiler's typed question is a recorded kind of the transcript and
 /// its label remains in history. The round itself (the plan, the answers)
-/// never survives a close: the notice names that expiry and the current
-/// intent carries no question that cannot be answered. Restating asks again.
+/// is kept as evidence (C7): the notice names it and the way to continue it
+/// (`/restore`), and the current intent carries no live question until then —
+/// an answer typed before is never bound to it. Restating asks again.
+/// (Migrated with C7: the notice named the round's expiry before.)
 #[test]
-fn an_authoring_question_is_recorded_and_reopening_restores_the_intent_not_the_round() {
+fn an_authoring_question_is_recorded_and_reopening_keeps_the_round_until_restore() {
     let root = project();
     let home = tempfile::tempdir().expect("home");
     let (mut first, seen) = open(root.path(), &[ANSWER]);
@@ -344,10 +346,11 @@ fn an_authoring_question_is_recorded_and_reopening_restores_the_intent_not_the_r
     assert_eq!(resumed.intent.goal.as_deref(), Some(DRAFT));
     assert!(
         resumed.intent.unresolved.is_empty(),
-        "a dropped round is not an active question"
+        "a kept round is not an active question"
     );
-    assert!(notice.contains("unanswered questions expired"), "{notice}");
-    assert!(notice.contains("state the request again"), "{notice}");
+    assert!(notice.contains("restored round"), "{notice}");
+    assert!(notice.contains("type /restore to continue it"), "{notice}");
+    assert!(!notice.contains("expired"), "{notice}");
     assert!(
         std::fs::read_to_string(history_dir(home.path(), root.path()).join("events.ndjson"))
             .expect("history")
@@ -356,7 +359,7 @@ fn an_authoring_question_is_recorded_and_reopening_restores_the_intent_not_the_r
     );
     assert!(
         resumed.pending_question().is_none(),
-        "the round is not restored"
+        "the round is not live before /restore"
     );
     assert!(resumed.pending_proposal().is_none());
     assert!(seen.lock().expect("record").is_empty());

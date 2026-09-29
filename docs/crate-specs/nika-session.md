@@ -566,22 +566,38 @@ The Session direct-API authoring descriptor uses `cost_basis: unpriced; billing_
 
 Direct API authoring endpoint metadata comes from the exact seated registry: `host` strips user info, path, query and fragment; `base_url_overridden` compares the effective URL with its profile seed when available. `endpoint_basis: operator_configuration` distinguishes this configuration from an authenticated remote identity or an observed model. Session host diagnostics use the same redaction.
 
-On reopening, authoring and input rounds are not restored. Their unanswered
-labels stay in the original transcript or structured record as historical
-facts, and the recovery notice names their expiry with a way to restate the
-request. The live intent's `unresolved` contains only questions it can still
-answer, so a later unrelated run observation cannot persist expired questions
-as current. Opening rewrites neither store, calls no model and grants no
-consent. Paused trace gates and conservative monetary restrictions retain
-their existing restoration laws.
+On reopening, an input round is not restored; an authoring round whose
+question waited is kept (C7). The home History is its one durable copy
+(`Saved.round`, the schema-1 record of `nika_onboard::compile::round`); the
+project's structured record keeps none, and the unanswered labels the kept
+round owns are not announced as expired (any other label still is). The
+recovery notice, `/meaning`, `/why` and `/status` name the kept round
+read-only: its request, its settled answers and the question that waited.
+Opening rewrites neither store, calls no model and grants no consent; the
+live intent's `unresolved` stays empty, so no line is bound to the kept
+question before `/restore`. `/restore` continues it only when asked: the
+money gate reads the request again (no admitted span, account, review or
+consent is restored; a revision's words are its change, read as the live
+revision reads them, never the goal it was kept with), a saved workflow's
+revision whose base moved or
+vanished is held with nothing compiled, and the recorded plan is replayed by
+the deterministic compiler against the observation it recorded — no provider
+call, no workflow executed — so the question is asked again under this session's
+identity (one minted by the closed session is refused). The next answer is an
+ordinary answer round against the project as it is then, and any provider
+call passes the current admission. A round the redactor changed, one over its
+bound, another schema or a malformed record stays kept byte for byte, is
+named, and is never continued. New work replaces a kept round. Conservative
+monetary restrictions retain their existing restoration laws.
 
 The round's pure law lives beside its codec (C10): `AuthoringRound` keeps its
 path, fields, constructor and every method with its signature — `compile` and
 `compile_with_admission` stay inherent — and delegates the typed request, what
 an outcome settled, the questions it leaves, a re-anchored plan and a carried
-receipt to `nika_onboard::compile::round`. The codec also exposes read-only
-`RoundWords`; this consumer does not yet restore a pending authoring round across
-sessions.
+receipt to `nika_onboard::compile::round`. The kept round's read-only lines
+are built from that codec's `RoundWords`. A kept draft and a kept round share
+one refusal: something else waits, this engine cannot read the kept value, or
+none is kept; either stays kept.
 
 The preview's rows of a check report (the first findings and hints, the effect rows and
 the spend) are read from `nika_display::check_render::review` (C10): strings, order and

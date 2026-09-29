@@ -2960,6 +2960,8 @@ pub fn nika_session::runtime::SessionRuntime::with_classifier(&mut self, classif
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::repropose_restored_draft(&mut self) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::restored_draft_id(&self) -> core::option::Option<&str>
+impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::restore_round(&mut self) -> nika_session::runtime::TurnOutcome
 impl core::fmt::Debug for nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_session::runtime::SessionRuntime
@@ -5607,6 +5609,8 @@ pub fn nika_session::runtime::SessionRuntime::with_classifier(&mut self, classif
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::repropose_restored_draft(&mut self) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::restored_draft_id(&self) -> core::option::Option<&str>
+impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::restore_round(&mut self) -> nika_session::runtime::TurnOutcome
 impl core::fmt::Debug for nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_session::runtime::SessionRuntime

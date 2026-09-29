@@ -47,6 +47,7 @@ mod protocol;
 mod question;
 mod recovery;
 mod restore;
+mod round;
 mod route;
 mod run_budget;
 mod unknown_cost;
@@ -239,6 +240,8 @@ pub struct SessionRuntime {
     basis: Option<fresh::ProposalBasis>,
     /// The proposal pending when an earlier session closed: evidence, never authority.
     restored_draft: Option<draft::Restored>,
+    /// The authoring round kept when an earlier session closed: evidence, never authority.
+    restored_round: Option<round::KeptRound>,
     money: money_gate::MoneyState,
     unknown_cost: unknown_cost::UnknownCostState,
     pending_gate: Option<PendingGate>,
@@ -340,6 +343,7 @@ impl SessionRuntime {
             pending: None,
             basis: None,
             restored_draft: None,
+            restored_round: None,
             money: money_gate::MoneyState::default(),
             unknown_cost: unknown_cost::UnknownCostState::default(),
             pending_gate: None,
@@ -477,6 +481,9 @@ impl SessionRuntime {
             crate::meaning::render(out)
                 .unwrap_or_else(|| crate::meaning::UNAVAILABLE.to_owned() + way)
         } else {
+            if let Some(kept) = self.kept_round_meaning() {
+                return kept;
+            }
             if self.money.current.is_some() {
                 return TurnOutcome::Aside(self.money_line());
             }
@@ -769,12 +776,13 @@ impl SessionRuntime {
             " (not chosen yet · asked when a turn needs one · `/intelligence` chooses now)"
         };
         format!(
-            "session\n  root: {}\n  {}{chosen}{readiness}\n  {}\n  {}\n  {}\n  /help for the card · /quit to close",
+            "session\n  root: {}\n  {}{chosen}{readiness}\n  {}\n  {}\n  {}{}\n  /help for the card · /quit to close",
             self.snapshot.root.display(),
             self.intelligence_line(),
             self.seat.line(),
             self.authoring_context.line(),
-            self.money_line()
+            self.money_line(),
+            self.kept_round_status()
         )
     }
 
