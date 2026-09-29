@@ -311,3 +311,27 @@ async fn a_replacement_never_inherits_the_spans_admitted_on_another_text() {
         .with_replaced_input(new);
     assert_eq!(same_bytes.money, [at]);
 }
+
+/// Repeating the identical request preserves its admission and its useful deterministic result,
+/// not just the money receipt. Its already blanked directive must not reenter as business work.
+#[tokio::test]
+async fn an_unchanged_clarification_keeps_the_admitted_work_ready() {
+    let text = format!("{WORK}. Budget: 9 USD");
+    let request = CompileRequest::create(text.as_str())
+        .with_knowledge(world(TICKETS))
+        .with_admitted_money(spans(&text));
+    let direct = door(request.clone()).await;
+    assert_eq!(direct.status, CompileStatus::Ready, "{direct:#?}");
+    let repeated = door(request.answer("intent.clarification", json!(text).to_string())).await;
+    assert_eq!(repeated.status, CompileStatus::Ready, "{repeated:#?}");
+    assert_eq!(admitted_words(&repeated), ["Budget: 9 USD"]);
+    assert_eq!(
+        common::compute(repeated.candidate.as_deref().unwrap()),
+        PLAIN
+    );
+    assert_eq!(repeated.candidate, direct.candidate);
+    assert_eq!(
+        repeated.provenance.decision.as_ref().unwrap()["intent_sha256"],
+        intent_sha256(&text)
+    );
+}

@@ -51,7 +51,12 @@ native and sketch: every seat reads the request with those directives blanked, a
 records each one beside the original request's identity (`decision.money`). A revision's change
 is read by the same law; on a door that states money so is the request its base answered, and a
 creation's `intent.clarification` replacement is read afresh, the words it replaced stating
-nothing. A request that names a skeleton only once its directive is blanked is read as written,
+nothing. On a host-admission door, changed clarification bytes discard the spans admitted on
+its earlier request before any money record is attached; unchanged bytes keep their admission
+and the same blanked reading inside the answer. Repeating a request must not reintroduce its
+admitted ceiling as work or open a needless provider call. A host re-admits a replacement by
+submitting its own bytes with their own spans. A request that names a skeleton only once its
+directive is blanked is read as written,
 never as that skeleton, its money recorded. A ceiling no seat can be held to opens none: an
 admitted zero on every door, any stated ceiling on a door that meters no seat, any ceiling of a
 request read as written (a seat would read it as work). The generative and the decision seats
