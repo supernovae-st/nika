@@ -325,7 +325,11 @@ Amendments change the total allowance without erasing settled or held exposure;
 questions, new factory instances, model changes and repairs never reset it.
 An uncertain account cannot reopen. After restart the previous aggregate cannot
 be proved: restored paid work requires an explicit new-scope reconfirmation and
-its previous invoice remains unknown. A bounded session never automatically
+its previous invoice remains unknown. A ceiling stated after the restart (a
+request's own directive, or a kept round's read again at `/restore`) belongs to
+that round: its answers state no money and keep it, never refused as the
+restored exposure, while Session inference stays blocked and new work stating
+no ceiling is still refused (C11). A bounded session never automatically
 changes the selected authoring model to a stronger one.
 
 A prepared decision participates in the exact proposal preview and identity.

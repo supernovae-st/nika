@@ -855,3 +855,85 @@ fn a_rebuilt_revision_carries_its_changes_own_directives() {
         "a request keeps its own spans"
     );
 }
+
+/// C11 · M1 · a kept round whose request states a budget is answered after a monetary restart.
+/// `/restore` admits the stated ceiling again under the restart restriction; the answer states no
+/// money and keeps it (the restriction refuses fresh work that states no ceiling, never the
+/// admitted round's own answer). No account is opened from the unknown exposure, Session
+/// inference stays blocked, and the proposal carries the stated ceiling.
+#[test]
+fn a_restored_round_stating_a_budget_is_answered_after_a_monetary_restart() {
+    let root = project();
+    let home = tempfile::tempdir().expect("home");
+    let request = format!("{DRAFT}. Budget: $2.");
+    let (mut first, _, _) = reopen(root.path(), home.path());
+    assert_eq!(question(first.turn(&request)).0, "model");
+    drop(first);
+    let (mut again, seen, _) = reopen(root.path(), home.path());
+    assert!(
+        again.money.reconfirm,
+        "a monetary history restores the restriction"
+    );
+    assert_eq!(question(again.turn("/restore")).0, "model");
+    let (_, preview) = proposal(again.turn("mock/echo"));
+    assert_eq!(ceiling(&again), Some(2.0), "the stated ceiling: {preview}");
+    assert!(
+        again.money.reconfirm && again.money.account.is_none(),
+        "no allowance from the unknown exposure"
+    );
+    assert!(
+        again.money_blocks_cognition(),
+        "Session inference stays blocked"
+    );
+    assert!(seen.lock().expect("prompts").is_empty(), "no model asked");
+    let _ = again.turn("no");
+    let refusal = refused(again.turn(DRAFT));
+    assert!(
+        refusal
+            .text
+            .contains("restored inference exposure is unknown"),
+        "fresh work stating no ceiling is still refused: {}",
+        refusal.text
+    );
+}
+
+/// C11 · the same law after a monetary restart without `/restore`: a fresh round stating its
+/// budget is answered and proposed with that ceiling, Session inference still blocked.
+#[test]
+fn a_fresh_round_stating_a_budget_is_answered_after_a_monetary_restart() {
+    let root = project();
+    let home = tempfile::tempdir().expect("home");
+    let request = format!("{DRAFT}. Budget: $2.");
+    let (mut first, _, _) = reopen(root.path(), home.path());
+    question(first.turn(&request));
+    drop(first);
+    let (mut again, seen, _) = reopen(root.path(), home.path());
+    assert!(
+        again.money.reconfirm,
+        "a monetary history restores the restriction"
+    );
+    assert_eq!(question(again.turn(&request)).0, "model");
+    proposal(again.turn("mock/echo"));
+    assert_eq!(ceiling(&again), Some(2.0), "the stated ceiling");
+    assert!(again.money.account.is_none() && again.money_blocks_cognition());
+    assert!(seen.lock().expect("prompts").is_empty(), "no model asked");
+}
+
+/// C11 · a round whose ceiling was admitted before the restriction is not answered under it: only
+/// a ceiling stated while the restriction holds is kept, never an earlier admission.
+#[test]
+fn a_round_admitted_before_the_restriction_is_not_answered_under_it() {
+    let root = project();
+    let (mut session, _) = open(root.path());
+    let request = format!("{DRAFT}. Budget: $2.");
+    assert_eq!(question(session.turn(&request)).0, "model");
+    session.money.reconfirm = true;
+    let refusal = refused(session.turn("mock/echo"));
+    assert!(
+        refusal
+            .text
+            .contains("restored inference exposure is unknown"),
+        "{}",
+        refusal.text
+    );
+}

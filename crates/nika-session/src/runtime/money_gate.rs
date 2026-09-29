@@ -23,6 +23,8 @@ pub(super) struct MoneyState {
     // It never replaces the Session draft, guard or shared admission account.
     pub gate: Option<MonetaryDecision>,
     pub reconfirm: bool,
+    // The live round's ceiling was stated while `reconfirm` held: its answers keep it (C11).
+    pub stated_under_reconfirm: bool,
     pub current: Option<MonetaryDecision>,
     pub draft: Option<MonetaryDecision>,
     pub pending: Option<MonetaryDecision>,
@@ -44,6 +46,7 @@ impl Default for MoneyState {
             admission_note: None,
             gate: None,
             reconfirm: false,
+            stated_under_reconfirm: false,
             current: None,
             draft: None,
             pending: None,
@@ -348,12 +351,19 @@ impl SessionRuntime {
         };
         // The Session restriction cannot replace an independent gate observation.
         // Gate parsing above still holds cognition, but does not consume this flag.
-        if self.money.reconfirm && parsed.amount.is_none() {
+        // A round whose ceiling was stated under it keeps that ceiling for its answers (C11).
+        if self.money.reconfirm
+            && parsed.amount.is_none()
+            && !(continuation && self.money.stated_under_reconfirm)
+        {
             let why = self.restored_refusal();
             return Err(self.refuse_money(input, &why));
         }
         if continuation && parsed.amount.is_none() {
             return Ok(());
+        }
+        if !continuation {
+            self.money.stated_under_reconfirm = self.money.reconfirm;
         }
         let mut decision = self.money_decision(input, &parsed);
         if continuation && let Some(previous) = &self.money.draft {
