@@ -140,7 +140,7 @@ fn fresh_classifier_conversation_and_compiler_do_not_reset_exposure() {
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
     let mut s = open(dir.path());
-    s.admit_money("budget 2 USD", false).expect("admit");
+    s.admit_money("budget 2 USD", false, false).expect("admit");
     assert_eq!(s.classify(SessionPhase::Idle, WORK).act, TurnAct::NewWork);
     s.reason_with_money("explain this work", false)
         .expect("reason");
@@ -151,7 +151,7 @@ fn fresh_classifier_conversation_and_compiler_do_not_reset_exposure() {
     assert_eq!(peer.bodies().len(), 3);
     assert_eq!(peer.bodies()[0]["max_tokens"], 4096);
     assert_eq!(peer.bodies()[1]["max_tokens"], 8192);
-    s.admit_money("budget 2 USD", true).unwrap();
+    s.admit_money("budget 2 USD", true, false).unwrap();
     assert_eq!(
         s.inference_receipt().unwrap().unwrap().estimated,
         r.estimated
@@ -176,12 +176,12 @@ fn zero_invalid_and_unknown_charge_remain_guarded_across_questions() {
         let _transport = test_transport::install(&peer.url);
         let dir = tempfile::tempdir().unwrap();
         let mut s = open(dir.path());
-        s.admit_money("budget 2 USD", false).unwrap();
+        s.admit_money("budget 2 USD", false, false).unwrap();
         assert!(s.reason_with_money("hello", false).is_err());
         let r = s.inference_receipt().unwrap().unwrap();
         assert_eq!(r.state, AdmissionState::Uncertain);
         assert!(r.held_unknown.nano_usd > 0);
-        s.admit_money("budget 3 USD", true).unwrap();
+        s.admit_money("budget 3 USD", true, false).unwrap();
         assert!(s.money_blocks_cognition());
         let _ = s.turn("what happened?");
         assert_eq!(peer.bodies().len(), 1);
@@ -190,7 +190,7 @@ fn zero_invalid_and_unknown_charge_remain_guarded_across_questions() {
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
     let mut s = open(dir.path());
-    s.admit_money("budget 2 USD", false).unwrap();
+    s.admit_money("budget 2 USD", false, false).unwrap();
     s.reason_with_money("hello", false).unwrap();
     for value in ["budget 0 USD", "budget NaN USD"] {
         let _ = s.turn(value);
@@ -256,7 +256,7 @@ fn a_fresh_unmetered_factory_cannot_escape_the_active_account() {
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
     let mut s = open(dir.path());
-    s.admit_money("budget 2 USD", false).unwrap();
+    s.admit_money("budget 2 USD", false, false).unwrap();
     s.factory = Some(Box::new(|_| Box::new(UnmeteredReasoner)));
     assert_eq!(s.classify(SessionPhase::Idle, WORK).act, TurnAct::Unknown);
     assert!(peer.bodies().is_empty());
@@ -268,7 +268,7 @@ fn both_confirm_gate_doors_hold_paid_accounts_without_resume_or_calls() {
     for addressed in [false, true] {
         let dir = tempfile::tempdir().unwrap();
         let mut s = open(dir.path());
-        s.admit_money("budget 2 USD", false).unwrap();
+        s.admit_money("budget 2 USD", false, false).unwrap();
         s.reason_with_money("hello", false).unwrap();
         let before = peer.bodies().len();
         let receipt = s.inference_receipt().unwrap();

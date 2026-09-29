@@ -465,7 +465,7 @@ fn cancel_after_restore_drops_the_round() {
 
 /// M1 · M2 · INV-MONEY-GATE · nothing admitted is restored: the money gate reads the request
 /// again at `/restore`, and the continued round carries this session's admission; under a
-/// restored exposure with no amount the gate refuses and nothing compiles.
+/// restored exposure a request stating no amount is replayed with zero calls (C11 F1).
 #[test]
 fn money_is_admitted_again_and_never_restored() {
     let root = project();
@@ -494,19 +494,15 @@ fn money_is_admitted_again_and_never_restored() {
     let (mut first, _, _) = reopen(root.path(), home.path());
     question(first.turn(DRAFT));
     drop(first);
-    let (mut again, _, _) = reopen(root.path(), home.path());
+    let (mut again, seen, _) = reopen(root.path(), home.path());
     again.money.reconfirm = true;
-    let refusal = refused(again.turn("/restore"));
-    assert_eq!(refusal.class, RefusalClass::NotAllowed, "{}", refusal.text);
+    assert_eq!(question(again.turn("/restore")).0, "model");
     assert!(
-        again.authoring.is_none() && again.last_outcome.is_none(),
-        "no compile under a refusal"
+        again.money.admitted.is_empty(),
+        "nothing to admit, nothing carried"
     );
-    drop(again);
-    assert!(
-        kept_round(home.path(), root.path()).is_some(),
-        "the round stays kept"
-    );
+    assert!(again.money.reconfirm && again.money_blocks_cognition());
+    assert!(seen.lock().expect("prompts").is_empty(), "no model asked");
 }
 
 /// M5 · a kept request whose money directive the gate cannot read is refused before any
@@ -966,5 +962,65 @@ fn a_restated_round_is_named_as_typed_and_as_rebuilt() {
     assert!(
         notice.contains(&both),
         "a restore cycle keeps both: {notice}"
+    );
+}
+
+/// C11 F1 · a kept round stating no money continues after a restart that restores an UNKNOWN
+/// dispatch: `/restore` replays its plan with zero calls and the protocol-bound answer reaches a
+/// proposal, while the marker stays, Session inference stays blocked and fresh work stating no
+/// ceiling is still refused (the owner's option (a)).
+#[test]
+fn a_kept_round_without_money_continues_under_a_restored_unknown_dispatch() {
+    let live_root = project();
+    let (mut live, _) = open(live_root.path());
+    question(live.turn(ORDERS));
+    let (key, _) = question(live.turn(RULE));
+    let root = project();
+    let home = tempfile::tempdir().expect("home");
+    let (mut first, _, _) = reopen(root.path(), home.path());
+    question(first.turn(ORDERS));
+    question(first.turn(RULE));
+    drop(first);
+    let marker = format!(
+        "{}a paid request recorded before transport",
+        crate::runtime::inference::DISPATCH_PREFIX
+    );
+    let mut record = crate::SessionState::load(root.path())
+        .expect("readable")
+        .unwrap_or_else(|| crate::SessionState::new("2026-09-29T00:00:00Z".to_owned()));
+    record.decisions.push(marker.clone());
+    record.save(root.path()).expect("saved");
+    let (mut again, seen, _) = reopen(root.path(), home.path());
+    let notice = again.restore_state().expect("the record is restored");
+    assert!(notice.contains(&marker), "{notice}");
+    assert!(
+        again.money.reconfirm,
+        "the UNKNOWN dispatch restores the restriction"
+    );
+    let (asked, text) = question(again.turn("/restore"));
+    assert_eq!(asked, key, "the kept question, asked again");
+    assert!(text.contains("no AI asked"), "{text}");
+    proposal(again.turn(URL));
+    assert!(seen.lock().expect("prompts").is_empty(), "no model asked");
+    assert!(again.money.account.is_none() && again.money_blocks_cognition());
+    assert!(
+        !root.path().join(LANDED).exists(),
+        "a proposal writes nothing"
+    );
+    let kept = crate::SessionState::load(root.path())
+        .expect("readable")
+        .expect("kept");
+    assert!(
+        kept.decisions.contains(&marker),
+        "the marker is never cleared"
+    );
+    let _ = again.turn("no");
+    let refusal = refused(again.turn(DRAFT));
+    assert!(
+        refusal
+            .text
+            .contains("restored inference exposure is unknown"),
+        "fresh work stating no ceiling is still refused: {}",
+        refusal.text
     );
 }

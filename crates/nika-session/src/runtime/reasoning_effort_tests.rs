@@ -109,7 +109,7 @@ fn every_routed_label_and_turn_ask_the_level_the_session_holds_when_it_calls() {
     let dir = tempfile::tempdir().expect("root");
     let built = Arc::new(AtomicUsize::new(0));
     let mut s = open(dir.path(), &built);
-    s.admit_money("budget 2 USD", false).expect("admit");
+    s.admit_money("budget 2 USD", false, false).expect("admit");
     // The host replaces the context after open: the next calls ask its level.
     s.set_authoring_context(named("max"));
     for raw in ["tell me more about it", "and then?"] {
@@ -303,7 +303,7 @@ fn a_named_word_the_session_cannot_ask_refuses_every_call_before_any_byte() {
     let dir = tempfile::tempdir().expect("root");
     let built = Arc::new(AtomicUsize::new(0));
     let mut s = open(dir.path(), &built);
-    s.admit_money("budget 2 USD", false).expect("admit");
+    s.admit_money("budget 2 USD", false, false).expect("admit");
     // The shared parser refuses the word; a paid account stands, and nothing may be asked.
     s.set_authoring_context(named("maximum"));
     assert!(s.authoring_context().refusal().is_some());
@@ -348,7 +348,7 @@ fn another_refused_setting_never_drops_a_valid_named_level() {
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().expect("root");
     let mut s = open(dir.path(), &Arc::new(AtomicUsize::new(0)));
-    s.admit_money("budget 2 USD", false).expect("admit");
+    s.admit_money("budget 2 USD", false, false).expect("admit");
     // The strategy word is refused (authoring refuses it); the named level is what calls ask.
     s.set_authoring_context(AuthoringContext::from_settings(
         &AuthoringSettings::none()
@@ -406,7 +406,7 @@ fn door(
     classifier: Box<dyn TurnClassifier>,
 ) -> SessionRuntime {
     let mut s = open(root, built);
-    s.admit_money("budget 2 USD", false).expect("admit");
+    s.admit_money("budget 2 USD", false, false).expect("admit");
     s.with_classifier(classifier);
     s
 }

@@ -43,7 +43,7 @@ fn literal(root: &Path) -> SessionRuntime {
 fn waiting(root: &Path, original: &str) -> SessionRuntime {
     let mut s = literal(root);
     assert!(
-        s.admit_money(original, false).is_ok(),
+        s.admit_money(original, false, false).is_ok(),
         "the first line is admitted"
     );
     let asked = compile(&CompileRequest::create("bounded-batch"))
@@ -223,7 +223,7 @@ fn a_restatement_admits_its_added_directive_on_the_string_it_builds() {
         let mut s = waiting(dir.path(), original);
         let line = format!("also the « réglés » ones, budget {amount} USD");
         // The gate admits the line first, as every turn does before routing it.
-        assert!(s.admit_money(&format!("   {line}"), true).is_ok());
+        assert!(s.admit_money(&format!("   {line}"), true, false).is_ok());
         let round = s.authoring.take().expect("a round waits");
         let _ = s.restate_round(&round, &format!("   {line}"));
         let built = format!("{original}. {line}");
@@ -373,7 +373,7 @@ fn a_routed_restatement_moves_the_ceiling_and_binds_its_span_together() {
     // so the core's own record says what request it was handed (nothing is asked of a seat).
     s.seat = crate::authoring::AuthoringSeat::Deterministic { why: None };
     assert!(
-        s.admit_money("budget 2 USD", false).is_ok(),
+        s.admit_money("budget 2 USD", false, false).is_ok(),
         "an account at 2"
     );
     let asked = compile(&CompileRequest::create("bounded-batch"))
@@ -408,7 +408,7 @@ fn a_routed_restatement_moves_the_ceiling_and_binds_its_span_together() {
 fn at_a_syntax_question(root: &Path, request: &str, clause: &str) -> SessionRuntime {
     let mut s = literal(root);
     assert!(
-        s.admit_money(request, false).is_ok(),
+        s.admit_money(request, false, false).is_ok(),
         "the request is admitted"
     );
     let asked = compile(&CompileRequest::create("bounded-batch"))
@@ -496,7 +496,7 @@ fn a_routed_business_price_keeps_the_admitted_ceiling_and_only_real_directives()
         let dir = tempfile::tempdir().expect("root");
         let mut s = priced(dir.path());
         s.seat = crate::authoring::AuthoringSeat::Deterministic { why: None };
-        assert!(s.admit_money("budget 2 USD", false).is_ok());
+        assert!(s.admit_money("budget 2 USD", false, false).is_ok());
         let asked = compile(&CompileRequest::create("bounded-batch"))
             .expect("compiles")
             .questions;

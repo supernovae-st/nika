@@ -252,6 +252,13 @@ zero-constraint refusal; a malformed ceiling is left to the money gate. An
 explicit zero stages no cost review at all, since nothing can be sent under it
 on any route: the deterministic reading, a question, or a refusal with the
 reader's reasons follows.
+
+At a live authoring question, an offered choice key alone or a value that binds
+without interpretation needs no unknown-cost review. A question ending in `?`
+keeps its local answer. Other words meet the selected seat's one-time cost
+review before any classification or value reading; declining keeps the pending
+question, and restored exposure refuses the review without sending a request.
+A live round with no current question exempts only the local `?` path.
 Once attached currency is recognized, amount validation cannot fall back to
 filename handling: `budget=0.5oopsUSD` refuses, while `budget=0.txt` and quoted
 or explicit path data retain their data meaning.
@@ -331,6 +338,13 @@ that round: its answers state no money and keep it, never refused as the
 restored exposure, while Session inference stays blocked and new work stating
 no ceiling is still refused (C11). A bounded session never automatically
 changes the selected authoring model to a stronger one.
+
+Restoring a kept authoring round may replay its deterministic reading without
+an allowance and without a model call, including under restored uncertain
+exposure. This exception belongs only to that replay: it neither clears the
+exposure nor admits fresh work or paid cognition. A null or otherwise unreadable
+durable cost observation remains uncertain. Every Session inference status
+states how many such observations are unreadable and never treats them as settled.
 
 A prepared decision participates in the exact proposal preview and identity.
 A monetary-only amendment can revise Session's own ceiling without changing

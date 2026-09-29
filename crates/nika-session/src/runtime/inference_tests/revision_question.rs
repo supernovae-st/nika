@@ -66,7 +66,8 @@ fn session(dir: &Path, home: Option<&Path>) -> SessionRuntime {
         s.enable_history(home).expect("history");
     }
     s.with_classifier(Box::new(Acts));
-    s.admit_money("budget 2 USD", false).expect("allowance");
+    s.admit_money("budget 2 USD", false, false)
+        .expect("allowance");
     s
 }
 

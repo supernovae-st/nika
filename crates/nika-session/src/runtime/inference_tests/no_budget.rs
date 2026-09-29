@@ -59,7 +59,7 @@ fn a_priced_call_without_a_budget_is_observed_never_admitted() {
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
     let mut s = open(dir.path());
-    s.admit_money("hello", false)
+    s.admit_money("hello", false, false)
         .expect("no money is not a refusal");
     assert_eq!(
         s.monetary_decision().unwrap().inference,
@@ -126,7 +126,7 @@ fn explicit_zero_and_an_insufficient_ceiling_never_fall_back_to_observation() {
         let _transport = test_transport::install(&peer.url);
         let dir = tempfile::tempdir().unwrap();
         let mut s = open(dir.path());
-        s.admit_money(money, false).expect("admitted money");
+        s.admit_money(money, false, false).expect("admitted money");
         assert!(s.reason_with_money("hello", false).is_err(), "{money}");
         assert!(peer.bodies().is_empty(), "{money}: nothing was sent");
         let observed = s.money.observed.snapshot().unwrap();
@@ -290,7 +290,7 @@ fn a_later_ceiling_keeps_the_observation_and_never_claims_to_cover_it() {
     let dir = tempfile::tempdir().unwrap();
     let mut s = open(dir.path());
     s.reason_with_money("hello", false).expect("observed");
-    s.admit_money("budget 2 USD", false)
+    s.admit_money("budget 2 USD", false, false)
         .expect("a ceiling from now on");
     s.reason_with_money("hello again", false).expect("admitted");
     let admitted = s.inference_receipt().unwrap().unwrap();

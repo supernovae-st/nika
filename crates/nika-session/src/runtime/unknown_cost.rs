@@ -207,13 +207,13 @@ impl SessionRuntime {
                 return Ok(());
             }
         }
-        if self
-            .authoring
-            .as_ref()
-            .is_some_and(|r| r.continuation.is_some())
-        {
-            // A plan replay has no authority to call a provider; the cognition
-            // guard below remains closed unless a fresh review is active.
+        if (self.authoring.as_ref()).is_some_and(|r| {
+            let local = input.trim_end().ends_with('?');
+            r.current()
+                .map_or(local, |q| super::answer::owes_no_review(q, input))
+        }) {
+            // A line bound with no reading, or a question, owes no review; any other line waits for
+            // the chosen seat's one-time review, which a restored exposure refuses (F2).
             return Ok(());
         }
         let route = match self.selected_cost_route() {
@@ -302,9 +302,8 @@ impl SessionRuntime {
         let Some(pending) = self.unknown_cost.pending.take() else {
             return cost_refusal("no cost review waits".into());
         };
-        // One grammar with the Run's cost decision (EN/FR): an unknown line
-        // is asked again with the same review — it never approves, never
-        // spends and never silently cancels.
+        // One grammar with the Run's cost decision (EN/FR): an unknown line is asked again with the
+        // same review — it never approves, never spends and never silently cancels.
         match super::decision_answer(answer) {
             super::DecisionAnswer::Approve => {}
             super::DecisionAnswer::Decline => return self.declined_review(),

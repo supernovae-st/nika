@@ -776,7 +776,10 @@ fn a_blocked_cognition_answers_a_consent_question_from_observed_effects() {
     for blocked in ["restored exposure", "zero budget"] {
         let mut w = world(&[], false);
         if blocked == "zero budget" {
-            assert!(w.s.admit_money("budget 0 USD", false).is_ok(), "{blocked}");
+            assert!(
+                w.s.admit_money("budget 0 USD", false, false).is_ok(),
+                "{blocked}"
+            );
         }
         let TurnOutcome::Proposal { id, .. } = w.s.turn(COPY) else {
             panic!("{blocked}: deterministic work remains available");

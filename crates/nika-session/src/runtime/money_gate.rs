@@ -23,7 +23,7 @@ pub(super) struct MoneyState {
     // It never replaces the Session draft, guard or shared admission account.
     pub gate: Option<MonetaryDecision>,
     pub reconfirm: bool,
-    // The live round's ceiling was stated while `reconfirm` held: its answers keep it (C11).
+    // The live round was admitted while `reconfirm` held: its answers keep that admission (C11).
     pub stated_under_reconfirm: bool,
     pub current: Option<MonetaryDecision>,
     pub draft: Option<MonetaryDecision>,
@@ -109,7 +109,7 @@ impl SessionRuntime {
         let unread = !review
             && self.money_blocks_cognition()
             && stated.as_ref().is_ok_and(|(p, _)| p.amount.is_none());
-        if !unread && let Err(refusal) = self.admit_money(answer, true) {
+        if !unread && let Err(refusal) = self.admit_money(answer, true, false) {
             return refusal;
         }
         self.pending = None;
@@ -320,13 +320,14 @@ impl SessionRuntime {
         }
     }
 
-    /// Called before any compiler/classifier/reasoner. A continuation with
-    /// no monetary clause keeps the admitted round's money, not a new default,
-    /// and the no-budget observation its work began with.
+    /// Called before any compiler/classifier/reasoner. A continuation with no monetary clause
+    /// keeps the admitted round's money, not a new default, and the no-budget observation its
+    /// work began with; a kept round's zero-call `replay` needs no ceiling under the restriction.
     pub(super) fn admit_money(
         &mut self,
         input: &str,
         continuation: bool,
+        replay: bool,
     ) -> Result<(), TurnOutcome> {
         if !continuation {
             self.rotate_observation();
@@ -351,10 +352,10 @@ impl SessionRuntime {
         };
         // The Session restriction cannot replace an independent gate observation.
         // Gate parsing above still holds cognition, but does not consume this flag.
-        // A round whose ceiling was stated under it keeps that ceiling for its answers (C11).
+        // A round admitted under it (a stated ceiling or a zero-call replay) answers under it.
         if self.money.reconfirm
             && parsed.amount.is_none()
-            && !(continuation && self.money.stated_under_reconfirm)
+            && !(replay || (continuation && self.money.stated_under_reconfirm))
         {
             let why = self.restored_refusal();
             return Err(self.refuse_money(input, &why));
@@ -557,11 +558,10 @@ impl SessionRuntime {
             self.money.current = Some(self.inference_observation(saved_money.decision.clone()));
             return Ok(());
         }
-        // The existing journal proves that Save occurred, but its v1 schema
-        // does not record spending constraints. After reopening, absence of
-        // an in-memory binding therefore cannot justify a fresh default. Read
-        // at Run even when the host did not call restore_state; do not restore
-        // execution authority or equate distinct files by their bytes.
+        // The existing journal proves that Save occurred, but its v1 schema does not record
+        // spending constraints. After reopening, absence of an in-memory binding therefore cannot
+        // justify a fresh default. Read at Run even when the host did not call restore_state; do
+        // not restore execution authority or equate distinct files by their bytes.
         let records = match ConsentRecord::read_all(&self.snapshot.root) {
             Ok(records) if records.iter().all(|r| r.version == ConsentRecord::VERSION) => records,
             _ => return Err(self.refuse_run_money(input, "saved monetary evidence is unreadable — provide an explicit Run ceiling or prepare and review the workflow again")),

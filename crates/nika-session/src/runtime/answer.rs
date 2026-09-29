@@ -136,6 +136,13 @@ fn as_typed(line: &str) -> bool {
     !line.contains(char::is_whitespace) || serde_json::from_str::<serde_json::Value>(line).is_ok()
 }
 
+/// A line owed no one-time review (F2): an offered key alone, a value alone, or a question.
+pub(super) fn owes_no_review(question: &CompileQuestion, line: &str) -> bool {
+    (is_offered_choice(question) && names_an_offer_alone(question, line))
+        || (!is_offered_choice(question) && as_typed(line))
+        || line.trim_end().ends_with('?')
+}
+
 /// The one bounded reading: the question in its own words, the reply verbatim, and one
 /// instruction — copy the value, or say NONE.
 fn reading_prompt(question: &CompileQuestion, line: &str) -> String {

@@ -282,7 +282,7 @@ impl SessionRuntime {
         let words = (record.edit.as_ref()).map_or(record.request.text.as_str(), |edit| {
             edit.change.text.as_str()
         });
-        if let Err(refusal) = self.admit_money(words, false) {
+        if let Err(refusal) = self.admit_money(words, false, true) {
             return refusal;
         }
         let round = rebuilt(&record, &self.money.admitted);

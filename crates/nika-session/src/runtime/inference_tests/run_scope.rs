@@ -93,10 +93,10 @@ fn independent_run_cannot_amend_existing_shared_zero_or_uncertain_account() {
             doc["candidate"].as_str().unwrap(),
         )
         .unwrap();
-        s.admit_money("budget 2 USD", false).unwrap();
+        s.admit_money("budget 2 USD", false, false).unwrap();
         let shared = s.money.account.clone().unwrap();
         if zero {
-            s.admit_money("budget 0 USD", false).unwrap();
+            s.admit_money("budget 0 USD", false, false).unwrap();
         } else {
             assert!(
                 s.reason_with_money("a request with unknown cost", false)

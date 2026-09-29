@@ -81,8 +81,7 @@ pub enum TurnOutcome {
     Help(String),
     /// The human closed the session.
     Quit,
-    /// The turn was refused: the class a host acts on, and the sentence
-    /// that names the fix.
+    /// The turn was refused: the class a host acts on, and the sentence that names the fix.
     Refusal(Refusal),
     /// The session asks the first screen again — the NEXT line is the
     /// answer ([`SessionRuntime::choose`]).
@@ -104,29 +103,26 @@ pub enum TurnOutcome {
         /// The question as the human reads it.
         question: String,
     },
-    /// The compiler's Ready candidate, proposed: the review, then the
-    /// exact preview of the bytes the apply would land. The NEXT line is
-    /// the human's consent ([`SessionRuntime::consent`]); nothing is
-    /// written before it, and consent is never a run.
+    /// The compiler's Ready candidate, proposed: the review, then the exact preview of the bytes
+    /// the apply would land. The NEXT line is the human's consent ([`SessionRuntime::consent`]);
+    /// nothing is written before it, and consent is never a run.
     Proposal {
         /// The identity a consent names ([`SessionRuntime::consent_to`]).
         id: ProposalId,
         /// The exact preview.
         preview: String,
     },
-    /// The set landed and its on-disk check is clean: the door runs the
-    /// workflow once through the SAME run path as `nika run` and reports
-    /// what it observed ([`SessionRuntime::observe_run`]). The apply and
-    /// check report rides along.
+    /// The set landed and its on-disk check is clean: the door runs the workflow once through the
+    /// SAME run path as `nika run` and reports what it observed ([`SessionRuntime::observe_run`]).
+    /// The apply and check report rides along.
     RunRequested {
         /// What apply and the check said.
         report: String,
         /// The run the human asked for.
         run: RunRequest,
     },
-    /// The run paused at a human gate: the question, asked to the human.
-    /// The NEXT line is their answer ([`SessionRuntime::answer_gate`]);
-    /// nothing answers for them.
+    /// The run paused at a human gate: the question, asked to the human. The NEXT line is their
+    /// answer ([`SessionRuntime::answer_gate`]); nothing answers for them.
     GateAsk {
         /// The gate an answer names ([`SessionRuntime::answer_gate_for`]).
         id: GateId,
@@ -143,9 +139,8 @@ pub enum TurnOutcome {
         /// `task=value`, as the human's line became it.
         answer: String,
     },
-    /// An answer BESIDE what waits (« why? » under a question or a gate):
-    /// said from the machine's own state; the question or the gate keeps
-    /// waiting, nothing is consumed, decided or applied.
+    /// An answer BESIDE what waits (« why? » under a question or a gate): said from the machine's
+    /// own state; the question or the gate keeps waiting, nothing is consumed, decided or applied.
     Aside(String),
     /// The intelligence was chosen in the middle of a request: the
     /// choice's own fact, then the outcome of the line that waited for it,
@@ -168,8 +163,7 @@ pub(crate) enum Need {
     Authoring,
 }
 
-/// The help card — the few survivors, and the law that everything
-/// meaningful is reachable in words.
+/// The help card — the few survivors, and the law that everything meaningful is reachable in words.
 pub const HELP: &str = "text                 describe work to build (« read ./notes, draft a summary, write ./out/summary.md ») · Nika compiles it,
                      asks what it cannot invent, shows the workflow, and writes it only when you say yes · consent is never a run
 run …                run the workflow you accepted, or one you name (« run brief.nika with a ceiling of 0.05 ») · a paused run asks you
@@ -441,9 +435,8 @@ impl SessionRuntime {
         String::new()
     }
 
-    /// Where the automation stands as separate facts — the rail the
-    /// renderer keeps above the status row: DECLARED is never ACTIVE,
-    /// SAVED is never RUN, findings are not a clean check.
+    /// Where the automation stands as separate facts — the rail the renderer keeps above the status
+    /// row: DECLARED is never ACTIVE, SAVED is never RUN, findings are not a clean check.
     #[must_use]
     pub fn lifecycle(&self) -> crate::lifecycle::Lifecycle {
         let declared_active = self
@@ -821,7 +814,7 @@ impl SessionRuntime {
             if let Some(outcome) = self.question_protocol(input) {
                 return self.keep_revising(outcome);
             }
-            if let Err(refusal) = self.admit_money(original, true) {
+            if let Err(refusal) = self.admit_money(original, true, false) {
                 return refusal;
             }
             let outcome = self.answer_question_unrecorded(input);
@@ -858,7 +851,7 @@ impl SessionRuntime {
         }
         if self.local_run_line(original) {
             self.money.admitted.clear();
-        } else if let Err(refusal) = self.admit_money(original, false) {
+        } else if let Err(refusal) = self.admit_money(original, false, false) {
             return refusal;
         }
         if let Some(outcome) = self.run_turn(original) {
