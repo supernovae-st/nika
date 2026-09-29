@@ -5189,13 +5189,16 @@ name = "nika-onboard"
 version = "0.121.0"
 dependencies = [
  "nika-bm25",
+ "nika-builtin",
  "nika-catalog",
  "nika-check",
  "nika-compile",
  "nika-compile-cognition",
  "nika-display",
+ "nika-error",
  "nika-event",
  "nika-pack",
+ "nika-providers",
  "nika-schema",
  "nika-source",
  "nika-vocab",
@@ -5461,7 +5464,6 @@ name = "nika-session"
 version = "0.121.0"
 dependencies = [
  "blake3",
- "nika-builtin",
  "nika-cadence",
  "nika-cap",
  "nika-catalog",
@@ -5476,7 +5478,6 @@ dependencies = [
  "nika-http",
  "nika-kernel",
  "nika-onboard",
- "nika-pack",
  "nika-providers",
  "nika-runtime",
  "nika-schema",

@@ -87,6 +87,17 @@ over unread entries says they were not compared. It moved here from
 Its tests and their three recorded outcomes live beside it
 (`src/compile/meaning/`).
 
+## The hallucination guard (read by Session)
+
+`guard` reads every reply a Session reasoner writes before a human sees it. A Nika-specific
+named entity (a builtin · a model · an error code · an MCP server · a CLI verb · a workflow
+field) is validated against the installed catalogs and the project's configuration; what
+this engine does not carry is corrected under the reply, never presented as real. It moved
+here from `nika-session` on 2026-09-29 (the `meaning` precedent · D8 headroom);
+`nika_session::guard` re-exports it unchanged. Its model check is
+`nika_providers::resolve_refusal`, the #320 MODELS-rung law: a pure resolution, so this
+crate still never calls a provider. Its tests live beside it (`src/guard.rs`).
+
 ## The conversational reading of an outcome (read by Session)
 
 `compile::reading` says what one compile outcome means for a conversation

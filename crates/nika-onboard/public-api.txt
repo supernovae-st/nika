@@ -1185,6 +1185,121 @@ pub const nika_onboard::founding::DEFAULT_EXAMPLE: &str
 pub const nika_onboard::founding::RECIPE_NAMES: [&str; 5]
 pub fn nika_onboard::founding::agents_md() -> &'static str
 pub fn nika_onboard::founding::scripted_run(dir: &str, force: bool, recipe: core::option::Option<&str>, example: core::option::Option<&str>, canvas: core::option::Option<nika_onboard::founding::CanvasTheme>, wires: &[&str], audit: &nika_onboard::Audit<'_>, wire: &nika_onboard::Wire<'_>) -> nika_onboard::Outcome
+pub mod nika_onboard::guard
+#[non_exhaustive] pub enum nika_onboard::guard::Finding
+pub nika_onboard::guard::Finding::Builtin(alloc::string::String)
+pub nika_onboard::guard::Finding::ClaimedIgnorance
+pub nika_onboard::guard::Finding::Code(alloc::string::String)
+pub nika_onboard::guard::Finding::Field(alloc::string::String)
+pub nika_onboard::guard::Finding::McpServer(alloc::string::String)
+pub nika_onboard::guard::Finding::Model
+pub nika_onboard::guard::Finding::Model::id: alloc::string::String
+pub nika_onboard::guard::Finding::Model::why: alloc::string::String
+pub nika_onboard::guard::Finding::Verb(alloc::string::String)
+pub nika_onboard::guard::Finding::WorkflowVerb(alloc::string::String)
+impl nika_onboard::guard::Finding
+pub fn nika_onboard::guard::Finding::correction(&self) -> alloc::string::String
+impl core::clone::Clone for nika_onboard::guard::Finding
+pub fn nika_onboard::guard::Finding::clone(&self) -> nika_onboard::guard::Finding
+impl core::cmp::Eq for nika_onboard::guard::Finding
+impl core::cmp::PartialEq for nika_onboard::guard::Finding
+pub fn nika_onboard::guard::Finding::eq(&self, other: &nika_onboard::guard::Finding) -> bool
+impl core::fmt::Debug for nika_onboard::guard::Finding
+pub fn nika_onboard::guard::Finding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::guard::Finding
+impl<D> owo_colors::OwoColorize for nika_onboard::guard::Finding
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::guard::Finding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::guard::Finding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::guard::Finding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::guard::Finding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::guard::Finding where U: core::convert::From<T>
+pub fn nika_onboard::guard::Finding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::guard::Finding where U: core::convert::Into<T>
+pub type nika_onboard::guard::Finding::Error = core::convert::Infallible
+pub fn nika_onboard::guard::Finding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::guard::Finding where U: core::convert::TryFrom<T>
+pub type nika_onboard::guard::Finding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::guard::Finding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::guard::Finding where T: core::clone::Clone
+pub type nika_onboard::guard::Finding::Owned = T
+pub fn nika_onboard::guard::Finding::clone_into(&self, target: &mut T)
+pub fn nika_onboard::guard::Finding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::guard::Finding where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::guard::Finding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::guard::Finding where T: ?core::marker::Sized
+pub fn nika_onboard::guard::Finding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::guard::Finding where T: ?core::marker::Sized
+pub fn nika_onboard::guard::Finding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::guard::Finding where T: core::clone::Clone
+pub unsafe fn nika_onboard::guard::Finding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::guard::Finding
+pub fn nika_onboard::guard::Finding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::guard::Finding where T: core::clone::Clone
+pub fn nika_onboard::guard::Finding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::guard::Finding where T: 'static
+pub fn nika_onboard::guard::Finding::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::guard::Finding where T: ?core::marker::Sized
+pub fn nika_onboard::guard::Finding::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::guard::Finding::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::guard::Finding
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::guard::Finding
+impl<T> typenum::type_operators::Same for nika_onboard::guard::Finding
+pub type nika_onboard::guard::Finding::Output = T
+#[non_exhaustive] pub struct nika_onboard::guard::KnownWorld
+pub nika_onboard::guard::KnownWorld::builtins: alloc::collections::btree::set::BTreeSet<alloc::string::String>
+pub nika_onboard::guard::KnownWorld::mcp_servers: alloc::collections::btree::set::BTreeSet<alloc::string::String>
+pub nika_onboard::guard::KnownWorld::verbs: alloc::collections::btree::set::BTreeSet<alloc::string::String>
+impl nika_onboard::guard::KnownWorld
+pub fn nika_onboard::guard::KnownWorld::audit(&self, reply: &str) -> alloc::vec::Vec<nika_onboard::guard::Finding>
+pub fn nika_onboard::guard::KnownWorld::correct(reply: &str, findings: &[nika_onboard::guard::Finding]) -> alloc::string::String
+pub fn nika_onboard::guard::KnownWorld::installed(root: &std::path::Path) -> Self
+impl core::clone::Clone for nika_onboard::guard::KnownWorld
+pub fn nika_onboard::guard::KnownWorld::clone(&self) -> nika_onboard::guard::KnownWorld
+impl core::cmp::Eq for nika_onboard::guard::KnownWorld
+impl core::cmp::PartialEq for nika_onboard::guard::KnownWorld
+pub fn nika_onboard::guard::KnownWorld::eq(&self, other: &nika_onboard::guard::KnownWorld) -> bool
+impl core::fmt::Debug for nika_onboard::guard::KnownWorld
+pub fn nika_onboard::guard::KnownWorld::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_onboard::guard::KnownWorld
+impl<D> owo_colors::OwoColorize for nika_onboard::guard::KnownWorld
+impl<Q, K> equivalent::Equivalent<K> for nika_onboard::guard::KnownWorld where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::guard::KnownWorld::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_onboard::guard::KnownWorld where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_onboard::guard::KnownWorld::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_onboard::guard::KnownWorld where U: core::convert::From<T>
+pub fn nika_onboard::guard::KnownWorld::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::guard::KnownWorld where U: core::convert::Into<T>
+pub type nika_onboard::guard::KnownWorld::Error = core::convert::Infallible
+pub fn nika_onboard::guard::KnownWorld::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::guard::KnownWorld where U: core::convert::TryFrom<T>
+pub type nika_onboard::guard::KnownWorld::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::guard::KnownWorld::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_onboard::guard::KnownWorld where T: core::clone::Clone
+pub type nika_onboard::guard::KnownWorld::Owned = T
+pub fn nika_onboard::guard::KnownWorld::clone_into(&self, target: &mut T)
+pub fn nika_onboard::guard::KnownWorld::to_owned(&self) -> T
+impl<T> core::any::Any for nika_onboard::guard::KnownWorld where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::guard::KnownWorld::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::guard::KnownWorld where T: ?core::marker::Sized
+pub fn nika_onboard::guard::KnownWorld::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::guard::KnownWorld where T: ?core::marker::Sized
+pub fn nika_onboard::guard::KnownWorld::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_onboard::guard::KnownWorld where T: core::clone::Clone
+pub unsafe fn nika_onboard::guard::KnownWorld::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_onboard::guard::KnownWorld
+pub fn nika_onboard::guard::KnownWorld::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_onboard::guard::KnownWorld where T: core::clone::Clone
+pub fn nika_onboard::guard::KnownWorld::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_onboard::guard::KnownWorld where T: 'static
+pub fn nika_onboard::guard::KnownWorld::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::guard::KnownWorld where T: ?core::marker::Sized
+pub fn nika_onboard::guard::KnownWorld::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::guard::KnownWorld::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::guard::KnownWorld
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::guard::KnownWorld
+impl<T> typenum::type_operators::Same for nika_onboard::guard::KnownWorld
+pub type nika_onboard::guard::KnownWorld::Output = T
+pub fn nika_onboard::guard::builtin_names() -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_onboard::knowledge
 pub mod nika_onboard::knowledge::pin
 #[non_exhaustive] pub struct nika_onboard::knowledge::pin::KnowledgePin

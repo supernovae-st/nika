@@ -3,8 +3,11 @@ pub use nika_session::AdmissionState
 pub use nika_session::AttemptReceipt
 pub use nika_session::CapEvidence
 pub use nika_session::CostHostEvidence
+pub use nika_session::Finding
 pub use nika_session::InferenceReceipt
+pub use nika_session::KnownWorld
 pub use nika_session::Reading
+pub use nika_session::guard
 pub use nika_session::meaning
 pub mod nika_session::activity
 #[non_exhaustive] pub enum nika_session::activity::Phase
@@ -1208,121 +1211,6 @@ pub type nika_session::consent::ConsentWitness::Output = T
 pub const nika_session::consent::CONSENTS_FILE: &str
 pub mod nika_session::facts
 pub fn nika_session::facts::answer(input: &str, snapshot: &nika_session::snapshot::ProjectSnapshot, root: &std::path::Path) -> core::option::Option<alloc::string::String>
-pub mod nika_session::guard
-#[non_exhaustive] pub enum nika_session::guard::Finding
-pub nika_session::guard::Finding::Builtin(alloc::string::String)
-pub nika_session::guard::Finding::ClaimedIgnorance
-pub nika_session::guard::Finding::Code(alloc::string::String)
-pub nika_session::guard::Finding::Field(alloc::string::String)
-pub nika_session::guard::Finding::McpServer(alloc::string::String)
-pub nika_session::guard::Finding::Model
-pub nika_session::guard::Finding::Model::id: alloc::string::String
-pub nika_session::guard::Finding::Model::why: alloc::string::String
-pub nika_session::guard::Finding::Verb(alloc::string::String)
-pub nika_session::guard::Finding::WorkflowVerb(alloc::string::String)
-impl nika_session::guard::Finding
-pub fn nika_session::guard::Finding::correction(&self) -> alloc::string::String
-impl core::clone::Clone for nika_session::guard::Finding
-pub fn nika_session::guard::Finding::clone(&self) -> nika_session::guard::Finding
-impl core::cmp::Eq for nika_session::guard::Finding
-impl core::cmp::PartialEq for nika_session::guard::Finding
-pub fn nika_session::guard::Finding::eq(&self, other: &nika_session::guard::Finding) -> bool
-impl core::fmt::Debug for nika_session::guard::Finding
-pub fn nika_session::guard::Finding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_session::guard::Finding
-impl<D> owo_colors::OwoColorize for nika_session::guard::Finding
-impl<Q, K> equivalent::Equivalent<K> for nika_session::guard::Finding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_session::guard::Finding::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_session::guard::Finding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_session::guard::Finding::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_session::guard::Finding where U: core::convert::From<T>
-pub fn nika_session::guard::Finding::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_session::guard::Finding where U: core::convert::Into<T>
-pub type nika_session::guard::Finding::Error = core::convert::Infallible
-pub fn nika_session::guard::Finding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_session::guard::Finding where U: core::convert::TryFrom<T>
-pub type nika_session::guard::Finding::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_session::guard::Finding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_session::guard::Finding where T: core::clone::Clone
-pub type nika_session::guard::Finding::Owned = T
-pub fn nika_session::guard::Finding::clone_into(&self, target: &mut T)
-pub fn nika_session::guard::Finding::to_owned(&self) -> T
-impl<T> core::any::Any for nika_session::guard::Finding where T: 'static + ?core::marker::Sized
-pub fn nika_session::guard::Finding::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_session::guard::Finding where T: ?core::marker::Sized
-pub fn nika_session::guard::Finding::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_session::guard::Finding where T: ?core::marker::Sized
-pub fn nika_session::guard::Finding::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_session::guard::Finding where T: core::clone::Clone
-pub unsafe fn nika_session::guard::Finding::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_session::guard::Finding
-pub fn nika_session::guard::Finding::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_session::guard::Finding where T: core::clone::Clone
-pub fn nika_session::guard::Finding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_session::guard::Finding where T: 'static
-pub fn nika_session::guard::Finding::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::guard::Finding where T: ?core::marker::Sized
-pub fn nika_session::guard::Finding::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_session::guard::Finding::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_session::guard::Finding
-impl<T> tracing::instrument::WithSubscriber for nika_session::guard::Finding
-impl<T> typenum::type_operators::Same for nika_session::guard::Finding
-pub type nika_session::guard::Finding::Output = T
-#[non_exhaustive] pub struct nika_session::guard::KnownWorld
-pub nika_session::guard::KnownWorld::builtins: alloc::collections::btree::set::BTreeSet<alloc::string::String>
-pub nika_session::guard::KnownWorld::mcp_servers: alloc::collections::btree::set::BTreeSet<alloc::string::String>
-pub nika_session::guard::KnownWorld::verbs: alloc::collections::btree::set::BTreeSet<alloc::string::String>
-impl nika_session::guard::KnownWorld
-pub fn nika_session::guard::KnownWorld::audit(&self, reply: &str) -> alloc::vec::Vec<nika_session::guard::Finding>
-pub fn nika_session::guard::KnownWorld::correct(reply: &str, findings: &[nika_session::guard::Finding]) -> alloc::string::String
-pub fn nika_session::guard::KnownWorld::installed(root: &std::path::Path) -> Self
-impl core::clone::Clone for nika_session::guard::KnownWorld
-pub fn nika_session::guard::KnownWorld::clone(&self) -> nika_session::guard::KnownWorld
-impl core::cmp::Eq for nika_session::guard::KnownWorld
-impl core::cmp::PartialEq for nika_session::guard::KnownWorld
-pub fn nika_session::guard::KnownWorld::eq(&self, other: &nika_session::guard::KnownWorld) -> bool
-impl core::fmt::Debug for nika_session::guard::KnownWorld
-pub fn nika_session::guard::KnownWorld::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_session::guard::KnownWorld
-impl<D> owo_colors::OwoColorize for nika_session::guard::KnownWorld
-impl<Q, K> equivalent::Equivalent<K> for nika_session::guard::KnownWorld where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_session::guard::KnownWorld::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_session::guard::KnownWorld where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_session::guard::KnownWorld::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_session::guard::KnownWorld where U: core::convert::From<T>
-pub fn nika_session::guard::KnownWorld::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_session::guard::KnownWorld where U: core::convert::Into<T>
-pub type nika_session::guard::KnownWorld::Error = core::convert::Infallible
-pub fn nika_session::guard::KnownWorld::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_session::guard::KnownWorld where U: core::convert::TryFrom<T>
-pub type nika_session::guard::KnownWorld::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_session::guard::KnownWorld::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_session::guard::KnownWorld where T: core::clone::Clone
-pub type nika_session::guard::KnownWorld::Owned = T
-pub fn nika_session::guard::KnownWorld::clone_into(&self, target: &mut T)
-pub fn nika_session::guard::KnownWorld::to_owned(&self) -> T
-impl<T> core::any::Any for nika_session::guard::KnownWorld where T: 'static + ?core::marker::Sized
-pub fn nika_session::guard::KnownWorld::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_session::guard::KnownWorld where T: ?core::marker::Sized
-pub fn nika_session::guard::KnownWorld::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_session::guard::KnownWorld where T: ?core::marker::Sized
-pub fn nika_session::guard::KnownWorld::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_session::guard::KnownWorld where T: core::clone::Clone
-pub unsafe fn nika_session::guard::KnownWorld::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_session::guard::KnownWorld
-pub fn nika_session::guard::KnownWorld::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_session::guard::KnownWorld where T: core::clone::Clone
-pub fn nika_session::guard::KnownWorld::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_session::guard::KnownWorld where T: 'static
-pub fn nika_session::guard::KnownWorld::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::guard::KnownWorld where T: ?core::marker::Sized
-pub fn nika_session::guard::KnownWorld::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_session::guard::KnownWorld::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_session::guard::KnownWorld
-impl<T> tracing::instrument::WithSubscriber for nika_session::guard::KnownWorld
-impl<T> typenum::type_operators::Same for nika_session::guard::KnownWorld
-pub type nika_session::guard::KnownWorld::Output = T
-pub fn nika_session::guard::builtin_names() -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_session::identity
 pub const nika_session::identity::IDENTITY_CORE: &str
 pub fn nika_session::identity::language_digest() -> alloc::string::String
@@ -3876,65 +3764,6 @@ impl<T> tracing::instrument::Instrument for nika_session::intelligence::DataLocu
 impl<T> tracing::instrument::WithSubscriber for nika_session::intelligence::DataLocus
 impl<T> typenum::type_operators::Same for nika_session::intelligence::DataLocus
 pub type nika_session::intelligence::DataLocus::Output = T
-#[non_exhaustive] pub enum nika_session::Finding
-pub nika_session::Finding::Builtin(alloc::string::String)
-pub nika_session::Finding::ClaimedIgnorance
-pub nika_session::Finding::Code(alloc::string::String)
-pub nika_session::Finding::Field(alloc::string::String)
-pub nika_session::Finding::McpServer(alloc::string::String)
-pub nika_session::Finding::Model
-pub nika_session::Finding::Model::id: alloc::string::String
-pub nika_session::Finding::Model::why: alloc::string::String
-pub nika_session::Finding::Verb(alloc::string::String)
-pub nika_session::Finding::WorkflowVerb(alloc::string::String)
-impl nika_session::guard::Finding
-pub fn nika_session::guard::Finding::correction(&self) -> alloc::string::String
-impl core::clone::Clone for nika_session::guard::Finding
-pub fn nika_session::guard::Finding::clone(&self) -> nika_session::guard::Finding
-impl core::cmp::Eq for nika_session::guard::Finding
-impl core::cmp::PartialEq for nika_session::guard::Finding
-pub fn nika_session::guard::Finding::eq(&self, other: &nika_session::guard::Finding) -> bool
-impl core::fmt::Debug for nika_session::guard::Finding
-pub fn nika_session::guard::Finding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_session::guard::Finding
-impl<D> owo_colors::OwoColorize for nika_session::guard::Finding
-impl<Q, K> equivalent::Equivalent<K> for nika_session::guard::Finding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_session::guard::Finding::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_session::guard::Finding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_session::guard::Finding::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_session::guard::Finding where U: core::convert::From<T>
-pub fn nika_session::guard::Finding::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_session::guard::Finding where U: core::convert::Into<T>
-pub type nika_session::guard::Finding::Error = core::convert::Infallible
-pub fn nika_session::guard::Finding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_session::guard::Finding where U: core::convert::TryFrom<T>
-pub type nika_session::guard::Finding::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_session::guard::Finding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_session::guard::Finding where T: core::clone::Clone
-pub type nika_session::guard::Finding::Owned = T
-pub fn nika_session::guard::Finding::clone_into(&self, target: &mut T)
-pub fn nika_session::guard::Finding::to_owned(&self) -> T
-impl<T> core::any::Any for nika_session::guard::Finding where T: 'static + ?core::marker::Sized
-pub fn nika_session::guard::Finding::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_session::guard::Finding where T: ?core::marker::Sized
-pub fn nika_session::guard::Finding::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_session::guard::Finding where T: ?core::marker::Sized
-pub fn nika_session::guard::Finding::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_session::guard::Finding where T: core::clone::Clone
-pub unsafe fn nika_session::guard::Finding::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_session::guard::Finding
-pub fn nika_session::guard::Finding::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_session::guard::Finding where T: core::clone::Clone
-pub fn nika_session::guard::Finding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_session::guard::Finding where T: 'static
-pub fn nika_session::guard::Finding::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::guard::Finding where T: ?core::marker::Sized
-pub fn nika_session::guard::Finding::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_session::guard::Finding::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_session::guard::Finding
-impl<T> tracing::instrument::WithSubscriber for nika_session::guard::Finding
-impl<T> typenum::type_operators::Same for nika_session::guard::Finding
-pub type nika_session::guard::Finding::Output = T
 #[non_exhaustive] pub enum nika_session::IntelligenceKind
 pub nika_session::IntelligenceKind::Api
 pub nika_session::IntelligenceKind::Api::provider: alloc::string::String
@@ -4809,60 +4638,6 @@ impl<T> tracing::instrument::Instrument for nika_session::intelligence::Intellig
 impl<T> tracing::instrument::WithSubscriber for nika_session::intelligence::IntelligenceCensus
 impl<T> typenum::type_operators::Same for nika_session::intelligence::IntelligenceCensus
 pub type nika_session::intelligence::IntelligenceCensus::Output = T
-#[non_exhaustive] pub struct nika_session::KnownWorld
-pub nika_session::KnownWorld::builtins: alloc::collections::btree::set::BTreeSet<alloc::string::String>
-pub nika_session::KnownWorld::mcp_servers: alloc::collections::btree::set::BTreeSet<alloc::string::String>
-pub nika_session::KnownWorld::verbs: alloc::collections::btree::set::BTreeSet<alloc::string::String>
-impl nika_session::guard::KnownWorld
-pub fn nika_session::guard::KnownWorld::audit(&self, reply: &str) -> alloc::vec::Vec<nika_session::guard::Finding>
-pub fn nika_session::guard::KnownWorld::correct(reply: &str, findings: &[nika_session::guard::Finding]) -> alloc::string::String
-pub fn nika_session::guard::KnownWorld::installed(root: &std::path::Path) -> Self
-impl core::clone::Clone for nika_session::guard::KnownWorld
-pub fn nika_session::guard::KnownWorld::clone(&self) -> nika_session::guard::KnownWorld
-impl core::cmp::Eq for nika_session::guard::KnownWorld
-impl core::cmp::PartialEq for nika_session::guard::KnownWorld
-pub fn nika_session::guard::KnownWorld::eq(&self, other: &nika_session::guard::KnownWorld) -> bool
-impl core::fmt::Debug for nika_session::guard::KnownWorld
-pub fn nika_session::guard::KnownWorld::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_session::guard::KnownWorld
-impl<D> owo_colors::OwoColorize for nika_session::guard::KnownWorld
-impl<Q, K> equivalent::Equivalent<K> for nika_session::guard::KnownWorld where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_session::guard::KnownWorld::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_session::guard::KnownWorld where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_session::guard::KnownWorld::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_session::guard::KnownWorld where U: core::convert::From<T>
-pub fn nika_session::guard::KnownWorld::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_session::guard::KnownWorld where U: core::convert::Into<T>
-pub type nika_session::guard::KnownWorld::Error = core::convert::Infallible
-pub fn nika_session::guard::KnownWorld::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_session::guard::KnownWorld where U: core::convert::TryFrom<T>
-pub type nika_session::guard::KnownWorld::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_session::guard::KnownWorld::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_session::guard::KnownWorld where T: core::clone::Clone
-pub type nika_session::guard::KnownWorld::Owned = T
-pub fn nika_session::guard::KnownWorld::clone_into(&self, target: &mut T)
-pub fn nika_session::guard::KnownWorld::to_owned(&self) -> T
-impl<T> core::any::Any for nika_session::guard::KnownWorld where T: 'static + ?core::marker::Sized
-pub fn nika_session::guard::KnownWorld::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_session::guard::KnownWorld where T: ?core::marker::Sized
-pub fn nika_session::guard::KnownWorld::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_session::guard::KnownWorld where T: ?core::marker::Sized
-pub fn nika_session::guard::KnownWorld::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_session::guard::KnownWorld where T: core::clone::Clone
-pub unsafe fn nika_session::guard::KnownWorld::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_session::guard::KnownWorld
-pub fn nika_session::guard::KnownWorld::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_session::guard::KnownWorld where T: core::clone::Clone
-pub fn nika_session::guard::KnownWorld::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_session::guard::KnownWorld where T: 'static
-pub fn nika_session::guard::KnownWorld::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::guard::KnownWorld where T: ?core::marker::Sized
-pub fn nika_session::guard::KnownWorld::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_session::guard::KnownWorld::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_session::guard::KnownWorld
-impl<T> tracing::instrument::WithSubscriber for nika_session::guard::KnownWorld
-impl<T> typenum::type_operators::Same for nika_session::guard::KnownWorld
-pub type nika_session::guard::KnownWorld::Output = T
 #[non_exhaustive] pub struct nika_session::Lifecycle
 pub nika_session::Lifecycle::active: nika_session::lifecycle::Stage
 pub nika_session::Lifecycle::checked: nika_session::lifecycle::Stage

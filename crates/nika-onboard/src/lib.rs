@@ -58,6 +58,7 @@ pub mod compile_config;
 pub mod fixtures;
 pub mod founding;
 mod gitignore;
+pub mod guard;
 mod intent;
 pub mod knowledge;
 pub mod project_file;
