@@ -128,7 +128,8 @@ else the authoring provider asked through the journaled authoring call: its call
 failures ride the authoring receipt with every other call, under the same physical ceiling,
 and `usage_complete` covers them; each attempt records its own usage under
 `semantic_verification`. A part found missing is a concrete defect: COLD repairs from it within
-the policy's repairs, the repair call carrying the judge's own state, and a repaired plan's
+the policy's repairs, the repair call carrying the judge's own state and, after its instructions,
+the judge's reference (below), and a repaired plan's
 computations go through the transform seat again with the judge's defects, so no program of the
 plan it replaced survives; WARM makes no proposal and stays INCOMPLETE. An abstention, a failed
 judge or exhausted repairs leave the request INCOMPLETE naming the clause and the next action,
@@ -138,6 +139,22 @@ the core names is judged by the round's judge, or stays INCOMPLETE when the roun
 field answer's regeneration is the first candidate of its plan and is judged whole. Nothing a
 record or a request carries is read as a judgment. The judge is a model: its approval is bounded
 evidence, not proof; a clause a line break splits across two named elements is judged, not read.
+
+Every verifier question and the COLD repair carry one compiler-owned reference, apart from the
+untrusted state (`verify::grounding`, R4 A11, E36): the engine's output conventions whole, the
+card's language section and the whole stdlib section of each tool the candidate reaches by the
+checker's own capability inference over the parsed workflow (`nika_check::infer_permits`: an
+invoke in any task form and the tools an agent may call, never a denied one), never cut to a
+size (the write, convert and fetch sections exceed the 2,000 characters the native door's
+callables keep). An MCP tool or a glob with no embedded section, a child workflow's tools and a
+candidate that does not parse are named, never described. Each question opens with the same
+reference bytes, then asks; the repair reads them after its instructions, over the candidate the
+judge read. The verdict records the engine identity, the sha256 and size of the reference text
+sent and each piece's receipt; each judge call through the authoring provider and the repair
+journal those receipts beside their instruction digest. The reference describes the engine; it
+proves nothing about a candidate. The conventions it carries state both write laws of a
+computation (below), the typed total's and the synthesized program's, so a judge reads each
+candidate against the law its compute follows.
 
 An observed world states names; it does not answer a choice the request leaves open. The
 judge refuses a question for a column, field, key or value an observed file states, except

@@ -29,6 +29,8 @@ struct Scripted {
     answers: Vec<String>,
     calls: AtomicUsize,
     asked: Mutex<Vec<String>>,
+    /// The system message of each call.
+    systems: Mutex<Vec<String>>,
     /// The first call the double's ceiling refuses before any transport; none by default.
     refused_from: usize,
     /// The first call the double's provider fails with no answer; none by default.
@@ -41,6 +43,7 @@ impl Scripted {
             answers,
             calls: AtomicUsize::new(0),
             asked: Mutex::new(Vec::new()),
+            systems: Mutex::new(Vec::new()),
             refused_from: usize::MAX,
             failed_from: usize::MAX,
         }
@@ -72,6 +75,10 @@ impl Scripted {
     fn said(&self, at: usize) -> String {
         self.asked.lock().unwrap()[at].clone()
     }
+    /// The system message the seat read in its call `at`.
+    fn system(&self, at: usize) -> String {
+        self.systems.lock().unwrap()[at].clone()
+    }
 }
 
 impl ProviderInferDyn for Scripted {
@@ -87,6 +94,7 @@ impl ProviderInferDyn for Scripted {
             })
             .unwrap_or_default();
         self.asked.lock().unwrap().push(last);
+        self.systems.lock().unwrap().push(first_text(&request));
         let at = self.calls.fetch_add(1, Ordering::SeqCst);
         if at >= self.refused_from {
             return Err(ProviderError::AdmissionDenied {
@@ -118,6 +126,7 @@ struct Judging<'a> {
     verdict: fn(&[String]) -> &'static str,
     judged: Mutex<Vec<Vec<String>>>,
     states: Mutex<Vec<Value>>,
+    systems: Mutex<Vec<String>>,
 }
 
 impl<'a> Judging<'a> {
@@ -127,7 +136,12 @@ impl<'a> Judging<'a> {
             verdict,
             judged: Mutex::new(Vec::new()),
             states: Mutex::new(Vec::new()),
+            systems: Mutex::new(Vec::new()),
         }
+    }
+    /// The instructions each verifier question gave the judge (its system message).
+    fn systems(&self) -> Vec<String> {
+        self.systems.lock().unwrap().clone()
     }
     /// The state each verifier question showed the judge (the JSON of its STATE section).
     fn states(&self) -> Vec<Value> {
@@ -137,6 +151,20 @@ impl<'a> Judging<'a> {
     fn judged(&self) -> Vec<Vec<String>> {
         self.judged.lock().unwrap().clone()
     }
+}
+
+/// The text of a request's first message (its system instructions).
+fn first_text(request: &InferRequest) -> String {
+    request
+        .messages
+        .first()
+        .and_then(|message| {
+            message.content.iter().find_map(|block| match block {
+                ContentBlock::Text { text } => Some(text.clone()),
+                _ => None,
+            })
+        })
+        .unwrap_or_default()
 }
 
 /// The approving verdict: the whole request faithful, each clause carried.
@@ -199,6 +227,7 @@ impl ProviderInferDyn for Judging<'_> {
         }
         let choice = (self.verdict)(&keys);
         self.judged.lock().unwrap().push(keys);
+        self.systems.lock().unwrap().push(first_text(&request));
         let said = request
             .messages
             .last()
@@ -703,6 +732,131 @@ async fn the_first_cold_candidate_is_judged_whole_on_the_full_state() {
     let usage = &out.provenance.decision.as_ref().unwrap()["semantic_verification"][0]["usage"];
     assert_eq!(usage["calls"], json!(asked.len()), "{usage:#}");
     assert_eq!(usage["complete"], json!(true), "{usage:#}");
+}
+
+/// The tools a candidate reaches by the checker's own capability inference over its parsed
+/// workflow, each with its whole contract section read from the embedded stdlib page itself (an
+/// oracle independent of the verifier).
+fn reached(candidate: &str) -> Vec<(String, String)> {
+    let workflow = nika_compile::parse(candidate).unwrap();
+    let tools = nika_check::infer_permits(&workflow)
+        .permits
+        .tools
+        .unwrap_or_default();
+    let page = nika_pack::doc("stdlib/builtins-v0.1.md").unwrap();
+    tools
+        .into_iter()
+        .filter_map(|tool| {
+            let heading = format!("### `{tool}`");
+            let rest = &page[page.find(&heading)?..];
+            let tail = &rest[heading.len()..];
+            let end = [tail.find("\n### "), tail.find("\n## ")]
+                .into_iter()
+                .flatten()
+                .min()
+                .map_or(rest.len(), |at| at + heading.len());
+            Some((tool, rest[..end].trim().to_owned()))
+        })
+        .collect()
+}
+
+/// Every verifier question and the repair are grounded in one compiler-owned reference kept apart
+/// from the untrusted state (R4 A11, E36): the engine's output conventions (the written-total law,
+/// a requested shape overriding it), the language section of the engine card and the WHOLE
+/// contract of every tool the candidate reaches by the checker's capability inference over the
+/// parsed workflow (the write contract past two thousand characters included, never cut). The
+/// state keeps the request, the world and the candidate. The verdict records the digest and size
+/// of the exact reference text sent, each piece's receipt and the engine identity; each judge
+/// call and the repair journal those receipts, and the repair carries the same bytes.
+#[tokio::test]
+async fn the_judge_and_the_repair_read_one_grounded_reference() {
+    let sum = format!("{GENERATED} // 0");
+    let seat = Scripted::new(vec![
+        plan(SUM).to_string(),
+        program(&sum),
+        plan(SUM).to_string(),
+        program(&sum),
+    ]);
+    let judge = Judging::new(&seat, refuse);
+    let out = compiled_as(&judge, SUM, 1).await;
+    assert_eq!(authored(&out), ["plan", "transform", "repair", "transform"]);
+    let digest = nika_compile::surface::sha256;
+    let record = &out.provenance.decision.as_ref().unwrap()["semantic_verification"][0];
+    let reference = &record["reference"];
+    let systems = judge.systems();
+    let first = systems.first().cloned().unwrap_or_default();
+    let start = first.find("REFERENCE").unwrap_or(first.len());
+    let bytes = usize::try_from(reference["bytes"].as_u64().unwrap_or(0)).unwrap();
+    let carried = first.get(start..start + bytes).unwrap_or_default();
+    assert!(!carried.is_empty(), "{first}");
+    assert_eq!(reference["sha256"], json!(digest(carried)), "{reference:#}");
+    let candidate = judge.states()[0]["candidate_nika"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let contracts = reached(&candidate);
+    let write = contracts.iter().find(|(tool, _)| tool == "nika:write");
+    assert!(
+        write.is_some_and(|(_, section)| section.len() > 2_000),
+        "{contracts:?}"
+    );
+    let conventions = include_str!("../assets/native_output_conventions.md");
+    assert!(carried.contains("untrusted"), "{carried}");
+    assert!(carried.contains(conventions), "{carried}");
+    assert!(
+        carried.contains("« only the number » is the value alone"),
+        "{carried}"
+    );
+    assert!(carried.contains("# The language in one page"), "{carried}");
+    assert!(
+        carried.contains("`-002` (`overwrite: false` and the path exists)"),
+        "{carried}"
+    );
+    for (tool, section) in &contracts {
+        assert!(carried.contains(section.as_str()), "{tool}: {carried}");
+    }
+    for system in systems.iter().chain([&seat.system(2)]) {
+        assert!(system.contains(carried), "{system}");
+        assert!(!system.contains(&candidate), "{system}");
+    }
+    for state in judge.states() {
+        assert!(state.get("reference").is_none(), "{state:#}");
+    }
+    let pieces = reference["references"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    for (tool, section) in &contracts {
+        let piece = pieces.iter().find(|p| p["id"] == json!(tool));
+        let sha = piece.map(|p| p["sha256"].clone());
+        assert_eq!(sha, Some(json!(digest(section))), "{tool}: {reference:#}");
+    }
+    let identity = &reference["identity"];
+    assert_eq!(identity["conventions_sha256"], json!(digest(conventions)));
+    assert!(
+        pieces
+            .iter()
+            .any(|p| p["sha256"] == identity["conventions_sha256"])
+    );
+    let journal = &out.provenance.authoring.as_ref().unwrap().context;
+    let repair = journal.iter().position(|e| e["call"] == json!("repair"));
+    let first_attempt = &journal[..=repair.unwrap()];
+    let grounded: Vec<&Value> = first_attempt
+        .iter()
+        .filter(|e| {
+            e["call"] == json!("repair")
+                || e["call"].as_str().is_some_and(|c| c.starts_with("judge_"))
+        })
+        .collect();
+    assert!(grounded.len() >= 2, "{journal:#?}");
+    for entry in grounded {
+        assert_eq!(entry["references"], reference["references"], "{entry:#}");
+    }
+    let repaired = first_attempt.last().unwrap();
+    assert_eq!(
+        repaired["instruction_sha256"],
+        json!(digest(&seat.system(2)))
+    );
 }
 
 /// A part the judge finds missing is repaired from with the state the judge read (R4 A11): the
