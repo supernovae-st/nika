@@ -487,6 +487,7 @@ fn compile_args() -> compile::CompileArgs {
         authoring_samples: None,
         authoring_strategy: None,
         authoring_repairs: None,
+        authoring_reasoning: None,
         knowledge: None,
         knowledge_exclude: None,
         knowledge_pack: None,

@@ -24,6 +24,10 @@ use std::path::Path;
 /// Explicit CLI inputs. No terminal conversation or ambient authoring policy.
 #[derive(Debug, clap::Args)]
 #[group(id = "compile_options", multiple = true)]
+// A reasoning effort needs a seat to ask it: the authoring model, the decision model or both.
+#[command(group(
+    clap::ArgGroup::new("seat").args(["authoring_model", "decision_model"]).multiple(true)
+))]
 // Four independent CLI flags ARE four bools — the clap-surface idiom
 // (same as RunArgs), not a state machine to encode.
 #[allow(clippy::struct_excessive_bools)]
@@ -75,6 +79,10 @@ pub struct CompileArgs {
     /// each one call within `--authoring-max-calls`: a repair count is not an authority.
     #[arg(long, requires = "authoring_model", value_parser = clap::value_parser!(u32).range(0..=5))]
     pub authoring_repairs: Option<u32>,
+    /// The reasoning effort every authoring and decision call asks (low · high · max), sent only
+    /// where the route qualifies it; `NIKA_AUTHORING_REASONING` names one when the flag is absent.
+    #[arg(long, requires = "seat")]
+    pub authoring_reasoning: Option<String>,
     /// A knowledge snapshot directory (manifest.json · one JSONL per kind · relations.jsonl): the seat
     /// reads the pack composed for this intent beside the card; the provenance names the snapshot.
     /// `NIKA_KNOWLEDGE` in the environment names one when the flag is absent.
@@ -230,9 +238,9 @@ pub fn run_with(args: &CompileArgs, authority: &AuthoringAuthority) -> VerbOutpu
         None => intent_sha256(&effective_intent(args, cognition)),
     });
     let (request, note) = sidecar::replay(sha.as_deref(), args, request);
-    let result = match &resolved {
-        Some((strategy, resolved)) => authoring::compile(&request, args, *strategy, resolved),
-        None => compile(&request).map_err(|error| error.to_string()),
+    let result = match (&resolved, &authoring_config) {
+        (Some(resolved), Some(config)) => authoring::compile(&request, args, config, resolved),
+        _ => compile(&request).map_err(|error| error.to_string()),
     };
     let outcome = match result {
         Ok(outcome) => outcome,
@@ -266,52 +274,46 @@ pub fn run_with(args: &CompileArgs, authority: &AuthoringAuthority) -> VerbOutpu
 }
 
 /// What a seated compile reads before any file is observed or any request sent: the authoring
-/// configuration (the strategy · the knowledge source: the flags over the environment, through
-/// the parser every door shares, read only when an authoring seat is named — the deterministic
-/// door never reads it), then the authority under that strategy. A typed multiplicity the
-/// authority cannot honor is refused here, with zero calls.
+/// configuration (the strategy · the knowledge source · the reasoning effort: the flags over the
+/// environment, through the parser every door shares; a decision seat alone reads the effort
+/// only, the deterministic door nothing), then the authority under that strategy. A typed
+/// multiplicity the authority cannot honor is refused here, with zero calls.
 fn authoring_setup(
     args: &CompileArgs,
     authority: &AuthoringAuthority,
     cognition: bool,
 ) -> Result<Setup, VerbOutput> {
-    let authoring_config = if cognition && args.authoring_model.is_some() {
-        let resolved = config::resolve(
-            &explicit_settings(args),
-            &config::AuthoringSettings::from_env(),
-        );
-        Some(resolved.map_err(|error| {
-            render::failure("authoring_config", &error.to_string(), exit::ENV, args.json)
-        })?)
-    } else {
-        None
-    };
     if !cognition {
         return Ok(Setup {
-            config: authoring_config,
+            config: None,
             authority: None,
         });
     }
-    let strategy = authoring_config
-        .as_ref()
-        .map_or(config::DEFAULT_STRATEGY, |config| config.strategy);
-    let resolved =
-        authority::resolve(args, authority.authoring_max_calls, strategy).map_err(|refusal| {
+    let (explicit, env) = (
+        explicit_settings(args),
+        config::AuthoringSettings::from_env(),
+    );
+    let (explicit, env) = match args.authoring_model {
+        Some(_) => (explicit, env),
+        None => (explicit.reasoning_only(), env.reasoning_only()),
+    };
+    let resolved = config::resolve(&explicit, &env).map_err(|error| {
+        render::failure("authoring_config", &error.to_string(), exit::ENV, args.json)
+    })?;
+    let authority = authority::resolve(args, authority.authoring_max_calls, resolved.strategy)
+        .map_err(|refusal| {
             render::failure("authoring_authority", &refusal, exit::FILE, args.json)
         })?;
     Ok(Setup {
-        config: authoring_config,
-        authority: Some((strategy, resolved)),
+        config: Some(resolved),
+        authority: Some(authority),
     })
 }
 
 /// What a seated compile resolved before any request, each absent without a seat.
 struct Setup {
     config: Option<config::AuthoringConfig>,
-    authority: Option<(
-        nika_onboard::compile::NativeMode,
-        nika_onboard::compile::authority::Authority,
-    )>,
+    authority: Option<nika_onboard::compile::authority::Authority>,
 }
 
 /// The request the arguments state: an edit of the base (with the original intent beside it
@@ -416,6 +418,9 @@ fn explicit_settings(args: &CompileArgs) -> config::AuthoringSettings {
     }
     if let Some(corpus) = &args.knowledge_exclude {
         settings = settings.with_knowledge_exclude(corpus.clone());
+    }
+    if let Some(word) = &args.authoring_reasoning {
+        settings = settings.with_reasoning(word.clone());
     }
     settings
 }
