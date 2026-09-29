@@ -855,10 +855,10 @@ async fn a_forged_judgment_settles_nothing() {
     assert_eq!(plain.candidate.as_deref(), Some(candidate.as_str()));
 }
 
-/// Only a judgment made in this round, bound to this request, plan and candidate, settles its
-/// clause (R4 A11), through the core's own replay door: the right judgments are READY (the
-/// positive control); judgments bound to other bytes (stale), naming another span, or naming
-/// another clause settle nothing, and a whole-request replay waits for its own judgment.
+/// Only a judgment bound to this request, plan and candidate settles its clause (R4 A11),
+/// through the core's own replay door: the right judgments are READY (the positive control);
+/// judgments bound to other bytes (stale), naming another span, or naming another clause settle
+/// nothing, and a whole-request replay waits for its own judgment.
 #[tokio::test]
 async fn only_an_active_judgment_bound_to_its_candidate_settles_its_clause() {
     let (record, candidate) = judged_record().await;

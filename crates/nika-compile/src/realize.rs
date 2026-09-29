@@ -94,12 +94,12 @@ pub(super) struct Judged<'a> {
     pub(super) whole: bool,
 }
 
-/// The pending duties of an emitted candidate (R4 A11). A judgment made in this compile settles
-/// the duty whose excerpt and span it names, only under the binding the core recomputes from
-/// the request, the stated plan and these very bytes; asking for no operation is never admitted
-/// on a clause an element claims, nor on one that restricts or conditions the material. A
-/// record's serialized judgment is data, never one: whatever stays pending keeps READY closed,
-/// named in a finding with its next action.
+/// The pending duties of an emitted candidate (R4 A11). A judgment settles the duty whose
+/// excerpt and span it names, only under the binding the core recomputes from the request, the
+/// stated plan and these very bytes (context and bytes, not a round nonce); asking for no
+/// operation is never admitted on a clause an element claims, nor on one that restricts or
+/// conditions the material. A record's serialized judgment is data, never one: whatever stays
+/// pending keeps READY closed, named in a finding with its next action.
 fn settle_pending(
     ledger: &mut Ledger,
     intent: &str,

@@ -563,9 +563,9 @@ pub enum Disposition {
     NoOperation,
 }
 
-/// One judgment a judge's seat made in this compile over one pending clause (R4 A11): it settles
-/// the duty whose excerpt and span it names only under the binding the core recomputes. A record
-/// carrying a judgment is data, never one.
+/// One judgment a judge's seat made over one pending clause (R4 A11): it settles the duty whose
+/// excerpt and span it names only under the binding the core recomputes, a binding of context
+/// and bytes, not a round nonce. A record carrying a judgment is data, never one.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Judgment {

@@ -343,10 +343,10 @@ pub fn assemble(
     assemble_judged(plan, intent, request, &[], false, out)
 }
 
-/// The same assembly under the judgments a judge's seat made in this compile over the
-/// candidate's pending clauses (R4 A11): each settles its clause only under the binding the
-/// core recomputes from the request, the stated plan and the bytes it emits. With `whole` (a
-/// model's plan), the whole request waits for its judgment too.
+/// The same assembly under the judgments a judge's seat made over the candidate's pending
+/// clauses (R4 A11): each settles its clause only under the binding the core recomputes from
+/// the request, the stated plan and the bytes it emits, a binding of context and bytes, not a
+/// round nonce. With `whole` (a model's plan), the whole request waits for its judgment too.
 ///
 /// # Errors
 /// Returns the same machinery failures as [`assemble`].

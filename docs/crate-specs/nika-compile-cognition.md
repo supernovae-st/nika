@@ -104,8 +104,11 @@ shows the request as compiled and as first stated, its answers, the observed wor
 candidate's own bytes; labels, task names, comments and generator confidence are claims, never
 evidence. A judgment is admitted by the core only under the binding it recomputes (request,
 original request, answers, observed world, stated plan, candidate bytes, clause and span), so a
-judgment of other bytes, another clause or another round settles nothing, and `no_operation`
-never settles a claimed, whole or restrictive clause. The judge is the caller's decision seat,
+judgment bound to another context or other bytes, or naming another clause or span, settles
+nothing, and `no_operation` never settles a claimed, whole or restrictive clause. The binding is
+that context, not a round nonce: it does not date a judgment. Cognition passes the core only the
+judgments its own judge calls returned in the compile at hand; a serialized plan or answer is
+never read as one. The judge is the caller's decision seat,
 else the authoring provider asked through the journaled authoring call: its calls, usage and
 failures ride the authoring receipt with every other call, under the same physical ceiling,
 and `usage_complete` covers them; each attempt records its own usage under
