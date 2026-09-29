@@ -18,7 +18,10 @@
 //! authority. The inline presentation and the plain loop stay as they are.
 
 pub mod aside;
+pub mod conversation;
 pub mod geometry;
 pub mod header;
+pub mod object;
 pub mod pinned;
+pub mod screen;
 mod text;

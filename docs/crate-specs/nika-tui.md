@@ -104,6 +104,27 @@ and the inline presentation and the plain loop are unchanged.
 - `visual::state` re-reads the theme's task-state column (glyph and role, both
   glyph columns) as data for Ratatui; a test pins every state to what
   `nika_display::theme::Theme::glyph` paints.
+- `workspace::object` paints the centre. An open object is named by its kind's
+  icon and its name, and its given lines are cut at the edge, never wrapped
+  (the viewers of T-nika-tui-viewers will paint graphs, sources, diffs, checks,
+  results and proofs there). With nothing open it welcomes: the largest
+  butterfly that fits whole above the Session's first words (16×8 in the 80×24
+  object rows, 48×20 from 120×40), revealed once from the caller's clock, final
+  at once under reduced motion.
+- `workspace::conversation` names who the next message goes to: the title row
+  gives the thread and its project, the composer's placeholder the full
+  recipient (`Message to studio / release checklist`), and the context row
+  keeps apart what is only on screen and what is attached. What the next
+  message carries keeps priority on a narrow panel; the on-screen part is cut
+  first, then dropped.
+- `workspace::screen::draw` composes one frame from a `Screen` (place, aside,
+  object, thread, pinned run): the transcript, status, composer and hint are
+  painted by the same functions as the focus presentation. Beside the object
+  a rule column and a blank column separate the panel; under it, the panel's
+  title is a rule across. Below 60×16 it draws nothing and returns `false`, so
+  the caller keeps the inline presentation. The live-area rows (status, hint,
+  block glyphs) have no ASCII twins yet: the chrome is ASCII in the ASCII
+  column, the transcript and the live area are not.
 
 ## 3. What is ported as is (the map, §5 · planned)
 

@@ -39,7 +39,8 @@
 //! resolved at paint time, the workspace icons with their ASCII twins, and the
 //! butterfly sampled from the repository's own logomark. The full-terminal
 //! workspace screen ([`workspace`]) is being built on fixtures: its geometry,
-//! header, project aside and pinned row exist, and nothing opens it yet.
+//! header, project aside, object in view, conversation panel and pinned row
+//! compose one frame ([`workspace::screen::draw`]), and nothing opens it yet.
 
 pub mod app;
 pub mod composer;

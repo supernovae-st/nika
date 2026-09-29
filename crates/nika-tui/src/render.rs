@@ -158,8 +158,9 @@ fn hint_line(state: &UiState) -> Line<'static> {
     ))
 }
 
-/// Draw the live area (status · prompt + composer · hint) into `area`.
-fn render_live(frame: &mut Frame<'_>, state: &UiState, composer: &Composer, area: Rect) {
+/// Draw the live area (status · prompt + composer · hint) into `area`: the
+/// same live area under the focus transcript and in the workspace panel.
+pub(crate) fn render_live(frame: &mut Frame<'_>, state: &UiState, composer: &Composer, area: Rect) {
     // The rail takes a row of its own above the status (both are full
     // sentences; one 80-column row cannot hold them side by side) and
     // yields it on a terminal too short for four rows.
@@ -199,6 +200,25 @@ pub fn draw_inline(frame: &mut Frame<'_>, state: &UiState, composer: &Composer) 
     render_live(frame, state, composer, area);
 }
 
+/// The transcript in `area`, scrolled so its end (less the focus scroll) is
+/// the last row: the focus presentation and the workspace panel share it.
+pub(crate) fn render_transcript(frame: &mut Frame<'_>, state: &UiState, area: Rect) {
+    let mut lines: Vec<Line<'static>> = Vec::new();
+    let shown = state.transcript.len().saturating_sub(state.focus_scroll);
+    for block in state.transcript.iter().take(shown) {
+        lines.extend(block_lines(block, state.color));
+        lines.push(Line::default());
+    }
+    let total = wrapped_rows(&lines, area.width);
+    let skip = total.saturating_sub(area.height);
+    frame.render_widget(
+        Paragraph::new(lines)
+            .wrap(Wrap { trim: false })
+            .scroll((skip, 0)),
+        area,
+    );
+}
+
 /// The focus presentation: the transcript above (scrolled from the end), a
 /// rule, the same live area below.
 pub fn draw_focus(frame: &mut Frame<'_>, state: &UiState, composer: &Composer) {
@@ -210,20 +230,7 @@ pub fn draw_focus(frame: &mut Frame<'_>, state: &UiState, composer: &Composer) {
         Constraint::Length(live),
     ])
     .areas(area);
-    let mut lines: Vec<Line<'static>> = Vec::new();
-    let shown = state.transcript.len().saturating_sub(state.focus_scroll);
-    for block in state.transcript.iter().take(shown) {
-        lines.extend(block_lines(block, state.color));
-        lines.push(Line::default());
-    }
-    let total = wrapped_rows(&lines, transcript.width);
-    let skip = total.saturating_sub(transcript.height);
-    frame.render_widget(
-        Paragraph::new(lines)
-            .wrap(Wrap { trim: false })
-            .scroll((skip, 0)),
-        transcript,
-    );
+    render_transcript(frame, state, transcript);
     frame.render_widget(
         Paragraph::new(Line::from(Span::styled(
             "─".repeat(usize::from(rule.width)),
