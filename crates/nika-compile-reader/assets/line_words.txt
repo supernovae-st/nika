@@ -1,0 +1,81 @@
+[one_or_more]
+un ou plusieurs
+une ou plusieurs
+one or more
+uno o más
+uno o mas
+una o más
+una o mas
+uno o più
+uno o piu
+una o più
+una o piu
+ein oder mehrere
+eine oder mehrere
+um ou mais
+uma ou mais
+au moins un
+au moins une
+at least one
+al menos un
+al menos una
+almeno un
+almeno una
+mindestens ein
+mindestens eine
+pelo menos um
+pelo menos uma
+
+[by_construction]
+as they are
+as is
+as-is
+unchanged
+verbatim
+in order
+in the same order
+in their order
+in source order
+one per line
+each on its own line
+telles quelles
+tels quels
+tel quel
+telle quelle
+dans l'ordre
+dans le même ordre
+dans le meme ordre
+une par ligne
+un par ligne
+tal cual
+tal como están
+tal como estan
+sin cambios
+en el mismo orden
+en orden
+una por línea
+una por linea
+uno por línea
+uno por linea
+così come sono
+cosi come sono
+invariate
+nello stesso ordine
+in ordine
+una per riga
+uno per riga
+unverändert
+unverandert
+wie sie sind
+in der reihenfolge
+in derselben reihenfolge
+eine pro zeile
+einen pro zeile
+tal como estão
+tal como estao
+sem alterações
+sem alteracoes
+na mesma ordem
+em ordem
+uma por linha
+um por linha
