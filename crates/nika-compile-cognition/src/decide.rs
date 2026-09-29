@@ -183,28 +183,8 @@ impl<P: ProviderInferDyn> DecisionSeat for ProviderChoice<'_, P> {
     }
     fn choose<'a>(&'a self, question: &'a ChoiceQuestion) -> ChoiceFuture<'a> {
         Box::pin(async move {
-            let keys = question.keys();
-            let system = format!(
-                "You settle ONE closed choice for a workflow compiler. Read the state and pick exactly one option key. {} Choose \"{NONE_OPTION}\" when no option fits. Return only a JSON object {{\"choice\": <key>}}.",
-                question.instructions
-            );
-            let options: Vec<String> = question
-                .options
-                .iter()
-                .map(|o| format!("- {}: {}", o.key, o.description))
-                .collect();
-            let user = format!(
-                "STATE:\n{}\n\nOPTIONS:\n{}",
-                serde_json::to_string_pretty(&question.state).unwrap_or_default(),
-                options.join("\n")
-            );
-            let mut infer = InferRequest::new(
-                &self.model,
-                vec![
-                    Message::text(Role::System, system),
-                    Message::text(Role::User, user),
-                ],
-            );
+            let (messages, schema) = closed_choice(question);
+            let mut infer = InferRequest::new(&self.model, messages);
             infer.max_tokens = Some(self.max_tokens);
             infer.timeout = Some(self.timeout);
             if let Some(reasoning) = self.reasoning {
@@ -213,38 +193,14 @@ impl<P: ProviderInferDyn> DecisionSeat for ProviderChoice<'_, P> {
                         DecisionError("the reasoning effort has no provider level".to_owned())
                     })?);
             }
-            infer.response_format = ResponseFormat::JsonSchema(json!({
-                "type": "object", "additionalProperties": false, "required": ["choice"],
-                "properties": {"choice": {"type": "string", "enum": keys}}
-            }));
+            infer.response_format = ResponseFormat::JsonSchema(schema);
             let response = tokio::time::timeout(self.timeout, self.provider.infer(infer))
                 .await
                 .map_err(|_| {
                     DecisionError("the single decision call timed out; no retry".to_owned())
                 })?
                 .map_err(|e| DecisionError(e.to_string()))?;
-            let text = match response.content.as_slice() {
-                [ContentBlock::Text { text }] if response.stop_reason == StopReason::EndTurn => {
-                    text.clone()
-                }
-                _ => {
-                    return Err(DecisionError(
-                        "the seat did not return one complete JSON text".to_owned(),
-                    ));
-                }
-            };
-            let value: Value = serde_json::from_str(&text)
-                .map_err(|e| DecisionError(format!("the seat answer is not JSON: {e}")))?;
-            let choice = value
-                .get("choice")
-                .and_then(Value::as_str)
-                .ok_or_else(|| DecisionError("the seat answer has no choice".to_owned()))?
-                .to_owned();
-            if !question.options.iter().any(|o| o.key == choice) {
-                return Err(DecisionError(format!(
-                    "the seat chose `{choice}`, which was not offered"
-                )));
-            }
+            let choice = decoded(question, &response)?;
             let mut probabilities = BTreeMap::new();
             probabilities.insert(choice.clone(), 1.0);
             Ok(ChoiceAnswer {
@@ -265,6 +221,65 @@ impl<P: ProviderInferDyn> DecisionSeat for ProviderChoice<'_, P> {
             })
         })
     }
+}
+
+/// The two messages and the answer schema of one closed choice, as a provider seat asks it
+/// (R4 A11: the verifier journals the same bytes through the authoring call).
+pub(crate) fn closed_choice(question: &ChoiceQuestion) -> (Vec<Message>, Value) {
+    let system = format!(
+        "You settle ONE closed choice for a workflow compiler. Read the state and pick exactly one option key. {} Choose \"{NONE_OPTION}\" when no option fits. Return only a JSON object {{\"choice\": <key>}}.",
+        question.instructions
+    );
+    let options: Vec<String> = question
+        .options
+        .iter()
+        .map(|o| format!("- {}: {}", o.key, o.description))
+        .collect();
+    let user = format!(
+        "STATE:\n{}\n\nOPTIONS:\n{}",
+        serde_json::to_string_pretty(&question.state).unwrap_or_default(),
+        options.join("\n")
+    );
+    let schema = json!({
+        "type": "object", "additionalProperties": false, "required": ["choice"],
+        "properties": {"choice": {"type": "string", "enum": question.keys()}}
+    });
+    (
+        vec![
+            Message::text(Role::System, system),
+            Message::text(Role::User, user),
+        ],
+        schema,
+    )
+}
+
+/// The option a provider's answer to `question` chooses: one complete JSON text naming an
+/// offered key, or why it does not.
+pub(crate) fn decoded(
+    question: &ChoiceQuestion,
+    response: &nika_kernel::ai::provider::InferResponse,
+) -> Result<String, DecisionError> {
+    let text = match response.content.as_slice() {
+        [ContentBlock::Text { text }] if response.stop_reason == StopReason::EndTurn => text,
+        _ => {
+            return Err(DecisionError(
+                "the seat did not return one complete JSON text".to_owned(),
+            ));
+        }
+    };
+    let value: Value = serde_json::from_str(text)
+        .map_err(|e| DecisionError(format!("the seat answer is not JSON: {e}")))?;
+    let choice = value
+        .get("choice")
+        .and_then(Value::as_str)
+        .ok_or_else(|| DecisionError("the seat answer has no choice".to_owned()))?
+        .to_owned();
+    if !question.options.iter().any(|o| o.key == choice) {
+        return Err(DecisionError(format!(
+            "the seat chose `{choice}`, which was not offered"
+        )));
+    }
+    Ok(choice)
 }
 
 /// Revalidate an answer against the question it claims to answer.
