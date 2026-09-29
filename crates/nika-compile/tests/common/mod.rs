@@ -259,7 +259,7 @@ pub(crate) fn compute(candidate: &str) -> String {
 /// to `(key | isnum)`: a suite pins where a number is read, `nika-compile-reader` pins the law.
 pub(crate) fn short(jq: &str) -> String {
     let law = format!(
-        "(type == \"number\" and (isinfinite or isnan | not)) or (type == \"string\" and test({}) and (tonumber | isinfinite or isnan | not))",
+        "(type == \"number\" and (isinfinite or isnan | not)) or (type == \"string\" and test({}) and (fromjson | isinfinite or isnan | not))",
         json!(nika_compile_reader::text::NUMBER_TEXT)
     );
     let read = format!(" | if {law} then tonumber else error(");

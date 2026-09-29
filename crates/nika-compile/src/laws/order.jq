@@ -19,9 +19,11 @@ def _dtrail0:
 def _dint: _dlead0 | if . == "" then "0" else . end;
 
 # Sign, integer digits, fraction digits and exponent (an integer) of an accepted number: a text
-# the law accepted is read as jq reads it (blanks dropped), then its own digits are split.
+# the law accepted is read as jq reads it (blanks dropped), then its own digits are split. The
+# text is read with fromjson: the runtime's tonumber refuses a decimal beyond f64 (1e400),
+# whose digits these laws still read exactly.
 def _dparts:
-  (if type == "string" then tonumber else . end)
+  (if type == "string" then fromjson else . end)
   | tojson
   | startswith("-") as $neg
   | ltrimstr("-") | ascii_downcase | split("e") as $me
@@ -60,12 +62,12 @@ def _dshow:
 
 # The number as the JSON transport between tasks writes it (serde_json with float_roundtrip): an
 # integer within [-2^63, 2^64-1] as itself, anything else as the shortest text of its f64; null
-# when no finite f64 carries it.
+# when no finite f64 carries it, an infinity or NaN included (its text reads as no number).
 def _dcarried:
   tojson as $t
   | if ($t | contains(".") or contains("e") or contains("E")) then . + 0.0
     elif . >= -9223372036854775808 and . <= 18446744073709551615 then .
-    else ($t + ".0" | tonumber) + 0.0
+    else ($t + ".0" | try fromjson catch infinite) + 0.0
     end
   | if isinfinite or isnan then null else tojson end;
 

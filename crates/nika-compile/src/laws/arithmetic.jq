@@ -99,7 +99,7 @@ def _dinteger:
 def dout($mode; $what):
   . as $x
   | ($x | dkey) as $key
-  | (if type == "number" then . else tonumber end) as $own
+  | (if type == "number" then . else fromjson end) as $own
   | (if $mode == "float" then [$own + 0.0, ($x | _dinteger)]
      elif $mode == "integer" then [($x | _dinteger), $own + 0.0]
      else [$own, ($x | _dinteger)] end) as $candidates

@@ -376,7 +376,7 @@ fn exponent_texts_are_numbers_and_an_overflow_is_not() {
     );
     assert!(
         candidate.contains("([eE][+-]?[0-9]+)?")
-            && candidate.contains("(tonumber | isinfinite or isnan | not)"),
+            && candidate.contains("(fromjson | isinfinite or isnan | not)"),
         "{candidate}"
     );
     let points = ["1.5e2", "-2e1", "99", "1e3", "0.5"];
