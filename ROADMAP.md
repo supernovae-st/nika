@@ -219,6 +219,27 @@ predates the Connectome canon.
 
 The **4-verb invariant (`infer · exec · invoke · agent`)** is locked through 2036 per BLUEPRINT_2036 §1 stress-test (D-2026-05-22-N18 · `fetch` is the `nika:fetch` builtin via `invoke`, not a verb) · candidates `fetch/embed/evaluate/train/serve/stream/transform` all collapse cleanly into the 4-verb taxonomy. ADRs 050-056 queue Phase 2-7 amendments (WASM Component Model · CRDT federation · edge no_std subset · multi-protocol gateway · 3 cluster-collapses).
 
+## Terminal workspace — implementation tracked in #1752
+
+[Terminal workspace scope and native acceptance gates](https://github.com/supernovae-st/nika/issues/1752)
+track the active project, conversations, workflow revisions and executions as
+distinct identities. The terminal consumes the existing Session, execution,
+permission and artifact contracts; it introduces no parallel Session store.
+
+The six work packages are:
+
+- **UI-STATE:** project and conversation identity, drafts, restoration and event routing.
+- **UI-LAYOUT:** project selector, explorer, conversation and explicit message context.
+- **UI-ASSETS:** canonical icons and branding, bounded motion and terminal fallbacks.
+- **UI-VIEWERS:** the builtin catalogue, typed output formats and useful file fallbacks.
+- **UI-RUNS:** workflow revisions, run hierarchies, schedules, gates, costs and receipts.
+- **UI-QA:** native input, restoration, consent, accessibility and performance acceptance.
+
+Fullscreen is the target after native parity is demonstrated on an exact
+candidate, while Inline and plain access remain available through the same
+Session. Browser previews do not establish native delivery. This roadmap entry
+tracks implementation work; it does not change the default presentation.
+
 ## Tag scheme (real semver · amended D-2026-06-20-N1)
 
 Real semver toward a 1.0 launch, then `MAJOR.MINOR.PATCH`:
