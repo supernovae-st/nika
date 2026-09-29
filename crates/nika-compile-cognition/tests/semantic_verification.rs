@@ -828,6 +828,44 @@ async fn judged_record() -> (Value, String) {
     )
 }
 
+/// A judge double's verdict over the keys each question offers ([`approve`], [`refuse`],
+/// [`abstain`]).
+type JudgeVerdict = fn(&[String]) -> &'static str;
+
+/// An answer round whose own judge contradicts the record or leaves its remainder unapproved is
+/// never READY (R4 A11, Q2): the record a first compile judged READY replays its same bytes,
+/// the round asks its judge the remainder only (no plan, transform, repair or whole-request
+/// call), and a refusal or an abstention keeps it INCOMPLETE, naming the clause.
+#[tokio::test]
+async fn an_answer_round_whose_judge_refuses_the_remainder_is_incomplete() {
+    let (record, candidate) = judged_record().await;
+    let cases: [(JudgeVerdict, &str); 2] =
+        [(refuse, "does not carry"), (abstain, "could not settle")];
+    for (verdict, named) in cases {
+        let seat = Scripted::new(vec![plan(SUM).to_string()]);
+        let judge = Judging::new(&seat, verdict);
+        let policy = AuthoringPolicy::new("mock/authoring", 1024, Duration::from_secs(2));
+        let request = CompileRequest::create(intent(SUM))
+            .with_plan(record.clone())
+            .with_hot_policy(HotPolicy::Off)
+            .with_authoring_policy(policy);
+        let out = compile_with_provider(&request, &judge).await.unwrap();
+        assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+        assert_eq!(out.candidate.as_deref(), Some(candidate.as_str()));
+        assert_eq!(seat.calls(), 0, "{out:#?}");
+        let asked = judged(&out);
+        assert!(!asked.is_empty(), "{out:#?}");
+        assert!(asked.iter().all(|role| role == "judge_clause"), "{asked:?}");
+        assert_eq!(asked.len(), judge.judged().len());
+        assert!(
+            out.diagnostics
+                .iter()
+                .any(|d| d.target == "semantic_verification" && d.message.contains(named)),
+            "{out:#?}"
+        );
+    }
+}
+
 /// Nothing a record or a request carries is a judgment (R4 A11, Q2, labelled negatives): a
 /// record forged with judged fields, and answers keyed as the judge's own questions, are never
 /// READY; the plain replay emits the same bytes with zero calls, its remainder named.
