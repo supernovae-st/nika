@@ -84,17 +84,7 @@ where
         a.sent()?;
     }
     *sent = true;
-    let requested_endpoint = crate::retry::BillingRoute::new(
-        rp.profile.id.into(),
-        rp.wire_model.clone(),
-        rp.base_url.clone(),
-    )
-    .map(|r| r.endpoint);
-    *call = Some(nika_types::cost::InferenceCall::new());
-    if let Some(c) = call {
-        c.requested_endpoint = requested_endpoint;
-    }
-    crate::dispatch_journal::sent(call.as_ref());
+    open_call(rp, call);
     // What the body carried, read back from the bytes this dispatch sends (R4 B16).
     let wire = http_req
         .body
@@ -139,6 +129,25 @@ where
         return Err(refused);
     }
     Ok(response)
+}
+
+/// Open this dispatch's cost record at the endpoint its request is sent to, and journal the
+/// dispatch as sent.
+fn open_call(
+    rp: &ResolvedProvider<impl Sized>,
+    call: &mut Option<nika_types::cost::InferenceCall>,
+) {
+    let requested_endpoint = crate::retry::BillingRoute::new(
+        rp.profile.id.into(),
+        rp.wire_model.clone(),
+        rp.base_url.clone(),
+    )
+    .map(|r| r.endpoint);
+    *call = Some(nika_types::cost::InferenceCall::new());
+    if let Some(c) = call {
+        c.requested_endpoint = requested_endpoint;
+    }
+    crate::dispatch_journal::sent(call.as_ref());
 }
 
 #[cfg(test)]
