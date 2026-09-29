@@ -234,6 +234,7 @@ fn json_string_value_hint(argument: &str, kind: jsonschema::JsonType) -> String 
 /// jq-std defs we SHADOW with the jq-correct semantics (loaded last, so the
 /// compiler's name resolution picks them over the upstream defs).
 ///
+/// - `tonumber` — one numeric operand emits one number or errors, even inside an aggregate.
 /// - `scan` — jaq-std 3.0.1 defines `scan(re; flags): matches(re; flags)[]`
 ///   WITHOUT the global flag, so `scan(re)` yields the FIRST match only and
 ///   `[.s | scan("\\S+")]` on "one two three" silently returns `["one"]`
@@ -241,10 +242,7 @@ fn json_string_value_hint(argument: &str, kind: jsonschema::JsonType) -> String 
 ///   finding). jq defines scan as global by construction (`match(re;
 ///   "g"+flags)`). Unfixed upstream on `main` at pin time; the shadow retires
 ///   the day a jaq release carries the correction.
-const JQ_STD_CORRECTIONS: &str = r#"
-def scan(re; flags): matches(re; "g" + flags)[] | .[0].string;
-def scan(re): scan(re; "");
-"#;
+const JQ_STD_CORRECTIONS: &str = include_str!("data/stdlib.jq");
 
 /// Parse the shadow defs (static string — a parse failure can only come from
 /// an edit of [`JQ_STD_CORRECTIONS`], so it is a typed failure here, never a
@@ -922,3 +920,6 @@ pub(crate) fn base64_decode(text: &str) -> Result<Vec<u8>, String> {
 mod tests;
 #[cfg(test)]
 mod tests_columns;
+
+#[cfg(test)]
+mod tests_number;

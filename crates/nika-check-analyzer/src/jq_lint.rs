@@ -35,11 +35,14 @@ use nika_schema::raw::{RawAction, RawWorkflow};
 pub(super) fn jq_compiles(program: &str) -> Result<(), String> {
     let clock_defs = jaq_core::load::parse(nika_cap::JQ_CLOCK_DEFS, |parser| parser.defs())
         .ok_or_else(|| "internal: canonical jq clock definitions do not parse".to_owned())?;
+    let numbers = jaq_core::load::parse(include_str!("jq_lint/number.jq"), |parser| parser.defs())
+        .ok_or_else(|| "internal: jq number definitions do not parse".to_owned())?;
     let defs = jaq_core::defs()
         .chain(
             jaq_std::defs().filter(|definition| nika_cap::install_jq_definition(definition.name)),
         )
         .chain(jaq_json::defs())
+        .chain(numbers)
         .chain(clock_defs);
     // One typed policy decides every effect-bearing native/definition. Clock
     // forms compile against the run-start variable; execution supplies its
@@ -446,5 +449,20 @@ tasks:
         let mut errors = Vec::new();
         scan_jq(&wf, &mut errors);
         assert!(errors.is_empty(), "a valid jq program is clean: {errors:?}");
+    }
+}
+
+#[cfg(test)]
+mod tests_number {
+    #[test]
+    fn tonumber_and_its_explicit_error_policy_compile() {
+        for program in [
+            "tonumber",
+            "[.[] | tonumber] | add",
+            "[.[] | try tonumber] | add",
+            "[fromjson]",
+        ] {
+            assert!(super::jq_compiles(program).is_ok(), "{program}");
+        }
     }
 }

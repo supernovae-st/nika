@@ -92,3 +92,14 @@ never name this crate; its `public-api.txt` is the split's receipt.
 - Tests that exercise the ladder end-to-end (`crate::check` ·
   `check_composed`) belong in `nika-check` and reach this plane through
   the re-exported path.
+
+## Numeric conversion cardinality
+
+The static checker installs the same numeric conversion definition, checking syntax without executing data.
+
+`tonumber` preserves a numeric input or parses one numeric value from a text input.
+Empty or whitespace-only text, several JSON values in one text, and non-numeric values fail;
+an enclosing aggregate cannot silently omit or double-count that operand. An explicitly
+authored `try` or `?` still controls error handling. `fromjson` retains its stream semantics.
+This cardinality correction does not promise arbitrary decimal arithmetic or a field name in
+the generic error; typed numeric laws remain responsible for those contracts.

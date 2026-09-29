@@ -172,3 +172,14 @@ enumerate this effect surface and drive the real rendered-size ceiling.
 - spec `04-variables.md` §task output reference — the record this crate defines
 - spec `05-errors.md` §142 — why an engine-internal code must never reach `tasks.X.error`
 - issue #1203 — the wall that forced the descent
+
+## Numeric conversion cardinality
+
+Named output bindings install the same numeric conversion definition as the runtime builtin.
+
+`tonumber` preserves a numeric input or parses one numeric value from a text input.
+Empty or whitespace-only text, several JSON values in one text, and non-numeric values fail;
+an enclosing aggregate cannot silently omit or double-count that operand. An explicitly
+authored `try` or `?` still controls error handling. `fromjson` retains its stream semantics.
+This cardinality correction does not promise arbitrary decimal arithmetic or a field name in
+the generic error; typed numeric laws remain responsible for those contracts.

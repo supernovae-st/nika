@@ -215,3 +215,14 @@ path strings; edit mode, provider limits and input authority remain runtime
 checks. These declarations let a consumer validate the same shapes that the
 existing builtins consume, without a string-serialization pre-pass. They do
 not establish that an input file exists or that rendering will succeed.
+
+## Numeric conversion cardinality
+
+The runtime jq builtin and fetch jq mode share this evaluator.
+
+`tonumber` preserves a numeric input or parses one numeric value from a text input.
+Empty or whitespace-only text, several JSON values in one text, and non-numeric values fail;
+an enclosing aggregate cannot silently omit or double-count that operand. An explicitly
+authored `try` or `?` still controls error handling. `fromjson` retains its stream semantics.
+This cardinality correction does not promise arbitrary decimal arithmetic or a field name in
+the generic error; typed numeric laws remain responsible for those contracts.

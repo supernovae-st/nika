@@ -62,11 +62,14 @@ pub fn eval_binding(
     let val = read::parse_single(&bytes)
         .map_err(|e| runtime_err(name, &format!("input not JSON: {e:?}")))?;
 
+    let numbers = jaq_core::load::parse(include_str!("jq/number.jq"), |parser| parser.defs())
+        .ok_or_else(|| runtime_err(name, "internal: jq number definitions do not parse"))?;
     let defs = jaq_core::defs()
         .chain(
             jaq_std::defs().filter(|definition| nika_cap::install_jq_definition(definition.name)),
         )
         .chain(jaq_json::defs())
+        .chain(numbers)
         .chain(clock_defs(name)?);
     // The typed nika-cap policy removes every host-reaching native. Clock
     // spellings return through pure definitions over the caller's value.
@@ -388,3 +391,6 @@ mod tests {
         ));
     }
 }
+
+#[cfg(test)]
+mod tests_number;

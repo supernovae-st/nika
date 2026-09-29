@@ -144,11 +144,8 @@ fn variables(input: &Value) -> Result<(Vec<String>, Vec<Val>), Refusal> {
     Ok((names, vals))
 }
 
-/// The jq-std shadow the runtime installs (`scan` global by construction), verbatim.
-const JQ_STD_CORRECTIONS: &str = r#"
-def scan(re; flags): matches(re; "g" + flags)[] | .[0].string;
-def scan(re): scan(re; "");
-"#;
+/// The runtime shadows, verbatim: global `scan` and exactly one value from `tonumber`.
+const JQ_STD_CORRECTIONS: &str = include_str!("transform/stdlib.jq");
 
 fn render_load(errs: &[(File<&str, ()>, LoadError<&str>)]) -> String {
     let Some((_, first)) = errs.first() else {
@@ -1497,3 +1494,6 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod tests_number;

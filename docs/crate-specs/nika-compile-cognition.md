@@ -321,3 +321,14 @@ model identity as unreported. It never substitutes the requested model. Nonblank
 reported identities remain exact and deduplicated in first-observed order; the raw
 provider response is preserved. This observation is not independent provider or
 invoice verification. CLI, Session and native Serve use this same owner.
+
+## Numeric conversion cardinality
+
+Transform examples execute the same numeric conversion definition as the runtime; successful parsing alone never establishes semantic fidelity.
+
+`tonumber` preserves a numeric input or parses one numeric value from a text input.
+Empty or whitespace-only text, several JSON values in one text, and non-numeric values fail;
+an enclosing aggregate cannot silently omit or double-count that operand. An explicitly
+authored `try` or `?` still controls error handling. `fromjson` retains its stream semantics.
+This cardinality correction does not promise arbitrary decimal arithmetic or a field name in
+the generic error; typed numeric laws remain responsible for those contracts.
