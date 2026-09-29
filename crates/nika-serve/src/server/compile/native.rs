@@ -10,15 +10,15 @@
 //! optional Foundry knowledge snapshot, opened, verified and pinned when the listener attaches
 //! through the configuration parser and knowledge reader every door shares
 //! (`nika_cli_host::compile::{config, knowledge}`). The strategy is fixed: the seat writes the
-//! candidate itself (`only`), one sample. A round permits one physical request by default;
-//! the operator must explicitly grant `max_calls` for more. Repair preferences are not grants.
-//! Redirects are disabled; provider resends consume that grant. A caller opts in per request
-//! and may narrow each bound, never widen one; it names no model,
-//! endpoint, credential, path or strategy. The key the seat's provider resolves is withheld from
-//! every answer, however the operator supplied it.
+//! candidate itself (`only`), one sample, at the reasoning effort the operator names. A round
+//! permits one physical request by default; the operator must explicitly grant `max_calls` for
+//! more. Repair preferences are not grants. Redirects are disabled; provider resends consume
+//! that grant. A caller opts in per request and may narrow each bound, never widen one; it names
+//! no model, endpoint, credential, path, strategy or effort. The key the seat's provider
+//! resolves is withheld from every answer, however the operator supplied it.
 
 use std::fmt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -32,16 +32,10 @@ use super::super::config::ServerConfig;
 use super::replay::Replays;
 use super::v2::Bounds;
 
-const DEFAULT_MAX_TOKENS: u32 = 8192;
-const DEFAULT_CALL_TIMEOUT: Duration = Duration::from_secs(120);
 const DEFAULT_DEADLINE: Duration = Duration::from_secs(300);
-const DEFAULT_REPAIRS: u32 = 3;
 const DEFAULT_REPLAY_ENTRIES: usize = 32;
 const DEFAULT_REPLAY_TTL: Duration = Duration::from_secs(30 * 60);
-const MAX_OUTPUT_TOKENS: u32 = 32_768;
-const MAX_CALL_TIMEOUT: Duration = Duration::from_secs(600);
 const MAX_DEADLINE: Duration = Duration::from_secs(3600);
-const MAX_REPAIRS: u32 = 5;
 const MAX_REPLAY_ENTRIES: usize = 1024;
 const MAX_REPLAY_TTL: Duration = Duration::from_secs(24 * 3600);
 
@@ -52,7 +46,7 @@ pub struct NativeAuthoring {
     model: String,
     providers: ProvidersConfig,
     bounds: Bounds,
-    knowledge: Option<(PathBuf, Option<String>)>,
+    named: config::AuthoringSettings,
     replay_entries: usize,
     replay_ttl: Duration,
     withheld: Vec<Secret>,
@@ -70,15 +64,15 @@ impl NativeAuthoring {
             model: model.into(),
             providers,
             bounds: Bounds {
-                max_tokens: DEFAULT_MAX_TOKENS,
-                call_timeout: DEFAULT_CALL_TIMEOUT,
+                max_tokens: config::DEFAULT_MAX_TOKENS,
+                call_timeout: config::DEFAULT_CALL_TIMEOUT,
                 deadline: DEFAULT_DEADLINE,
-                repairs: DEFAULT_REPAIRS,
+                repairs: config::DEFAULT_REPAIRS,
                 repairs_explicit: false,
                 max_calls: None,
                 grant: "operator: NativeAuthoring::with_max_calls",
             },
-            knowledge: None,
+            named: config::AuthoringSettings::none().with_strategy(NativeMode::Only.word()),
             replay_entries: DEFAULT_REPLAY_ENTRIES,
             replay_ttl: DEFAULT_REPLAY_TTL,
             withheld: Vec::new(),
@@ -130,7 +124,14 @@ impl NativeAuthoring {
         dir: impl Into<PathBuf>,
         exclude_corpus: Option<String>,
     ) -> Self {
-        self.knowledge = Some((dir.into(), exclude_corpus));
+        self.named = self.named.with_knowledge(dir, exclude_corpus);
+        self
+    }
+
+    /// The reasoning effort word every seat call asks (low · high · max).
+    #[must_use]
+    pub fn with_reasoning(mut self, word: impl Into<String>) -> Self {
+        self.named = self.named.with_reasoning(word);
         self
     }
 
@@ -158,7 +159,7 @@ impl fmt::Debug for NativeAuthoring {
             .debug_struct("NativeAuthoring")
             .field("model", &self.model)
             .field("bounds", &self.bounds)
-            .field("knowledge", &self.knowledge.is_some())
+            .field("knowledge", &self.named.knowledge.is_some())
             .finish_non_exhaustive()
     }
 }
@@ -199,8 +200,9 @@ pub use nika_cli_host::compile::NativeAuthoringArgs;
 
 /// Attach the seat `nika serve --authoring-model` names to the listener configuration. Absent
 /// the flag, the configuration is returned untouched and nothing is read. Named, the provider
-/// configuration (`config_from_env`, its own key precedence) is read once, now; the seat — and
-/// the key it resolves, withheld from every answer — is validated when the listener attaches.
+/// configuration (`config_from_env`, its own key precedence) and the effort word (the flag,
+/// else `NIKA_AUTHORING_REASONING`) are read once, now; the seat — and the key it resolves,
+/// withheld from every answer — is validated when the listener attaches.
 ///
 /// # Errors
 /// [`NativeAuthoringError::NeedsListener`] when no listener is configured.
@@ -253,6 +255,9 @@ pub fn seat_native_authoring_with_calls(
     if let Some(dir) = &flags.knowledge {
         seat = seat.with_knowledge(dir, flags.knowledge_exclude.clone());
     }
+    if let Some(word) = config::reasoning_word(flags.reasoning.as_deref()) {
+        seat = seat.with_reasoning(word);
+    }
     Ok(Some(config.with_native_authoring(seat)))
 }
 
@@ -263,6 +268,8 @@ pub(in crate::server) struct Seat {
     pub(super) provider: String,
     pub(super) providers: ProvidersConfig,
     pub(super) bounds: Bounds,
+    /// The shared configuration: strategy `only`, the snapshot, the reasoning effort.
+    pub(super) authoring: config::AuthoringConfig,
     knowledge: Option<Pin>,
     /// The seat's resolved key and the operator's further values: never answered.
     withheld: Vec<Secret>,
@@ -271,10 +278,8 @@ pub(in crate::server) struct Seat {
     halt: tokio::sync::watch::Sender<bool>,
 }
 
-/// The snapshot pinned at attach: its directory and exclusion, and the bytes it was read with.
+/// The bytes the snapshot the shared configuration names was read with at attach.
 struct Pin {
-    dir: PathBuf,
-    exclude: Option<String>,
     manifest_sha256: String,
     rows_sha256: String,
 }
@@ -283,16 +288,19 @@ struct Pin {
 pub(super) struct ContextChanged;
 
 impl Seat {
-    /// Validate a seat: bounds, a direct provider model that resolves with its key, the
-    /// snapshot opened and pinned. The key the provider resolved — whatever supplied it — joins
-    /// the withheld values.
+    /// Validate a seat: bounds, a direct provider model that resolves with its key, the shared
+    /// configuration (strategy `only`, a snapshot, the effort word named; only that word can
+    /// refuse there), no environment read. The provider's key joins the withheld values.
     pub(in crate::server) fn open(config: &NativeAuthoring) -> Result<Self, NativeAuthoringError> {
         let bounds = bounds(config)?;
         let (provider, key) = direct_provider(&config.model, &config.providers)?;
-        let knowledge = match &config.knowledge {
-            Some((dir, exclude)) => Some(pin(dir, exclude.clone())?),
-            None => None,
-        };
+        let none = config::AuthoringSettings::none();
+        let authoring =
+            config::resolve(&config.named, &none).map_err(|error| NativeAuthoringError::Model {
+                model: config.model.clone(),
+                reason: error.to_string(),
+            })?;
+        let knowledge = pin(&authoring)?;
         let mut withheld = config.withheld.clone();
         withheld.extend(key);
         Ok(Self {
@@ -300,6 +308,7 @@ impl Seat {
             provider,
             providers: config.providers.clone(),
             bounds,
+            authoring,
             knowledge,
             withheld,
             replays: Replays::new(config.replay_entries, config.replay_ttl),
@@ -322,16 +331,23 @@ impl Seat {
     pub(super) fn context(
         &self,
     ) -> Result<Option<(knowledge::Snapshot, Option<&str>)>, ContextChanged> {
-        let Some(pin) = &self.knowledge else {
+        let (
+            Some(pin),
+            Some(config::KnowledgeSource::Snapshot {
+                dir,
+                exclude_corpus,
+            }),
+        ) = (&self.knowledge, &self.authoring.knowledge)
+        else {
             return Ok(None);
         };
-        let snapshot = knowledge::Snapshot::open(&pin.dir).map_err(|_| ContextChanged)?;
+        let snapshot = knowledge::Snapshot::open(dir).map_err(|_| ContextChanged)?;
         if snapshot.manifest_sha256() != pin.manifest_sha256
             || snapshot.rows_sha256() != pin.rows_sha256
         {
             return Err(ContextChanged);
         }
-        Ok(Some((snapshot, pin.exclude.as_deref())))
+        Ok(Some((snapshot, exclude_corpus.as_deref())))
     }
 
     /// Whether a document carries a withheld value, raw or as a JSON string carries it
@@ -365,16 +381,12 @@ fn contains(haystack: &[u8], needle: &[u8]) -> bool {
 fn bounds(config: &NativeAuthoring) -> Result<Bounds, NativeAuthoringError> {
     let bounds = config.bounds;
     let refuse = |why| Err(NativeAuthoringError::Bound(why));
-    if !(1..=MAX_OUTPUT_TOKENS).contains(&bounds.max_tokens) {
-        return refuse("authoring output tokens per call must be 1..=32768");
-    }
-    if bounds.call_timeout.is_zero() || bounds.call_timeout > MAX_CALL_TIMEOUT {
-        return refuse("the authoring timeout per call must be above zero and at most 600 s");
-    }
+    config::check_call_bounds(bounds.max_tokens, bounds.call_timeout)
+        .map_err(NativeAuthoringError::Bound)?;
     if bounds.deadline.is_zero() || bounds.deadline > MAX_DEADLINE {
         return refuse("the authoring deadline per request must be above zero and at most 3600 s");
     }
-    if bounds.repairs > MAX_REPAIRS {
+    if bounds.repairs > config::MAX_REPAIRS {
         return refuse("authoring repair rounds must be 0..=5");
     }
     if !(1..=MAX_REPLAY_ENTRIES).contains(&config.replay_entries)
@@ -420,29 +432,16 @@ fn direct_provider(
     ))
 }
 
-/// Pin a snapshot through the configuration parser every door shares: the strategy is the
-/// seat's (`only`), the knowledge a snapshot directory with its exclusion.
-fn pin(dir: &Path, exclude: Option<String>) -> Result<Pin, NativeAuthoringError> {
-    let named = config::AuthoringSettings::none()
-        .with_strategy(NativeMode::Only.word())
-        .with_knowledge(dir, exclude);
-    let resolved = config::resolve(&named, &config::AuthoringSettings::none())
-        .map_err(|error| NativeAuthoringError::Knowledge(error.to_string()))?;
-    let Some(config::KnowledgeSource::Snapshot {
-        dir,
-        exclude_corpus,
-    }) = resolved.knowledge
-    else {
-        return Err(NativeAuthoringError::Knowledge(
-            "only a snapshot directory can be pinned".to_owned(),
-        ));
+/// Pin the snapshot the shared configuration resolved, if any: its bytes as read when the
+/// listener attaches.
+fn pin(authoring: &config::AuthoringConfig) -> Result<Option<Pin>, NativeAuthoringError> {
+    let Some(config::KnowledgeSource::Snapshot { dir, .. }) = &authoring.knowledge else {
+        return Ok(None);
     };
-    let snapshot = knowledge::Snapshot::open(&dir)
+    let snapshot = knowledge::Snapshot::open(dir)
         .map_err(|error| NativeAuthoringError::Knowledge(error.to_string()))?;
-    Ok(Pin {
+    Ok(Some(Pin {
         manifest_sha256: snapshot.manifest_sha256().to_owned(),
         rows_sha256: snapshot.rows_sha256(),
-        dir,
-        exclude: exclude_corpus,
-    })
+    }))
 }

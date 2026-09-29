@@ -21,6 +21,7 @@ use crate::NativeAuthoring;
 mod authority;
 mod lifecycle;
 mod openapi;
+mod reasoning;
 mod refusals;
 mod withheld;
 

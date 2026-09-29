@@ -5,8 +5,9 @@
 
 use std::path::PathBuf;
 
-/// `nika serve`'s explicit native authoring seat (the `nika compile` flag words, no
-/// environment fallback). Absent `--authoring-model`, nothing is read and nothing changes.
+/// `nika serve`'s explicit native authoring seat (the `nika compile` flag words; only the
+/// reasoning effort falls back to the environment). Absent `--authoring-model`, nothing is read
+/// and nothing changes.
 #[derive(Debug, Clone, Default, clap::Args)]
 pub struct NativeAuthoringArgs {
     /// Seat native authoring on POST /v1/compile generation 2 with this direct provider model
@@ -45,6 +46,10 @@ pub struct NativeAuthoringArgs {
         requires = "knowledge"
     )]
     pub knowledge_exclude: Option<String>,
+    /// The reasoning effort every seat call asks (low · high · max), sent only where the route
+    /// qualifies it; the one word `NIKA_AUTHORING_REASONING` names when the flag is absent.
+    #[arg(long = "authoring-reasoning", value_name = "LEVEL", requires = "model")]
+    pub reasoning: Option<String>,
 }
 
 const SHUTDOWN_HELP: &str = "Shutdown (persistent mode): Ctrl-C/SIGINT and SIGTERM stop HTTP admissions \

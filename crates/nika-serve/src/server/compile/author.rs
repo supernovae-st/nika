@@ -29,8 +29,7 @@ use hyper::{Response, StatusCode};
 use nika_kernel::ai::provider::{InferRequest, InferResponse, ProviderError, ProviderInferDyn};
 use nika_onboard::compile::authority::{Seat as CountedSeat, Wire};
 use nika_onboard::compile::{
-    AuthoringPolicy, Cognition, CompileOutcome, NativeMode, Strategy, compile_with_cognition,
-    outcome_document, revise_intent,
+    Cognition, CompileOutcome, Strategy, compile_with_cognition, outcome_document, revise_intent,
 };
 use nika_providers::ProviderRegistry;
 use serde_json::value::RawValue;
@@ -222,12 +221,14 @@ async fn author(
     bounds: Bounds,
     stop: &Stop,
 ) -> Result<CompileOutcome, Refusal> {
-    let mut request = input.request(answers).with_authoring_policy(
-        AuthoringPolicy::new(seat.model.as_str(), bounds.max_tokens, bounds.call_timeout)
-            .with_native(NativeMode::Only)
-            .with_repairs(bounds.repairs)
-            .with_samples(1),
-    );
+    // The shared producer: the seat's strategy `only` and its reasoning effort (R4 B16).
+    let policy = seat
+        .authoring
+        .policy(&seat.model, bounds.max_tokens, bounds.call_timeout);
+    let policy = policy.map_err(|_| Refusal::Machinery)?;
+    let mut request = input
+        .request(answers)
+        .with_authoring_policy(policy.with_repairs(bounds.repairs));
     if let Some((snapshot, exclude)) = seat.context()? {
         let intent = match input {
             Input::Create { intent, .. } => Some(intent.clone()),
