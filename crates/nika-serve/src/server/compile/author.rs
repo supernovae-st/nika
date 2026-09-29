@@ -351,7 +351,8 @@ async fn replay(
 /// Stop a round before another invocation and sanitize provider failures. The enclosed
 /// counted seat and wire enforce independent invocation and physical-request ceilings;
 /// provider retries consume the request grant; redirects are disabled. Provider text never reaches the core:
-/// it can contain an endpoint, request body or credential.
+/// it can contain an endpoint, request body or credential. A local refusal is the engine's own words
+/// and keeps them: a spent grant names its remedy, an unqualified effort its route (R4 B17).
 struct Gate<P> {
     provider: P,
     stop: Stop,
@@ -365,13 +366,11 @@ impl<P: ProviderInferDyn> ProviderInferDyn for Gate<P> {
                     .to_owned(),
             });
         }
-        self.provider
-            .infer(request)
-            .await
-            .map_err(|error| nika_cli_host::compile::redact_authoring_error(
-                error,
-                "this authoring invocation was refused locally before dispatch; the operator must authorize sufficient max_calls, and a request may only narrow that ceiling",
-            ))
+        let result = self.provider.infer(request).await;
+        result.map_err(|error| match error {
+            ProviderError::AdmissionDenied { .. } => error,
+            other => nika_cli_host::compile::redact_authoring_error(other, ""),
+        })
     }
 }
 

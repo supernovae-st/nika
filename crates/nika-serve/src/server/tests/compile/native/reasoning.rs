@@ -85,6 +85,11 @@ async fn a_named_level_rides_the_round_and_an_unqualified_route_sends_nothing() 
             call["result"]["failure_kind"], "admission_refused",
             "{call:#}"
         );
+        // The refusal names its own cause, never the request grant's remedy (R4 B17).
+        let said = document["diagnostics"].to_string();
+        let cause = format!("the explicit reasoning effort `{word}` is not qualified");
+        assert!(said.contains(&cause), "{word}: {said}");
+        assert!(!said.contains("authorize sufficient max_calls"), "{said}");
         server.stop().await.expect("clean stop");
     }
 }
