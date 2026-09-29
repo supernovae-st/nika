@@ -83,7 +83,9 @@ spelling of a bound column, whatever columns its `columns_read` declares (a brac
 a declaration, and a column the program never reads moves none of its outputs): on each one-row
 source of its own example with the column set to the stated literal, to the observed spelling,
 and to a text neither spells (U+2400), it must not treat exactly one of the two spellings as it
-treats that unmatched text (a byte comparison drops the rows spelled the other way), nor return
+treats that unmatched text (a byte comparison treats the rows spelled the other way as unmatched:
+it drops them, or keeps the rows a negation excludes; the refusal says so in neutral words, never
+that rows are dropped, B21 T4), nor return
 a value on one spelling and fail on the other. Every string value and key exactly equal to a
 probe's own text reads back to one placeholder, so echoing or grouping the value is no
 difference; an error on both spellings is none (the row errs whatever the spelling, and the

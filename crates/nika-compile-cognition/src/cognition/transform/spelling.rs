@@ -12,8 +12,9 @@
 //! moves none of its outputs, so probing it refuses nothing): on each one-row source of the
 //! seat's own example with the column set to the stated literal, to the observed spelling, and
 //! to a text neither spells ([`UNMATCHED`]), it must not treat exactly one of the two spellings
-//! as it treats that unmatched text (the rows spelled that way would be dropped, as a byte
-//! comparison drops them), and it must not return a value on one spelling and fail on the other.
+//! as it treats that unmatched text (a byte comparison treats the rows spelled that way as
+//! unmatched: it drops them, or keeps the rows a negation excludes), and it must not return a
+//! value on one spelling and fail on the other.
 //! Every string value and key exactly equal to a probe's own text reads back to one placeholder,
 //! so echoing or grouping the row's value is no difference. An error on both spellings is no
 //! spelling difference: the row errs whatever the spelling, and the value laws and the run own
@@ -244,10 +245,12 @@ fn unstated(
 /// The probe text neither spelling is: what the program does with a value the clause does not
 /// state (U+2400, the symbol for null, which no categorical value of a source spells).
 const UNMATCHED: &str = "\u{2400}";
-/// What the program does with the other spelling: the observed one treated as unmatched.
-const DROPS_OBSERVED: &str = "the program treats the observed spelling as a value the clause does not state, so it drops the rows the source spells that way";
+/// What the program does with the other spelling: the observed one treated as unmatched. Neutral
+/// words (B21 T4): under a negated literal the program keeps the rows it should exclude, so the
+/// defect says how the two spellings are told apart, never that rows are dropped.
+const DROPS_OBSERVED: &str = "the program treats the observed spelling as it treats a value the clause does not state, not as it treats the stated spelling";
 /// What the program does with the other spelling: the stated one treated as unmatched.
-const DROPS_STATED: &str = "the program treats the stated spelling as a value the clause does not state, so it drops the rows spelled as the request states them";
+const DROPS_STATED: &str = "the program treats the stated spelling as it treats a value the clause does not state, not as it treats the observed spelling";
 /// What the program does with the other spelling: an error on the observed one.
 const FAILS_OBSERVED: &str =
     "the program fails on the observed spelling where it returns a value on the stated one";
@@ -299,7 +302,7 @@ impl Bound {
     /// and `how` the program told them apart.
     fn refusal(&self, how: &str) -> String {
         format!(
-            "{LEAD}: in `{}` the clause states `{}` ({}) and the source holds `{}` ({}), the same text under Unicode canonical equivalence; the program must treat both exactly alike (keep the stated spelling and also match the observed one): {how}",
+            "{LEAD}: in `{}` the clause states `{}` ({}) and the source holds `{}` ({}), the same text under Unicode canonical equivalence; the program must treat both exactly alike (whatever it does with the stated spelling, it does with the observed one): {how}",
             self.column,
             self.stated,
             points(&self.stated),

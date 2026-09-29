@@ -480,6 +480,51 @@ async fn with_no_repair_the_refused_program_stays_incomplete() {
     assert_eq!(transforms[0]["accepted"], false, "{transforms:#}");
 }
 
+/// A negated literal compared by bytes (R4 A11, B21 T4): « …status is not livré » and
+/// `.status != "livré"` keep the rows the file spells e + U+0301, which the clause excludes. The
+/// program is refused, and the refusal says what it does in neutral words: it treats the observed
+/// spelling as it treats a value the clause does not state, not as it treats the stated one. It
+/// no longer claims the rows are dropped, nor asks to keep the stated spelling. The repair
+/// excluding both spellings sums the one row the clause keeps.
+#[tokio::test]
+async fn a_negated_literal_compared_by_bytes_is_refused_in_neutral_words() {
+    let clause = format!("sum qty over the rows where status is not {LIVRE_NFC}");
+    let excluding = |spellings: &[&str]| {
+        let test: Vec<String> = spellings
+            .iter()
+            .map(|s| format!(".status != {}", json!(s)))
+            .collect();
+        format!(
+            ".records | map(select({}) | .qty | tonumber) | add // 0",
+            test.join(" and ")
+        )
+    };
+    let seat = Seat::new(vec![
+        request_of(&clause).1.to_string(),
+        program(&excluding(&[LIVRE_NFC]), &["status", "qty"], &json!(15)),
+        program(
+            &excluding(&[LIVRE_NFC, LIVRE_NFD]),
+            &["status", "qty"],
+            &json!(15),
+        ),
+    ]);
+    let world = spelled(&[LIVRE_NFD, "en attente"], &["x", "y"]);
+    let out = compiled(&seat, &clause, world, 1).await;
+    assert_eq!(
+        authored(&out),
+        ["plan", "transform", "transform_repair"],
+        "{out:#?}"
+    );
+    let refused = told(&seat, 2);
+    let neutral = "the program treats the observed spelling as it treats a value the clause does not state, not as it treats the stated spelling";
+    assert!(refused.contains(neutral), "{refused}");
+    for claim in ["drop", "keep the stated spelling"] {
+        assert!(!refused.contains(claim), "{claim}: {refused}");
+    }
+    let program = compute(&out);
+    assert_eq!(run(&program, &delivered(LIVRE_NFD)), json!(15), "{program}");
+}
+
 /// A program that returns a value on the stated spelling and fails on the observed one (the branch
 /// the observed spelling reaches feeds its text to `tonumber`) escapes nothing: an asymmetric
 /// error is a spelling difference. It is refused, repaired from that defect within the
