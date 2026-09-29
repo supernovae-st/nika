@@ -492,6 +492,14 @@ Session reaches the same core under the intelligence the human chose: an API
 or a local engine can author, and with no intelligence the door stays
 deterministic.
 
+`AuthoringPolicy::with_reasoning` optionally selects the compile-owned
+`AuthoringReasoning` level (`low`, `high`, `max`). The policy does not open a
+seat or choose a provider. Cognition maps the level to each inference request;
+the provider adapter admits it only on a qualified route. The output-token cap
+remains separate. With no explicit level, the route retains its default.
+Per-call evidence distinguishes the configured level, transmitted request keys,
+reported model and reasoning-token usage; internal served effort stays unknown.
+
 Knowledge is attached only when named: `--knowledge` or `NIKA_KNOWLEDGE` for a
 snapshot, and on the CLI `--knowledge-pack` or `NIKA_KNOWLEDGE_PACK` for a pack
 composed for one request. There is no default location, and release archives

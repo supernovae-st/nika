@@ -557,3 +557,21 @@ evidence, never from a fresh catalog lookup:
 A snapshot-priced route whose usage is rejected before pricing records
 `unknown` provenance and still reads as `missing_catalog_price`. That label
 lives in `retry/billing.rs`, which this change leaves untouched.
+
+## Explicit reasoning effort on qualified routes
+
+An explicit `InferRequest.reasoning_effort` is admitted only when the model's
+catalog lists the requested level and the exact provider, model and endpoint
+match a catalogued direct route. The current qualified model is
+`deepseek/deepseek-v4-pro`; the adapter writes `thinking: {type: enabled}` and
+the requested `reasoning_effort` word. An unqualified endpoint override, alias
+or other model refuses before admission reservation and dispatch. Conflicting
+raw reasoning keys or a thinking-token budget refuse too. The Anthropic, Gemini
+and mock adapters refuse an explicit level rather than silently dropping it.
+
+Without an explicit level, existing route behavior remains: some short
+structured DeepSeek requests receive `low`. A larger output cap never means
+MAX. Buffered responses carry `ReasoningWire` read from the actual serialized
+body immediately before HTTP dispatch; this says what was transmitted, never
+what internal effort the server served. Streaming shares the admission and
+serialization law but does not add a buffered-response evidence field.

@@ -1172,6 +1172,49 @@ impl<T> core::convert::From<T> for nika_kernel_ai::provider::ProviderError
 pub fn nika_kernel_ai::provider::ProviderError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_ai::provider::ProviderError where T: 'static
 pub fn nika_kernel_ai::provider::ProviderError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_kernel_ai::provider::ReasoningEffort
+pub nika_kernel_ai::provider::ReasoningEffort::High
+pub nika_kernel_ai::provider::ReasoningEffort::Low
+pub nika_kernel_ai::provider::ReasoningEffort::Max
+impl nika_kernel_ai::provider::ReasoningEffort
+pub fn nika_kernel_ai::provider::ReasoningEffort::parse(word: &str) -> core::option::Option<Self>
+pub const fn nika_kernel_ai::provider::ReasoningEffort::word(self) -> &'static str
+impl core::clone::Clone for nika_kernel_ai::provider::ReasoningEffort
+pub fn nika_kernel_ai::provider::ReasoningEffort::clone(&self) -> nika_kernel_ai::provider::ReasoningEffort
+impl core::cmp::Eq for nika_kernel_ai::provider::ReasoningEffort
+impl core::cmp::PartialEq for nika_kernel_ai::provider::ReasoningEffort
+pub fn nika_kernel_ai::provider::ReasoningEffort::eq(&self, other: &nika_kernel_ai::provider::ReasoningEffort) -> bool
+impl core::fmt::Debug for nika_kernel_ai::provider::ReasoningEffort
+pub fn nika_kernel_ai::provider::ReasoningEffort::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_kernel_ai::provider::ReasoningEffort
+pub fn nika_kernel_ai::provider::ReasoningEffort::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_kernel_ai::provider::ReasoningEffort
+impl core::marker::StructuralPartialEq for nika_kernel_ai::provider::ReasoningEffort
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::provider::ReasoningEffort
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::provider::ReasoningEffort where U: core::convert::From<T>
+pub fn nika_kernel_ai::provider::ReasoningEffort::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::provider::ReasoningEffort where U: core::convert::Into<T>
+pub type nika_kernel_ai::provider::ReasoningEffort::Error = core::convert::Infallible
+pub fn nika_kernel_ai::provider::ReasoningEffort::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::provider::ReasoningEffort where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::provider::ReasoningEffort::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::provider::ReasoningEffort::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::provider::ReasoningEffort where T: core::clone::Clone
+pub type nika_kernel_ai::provider::ReasoningEffort::Owned = T
+pub fn nika_kernel_ai::provider::ReasoningEffort::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::provider::ReasoningEffort::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::provider::ReasoningEffort where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ReasoningEffort::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::provider::ReasoningEffort where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ReasoningEffort::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::provider::ReasoningEffort where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ReasoningEffort::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::provider::ReasoningEffort where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::provider::ReasoningEffort::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::provider::ReasoningEffort
+pub fn nika_kernel_ai::provider::ReasoningEffort::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::provider::ReasoningEffort where T: 'static
+pub fn nika_kernel_ai::provider::ReasoningEffort::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_kernel_ai::provider::ResponseFormat
 pub nika_kernel_ai::provider::ResponseFormat::Json
 pub nika_kernel_ai::provider::ResponseFormat::JsonSchema(serde_json::value::Value)
@@ -1355,6 +1398,7 @@ pub nika_kernel_ai::provider::InferRequest::max_tokens: core::option::Option<u32
 pub nika_kernel_ai::provider::InferRequest::memory: core::option::Option<nika_types::memory::MemoryDirective>
 pub nika_kernel_ai::provider::InferRequest::messages: alloc::vec::Vec<nika_kernel_ai::provider::Message>
 pub nika_kernel_ai::provider::InferRequest::model: alloc::string::String
+pub nika_kernel_ai::provider::InferRequest::reasoning_effort: core::option::Option<nika_kernel_ai::provider::ReasoningEffort>
 pub nika_kernel_ai::provider::InferRequest::replay_seed: core::option::Option<u64>
 pub nika_kernel_ai::provider::InferRequest::response_format: nika_kernel_ai::provider::ResponseFormat
 pub nika_kernel_ai::provider::InferRequest::stop_sequences: alloc::vec::Vec<alloc::string::String>
@@ -1403,6 +1447,7 @@ pub nika_kernel_ai::provider::InferResponse::finish_reason_raw: core::option::Op
 pub nika_kernel_ai::provider::InferResponse::gen_ai: nika_kernel_ai::genai::GenAiAttrs
 pub nika_kernel_ai::provider::InferResponse::inference_calls: alloc::vec::Vec<nika_types::cost::inference::InferenceCall>
 pub nika_kernel_ai::provider::InferResponse::memory_frames: alloc::vec::Vec<nika_types::memory::MemoryFrameRef>
+pub nika_kernel_ai::provider::InferResponse::reasoning_wire: core::option::Option<nika_kernel_ai::provider::ReasoningWire>
 pub nika_kernel_ai::provider::InferResponse::request_id: core::option::Option<alloc::string::String>
 pub nika_kernel_ai::provider::InferResponse::span_id: core::option::Option<nika_types::id::SpanId>
 pub nika_kernel_ai::provider::InferResponse::stop_reason: nika_kernel_ai::provider::StopReason
@@ -1560,6 +1605,47 @@ impl<T> core::convert::From<T> for nika_kernel_ai::provider::ProviderHttpError
 pub fn nika_kernel_ai::provider::ProviderHttpError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_ai::provider::ProviderHttpError where T: 'static
 pub fn nika_kernel_ai::provider::ProviderHttpError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_ai::provider::ReasoningWire
+pub nika_kernel_ai::provider::ReasoningWire::effort: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::provider::ReasoningWire::thinking: core::option::Option<alloc::string::String>
+impl nika_kernel_ai::provider::ReasoningWire
+pub fn nika_kernel_ai::provider::ReasoningWire::new(thinking: core::option::Option<alloc::string::String>, effort: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_kernel_ai::provider::ReasoningWire::of_body(body: &[u8]) -> Self
+impl core::clone::Clone for nika_kernel_ai::provider::ReasoningWire
+pub fn nika_kernel_ai::provider::ReasoningWire::clone(&self) -> nika_kernel_ai::provider::ReasoningWire
+impl core::cmp::Eq for nika_kernel_ai::provider::ReasoningWire
+impl core::cmp::PartialEq for nika_kernel_ai::provider::ReasoningWire
+pub fn nika_kernel_ai::provider::ReasoningWire::eq(&self, other: &nika_kernel_ai::provider::ReasoningWire) -> bool
+impl core::default::Default for nika_kernel_ai::provider::ReasoningWire
+pub fn nika_kernel_ai::provider::ReasoningWire::default() -> nika_kernel_ai::provider::ReasoningWire
+impl core::fmt::Debug for nika_kernel_ai::provider::ReasoningWire
+pub fn nika_kernel_ai::provider::ReasoningWire::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_kernel_ai::provider::ReasoningWire
+impl<D> owo_colors::OwoColorize for nika_kernel_ai::provider::ReasoningWire
+impl<T, U> core::convert::Into<U> for nika_kernel_ai::provider::ReasoningWire where U: core::convert::From<T>
+pub fn nika_kernel_ai::provider::ReasoningWire::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_ai::provider::ReasoningWire where U: core::convert::Into<T>
+pub type nika_kernel_ai::provider::ReasoningWire::Error = core::convert::Infallible
+pub fn nika_kernel_ai::provider::ReasoningWire::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_ai::provider::ReasoningWire where U: core::convert::TryFrom<T>
+pub type nika_kernel_ai::provider::ReasoningWire::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_ai::provider::ReasoningWire::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_ai::provider::ReasoningWire where T: core::clone::Clone
+pub type nika_kernel_ai::provider::ReasoningWire::Owned = T
+pub fn nika_kernel_ai::provider::ReasoningWire::clone_into(&self, target: &mut T)
+pub fn nika_kernel_ai::provider::ReasoningWire::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_ai::provider::ReasoningWire where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ReasoningWire::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_ai::provider::ReasoningWire where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ReasoningWire::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_ai::provider::ReasoningWire where T: ?core::marker::Sized
+pub fn nika_kernel_ai::provider::ReasoningWire::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_ai::provider::ReasoningWire where T: core::clone::Clone
+pub unsafe fn nika_kernel_ai::provider::ReasoningWire::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_ai::provider::ReasoningWire
+pub fn nika_kernel_ai::provider::ReasoningWire::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_ai::provider::ReasoningWire where T: 'static
+pub fn nika_kernel_ai::provider::ReasoningWire::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel_ai::provider::ToolDef
 pub nika_kernel_ai::provider::ToolDef::description: alloc::string::String
 pub nika_kernel_ai::provider::ToolDef::name: alloc::string::String

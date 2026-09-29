@@ -38,3 +38,12 @@ validated; `usage_reported` alone does not establish completeness or billing.
 The additive nontransient `ProviderError::AdmissionDenied` maps to NIKA-339 and
 means a subsequent paid request was locally refused. Transport cancellation
 cannot establish a no-charge outcome; provider billing can remain unknown.
+
+## Explicit reasoning evidence
+
+`InferRequest.reasoning_effort` optionally names a closed `ReasoningEffort`
+(`low`, `high`, `max`). Absence preserves the route default; an output-token
+cap does not imply a level. `InferResponse.reasoning_wire` optionally records
+the thinking and effort words read back from the serialized request body by
+the adapter. It is transmitted-configuration evidence, not a server attestation
+of internal reasoning effort. An absent read-back stays unobserved.

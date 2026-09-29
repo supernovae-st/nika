@@ -625,6 +625,60 @@ impl<T> outref::AsOut<T> for nika_compile::AuthoringCognition where T: core::mar
 pub fn nika_compile::AuthoringCognition::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> typenum::type_operators::Same for nika_compile::AuthoringCognition
 pub type nika_compile::AuthoringCognition::Output = T
+#[non_exhaustive] pub enum nika_compile::AuthoringReasoning
+pub nika_compile::AuthoringReasoning::High
+pub nika_compile::AuthoringReasoning::Low
+pub nika_compile::AuthoringReasoning::Max
+impl nika_compile::AuthoringReasoning
+pub const nika_compile::AuthoringReasoning::WORDS: [&'static str; 3]
+pub fn nika_compile::AuthoringReasoning::parse(word: &str) -> core::option::Option<Self>
+pub const fn nika_compile::AuthoringReasoning::word(self) -> &'static str
+impl core::clone::Clone for nika_compile::AuthoringReasoning
+pub fn nika_compile::AuthoringReasoning::clone(&self) -> nika_compile::AuthoringReasoning
+impl core::cmp::Eq for nika_compile::AuthoringReasoning
+impl core::cmp::PartialEq for nika_compile::AuthoringReasoning
+pub fn nika_compile::AuthoringReasoning::eq(&self, other: &nika_compile::AuthoringReasoning) -> bool
+impl core::fmt::Debug for nika_compile::AuthoringReasoning
+pub fn nika_compile::AuthoringReasoning::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_compile::AuthoringReasoning
+pub fn nika_compile::AuthoringReasoning::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_compile::AuthoringReasoning
+impl core::marker::StructuralPartialEq for nika_compile::AuthoringReasoning
+impl<D> owo_colors::OwoColorize for nika_compile::AuthoringReasoning
+impl<Q, K> equivalent::Equivalent<K> for nika_compile::AuthoringReasoning where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::AuthoringReasoning::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile::AuthoringReasoning where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::AuthoringReasoning::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile::AuthoringReasoning where U: core::convert::From<T>
+pub fn nika_compile::AuthoringReasoning::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::AuthoringReasoning where U: core::convert::Into<T>
+pub type nika_compile::AuthoringReasoning::Error = core::convert::Infallible
+pub fn nika_compile::AuthoringReasoning::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::AuthoringReasoning where U: core::convert::TryFrom<T>
+pub type nika_compile::AuthoringReasoning::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::AuthoringReasoning::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile::AuthoringReasoning where T: core::clone::Clone
+pub type nika_compile::AuthoringReasoning::Owned = T
+pub fn nika_compile::AuthoringReasoning::clone_into(&self, target: &mut T)
+pub fn nika_compile::AuthoringReasoning::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile::AuthoringReasoning where T: 'static + ?core::marker::Sized
+pub fn nika_compile::AuthoringReasoning::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::AuthoringReasoning where T: ?core::marker::Sized
+pub fn nika_compile::AuthoringReasoning::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::AuthoringReasoning where T: ?core::marker::Sized
+pub fn nika_compile::AuthoringReasoning::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile::AuthoringReasoning where T: core::clone::Clone
+pub unsafe fn nika_compile::AuthoringReasoning::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile::AuthoringReasoning
+pub fn nika_compile::AuthoringReasoning::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile::AuthoringReasoning where T: core::clone::Clone
+pub fn nika_compile::AuthoringReasoning::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile::AuthoringReasoning where T: 'static
+pub fn nika_compile::AuthoringReasoning::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile::AuthoringReasoning where T: core::marker::Copy
+pub fn nika_compile::AuthoringReasoning::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile::AuthoringReasoning
+pub type nika_compile::AuthoringReasoning::Output = T
 #[non_exhaustive] pub enum nika_compile::Basis
 pub nika_compile::Basis::Holds(usize)
 pub nika_compile::Basis::Moved(alloc::vec::Vec<alloc::string::String>)
@@ -1305,6 +1359,7 @@ pub nika_compile::AuthoringPolicy::initial_max_tokens: core::option::Option<u32>
 pub nika_compile::AuthoringPolicy::max_tokens: u32
 pub nika_compile::AuthoringPolicy::model: alloc::string::String
 pub nika_compile::AuthoringPolicy::native: nika_compile::NativeMode
+pub nika_compile::AuthoringPolicy::reasoning: core::option::Option<nika_compile::AuthoringReasoning>
 pub nika_compile::AuthoringPolicy::repairs: u32
 pub nika_compile::AuthoringPolicy::samples: u32
 pub nika_compile::AuthoringPolicy::timeout: core::time::Duration
@@ -1312,6 +1367,7 @@ impl nika_compile::AuthoringPolicy
 pub fn nika_compile::AuthoringPolicy::new(model: impl core::convert::Into<alloc::string::String>, max_tokens: u32, timeout: core::time::Duration) -> Self
 pub fn nika_compile::AuthoringPolicy::with_initial_max_tokens(self, initial: u32) -> Self
 pub fn nika_compile::AuthoringPolicy::with_native(self, native: nika_compile::NativeMode) -> Self
+pub fn nika_compile::AuthoringPolicy::with_reasoning(self, reasoning: nika_compile::AuthoringReasoning) -> Self
 pub fn nika_compile::AuthoringPolicy::with_repairs(self, repairs: u32) -> Self
 pub fn nika_compile::AuthoringPolicy::with_samples(self, samples: u32) -> Self
 impl core::clone::Clone for nika_compile::AuthoringPolicy
