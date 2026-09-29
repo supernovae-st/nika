@@ -725,7 +725,20 @@ async fn a_zero_ceiling_is_a_binding_veto() {
     let world = world();
     let priced = "nika: priced\nmodel: deepseek/deepseek-flash\npermits: {}\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 512 }\n";
     std::fs::write(world.workflows.join("priced.nika"), priced).expect("workflow");
-    let zero = limits().with_default_max_cost_usd(Some(0.0));
+    // This exercises real access-plan admission, whose machine probes can
+    // outlive the two-second fixture deadline under concurrent tests. The
+    // assertion is the monetary veto before execution, not probe latency.
+    let zero = ServerLimits::new(
+        1024,
+        Duration::from_secs(2),
+        Duration::from_secs(30),
+        Duration::from_millis(200),
+        4,
+        16,
+        64,
+        32,
+    )
+    .with_default_max_cost_usd(Some(0.0));
     assert!(zero.valid(), "zero is a valid, binding ceiling");
     let backend = Arc::new(ResidentExecutionBackend::new(&world.workflows));
     let (server, _state) = start(&world, backend, zero, true).await;

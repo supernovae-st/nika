@@ -1057,16 +1057,21 @@ pub(super) async fn wait_for_status(
     id: &str,
     expected: &str,
 ) -> Result<(), String> {
-    for _ in 0..200 {
+    let mut last = String::new();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+    while tokio::time::Instant::now() < deadline {
         let response = server
             .request(&get_request(&format!("/v1/jobs/{id}/status")))
             .await;
         if response.status == 200 && response.json()["status"] == expected {
             return Ok(());
         }
+        last = format!("HTTP {}: {}", response.status, response.body);
         tokio::time::sleep(Duration::from_millis(5)).await;
     }
-    Err(format!("job {id} never reached {expected}"))
+    Err(format!(
+        "job {id} never reached {expected}; last observation: {last}"
+    ))
 }
 
 async fn wire_request(address: SocketAddr, request: &str) -> WireResponse {
