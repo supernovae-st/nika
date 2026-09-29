@@ -562,7 +562,9 @@ fn typed_duties(
 
 /// A format, a cardinality or an identity is realized by what verifies it at run, by the
 /// trigger's carrier, by the structure that consumed it, by the compute task that keeps the
-/// source columns, or as prompt guidance of the first language step.
+/// source columns, or as prompt guidance of the first language step. A cardinality in the
+/// clause a seat's verified program was read from is claimed unverified by the compute task,
+/// pending a judgment of the candidate (B21 T2).
 fn realize_format(
     duty: &mut Duty,
     plan: &Plan,
@@ -600,6 +602,19 @@ fn realize_format(
             "compute",
             Some("the computed rows carry the columns the request names"),
         );
+    } else if duty.kind == DutyKind::Cardinality
+        && has_task("compute")
+        && stated_by_program(&duty.evidence, plan)
+    {
+        // A count or a size in the clause a seat's verified program was read from (B21 T2): the
+        // program is verified on its own example, never on a bound, so no law reads from its
+        // bytes that the bound holds. The compute task claims it unverified and a judge settles
+        // it against the candidate: never realized outright, never a silent obligation.
+        duty.claim(
+            "compute",
+            "unverified: a bound stated in the clause the program was read from; no law reads it from the program's bytes",
+            WitnessKind::Unverified,
+        );
     } else if let Some(task) = d.infer_tasks.first() {
         let note = match duty.kind {
             DutyKind::Cardinality => "prompt guidance; not verified at run",
@@ -619,6 +634,29 @@ fn names_computed_column(constraint: &str, d: &Doc) -> bool {
         let spaced = column.replace('_', " ");
         !column.is_empty() && (folded.contains(&column) || folded.contains(&spaced))
     })
+}
+
+/// Whether `constraint` lies within the clause a seat's verified program was read from, or holds
+/// it (B21 T2): its words are the program's rule, and only a judge reads a bound there from the
+/// program's bytes.
+fn stated_by_program(constraint: &str, plan: &Plan) -> bool {
+    let fold = |text: &str| {
+        text.split(|c: char| !c.is_alphanumeric())
+            .filter(|w| !w.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase()
+    };
+    let wanted = fold(constraint);
+    !wanted.is_empty()
+        && plan
+            .rules
+            .iter()
+            .filter(|rule| rule.verified_program().is_some())
+            .any(|rule| {
+                let text = fold(rule.text());
+                !text.is_empty() && (text.contains(&wanted) || wanted.contains(&text))
+            })
 }
 
 /// A format the rule itself states: the rule's own words (« los tres corredores más

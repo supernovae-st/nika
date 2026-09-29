@@ -1127,13 +1127,32 @@ async fn an_abstaining_judge_keeps_the_request_incomplete() {
     );
 }
 
-/// B21 A2's wording over `shipped` (R4 A11, B21 T3): « as one line » after the synthesized rule's
-/// clause is a cardinality no element of the workflow carries, so the core emits no candidate and
-/// names the duty itself; no judge is asked.
+/// A bound stated as its own constraint beside the seat's program clause (R4 A11, B21 T3):
+/// « in at most 3 words per line » is a cardinality no element of the workflow carries, so the
+/// core emits no candidate and names the duty itself; no judge is asked. A bound inside the
+/// program's own clause goes to the judges instead (B21 T2).
 const LINES: (&str, &str) = (
-    "for the rows where status is shipped, return each item with its status as one line",
+    "for the rows where status is shipped, return each item with its status, in at most 3 words per line",
     "write the lines to ./out/result.json",
 );
+/// The bound [`LINES`] states as its own constraint.
+const BOUND: &str = "in at most 3 words per line";
+
+/// The seat's plan of [`LINES`]: its program clause, then the bound as a constraint of its own.
+fn bounded_plan() -> String {
+    let clause = "for the rows where status is shipped, return each item with its status";
+    let mut proposal = plan(LINES);
+    proposal["steps"][1]["detail"] = json!(clause);
+    proposal["steps"][1]["evidence"] = json!(clause);
+    proposal["constraints"] = json!([BOUND]);
+    proposal["regions"] = json!([
+        {"text": "read ./data/input.csv,", "role": "operation"},
+        {"text": format!("{clause},"), "role": "operation"},
+        {"text": format!("{BOUND},"), "role": "constraint"},
+        {"text": LINES.1, "role": "effect"}
+    ]);
+    proposal.to_string()
+}
 
 /// The seat's label program for [`LINES`] over its own example rows.
 fn label() -> String {
@@ -1160,13 +1179,13 @@ fn verifier_said(out: &CompileOutcome) -> Vec<String> {
 /// and says no judge was asked; the clarification the core asks stays the next action.
 #[tokio::test]
 async fn a_duty_the_core_names_is_told_as_the_core_s_and_keeps_its_question() {
-    let seat = Scripted::new(vec![plan(LINES).to_string(), label()]);
+    let seat = Scripted::new(vec![bounded_plan(), label()]);
     let out = compiled_as(&seat, LINES, 0).await;
     assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
     assert_eq!(roles(&out), ["plan", "transform"], "{out:#?}");
     let told = verifier_said(&out);
     let named = told.iter().any(|m| {
-        m.contains("The core named") && m.contains("no judge was asked") && m.contains(LINES.0)
+        m.contains("The core named") && m.contains("no judge was asked") && m.contains(BOUND)
     });
     assert!(named, "{told:?}");
     assert!(told.iter().all(|m| !m.contains("compared")), "{told:?}");
@@ -1183,12 +1202,7 @@ async fn a_duty_the_core_names_is_told_as_the_core_s_and_keeps_its_question() {
 /// the duty uncarried: INCOMPLETE, told as the core's, with its question.
 #[tokio::test]
 async fn a_repair_from_a_duty_the_core_names_is_not_told_a_judge_compared() {
-    let seat = Scripted::new(vec![
-        plan(LINES).to_string(),
-        label(),
-        plan(LINES).to_string(),
-        label(),
-    ]);
+    let seat = Scripted::new(vec![bounded_plan(), label(), bounded_plan(), label()]);
     let out = compiled_as(&seat, LINES, 1).await;
     assert_eq!(
         authored(&out),
@@ -1199,7 +1213,7 @@ async fn a_repair_from_a_duty_the_core_names_is_not_told_a_judge_compared() {
     assert!(repair.starts_with("VERIFIER:"), "{repair}");
     assert!(!repair.contains("compared"), "{repair}");
     assert!(repair.contains("no judge"), "{repair}");
-    assert!(repair.contains(&format!("\n- {}", LINES.0)), "{repair}");
+    assert!(repair.contains(&format!("\n- {BOUND}")), "{repair}");
     assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
     assert!(verifier_said(&out).iter().all(|m| !m.contains("compared")));
     assert!(

@@ -167,7 +167,11 @@ never a question for what the request already says. A duty the core names that n
 the plan carries (no candidate is emitted and no judge is asked) is told as the core's: its
 finding names the duty and its kind and says no judge was asked, the clarification the core
 asks stays its next action, and a repair from it is told the compiler named it, never that a
-judge compared the workflow (B21 T3). An answer round replays its record through
+judge compared the workflow (B21 T3). A count or a size stated inside the clause a seat's
+verified program was read from (« return each item with its status as one line ») is no such
+duty: the core's `realize` has the compute task claim it unverified, and the judges settle it
+with the rest (B21 T2); a bound stated as its own constraint keeps its law. A clause several
+pending duties hold is asked once, since one judgment of it at its statements settles them all. An answer round replays its record through
 `replay_judged`: deterministically closed duties replay as they are, with no call; the remainder
 the core names is judged by the round's judge, or stays INCOMPLETE when the round has none; a
 field answer's regeneration is the first candidate of its plan and is judged whole. Nothing a

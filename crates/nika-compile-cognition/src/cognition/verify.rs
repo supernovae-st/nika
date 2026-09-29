@@ -448,15 +448,25 @@ async fn verdict_on<P: ProviderInferDyn>(
     let mut assembled = plan.clone();
     crate::shape::promote_stated_rules(&mut assembled, intent);
     let binding = Binding::of(intent, request, &assembled, candidate);
-    let open: Vec<Open> = settled
+    // One judgment of a clause at its statements settles every pending duty it holds (the core
+    // admits it by clause and span), so a clause several duties hold is asked once (B21 T2), and
+    // no-operation is offered only when none of them is claimed.
+    let mut open: Vec<Open> = Vec::new();
+    let pending = settled
         .provenance
         .decision
         .as_ref()
         .and_then(|d| d["pending"]["open"].as_array().cloned())
-        .unwrap_or_default()
-        .iter()
-        .filter_map(Open::read)
-        .collect();
+        .unwrap_or_default();
+    for item in pending.iter().filter_map(Open::read) {
+        match open
+            .iter_mut()
+            .find(|o| o.clause == item.clause && o.spans == item.spans)
+        {
+            Some(same) => same.unclaimed &= item.unclaimed,
+            None => open.push(item),
+        }
+    }
     let mut base = state(intent, request, candidate);
     if let Some(notes) = unjudged(settled, plan) {
         base[UNJUDGED_SPELLINGS] = notes;

@@ -1062,6 +1062,78 @@ async fn an_undeclared_read_honoring_both_spellings_is_admitted() {
     assert_eq!(run(&program, &delivered(LIVRE_NFD)), json!(42), "{program}");
 }
 
+/// The request `text` compiled COLD over `world` by `seat` under `repairs` repair rounds.
+async fn compiled_text(seat: &Seat, text: &str, world: Value, repairs: u32) -> CompileOutcome {
+    let policy =
+        AuthoringPolicy::new("mock/authoring", 1024, Duration::from_secs(2)).with_repairs(repairs);
+    let request = CompileRequest::create(text)
+        .with_knowledge(world)
+        .with_hot_policy(HotPolicy::Off)
+        .with_authoring_policy(policy);
+    compile_with_provider(&request, seat).await.unwrap()
+}
+
+/// B21 A2's request (R4 A11, B21 T2): « …, return each item with its status as one line » over a
+/// status the file spells e + U+0301, with a label program keeping both spellings. « as one line »
+/// is a cardinality in the very clause the seat's verified program was read from; the program's
+/// bytes cannot show a count holds, so the compute task claims it unverified and the judges settle
+/// it with the rest: never realized outright, never a silent obligation with no candidate. The
+/// approving double makes it READY (certifying nothing); the refusing double keeps it
+/// INCOMPLETE, the clause a judge's defect.
+#[tokio::test]
+async fn a_line_format_in_a_program_clause_goes_to_the_judges() {
+    let clause = format!(
+        "for the rows where status is {LIVRE_NFC}, return each item with its status as one line"
+    );
+    let write = "write the lines to ./out/result.json";
+    let text = format!("read ./data/input.csv, {clause}, {write}");
+    let mut proposal = request_of(&clause).1;
+    proposal["effects"][0]["evidence"] = json!(write);
+    proposal["regions"][2]["text"] = json!(write);
+    let jq = format!(
+        ".records | map(select(.status == {} or .status == {}) | .item + \": \" + .status)",
+        json!(LIVRE_NFC),
+        json!(LIVRE_NFD)
+    );
+    let example = json!([
+        {"id": "a1", "item": "x", "status": LIVRE_NFC, "qty": "40"},
+        {"id": "a2", "item": "y", "status": "en attente", "qty": "15"}
+    ]);
+    let expected = json!([format!("x: {LIVRE_NFC}")]);
+    let label = json!({"jq": jq, "columns_read": ["status", "item"], "example_input": example, "expected_output": expected})
+        .to_string();
+    let world = spelled(&[LIVRE_NFD, "en attente"], &["x", "y"]);
+    let approving = Seat::new(vec![proposal.to_string(), label.clone()]);
+    let out = compiled_text(&approving, &text, world.clone(), 0).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(authored(&out), ["plan", "transform"], "{out:#?}");
+    let decision = out.provenance.decision.clone().unwrap();
+    let ledger = decision["ledger"].as_array().cloned().unwrap_or_default();
+    let cardinality = ledger.iter().find(|d| d["kind"] == json!("cardinality"));
+    let witness = cardinality.map(|d| d["witness"].clone());
+    assert_eq!(witness, Some(json!("judged")), "{ledger:#?}");
+    // One judgment of the clause settles every duty it holds: the judge is asked it once.
+    let asked = approving
+        .judged()
+        .iter()
+        .filter(|state| state["clause"]["text"] == json!(clause))
+        .count();
+    assert_eq!(asked, 1, "{:#?}", approving.judged());
+    let refusing = Seat::refusing(vec![proposal.to_string(), label]);
+    let refused = compiled_text(&refusing, &text, world, 0).await;
+    assert_eq!(refused.status, CompileStatus::Incomplete, "{refused:#?}");
+    let told: Vec<&str> = refused
+        .diagnostics
+        .iter()
+        .filter(|d| d.target == "semantic_verification")
+        .map(|d| d.message.as_str())
+        .collect();
+    assert!(
+        told.iter().any(|m| m.contains("does not carry")),
+        "{told:?}"
+    );
+}
+
 /// The binding and the law, as the core states them: a literal at exact token boundaries only,
 /// never inside another word nor a column name, never a byte-identical spelling, and no case or
 /// compatibility (NFKC) folding.
