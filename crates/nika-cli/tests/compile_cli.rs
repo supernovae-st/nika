@@ -294,8 +294,9 @@ fn default_native_escalation_preserves_calls_and_honors_the_repair_bound() {
                 "vllm/loopback-seat",
                 "--authoring-repairs",
                 repairs_arg.as_str(),
+                // Typed repairs can need 62 requests under escalate (nv1b): granted in full.
                 "--authoring-max-calls",
-                "6",
+                "62",
                 "--authoring-timeout",
                 "2",
                 "--json",
@@ -311,7 +312,7 @@ fn default_native_escalation_preserves_calls_and_honors_the_repair_bound() {
         // Within the authority nothing is refused, and every request sent is one received.
         let backend = &provenance["authoring"]["backend"];
         let authority = &backend["authority"];
-        assert_eq!(authority["max_calls"], 6, "{doc}");
+        assert_eq!(authority["max_calls"], 62, "{doc}");
         assert_eq!(authority["source"], "--authoring-max-calls");
         assert_eq!(authority["http_requests"]["refused"], 0, "{doc}");
         assert_eq!(
@@ -561,10 +562,10 @@ fn a_response_without_a_model_is_counted_as_unreported() {
     assert_eq!(backend["unreported_models"], 1, "{doc}");
 }
 
-/// Repairs, samples or a two-request strategy (escalate, sketch) typed beyond the authority are
-/// refused before any request: the operator's explicit quality is never reduced in silence, and
-/// the number to authorize is named. A typed native-only answer without repairs needs one
-/// request and is never refused.
+/// Repairs, samples or a two-request strategy (only, escalate, sketch: a READY is judged) typed
+/// beyond the authority are refused before any request: the operator's explicit quality is never
+/// reduced in silence, and the number to authorize is named. Repairs under off are the verifier's
+/// and count too (nv1b); a typed native-only answer granted its judgment runs.
 #[test]
 fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request() {
     let room = tempfile::tempdir().expect("room");
@@ -573,11 +574,19 @@ fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request
         serde_json::json!({"candidate": "not a workflow", "questions": [], "gaps": [], "notes": ""})
             .to_string();
     for (typed, needed) in [
-        (vec!["--authoring-repairs", "3"], "--authoring-max-calls 6"),
-        (vec!["--authoring-samples", "2"], "--authoring-max-calls 5"),
+        (vec!["--authoring-repairs", "3"], "--authoring-max-calls 62"),
+        (vec!["--authoring-samples", "2"], "--authoring-max-calls 19"),
+        (
+            vec!["--authoring-strategy", "off", "--authoring-repairs", "3"],
+            "--authoring-max-calls 56",
+        ),
+        (
+            vec!["--authoring-strategy", "only"],
+            "--authoring-max-calls 2",
+        ),
         (
             vec!["--authoring-strategy", "sketch"],
-            "--authoring-max-calls 2",
+            "--authoring-max-calls 3",
         ),
         (
             vec!["--authoring-strategy", "escalate"],
@@ -623,6 +632,8 @@ fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request
             "only",
             "--authoring-repairs",
             "0",
+            "--authoring-max-calls",
+            "2",
             "--json",
         ])
         .output()
@@ -633,13 +644,14 @@ fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request
         doc["provenance"]["authoring"]["backend"]["authority"]["http_requests"]["refused"],
         0
     );
-    // Repairs the strategy cannot apply (off writes no native candidate) change no request:
-    // nothing is refused, and the receipt records them as ignored.
+    // Repairs under off are the verifier's (nv1b): granted, nothing is refused, and the receipt
+    // counts them, never records them as ignored.
     let seat = LoopbackSeat::start(vec![answer]);
     let out = command(room.path())
         .env("NIKA_VLLM_BASE_URL", seat.base())
         .args(["compile", intent, "--authoring-model", "vllm/loopback-seat"])
         .args(["--authoring-strategy", "off", "--authoring-repairs", "3"])
+        .args(["--authoring-max-calls", "56"])
         .args(["--authoring-timeout", "2", "--json"])
         .output()
         .expect("CLI");
@@ -647,11 +659,8 @@ fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request
     assert_ne!(doc["error"]["code"], "authoring_authority", "{doc}");
     assert_eq!(seat.bodies().len(), 1, "{doc}");
     let configured = &doc["provenance"]["authoring"]["backend"]["authority"]["configured"];
-    assert_eq!(
-        configured["ignored"],
-        serde_json::json!(["repairs"]),
-        "{doc}"
-    );
+    assert_eq!(configured["ignored"], serde_json::json!([]), "{doc}");
+    assert_eq!(configured["worst_case"], 56, "{doc}");
 }
 
 /// The authoring seat rides the PROVIDER client (the runtime's fixed endpoint allowlist,

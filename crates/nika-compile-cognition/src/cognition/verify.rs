@@ -36,6 +36,19 @@ use crate::{
     Strategy,
 };
 
+/// The clause questions one verification attempt asks at most (R4 A11, nv1b): one `judge_clause`
+/// question per statement of each pending clause, so the authority's review can bound every
+/// request a compile sends (`authority::worst_case`). Past the cap the remaining clauses are never
+/// asked: they stay unknown, nothing is READY on them, and the finding names the cap. Measured
+/// keyless on 2026-09-29: at most 2 per attempt in the 5 recorded COLD verification attempts of the
+/// PILOT14 live rows and the DSR live proof, at most 4 in the 201 attempts of the compile and
+/// cognition suites; the cap is twice the largest.
+pub(crate) const CLAUSE_QUESTIONS: usize = 8;
+
+/// The questions the whole-request judgment asks at most ([`whole`]): the verdict, then, when
+/// unfaithful, the part the candidate misses.
+pub(crate) const WHOLE_QUESTIONS: usize = 2;
+
 /// Who judges a candidate: a decision seat the caller permits (its calls and usage are its own,
 /// recorded here), or the authoring provider through the journaled authoring call.
 enum Judge<'a, P: ProviderInferDyn> {
@@ -81,6 +94,8 @@ pub(super) struct Verdict {
     /// Duties the core named that no element of the plan carries, with their kind ([`silent`]):
     /// repaired from as the judge's defects are, but no judge was asked (B21 T3).
     pub(super) named: Vec<(String, String)>,
+    /// Clauses past the clause-question cap ([`CLAUSE_QUESTIONS`]): never asked, so unknown too.
+    pub(super) capped: Vec<String>,
 }
 
 impl Verdict {
@@ -474,13 +489,19 @@ async fn verdict_on<P: ProviderInferDyn>(
     }
     let grounding = grounding(Some(candidate));
     verdict.reference = grounding.record;
+    let mut budget = CLAUSE_QUESTIONS;
     for (k, open) in open.iter().enumerate() {
         if open.spans.is_empty() {
             verdict.unknown.push(open.clause.clone());
         } else if open.spans == [(0, intent.len())] {
             let asked = (&base, grounding.text.as_str());
             whole(intent, asked, judge, &binding, &mut verdict, out).await;
+        } else if !verdict.capped.is_empty() || open.spans.len() > budget {
+            // Past the cap: the clause and every later one are never asked, never judged silently.
+            verdict.unknown.push(open.clause.clone());
+            verdict.capped.push(open.clause.clone());
         } else {
+            budget -= open.spans.len();
             let asked = (k, &base, &binding, grounding.text.as_str());
             judge_clause(open, asked, judge, &mut verdict, out).await;
         }
@@ -820,13 +841,20 @@ fn blocked(out: &mut CompileOutcome, verdict: &Verdict, repairs: usize) {
         );
     }
     for unknown in &verdict.unknown {
+        let message = if verdict.capped.contains(unknown) {
+            format!(
+                "The judge was not asked `{unknown}`: this verification attempt had already asked its {CLAUSE_QUESTIONS} clause questions, the most one attempt asks so that the review a caller signs bounds every request; nothing is READY on it. Next: a request stating fewer separate clauses, or its parts compiled apart."
+            )
+        } else {
+            format!(
+                "The judge could not settle `{unknown}` against the candidate (it abstained or its call failed); nothing is READY on it. Next: a judge that answers, or a restatement the deterministic reader reads."
+            )
+        };
         crate::finding(
             out,
             DiagnosticKind::Unknown,
             "semantic_verification",
-            format!(
-                "The judge could not settle `{unknown}` against the candidate (it abstained or its call failed); nothing is READY on it. Next: a judge that answers, or a restatement the deterministic reader reads."
-            ),
+            message,
         );
     }
     if verdict.named.is_empty() {
@@ -1055,6 +1083,81 @@ pub(super) async fn judged_warm(
 mod tests {
     use super::{grounding, parts};
     use serde_json::json;
+
+    /// Approves every verifier question: `faithful` for the whole request, `carried` for a clause.
+    struct Approving;
+
+    impl nika_kernel::ai::provider::ProviderInferDyn for Approving {
+        async fn infer(
+            &self,
+            request: nika_kernel::ai::provider::InferRequest,
+        ) -> Result<
+            nika_kernel::ai::provider::InferResponse,
+            nika_kernel::ai::provider::ProviderError,
+        > {
+            use nika_kernel::ai::provider::{
+                ContentBlock, InferResponse, ProviderError, ResponseFormat, StopReason, TokenUsage,
+            };
+            let ResponseFormat::JsonSchema(schema) = &request.response_format else {
+                return Err(ProviderError::Other {
+                    reason: "not a verifier question".to_owned(),
+                });
+            };
+            let keys = schema["properties"]["choice"]["enum"].to_string();
+            let key = if keys.contains("faithful") {
+                "faithful"
+            } else {
+                "carried"
+            };
+            Ok(InferResponse::new(
+                vec![ContentBlock::Text {
+                    text: json!({"choice": key}).to_string(),
+                }],
+                TokenUsage::new(1, 1),
+                StopReason::EndTurn,
+            ))
+        }
+    }
+
+    /// One verification attempt asks at most 8 clause questions (nv1b, R4 A11): past the cap,
+    /// the remaining clauses are not asked; they stay unknown, so nothing is READY, and the
+    /// blocked finding names the cap. The whole-request question is still asked.
+    #[tokio::test]
+    async fn clause_questions_past_the_cap_stay_unknown_and_name_the_cap() {
+        let clauses: Vec<String> = (0..10).map(|k| format!("clause number {k}")).collect();
+        let intent = clauses.join(", ");
+        let mut open: Vec<serde_json::Value> = Vec::new();
+        let mut at = 0;
+        for clause in &clauses {
+            let span = json!([[at, at + clause.len()]]);
+            open.push(json!({"clause": clause, "witness": "label", "spans": span}));
+            at += clause.len() + 2;
+        }
+        open.push(json!({"clause": intent, "witness": null, "spans": [[0, intent.len()]]}));
+        let mut settled = crate::initial();
+        settled.candidate = Some("nika: capped\n".to_owned());
+        settled.provenance.decision = Some(json!({"pending": {"open": open}}));
+        let policy =
+            crate::AuthoringPolicy::new("mock/judge", 256, std::time::Duration::from_secs(2));
+        let judge = super::Judge::Provider(&policy, &Approving);
+        let request = crate::CompileRequest::create(intent.as_str());
+        let plan = crate::plan::Plan::default();
+        let mut out = crate::initial();
+        let verdict = super::verdict_on(&intent, &request, &plan, &settled, &judge, &mut out).await;
+        let asked = |role: &str| verdict.records.iter().filter(|r| r["role"] == role).count();
+        assert_eq!(asked("judge_clause"), 8, "{:?}", verdict.records);
+        assert_eq!(asked("judge_request"), 1, "{:?}", verdict.records);
+        assert_eq!(verdict.unknown, clauses[8..].to_vec());
+        super::blocked(&mut out, &verdict, 0);
+        let told: Vec<&str> = out.diagnostics.iter().map(|d| d.message.as_str()).collect();
+        for clause in &clauses[8..] {
+            assert!(
+                told.iter()
+                    .any(|m| m.contains(clause.as_str()) && m.contains("8 clause questions")),
+                "{told:?}"
+            );
+        }
+    }
 
     /// A located part is the request's own phrase: punctuation cuts only where it ends a phrase,
     /// so a path, a URL and a decimal stay whole (R4 A11, E36: « write the sum to

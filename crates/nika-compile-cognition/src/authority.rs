@@ -21,22 +21,36 @@ use serde_json::{Value, json};
 
 use crate::NativeMode;
 
-/// The worst-case authoring requests a configuration can make: each COLD sample and its one
-/// evidence repair, then the native candidate and its repairs; the sketch, its fills and their
-/// repairs; an edit's native revision. A verified transform's steps belong to the plan, not to
-/// the configuration: the authority bounds them like any other request.
+/// The worst-case authoring requests a configuration can make, the verifier's included (R4 A11,
+/// nv1b), so the review a caller signs bounds every request a compile sends. With `s` samples and
+/// `r` repairs clamped to [`SAMPLES`] and [`REPAIRS`]:
+/// - the native door (and an edit's native revision): the candidate and its repairs, then the
+///   whole-request judgment and its locate question (`verify::WHOLE_QUESTIONS`, 2): `3 + r`;
+/// - the sketch door: the sketch, its fills and their repairs, then the same judgment: `4 + r`;
+/// - COLD: each sample and its one evidence repair (`2s`), then `1 + r` verification attempts,
+///   each asking at most `verify::CLAUSE_QUESTIONS` (8) clause questions, the whole-request
+///   judgment (2) and one transform synthesis of at most `transform::MAX_CALLS` (2) questions;
+///   each of the `r` verify repairs is one call, and the transform repairs share one allowance of
+///   `r`: `2s + 12 (1 + r) + 2r = 2s + 14r + 12`;
+/// - escalate: COLD, then the native door.
 #[must_use]
 pub fn worst_case(strategy: NativeMode, samples: u32, repairs: u32, edit: bool) -> u32 {
     let samples = samples.clamp(*SAMPLES.start(), *SAMPLES.end());
     let repairs = repairs.clamp(*REPAIRS.start(), *REPAIRS.end());
-    let native = 1 + repairs;
+    let count = |questions: usize| u32::try_from(questions).unwrap_or(u32::MAX);
+    let judged = count(crate::cognition::WHOLE_QUESTIONS);
+    let native = 1 + repairs + judged;
+    let attempt = count(crate::cognition::CLAUSE_QUESTIONS)
+        + judged
+        + count(crate::cognition::TRANSFORM_QUESTIONS);
+    let cold = 2 * samples + (1 + repairs) * attempt + 2 * repairs;
     match strategy {
         NativeMode::Off if edit => 0,
-        NativeMode::Off => 2 * samples,
+        NativeMode::Off => cold,
         _ if edit => native,
         NativeMode::Only => native,
-        NativeMode::Sketch => repairs + 2,
-        _ => 2 * samples + native,
+        NativeMode::Sketch => repairs + 2 + judged,
+        _ => cold + native,
     }
 }
 
@@ -49,6 +63,18 @@ pub fn usage_complete(context: &[Value]) -> bool {
     context.iter().map(|entry| &entry["result"]).all(|result| {
         result["failure_kind"] == "admission_refused" || result["usage_reported"] == true
     })
+}
+
+/// The requests a typed strategy needs at least before its READY can be judged (nv1b): the native
+/// candidate, or the plan, then its judgment (2); the sketch, its fills, then their judgment (3).
+/// A strategy no typed minimum names needs one.
+#[must_use]
+pub const fn least_requests(strategy: NativeMode) -> u32 {
+    match strategy {
+        NativeMode::Sketch => 3,
+        NativeMode::Only | NativeMode::Escalate => 2,
+        _ => 1,
+    }
 }
 
 /// The requests an authority grants when its door names none: exactly one.
@@ -142,11 +168,12 @@ pub enum Refusal {
         /// The resolved strategy.
         strategy: NativeMode,
     },
-    /// A typed strategy that takes two requests at least (`steps` names them), granted one.
+    /// A typed strategy granted fewer requests than it needs before its READY can be judged
+    /// ([`least_requests`]; `steps` names them).
     Strategy {
         /// The typed strategy.
         strategy: NativeMode,
-        /// What its two requests are.
+        /// What its requests are.
         steps: &'static str,
     },
     /// A typed count the core would run as another: out of its range, or a grant of no request.
@@ -241,14 +268,16 @@ impl Authority {
                 strategy,
             });
         }
-        // A typed strategy that takes two requests at least is honored in full or refused here.
+        // A typed strategy is honored in full or refused here: a READY is judged, so the native
+        // candidate, the plan or the sketch and its fills are not enough alone (nv1b).
         let steps = match strategy {
             _ if edit || !typed.strategy => None,
-            NativeMode::Escalate => Some("the plan, then the native candidate"),
-            NativeMode::Sketch => Some("the sketch, then its fills"),
+            NativeMode::Only => Some("the candidate, then its judgment"),
+            NativeMode::Escalate => Some("the plan, then its judgment"),
+            NativeMode::Sketch => Some("the sketch, its fills, then their judgment"),
             _ => None,
         };
-        if let Some(steps) = steps.filter(|_| max < 2) {
+        if let Some(steps) = steps.filter(|_| max < least_requests(strategy)) {
             return Err(Refusal::Strategy { strategy, steps });
         }
         let ignored: Vec<&str> = [
@@ -497,15 +526,24 @@ mod tests {
 
     #[test]
     fn the_worst_case_follows_the_resolved_strategy() {
-        // The Session's own bound for the same default work: 2 + 1 + 3.
-        assert_eq!(worst_case(NativeMode::Escalate, 1, 3, false), 6);
-        assert_eq!(worst_case(NativeMode::Only, 1, 0, false), 1);
-        assert_eq!(worst_case(NativeMode::Sketch, 1, 0, false), 2);
-        assert_eq!(worst_case(NativeMode::Off, 3, 5, false), 6);
-        assert_eq!(worst_case(NativeMode::Escalate, 1, 3, true), 4);
+        // Every request a configuration can send, the verifier's included (nv1b): the native
+        // candidate and its repairs, then its whole-request judgment and locate question (3 + r);
+        // the sketch, its fills and repairs, then the same judgment (4 + r); COLD's samples and
+        // their evidence repairs (2s), then 1 + r verification attempts of at most 8 clause
+        // questions, the whole-request judgment and one synthesis of at most 2 transforms each,
+        // with its r verify repairs and r transform repairs (2s + 14r + 12). Before the verifier
+        // was counted, the same default work was bounded at 2 + 1 + 3.
+        assert_eq!(worst_case(NativeMode::Escalate, 1, 3, false), 62);
+        assert_eq!(worst_case(NativeMode::Only, 1, 0, false), 3);
+        assert_eq!(worst_case(NativeMode::Only, 1, 3, false), 6);
+        assert_eq!(worst_case(NativeMode::Sketch, 1, 0, false), 4);
+        assert_eq!(worst_case(NativeMode::Sketch, 1, 3, false), 7);
+        assert_eq!(worst_case(NativeMode::Off, 1, 0, false), 14);
+        assert_eq!(worst_case(NativeMode::Off, 3, 5, false), 88);
+        assert_eq!(worst_case(NativeMode::Escalate, 1, 3, true), 6);
         assert_eq!(worst_case(NativeMode::Off, 1, 3, true), 0);
         // Clamped as the policy clamps: five samples, five repairs.
-        assert_eq!(worst_case(NativeMode::Escalate, 9, 9, false), 16);
+        assert_eq!(worst_case(NativeMode::Escalate, 9, 9, false), 100);
     }
 
     /// Totals are complete only when every call's usage is known (E10 P3-e): a local refusal
@@ -541,35 +579,39 @@ mod tests {
         // No grant: one request, and the defaults run within it.
         let default = resolve(None, Escalate, nothing).expect("one request");
         assert_eq!(default.max_calls(), 1);
-        assert_eq!(default.configured["worst_case"], 6);
-        // Typed repairs under escalate can need six: refused, naming what they need.
+        assert_eq!(default.configured["worst_case"], 62);
+        // Typed repairs under escalate can need sixty-two: refused, naming what they need.
         let repairs = nothing.with_repairs(Some(3));
-        let refused = resolve(None, Escalate, repairs).expect_err("six");
-        let six = Refusal::Multiplicity {
-            needed: 6,
+        let refused = resolve(None, Escalate, repairs).expect_err("sixty-two");
+        let needed = Refusal::Multiplicity {
+            needed: 62,
             authorized: 1,
             strategy: Escalate,
         };
-        assert_eq!(refused, six);
-        assert!(resolve(Some(6), Escalate, repairs).is_ok());
-        // Nothing extra typed: never refused for what the defaults would allow.
+        assert_eq!(refused, needed);
+        assert!(resolve(Some(62), Escalate, repairs).is_ok());
+        // Nothing extra typed: never refused for what the defaults would allow (a typed only
+        // strategy needs its judgment, below).
         let none = nothing.with_strategy().with_repairs(Some(0));
-        assert!(resolve(None, Only, none).is_ok());
+        assert!(resolve(Some(2), Only, none).is_ok());
         assert!(resolve(None, Escalate, nothing.with_repairs(Some(0))).is_ok());
-        // Samples: seven under escalate for three of them.
+        // Samples: twenty-one under escalate for three of them.
         let samples = nothing.with_samples(Some(3));
-        let refused = resolve(None, Escalate, samples).expect_err("seven");
-        assert!(matches!(refused, Refusal::Multiplicity { needed: 7, .. }));
-        assert!(resolve(Some(7), Escalate, samples).is_ok());
-        // A typed two-request strategy is honored in full or refused; the default runs in one.
-        for (strategy, steps) in [
-            (Escalate, "the plan, then the native candidate"),
-            (Sketch, "the sketch, then its fills"),
+        let refused = resolve(None, Escalate, samples).expect_err("twenty-one");
+        assert!(matches!(refused, Refusal::Multiplicity { needed: 21, .. }));
+        assert!(resolve(Some(21), Escalate, samples).is_ok());
+        // A typed strategy is honored in full or refused: a judged READY takes two requests at
+        // least, three for the sketch; the default runs in one.
+        for (strategy, steps, least) in [
+            (Only, "the candidate, then its judgment", 2),
+            (Escalate, "the plan, then its judgment", 2),
+            (Sketch, "the sketch, its fills, then their judgment", 3),
         ] {
             let named = nothing.with_strategy();
-            let refused = resolve(None, strategy, named).expect_err("two");
+            assert_eq!(least_requests(strategy), least);
+            let refused = resolve(Some(least - 1), strategy, named).expect_err("too few");
             assert_eq!(refused, Refusal::Strategy { strategy, steps });
-            assert!(resolve(Some(2), strategy, named).is_ok());
+            assert!(resolve(Some(least), strategy, named).is_ok());
             assert!(resolve(None, strategy, nothing).is_ok());
         }
         // An edit revises natively: a typed escalate needs one request there.
@@ -599,7 +641,7 @@ mod tests {
         );
         assert_eq!(
             record["configured"],
-            json!({"strategy": "escalate", "samples": 1, "repairs": 3, "worst_case": 6, "ignored": []})
+            json!({"strategy": "escalate", "samples": 1, "repairs": 3, "worst_case": 62, "ignored": []})
         );
     }
 
@@ -649,11 +691,15 @@ mod tests {
         use NativeMode::{Escalate, Off, Only, Sketch};
         let nothing = Typed::new(false);
         let ignored = |authority: &Authority| authority.configured["ignored"].clone();
-        // Repairs change nothing under off: its second request is the plan's evidence repair.
-        let off = nothing.with_strategy().with_repairs(Some(3));
-        let off = resolve(None, Off, off).expect("off runs within one request");
-        assert_eq!(ignored(&off), json!(["repairs"]));
-        assert_eq!(off.configured["worst_case"], 2);
+        // Repairs under off are the verifier's (R4 A11, nv1b): its verify repairs, their
+        // syntheses and the transform repair allowance are counted, so typed repairs are honored
+        // in full or refused, never ignored.
+        let typed = nothing.with_strategy().with_repairs(Some(3));
+        let refused = resolve(None, Off, typed).expect_err("fifty-six");
+        assert!(matches!(refused, Refusal::Multiplicity { needed: 56, .. }));
+        let off = resolve(Some(56), Off, typed).expect("off with its verifier repairs");
+        assert_eq!(ignored(&off), json!([]));
+        assert_eq!(off.configured["worst_case"], 56);
         // Samples change nothing where no plan is sampled.
         for strategy in [Only, Sketch] {
             let sampled = resolve(None, strategy, nothing.with_samples(Some(3))).expect("runs");
@@ -665,7 +711,7 @@ mod tests {
         assert_eq!(ignored(&revision), json!(["strategy", "samples"]));
         // A value the strategy applies is never ignored, and is honored in full or refused.
         assert!(resolve(None, Off, nothing.with_samples(Some(2))).is_err());
-        let repaired = resolve(Some(6), Escalate, nothing.with_repairs(Some(3))).expect("six");
+        let repaired = resolve(Some(62), Escalate, nothing.with_repairs(Some(3))).expect("62");
         assert_eq!(ignored(&repaired), json!([]));
     }
 

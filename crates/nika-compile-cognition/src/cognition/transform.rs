@@ -46,7 +46,7 @@ use engine::run;
 pub(super) use pending::resume;
 
 /// The most transform calls one request may buy: two clauses the typed stages cannot state.
-const MAX_CALLS: usize = 2;
+pub(crate) const MAX_CALLS: usize = 2;
 
 /// The instruction of the transform call: the input shape, the closed rules, the answer.
 const INSTRUCTION: &str = "You write ONE jq program for a workflow compiler. The program receives {records: [...]}: the parsed rows of the source file, JSON objects keyed by the request's own column names exactly as the file spells them (a CSV cell is text). It must return exactly one JSON value: the rows or the result the clause asks for, in the source order unless the request states a sort. Use only the supplied columns, and honor explicit field_choices when supplied; never invent a column, a literal, a default or an ordering; never use env, input, now, halt, any I/O, and never call a model. Return only one JSON object {jq, columns_read, example_input, expected_output}: jq is the program; columns_read lists every column it reads, as the file spells them; example_input is an array of 3 to 5 example records exercising the clause (duplicates, boundary values, the order kept) using those columns; expected_output is exactly what the program returns on example_input. observed_values, when present, holds the categorical values the host observed in the source, as it spells them: compare text exactly as the source spells it.";

@@ -13,7 +13,7 @@
 
 use nika_kernel::http::{HttpError, HttpPostDyn};
 use nika_onboard::compile::NativeMode;
-use nika_onboard::compile::authority::{Authority, Door, Refusal, Typed};
+use nika_onboard::compile::authority::{Authority, Door, Refusal, Typed, least_requests};
 
 /// The CLI's grant of more authoring requests, and what a request refused past it is told.
 const DOOR: Door = Door::new(
@@ -51,8 +51,8 @@ pub(super) fn resolve(
             if authorized == 1 { "is" } else { "are" },
         ),
         Refusal::Strategy { strategy, steps } => format!(
-            "the {} strategy needs at least 2 authoring requests ({steps}): authorize --authoring-max-calls 2 or more",
-            strategy.word()
+            "the {} strategy needs at least {} authoring requests ({steps}): authorize --authoring-max-calls {1} or more",
+            strategy.word(), least_requests(strategy)
         ),
         Refusal::Range {
             name,
@@ -198,29 +198,29 @@ mod tests {
         let record = default.record(&default.envelope(), None);
         assert_eq!(default.max_calls(), 1);
         assert_eq!(record["source"], "default: one request");
-        assert_eq!(record["configured"]["worst_case"], 6);
-        // Typed repairs under escalate can need six: refused, with the number to authorize.
+        assert_eq!(record["configured"]["worst_case"], 62);
+        // Typed repairs under escalate can need sixty-two: refused, with the number to authorize.
         let refused = resolve(&["--authoring-repairs", "3"], NativeMode::Escalate).unwrap_err();
         assert_eq!(
             refused,
-            "the repairs or samples typed can need 6 authoring requests under the escalate strategy, and 1 is authorized: authorize them with --authoring-max-calls 6, or ask for fewer"
+            "the repairs or samples typed can need 62 authoring requests under the escalate strategy, and 1 is authorized: authorize them with --authoring-max-calls 62, or ask for fewer"
         );
-        let typed = ["--authoring-repairs", "3", "--authoring-max-calls", "6"];
+        let typed = ["--authoring-repairs", "3", "--authoring-max-calls", "62"];
         assert!(resolve(&typed, NativeMode::Escalate).is_ok());
-        // Nothing extra asked: never refused for what implicit defaults would allow.
-        let only = ["--authoring-strategy", "only", "--authoring-repairs", "0"];
+        // Nothing extra asked, and a typed only granted its judgment: never refused.
+        let only = ["--authoring-strategy", "only", "--authoring-max-calls", "2"];
         assert!(resolve(&only, NativeMode::Only).is_ok());
         assert!(resolve(&["--authoring-repairs", "0"], NativeMode::Escalate).is_ok());
-        // Samples: seven under escalate for three of them.
+        // Samples: twenty-one under escalate for three of them.
         assert!(resolve(&["--authoring-samples", "3"], NativeMode::Escalate).is_err());
-        let sampled = ["--authoring-samples", "3", "--authoring-max-calls", "7"];
+        let sampled = ["--authoring-samples", "3", "--authoring-max-calls", "21"];
         assert!(resolve(&sampled, NativeMode::Escalate).is_ok());
-        // A typed escalation needs the plan and the native candidate; the implicit one runs.
+        // A typed escalation needs the plan and its judgment; the implicit one runs.
         let escalate = resolve(&["--authoring-strategy", "escalate"], NativeMode::Escalate);
         let refused = escalate.expect_err("two requests at least");
         assert_eq!(
             refused,
-            "the escalate strategy needs at least 2 authoring requests (the plan, then the native candidate): authorize --authoring-max-calls 2 or more"
+            "the escalate strategy needs at least 2 authoring requests (the plan, then its judgment): authorize --authoring-max-calls 2 or more"
         );
         let escalate = [
             "--authoring-strategy",
@@ -229,17 +229,17 @@ mod tests {
             "2",
         ];
         assert!(resolve(&escalate, NativeMode::Escalate).is_ok());
-        // A typed sketch needs the sketch and its fills.
+        // A typed sketch needs the sketch, its fills and their judgment.
         let refused = resolve(&["--authoring-strategy", "sketch"], NativeMode::Sketch);
         assert_eq!(
-            refused.expect_err("two requests at least"),
-            "the sketch strategy needs at least 2 authoring requests (the sketch, then its fills): authorize --authoring-max-calls 2 or more"
+            refused.expect_err("three requests at least"),
+            "the sketch strategy needs at least 3 authoring requests (the sketch, its fills, then their judgment): authorize --authoring-max-calls 3 or more"
         );
         let sketch = [
             "--authoring-strategy",
             "sketch",
             "--authoring-max-calls",
-            "2",
+            "3",
         ];
         assert!(resolve(&sketch, NativeMode::Sketch).is_ok());
         // The flag needs the authoring seat and one request at least.

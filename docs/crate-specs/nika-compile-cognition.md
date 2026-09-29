@@ -269,6 +269,29 @@ no repair round follows the judgment. A native outcome that is not READY in its 
 that finishes a recorded native candidate (`native_replay`, then `native_apply`) is READY with no
 call and no judge: that door is not judged yet.
 
+The authority's worst case (`authority::worst_case`, R4 A11, nv1b) counts every request a
+configuration can send, the verifier's included, so the review a caller signs bounds them all.
+With `s` samples and `r` repairs:
+- the native door and an edit's native revision: `3 + r`, the candidate and its repairs, then the
+  whole-request judgment and its locate question;
+- the sketch door: `4 + r`;
+- COLD: `2s + 14r + 12`, each sample and its evidence repair, then `1 + r` verification attempts,
+  each asking at most 8 clause questions, the whole-request judgment and one transform synthesis of
+  at most 2 questions, with its `r` verify repairs and a transform repair allowance of `r`;
+- escalate: COLD, then the native door.
+The bound is computed from the caps where they live: `verify::CLAUSE_QUESTIONS`,
+`verify::WHOLE_QUESTIONS` and `transform::MAX_CALLS`. One verification attempt asks at most
+`verify::CLAUSE_QUESTIONS` = 8 clause questions. The value was measured keyless on 2026-09-29: at
+most 2 per attempt in the 5 recorded COLD verification attempts of the PILOT14 live rows and the DSR
+live proof, and at most 4 in the 201 attempts of the compile and cognition suites; the cap is twice
+the largest. Past the cap the clause and every later one are never asked: they stay unknown,
+nothing is READY on them, and the finding names the cap. Typed repairs under `off` are the
+verifier's and count, never ignored. A typed strategy is honored in full or refused, needing
+`authority::least_requests`:
+- `only` or `escalate`: two requests (the candidate or the plan, then its judgment);
+- `sketch`: three (the sketch, its fills, then their judgment).
+The refusal names that number.
+
 Every verifier question and the COLD repair carry one compiler-owned reference, apart from the
 untrusted state (`verify::grounding`, R4 A11, E36): the engine's output conventions whole, the
 card's language section and the whole stdlib section of each tool the candidate reaches by the

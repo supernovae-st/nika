@@ -10,5 +10,16 @@
   - The judge's calls are authoring calls: counted in the receipt with their usage, and held
     to `--authoring-max-calls`. A judge call the limit refuses is never sent, and the request
     stays incomplete.
+  - The number of authoring requests a compile may need now counts every judge question.
+    That number is shown in its review and refuses typed repairs, samples or strategies the grant
+    cannot honor:
+    - `3 + repairs` for the native door;
+    - `4 + repairs` for the sketch door;
+    - `2 × samples + 14 × repairs + 12` for a plan compiled from the model's proposals.
+  - One check asks at most 8 clause questions. A clause past them is not asked: the request stays
+    incomplete, and the message says why.
+  - Typed repairs under `--authoring-strategy off` now count.
+  - A typed `only` or `escalate` strategy needs `--authoring-max-calls 2` or more, and a typed
+    `sketch` needs 3.
   - Limits: the judge is a model, so its approval is bounded evidence, not proof. A native
     workflow finished in a later round, by answering its questions, is not judged yet.

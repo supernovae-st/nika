@@ -48,6 +48,8 @@ mod transform;
 mod verify;
 use proposal::{Proposal, decode, merge};
 pub(super) use proposal::{ProposedRegion, nullable_default};
+pub(crate) use transform::MAX_CALLS as TRANSFORM_QUESTIONS;
+pub(crate) use verify::{CLAUSE_QUESTIONS, WHOLE_QUESTIONS};
 
 /// The explicit cognition a caller permits for one request. Absent seats are not consent.
 #[derive(Clone, Copy)]
