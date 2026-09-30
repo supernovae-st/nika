@@ -413,6 +413,12 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   unread part; `lexicon::compute_head` is its crate-private reading. Limits: closed word
   lists; a restriction phrased with none of these words reads as no restriction, and the
   judge's `no_operation` stays admissible for it.
+- **The named gate asks with `request`, `seek` and `solicit` too.** Its asking
+  verbs (`assets/gate_ask_verbs.txt`) hold « request human confirmation before writing » as
+  « ask for human confirmation before writing » does: the write waits for a human's yes. The
+  shape is unchanged: an asking verb, then an approval word or a person, then a `before` or
+  `until` connector that binds the effect after it; « request the file before writing » and
+  « request a refund before the deadline » stay no gate, and a waiver is read first.
 - The 12 ADR-003 gates were passed by `nika-onboard` at its admission; this member inherits
   them as the third member of the same unit (the ADR-115 and ADR-137 precedent). Mutation
   and property attestations for the reader are owed as pending evidence, tracked with the
