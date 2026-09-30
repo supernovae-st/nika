@@ -107,6 +107,17 @@ pure: no crate, no I/O. It moved here from `nika-session` on 2026-09-29 (the `me
 precedent · D8 headroom); `nika_session::lifecycle` re-exports it unchanged. Its tests live
 beside it (`src/lifecycle.rs`).
 
+## The session's activity and the model's identity core (read by Session)
+
+`activity` types what a Session turn is doing now and what just finished (understanding ·
+knowledge · authoring · checking · repairing), from the machine's own truth, never a
+percentage or a phase read back from prose. `identity` holds `IDENTITY_CORE`, the laws the
+model reasons under, and `language_digest()`, the few stable facts of the language; the
+digest's version is this crate's, which tracks the workspace as `nika-session`'s does. Both are
+pure: no crate, no I/O. They moved here from `nika-session` on 2026-09-30 (the `meaning`
+precedent · U3 headroom); `nika_session::{activity, identity}` re-exports them unchanged.
+Their tests live beside them (`src/activity.rs`, `src/identity.rs`).
+
 ## The conversational reading of an outcome (read by Session)
 
 `compile::reading` says what one compile outcome means for a conversation
