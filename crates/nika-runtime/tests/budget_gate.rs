@@ -426,13 +426,14 @@ fn a_zero_budget_refuses_a_certain_unbounded_priced_call() {
     for (case, yaml, task) in [("F7-A03", F7_A03, "a"), ("F7-A08", F7_A08, "ask")] {
         let refusal = launch_refusal(yaml, 0.0)
             .unwrap_or_else(|| panic!("{case}: a zero budget must refuse before any request"));
+        // The messages never print the refusal: it carries the parsed workflow values.
         assert!(
             matches!(refusal, nika_runtime::RuntimeError::BudgetFloor { .. }),
-            "{case}: {refusal:?}"
+            "{case}: the refusal is not the budget floor"
         );
         assert!(
             refusal.to_string().contains(&format!("`{task}`")),
-            "{case} names its task: {refusal}"
+            "{case}: the refusal does not name its task"
         );
     }
     let mock = F7_A08.replace("mistral/mistral-small-latest", "mock/echo");

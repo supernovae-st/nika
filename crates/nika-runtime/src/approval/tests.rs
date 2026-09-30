@@ -1243,16 +1243,21 @@ fn a_claim_in_any_bound_store_refuses_the_replay() {
     for dir in [&project, &home_a, &home_b] {
         std::fs::create_dir_all(dir).expect("store root");
     }
+    // The run nonce is minted per process, never a literal: a nonce is never a constant.
+    let nonce = format!(
+        "run-{}-{:?}",
+        std::process::id(),
+        std::time::SystemTime::now()
+    );
     let admit = |home: &std::path::Path| {
-        let ticket =
-            ApprovalTicket::new(hash.clone(), "nonce-a".to_owned(), "ask".to_owned(), 0, 900);
-        let paused = PausedApproval::new(ticket, "nonce-a".to_owned())
+        let ticket = ApprovalTicket::new(hash.clone(), nonce.clone(), "ask".to_owned(), 0, 900);
+        let paused = PausedApproval::new(ticket, nonce.clone())
             .with_durable_claim_root(&project)
             .expect("the run's store")
             .with_durable_claim_root(home)
             .expect("the operator's store");
         let book = ApprovalBook::new();
-        book.begin_run(&workflow, "nonce-a".to_owned());
+        book.begin_run(&workflow, nonce.clone());
         book.set_paused(Some(paused));
         book.admit(
             "ask",
