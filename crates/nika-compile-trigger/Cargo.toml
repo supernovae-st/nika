@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[package]
+name        = "nika-compile-trigger"
+version.workspace = true
+edition     = "2024"
+rust-version = "1.88"
+license     = "AGPL-3.0-or-later"
+description = "The trigger a request names, read from its words: the cadence and time of day a phrase states, the period multiples five cron fields cannot hold, the plain cron fields and the form of a trigger clause. Layer L4 — a size-cap member of the nika-onboard unit (D-2026-07-09-N1 · ADR-142 · the ADR-141 precedent), ascended from nika-compile at the 15k prod-LOC wall; nika-compile depends on it and it depends on the reader, never the reverse."
+repository  = "https://github.com/supernovae-st/nika"
+publish     = false  # member of the nika-onboard unit — never on crates.io alone
+
+[dependencies]
+nika-compile-reader = { path = "../nika-compile-reader", version = "0.121.0" } # the fold, the cadence tables, the day-part compounds, the recurrences and the quantifier heads the reading reads (ONE unit, several members · ADR-142)
+
+[dev-dependencies]
+nika-cadence = { path = "../nika-cadence", version = "0.121.0" } # the tests prove every proposal parses in the one canonical scheduler grammar
+
+[package.metadata.lore]
+daemon        = "forgeron"
+archetype     = "compiler-smith"
+spirit_role   = "lit le déclencheur mot à mot, ne devine jamais une cadence · ce qui n'est pas dit reste une question"
+
+[lints]
+workspace = true

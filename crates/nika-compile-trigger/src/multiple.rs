@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! A period multiplier the cadence grammar cannot bind (R4 A5 · C1). Five cron fields hold a
+//! A period multiplier the cadence grammar cannot bind. Five cron fields hold a
 //! day, a weekday, a named weekday at a time, or an hour or minute interval that divides its
 //! day or hour; « every other monday », « every 2 weeks », « un lundi sur deux », « tous les
 //! quinze jours », « biweekly », « twice a week » and « every 5 hours » state a period they
@@ -80,8 +80,9 @@ fn uneven(n: u32, unit: &str) -> bool {
 /// Whether the trigger words state a period multiplier five cron fields cannot hold. A number
 /// the time of day reads (« at 9 hours ») is the clock's, never an interval; a count before a
 /// day-or-longer unit is a period even where a clock introducer precedes it (« alle 14 Tage »).
-pub(super) fn unbindable(words: &[&str]) -> bool {
-    let (_, clock) = super::time_of_day(words);
+#[must_use]
+pub fn unbindable(words: &[&str]) -> bool {
+    let (_, clock) = crate::reading::time_of_day(words);
     let at = |i: usize| words.get(i).copied().unwrap_or_default();
     (0..words.len()).any(|i| {
         let (word, next, after) = (at(i), at(i + 1), at(i + 2));
@@ -99,8 +100,9 @@ pub(super) fn unbindable(words: &[&str]) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{hot, phrase_words};
     use super::unbindable;
+    use crate::reading::phrase_words;
+    use nika_compile_reader::hot;
 
     fn reads(phrase: &str) -> bool {
         unbindable(&phrase_words(&hot::fold(phrase)))

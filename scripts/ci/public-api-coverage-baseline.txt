@@ -30,6 +30,7 @@ nika-compile
 nika-compile-cognition
 nika-compile-fidelity
 nika-compile-reader
+nika-compile-trigger
 nika-dap
 nika-dataflow
 nika-display

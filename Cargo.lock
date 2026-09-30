@@ -4703,6 +4703,7 @@ dependencies = [
  "nika-compile-cognition",
  "nika-compile-fidelity",
  "nika-compile-reader",
+ "nika-compile-trigger",
  "nika-error",
  "nika-kernel",
  "nika-pack",
@@ -4760,6 +4761,14 @@ name = "nika-compile-reader"
 version = "0.121.0"
 dependencies = [
  "serde_json",
+]
+
+[[package]]
+name = "nika-compile-trigger"
+version = "0.121.0"
+dependencies = [
+ "nika-cadence",
+ "nika-compile-reader",
 ]
 
 [[package]]

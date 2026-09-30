@@ -6,11 +6,13 @@
 //! existing cadence grammar; the binding supplies the zone and validates with its owner.
 //! No default hour/day, elapsed-duration scheduler, calendar arithmetic or authority.
 
-use super::{hot, phrase_words, time_of_day};
+use crate::reading::{phrase_words, time_of_day};
+use nika_compile_reader::hot;
 
 /// FR/EN daily/weekday/named weekday with a stated clock, or a whole clock interval.
 /// Unsupported, conflicting and incomplete phrases all keep their words but no cron.
-pub(super) fn fields(phrase: &str) -> Option<String> {
+#[must_use]
+pub fn fields(phrase: &str) -> Option<String> {
     let folded = hot::fold(phrase);
     let phrase = folded.trim().trim_end_matches([',', '.', '!', '?']);
     if phrase
