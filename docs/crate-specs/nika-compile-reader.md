@@ -164,6 +164,34 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   participle stage (« …, sorted by amount ») is read by no law of the frozen reader and is not
   covered. The identity is a complete recorded rule (`Rule::from_json`); a flag over no clause
   and no stage is not.
+- A removal of duplicates over the rows is no dedup obligation (F2-Q2, E39 PILOT14
+  V6-DEV4-P2). `ObligationKind::Dedup` means no second effect for the same incoming
+  identifier, and it asks for a state file. « Déduplique par customer et invoice_id,
+  première occurrence conservée » was read as that obligation.
+  - A dedup head or marker is read on as an operation when all three hold. The clause stays
+    unresolved for the seat, whose typed `distinct_by` or program then carries it; it is never
+    swallowed (the HOT admission's dedup cue is satisfied by the obligation alone). The reading
+    is recorded as an `in_data_dedup` binding holding the clause, and the compiler tells it in
+    an Applied finding (`dedup`: no state across runs is asked; say so if earlier runs must be
+    skipped).
+    - The clause scopes it by a field: a scope word (par, by, por, per) followed by a word that
+      is not « défaut », « default », « exemple » or their kin.
+    - The clause states the occurrence kept (« première occurrence », « the first »,
+      « la dernière »).
+    - The request holds no cross-run cue: no phrase such as « already processed », « déjà
+      traité », « never twice », « between runs » or « state file », and no event-shaped
+      word such as event, événement, callback, webhook or incoming.
+  - Any other removal keeps the obligation and its state-file question. That covers a missing
+    kept occurrence (« Déduplique par invoice_id »), a missing scope, and a cross-run or event
+    cue (« dédoublonne le callback par identifiant »).
+  - The tables are `assets/dedup_words.txt`, the dedup heads and markers included (they read
+    as before).
+  - Measured on the 21 public DEV84 rows with dedup words (keyless): the obligation leaves
+    V6-DEV4-P1, P2 and P6 (FR and EN) and stays on V6-DEV4-P3, P4 and P5; nothing else moves.
+  - Not covered: a kept occurrence stated in another clause of the sentence (V6-DEV4-P4,
+    « …, même si des doublons sont éloignés ; première occurrence conservée »), and a
+    removal that names its keys with no kept occurrence (V6-DEV4-P3, P5). These keep the
+    obligation.
 - Every public type is `#[non_exhaustive]` (the forward-compatibility ratchet of the
   boundary); the composer builds plan elements through `Step::new`, `Effect::new`,
   `Obligation::new`, `Binding::new`, `Clause::new`, `Aggregation::new` and `Derived::new`

@@ -1,0 +1,137 @@
+[heads]
+déduplique
+dédoublonne
+dédoublonnez
+dédupliquez
+deduplicate
+dedupe
+remove duplicates
+prevent duplicates
+de-duplicate
+deduplica
+elimina i duplicati
+rimuovi i duplicati
+evita i duplicati
+elimina los duplicados
+quita los duplicados
+evita los duplicados
+
+[markers]
+no second action for the same
+pas de seconde action
+évite les doublons
+évitez les doublons
+avoid duplicates
+déduplique
+dédoublonne
+deduplicate
+de-duplicate
+dedupe
+remove duplicates
+prevent duplicates
+deduplica
+elimina i duplicati
+rimuovi i duplicati
+evita i duplicati
+elimina los duplicados
+quita los duplicados
+evita los duplicados
+
+[scope]
+par
+by
+por
+per
+
+[not_scope]
+défaut
+defaut
+default
+exemple
+example
+instance
+defecto
+ejemplo
+esempio
+impostazione
+
+[kept]
+première occurrence
+premiere occurrence
+premières occurrences
+dernière occurrence
+derniere occurrence
+first occurrence
+last occurrence
+la première
+la premiere
+la dernière
+la derniere
+le premier
+le dernier
+the first
+the last
+la primera
+la última
+la ultima
+el primero
+el último
+primera aparición
+primera ocurrencia
+la prima
+il primo
+l'ultima
+l'ultimo
+prima occorrenza
+ultima occorrenza
+
+[cross_run]
+déjà trait
+deja trait
+déjà vu
+already processed
+already handled
+already seen
+same event
+même événement
+meme evenement
+never twice
+jamais deux fois
+twice
+deux fois
+dos veces
+due volte
+between runs
+across runs
+entre deux exécutions
+entre les exécutions
+d'une exécution à l'autre
+previous run
+last run
+exécution précédente
+dernière exécution
+state file
+fichier d'état
+ya procesad
+già elaborat
+già trattat
+
+[cross_run_words]
+event
+events
+événement
+événements
+evenement
+evenements
+evento
+eventos
+eventi
+callback
+callbacks
+webhook
+webhooks
+incoming
+entrant
+entrants
+entrante
+entrantes

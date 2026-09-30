@@ -435,13 +435,7 @@ pub(super) fn bind(
         out,
         recognized,
     );
-    let dedup = if plan.obligation("dedup") {
-        recognized.insert("const.state_file".to_owned());
-        answer(request, out, "const.state_file", STATE_LABEL, true)
-            .map_or(Need::Pending, Need::Bound)
-    } else {
-        Need::Absent
-    };
+    let dedup = dedup_state(plan, request, out, recognized);
     let fan_out = matches!(read, Need::Bound(Source::Files(_) | Source::Glob(_)));
     // A literal lookup is material of its own: the record it selects is the corpus.
     let literal_lookup = matches!(&lookup, Need::Bound(l) if l.by_id.is_some());
@@ -524,6 +518,28 @@ fn concurrency(plan: &Plan, fan_out: bool) -> (Vec<String>, Option<u32>) {
         .map_or((Vec::new(), None), |(constraint, bound)| {
             (vec![constraint.clone()], Some(bound))
         })
+}
+
+/// The state file of the cross-run dedup obligation, asked. A removal of duplicates the reader read
+/// over the rows (F2-Q2) asks none, and the outcome says so to whoever meant across runs.
+fn dedup_state(
+    plan: &Plan,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+    recognized: &mut BTreeSet<String>,
+) -> Need<Value> {
+    for removal in plan.bindings.iter().filter(|b| b.role == "in_data_dedup") {
+        let message = format!(
+            "`{}` is read as a removal of duplicates within the data, by the keys it names, keeping the occurrence it states: no state across runs is asked. If items processed in earlier runs must be skipped, say so.",
+            removal.literal
+        );
+        super::finding(out, DiagnosticKind::Applied, "dedup", message);
+    }
+    if !plan.obligation("dedup") {
+        return Need::Absent;
+    }
+    recognized.insert("const.state_file".to_owned());
+    answer(request, out, "const.state_file", STATE_LABEL, true).map_or(Need::Pending, Need::Bound)
 }
 
 /// Bind the explicit or synthesized computation after its source and slots are known.

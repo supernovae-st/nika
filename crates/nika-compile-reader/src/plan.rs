@@ -376,14 +376,16 @@ impl Binding {
 
 /// The closed set of binding roles the reader and the composer emit. A recorded plan may
 /// only name one of these: the assembler matches roles by identity. A `content` literal is
-/// the quoted text a write carries, verbatim, quotes included.
-const BINDING_ROLES: [&str; 6] = [
+/// the quoted text a write carries, verbatim, quotes included; an `in_data_dedup` literal is a
+/// clause read as a removal of duplicates over the rows, which asks no cross-run state (F2-Q2).
+const BINDING_ROLES: [&str; 7] = [
     "url",
     "email",
     "path",
     "timezone",
     "money_policy",
     "content",
+    "in_data_dedup",
 ];
 
 /// The whole private plan.
