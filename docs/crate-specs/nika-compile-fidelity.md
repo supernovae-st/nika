@@ -119,6 +119,27 @@ needs keeps its default.
   `compile/observe.rs`), never the disk. The native door passes its observation. The sketch
   door's structural law admits only stated paths, and the deterministic door reads the stated
   literal, so neither ever reads an observed path, and both keep `laws`.
+- Added after the move, Laws 24 and 25 (`fidelity/record_scope` and `fidelity/instants`,
+  private, run by `laws_observed` only: without the host's observation they judge nothing).
+  They read a `nika:jq` expression, parsed and never run, with `jaq-core` at the workspace pin
+  the analyzer compiles with. The records of each key of the task's `args.input` object, or of
+  the whole input, are traced through `with:` bindings and task outputs (`nika:convert` to
+  JSON, a `fromjson` `nika:jq`) to a `nika:read` of an observed path. The walk follows jq's
+  scope: `.K[]`, `map`, `select`, the `*_by` builtins, `any`, `all` and `E as $x | F`, which
+  keeps `.`. Only a task without `for_each` whose expression parses is judged.
+  - Law 24 (`RECORD SCOPE`): on one record, a path whose first key is a key of the input
+    object and no observed column of the records' file reads null. One finding per task and
+    iterated key names the keys, the file, its columns and the repair (`. as $doc` before the
+    iteration, then `$doc.<key>`). A column of the same name, a variable bound before the
+    iteration and a read at document level stay admitted.
+  - Law 25 (`TEXT ORDER ON INSTANTS`): on one record, `<`, `<=`, `>`, `>=`, `sort_by`,
+    `min_by` or `max_by` over a field the host observed as ISO-8601 date-times in more than one
+    offset or form (`Z` and `+00:00` are two), or against a string bound that is a date-time
+    in another offset or form. The repair compares `fromdateiso8601` instants. The evidence is
+    the categorical values of the observed row, or the `instants` a kinds entry carries per
+    field (`{"offsets": […], "forms": […]}`), which the observer does not record yet; the
+    public `fidelity::instant_shape` classifies a value. A date-only bound, a bound that is no
+    date-time and a converted field stay admitted.
 - The reader's modules are bound at the crate root under the names the moved files always
   used (`crate::plan`, `super::hot::fold`, `crate::lexicon::GATE_WITHOUT_EFFECT`); the member
   re-exports nothing of the reader.
@@ -134,5 +155,6 @@ needs keeps its default.
 
 `fidelity` (the laws and their diagnostics · the approval guard and Law 3b in
 `fidelity/final_gate` · Law 23 in `fidelity/records`, with its measured forms in
-`assets/record_forms.txt`) · `sketch` (the constrained intermediate, its structural laws, its
+`assets/record_forms.txt` · Law 24 and the jq scope walk in `fidelity/record_scope` · Law 25
+in `fidelity/instants`) · `sketch` (the constrained intermediate, its structural laws, its
 typed holes, its document) · `candidate` (the plan a candidate states, a revision's delta).

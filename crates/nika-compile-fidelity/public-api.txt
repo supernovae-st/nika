@@ -53,6 +53,7 @@ pub fn nika_compile_fidelity::fidelity::covers(entry: &str, path: &str) -> bool
 pub fn nika_compile_fidelity::fidelity::depends_on(doc: &serde_json::value::Value, task: &str, roots: &[alloc::string::String]) -> bool
 pub fn nika_compile_fidelity::fidelity::dropped_effects(plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::effect_and_gate_tasks(doc: &serde_json::value::Value) -> (alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<alloc::string::String>)
+pub fn nika_compile_fidelity::fidelity::instant_shape(text: &str) -> core::option::Option<(alloc::string::String, alloc::string::String)>
 pub fn nika_compile_fidelity::fidelity::invented(intent: &str, literals: &[alloc::string::String], allowed: &[alloc::string::String], out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::invented_gates(plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
 pub fn nika_compile_fidelity::fidelity::laws(intent: &str, plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value, allowed: &[alloc::string::String], waived: &[alloc::string::String], clarified: &[alloc::string::String], out: &mut alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>)
