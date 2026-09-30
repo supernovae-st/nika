@@ -36,11 +36,17 @@ pub(super) fn tty_present() -> bool {
     std::io::stdin().is_terminal() && std::io::stderr().is_terminal()
 }
 
-/// Ask the paused gate's question on the real terminal seams.
+/// Ask the paused gate's question on the real terminal seams. Only a line typed after the
+/// question is shown answers it (C11 · typeahead): what was typed while the run worked is
+/// discarded first, before this ask takes the stdin lock (the drain takes its own), and a
+/// terminal that cannot be drained escapes to the durable pause, its resume line taught.
 pub(super) fn ask_on_tty(pause: &WorkflowPause, theme: Theme) -> Asked {
+    let mut out = std::io::stderr().lock();
+    if nika_cli_host::lines::fresh_terminal(&mut out).is_err() {
+        return Asked::Escape;
+    }
     let stdin = std::io::stdin();
     let mut input = stdin.lock();
-    let mut out = std::io::stderr().lock();
     ask(pause, &mut input, &mut out, theme)
 }
 

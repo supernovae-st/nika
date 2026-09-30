@@ -9,6 +9,7 @@
 //! answers a Nika fact without any model, writes nothing into the
 //! project, and closes on `/quit`.
 
+use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
@@ -253,4 +254,278 @@ fn bare_nika_opens_the_renderer_and_nika_tui_zero_keeps_the_plain_loop() {
     session.send_line("/quit").expect("quit");
     session.expect(Eof).expect("closes");
     assert_eq!(exit_code(&mut session), 0);
+}
+
+// ── Typeahead (C11): only a line typed after a question is shown answers it ─────────────────
+
+/// A gated workflow whose run first waits `wait`: a line typed then precedes its gate.
+fn gated(project: &Path, wait: &str) {
+    std::fs::write(project.join("draft.md"), "the draft\n").expect("draft");
+    let settle = format!(
+        "  settle:\n    invoke: {{ tool: \"nika:wait\", args: {{ duration: \"{wait}\" }} }}\n"
+    );
+    let workflow = format!(
+        "nika: waited-gate\npermits: {{ fs: {{ read: [\"./draft.md\"], write: [\"./final.md\"] }}, tools: [\"nika:wait\", \"nika:read\", \"nika:prompt\", \"nika:write\"] }}\ntasks:\n{settle}  read_draft:\n    after: {{ settle: success }}\n    invoke: {{ tool: \"nika:read\", args: {{ path: \"./draft.md\" }} }}\n  approve:\n    after: {{ read_draft: success }}\n    invoke: {{ tool: \"nika:prompt\", args: {{ mode: confirm, message: \"Write final.md?\" }} }}\n  write_final:\n    after: {{ approve: success }}\n    with: {{ go: \"${{{{ tasks.approve.output }}}}\", text: \"${{{{ tasks.read_draft.output }}}}\" }}\n    when: \"${{{{ with.go == true }}}}\"\n    invoke: {{ tool: \"nika:write\", args: {{ path: \"./final.md\", content: \"${{{{ with.text }}}}\" }} }}\n"
+    );
+    std::fs::write(project.join("gate.nika"), workflow).expect("gate");
+}
+
+/// The plain loop on a PTY in `project`: an environment of its own (nothing inherited, so a
+/// host's model or decision-seat settings never reach it), an isolated HOME, no key, the run
+/// keys absent.
+fn plain(project: &Path, home: &Path, env: &[(String, String)]) -> LoggedSession {
+    let mut cmd = Command::new(bin());
+    cmd.current_dir(project)
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("NIKA_TUI", "0")
+        .env("NO_COLOR", "1")
+        .env("TERM", "xterm-256color")
+        .env("HOME", home)
+        .env("NIKA_KEYCHAIN", "off")
+        .env("NIKA_RUN_KEY_FILE", home.join("absent-run-key"))
+        .env("NIKA_RUN_PUB_FILE", home.join("absent-run-pub"));
+    for (key, value) in env {
+        cmd.env(key, value);
+    }
+    let session = OsSession::spawn(cmd).expect("pty spawn");
+    let mut session = expectrl::session::log(session, std::io::stderr()).expect("log tee");
+    session.set_expect_timeout(Some(Duration::from_secs(90)));
+    session.expect("nika ›").expect("the plain prompt");
+    session
+}
+
+/// A line typed while a run works never answers the gate it had not asked yet: the question
+/// waits for a line typed after it, and the write waits with it.
+#[test]
+fn a_line_typed_during_a_run_never_answers_its_gate() {
+    let (project, home) = rig("typeahead-gate");
+    gated(project.path(), "5s");
+    let mut session = plain(project.path(), home.path(), &[]);
+    session.send_line("run gate.nika").expect("run");
+    session
+        .expect("running `gate.nika`")
+        .expect("the run starts");
+    session
+        .send_line("y")
+        .expect("typed while the run waits, before its gate");
+    session
+        .expect("Write final.md?")
+        .expect("the gate is asked");
+    std::thread::sleep(Duration::from_secs(2));
+    assert!(
+        !project.path().join("final.md").exists(),
+        "a line typed before the gate answered it"
+    );
+    session
+        .send_line("n")
+        .expect("an answer typed after the question");
+    session.expect("nika ›").expect("the run settled");
+    assert!(!project.path().join("final.md").exists(), "declined");
+    session.send_line("/quit").expect("quit");
+    session.expect(Eof).expect("closes");
+}
+
+/// Its neighbour: a line typed after the gate is shown answers it, once.
+#[test]
+fn a_line_typed_after_the_gate_is_shown_answers_it_once() {
+    let (project, home) = rig("typeahead-gate-fresh");
+    gated(project.path(), "1s");
+    let mut session = plain(project.path(), home.path(), &[]);
+    session.send_line("run gate.nika").expect("run");
+    session
+        .expect("Write final.md?")
+        .expect("the gate is asked");
+    session
+        .send_line("y")
+        .expect("an answer typed after the question");
+    session
+        .expect("produced · ./final.md")
+        .expect("the approved write");
+    session.expect("nika ›").expect("the run settled");
+    let written = std::fs::read_to_string(project.path().join("final.md")).expect("final.md");
+    assert_eq!(written, "the draft\n", "written once, exactly");
+    session.send_line("/quit").expect("quit");
+    session.expect(Eof).expect("closes");
+}
+
+/// Work the deterministic reader cannot settle: the Session asks its seat.
+const UNSETTLED: &str = "Read ./a.md and do something clever with it, then write ./b.md";
+
+/// The seat's candidate: no `infer` task, so no run model is asked and the round ends READY.
+const COPY_CANDIDATE: &str = "nika: clever-copy\npermits:\n  tools: [\"nika:read\", \"nika:write\"]\n  fs:\n    read: [\"./a.md\"]\n    write: [\"./b.md\"]\ntasks:\n  read_source:\n    invoke:\n      tool: \"nika:read\"\n      args: { path: \"./a.md\" }\n  write_result:\n    with: { content: \"${{ tasks.read_source.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./b.md\", content: \"${{ with.content }}\" }\n";
+
+/// A local seat on the loopback, keyless, on the OpenAI-compatible wire a `vllm` override
+/// speaks: a route label is new work, the native door gets [`COPY_CANDIDATE`], and the judge
+/// finds it faithful. The judge's FIRST call waits until released: while it is in flight Nika
+/// is still building, and no proposal exists yet.
+struct LoopbackSeat {
+    port: u16,
+    entered: std::sync::mpsc::Receiver<()>,
+    release: std::sync::mpsc::Sender<()>,
+}
+
+impl LoopbackSeat {
+    fn start() -> Self {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("seat");
+        let port = listener.local_addr().expect("seat address").port();
+        let (arrived, entered) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel::<()>();
+        // The loopback seat's accept loop: a test harness thread, never production.
+        #[allow(clippy::disallowed_methods)]
+        std::thread::spawn(move || {
+            let mut judged = false;
+            for stream in listener.incoming() {
+                let Ok(mut stream) = stream else { continue };
+                let Some(body) = seat_request(&mut stream) else {
+                    continue;
+                };
+                let answer = if body.contains("You route ONE line") {
+                    "NEW_WORK".to_owned()
+                } else if body.contains("unfaithful") {
+                    if !judged {
+                        judged = true;
+                        let _sent = arrived.send(());
+                        let _released = released.recv();
+                    }
+                    r#"{"choice":"faithful"}"#.to_owned()
+                } else {
+                    serde_json::json!({
+                        "candidate": COPY_CANDIDATE, "questions": [], "gaps": [], "notes": "copy",
+                    })
+                    .to_string()
+                };
+                let reply = serde_json::json!({
+                    "id": "chatcmpl-typeahead", "object": "chat.completion",
+                    "choices": [{"index": 0, "message": {"role": "assistant", "content": answer}, "finish_reason": "stop"}],
+                    "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+                })
+                .to_string();
+                let _written = std::io::Write::write_all(
+                    &mut stream,
+                    format!(
+                        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}",
+                        reply.len()
+                    )
+                    .as_bytes(),
+                );
+            }
+        });
+        Self {
+            port,
+            entered,
+            release,
+        }
+    }
+
+    /// The kept choice of this local seat in `home`, and the environment that points it here.
+    fn chosen_in(&self, home: &Path) -> Vec<(String, String)> {
+        std::fs::create_dir_all(home.join(".nika")).expect("home");
+        std::fs::write(
+            home.join(".nika").join("session-intelligence.json"),
+            r#"{"kind":{"kind":"local","provider":"vllm"},"model":"vllm/typeahead-seat","chosen_at":"2026-09-29T00:00:00Z"}"#,
+        )
+        .expect("preference");
+        vec![
+            (
+                "NIKA_VLLM_BASE_URL".to_owned(),
+                format!("http://127.0.0.1:{}/v1", self.port),
+            ),
+            ("NIKA_AUTHORING_STRATEGY".to_owned(), "only".to_owned()),
+        ]
+    }
+}
+
+/// One request's body, read whole: its head, then as many bytes as it declares.
+fn seat_request(stream: &mut std::net::TcpStream) -> Option<String> {
+    use std::io::Read as _;
+    let mut data = Vec::new();
+    let mut chunk = [0_u8; 8192];
+    let end = loop {
+        let n = stream.read(&mut chunk).ok()?;
+        if n == 0 {
+            return None;
+        }
+        data.extend_from_slice(&chunk[..n]);
+        if let Some(at) = data.windows(4).position(|w| w == b"\r\n\r\n") {
+            break at + 4;
+        }
+    };
+    let head = String::from_utf8_lossy(&data[..end]).to_lowercase();
+    let length: usize = head
+        .lines()
+        .find_map(|l| l.strip_prefix("content-length:"))
+        .and_then(|v| v.trim().parse().ok())
+        .unwrap_or(0);
+    while data.len() < end + length {
+        let n = stream.read(&mut chunk).ok()?;
+        if n == 0 {
+            break;
+        }
+        data.extend_from_slice(&chunk[..n]);
+    }
+    Some(String::from_utf8_lossy(&data[end..]).into_owned())
+}
+
+/// A line typed while Nika builds never consents to the proposal it had not shown yet:
+/// `apply? ›` waits for a line typed after it, and nothing is written.
+#[test]
+fn a_line_typed_while_nika_builds_never_consents() {
+    let (project, home) = rig("typeahead-consent");
+    std::fs::write(project.path().join("a.md"), "alpha\n").expect("a.md");
+    let seat = LoopbackSeat::start();
+    let env = seat.chosen_in(home.path());
+    let mut session = plain(project.path(), home.path(), &env);
+    session.send_line(UNSETTLED).expect("the request");
+    seat.entered
+        .recv_timeout(Duration::from_secs(90))
+        .expect("the judge's call is in flight");
+    session
+        .send_line("yes")
+        .expect("typed before any proposal exists");
+    seat.release.send(()).expect("release the judge");
+    session.expect("apply? ›").expect("the proposal is shown");
+    std::thread::sleep(Duration::from_secs(2));
+    assert!(
+        !project.path().join("clever-copy.nika").exists(),
+        "a line typed before the proposal consented to it"
+    );
+    session
+        .send_line("no")
+        .expect("an answer typed after the question");
+    session.expect("nika ›").expect("the proposal discarded");
+    assert!(!project.path().join("clever-copy.nika").exists());
+    session.send_line("/quit").expect("quit");
+    session.expect(Eof).expect("closes");
+}
+
+/// Its neighbour: a `yes` typed after the proposal is shown applies it, once.
+#[test]
+fn a_yes_typed_after_the_proposal_is_shown_applies_it_once() {
+    let (project, home) = rig("typeahead-consent-fresh");
+    std::fs::write(project.path().join("a.md"), "alpha\n").expect("a.md");
+    let seat = LoopbackSeat::start();
+    let env = seat.chosen_in(home.path());
+    let mut session = plain(project.path(), home.path(), &env);
+    session.send_line(UNSETTLED).expect("the request");
+    seat.entered
+        .recv_timeout(Duration::from_secs(90))
+        .expect("the judge's call is in flight");
+    seat.release.send(()).expect("release the judge");
+    session.expect("apply? ›").expect("the proposal is shown");
+    session
+        .send_line("yes")
+        .expect("a consent typed after the question");
+    session
+        .expect("applied · wrote `clever-copy.nika`")
+        .expect("applied");
+    session.expect("nika ›").expect("the prompt again");
+    let saved = std::fs::read_dir(project.path())
+        .expect("project")
+        .filter_map(Result::ok)
+        .filter(|e| e.path().extension().is_some_and(|x| x == "nika"))
+        .count();
+    assert_eq!(saved, 2, "alpha.nika and the one applied workflow");
+    session.send_line("/quit").expect("quit");
+    session.expect(Eof).expect("closes");
 }
