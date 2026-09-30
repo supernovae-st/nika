@@ -27,8 +27,8 @@ claim that the current candidate passed tests.
 |------------------|------------------------------------------------|
 | HEAD             | `1f7622ecd` (`1f7622ecd148a2516c9dd458d946f4d464da901c`)             |
 | workspace        | v0.121.0                                  |
-| crates (workspace)| 78                                              |
-| crates (admitted)| 68                                             |
+| crates (workspace)| 79                                              |
+| crates (admitted)| 69                                             |
 | crates (WIP)     | 10 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-service-execution nika-serve nika-session nika-tui                                  |
 | L0               | 22                                              |
 | L0.5             | 6                                              |
@@ -36,6 +36,6 @@ claim that the current candidate passed tests.
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 4                                              |
-| L4               | 20                                              |
+| L4               | 21                                              |
 | lib tests        | 8732 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
