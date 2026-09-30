@@ -876,7 +876,7 @@ mod a_sanctioned_egress_is_stated_never_erased {
 
     #[test]
     fn output_secret_repair_names_both_choices_and_preserves_effect_sanctions() {
-        let yaml = "nika: output-repair\npermits: { exec: [echo] }\nsecrets:\n  api_key: { source: env, key: API_KEY, egress: [{ to: exec }] }\ntasks:\n  send:\n    exec: { command: [echo, '${{ secrets.api_key }}'] }\noutputs:\n  leaked: ${{ secrets.api_key }}\n";
+        let yaml = "nika: output-repair\npermits: { exec: [echo] }\nsecrets:\n  api_key: { source: env, key: API_KEY, egress: [{ to: exec }] }\ntasks:\n  send:\n    exec: { command: [echo, '${{ secrets.api_key }}'] }\noutputs:\n  leaked: ${{ tasks.send.output }}\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture");
         let report = nika_check::check(&wf);
         assert!(report.secret_leaks.is_empty(), "exec is already sanctioned");
@@ -899,7 +899,7 @@ mod a_sanctioned_egress_is_stated_never_erased {
             );
         }
         for repaired in [
-            yaml.replace("outputs:\n  leaked: ${{ secrets.api_key }}\n", ""),
+            yaml.replace("outputs:\n  leaked: ${{ tasks.send.output }}\n", ""),
             yaml.replace(
                 "egress: [{ to: exec }]",
                 "egress: [{ to: exec }, { to: outputs }]",
@@ -913,6 +913,18 @@ mod a_sanctioned_egress_is_stated_never_erased {
             assert!(console(&repaired).contains("declared secrets used"));
             assert!(console(&repaired).contains("egress rule"));
         }
+        // E39 N7: reading the secret itself stays SEC-007 with the rule; removal is the repair.
+        let own = yaml.replace("tasks.send.output", "secrets.api_key");
+        let own = own.replace("[{ to: exec }]", "[{ to: exec }, { to: outputs }]");
+        let report =
+            nika_check::check(&parse(&own, FileId::new(0), ParseMode::Strict).expect("own"));
+        let egress = report.findings.iter().find(|f| f.kind == "secret_egress");
+        let message = &egress.expect("the own value stands").message;
+        assert!(message.contains("remove `outputs.leaked`"), "{message}");
+        assert!(
+            !message.contains("keep existing rules")
+                && !console(&own).contains("keep existing rules")
+        );
     }
 
     const EXFIL: &str = "\
