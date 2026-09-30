@@ -1030,6 +1030,8 @@ pub nika_check::CostCeiling::composed: alloc::vec::Vec<nika_check::ComposedCost>
 pub nika_check::CostCeiling::has_unbounded: bool
 pub nika_check::CostCeiling::min_path_total_usd: f64
 pub nika_check::CostCeiling::tasks: alloc::vec::Vec<nika_check::TaskCost>
+impl nika_check::CostCeiling
+pub fn nika_check::CostCeiling::zero_budget_refusal(&self, budget: f64) -> core::option::Option<alloc::string::String>
 impl core::clone::Clone for nika_check::CostCeiling
 pub fn nika_check::CostCeiling::clone(&self) -> nika_check::CostCeiling
 impl core::cmp::PartialEq for nika_check::CostCeiling

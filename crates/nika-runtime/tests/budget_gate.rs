@@ -400,3 +400,48 @@ mod billed_then_failed {
         assert_eq!(outcome.total_cost_usd, Some(0.06));
     }
 }
+
+/// E39 10C case F7-A03, verbatim: an agent on a priced model, no token ceiling.
+const F7_A03: &str = "nika: \"e10c-f7-a03\"\nmodel: \"mistral/mistral-small-latest\"\npermits: {}\ntasks:\n  a:\n    agent:\n      prompt: \"Say hi\"\n      max_turns: 1\n";
+/// E39 10C case F7-A08, verbatim: an infer on a priced model without `max_tokens`.
+const F7_A08: &str = "nika: \"e10c-f7-a08\"\nmodel: \"mistral/mistral-small-latest\"\npermits: {}\ntasks:\n  ask:\n    infer:\n      prompt: \"Say hi\"\n";
+
+/// The launch gate of a run under `budget` (the CLI preflight's floor law, no bindings).
+fn launch_refusal(yaml: &str, budget: f64) -> Option<nika_runtime::RuntimeError> {
+    let wf = nika_schema::parse(
+        yaml,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    let report = nika_check::check(&wf);
+    nika_runtime::budget_floor_refusal(&wf, &report, Some(budget), None)
+}
+
+/// E39 10C N6 · a zero budget admits zero metered requests. A task that certainly calls a priced
+/// model with no token ceiling has a floor above zero whose size nothing bounds, so it refuses
+/// NIKA-1709 before the prologue; mock work stays exempt, and a positive budget keeps the warning.
+#[test]
+fn a_zero_budget_refuses_a_certain_unbounded_priced_call() {
+    for (case, yaml, task) in [("F7-A03", F7_A03, "a"), ("F7-A08", F7_A08, "ask")] {
+        let refusal = launch_refusal(yaml, 0.0)
+            .unwrap_or_else(|| panic!("{case}: a zero budget must refuse before any request"));
+        assert!(
+            matches!(refusal, nika_runtime::RuntimeError::BudgetFloor { .. }),
+            "{case}: {refusal:?}"
+        );
+        assert!(
+            refusal.to_string().contains(&format!("`{task}`")),
+            "{case} names its task: {refusal}"
+        );
+    }
+    let mock = F7_A08.replace("mistral/mistral-small-latest", "mock/echo");
+    assert!(
+        launch_refusal(&mock, 0.0).is_none(),
+        "mock work is never metered"
+    );
+    assert!(
+        launch_refusal(F7_A08, 0.01).is_none(),
+        "a positive budget keeps the documented warn-and-proceed"
+    );
+}
