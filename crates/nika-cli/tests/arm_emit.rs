@@ -808,7 +808,12 @@ fn systemd_speaks_the_month_end_and_the_interval_or_skips_absent() {
     let text = String::from_utf8_lossy(&elapses.stdout);
     let days: Vec<jiff::civil::Date> = text
         .lines()
-        .filter(|line| line.contains("Next elapse:") || line.contains("Iter. #"))
+        // Older systemd-analyze prints « Iter. #N », newer ones « Iteration #N » (the CI runner).
+        .filter(|line| {
+            line.contains("Next elapse:")
+                || line.contains("Iter. #")
+                || line.contains("Iteration #")
+        })
         .filter_map(|line| line.split_whitespace().find_map(|w| w.parse().ok()))
         .collect();
     assert_eq!(days.len(), 13, "thirteen elapses: {text}");
