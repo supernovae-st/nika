@@ -224,16 +224,21 @@ fn load_resume_plan(
     })
 }
 
-/// Bind the folded ticket to the durable claim store (`$HOME/.nika/
-/// approval-claims` · the replay guard) — and prune the claims that
-/// outlived every trace on the way in (#1466): the store is touched only
-/// here, so this is where it stays bounded. Pruning is fail-open and
-/// speaks exactly one line when anything was removed (D2 · never silent).
+/// Bind the folded ticket to the durable claim stores (`<root>/.nika/
+/// approval-claims` · the replay guard): the operator's HOME and the run's
+/// project, the working directory the project judgment already bound the
+/// trace to (#1367), so a consumed ticket is refused from any HOME (E39
+/// N5). A trace resumed under the waived chain (`--resume-unverified`) or
+/// one older than the project binding can still reach a fresh store from
+/// another project and HOME; its ticket TTL bounds it. Then prune the
+/// claims that outlived every trace on the way in (#1466): the stores are
+/// touched only here, so this is where they stay bounded. Pruning is
+/// fail-open and speaks exactly one line when anything was removed (D2).
 fn durable_paused(
     paused: Option<PausedApproval>,
     output_json: bool,
 ) -> Result<Option<PausedApproval>, u8> {
-    let Some(approval) = paused else {
+    let Some(mut approval) = paused else {
         return Ok(None);
     };
     let home = std::env::home_dir().ok_or_else(|| {
@@ -242,19 +247,36 @@ fn durable_paused(
             output_json,
         )
     })?;
+    let project = std::env::current_dir().map_err(|error| {
+        refuse_env(
+            &format!("--resume: the project directory is unavailable: {error}"),
+            output_json,
+        )
+    })?;
+    let one = |a: &std::path::Path, b: &std::path::Path| {
+        std::fs::canonicalize(a)
+            .ok()
+            .is_some_and(|a| std::fs::canonicalize(b).is_ok_and(|b| a == b))
+    };
+    let roots = if one(&home, &project) {
+        vec![home]
+    } else {
+        vec![home, project]
+    };
     let (cfg, _notes) = nika_dap::retention::RetentionConfig::from_env();
-    if let Some(n) = nika_dap::retention::prune_claims(&home, &cfg, std::time::SystemTime::now()) {
-        eprintln!("nika run: approval claims gc · removed {n} expired claim(s)");
-    }
-    approval
-        .with_durable_claim_root(&home)
-        .map(Some)
-        .map_err(|error| {
+    for root in &roots {
+        if let Some(n) = nika_dap::retention::prune_claims(root, &cfg, std::time::SystemTime::now())
+        {
+            eprintln!("nika run: approval claims gc · removed {n} expired claim(s)");
+        }
+        approval = approval.with_durable_claim_root(root).map_err(|error| {
             refuse_env(
                 &format!("--resume: cannot open the durable approval claim store: {error}"),
                 output_json,
             )
-        })
+        })?;
+    }
+    Ok(Some(approval))
 }
 
 fn read_trace(trace: &std::path::Path, label: &str, output_json: bool) -> Result<String, u8> {

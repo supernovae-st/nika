@@ -150,7 +150,13 @@ the effect classes in play · never an LLM summary); an answer whose
 resolved content hash differs halts (`approval.content_mismatch` at the
 receipt) · (2) **scoped and TTL'd** — this run × this step × this
 content hash, with a bounded TTL; an expired ticket re-prompts, a
-cross-run replay is refused · (3) **rate-limited** — at most N=5
+cross-run replay is refused, and a decided ticket is **single-use for
+the run**: its claim is written once in the operator's HOME and in the
+run's project (`<project>/.nika/approval-claims`, the project a resume
+is already bound to), so a replay is refused from any HOME; a trace
+resumed under the waived chain (`--resume-unverified`) or recorded
+before that binding can reach a fresh store from another project, and
+its TTL bounds it · (3) **rate-limited** — at most N=5
 approvals per run; identical prompts dedup (the same content hash rides
 one ticket, attested `dedup`); a heterogeneous batch is refused at
 check (one prompt gates one action of one class); the N+1th prompt is a

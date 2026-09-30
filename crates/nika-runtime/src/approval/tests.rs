@@ -1219,3 +1219,55 @@ tasks:
     assert_eq!(frames[0].shown_hash, shown);
     assert_eq!(frames[0].decision, "deny");
 }
+
+/// E39 10C N5 · single-use is bound to the run, not to the resuming process's HOME: a ticket bound
+/// to two durable stores (the run's project, then the operator's HOME) is consumed in each, and a
+/// claim already present in ANY of them refuses the replay. The second resume comes from another
+/// HOME, a fresh store, and the project store still holds the first consumption.
+#[test]
+fn a_claim_in_any_bound_store_refuses_the_replay() {
+    let workflow = nika_schema::parse(
+        "nika: t\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n",
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("parses");
+    let hash = "e".repeat(64);
+    let root = std::env::temp_dir().join(format!("nika-n5-claims-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let (project, home_a, home_b) = (
+        root.join("project"),
+        root.join("home-a"),
+        root.join("home-b"),
+    );
+    for dir in [&project, &home_a, &home_b] {
+        std::fs::create_dir_all(dir).expect("store root");
+    }
+    let admit = |home: &std::path::Path| {
+        let ticket =
+            ApprovalTicket::new(hash.clone(), "nonce-a".to_owned(), "ask".to_owned(), 0, 900);
+        let paused = PausedApproval::new(ticket, "nonce-a".to_owned())
+            .with_durable_claim_root(&project)
+            .expect("the run's store")
+            .with_durable_claim_root(home)
+            .expect("the operator's store");
+        let book = ApprovalBook::new();
+        book.begin_run(&workflow, "nonce-a".to_owned());
+        book.set_paused(Some(paused));
+        book.admit(
+            "ask",
+            "confirm",
+            &hash,
+            1_000,
+            Some(&Value::Bool(true)),
+            "cli",
+            None,
+        )
+    };
+    assert!(matches!(admit(&home_a), Admit::Run { .. }));
+    let Admit::Refused(refusal) = admit(&home_b) else {
+        panic!("another HOME must not replay a consumed ticket of the same run");
+    };
+    assert_eq!(refusal.attestation.why, Some("approval.replayed"));
+    let _ = std::fs::remove_dir_all(&root);
+}

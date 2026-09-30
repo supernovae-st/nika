@@ -150,13 +150,13 @@ impl PausedApproval {
         }
     }
 
-    /// Bind the ticket to a descriptor-held, create-once claim store.
+    /// Bind the ticket to one more create-once claim store: consumed in each, refused by any (N5).
     ///
     /// # Errors
     /// Returns an error when the owned claim directory cannot be opened.
-    pub fn with_durable_claim_root(mut self, root: &Path) -> io::Result<Self> {
+    pub fn with_durable_claim_root(self, root: &Path) -> io::Result<Self> {
         let store = nika_fs::OwnedDir::create(root, &[".nika", "approval-claims"])?;
-        self.claim = Arc::new(ApprovalClaim::durable(store));
+        self.claim.stores()?.push(store);
         Ok(self)
     }
 
@@ -164,15 +164,17 @@ impl PausedApproval {
         if self.claim.consumed.swap(true, Ordering::AcqRel) {
             return Err(ClaimError::Consumed);
         }
-        let Some(dir) = &self.claim.dir else {
+        let dirs = self.claim.stores().map_err(|_| ClaimError::Unavailable)?;
+        if dirs.is_empty() {
             return Ok(());
-        };
+        }
         let digest = self.ticket.digest().ok_or(ClaimError::Unavailable)?;
         let name = format!(".nika-approval-{digest}.claimed");
-        match dir.write_once(&name, &format!("{digest}\n")) {
-            Ok(()) => Ok(()),
-            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Err(ClaimError::Consumed),
-            Err(_) => Err(ClaimError::Unavailable),
+        let write = |dir: &nika_fs::OwnedDir| dir.write_once(&name, &format!("{digest}\n"));
+        match dirs.iter().map(write).find_map(Result::err) {
+            None => Ok(()),
+            Some(e) if e.kind() == io::ErrorKind::AlreadyExists => Err(ClaimError::Consumed),
+            Some(_) => Err(ClaimError::Unavailable),
         }
     }
 }
@@ -196,22 +198,19 @@ impl Eq for PausedApproval {}
 
 struct ApprovalClaim {
     consumed: AtomicBool,
-    dir: Option<nika_fs::OwnedDir>,
+    dirs: Mutex<Vec<nika_fs::OwnedDir>>,
 }
 
 impl ApprovalClaim {
     fn ephemeral() -> Self {
         Self {
             consumed: AtomicBool::new(false),
-            dir: None,
+            dirs: Mutex::new(Vec::new()),
         }
     }
 
-    fn durable(dir: nika_fs::OwnedDir) -> Self {
-        Self {
-            consumed: AtomicBool::new(false),
-            dir: Some(dir),
-        }
+    fn stores(&self) -> io::Result<std::sync::MutexGuard<'_, Vec<nika_fs::OwnedDir>>> {
+        self.dirs.lock().map_err(|_| io::ErrorKind::Other.into())
     }
 }
 
