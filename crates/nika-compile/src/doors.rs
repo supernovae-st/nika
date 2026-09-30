@@ -151,7 +151,7 @@ pub fn replay(
 /// the bytes it emits, so a judgment of another clause, request or candidate settles nothing.
 /// A judged field the record carries is never read. With `whole`, the whole request waits for
 /// its own judgment too (the first candidate of a model's plan); a native record's whole
-/// request always does ([`native_replay`]). Every gate of [`replay`] (anchoring, binding,
+/// request always does (`native_replay`). Every gate of [`replay`] (anchoring, binding,
 /// unknown work, unfed plan) runs before, unchanged.
 ///
 /// # Errors

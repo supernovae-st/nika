@@ -97,7 +97,7 @@ impl Composer {
     }
 
     /// The rows the buffer needs at `width`, at least one: each line wrapped
-    /// the way the text area wraps it ([`WRAP`]), so the live area grows
+    /// the way the text area wraps it (`WRAP`), so the live area grows
     /// with a multi-line draft and never cuts its last row.
     #[must_use]
     pub fn rows(&self, width: u16) -> u16 {
