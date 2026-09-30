@@ -23,7 +23,8 @@ cargo binstall --git https://github.com/supernovae-st/nika nika-cli
 (`cargo install cargo-binstall` first if missing. The crate is named
 `nika-cli`; the installed binary is `nika`.)
 
-**Nix (builds the pinned release source via the flake):**
+**Nix (builds the default branch via the flake; append `/<tag>` to the
+flake reference, e.g. `github:supernovae-st/nika/<tag>`, to build a release):**
 
 ```sh
 nix profile install github:supernovae-st/nika
@@ -84,7 +85,7 @@ nika try 01-hello --model ollama/qwen3.5:4b
 ## 4 · Wire nika as an MCP server (optional)
 
 `nika mcp` speaks MCP on stdio — read-only authoring tools (check ·
-explain · try · catalog · …). For known clients, wiring is one
+explain · examples · catalog · …). For known clients, wiring is one
 idempotent command: `nika wire --help` lists the supported hosts.
 Manual shape for anything else:
 
@@ -101,6 +102,8 @@ rm -rf ~/.nika         # traces + caches · ask the human before deleting
 
 ## After install — authoring
 
-Read [`AGENTS.md`](AGENTS.md), the authoring contract for agents. The
+Read the authoring skill
+([`nika-authoring/SKILL.md`](.agents/plugins/nika/skills/nika-authoring/SKILL.md)),
+which [`AGENTS.md`](AGENTS.md) routes workflow authoring to. The
 short form: `nika check <file>` before every handoff — exit 0 is the
 bar, and the diagnostics teach the exact fix when it is not.

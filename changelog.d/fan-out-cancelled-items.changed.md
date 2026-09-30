@@ -3,8 +3,8 @@
   item without a recorded outcome read `never_started`, including items that had
   already begun and sent their requests. A started item that is abandoned
   without a recorded outcome now reads `cancelled`. Only an item that never
-  began keeps `never_started`. Recorded outcomes, outputs and the immediate
-  `fail_fast` stop are unchanged, and the remaining items are never drained.
+  began keeps `never_started`. Recorded outcomes and outputs are unchanged,
+  and the remaining items are never drained.
   Neither word says whether a provider billed a request (the ledger does). Paged
   tables gain an `items_cancelled` count, always present (0 included). Readers
   accept a paged table without that count only when it has no cancelled rows.

@@ -11,10 +11,11 @@
   with jq's lenient `tonumber`: « 1,5 » became 1, « Infinity » an infinite
   value, an empty cell silently dropped its record, and a ranking put
   null last and any text above every number. Every such value is now a
-  finite JSON number or a plain decimal text (« 150 », « -3.5 »); any
-  other value stops the run with the column and the value named, before
-  anything is written. Plans recorded by earlier versions replay
-  unchanged.
+  finite JSON number or a text in the JSON number grammar (« 150 »,
+  « -3.5 », « 1.5e2 »); an overflowing value (« 1e999 »), `NaN`,
+  `Infinity` or any other text stops the run with the column and the
+  value named, before anything is written. Plans recorded by earlier
+  versions replay unchanged.
   **A column holding values that are not numbers is asked, not guessed.**
   « keep only the rows whose amount is above 100 » over a file whose
   amounts include null, true, « n-a » or a list was READY and then failed

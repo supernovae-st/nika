@@ -4,6 +4,7 @@
     and `…002` whatever the order.
   - A threshold is compared as the request states it.
   - When a ranking's cut falls between different records with the same value, the run stops
-    instead of picking one by input order. Exact copies of a record still count as that
-    record.
+    instead of picking one by input order, unless the request states that file order breaks
+    ties: that order is then kept through the limit. Exact copies of a record still count as
+    that record.
   - Plans saved before this change replay unchanged and gain the exact comparison.

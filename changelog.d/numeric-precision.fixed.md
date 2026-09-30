@@ -4,6 +4,8 @@
     very large identifier used to be rewritten as `1.2345678901234568e29`, and a fine decimal
     such as `1.000000000000000001` as `1.0`, with the run still succeeding.
   - Any number the workflow may read or write now either passes unchanged or stops the run at
-    the decode, naming the number and what it would have become.
+    the decode, naming the number and what it would have become. When one generated rule is
+    the records' only consumer and fixes what it writes, only the fields it reads are
+    checked, so a column the output drops no longer stops the run.
   - Records a lookup selects are checked the same way.
   - Ordinary numbers (integers, decimals like `0.1`, `2.5e-3`, `1e2`) pass exactly as before.

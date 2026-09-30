@@ -161,14 +161,16 @@ curl -LsSf https://nika.sh/install.sh | sh
 <summary>Homebrew, npm, a release archive, Nix or Windows</summary>
 
 - **Homebrew:** `brew install supernovae-st/tap/nika`
-- **npm**, the same binary plus a TypeScript client:
+- **npm**, the binary plus a TypeScript client:
   `npm install @supernovae-st/nika` (the `nika` command lands in
-  `node_modules/.bin`)
+  `node_modules/.bin`). The npm package can trail the latest release:
+  check `nika --version`.
 - **A release archive:** download one from the
   [latest release](https://github.com/supernovae-st/nika/releases/latest);
   every release ships SLSA provenance you can verify. The
   [install guide](https://nika.sh/install) shows how.
-- **Nix:** the repository has a flake.
+- **Nix:** the repository has a flake. It builds the default branch,
+  which can be ahead of the latest release.
 - **Windows:** use WSL2. Native Windows binaries are not shipped yet.
 
 </details>
@@ -206,8 +208,10 @@ not.
 > [!TIP]
 > Nika works only inside the folder you start it in. `/show` prints the
 > proposal's exact bytes, `/meaning` maps your request clause by clause,
-> and `no` discards it. The [Session guide](docs/usage/conversational-session.md)
-> covers questions, changes, spending ceilings and `/restore`.
+> and `no` discards it. `Ctrl+T` switches the view to full screen and back,
+> and `nika --plain` gives the same Session as plain lines. The
+> [Session guide](docs/usage/conversational-session.md) covers questions,
+> changes, spending ceilings and `/restore`.
 
 ### 3 · Add a model
 
@@ -308,7 +312,8 @@ file for you, and the check keeps it honest:
 ## Know the limits
 
 - **Nika is pre-1.0.** The Session was qualified on six synthetic tasks
-  with one macOS installation ([qualification note](docs/qa/delivery-a-2026-09.md)).
+  with one macOS installation of an identified development build, not the
+  released binary ([qualification note](docs/qa/delivery-a-2026-09.md)).
   That is not a general reliability claim.
 - **Some requests cannot be expressed yet.** Nika then says what stopped it
   and writes nothing.
@@ -318,7 +323,8 @@ file for you, and the check keeps it honest:
   authoring uses the language card built into the binary.
 - **This README follows the source tree.** An older installed release may
   lack what it describes: compare `nika --version` with the
-  [changelog](CHANGELOG.md).
+  [changelog](CHANGELOG.md). What `main` carries beyond the latest release
+  is described one file per change in [`changelog.d/`](changelog.d/).
 
 <details>
 <summary><b>The four building blocks</b></summary>

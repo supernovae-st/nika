@@ -16,18 +16,23 @@ leave records you can inspect.
 
 This guide describes the engine in this repository. An installed release older
 than this source does not have every feature described here: compare
-`nika --version` with the [changelog](../../CHANGELOG.md).
+`nika --version` with the [changelog](../../CHANGELOG.md). What this source
+carries beyond the latest release is described one file per change in
+[`changelog.d/`](../../changelog.d/).
 
 ## Before you start
 
-- [Install Nika](../../README.md#start-here), then run `nika` from the folder
+- [Install Nika](../../README.md#try-it-in-two-minutes), then run `nika` from the folder
   you want to work in. That folder is the Session's project root. Nika works
   only under it: it lists the workflows there, reads the files your request
   names, and proposes new files inside it.
-- The full-screen view is the default on an interactive terminal. `nika --plain`
-  (or `NIKA_TUI=0`) opens the same Session as plain lines, for screen readers,
-  recorders and scripts. When the terminal cannot host the full-screen view,
-  the plain view opens instead. When its input or output is not a terminal,
+- On an interactive terminal, `nika` opens the terminal view inline, at the
+  bottom of the terminal: finished blocks stay in its own scrollback.
+  `Ctrl+T` switches it to full screen and back (`Esc` also returns), and
+  `Alt+Enter` breaks a line. `nika --plain` (or `NIKA_TUI=0`) opens the same
+  Session as plain lines, for screen readers, recorders and scripts. When the
+  terminal cannot host the terminal view, the plain view opens instead. When
+  its input or output is not a terminal,
   such as a pipe, `nika` prints a welcome card and does not open a Session.
 - `/help` lists the commands. `/quit` closes the Session.
 
@@ -265,7 +270,7 @@ clause by clause.
 - When a run pauses at an approval step, the Session shows that step's
   question and your answer resumes the same run. Nothing answers for you.
   Answer a waiting approval before you ask for another run.
-- When a run's cost cannot be estimated, the full-screen view asks a separate
+- When a run's cost cannot be estimated, the terminal view asks a separate
   `yes / no / details` question that approves that one run only.
 - The qualified sequence is review, `yes`, then a separate `run it`. It does not
   cover stating a run ceiling while a proposal still waits for its `yes`.
@@ -334,7 +339,7 @@ Mistral endpoints, require a fresh Run cost review if their exact route and
 model are not admitted. Scripts and CI invocations without a review channel
 refuse before dispatch. The production Serve backend also refuses those routes:
 HTTP jobs are queued normally, then settle as `failed` / `admission_refused`
-before any model or tool effect. Resident schedule fires use the same gate. The full-screen Session and interactive local
+before any model or tool effect. Resident schedule fires use the same gate. The terminal Session and interactive local
 `nika run` can ask for this choice; an explicit `--cost-review-stdio` host must
 implement the review exchange. A workflow's saved ceiling is not that choice.
 
