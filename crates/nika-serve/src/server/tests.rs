@@ -318,12 +318,14 @@ impl ExecutionBackend for TestBackend {
     }
 }
 
+/// The grace only bounds a clean stop (the timeout tests use their own limits):
+/// a stop returns once drained, so 10 s costs nothing and holds on a loaded host.
 pub(super) fn limits() -> ServerLimits {
     ServerLimits::new(
         1024,
         Duration::from_secs(2),
         Duration::from_secs(2),
-        Duration::from_millis(200),
+        Duration::from_secs(10),
         4,
         16,
         64,
