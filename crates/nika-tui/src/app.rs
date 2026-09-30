@@ -124,6 +124,8 @@ struct Shell<C: Conversation> {
     deferred: VecDeque<UiEvent>,
     /// The conversation's slash commands, for `Tab`.
     commands: Vec<String>,
+    /// Words were typed into the composer while the current turn ran.
+    typed_live: bool,
 }
 
 /// A terminal the renderer holds, between [`enter`] and [`run_on`].
@@ -186,6 +188,7 @@ pub fn run_on<C: Conversation + 'static>(
         submitted: 0,
         deferred: VecDeque::new(),
         commands: Vec::new(),
+        typed_live: false,
     };
     if let Some(title) = shell.options.title.as_deref() {
         // The previous title rides the terminal's stack; the restore pops it.
@@ -331,6 +334,78 @@ fn set_aside(composer: &mut Composer, typed: Vec<UiEvent>) -> Vec<UiEvent> {
         }
     }
     kept
+}
+
+/// What the busy loop does after an event heard while a turn runs.
+enum Heard {
+    /// Leave now, with this exit.
+    Leave(Exit),
+    /// The draft, the hint or the scroll changed: draw.
+    Redraw,
+    /// Nothing to draw now.
+    Nothing,
+}
+
+/// What a key does while Nika works.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Busy {
+    /// An edit of the draft, live: a word, a correction, a line break, a
+    /// history recall, a completion.
+    Edit,
+    /// A bare `Enter`: nothing is sent while Nika works.
+    Hold,
+    /// Scroll the transcript one block back (a full screen).
+    Older,
+    /// Scroll the transcript one block forward (a full screen).
+    Newer,
+    /// Anything else: it waits for the turn.
+    Later,
+}
+
+/// The hint row's words when `Enter` is pressed while Nika works.
+const ENTER_WAITS: &str = "Nika is working · Enter sends when it is your turn";
+
+/// Sort a key typed while a turn runs in `presentation` (`Ctrl+C` is heard
+/// before this).
+fn during_turn(presentation: Presentation, key: KeyEvent) -> Busy {
+    let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+    let alt = key.modifiers.contains(KeyModifiers::ALT);
+    let shift = key.modifiers.contains(KeyModifiers::SHIFT);
+    let full_screen = presentation != Presentation::Inline;
+    match key.code {
+        KeyCode::Enter if alt || shift || ctrl => Busy::Edit,
+        KeyCode::Enter => Busy::Hold,
+        KeyCode::Char('j') if ctrl => Busy::Edit,
+        KeyCode::Char(_) if !ctrl => Busy::Edit,
+        KeyCode::PageUp if full_screen => Busy::Older,
+        KeyCode::PageDown if full_screen => Busy::Newer,
+        KeyCode::Backspace
+        | KeyCode::Delete
+        | KeyCode::Left
+        | KeyCode::Right
+        | KeyCode::Home
+        | KeyCode::End
+        | KeyCode::Up
+        | KeyCode::Down
+        | KeyCode::Tab => Busy::Edit,
+        _ => Busy::Later,
+    }
+}
+
+/// The notice when a spending question clears the draft typed while Nika
+/// worked: that question takes only an answer typed after it shows.
+fn cleared_notice(draft: &str, ascii: bool) -> String {
+    let typed = typed_notice(draft, ascii);
+    let kept = if ascii {
+        " - it is in the box, not sent"
+    } else {
+        " · it is in the box, not sent"
+    };
+    let sep = if ascii { " - " } else { " · " };
+    format!(
+        "{}{sep}cleared: this cost question takes only an answer typed after it",
+        typed.strip_suffix(kept).unwrap_or(&typed)
+    )
 }
 
 /// The notice that says where the typeahead went: what is in the box (the
@@ -516,6 +591,11 @@ impl<C: Conversation + 'static> Shell<C> {
             TurnEnd::Left(exit) => return Ok(Submitted::Left(exit)),
         };
         self.state.busy = None;
+        // The turn is over: a hint about it (« Enter sends when it is your
+        // turn ») goes with it, and a transcript scrolled back while Nika
+        // worked returns to its end, where the answer is.
+        self.state.completion = None;
+        self.state.focus_scroll = 0;
         if started.elapsed() >= BELL_AFTER && !self.options.reduced_motion {
             // One bell: the human who looked away during a long turn is
             // called back; never for a short one, never under reduced motion.
@@ -550,6 +630,17 @@ impl<C: Conversation + 'static> Shell<C> {
 
     /// Paint before accepting a fresh answer, retaining cancellation signals.
     fn fresh_input(&mut self, broker: &mut Broker) -> io::Result<Option<Exit>> {
+        // A spending question takes only an answer typed after it shows:
+        // what was typed while Nika worked is cleared, and a notice says so.
+        let draft = self.composer.text();
+        if !draft.trim().is_empty() {
+            self.composer.clear();
+            let notice = cleared_notice(&draft, self.state.ascii);
+            self.state
+                .transcript
+                .push(Committed::new(Kind::Notice, notice));
+            self.commit_inline()?;
+        }
         // Paint the question before accepting input; reveal its reply prompt
         // only after the broker has discarded pre-question typeahead.
         let waiting = std::mem::replace(&mut self.state.waiting, Waiting::Free);
@@ -587,10 +678,11 @@ impl<C: Conversation + 'static> Shell<C> {
     fn take_typeahead(&mut self, broker: &mut Broker) -> io::Result<Vec<UiEvent>> {
         let mut typed: Vec<UiEvent> = self.deferred.drain(..).collect();
         typed.extend(broker.discard_typeahead()?);
-        if typed
-            .iter()
-            .any(|event| matches!(event, UiEvent::Key(_) | UiEvent::Paste(_)))
-        {
+        let burst = self.typed_live
+            || typed
+                .iter()
+                .any(|event| matches!(event, UiEvent::Key(_) | UiEvent::Paste(_)));
+        if burst {
             let window = std::time::Instant::now();
             while window.elapsed() < DEFUSE_WINDOW {
                 match broker.try_recv() {
@@ -728,9 +820,9 @@ impl<C: Conversation + 'static> Shell<C> {
     /// count in the row, and an interruption is HEARD while the turn runs.
     /// A call to a seat cannot be recalled: one `Ctrl+C` warns (« again
     /// leaves now »), a second one or `SIGTERM` leaves at once with the
-    /// terminal restored, the call left to die with the process. Keys
-    /// typed ahead wait for the turn. A panic in the turn resumes here
-    /// (the panic hook has restored the terminal).
+    /// terminal restored, the call left to die with the process. The
+    /// composer stays usable meanwhile ([`Self::hear`]). A panic in the turn
+    /// resumes here (the panic hook has restored the terminal).
     fn run_turn(&mut self, line: &str, broker: &mut Broker) -> io::Result<TurnEnd> {
         let (tx, rx) = mpsc::channel::<String>();
         let (done_tx, done_rx) = mpsc::channel::<(C, Turn)>();
@@ -745,6 +837,7 @@ impl<C: Conversation + 'static> Shell<C> {
                 let turn = conversation.submit_with(&line, &tx);
                 let _ = done_tx.send((conversation, turn));
             })?;
+        self.typed_live = false;
         let started = std::time::Instant::now();
         let mut base = self.state.busy.clone();
         let mut last_done: Option<String> = None;
@@ -798,8 +891,10 @@ impl<C: Conversation + 'static> Shell<C> {
             }
             let was_armed = armed;
             while let Some(event) = broker.try_recv() {
-                if let Some(exit) = self.hear(event, &mut armed) {
-                    return Ok(TurnEnd::Left(exit));
+                match self.hear(event, &mut armed) {
+                    Heard::Leave(exit) => return Ok(TurnEnd::Left(exit)),
+                    Heard::Redraw => shown = u64::MAX,
+                    Heard::Nothing => {}
                 }
             }
             if armed != was_armed {
@@ -825,17 +920,63 @@ impl<C: Conversation + 'static> Shell<C> {
         }
     }
 
-    /// One event heard while a turn runs: an interruption acts now (the
-    /// exit to leave with, once armed), anything else waits for the turn.
-    fn hear(&mut self, event: UiEvent, armed: &mut bool) -> Option<Exit> {
-        match event {
-            UiEvent::Signal(Signal::Terminate) => Some(Exit::Terminated),
-            UiEvent::Closed => Some(Exit::Closed),
-            UiEvent::Signal(Signal::Interrupt) => Self::arm(armed),
-            UiEvent::Key(key) if is_ctrl_c(&key) => Self::arm(armed),
+    /// One event heard while a turn runs. An interruption acts now (the
+    /// exit to leave with, once armed). The composer stays usable: words,
+    /// pastes and edits land in the draft as they are typed, a bare `Enter`
+    /// sends nothing and the hint row says when it will, and in a full
+    /// screen the page keys scroll the transcript. Every other event waits
+    /// for the turn. Once the turn ends on a decision, the typeahead law
+    /// keeps the draft unsent ([`Self::set_aside_typeahead`]).
+    fn hear(&mut self, event: UiEvent, armed: &mut bool) -> Heard {
+        let key = match event {
+            UiEvent::Signal(Signal::Terminate) => return Heard::Leave(Exit::Terminated),
+            UiEvent::Closed => return Heard::Leave(Exit::Closed),
+            UiEvent::Signal(Signal::Interrupt) => {
+                return Self::arm(armed).map_or(Heard::Nothing, Heard::Leave);
+            }
+            UiEvent::Key(key) if is_ctrl_c(&key) => {
+                return Self::arm(armed).map_or(Heard::Nothing, Heard::Leave);
+            }
+            UiEvent::Paste(text) => {
+                self.state.completion = None;
+                self.composer.paste(&text);
+                self.typed_live = true;
+                return Heard::Redraw;
+            }
+            UiEvent::Key(key) => key,
             other => {
                 self.deferred.push_back(other);
-                None
+                return Heard::Nothing;
+            }
+        };
+        match during_turn(self.state.presentation, key) {
+            Busy::Edit => {
+                self.state.completion = None;
+                self.typed_live = true;
+                if self.composer.handle(key) == ComposerAction::Complete
+                    && let crate::composer::Completion::Several(list) =
+                        self.composer.complete(&self.commands)
+                {
+                    self.state.completion = Some(list.join("  "));
+                }
+                Heard::Redraw
+            }
+            Busy::Hold => {
+                self.state.completion = Some(ENTER_WAITS.to_owned());
+                Heard::Redraw
+            }
+            Busy::Older => {
+                let max = self.state.transcript.len().saturating_sub(1);
+                self.state.focus_scroll = (self.state.focus_scroll + 1).min(max);
+                Heard::Redraw
+            }
+            Busy::Newer => {
+                self.state.focus_scroll = self.state.focus_scroll.saturating_sub(1);
+                Heard::Redraw
+            }
+            Busy::Later => {
+                self.deferred.push_back(UiEvent::Key(key));
+                Heard::Nothing
             }
         }
     }
@@ -1006,6 +1147,57 @@ mod typeahead_tests {
         ]));
         assert!(!ends_on_decision(&[say]));
         assert!(!ends_on_decision(&[]));
+    }
+
+    /// While Nika works the composer takes words and edits, a bare `Enter`
+    /// is held, the page keys scroll only a full screen, and the rest waits.
+    #[test]
+    fn keys_typed_while_nika_works_edit_hold_scroll_or_wait() {
+        use super::{Busy, during_turn};
+        use crate::model::Presentation;
+        let during = |presentation, code, modifiers| {
+            during_turn(presentation, KeyEvent::new(code, modifiers))
+        };
+        let inline = Presentation::Inline;
+        let none = KeyModifiers::NONE;
+        for code in [
+            KeyCode::Char('y'),
+            KeyCode::Backspace,
+            KeyCode::Left,
+            KeyCode::Up,
+            KeyCode::Tab,
+        ] {
+            assert_eq!(during(inline, code, none), Busy::Edit, "{code:?}");
+        }
+        assert_eq!(during(inline, KeyCode::Enter, none), Busy::Hold);
+        assert_eq!(
+            during(inline, KeyCode::Enter, KeyModifiers::ALT),
+            Busy::Edit
+        );
+        assert_eq!(
+            during(inline, KeyCode::Char('j'), KeyModifiers::CONTROL),
+            Busy::Edit
+        );
+        assert_eq!(during(inline, KeyCode::PageUp, none), Busy::Later);
+        let focus = Presentation::Focus;
+        assert_eq!(during(focus, KeyCode::PageUp, none), Busy::Older);
+        assert_eq!(during(focus, KeyCode::PageDown, none), Busy::Newer);
+        for later in [
+            (KeyCode::Char('t'), KeyModifiers::CONTROL),
+            (KeyCode::Esc, none),
+            (KeyCode::F(6), none),
+        ] {
+            assert_eq!(during(inline, later.0, later.1), Busy::Later, "{later:?}");
+        }
+    }
+
+    #[test]
+    fn a_cleared_draft_is_named_and_why() {
+        assert_eq!(
+            super::cleared_notice("yes", false),
+            "you typed « yes » while Nika worked · cleared: this cost question takes only an answer typed after it"
+        );
+        assert!(super::cleared_notice("yes", true).is_ascii());
     }
 
     #[test]

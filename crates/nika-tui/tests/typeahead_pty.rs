@@ -7,9 +7,11 @@
 #![allow(clippy::disallowed_types)]
 //! The typeahead law on a real PTY: `yes⏎` typed while Nika works never
 //! answers the decision the turn ends on. `nika-tui-proto --demo-pace` holds
-//! each scripted turn busy; the keys typed meanwhile land in the box once the
-//! question, the proposal or the gate is painted, a dim notice says so, and
-//! only the human's own `Enter`, after the decision is on screen, sends them.
+//! each scripted turn busy; the words typed meanwhile show in the composer at
+//! once, an `Enter` sends nothing and says so, the draft stays in the box
+//! once the question, the proposal or the gate is painted, a dim notice says
+//! so, and only the human's own `Enter`, after the decision is on screen,
+//! sends it. In the focus view the page keys scroll while Nika works.
 //!
 //! The state is read from what the renderer draws for it: the prompts
 //! `reply`, `answer` and `nika ›`, and for a proposal its hint row's last word
@@ -49,6 +51,8 @@ const PACE_MS: &str = "900";
 const NOTICE: &str = "it is in the box, not sent";
 /// How long a decision is watched for an answer it must not get.
 const WATCH: Duration = Duration::from_millis(1500);
+/// The fixture's first question, by a token the diff renderer never splits.
+const FIRST_QUESTION: &str = "const.source_path";
 
 fn bin() -> &'static str {
     env!("CARGO_BIN_EXE_nika-tui-proto")
@@ -57,8 +61,20 @@ fn bin() -> &'static str {
 /// Spawn the paced proto inline on an 80 × 24 PTY, answering the probe and
 /// the viewport's cursor report, and wait for the free prompt.
 fn spawn() -> (LoggedSession, Tee) {
+    spawn_with(&[], 80, 24)
+}
+
+/// The same in the focus view on a 60 × 8 PTY: four transcript rows above
+/// the rule and the live area, so a short exchange already overflows them.
+fn spawn_focus() -> (LoggedSession, Tee) {
+    spawn_with(&["--focus"], 60, 8)
+}
+
+fn spawn_with(args: &[&str], cols: u16, rows: u16) -> (LoggedSession, Tee) {
+    let inline = !args.contains(&"--focus");
     let mut cmd = Command::new(bin());
     cmd.args(["--demo-pace", PACE_MS])
+        .args(args)
         .env("TERM", "xterm-256color")
         .env("NO_COLOR", "1");
     let session = OsSession::spawn(cmd).expect("pty spawn");
@@ -68,11 +84,20 @@ fn spawn() -> (LoggedSession, Tee) {
     session
         .expect("\x1b[c")
         .expect("the terminal probe asks the device attributes");
-    session.send("\x1b[?62;22c").expect("answer the attributes");
+    // The size is set once the binary runs, before the shell reads it.
     session
-        .expect("\x1b[6n")
-        .expect("the inline viewport asks where the cursor is");
-    session.send("\x1b[24;1R").expect("answer the report");
+        .get_process_mut()
+        .set_window_size(cols, rows)
+        .expect("size the terminal");
+    session.send("\x1b[?62;22c").expect("answer the attributes");
+    if inline {
+        session
+            .expect("\x1b[6n")
+            .expect("the inline viewport asks where the cursor is");
+        session
+            .send(format!("\x1b[{rows};1R"))
+            .expect("answer the report");
+    }
     expect_or_dump(&mut session, &tee, "nika ›", "the free prompt");
     (session, tee)
 }
@@ -196,6 +221,81 @@ fn yes_typed_while_a_run_reaches_its_gate_never_answers_it() {
         &tee,
         "nika ›",
         "the human's answer, sent after the gate was on screen, settled the run",
+    );
+    leave(&mut session);
+}
+
+/// While Nika works the composer stays live: pasted words show at once, a
+/// bare `Enter` sends nothing and the hint row says when it will; the turn
+/// ends on the question with the draft in the box, unsent, until the human
+/// presses `Enter` once the question is on screen.
+#[test]
+fn words_typed_while_nika_works_show_at_once_and_enter_waits() {
+    let (mut session, tee) = spawn();
+    session.send("digest my notes\r").expect("an intent");
+    std::thread::sleep(Duration::from_millis(150));
+    session
+        .send("\x1b[200~livedraft\x1b[201~")
+        .expect("a paste while Nika works");
+    expect_or_dump(
+        &mut session,
+        &tee,
+        "livedraft",
+        "the draft shows while the turn runs",
+    );
+    session.send("\r").expect("Enter while Nika works");
+    expect_or_dump(
+        &mut session,
+        &tee,
+        "sends",
+        "the hint row says Enter sends when it is the human turn",
+    );
+    expect_or_dump(&mut session, &tee, NOTICE, "the turn ended on the question");
+    expect_or_dump(&mut session, &tee, "reply", "the question's prompt");
+    // The busy hint left with the turn: the question's own hint is back.
+    expect_or_dump(&mut session, &tee, "default", "the question's hint row");
+    never(
+        &mut session,
+        &tee,
+        "/show",
+        "an Enter pressed while Nika worked answered the question",
+    );
+    session.send("\r").expect("the human's own Enter");
+    expect_or_dump(
+        &mut session,
+        &tee,
+        "/show",
+        "the draft, sent by the human, answered the question",
+    );
+    leave(&mut session);
+}
+
+/// In the focus view the page keys scroll the transcript while Nika works,
+/// and the answer is on screen once the turn ends. The four transcript rows
+/// hold the first line (a token no other row holds) until the answer's echo
+/// pushes it out of view, so it is written again only when a block back is
+/// shown; the proposal's identity row is drawn only when the transcript is
+/// back at its end. (Sixty columns cut the proposal's hint before `/show`.)
+#[test]
+fn the_page_keys_scroll_the_focus_transcript_while_nika_works() {
+    let (mut session, tee) = spawn_focus();
+    session.send("qzxjqzxj\r").expect("a first line");
+    expect_or_dump(&mut session, &tee, FIRST_QUESTION, "the fixture asks");
+    read_it();
+    session.send("./notes/lundi.md\r").expect("an answer");
+    std::thread::sleep(Duration::from_millis(150));
+    session.send("\x1b[5~").expect("PgUp while Nika works");
+    expect_or_dump(
+        &mut session,
+        &tee,
+        "qzxjqzxj",
+        "one block back while the turn runs: the first line is shown again",
+    );
+    expect_or_dump(
+        &mut session,
+        &tee,
+        "9f3c1a",
+        "the turn ended on the proposal: the transcript is back at its end",
     );
     leave(&mut session);
 }
