@@ -107,7 +107,8 @@ fn the_answered_cadence_binds_and_another_unbindable_period_is_asked_again() {
             .iter()
             .any(|d| d.kind == DiagnosticKind::Missed
                 && d.target == "trigger.cadence"
-                && d.message.contains("cannot bind either")),
+                && d.message.contains("cannot bind as said")
+                && d.message.contains("start date")),
         "{again:#?}"
     );
     let trigger = again.requested_trigger.as_ref().expect("a trigger");

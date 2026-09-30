@@ -137,7 +137,9 @@ fn bind_cadence(
     use super::types::{DiagnosticKind, QuestionType};
     const KEY: &str = "trigger.cadence";
     let hint = trigger.source_hint.clone().unwrap_or_default();
-    let unbound = multiple::unbindable(&phrase_words(&hot::fold(&hint)));
+    // A multiple the words anchor on a start date (« every other monday at 9 from
+    // 2026-10-05 ») is bound: the interval form holds it, and `cron` already carries it.
+    let unbound = multiple::unbindable(&phrase_words(&hot::fold(&hint))) && trigger.cron.is_none();
     if (trigger.cadence.is_some() || trigger.at.is_some()) && !unbound {
         return;
     }
@@ -148,13 +150,15 @@ fn bind_cadence(
             let words = phrase_words(&folded);
             let (cadence, at) = stated_cadence(&words);
             let said = answer.trim();
-            if multiple::unbindable(&words) {
+            let anchored = schedule::fields(&answer);
+            let multiple = multiple::unbindable(&words);
+            if multiple && anchored.is_none() {
                 super::finding(
                     out,
                     DiagnosticKind::Missed,
                     KEY,
                     format!(
-                        "« {said} » is a period a schedule cannot bind either: answer a day, a weekday, a named weekday at a time or an hour or minute interval, or \"manual\"."
+                        "« {said} » is a period a schedule cannot bind as said: an interval of weeks needs its start date (« every other monday at 09:00 from 2026-10-05 »); otherwise answer a day, a weekday, a named weekday at a time, the last day of the month at a time, or an hour or minute interval, or \"manual\"."
                     ),
                 );
             } else if MANUAL.contains(&words.join(" ").as_str()) {
@@ -168,9 +172,10 @@ fn bind_cadence(
                 );
                 return;
             } else if cadence.is_some() || at.is_some() {
-                trigger.cadence = cadence.map(str::to_owned);
+                // A multiple keeps no coarse label, even anchored (never `weekly`).
+                trigger.cadence = cadence.filter(|_| !multiple).map(str::to_owned);
                 trigger.at = at;
-                trigger.cron = schedule::fields(&answer);
+                trigger.cron = anchored;
                 super::finding(
                     out,
                     DiagnosticKind::Applied,
@@ -201,7 +206,7 @@ fn bind_cadence(
     }
     let question = if unbound {
         format!(
-            "The request says `{hint}`, a period a schedule cannot bind: it binds a day, a weekday, a named weekday at a time, or an hour or minute interval, never every other week or a count of days. How should it run? Answer a cadence it binds (« every Monday at 09:00 », « chaque lundi à 9h »), or \"manual\" to start each run by hand."
+            "The request says `{hint}`, a period a schedule cannot bind as said: an interval of weeks needs its start date, and a count of days or months is not bound. How should it run? Answer a cadence it binds (« every other monday at 09:00 from 2026-10-05 », « every Monday at 09:00 », « chaque lundi à 9h », « the last day of every month at 18:00 »), or \"manual\" to start each run by hand."
         )
     } else {
         format!(
@@ -462,5 +467,39 @@ mod tests {
             (Some("weekly"), Some("09:00".to_owned()))
         );
         assert_eq!(stated_cadence(&phrase_words("bientot")), (None, None));
+    }
+
+    #[test]
+    fn a_month_end_or_an_anchored_interval_on_the_plan_is_proposed_whole() {
+        // The phrase a plan carries (a model's plan record states it whole) reaches the
+        // cadence grammar's two forms; a multiple keeps no coarse label, a month end keeps
+        // `monthly` beside the exact day.
+        for (phrase, cadence, cron) in [
+            (
+                "on the last day of every month at 18:00",
+                Some("monthly"),
+                "0 18 L * *",
+            ),
+            (
+                "le dernier jour de chaque mois à 18h",
+                Some("monthly"),
+                "0 18 L * *",
+            ),
+            (
+                "every other monday at 09:00 from 2026-10-05",
+                None,
+                "every 2 weeks from 2026-10-05 09:00",
+            ),
+            (
+                "un lundi sur deux à 9h à partir du 2026-10-05",
+                None,
+                "every 2 weeks from 2026-10-05 09:00",
+            ),
+        ] {
+            let trigger = read(phrase, false);
+            assert_eq!(trigger.kind, TriggerKind::Schedule, "{phrase}");
+            assert_eq!(trigger.cadence.as_deref(), cadence, "{phrase}");
+            assert_eq!(trigger.cron.as_deref(), Some(cron), "{phrase}");
+        }
     }
 }

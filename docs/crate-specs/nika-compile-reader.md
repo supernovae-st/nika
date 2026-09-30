@@ -93,6 +93,15 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   a prohibition (`opens_negated`, the negated-sentence law), and settled with the tails. The
   six placements of the schedule fixture's cadence give the same candidate bytes and the same
   `requested_trigger`, which stays `requires_binding`: a schedule is never claimed bound.
+  A head keeps the words of the two cadence forms beyond plain fields whole, so the compiler
+  can lower them: a month end opens a head only over cadence words (« On the last day of every
+  month at 18:00, … », « Le dernier jour de chaque mois à 18h, … »; « On the last day of the
+  sprint, … » states no trigger), `on` and `last`/`dernier` are small words of a head (« Every
+  month on the last day at 18:00, … »), and an ISO start date `YYYY-MM-DD` after « from »,
+  « starting », « beginning », « à partir du », « à compter du » or « dès le » ends the head it
+  anchors, also right after the comma that closes it (« Every 2 weeks on Monday at 9:00,
+  starting 2026-10-05, … »). Anything else after that comma (a range « from … to … », « starting
+  with the oldest ticket ») stays out of the head.
 - The unnamed-destination floor keeps an output the request asks for without naming it.
   Before it, « Résume mes notes dans un fichier. » compiled READY after the model answer alone:
   one draft, no effect, the transformation ledgered as realized (S98 J02 on 53f8c640, through

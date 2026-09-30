@@ -679,10 +679,13 @@ pub struct TriggerRequirement {
     /// The cadence the words state, when they state one: `daily` · `weekdays` · `weekly`
     /// · `monthly` · `hourly` · `minutely`.
     pub cadence: Option<String>,
-    /// Exact five cron fields read from a supported complete phrase, without a timezone.
-    /// `None` means the coarse cadence/words cannot safely become a schedule: incomplete,
-    /// conflicting or unsupported. This is a proposal, never authority; the binding must
-    /// add the operator's zone, validate with `nika-cadence` and obtain fresh consent.
+    /// The exact cadence body read from a supported complete phrase, without a timezone:
+    /// five cron fields (`L` as the day of month for the last day of a month), or the
+    /// anchored interval `every N weeks from YYYY-MM-DD HH:MM` when the words give its start
+    /// date. `None` means the coarse cadence/words cannot safely become a schedule:
+    /// incomplete, conflicting or unsupported. This is a proposal, never authority; the
+    /// binding must add the operator's zone, validate with `nika-cadence` and obtain fresh
+    /// consent.
     pub cron: Option<String>,
     /// The time of day the words state, as `HH:MM`, when they state one.
     pub at: Option<String>,

@@ -15,6 +15,9 @@ use nika_compile_reader::hot;
 pub fn fields(phrase: &str) -> Option<String> {
     let folded = hot::fold(phrase);
     let phrase = folded.trim().trim_end_matches([',', '.', '!', '?']);
+    if let Some(form) = crate::forms::read(phrase) {
+        return Some(form);
+    }
     if phrase
         .chars()
         .any(|c| !c.is_alphanumeric() && !c.is_whitespace() && c != ':')

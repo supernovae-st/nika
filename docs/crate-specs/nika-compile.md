@@ -104,8 +104,17 @@ clock, and every N hours/minutes where N divides 24/60 (digits, plus one/two in
 FR/EN). Examples: every Tuesday at 09:15, chaque vendredi à 18h30, toutes les
 deux heures. The interval phase is zero on the local clock, not elapsed time;
 the activation review displays it and the canonical scheduler owns DST. Missing
-time/weekday, conflicting periods/clocks, mixed periods, monthly/alternate-week
-recurrence and non-divisor intervals retain their words and yield null `cron`.
+time/weekday, conflicting periods/clocks, mixed periods, other monthly recurrence
+and non-divisor intervals retain their words and yield null `cron`. Two forms go
+beyond five plain fields, the ones the arming grammar holds: the last day of
+every month at a clock time (« the last day of every month at 18:00 », « le
+dernier jour de chaque mois à 18h ») is `M H L * *`, and an interval of weeks
+with its start date written YYYY-MM-DD (« every other Monday at 09:00 from
+2026-10-05 », « toutes les deux semaines le lundi à 9h à partir du 2026-10-05 »)
+is `every N weeks from DATE HH:MM`, the date on the weekday the words name if
+they name one. A vaguer month end (« at the end of every month », « the last
+business day »), a date in another format, a date the calendar lacks or a word
+left over yields null `cron`.
 This does not claim unrestricted natural-language cadence understanding or add
 another cron parser. `nika-cadence` alone validates/executes the bound expression.
 
@@ -115,8 +124,11 @@ an alternating or counted day-or-longer period (« every other Monday », « eve
 frequency (« twice a week », « deux fois par semaine ») or an hour/minute
 interval that does not divide its day or hour (« every 5 hours ») keeps a null
 `cadence` and a null `cron`, keeps its time of day, and asks the mandatory
-`trigger.cadence` question before READY. Only the human's explicit replacement
-cadence or « manual » resolves it; another unbindable period is refused as an
+`trigger.cadence` question before READY, unless it is an interval of weeks the
+words anchor on a start date (then `cron` holds the anchored form and nothing is
+asked; `cadence` stays null). The question names the start date an interval of
+weeks needs. Only the human's explicit replacement cadence (an anchored interval
+included) or « manual » resolves it; another unbindable period is refused as an
 answer and the question stays. Weekly, weekday, daily and dividing-interval
 schedules are unchanged. A clause the reader does not take as a trigger stays
 an unresolved clause, never READY.
