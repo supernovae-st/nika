@@ -105,3 +105,48 @@ impl CertEffects {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn as_str_spells_every_class_on_the_wire() {
+        assert_eq!(EffectClass::Exec.as_str(), "exec");
+        assert_eq!(EffectClass::Write.as_str(), "write");
+        assert_eq!(EffectClass::Net.as_str(), "net");
+        assert_eq!(EffectClass::Tools.as_str(), "tools");
+    }
+
+    #[test]
+    fn as_str_and_serde_spell_that_name_the_same_way() {
+        for class in [
+            EffectClass::Exec,
+            EffectClass::Write,
+            EffectClass::Net,
+            EffectClass::Tools,
+        ] {
+            let wire = serde_json::to_string(&class).expect("an effect class serializes");
+            assert_eq!(wire, format!("\"{}\"", class.as_str()));
+            let back: EffectClass =
+                serde_json::from_str(&wire).expect("its own wire name reads back");
+            assert_eq!(back, class);
+        }
+    }
+
+    #[test]
+    fn classify_projects_through_as_str_in_a_stable_order() {
+        let names = |verb: &str, tool: Option<&str>| {
+            EffectClass::classify(verb, tool)
+                .into_iter()
+                .map(EffectClass::as_str)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(names("exec", None), vec!["exec"]);
+        assert_eq!(names("invoke", Some("nika:write")), vec!["write", "tools"]);
+        assert_eq!(names("invoke", Some("nika:fetch")), vec!["net", "tools"]);
+        assert_eq!(names("invoke", Some("nika:read")), vec!["tools"]);
+        assert_eq!(names("infer", None), Vec::<&str>::new());
+    }
+}

@@ -312,4 +312,114 @@ mod tests {
             Some("../secret")
         );
     }
+
+    #[test]
+    fn after_the_double_dash_a_flag_shaped_word_is_an_operand() {
+        assert_eq!(
+            file_plumbing_path_operands("cat", &["--", "-n"]),
+            vec!["-n"]
+        );
+        assert_eq!(
+            file_plumbing_path_operands("cat", &["--", "--", "-"]),
+            vec!["--"],
+            "the second `--` is an operand; `-` is stdin on either side"
+        );
+    }
+
+    #[test]
+    fn every_escape_prefix_is_its_own_door() {
+        assert!(path_leaves_workspace("/etc/passwd"), "absolute");
+        assert!(path_leaves_workspace("\\host\\share"), "windows root");
+        assert!(path_leaves_workspace("~/.ssh/id_rsa"), "home tilde");
+        assert!(path_leaves_workspace("$HOME/.netrc"), "bare $HOME");
+        assert!(path_leaves_workspace("${HOME}/.netrc"), "braced home var");
+    }
+
+    #[test]
+    fn a_dot_or_empty_segment_is_not_a_step_down() {
+        assert!(path_leaves_workspace("./../secret"));
+        assert!(path_leaves_workspace("a//../../secret"));
+        assert!(!path_leaves_workspace("./a/../b"));
+    }
+
+    #[test]
+    fn quotes_are_stripped_before_a_shell_operand_is_judged() {
+        assert_eq!(
+            file_plumbing_host_escape_shell("cat \"/etc/passwd\"", None, |_| false),
+            Some("/etc/passwd")
+        );
+        assert_eq!(
+            file_plumbing_host_escape_shell("cat '/etc/passwd'", None, |_| false),
+            Some("/etc/passwd")
+        );
+    }
+
+    #[test]
+    fn an_empty_simple_command_is_skipped_by_both_shell_scanners() {
+        assert!(!file_plumbing_computed_shell("echo hi |"));
+        assert!(file_plumbing_computed_shell("| cat ${{ inputs.p }}"));
+        assert_eq!(
+            file_plumbing_host_escape_shell("| cat /etc/passwd", None, |_| false),
+            Some("/etc/passwd")
+        );
+        assert_eq!(
+            file_plumbing_host_escape_shell("cat README.md |", None, |_| false),
+            None
+        );
+    }
+
+    #[test]
+    fn a_flag_is_not_a_shell_operand_under_an_absolute_cwd() {
+        assert_eq!(
+            file_plumbing_host_escape_shell("tail -n /var/log/syslog", Some("/srv/app"), |_| false),
+            Some("/var/log/syslog")
+        );
+    }
+
+    #[test]
+    fn an_operand_resolves_against_its_cwd_exactly_once() {
+        let cwd = Some("/srv/app");
+        assert_eq!(
+            resolve_file_operand("/etc/passwd", cwd).as_deref(),
+            Some("/etc/passwd"),
+            "an absolute operand ignores the cwd"
+        );
+        assert_eq!(
+            resolve_file_operand("~/.ssh/id_rsa", cwd).as_deref(),
+            Some("~/.ssh/id_rsa"),
+            "so does a home-relative one"
+        );
+        assert_eq!(
+            resolve_file_operand("$HOME/.netrc", cwd).as_deref(),
+            Some("$HOME/.netrc"),
+            "and an environment-rooted one"
+        );
+        assert_eq!(
+            resolve_file_operand("notes.md", cwd).as_deref(),
+            Some("/srv/app/notes.md")
+        );
+        assert_eq!(
+            resolve_file_operand("notes.md", Some("/srv/app/")).as_deref(),
+            Some("/srv/app/notes.md"),
+            "a trailing slash is a spelling, not a second separator"
+        );
+        assert_eq!(
+            resolve_file_operand("notes.md", None).as_deref(),
+            Some("notes.md"),
+            "no cwd declared: the operand is its own identity"
+        );
+        assert_eq!(
+            resolve_file_operand("notes.md", Some(".")).as_deref(),
+            Some("notes.md")
+        );
+        assert_eq!(
+            resolve_file_operand("notes.md", Some("./")).as_deref(),
+            Some("notes.md")
+        );
+        assert_eq!(
+            resolve_file_operand("notes.md", Some("${{ inputs.dir }}")),
+            None,
+            "a templated cwd has no statically knowable identity"
+        );
+    }
 }

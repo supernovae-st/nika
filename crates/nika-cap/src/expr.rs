@@ -456,4 +456,43 @@ sees only its input; pass the value in — `inputs:` (the caller), `const:` (the
             assert_ne!(probe.get("output").is_some(), expects_error, "{name}");
         }
     }
+
+    #[track_caller]
+    fn assert_exact_seconds(got: f64, want: f64) {
+        assert_eq!(got.to_bits(), want.to_bits(), "want {want}, got {got}");
+    }
+
+    #[test]
+    fn unix_seconds_is_the_exact_quotient_of_the_bound_run_start() {
+        assert_exact_seconds(JqClock::at(Timestamp::EPOCH).unix_seconds(), 0.0);
+        assert_exact_seconds(
+            JqClock::at(Timestamp::from_unix_ns(2_500_000_000)).unix_seconds(),
+            2.5,
+        );
+        assert_exact_seconds(
+            JqClock::at(Timestamp::from_unix_ns(-2_500_000_000)).unix_seconds(),
+            -2.5,
+        );
+    }
+
+    #[test]
+    fn from_system_time_keeps_a_pre_epoch_instant_negative() {
+        let before = std::time::UNIX_EPOCH - std::time::Duration::from_millis(2_500);
+        let clock = JqClock::from_system_time(before);
+        assert_eq!(clock, JqClock::at(Timestamp::from_unix_ns(-2_500_000_000)));
+        assert_exact_seconds(clock.unix_seconds(), -2.5);
+    }
+
+    #[test]
+    fn from_system_time_carries_a_post_epoch_instant_verbatim() {
+        let after = std::time::UNIX_EPOCH + std::time::Duration::from_millis(2_500);
+        assert_eq!(
+            JqClock::from_system_time(after),
+            JqClock::at(Timestamp::from_unix_ns(2_500_000_000))
+        );
+        assert_exact_seconds(
+            JqClock::from_system_time(std::time::UNIX_EPOCH).unix_seconds(),
+            0.0,
+        );
+    }
 }

@@ -879,4 +879,48 @@ mod tests {
             "no egress-capable task · no finding"
         );
     }
+
+    #[test]
+    fn the_refusal_names_the_legs_the_bypass_and_the_placement() {
+        let mut subjects = vec![
+            TrifectaSubject::new("read_notes".to_owned(), false, false),
+            TrifectaSubject::new("ask".to_owned(), false, true),
+            TrifectaSubject::new("fetch_page".to_owned(), false, false).with_ingress_source(true),
+            TrifectaSubject::new("leak".to_owned(), true, false),
+        ];
+        subjects[1].parents = vec![0];
+        subjects[3].parents = vec![1, 2];
+        let witnesses = vec![
+            TaintWitness::clean(),
+            TaintWitness::clean(),
+            TaintWitness::clean(),
+            TaintWitness::new(true, Some("fetch_page".to_owned())),
+        ];
+        let v = trifecta_violations(&full_boundary(), &subjects, &witnesses, &topo(&subjects));
+        assert_eq!(v.len(), 1, "one ungated tainted egress: {v:?}");
+        let detail = &v[0].detail;
+
+        assert!(
+            detail.contains(
+                "untrusted ingress = `fetch_page` via `permits.tools` admitting a fetch / \
+                 MCP / browsing tool (its result is untrusted content)"
+            ),
+            "{detail}"
+        );
+        assert!(
+            detail.contains("external egress via `permits.net.http`"),
+            "{detail}"
+        );
+        assert!(
+            detail.contains(
+                "the blocking gate `ask` does not dominate `leak` — its parent `fetch_page` \
+                 reaches it without crossing the gate"
+            ),
+            "{detail}"
+        );
+        assert!(
+            detail.contains("place it upstream of `read_notes` and `fetch_page`"),
+            "{detail}"
+        );
+    }
 }
