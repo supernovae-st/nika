@@ -12,6 +12,8 @@ use super::store::ShutdownPhase;
 use super::tests::{TestServer, TestWorld, auth_header, get_request, limits};
 use super::{ExecutionBackend, ExecutionDisposition, ExecutionOutcome};
 
+mod refusal_tests;
+
 #[derive(Debug)]
 pub(super) struct NoopBackend;
 

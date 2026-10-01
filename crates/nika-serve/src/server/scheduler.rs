@@ -60,7 +60,7 @@ pub(super) type LastGoodProject = Arc<Mutex<Vec<ResidentSchedule>>>;
 pub(super) type ProjectLoadFinding = Arc<Mutex<Option<String>>>;
 
 /// A schedule whose last fire attempt could not admit its workflow, by
-/// schedule id: a finding on that schedule, never fatal to the resident.
+/// origin and id: a finding on that schedule, never fatal to the resident.
 pub(super) type FireRefusals = Arc<Mutex<BTreeMap<String, String>>>;
 
 /// The reason a fire attempt was refused at admission (the file changed or
@@ -122,10 +122,9 @@ pub(super) async fn run(
                         handle_overlap(&state, candidate)?;
                         continue;
                     }
-                    let id = candidate.schedule.definition.id().to_owned();
                     match prepare_claim(&state, candidate).await {
                         Ok(Some((prepared, ledger))) => {
-                            clear_fire_refusal(&state, &id);
+                            clear_fire_refusal(&state, &key);
                             active.insert(key.clone());
                             let clock = Arc::clone(&state.clock);
                             executions.spawn_blocking(move || {
@@ -138,7 +137,7 @@ pub(super) async fn run(
                         }
                         Ok(None) => {}
                         Err(ServerError::ScheduledAdmission) => {
-                            record_fire_refusal(&state, &id, FIRE_ADMISSION_REFUSED);
+                            record_fire_refusal(&state, &key, FIRE_ADMISSION_REFUSED);
                         }
                         // A full queue is back-pressure: the beat is deferred
                         // to the next scan, the resident keeps running.
@@ -146,7 +145,7 @@ pub(super) async fn run(
                             ServerError::ExecutionQueueFull
                             | ServerError::JobStore(crate::JobStoreError::CapacityExceeded),
                         ) => {
-                            record_fire_refusal(&state, &id, FIRE_QUEUE_FULL);
+                            record_fire_refusal(&state, &key, FIRE_QUEUE_FULL);
                         }
                         // A closed queue is the authority stopping (its
                         // receiver dropped at shutdown while this fire was in
@@ -225,7 +224,9 @@ fn scan(state: &AuthorityState) -> Result<Scan, ServerError> {
     }
     let mut actions = Vec::new();
     let mut earliest = None;
+    let mut keys = BTreeSet::new();
     for schedule in schedules {
+        keys.insert(schedule_key(schedule.origin, schedule.definition.id()));
         let prior = state
             .schedules
             .decision_state(schedule.origin, schedule.definition.id())?;
@@ -267,6 +268,7 @@ fn scan(state: &AuthorityState) -> Result<Scan, ServerError> {
             _ => {}
         }
     }
+    lock(&state.fire_refusals).retain(|key, _| keys.contains(key));
     Ok(Scan { actions, earliest })
 }
 
@@ -535,7 +537,7 @@ fn generation(
     ArmGeneration::compute_resident(&definition.revision(), admitted.snapshot().digest())
 }
 
-fn lock<T>(cell: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+pub(super) fn lock<T>(cell: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     cell.lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
 }
@@ -544,12 +546,12 @@ fn set_project_load_finding(state: &AuthorityState, finding: Option<String>) {
     *lock(&state.project_load_finding) = finding;
 }
 
-fn record_fire_refusal(state: &AuthorityState, id: &str, reason: &str) {
-    lock(&state.fire_refusals).insert(id.to_owned(), reason.to_owned());
+fn record_fire_refusal(state: &AuthorityState, key: &str, reason: &str) {
+    lock(&state.fire_refusals).insert(key.to_owned(), reason.to_owned());
 }
 
-fn clear_fire_refusal(state: &AuthorityState, id: &str) {
-    lock(&state.fire_refusals).remove(id);
+fn clear_fire_refusal(state: &AuthorityState, key: &str) {
+    lock(&state.fire_refusals).remove(key);
 }
 
 fn publish_refusals(state: &AuthorityState, refused: Vec<RefusedProjectSchedule>) {
