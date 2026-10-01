@@ -49,9 +49,11 @@ use nika_runtime::{
 pub mod access;
 mod caller;
 pub mod inputs;
+mod rehearsal;
 pub mod run_cost;
 
 pub use nika_providers::ExecutionAccessPlan;
+pub use rehearsal::RehearsalPlanRefusal;
 
 /// Metadata a child trace lane commits into its parent's trace-forest row.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -1488,3 +1490,6 @@ fn closure_digest(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod rehearsal_tests;

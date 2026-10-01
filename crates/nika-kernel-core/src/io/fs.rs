@@ -13,6 +13,9 @@ use bytes::Bytes;
 #[cfg(test)]
 mod legacy_write_tests;
 
+#[cfg(test)]
+mod pin_default_tests;
+
 /// Metadata about a filesystem entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -79,6 +82,21 @@ pub enum FsError {
         reason: String,
     },
 
+    /// A path component is a symlink the operation refuses to follow.
+    #[error("symlink refused: {path}")]
+    SymlinkRefused {
+        /// The path whose component is a symlink.
+        path: String,
+    },
+
+    /// The backend states no pin, so a pinned read is refused instead of
+    /// being served unpinned.
+    #[error("pinned read unavailable: {path}")]
+    PinUnavailable {
+        /// The path the pinned read was asked for.
+        path: String,
+    },
+
     /// Any other I/O failure.
     #[error("filesystem I/O error: {reason}")]
     Io {
@@ -137,6 +155,25 @@ pub trait FsRead: Send + Sync {
     ///
     /// CANCEL SAFETY: cancel-safe (read-only).
     async fn canonicalize(&self, path: &Path) -> Result<PathBuf, FsError>;
+
+    /// Read a file's entire contents through the backend's pin, so a name a
+    /// boundary judged cannot be swapped for a symlink between that judgment
+    /// and the open.
+    ///
+    /// What a pin covers is stated by each backend. The default refuses with
+    /// [`FsError::PinUnavailable`] without any I/O: a backend with no pin never
+    /// serves an unpinned read in its place.
+    ///
+    /// CANCEL SAFETY: cancel-safe (read-only).
+    fn read_pinned(
+        &self,
+        path: &Path,
+    ) -> impl std::future::Future<Output = Result<Bytes, FsError>> + Send {
+        let refused = FsError::PinUnavailable {
+            path: path.display().to_string(),
+        };
+        async move { Err(refused) }
+    }
 }
 
 /// Write filesystem operations.

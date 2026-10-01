@@ -17,7 +17,9 @@ globset     = { workspace = true }  # FsList::glob matcher · literal_separator(
 nix         = { workspace = true, features = ["fs", "dir"] } # descriptor-rooted owned directories (openat + nofollow)
 # tokio::fs is the production I/O backend; `fs` rides on top of the
 # workspace base feature set (rt · macros · time).
-tokio       = { workspace = true, features = ["fs"] }
+# `sync`: the room ledger hands each registered blocking result back
+# through a oneshot channel while the ledger keeps the completion receiver.
+tokio       = { workspace = true, features = ["fs", "sync"] }
 
 [dev-dependencies]
 proptest = { workspace = true }

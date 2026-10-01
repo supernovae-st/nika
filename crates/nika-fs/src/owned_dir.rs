@@ -151,6 +151,13 @@ impl OwnedDir {
         &self.fd
     }
 
+    /// The path this capability was opened as. It is an identity for display
+    /// and comparison only, never reopened ambiently.
+    #[must_use]
+    pub fn display_path(&self) -> &Path {
+        &self.display
+    }
+
     /// Duplicate the held directory capability.
     ///
     /// # Errors
