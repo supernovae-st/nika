@@ -164,6 +164,39 @@ mod tests {
     }
 
     #[test]
+    fn the_policy_spells_itself_stably() {
+        assert_eq!(SandboxPolicy::Auto.as_str(), "auto");
+        assert_eq!(SandboxPolicy::Require.as_str(), "require");
+        assert_eq!(SandboxPolicy::Off.as_str(), "off");
+        for p in [
+            SandboxPolicy::Auto,
+            SandboxPolicy::Require,
+            SandboxPolicy::Off,
+        ] {
+            assert_eq!(p.as_str().parse(), Ok(p), "{} round-trips", p.as_str());
+        }
+    }
+
+    #[test]
+    fn an_unset_knob_is_auto_and_a_set_one_must_parse() {
+        assert_eq!(parse_policy_env(None), Ok(SandboxPolicy::Auto));
+        assert_eq!(parse_policy_env(Some("auto")), Ok(SandboxPolicy::Auto));
+        assert_eq!(
+            parse_policy_env(Some("require")),
+            Ok(SandboxPolicy::Require)
+        );
+        assert_eq!(parse_policy_env(Some("off")), Ok(SandboxPolicy::Off));
+        assert_eq!(
+            parse_policy_env(Some("requrie")),
+            Err(SandboxPolicyParseError("requrie".into()))
+        );
+        assert!(
+            parse_policy_env(Some("")).is_err(),
+            "an empty value is SET, not unset"
+        );
+    }
+
+    #[test]
     fn the_knob_parses_exactly_three_words() {
         assert_eq!("auto".parse(), Ok(SandboxPolicy::Auto));
         assert_eq!("require".parse(), Ok(SandboxPolicy::Require));

@@ -93,7 +93,7 @@ fn is_integerish(value: &Value) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::super::Field;
+    use super::super::{Field, NumBounds, StrBounds};
     use super::*;
     use alloc::borrow::ToOwned;
     use alloc::vec;
@@ -191,6 +191,65 @@ mod tests {
             !fits(&json!("x"), &NikaType::Never, &n) && !fits(&json!(null), &NikaType::Never, &n)
         );
         assert!(fits(&json!({"any": 1}), &NikaType::Unknown, &n));
+    }
+
+    #[test]
+    fn a_bounded_integer_bounds_both_ends_and_stays_an_integer() {
+        let n = env();
+        let t = NikaType::BoundedInt(NumBounds::new(Some(0.0), Some(10.0)));
+        assert!(fits(&json!(5), &t, &n));
+        assert!(fits(&json!(0), &t, &n), "min is inclusive");
+        assert!(fits(&json!(10), &t, &n), "max is inclusive");
+        assert!(!fits(&json!(-1), &t, &n));
+        assert!(!fits(&json!(11), &t, &n));
+        assert!(!fits(&json!(3.5), &t, &n), "3.5 sits in [0,10] regardless");
+        assert!(fits(&json!(3.0), &t, &n), "3.0 is an integer");
+        assert!(!fits(&json!(true), &t, &n));
+        assert!(!fits(&json!("5"), &t, &n));
+        let above = NikaType::BoundedInt(NumBounds::new(Some(0.0), None));
+        assert!(fits(&json!(1_000_000), &above, &n));
+        assert!(!fits(&json!(-1), &above, &n));
+        let below = NikaType::BoundedInt(NumBounds::new(None, Some(10.0)));
+        assert!(fits(&json!(-1_000_000), &below, &n));
+        assert!(!fits(&json!(11), &below, &n));
+    }
+
+    #[test]
+    fn a_bounded_number_bounds_both_ends() {
+        let n = env();
+        let t = NikaType::BoundedNum(NumBounds::new(Some(-1.5), Some(2.5)));
+        assert!(fits(&json!(0.0), &t, &n));
+        assert!(fits(&json!(-1.5), &t, &n), "min is inclusive");
+        assert!(fits(&json!(2.5), &t, &n), "max is inclusive");
+        assert!(!fits(&json!(-1.6), &t, &n));
+        assert!(!fits(&json!(2.6), &t, &n));
+        assert!(
+            fits(&json!(2), &t, &n),
+            "an integer inhabits a number range"
+        );
+        assert!(!fits(&json!("0"), &t, &n), "a string is not a number");
+        let above = NikaType::BoundedNum(NumBounds::new(Some(0.0), None));
+        assert!(fits(&json!(1e9), &above, &n));
+        assert!(!fits(&json!(-0.1), &above, &n));
+        let below = NikaType::BoundedNum(NumBounds::new(None, Some(0.0)));
+        assert!(fits(&json!(-1e9), &below, &n));
+        assert!(!fits(&json!(0.1), &below, &n));
+    }
+
+    #[test]
+    fn a_refined_string_is_bounded_in_chars_and_never_by_its_pattern() {
+        let n = env();
+        let t = NikaType::RefinedStr(StrBounds::new(None, Some(2), Some(4)));
+        assert!(fits(&json!("ab"), &t, &n), "min_len is inclusive");
+        assert!(fits(&json!("abcd"), &t, &n), "max_len is inclusive");
+        assert!(fits(&json!("abc"), &t, &n));
+        assert!(!fits(&json!("a"), &t, &n));
+        assert!(!fits(&json!("abcde"), &t, &n));
+        assert!(!fits(&json!(12), &t, &n), "a number is not a string");
+        assert!(fits(&json!("éé"), &t, &n));
+        assert!(!fits(&json!("é"), &t, &n));
+        let digits = NikaType::RefinedStr(StrBounds::new(Some("^[0-9]+$".to_owned()), None, None));
+        assert!(fits(&json!("not digits"), &digits, &n));
     }
 
     #[test]

@@ -452,7 +452,171 @@ impl NikaType {
 mod tests {
     use super::*;
     use alloc::borrow::ToOwned;
+    use alloc::boxed::Box;
     use alloc::vec;
+
+    #[test]
+    fn a_list_shaped_key_separates_its_members_exactly_once() {
+        assert_eq!(
+            NikaType::Enum(vec!["a".to_owned(), "b".to_owned()]).canon_key(),
+            r#"{"enum":["a","b"]}"#
+        );
+        assert_eq!(
+            NikaType::union_of(vec![
+                NikaType::Prim(Primitive::Null),
+                NikaType::Prim(Primitive::String),
+            ])
+            .canon_key(),
+            r#"{"union":[{"prim":"null"},{"prim":"string"}]}"#
+        );
+        assert_eq!(
+            NikaType::Enum(vec!["a".to_owned()]).canon_key(),
+            r#"{"enum":["a"]}"#
+        );
+        let mut fields = BTreeMap::new();
+        fields.insert(
+            "a".to_owned(),
+            Field::new(NikaType::Prim(Primitive::String), false),
+        );
+        fields.insert(
+            "b".to_owned(),
+            Field::new(NikaType::Prim(Primitive::Integer), true),
+        );
+        let key = NikaType::Object {
+            fields,
+            additional: false,
+        }
+        .canon_key();
+        assert!(
+            key.starts_with(r#"{"object":{"a":{"opt":false,"ty":{"prim":"string"}"#),
+            "{key}"
+        );
+        assert!(
+            key.contains(r#","b":{"opt":true,"ty":{"prim":"integer"}"#),
+            "{key}"
+        );
+        assert_eq!(key.matches(',').count(), 3, "{key}");
+    }
+
+    #[test]
+    fn nullability_is_read_off_the_type_never_assumed() {
+        assert!(NikaType::Prim(Primitive::Null).admits_null());
+        assert!(NikaType::Unknown.admits_null());
+        assert!(!NikaType::Prim(Primitive::String).admits_null());
+        assert!(!NikaType::Never.admits_null());
+        assert!(
+            !NikaType::Array(Box::new(NikaType::Prim(Primitive::Null))).admits_null(),
+            "an array OF null is not itself nullable"
+        );
+        assert!(
+            !NikaType::union_of(vec![
+                NikaType::Prim(Primitive::String),
+                NikaType::Prim(Primitive::Integer),
+            ])
+            .admits_null(),
+            "a union without a null member is not nullable"
+        );
+    }
+
+    #[test]
+    fn a_numeric_bound_key_sorts_max_before_min_with_one_separator() {
+        assert_eq!(
+            NikaType::BoundedInt(NumBounds::new(Some(1.0), Some(10.0))).canon_key(),
+            r#"{"bounds":{"max":10,"min":1},"refined":"integer"}"#
+        );
+        assert_eq!(
+            NikaType::BoundedNum(NumBounds::new(Some(-2.5), None)).canon_key(),
+            r#"{"bounds":{"min":-2.5},"refined":"number"}"#
+        );
+        assert_eq!(
+            NikaType::BoundedInt(NumBounds::new(None, Some(4.0))).canon_key(),
+            r#"{"bounds":{"max":4},"refined":"integer"}"#
+        );
+        assert_eq!(
+            NikaType::BoundedNum(NumBounds::new(None, None)).canon_key(),
+            r#"{"bounds":{},"refined":"number"}"#
+        );
+    }
+
+    #[test]
+    fn a_bound_renders_as_an_integer_only_when_it_exactly_is_one() {
+        assert_eq!(
+            NikaType::BoundedNum(NumBounds::new(Some(10.0), Some(10.5))).canon_key(),
+            r#"{"bounds":{"max":10.5,"min":10},"refined":"number"}"#
+        );
+        assert_eq!(
+            NikaType::BoundedNum(NumBounds::new(None, Some(1e19))).canon_key(),
+            r#"{"bounds":{"max":10000000000000000000},"refined":"number"}"#
+        );
+        assert_eq!(
+            NikaType::BoundedNum(NumBounds::new(Some(-0.0), None)).canon_key(),
+            NikaType::BoundedNum(NumBounds::new(Some(0.0), None)).canon_key()
+        );
+        assert_eq!(
+            NikaType::BoundedNum(NumBounds::new(Some(-0.0), None)).canon_key(),
+            r#"{"bounds":{"min":0},"refined":"number"}"#
+        );
+    }
+
+    #[test]
+    fn a_refined_string_key_sorts_max_len_min_len_pattern() {
+        let pat = || Some("^a+$".to_owned());
+        assert_eq!(
+            NikaType::RefinedStr(StrBounds::new(pat(), Some(1), Some(9))).canon_key(),
+            r#"{"bounds":{"max_len":9,"min_len":1,"pattern":"^a+$"},"refined":"string"}"#
+        );
+        assert_eq!(
+            NikaType::RefinedStr(StrBounds::new(None, None, Some(9))).canon_key(),
+            r#"{"bounds":{"max_len":9},"refined":"string"}"#
+        );
+        assert_eq!(
+            NikaType::RefinedStr(StrBounds::new(None, Some(1), None)).canon_key(),
+            r#"{"bounds":{"min_len":1},"refined":"string"}"#
+        );
+        assert_eq!(
+            NikaType::RefinedStr(StrBounds::new(pat(), None, None)).canon_key(),
+            r#"{"bounds":{"pattern":"^a+$"},"refined":"string"}"#
+        );
+        assert_eq!(
+            NikaType::RefinedStr(StrBounds::new(pat(), Some(2), None)).canon_key(),
+            r#"{"bounds":{"min_len":2,"pattern":"^a+$"},"refined":"string"}"#
+        );
+    }
+
+    #[test]
+    fn ref_freedom_looks_inside_every_composite() {
+        let a_ref = || NikaType::Ref("Named".to_owned());
+        let plain = || NikaType::Prim(Primitive::Bool);
+        assert!(NikaType::Prim(Primitive::String).is_ref_free());
+        assert!(NikaType::Unknown.is_ref_free());
+        assert!(!a_ref().is_ref_free(), "a bare ref is nominal");
+
+        assert!(!NikaType::Array(Box::new(a_ref())).is_ref_free());
+        assert!(NikaType::Array(Box::new(plain())).is_ref_free());
+        assert!(!NikaType::Map(Box::new(a_ref())).is_ref_free());
+        assert!(NikaType::Map(Box::new(plain())).is_ref_free());
+        assert!(!NikaType::Union(vec![plain(), a_ref()]).is_ref_free());
+        assert!(NikaType::Union(vec![plain(), NikaType::Never]).is_ref_free());
+
+        let mut with_ref = BTreeMap::new();
+        with_ref.insert("a".to_owned(), Field::new(a_ref(), false));
+        assert!(
+            !NikaType::Object {
+                fields: with_ref,
+                additional: false,
+            }
+            .is_ref_free()
+        );
+        let mut without = BTreeMap::new();
+        without.insert("a".to_owned(), Field::new(plain(), true));
+        assert!(
+            NikaType::Object {
+                fields: without,
+                additional: true,
+            }
+            .is_ref_free()
+        );
+    }
 
     #[test]
     fn union_normalizes_flat_dedup_sorted_collapsed() {

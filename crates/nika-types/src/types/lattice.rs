@@ -257,7 +257,7 @@ fn family(t: &NikaType) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::Field;
+    use super::super::{Field, StrBounds};
     use super::*;
     use alloc::borrow::ToOwned;
     use alloc::boxed::Box;
@@ -269,6 +269,253 @@ mod tests {
 
     fn prim(p: Primitive) -> NikaType {
         NikaType::Prim(p)
+    }
+
+    fn refined(p: Option<&str>, lo: Option<u64>, hi: Option<u64>) -> NikaType {
+        NikaType::RefinedStr(StrBounds::new(p.map(ToOwned::to_owned), lo, hi))
+    }
+
+    fn one_field(f: Field, open: bool) -> NikaType {
+        NikaType::Object {
+            fields: [("a".to_owned(), f)].into_iter().collect(),
+            additional: open,
+        }
+    }
+
+    #[test]
+    fn consistency_resolves_names_and_walks_unions_and_objects() {
+        let mut n = env();
+        n.insert("Text".to_owned(), prim(Primitive::String));
+        let text = NikaType::Ref("Text".to_owned());
+        assert!(consistent(&text, &prim(Primitive::String), &n));
+        assert!(consistent(&prim(Primitive::String), &text, &n));
+        let one = one_field(Field::new(prim(Primitive::String), false), false);
+        let two = NikaType::Object {
+            fields: [
+                ("a".to_owned(), Field::new(prim(Primitive::String), false)),
+                ("b".to_owned(), Field::new(prim(Primitive::Integer), false)),
+            ]
+            .into_iter()
+            .collect(),
+            additional: false,
+        };
+        assert_ne!(one, two);
+        assert!(consistent(&one, &two, &n));
+        let a = NikaType::union_of(vec![
+            NikaType::Array(Box::new(prim(Primitive::String))),
+            prim(Primitive::Null),
+        ]);
+        let b = NikaType::union_of(vec![
+            NikaType::Array(Box::new(NikaType::Unknown)),
+            prim(Primitive::Null),
+        ]);
+        assert_ne!(a, b);
+        assert!(consistent(&a, &b, &n));
+        assert!(!consistent(
+            &prim(Primitive::String),
+            &NikaType::union_of(vec![prim(Primitive::String), prim(Primitive::Null)]),
+            &n
+        ));
+    }
+
+    #[test]
+    fn the_order_resolves_names_and_distributes_over_unions() {
+        let mut n = env();
+        n.insert("Text".to_owned(), prim(Primitive::String));
+        let text = NikaType::Ref("Text".to_owned());
+        assert!(subtype(&text, &prim(Primitive::String), &n));
+        assert!(subtype(&prim(Primitive::String), &text, &n));
+        let two = NikaType::union_of(vec![prim(Primitive::Integer), prim(Primitive::Null)]);
+        let three = NikaType::union_of(vec![
+            prim(Primitive::Integer),
+            prim(Primitive::Null),
+            prim(Primitive::Bool),
+        ]);
+        assert!(subtype(&two, &three, &n));
+        assert!(!subtype(&three, &two, &n));
+        assert!(subtype(&prim(Primitive::Uri), &prim(Primitive::String), &n));
+        assert!(!subtype(
+            &prim(Primitive::String),
+            &prim(Primitive::Uri),
+            &n
+        ));
+        assert!(assignable(&NikaType::Never, &prim(Primitive::String), &n));
+    }
+
+    #[test]
+    fn the_order_nests_enums_and_numeric_bounds() {
+        let n = env();
+        let a_only = NikaType::Enum(vec!["a".to_owned()]);
+        let a_and_b = NikaType::Enum(vec!["a".to_owned(), "b".to_owned()]);
+        assert!(subtype(&a_only, &a_and_b, &n));
+        assert!(!subtype(&a_and_b, &a_only, &n));
+        let tight = NikaType::BoundedInt(NumBounds::new(Some(1.0), Some(5.0)));
+        let wide = NikaType::BoundedInt(NumBounds::new(Some(0.0), Some(10.0)));
+        assert!(subtype(&tight, &wide, &n));
+        assert!(!subtype(&wide, &tight, &n));
+    }
+
+    #[test]
+    fn a_string_refinement_nests_by_pattern_and_by_length() {
+        let n = env();
+        assert!(subtype(
+            &refined(Some("^a$"), None, None),
+            &refined(None, None, None),
+            &n
+        ));
+        let tighter = refined(Some("^a$"), Some(3), None);
+        assert!(subtype(&tighter, &refined(Some("^a$"), Some(2), None), &n));
+        assert!(!subtype(&tighter, &refined(Some("^b$"), Some(2), None), &n));
+        assert!(!subtype(
+            &refined(None, Some(1), None),
+            &refined(None, Some(2), None),
+            &n
+        ));
+        assert!(!subtype(
+            &refined(None, None, Some(3)),
+            &refined(None, Some(2), None),
+            &n
+        ));
+        assert!(subtype(
+            &refined(None, None, Some(3)),
+            &refined(None, None, Some(9)),
+            &n
+        ));
+        assert!(!subtype(
+            &refined(None, None, Some(20)),
+            &refined(None, None, Some(9)),
+            &n
+        ));
+        assert!(!subtype(
+            &refined(None, Some(2), None),
+            &refined(None, None, Some(9)),
+            &n
+        ));
+    }
+
+    #[test]
+    fn object_openness_and_presence_decide_the_order() {
+        let n = env();
+        let req = || Field::new(prim(Primitive::String), false);
+        let opt = || Field::new(prim(Primitive::String), true);
+        assert!(!subtype(
+            &one_field(req(), true),
+            &one_field(req(), false),
+            &n
+        ));
+        assert!(subtype(
+            &one_field(req(), false),
+            &one_field(req(), true),
+            &n
+        ));
+        assert!(!subtype(
+            &one_field(Field::new(prim(Primitive::Integer), false), false),
+            &one_field(req(), true),
+            &n
+        ));
+        assert!(subtype(
+            &one_field(req(), false),
+            &one_field(opt(), false),
+            &n
+        ));
+        let two_open = NikaType::Object {
+            fields: [
+                ("a".to_owned(), req()),
+                ("b".to_owned(), Field::new(prim(Primitive::Integer), false)),
+            ]
+            .into_iter()
+            .collect(),
+            additional: true,
+        };
+        assert!(subtype(&two_open, &one_field(req(), true), &n));
+    }
+
+    #[test]
+    fn the_meet_never_confuses_unknown_with_impossible() {
+        let n = env();
+        let mut named = env();
+        named.insert("Bottom".to_owned(), NikaType::Never);
+        assert_eq!(meet(&NikaType::Unknown, &NikaType::Never, &n), None);
+        assert_eq!(meet(&NikaType::Never, &NikaType::Unknown, &n), None);
+        assert_eq!(meet(&NikaType::Unknown, &prim(Primitive::String), &n), None);
+        assert_eq!(
+            meet(
+                &NikaType::Ref("Bottom".to_owned()),
+                &NikaType::Never,
+                &named
+            ),
+            Some(NikaType::Never)
+        );
+        assert_eq!(
+            meet(
+                &NikaType::Array(Box::new(prim(Primitive::String))),
+                &NikaType::Array(Box::new(prim(Primitive::Integer))),
+                &n
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn the_numeric_meet_intersects_and_names_impossibility() {
+        let n = env();
+        let int = |lo: f64, hi: f64| NikaType::BoundedInt(NumBounds::new(Some(lo), Some(hi)));
+        let num = |lo: f64, hi: f64| NikaType::BoundedNum(NumBounds::new(Some(lo), Some(hi)));
+        assert_eq!(
+            meet(&num(0.0, 10.0), &num(5.0, 20.0), &n),
+            Some(num(5.0, 10.0))
+        );
+        assert_eq!(
+            meet(&int(0.0, 10.0), &num(5.0, 20.0), &n),
+            Some(int(5.0, 10.0))
+        );
+        assert_eq!(
+            meet(&num(0.0, 10.0), &int(5.0, 20.0), &n),
+            Some(int(5.0, 10.0))
+        );
+        assert_eq!(
+            meet(&int(0.0, 5.0), &int(5.0, 10.0), &n),
+            Some(int(5.0, 5.0))
+        );
+        assert_eq!(
+            meet(&int(0.0, 2.0), &int(5.0, 10.0), &n),
+            Some(NikaType::Never)
+        );
+    }
+
+    #[test]
+    fn the_family_table_names_every_disjointness() {
+        let n = env();
+        let bool_t = prim(Primitive::Bool);
+        for other in [
+            prim(Primitive::Null),
+            prim(Primitive::String),
+            prim(Primitive::Bytes),
+            prim(Primitive::Uri),
+            prim(Primitive::Integer),
+            NikaType::Enum(vec!["a".to_owned()]),
+            refined(None, Some(1), None),
+            NikaType::Array(Box::new(prim(Primitive::String))),
+            NikaType::Map(Box::new(prim(Primitive::String))),
+            NikaType::Object {
+                fields: BTreeMap::new(),
+                additional: false,
+            },
+        ] {
+            assert_eq!(
+                meet(&bool_t, &other, &n),
+                Some(NikaType::Never),
+                "bool ⊓ {other:?}"
+            );
+        }
+        assert_eq!(
+            meet(&prim(Primitive::Null), &prim(Primitive::String), &n),
+            Some(NikaType::Never)
+        );
+        assert_eq!(
+            meet(&prim(Primitive::Null), &prim(Primitive::Bytes), &n),
+            Some(NikaType::Never)
+        );
     }
 
     #[test]
@@ -292,6 +539,25 @@ mod tests {
             "never is bottom"
         );
         assert!(!subtype(&prim(Primitive::Null), &NikaType::Never, &n));
+    }
+
+    #[test]
+    fn unknown_is_distinct_from_concrete_types_and_their_aliases() {
+        let mut n = env();
+        n.insert("Text".to_owned(), prim(Primitive::String));
+        assert!(subtype(&NikaType::Unknown, &NikaType::Unknown, &n));
+        for b in [NikaType::Ref("Text".to_owned()), prim(Primitive::String)] {
+            assert!(
+                !subtype(&NikaType::Unknown, &b, &n),
+                "unknown ⊑ {b:?} must not hold"
+            );
+            assert!(
+                !subtype(&b, &NikaType::Unknown, &n),
+                "{b:?} ⊑ unknown must not hold"
+            );
+        }
+        assert!(assignable(&NikaType::Unknown, &prim(Primitive::String), &n));
+        assert!(assignable(&prim(Primitive::String), &NikaType::Unknown, &n));
     }
 
     #[test]

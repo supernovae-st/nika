@@ -287,6 +287,77 @@ impl Default for Cost {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::token_usage::TokenUsage;
+
+    fn spend_with_meter(set: fn(&mut TokenUsage, Option<u64>), n: Option<u64>) -> SpendOnFailure {
+        let mut usage = TokenUsage::new(0, 0);
+        set(&mut usage, n);
+        SpendOnFailure::new(usage, None, None)
+    }
+
+    #[test]
+    fn unpriced_reason_display_renders_the_wire_string() {
+        assert_eq!(UnpricedReason::LocalModel.to_string(), "local_model");
+        assert_eq!(UnpricedReason::MockProvider.to_string(), "mock_provider");
+        assert_eq!(
+            UnpricedReason::MissingCatalogPrice.to_string(),
+            "missing_catalog_price"
+        );
+        assert_eq!(
+            UnpricedReason::ProviderDidNotReportUsage.to_string(),
+            "provider_did_not_report_usage"
+        );
+        assert_eq!(
+            UnpricedReason::SubscriptionQuota.to_string(),
+            "subscription_quota"
+        );
+        assert_eq!(UnpricedReason::UsageRejected.to_string(), "usage_rejected");
+    }
+
+    #[test]
+    fn a_default_spend_carries_no_signal() {
+        assert!(!SpendOnFailure::default().has_signal());
+        assert!(!SpendOnFailure::new(TokenUsage::new(0, 0), None, None).has_signal());
+        assert!(
+            !SpendOnFailure::new(TokenUsage::new(0, 0), None, Some("mock/echo".into()))
+                .has_signal()
+        );
+    }
+
+    #[test]
+    fn each_synthetic_meter_alone_is_a_signal() {
+        assert!(
+            SpendOnFailure::new(TokenUsage::new(0, 0), Some(0.0), None).has_signal(),
+            "a synthetic tool-cost report of 0.0 is a signal, not absence"
+        );
+        assert!(
+            SpendOnFailure::new(TokenUsage::new(1, 0), None, None).has_signal(),
+            "the synthetic input token count is nonzero"
+        );
+        assert!(
+            SpendOnFailure::new(TokenUsage::new(0, 1), None, None).has_signal(),
+            "the synthetic output token count is nonzero"
+        );
+        assert!(
+            spend_with_meter(|u, n| u.cache_read_tokens = n, Some(1)).has_signal(),
+            "the synthetic cache-read token count is nonzero"
+        );
+        assert!(
+            spend_with_meter(|u, n| u.cache_write_tokens = n, Some(1)).has_signal(),
+            "the synthetic cache-write token count is nonzero"
+        );
+        assert!(
+            spend_with_meter(|u, n| u.cache_creation_tokens = n, Some(1)).has_signal(),
+            "the synthetic cache-creation token count is nonzero"
+        );
+    }
+
+    #[test]
+    fn a_cache_meter_reported_as_zero_is_not_a_signal() {
+        assert!(!spend_with_meter(|u, n| u.cache_read_tokens = n, Some(0)).has_signal());
+        assert!(!spend_with_meter(|u, n| u.cache_write_tokens = n, Some(0)).has_signal());
+        assert!(!spend_with_meter(|u, n| u.cache_creation_tokens = n, Some(0)).has_signal());
+    }
 
     #[test]
     fn unpriced_reason_wire_strings_are_snake_case_and_distinct() {

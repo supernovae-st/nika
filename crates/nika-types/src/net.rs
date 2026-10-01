@@ -478,6 +478,59 @@ mod tests {
     }
 
     #[test]
+    fn every_v4_range_carries_its_own_weight() {
+        use core::net::IpAddr;
+        for s in [
+            "224.0.0.1",       // multicast, low edge
+            "239.255.255.250", // multicast, high edge
+            "192.0.2.1",       // TEST-NET-1 · documentation only
+            "198.51.100.1",    // TEST-NET-2 · documentation only
+            "203.0.113.1",     // TEST-NET-3 · documentation only
+            "0.1.2.3",         // 0.0.0.0/8 — this network, and NOT unspecified
+        ] {
+            let ip: IpAddr = s.parse().expect("v4");
+            assert!(ip_is_blocked(ip), "{s} must be blocked");
+        }
+        for s in [
+            "198.41.0.4", // 198.x, but not the 198.18.0.0/15 benchmark block
+            "1.18.0.1",   // …an x.18 second octet outside 198.x
+            "8.0.0.1",    // second and third octets zero, first is not 192
+            "192.88.0.1", // 192.88.x, but not the .99 6to4 relay block
+            "8.88.99.1",  // 88.99 without the 192 that makes it that block
+            "192.0.99.1", // 192.0.x, but not the .0 protocol-assignment block
+        ] {
+            let ip: IpAddr = s.parse().expect("v4");
+            assert!(!ip_is_blocked(ip), "{s} is admitted by address validation");
+        }
+    }
+
+    #[test]
+    fn a_v6_prefix_is_refused_whole_never_by_a_piece_of_itself() {
+        use core::net::IpAddr;
+        for s in [
+            "ff02::1",          // multicast — nothing else in the chain catches it
+            "2001:db8:1234::1", // the documentation prefix, whole
+            "64:ff9b:1:2::3",   // the NAT64 local-use prefix, whole
+            "2002:a00:1::1",    // 6to4 wrapping PRIVATE 10.0.0.1
+            "64:ff9b::7f00:1",  // NAT64 well-known wrapping loopback
+        ] {
+            let ip: IpAddr = s.parse().expect("v6");
+            assert!(ip_is_blocked(ip), "{s} must be blocked");
+        }
+        for s in [
+            "2001:4860:4860::8888", // 2001:…, but not the db8 documentation block
+            "2001:db9::1",          // one hex digit off that block
+            "64:0:1::1",            // NAT64-SHAPED, but not 64:ff9b:1::/48
+            "64:ff9b:2::1",         // …that prefix's third segment is not 1
+            "64:ff9b::808:808",     // NAT64 well-known wrapping PUBLIC 8.8.8.8
+            "2002:808:808::1",      // 6to4 wrapping PUBLIC 8.8.8.8
+        ] {
+            let ip: IpAddr = s.parse().expect("v6");
+            assert!(!ip_is_blocked(ip), "{s} is admitted by address validation");
+        }
+    }
+
+    #[test]
     fn host_oracle_blocks_names_and_literals_in_every_spelling() {
         for h in [
             "localhost",
