@@ -17,6 +17,9 @@
 pub mod action;
 pub mod manage;
 pub mod session;
+mod task_outcome;
+#[cfg(test)]
+mod task_outcome_tests;
 pub(crate) use nika_cli_host::retention;
 #[cfg(test)]
 mod retention_tests;
@@ -52,9 +55,9 @@ pub fn outputs(trace: &str, theme: Theme) -> VerbOutput {
 }
 
 /// `nika trace outputs --json <trace>` — the per-task machine projection
-/// (#1247 · #1275): one document, `trace` and `tasks` (each with its id,
-/// verb, status, cause, error code and the original error a recovered
-/// task was repaired from). The projection `tasks_json` carries.
+/// Version 2 separates terminal errors from recovery provenance. Each
+/// task carries its recorded cause, terminal error code/message, and the
+/// original recovery code separately. See [`tasks_json`] for unknowns.
 #[must_use]
 pub fn outputs_json(trace: &str) -> VerbOutput {
     let (view, events) = match load_view_and_events(trace) {
@@ -68,7 +71,7 @@ pub fn outputs_json(trace: &str) -> VerbOutput {
         .is_none()
         .then(|| nika_dap::liveness::probe(std::path::Path::new(trace)).as_str());
     let mut document = serde_json::json!({
-        "outputs_version": 1,
+        "outputs_version": 2,
         "trace": trace,
         "state": projection["state"],
         "liveness": liveness,
@@ -295,15 +298,21 @@ fn recovered_from(events: &[nika_event::Event], task: &str) -> Option<String> {
     })
 }
 
-/// Machine projection of every task (B23 / issue 1275 · the `--json` leg).
+/// Task rows for version 2 of `trace outputs --json`.
+///
+/// `error_code` and `error_message` describe a recorded failure or error-skip;
+/// `recovered_from` is the original recovery code, separately. Version 1
+/// aliased the recovery code into `error_code`. Unknown fields are null.
+/// Evidence is confined to the current task occurrence in journal order.
+/// This helper returns the projection without the command envelope version.
 #[must_use]
 pub fn tasks_json(view: &RunView, events: &[nika_event::Event]) -> serde_json::Value {
     let tasks: Vec<serde_json::Value> = view
         .rows()
         .iter()
         .map(|row| {
-            let recovered = recovered_from(events, &row.id);
-            let status = if row.recovered {
+            let outcome = task_outcome::current(events, &row.id);
+            let status = if row.state == TaskState::Ok && outcome.recovered {
                 "recovered"
             } else {
                 match row.state {
@@ -325,8 +334,10 @@ pub fn tasks_json(view: &RunView, events: &[nika_event::Event]) -> serde_json::V
                 "id": row.id,
                 "verb": row.started_note,
                 "status": status,
-                "error_code": recovered,
-                "recovered_from": recovered,
+                "cause": outcome.cause,
+                "error_code": outcome.error_code,
+                "error_message": outcome.error_message,
+                "recovered_from": outcome.recovered_from,
                 "integrity_source": row.integrity_source,
                 "warning": row.warning,
                 "items": items,

@@ -176,3 +176,40 @@ when the only doubt is that pause's own journal (it names no run, or it is the
 one entry that could not be folded) or no trace store exists, nothing could be
 followed and it stands; any other doubt beside it decides nothing. The words
 name no host protocol; the host says where it stands and keeps its own way on.
+
+## Task outcome projection compatibility
+
+`trace outputs --json` emits `outputs_version: 2`. Its task rows, also
+returned by `trace::tasks_json`, separate the current recorded terminal
+error from recovery provenance:
+
+- `cause` is the recorded outcome cause, or null when its class/cause pair
+  is absent, invalid, unknown, or inconsistent with the event kind.
+- `error_code` and `error_message` read `payload.error` for failure and
+  skipped/error_skip only. Missing or non-string leaves stay null.
+- `recovered_from` remains a string or null: the original recovery code.
+  A recovered success has null terminal error fields.
+
+Version 1 used `error_code` as an alias for the recovery code. Consumers
+that read that alias must use `recovered_from`; consumers of terminal
+errors should require version 2. The command syntax and Rust function
+signature are unchanged; `tasks_json` itself has no version envelope.
+The trace event format, `peek`, and the human output table are unchanged.
+
+Only the current task occurrence supplies these facts. The latest relevant
+event in journal order wins, regardless of timestamps. A new start,
+schedule, retry, recovery-in-progress, matching pause, or workflow start
+prevents borrowing an earlier terminal outcome. A missing or malformed
+current outcome never falls back to an earlier terminal or display prose.
+A cache hit reads only a recorded normal success.
+
+For legacy traces, a completion with **no** outcome field may use the
+nearest explicit recovery marker within the same occurrence, stopping at
+an earlier terminal, start, schedule, retry, pause or workflow start. A
+present but malformed outcome does not enable that fallback. This marker
+can establish recovery without fabricating a cause or terminal error.
+Recovery status is reported only on the current successful observation;
+a sticky display flag cannot override a newer failure or running state.
+Messages preserve recorded text, including Unicode and newlines; no code
+or cause is inferred from prose. These are projections of recorded facts,
+not trace-integrity verification or a claim of fresh execution.
