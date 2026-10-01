@@ -188,6 +188,20 @@ mod tests {
     }
 
     #[test]
+    fn parse_error_names_the_input_it_refused() {
+        let err = "cheese"
+            .parse::<Category>()
+            .expect_err("`cheese` is not a category");
+        assert_eq!(err.input, "cheese");
+        assert_eq!(err.to_string(), r#"unknown category "cheese""#);
+
+        let empty = ""
+            .parse::<Category>()
+            .expect_err("the empty string is not a category");
+        assert_eq!(empty.to_string(), r#"unknown category """#);
+    }
+
+    #[test]
     fn as_str_is_kebab_case_lowercase() {
         for cat in ALL_CATEGORIES {
             let s = cat.as_str();

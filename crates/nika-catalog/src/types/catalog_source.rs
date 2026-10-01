@@ -168,6 +168,10 @@ mod tests {
         let ds = StaticCatalogDataSource;
         let caps = ds.model_capabilities("openai", "gpt-4o");
         assert!(caps.supports_temperature);
+        assert_eq!(caps.tokenizer, Some(crate::TokenizerFamily::O200k));
+        assert_eq!(caps.json_mode, Some(crate::JsonMode::Schema));
+        let earlier = ds.model_capabilities("openai", "gpt-4");
+        assert_eq!(earlier.tokenizer, Some(crate::TokenizerFamily::Cl100k));
     }
 
     #[test]

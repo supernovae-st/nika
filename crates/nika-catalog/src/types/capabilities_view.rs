@@ -139,6 +139,47 @@ mod tests {
     }
 
     #[test]
+    fn blanket_impl_reads_the_row_not_a_constant() {
+        let caps = ModelCapabilities {
+            token_limit_param: TokenLimitParam::MaxCompletionTokens,
+            supports_temperature: false,
+            supports_stop_sequences: false,
+            reasoning: true,
+            input_modalities: &[Modality::Text, Modality::Audio],
+            output_modalities: &[Modality::Text, Modality::Image],
+            tokenizer: Some(TokenizerFamily::O200k),
+            supported_parameters: &[ParamFlag::ReasoningEffort],
+            supports_system_messages: false,
+            context_window_tokens: Some(200_000),
+            max_output_tokens: Some(64_000),
+            json_mode: Some(JsonMode::Schema),
+            reasoning_efforts: &[ReasoningLevel::Max],
+        };
+        let caps: &dyn ModelCapabilitiesView = &caps;
+
+        assert_eq!(
+            caps.token_limit_param(),
+            TokenLimitParam::MaxCompletionTokens
+        );
+        assert!(!caps.supports_temperature());
+        assert!(!caps.supports_stop_sequences());
+        assert!(caps.reasoning());
+        assert!(!caps.supports_system_messages());
+        assert_eq!(caps.context_window_tokens(), Some(200_000));
+        assert_eq!(caps.max_output_tokens(), Some(64_000));
+        assert_eq!(caps.json_mode(), Some(JsonMode::Schema));
+        assert_eq!(
+            caps.input_modalities(),
+            [Modality::Text, Modality::Audio],
+            "the view hands back the row's input list, not the default pair",
+        );
+        assert_eq!(caps.output_modalities(), [Modality::Text, Modality::Image]);
+        assert_eq!(caps.tokenizer(), Some(TokenizerFamily::O200k));
+        assert_eq!(caps.supported_parameters(), [ParamFlag::ReasoningEffort]);
+        assert_eq!(caps.reasoning_efforts(), &[ReasoningLevel::Max]);
+    }
+
+    #[test]
     fn trait_is_object_safe() {
         // Compile-time proof: can create &dyn ModelCapabilitiesView.
         fn accepts_dyn(v: &dyn ModelCapabilitiesView) -> bool {

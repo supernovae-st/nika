@@ -184,6 +184,27 @@ mod tests {
     }
 
     #[test]
+    fn all_embeddings_carries_the_vector_store_facts() {
+        let row = all_embeddings()
+            .iter()
+            .find(|e| e.id == "voyage/voyage-3-large")
+            .expect("voyage/voyage-3-large is a catalog row");
+        assert_eq!(row.provider, "voyage");
+        assert_eq!(row.model, "voyage-3-large");
+        assert_eq!(row.dimensions, 1024);
+        assert_eq!(row.max_input_tokens, 32_000);
+        assert!(row.normalized_by_default);
+        assert_eq!(row.similarity, Similarity::Cosine);
+
+        let light = all_embeddings()
+            .iter()
+            .find(|e| e.id == "cohere/embed-english-light-v3")
+            .expect("cohere/embed-english-light-v3 is a catalog row");
+        assert_eq!(light.dimensions, 384);
+        assert_eq!(light.max_input_tokens, 512);
+    }
+
+    #[test]
     fn all_pricing_non_empty() {
         // Derived, never pinned — the generated catalog moves upstream.
         assert!(!all_pricing().is_empty());
