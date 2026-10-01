@@ -11,13 +11,26 @@
 //! carried unread (only the native door reads knowledge). The explicit reasoning effort every
 //! seat asks for is resolved the same way, and every door bounds and builds one seat's policy
 //! through [`call_bounds`] and [`AuthoringConfig::policy`] (R4 B16).
+//!
+//! The knowledge choice is typed ([`KnowledgeChoice`]) and every door resolves it alike: the
+//! first layer that says anything decides — the door's own explicit values, else the
+//! environment's — and nothing said anywhere is this build's default, which holds no knowledge
+//! until a qualified release is embedded ([`KnowledgeChoice::NoDefault`], said, never silent).
+//! Knowledge is turned off by `--no-knowledge` on a door's own layer, or by the exact
+//! environment word `NIKA_KNOWLEDGE=off`; off beside a source on the same layer is refused.
+//!
+//! A named release is admitted only against the identity an embedder trusts. A host names one on
+//! its own layer with [`AuthoringSettings::with_knowledge_release`]. A flag or the environment
+//! never carries one, so a directory they name is refused, typed, until a qualified identity
+//! source is wired; nothing falls back.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use nika_compile::AuthoringReasoning;
 
 use crate::compile::{AuthoringPolicy, NativeMode};
+use crate::knowledge::TrustedIdentity;
 
 /// The output cap one authoring call gets when its operator names none, on every door.
 pub const DEFAULT_MAX_TOKENS: u32 = 8192;
@@ -97,19 +110,90 @@ pub fn native_mode(word: &str) -> Option<NativeMode> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum KnowledgeSource {
-    /// A Foundry snapshot directory (`manifest.json` · one JSONL per kind · `relations.jsonl`):
-    /// the door composes the pack for each intent and verifies every byte it presents.
+    /// A Foundry knowledge release root the strict door admits whole or refuses: the door
+    /// composes the pack for each intent from the bytes it admitted.
     Snapshot {
-        /// The snapshot directory.
+        /// The release root.
         dir: PathBuf,
         /// A corpus whose examples are never recalled (a benchmark's own).
         exclude_corpus: Option<String>,
+        /// The identity the layer that named the root trusts, from its own release record:
+        /// without one the door refuses the root before it collects anything.
+        identity: Option<TrustedIdentity>,
     },
-    /// A pack another builder composed for ONE intent, entered as composed.
+    /// A pack another builder composed for ONE intent: no product door enters it, since nothing
+    /// binds it to an admitted release ([`crate::knowledge::KnowledgeError::PackNotAdmitted`]).
     Pack {
         /// The pack file (JSON).
         file: PathBuf,
     },
+}
+
+/// The settings layer that decided a knowledge choice.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum KnowledgeLayer {
+    /// A door's own explicit values: a flag, a host's typed value, the operator's serve flags.
+    Explicit,
+    /// The environment's: `NIKA_KNOWLEDGE` · `NIKA_KNOWLEDGE_PACK`.
+    Environment,
+}
+
+impl KnowledgeLayer {
+    /// The layer in one word.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Explicit => "explicit",
+            Self::Environment => "environment",
+        }
+    }
+}
+
+/// The word `NIKA_KNOWLEDGE` takes, exactly, to turn the knowledge off.
+pub const KNOWLEDGE_OFF: &str = "off";
+
+/// What the knowledge is when nothing names any and no qualified release is embedded.
+pub const NO_DEFAULT: &str =
+    "no default knowledge in this build (no qualified release is embedded)";
+
+/// What a door resolved for its authoring knowledge, before any byte is read.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum KnowledgeChoice {
+    /// A source a layer named: the strict door admits it or refuses it, never another source.
+    Named {
+        /// The source, as named.
+        source: KnowledgeSource,
+        /// The layer that named it.
+        by: KnowledgeLayer,
+    },
+    /// Knowledge turned off by a layer: `--no-knowledge` on a door's own, or the exact word
+    /// `NIKA_KNOWLEDGE=off` in the environment.
+    Disabled {
+        /// The layer that turned it off.
+        by: KnowledgeLayer,
+    },
+    /// Nothing named anywhere and no qualified release embedded in this build: a stated
+    /// development state ([`NO_DEFAULT`]), never a claim that the release ships its knowledge.
+    NoDefault,
+}
+
+impl KnowledgeChoice {
+    /// The choice in the words a status line says.
+    #[must_use]
+    pub fn words(&self) -> String {
+        match self {
+            Self::Named { by, .. } => format!("knowledge named ({})", by.word()),
+            Self::Disabled {
+                by: KnowledgeLayer::Explicit,
+            } => "knowledge off (explicit)".to_owned(),
+            Self::Disabled {
+                by: KnowledgeLayer::Environment,
+            } => format!("knowledge off (NIKA_KNOWLEDGE={KNOWLEDGE_OFF})"),
+            Self::NoDefault => NO_DEFAULT.to_owned(),
+        }
+    }
 }
 
 /// The raw words a door was handed — its own explicit values, or the environment's.
@@ -126,6 +210,11 @@ pub struct AuthoringSettings {
     pub knowledge_pack: Option<PathBuf>,
     /// A reasoning effort word (`low` · `high` · `max`).
     pub reasoning: Option<String>,
+    /// Knowledge turned off on this layer (`--no-knowledge`).
+    pub knowledge_off: bool,
+    /// The identity this layer trusts for the snapshot it names, from an embedder's own release
+    /// record ([`Self::with_knowledge_release`]); a flag or the environment never names one.
+    pub knowledge_identity: Option<TrustedIdentity>,
 }
 
 impl AuthoringSettings {
@@ -138,7 +227,8 @@ impl AuthoringSettings {
     /// The words the environment names for an authoring seat: `NIKA_AUTHORING_STRATEGY`,
     /// `NIKA_KNOWLEDGE`, `NIKA_KNOWLEDGE_EXCLUDE`, `NIKA_KNOWLEDGE_PACK`,
     /// `NIKA_AUTHORING_REASONING` — a strategy word, directories, a corpus name and an effort
-    /// word, never a secret. Empty values name nothing.
+    /// word, never a secret. Empty values name nothing; `NIKA_KNOWLEDGE=off` exactly is the
+    /// environment's word for knowledge off, which [`resolve`] reads on that layer alone.
     #[must_use]
     #[allow(clippy::disallowed_methods)] // strategy, directory, corpus and effort names, NON-secret
     pub fn from_env() -> Self {
@@ -149,6 +239,8 @@ impl AuthoringSettings {
             knowledge_exclude: text("NIKA_KNOWLEDGE_EXCLUDE"),
             knowledge_pack: text("NIKA_KNOWLEDGE_PACK").map(PathBuf::from),
             reasoning: text("NIKA_AUTHORING_REASONING"),
+            knowledge_off: false,
+            knowledge_identity: None,
         }
     }
 
@@ -176,11 +268,27 @@ impl AuthoringSettings {
         self
     }
 
-    /// This knowledge snapshot directory, with the corpus it never recalls.
+    /// This knowledge snapshot directory, with the corpus it never recalls, and no trusted
+    /// identity: the door refuses it until one is named
+    /// ([`Self::with_knowledge_release`]).
     #[must_use]
     pub fn with_knowledge(mut self, dir: impl Into<PathBuf>, exclude: Option<String>) -> Self {
         self.knowledge = Some(dir.into());
         self.knowledge_exclude = exclude;
+        self.knowledge_identity = None;
+        self
+    }
+
+    /// This release root with the identity the host trusts for it, from its own release record
+    /// (never read from the root itself): the typed way a host injects a named source.
+    #[must_use]
+    pub fn with_knowledge_release(
+        mut self,
+        dir: impl Into<PathBuf>,
+        identity: TrustedIdentity,
+    ) -> Self {
+        self.knowledge = Some(dir.into());
+        self.knowledge_identity = Some(identity);
         self
     }
 
@@ -197,6 +305,35 @@ impl AuthoringSettings {
         self.knowledge_pack = Some(file.into());
         self
     }
+
+    /// Knowledge turned off on this layer, whatever source the other layer names.
+    #[must_use]
+    pub fn with_knowledge_off(mut self) -> Self {
+        self.knowledge_off = true;
+        self
+    }
+
+    /// A door's own words, each as its flag names it (none named is none): the strategy, the
+    /// snapshot, the pack, the excluded corpus, the reasoning effort, and knowledge turned off.
+    #[must_use]
+    pub fn from_flags(
+        strategy: Option<&str>,
+        knowledge: Option<&Path>,
+        pack: Option<&Path>,
+        exclude: Option<&str>,
+        reasoning: Option<&str>,
+        knowledge_off: bool,
+    ) -> Self {
+        Self {
+            strategy: strategy.map(str::to_owned),
+            knowledge: knowledge.map(Path::to_path_buf),
+            knowledge_exclude: exclude.map(str::to_owned),
+            knowledge_pack: pack.map(Path::to_path_buf),
+            reasoning: reasoning.map(str::to_owned),
+            knowledge_off,
+            knowledge_identity: None,
+        }
+    }
 }
 
 /// The configuration a door resolved.
@@ -207,6 +344,8 @@ pub struct AuthoringConfig {
     pub strategy: NativeMode,
     /// The knowledge it reads beside the card, when one is named.
     pub knowledge: Option<KnowledgeSource>,
+    /// What the knowledge resolved to and which layer decided: named, off, or no default.
+    pub choice: KnowledgeChoice,
     /// The explicit reasoning effort every seat asks for, when one is named (R4 B16).
     pub reasoning: Option<AuthoringReasoning>,
 }
@@ -232,13 +371,15 @@ impl AuthoringConfig {
         })
     }
 
-    /// The knowledge door: a pre-composed pack enters as composed (an empty one carries no
-    /// knowledge); a snapshot composes the pack for the intent the compiler reads (a revision's
-    /// request with its change, a clarification's replacement), every presented byte verified
-    /// against the snapshot's manifest. The provenance names the snapshot and the selection.
+    /// The knowledge door: a release the strict door admits composes the pack for the intent
+    /// the compiler reads (a revision's request with its change, a clarification's replacement),
+    /// every presented byte admitted when the release opened; a pack composed elsewhere is
+    /// refused before it is read; knowledge off or no default attaches nothing. The provenance
+    /// names the release and the selection.
     ///
     /// # Errors
-    /// A pack that is not a pack, a directory that is not a snapshot, a stale snapshot.
+    /// A release the strict door refuses ([`crate::knowledge::KnowledgeError::Unavailable`]), a
+    /// pack composed elsewhere ([`crate::knowledge::KnowledgeError::PackNotAdmitted`]).
     pub fn with_knowledge(
         &self,
         request: crate::compile::CompileRequest,
@@ -247,21 +388,19 @@ impl AuthoringConfig {
         match &self.knowledge {
             None => Ok(request),
             Some(KnowledgeSource::Pack { file }) => {
-                Ok(match crate::knowledge::pack_from_file(file)? {
-                    Some(pack) => request.with_authoring_knowledge(pack),
-                    None => request,
-                })
+                Err(crate::knowledge::KnowledgeError::PackNotAdmitted { file: file.clone() })
             }
             Some(KnowledgeSource::Snapshot {
                 dir,
                 exclude_corpus,
+                identity,
             }) => {
                 let intent = crate::compile::revise_intent(&request)
                     .unwrap_or_else(|| fallback_intent.to_owned());
                 if intent.trim().is_empty() {
                     return Ok(request);
                 }
-                let pack = crate::knowledge::Snapshot::open(dir)?
+                let pack = crate::knowledge::Snapshot::open(dir, identity.as_ref())?
                     .pack(&intent, exclude_corpus.as_deref())?;
                 Ok(request.with_authoring_knowledge(pack))
             }
@@ -288,6 +427,11 @@ pub enum ConfigError {
     },
     /// The reasoning effort word is none of the levels.
     UnknownReasoning(String),
+    /// Knowledge turned off beside a source on the same settings layer.
+    ContradictoryKnowledge {
+        /// The layer that says both.
+        layer: KnowledgeLayer,
+    },
 }
 
 impl std::fmt::Display for ConfigError {
@@ -309,6 +453,11 @@ impl std::fmt::Display for ConfigError {
                 f,
                 "`{word}` is not a reasoning effort — low · high · max (--authoring-reasoning · NIKA_AUTHORING_REASONING)"
             ),
+            Self::ContradictoryKnowledge { layer } => write!(
+                f,
+                "the {} settings turn the knowledge off and name a source — keep one: the source, or knowledge off (--no-knowledge · NIKA_KNOWLEDGE=off)",
+                layer.word()
+            ),
         }
     }
 }
@@ -316,16 +465,19 @@ impl std::fmt::Display for ConfigError {
 impl std::error::Error for ConfigError {}
 
 /// Resolve a door's explicit values over the environment's: the explicit strategy, else the
-/// environment's, else [`DEFAULT_STRATEGY`]; the explicit knowledge source (a pack before a
-/// snapshot), else the environment's (the same order). The corpus a benchmark excludes applies
-/// to whichever snapshot is named (the explicit one, else the environment's), whichever side
-/// named the corpus. Knowledge under `off` is refused: the only door that reads it never opens.
-/// An exclusion named explicitly with no snapshot to exclude it from is refused; the
-/// environment's, with none, simply has nothing to exclude.
+/// environment's, else [`DEFAULT_STRATEGY`]; the knowledge of the first layer that says
+/// anything — the explicit one, else the environment's — and [`KnowledgeChoice::NoDefault`] when
+/// neither does. On a layer, knowledge off beside a source is refused, and a pack comes before a
+/// snapshot; the environment's knowledge off is the exact word `NIKA_KNOWLEDGE=off`, while an
+/// explicit path named `off` is a directory. The corpus a benchmark excludes applies to
+/// whichever snapshot is named, whichever side named the corpus. Knowledge named under the
+/// strategy `off` is refused: the only door that reads it never opens. An exclusion named
+/// explicitly with no snapshot to exclude it from (no knowledge, knowledge off, a pack) is
+/// refused; the environment's, with none, simply has nothing to exclude.
 ///
 /// # Errors
-/// An unknown strategy word, knowledge named under `off`, an explicit exclusion without a
-/// snapshot, or an unknown reasoning effort word.
+/// An unknown strategy word, knowledge off beside a source on one layer, knowledge named under
+/// `off`, an explicit exclusion without a snapshot, or an unknown reasoning effort word.
 pub fn resolve(
     explicit: &AuthoringSettings,
     env: &AuthoringSettings,
@@ -340,7 +492,15 @@ pub fn resolve(
         .knowledge_exclude
         .as_ref()
         .or(env.knowledge_exclude.as_ref());
-    let knowledge = source_of(explicit, exclude).or_else(|| source_of(env, exclude));
+    let choice = match layer_choice(explicit, KnowledgeLayer::Explicit, exclude)? {
+        Some(choice) => choice,
+        None => layer_choice(env, KnowledgeLayer::Environment, exclude)?
+            .unwrap_or(KnowledgeChoice::NoDefault),
+    };
+    let knowledge = match &choice {
+        KnowledgeChoice::Named { source, .. } => Some(source.clone()),
+        KnowledgeChoice::Disabled { .. } | KnowledgeChoice::NoDefault => None,
+    };
     if strategy == NativeMode::Off
         && let Some(source) = &knowledge
     {
@@ -361,6 +521,7 @@ pub fn resolve(
     Ok(AuthoringConfig {
         strategy,
         knowledge,
+        choice,
         reasoning: reasoning(explicit, env)?,
     })
 }
@@ -394,19 +555,39 @@ pub fn reasoning(
         .transpose()
 }
 
-/// One side's knowledge source: its pack before its snapshot.
-fn source_of(settings: &AuthoringSettings, exclude: Option<&String>) -> Option<KnowledgeSource> {
-    if let Some(file) = &settings.knowledge_pack {
-        return Some(KnowledgeSource::Pack { file: file.clone() });
-    }
-    settings
-        .knowledge
-        .as_ref()
-        .map(|dir| KnowledgeSource::Snapshot {
+/// One layer's knowledge as that layer's own grammar reads it: off (`knowledge_off`, or on the
+/// environment's layer alone the exact word [`KNOWLEDGE_OFF`]), else its pack before its
+/// snapshot, else nothing said; off beside a source on the layer is a contradiction.
+fn layer_choice(
+    settings: &AuthoringSettings,
+    layer: KnowledgeLayer,
+    exclude: Option<&String>,
+) -> Result<Option<KnowledgeChoice>, ConfigError> {
+    let word = layer == KnowledgeLayer::Environment
+        && settings
+            .knowledge
+            .as_ref()
+            .is_some_and(|named| named.as_os_str() == KNOWLEDGE_OFF);
+    let source = match (&settings.knowledge_pack, &settings.knowledge) {
+        (Some(file), _) => Some(KnowledgeSource::Pack { file: file.clone() }),
+        (None, Some(dir)) if !word => Some(KnowledgeSource::Snapshot {
             dir: dir.clone(),
             exclude_corpus: exclude.cloned(),
-        })
+            identity: settings.knowledge_identity.clone(),
+        }),
+        (None, _) => None,
+    };
+    match (settings.knowledge_off || word, source) {
+        (true, Some(_)) => Err(ConfigError::ContradictoryKnowledge { layer }),
+        (true, None) => Ok(Some(KnowledgeChoice::Disabled { by: layer })),
+        (false, Some(source)) => Ok(Some(KnowledgeChoice::Named { source, by: layer })),
+        (false, None) => Ok(None),
+    }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod knowledge_choice_tests;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
@@ -430,6 +611,15 @@ mod tests {
         assert_eq!(config.knowledge, None);
     }
 
+    /// `NIKA_KNOWLEDGE=off`, as the environment's raw word reaches the parser, resolves to no
+    /// knowledge at all: not a directory named `off`, not a pack, not another source.
+    #[test]
+    fn knowledge_off_in_the_environment_resolves_to_no_knowledge() {
+        let env = AuthoringSettings::none().with_knowledge("off", None);
+        let config = resolve(&AuthoringSettings::none(), &env).expect("resolves");
+        assert_eq!(config.knowledge, None, "`off` turns the knowledge off");
+    }
+
     #[test]
     fn explicit_values_win_over_the_environment_and_a_pack_over_a_snapshot() {
         let env = AuthoringSettings::none()
@@ -446,6 +636,7 @@ mod tests {
             Some(KnowledgeSource::Snapshot {
                 dir: PathBuf::from("/flag/snap"),
                 exclude_corpus: Some("sealed".to_owned()),
+                identity: None,
             }),
             "the explicit snapshot wins over the environment's pack; the excluded corpus holds for it"
         );
@@ -470,6 +661,7 @@ mod tests {
             Some(KnowledgeSource::Snapshot {
                 dir: PathBuf::from("/env/snap"),
                 exclude_corpus: Some("heldout".to_owned()),
+                identity: None,
             })
         );
         // The explicit corpus wins over the environment's.
@@ -479,6 +671,7 @@ mod tests {
             Some(KnowledgeSource::Snapshot {
                 dir: PathBuf::from("/env/snap"),
                 exclude_corpus: Some("heldout".to_owned()),
+                identity: None,
             })
         );
         // No snapshot to exclude it from (nothing, or a pack composed elsewhere): refused.

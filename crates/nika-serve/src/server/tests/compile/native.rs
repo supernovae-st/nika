@@ -3,16 +3,17 @@
 
 //! Native authoring on the compile door over real loopback (S06): the operator's seat through
 //! the typed builder, a controlled seat on the OpenAI-compatible wire that keeps every body it
-//! received (`calls()` is the P of the S09 matrix), a Foundry snapshot in the exporter's own
-//! layout, and the answer rounds the server keeps. The core document is compared to what the
+//! received (`calls()` is the P of the S09 matrix), a Foundry knowledge release the strict door
+//! admits, and the answer rounds the server keeps. The core document is compared to what the
 //! seat really received; nothing here reads the environment.
 
 use std::io::{Read as _, Write as _};
 use std::sync::mpsc;
 
-use nika_cli_host::compile::knowledge::Snapshot;
+use nika_cli_host::compile::knowledge::{Snapshot, TrustedIdentity};
 use nika_event::source_id::sha256_hex;
 use nika_onboard::compile::{AuthoringKnowledge, CompileRequest, revise_intent};
+use nika_onboard::knowledge::fixture::{self, Payload};
 use nika_providers::ProvidersConfig;
 
 use super::*;
@@ -226,123 +227,146 @@ pub(super) fn native_answer(candidate: &str) -> String {
         .to_string()
 }
 
-/// A Foundry snapshot on disk: its knowledge root and its snapshot directory.
+/// A Foundry knowledge release on disk: its root, which is the directory the operator names
+/// (`snapshot`, the word every door's flag still takes), and the identity the operator's host,
+/// which sealed it, trusts for its latest seal.
 pub(super) struct Foundry {
     pub(super) root: std::path::PathBuf,
     pub(super) snapshot: std::path::PathBuf,
+    sealed: std::cell::RefCell<Option<TrustedIdentity>>,
 }
 
-const ROOT_FILES: [(&str, &str); 3] = [
-    (
-        "blocks/s06-transform.nika",
-        "# S06-BLOCK-MARKER\nnika: read-transform-write\ntasks: {}\n",
-    ),
-    (
-        "examples/s06-rewrite/workflow.nika",
-        "# S06-EXAMPLE-MARKER\nnika: s06-rewrite\ntasks: {}\n",
-    ),
-    (
-        "skills/s06-rewrite/SKILL.md",
-        "# S06-SKILL-MARKER\nWhen a text is read, transformed by one infer and written.\n",
-    ),
-];
+/// The block the release ships: its first line is a marker a test finds in what the seat read.
+pub(super) const BLOCK_FILE: &str = "blocks/s06-transform.nika";
+pub(super) const BLOCK_TEXT: &str = "# S06-BLOCK-MARKER\nnika: read-transform-write\ntasks: {}\n";
 
-fn row_files() -> Vec<(&'static str, Vec<Value>)> {
-    vec![
-        (
-            "families.jsonl",
-            vec![
-                json!({"id": "family:s06-text-rewrite", "kind": "family", "title": "Text rewrite", "need": "Read a text file, do something clever with it, write the result to a file"}),
-            ],
+/// The release: a policy-R payload the strict door admits, every row synthetic.
+fn release() -> Payload {
+    let mut payload = Payload::minimal();
+    for kind in [
+        "family",
+        "pattern_pack",
+        "pattern",
+        "block",
+        "repair_principle",
+    ] {
+        payload.kind(kind).clear();
+    }
+    payload.files.remove(fixture::BLOCK_FILE);
+    payload
+        .files
+        .insert(BLOCK_FILE.to_owned(), BLOCK_TEXT.as_bytes().to_vec());
+    let row = |kind: &str, id: &str, title: &str, proof: &str| {
+        fixture::row(kind, id, title, "EXPERIMENTAL", proof)
+    };
+    let mut family = row("family", "family:s06-text-rewrite", "Text rewrite", "NONE");
+    family["need"] =
+        json!("Read a text file, do something clever with it, write the result to a file");
+    family["facets"] = json!({});
+    let pack = row("pattern_pack", "pack:s06-rewrite", "Rewrite pack", "NONE");
+    let mut pattern = row(
+        "pattern",
+        "pattern:s06-transform-text",
+        "Transform text",
+        "NONE",
+    );
+    pattern["purpose"] =
+        json!("S06-PATTERN-MARKER one infer transforms the text read, then the result is written");
+    pattern["notes"] = json!("");
+    let file_sha = sha256_hex(BLOCK_TEXT.as_bytes());
+    let mut block = row(
+        "block",
+        "block:s06-transform",
+        "Read, transform, write",
+        "CHECKED",
+    );
+    block["purpose"] = json!("read a file, one infer, write the result");
+    block["file"] = json!(BLOCK_FILE);
+    block["file_sha256"] = json!(file_sha);
+    for list in [
+        "holes",
+        "effects",
+        "authority",
+        "interfaces",
+        "callables",
+        "known_failure_modes",
+    ] {
+        block[list] = json!([]);
+    }
+    block["check_receipt"] = json!({
+        "verifier_sha256": fixture::VERIFIER, "spec_sha": fixture::SPEC, "sha256": file_sha,
+        "verdict": "CURRENT_CHECKED",
+    });
+    let mut repair = row(
+        "repair_principle",
+        "repair:S06_PATH",
+        "stated paths only",
+        "NONE",
+    );
+    repair["strategy"] = json!("read and write exactly the paths the request states");
+    for (kind, value) in [
+        ("family", family),
+        ("pattern_pack", pack),
+        ("pattern", pattern),
+        ("block", block),
+        ("repair_principle", repair),
+    ] {
+        payload.kind(kind).push(value);
+    }
+    payload.relations = vec![
+        fixture::edge("family:s06-text-rewrite", "RECOMMENDS", "pack:s06-rewrite"),
+        fixture::edge("pack:s06-rewrite", "CONTAINS", "pattern:s06-transform-text"),
+        fixture::edge(
+            "block:s06-transform",
+            "REALIZES",
+            "pattern:s06-transform-text",
         ),
-        (
-            "pattern_packs.jsonl",
-            vec![
-                json!({"id": "pack:s06-rewrite", "kind": "pattern_pack", "members": ["pattern:s06-transform-text"]}),
-            ],
+        fixture::edge(
+            "diagnostic:NIKA-PARSE-022",
+            "SUGGESTS_REPAIR",
+            "repair:S06_PATH",
         ),
-        (
-            "patterns.jsonl",
-            vec![
-                json!({"id": "pattern:s06-transform-text", "kind": "pattern", "title": "Transform text", "purpose": "S06-PATTERN-MARKER one infer transforms the text read, then the result is written"}),
-            ],
-        ),
-        (
-            "blocks.jsonl",
-            vec![
-                json!({"id": "block:s06-transform", "kind": "block", "title": "Read, transform, write", "purpose": "read a file, one infer, write the result", "file": "blocks/s06-transform.nika"}),
-            ],
-        ),
-        (
-            "examples.jsonl",
-            vec![
-                json!({"id": "example:s06-rewrite", "kind": "example", "corpus": "dev", "intent": "Read ./notes.md and do something clever with it, then write ./out.md", "file": "examples/s06-rewrite/workflow.nika"}),
-            ],
-        ),
-        (
-            "skills.jsonl",
-            vec![
-                json!({"id": "skill:s06-rewrite", "kind": "skill", "family": "family:s06-text-rewrite", "file": "skills/s06-rewrite/SKILL.md"}),
-            ],
-        ),
-        (
-            "repair_principles.jsonl",
-            vec![
-                json!({"id": "repair:S06_PATH", "kind": "repair_principle", "title": "stated paths only", "strategy": "read and write exactly the paths the request states"}),
-            ],
-        ),
-        (
-            "relations.jsonl",
-            vec![
-                json!({"from": "family:s06-text-rewrite", "rel": "RECOMMENDS", "to": "pack:s06-rewrite"}),
-                json!({"from": "pack:s06-rewrite", "rel": "CONTAINS", "to": "pattern:s06-transform-text"}),
-                json!({"from": "block:s06-transform", "rel": "REALIZES", "to": "pattern:s06-transform-text"}),
-            ],
-        ),
-    ]
-}
-
-fn write_file(path: &std::path::Path, text: &str) {
-    std::fs::create_dir_all(path.parent().expect("parent")).expect("parent dir");
-    std::fs::write(path, text).expect("fixture file");
+    ];
+    payload
 }
 
 impl Foundry {
-    /// A synthetic snapshot under `base`, its manifest pinning every file (the exporter's
-    /// layout: the root `foundry/` beside `.local/foundry/snapshots/<version>/`).
+    /// A synthetic release under `base`, sealed at the fixture's version.
     pub(super) fn create(base: &std::path::Path) -> Self {
-        let root = base.join("foundry");
-        let snapshot = base.join(".local/foundry/snapshots").join(VERSION);
-        let mut files = serde_json::Map::new();
-        for (name, rows) in row_files() {
-            let text = rows.iter().fold(String::new(), |mut text, row| {
-                use std::fmt::Write as _;
-                let _ = writeln!(text, "{row}");
-                text
-            });
-            write_file(&snapshot.join(name), &text);
-            files.insert(
-                format!("knowledge/{name}"),
-                json!(sha256_hex(text.as_bytes())),
-            );
-        }
-        for (relative, text) in ROOT_FILES {
-            write_file(&root.join(relative), text);
-            files.insert(relative.to_owned(), json!(sha256_hex(text.as_bytes())));
-        }
-        let manifest = json!({
-            "knowledge_version": VERSION,
-            "digest": "digest-s06-a",
-            "source_commit": "synthetic",
-            "files": files,
-        });
-        write_file(&snapshot.join("manifest.json"), &manifest.to_string());
-        Self { root, snapshot }
+        let root = base.join("release");
+        let foundry = Self {
+            root: root.clone(),
+            snapshot: root,
+            sealed: std::cell::RefCell::new(None),
+        };
+        foundry.reseal(VERSION);
+        foundry
     }
 
-    /// The pack the one knowledge door composes for `intent` from this snapshot.
+    /// The identity of the latest seal, from the bytes this host wrote (never read back).
+    pub(super) fn identity(&self) -> TrustedIdentity {
+        self.sealed.borrow().clone().expect("sealed")
+    }
+
+    /// Write the release again in place, sealed at `version`.
+    pub(super) fn reseal(&self, version: &str) {
+        let mut files = release().render();
+        let mut manifest = Payload::manifest(&files);
+        manifest["knowledge_version"] = json!(version);
+        files.insert(
+            fixture::manifest_path().to_owned(),
+            fixture::manifest_bytes(&manifest),
+        );
+        *self.sealed.borrow_mut() = fixture::identity_of(&files);
+        if self.root.exists() {
+            std::fs::remove_dir_all(&self.root).expect("replaced");
+        }
+        fixture::write_files(&self.root, &files).expect("a release");
+    }
+
+    /// The pack the one knowledge door composes for `intent` from this release.
     pub(super) fn pack(&self, intent: &str) -> AuthoringKnowledge {
-        Snapshot::open(&self.snapshot)
+        Snapshot::open(&self.snapshot, Some(&self.identity()))
             .expect("snapshot")
             .pack(intent, None)
             .expect("pack")
@@ -490,6 +514,7 @@ fn message(body: &Value, role: &str) -> String {
 /// The first round: the seat received the operator's model and bound, the pack composed for
 /// the request byte for byte, and the receipt names that instruction and that pack — with
 /// the snapshot's hashes and none of its host paths.
+#[cfg(unix)] // the disk form is defined for Unix descriptors only
 fn assert_first_round(foundry: &Foundry, world: &TestWorld, sent: &Value, document: &Value) {
     assert_eq!(
         sent["model"], "s06-seat",
@@ -565,6 +590,7 @@ fn assert_first_round(foundry: &Foundry, world: &TestWorld, sent: &Value, docume
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[cfg(unix)] // the disk form is defined for Unix descriptors only
 async fn a_native_round_reads_the_pinned_pack_under_the_operators_seat_and_its_answer_round_calls_no_one()
  {
     let world = TestWorld::new();
@@ -574,7 +600,7 @@ async fn a_native_round_reads_the_pinned_pack_under_the_operators_seat_and_its_a
         false,
     )))]);
     let authoring = NativeAuthoring::new(SEAT, seat.providers())
-        .with_knowledge(&foundry.snapshot, None)
+        .with_knowledge_release(&foundry.snapshot, foundry.identity())
         .with_max_tokens(4096)
         // 3 + repairs (nv1b): the candidate, its repair and the judge's two whole-request
         // questions.

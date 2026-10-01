@@ -357,16 +357,22 @@ startup file as your key. The walkthroughs above need none of them.
 | Variable | Effect |
 |---|---|
 | `NIKA_AUTHORING_STRATEGY` | When the model writes the workflow itself: `escalate` (default), `only`, `sketch` or `off` |
-| `NIKA_KNOWLEDGE` | A knowledge snapshot directory presented to the authoring model beside Nika's built-in language card |
+| `NIKA_KNOWLEDGE` | A Foundry knowledge release root: refused until a qualified identity source is wired, since the environment carries no trusted identity; the exact word `off` turns knowledge off |
 | `NIKA_KNOWLEDGE_EXCLUDE` | A corpus in that snapshot whose examples are never recalled |
 | `NIKA_SESSION_DECISION_MODEL` | An optional decision model; only `typesafe/<model>` (Jev) is supported, with `TYPESAFE_API_KEY` |
 
-**Knowledge snapshots.** Public releases do not include a knowledge snapshot.
-Without one, authoring uses the language card built into the binary. With
-`NIKA_KNOWLEDGE`, the Session pins the snapshot's identity when it opens. It
-refuses to author if the snapshot changes underneath it. `/status` and
-`/details` show the pin and what was presented to the model. A record that
-references were presented is not proof that results improved.
+**Knowledge releases.** Public releases do not include a knowledge release
+yet: without one, `/status` says there is no default knowledge in this build,
+and authoring uses the language card built into the binary. A release is
+admitted only against the identity its host trusts: `NIKA_KNOWLEDGE` names a
+root but carries no identity, so the Session refuses it with its cause
+(`ADMISSION_UNTRUSTED`) and its seated turns send nothing. A host that embeds the
+Session names the release with the identity from its own release record; the
+Session then admits it through the strict door and pins it when it opens; a
+release that fails any rule is refused with its cause, never read in part. It
+refuses to author if the release changes underneath it. `/status` and `/details` show the pin and what was
+presented to the model. A record that references were presented is not proof
+that results improved.
 
 **Jev.** The decision model is consulted only when the compiler faces a finite
 choice it cannot settle alone. For example: does a clause ask for a search, a

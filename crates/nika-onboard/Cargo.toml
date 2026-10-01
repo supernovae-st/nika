@@ -20,13 +20,19 @@ nika-vocab   = { path = "../nika-vocab", version = "0.121.0" }   # the project f
 nika-bm25    = { path = "../nika-bm25", version = "0.121.0" }    # intent→template routing (the deterministic floor)
 nika-display = { path = "../nika-display", version = "0.121.0" } # theme + chrome (rail · panel · banner)
 nika-catalog = { path = "../nika-catalog", version = "0.121.0", features = ["providers"] } # the model menu (local first)
+serde        = { workspace = true }                              # the knowledge door's strict JSON: a key stated twice is refused
 serde_json   = { workspace = true }                              # the canvas stamp (parse + re-emit settings.json)
 
 nika-schema = { path = "../nika-schema", version = "0.121.0" }  # the same strict parser for in-memory compiler candidates
 nika-source = { path = "../nika-source", version = "0.121.0" }  # lexical program-source naming (#1684)
 nika-check  = { path = "../nika-check", version = "0.121.0" }  # the same pure Check core, without environment/admission probes
 
+[target.'cfg(unix)'.dependencies]
+rustix = { workspace = true, features = ["fs"] } # the knowledge door's collection on held directory descriptors (openat · fstatat · no follow, no unsafe)
 
+[features]
+# The synthetic knowledge release the strict door admits, for other doors' tests; never default.
+test-support = []
 
 [dev-dependencies]
 tempfile = { workspace = true }

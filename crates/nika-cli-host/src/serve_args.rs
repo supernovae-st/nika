@@ -35,8 +35,8 @@ pub struct NativeAuthoringArgs {
     /// Desired repair rounds (0..=5, default 3), within the operator's explicit request grant.
     #[arg(long = "authoring-repairs", value_name = "N", requires = "model")]
     pub repairs: Option<u32>,
-    /// A Foundry knowledge snapshot directory, verified and pinned at start; the seat reads
-    /// the pack composed for each request's intent.
+    /// A Foundry knowledge release root, admitted and pinned at start against a trusted identity;
+    /// a flag carries none, so the seat is refused until one is wired.
     #[arg(long = "knowledge", value_name = "DIR", requires = "model")]
     pub knowledge: Option<PathBuf>,
     /// A corpus whose examples the knowledge door never recalls.
@@ -46,6 +46,10 @@ pub struct NativeAuthoringArgs {
         requires = "knowledge"
     )]
     pub knowledge_exclude: Option<String>,
+    /// Turn the knowledge off on the seat's own layer: nothing is pinned (beside --knowledge,
+    /// the shared parser refuses the seat).
+    #[arg(long = "no-knowledge", requires = "model")]
+    pub no_knowledge: bool,
     /// The reasoning effort every seat call asks (low · high · max), sent only where the route
     /// qualifies it; the one word `NIKA_AUTHORING_REASONING` names when the flag is absent.
     #[arg(long = "authoring-reasoning", value_name = "LEVEL", requires = "model")]

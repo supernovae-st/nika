@@ -3,8 +3,9 @@
 
 //! The knowledge a session pins and the records it stamps on a compile outcome, owned beside
 //! the snapshot door they read (descended from `nika-session` on 2026-09-28, C7 · D1). A pin
-//! is the identity of a snapshot as it was opened: its declared version and digest, the sha256
-//! of its manifest bytes and of its rows as read. A record is what one compile observed,
+//! is the identity of a release as the strict door admitted it: its declared version (and the
+//! digest a manifest declares, which a release never does), the sha256 of its manifest bytes —
+//! its `SNAPSHOT_SHA256` — and of its rows. A record is what one compile observed,
 //! composed, presented or carried, in brief. Pure: an outcome and a value in, a record out —
 //! nothing here reads the environment, calls a model, or decides a policy (the session keeps
 //! its seat, its choices and its consent).
@@ -15,8 +16,11 @@ use std::path::PathBuf;
 use nika_event::source_id::sha256_hex;
 use serde_json::{Value, json};
 
-use super::{KnowledgeError, PACK_BUILDER, Snapshot, pack_sha256};
+use super::{
+    ADMISSION_PROFILE, KnowledgeError, PACK_BUILDER, Snapshot, TrustedIdentity, pack_sha256,
+};
 use crate::compile::{AuthoringKnowledge, CompileOutcome, Strategy};
+use crate::compile_config::{AuthoringConfig, KnowledgeSource};
 
 /// The identity a session pinned for its knowledge snapshot when it opened.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -34,15 +38,24 @@ pub struct KnowledgePin {
     pub manifest_sha256: String,
     /// The digest of the row files as the door read them (computed).
     pub rows_sha256: String,
+    /// The identity the embedder trusted when the release was admitted: every reopening is
+    /// admitted against it again.
+    pub identity: Option<TrustedIdentity>,
 }
 
 impl KnowledgePin {
-    /// Open the snapshot at `dir` and pin its identity as read now.
+    /// Admit the release at `dir` through the strict door, against the identity an embedder
+    /// trusts, and pin its identity as admitted now.
     ///
     /// # Errors
-    /// The directory is not a snapshot, or it is stale ([`KnowledgeError`]).
-    pub fn open(dir: PathBuf, exclude_corpus: Option<String>) -> Result<Self, KnowledgeError> {
-        let snapshot = Snapshot::open(&dir)?;
+    /// The strict door refuses it ([`KnowledgeError::Unavailable`]), without a trusted identity
+    /// first of all.
+    pub fn open(
+        dir: PathBuf,
+        exclude_corpus: Option<String>,
+        identity: Option<TrustedIdentity>,
+    ) -> Result<Self, KnowledgeError> {
+        let snapshot = Snapshot::open(&dir, identity.as_ref())?;
         Ok(Self {
             version: snapshot.version().map(str::to_owned),
             digest: snapshot.digest().map(str::to_owned),
@@ -50,7 +63,34 @@ impl KnowledgePin {
             rows_sha256: snapshot.rows_sha256(),
             dir,
             exclude_corpus,
+            identity,
         })
+    }
+
+    /// The pin of the release a resolved configuration names, admitted now: `None` when it
+    /// names none (knowledge off, no default, or a pack, which the door itself refuses). Every
+    /// door that pins a release pins it this way.
+    ///
+    /// # Errors
+    /// As [`Self::open`].
+    pub fn of_config(config: &AuthoringConfig) -> Result<Option<Self>, KnowledgeError> {
+        match &config.knowledge {
+            Some(KnowledgeSource::Snapshot {
+                dir,
+                exclude_corpus,
+                identity,
+            }) => Self::open(dir.clone(), exclude_corpus.clone(), identity.clone()).map(Some),
+            _ => Ok(None),
+        }
+    }
+
+    /// The pinned release opened again, through the strict door and against the same trusted
+    /// identity: what a later round composes from, once [`Self::moved`] finds it unchanged.
+    ///
+    /// # Errors
+    /// The strict door refuses it now ([`KnowledgeError::Unavailable`]).
+    pub fn reopen(&self) -> Result<Snapshot, KnowledgeError> {
+        Snapshot::open(&self.dir, self.identity.as_ref())
     }
 
     /// The pin's identity record (what a receipt names).
@@ -61,6 +101,12 @@ impl KnowledgePin {
             "digest": self.digest,
             "digest_is": "declared by the manifest, not recomputed",
             "manifest_sha256": self.manifest_sha256,
+            "snapshot_sha256": self.manifest_sha256,
+            "admission": ADMISSION_PROFILE,
+            "policy": self.identity.as_ref().map(|identity| json!({
+                "id": identity.policy_id(),
+                "sha256": identity.policy_sha256(),
+            })),
             "rows_sha256": self.rows_sha256,
             "dir": self.dir.display().to_string(),
             "exclude_corpus": self.exclude_corpus,
@@ -89,14 +135,22 @@ impl KnowledgePin {
             && manifest == self.manifest_sha256
             && rows == self.rows_sha256;
         (!same).then(|| {
-            let pinned = Self::words(
-                self.version.as_deref(),
-                self.digest.as_deref(),
-                &self.manifest_sha256,
-                &self.rows_sha256,
-            );
-            (pinned, Self::words(version, digest, manifest, &rows))
+            (
+                self.identity_words(),
+                Self::words(version, digest, manifest, &rows),
+            )
         })
+    }
+
+    /// The pinned identity in the words [`Self::moved`] says it.
+    #[must_use]
+    pub fn identity_words(&self) -> String {
+        Self::words(
+            self.version.as_deref(),
+            self.digest.as_deref(),
+            &self.manifest_sha256,
+            &self.rows_sha256,
+        )
     }
 
     /// The identity in words: version · declared digest · manifest · rows (cut at twelve).
@@ -116,14 +170,14 @@ impl KnowledgePin {
         )
     }
 
-    /// The identity in the words a status line says: the declared version, the declared digest,
-    /// and the digests of the manifest and the rows as read (cut at twelve).
+    /// The identity in the words a status line says: the declared version, the release's
+    /// `SNAPSHOT_SHA256` and the rows' digest (cut at twelve), and that the strict door admitted
+    /// it.
     #[must_use]
     pub fn status_words(&self) -> String {
         format!(
-            "knowledge {} · declared digest {} · manifest {} · rows {}",
+            "knowledge {} · snapshot {} · rows {} · admitted",
             self.version.as_deref().unwrap_or("unversioned"),
-            short(self.digest.as_deref().unwrap_or("none")),
             short(&self.manifest_sha256),
             short(&self.rows_sha256)
         )

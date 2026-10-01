@@ -1,0 +1,24 @@
+{
+ "base": "p01-base",
+ "expected": {
+  "policy": {
+   "id": "policy-r",
+   "sha256": "a4e94ad9d3fe4c9f01083186b647546cc040d006653b5098856a0928b2e1061f"
+  },
+  "profile": "nika-knowledge-release-profile/r1",
+  "snapshot_sha256": "C13B93FAAD94A564D3DA644456C4C58BE8C586DE4F5BD832545C6C7DD3265175"
+ },
+ "fault": "the expected snapshot sha256 is uppercase hex",
+ "files": {},
+ "forms": [
+  "memory",
+  "disk"
+ ],
+ "name": "n-trust-hex",
+ "removed": [],
+ "requirement": "\u00a72 A1",
+ "verdict": {
+  "admit": false,
+  "code": "ADMISSION_UNTRUSTED"
+ }
+}

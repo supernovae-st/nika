@@ -1,0 +1,31 @@
+{
+ "base": "p01-base",
+ "expected": {
+  "policy": {
+   "id": "policy-r",
+   "sha256": "a4e94ad9d3fe4c9f01083186b647546cc040d006653b5098856a0928b2e1061f"
+  },
+  "profile": "nika-knowledge-release-profile/r1",
+  "snapshot_sha256": "b40274f66edd5214e65b591593a33d5475910aff1135b65ef2ae137c9192f26d"
+ },
+ "fault": "a source no row cites",
+ "files": {
+  "knowledge/manifest.json": {
+   "text": "{\n \"downgrades\": {\n  \"CHECK_UNPROVEN\": 1\n },\n \"exclusions\": {\n  \"kinds\": [\n   \"callable\",\n   \"capability_interface\",\n   \"construct\",\n   \"counterexample\",\n   \"example\",\n   \"intent_facet\",\n   \"skeleton\",\n   \"skill\"\n  ],\n  \"rows\": {\n   \"STATUS_EXCLUDED\": 2\n  }\n },\n \"files\": {\n  \"LICENSES/AGPL-3.0-or-later.txt\": \"72723d9923acbbe2be2420bcc6969b68bbf154d96de0bb4625cb1a83e519ef39\",\n  \"LICENSES/Apache-2.0.txt\": \"35db77e814a5629e3a3f37155d4a46cf2eb42191d9b016d0b264d514f00e803b\",\n  \"NOTICE.md\": \"0ba37f2998559184ee1c13f76be878208320d866359ac533f99e029b2751b6ca\",\n  \"blocks/digest.nika\": \"7eec561341a54465b542b7d00de6dc50f5db8605c3f7beab08bf12a2fb6a6dd2\",\n  \"knowledge/blocks.jsonl\": \"a2c5dc7ee71fb3fbfbfe121ea7e22b9b03a09c4a02716f01f35d904cd64a1668\",\n  \"knowledge/diagnostics.jsonl\": \"c977d7155dbe0b4f9fc6b268b3f87abcd590d02e8d0d81618b3f4dadcf0d31c1\",\n  \"knowledge/families.jsonl\": \"33fd665c01f5adec842e07d8874dbc8cd81098ee40db7321dfde36d0672aff95\",\n  \"knowledge/pattern_packs.jsonl\": \"fa192d952b87f06bf474c27d675bd788c8ebdec0b8c1384f15331c04302c743a\",\n  \"knowledge/patterns.jsonl\": \"41450e3f51e70ae340cb71d4637cb7c15d5c0805f0d5c639c9d2a70c14fd06e1\",\n  \"knowledge/relations.jsonl\": \"208f55d7ad3a1dc0173e01789c7600b39772479a1e9d185b0c20b4df539c3975\",\n  \"knowledge/repair_principles.jsonl\": \"e435ab51a0c176fa4e04e5904dc61e73d0e663a6497527938f57ae465cb41db7\",\n  \"knowledge/source_artifacts.jsonl\": \"e616ad601fa2a587833b2e625d6649ad4a856f7915a3a40209e8d7f0cc26f7a1\"\n },\n \"format\": \"nika-knowledge-release/2\",\n \"input_digest\": \"13620d271e041d9064ad6012a23c523f246b686bbb2b9119b24b916339f21142\",\n \"knowledge_version\": \"vectors-r1\",\n \"policy\": {\n  \"id\": \"policy-r\",\n  \"sha256\": \"a4e94ad9d3fe4c9f01083186b647546cc040d006653b5098856a0928b2e1061f\"\n },\n \"profile\": \"nika-knowledge-release-profile/r1\",\n \"relations\": {\n  \"count\": 4,\n  \"file\": \"knowledge/relations.jsonl\"\n },\n \"rows\": {\n  \"block\": {\n   \"count\": 1,\n   \"file\": \"knowledge/blocks.jsonl\"\n  },\n  \"diagnostic\": {\n   \"count\": 1,\n   \"file\": \"knowledge/diagnostics.jsonl\"\n  },\n  \"family\": {\n   \"count\": 1,\n   \"file\": \"knowledge/families.jsonl\"\n  },\n  \"pattern\": {\n   \"count\": 1,\n   \"file\": \"knowledge/patterns.jsonl\"\n  },\n  \"pattern_pack\": {\n   \"count\": 1,\n   \"file\": \"knowledge/pattern_packs.jsonl\"\n  },\n  \"repair_principle\": {\n   \"count\": 1,\n   \"file\": \"knowledge/repair_principles.jsonl\"\n  },\n  \"source_artifact\": {\n   \"count\": 3,\n   \"file\": \"knowledge/source_artifacts.jsonl\"\n  }\n },\n \"target\": {\n  \"binary\": \"nika 0.122.0 (vectors)\",\n  \"spec_sha\": \"0123456789abcdef0123456789abcdef01234567\",\n  \"verifier_sha256\": \"da2f38f6b661dd41ad473bbfa47cec505d995cec29138d4acbdc3b5a2c842770\"\n },\n \"tool\": {\n  \"id\": \"nika_bench.foundry.release\",\n  \"sha256\": \"c39b0390965da0ec211f572565953d8aafe8f7c397c8d89c203434539fc001e2\"\n }\n}\n"
+  },
+  "knowledge/source_artifacts.jsonl": {
+   "text": "{\"id\":\"src:engine\",\"kind\":\"source_artifact\",\"licence\":\"AGPL-3.0-or-later\",\"ownership\":\"project\",\"pin\":{\"binary\":\"nika 0.122.0 (vectors)\",\"spec_sha\":\"0123456789abcdef0123456789abcdef01234567\"},\"proof_level\":\"NONE\",\"sha256\":\"5a93a809c0ed6bdb3b438fe25b460d9d28e5789330092cce6c6262d127d26a52\",\"status\":\"QUALIFIED\",\"title\":\"Nika engine (vectors stand-in)\",\"upstream\":\"\"}\n{\"id\":\"src:extra\",\"kind\":\"source_artifact\",\"licence\":\"AGPL-3.0-or-later\",\"ownership\":\"project\",\"pin\":{\"binary\":\"nika 0.122.0 (vectors)\",\"spec_sha\":\"0123456789abcdef0123456789abcdef01234567\"},\"proof_level\":\"NONE\",\"sha256\":\"d06be9978021cd87328b6b12781f8fd25e2d65afe97796e78c3cc9d1eaa20d30\",\"status\":\"QUALIFIED\",\"title\":\"Uncited\",\"upstream\":\"\"}\n{\"id\":\"src:spec\",\"kind\":\"source_artifact\",\"licence\":\"Apache-2.0\",\"ownership\":\"project\",\"pin\":{\"binary\":\"nika 0.122.0 (vectors)\",\"spec_sha\":\"0123456789abcdef0123456789abcdef01234567\"},\"proof_level\":\"NONE\",\"sha256\":\"0e406f9110562bd1af4524e94181af0fda4282cd7459cb937ae9ef2ae0b0c9d6\",\"status\":\"QUALIFIED\",\"title\":\"Nika specification (vectors stand-in)\",\"upstream\":\"\"}\n"
+  }
+ },
+ "forms": [
+  "memory",
+  "disk"
+ ],
+ "name": "n-lineage-uncited",
+ "removed": [],
+ "requirement": "\u00a77 G1",
+ "verdict": {
+  "admit": false,
+  "code": "ROW_LINEAGE"
+ }
+}

@@ -5214,6 +5214,8 @@ dependencies = [
  "nika-schema",
  "nika-source",
  "nika-vocab",
+ "rustix 1.1.4",
+ "serde",
  "serde_json",
  "tempfile",
 ]

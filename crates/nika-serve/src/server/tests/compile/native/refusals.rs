@@ -605,6 +605,7 @@ async fn a_native_round_outlives_the_request_deadline_that_still_bounds_generati
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[cfg(unix)] // the disk form is defined for Unix descriptors only
 async fn a_snapshot_changed_after_start_is_refused_before_the_seat() {
     let world = TestWorld::new();
     let foundry = Foundry::create(&world.root.path().join("knowledge"));
@@ -612,35 +613,34 @@ async fn a_snapshot_changed_after_start_is_refused_before_the_seat() {
         "mock/echo",
         false,
     )))]);
-    let authoring = operator(&seat).with_knowledge(&foundry.snapshot, None);
+    let authoring = operator(&seat).with_knowledge_release(&foundry.snapshot, foundry.identity());
     let (server, _backend) = start_native(&world, compile_limits(), authoring).await;
     let first = server.request(&compile_request(&fresh(&json!({})))).await;
     assert_eq!(first.status, 200, "{}", first.body);
     let token = token_of(&first);
-    // A presented file edited after the export: no pack is composed under the pinned identity.
-    std::fs::write(
-        foundry.root.join("blocks/s06-transform.nika"),
-        "# edited after the export\n",
-    )
-    .expect("edit");
-    let stale = server.request(&compile_request(&fresh(&json!({})))).await;
-    assert_eq!(stale.status, 409, "{}", stale.body);
-    assert_eq!(stale.json()["error"]["code"], "compile_context_changed");
-    assert!(
-        !stale
-            .body
-            .contains(&world.root.path().display().to_string())
-    );
-    // A replay presents nothing, so the kept round still answers ...
+    // A byte of the admitted release edited after start: the strict door refuses the release
+    // whole, so no round proceeds under the pinned identity — a fresh one, nor a replay.
+    let block = foundry.root.join(super::BLOCK_FILE);
+    std::fs::write(&block, "# edited after the export\n").expect("edit");
     let answers = json!({"answers": {"model": RUN_MODEL}});
+    for request in [fresh(&json!({})), replay(&token, &answers)] {
+        let changed = server.request(&compile_request(&request)).await;
+        assert_eq!(changed.status, 409, "{}", changed.body);
+        assert_eq!(changed.json()["error"]["code"], "compile_context_changed");
+        assert!(
+            !changed
+                .body
+                .contains(&world.root.path().display().to_string())
+        );
+    }
+    // Restored byte for byte, it is the release admitted at start: the kept round answers ...
+    std::fs::write(&block, super::BLOCK_TEXT).expect("restore");
     let replayed = server
         .request(&compile_request(&replay(&token, &answers)))
         .await;
     assert_eq!(replayed.status, 200, "{}", replayed.body);
-    // ... until the snapshot itself is exported again: the pin no longer holds.
-    let manifest = foundry.snapshot.join("manifest.json");
-    let text = std::fs::read_to_string(&manifest).expect("manifest");
-    std::fs::write(&manifest, text.replace("digest-s06-a", "digest-s06-b")).expect("re-export");
+    // ... until another release is sealed in place: other bytes than the pinned identity's.
+    foundry.reseal("knowledge-s06-b");
     let moved = server
         .request(&compile_request(&replay(&token, &answers)))
         .await;
@@ -648,6 +648,88 @@ async fn a_snapshot_changed_after_start_is_refused_before_the_seat() {
     assert_eq!(moved.json()["error"]["code"], "compile_context_changed");
     assert_eq!(seat.calls(), 1, "a changed context never reaches the seat");
     server.stop().await.expect("clean stop");
+}
+
+/// The seating outcome of `authoring`, attached over a fresh resident authority.
+async fn attached(world: &TestWorld, authoring: NativeAuthoring) -> Result<(), ServerError> {
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let resident = ResidentConfig::new(&world.state).with_limits(compile_limits());
+    let authority = ResidentAuthority::open(resident, backend)
+        .await
+        .expect("authority");
+    let config = ServerConfig::new(
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
+        &world.workflows,
+        &world.token,
+    )
+    .with_native_authoring(authoring);
+    BoundServer::attach(config, &authority).await.map(|_| ())
+}
+
+/// One strict admission behind every door: a release the strict door refuses never seats the
+/// listener, and the operator reads the typed cause the compile door and the session give. A
+/// release named without a trusted identity (the operator's `--knowledge`) is refused the same
+/// way, however well formed.
+#[tokio::test(flavor = "multi_thread")]
+#[cfg(unix)] // the disk form is defined for Unix descriptors only
+async fn a_release_the_strict_door_refuses_never_seats_the_listener() {
+    let world = TestWorld::new();
+    let seat = Seat::start(vec![Reply::Text(native_answer(&candidate(
+        "mock/echo",
+        false,
+    )))]);
+    let sound = Foundry::create(&world.root.path().join("sound"));
+    let foundry = Foundry::create(&world.root.path().join("knowledge"));
+    std::fs::write(foundry.snapshot.join("knowledge/extra.jsonl"), "").expect("an unpinned file");
+    for (authoring, cause) in [
+        (
+            operator(&seat).with_knowledge_release(&foundry.snapshot, foundry.identity()),
+            "INVENTORY_EXTRA",
+        ),
+        (
+            operator(&seat).with_knowledge(&sound.snapshot, None),
+            "ADMISSION_UNTRUSTED",
+        ),
+    ] {
+        let outcome = attached(&world, authoring).await;
+        assert!(
+            matches!(
+                &outcome,
+                Err(ServerError::NativeAuthoring(NativeAuthoringError::Knowledge(why)))
+                    if why.contains(cause)
+            ),
+            "the release is refused with {cause}: {outcome:?}"
+        );
+    }
+    assert_eq!(seat.calls(), 0);
+}
+
+/// `--no-knowledge` is the operator's own layer of the shared parser: alone it pins nothing and
+/// seats; beside a named release on the same layer the seat is refused, never one dropped.
+#[tokio::test(flavor = "multi_thread")]
+async fn knowledge_off_on_the_operators_layer_pins_nothing_and_contradicts_a_named_release() {
+    let world = TestWorld::new();
+    let foundry = Foundry::create(&world.root.path().join("knowledge"));
+    let seat = Seat::start(vec![Reply::Text(native_answer(&candidate(
+        "mock/echo",
+        false,
+    )))]);
+    attached(&world, operator(&seat).without_knowledge())
+        .await
+        .expect("knowledge off seats");
+    let both = operator(&seat)
+        .with_knowledge_release(&foundry.snapshot, foundry.identity())
+        .without_knowledge();
+    let outcome = attached(&world, both).await;
+    assert!(
+        matches!(
+            &outcome,
+            Err(ServerError::NativeAuthoring(NativeAuthoringError::Model { reason, .. }))
+                if reason.contains("turn the knowledge off and name a source")
+        ),
+        "a contradiction on one layer is refused: {outcome:?}"
+    );
+    assert_eq!(seat.calls(), 0);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -768,6 +850,19 @@ fn the_flags_seat_only_what_the_operator_names() {
         .is_err(),
         "an exclusion needs its snapshot"
     );
+    assert!(
+        door(&["--bind", "127.0.0.1:0", "--no-knowledge"]).is_err(),
+        "knowledge off needs the seat it turns off"
+    );
+    let off = door(&[
+        "--bind",
+        "127.0.0.1:0",
+        "--authoring-model",
+        SEAT,
+        "--no-knowledge",
+    ])
+    .expect("parses");
+    assert!(off.no_knowledge && off.knowledge.is_none());
     let named = door(&[
         "--bind",
         "127.0.0.1:0",

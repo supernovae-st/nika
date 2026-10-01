@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+#![cfg_attr(not(unix), allow(unused_imports, dead_code))]
+
 use super::*;
 use crate::compile::{CompileRequest, compile};
+use crate::knowledge::RefusalCode;
+use crate::knowledge::fixture::{self, Payload};
 
 /// An outcome the deterministic core really produced, with a decision record to stamp into.
 fn outcome() -> CompileOutcome {
@@ -107,6 +111,7 @@ fn the_observed_record_counts_columns_and_never_carries_their_names() {
 }
 
 #[test]
+#[cfg(unix)] // the disk form is defined for Unix descriptors only
 fn a_pin_names_its_identity_in_words_and_refuses_what_is_no_snapshot() {
     let words = KnowledgePin::words(Some("v1"), None, &"a".repeat(64), &"b".repeat(64));
     assert_eq!(
@@ -115,34 +120,97 @@ fn a_pin_names_its_identity_in_words_and_refuses_what_is_no_snapshot() {
     );
     assert_eq!(short("0123456789abcdef"), "0123456789ab");
     let dir = tempfile::tempdir().expect("an empty directory");
-    let refused = KnowledgePin::open(dir.path().to_path_buf(), None);
+    let refused = KnowledgePin::open(dir.path().to_path_buf(), None, None);
     assert!(
-        refused.is_err(),
-        "a directory that is no snapshot is never pinned"
+        matches!(
+            refused,
+            Err(KnowledgeError::Unavailable {
+                code: RefusalCode::Untrusted,
+                ..
+            })
+        ),
+        "without a trusted identity nothing is pinned: {refused:?}"
+    );
+    let refused = KnowledgePin::open(
+        dir.path().to_path_buf(),
+        None,
+        Payload::minimal().identity(),
+    );
+    assert!(
+        matches!(
+            refused,
+            Err(KnowledgeError::Unavailable {
+                code: RefusalCode::ManifestMissing,
+                ..
+            })
+        ),
+        "a directory that is no release is never pinned: {refused:?}"
     );
 }
 
-/// C10 · D-K · a pin names both identities when the snapshot moved under it: rows it did not
-/// read, a re-declared digest; the same snapshot has not moved.
+/// C10 · D-K · a pin names both identities when the release moved under it: rows it did not
+/// admit, a manifest re-sealed over the same rows; the same release has not moved.
 #[test]
+#[cfg(unix)] // the disk form is defined for Unix descriptors only
 fn a_pin_says_when_its_snapshot_moved_under_it() {
-    let dir = tempfile::tempdir().expect("a snapshot");
-    let manifest = |digest: &str| {
-        json!({"knowledge_version": "k1", "digest": digest, "files": {}}).to_string()
+    let dir = tempfile::tempdir().expect("a release");
+    let root = dir.path().join("release");
+    Payload::minimal().write(&root).expect("written");
+    let identity = Payload::minimal()
+        .identity()
+        .expect("the fixture's identity");
+    let pin = KnowledgePin::open(root.clone(), None, Some(identity.clone())).expect("pinned");
+    let now = |identity: &TrustedIdentity| {
+        Snapshot::open(&root, Some(identity)).expect("admitted against its own identity")
     };
-    std::fs::write(dir.path().join("manifest.json"), manifest("d1")).expect("manifest");
-    let pin = KnowledgePin::open(dir.path().to_path_buf(), None).expect("pinned");
-    let now = || Snapshot::open(dir.path()).expect("still a snapshot");
-    assert_eq!(pin.moved(&now()), None, "the same snapshot has not moved");
-    std::fs::write(dir.path().join("families.jsonl"), "{}\n").expect("a row file");
-    let (pinned, found) = pin.moved(&now()).expect("rows it did not read moved it");
-    assert!(pinned.starts_with("k1 (declared digest d1"), "{pinned}");
-    assert!(found.starts_with("k1 (declared digest d1"), "{found}");
+    assert_eq!(
+        pin.moved(&now(&identity)),
+        None,
+        "the same release has not moved"
+    );
+    assert!(
+        pin.reopen().is_ok(),
+        "the pinned release reopens against its identity"
+    );
+    // Another pattern, re-sealed: refused against the pin's identity, admitted only on its own,
+    // and not the release pinned.
+    let mut edited = Payload::minimal();
+    edited.row("pattern:summarize").expect("a pattern")["notes"] = json!("another note");
+    std::fs::remove_dir_all(&root).expect("replaced");
+    edited.write(&root).expect("written");
+    assert!(
+        matches!(
+            pin.reopen(),
+            Err(KnowledgeError::Unavailable {
+                code: RefusalCode::IdentityMismatch,
+                ..
+            })
+        ),
+        "the pin's identity refuses the edited release"
+    );
+    let theirs = edited.identity().expect("its own identity");
+    let (pinned, found) = pin
+        .moved(&now(&theirs))
+        .expect("rows it did not admit moved it");
+    assert!(pinned.starts_with(fixture::VERSION), "{pinned}");
     assert_ne!(pinned, found, "the rows differ in words");
-    std::fs::remove_file(dir.path().join("families.jsonl")).expect("rows as pinned");
-    std::fs::write(dir.path().join("manifest.json"), manifest("d2")).expect("re-declared");
-    let (_, found) = pin.moved(&now()).expect("a re-declared digest moved it");
-    assert!(found.contains("declared digest d2"), "{found}");
+    // The same rows under a manifest re-sealed by another producer: its own bytes moved it.
+    let mut files = Payload::minimal().render();
+    let mut manifest = Payload::manifest(&files);
+    manifest["tool"]["sha256"] = json!("d".repeat(64));
+    files.insert(
+        fixture::manifest_path().to_owned(),
+        fixture::manifest_bytes(&manifest),
+    );
+    std::fs::remove_dir_all(&root).expect("replaced");
+    fixture::write_files(&root, &files).expect("written");
+    let resealed = now(&fixture::identity_of(&files).expect("its own identity"));
+    let (_, found) = pin.moved(&resealed).expect("a re-sealed manifest moved it");
+    assert!(
+        found.contains(&format!("manifest {}", short(resealed.manifest_sha256()))),
+        "{found}"
+    );
+    assert_eq!(resealed.rows_sha256(), pin.rows_sha256, "the same rows");
 }
 
 /// C10 · the decision seat's receipt sits beside the compiler's own record of the same
@@ -167,21 +235,33 @@ fn the_seat_receipt_is_stamped_beside_the_record_and_kept_by_the_stamp() {
     assert_eq!(created["session"]["decision_seat"]["model"], "m");
 }
 
-/// C11 · a pin's identity in the words the status line says: the declared version and digest, and
-/// the manifest and rows as read, cut at twelve.
+/// C11 · a pin's identity in the words the status line says: the declared version, the
+/// release's `SNAPSHOT_SHA256` and the rows' digest cut at twelve, and its admission; the record a
+/// receipt carries names the same identity in full.
 #[test]
+#[cfg(unix)] // the disk form is defined for Unix descriptors only
 fn a_pin_says_its_identity_as_the_status_line_reads_it() {
-    let dir = tempfile::tempdir().expect("a snapshot");
-    let manifest = json!({"knowledge_version": "k1", "digest": "d1", "files": {}});
-    std::fs::write(dir.path().join("manifest.json"), manifest.to_string()).expect("manifest");
-    let pin = KnowledgePin::open(dir.path().to_path_buf(), None).expect("pinned");
+    let dir = tempfile::tempdir().expect("a release");
+    let root = dir.path().join("release");
+    Payload::minimal().write(&root).expect("written");
+    let pin = KnowledgePin::open(root, None, Payload::minimal().identity()).expect("pinned");
     assert_eq!(
         pin.status_words(),
         format!(
-            "knowledge k1 · declared digest d1 · manifest {} · rows {}",
+            "knowledge {} · snapshot {} · rows {} · admitted",
+            fixture::VERSION,
             short(&pin.manifest_sha256),
             short(&pin.rows_sha256)
         )
+    );
+    let record = pin.record();
+    assert_eq!(record["snapshot_sha256"], json!(pin.manifest_sha256));
+    assert_eq!(record["admission"], ADMISSION_PROFILE);
+    assert_eq!(record["policy"]["id"], fixture::POLICY_ID);
+    assert_eq!(
+        record["digest"],
+        Value::Null,
+        "a release declares no digest"
     );
 }
 

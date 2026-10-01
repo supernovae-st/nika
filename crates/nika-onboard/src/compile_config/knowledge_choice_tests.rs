@@ -1,0 +1,340 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! The knowledge choice every door resolves alike: the first layer that says anything decides,
+//! off and a source on one layer contradict, nothing said is this build's stated no-default, and
+//! the door enters an admitted release, refuses a pack, attaches nothing when off.
+
+#![cfg_attr(not(unix), allow(unused_imports, dead_code))]
+
+use std::path::PathBuf;
+
+use super::*;
+use crate::compile::CompileRequest;
+use crate::knowledge::fixture::{self, Payload};
+use crate::knowledge::{KnowledgeError, RefusalCode, Snapshot};
+
+use super::KnowledgeLayer::{Environment, Explicit};
+
+fn none() -> AuthoringSettings {
+    AuthoringSettings::none()
+}
+
+fn snapshot(dir: &str, by: KnowledgeLayer) -> KnowledgeChoice {
+    KnowledgeChoice::Named {
+        source: KnowledgeSource::Snapshot {
+            dir: PathBuf::from(dir),
+            exclude_corpus: None,
+            identity: None,
+        },
+        by,
+    }
+}
+
+fn pack(file: &str, by: KnowledgeLayer) -> KnowledgeChoice {
+    KnowledgeChoice::Named {
+        source: KnowledgeSource::Pack {
+            file: PathBuf::from(file),
+        },
+        by,
+    }
+}
+
+fn choice(
+    explicit: &AuthoringSettings,
+    env: &AuthoringSettings,
+) -> Result<KnowledgeChoice, ConfigError> {
+    resolve(explicit, env).map(|config| config.choice)
+}
+
+/// The environment's own word: `NIKA_KNOWLEDGE=off` reaches the parser as that raw word.
+#[test]
+fn knowledge_off_in_the_environment_is_disabled_by_the_environment() {
+    let env = none().with_knowledge(KNOWLEDGE_OFF, None);
+    let config = resolve(&none(), &env).expect("resolves");
+    assert_eq!(config.choice, KnowledgeChoice::Disabled { by: Environment });
+    assert_eq!(config.knowledge, None);
+    assert_eq!(config.choice.words(), "knowledge off (NIKA_KNOWLEDGE=off)");
+}
+
+/// Only the exact environment word is the off word; an explicit path named `off` is a directory,
+/// and so is any other spelling in the environment.
+#[test]
+fn only_the_exact_environment_word_turns_the_knowledge_off() {
+    assert_eq!(
+        choice(&none().with_knowledge("off", None), &none()),
+        Ok(snapshot("off", Explicit))
+    );
+    for spelled in ["./off", "OFF", "Off", " off", "off/"] {
+        assert_eq!(
+            choice(&none(), &none().with_knowledge(spelled, None)),
+            Ok(snapshot(spelled, Environment)),
+            "{spelled:?} names a directory"
+        );
+    }
+}
+
+/// The whole precedence table, each expectation written out: the explicit layer decides when it
+/// says anything (a source or off), else the environment, else the stated no-default.
+#[test]
+fn the_first_layer_that_says_anything_decides() {
+    let explicit_layers = [
+        ("absent", none()),
+        ("off", none().with_knowledge_off()),
+        ("snapshot", none().with_knowledge("/explicit/snap", None)),
+        ("pack", none().with_knowledge_pack("/explicit/pack.json")),
+    ];
+    let env_layers = [
+        ("absent", none()),
+        ("flag off", none().with_knowledge_off()),
+        ("word off", none().with_knowledge("off", None)),
+        ("snapshot", none().with_knowledge("/env/snap", None)),
+        ("pack", none().with_knowledge_pack("/env/pack.json")),
+    ];
+    let expected = |explicit: &str, env: &str| match (explicit, env) {
+        ("absent", "absent") => KnowledgeChoice::NoDefault,
+        ("absent", "flag off" | "word off") => KnowledgeChoice::Disabled { by: Environment },
+        ("absent", "snapshot") => snapshot("/env/snap", Environment),
+        ("absent", "pack") => pack("/env/pack.json", Environment),
+        ("off", _) => KnowledgeChoice::Disabled { by: Explicit },
+        ("snapshot", _) => snapshot("/explicit/snap", Explicit),
+        ("pack", _) => pack("/explicit/pack.json", Explicit),
+        other => panic!("no expectation for {other:?}"),
+    };
+    for (explicit_name, explicit) in &explicit_layers {
+        for (env_name, env) in &env_layers {
+            assert_eq!(
+                choice(explicit, env),
+                Ok(expected(explicit_name, env_name)),
+                "explicit {explicit_name} · environment {env_name}"
+            );
+        }
+    }
+}
+
+#[test]
+fn off_and_a_source_on_one_layer_contradict_and_only_the_deciding_layer_is_read() {
+    let contradictions = [
+        (
+            none().with_knowledge_off().with_knowledge("/s", None),
+            none(),
+            Explicit,
+        ),
+        (
+            none().with_knowledge_off().with_knowledge_pack("/p.json"),
+            none(),
+            Explicit,
+        ),
+        (
+            none(),
+            none().with_knowledge_off().with_knowledge("/s", None),
+            Environment,
+        ),
+        (
+            none(),
+            none()
+                .with_knowledge("off", None)
+                .with_knowledge_pack("/p.json"),
+            Environment,
+        ),
+    ];
+    for (explicit, env, layer) in contradictions {
+        let refused = resolve(&explicit, &env).expect_err("contradictory");
+        assert_eq!(refused, ConfigError::ContradictoryKnowledge { layer });
+        assert!(refused.to_string().contains("--no-knowledge"), "{refused}");
+    }
+    // Both kinds of off on one layer say one thing.
+    assert_eq!(
+        choice(
+            &none(),
+            &none().with_knowledge_off().with_knowledge("off", None)
+        ),
+        Ok(KnowledgeChoice::Disabled { by: Environment })
+    );
+    // The environment's own contradiction is not read when the explicit layer decides.
+    let muddled = none()
+        .with_knowledge("off", None)
+        .with_knowledge_pack("/env/pack.json");
+    assert_eq!(
+        choice(&none().with_knowledge("/explicit/snap", None), &muddled),
+        Ok(snapshot("/explicit/snap", Explicit))
+    );
+    assert_eq!(
+        choice(&none().with_knowledge_off(), &muddled),
+        Ok(KnowledgeChoice::Disabled { by: Explicit })
+    );
+}
+
+#[test]
+fn nothing_named_is_the_stated_no_default_never_a_claim_of_knowledge() {
+    let config = resolve(&none(), &none()).expect("resolves");
+    assert_eq!(config.choice, KnowledgeChoice::NoDefault);
+    assert_eq!(config.knowledge, None);
+    assert_eq!(config.choice.words(), NO_DEFAULT);
+    assert!(
+        NO_DEFAULT.contains("no qualified release is embedded"),
+        "{NO_DEFAULT}"
+    );
+}
+
+#[test]
+fn an_explicit_exclusion_needs_a_snapshot_whatever_turned_the_knowledge_off() {
+    let explicit = none().with_knowledge_exclude("heldout");
+    let refused = Err(ConfigError::ExclusionWithoutSnapshot {
+        corpus: "heldout".to_owned(),
+    });
+    for env in [
+        none(),
+        none().with_knowledge("off", None),
+        none().with_knowledge_off(),
+    ] {
+        assert_eq!(
+            resolve(&explicit, &env).map(|c| c.choice),
+            refused,
+            "{env:?}"
+        );
+    }
+    assert_eq!(
+        resolve(&explicit.clone().with_knowledge_off(), &none()).map(|c| c.choice),
+        refused
+    );
+    // The environment's own exclusion with the knowledge off has nothing to exclude.
+    let ambient = none()
+        .with_knowledge("off", None)
+        .with_knowledge_exclude("heldout");
+    assert_eq!(
+        choice(&none(), &ambient),
+        Ok(KnowledgeChoice::Disabled { by: Environment })
+    );
+    // An explicit exclusion still guards the snapshot the environment names.
+    assert_eq!(
+        resolve(&explicit, &none().with_knowledge("/env/snap", None)).map(|c| c.knowledge),
+        Ok(Some(KnowledgeSource::Snapshot {
+            dir: PathBuf::from("/env/snap"),
+            exclude_corpus: Some("heldout".to_owned()),
+            identity: None,
+        }))
+    );
+}
+
+#[test]
+fn the_strategy_off_and_the_knowledge_off_are_distinct() {
+    let strategy_off = none().with_strategy("off");
+    for env in [none(), none().with_knowledge("off", None)] {
+        let config = resolve(&strategy_off.clone().with_knowledge_off(), &env).expect("resolves");
+        assert_eq!((config.strategy, config.knowledge), (NativeMode::Off, None));
+    }
+    let config = resolve(&strategy_off, &none().with_knowledge("off", None)).expect("resolves");
+    assert_eq!(config.choice, KnowledgeChoice::Disabled { by: Environment });
+    // Disabling authoring never erases a named source: it stays refused as unread.
+    assert!(matches!(
+        resolve(&strategy_off, &none().with_knowledge("/env/snap", None)),
+        Err(ConfigError::KnowledgeUnread { .. })
+    ));
+}
+
+#[test]
+fn a_doors_flags_are_the_builders_words() {
+    let flags = AuthoringSettings::from_flags(
+        Some("only"),
+        Some(Path::new("/flag/snap")),
+        Some(Path::new("/flag/pack.json")),
+        Some("heldout"),
+        Some("max"),
+        true,
+    );
+    let built = none()
+        .with_strategy("only")
+        .with_knowledge("/flag/snap", None)
+        .with_knowledge_pack("/flag/pack.json")
+        .with_knowledge_exclude("heldout")
+        .with_reasoning("max")
+        .with_knowledge_off();
+    assert_eq!(flags, built);
+    assert_eq!(
+        AuthoringSettings::from_flags(None, None, None, None, None, false),
+        none()
+    );
+}
+
+// ── the door every caller crosses ──────────────────────────────────────────────────────────────
+
+const INTENT: &str = fixture::INTENT;
+
+fn attached(config: &AuthoringConfig) -> Result<CompileRequest, KnowledgeError> {
+    config.with_knowledge(CompileRequest::create(INTENT), INTENT)
+}
+
+#[test]
+fn knowledge_off_and_no_default_attach_nothing() {
+    for env in [none().with_knowledge("off", None), none()] {
+        let config = resolve(&none(), &env).expect("resolves");
+        let request = attached(&config).expect("nothing to refuse");
+        assert!(request.authoring_knowledge.is_none(), "{:?}", config.choice);
+    }
+}
+
+#[test]
+fn a_pack_composed_elsewhere_is_refused_before_it_is_read() {
+    // The file does not exist: the refusal is the door's, not a read's.
+    let config =
+        resolve(&none().with_knowledge_pack("/absent/pack.json"), &none()).expect("resolves");
+    match attached(&config) {
+        Err(KnowledgeError::PackNotAdmitted { file }) => {
+            assert_eq!(file, PathBuf::from("/absent/pack.json"));
+        }
+        other => panic!("refused before any read: {other:?}"),
+    }
+}
+
+fn refusal(result: Result<CompileRequest, KnowledgeError>) -> RefusalCode {
+    match result {
+        Err(KnowledgeError::Unavailable { code, .. }) => code,
+        other => panic!("refused: {other:?}"),
+    }
+}
+
+#[test]
+#[cfg(unix)] // the disk form is defined for Unix descriptors only
+fn a_named_release_enters_only_through_the_strict_door_with_its_trusted_identity() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("release");
+    let payload = Payload::minimal();
+    payload.write(&root).unwrap();
+    let identity = payload.identity().expect("the fixture's identity");
+    let host = none().with_knowledge_release(&root, identity.clone());
+    let config = resolve(&host, &none()).expect("resolves");
+    let request = attached(&config).expect("admitted");
+    let direct = Snapshot::open(&root, Some(&identity))
+        .unwrap()
+        .pack(INTENT, None)
+        .unwrap();
+    assert_eq!(
+        request.authoring_knowledge,
+        Some(direct),
+        "the door's pack is the reader's"
+    );
+    // The same root named by a flag or by the environment carries no identity: refused, typed.
+    for (explicit, env) in [
+        (none().with_knowledge(&root, None), none()),
+        (none(), none().with_knowledge(&root, None)),
+    ] {
+        let config = resolve(&explicit, &env).expect("resolves");
+        assert_eq!(refusal(attached(&config)), RefusalCode::Untrusted);
+    }
+    // Naming another directory drops the identity named for the first.
+    let renamed = host.clone().with_knowledge(&root, None);
+    assert_eq!(renamed.knowledge_identity, None);
+    // The historical layout under a trusted identity is refused, typed, never read as a smaller
+    // release.
+    let legacy = dir.path().join("legacy");
+    std::fs::create_dir_all(&legacy).unwrap();
+    std::fs::write(
+        legacy.join("manifest.json"),
+        r#"{"knowledge_version": "k"}"#,
+    )
+    .unwrap();
+    let config =
+        resolve(&none().with_knowledge_release(&legacy, identity), &none()).expect("resolves");
+    assert_eq!(refusal(attached(&config)), RefusalCode::ManifestMissing);
+}

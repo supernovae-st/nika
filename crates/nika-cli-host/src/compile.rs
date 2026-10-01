@@ -28,7 +28,7 @@ use std::path::Path;
 #[command(group(
     clap::ArgGroup::new("seat").args(["authoring_model", "decision_model"]).multiple(true)
 ))]
-// Four independent CLI flags ARE four bools — the clap-surface idiom
+// Independent CLI flags ARE bools — the clap-surface idiom
 // (same as RunArgs), not a state machine to encode.
 #[allow(clippy::struct_excessive_bools)]
 pub struct CompileArgs {
@@ -83,9 +83,9 @@ pub struct CompileArgs {
     /// where the route qualifies it; `NIKA_AUTHORING_REASONING` names one when the flag is absent.
     #[arg(long, requires = "seat")]
     pub authoring_reasoning: Option<String>,
-    /// A knowledge snapshot directory (manifest.json · one JSONL per kind · relations.jsonl): the seat
-    /// reads the pack composed for this intent beside the card; the provenance names the snapshot.
-    /// `NIKA_KNOWLEDGE` in the environment names one when the flag is absent.
+    /// A Foundry knowledge release root, admitted by the strict door against a trusted identity
+    /// or refused whole; a flag carries no identity, so it is refused until one is wired.
+    /// `NIKA_KNOWLEDGE` in the environment names one when the flag is absent (`off`: none).
     #[arg(long, requires = "authoring_model")]
     pub knowledge: Option<std::path::PathBuf>,
     /// A corpus whose examples the knowledge door never recalls (a benchmark's own), for the
@@ -93,12 +93,15 @@ pub struct CompileArgs {
     /// `NIKA_KNOWLEDGE_EXCLUDE` in the environment names one when the flag is absent.
     #[arg(long, requires = "authoring_model")]
     pub knowledge_exclude: Option<String>,
-    /// A pack another builder composed for THIS intent (JSON: `identity` · `selection` ·
-    /// `references: [{kind, id, text}]` · `repairs: {code: [strategy]}`): it enters the door as
-    /// composed, identity and selection recorded verbatim, and wins over `--knowledge`.
+    /// A pack another builder composed for one intent: refused, since the knowledge door enters
+    /// only an admitted release (`--knowledge`), never a pack bound to none.
     /// `NIKA_KNOWLEDGE_PACK` in the environment names one when the flag is absent.
     #[arg(long, requires = "authoring_model", conflicts_with = "knowledge")]
     pub knowledge_pack: Option<std::path::PathBuf>,
+    /// Turn the knowledge off for this compile whatever the environment names (the door's own
+    /// words win); refused beside `--knowledge` or `--knowledge-pack`.
+    #[arg(long, requires = "authoring_model")]
+    pub no_knowledge: bool,
     /// Explicitly seat one bounded-decision capability (`typesafe/jev-1.13.0` or `provider/name`) for finite ambiguities.
     /// Its requests ride its own client, protocol retries included: outside `--authoring-max-calls`.
     #[arg(long, conflicts_with_all = ["base", "list"])]
@@ -402,27 +405,18 @@ fn observed_world(root: &Path, intent: &str, request: CompileRequest) -> Compile
     }
 }
 
-/// The door's own explicit words: the strategy, the snapshot, the pack, and the excluded corpus —
+/// The door's own explicit words: the strategy, the snapshot, the pack, the excluded corpus —
 /// the exclusion held whichever side names the snapshot (a held-out corpus named on the command
-/// line guards the snapshot `NIKA_KNOWLEDGE` names too).
+/// line guards the snapshot `NIKA_KNOWLEDGE` names too) — and the knowledge turned off.
 fn explicit_settings(args: &CompileArgs) -> config::AuthoringSettings {
-    let mut settings = config::AuthoringSettings::none();
-    if let Some(word) = &args.authoring_strategy {
-        settings = settings.with_strategy(word.clone());
-    }
-    if let Some(dir) = &args.knowledge {
-        settings = settings.with_knowledge(dir.clone(), None);
-    }
-    if let Some(file) = &args.knowledge_pack {
-        settings = settings.with_knowledge_pack(file.clone());
-    }
-    if let Some(corpus) = &args.knowledge_exclude {
-        settings = settings.with_knowledge_exclude(corpus.clone());
-    }
-    if let Some(word) = &args.authoring_reasoning {
-        settings = settings.with_reasoning(word.clone());
-    }
-    settings
+    config::AuthoringSettings::from_flags(
+        args.authoring_strategy.as_deref(),
+        args.knowledge.as_deref(),
+        args.knowledge_pack.as_deref(),
+        args.knowledge_exclude.as_deref(),
+        args.authoring_reasoning.as_deref(),
+        args.no_knowledge,
+    )
 }
 
 fn workflow_id(dest: &str) -> String {
@@ -523,6 +517,7 @@ mod tests {
             Some(config::KnowledgeSource::Snapshot {
                 dir: std::path::PathBuf::from("/env/snapshot"),
                 exclude_corpus: Some("heldout".to_owned()),
+                identity: None,
             })
         );
         assert_eq!(resolved.strategy, config::DEFAULT_STRATEGY);
@@ -548,6 +543,7 @@ mod tests {
             Some(config::KnowledgeSource::Snapshot {
                 dir: std::path::PathBuf::from("/flag/snapshot"),
                 exclude_corpus: Some("heldout".to_owned()),
+                identity: None,
             })
         );
         assert_eq!(resolved.strategy, nika_onboard::compile::NativeMode::Only);
@@ -570,6 +566,41 @@ mod tests {
         );
         // The exclusion still needs an authoring seat, as every knowledge flag does.
         assert!(Door::try_parse_from(["compile", "x", "--knowledge-exclude", "heldout"]).is_err());
+    }
+
+    /// `--no-knowledge` is the door's own off: it wins over the release the environment names,
+    /// is refused beside a source of its own, and needs an authoring seat like every knowledge
+    /// flag. The same shared resolver decides it, never the clap surface alone.
+    #[test]
+    fn no_knowledge_turns_the_knowledge_off_over_the_environment() {
+        let env = config::AuthoringSettings::none().with_knowledge("/env/release", None);
+        let args = parse(&["x", "--authoring-model", "mock/echo", "--no-knowledge"]);
+        let resolved = config::resolve(&explicit_settings(&args), &env).expect("resolves");
+        assert_eq!(
+            resolved.choice,
+            config::KnowledgeChoice::Disabled {
+                by: config::KnowledgeLayer::Explicit
+            }
+        );
+        assert_eq!(resolved.knowledge, None);
+        let both = parse(&[
+            "x",
+            "--authoring-model",
+            "mock/echo",
+            "--no-knowledge",
+            "--knowledge",
+            "/flag/release",
+        ]);
+        assert_eq!(
+            config::resolve(
+                &explicit_settings(&both),
+                &config::AuthoringSettings::none()
+            ),
+            Err(config::ConfigError::ContradictoryKnowledge {
+                layer: config::KnowledgeLayer::Explicit
+            })
+        );
+        assert!(Door::try_parse_from(["compile", "x", "--no-knowledge"]).is_err());
     }
 
     /// Every free-intent door carries the host observation of the files its request states (R4

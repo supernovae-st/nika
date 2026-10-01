@@ -7,6 +7,10 @@
     clippy::disallowed_types,
     clippy::disallowed_methods
 )]
+// The strict door admits a release on disk only on Unix descriptors (the r1 contract §3.2),
+// and these scenarios stand on one; the onboard tests keep the resolver's own choices on
+// every platform.
+#![cfg(unix)]
 
 //! The real public session route to the native compiler and the Foundry knowledge, end to end
 //! over a controlled seat: the session a host door opens (`SessionRuntime::open_with`, the
@@ -73,6 +77,7 @@ fn world() -> World {
 /// Run one scenario in a child with this environment; the child's report.
 fn run_child(world: &World, scenario: &str, seat: &LoopbackSeat, env: &[(&str, &str)]) -> Value {
     let log = world.report.with_extension("log");
+    let identity = world.foundry.identity();
     let mut command = Command::new(std::env::current_exe().unwrap());
     command
         .args([
@@ -91,6 +96,9 @@ fn run_child(world: &World, scenario: &str, seat: &LoopbackSeat, env: &[(&str, &
         .env("S03_CHILD", scenario)
         .env("S03_ROOT", &world.root)
         .env("S03_FOUNDRY_ROOT", &world.foundry.root)
+        .env("S03_SNAPSHOT_SHA256", identity.snapshot_sha256())
+        .env("S03_POLICY_ID", identity.policy_id())
+        .env("S03_POLICY_SHA256", identity.policy_sha256())
         .env("S03_REPORT", &world.report)
         .stdin(Stdio::null())
         .stdout(Stdio::from(std::fs::File::create(&log).unwrap()))
@@ -131,7 +139,7 @@ fn revision_intent() -> String {
 
 /// The digest of the pack the one knowledge door composes for `intent` from the snapshot.
 fn expected_pack(foundry: &Foundry, intent: &str) -> nika_onboard::compile::AuthoringKnowledge {
-    Snapshot::open(&foundry.snapshot)
+    Snapshot::open(&foundry.snapshot, Some(&foundry.identity()))
         .unwrap()
         .pack(intent, None)
         .unwrap()
@@ -161,7 +169,7 @@ fn assert_first_round(world: &World, body: &Value, details: &str, port: u16) {
     let first = message(body, "system");
     let pack = expected_pack(&world.foundry, INTENT);
     assert_presented(&first, &pack);
-    assert!(first.contains("S03-BLOCK-MARKER") && first.contains("S03-SKILL-MARKER"));
+    assert!(first.contains("S03-BLOCK-MARKER") && first.contains("S03-PATTERN-MARKER"));
     assert!(
         details.contains(&format!("native · instruction sha256 {}", sha256(&first))),
         "{details}"
@@ -187,11 +195,11 @@ fn assert_first_round(world: &World, body: &Value, details: &str, port: u16) {
         "the answer round's own receipt is its judge's call: {details}"
     );
     assert!(
-        details.contains("knowledge: knowledge-s03 · declared digest digest-s03-a · manifest "),
+        details.contains("knowledge: knowledge-s03 · declared digest none · manifest "),
         "{details}"
     );
     assert!(
-        details.contains("authoring strategy: only (environment)"),
+        details.contains("authoring strategy: only (host)"),
         "{details}"
     );
     for reference in &pack.references {
@@ -238,7 +246,7 @@ fn assert_revision(world: &World, body: &Value, details: &str, port: u16) {
         "the base is the proposal's own bytes: {opening:#}"
     );
     assert!(
-        details.contains("knowledge: knowledge-s03 · declared digest digest-s03-a · manifest "),
+        details.contains("knowledge: knowledge-s03 · declared digest none · manifest "),
         "the revision keeps the pinned identity: {details}"
     );
     assert!(
@@ -267,15 +275,11 @@ fn the_public_turn_presents_the_pinned_pack_and_the_receipt_names_the_bytes_the_
         native_answer(&candidate(SEAT_MODEL, true)),
         JUDGE_APPROVES.to_owned(),
     ]);
-    let snapshot = world.foundry.snapshot.display().to_string();
     let report = run_child(
         &world,
         "route",
         &seat,
-        &[
-            ("NIKA_KNOWLEDGE", &snapshot),
-            ("NIKA_AUTHORING_STRATEGY", "only"),
-        ],
+        &[("NIKA_AUTHORING_STRATEGY", "only")],
     );
     seat.shutdown();
     let bodies = seat.bodies();
@@ -320,7 +324,7 @@ fn the_public_turn_presents_the_pinned_pack_and_the_receipt_names_the_bytes_the_
         seat.port,
     );
     // The revision authored under exactly the identity the first round was: version, declared
-    // digest, manifest bytes and rows.
+    // digest (none for a release), manifest bytes and rows.
     let identity = |details: &str| -> String {
         let line = details
             .lines()
@@ -360,8 +364,7 @@ fn the_default_strategy_escalates_and_only_the_native_door_reads_the_pack() {
         native_answer(&candidate("mock/echo", false)),
         JUDGE_APPROVES.to_owned(),
     ]);
-    let snapshot = world.foundry.snapshot.display().to_string();
-    let report = run_child(&world, "escalate", &seat, &[("NIKA_KNOWLEDGE", &snapshot)]);
+    let report = run_child(&world, "escalate", &seat, &[]);
     seat.shutdown();
     let bodies = seat.bodies();
     assert_eq!(
@@ -380,7 +383,7 @@ fn the_default_strategy_escalates_and_only_the_native_door_reads_the_pack() {
     assert_presented(&native, &expected_pack(&world.foundry, INTENT));
     let details = report["details_first"].as_str().unwrap();
     assert!(
-        details.contains("authoring strategy: escalate (environment)"),
+        details.contains("authoring strategy: escalate (host)"),
         "{details}"
     );
     assert!(
@@ -400,15 +403,11 @@ fn a_snapshot_that_goes_stale_under_the_session_refuses_the_revision_and_the_pro
         native_answer(&candidate("mock/echo", false)),
         JUDGE_APPROVES.to_owned(),
     ]);
-    let snapshot = world.foundry.snapshot.display().to_string();
     let report = run_child(
         &world,
         "stale",
         &seat,
-        &[
-            ("NIKA_KNOWLEDGE", &snapshot),
-            ("NIKA_AUTHORING_STRATEGY", "only"),
-        ],
+        &[("NIKA_AUTHORING_STRATEGY", "only")],
     );
     seat.shutdown();
     let bodies = seat.bodies();
@@ -424,7 +423,7 @@ fn a_snapshot_that_goes_stale_under_the_session_refuses_the_revision_and_the_pro
     assert_eq!(last["kind"], "refusal", "{report:#}");
     let text = last["text"].as_str().unwrap();
     assert!(
-        text.contains("is stale") && text.contains("blocks/s03-transform.nika"),
+        text.contains("PIN_MISMATCH") && text.contains("blocks/s03-transform.nika"),
         "{text}"
     );
     assert!(
@@ -441,15 +440,11 @@ fn a_snapshot_that_goes_stale_under_the_session_refuses_the_revision_and_the_pro
 fn a_deterministic_session_calls_no_one_and_reads_no_pack_whatever_is_configured() {
     let world = world();
     let seat = LoopbackSeat::start(vec![native_answer(&candidate("mock/echo", false))]);
-    let snapshot = world.foundry.snapshot.display().to_string();
     let report = run_child(
         &world,
         "deterministic",
         &seat,
-        &[
-            ("NIKA_KNOWLEDGE", &snapshot),
-            ("NIKA_AUTHORING_STRATEGY", "only"),
-        ],
+        &[("NIKA_AUTHORING_STRATEGY", "only")],
     );
     seat.shutdown();
     assert!(
@@ -472,6 +467,37 @@ fn a_deterministic_session_calls_no_one_and_reads_no_pack_whatever_is_configured
     assert!(
         status.contains("knowledge knowledge-s03"),
         "the configuration is stated (pinned at open), never composed nor presented by this seat: {status}"
+    );
+}
+
+/// A release the environment names carries no trusted identity: refused, typed, when the
+/// session opens, and its first seated turn sends nothing.
+#[test]
+fn a_release_the_environment_names_is_refused_at_open_and_no_seat_is_called() {
+    let world = world();
+    let seat = LoopbackSeat::start(vec![native_answer(&candidate("mock/echo", false))]);
+    let snapshot = world.foundry.snapshot.display().to_string();
+    let report = run_child(
+        &world,
+        "untrusted",
+        &seat,
+        &[
+            ("NIKA_KNOWLEDGE", &snapshot),
+            ("NIKA_AUTHORING_STRATEGY", "only"),
+        ],
+    );
+    seat.shutdown();
+    assert!(seat.bodies().is_empty(), "{:?}", seat.bodies());
+    let banner = report["banner"].as_str().unwrap();
+    assert!(banner.contains("ADMISSION_UNTRUSTED"), "{banner}");
+    let step = &report["steps"][0];
+    assert_eq!(step["kind"], "refusal", "{report:#}");
+    assert!(
+        step["text"]
+            .as_str()
+            .unwrap()
+            .contains("ADMISSION_UNTRUSTED"),
+        "{step}"
     );
 }
 
@@ -524,6 +550,9 @@ fn child() {
 }
 
 mod drive {
+    use nika_cli_host::compile::config::AuthoringSettings;
+    use nika_cli_host::compile::knowledge::TrustedIdentity;
+    use nika_session::authoring::AuthoringContext;
     use nika_session::intelligence::{
         IntelligenceCensus, IntelligenceKind, ResolvedSessionIntelligence,
         UserIntelligencePreference,
@@ -534,7 +563,24 @@ mod drive {
         RoutingMethod, SessionPhase, TurnAct, TurnClassifier, TurnContext, TurnDecision,
     };
     use serde_json::{Value, json};
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
+
+    /// The context a host builds: the release the parent sealed, under the identity the parent
+    /// handed down as this host's own trusted record, over the environment the session read.
+    pub(super) fn host_context() -> AuthoringContext {
+        let var = |name: &str| std::env::var(name).unwrap();
+        let identity = TrustedIdentity::new(
+            &var("S03_SNAPSHOT_SHA256"),
+            &var("S03_POLICY_ID"),
+            &var("S03_POLICY_SHA256"),
+        )
+        .unwrap();
+        let release = PathBuf::from(var("S03_FOUNDRY_ROOT"));
+        AuthoringContext::from_settings(
+            &AuthoringSettings::none().with_knowledge_release(release, identity),
+            &AuthoringSettings::from_env(),
+        )
+    }
 
     /// The host's classifier: a line at a question answers it, a line at a proposal changes it.
     struct Scripted;
@@ -612,6 +658,7 @@ fn child_drive(scenario: &str, root: &Path, home: &Path) -> Value {
     match scenario {
         "route" | "escalate" | "stale" => {
             let mut session = drive::open(root, home, local);
+            session.set_authoring_context(drive::host_context());
             let seat_before = format!("{:?}", session.authoring_seat());
             steps.push(drive::step(&session.turn(INTENT)));
             // An empty line takes the model the human already chose.
@@ -637,6 +684,7 @@ fn child_drive(scenario: &str, root: &Path, home: &Path) -> Value {
         }
         "deterministic" => {
             let mut session = drive::open(root, home, IntelligenceKind::None);
+            session.set_authoring_context(drive::host_context());
             steps.push(drive::step(
                 &session.turn("Read ./notes/brief.md and write it to ./out/copy.md"),
             ));
@@ -647,7 +695,7 @@ fn child_drive(scenario: &str, root: &Path, home: &Path) -> Value {
                 "status": session.status(),
             })
         }
-        "misconfigured" => {
+        "untrusted" | "misconfigured" => {
             let mut session = drive::open(root, home, local);
             let banner = session.banner();
             steps.push(drive::step(&session.turn(INTENT)));
