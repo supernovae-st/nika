@@ -246,6 +246,87 @@ mod tests {
         assert!(bare("vars.brief").is_empty());
     }
 
+    fn out_paths(src: &str) -> Vec<(String, Vec<String>)> {
+        task_output_paths(&parse_expression(src).expect("parse"))
+    }
+
+    fn alias_paths(src: &str) -> Vec<(String, Vec<String>)> {
+        with_alias_paths(&parse_expression(src).expect("parse"))
+    }
+
+    fn hop(id: &str, path: &[&str]) -> (String, Vec<String>) {
+        (
+            id.to_owned(),
+            path.iter().map(|s| (*s).to_owned()).collect(),
+        )
+    }
+
+    #[test]
+    fn task_output_paths_carry_every_segment_after_output() {
+        assert_eq!(
+            out_paths("tasks.bill.output.total_usd"),
+            vec![hop("bill", &["total_usd"])]
+        );
+        assert_eq!(
+            out_paths("tasks.a.output.x.y.z"),
+            vec![hop("a", &["x", "y", "z"])]
+        );
+        assert_eq!(out_paths("tasks.a.output"), vec![hop("a", &[])]);
+        assert_eq!(out_paths("tasks['a'].output['k']"), vec![hop("a", &["k"])]);
+        assert_eq!(out_paths("tasks.a.output[0]"), vec![hop("a", &[])]);
+    }
+
+    #[test]
+    fn task_output_paths_ignore_every_other_shape() {
+        assert!(out_paths("tasks.a.status").is_empty());
+        assert!(out_paths("tasks.a.error.code").is_empty());
+        assert!(out_paths("tasks.a").is_empty());
+        assert!(out_paths("with.a.output.title").is_empty());
+        assert!(out_paths("inputs.a.output.title").is_empty());
+        assert!(out_paths("42 > 0").is_empty());
+    }
+
+    #[test]
+    fn task_output_paths_find_every_chain_in_source_order() {
+        assert_eq!(
+            out_paths("tasks.a.output.x == tasks.b.output.y.z"),
+            vec![hop("a", &["x"]), hop("b", &["y", "z"])]
+        );
+        assert_eq!(
+            out_paths("size(tasks.a.output.items) > 0"),
+            vec![hop("a", &["items"])]
+        );
+        assert_eq!(
+            out_paths("[tasks.a.output.x, tasks.b.output]"),
+            vec![hop("a", &["x"]), hop("b", &[])]
+        );
+    }
+
+    #[test]
+    fn with_alias_paths_carry_every_segment_after_the_alias() {
+        assert_eq!(
+            alias_paths("with.bill.total_usd"),
+            vec![hop("bill", &["total_usd"])]
+        );
+        assert_eq!(
+            alias_paths("with.a.x.y.z"),
+            vec![hop("a", &["x", "y", "z"])]
+        );
+        assert_eq!(alias_paths("with['a'].k"), vec![hop("a", &["k"])]);
+        assert_eq!(
+            alias_paths("with.a.x == with.b.y"),
+            vec![hop("a", &["x"]), hop("b", &["y"])]
+        );
+    }
+
+    #[test]
+    fn with_alias_paths_need_a_hop_past_the_alias() {
+        assert!(alias_paths("with.bill").is_empty());
+        assert!(alias_paths("tasks.a.output.x").is_empty());
+        assert!(alias_paths("inputs.a.b").is_empty());
+        assert!(alias_paths("'literal'").is_empty());
+    }
+
     #[test]
     fn classify_loop_locals() {
         assert_eq!(refs("item"), vec![NamespaceRef::Item]);
