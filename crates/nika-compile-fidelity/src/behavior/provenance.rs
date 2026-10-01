@@ -8,7 +8,8 @@
 //! the reader reads, must be one whole sentence of
 //!
 //! ```text
-//! REQUEST := "read " SOURCE SEP RULE SEP WRITE ["."]
+//! REQUEST := "read " SOURCE SEP RULE SEP WRITE ["."] | COPY
+//! COPY    := "copy " SOURCE " as is to " TARGET ["."]                (a copy)
 //! SEP     := ", " | ", and " | " and "
 //! RULE    := "count the rows where " FIELD " is " VALUE          (a count)
 //!          | "keep the rows where " FIELD " is " VALUE           (a filter)
@@ -26,8 +27,12 @@
 //! targets TARGET; it holds nothing else. An identity the reader's apostrophe folding alters
 //! therefore disagrees with the plan and proves nothing. The write production owns its proof: the
 //! write of TARGET is unconditional (no condition slot exists), and the count's name is free (no
-//! name slot) or the stated LABEL. No list of words is consulted: a request outside the language
-//! proves nothing, and [`contract_of`] keeps its `Unproven` and `Naming::Unknown`.
+//! name slot) or the stated LABEL. A copy's plan holds exactly one read of SOURCE and one
+//! automatic write of TARGET, two distinct files of a text suffix (a bound on the production,
+//! never a proof of their encoding: only the host's whole receipt proves a text), its path
+//! bindings and nothing else: its write is unconditional and holds exactly the text of SOURCE
+//! ([`Requirement::CopyText`]). No list of words is consulted: a request outside the language
+//! proves nothing, and [`contract_of`] keeps its `Unproven`, `Unsupported` and `Naming::Unknown`.
 
 use std::collections::BTreeMap;
 
@@ -38,7 +43,7 @@ use nika_compile_reader::{gates, hot, lexicon, paths, shape};
 
 use super::pipeline::{Naming, Operand, Pipeline};
 use super::requested::{contract_of, pipeline_of};
-use super::{Contract, Presence, Requirement, same_path};
+use super::{Contract, Format, Presence, Requirement, same_path};
 
 /// The separators between the clauses, the longest first: a shorter one is never a choice where
 /// a longer one stands.
@@ -54,6 +59,8 @@ pub enum Written {
     Count,
     /// A count under the label the request states, byte for byte: `write the count as LABEL to`.
     Labelled(String),
+    /// The source's own text, as is: `copy SOURCE as is to TARGET`.
+    Copy,
 }
 
 /// One sentence of the admitted language, its identity spans owned.
@@ -62,7 +69,7 @@ pub enum Written {
 pub struct Production {
     /// The path the read clause names.
     pub source: String,
-    /// The rule clause, verbatim.
+    /// The rule clause, verbatim; empty for a copy.
     pub rule: String,
     /// The path the write clause names.
     pub target: String,
@@ -152,6 +159,16 @@ pub(super) fn proven(contract: Contract, provenance: &Provenance) -> Contract {
                 obligation.presence = Presence::Required;
                 named(pipeline, &production.written);
             }
+            if production.written == Written::Copy
+                && owned
+                && obligation.presence == Presence::Unproven
+                && matches!(obligation.requirement, Requirement::Unsupported(_))
+            {
+                obligation.presence = Presence::Required;
+                obligation.requirement = Requirement::CopyText {
+                    source: production.source.clone(),
+                };
+            }
             obligation
         })
         .collect();
@@ -175,7 +192,7 @@ fn named(pipeline: &mut Pipeline, written: &Written) {
             aggregate.name.clone_from(label);
             aggregate.naming = Naming::Stated;
         }
-        Written::Rows => {}
+        Written::Rows | Written::Copy => {}
     }
 }
 
@@ -309,15 +326,65 @@ fn typed(rule: &Rule, parsed: &Sentence<'_>) -> bool {
     bare && tested && aggregate_matches
 }
 
-/// The sentence of the language `intent` is over `plan`, when the plan holds exactly its one
-/// read, its one typed rule and its one automatic write, byte for byte.
-pub(super) fn production(intent: &str, plan: &Plan) -> Option<Production> {
-    let parsed = sentence(intent)?;
-    let quiet = plan.unknowns.is_empty()
+/// Whether the plan holds no unknown, constraint, obligation, slot or trigger.
+fn quiet(plan: &Plan) -> bool {
+    plan.unknowns.is_empty()
         && plan.constraints.is_empty()
         && plan.obligations.is_empty()
         && plan.slots.is_empty()
-        && plan.trigger.is_none();
+        && plan.trigger.is_none()
+}
+
+/// The copy sentence `intent` is: `copy SOURCE as is to TARGET`, its identities byte for byte.
+fn copy_sentence(intent: &str) -> Option<(&str, &str)> {
+    let text = intent.strip_suffix('.').unwrap_or(intent);
+    let (source, rest) = path(after(text, "copy ")?)?;
+    let (target, rest) = path(after(rest, " as is to ")?)?;
+    rest.is_empty().then_some((source, target))
+}
+
+/// The copy of `source` to `target` over `plan`, when the plan holds exactly one read of the
+/// source and one automatic write of the target, two distinct files of a text suffix, and
+/// nothing else.
+fn copy_production(source: &str, target: &str, plan: &Plan) -> Option<Production> {
+    let [read] = plan.steps.as_slice() else {
+        return None;
+    };
+    let [write] = plan.effects.as_slice() else {
+        return None;
+    };
+    let text = |file: &str| Format::of_path(file) == Some(Format::Text);
+    let bound = plan.bindings.iter().all(|binding| {
+        binding.role == "path" && (binding.literal == source || binding.literal == target)
+    });
+    let shaped = quiet(plan)
+        && plan.rules.is_empty()
+        && bound
+        && text(source)
+        && text(target)
+        && !same_path(source, target)
+        && read.op == Op::Read
+        && read.detail == source
+        && write.verb == EffectVerb::Write
+        && write.policy == EffectPolicy::Automatic
+        && write.policy_literal.is_none()
+        && !write.alone
+        && paths::single_file(&write.target).as_deref() == Some(target);
+    shaped.then(|| Production {
+        source: source.to_owned(),
+        rule: String::new(),
+        target: target.to_owned(),
+        written: Written::Copy,
+    })
+}
+
+/// The sentence of the language `intent` is over `plan`, when the plan holds exactly its one
+/// read, its one typed rule and its one automatic write, or exactly its copy, byte for byte.
+pub(super) fn production(intent: &str, plan: &Plan) -> Option<Production> {
+    if let Some((source, target)) = copy_sentence(intent) {
+        return copy_production(source, target, plan);
+    }
+    let parsed = sentence(intent)?;
     let [read, compute] = plan.steps.as_slice() else {
         return None;
     };
@@ -327,7 +394,7 @@ pub(super) fn production(intent: &str, plan: &Plan) -> Option<Production> {
     let [write] = plan.effects.as_slice() else {
         return None;
     };
-    let shaped = quiet
+    let shaped = quiet(plan)
         && read.op == Op::Read
         && read.detail == parsed.source
         && compute.op == Op::Compute

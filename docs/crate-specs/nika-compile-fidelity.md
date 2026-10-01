@@ -199,7 +199,14 @@ needs keeps its default.
   apostrophe-folded copy), whose identities are kept byte for byte (one terminal period is
   punctuation, never part of TARGET), whose plan agrees with it byte for byte, that the strict HOT
   door admits and that is the whole request: its write is `Required` and its count's name free
-  (no name slot) or the stated label. No word list is consulted; every other request, an identity
+  (no name slot) or the stated label. One more closed production, `copy SOURCE as is to TARGET`
+  over a plan of exactly one read of SOURCE and one automatic write of TARGET (two distinct files
+  of a text suffix, no rule, no other binding), proves the write `Required` and its content
+  `Requirement::CopyText`: exactly the text the run consumed from SOURCE, byte for byte. The
+  suffix bounds the production and proves no encoding: only the host's complete receipt proves a
+  text. A cut or non-text source or a cut result is incomplete, a result not published by the
+  run or holding other text fails, a missing source receipt on an attempt is an invalid harness,
+  and only a completed run passes. No word list is consulted; every other request, an identity
   folding would alter included, keeps `Unproven` and `Unknown`. `select` judges several
   candidates (`Candidate`: the identity of the bytes rehearsed and one run per world) against one
   such contract, each as one round of the same turn's budget, and selects the first one certified

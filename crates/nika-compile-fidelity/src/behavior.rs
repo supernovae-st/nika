@@ -12,9 +12,11 @@
 //! cannot trace to the request is [`Naming::Unknown`] (never assumed free), and requested work
 //! this component cannot verify is an explicit [`Requirement::Unsupported`] obligation.
 //! [`contract_of_request`] proves more only for a sentence of a small closed language (one read,
-//! one equality filter or its count, one direct write, identities kept byte for byte) that the
-//! strict HOT door admits and that the whole request is ([`Provenance`]): its write is
-//! [`Presence::Required`] and its count's name free, or stated where the sentence labels it.
+//! one equality filter or its count, one direct write; or one text file copied as is; identities
+//! kept byte for byte) that the strict HOT door admits and that the whole request is
+//! ([`Provenance`]): its write is [`Presence::Required`], its count's name free or stated where
+//! the sentence labels it, and a copy holds exactly the text of its source
+//! ([`Requirement::CopyText`]).
 //!
 //! [`judge`] establishes what each rehearsal can show before reading its end: a contradictory
 //! observation, a source outside the stated domain or a missing receipt is an invalid harness,
@@ -179,6 +181,8 @@ pub enum Requirement {
         pipeline: Pipeline,
         form: Form,
     },
+    /// Exactly the text the run consumed from `source`, byte for byte: a text file copied as is.
+    CopyText { source: String },
     /// A requested result this component cannot verify, and why: never passed.
     Unsupported(String),
 }
@@ -773,3 +777,6 @@ mod provenance_tests;
 
 #[cfg(test)]
 mod selection_tests;
+
+#[cfg(test)]
+mod copy_tests;

@@ -34,6 +34,8 @@ use super::{
     same_path,
 };
 
+mod copied;
+
 /// What a fixture shows about one obligation: its outcome and the words for it.
 type Shown = (Outcome, String);
 
@@ -105,6 +107,8 @@ struct Reading {
     condition: Option<Result<bool, Settle>>,
     /// The expected result of its relation, for a computed requirement.
     relation: Option<Result<Expected, Settle>>,
+    /// The exact text a copy must hold: what the run consumed from its source.
+    copy: Option<Result<String, Settle>>,
     /// The stops its condition and relation predict, each with the source it reads.
     stops: Vec<(String, Stop)>,
     /// The cut through tied rows its relation admits as a stop: the source and the field.
@@ -268,6 +272,11 @@ fn read(obligation: &Obligation, run: &Run) -> Reading {
         }
         reading.relation = Some(relation);
     }
+    if let Requirement::CopyText { source } = &obligation.requirement {
+        let text = copied::source_text(source, run, &mut reading.evidence);
+        reading.note(source, text.as_ref().err(), false);
+        reading.copy = Some(text);
+    }
     if let Some(target) = &obligation.target
         && reading.invalid.is_none()
         && !run
@@ -377,7 +386,8 @@ fn named_source(contract: &Contract, path: &str) -> bool {
                 Presence::When(condition) | Presence::OnlyWhen(condition)
                     if named(&condition.source));
             let computed = matches!(&obligation.requirement,
-                Requirement::Computed { source, .. } if named(source));
+                Requirement::Computed { source, .. } | Requirement::CopyText { source }
+                    if named(source));
             condition || computed
         })
 }
@@ -806,19 +816,26 @@ fn content(
     output: &ReadBack,
 ) -> Shown {
     let path = &target.path;
-    let Requirement::Computed {
-        pipeline,
-        form: shape,
-        ..
-    } = &obligation.requirement
-    else {
-        return match &obligation.requirement {
-            Requirement::Unsupported(why) => (
+    let (pipeline, shape) = match &obligation.requirement {
+        Requirement::Computed {
+            pipeline,
+            form: shape,
+            ..
+        } => (pipeline, shape),
+        Requirement::CopyText { .. } => {
+            return copied::shown(
+                path,
+                reading.and_then(|reading| reading.copy.as_ref()),
+                output,
+            );
+        }
+        Requirement::Unsupported(why) => {
+            return (
                 Outcome::Incomplete,
                 format!("{path} was written; its content is not verified: {why}"),
-            ),
-            _ => (Outcome::Passed, format!("{path} was written")),
-        };
+            );
+        }
+        Requirement::PresenceOnly => return (Outcome::Passed, format!("{path} was written")),
     };
     match reading.and_then(|reading| reading.relation.as_ref()) {
         Some(Ok(expected)) => written_result(expected, pipeline, target, *shape, output),
@@ -1295,6 +1312,7 @@ fn requested(obligation: &Obligation) -> String {
             };
             format!("{shape} from {source}: {}", pipeline.describe())
         }
+        Requirement::CopyText { source } => format!("exactly the text of {source}, as is"),
         Requirement::Unsupported(why) => format!("not verified by this component ({why})"),
     };
     let when = match &obligation.presence {
@@ -1408,6 +1426,10 @@ fn relation_assumptions(pipeline: &Pipeline, out: &mut Vec<String>) {
 fn assumptions(obligation: &Obligation) -> Vec<String> {
     let mut out = Vec::new();
     presence_assumptions(obligation, &mut out);
+    if let Requirement::CopyText { .. } = &obligation.requirement {
+        out.extend(copied::ASSUMPTIONS.map(str::to_owned));
+        return out;
+    }
     let Requirement::Computed {
         source_format,
         pipeline,
