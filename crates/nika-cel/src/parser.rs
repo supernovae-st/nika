@@ -655,4 +655,73 @@ mod tests {
             "a 10-term chain is a fine real workflow"
         );
     }
+
+    #[test]
+    fn every_relop_token_maps_to_its_own_ast_operator() {
+        for (src, want) in [
+            ("1==2", RelOp::Eq),
+            ("1!=2", RelOp::Ne),
+            ("1<2", RelOp::Lt),
+            ("1<=2", RelOp::Le),
+            ("1>2", RelOp::Gt),
+            ("1>=2", RelOp::Ge),
+            ("1 in [2]", RelOp::In),
+        ] {
+            let e = parse(src).unwrap_or_else(|err| panic!("`{src}` parses: {err}"));
+            let Node::Rel { op, .. } = e.node() else {
+                panic!("`{src}` is a relation");
+            };
+            assert_eq!(*op, want, "`{src}` carries its own operator");
+        }
+    }
+
+    #[test]
+    fn nesting_at_exactly_the_depth_cap_still_parses() {
+        let at_cap = format!("{}true{}", "(".repeat(63), ")".repeat(63));
+        let e = parse(&at_cap).unwrap_or_else(|err| panic!("63 groups parse: {err}"));
+        assert!(
+            matches!(e.node(), Node::Lit(Value::Bool(true))),
+            "the group unwraps to its literal"
+        );
+        let over = format!("{}true{}", "(".repeat(64), ")".repeat(64));
+        assert_eq!(
+            parse(&over)
+                .expect_err("64 groups cross the cap")
+                .spec_code(),
+            "NIKA-VAR-005"
+        );
+        let chain = |n: usize, op: &str| {
+            std::iter::repeat_n("vars.a", n)
+                .collect::<Vec<_>>()
+                .join(op)
+        };
+        for (src, shape) in [(chain(127, " || "), "||"), (chain(127, " && "), "&&")] {
+            let e = parse(&src).unwrap_or_else(|err| panic!("127 `{shape}` terms: {err}"));
+            assert!(
+                matches!(e.node(), Node::Or(..) | Node::And(..)),
+                "a 127-term `{shape}` chain is one boolean tree"
+            );
+        }
+        for src in [chain(128, " || "), chain(128, " && ")] {
+            assert_eq!(
+                parse(&src)
+                    .expect_err("128 terms cross the cap")
+                    .spec_code(),
+                "NIKA-VAR-005"
+            );
+        }
+    }
+
+    #[test]
+    fn sibling_expressions_give_their_depth_budget_back() {
+        let items = std::iter::repeat_n("vars.a", 200)
+            .collect::<Vec<_>>()
+            .join(", ");
+        let e = parse(&format!("[{items}]"))
+            .unwrap_or_else(|err| panic!("a 200-element list is shallow: {err}"));
+        let Node::List(elems) = e.node() else {
+            panic!("a list literal");
+        };
+        assert_eq!(elems.len(), 200, "every sibling survives the walk");
+    }
 }

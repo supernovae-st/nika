@@ -417,4 +417,48 @@ mod tests {
         // Escapes still compose with multibyte content.
         assert_eq!(kinds(r"'é\n☃'"), vec![Tok::Str("é\n☃".into())]);
     }
+
+    #[test]
+    fn a_dot_with_no_digit_after_it_is_the_field_dot_not_a_float() {
+        assert_eq!(kinds("1."), vec![Tok::Int(1), Tok::Dot]);
+        assert_eq!(
+            kinds("1.x"),
+            vec![Tok::Int(1), Tok::Dot, Tok::Ident("x".into())]
+        );
+        assert_eq!(
+            kinds("0.size()"),
+            vec![
+                Tok::Int(0),
+                Tok::Dot,
+                Tok::Ident("size".into()),
+                Tok::LParen,
+                Tok::RParen,
+            ]
+        );
+        assert_eq!(kinds("1.5"), vec![Tok::Float(1.5)]);
+        assert_eq!(kinds("-0.25"), vec![Tok::Float(-0.25)]);
+    }
+
+    #[test]
+    fn a_sign_with_no_digits_is_a_static_error_spanning_the_sign() {
+        for src in ["-", "-x", "-."] {
+            let err = lex(src).expect_err("a sign is not a number");
+            assert_eq!(err.spec_code(), "NIKA-VAR-005", "`{src}` is static");
+            assert_eq!(err.span(), (0, 1), "`{src}` spans the sign byte");
+        }
+    }
+
+    #[test]
+    fn the_unknown_escape_span_follows_the_backslash_wherever_it_sits() {
+        for (src, want) in [
+            (r"'a\xb'", (2, 4)),
+            (r"'ab\qc'", (3, 5)),
+            (r"'abc\zd'", (4, 6)),
+            (r"'abcd\ye'", (5, 7)),
+        ] {
+            let err = lex(src).expect_err("unknown escape");
+            assert_eq!(err.spec_code(), "NIKA-VAR-005", "`{src}` is static");
+            assert_eq!(err.span(), want, "`{src}` spans its own backslash");
+        }
+    }
 }
