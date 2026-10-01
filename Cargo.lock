@@ -4749,11 +4749,13 @@ dependencies = [
 name = "nika-compile-fidelity"
 version = "0.121.0"
 dependencies = [
+ "csv",
  "jaq-core",
  "nika-check-analyzer",
  "nika-compile-reader",
  "nika-schema",
  "serde_json",
+ "sha2 0.10.9",
 ]
 
 [[package]]
