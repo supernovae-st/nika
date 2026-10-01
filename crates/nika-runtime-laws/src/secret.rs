@@ -25,12 +25,16 @@ const WIDE_SCRUB_MIN: usize = 8;
 /// The event fields whose payload may carry a resolved value (the
 /// terminal frame's outcome/output and the failure detail). `why` rides
 /// the unwind lane's outcome frames — a failed cleanup's error message
-/// can embed a stderr tail, the same class `detail` carries.
-const PAYLOAD_FIELDS: [&str; 4] = [
+/// can embed a stderr tail, the same class `detail` carries. Task notes
+/// also carry failed or recovered item identities.
+const PAYLOAD_FIELDS: [&str; 7] = [
     "outcome",
     crate::resume_fields::fields::OUTPUT,
     "detail",
     "why",
+    "items",
+    "note",
+    "error_message",
 ];
 
 /// The dynamic-flow backstop (S1). The static IFC sanctions every
@@ -97,6 +101,39 @@ impl<'a> RedactingSink<'a> {
             }
         }
         out
+    }
+
+    /// Item tables contain both content and protocol vocabulary. Scrub
+    /// identities and messages as values so a short needle cannot rewrite
+    /// indexes, statuses, keys or the JSON grammar that closes a page set.
+    fn scrub_items<'t>(&self, text: &'t str) -> Cow<'t, str> {
+        let Ok(mut rows) = serde_json::from_str::<Vec<Value>>(text) else {
+            return Cow::Owned(REDACTED.to_owned());
+        };
+        let mut changed = false;
+        for row in &mut rows {
+            let Some(row) = row.as_object_mut() else {
+                return Cow::Owned(REDACTED.to_owned());
+            };
+            for key in ["item", "message"] {
+                match row.get_mut(key) {
+                    Some(Value::String(value)) => {
+                        if let Cow::Owned(scrubbed) = self.scrub("items", value) {
+                            *value = scrubbed;
+                            changed = true;
+                        }
+                    }
+                    Some(_) => return Cow::Owned(REDACTED.to_owned()),
+                    None => {}
+                }
+            }
+        }
+        if changed {
+            serde_json::to_string(&rows)
+                .map_or_else(|_| Cow::Owned(REDACTED.to_owned()), Cow::Owned)
+        } else {
+            Cow::Borrowed(text)
+        }
     }
 }
 
@@ -177,10 +214,15 @@ impl EventSink for RedactingSink<'_> {
                 // Only a String field can carry a value (the enum's other
                 // arms are numbers/bools) — and the marker swaps whole
                 // bytes, never the field's shape.
-                if let FieldValue::String(text) = &mut kv.value
-                    && let Cow::Owned(scrubbed) = self.scrub(&kv.key, text)
-                {
-                    *text = scrubbed;
+                if let FieldValue::String(text) = &mut kv.value {
+                    let scrubbed = if kv.key == "items" {
+                        self.scrub_items(text)
+                    } else {
+                        self.scrub(&kv.key, text)
+                    };
+                    if let Cow::Owned(scrubbed) = scrubbed {
+                        *text = scrubbed;
+                    }
                 }
             }
         }
@@ -345,6 +387,119 @@ mod tests {
 
     fn resolved(secret: &str) -> BTreeMap<String, Value> {
         BTreeMap::from([("tok".to_owned(), Value::String(secret.to_owned()))])
+    }
+
+    fn item_event(kind: EventKind, items: &str) -> Event {
+        Event::new(
+            EventId::new(uuid::Uuid::nil()),
+            Timestamp::from_unix_ms(0),
+            kind,
+        )
+        .with_field(KeyValue::new("items", FieldValue::String(items.to_owned())))
+        .with_field(KeyValue::new("page", FieldValue::Int(0)))
+    }
+
+    #[test]
+    fn item_content_is_masked_without_rewriting_page_vocabulary() {
+        for kind in [EventKind::TaskCompleted, EventKind::TaskItems] {
+            for secret in [
+                "827351",
+                "0",
+                "ok",
+                "\"\n",
+                "long-secret-value",
+                "NIKA-TEST-001",
+            ] {
+                let items = serde_json::json!([{
+                    "index": 0, "item": secret, "status": "ok",
+                    "code": "NIKA-TEST-001", "message": secret
+                }])
+                .to_string();
+                let events = scrubbed(secret, item_event(kind, &items));
+                let rows: Value = serde_json::from_str(field_text(&events[0], "items"))
+                    .expect("the table stays JSON");
+                assert_eq!(rows[0]["index"], 0);
+                assert_eq!(rows[0]["status"], "ok");
+                assert_eq!(rows[0]["code"], "NIKA-TEST-001");
+                assert!(rows[0]["item"] == REDACTED, "item content was not masked");
+                assert!(
+                    rows[0]["message"] == REDACTED,
+                    "item message was not masked"
+                );
+                assert_eq!(events[0].kind, kind);
+                assert_eq!(events[0].fields[1].value, FieldValue::Int(0));
+            }
+        }
+    }
+
+    #[test]
+    fn item_scrub_preserves_untouched_bytes_and_refuses_malformed_content() {
+        let untouched = "[ {\"status\":\"ok\", \"item\":\"safe\", \"index\":0} ]";
+        let events = scrubbed("827351", item_event(EventKind::TaskItems, untouched));
+        assert_eq!(field_text(&events[0], "items"), untouched);
+        for malformed in ["827351", "[827351]", "[{\"item\":827351}]"] {
+            let events = scrubbed("827351", item_event(EventKind::TaskItems, malformed));
+            assert!(
+                field_text(&events[0], "items") == REDACTED,
+                "malformed item content was not masked"
+            );
+        }
+    }
+
+    #[test]
+    fn short_secrets_are_masked_in_task_notes() {
+        for secret in ["0", "ok", "827351", "\"\n"] {
+            let event = Event::new(
+                EventId::new(uuid::Uuid::nil()),
+                Timestamp::from_unix_ms(0),
+                EventKind::TaskCompleted,
+            )
+            .with_field(KeyValue::new(
+                "note",
+                FieldValue::String(format!("failed item: {secret}")),
+            ));
+            let events = scrubbed(secret, event);
+            assert!(
+                field_text(&events[0], "note") == "failed item: ***",
+                "a task note retained resolved content"
+            );
+            assert_eq!(events[0].kind, EventKind::TaskCompleted);
+        }
+    }
+
+    #[test]
+    fn short_secrets_are_masked_in_terminal_error_messages() {
+        use nika_event::settlement::{RunCause, RunSettlement, RunState, SettlementError};
+
+        for secret in ["827351", "0", "ok", "\"\n"] {
+            let settlement = RunSettlement::new(RunState::Failed, RunCause::TaskFailed)
+                .with_elapsed_ms(10)
+                .with_error(Some(SettlementError::new(
+                    "NIKA-TEST-001",
+                    format!("task returned: {secret}"),
+                    Some("task-0-ok".to_owned()),
+                )));
+            let mut event = Event::new(
+                EventId::new(uuid::Uuid::nil()),
+                Timestamp::from_unix_ms(0),
+                settlement.terminal_kind(),
+            );
+            for field in settlement.fields() {
+                event = event.with_field(field);
+            }
+            let events = scrubbed(secret, event);
+            let projected = RunSettlement::from_event(&events[0]).expect("terminal settlement");
+            let error = projected.error.as_ref().expect("failure stays present");
+            assert_eq!(
+                error.message, "task returned: ***",
+                "terminal error content was not masked"
+            );
+            assert_eq!(error.code, "NIKA-TEST-001");
+            assert_eq!(error.task.as_deref(), Some("task-0-ok"));
+            assert_eq!(projected.state, settlement.state);
+            assert_eq!(projected.cause, settlement.cause);
+            assert_eq!(projected.elapsed_ms, settlement.elapsed_ms);
+        }
     }
 
     /// Drive one event through the scrub and return the collected stream.
