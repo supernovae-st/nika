@@ -9,6 +9,7 @@ use super::*;
 
 mod agent_exclusions;
 mod agent_fs;
+mod exec_operands;
 mod exec_static;
 
 #[cfg(test)]

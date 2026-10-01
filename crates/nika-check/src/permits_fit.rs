@@ -517,8 +517,8 @@ fn check_exec(
             });
         }
     }
-    check_exec_net(id, command, permits, out);
-    check_exec_fs(id, action, permits, out);
+    check_exec_net(id, command, permits, consts, out);
+    check_exec_fs(id, action, permits, consts, out);
 }
 
 /// The fs arm of the exec fit — the twin of [`check_exec_net`], written
@@ -555,13 +555,13 @@ fn check_exec(
 /// SCOPE — the decidable sub-question, and the ones it deliberately leaves
 /// (a waiver that does not name its decidable half is a defect):
 ///
-/// - **DECIDED** · a literal argv whose program is an INTERPRETER, on its
-///   script positional, resolved through a literal `cwd:`. That the
-///   interpreter must read that exact path is a property of the
+/// - **DECIDED** · an argv of literals or bare immutable string constants
+///   whose program is an INTERPRETER, on its script positional through a
+///   literal `cwd:`. Reading that exact path is a property of the
 ///   interpreter, not a guess about the program's semantics —
 ///   [`nika_types::exec::interpreter_script_operand`] walks the same table
 ///   the exec floor walks, so the two cannot drift.
-/// - **DECIDED** · a literal argv whose program is FILE PLUMBING
+/// - **DECIDED** · the same known argv whose program is FILE PLUMBING
 ///   (native-first/002 · [`nika_cap::FILE_PLUMBING_PROGRAMS`]) AND whose
 ///   operand leaves the workspace. `permits.exec: ["cat"]` grants the
 ///   program, not a host-file read (B05 / B29 · issue 1295). An in-tree
@@ -579,12 +579,13 @@ fn check_exec(
 ///   a host path (`cat /etc/passwd` under `exec: true`). Templated
 ///   file-plumbing is also this door when the jail would refuse a host
 ///   dump (`/etc/passwd`); an explicit host grant is the operator's act.
-/// - **LEFT** · a `${{ }}` program, or a templated operand on a
-///   non-plumbing program — the run re-judges the resolved argv.
+/// - **LEFT** · an unresolved program or operand on a non-plumbing
+///   program — the run re-judges the resolved argv.
 fn check_exec_fs(
     id: &str,
     action: &RawExecAction,
     permits: &Permits,
+    consts: &ConstStrings,
     out: &mut Vec<CapabilityEscape>,
 ) {
     let cwd = action.cwd.as_ref().map(|c| c.value.as_str());
@@ -599,24 +600,23 @@ fn check_exec_fs(
         }
         return;
     }
-    let RawCommand::Argv(parts) = &action.command else {
+    let Some(operands) = resolve_const_argv(&action.command, consts) else {
         return;
     };
-    let mut elements = parts.iter().map(|p| p.value.as_str());
-    let Some(program) = elements.next() else {
+    let operands: Vec<_> = operands.collect();
+    let Some((program, args)) = operands.split_first() else {
         return;
     };
-    let args: Vec<&str> = elements.collect();
     if program.contains("${{") {
         return; // the resolved program is the RUN's verdict
     }
     if args.iter().any(|a| a.contains("${{")) {
-        if !admits_host && nika_cap::file_plumbing_computed_operand(program, &args) {
+        if !admits_host && nika_cap::file_plumbing_computed_operand(program, args) {
             out.push(computed_plumbing_escape(id, program));
         }
         return;
     }
-    if let Some(script) = nika_types::exec::interpreter_script_operand(program, &args) {
+    if let Some(script) = nika_types::exec::interpreter_script_operand(program, args) {
         let Some(resolved) = resolve_against_cwd(script, cwd) else {
             return; // a computed cwd makes the script's identity unknowable
         };
@@ -630,33 +630,16 @@ fn check_exec_fs(
     // dump: `cat` of an escaping path is an fs escape, never a granted
     // program doing what programs do.
     if let Some(path) =
-        nika_cap::file_plumbing_host_escape(program, &args, cwd, |p| permits.jail_admits_read(p))
+        nika_cap::file_plumbing_host_escape(program, args, cwd, |p| permits.jail_admits_read(p))
     {
         out.push(fs_escape(id, program, path, "fs.read", permits, false));
     }
 }
 
-/// Where the interpreter will look for its script. An ABSOLUTE script
-/// ignores `cwd:` (it is already an identity); a relative one is opened
-/// relative to the subprocess's working directory, so a declared `cwd:`
-/// re-anchors it — while the BOUNDARY stays anchored at the run root
-/// (`sandbox_spec`'s own law: « a task-level `cwd:` does not re-anchor the
-/// boundary »). `None` means the answer is not statically knowable.
-pub(super) fn resolve_against_cwd(script: &str, cwd: Option<&str>) -> Option<String> {
-    if script.starts_with('/') || script.starts_with('~') {
-        return Some(script.to_owned());
-    }
-    match cwd {
-        None => Some(script.to_owned()),
-        Some(c) if c.contains("${{") => None,
-        Some(c) if c == "." || c == "./" => Some(script.to_owned()),
-        Some(c) => Some(format!("{}/{script}", c.trim_end_matches('/'))),
-    }
-}
-
 /// The net arm of the exec fit (the 2026-07-29 audit · run 5 · D1): an
-/// exec whose argv (or shell line) carries a LITERAL URL judges that
-/// host exactly like an invoke's (one boundary, one voice — measured:
+/// exec whose argv carries a literal or bare immutable constant URL (or
+/// whose shell line carries a literal URL) judges the host like an invoke
+/// (one boundary, one voice — measured:
 /// `exec: ["curl", "https://evil.example.com"]` outside `permits.net.http`
 /// passed check clean and died only at the OS sandbox — check-green,
 /// run-refused on a statically decidable class). Where the form itself is
@@ -669,10 +652,14 @@ fn check_exec_net(
     id: &str,
     command: &RawCommand,
     permits: &Permits,
+    consts: &ConstStrings,
     out: &mut Vec<CapabilityEscape>,
 ) {
     let tokens: Vec<&str> = match command {
-        RawCommand::Argv(parts) => parts.iter().map(|p| p.value.as_str()).collect(),
+        RawCommand::Argv(parts) => parts
+            .iter()
+            .map(|p| judgeable_operand(&p.value, consts).unwrap_or(&p.value))
+            .collect(),
         RawCommand::Shell(line) => line.value.split_whitespace().collect(),
         #[allow(
             clippy::unreachable,
@@ -988,7 +975,8 @@ pub(super) fn literal_arg(a: &RawInvokeAction, key: &str) -> Option<String> {
 /// The judgeable-argument seam — carved into the analysis substrate at the
 /// 15k wall; the paths below keep their spelling for every consumer.
 pub(super) use nika_check_analyzer::static_args::{
-    ConstStrings, judgeable_arg, judgeable_program, static_program, templated_url_host, url_host,
+    ConstStrings, judgeable_arg, judgeable_operand, judgeable_program, resolve_against_cwd,
+    resolve_const_argv, static_program, templated_url_host, url_host,
 };
 
 /// The raw (un-resolved) string value of `args.<key>` — a `${{ }}` value is

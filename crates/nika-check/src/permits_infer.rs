@@ -29,7 +29,7 @@ use std::collections::BTreeSet;
 
 use super::permits_fit::{
     BuiltinEffect, ConstStrings, builtin_effect, chart_vl_sibling, judgeable_arg,
-    path_escapes_workspace, static_program, url_host,
+    judgeable_program, path_escapes_workspace, resolve_const_argv, url_host,
 };
 use nika_schema::raw::{RawAction, RawCommand, RawExecAction, RawTask, RawWorkflow};
 use nika_schema::types::{ExecPermit, FsPermits, NetPermits, Permits};
@@ -214,23 +214,19 @@ pub(crate) fn task_permits(task: &RawTask) -> Vec<String> {
 }
 
 /// The read an argv-form `exec:` needs for its own script — `None` when
-/// the program is not an interpreter, the argv evals, the argv is
-/// templated, or a computed `cwd:` makes the path unknowable.
+/// the program is not an interpreter, the argv evals, an operand remains
+/// unresolved, or a computed `cwd:` makes the path unknowable.
 ///
 /// The SAME resolution the fit lane judges with
 /// ([`super::permits_fit::resolve_against_cwd`]), so an inferred boundary
 /// and the finding that would refuse it cannot disagree.
-fn interpreter_script_read(a: &RawExecAction) -> Option<String> {
-    let RawCommand::Argv(parts) = &a.command else {
-        return None;
-    };
-    let mut elements = parts.iter().map(|p| p.value.as_str());
-    let program = elements.next()?;
-    let args: Vec<&str> = elements.collect();
+fn interpreter_script_read(a: &RawExecAction, consts: &ConstStrings) -> Option<String> {
+    let operands: Vec<_> = resolve_const_argv(&a.command, consts)?.collect();
+    let (program, args) = operands.split_first()?;
     if program.contains("${{") || args.iter().any(|s| s.contains("${{")) {
         return None;
     }
-    let script = nika_types::exec::interpreter_script_operand(program, &args)?;
+    let script = nika_types::exec::interpreter_script_operand(program, args)?;
     super::permits_fit::resolve_against_cwd(script, a.cwd.as_ref().map(|c| c.value.as_str()))
 }
 
@@ -243,7 +239,7 @@ fn collect_action(c: &mut Collector, id: &str, action: &RawAction) {
             match &a.command {
                 // argv[0] is the verifiable program — allowlist material.
                 RawCommand::Argv(_) => {
-                    if let Some(p) = static_program(&a.command) {
+                    if let Some(p) = judgeable_program(&a.command, &c.consts) {
                         c.programs.insert(p.to_owned());
                         // An interpreter must OPEN its script before it
                         // runs a line, and the jail admits only what the
@@ -252,7 +248,7 @@ fn collect_action(c: &mut Collector, id: &str, action: &RawAction) {
                         // very workflow it came from (the vega-sibling law
                         // below, one boundary over). Measured 2026-08-20:
                         // without the read the leg exits 126, empty.
-                        if let Some(read) = interpreter_script_read(a) {
+                        if let Some(read) = interpreter_script_read(a, &c.consts) {
                             c.reads.insert(read);
                         }
                     } else {
@@ -869,7 +865,7 @@ tasks:
         // `["${{ inputs.bin }}"]` must NOT be inferred as a literal program
         // named `${{ inputs.bin }}` — the head is dynamic → exec: true + note.
         let r = infer_of(
-            "nika: w\nconst: { bin: \"git\" }\ntasks:\n  t:\n    exec: { command: [\"${{ const.bin }}\", \"status\"] }\n",
+            "nika: w\ninputs: { bin: { type: string, default: git } }\ntasks:\n  t:\n    exec: { command: [\"${{ inputs.bin }}\", \"status\"] }\n",
         );
         assert_eq!(r.permits.exec, Some(ExecPermit::Any));
         assert!(r.notes.iter().any(|n| n.contains("dynamic exec")));
