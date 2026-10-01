@@ -34,6 +34,15 @@
 //! Pure: no file, process, clock or provider. The host runs each rehearsal in its room, stops
 //! it at the budget, and hands over the bytes it consumed and read back ([`Run`]).
 //!
+//! [`select`] judges several candidates, however differently written, against one contract the
+//! request alone states: each [`Candidate`] is its runs and the identity of its bytes, judged as
+//! one round of the same turn's [`Budget`], and the first certified one is selected. A defect,
+//! an open case, a fixture not run or the absence of a defect never selects; a spent turn says
+//! so ([`Choice::Spent`]). It runs nothing and verifies no identity: its turn counts only the
+//! candidates it judged, so a door rehearses and judges one candidate at a time, and a selected
+//! index is a position the door keeps bound to the bytes rehearsed. [`targets`] names the paths
+//! a host reads back, whatever a candidate declares.
+//!
 //! What the relation evaluates: filters (the reader's comparators, junctions, text spellings,
 //! column comparisons and answered values), duplicates by key, groups with sum, count,
 //! average, minimum and maximum, totals, a sort with or without the tie rule, the first N rows,
@@ -54,6 +63,7 @@ mod numbers;
 mod pipeline;
 mod provenance;
 mod requested;
+mod selection;
 mod values;
 mod verdicts;
 
@@ -65,6 +75,7 @@ pub use pipeline::{
 };
 pub use provenance::{Production, Provenance, Written, contract_of_request, read_request};
 pub use requested::{contract_of, pipeline_of};
+pub use selection::{Candidate, Choice, Ruling, select, targets};
 pub use verdicts::judge;
 
 /// Two paths name the same file: a leading `./` names the same relative path.
@@ -759,3 +770,6 @@ mod derive_tests;
 
 #[cfg(test)]
 mod provenance_tests;
+
+#[cfg(test)]
+mod selection_tests;

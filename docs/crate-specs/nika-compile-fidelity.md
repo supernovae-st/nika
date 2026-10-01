@@ -200,9 +200,17 @@ needs keeps its default.
   punctuation, never part of TARGET), whose plan agrees with it byte for byte, that the strict HOT
   door admits and that is the whole request: its write is `Required` and its count's name free
   (no name slot) or the stated label. No word list is consulted; every other request, an identity
-  folding would alter included, keeps `Unproven` and `Unknown`. The member gains two
-  workspace dependencies already in the lock: `csv` (the reading `nika:convert` uses) and
-  `sha2`.
+  folding would alter included, keeps `Unproven` and `Unknown`. `select` judges several
+  candidates (`Candidate`: the identity of the bytes rehearsed and one run per world) against one
+  such contract, each as one round of the same turn's budget, and selects the first one certified
+  (`Choice::Selected`); otherwise every candidate defective is `RejectAll`, a spent turn with
+  candidates left is `Spent`, and anything else is `Unproven`: no absence of defect selects.
+  `select` runs nothing and verifies no identity: its turn counts only the candidates judged,
+  so a door rehearses and judges one candidate at a time, carries the turn, and stops at the
+  first one selected or at a spent turn; `Selected(k)` is an index into the slice given, which
+  the door keeps bound to the bytes rehearsed. `targets` names, as an iterator, the paths a host
+  reads back for a contract. The member gains two workspace dependencies already in the lock:
+  `csv` (the reading `nika:convert` uses) and `sha2`.
 
 ## 4. Module map
 
@@ -213,6 +221,6 @@ in `fidelity/instants`) · `sketch` (the constrained intermediate, its structura
 typed holes, its document) · `candidate` (the plan a candidate states, a revision's delta) ·
 `behavior` (the contract and the report types; `behavior/requested` the contract a plan
 states, `behavior/provenance` what a sentence of the closed language proves, `behavior/evaluate`
-the relation, `behavior/verdicts` the judgment,
+the relation, `behavior/verdicts` the judgment, `behavior/selection` the choice among candidates,
 `behavior/{numbers, values, formats}` exact numbers, value comparison and the canonical
 readings, `behavior/accounting` the round and turn budget).
