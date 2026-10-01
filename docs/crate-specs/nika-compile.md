@@ -568,6 +568,27 @@ replacement intent. An optional initial output limit can increase after a report
 truncation, using the same repair count and never exceeding the original hard limit.
 Per-call receipts record the output limit, timeout, elapsed time, stop reason and usage.
 
+## One copy, two lowerings
+
+`surface::assemble::assemble_lowered` assembles a plan under one closed choice,
+`CopyLowering`. `Text`, the default, is the ordinary assembly: `assemble` and
+`assemble_judged` are it, byte for byte. `Bytes` holds only an exact copy of one text file to
+another: a plan of one read and its one automatic write (no policy words, no value alone, path
+bindings and nothing else), emitted as exactly two tasks, the source read with `binary: true`
+and the one write fed that whole read, between two distinct files whose suffix the fidelity
+judgment reads as text. The read returns the envelope `{bytes_base64, len}`, the single-island
+`with:` binding passes it typed, and `nika:write` decodes it: the same tasks, paths, permits
+and stated plan as the text lowering, another program. Anywhere else the byte lowering emits
+no candidate (a `lowering` refusal, status `Refused`), and no other plan gains an option.
+Each lowering crosses its own ledger, fidelity laws, literal round trip and Check, so each
+candidate is its own bytes and its own identity; nothing is rewritten after READY. The
+envelope holds the whole file as base64 (`4·⌈n/3⌉` characters for `n` bytes) in the read's
+output, its binding and the trace, and the write writes the same `n` bytes as the text
+lowering. The suffix bounds the shape and proves no encoding; only a run shows the bytes
+copied. Both lowerings state one plan and so one plan signature: a door that wants both
+calls `assemble_lowered` once per lowering, each on its own outcome, and hands each
+candidate to the rehearsal host. No door does so yet.
+
 ## Source basis of a candidate
 
 `basis_for(request, decision, fresh)` (`observed/basis.rs`, C9 · F4) judges the source facts a
