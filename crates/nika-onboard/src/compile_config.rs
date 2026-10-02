@@ -476,7 +476,7 @@ impl std::fmt::Display for ConfigError {
             ),
             Self::ExclusionWithoutSnapshot { corpus } => write!(
                 f,
-                "the corpus `{corpus}` is excluded explicitly, but no knowledge snapshot is named to exclude it from — name the snapshot (--knowledge · NIKA_KNOWLEDGE), or drop the exclusion"
+                "the corpus `{corpus}` is excluded explicitly, but no knowledge release is being read — unset source, pack and knowledge-off settings and select escalate, only or sketch to use the embedded default, or drop the exclusion"
             ),
             Self::UnknownReasoning(word) => write!(
                 f,
@@ -508,7 +508,7 @@ impl std::error::Error for ConfigError {}
 ///
 /// # Errors
 /// An unknown strategy word, knowledge off beside a source on one layer, knowledge named under
-/// `off`, an explicit exclusion without a snapshot, or an unknown reasoning effort word.
+/// `off`, an explicit exclusion without a release to filter, or an unknown reasoning effort word.
 pub fn resolve(
     explicit: &AuthoringSettings,
     env: &AuthoringSettings,
