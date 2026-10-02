@@ -1,1 +1,0 @@
-- **Keep blank authoring model identities unknown.** Empty or whitespace-only provider model names count as unreported in the shared authoring receipt instead of appearing as observed models; the requested model and raw response remain unchanged.

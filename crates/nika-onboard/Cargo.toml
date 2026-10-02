@@ -9,31 +9,31 @@ description = "nika's onboarding surface — project bootstrap (init), read-only
 repository  = "https://github.com/supernovae-st/nika"
 
 [dependencies]
-nika-compile-fidelity = { path = "../nika-compile-fidelity", version = "0.121.0" } # the copy door's contract, the judge and its budget (the same tier, no cycle)
-nika-event = { path = "../nika-event", version = "0.121.0" } # shared knowledge byte identities
-nika-compile = { path = "../nika-compile", version = "0.121.0" }
-nika-compile-cognition = { path = "../nika-compile-cognition", version = "0.121.0" } # the seats' doors (ADR-140) · re-exported under `compile` beside the core
-nika-pack    = { path = "../nika-pack", version = "0.121.0" }    # templates · examples (the scaffold corpus)
-nika-builtin = { path = "../nika-builtin", version = "0.121.0" } # tools_json — the builtin names the guard trusts (`guard` · from nika-session 2026-09-29)
-nika-error   = { path = "../nika-error", version = "0.121.0" }   # codes::lookup — the numeric registry the guard trusts
-nika-providers = { path = "../nika-providers", version = "0.121.0", default-features = false } # resolve_refusal — the #320 model law the guard applies (a pure resolution · never a call)
-nika-vocab   = { path = "../nika-vocab", version = "0.121.0" }   # the project file — the wizard's starter nika.yaml rides its STARTER const (zero drift · D-2026-08-11-N5)
-nika-bm25    = { path = "../nika-bm25", version = "0.121.0" }    # intent→template routing (the deterministic floor)
-nika-display = { path = "../nika-display", version = "0.121.0" } # theme + chrome (rail · panel · banner)
-nika-catalog = { path = "../nika-catalog", version = "0.121.0", features = ["providers"] } # the model menu (local first)
+nika-compile-fidelity = { path = "../nika-compile-fidelity", version = "0.122.0" } # the copy door's contract, the judge and its budget (the same tier, no cycle)
+nika-event = { path = "../nika-event", version = "0.122.0" } # shared knowledge byte identities
+nika-compile = { path = "../nika-compile", version = "0.122.0" }
+nika-compile-cognition = { path = "../nika-compile-cognition", version = "0.122.0" } # the seats' doors (ADR-140) · re-exported under `compile` beside the core
+nika-pack    = { path = "../nika-pack", version = "0.122.0" }    # templates · examples (the scaffold corpus)
+nika-builtin = { path = "../nika-builtin", version = "0.122.0" } # tools_json — the builtin names the guard trusts (`guard` · from nika-session 2026-09-29)
+nika-error   = { path = "../nika-error", version = "0.122.0" }   # codes::lookup — the numeric registry the guard trusts
+nika-providers = { path = "../nika-providers", version = "0.122.0", default-features = false } # resolve_refusal — the #320 model law the guard applies (a pure resolution · never a call)
+nika-vocab   = { path = "../nika-vocab", version = "0.122.0" }   # the project file — the wizard's starter nika.yaml rides its STARTER const (zero drift · D-2026-08-11-N5)
+nika-bm25    = { path = "../nika-bm25", version = "0.122.0" }    # intent→template routing (the deterministic floor)
+nika-display = { path = "../nika-display", version = "0.122.0" } # theme + chrome (rail · panel · banner)
+nika-catalog = { path = "../nika-catalog", version = "0.122.0", features = ["providers"] } # the model menu (local first)
 serde        = { workspace = true }                              # the knowledge door's strict JSON: a key stated twice is refused
 serde_json   = { workspace = true }                              # the canvas stamp (parse + re-emit settings.json)
 
-nika-schema = { path = "../nika-schema", version = "0.121.0" }  # the same strict parser for in-memory compiler candidates
-nika-source = { path = "../nika-source", version = "0.121.0" }  # lexical program-source naming (#1684)
-nika-check  = { path = "../nika-check", version = "0.121.0" }  # the same pure Check core, without environment/admission probes
+nika-schema = { path = "../nika-schema", version = "0.122.0" }  # the same strict parser for in-memory compiler candidates
+nika-source = { path = "../nika-source", version = "0.122.0" }  # lexical program-source naming (#1684)
+nika-check  = { path = "../nika-check", version = "0.122.0" }  # the same pure Check core, without environment/admission probes
 # the observed room: the One Door admits a candidate from its bytes, the room's primitives hold it,
 # the shared driver runs it through the existing runtime, on an executor of its own
-nika-execution         = { path = "../nika-execution", version = "0.121.0" }
-nika-fs                = { path = "../nika-fs", version = "0.121.0" }
-nika-kernel            = { path = "../nika-kernel", version = "0.121.0" }
-nika-runtime           = { path = "../nika-runtime", version = "0.121.0" }
-nika-service-execution = { path = "../nika-service-execution", version = "0.121.0" }
+nika-execution         = { path = "../nika-execution", version = "0.122.0" }
+nika-fs                = { path = "../nika-fs", version = "0.122.0" }
+nika-kernel            = { path = "../nika-kernel", version = "0.122.0" }
+nika-runtime           = { path = "../nika-runtime", version = "0.122.0" }
+nika-service-execution = { path = "../nika-service-execution", version = "0.122.0" }
 tokio                  = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
@@ -45,7 +45,7 @@ test-support = []
 
 [dev-dependencies]
 # The reader plan used by the copy witnesses.
-nika-compile-reader   = { path = "../nika-compile-reader", version = "0.121.0" }
+nika-compile-reader   = { path = "../nika-compile-reader", version = "0.122.0" }
 tempfile = { workspace = true }
 
 [package.metadata.lore]
