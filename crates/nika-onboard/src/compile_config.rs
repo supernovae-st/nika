@@ -386,16 +386,18 @@ impl AuthoringConfig {
     /// build embeds — composes the pack for the intent the compiler reads (a revision's request
     /// with its change, a clarification's replacement), every presented byte admitted when the
     /// release opened; a pack composed elsewhere is refused before it is read; knowledge off or
-    /// unread attaches nothing. The provenance names the release and the selection.
+    /// unread attaches nothing, including on a reused request. The provenance names the release
+    /// and the selection.
     ///
     /// # Errors
     /// A release the strict door refuses ([`crate::knowledge::KnowledgeError::Unavailable`]), a
     /// pack composed elsewhere ([`crate::knowledge::KnowledgeError::PackNotAdmitted`]).
     pub fn with_knowledge(
         &self,
-        request: crate::compile::CompileRequest,
+        mut request: crate::compile::CompileRequest,
         fallback_intent: &str,
     ) -> Result<crate::compile::CompileRequest, crate::knowledge::KnowledgeError> {
+        request.authoring_knowledge = None;
         match &self.knowledge {
             None => Ok(request),
             Some(KnowledgeSource::Pack { file }) => {

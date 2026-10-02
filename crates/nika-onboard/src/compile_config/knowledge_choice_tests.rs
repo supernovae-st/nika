@@ -298,6 +298,119 @@ fn knowledge_off_and_unread_attach_nothing() {
     }
 }
 
+fn request_with_embedded_knowledge() -> CompileRequest {
+    let intent = "Declare a typed output with a description";
+    let config = resolve(&none(), &none()).expect("resolves");
+    let mut request = config
+        .with_knowledge(CompileRequest::create(intent), intent)
+        .expect("embedded release admitted");
+    let pack = request.authoring_knowledge.as_ref().expect("attached");
+    let ids: Vec<_> = pack.references.iter().map(|r| r.id.as_str()).collect();
+    assert_eq!(ids, ["pattern:typed-output", "block:typed-inputs-outputs"]);
+    request.answers.insert("column".into(), "total".into());
+    request.workflow_id = Some("typed-report".into());
+    request
+        .with_knowledge(serde_json::json!({"observed": [{"columns": ["total"]}]}))
+        .with_plan(serde_json::json!({"steps": []}))
+        .with_original_intent(intent)
+        .with_authoring_policy(AuthoringPolicy::new(
+            "test-model",
+            512,
+            Duration::from_secs(7),
+        ))
+        .with_hot_policy(crate::compile::HotPolicy::Off)
+        .with_admitted_money(std::iter::once(0..3).collect())
+        .with_stated_money()
+}
+
+fn assert_only_authoring_knowledge_removed(before: &CompileRequest, after: &CompileRequest) {
+    assert!(
+        after.authoring_knowledge.is_none(),
+        "a reused request must not retain its previous authoring pack"
+    );
+    match (&before.input, &after.input) {
+        (nika_compile::surface::Input::Create(a), nika_compile::surface::Input::Create(b)) => {
+            assert_eq!(a, b);
+        }
+        other => panic!("creation preserved: {other:?}"),
+    }
+    assert_eq!(before.answers, after.answers);
+    assert_eq!(before.workflow_id, after.workflow_id);
+    assert_eq!(before.hot, after.hot);
+    assert_eq!(before.plan, after.plan);
+    assert_eq!(before.knowledge, after.knowledge);
+    assert_eq!(before.original_intent, after.original_intent);
+    assert_eq!(before.money, after.money);
+    assert_eq!(before.stated_money, after.stated_money);
+    let a = before.authoring.as_ref().expect("policy before");
+    let b = after.authoring.as_ref().expect("policy after");
+    assert_eq!(
+        (
+            &a.model,
+            a.max_tokens,
+            a.initial_max_tokens,
+            a.timeout,
+            a.samples,
+            a.native,
+            a.repairs,
+            a.reasoning
+        ),
+        (
+            &b.model,
+            b.max_tokens,
+            b.initial_max_tokens,
+            b.timeout,
+            b.samples,
+            b.native,
+            b.repairs,
+            b.reasoning
+        )
+    );
+}
+
+fn assert_reused_request_disabled(explicit: &AuthoringSettings, env: &AuthoringSettings) {
+    let before = request_with_embedded_knowledge();
+    let config = resolve(explicit, env).expect("resolves");
+    let after = config.with_knowledge(before.clone(), INTENT).expect("off");
+    assert_only_authoring_knowledge_removed(&before, &after);
+}
+
+#[test]
+fn knowledge_off_clears_a_reused_request() {
+    assert_reused_request_disabled(&none().with_knowledge_off(), &none());
+}
+
+#[test]
+fn environment_off_clears_a_reused_request() {
+    assert_reused_request_disabled(&none(), &none().with_knowledge("off", None));
+}
+
+#[test]
+fn strategy_off_clears_a_reused_request() {
+    assert_reused_request_disabled(&none().with_strategy("off"), &none());
+}
+
+#[test]
+fn empty_intent_clears_a_reused_request() {
+    let before = request_with_embedded_knowledge().with_replaced_input("  ");
+    let config = resolve(&none(), &none()).expect("resolves");
+    let after = config.with_knowledge(before.clone(), "  ").expect("empty");
+    assert_only_authoring_knowledge_removed(&before, &after);
+}
+
+#[test]
+fn enabled_knowledge_replaces_the_previous_intents_pack() {
+    let intent = "Grant zero authority to a pure compute workflow";
+    let before = request_with_embedded_knowledge().with_replaced_input(intent);
+    let config = resolve(&none(), &none()).expect("resolves");
+    let after = config
+        .with_knowledge(before, intent)
+        .expect("embedded release admitted");
+    let pack = after.authoring_knowledge.expect("new pack attached");
+    let ids: Vec<_> = pack.references.iter().map(|r| r.id.as_str()).collect();
+    assert_eq!(ids, ["pattern:declared-zero", "block:run-deterministic"]);
+}
+
 /// Nothing named attaches the release this build embeds, composed by the door for the intent as
 /// the memory door composes it. A matching intent carries its pattern and realizing block.
 #[test]
