@@ -90,12 +90,14 @@ bound to the verifier that checked its bytes; every other kind carries `NONE`.
 The non-default `test-support` feature exposes a synthetic release (and the
 identity its test embedder trusts) for other doors' tests.
 Selection, exclusion reasons, presented references and byte identities remain
-observable. The embedded release contains three blocks, but no patterns or
-relations make them selectable: its packs contain zero references and zero
-repair principles. A native record with `presented: true` and `references: []`
-records the pack identity, not useful reference material. Deterministic
-compilation does not present knowledge to a model. Availability alone does not
-establish informed generation or better results.
+observable. The embedded release contains three patterns and their realizing
+blocks. Lexical recall selects matching patterns, then follows their relations
+to present the blocks; an intent with no matching words receives no references.
+The release contains no examples or repair principles. Records name composed
+references; `presented` and the call instruction digests identify presentation
+to the model.
+Deterministic compilation does not present knowledge to a model. Admission and
+presentation alone do not establish useful generation or better results.
 `nika-cli-host::compile::knowledge` re-exports the same types and functions for
 existing callers. The existing L4 edge remains acyclic; no new crate or compiler
 is introduced. `nika-event` supplies the existing shared SHA-256 byte identity.

@@ -299,28 +299,28 @@ fn knowledge_off_and_unread_attach_nothing() {
 }
 
 /// Nothing named attaches the release this build embeds, composed by the door for the intent as
-/// the memory door composes it. Admitted is not presented: this payload holds no pattern, so the
-/// pack carries no reference and no repair principle, and says so.
+/// the memory door composes it. A matching intent carries its pattern and realizing block.
 #[test]
 fn nothing_named_attaches_the_embedded_release_composed_for_the_intent() {
     let config = resolve(&none().with_knowledge_exclude("heldout"), &none()).expect("resolves");
-    let request = attached(&config).expect("admitted");
+    let intent = "Declare a typed output with a description";
+    let request = config
+        .with_knowledge(CompileRequest::create(intent), intent)
+        .expect("admitted");
     let pack = request.authoring_knowledge.expect("attached");
     assert_eq!(
         pack.identity["snapshot_sha256"],
-        "5bcd108a78e9fbb6e27827b34d8090b74f6285a125cdcef812b33dd51738e692"
+        "effc8d45b88a62c08cd4569abaadb8863823baaa0d52a313b925e9e1faf51b11"
     );
     assert_eq!(pack.identity["verification"]["policy"]["id"], "policy-r");
     let direct = bundled::admit(Some(&bundled::identity().unwrap()))
         .unwrap()
-        .pack(INTENT, Some("heldout"))
+        .pack(intent, Some("heldout"))
         .unwrap();
     assert_eq!(pack, direct, "the door's pack is the memory door's");
-    assert!(
-        pack.references.is_empty() && pack.repairs.is_empty(),
-        "{:#}",
-        pack.selection
-    );
+    let ids: Vec<_> = pack.references.iter().map(|r| r.id.as_str()).collect();
+    assert_eq!(ids, ["pattern:typed-output", "block:typed-inputs-outputs"]);
+    assert!(pack.repairs.is_empty());
     // An intent with no words composes nothing, as for any release.
     let request = config
         .with_knowledge(CompileRequest::create("  "), "  ")

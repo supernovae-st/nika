@@ -498,10 +498,13 @@ a workflow, a reply or retrieved context.
 There is no provider credential store. The default knowledge needs no filesystem
 location: `AuthoringContext::default()` resolves and pins the release embedded
 in the binary, with an independently trusted build identity. The current release
-makes three blocks available but composes zero references and zero repair
-principles, so it adds no reference material to the language card, request,
-answers and observed world. Deterministic authoring presents no knowledge to a
-model. Explicit knowledge off and strategy off with nothing named compose none.
+contains three patterns linked to three blocks. Matching words recall patterns
+and their blocks beside the language card, request, answers and observed world;
+an intent with no lexical match adds no reference. There are no examples or
+repair principles. Records distinguish composed references from those presented
+in a native authoring instruction; neither proves better generation.
+Deterministic authoring presents no knowledge to a model. Explicit knowledge
+off and strategy off with nothing named compose none.
 A named source must be admitted against the host's trusted identity; a missing
 identity or invalid release refuses without falling back to the embedded one.
 See the [shared knowledge door](nika-onboard.md#shared-authoring-knowledge-door)

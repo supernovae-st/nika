@@ -272,35 +272,155 @@ fn a_session_naming_no_effort_sends_what_it_sent_before() {
     }
 }
 
-/// The seated change a default session makes, real and stated: it composes the embedded release
-/// for its request and records it beside the outcome — admitted, composed, and with no reference,
-/// since this payload holds no pattern — while every byte the seat receives is the byte a session
-/// reading no knowledge sends.
-#[test]
-fn a_default_session_records_the_embedded_release_and_sends_what_knowledge_off_sends() {
-    let round = AuthoringRound::new(REQUEST);
-    let (out, bodies) = dispatched(&AuthoringContext::default(), QUALIFIED, &round);
-    let off = host(&AuthoringSettings::none().with_knowledge_off());
-    let (unread, unread_bodies) = dispatched(&off, QUALIFIED, &round);
-    assert!(!bodies.is_empty(), "the seat was asked");
-    assert_eq!(
-        bodies, unread_bodies,
-        "the embedded release moves no byte the seat reads"
+fn wire_message<'a>(body: &'a Value, role: &str) -> &'a str {
+    body["messages"]
+        .as_array()
+        .expect("messages")
+        .iter()
+        .find(|message| message["role"] == role)
+        .expect("role")["content"]
+        .as_str()
+        .expect("text message")
+}
+
+/// The receipt identifies the native instruction; classification calls do not read the pack.
+fn native_body<'a>(out: &CompileOutcome, bodies: &'a [Value]) -> &'a Value {
+    let call = out
+        .provenance
+        .authoring
+        .as_ref()
+        .expect("authoring receipt")
+        .context
+        .iter()
+        .find(|call| call["call"] == "native")
+        .expect("a native authoring call");
+    let digest = call["instruction_sha256"]
+        .as_str()
+        .expect("instruction digest");
+    bodies
+        .iter()
+        .find(|body| {
+            nika_event::source_id::sha256_hex(wire_message(body, "system").as_bytes()) == digest
+        })
+        .expect("the local server received that native instruction")
+}
+
+fn knowledge_record(out: &CompileOutcome) -> &Value {
+    &out.provenance.decision.as_ref().expect("stamped")["session"]["authoring"]["knowledge"]
+}
+
+/// This provider's JSON-object route appends the answer schema to the original user JSON.
+/// Validate both frames, including the schema's receipt, rather than ignoring trailing text.
+fn assert_native_request(out: &CompileOutcome, body: &Value, intent: &str) {
+    let separator = concat!(
+        "\n\nReply with ONLY a JSON value that satisfies this JSON Schema, no prose, no code ",
+        "fences. Every property that lists an enum takes exactly one of the listed values, ",
+        "spelled as listed; every required property is present; no property outside the ",
+        "schema:\n",
     );
-    let stamped = |out: Result<CompileOutcome, AuthoringError>| {
-        let decision = out.expect("an outcome").provenance.decision;
-        decision.expect("stamped")["session"]["authoring"]["knowledge"].clone()
-    };
-    let record = stamped(out);
-    assert_eq!(record["identity"]["source"], "embedded", "{record}");
+    let (opening, schema_text) = wire_message(body, "user")
+        .split_once(separator)
+        .expect("the JSON-object provider's complete schema instruction");
+    let request: Value = serde_json::from_str(opening).expect("opening JSON");
+    assert_eq!(
+        request["request"], intent,
+        "the original intention is retained"
+    );
+    let schema: Value = serde_json::from_str(schema_text).expect("complete schema JSON");
+    assert!(schema.is_object());
+    assert_eq!(body["response_format"]["type"], "json_object");
+    let call = out
+        .provenance
+        .authoring
+        .as_ref()
+        .expect("authoring receipt")
+        .context
+        .iter()
+        .find(|call| call["call"] == "native")
+        .expect("native call");
+    assert_eq!(
+        call["schema_sha256"],
+        nika_event::source_id::sha256_hex(schema_text.as_bytes())
+    );
+}
+
+/// A default session presents the recalled material in its native request. The off control
+/// sends the same intention without those references. A canned answer proves delivery only.
+#[test]
+fn a_default_session_presents_recalled_references_in_the_native_instruction() {
+    let intent = format!(
+        "{REQUEST} Declare typed workflow inputs and outputs, and expose the total amount as a number output."
+    );
+    let context = AuthoringContext::default();
+    let pack = context
+        .compose(&intent)
+        .expect("admitted")
+        .expect("composed");
+    let expected: Vec<_> = [
+        ("pattern", "pattern:typed-output"),
+        ("block", "block:typed-inputs-outputs"),
+    ]
+    .into_iter()
+    .map(|(kind, id)| {
+        pack.references
+            .iter()
+            .find(|r| r.kind == kind && r.id == id)
+            .expect("expected reference recalled")
+    })
+    .collect();
+    let round = AuthoringRound::new(intent.clone());
+    let (out, bodies) = dispatched(&context, QUALIFIED, &round);
+    let out = out.expect("an outcome");
+    let record = knowledge_record(&out);
+    assert_eq!(record["identity"]["source"], "embedded");
     assert_eq!(
         record["identity"]["snapshot_sha256"],
-        "5bcd108a78e9fbb6e27827b34d8090b74f6285a125cdcef812b33dd51738e692"
+        "effc8d45b88a62c08cd4569abaadb8863823baaa0d52a313b925e9e1faf51b11"
     );
-    assert!(record["identity"].get("dir").is_none(), "{record}");
-    assert_eq!(record["references"], json!([]), "composed, empty: {record}");
-    assert!(record["presented"].is_boolean(), "{record}");
-    assert!(stamped(unread).is_null(), "knowledge off attaches nothing");
+    assert!(record["identity"].get("dir").is_none());
+    assert_eq!(record["presented"], true);
+    assert_eq!(record["pack_sha256"], pack.identity["door"]["pack_sha256"]);
+    let body = native_body(&out, &bodies);
+    let system = wire_message(body, "system");
+    let digest = nika_event::source_id::sha256_hex(system.as_bytes());
+    assert!(
+        record["calls"]
+            .as_array()
+            .expect("calls")
+            .iter()
+            .any(|call| { call["call"] == "native" && call["instruction_sha256"] == digest })
+    );
+    let off = host(&AuthoringSettings::none().with_knowledge_off());
+    let (unread, unread_bodies) = dispatched(&off, QUALIFIED, &round);
+    let unread = unread.expect("off outcome");
+    assert!(
+        knowledge_record(&unread).is_null(),
+        "knowledge off attaches nothing"
+    );
+    let off_body = native_body(&unread, &unread_bodies);
+    for reference in expected {
+        assert!(
+            system.contains(&reference.text),
+            "native instruction carries {}",
+            reference.id
+        );
+        assert!(!wire_message(off_body, "system").contains(&reference.text));
+        assert!(
+            record["references"]
+                .as_array()
+                .expect("references")
+                .iter()
+                .any(|r| {
+                    r["kind"] == reference.kind
+                        && r["id"] == reference.id
+                        && r["bytes"] == reference.text.len()
+                        && r["sha256"]
+                            == nika_event::source_id::sha256_hex(reference.text.as_bytes())
+                })
+        );
+    }
+    assert_native_request(&out, body, &intent);
+    assert_native_request(&unread, off_body, &intent);
 }
 
 #[test]

@@ -223,9 +223,9 @@ fn an_embedded_pin_reopens_from_memory_with_the_same_identity_and_record() {
     assert_eq!(pin.origin, KnowledgeOrigin::Embedded);
     assert_eq!(
         pin.manifest_sha256,
-        "5bcd108a78e9fbb6e27827b34d8090b74f6285a125cdcef812b33dd51738e692"
+        "effc8d45b88a62c08cd4569abaadb8863823baaa0d52a313b925e9e1faf51b11"
     );
-    assert_eq!(pin.version.as_deref(), Some("knowledge-0.122.0-r1"));
+    assert_eq!(pin.version.as_deref(), Some("knowledge-0.122.0-r2"));
     let reopened = pin.reopen().expect("admitted again in memory");
     assert_eq!(pin.moved(&reopened), None, "the same release has not moved");
     let again = KnowledgePin::embedded(Some("heldout".to_owned())).expect("pinned again");

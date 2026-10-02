@@ -10,10 +10,10 @@ use super::super::{Snapshot, bundled, fixture};
 use super::TrustedIdentity;
 
 // The release owner's issued identity, independent of the payload's own declarations.
-const EXPECTED_SNAPSHOT: &str = "5bcd108a78e9fbb6e27827b34d8090b74f6285a125cdcef812b33dd51738e692";
+const EXPECTED_SNAPSHOT: &str = "effc8d45b88a62c08cd4569abaadb8863823baaa0d52a313b925e9e1faf51b11";
 const EXPECTED_POLICY: &str = "policy-r";
 const EXPECTED_POLICY_SHA256: &str =
-    "5b567a1557ba430fe57fe9a80934de29b2b09805d4cf26b4868e3395c8795465";
+    "d0471eeb904416dd411fde12244918771a5578ae1526f1e0a775b5d421087f36";
 const EXPECTED_PROFILE: &str = "nika-knowledge-release-profile/r1";
 
 fn files() -> BTreeMap<String, Vec<u8>> {
@@ -30,6 +30,19 @@ fn trusted_identity() -> Result<TrustedIdentity, &'static str> {
 
 fn assert_identity(snapshot: &Snapshot) {
     assert_eq!(snapshot.manifest_sha256(), EXPECTED_SNAPSHOT);
+    assert_eq!(snapshot.rows("patterns").len(), 3);
+    assert_eq!(snapshot.rows("blocks").len(), 3);
+    assert!(snapshot.rows("examples").is_empty());
+    assert_eq!(snapshot.relations.len(), 3);
+    for (block, pattern) in [
+        ("block:run-deterministic", "pattern:declared-zero"),
+        ("block:typed-inputs-outputs", "pattern:typed-output"),
+        ("block:when-skipped-fallback", "pattern:guard-on-value"),
+    ] {
+        assert!(snapshot.relations.iter().any(|edge| {
+            edge["from"] == block && edge["rel"] == "REALIZES" && edge["to"] == pattern
+        }));
+    }
     let admitted = snapshot.identity();
     assert_eq!(admitted["snapshot_sha256"], EXPECTED_SNAPSHOT);
     assert_eq!(admitted["verification"]["admission"], EXPECTED_PROFILE);

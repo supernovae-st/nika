@@ -364,10 +364,12 @@ startup file as your key. The walkthroughs above need none of them.
 **Knowledge releases.** By default, the Session admits the release embedded in
 its binary against the build's trusted identity and pins it when it opens.
 `/status` names that identity and its embedded origin. The release contains three
-blocks, but its current composition selects none: it adds zero reference material
-or repair principles to model requests. A recorded pack identity, including
-`presented: true` with an empty reference list, is not evidence that knowledge
-helped the model. Deterministic authoring does not present it to a model.
+blocks linked to three patterns. Matching words in an intention select patterns
+and their blocks as reference material; an intention with no lexical match adds
+none. The release contains no examples or repair principles. The record
+distinguishes composed references from those presented in an authoring
+instruction; neither proves a better result.
+Deterministic authoring does not present knowledge to a model.
 
 `NIKA_KNOWLEDGE=off` disables knowledge. With authoring strategy `off` and no
 source named, the choice is unread and composes nothing; naming a source under

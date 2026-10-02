@@ -1,4 +1,4 @@
-# Notices · Nika knowledge release knowledge-0.122.0-r1
+# Notices · Nika knowledge release knowledge-0.122.0-r2
 
 Release policy `policy-r`, profile `nika-knowledge-release-profile/r1`.
 

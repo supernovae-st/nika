@@ -502,3 +502,57 @@ fn an_admitted_snapshot_presents_its_bytes_after_its_root_is_gone() {
         block.text
     );
 }
+
+/// Removing only REALIZES leaves recalled patterns but no reachable blocks. The mutation receives
+/// its own test identity; the issued identity refuses those changed bytes.
+#[test]
+fn removing_realizes_edges_keeps_patterns_and_removes_blocks_from_the_pack() {
+    use super::super::bundled;
+    let issued = bundled::identity().expect("issued");
+    let original = bundled::admit(Some(&issued)).expect("admitted");
+    let mut files: Files = bundled::FILES
+        .into_iter()
+        .map(|(path, bytes)| (path.to_owned(), bytes.to_vec()))
+        .collect();
+    files.insert("knowledge/relations.jsonl".to_owned(), Vec::new());
+    let mut manifest: Value = serde_json::from_slice(&files[MANIFEST_PATH]).expect("manifest");
+    manifest["relations"]["count"] = json!(0);
+    manifest["files"]["knowledge/relations.jsonl"] = json!(sha256_hex(b""));
+    let bytes = serde_json::to_vec_pretty(&manifest).expect("manifest bytes");
+    let (files, mutant_identity) = with_manifest(files, &issued, bytes);
+    assert_ne!(issued, mutant_identity);
+    assert_eq!(
+        in_memory(files.clone(), &issued),
+        Err(("IDENTITY_MISMATCH", "C2"))
+    );
+    let mutant =
+        Snapshot::from_files("edge-ablation", files, Some(&mutant_identity)).expect("admitted");
+    for (intent, pattern) in [
+        (
+            "Grant zero authority to a pure compute workflow",
+            "pattern:declared-zero",
+        ),
+        (
+            "Declare a typed output with a description",
+            "pattern:typed-output",
+        ),
+        (
+            "Skip the fallback step when a boolean flag is false",
+            "pattern:guard-on-value",
+        ),
+    ] {
+        let before = original.pack(intent, None).expect("composed");
+        let after = mutant.pack(intent, None).expect("composed");
+        assert_eq!(before.references.len(), 2);
+        assert_eq!(after.references.len(), 1);
+        assert_eq!(after.references[0].kind, "pattern");
+        assert_eq!(after.references[0].id, pattern);
+        assert_eq!(after.references[0], before.references[0]);
+        assert_eq!(after.selection["receipt"]["blocks"]["candidates"], 0);
+        assert_eq!(after.selection["files"]["verified"], 0);
+        assert_ne!(
+            before.identity["door"]["pack_sha256"],
+            after.identity["door"]["pack_sha256"]
+        );
+    }
+}

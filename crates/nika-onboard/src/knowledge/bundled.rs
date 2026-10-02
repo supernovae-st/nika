@@ -9,11 +9,10 @@
 //! an official release. It is the knowledge where nothing names any
 //! ([`crate::compile_config::KnowledgeChoice::Default`]).
 //!
-//! Available and admitted is not composed: this payload (policy-R) holds three blocks, the
-//! diagnostics and their source artifacts, and no family, pattern, relation, repair principle or
-//! example. The door reaches a block only through a pattern that realizes it, so every pack it
-//! composes from this release presents no reference and no repair principle: its identity and its
-//! selection record are stated, and no byte of it reaches a seat.
+//! This payload (policy-R) holds three patterns and their realizing blocks, diagnostics and source
+//! artifacts. Lexical recall selects patterns for the intent, then follows REALIZES to their blocks.
+//! An intent sharing no recalled words receives no references. There is no family, repair principle
+//! or example. Admission and presentation do not establish useful generation or runtime behavior.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -26,14 +25,14 @@ pub(crate) const LABEL: &str = "embedded:nika-knowledge-release";
 
 /// The issued `SNAPSHOT_SHA256`: the sha256 of the payload manifest's bytes.
 pub(crate) const SNAPSHOT_SHA256: &str =
-    "5bcd108a78e9fbb6e27827b34d8090b74f6285a125cdcef812b33dd51738e692";
+    "effc8d45b88a62c08cd4569abaadb8863823baaa0d52a313b925e9e1faf51b11";
 
 /// The policy the payload was qualified under.
 pub(crate) const POLICY_ID: &str = "policy-r";
 
 /// The sha256 of that policy.
 pub(crate) const POLICY_SHA256: &str =
-    "5b567a1557ba430fe57fe9a80934de29b2b09805d4cf26b4868e3395c8795465";
+    "d0471eeb904416dd411fde12244918771a5578ae1526f1e0a775b5d421087f36";
 
 /// The payload's files, each path under its root with its issued bytes: a finite table.
 pub(crate) const FILES: [(&str, &[u8]); 14] = [

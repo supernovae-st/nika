@@ -20,7 +20,7 @@
  },
  "files": {
   "LICENSES/AGPL-3.0-or-later.txt": "92ac0dc98d118e8b63b43d0de9de2273158260e7f49a42ad1f8e3d475979840c",
-  "NOTICE.md": "93e49392b8ab6f405d07a62c812bc3f6b48cd7bb72bddb18cf5d494911d78061",
+  "NOTICE.md": "503fbcb79b09da9a115dcd01180fc5b6403ca57818443736f1fe59f41de77a56",
   "blocks/run-deterministic.nika": "d3b5c5a80ba0cbace0cc82437fb621a57838f75500233b5c82c117f05ed50a75",
   "blocks/typed-inputs-outputs.nika": "43624907bfe8fc891c03d6f2b7b8ca0f026887c34c0e6c02b705b69809598683",
   "blocks/when-skipped-fallback.nika": "eba05ccff93bb9f9edc0d40393a399e015eac1058ce3e85b5bb808c4b74a018a",
@@ -28,21 +28,21 @@
   "knowledge/diagnostics.jsonl": "78305e3f3dbb46d9024106686e8c4e7b839e83a0a41e3bfdd5dc78c33f2b0bf3",
   "knowledge/families.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "knowledge/pattern_packs.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "knowledge/patterns.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-  "knowledge/relations.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "knowledge/patterns.jsonl": "3e6d1a447f648a02e1299817a273ae859c8fd7c288f38141ae1b5e7202bc6412",
+  "knowledge/relations.jsonl": "f3f83d8301629cdee2cd94c367918a2de99a700d5a9d215b3341145d1ae4635b",
   "knowledge/repair_principles.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "knowledge/source_artifacts.jsonl": "649801fe4cc8f8ad83167a0d1b2db420abd171d943f9c2811553704c59540832"
  },
  "format": "nika-knowledge-release/2",
- "input_digest": "816a5eabcb87bb9c8f8dc92ffdf7e7a502a3a3a285ed4dec7a84b99efa04b124",
- "knowledge_version": "knowledge-0.122.0-r1",
+ "input_digest": "21a0a9a05cebd0dfe0d7ec0f24ab638a043480e19b5c9982d5f9aa0d1a1a8b64",
+ "knowledge_version": "knowledge-0.122.0-r2",
  "policy": {
   "id": "policy-r",
-  "sha256": "5b567a1557ba430fe57fe9a80934de29b2b09805d4cf26b4868e3395c8795465"
+  "sha256": "d0471eeb904416dd411fde12244918771a5578ae1526f1e0a775b5d421087f36"
  },
  "profile": "nika-knowledge-release-profile/r1",
  "relations": {
-  "count": 0,
+  "count": 3,
   "file": "knowledge/relations.jsonl"
  },
  "rows": {
@@ -59,7 +59,7 @@
    "file": "knowledge/families.jsonl"
   },
   "pattern": {
-   "count": 0,
+   "count": 3,
    "file": "knowledge/patterns.jsonl"
   },
   "pattern_pack": {
