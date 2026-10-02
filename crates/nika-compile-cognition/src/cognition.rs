@@ -41,6 +41,7 @@ pub(super) mod knowledge;
 mod native;
 mod proposal;
 mod receipt;
+mod rehearsal;
 use receipt::call_with_schema;
 pub(crate) use receipt::{effort, reasoning_record};
 mod sketch;
@@ -110,6 +111,7 @@ pub async fn compile_with_provider<P: ProviderInferDyn>(
 async fn revise<P: ProviderInferDyn>(
     request: &CompileRequest,
     cognition: Cognition<'_, P>,
+    rehearsals: &mut rehearsal::Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     let deterministic = super::compile(request)?;
     let Input::Edit {
@@ -185,6 +187,7 @@ async fn revise<P: ProviderInferDyn>(
                 .to_owned(),
         ],
         out,
+        rehearsals,
     ))
     .await
 }
@@ -197,10 +200,24 @@ async fn revise<P: ProviderInferDyn>(
 ///
 /// # Errors
 /// Returns the same representation/registry machinery failures as [`super::compile`].
-#[allow(clippy::too_many_lines)] // the resolution ladder reads top to bottom
 pub async fn compile_with_cognition<P: ProviderInferDyn>(
     request: &CompileRequest,
     cognition: Cognition<'_, P>,
+) -> Result<CompileOutcome, CompileError> {
+    compile_with_cognition_rehearsed(request, cognition, None).await
+}
+
+/// Compile with a host that can rehearse final candidates on copies of the observed world.
+/// A rehearsal grants no authority. Failed or missing results cannot be Ready; a safe
+/// refusal to rehearse is recorded distinctly. The existing entry offers no host and
+/// keeps its source-only behavior. Native repairs stay within the authoring policy.
+///
+/// # Errors
+/// Returns the same representation/registry machinery failures as [`super::compile`].
+pub async fn compile_with_cognition_rehearsed<P: ProviderInferDyn>(
+    request: &CompileRequest,
+    cognition: Cognition<'_, P>,
+    host: Option<&dyn crate::rehearse::Rehearse>,
 ) -> Result<CompileOutcome, CompileError> {
     let admitted::Money {
         reading,
@@ -216,7 +233,9 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
     } else {
         cognition
     };
-    let mut out = compile_inner(&reading, seats).await?;
+    let mut rehearsals = rehearsal::Rehearsals::new(host);
+    let mut out = compile_inner(&reading, seats, &mut rehearsals).await?;
+    rehearsals.finish(&reading, &mut out).await;
     if let Some(money) = record {
         admitted::record(
             request,
@@ -232,9 +251,10 @@ pub async fn compile_with_cognition<P: ProviderInferDyn>(
 async fn compile_inner<P: ProviderInferDyn>(
     request: &CompileRequest,
     cognition: Cognition<'_, P>,
+    rehearsals: &mut rehearsal::Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     let Input::Create(intent) = &request.input else {
-        return revise(request, cognition).await;
+        return revise(request, cognition, rehearsals).await;
     };
     if matches!(intent.trim(), "hello" | "01-hello")
         || nika_pack::template_names()
@@ -275,6 +295,7 @@ async fn compile_inner<P: ProviderInferDyn>(
         &assembly_request,
         cognition,
         out,
+        rehearsals,
     ))
     .await
 }
@@ -285,6 +306,7 @@ async fn resolve_create<P: ProviderInferDyn>(
     assembly_request: &CompileRequest,
     cognition: Cognition<'_, P>,
     mut out: CompileOutcome,
+    rehearsals: &mut rehearsal::Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     // An answer round replays the plan its previous round produced: no reading, no seat,
     // no proposal, the same candidate.
@@ -335,7 +357,16 @@ async fn resolve_create<P: ProviderInferDyn>(
         reading.columns = columns;
     }
     backstop(intent, &mut reading.plan);
-    route_create(intent, request, assembly_request, cognition, reading, out).await
+    route_create(
+        intent,
+        request,
+        assembly_request,
+        cognition,
+        reading,
+        out,
+        rehearsals,
+    )
+    .await
 }
 
 async fn route_create<P: ProviderInferDyn>(
@@ -345,6 +376,7 @@ async fn route_create<P: ProviderInferDyn>(
     cognition: Cognition<'_, P>,
     reading: Reading,
     mut out: CompileOutcome,
+    rehearsals: &mut rehearsal::Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     // An effect the request's own words both ask for and prohibit stays the human's (R4 S0):
     // no seat reads it to choose a side, whatever the strategy. The outcome is the deterministic
@@ -400,6 +432,7 @@ async fn route_create<P: ProviderInferDyn>(
             assembly_request,
             route,
             out,
+            rehearsals,
         ))
         .await;
     }
@@ -421,6 +454,7 @@ async fn route_create<P: ProviderInferDyn>(
         reading,
         route,
         out,
+        rehearsals,
     )
     .await
 }
@@ -433,6 +467,7 @@ async fn choose_create<P: ProviderInferDyn>(
     mut reading: Reading,
     mut route: Vec<String>,
     mut out: CompileOutcome,
+    rehearsals: &mut rehearsal::Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     // WARM on lexical ambiguity: every clause is known; a few carry a finite set of readings
     // and the rest of the reading is strictly explicit.
@@ -511,6 +546,7 @@ async fn choose_create<P: ProviderInferDyn>(
         reading,
         route,
         out,
+        rehearsals,
     )
     .await
 }
@@ -523,6 +559,7 @@ async fn author_create<P: ProviderInferDyn>(
     reading: Reading,
     mut route: Vec<String>,
     mut out: CompileOutcome,
+    rehearsals: &mut rehearsal::Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     // COLD: explicitly authorized generative proposals, constrained by the deterministic facts.
     if let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider) {
@@ -552,6 +589,7 @@ async fn author_create<P: ProviderInferDyn>(
                 assembly_request,
                 route,
                 out,
+                rehearsals,
             ))
             .await;
         }
@@ -588,6 +626,7 @@ async fn author_create<P: ProviderInferDyn>(
                 assembly_request,
                 route,
                 cold,
+                rehearsals,
             ))
             .await;
         }

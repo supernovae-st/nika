@@ -229,6 +229,7 @@ impl SessionRuntime {
     }
 
     fn expire_money_authority(&mut self) {
+        self.rehearsals.expire_pending();
         self.money.pending = None;
         self.pending = None;
         self.authoring = None;

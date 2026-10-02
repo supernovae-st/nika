@@ -719,6 +719,7 @@ tasks:
             "Who receives the copy?",
             QuestionType::Text,
         );
+        let mut rehearsals = crate::cognition::rehearsal::Rehearsals::new(None);
         let out = Box::pin(super::super::author(
             INTENT,
             &crate::lexicon::read(INTENT),
@@ -727,6 +728,7 @@ tasks:
             &request,
             Vec::new(),
             cold,
+            &mut rehearsals,
         ))
         .await
         .unwrap();

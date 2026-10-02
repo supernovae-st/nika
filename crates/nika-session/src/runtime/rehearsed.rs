@@ -15,23 +15,28 @@
 //! - **Run.** A run of that saved workflow first judges its bytes and the world again. A drift
 //!   withdraws the rehearsal and its authority, and the run is refused, again at each later run
 //!   line; saying the request again rehearses the project as it is.
-//! - **Change.** A change said at a rehearsed proposal never carries the rehearsal: the proposal
-//!   waits as it was.
+//! - **Change.** The closed copy waits as rehearsed. A native proposal may enter a fresh EDIT;
+//!   its old proof waits aside, and only returns with unchanged bytes and world if the edit fails
+//!   or is cancelled. The revised candidate needs its own live decision.
 //!
 //! The rehearsals of one turn share one budget: zero at the start of a turn that rehearsed
 //! nothing, never reset inside it. Authoring calls and their costs keep their own account.
 
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 use nika_event::source_id::sha256_hex;
 use nika_onboard::compile::copy::{
-    self, Allowance, CopyLowering, Limits, Qualification, Qualified, Seen, Usage, Witness,
+    self, Allowance, Limits, Qualification, Qualified, Usage, Witness, native,
+    same_project_path as same_file,
+    words::{held_words, rehearsed_lines},
 };
 use nika_onboard::compile::rehearse::Rehearse;
 use nika_onboard::compile::room::ObservedRoom;
 
 use super::{SessionRuntime, TurnOutcome};
-use crate::authoring::AuthoringRound;
+use crate::authoring::{AuthoringError, AuthoringRound};
+use nika_onboard::compile::{CompileOutcome, CompileStatus};
+
 use crate::change::ProjectChangeSet;
 use crate::outcome::{ProposalId, Refusal, RefusalClass};
 
@@ -54,7 +59,9 @@ pub(super) type TestHost = dyn Fn(&Path) -> Box<dyn Rehearse> + Send + Sync;
 #[derive(Default)]
 pub(super) struct Rehearsals {
     turn: Usage,
+    native: Option<(String, native::Preview)>,
     pending: Option<(ProposalId, Proof)>,
+    revising: Option<SuspendedProof>,
     saved: Option<(PathBuf, Result<Witness, String>)>,
     #[cfg(test)]
     host: Option<std::sync::Arc<TestHost>>,
@@ -62,17 +69,45 @@ pub(super) struct Rehearsals {
 
 /// A pending proposal's proof: the witness its rehearsal is bound to, and the lines its preview
 /// said of that rehearsal, shown again unchanged when only its money changes.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ProofOrigin {
+    Copy,
+    Native,
+}
+
+struct SuspendedProof {
+    id: ProposalId,
+    proof: Proof,
+    basis: Option<super::fresh::ProposalBasis>,
+}
+
 struct Proof {
+    origin: ProofOrigin,
     witness: Witness,
     lines: String,
 }
 
 impl Rehearsals {
-    /// A new turn: nothing rehearsed in it yet, and the pending proposal, discarded with it, no
-    /// longer proven.
-    pub(super) fn new_turn(&mut self) {
-        self.turn = Usage::default();
+    pub(super) fn clear_native(&mut self) {
+        self.native = None;
+    }
+
+    /// A fresh request starts an account; answers and revision questions keep the existing
+    /// account and suspended proof. The active proposal and transient preview always expire.
+    pub(super) fn new_turn(&mut self, continuing: bool) {
+        if !continuing {
+            self.turn = Usage::default();
+            self.revising = None;
+        }
         self.pending = None;
+        self.native = None;
+    }
+
+    /// Expire pending authority without erasing already spent rehearsal usage.
+    pub(super) fn expire_pending(&mut self) {
+        self.pending = None;
+        self.native = None;
+        self.revising = None;
     }
 }
 
@@ -82,6 +117,52 @@ fn room(world: &Path) -> Box<dyn Rehearse> {
 }
 
 impl SessionRuntime {
+    /// A single dispatch returns its account even on a compiler/admission error. Only its live
+    /// final-candidate preview may reach the subsequent proposal; JSON provenance is not proof.
+    pub(super) fn rehearse_dispatch(
+        &mut self,
+        intent: &str,
+        compile: impl FnOnce(&Self, &dyn Rehearse) -> Result<CompileOutcome, AuthoringError>,
+    ) -> Result<CompileOutcome, AuthoringError> {
+        self.rehearsals.clear_native();
+        let scoped = native::Scoped::new(
+            self.snapshot.root.clone(),
+            self.native_host(),
+            Allowance::new(ROUND, TURN, self.rehearsals.turn),
+        );
+        let out = compile(self, &scoped);
+        let (turn, preview) = scoped.finish().into_parts();
+        self.rehearsals.turn = turn;
+        let out = out?;
+        let preview = preview.map_err(AuthoringError::Runtime)?;
+        if out.status == CompileStatus::Ready {
+            let preview = preview.ok_or_else(|| {
+                AuthoringError::Runtime(
+                    "the ready candidate has no live passed or source-only rehearsal decision"
+                        .to_owned(),
+                )
+            })?;
+            let exact = out.candidate.as_ref().is_some_and(|candidate| {
+                sha256_hex(candidate.as_bytes()) == preview.candidate_sha256()
+            });
+            if !exact {
+                return Err(AuthoringError::Runtime(
+                    "the returned candidate differs from the live rehearsal".to_owned(),
+                ));
+            }
+            self.rehearsals.native = Some((intent.to_owned(), preview));
+        }
+        Ok(out)
+    }
+
+    fn native_host(&self) -> Box<dyn Rehearse> {
+        #[cfg(test)]
+        if let Some(host) = self.rehearsals.host.as_ref() {
+            return host(&self.snapshot.root);
+        }
+        room(&self.snapshot.root)
+    }
+
     /// The copy door over a creation round that compiled Ready. `Ok(None)` when it is no closed
     /// copy (the proposal path is unchanged), the selection when one qualified, or the refusal of
     /// a closed copy no candidate qualified: nothing proposed, nothing written.
@@ -134,17 +215,50 @@ impl SessionRuntime {
         &mut self,
         id: &ProposalId,
         qualified: Option<&Qualified>,
+        round: &AuthoringRound,
+        out: &CompileOutcome,
         preview: &mut String,
-    ) {
-        let Some(q) = qualified else {
-            self.rehearsals.pending = None;
-            return;
+    ) -> Result<(), TurnOutcome> {
+        let native = self.rehearsals.native.take();
+        let proof = if let Some(q) = qualified {
+            // Copy may have replaced the native candidate. Its witness wins, its cost does not
+            // erase earlier work, and no proof of the earlier candidate is carried across.
+            self.last_outcome = Some(q.outcome.clone());
+            Some(Proof {
+                origin: ProofOrigin::Copy,
+                witness: q.witness.clone(),
+                lines: rehearsed_lines(q),
+            })
+        } else if let Some((intent, native)) = native {
+            let exact = intent == round.effective_intent()
+                && out.candidate.as_ref().is_some_and(|candidate| {
+                    sha256_hex(candidate.as_bytes()) == native.candidate_sha256()
+                });
+            if !exact {
+                return Err(
+                    self.withdraw(id, "the live rehearsal names another request or candidate")
+                );
+            }
+            self.last_outcome = Some(out.clone());
+            let (witness, lines) = native.into_parts();
+            if let Some(witness) = witness {
+                Some(Proof {
+                    origin: ProofOrigin::Native,
+                    witness,
+                    lines,
+                })
+            } else {
+                *preview = preview.replacen(crate::review::NOTHING_RAN, &lines, 1);
+                None
+            }
+        } else {
+            None
         };
-        let lines = rehearsed_lines(q);
-        *preview = preview.replacen(crate::review::NOTHING_RAN, &lines, 1);
-        self.last_outcome = Some(q.outcome.clone());
-        let witness = q.witness.clone();
-        self.rehearsals.pending = Some((id.clone(), Proof { witness, lines }));
+        self.rehearsals.pending = proof.map(|proof| {
+            *preview = preview.replacen(crate::review::NOTHING_RAN, &proof.lines, 1);
+            (id.clone(), proof)
+        });
+        Ok(())
     }
 
     /// A money-only amendment of the pending proposal `old`, now `new` over the same set. Its
@@ -271,11 +385,80 @@ impl SessionRuntime {
     /// None when no rehearsal proves it: the caller keeps its set.
     pub(super) fn rehearsed_change(&mut self, set: &ProjectChangeSet) -> Option<TurnOutcome> {
         let id = self.proposal_id(set);
-        if !self.rehearsed_pending(&id) {
+        let held = self
+            .rehearsals
+            .pending
+            .as_ref()
+            .is_some_and(|(proven, proof)| proven == &id && proof.origin == ProofOrigin::Copy);
+        if !held {
             return None;
         }
         self.remember("(change)", HELD);
         Some(self.hold_pending(set.clone(), id, HELD))
+    }
+
+    /// Suspend a native proposal's own proof while an EDIT asks for a fresh candidate.
+    /// The old bytes/world are checked now and again before any restoration; no proof is copied.
+    pub(super) fn suspend_native_rehearsal(
+        &mut self,
+        set: &ProjectChangeSet,
+    ) -> Result<(), TurnOutcome> {
+        if self.rehearsals.revising.is_some() {
+            let id = self.proposal_id(set);
+            return Err(self.withdraw(&id, "another native revision still owns a suspended proof"));
+        }
+        if self.rehearsals.pending.is_none() {
+            return Ok(());
+        }
+        let id = self.proposal_id(set);
+        self.rehearsed_at_yes(set, &id)?;
+        let Some((proven, proof)) = self.rehearsals.pending.take() else {
+            return Ok(());
+        };
+        if proof.origin != ProofOrigin::Native {
+            self.rehearsals.pending = Some((proven, proof));
+            return Err(self.withdraw(&id, "this proof does not admit a native revision"));
+        }
+        self.rehearsals.revising = Some(SuspendedProof {
+            id: proven,
+            proof,
+            basis: self.basis.take(),
+        });
+        Ok(())
+    }
+
+    /// Restore only the old proposal's proof and source basis after checking its exact bytes,
+    /// identity and old world. A changed monetary identity cannot inherit the old witness.
+    pub(super) fn restore_native_rehearsal(
+        &mut self,
+        set: &ProjectChangeSet,
+    ) -> Result<(), TurnOutcome> {
+        let Some(suspended) = self.rehearsals.revising.take() else {
+            return Ok(());
+        };
+        self.rehearsals.pending = None;
+        self.rehearsals.native = None;
+        self.pending = None;
+        self.basis = None;
+        let id = ProposalId::of(&self.draft_preview(set));
+        if suspended.id != id || !selected(set, &suspended.proof.witness) {
+            return Err(self.withdraw(&id, "the suspended rehearsal names another proposal"));
+        }
+        if let Some(why) = suspended.proof.witness.drift(&self.snapshot.root, None) {
+            return Err(self.withdraw(
+                &id,
+                &format!("the suspended rehearsal's world changed: {why}"),
+            ));
+        }
+        self.basis = suspended.basis;
+        self.bind_proposal_money(&id);
+        self.rehearsals.pending = Some((id, suspended.proof));
+        Ok(())
+    }
+
+    /// A new proposal supersedes the suspended proof; its own binding is already installed.
+    pub(super) fn finish_native_revision(&mut self) {
+        self.rehearsals.revising = None;
     }
 
     /// The landed words of a saved workflow: where its rehearsal ran, when it was rehearsed.
@@ -294,75 +477,10 @@ impl SessionRuntime {
     }
 }
 
-/// The preview's line on execution for a rehearsed copy: where it ran and what it read back
-/// there, from the user's own world only.
-fn rehearsed_lines(q: &Qualified) -> String {
-    let p = &q.preview;
-    let published = if p.published {
-        "published by the run"
-    } else {
-        "not published by the run"
-    };
-    let before = p.replaced.map_or_else(
-        || format!("`{}` did not exist", p.target),
-        |bytes| format!("replaces `{}` ({bytes} B)", p.target),
-    );
-    let lowering = match q.lowering {
-        CopyLowering::Text => "text",
-        CopyLowering::Bytes => "byte",
-        _ => "closed",
-    };
-    format!(
-        "Rehearsed once on a copy of your files · nothing ran on the originals · `yes` saves these exact bytes and checks them · running is its own line (« run it »)\n  read back · `{}` {published} · {} B · sha256 {} · the whole text\n    « {} »\n  from `{}` · {} B · sha256 {} · {before}\n  the {lowering} copy held on every world: {}\n",
-        p.target,
-        p.bytes,
-        short(&p.sha256),
-        p.excerpt,
-        p.source,
-        p.source_bytes,
-        short(&p.source_sha256),
-        p.worlds.join(" · ")
-    )
-}
-
-/// What the yes found of the rehearsed world, in words.
-fn held_words(witness: &Witness) -> String {
-    let parts: Vec<String> = witness
-        .world()
-        .iter()
-        .map(|(path, seen)| match seen {
-            Seen::File(digest) => format!("`{path}` the same {} B", digest.bytes),
-            Seen::Absent => format!("`{path}` still absent"),
-            _ => format!("`{path}` as rehearsed"),
-        })
-        .collect();
-    format!(
-        "the rehearsed world holds: {} (the bytes are the selected ones)",
-        parts.join(" · ")
-    )
-}
-
 /// Whether `set` is exactly one workflow whose bytes are the ones `witness` selected.
 fn selected(set: &ProjectChangeSet, witness: &Witness) -> bool {
     matches!(set.changes.as_slice(),
         [change] if sha256_hex(change.content().as_bytes()) == witness.candidate_sha256())
-}
-
-/// The first twelve characters of a digest.
-fn short(sha256: &str) -> &str {
-    sha256.get(..12).unwrap_or(sha256)
-}
-
-/// Whether two paths name the same file of the project at `root`: `.` components dropped, an
-/// absolute path read under the root.
-fn same_file(root: &Path, left: &Path, right: &Path) -> bool {
-    let normal = |path: &Path| -> PathBuf {
-        let path = path.strip_prefix(root).unwrap_or(path);
-        path.components()
-            .filter(|part| !matches!(part, Component::CurDir))
-            .collect()
-    };
-    normal(left) == normal(right)
 }
 
 #[cfg(test)]

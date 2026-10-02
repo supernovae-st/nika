@@ -36,9 +36,10 @@ use std::time::Duration;
 
 use nika_onboard::compile::{
     AuthoringPolicy, AuthoringReceipt, Cognition, CompileError, CompileOutcome, CompileQuestion,
-    CompileRequest, NativeMode, compile, compile_with_cognition, revise_intent, round,
+    CompileRequest, NativeMode, compile, compile_with_cognition_rehearsed, revise_intent, round,
 };
 // The records a compile outcome carries live beside the snapshot door (C7 · D1).
+use nika_onboard::compile::rehearse::Rehearse;
 use nika_onboard::knowledge::pin::{
     carried_record, composed_record, observed_in, stamp, stamp_seat,
 };
@@ -341,13 +342,24 @@ impl AuthoringRound {
         seat: &AuthoringSeat,
         context: &AuthoringContext,
     ) -> Result<CompileOutcome, AuthoringError> {
+        self.compile_rehearsed(seat, context, None, None)
+    }
+
+    /// The Session-owned path; public callers remain source-only unless their own host opts in.
+    pub(crate) fn compile_rehearsed(
+        &self,
+        seat: &AuthoringSeat,
+        context: &AuthoringContext,
+        account: Option<&nika_providers::InferenceAdmission>,
+        host: Option<&dyn Rehearse>,
+    ) -> Result<CompileOutcome, AuthoringError> {
         let intent = self.effective_intent();
         let attach = if self.continuation.is_some() {
             Attach::Carried(self.knowledge.as_ref(), &intent)
         } else {
             Attach::Compose(&intent)
         };
-        let mut out = compile_attached(seat, context, &self.request(), attach, None)?;
+        let mut out = compile_attached(seat, context, &self.request(), attach, account, host)?;
         round::carry_receipt(
             &mut out,
             self.continuation
@@ -485,7 +497,7 @@ impl AuthoringRound {
         } else {
             Attach::Compose(&intent)
         };
-        compile_attached(seat, context, &self.request(), attach, Some(account))
+        compile_attached(seat, context, &self.request(), attach, Some(account), None)
     }
 }
 
@@ -633,6 +645,7 @@ pub fn compile_through(
         request,
         Attach::Compose(""),
         None,
+        None,
     )
 }
 
@@ -655,7 +668,7 @@ pub fn compile_in(
     request: &CompileRequest,
     intent: &str,
 ) -> Result<CompileOutcome, AuthoringError> {
-    compile_attached(seat, context, request, Attach::Compose(intent), None)
+    compile_attached(seat, context, request, Attach::Compose(intent), None, None)
 }
 
 /// Compile under a shared catalog account; it never grants Save or Run.
@@ -674,6 +687,26 @@ pub fn compile_in_with_admission(
         request,
         Attach::Compose(intent),
         Some(account),
+        None,
+    )
+}
+
+/// The Session-owned request path, preserving the same seat, knowledge and admission.
+pub(crate) fn compile_in_rehearsed(
+    seat: &AuthoringSeat,
+    context: &AuthoringContext,
+    request: &CompileRequest,
+    intent: &str,
+    account: Option<&nika_providers::InferenceAdmission>,
+    host: Option<&dyn Rehearse>,
+) -> Result<CompileOutcome, AuthoringError> {
+    compile_attached(
+        seat,
+        context,
+        request,
+        Attach::Compose(intent),
+        account,
+        host,
     )
 }
 
@@ -693,6 +726,7 @@ fn compile_attached(
     request: &CompileRequest,
     attach: Attach<'_>,
     admission: Option<&nika_providers::InferenceAdmission>,
+    host: Option<&dyn Rehearse>,
 ) -> Result<CompileOutcome, AuthoringError> {
     // The project as it is NOW, for the intent the compiler reads (a fresh request, its
     // answers' round, a revision's request with its change), on every seat (R4 S1): the files
@@ -749,9 +783,9 @@ fn compile_attached(
     }
     let mut out = match seat {
         AuthoringSeat::Harness { seat, model } => {
-            harness::compile(seat, model.as_deref(), &request)?
+            harness::compile(seat, model.as_deref(), &request, host)?
         }
-        _ => seated(&model, &request, admission, context.decision())?,
+        _ => seated(&model, &request, admission, context.decision(), host)?,
     };
     let knowledge = match (attach, &pack, context.knowledge()) {
         (Attach::Compose(_), Some(pack), Some(pin)) => Some(composed_record(pin, pack, &out)),
@@ -775,6 +809,7 @@ fn seated(
     request: &CompileRequest,
     admission: Option<&nika_providers::InferenceAdmission>,
     selected: Option<&DecisionSetup>,
+    host: Option<&dyn Rehearse>,
 ) -> Result<CompileOutcome, AuthoringError> {
     // The operator-selected decision seat for this ONE compile: consulted by the compiler only
     // for a finite ambiguity (WARM), charged only on the no-budget observation; a need met under
@@ -798,7 +833,7 @@ fn seated(
         .map_err(|e| AuthoringError::Runtime(e.to_string()))?;
     // The compile future carries a whole `CompileOutcome`: boxed so this
     // frame stays small (clippy::large_futures), as the CLI host does.
-    let mut out = runtime.block_on(Box::pin(compile_with_cognition(
+    let mut out = runtime.block_on(Box::pin(compile_with_cognition_rehearsed(
         request,
         Cognition {
             provider: Some(&provider),
@@ -806,6 +841,7 @@ fn seated(
                 .as_ref()
                 .map(|seat| seat as &dyn nika_onboard::compile::decide::DecisionSeat),
         },
+        host,
     )))?;
     // What the seat was asked, sent, answered or refused, beside the compiler's own record of
     // the same questions. A separate backend: a named level is never sent to it nor claimed (B19).

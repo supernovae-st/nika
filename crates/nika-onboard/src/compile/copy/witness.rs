@@ -13,13 +13,16 @@
 //!   observation at all, never an absence.
 
 use std::future::Future;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use nika_compile_cognition::rehearse::Digest;
 use nika_fs::{EffectLedger, OwnedDir, RoomLimits, RootedFs};
 use nika_kernel::fs::{FsError, FsMetaDyn as _, FsReadDyn as _};
 
 use crate::compile::room::ObservedRoom;
+
+mod world;
+pub use world::WorldBefore;
 
 /// What one path held when it was observed.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -206,4 +209,17 @@ where
             .ok()
             .flatten()
     })
+}
+
+/// Compare saved-witness paths lexically under the project root: remove its prefix and `.`.
+/// This performs no I/O, resolves no symlinks and grants no access to either path.
+#[must_use]
+pub fn same_project_path(root: &Path, left: &Path, right: &Path) -> bool {
+    let normal = |path: &Path| -> PathBuf {
+        let path = path.strip_prefix(root).unwrap_or(path);
+        path.components()
+            .filter(|part| !matches!(part, Component::CurDir))
+            .collect()
+    };
+    normal(left) == normal(right)
 }

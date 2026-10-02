@@ -232,13 +232,22 @@ impl SessionRuntime {
         reply
     }
     pub(super) fn compile_round(
-        &self,
+        &mut self,
         round: &AuthoringRound,
         seat: &AuthoringSeat,
     ) -> Result<nika_onboard::compile::CompileOutcome, AuthoringError> {
-        self.seated(seat, |account| match account {
-            Some(a) => round.compile_with_admission(seat, &self.authoring_context, a),
-            None => round.compile(seat, &self.authoring_context),
+        self.rehearsals.clear_native();
+        let context = self.authoring_context.clone();
+        if !seat.has_model() {
+            return self.seated(seat, |account| {
+                round.compile_rehearsed(seat, &context, account, None)
+            });
+        }
+        let intent = round.effective_intent();
+        self.rehearse_dispatch(&intent, |this, host| {
+            this.seated(seat, |account| {
+                round.compile_rehearsed(seat, &context, account, Some(host))
+            })
         })
     }
     /// One authoring dispatch on `seat`, bracketed like every other: its line

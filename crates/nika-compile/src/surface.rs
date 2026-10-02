@@ -4,8 +4,8 @@
 //! Seat orchestration lives above the core; replay and native record application stay here.
 
 pub use crate::doors::{
-    lexical_rest_is_explicit, native_apply, plan_record, record_ledger, record_retrieval,
-    record_route, replay, replay_judged, unresolved,
+    AnsweredPaths, lexical_rest_is_explicit, native_answered_paths, native_apply, plan_record,
+    record_ledger, record_retrieval, record_route, replay, replay_judged, unresolved,
 };
 pub use crate::edit::literal_projection;
 pub use crate::laws::{LINES, SELECT_BY_FIELD};

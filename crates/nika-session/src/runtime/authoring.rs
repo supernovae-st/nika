@@ -72,19 +72,34 @@ impl SessionRuntime {
     /// its change) through the seat under the session's context, its pack
     /// composed for `intent`, bracketed like every other dispatch.
     pub(super) fn compile_request(
-        &self,
+        &mut self,
         request: &CompileRequest,
         intent: &str,
     ) -> Result<CompileOutcome, AuthoringError> {
+        self.rehearsals.clear_native();
         let context = self.project_context();
         if self.money_blocks_cognition() {
             return compile_in(&DETERMINISTIC, &context, request, intent);
         }
-        self.seated(&self.seat, |account| match account {
-            Some(a) => crate::authoring::compile_in_with_admission(
-                &self.seat, &context, request, intent, a,
-            ),
-            None => compile_in(&self.seat, &context, request, intent),
+        let seat = self.seat.clone();
+        if !seat.has_model() {
+            return self.seated(&seat, |account| {
+                crate::authoring::compile_in_rehearsed(
+                    &seat, &context, request, intent, account, None,
+                )
+            });
+        }
+        self.rehearse_dispatch(intent, |this, host| {
+            this.seated(&seat, |account| {
+                crate::authoring::compile_in_rehearsed(
+                    &seat,
+                    &context,
+                    request,
+                    intent,
+                    account,
+                    Some(host),
+                )
+            })
         })
     }
 
@@ -211,7 +226,7 @@ impl SessionRuntime {
         }
         self.authoring_context = self.project_context();
         self.activity(&Activity::now(Phase::Authoring, self.authoring_note()));
-        match self.compile_round(&round, &self.seat) {
+        match self.compile_round(&round, &self.seat.clone()) {
             Ok(out) => match Reading::of(out) {
                 // The seat could not settle it: Nika keeps working — once
                 // more with the provider's stronger model (the product law:
@@ -400,7 +415,20 @@ impl SessionRuntime {
         set: crate::change::ProjectChangeSet,
         change: &str,
     ) -> TurnOutcome {
-        // A rehearsed proposal waits as it was: a change never carries a rehearsal.
+        self.revise_pending_with(set, change, |this, request, intent| {
+            this.compile_request(request, intent)
+        })
+    }
+
+    /// The same revision boundary with its compiler call explicit: the production caller uses
+    /// `compile_request`, and boundary tests can supply a result without a provider or Runtime.
+    pub(super) fn revise_pending_with(
+        &mut self,
+        set: crate::change::ProjectChangeSet,
+        change: &str,
+        compile: impl FnOnce(&mut Self, &CompileRequest, &str) -> Result<CompileOutcome, AuthoringError>,
+    ) -> TurnOutcome {
+        // The closed Copy proposal keeps its contract. Native revisions need a fresh proof.
         if let Some(held) = self.rehearsed_change(&set) {
             return held;
         }
@@ -417,6 +445,10 @@ impl SessionRuntime {
                 preview: "the proposal carries no workflow to revise\n(the proposal still waits · `yes` applies it · `no` discards it)".to_owned(),
             };
         };
+        if let Err(refused) = self.suspend_native_rehearsal(&set) {
+            return refused;
+        }
+        let previous = self.last_outcome.clone();
         let goal = format!("{} — {}", set.goal, change.trim());
         self.activity(&Activity::now(
             Phase::Authoring,
@@ -429,26 +461,54 @@ impl SessionRuntime {
         round.edit = Some((base, change.trim().to_owned(), Some(set.goal.clone())));
         let request = round.request();
         let revised = revise_intent(&request).unwrap_or_else(|| goal.clone());
-        let out = match self.compile_request(&request, &revised) {
+        let out = match compile(self, &request, &revised) {
             Ok(out) => out,
             Err(e) => {
+                if let Err(refused) = self.restore_native_rehearsal(&set) {
+                    return refused;
+                }
                 self.pending = Some(set);
                 return self.machinery(&e);
             }
         };
+        self.settle_pending_revision(set, previous, round, change, out)
+    }
+
+    fn settle_pending_revision(
+        &mut self,
+        set: crate::change::ProjectChangeSet,
+        previous: Option<CompileOutcome>,
+        round: AuthoringRound,
+        change: &str,
+        out: CompileOutcome,
+    ) -> TurnOutcome {
         match Reading::of(out) {
             Reading::Ready(out) => {
                 self.remember(change, "(revised the proposal)");
-                self.propose_revision(&round, &out)
+                let outcome = self.propose_revision(&round, &out);
+                if matches!(outcome, TurnOutcome::Proposal { .. }) {
+                    self.finish_native_revision();
+                } else {
+                    self.pending = None;
+                    if let Err(refused) = self.restore_native_rehearsal(&set) {
+                        return refused;
+                    }
+                    self.pending = Some(set);
+                    self.last_outcome = previous;
+                }
+                outcome
             }
             // What the revision asks (a value, a clause's disposition) waits in its round; the
             // proposal it revises waits aside, never consentable meanwhile (`keep_revising`).
             reading if round.asks(&reading) => {
-                self.revising = Some((set, self.last_outcome.clone()));
+                self.revising = Some((set, previous));
                 let asked = self.settle(round, reading);
                 self.keep_revising(asked)
             }
             reading => {
+                if let Err(refused) = self.restore_native_rehearsal(&set) {
+                    return refused;
+                }
                 let id = self.proposal_id(&set);
                 let why = human_reasons(reasons(reading.outcome())).join(" · ");
                 let way = revision_way(reading.outcome());
@@ -473,9 +533,16 @@ impl SessionRuntime {
     /// one it revises, or that one waits again exactly as it was — an answer never applies it.
     pub(super) fn keep_revising(&mut self, outcome: TurnOutcome) -> TurnOutcome {
         let kept = self.revising.take_if(|_| self.authoring.is_none());
-        let Some((set, reading)) = kept.filter(|_| self.pending.is_none()) else {
+        let Some((set, reading)) = kept else {
             return outcome;
         };
+        if self.pending.is_some() {
+            self.finish_native_revision();
+            return outcome;
+        }
+        if let Err(refused) = self.restore_native_rehearsal(&set) {
+            return refused;
+        }
         let id = ProposalId::of(&self.draft_preview(&set));
         self.last_outcome = reading;
         self.intent.unresolved.clear();
@@ -625,7 +692,10 @@ impl SessionRuntime {
         // A closed copy is proposed only as the candidate its rehearsals selected (`rehearsed.rs`).
         let qualified = match self.rehearse_copy(round) {
             Ok(qualified) => qualified,
-            Err(refused) => return refused,
+            Err(refused) => {
+                self.rehearsals.clear_native();
+                return refused;
+            }
         };
         let out = qualified.as_ref().map_or(out, |q| &q.outcome);
         match review::propose(&self.snapshot.root, &round.intent, out) {
@@ -635,7 +705,11 @@ impl SessionRuntime {
                 // What the candidate records of its sources is bound before any yes (F4).
                 self.bind_basis(&id, &set, compiled(round.request(), out), out);
                 let mut preview = self.draft_review(&set, out, &bytes);
-                self.bind_rehearsal(&id, qualified.as_ref(), &mut preview);
+                if let Err(refused) =
+                    self.bind_rehearsal(&id, qualified.as_ref(), round, out, &mut preview)
+                {
+                    return refused;
+                }
                 self.authoring = None;
                 self.intent.unresolved.clear();
                 self.remember(&round.intent, &format!("(proposed {id})"));
@@ -747,7 +821,7 @@ impl SessionRuntime {
             return self.compile_under_seat(round);
         }
         self.authoring_context = self.project_context();
-        match self.compile_round(&round, &self.seat) {
+        match self.compile_round(&round, &self.seat.clone()) {
             Ok(out) => {
                 let reading = Reading::of(out);
                 self.settle(round, reading)

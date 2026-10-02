@@ -1,0 +1,40 @@
+nika: native-copy
+const:
+  note_text: ""
+permits:
+  tools: ["nika:read", "nika:write"]
+  fs:
+    read: ["./in/source.txt"]
+    write: ["./out/copied.txt", "./out/note.txt"]
+outputs:
+  copied_status: ${{ tasks.write_output.status }}
+  note_status: ${{ tasks.write_note.status }}
+tasks:
+  read_source:
+    invoke:
+      tool: nika:read
+      args:
+        path: ./in/source.txt
+        binary: true
+  write_output:
+    after:
+      read_source: success
+    with:
+      content: ${{ tasks.read_source.output }}
+    invoke:
+      tool: nika:write
+      args:
+        path: ./out/copied.txt
+        content: ${{ with.content }}
+        create_dirs: true
+        overwrite: true
+  write_note:
+    after:
+      write_output: success
+    invoke:
+      tool: nika:write
+      args:
+        path: ./out/note.txt
+        content: ${{ const.note_text }}
+        create_dirs: true
+        overwrite: true

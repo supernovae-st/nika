@@ -21,6 +21,11 @@
 //! [`Witness`](crate::compile::copy::Witness); the only files written are the fixture roots
 //! this door creates and removes.
 
+/// A bounded native dispatch over the same observed world and rehearsal budget.
+pub mod native;
+/// Pure words describing an existing copy qualification and world witness.
+pub mod words;
+
 mod rounds;
 mod shape;
 mod witness;
@@ -40,8 +45,8 @@ use nika_compile_fidelity::behavior::{
 };
 
 pub use nika_compile::surface::assemble::CopyLowering;
-pub use nika_compile_fidelity::behavior::{Limits, Usage};
-pub use witness::{Seen, Witness};
+pub use nika_compile_fidelity::behavior::{Admission, Budget, Limits, RunEnd, Usage};
+pub use witness::{Seen, Witness, WorldBefore, same_project_path};
 
 /// A rehearsal host over one world's root: the room over the user's project, or over a fixture
 /// root this door made.

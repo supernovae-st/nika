@@ -18,6 +18,9 @@ use super::{
 };
 use serde_json::{Value, json};
 
+mod answered_paths;
+pub use answered_paths::{AnsweredPaths, native_answered_paths};
+
 /// The strict admission contract, the legacy one, or none.
 pub(crate) fn admit_hot(
     intent: &str,
@@ -525,6 +528,15 @@ fn native_pending(
 /// stay open. The seats' doors call it once a candidate is accepted; the replay calls it on
 /// every answer round.
 pub fn native_apply(record: &Value, request: &CompileRequest, out: &mut CompileOutcome) {
+    apply_native(record, request, out);
+}
+
+fn apply_native(
+    record: &Value,
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+) -> AnsweredPaths {
+    let mut paths = AnsweredPaths::empty();
     let mut source = record["source"].as_str().unwrap_or_default().to_owned();
     let mut open = false;
     record_trigger(record, request, out);
@@ -540,7 +552,7 @@ pub fn native_apply(record: &Value, request: &CompileRequest, out: &mut CompileO
         }
     }
     if !open {
-        grant_answered_paths(
+        paths = grant_answered_paths(
             record["source"].as_str().unwrap_or_default(),
             &mut source,
             out,
@@ -559,7 +571,7 @@ pub fn native_apply(record: &Value, request: &CompileRequest, out: &mut CompileO
     dispose_gaps(record, request, out);
     if open {
         // Questions stay; the candidate waits for them (the same contract as the assembler).
-        return;
+        return paths;
     }
     // A stated cap may be the human's and nothing proves otherwise: it is admitted against the
     // catalog's judges, never rewritten. A task that states none gets the compiler's default,
@@ -569,6 +581,7 @@ pub fn native_apply(record: &Value, request: &CompileRequest, out: &mut CompileO
     }
     crate::seat_cap::admit(&source, out);
     super::finish(source, out);
+    paths
 }
 
 /// The clauses the seat could not realize never vanish: each is a `Missed` diagnostic on every
@@ -717,28 +730,18 @@ fn grant_host(after: &mut Value, value: &Value) -> bool {
 /// to a bare `${{ const.<slug> }}` (the inference resolves nothing else). A path that
 /// escapes the workspace is never inferred; a glob, or a direction the seat declared with
 /// any other entry, is never touched — the check then refuses the candidate, as before.
-fn grant_answered_paths(seat_source: &str, source: &mut String, out: &mut CompileOutcome) {
-    let (Ok(seat), Ok(answered)) = (crate::parse(seat_source), crate::parse(source)) else {
-        return;
-    };
-    let (seat, answered) = (
-        nika_check::infer_permits(&seat),
-        nika_check::infer_permits(&answered),
-    );
-    for direction in ["read", "write"] {
-        let introduced: Vec<String> = inferred_paths(&answered, direction)
-            .difference(&inferred_paths(&seat, direction))
-            .cloned()
-            .collect();
-        if introduced.is_empty()
-            || introduced
-                .iter()
-                .any(|path| path.is_empty() || path.contains(['*', '?', '[']))
-        {
+fn grant_answered_paths(
+    seat_source: &str,
+    source: &mut String,
+    out: &mut CompileOutcome,
+) -> AnsweredPaths {
+    let paths = AnsweredPaths::introduced(seat_source, source);
+    for (direction, introduced) in [("read", paths.reads()), ("write", paths.writes())] {
+        if introduced.is_empty() {
             continue;
         }
         let Some(before) = crate::edit::literal_projection(source) else {
-            return;
+            break;
         };
         let placeholder = before
             .pointer(&format!("/permits/fs/{direction}"))
@@ -759,30 +762,12 @@ fn grant_answered_paths(seat_source: &str, source: &mut String, out: &mut Compil
                 &format!("permits.fs.{direction}"),
                 format!(
                     "The answered path completes the empty placeholder the candidate declared: {}.",
-                    introduced.join(" · ")
+                    introduced.join(" · "),
                 ),
             );
         }
     }
-}
-
-/// The `permits.fs` entries one inference derived for a direction.
-fn inferred_paths(inferred: &nika_check::InferredPermits, direction: &str) -> BTreeSet<String> {
-    inferred
-        .permits
-        .fs
-        .as_ref()
-        .map(|fs| {
-            if direction == "write" {
-                &fs.write
-            } else {
-                &fs.read
-            }
-        })
-        .into_iter()
-        .flatten()
-        .cloned()
-        .collect()
+    paths
 }
 
 /// The host of an `http(s)://` URL, without its port: the form `permits.net.http` lists (the
