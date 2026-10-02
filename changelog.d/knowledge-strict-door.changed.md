@@ -22,7 +22,8 @@
   A named source that fails admission never falls back to this default.
   The pack builder is `nika-compile/knowledge-door-v4`. For Rust callers this
   is a breaking change in the 0.122 minor: `Snapshot::open` and `KnowledgePin::open` take the
-  trusted identity (`None` is refused), `KnowledgeSource::Snapshot` carries `identity`,
+  trusted identity (`None` is refused), `KnowledgePin::dir` is replaced by `origin`
+  (`KnowledgeOrigin::Disk` or `Embedded`), `KnowledgeSource::Snapshot` carries `identity`,
   `KnowledgeError::NotASnapshot` and `KnowledgeError::Stale` are removed. Strict snapshot-admission
   refusals use `KnowledgeError::Unavailable` with its code. `CompileArgs` and `NativeAuthoringArgs`
-  gain `no_knowledge`.
+  gain `no_knowledge`; callers constructing these structs must supply it.

@@ -545,6 +545,7 @@ pub nika_cli_host::compile::CompileArgs::knowledge: core::option::Option<std::pa
 pub nika_cli_host::compile::CompileArgs::knowledge_exclude: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::knowledge_pack: core::option::Option<std::path::PathBuf>
 pub nika_cli_host::compile::CompileArgs::list: bool
+pub nika_cli_host::compile::CompileArgs::no_knowledge: bool
 pub nika_cli_host::compile::CompileArgs::output: core::option::Option<alloc::string::String>
 impl clap_builder::derive::Args for nika_cli_host::compile::CompileArgs
 pub fn nika_cli_host::compile::CompileArgs::augment_args<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
@@ -632,6 +633,7 @@ pub nika_cli_host::compile::NativeAuthoringArgs::knowledge: core::option::Option
 pub nika_cli_host::compile::NativeAuthoringArgs::knowledge_exclude: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::NativeAuthoringArgs::max_tokens: core::option::Option<u32>
 pub nika_cli_host::compile::NativeAuthoringArgs::model: core::option::Option<alloc::string::String>
+pub nika_cli_host::compile::NativeAuthoringArgs::no_knowledge: bool
 pub nika_cli_host::compile::NativeAuthoringArgs::reasoning: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::NativeAuthoringArgs::repairs: core::option::Option<u32>
 pub nika_cli_host::compile::NativeAuthoringArgs::timeout: core::option::Option<u64>
@@ -3873,6 +3875,7 @@ pub nika_cli_host::serve_args::NativeAuthoringArgs::knowledge: core::option::Opt
 pub nika_cli_host::serve_args::NativeAuthoringArgs::knowledge_exclude: core::option::Option<alloc::string::String>
 pub nika_cli_host::serve_args::NativeAuthoringArgs::max_tokens: core::option::Option<u32>
 pub nika_cli_host::serve_args::NativeAuthoringArgs::model: core::option::Option<alloc::string::String>
+pub nika_cli_host::serve_args::NativeAuthoringArgs::no_knowledge: bool
 pub nika_cli_host::serve_args::NativeAuthoringArgs::reasoning: core::option::Option<alloc::string::String>
 pub nika_cli_host::serve_args::NativeAuthoringArgs::repairs: core::option::Option<u32>
 pub nika_cli_host::serve_args::NativeAuthoringArgs::timeout: core::option::Option<u64>

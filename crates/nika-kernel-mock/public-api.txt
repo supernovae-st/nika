@@ -338,6 +338,7 @@ impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsRead for nika_kernel_m
 pub async fn nika_kernel_mock::filesystem::MockFs::canonicalize(&self, path: &std::path::Path) -> core::result::Result<std::path::PathBuf, nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::exists(&self, path: &std::path::Path) -> bool
 pub async fn nika_kernel_mock::filesystem::MockFs::read(&self, path: &std::path::Path) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>
+pub fn nika_kernel_mock::filesystem::MockFs::read_pinned(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub async fn nika_kernel_mock::filesystem::MockFs::read_to_string(&self, path: &std::path::Path) -> core::result::Result<alloc::string::String, nika_kernel_core::io::fs::FsError>
 impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsWrite for nika_kernel_mock::filesystem::MockFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsWriteDyn
 pub async fn nika_kernel_mock::filesystem::MockFs::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
@@ -1180,6 +1181,7 @@ impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsRead for nika_kernel_m
 pub async fn nika_kernel_mock::filesystem::MockFs::canonicalize(&self, path: &std::path::Path) -> core::result::Result<std::path::PathBuf, nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_mock::filesystem::MockFs::exists(&self, path: &std::path::Path) -> bool
 pub async fn nika_kernel_mock::filesystem::MockFs::read(&self, path: &std::path::Path) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>
+pub fn nika_kernel_mock::filesystem::MockFs::read_pinned(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub async fn nika_kernel_mock::filesystem::MockFs::read_to_string(&self, path: &std::path::Path) -> core::result::Result<alloc::string::String, nika_kernel_core::io::fs::FsError>
 impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsWrite for nika_kernel_mock::filesystem::MockFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsWriteDyn
 pub async fn nika_kernel_mock::filesystem::MockFs::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>

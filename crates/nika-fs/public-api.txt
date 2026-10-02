@@ -1,4 +1,229 @@
 pub mod nika_fs
+#[non_exhaustive] pub enum nika_fs::LedgerRefusal
+#[non_exhaustive] pub nika_fs::LedgerRefusal::Budget
+pub nika_fs::LedgerRefusal::Budget::bytes_left: u64
+pub nika_fs::LedgerRefusal::Budget::files_left: u64
+#[non_exhaustive] pub nika_fs::LedgerRefusal::NoRuntime
+pub nika_fs::LedgerRefusal::NoRuntime::phase: nika_fs::Phase
+#[non_exhaustive] pub nika_fs::LedgerRefusal::Order
+pub nika_fs::LedgerRefusal::Order::phase: nika_fs::Phase
+#[non_exhaustive] pub nika_fs::LedgerRefusal::ReadOnly
+pub nika_fs::LedgerRefusal::ReadOnly::phase: nika_fs::Phase
+#[non_exhaustive] pub nika_fs::LedgerRefusal::Sealed
+pub nika_fs::LedgerRefusal::Sealed::phase: nika_fs::Phase
+impl core::clone::Clone for nika_fs::LedgerRefusal
+pub fn nika_fs::LedgerRefusal::clone(&self) -> nika_fs::LedgerRefusal
+impl core::cmp::Eq for nika_fs::LedgerRefusal
+impl core::cmp::PartialEq for nika_fs::LedgerRefusal
+pub fn nika_fs::LedgerRefusal::eq(&self, other: &nika_fs::LedgerRefusal) -> bool
+impl core::fmt::Debug for nika_fs::LedgerRefusal
+pub fn nika_fs::LedgerRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_fs::LedgerRefusal
+pub fn nika_fs::LedgerRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_fs::LedgerRefusal
+impl core::marker::StructuralPartialEq for nika_fs::LedgerRefusal
+impl<D> owo_colors::OwoColorize for nika_fs::LedgerRefusal
+impl<T, U> core::convert::Into<U> for nika_fs::LedgerRefusal where U: core::convert::From<T>
+pub fn nika_fs::LedgerRefusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fs::LedgerRefusal where U: core::convert::Into<T>
+pub type nika_fs::LedgerRefusal::Error = core::convert::Infallible
+pub fn nika_fs::LedgerRefusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fs::LedgerRefusal where U: core::convert::TryFrom<T>
+pub type nika_fs::LedgerRefusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fs::LedgerRefusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fs::LedgerRefusal where T: core::clone::Clone
+pub type nika_fs::LedgerRefusal::Owned = T
+pub fn nika_fs::LedgerRefusal::clone_into(&self, target: &mut T)
+pub fn nika_fs::LedgerRefusal::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_fs::LedgerRefusal where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_fs::LedgerRefusal::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_fs::LedgerRefusal where T: 'static + ?core::marker::Sized
+pub fn nika_fs::LedgerRefusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fs::LedgerRefusal where T: ?core::marker::Sized
+pub fn nika_fs::LedgerRefusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fs::LedgerRefusal where T: ?core::marker::Sized
+pub fn nika_fs::LedgerRefusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fs::LedgerRefusal where T: core::clone::Clone
+pub unsafe fn nika_fs::LedgerRefusal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fs::LedgerRefusal
+pub fn nika_fs::LedgerRefusal::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_fs::LedgerRefusal where T: 'static
+pub fn nika_fs::LedgerRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_fs::Phase
+pub nika_fs::Phase::Closed
+pub nika_fs::Phase::Preparation
+pub nika_fs::Phase::ReadBack
+pub nika_fs::Phase::Run
+impl core::clone::Clone for nika_fs::Phase
+pub fn nika_fs::Phase::clone(&self) -> nika_fs::Phase
+impl core::cmp::Eq for nika_fs::Phase
+impl core::cmp::PartialEq for nika_fs::Phase
+pub fn nika_fs::Phase::eq(&self, other: &nika_fs::Phase) -> bool
+impl core::fmt::Debug for nika_fs::Phase
+pub fn nika_fs::Phase::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_fs::Phase
+impl core::marker::StructuralPartialEq for nika_fs::Phase
+impl<D> owo_colors::OwoColorize for nika_fs::Phase
+impl<T, U> core::convert::Into<U> for nika_fs::Phase where U: core::convert::From<T>
+pub fn nika_fs::Phase::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fs::Phase where U: core::convert::Into<T>
+pub type nika_fs::Phase::Error = core::convert::Infallible
+pub fn nika_fs::Phase::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fs::Phase where U: core::convert::TryFrom<T>
+pub type nika_fs::Phase::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fs::Phase::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fs::Phase where T: core::clone::Clone
+pub type nika_fs::Phase::Owned = T
+pub fn nika_fs::Phase::clone_into(&self, target: &mut T)
+pub fn nika_fs::Phase::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fs::Phase where T: 'static + ?core::marker::Sized
+pub fn nika_fs::Phase::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fs::Phase where T: ?core::marker::Sized
+pub fn nika_fs::Phase::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fs::Phase where T: ?core::marker::Sized
+pub fn nika_fs::Phase::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fs::Phase where T: core::clone::Clone
+pub unsafe fn nika_fs::Phase::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fs::Phase
+pub fn nika_fs::Phase::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_fs::Phase where T: 'static
+pub fn nika_fs::Phase::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_fs::Capped
+pub nika_fs::Capped::bytes: bytes::bytes::Bytes
+pub nika_fs::Capped::over: bool
+impl nika_fs::Capped
+pub fn nika_fs::Capped::new(bytes: bytes::bytes::Bytes, over: bool) -> Self
+impl core::clone::Clone for nika_fs::Capped
+pub fn nika_fs::Capped::clone(&self) -> nika_fs::Capped
+impl core::cmp::Eq for nika_fs::Capped
+impl core::cmp::PartialEq for nika_fs::Capped
+pub fn nika_fs::Capped::eq(&self, other: &nika_fs::Capped) -> bool
+impl core::fmt::Debug for nika_fs::Capped
+pub fn nika_fs::Capped::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_fs::Capped
+impl<D> owo_colors::OwoColorize for nika_fs::Capped
+impl<T, U> core::convert::Into<U> for nika_fs::Capped where U: core::convert::From<T>
+pub fn nika_fs::Capped::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fs::Capped where U: core::convert::Into<T>
+pub type nika_fs::Capped::Error = core::convert::Infallible
+pub fn nika_fs::Capped::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fs::Capped where U: core::convert::TryFrom<T>
+pub type nika_fs::Capped::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fs::Capped::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fs::Capped where T: core::clone::Clone
+pub type nika_fs::Capped::Owned = T
+pub fn nika_fs::Capped::clone_into(&self, target: &mut T)
+pub fn nika_fs::Capped::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fs::Capped where T: 'static + ?core::marker::Sized
+pub fn nika_fs::Capped::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fs::Capped where T: ?core::marker::Sized
+pub fn nika_fs::Capped::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fs::Capped where T: ?core::marker::Sized
+pub fn nika_fs::Capped::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fs::Capped where T: core::clone::Clone
+pub unsafe fn nika_fs::Capped::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fs::Capped
+pub fn nika_fs::Capped::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_fs::Capped where T: 'static
+pub fn nika_fs::Capped::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_fs::Drain
+impl nika_fs::Drain
+pub async fn nika_fs::Drain::join(self) -> nika_fs::Drained
+impl core::fmt::Debug for nika_fs::Drain
+pub fn nika_fs::Drain::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_fs::Drain
+impl<T, U> core::convert::Into<U> for nika_fs::Drain where U: core::convert::From<T>
+pub fn nika_fs::Drain::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fs::Drain where U: core::convert::Into<T>
+pub type nika_fs::Drain::Error = core::convert::Infallible
+pub fn nika_fs::Drain::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fs::Drain where U: core::convert::TryFrom<T>
+pub type nika_fs::Drain::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fs::Drain::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_fs::Drain where T: 'static + ?core::marker::Sized
+pub fn nika_fs::Drain::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fs::Drain where T: ?core::marker::Sized
+pub fn nika_fs::Drain::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fs::Drain where T: ?core::marker::Sized
+pub fn nika_fs::Drain::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_fs::Drain
+pub fn nika_fs::Drain::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_fs::Drain where T: 'static
+pub fn nika_fs::Drain::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_fs::Drained
+pub nika_fs::Drained::joined: usize
+pub nika_fs::Drained::panicked: usize
+pub nika_fs::Drained::phase: nika_fs::Phase
+impl nika_fs::Drained
+pub fn nika_fs::Drained::new(phase: nika_fs::Phase, joined: usize, panicked: usize) -> Self
+impl core::clone::Clone for nika_fs::Drained
+pub fn nika_fs::Drained::clone(&self) -> nika_fs::Drained
+impl core::cmp::Eq for nika_fs::Drained
+impl core::cmp::PartialEq for nika_fs::Drained
+pub fn nika_fs::Drained::eq(&self, other: &nika_fs::Drained) -> bool
+impl core::fmt::Debug for nika_fs::Drained
+pub fn nika_fs::Drained::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_fs::Drained
+impl core::marker::StructuralPartialEq for nika_fs::Drained
+impl<D> owo_colors::OwoColorize for nika_fs::Drained
+impl<T, U> core::convert::Into<U> for nika_fs::Drained where U: core::convert::From<T>
+pub fn nika_fs::Drained::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fs::Drained where U: core::convert::Into<T>
+pub type nika_fs::Drained::Error = core::convert::Infallible
+pub fn nika_fs::Drained::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fs::Drained where U: core::convert::TryFrom<T>
+pub type nika_fs::Drained::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fs::Drained::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fs::Drained where T: core::clone::Clone
+pub type nika_fs::Drained::Owned = T
+pub fn nika_fs::Drained::clone_into(&self, target: &mut T)
+pub fn nika_fs::Drained::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fs::Drained where T: 'static + ?core::marker::Sized
+pub fn nika_fs::Drained::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fs::Drained where T: ?core::marker::Sized
+pub fn nika_fs::Drained::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fs::Drained where T: ?core::marker::Sized
+pub fn nika_fs::Drained::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fs::Drained where T: core::clone::Clone
+pub unsafe fn nika_fs::Drained::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fs::Drained
+pub fn nika_fs::Drained::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_fs::Drained where T: 'static
+pub fn nika_fs::Drained::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_fs::EffectLedger
+impl nika_fs::EffectLedger
+pub fn nika_fs::EffectLedger::advance(&self) -> core::result::Result<nika_fs::Phase, nika_fs::LedgerRefusal>
+pub fn nika_fs::EffectLedger::late_refusals(&self) -> u64
+pub fn nika_fs::EffectLedger::leftovers(&self) -> u64
+pub fn nika_fs::EffectLedger::new(limits: nika_fs::RoomLimits) -> alloc::sync::Arc<Self>
+pub fn nika_fs::EffectLedger::panicked(&self) -> u64
+pub fn nika_fs::EffectLedger::phase(&self) -> nika_fs::Phase
+pub fn nika_fs::EffectLedger::reserve(self: &alloc::sync::Arc<Self>, bytes: u64, files: u64) -> core::result::Result<nika_fs::Reservation, nika_fs::LedgerRefusal>
+pub fn nika_fs::EffectLedger::run_blocking<T, F>(&self, work: F) -> core::result::Result<tokio::sync::oneshot::Receiver<T>, nika_fs::LedgerRefusal> where T: core::marker::Send + 'static, F: core::ops::function::FnOnce() -> T + core::marker::Send + 'static
+pub fn nika_fs::EffectLedger::seal(self: &alloc::sync::Arc<Self>) -> nika_fs::Drain
+pub async fn nika_fs::EffectLedger::seal_and_drain(self: &alloc::sync::Arc<Self>) -> nika_fs::Drained
+pub fn nika_fs::EffectLedger::written(&self) -> impl core::iter::traits::iterator::Iterator<Item = std::path::PathBuf> + use<>
+impl core::fmt::Debug for nika_fs::EffectLedger
+pub fn nika_fs::EffectLedger::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_fs::EffectLedger
+impl<T, U> core::convert::Into<U> for nika_fs::EffectLedger where U: core::convert::From<T>
+pub fn nika_fs::EffectLedger::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fs::EffectLedger where U: core::convert::Into<T>
+pub type nika_fs::EffectLedger::Error = core::convert::Infallible
+pub fn nika_fs::EffectLedger::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fs::EffectLedger where U: core::convert::TryFrom<T>
+pub type nika_fs::EffectLedger::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fs::EffectLedger::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_fs::EffectLedger where T: 'static + ?core::marker::Sized
+pub fn nika_fs::EffectLedger::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fs::EffectLedger where T: ?core::marker::Sized
+pub fn nika_fs::EffectLedger::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fs::EffectLedger where T: ?core::marker::Sized
+pub fn nika_fs::EffectLedger::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_fs::EffectLedger
+pub fn nika_fs::EffectLedger::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_fs::EffectLedger where T: 'static
+pub fn nika_fs::EffectLedger::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_fs::OwnedDir
 impl nika_fs::OwnedDir
 pub fn nika_fs::OwnedDir::append_line(&self, name: &str, line: &str) -> core::io::error::Result<()>
@@ -6,6 +231,7 @@ pub fn nika_fs::OwnedDir::as_file(&self) -> &std::fs::File
 pub fn nika_fs::OwnedDir::create(root: &std::path::Path, components: &[&str]) -> core::io::error::Result<Self>
 pub fn nika_fs::OwnedDir::create_below(&self, components: &[&str]) -> core::io::error::Result<Self>
 pub fn nika_fs::OwnedDir::directory_names(&self) -> core::io::error::Result<alloc::vec::Vec<alloc::string::String>>
+pub fn nika_fs::OwnedDir::display_path(&self) -> &std::path::Path
 pub fn nika_fs::OwnedDir::exists(&self, name: &str) -> core::io::error::Result<bool>
 pub fn nika_fs::OwnedDir::hard_link(&self, from: &str, to: &str) -> core::io::error::Result<()>
 pub fn nika_fs::OwnedDir::names(&self) -> core::io::error::Result<alloc::vec::Vec<alloc::string::String>>
@@ -40,6 +266,130 @@ impl<T> core::convert::From<T> for nika_fs::OwnedDir
 pub fn nika_fs::OwnedDir::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_fs::OwnedDir where T: 'static
 pub fn nika_fs::OwnedDir::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_fs::Reservation
+impl nika_fs::Reservation
+pub fn nika_fs::Reservation::commit(self, bytes: u64, files: u64)
+impl core::fmt::Debug for nika_fs::Reservation
+pub fn nika_fs::Reservation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::ops::drop::Drop for nika_fs::Reservation
+pub fn nika_fs::Reservation::drop(&mut self)
+impl<D> owo_colors::OwoColorize for nika_fs::Reservation
+impl<T, U> core::convert::Into<U> for nika_fs::Reservation where U: core::convert::From<T>
+pub fn nika_fs::Reservation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fs::Reservation where U: core::convert::Into<T>
+pub type nika_fs::Reservation::Error = core::convert::Infallible
+pub fn nika_fs::Reservation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fs::Reservation where U: core::convert::TryFrom<T>
+pub type nika_fs::Reservation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fs::Reservation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_fs::Reservation where T: 'static + ?core::marker::Sized
+pub fn nika_fs::Reservation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fs::Reservation where T: ?core::marker::Sized
+pub fn nika_fs::Reservation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fs::Reservation where T: ?core::marker::Sized
+pub fn nika_fs::Reservation::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_fs::Reservation
+pub fn nika_fs::Reservation::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_fs::Reservation where T: 'static
+pub fn nika_fs::Reservation::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_fs::RoomLimits
+pub nika_fs::RoomLimits::bytes: u64
+pub nika_fs::RoomLimits::files: u64
+impl nika_fs::RoomLimits
+pub fn nika_fs::RoomLimits::new(bytes: u64, files: u64) -> Self
+impl core::clone::Clone for nika_fs::RoomLimits
+pub fn nika_fs::RoomLimits::clone(&self) -> nika_fs::RoomLimits
+impl core::cmp::Eq for nika_fs::RoomLimits
+impl core::cmp::PartialEq for nika_fs::RoomLimits
+pub fn nika_fs::RoomLimits::eq(&self, other: &nika_fs::RoomLimits) -> bool
+impl core::fmt::Debug for nika_fs::RoomLimits
+pub fn nika_fs::RoomLimits::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_fs::RoomLimits
+impl core::marker::StructuralPartialEq for nika_fs::RoomLimits
+impl<D> owo_colors::OwoColorize for nika_fs::RoomLimits
+impl<T, U> core::convert::Into<U> for nika_fs::RoomLimits where U: core::convert::From<T>
+pub fn nika_fs::RoomLimits::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fs::RoomLimits where U: core::convert::Into<T>
+pub type nika_fs::RoomLimits::Error = core::convert::Infallible
+pub fn nika_fs::RoomLimits::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fs::RoomLimits where U: core::convert::TryFrom<T>
+pub type nika_fs::RoomLimits::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fs::RoomLimits::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_fs::RoomLimits where T: core::clone::Clone
+pub type nika_fs::RoomLimits::Owned = T
+pub fn nika_fs::RoomLimits::clone_into(&self, target: &mut T)
+pub fn nika_fs::RoomLimits::to_owned(&self) -> T
+impl<T> core::any::Any for nika_fs::RoomLimits where T: 'static + ?core::marker::Sized
+pub fn nika_fs::RoomLimits::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fs::RoomLimits where T: ?core::marker::Sized
+pub fn nika_fs::RoomLimits::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fs::RoomLimits where T: ?core::marker::Sized
+pub fn nika_fs::RoomLimits::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_fs::RoomLimits where T: core::clone::Clone
+pub unsafe fn nika_fs::RoomLimits::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_fs::RoomLimits
+pub fn nika_fs::RoomLimits::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_fs::RoomLimits where T: 'static
+pub fn nika_fs::RoomLimits::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_fs::RootedFs
+impl nika_fs::RootedFs
+pub fn nika_fs::RootedFs::identity(&self) -> &std::path::Path
+pub fn nika_fs::RootedFs::ledger(&self) -> &alloc::sync::Arc<nika_fs::EffectLedger>
+pub fn nika_fs::RootedFs::new(room: nika_fs::OwnedDir, ledger: alloc::sync::Arc<nika_fs::EffectLedger>) -> Self
+impl core::fmt::Debug for nika_fs::RootedFs
+pub fn nika_fs::RootedFs::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_kernel_core::io::fs::FsListDyn for nika_fs::RootedFs
+pub async fn nika_fs::RootedFs::glob(&self, root: &std::path::Path, pattern: &str) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::RootedFs::list_dir(&self, path: &std::path::Path) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
+impl nika_kernel_core::io::fs::FsMetaDyn for nika_fs::RootedFs
+pub async fn nika_fs::RootedFs::metadata(&self, path: &std::path::Path) -> core::result::Result<nika_kernel_core::io::fs::FileMetadata, nika_kernel_core::io::fs::FsError>
+impl nika_kernel_core::io::fs::FsReadDyn for nika_fs::RootedFs
+pub async fn nika_fs::RootedFs::canonicalize(&self, path: &std::path::Path) -> core::result::Result<std::path::PathBuf, nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::RootedFs::exists(&self, path: &std::path::Path) -> bool
+pub async fn nika_fs::RootedFs::read(&self, path: &std::path::Path) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::RootedFs::read_pinned(&self, path: &std::path::Path) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::RootedFs::read_to_string(&self, path: &std::path::Path) -> core::result::Result<alloc::string::String, nika_kernel_core::io::fs::FsError>
+impl nika_kernel_core::io::fs::FsWriteDyn for nika_fs::RootedFs
+pub async fn nika_fs::RootedFs::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::RootedFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::RootedFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::RootedFs::write_new(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+impl<D> owo_colors::OwoColorize for nika_fs::RootedFs
+impl<T, U> core::convert::Into<U> for nika_fs::RootedFs where U: core::convert::From<T>
+pub fn nika_fs::RootedFs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fs::RootedFs where U: core::convert::Into<T>
+pub type nika_fs::RootedFs::Error = core::convert::Infallible
+pub fn nika_fs::RootedFs::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fs::RootedFs where U: core::convert::TryFrom<T>
+pub type nika_fs::RootedFs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fs::RootedFs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_fs::RootedFs where T: 'static + ?core::marker::Sized
+pub fn nika_fs::RootedFs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fs::RootedFs where T: ?core::marker::Sized
+pub fn nika_fs::RootedFs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fs::RootedFs where T: ?core::marker::Sized
+pub fn nika_fs::RootedFs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_fs::RootedFs
+pub fn nika_fs::RootedFs::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_fs::RootedFs where T: 'static
+pub fn nika_fs::RootedFs::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> nika_kernel_core::io::fs::Fs for nika_fs::RootedFs where T: nika_kernel_core::io::fs::FsRead + nika_kernel_core::io::fs::FsWrite + nika_kernel_core::io::fs::FsMeta + nika_kernel_core::io::fs::FsList
+impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsList for nika_fs::RootedFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsListDyn
+pub async fn nika_fs::RootedFs::glob(&self, root: &std::path::Path, pattern: &str) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::RootedFs::list_dir(&self, path: &std::path::Path) -> core::result::Result<alloc::vec::Vec<std::path::PathBuf>, nika_kernel_core::io::fs::FsError>
+impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsMeta for nika_fs::RootedFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsMetaDyn
+pub async fn nika_fs::RootedFs::metadata(&self, path: &std::path::Path) -> core::result::Result<nika_kernel_core::io::fs::FileMetadata, nika_kernel_core::io::fs::FsError>
+impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsRead for nika_fs::RootedFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsReadDyn
+pub async fn nika_fs::RootedFs::canonicalize(&self, path: &std::path::Path) -> core::result::Result<std::path::PathBuf, nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::RootedFs::exists(&self, path: &std::path::Path) -> bool
+pub async fn nika_fs::RootedFs::read(&self, path: &std::path::Path) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>
+pub fn nika_fs::RootedFs::read_pinned(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>> + core::marker::Send
+pub async fn nika_fs::RootedFs::read_to_string(&self, path: &std::path::Path) -> core::result::Result<alloc::string::String, nika_kernel_core::io::fs::FsError>
+impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsWrite for nika_fs::RootedFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsWriteDyn
+pub async fn nika_fs::RootedFs::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::RootedFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::RootedFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub fn nika_fs::RootedFs::write_new(&self, path: &std::path::Path, contents: &[u8]) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub struct nika_fs::TokioFs
 impl core::clone::Clone for nika_fs::TokioFs
 pub fn nika_fs::TokioFs::clone(&self) -> nika_fs::TokioFs
@@ -57,6 +407,7 @@ impl nika_kernel_core::io::fs::FsReadDyn for nika_fs::TokioFs
 pub async fn nika_fs::TokioFs::canonicalize(&self, path: &std::path::Path) -> core::result::Result<std::path::PathBuf, nika_kernel_core::io::fs::FsError>
 pub async fn nika_fs::TokioFs::exists(&self, path: &std::path::Path) -> bool
 pub async fn nika_fs::TokioFs::read(&self, path: &std::path::Path) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::TokioFs::read_pinned(&self, path: &std::path::Path) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>
 pub async fn nika_fs::TokioFs::read_to_string(&self, path: &std::path::Path) -> core::result::Result<alloc::string::String, nika_kernel_core::io::fs::FsError>
 impl nika_kernel_core::io::fs::FsWriteDyn for nika_fs::TokioFs
 pub async fn nika_fs::TokioFs::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
@@ -98,9 +449,11 @@ impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsRead for nika_fs::Toki
 pub async fn nika_fs::TokioFs::canonicalize(&self, path: &std::path::Path) -> core::result::Result<std::path::PathBuf, nika_kernel_core::io::fs::FsError>
 pub async fn nika_fs::TokioFs::exists(&self, path: &std::path::Path) -> bool
 pub async fn nika_fs::TokioFs::read(&self, path: &std::path::Path) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>
+pub fn nika_fs::TokioFs::read_pinned(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub async fn nika_fs::TokioFs::read_to_string(&self, path: &std::path::Path) -> core::result::Result<alloc::string::String, nika_kernel_core::io::fs::FsError>
 impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsWrite for nika_fs::TokioFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsWriteDyn
 pub async fn nika_fs::TokioFs::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_fs::TokioFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_fs::TokioFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub fn nika_fs::TokioFs::write_new(&self, path: &std::path::Path, contents: &[u8]) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send
+pub fn nika_fs::read_capped(reader: &mut impl alloc::io::read::Read, limit: u64) -> core::io::error::Result<nika_fs::Capped>
