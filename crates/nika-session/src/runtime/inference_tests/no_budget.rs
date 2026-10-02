@@ -166,7 +166,7 @@ fn every_dispatch_site_rides_the_one_no_budget_observation() {
         .expect("conversation");
     s.reason_with_money("read one label", true).expect("label");
     let round = AuthoringRound::new(WORK);
-    s.compile_round(&round, &s.seat).expect("compile");
+    s.compile_round(&round, &s.seat.clone()).expect("compile");
     // A revision rides the same bracket (S102 left this site unrecorded).
     s.compile_request(&round.request(), WORK).expect("revision");
     let r = s.money.observed.snapshot().unwrap();

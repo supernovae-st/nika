@@ -336,7 +336,7 @@ fn a_named_word_the_session_cannot_ask_refuses_every_call_before_any_byte() {
     assert!(peer.bodies().is_empty(), "{:?}", peer.bodies());
     assert_eq!(built.load(Ordering::SeqCst), 0, "no reasoner was built");
     // Authoring refuses the context whole, before any byte, as it did.
-    let compiled = s.compile_round(&crate::authoring::AuthoringRound::new(RAW), &s.seat);
+    let compiled = s.compile_round(&crate::authoring::AuthoringRound::new(RAW), &s.seat.clone());
     assert!(
         matches!(&compiled, Err(crate::authoring::AuthoringError::Context(_))),
         "{compiled:?}"
@@ -366,7 +366,7 @@ fn another_refused_setting_never_drops_a_valid_named_level() {
         Some(AuthoringReasoning::Max)
     );
     // Its own refusal: authoring refuses the refused strategy whole, before any byte.
-    let compiled = s.compile_round(&crate::authoring::AuthoringRound::new(RAW), &s.seat);
+    let compiled = s.compile_round(&crate::authoring::AuthoringRound::new(RAW), &s.seat.clone());
     assert!(
         matches!(&compiled, Err(crate::authoring::AuthoringError::Context(_))),
         "{compiled:?}"

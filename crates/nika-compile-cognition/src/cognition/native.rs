@@ -218,7 +218,7 @@ pub(super) struct Cold {
 /// What one round decided.
 enum Round {
     /// The candidate passed every law.
-    Accepted(Answer),
+    Accepted(Box<Answer>, String),
     /// No candidate, only business values or clauses for the human: they answer first, the
     /// questions as admitted.
     Asked(Box<Answer>, ask::Admitted),
@@ -241,6 +241,7 @@ pub(super) async fn author<P: ProviderInferDyn>(
     request: &CompileRequest,
     mut route: Vec<String>,
     mut out: CompileOutcome,
+    rehearsals: &mut super::rehearsal::Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     let cold = cold(&mut out);
     if floor_refuses(reading, &mut out) {
@@ -271,7 +272,7 @@ pub(super) async fn author<P: ProviderInferDyn>(
     let mut round_policy = policy.clone();
     round_policy.max_tokens = policy.initial_max_tokens.unwrap_or(policy.max_tokens);
     for round in 0..=policy.repairs.min(5) {
-        match exchange(
+        let exchanged = exchange(
             round,
             &mut talk,
             intent,
@@ -281,22 +282,24 @@ pub(super) async fn author<P: ProviderInferDyn>(
             provider,
             &mut out,
         )
-        .await
-        {
-            Round::Accepted(answer) => {
-                accepted = Some(answer);
-                break;
+        .await;
+        let result = match exchanged {
+            Round::Accepted(answer, text) => {
+                rehearse_accept(
+                    intent,
+                    reading,
+                    request,
+                    (answer, text),
+                    &mut talk,
+                    &mut out,
+                    rehearsals,
+                )
+                .await
             }
-            Round::Asked(answer, admitted) => {
-                asked = Some((*answer, admitted));
-                break;
-            }
-            Round::Repair => {}
-            Round::Stalled => {
-                talk.route.push("native: no progress".to_owned());
-                break;
-            }
-            Round::Stop => break,
+            other => other,
+        };
+        if stop_after(result, &mut accepted, &mut asked, &mut talk) {
+            break;
         }
     }
     record(
@@ -325,6 +328,23 @@ pub(super) async fn author<P: ProviderInferDyn>(
         out = super::verify::judged_native(intent, reading, policy, provider, request, out).await;
     }
     Ok(out)
+}
+
+/// Whether the existing conversation loop has reached its terminal decision.
+fn stop_after(
+    round: Round,
+    accepted: &mut Option<Answer>,
+    asked: &mut Option<(Answer, ask::Admitted)>,
+    talk: &mut Talk,
+) -> bool {
+    match round {
+        Round::Accepted(answer, _) => *accepted = Some(*answer),
+        Round::Asked(answer, admitted) => *asked = Some((*answer, admitted)),
+        Round::Repair => return false,
+        Round::Stalled => talk.route.push("native: no progress".to_owned()),
+        Round::Stop => {}
+    }
+    true
 }
 
 /// Every string scalar of a document, once: the literals a base candidate already carries.
@@ -487,9 +507,61 @@ async fn exchange<P: ProviderInferDyn>(
     talk.rounds
         .push(journal::judged(round, &answer, &diagnostics));
     if diagnostics.is_empty() {
-        return Round::Accepted(answer);
+        return Round::Accepted(Box::new(answer), text);
     }
     send_back(answer.candidate, text, diagnostics, talk)
+}
+
+/// Materialize with the existing answer/default rules before a host sees the candidate.
+/// A refusal goes back through the same repair loop; invalid evidence never asks the author
+/// to repair a host. The final barrier covers any later change to these bytes.
+async fn rehearse_accept(
+    intent: &str,
+    reading: &Reading,
+    request: &CompileRequest,
+    proposed: (Box<Answer>, String),
+    talk: &mut Talk,
+    out: &mut CompileOutcome,
+    rehearsals: &mut super::rehearsal::Rehearsals<'_>,
+) -> Round {
+    let (answer, text) = proposed;
+    if !rehearsals.offered() {
+        return Round::Accepted(answer, text);
+    }
+    let mut materialized = crate::initial();
+    settle(
+        intent,
+        reading.plan.trigger.as_deref(),
+        &answer.candidate,
+        &answer.questions,
+        &answer.gaps,
+        request,
+        &mut materialized,
+    );
+    if !super::rehearsal::ready(&materialized) {
+        return Round::Accepted(answer, text);
+    }
+    let verdict = rehearsals.inspect(request, &materialized).await;
+    if let Some(entry) = talk.rounds.last_mut() {
+        entry["rehearsal"] = verdict.record;
+    }
+    match verdict.result {
+        super::rehearsal::Result::Proceed => Round::Accepted(answer, text),
+        super::rehearsal::Result::Repair(diagnostic) => {
+            if let Some(entry) = talk.rounds.last_mut() {
+                entry["diagnostics"] =
+                    json!([{"kind": diagnostic.kind, "message": diagnostic.message}]);
+            }
+            send_back(answer.candidate, text, vec![diagnostic], talk)
+        }
+        super::rehearsal::Result::Stop(reason) => {
+            if let Some(entry) = talk.rounds.last_mut() {
+                entry["diagnostics"] = json!([{"kind": "rehearsal_stopped", "message": reason}]);
+            }
+            crate::finding(out, DiagnosticKind::Unknown, "rehearsal", reason);
+            Round::Stop
+        }
+    }
 }
 
 /// A refused candidate or ask goes back to the seat with its diagnostics, within the repair

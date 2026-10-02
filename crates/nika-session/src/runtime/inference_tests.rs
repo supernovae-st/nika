@@ -153,7 +153,7 @@ fn fresh_classifier_conversation_and_compiler_do_not_reset_exposure() {
     s.reason_with_money("explain this work", false)
         .expect("reason");
     let round = AuthoringRound::new(WORK);
-    s.compile_round(&round, &s.seat).expect("compile");
+    s.compile_round(&round, &s.seat.clone()).expect("compile");
     let r = s.inference_receipt().unwrap().unwrap();
     assert_eq!(
         r.attempts.len(),

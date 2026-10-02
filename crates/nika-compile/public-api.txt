@@ -607,6 +607,51 @@ impl<T> nika_error::traits::AsAny for nika_compile::surface::AdmissionError wher
 pub fn nika_compile::surface::AdmissionError::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile::surface::AdmissionError
 pub type nika_compile::surface::AdmissionError::Output = T
+#[non_exhaustive] pub struct nika_compile::surface::AnsweredPaths
+impl nika_compile::surface::AnsweredPaths
+pub fn nika_compile::surface::AnsweredPaths::reads(&self) -> &[alloc::string::String]
+pub fn nika_compile::surface::AnsweredPaths::writes(&self) -> &[alloc::string::String]
+impl core::clone::Clone for nika_compile::surface::AnsweredPaths
+pub fn nika_compile::surface::AnsweredPaths::clone(&self) -> nika_compile::surface::AnsweredPaths
+impl core::cmp::Eq for nika_compile::surface::AnsweredPaths
+impl core::cmp::PartialEq for nika_compile::surface::AnsweredPaths
+pub fn nika_compile::surface::AnsweredPaths::eq(&self, other: &nika_compile::surface::AnsweredPaths) -> bool
+impl core::fmt::Debug for nika_compile::surface::AnsweredPaths
+pub fn nika_compile::surface::AnsweredPaths::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile::surface::AnsweredPaths
+impl<D> owo_colors::OwoColorize for nika_compile::surface::AnsweredPaths
+impl<Q, K> equivalent::Equivalent<K> for nika_compile::surface::AnsweredPaths where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::surface::AnsweredPaths::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile::surface::AnsweredPaths where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile::surface::AnsweredPaths::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile::surface::AnsweredPaths where U: core::convert::From<T>
+pub fn nika_compile::surface::AnsweredPaths::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile::surface::AnsweredPaths where U: core::convert::Into<T>
+pub type nika_compile::surface::AnsweredPaths::Error = core::convert::Infallible
+pub fn nika_compile::surface::AnsweredPaths::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile::surface::AnsweredPaths where U: core::convert::TryFrom<T>
+pub type nika_compile::surface::AnsweredPaths::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile::surface::AnsweredPaths::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile::surface::AnsweredPaths where T: core::clone::Clone
+pub type nika_compile::surface::AnsweredPaths::Owned = T
+pub fn nika_compile::surface::AnsweredPaths::clone_into(&self, target: &mut T)
+pub fn nika_compile::surface::AnsweredPaths::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile::surface::AnsweredPaths where T: 'static + ?core::marker::Sized
+pub fn nika_compile::surface::AnsweredPaths::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile::surface::AnsweredPaths where T: ?core::marker::Sized
+pub fn nika_compile::surface::AnsweredPaths::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile::surface::AnsweredPaths where T: ?core::marker::Sized
+pub fn nika_compile::surface::AnsweredPaths::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile::surface::AnsweredPaths where T: core::clone::Clone
+pub unsafe fn nika_compile::surface::AnsweredPaths::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile::surface::AnsweredPaths
+pub fn nika_compile::surface::AnsweredPaths::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile::surface::AnsweredPaths where T: core::clone::Clone
+pub fn nika_compile::surface::AnsweredPaths::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile::surface::AnsweredPaths where T: 'static
+pub fn nika_compile::surface::AnsweredPaths::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile::surface::AnsweredPaths
+pub type nika_compile::surface::AnsweredPaths::Output = T
 #[non_exhaustive] pub struct nika_compile::surface::Binding
 pub nika_compile::surface::Binding::answers: alloc::string::String
 pub nika_compile::surface::Binding::candidate: alloc::string::String
@@ -763,6 +808,7 @@ pub fn nika_compile::surface::initial() -> nika_compile::CompileOutcome
 pub fn nika_compile::surface::lexical_rest_is_explicit(intent: &str, reading: &nika_compile_reader::lexicon::Reading) -> bool
 pub fn nika_compile::surface::literal_answer(raw: core::option::Option<&str>, key: &str, out: &mut nika_compile::CompileOutcome) -> core::option::Option<serde_json::value::Value>
 pub fn nika_compile::surface::literal_projection(source: &str) -> core::option::Option<serde_json::value::Value>
+pub fn nika_compile::surface::native_answered_paths(record: &serde_json::value::Value, request: &nika_compile::CompileRequest, candidate: &str) -> core::option::Option<nika_compile::surface::AnsweredPaths>
 pub fn nika_compile::surface::native_apply(record: &serde_json::value::Value, request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome)
 pub fn nika_compile::surface::output_caps(model: &str) -> core::option::Option<serde_json::value::Value>
 pub fn nika_compile::surface::parse(source: &str) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, nika_schema::error::SchemaError>

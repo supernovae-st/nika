@@ -796,7 +796,9 @@ impl SessionRuntime {
         // and nothing else (the door routes that line to `consent`).
         self.pending = None;
         self.money.pending = None;
-        self.rehearsals.new_turn();
+        // A question continues the same rehearsal account; only genuinely new work resets it.
+        self.rehearsals
+            .new_turn(self.authoring.is_some() || self.revising.is_some());
         match input {
             "/quit" | "/exit" => return TurnOutcome::Quit,
             "/intelligence" => {

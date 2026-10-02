@@ -10,6 +10,7 @@ pub(super) fn compile(
     adapter: &str,
     model: Option<&str>,
     request: &CompileRequest,
+    host: Option<&dyn nika_onboard::compile::rehearse::Rehearse>,
 ) -> Result<CompileOutcome, AuthoringError> {
     let harness = nika_harness::authoring::HarnessAuthoring::meet(adapter, model)
         .map_err(AuthoringError::Seat)?;
@@ -17,13 +18,16 @@ pub(super) fn compile(
         .enable_all()
         .build()
         .map_err(|e| AuthoringError::Runtime(e.to_string()))?;
-    let mut out = runtime.block_on(Box::pin(nika_onboard::compile::compile_with_cognition(
-        request,
-        nika_onboard::compile::Cognition {
-            provider: Some(&harness),
-            seat: None,
-        },
-    )))?;
+    let mut out = runtime.block_on(Box::pin(
+        nika_onboard::compile::compile_with_cognition_rehearsed(
+            request,
+            nika_onboard::compile::Cognition {
+                provider: Some(&harness),
+                seat: None,
+            },
+            host,
+        ),
+    ))?;
     if let Some(receipt) = out.provenance.authoring.as_mut() {
         receipt.backend = Some(harness.descriptor().map_err(AuthoringError::Seat)?);
     }
@@ -35,6 +39,7 @@ pub(super) fn compile(
     adapter: &str,
     _: Option<&str>,
     _: &CompileRequest,
+    _: Option<&dyn nika_onboard::compile::rehearse::Rehearse>,
 ) -> Result<CompileOutcome, AuthoringError> {
     Err(AuthoringError::Seat(format!(
         "subscription authoring `{adapter}` requires access-harness in this build"

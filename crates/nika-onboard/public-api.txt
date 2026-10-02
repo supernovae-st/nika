@@ -154,6 +154,7 @@ pub use nika_onboard::compile::basis
 pub use nika_onboard::compile::basis_for
 pub use nika_onboard::compile::compile
 pub use nika_onboard::compile::compile_with_cognition
+pub use nika_onboard::compile::compile_with_cognition_rehearsed
 pub use nika_onboard::compile::compile_with_provider
 pub use nika_onboard::compile::decide
 pub use nika_onboard::compile::fold
@@ -170,9 +171,109 @@ pub use nika_onboard::compile::stated_destinations
 pub use nika_onboard::compile::stated_sources
 pub use nika_onboard::compile::text
 pub mod nika_onboard::compile::copy
+pub use nika_onboard::compile::copy::Admission
+pub use nika_onboard::compile::copy::Budget
 pub use nika_onboard::compile::copy::CopyLowering
 pub use nika_onboard::compile::copy::Limits
+pub use nika_onboard::compile::copy::RunEnd
 pub use nika_onboard::compile::copy::Usage
+pub mod nika_onboard::compile::copy::native
+#[non_exhaustive] pub struct nika_onboard::compile::copy::native::Preview
+impl nika_onboard::compile::copy::native::Preview
+pub fn nika_onboard::compile::copy::native::Preview::candidate_sha256(&self) -> &str
+pub fn nika_onboard::compile::copy::native::Preview::into_parts(self) -> (core::option::Option<nika_onboard::compile::copy::Witness>, alloc::string::String)
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::copy::native::Preview
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::copy::native::Preview where U: core::convert::From<T>
+pub fn nika_onboard::compile::copy::native::Preview::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::copy::native::Preview where U: core::convert::Into<T>
+pub type nika_onboard::compile::copy::native::Preview::Error = core::convert::Infallible
+pub fn nika_onboard::compile::copy::native::Preview::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::copy::native::Preview where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::copy::native::Preview::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::copy::native::Preview::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_onboard::compile::copy::native::Preview where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::copy::native::Preview::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::copy::native::Preview where T: ?core::marker::Sized
+pub fn nika_onboard::compile::copy::native::Preview::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::copy::native::Preview where T: ?core::marker::Sized
+pub fn nika_onboard::compile::copy::native::Preview::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_onboard::compile::copy::native::Preview
+pub fn nika_onboard::compile::copy::native::Preview::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::copy::native::Preview where T: 'static
+pub fn nika_onboard::compile::copy::native::Preview::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::copy::native::Preview where T: ?core::marker::Sized
+pub fn nika_onboard::compile::copy::native::Preview::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::copy::native::Preview::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::copy::native::Preview
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::copy::native::Preview
+impl<T> typenum::type_operators::Same for nika_onboard::compile::copy::native::Preview
+pub type nika_onboard::compile::copy::native::Preview::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile::copy::native::Scoped
+impl nika_onboard::compile::copy::native::Scoped
+pub fn nika_onboard::compile::copy::native::Scoped::finish(self) -> nika_onboard::compile::copy::native::Settled
+pub fn nika_onboard::compile::copy::native::Scoped::new(root: std::path::PathBuf, host: alloc::boxed::Box<dyn nika_compile_cognition::rehearse::Rehearse>, allowance: nika_onboard::compile::copy::Allowance) -> Self
+impl nika_compile_cognition::rehearse::Rehearse for nika_onboard::compile::copy::native::Scoped
+pub fn nika_onboard::compile::copy::native::Scoped::bound(&self) -> core::time::Duration
+pub fn nika_onboard::compile::copy::native::Scoped::rehearse<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String]) -> nika_compile_cognition::rehearse::RehearsalFuture<'a>
+pub fn nika_onboard::compile::copy::native::Scoped::rehearse_reading<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String], targets: &'a [alloc::string::String]) -> nika_compile_cognition::rehearse::RehearsalFuture<'a>
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::copy::native::Scoped
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::copy::native::Scoped where U: core::convert::From<T>
+pub fn nika_onboard::compile::copy::native::Scoped::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::copy::native::Scoped where U: core::convert::Into<T>
+pub type nika_onboard::compile::copy::native::Scoped::Error = core::convert::Infallible
+pub fn nika_onboard::compile::copy::native::Scoped::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::copy::native::Scoped where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::copy::native::Scoped::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::copy::native::Scoped::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_onboard::compile::copy::native::Scoped where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::copy::native::Scoped::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::copy::native::Scoped where T: ?core::marker::Sized
+pub fn nika_onboard::compile::copy::native::Scoped::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::copy::native::Scoped where T: ?core::marker::Sized
+pub fn nika_onboard::compile::copy::native::Scoped::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_onboard::compile::copy::native::Scoped
+pub fn nika_onboard::compile::copy::native::Scoped::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::copy::native::Scoped where T: 'static
+pub fn nika_onboard::compile::copy::native::Scoped::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::copy::native::Scoped where T: ?core::marker::Sized
+pub fn nika_onboard::compile::copy::native::Scoped::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::copy::native::Scoped::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::copy::native::Scoped
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::copy::native::Scoped
+impl<T> typenum::type_operators::Same for nika_onboard::compile::copy::native::Scoped
+pub type nika_onboard::compile::copy::native::Scoped::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile::copy::native::Settled
+impl nika_onboard::compile::copy::native::Settled
+pub fn nika_onboard::compile::copy::native::Settled::into_parts(self) -> (nika_compile_fidelity::behavior::accounting::Usage, core::result::Result<core::option::Option<nika_onboard::compile::copy::native::Preview>, alloc::string::String>)
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::copy::native::Settled
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::copy::native::Settled where U: core::convert::From<T>
+pub fn nika_onboard::compile::copy::native::Settled::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::copy::native::Settled where U: core::convert::Into<T>
+pub type nika_onboard::compile::copy::native::Settled::Error = core::convert::Infallible
+pub fn nika_onboard::compile::copy::native::Settled::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::copy::native::Settled where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::copy::native::Settled::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::copy::native::Settled::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_onboard::compile::copy::native::Settled where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::copy::native::Settled::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::copy::native::Settled where T: ?core::marker::Sized
+pub fn nika_onboard::compile::copy::native::Settled::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::copy::native::Settled where T: ?core::marker::Sized
+pub fn nika_onboard::compile::copy::native::Settled::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_onboard::compile::copy::native::Settled
+pub fn nika_onboard::compile::copy::native::Settled::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::copy::native::Settled where T: 'static
+pub fn nika_onboard::compile::copy::native::Settled::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::copy::native::Settled where T: ?core::marker::Sized
+pub fn nika_onboard::compile::copy::native::Settled::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::copy::native::Settled::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::copy::native::Settled
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::copy::native::Settled
+impl<T> typenum::type_operators::Same for nika_onboard::compile::copy::native::Settled
+pub type nika_onboard::compile::copy::native::Settled::Output = T
+pub mod nika_onboard::compile::copy::words
+pub fn nika_onboard::compile::copy::words::held_words(witness: &nika_onboard::compile::copy::Witness) -> alloc::string::String
+pub fn nika_onboard::compile::copy::words::rehearsed_lines(q: &nika_onboard::compile::copy::Qualified) -> alloc::string::String
 #[non_exhaustive] pub enum nika_onboard::compile::copy::Qualification
 pub nika_onboard::compile::copy::Qualification::NotCopy
 pub nika_onboard::compile::copy::Qualification::Qualified(alloc::boxed::Box<nika_onboard::compile::copy::Qualified>)
@@ -474,8 +575,41 @@ impl<T> tracing::instrument::Instrument for nika_onboard::compile::copy::Witness
 impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::copy::Witness
 impl<T> typenum::type_operators::Same for nika_onboard::compile::copy::Witness
 pub type nika_onboard::compile::copy::Witness::Output = T
+#[non_exhaustive] pub struct nika_onboard::compile::copy::WorldBefore
+impl nika_onboard::compile::copy::WorldBefore
+pub async fn nika_onboard::compile::copy::WorldBefore::capture(root: &std::path::Path, candidate: &str, inputs: &[alloc::string::String], targets: &[alloc::string::String]) -> core::result::Result<Self, alloc::string::String>
+pub async fn nika_onboard::compile::copy::WorldBefore::witness(self, candidate: &str, report: &nika_compile_cognition::rehearse::RehearsalReport) -> core::result::Result<nika_onboard::compile::copy::Witness, alloc::string::String>
+impl core::fmt::Debug for nika_onboard::compile::copy::WorldBefore
+pub fn nika_onboard::compile::copy::WorldBefore::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_onboard::compile::copy::WorldBefore
+impl<T, U> core::convert::Into<U> for nika_onboard::compile::copy::WorldBefore where U: core::convert::From<T>
+pub fn nika_onboard::compile::copy::WorldBefore::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::compile::copy::WorldBefore where U: core::convert::Into<T>
+pub type nika_onboard::compile::copy::WorldBefore::Error = core::convert::Infallible
+pub fn nika_onboard::compile::copy::WorldBefore::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::compile::copy::WorldBefore where U: core::convert::TryFrom<T>
+pub type nika_onboard::compile::copy::WorldBefore::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::compile::copy::WorldBefore::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_onboard::compile::copy::WorldBefore where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::compile::copy::WorldBefore::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::compile::copy::WorldBefore where T: ?core::marker::Sized
+pub fn nika_onboard::compile::copy::WorldBefore::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::compile::copy::WorldBefore where T: ?core::marker::Sized
+pub fn nika_onboard::compile::copy::WorldBefore::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_onboard::compile::copy::WorldBefore
+pub fn nika_onboard::compile::copy::WorldBefore::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_onboard::compile::copy::WorldBefore where T: 'static
+pub fn nika_onboard::compile::copy::WorldBefore::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::compile::copy::WorldBefore where T: ?core::marker::Sized
+pub fn nika_onboard::compile::copy::WorldBefore::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::compile::copy::WorldBefore::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::compile::copy::WorldBefore
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::compile::copy::WorldBefore
+impl<T> typenum::type_operators::Same for nika_onboard::compile::copy::WorldBefore
+pub type nika_onboard::compile::copy::WorldBefore::Output = T
 pub const nika_onboard::compile::copy::EXCERPT: usize
 pub fn nika_onboard::compile::copy::qualify(request: &nika_compile::types::CompileRequest, intent: &str, root: &std::path::Path, host: &nika_onboard::compile::copy::Host<'_>, scratch: &std::path::Path, allowance: nika_onboard::compile::copy::Allowance) -> nika_onboard::compile::copy::Qualification
+pub fn nika_onboard::compile::copy::same_project_path(root: &std::path::Path, left: &std::path::Path, right: &std::path::Path) -> bool
 pub type nika_onboard::compile::copy::Host<'a> = (dyn core::ops::function::Fn(&std::path::Path) -> alloc::boxed::Box<dyn nika_compile_cognition::rehearse::Rehearse> + core::marker::Sync + 'a)
 pub mod nika_onboard::compile::meaning
 #[non_exhaustive] pub enum nika_onboard::compile::meaning::Disposition

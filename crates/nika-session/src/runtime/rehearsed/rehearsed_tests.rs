@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! A rehearsed copy through the session's own doors: `turn`, `consent`, `consent_to`,
-//! the run line, and the scripted route of a change. The reasoner is the counted no-intelligence
-//! player; nothing calls a provider, a server or a peer.
+//! Session protocol tests use counted no-intelligence players and doubles by default.
+//! These defaults do not call a provider, server or peer and prove only the protocol.
 //!
-//! - **The protocol tests** rehearse over a double of the existing port: each room
-//!   answers the copy exactly, or turns the text copy's CRLF into LF. They prove the session's
-//!   protocol, never a real rehearsal.
-//! - **The real-room test alone** runs the observed room, and prints one `room-call/1` line before
-//!   and after each port call. It is ignored: it runs only when selected explicitly.
+//! Ignored witnesses separately exercise real observed rooms. The native transport witness
+//! also uses the existing local scripted Peer and actual compiler transport requests; it
+//! proves neither model quality nor production endpoint behavior. Each real witness prints
+//! its own declared receipt schema and requires explicit bounded selection.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -737,3 +735,7 @@ fn a_copy_turn_previews_the_rehearsal_of_the_users_own_files() {
         "no model asked"
     );
 }
+
+mod native_real;
+mod native_tests;
+mod native_transport;
