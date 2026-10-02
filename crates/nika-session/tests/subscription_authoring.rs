@@ -18,6 +18,9 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
+use nika_cli_host::compile::config::AuthoringSettings;
+use nika_onboard::knowledge::TrustedIdentity;
+use nika_session::authoring::AuthoringContext;
 use nika_session::intelligence::{
     DataLocus, IntelligenceCensus, IntelligenceKind, ResolvedSessionIntelligence,
     UserIntelligencePreference,
@@ -29,7 +32,7 @@ use nika_session::turn::{
 use nika_session::{SessionRuntime, TurnOutcome};
 use serde_json::{Value, json};
 
-/// The verifier's closed choice, approved (native step 1, R4 A11): the explicit answer scripted at
+/// The verifier's closed choice, approved: the explicit answer scripted at
 /// the judge's position, after a candidate READY in its authoring round. The judge's call is a
 /// real call, counted like any other.
 const JUDGE_APPROVES: &str = r#"{"choice":"faithful"}"#;
@@ -108,6 +111,7 @@ fn run(scenario: &str) -> Value {
     let root = dir.path().join("root");
     std::fs::write(root.join("a.md"), "Fixture text\n").unwrap();
     let foundry = common::Foundry::create(&dir.path().join("knowledge"));
+    let identity = foundry.identity();
     install_fixture(dir.path(), scenario);
     let observed = dir.path().join("observed");
     let report = dir.path().join("report.json");
@@ -129,6 +133,15 @@ fn run(scenario: &str) -> Value {
         .env("HOME", dir.path().join("home"))
         .env("NIKA_KEYCHAIN", "off")
         .env("NIKA_AUTHORING_STRATEGY", "only")
+        .env(
+            "SUBSCRIPTION_TEST_KNOWLEDGE_IDENTITY",
+            json!({
+                "profile": identity.profile(),
+                "snapshot_sha256": identity.snapshot_sha256(),
+                "policy": {"id": identity.policy_id(), "sha256": identity.policy_sha256()},
+            })
+            .to_string(),
+        )
         .env(
             "NIKA_KNOWLEDGE",
             if scenario == "no-knowledge" {
@@ -182,6 +195,21 @@ fn run(scenario: &str) -> Value {
         "no consent, Save or Run"
     );
     out
+}
+
+fn authoring_context(scenario: &str) -> AuthoringContext {
+    let explicit = if scenario == "no-knowledge" {
+        AuthoringSettings::none().with_knowledge_off()
+    } else {
+        // The parent created and sealed the fixture; its identity comes from
+        // that trusted host, never from a record beside the payload.
+        let record = std::env::var("SUBSCRIPTION_TEST_KNOWLEDGE_IDENTITY").unwrap();
+        let identity = TrustedIdentity::from_json(&serde_json::from_str(&record).unwrap())
+            .expect("the parent supplies its sealed identity");
+        AuthoringSettings::none()
+            .with_knowledge_release(std::env::var("NIKA_KNOWLEDGE").unwrap(), identity)
+    };
+    AuthoringContext::from_settings(&explicit, &AuthoringSettings::from_env())
 }
 
 fn receipt(report: &Path, observed: &Path) -> Value {
@@ -278,8 +306,7 @@ fn child() {
             })
         };
     let mut session = SessionRuntime::open(Path::new(&root), resolved, reasoner);
-    // `open` takes explicit library inputs; only the host door reads its environment.
-    session.set_authoring_context(nika_session::authoring::AuthoringContext::from_env());
+    session.set_authoring_context(authoring_context(&scenario));
     session.with_classifier(Box::new(RouteOnly));
     let intent = if scenario == "money" {
         "Read ./a.md and do something clever with it, then write ./b.md; budget 10 USD"
@@ -399,6 +426,13 @@ fn missing_capability_refuses_and_no_intelligence_stays_deterministic() {
 #[test]
 fn replay_retains_subscription_receipt_without_optional_knowledge() {
     let out = run("no-knowledge");
+    assert!(
+        out["argv"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|argv| { !argv.as_str().unwrap().contains("S03-PATTERN-MARKER") })
+    );
     assert_eq!(
         out["calls"], 4,
         "question round, its answer round's judge, revision, judgment: {out:#}"
