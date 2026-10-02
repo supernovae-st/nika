@@ -98,7 +98,8 @@ pub(crate) const JOURNEY: [Step; 5] = [
 
 /// `program` under `/bin/sh -c 'stty … && exec …'`: the PTY has its size
 /// BEFORE the program starts, so the first paint already knows it (a size set
-/// after the spawn races the program's first read of it). The colour
+/// after the spawn races the program's first read of it); [`Term::spawn`]
+/// writes it once more over the pty crate's own default. The colour
 /// variables of the caller's shell are cleared (crossterm itself reads
 /// `NO_COLOR`); a proof that wants one sets it.
 pub(crate) fn sized(program: &str, cols: u16, rows: u16) -> Command {
@@ -142,8 +143,18 @@ impl Term {
 
     /// Any command on a PTY of that size (the command sets the size itself,
     /// see [`sized`]); the screen starts with the cursor on its last row.
+    ///
+    /// The size is written again from here: `ptyprocess` (under expectrl)
+    /// writes its own 80x24 default on the master once the child has exec'd,
+    /// and when the child's `stty` ran first that default was the last word,
+    /// so the program painted 80x24 inside a larger screen (the focus journey
+    /// at 160x48 failed with its composer on row 22). This write follows that
+    /// default in the same thread, before this harness pumps the terminal.
     pub(crate) fn spawn(command: Command, cols: u16, rows: u16) -> Self {
-        let pty = OsSession::spawn(command).expect("pty spawn");
+        let mut pty = OsSession::spawn(command).expect("pty spawn");
+        pty.get_process_mut()
+            .set_window_size(cols, rows)
+            .expect("size the pty");
         let mut screen = vt::Screen::new(cols, rows);
         screen.park_at_bottom();
         Self {

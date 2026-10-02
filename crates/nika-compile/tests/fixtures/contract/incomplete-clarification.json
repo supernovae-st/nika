@@ -13,7 +13,7 @@
     ],
     "provenance": {
       "cognition": "deterministicOnly",
-      "compiler_version": "0.121.0",
+      "compiler_version": "0.122.0",
       "decision": {
         "intent_sha256": "c8f1bbc600bbd244126670cb5da5c5a06aee52208fcc1f8ee79a432d8675ed1c",
         "ledger": [

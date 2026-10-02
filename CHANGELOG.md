@@ -16,6 +16,1223 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.122.0](https://github.com/supernovae-st/nika/compare/v0.121.0..v0.122.0) - 2026-10-02
+
+### Added
+
+- **`nika compile --authoring-reasoning low|high|max` and `nika serve
+  --authoring-reasoning` ask an explicit reasoning effort of every
+  authoring and decision call.** `NIKA_AUTHORING_REASONING` names one when
+  the flag is absent; the flag always wins and never falls back to the
+  environment. Any other word, whichever names it, is refused before any
+  request (`nika compile` exits 3) or before the Serve listener binds. The
+  flag needs a seat to ask it (`--authoring-model`, `--decision-model` or
+  both); without one it is a usage error, and the deterministic door never
+  reads the environment's word. The effort never moves a cap: calls keep the
+  operator's `--authoring-max-tokens` or the default, a truncated answer
+  stays a failure, and with a level the decision call asks it under the
+  declared authoring cap instead of its compact 256-token request. The level
+  is sent only where the model catalog qualifies it: today
+  `deepseek/deepseek-v4-pro` (low, high, max) on its exact direct DeepSeek
+  endpoint, as `thinking: {type: enabled}` beside `reasoning_effort`.
+  Another provider or model, a gateway, a base-URL override and the mock
+  refuse before any byte leaves; no fallback runs. Without a level, a
+  request keeps the bytes it sent before. Each call's receipt records its
+  configured level, the reasoning keys read back from the body it
+  dispatched (`unobserved` when no response carried them), the served
+  effort as unknown, the reasoning tokens the provider reported (null when
+  it reported none) and the model it named. The read-back is the adapter's
+  own observation of its serialized request, not a network capture. A
+  Session asks the same levels through `NIKA_AUTHORING_REASONING`.
+- **A request's results now have a behavioural contract a rehearsal can be judged
+  against.** From its reading of the request alone, never from a candidate, the
+  compiler states which files the request wants written and what they must hold
+  (filters, a sort with its tie rule, the first N rows, groups and totals,
+  projections, duplicates), and judges what a rehearsal consumed and wrote by
+  value: exact decimal numbers, `70` equal to `70.0`, rows as a multiset or in
+  the stated order, any tied row at a cut unless file order is stated. Nothing
+  passes on what the reading cannot prove: a write it cannot prove
+  unconditional, an output name it cannot trace to the request, a sample, a
+  truncated read, an unsupported operation or a case the request leaves open is
+  reported unverified. A failed run never passes by what it did not write, an
+  engine failure is a defect, a stop is never counted as the requested end (an
+  error message never stands for one), a stop never hides a wrong value already
+  written, and an invalid fixture or observation is reported as such, never as
+  a verdict on the workflow. A request of the small closed form (read one
+  file, keep or count the rows where a field is a value, write the result to
+  one file) proves its write required and its count's name free or stated, so
+  a right result can be certified. The engine and Session APIs now build two
+  checked forms of the closed `copy SOURCE as is to TARGET` request and select
+  by rehearsed output before consent. This path has been exercised on
+  synthetic files; the other operations remain library contracts.
+- **Arm a beat on the last day of each month, or every N weeks from a date.**
+  A cadence can now say two things a plain cron cannot. `L` as the whole day-of-month field is
+  the last day of each month (`TZ=Europe/Paris 0 9 L * *`: the 28th, 29th, 30th or 31st,
+  whichever ends that month), and `every N weeks from DATE HH:MM` is an anchored interval
+  (`TZ=Europe/Paris every 2 weeks from 2026-10-05 09:00`, `N` from 1 to 52), whose slots keep
+  their civil time across a clock change. Neither is approximated: `1,L`, `L-2`, `LW` and an
+  interval without its anchor date are refused by name, because the anchor says which week is
+  on. systemd units say the month end exactly; launchd units, and both targets for the interval,
+  wake a little more often and the firer fires only the real slot. `nika arm` readiness reports
+  the zone and the next fire of both forms.
+- **Read the last day of a month and an interval of weeks from its start date as a schedule.**
+  A request whose trigger says « the last day of every month at 18:00 » or « le dernier jour de
+  chaque mois à 18h » now proposes the cadence `0 18 L * *` on `requested_trigger.cron`, and
+  « every other Monday at 09:00 from 2026-10-05 », « every 2 weeks on Monday at 9:00, starting
+  2026-10-05 » or « toutes les deux semaines le lundi à 9h à partir du 2026-10-05 » proposes
+  `every 2 weeks from 2026-10-05 09:00`, the forms the arming grammar holds. An interval of
+  weeks without its start date is still asked, and the question now says the start date is what
+  is missing; a start date on another weekday than the one named, a date that does not exist or
+  a date not written YYYY-MM-DD proposes nothing. The binding adds the zone and validates the
+  proposal with the cadence grammar, as for every other schedule. The deterministic reader
+  keeps these words in the trigger head, a start date after « from », « starting » or « à partir
+  du » included, even after the comma that closes the head.
+- **An unknown cost exposure now has a supported recovery door.**
+  `nika trace cost` shows, as data (`--json`), each earlier Run whose billing
+  is unknown and the digest of its latest journal row.
+  `nika trace cost reconcile` appends one explicit resolution (billed, not
+  billed or still unknown) tied to that exact digest and to the inspected
+  project. The resolution is attributed to the local OS account and recorded as
+  the operator's unverified attestation. Nothing is deleted or rewritten;
+  preflight refusals leave the journal untouched. An append I/O failure
+  keeps the write outcome uncertain. `still-unknown` keeps blocking, and a
+  final resolution only lifts the block: the next unknown-cost Run still asks
+  its own fresh question.
+- **Serve's cost-review door speaks version 2 for fans and authored retries.**
+  A server started with `--cost-review` now also serves `POST /v2/cost-reviews`,
+  `GET /v2/cost-reviews/{id}` and `POST /v2/cost-reviews/{id}/decision`, and
+  health lists `costReviewV2`. A version-2 review carries the typed `dispatch`
+  bound: the total of physical requests, the requests in flight at once, the
+  authored-retry law and one row per task. The witness covers it, and one
+  approval confirms exactly those limits for one `POST /v1/jobs`. A fan of
+  zero items needs no review and sends nothing. Version 1 keeps its closed
+  document and refuses a fan or an authored retry, naming the version-2 route.
+  The versions never cross (ids, decisions and idempotency keys stay with the
+  version that created them).
+- **An unknown-cost Run can fan out and retry inside one finite, reviewed bound.**
+  A `for_each` over a literal list or an input/const array (the operator's value
+  before the default) and an authored `retry.max_attempts` are now reviewed
+  instead of refused. The one fresh question shows each task's breakdown (items
+  × authored attempts × calls, schema re-asks included), the original total of
+  physical requests and the requests in flight at once. The approval confirms
+  exactly those limits. Every reservation, sent or not, counts against the
+  total and takes one in-flight slot atomically. A received 429 or 503 may be
+  followed only by the workflow's own authored retry, inside the total; any
+  other failure, a timeout or a cancelled send stops every further request.
+  The transport itself never resends, and usage and USD cost stay unknown. A
+  fan of zero items asks nothing and sends nothing. A count only the run
+  decides (a task output), `on_error`, exec, agent and nested workflows stay
+  refused. Session reviews and single-attempt Runs keep their exact behaviour.
+- **nika:fetch can observe named HTTP statuses.** Explicit response.accept
+  returns status_code, a sanitized final URL (or null) and the extracted
+  body. The exact set contains 1–16 distinct integer statuses with no
+  implicit successful statuses. Unlisted statuses and transport/security
+  failures still fail. Malformed policies refuse before sending. `traverse`
+  rejects `response` and `headers` at check and run; the new static header
+  rejection requires the next minor release.
+- **Compile:** Hosts can opt into rehearsal of final authoring candidates. Task failures and missing outputs feed the existing native repair budget; finalized candidates cannot be ready on a failed rehearsal. Rehearsal refusals remain explicit and grant no consent. Native creation and replay carry paths introduced by admitted question answers into the same rehearsal boundary; unrelated answer strings and saved path metadata grant no reads.
+- **Providers own a provider route's public identity.** `route_origin` names
+  an endpoint `scheme://host:port` from the `url` crate's WHATWG parse, the
+  one the transport connects with, and refuses userinfo. `canonical_endpoint`
+  accepts only an exact `https` serialization without userinfo, query or
+  fragment. `route_label` and `durable_calls` project a route and per-dispatch
+  call records to origins, with no endpoint path left in any field. Traces,
+  the Run terminal receipt, new cost-journal rows, Session history and the
+  review screens now name routes through them; pricing and in-memory
+  records keep their exact endpoints.
+- **`nika serve --cost-review` seats a one-time cost-review door.** A job whose
+  exact route has an unknown USD cost can now run on a server: `POST
+  /v1/cost-reviews` frames one fresh review with the same evaluator as `nika run`
+  and holds the project's cost lease. `POST /v1/cost-reviews/{id}/decision` records one
+  explicit `approve_once` or `decline`. A single `POST /v1/jobs` carrying the
+  review id and its witness runs it, after every bound fact is re-observed. A review never creates a
+  job, a run or a file by itself, lives 300 seconds, and survives no restart.
+  Health lists `costReviewV1` only when the door is seated. The server's per-run
+  ceiling stays a hard cap: `--run-cost-ceiling <USD|none>` sets it, `0` is a
+  valid binding veto (a zero server ceiling no longer refuses at startup), and
+  only an explicit `none` lets an unknown cost be approved. Unreviewed jobs now go
+  through the shared evaluator, which binds the declared-free observer and
+  still refuses an unknown-cost route before the worker starts.
+- **A Session asks the reasoning effort you name for every LLM call it makes.** Set
+  `NIKA_AUTHORING_REASONING` (`low`, `high` or `max`), or a host's typed setting. On a
+  DeepSeek route whose catalog lists that level (`deepseek-v4-pro`), every authoring and
+  repair request, every turn-routing label (a host's own classifier included) and every
+  conversational turn is then sent with thinking enabled and that effort. Caps and
+  temperature are unchanged, and `/status` says so. Any other word is refused. A route, a
+  subscription seat, a reasoner or a classifier that cannot carry the level refuses it
+  before anything is sent. The operator-selected TypeSafe decision seat is a separate
+  backend: no effort is sent to it or claimed for it. With no effort named, requests are
+  sent as before.
+  **`/details` states each explicit effort as the receipt recorded it.** For every call,
+  it shows the level asked, the keys read back from the body sent (`unobserved` when
+  none was read back), the reported usage and model, and that the effort the provider
+  spent internally is unknown. A call refused before sending is never counted as sent,
+  and a call with no recorded answer is never counted as answered.
+- **Native authoring previews.** Session-owned model authoring checks final candidates and, when rehearsal is admitted, previews their observed results from confined copies before consent. Live result previews share the turn rehearsal budget with copy selection, while save and run consent remain separate. Rehearsals refused before execution are shown explicitly as source-only. Native proposals can enter a fresh revision without carrying the previous rehearsal to changed bytes; cancelling or failing the edit restores the original proof only while its identity and files still match.
+- **A session question survives a close.** When a session ends (quit, TERM
+  or KILL) while the compiler's question waits, the next session names the
+  request, the settled answers and the waiting question; `/meaning`, `/why`
+  and `/status` read them without changing anything. `/restore` continues the
+  same round only when asked: the money gate reads the request again, a
+  revised workflow whose file changed is held with nothing compiled, and the
+  recorded plan is replayed with no AI call and no workflow executed, so the
+  question is asked again and the next answer is judged against the project
+  as it is now. A kept round that was redacted, altered, oversized, of another
+  schema or malformed stays as it is, is named, and is never continued; no
+  earlier admission, consent or run is restored.
+- **A trace directory can be surveyed without fail-open, and a paused run's
+  lineage can be read.** `nika-dap`'s `store::survey` keeps every `*.ndjson`
+  entry it cannot fold, every doubt about a folded journal (a torn suffix, a
+  missing opening frame or run identity, conflicting identities) and every
+  listing error; journals carry their identity (`run_id`, `project`), and
+  `store::scan` stays its fail-open projection, unchanged. `nika-trace`'s
+  `lineage` view folds a survey into which journals continued a paused run:
+  `NoneObserved`, a `Chain` with its head, or `Indeterminate` with every
+  reason (a fork is never ranked). It is read-only: no authorization, no
+  verification, no exactly-once claim.
+- **The terminal renderer paints through the engine theme.** Its block
+  faces and markers now ask the shared theme roles for a meaning instead
+  of naming a colour, so the renderer and the run frames use the same
+  ANSI slots; the busy marker takes the accent (cyan) that running work
+  wears everywhere else. The renderer also gains the workspace icons with
+  their labels and ASCII twins, and the Supernovae butterfly sampled from
+  the repository logomark, revealed once and shown whole at once under
+  reduced motion. Nothing places them on screen yet.
+
+### Changed
+
+- **Single-brace dotted references refuse before execution.** Interpolation
+  surfaces now report `NIKA-VAR-005` for `${ const.seed }` and related Nika
+  namespace heads, including unclosed ones. Use `${{ ... }}` to interpolate
+  or a CEL string literal to produce the text intentionally. Currency, shell
+  parameters and quoted CEL strings retain their meaning. Unused-declaration
+  hints no longer advise deleting a constant named by this typo. This tightens
+  accepted workflow syntax and ships in the next minor release.
+- **Track the terminal workspace roadmap.** Document project, conversation and
+  execution UX scope and native acceptance gates in ROADMAP.md; implementation
+  is tracked in #1752 and the default presentation is unchanged.
+- **`nika compile --authoring-model` sends one authoring request unless
+  `--authoring-max-calls N` authorizes more.** Escalation, repairs, samples
+  and the sketch strategy run within that authority. A request past it is
+  refused before any byte leaves, and the outcome states the refusal.
+  Repairs, samples, or an escalate or sketch strategy typed beyond what the
+  authority can honor under the resolved strategy are refused before any
+  request (exit 2, `authoring_authority`), and the refusal names the number
+  to authorize. Counts the compiler would run as others (repairs above 5,
+  samples outside 1 to 5, a grant of 0) are usage errors at argument parsing
+  (exit 2), with no `authoring_authority` document. A model-shaped candidate
+  or plan is READY only once judged, and the judgment is a request too:
+  under the default single request it is refused and the request stays
+  incomplete, so a first round's judged READY needs `--authoring-max-calls
+  2` or more (3 for `sketch`); a replayed plan costs no call. A typed value
+  the strategy cannot apply is recorded as ignored. A direct API seat is
+  counted per physical HTTP request on a single-attempt transport that
+  follows no redirect, so a transport retry is a request too. An ACP harness
+  is counted per invocation, and its own requests are reported as unknown.
+  The authoring receipt's backend adds that account, the requested model,
+  the models the responses reported and how many reported none; a seated
+  decision model is stated outside the authority, and the receipt says
+  whether its token totals are complete. No dollar ceiling is claimed.
+  Serve's `POST /v1/compile` has its own grant, `nika serve
+  --authoring-max-calls` (one request per round by default); the Session is
+  unchanged.
+- **Pin the canonical specification.** Align the embedded language reference
+  and conformance fixtures. The authority contract requires fresh consent
+  when approval lineage cannot be established; the coverage matrix keeps
+  declared observation cases separate from qualified runtime behavior.
+- **A stated sort orders every row, and one stated total can be written as a
+  bare number.** « sort them by amount_usd, most expensive first » asked for
+  a `top_n` count the request never implied. A sort that keeps no subset now
+  orders every row, its superlative giving the direction; a ranking such as
+  « sort them by amount and keep the most expensive » keeps its question. A
+  request for one total written as a bare JSON number now writes that number
+  alone instead of an object holding it; several totals, or a structured
+  destination for one, are asked instead. Plans recorded by earlier versions
+  keep their representation.
+- **A Run on an exact catalog-declared-free route is now observed, and a
+  shape that observation cannot admit is refused before any call.** Such a
+  route had no Run admission: its calls reached the wire unobserved, and an
+  agent loop, enabled thinking, vision, or a `max_tokens` missing, zero or
+  above the tariff's output bound was called run ready and dispatched. `nika
+  check` no longer calls such a workflow run ready, and `nika run` refuses
+  it before any provider call (exit 3, the task and the shape named). A
+  supported Run binds an observer on those routes only, with no project
+  lease, journal row or cost review; paid, local and mock routes keep their
+  own transport, and `--max-cost-usd` still applies. A plan that mixes a
+  declared-free route with an unknown-cost one is refused by the
+  unknown-cost review before any question. When a host account is attached,
+  the terminal frame carries its receipt observation in a new
+  `inference_admission` field; a declared-free observer's receipt says
+  `scoped_to_declared_free`, so its subtotal never reads as the whole Run's.
+  A response naming another model stays uncertain, and the next call is
+  refused before the wire. A Run killed before its terminal frame leaves no
+  receipt.
+- **A fan-out's item table now tells a cancelled item from one that never
+  started.** When `fail_fast` or a `timeout:` stopped a `for_each` batch, every
+  item without a recorded outcome read `never_started`, including items that had
+  already begun and sent their requests. A started item that is abandoned
+  without a recorded outcome now reads `cancelled`. Only an item that never
+  began keeps `never_started`. Recorded outcomes and outputs are unchanged,
+  and the remaining items are never drained.
+  Neither word says whether a provider billed a request (the ledger does). Paged
+  tables gain an `items_cancelled` count, always present (0 included). Readers
+  accept a paged table without that count only when it has no cancelled rows.
+  An unknown status or a count mismatch leaves a paged table incomplete. This
+  extends a closed trace vocabulary (spec 03/17), so it ships in the next MINOR
+  after 0.121.
+- **One strict admission for authoring knowledge on every door, against a trusted identity.**
+  `nika compile`, the Session and `nika serve` admit a Foundry knowledge release
+  (`nika-knowledge-release/2`, profile `nika-knowledge-release-profile/r1`, the contract the
+  producer shares, with the same vectors) or refuse it whole with one typed cause. The host
+  names the identity it trusts for the release (its manifest's sha256 and its policy) from its
+  own release record; without one nothing is collected, so a root `--knowledge` or
+  `NIKA_KNOWLEDGE` names is refused (`ADMISSION_UNTRUSTED`) until a qualified identity source is
+  wired. The release is collected on held directory descriptors (the root's final component and
+  every entry beneath it are never followed as links, the root's ancestors are outside this check;
+  no FIFO blocking; Unix only) in a closed layout, bounded before any read; its manifest is closed
+  and pins every file; every row is a canonical line of its kind's closed schema pinned to the
+  target; only a block claims CHECKED, with a check receipt bound to the verifier that checked its
+  bytes; lineage names retained sources; relations, licence texts and notices close. No permissive
+  reader remains, nothing is read in part, and a historical snapshot directory is refused. A pack
+  composed elsewhere (`--knowledge-pack`, `NIKA_KNOWLEDGE_PACK`) is refused before it is read.
+  `--no-knowledge` (now on `nika serve` too) and the exact word `NIKA_KNOWLEDGE=off` turn the
+  knowledge off; off beside a source on the same settings layer is refused; the explicit layer
+  wins over the environment. With nothing named and authoring enabled, the
+  default is an embedded release of three patterns and three workflow blocks,
+  admitted against an identity built into Nika. Recall follows matching
+  patterns to their blocks; an intent with no matching words gets no references.
+  A named source that fails admission never falls back to this default.
+  The pack builder is `nika-compile/knowledge-door-v4`. For Rust callers this
+  is a breaking change in the 0.122 minor: `Snapshot::open` and `KnowledgePin::open` take the
+  trusted identity (`None` is refused), `KnowledgePin::dir` is replaced by `origin`
+  (`KnowledgeOrigin::Disk` or `Embedded`), `KnowledgeSource::Snapshot` carries `identity`,
+  `KnowledgeError::NotASnapshot` and `KnowledgeError::Stale` are removed. Strict snapshot-admission
+  refusals use `KnowledgeError::Unavailable` with its code. `CompileArgs` and `NativeAuthoringArgs`
+  gain `no_knowledge`; callers constructing these structs must supply it.
+- **Cost observations have a durable form, and unknown-cost routes are named
+  by origin and bound only when canonical.**
+  `nika_providers::project_observation` projects an account's cost
+  observation (`nika/inference-cost-observation@1`) to `@2`: every endpoint
+  becomes its origin; money, counters, states and ids are copied as written;
+  and the named free text (a declared tariff's `billing_provider`,
+  `provenance` and `version`, each attempt's `request_id`, `response_model`
+  and `note`, and the `refusal`) becomes null when it holds endpoint
+  material, with `withheld` naming the field by its instance pointer and
+  counting unknown keys without naming them.
+  `InferenceReceipt::durable_observation()` returns it while `observation()`
+  keeps the exact `@1`. A well-formed `@2` projects to itself and a malformed
+  one to nothing, and the admission reading law reads `@2` only when it is
+  well formed. `project_route` and the `origin()` of a choice, an attempt and
+  a billing route name an origin. The Run terminal receipt, new
+  cost-journal observations and new Session history entries write `@2`;
+  entries already recorded are kept as written. An unknown-cost route whose
+  configured endpoint is not canonical (a form the URL parser would rewrite,
+  or one with userinfo, a query or a fragment) is now refused before any
+  review, naming at most its origin; configure the endpoint as the parser
+  writes it, with a path. The review and challenge screens and the served
+  review document name the route by the parser's origin, never its path.
+- **Run traces name provider routes by origin.** A task's `inference_calls` and
+  `pricing_route` fields now carry the durable projection of each call and its
+  pricing provenance: a route is `{provider, model, origin}` and the requested
+  endpoint is `requested_origin`, so no endpoint path, query or userinfo is
+  written. Usage, estimates and states are kept as recorded, and `estimate_known`
+  says whether the call was debited or counted unpriced. The named free text (a
+  declared tariff's `billing_provider`, `provenance` and `version`, a call's
+  `request_id` and `response_model`) is withheld when it holds endpoint material,
+  and a `withheld` list names the field, never the text. Cost attribution keys
+  (`cost_by_source`, `spend.by_source`, the `nika:inspect` cost view) read
+  `provider/model @ origin`, and routes of one origin sum under one key; totals
+  and call counts are unchanged, and pricing and identity keep the exact endpoint
+  in memory. `inference_calls` no longer decodes as the in-memory call record.
+  The terminal frame's `inference_admission` and new cost-journal rows carry
+  the same origin-only projection.
+- **Share Check’s monetary readiness judgment with the execution service.**
+  The CLI host supplies provider configuration to the same route, declared-free
+  shape and finite-request observations. Refusal messages and admission behavior
+  are preserved; this observation never grants permission to run or spend.
+- **A request that asks for an effect and bans it stays the human's.**
+  « write 'hello' to ./a.txt but do not write anything » (and « write
+  nothing », « n'écris rien », « ne rien écrire ») is now read as a
+  contradiction: `nika compile` refuses it with both clauses quoted, no
+  candidate, no unrelated model or path question, and no provider call
+  under any authoring strategy, including a revision in words and a
+  clarification that replaces the request. The refusal's decision
+  record carries the typed ledger of the refused clauses, and a
+  contradiction beside a clause the reader cannot settle is stated
+  too, never left behind an unrelated finding. A negation inside quoted
+  content or quoted source data (« write 'do not write anything' to
+  ./a.txt ») is content, never a ban, a gate or a clause boundary, and
+  neither is a quoted waiver, approval bypass, refund or indecision
+  (« keep only the lines containing 'no need to ask me' » now keeps
+  its filter instead of copying the whole file). A conversion that also
+  states a filter, a stage or a comparison (« convert ./a.csv into
+  ./a.json, keeping only the rows whose amount is above the agreed
+  threshold ») is no longer compiled as a copy of every row. A
+  recurrence is kept wherever the request states it: « Each weekday at
+  8, … » and a cadence ending an earlier clause (« Read ./x every
+  weekday at 8, keep … ») give the same program and the same schedule,
+  still to be bound, as « Every weekday at 8, … »; never a one-shot.
+- **Server authoring requires explicit authority for extra requests.**
+  Native authoring defaults to one physical request, separates repair
+  preferences from request grants, and records requested and observed model
+  identities and grant usage. Caller limits can only narrow the operator
+  ceiling. Redirects are disabled; provider retries and fallback requests
+  consume the same explicit grant and appear in physical-request counters.
+
+### Fixed
+
+- **An approval is single-use for the run, whichever HOME resumes it.** A
+  used approval was refused again only from the same HOME, so resuming the
+  same paused run under another HOME ran the gated effect a second time.
+  The claim is now also written in the run's project
+  (`.nika/approval-claims`), the project a resume is already bound to, and
+  a second use is refused from any HOME. A run resumed with
+  `--resume-unverified`, or one recorded before runs were bound to their
+  project, can still be resumed from another project under another HOME;
+  its approval window (15 minutes) bounds that.
+- **ARM readiness no longer implies activation.** The report distinguishes a registered
+  schedule from a captured workflow with missing or invalid required inputs. `arm --json`
+  exposes bounded readiness, binding sources and firing evidence. Both reports inspect
+  history without creating sidecars or repairing caches.
+- **Keep blank authoring model identities unknown.** Empty or whitespace-only provider model names count as unreported in the shared authoring receipt instead of appearing as observed models; the requested model and raw response remain unchanged.
+- **Authoring receipts preserve what was observed.** Serve retains typed local
+  admission refusals and unknown model counts. Partial or malformed token pairs
+  remain unreported, and direct API authoring does not claim a price or invoice.
+  CLI, Session and Serve name the configured endpoint without credentials or URL
+  paths, and identify overrides as configuration evidence rather than remote identity.
+- **Unknown numeric dependencies stay unjudged.**
+  Source-basis checks now keep numeric records with a missing or unknown discriminator unjudged instead of treating them as no dependency. Existing recognized number policies retain their behavior.
+- **Source assertions are rederived from the compile request.**
+  Source-basis checks now derive an unobserved field assertion from the actual request and its source, not a recorded user_asserted label. The additive basis_for API preserves genuine question answers through the compiler grounding and replay laws, including subsequent answers after a complete replacement. Hosts retain the compile-round request beside the exact proposal bytes.
+- **Builtin discovery names the tools only an agent may call.** Builtin
+  discovery now identifies agent-only tools in both the human listing and
+  JSON. `compose` and `done` share the same context restriction as Check;
+  `compose` is accurately described as a static workflow checker.
+- **Clarified requests carry their own budget spans.** A complete Create
+  replacement is compiled as its own text, with its own monetary directives.
+  Changing or omitting a budget cannot carry offsets from the earlier phrase.
+  The selected seat and aggregate account stay; restatements bind directives
+  to the combined text and refuse conflicting amounts.
+- **Clarifying a request keeps monetary admission bound to the text the caller read.**
+  - A changed replacement no longer carries the earlier request's admitted budget in its receipt,
+    even when the new amount sits at the same byte offsets.
+  - Repeating identical text keeps the already admitted directive out of the business reading,
+    preserving the same ready workflow without a needless authoring call.
+- **An `unwind` cleanup now spends under the run's own authority.** A cleanup
+  task used to dispatch with no ledger, no budget and no guard. Under
+  `--max-cost-usd 0`, a cleanup whose `model:` its producer's output decides
+  reached the provider, while the same call as an ordinary task was refused
+  (NIKA-1704). What a cleanup sent never reached the run's spend receipt, so
+  a run could report `unmetered` after a paid request. A cleanup
+  `invoke: workflow:` child started with no budget at all. A cleanup now rides
+  the run's ledger like any task. It meets the same pre-send guard: the
+  refusal comes before any byte and is journaled on the cleanup lane. Every
+  request it sends is counted once: at its price when answered, or as an
+  unknown charge when it failed or when the cleanup's own timer dropped it.
+  A cleanup child runs under the run's remaining budget. Once the run's
+  budget is crossed, a cleanup that can spend (a model call, an agent, a
+  child workflow, image or speech generation) is refused before dispatch,
+  while housekeeping cleanups still run. A cleanup stays best-effort: none
+  of this fails its run. The remaining budget the guard reads is still a
+  snapshot, never a reservation.
+- **Isolated hook fixtures.** Keep clone-arming self-tests inside their disposable repositories when Git is wrapped by a session guard; use the discovered Git installation instead of copying the wrapper into the isolated environment.
+- **Describe compile decision evidence across response generations.** Generation-1 contracts expose the shared compiler decision record, plan, strategy and suggested file; authoring counters state when they are partial observed sums.
+- **`nika compile --help` states the exit a stopped authoring gets.** The
+  help promised exit 3 for an authoring provider or call-ceiling failure,
+  while such a compile has always ended as an unfinished outcome with
+  exit 2, the code the SDK and scripts read. The help now says so, names
+  the diagnostics and receipt that report the stop, and lists what really
+  exits 3: a configuration or knowledge source that cannot be honored, or
+  a compile error before any outcome.
+- **Decide spelling drops with canonical relations.**
+  Spelling checks confirm unmatched values in pairs, then decide a dropped spelling's cause
+  with one private counterfactual: every string relation compares canonical (NFC) forms while
+  every value keeps its bytes. A drop that disappears is a byte comparison and is refused
+  however the literal is written, including one literal that also inspects its own bytes. A
+  drop that persists, such as a requested length, threshold or encoding, is recorded for the
+  semantic judges and is never a pass. The emitted program is unchanged, and the verifier and
+  its probes share one jq engine. An earlier exchange of string constants also refused
+  requested values of the literal itself; that overclaim is withdrawn.
+- **Compose describes its Core check scope.** The agent tool checks an
+  in-memory draft; `valid` does not resolve child files or admit execution.
+  The saved draft and its children still require `nika check`. The canonical
+  spec, embedded pack and tool description now state that boundary.
+- **A confirm gate whose answer the effect never reads is refused before
+  anything runs.** A gate whose answer was bound but whose `when:` decided
+  on a caller input instead (`when: ${{ inputs.go == true }}`) passed
+  `nika check` without a blocking finding, and after an explicit « no »
+  the effect still fired. `nika check` and `nika run` now refuse that
+  shape with `NIKA-SEC-014`, naming the gate and the effect, and the
+  message teaches the fix: bind the answer and gate on it
+  (`when: ${{ with.go == true }}`). A run paused before this fix is
+  refused the same way when it is resumed, since the audit runs before any
+  task. A gate that reads the answer in a shape the checker cannot
+  evaluate still gets the advisory hint, never a refusal.
+- **A quoted text written to a named file compiles without a model.**
+  « write 'hello' to ./a.txt » (and « écris « bonjour » dans ./a.txt »)
+  used to ask for a language model to draft the text. `nika compile`
+  now writes the quoted text exactly as stated through `nika:write`,
+  with no question, no model and no provider call: punctuation,
+  instructions, template-like text (`${{ … }}`), escaped quotes, an
+  empty value, Unicode and a line break inside the quotes are written
+  byte for byte, and a path inside the quoted text is neither read nor
+  written. A write gated by an approval (« … once I approve », « ask me
+  before writing 'hello' to ./a.txt ») waits for it alone and shows the
+  exact text, to the path as spelled; a banned or contradicted write is
+  still never written. Translating or rephrasing the text, an unquoted
+  or ambiguous object, or a JSON/CSV destination still asks.
+- **A killed paid Run no longer blocks later unknown-cost Runs without a
+  name.** A paid unknown-cost Run killed mid-dispatch (SIGKILL, a second
+  signal, a host timeout), or one whose composition failed after its review,
+  left its cost row `prepared`, and every later unknown-cost Run was refused
+  with a message that named no Run and pointed at a gesture that did not
+  exist. The Run now holds a writer lease beside its journal from before
+  `prepared` until after `settled`, so the next review can tell a dead
+  writer from a live one: it appends one `unknown` row naming the
+  interrupted Run and keeps refusing until that exposure is reconciled
+  (`nika trace cost reconcile`), and a live writer is refused as busy. A Run
+  that ends without finishing settles what its account observed. Rows are
+  appended, never rewritten, and nothing is retried. Separately, an
+  unknown-cost Run whose `nika:write` declares `create_dirs: true` into a
+  missing parent is no longer refused before its review with a bare
+  « No such file or directory »; without the flag, the refusal names the
+  parent and the flag.
+- **Keep cost reconciliation behind the live writer lease.** Hold directory and journal locks alongside the legacy lock, refuse shared hard links, and verify that a successful reconciliation actually became the Run's current event. Append the newline with its row; uncertain writes remain explicit and old journal bytes are preserved.
+  Hold a separate project-directory lock so replacing `.nika` inside a stable project cannot make a live writer look gone. Preflight refusals preserve journal bytes; post-append I/O failures explicitly leave the write outcome uncertain.
+  Bind project-facing lease acquisition to the original project descriptor, before opening `.nika`, and refuse a moved or unrelated child. An empty custody file is administrative metadata, not a prepared Run or provider request.
+  Keep reads, UNKNOWN derivation and settlement on the locked journal inode after a rename. A failed explicit settlement is not retried on drop; repeated successful finish appends nothing.
+- **A contradictory cost settlement no longer clears an earlier Run.** A
+  `settled` row that says its account is still open, counts unknown calls that
+  no sent attempt records, or reports a negative or unbacked known subtotal is
+  now refused as a conflict named by its digest, like a row from a foreign
+  writer: the earlier Run keeps blocking and the next unknown-cost Run is not
+  offered a fresh choice. A `prepared` row whose account already moved is
+  refused the same way. Every row an engine writes reads as before, including a
+  completed unknown-cost call whose USD price stays unknown.
+- **Project durable cost observations through the provider.**
+  The Run terminal receipt and new prepared/settled cost-journal observations now
+  use the provider-owned durable projection: route origins replace full endpoints,
+  while accounting fields keep their meaning. An unreadable projection is reported
+  or refused, never replaced by the exact private observation. In-memory route
+  identity and consent are unchanged. Existing history, its derived observations
+  and reconciliations, and Session history are not migrated by this change.
+- **Cost review details show the host evidence as its public view.**
+  `details` on an unknown-cost decision printed the host cap evidence as
+  a Rust debug dump. It now prints the same view the machine surfaces
+  expose: whether the host allows the choice, and for each layer its
+  class, origin and cap.
+- **Serve's cost-review guidance names the right remedy and keeps its route.**
+  The per-run ceiling's remedy (`--run-cost-ceiling none`) now accompanies
+  only the refusal the ceiling itself causes. A review refused for another
+  reason (an unsupported shape, a project `ceiling:` of zero, a held lease)
+  keeps its own words. A refused job's bounded message no longer erases the
+  review route it names (`POST /v1/cost-reviews`). Only this server's exact
+  route literals survive the path scrub; every other path-like token is still
+  dropped.
+- **Totals and averages are exact, or the run says why not.**
+  - A sum of `0.1` and `0.2` is written `0.3`, not `0.30000000000000004`; an average of `0.1`
+    and `0.2` is `0.15`; totals of large integers keep every digit.
+  - An average with no finite decimal expansion (`4` divided by `3`) stops the run and asks for
+    a rounding; a rounding the request states is applied exactly, half away from zero.
+  - Exact arithmetic is bounded: a value needing more than 1000 digits stops the run naming it,
+    instead of silently dropping a tiny part (`1e-2000` beside `1` used to give `1.0`).
+  - A result, or a column the request writes as a JSON number, that no JSON number carries
+    exactly (`0.12345678901234567891`, or an integer past 2^64) stops the run naming the
+    value and what it would have become, instead of writing a rounded number.
+- **Every provider request a Run sends stays on its ledger, even when the task
+  stops waiting for it.** When a `for_each` item failed, `fail_fast` aborted the
+  siblings still in flight, and their requests, already sent, dropped out of
+  the terminal `unpriced_calls` count. A `timeout:` did the same to the attempt
+  it cut, and a provider's own 429 re-send could vanish with it. The count
+  depended on which sibling happened to answer first: a three-item fan-out
+  sent three requests, and the ledger said 1 on one build and 3 on another.
+  Now each request is recorded when it is handed to the transport. A request
+  whose task was cut is counted once: as an unknown charge if it never
+  answered, never as a known zero, and by its own price if it had answered.
+- **`nika doctor --ping` no longer takes an open port for a model.**
+  `nika doctor --ping` now checks a bounded compatible model list separately
+  from an open port. A mute listener, unrelated server or malformed response
+  cannot establish model availability. The probe runs no inference, sends no
+  credentials and downloads nothing; advertised models remain untested.
+- **A `model:` decided at run time is admitted as the route it renders to.**
+  `model: ${{ inputs.m }}` (a `--var`, a declared default, const or an
+  upstream output) no longer bypasses Run admission. A value the inputs decide
+  is judged before any effect, exactly as the literal would be. Free vision,
+  thinking, agent loops, unknown-cost routes such as 0/0 catalog rows and
+  uncataloged names are refused with exit 3. Values only the run decides are
+  judged by the Run observer at dispatch, before any provider byte, including
+  in answered legs and nested workflows (children share the Run's account).
+  Paid, native, local and mock routes keep today's transport and policy. An
+  over-bound declared-free reply is no longer priced as a known zero beside
+  its unknown charge. Its `cost_unpriced` now says `usage_rejected` instead
+  of `missing_catalog_price`: the tariff exists, and the reported usage broke
+  the admitted bound or context, or named another response model.
+- **The crate-size gate counts embedded jq code.** Raw asset lines, including
+  comments and blanks, share the existing production Rust budget. An absent
+  tracked manifest or source inventory and an unreadable source refuse a
+  verdict instead of silently reporting zero lines.
+- **Static exec permission checks** now judge bare immutable string
+  constants in exec URL and script operands using the same rules as
+  literals. Script permission inference uses the same known arguments.
+  Replaceable inputs stay dynamic; shell expansion and computed working
+  directories remain outside this check.
+- **A fan-out's calls now reach its trace.** A `for_each` task writes one frame, and that frame used to carry no call records, so a fan-out's provider requests could not be audited per request from the journal. The fan-out's frame now carries `inference_calls` and `cost_unknown_calls` for every iteration that returned. Each call is recorded once, in item order, under the same origin-only projection as any task. A retried item keeps each physical request. A request dropped in flight (a cancelled sibling or a timed-out attempt) has no call record, and none is invented; the ledger still counts it. Totals, counters and settlement are unchanged, because the calls were already debited when each item dispatched.
+- **A `fail_fast` fan-out now stops at the first failure to complete, not
+  the first in input order.** With `max_parallel: 2`, a held first item and a
+  second item failing after 70 ms used to run on until the first item's
+  `timeout:` (20 s), then record the held item as the failure and the real
+  one as `cancelled`, its error lost. The fan now stops the moment any
+  iteration fails. Items still in flight are dropped (`cancelled`), queued
+  items never start (`never_started`), and every iteration that completed
+  before the stop keeps its own row: a failure stays `failed`, and a success
+  stays `ok` even when an earlier item was slower. Successful outputs, item
+  rows and spend still read in input order. `fail_fast: false`, recovered
+  items, `max_parallel`, per-iteration `timeout:` and the paged item table
+  are unchanged. A dropped request still counts as sent, with an unknown
+  cost, never a refund. Operator cancellation (Ctrl-C) is a separate
+  contract that this fix does not change.
+- **Keep fetch authentication out of extracted document URLs.**
+  Links, metadata and article extraction resolve against a landing URL without
+  its username or password, including a response-supplied same-origin redirect.
+  The request still carries its original authentication; derived outputs and
+  traces no longer inherit those credentials from the resolution base.
+- **Realize a bare file name where the observation places it.**
+  A request can name a file bare (`orders.csv`) while the project keeps it elsewhere
+  (`./data/orders.csv`). The fidelity laws' path law then realizes the name when the compile's
+  observation places exactly one file of that name, `permits.fs.read` covers it, and a task opens
+  it. A native candidate that reads the observed file is then no longer refused as
+  `UNREALIZED PATH`. The refusal stays when there is no observation, when two observed files
+  share the name, when only another name is observed, or when no task opens the file. A
+  destination keeps its own law. The native door passes its observation to the laws through
+  `fidelity::laws_observed`.
+- **Stop asking which observed field a key means when the observation already answers it.**
+  A compile no longer asks which observed field a seat key means when the request states the
+  key value and the host observed that value in that key alone. « Sum integer amount_cents of
+  paid rows by customer » names `paid`, never `status`: the seat reads it as `status == "paid"`,
+  as a typed clause or as a verified program comparing `.status` to `"paid"` literally, and the
+  host recorded `paid` among the values of `status` and of no other column, yet the round asked
+  « Which observed field does `status` mean? ». The key is now bound by the observation: the
+  grounding entry records `bound_by: observation` and the witness literal, the key keeps its
+  grade, and an answer to its question is still read first. The question stays when the value
+  is recorded in two columns or absent from the recorded sample, when the column has no
+  recorded values, when the request never states the value, when the value also names a
+  column, when the key is not observed, when the rule only tests containment, or when a program
+  holds the value anywhere but in that comparison. A type the rule needs, such as an instant
+  window, is still asked.
+- **Read « request human confirmation before writing » as the approval it asks for.**
+  A request that asks to « request human confirmation before writing », or to seek or solicit an
+  approval before an effect, now holds that effect for a human's yes, as « ask for human
+  confirmation before writing » always did. The reader used to miss that approval. So the gate the
+  model put over the write was refused as invented, and the next candidate, without the gate, was
+  refused for dropping the requested confirmation. A request for something that is no approval
+  (« request the file before writing »), a confirmation that is a thing (the confirmation email)
+  and a waiver (« no need to request confirmation ») still hold nothing.
+- **Explicit HTTP authorization has one owner.** Explicit Authorization replaces URL-derived Basic authentication instead of sending conflicting credentials; ambiguous explicit field variants are refused before the request.
+- **Failed HTTP builtin calls report their status as data.** A `nika:fetch`
+  failure now carries `details.status_code` in `tasks.X.error`, in the
+  terminal frame's `outcome` and in the sealed trace, plus `details.accepted`
+  when the call declared `response.accept`, including an extraction failure
+  after an accepted status. Only these typed facts cross: provider text,
+  headers, bodies and URLs never do, a transport failure reports no status,
+  and an error without details keeps its `{code, message, transient}` shape.
+- **Keep redirect credentials within their authorized origin.**
+  HTTP redirects remove target URL credentials when crossing origins, so a
+  response cannot reintroduce Basic authentication after sensitive headers are
+  stripped. Invalid redirect diagnostics omit the response's Location value,
+  keeping its credentials, path and query out of errors and traces. Same-origin
+  relative redirects retain caller-supplied Basic authentication.
+- **Stop asking for a cross-run state file when a request removes duplicates within its rows.**
+  « Déduplique par customer et invoice_id, première occurrence conservée » or « Deduplicate by
+  customer and invoice_id, keeping the first occurrence » was read as « no second effect for the
+  same incoming identifier », and the round asked which JSON file keeps the identifiers already
+  processed. A clause that scopes the removal by named fields and states the occurrence kept is
+  now read as an operation when the request holds no cross-run cue: the seat's `distinct_by` or
+  its program carries it, the final judge still checks it on the final bytes, the plan records the
+  clause as an `in_data_dedup` binding, and an Applied finding says that no state across runs is
+  asked. A removal beside a cross-run cue (« already processed », « déjà traité », « never
+  twice », « between runs »), over events, callbacks or webhooks, or naming no kept occurrence or
+  no field, keeps the obligation and its state-file question.
+- **Resolved secret values are masked in inline and paged item evidence,
+  task notes and terminal error messages.** Item indexes, statuses, error
+  codes and verifiable journal structure are preserved; machine settlement
+  messages use the observed diagnostic without changing downstream data.
+- **Refuse non-finite numbers in `tonumber` and share one set of jq std shadows.**
+  `tonumber` now emits exactly one finite number. `NaN`, `Infinity`, `-Infinity` and an
+  overflowing text such as `1e400` stop with the named error `tonumber: not a finite number`
+  before any predicate, comparison, sort, minimum, maximum or aggregate reads the value. Before,
+  `select(. > 5)` dropped NaN, `select(. < 0)` kept it, and a sum became an infinity; the
+  message prints no cell text. An explicit `try` or `?` still skips the operand. The `nika:jq`
+  builtin, output bindings, the static checker and the compile verifier now load one definition
+  (`nika_cap::JQ_STD_SHADOWS`), so output bindings gain the global `scan` they lacked, and all
+  four run one probe set (`nika_cap::JQ_STD_SHADOW_PROBES`). Limits: `fromjson` still reads
+  NaN, the infinities and overflowing decimals, and values a program computes (`infinite`,
+  `1 / 0`, `pow`) are not guarded.
+- **Refuse a candidate whose jq orders observed date-times with offsets as text.**
+  A `nika:jq` comparison or sort over a record field compares text, and text order is not time
+  order across offsets: `2026-09-01T02:30:00+02:00`, which is 00:30 UTC, sorts after the upper
+  bound `2026-09-01T01:00:00` of the hour it lies inside, so a first-hour total came out 0
+  instead of 8. When the host observed the field's values as ISO-8601 date-times in more than
+  one offset or form (`Z` and `+00:00` count as two), or the compared bound is a date-time in
+  another offset or form, the candidate is now refused (`TEXT ORDER ON INSTANTS`) with the
+  repair: compare `fromdateiso8601` instants against a bound written with its offset. Values
+  that share one offset and one form against a bound of the same offset, converted instants, a
+  date-only bound and fields that hold no dates stay admitted. The evidence is the categorical
+  values the host records, so a column whose sampled values are all distinct is not judged yet.
+- **Refuse a candidate whose jq reads a document key on one of its records.**
+  A seat's `nika:jq` expression that reads a key of its input document inside the iteration over
+  that document's records, such as `.window_start` inside `.records[]`, reads null on a record:
+  a window compared against it keeps nothing and the total is silently 0, or a conversion of
+  the null fails at Run. When the host observed the records' file and its columns do not carry
+  the key, the candidate is now refused (`RECORD SCOPE`) with the file, its columns and the
+  repair: bind the document before the iteration (`. as $doc`) and read `$doc.window_start`.
+  A column of the same name, a variable bound before the iteration and a read at document
+  level stay admitted, and nothing is judged without an observation of the records.
+- **Read number texts in the compiled laws without tripping the finite `tonumber`.**
+  The number law of a compiled workflow and the order and arithmetic laws that read a decimal
+  text now read an accepted text with `fromjson`. A text such as `1e999` stops with the law's
+  own named error (`amount` is "1e999", not a number) instead of the generic
+  `tonumber: not a finite number`, `1e400` keeps its exact digits for ordering, and an integer
+  that no finite number carries is written as no number instead of failing to parse. Every
+  finite value reads exactly as before.
+- **A lookup by identifier never picks a record by input order.** « Look up
+  ticket 42 in ./tickets.json and write it to ./ticket-42.json » (or « find
+  ticket 42 » with a model's help) used to write whichever record with id 42
+  came first: two different records gave A in one order and B in the other,
+  and the run succeeded both times. The workflow now resolves exactly one
+  record: when several different records carry the identifier (including
+  the text `"42"` beside the number `42`), the run stops before writing or
+  posting anything and says how many records matched. Exact copies of one
+  record still count as that record, no match still stops the run, and a
+  duplicate added to the file after the compile is caught at run time too.
+- **Patch the media renderer dependency.** Pin the media tooling's
+  transitive Next.js dependency to 16.3.6, including its matching platform
+  packages, to address the ImageResponse security advisory.
+- **Business amounts stay business; stated money binds every door.** A money
+  word inside a business clause (« rows whose budget is 1500 USD », « rows
+  where cost is under 5 USD », « rows with a budget of 1500 USD », a refund of
+  50 USD, `cost` anywhere, a negative value) is read as data, never as a
+  ceiling or an invalid amount. An explicit directive is a sentence of its own
+  or a closing phrase attached to the work (« … ./out.csv with a budget of
+  2 USD », « Le budget est de 2 dollars. »). The CLI now reads the money its
+  operator states, and every seated door reads a request with its admitted
+  directives blanked before HOT: a zero ceiling opens no authoring seat, and a
+  positive ceiling on the CLI never dispatches an unpriced seat. A skeleton's
+  name beside its ceiling (« hello budget 0 USD », « chain budget 0 USD ») and
+  a revision's `--change` keep their money too. A consent line changes money
+  only as a whole money amendment.
+- **The native door reads one candidate when the seat fills both answer
+  fields.** In 0.121.0 a seat that filled both `candidate` and
+  `candidate_lines` stopped the native door with
+  « answer carries two candidates » before any judgment (4 of 4 live runs of
+  one seat). Two byte-identical texts are now one candidate, judged with no
+  extra call; different texts are refused as conflicting, and nothing is
+  chosen or bought. `candidate_lines` reads as its elements joined with a
+  line feed, and `candidate` reads as sent. The same rule holds for the JSON
+  objects of one seat text, in the native, sketch and proposal decoders: two
+  different answers are refused instead of reading the first, an identical
+  repetition is one answer, and template or prose braces no longer buy a
+  syntax repair.
+- **A workflow the authoring model writes itself is READY only once it is judged against the whole request.**
+  - When the authoring model writes the workflow (the native door), or its tasks and programs
+    (the sketch door), the compiler's own checks only admit it: a valid workflow that kept the
+    wrong rows, such as the lowest amounts where the request asks for the highest, was READY.
+    The finished workflow's own bytes are now judged against the whole request by the same
+    bounded judge as a workflow compiled from the model's plan, asked through the authoring
+    model.
+  - A workflow the judge finds unfaithful, or cannot judge, is not READY: the request stays
+    incomplete, naming the part it misses, and nothing of it is kept to replay.
+  - The judge's calls are authoring calls: counted in the receipt with their usage, and held
+    to `--authoring-max-calls`. A judge call the limit refuses is never sent, and the request
+    stays incomplete.
+  - The number of authoring requests a compile may need now counts every judge question.
+    That number is shown in its review and refuses typed repairs, samples or strategies the grant
+    cannot honor:
+    - `3 + repairs` for the native door;
+    - `4 + repairs` for the sketch door;
+    - `2 × samples + 14 × repairs + 12` for a plan compiled from the model's proposals.
+  - One check asks at most 8 clause questions. A clause past them is not asked: the request stays
+    incomplete, and the message says why.
+  - Typed repairs under `--authoring-strategy off` now count.
+  - A typed `only` or `escalate` strategy needs `--authoring-max-calls 2` or more, and a typed
+    `sketch` needs 3.
+  - Limits: the judge is a model, so its approval is bounded evidence, not proof.
+- **A workflow the authoring model wrote is READY after an answer round only once that round judges it.**
+  - When the model writes the workflow itself (the native or the sketch door), its first round
+    can end with a question, such as the model the workflow runs on. The answer round then
+    baked the answer in and was READY with no judge at all.
+  - The answer round now keeps the whole request pending on the finished workflow. It is READY
+    only when a judge permitted in that round finds it faithful to the whole request: the
+    authoring model, or a decision seat.
+  - The judge's calls are authoring calls, counted in the receipt with their usage and held to
+    `--authoring-max-calls`. One judge request settles a faithful workflow.
+  - Without a judge, the answer round is incomplete: the finished workflow is only a preview, and
+    the message names the judge to permit. A workflow the judge finds unfaithful stays
+    incomplete, naming the part it misses.
+  - The answer round of a revision in words works the same way.
+  - Limits: the judge is a model, so its approval is bounded evidence, not proof.
+- **Numbers stay exact through generated workflows, or the run stops before anything is
+  written.**
+  - A workflow that reads a JSON file no longer changes numbers silently between its steps. A
+    very large identifier used to be rewritten as `1.2345678901234568e29`, and a fine decimal
+    such as `1.000000000000000001` as `1.0`, with the run still succeeding.
+  - Any number the workflow may read or write now either passes unchanged or stops the run at
+    the decode, naming the number and what it would have become. When one generated rule is
+    the records' only consumer and fixes what it writes, only the fields it reads are
+    checked, so a column the output drops no longer stops the run.
+  - Records a lookup selects are checked the same way.
+  - Ordinary numbers (integers, decimals like `0.1`, `2.5e-3`, `1e2`) pass exactly as before.
+- **Rankings, filters and sorts compare numbers exactly.**
+  - « Keep the top 2 rows by points » over `1.000000000000000001`, `…003` and `…002` used to
+    keep a different wrong pair depending on the order of the input rows. It now keeps `…003`
+    and `…002` whatever the order.
+  - A threshold is compared as the request states it.
+  - When a ranking's cut falls between different records with the same value, the run stops
+    instead of picking one by input order, unless the request states that file order breaks
+    ties: that order is then kept through the limit. Exact copies of a record still count as
+    that record.
+  - Plans saved before this change replay unchanged and gain the exact comparison.
+- **Fully read JSON carries complete key observations.**
+  Whole small JSON files now carry complete key observations into compilation and proposal freshness checks. A missing asserted field cannot stay ready merely because the host mislabeled the whole read as a partial sample; bounded and unavailable observations remain partial.
+- **A count stated over a filter now counts.**
+  - « Count the rows where status is paid » used to compile to a workflow that wrote the paid
+    rows instead of their number, while its checks and runs succeeded. It now writes
+    `{"count": n}`: 0 when no row matches, with several conditions, with a numeric threshold,
+    and with the rows' own noun (« count the orders where … »). « The number of rows whose … »
+    and « compte les lignes dont … » count too.
+  - Words before a filter that the compiler cannot account for (another operation such as a
+    sort, or a qualifier like « the paid rows where … ») are no longer dropped: that clause is
+    left to the authoring model instead of compiling a narrower filter.
+  - A plan saved with the old reading is refused when it is replayed; compiling the request
+    again gives the counting workflow.
+- **Operations run in the order the request states.**
+  - « Keep the 2 rows with the highest amount, then keep the rows where status is paid »
+    used to filter first and rank second, so it could write two paid rows the request never
+    kept. It now ranks, then filters the two kept rows; « keep the paid rows, then the 2
+    with the highest amount » still filters, then ranks, and « count them » after a top-N
+    counts the kept rows.
+  - A filter stated after a sort or a total now runs after it: a malformed number that the
+    sort or the total reads stops the run, as the request's order implies, instead of being
+    filtered out first while the run writes.
+  - A step the compiler cannot run in the stated order (a filter on a column after a total,
+    or after a grouping on another column) is left to the authoring model instead of being
+    run in another order.
+  - Plans saved before this change keep their bytes; an older binary refuses a plan that
+    records ordered steps.
+- **A filter the compiler cannot read is never taken for a description of the data.**
+  - « Keep the rows whose status is a » compiled READY into a workflow that wrote every row:
+    the value `a` kept the compiler from reading the condition, and the clause was taken as
+    a sentence about the file. It is now reported as work the compiler cannot carry and no
+    workflow is produced; with a value it reads, the same request still filters.
+  - With an authoring model configured, that clause goes to the model instead of a question: the
+    model's filter over the request's own value runs beside the sort the compiler reads.
+- **Each operation the request states is checked against the program that runs.**
+  - The compile record lists every filter condition, count, order and cut the request
+    states, with the request's own words, its place in the stated order and the fields it
+    reads. Each is marked done only when the compiled program does it with those
+    parameters, never because a step is named after it.
+  - A proposal that ran the paid filter before « keep the 2 rows with the highest amount »,
+    or left the filter out, compiled READY and wrote a paid row outside the top 2, or an
+    unpaid one. The reading of the request's own clauses now replaces such a proposal, and
+    a program that misses a stated operation is never READY.
+  - Words the compiler cannot read are listed as unverified, not as done.
+  - An operation the request does not state is never run: a proposal that added the paid
+    filter before the top 2 as well as after it ranked only the paid rows, READY. The reading of
+    the request's own clauses replaces it.
+- **A line typed before a question is shown never answers it.** In the plain session loop,
+  a line typed while Nika worked (compiling, or running a workflow) answered the next
+  question as soon as it appeared: a `yes` typed during a compile applied a proposal the
+  person never saw, and a `y` typed while a run waited approved its gate and let its write
+  happen. On a terminal, that typeahead is now discarded before every question waits: the
+  proposal's `apply? ›`, a gate's `answer ›`, an authoring `reply ›` and the intelligence
+  choice. The in-process gate ask of `nika run` on a terminal does the same, and a terminal
+  it cannot drain leaves the run at its durable pause with its resume line taught. The idle
+  `nika ›` prompt keeps a line typed early, the cost question keeps its own drain, and a
+  pipe keeps its scripted lines.
+- **Saved compiler plans recheck computation invariants.** Malformed rules
+  and slots refuse as a whole. Numeric operands must have closed numeric
+  syntax and come from the request; slots must be declared, and programs
+  cannot override typed clauses. Required fields are no longer silently
+  defaulted. Aggregation replay refuses missing source columns, duplicate
+  output names and precision outside the generated domain. Historical
+  optional lines/program fields remain readable; refused plans emit no
+  candidate. Pending and verified transform records written before keep
+  their identity and replay as they did, and a verified program stays
+  anchored through the computation it realizes, whatever words the
+  computation's detail uses. A regeneration whose replay refuses the
+  verified program is reported refused, never accepted. Every recorded
+  rule must be re-derived from its words by the law that created it: a
+  record that changed what a rule computes, or put a program where the
+  words state a typed rule, is refused and the rule named. A seat's
+  typed computation is bound to the law that admitted it, not yet to its
+  meaning: its values and numbers must be stated in their own clause (a
+  schedule's hour is no threshold), but another comparator, aggregate
+  or listed field can still pass. A conversion's identity is recorded
+  and replays on its answer round (« convert ./a.csv into ./a.json and
+  write a summary of it … » could never apply its model answer), bound
+  to that very conversion: a record that replaces a filter by the
+  identity is refused.
+- **The local preflight dials only the host and port it parsed.** `nika doctor` and the run gate for local engines now derive the address from the same URL parse the transport uses. A base URL written with backslashes, or with a query or fragment right after the port, used to put its path text into the dial address and into the gate's « local endpoint … nothing answers there » refusal; the gate then called a live server silent. Only the host (IPv6 in brackets) and the explicit or default port are dialed or printed now, and the path is never. An IPv6 URL without a port now dials port 80 or 443. A URL that does not parse no longer passes as an address: nothing is dialed, and the transport reports the error.
+- **`--max-cost-usd` now prices a `for_each` over an input at the items the
+  invocation gives it.** With `inputs.xs` declaring a one-item default, a run
+  given five items (`--inputs-json` or `--var`) used to be priced at one call,
+  so it started under a cap that five calls cross. With a five-item default,
+  a run given one item was refused although that call fits. The run's launch
+  gate and the CLI's own preflight now bind the input as the run itself does:
+  the given value replaces the default, and it never falls back to it. The
+  floor counts the given items, so the first run is refused before any task
+  (NIKA-1709) and the second is admitted. An explicit empty list prices zero
+  calls. A value that is not a list is an unknown count, never the default's;
+  the CLI already refuses such a mistyped value before any gate. `--model`
+  still seats the envelope first. Literal lists, consts and inputs left to
+  their default keep their counts.
+- **A `model:` the invocation decides now meets its literal twin's budget floor
+  and MODELS rung before the first task.** `model: ${{ inputs.m }}` bound by
+  `--var`, `--inputs-json`, a declared default, a const or a `with:` alias used
+  to run a prior task and then dispatch a paid route that `--max-cost-usd 0`
+  refuses when written literally, and a rendered reasoning seat under
+  `max_tokens: 256` escaped the check's refusal. Both twins now refuse before
+  any task: NIKA-1709 for the cost floor, NIKA-1707 naming the MODELS
+  findings, exit 2 on the CLI (the documented FILE code, never the « engine
+  contract breach » a run-start cost floor would print). A library embedder
+  now meets the MODELS rung for literal seats too. A task's own `model:` still
+  wins over `--model`, and `--model` still replaces the envelope. Mock and
+  local seats still run under any cap. A `model:` only the run decides (an
+  upstream output, an answer, an item) is now judged when it dispatches,
+  before its request: the same MODELS laws (NIKA-INFER-004 for a reasoning
+  seat under its cap floor, NIKA-INFER-001 otherwise) and, under a cap, the
+  call's own floor against what the ledger still holds (NIKA-1704). That
+  refusal fails the task, is never retried, sends nothing and leaves earlier
+  tasks' effects in place. The remaining budget it reads is a snapshot, never
+  a reservation: siblings started together can still cross the cap together,
+  where the run's budget abort stops the run. The budget warning names such a
+  seat « decided at run time » instead of « unpriced ».
+- **A replacement request cannot inherit an old money admission.** The cognition
+  conflict path and pre-consent source-basis replay discard admitted monetary
+  spans when the input text changes, including when a new budget has identical
+  offsets. Unchanged bytes and a fresh admission keep their spans; genuine field
+  answers after a replacement remain usable.
+- **Restated clauses keep budget admission consistent.** Session checks
+  the budget in the rebuilt request against the amount admitted for the
+  answer. Conflicting readings are refused before compilation; business
+  prices remain data and do not change the account ceiling.
+- **`nika arm` reports a schedule readiness receipt per beat.** Each beat reads READY, UNREADY or DORMANT for its current configuration only. The receipt checks the captured program, the trigger binding (policies every fire refuses, such as `manqué: rattraper`, and expired pauses), the required inputs with their sources and unbound names, and model and cost admission of an unattended fire; a model the bindings decide is judged as the literal it renders to. OS activation and authority are never implied: activation stays `not_verified`, and unknown routes stay unknown, never ready. Firing evidence is bound to the beat by its recorded slot and generation. A copied or foreign record is refused as unattributed, a record from an earlier binding reads as history, and a current record proves the generation and slot, never the project or host. Every binding failure names its own input and reason. An environment value that does not fit is withheld from both reports and from the fire's error. Human and `arm --json` (now `schedule_readiness_version` 2, keeping the version 1 keys) render every beat and both exit 3 on refused or unattributed evidence.
+- **Stages a proposal states over a plain filter are kept.** When the
+  request's own reading of a clause was only a filter, a projection,
+  number columns, an order or a limit that the proposal stated over the
+  same clause were dropped, so the workflow wrote whole rows with amounts
+  as text. They now replace the plain filter when both keep the same rows,
+  and a proposal whose filter reads the clause differently leaves the
+  request incomplete instead of silently narrowing it.
+- **An `outputs:` entry that reads a secret itself is refused, even with
+  `egress: [{ to: outputs }]`.** `nika check` accepted such an entry
+  although the export always masked the value (`***`), so the sanction
+  promised a flow the engine never delivers. The engine never writes a
+  secret's own value on any surface, the outputs export included, so
+  `to: "outputs"` declassifies values derived from a secret, such as the
+  response of an authenticated call. A direct `${{ secrets.<name> }}` in
+  `outputs:` is now refused with `NIKA-SEC-007`, and its message names the
+  removal as the repair.
+- **A rule reads only keys its source is known to hold.** `nika compile`
+  now grounds every key a typed rule reads over one file and records how
+  in the decision (`decision.grounding`): a CSV header, keys seen in the
+  bounded sample of a JSON file (never proof that a key is absent), the
+  request's own column list, or a human answer. A request word the file
+  does not spell (« id » over `sku`, « quantity » over `units`,
+  « expiry » over `expires`) is asked as a choice of the observed keys,
+  never mapped by similarity; the answer only counts for the revision
+  of the file it was given for, and is asked again after the file
+  changes. With nothing observed, a key the request only names is asked
+  for its exact spelling instead of being written into the program. A
+  key present in only some records keeps the request open until it
+  says what happens to the records lacking it. Keys observed in the
+  request's own language stay READY with no question. `nika compile`
+  now observes the files a request states (headers and keys, bounded,
+  under the working directory) without an authoring model too, so a
+  keyless compile stays READY when the file holds the key; library and
+  Serve callers pass what they observed as knowledge.
+- **A schedule the cadence grammar cannot hold is asked, never narrowed.**
+  « Every other Monday at 09:00 », « every 2 weeks », « un lundi sur
+  deux », « tous les quinze jours », « twice a week » or « every 5
+  hours » was READY with a coarse cadence label (`weekly`, `daily`,
+  `hourly`) the request never stated. Such a period now keeps no label
+  and no cron, and the compile asks its cadence before READY: a
+  cadence a schedule binds (« every Monday at 09:00 ») or « manual »
+  resolves it; another alternate period is refused as an answer.
+  **A number a rule reads is read under one explicit law.** A compiled
+  filter, total, average, minimum, maximum or ranking parsed its column
+  with jq's lenient `tonumber`: « 1,5 » became 1, « Infinity » an infinite
+  value, an empty cell silently dropped its record, and a ranking put
+  null last and any text above every number. Every such value is now a
+  finite JSON number or a text in the JSON number grammar (« 150 »,
+  « -3.5 », « 1.5e2 »); an overflowing value (« 1e999 »), `NaN`,
+  `Infinity` or any other text stops the run with the column and the
+  value named, before anything is written. Plans recorded by earlier
+  versions replay unchanged.
+  **A column holding values that are not numbers is asked, not guessed.**
+  « keep only the rows whose amount is above 100 » over a file whose
+  amounts include null, true, « n-a » or a list was READY and then failed
+  at run; « keep the 2 rows with the highest points » over null points
+  ranked them lowest without saying so. The observer now counts the kind
+  of every sampled value (never quoting one), and when a column a rule
+  reads as a number holds anything else, the compile asks what such a
+  record does before READY: skip it (the comparison is false for it, and
+  a ranking or total leaves it out) or fail the run naming the value. An
+  average, minimum or maximum of no number stops the run instead of
+  writing 0 or null, and a skipped record never counts in an average. The
+  answer is tied to the file's revision and asked again when the file or
+  its kinds change.
+  **A stated text also matches its observed canonical spelling.** « keep
+  the rows whose statut is livré » over a file spelling « livré » with a
+  combining accent (e + U+0301) was READY and wrote a header only:
+  equality is byte-exact. Where the observed values of the column hold a
+  spelling canonically equivalent (Unicode NFC) to the stated one, the
+  filter now also matches exactly that spelling, and the decision records
+  it. Equality itself is unchanged: case, compatibility forms and
+  spellings the sample did not show still compare byte for byte.
+- **A workflow the authoring model shapes is READY only once it is checked against the whole request.**
+  - A candidate compiled from the model's plan could be READY while it missed, reordered or
+    changed part of the request, because only the duties the compiler extracted, or the
+    words a step restated, were checked. Every clause no deterministic law reads from the
+    workflow's bytes, and the whole request, is now judged against the workflow's own bytes
+    by a bounded judge that reads the full request, its answers and the observed files; task
+    names, labels and the model's confidence count for nothing. A clause the request states
+    more than once is judged at each place it is stated.
+  - A part the judge finds missing is sent back to the model with the judge's findings,
+    within `--authoring-repairs`, and a computation the repaired plan still needs is
+    regenerated with them. A judge that abstains or fails, or repairs that do not settle it,
+    leave the request incomplete, naming the part; no question asks for what the request
+    already states.
+  - The judge's calls are authoring calls: counted in the receipt with their usage, and held
+    to `--authoring-max-calls`.
+  - A saved plan replayed on an answer round keeps what the compiler checks by itself, with
+    no call; what only a judge can settle is judged in that round, or stays incomplete
+    without a judge. Nothing in a saved plan or an answer is read as a judgment.
+  - A computation the authoring model writes now holds where no row is kept: it is run on a
+    source with no row and on each one-row source built from the model's own example rows,
+    and a program returning null there is refused. When the clause starts with a sum or a
+    count word and the model's example returns a number (or one field holding one), the
+    program must also return exactly 0 on the source with no row and a number on each one-row
+    source; an error there is refused. This covers that phrasing and shape only, not every
+    sum. An average, a minimum or a maximum of no row may stop with a stated error, and rows
+    of no row are an empty list.
+  - A refused program goes back to the model once, with its program and the defect, within
+    `--authoring-repairs` for the whole request; with no repair allowed, or when the call
+    limit refuses the repair before sending it, the request stays incomplete. A program
+    regenerated after a field answer is held to the same checks and repair.
+  - A computation the model writes now compares text as the file spells it. When the observed
+    file spells a value the request states with other bytes for the same text (« é » as one
+    character, or as « e » followed by a combining accent), the program must match both, as
+    the compiler's own filters already do; otherwise it goes back to the model naming both
+    spellings, within `--authoring-repairs`, and with no repair left the request stays
+    incomplete. A program matching both spellings is no longer refused as inventing a value.
+    Case differences and look-alike characters are not the same text.
+  - Limits: the judge is a model, so its approval is bounded evidence, not proof. The empty
+    checks read values on the model's own example rows, not on every source; the spelling
+    check reads the values the file observation sampled.
+- **Scheduled workflow refusals stay visible on their own status.** API
+  schedules report the same bounded finding as project schedules. Equal
+  labels in the two origins keep separate diagnostics, and removing a
+  project schedule clears its old refusal before that label is reused.
+- **A round that states its budget can be answered after a restart.** When a
+  Session reopens over a history that saw money, a request that states its own
+  ceiling, typed again or a kept round continued with `/restore`, now reaches
+  its proposal: its answers state no money and keep that ceiling. Session
+  inference stays blocked (no allowance is inferred from the unknown earlier
+  cost), the stated ceiling still bounds the proposal and its Run, and new work
+  that states no ceiling is still refused.
+- **A field you named by answering keeps its proposal valid at the yes.** A
+  proposal's sources are judged for the exact request that compiled it: its
+  answers and the observation its round read, kept beside its bytes, never an
+  observation made later. A field you named for a file the project does not
+  hold yet no longer withdraws the proposal as unjudgeable while that file is
+  still absent; once the file's header lacks the field, the proposal is
+  withdrawn and nothing is written.
+- **A yes no longer saves a proposal whose sources changed under it.** A
+  proposal records the source facts its program relies on (the columns a rule
+  reads, a number field observed as numbers only); at the yes, before anything
+  is written, the session observes those sources again and the compiler judges
+  them. A column renamed or removed, a source gone or unreadable, a key some
+  records now lack, or a value no longer a number withdraws the proposal with
+  the changed fact named: nothing is written, no consent or money is recorded,
+  and saying the request again builds it over the project as it is. New,
+  removed or reordered rows and another column order keep it valid. A kept
+  proposal is re-derived without AI and lands only when that gives its exact
+  bytes; a proposal with no source fact to judge says so instead of claiming
+  freshness.
+- **Preserve durable cost observations in Session history.**
+  A Session's project record (`.nika/session-state.json`) now keeps each new cost
+  observation in the provider-owned durable form: route origins replace full endpoints,
+  while the accounting fields keep their meaning. The line recorded before an unknown-cost
+  dispatch names the route's origin instead of its endpoint. Entries already recorded are
+  kept as written, and the live account's exact route, consent and authority are unchanged.
+- **A paused gate continued elsewhere is never answered as it was.** When a
+  session reopens, a run it saw pause is offered again only while no journal in
+  `.nika/traces` continued it: a continuation that ended, still runs or cannot
+  be judged is named and nothing waits, and one that paused again offers its
+  own question. The journals are read again before any answer is sent, so an
+  answer to a gate that another run overtook is not sent. Before any answer,
+  the question now names the completed tasks a resume is sure to run again
+  (their journal records cannot be served back); saying none promises nothing
+  more, since a completed task is served back only while its definition and
+  inputs are unchanged.
+- **The session grounds a rule's keys in the project on every round.**
+  The interactive session now observes the files a request names under
+  its project root on its deterministic rounds too — the first reading,
+  an answer or a change read again, and a round compiled while a
+  spending limit blocks the intelligence — not only when an
+  intelligence authors. A key the file holds is ready with no call, a
+  word the file does not spell is asked as a choice of its keys, and an
+  answer given before the file changed is asked again. For library
+  callers, `compile_in` on a deterministic seat now observes under the
+  project root its context names; `compile_deterministic` and
+  `compile_through` stay pure.
+- **The Session says what a held answer round is waiting for.**
+  - When the authoring model writes the workflow itself, an answer round that finishes it
+    is ready only once a judge that round can permit finds it faithful to the whole request.
+  - With an authoring model, the Session asks that model as the judge. This is one bounded
+    call (two when the verdict is unfaithful), counted in the receipt and admitted like any
+    authoring call.
+  - Without an authoring model, the round stays incomplete and the built workflow is only a
+    preview. The Session now says so: "The workflow is built but not proposed…". It no longer
+    says an authoring step failed on Nika's side, and no longer says the request cannot be
+    built. It names why (no authoring model, or no judgment in this round settled it) and the
+    way on (`/intelligence`, then state the request again · `/meaning`). Nothing is written.
+  - The Serve and CLI compile doors keep a `deterministicOnly` answer round at zero calls, and
+    it stays incomplete with its preview.
+  - `/details` no longer says an answer round made zero calls. The knowledge line now reads
+    "this answer round replayed it and presented the pack to no call", and the round's own
+    receipt shows the judge's call when it made one.
+- **A Session with no reasoner answers a workflow's model question
+  again.** An explicit “none” conversational intelligence choice can answer
+  a workflow's model question again. The host's factory is no longer
+  mistaken for an available classifier; genuine failed or unknown
+  classifications still bind nothing, and the proposed workflow waits for
+  consent before writing or running.
+- **A Session no longer reads its own protocol lines as work.** In 0.121.0 a
+  mistyped slash command staged the paid authoring cost review; « why » or «
+  what happened? » at a question or a proposal staged a review or bound as
+  the pending answer; declining an unrelated cost review discarded the
+  waiting proposal; and a routing reply that named two turn labels (« not
+  MODIFY, this is DISCUSS ») started a paid revision. A command-shaped line
+  is now served, or refused with the known commands it nearly spells. Why,
+  meaning and what happened answer before anything is discarded, with no
+  model call, also in French typography (« pourquoi ? », « qu’as-tu compris
+  »); a why with nothing waiting answers from the last recovery card, as
+  what happened does. A declined review cancels only its own call, and a
+  reply naming two labels reads as unknown. With no intelligence to read
+  replies, a value question binds only a value that stands alone (one token,
+  a JSON literal or a quoted value), so « tell me more » is no longer taken
+  as a destination path; a quoted answer or run input binds its content
+  without the quotes. An activation's time zone is judged by the schedule
+  grammar when it is given: « /bogus » and « /Europe/Paris » are refused,
+  and « UTC » now answers. When Session cognition is blocked, a free line at
+  the consent prompt keeps the proposal and states the account's own reason.
+  `/meaning` counts the ledger entries it cannot read instead of claiming
+  that no clause was recorded.
+- **An admitted budget survives a business-clause restatement.** Monetary
+  text before or after the changed words keeps its admission; replacement
+  text never inherits monetary authority.
+- **Expire abandoned question labels when reopening a Session.**
+  The recovery notice expires input questions and labels that no readable
+  kept authoring round owns, and asks for the request again. A kept authoring
+  round names its questions separately; they become answerable only after
+  `/restore` continues it. Historical records remain intact; the next state
+  write no longer presents abandoned questions as answerable. No model call,
+  consent or workflow write follows from opening the Session.
+- **A restored round names your request as you typed it.** When a clause you
+  answered in words rebuilt the request, the reopening notice, `/meaning`,
+  `/why`, `/status` and `/restore` now name the sentence you typed beside the
+  rebuilt one, and `/restore` keeps it as typed across later closes. A trailing
+  line break no longer shows inside « »; the kept bytes are unchanged, so rounds
+  kept by earlier sessions read as before.
+- **A renamed column no longer loses the answer round.** « keep only the
+  rows whose state is open » asked which observed field `state` means; the
+  file then renamed `status` to `state`, and the answer `status` came back
+  as « No current question owns this answer »: Session dropped the round.
+  Now the answer is found stale and asked again over the file's current
+  columns on the same request, and only a fresh explicit answer builds the
+  proposal. Session and `nika compile --answer` carry the refreshed
+  question forward; a plan recorded by an earlier version says so and is
+  asked again once, never looping.
+  **A budget stated with the work is the ceiling, never part of the
+  work.** With a model chosen, « … write them to ./open.csv. Budget: $0. »
+  was refused as « no further cognition admitted »: the budget read as an
+  unfinished requirement only a model could build, and the zero ceiling
+  forbade the model. « …, budget=0 » even added a filter on a column
+  named `budget`. Session now reads the ceiling (« Budget: $0 »,
+  « budget=0 », « --max-cost-usd 0 », « with a budget of 0 USD »,
+  « plafond de 0 dollars ») and the compiler builds the rest of the
+  request without it: the proposal or the field question comes back with
+  no model call. A field named `budget`, a price, a quoted value or a
+  path stay data and are no longer refused as a malformed ceiling; a
+  malformed, negative, non-finite or conflicting ceiling still refuses
+  before anything happens. « budget=0 » over a file that has a `budget`
+  column reads both ways: nothing is built, and the reply says why
+  instead of the bare « no further cognition admitted ». The same holds
+  on a model reached through a gateway whose cost is unknown: the $0
+  request was refused before its deterministic reading (« unknown-cost
+  admission requires an exact HTTPS route », « the explicit zero
+  constraint forbids this call »); it is now proposed with no call.
+  **An incomplete `nika compile` says the file it left in place.** A
+  compile that asks a question writes nothing, but the destination it
+  was given may still hold an earlier file: `--json` now adds
+  `existing_destination` and the text ends « existing destination
+  remains at <path>; this compile did not write or remove it ». The file
+  is not read, followed, removed or rewritten, `--force` included.
+  Integration preserves compact trailing currency ceilings, validates malformed
+  attached currency before filename exclusions, and reads joined ceilings and
+  explicit old-default references together. Bare currency needs a separate
+  segment; an `and`/`et` business range never loses its upper bound to a ceiling.
+- **`trace outputs --json` now reports recorded task causes and terminal
+  error codes/messages without borrowing evidence from an earlier task
+  occurrence.** Its projection is version 2: recovery consumers must read
+  `recovered_from` instead of the former `error_code` alias. A recovered
+  success has no terminal error, and a new failure or running task no longer
+  inherits recovered status.
+- **Keep the session renderer under `--ascii` and draw its own glyphs in ASCII.**
+  Bare `nika --ascii` opened the plain line loop; it now opens the same terminal renderer as
+  bare `nika`, and the renderer's own glyphs take their ASCII twins: its block faces, its loader,
+  its live prompt marker, its hints, the focus rule and the title the door gives the terminal.
+  The Session's own words (the banner, replies, the status line, the lifecycle rail) and the
+  echo of a sent line are shown as written, so the screen is not pure ASCII. `--plain` and
+  `NIKA_TUI=0` keep the plain loop.
+- **Keep queued terminal input visible across rapid Unix resizes.**
+  Fresh consent boundaries also drain bytes still waiting in the terminal
+  before accepting a new answer.
+- **Keep the terminal honest in bare `nika`.** A word wider than the composer (a
+  path, a URL, a hash, a sentence without spaces) now wraps instead of being
+  typed out of sight, and the composer grows by the rows it really paints;
+  `SIGHUP` restores the terminal before leaving, as `SIGTERM` does; `--color` or
+  `CLICOLOR_FORCE` under `NO_COLOR` shows its colours; and the inline view is
+  cleared as it opens, so a partial line left under the cursor never shows
+  inside it.
+- **Keys typed while Nika works no longer answer the decision after it.**
+  In bare `nika` on a terminal, a line typed during a compile or a run was
+  replayed once the turn ended, so `yes` and Enter typed ahead could
+  consent to a proposal or answer a question or a gate. The composer now
+  stays usable while Nika works: what you type shows at once, Enter sends
+  nothing until it is your turn, and the page keys scroll a full screen
+  (the answer brings the transcript back to its end). When the turn ends
+  on a decision, the draft stays in the box unsent and a dim notice says
+  so; only an Enter pressed once the decision is on screen sends it. The
+  two spending questions still take only a fresh answer: a draft typed
+  meanwhile is cleared, and a notice says so.
+- **`--max-cost-usd 0` now refuses a priced task that no token ceiling
+  bounds.** An agent, or an `infer:` without `max_tokens`, on a priced
+  model passed a zero budget with only a warning, and with a key its first
+  call would have been sent and billed. A zero budget now refuses such a
+  task before the run starts (`NIKA-1709`, exit 2) and names the task: set
+  `max_tokens` (`max_tokens_total` for an agent) so the floor can price
+  it. Mock and local models are not metered and never trip the refusal; a
+  budget above zero keeps the documented warning and the in-flight guard.
+
+### Security
+
+- **Keep control characters out of the terminal title.** Bare `nika` names the
+  terminal window after the project directory; an escape or bell byte in that
+  name could end the title sequence and start one of its own (a clipboard write
+  under tmux). Control characters (C0, DEL, C1) are now dropped before the title
+  is set.
 ## [0.121.0](https://github.com/supernovae-st/nika/compare/v0.120.3..v0.121.0) - 2026-09-25
 
 **A conversation from the request to an inspectable result.** Open `nika`,
