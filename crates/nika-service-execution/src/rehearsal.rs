@@ -7,12 +7,19 @@
 //! candidate names a model lane, or when it holds any `infer:` or `agent:`
 //! task (a model-less one yields no lane, yet would run on the default model).
 //! A zero cost ceiling elsewhere is defense in depth, never this denial.
+//! The run itself, over a room, is the `room` child's.
 
 use std::fmt;
 
 use nika_providers::ExecutionAccessPlan;
 
 use crate::ServiceExecutionDriver;
+
+mod room;
+#[cfg(test)]
+mod room_tests;
+
+pub use room::{ADMITTED_TOOLS, DeniedEffects, DeniedTally};
 
 /// Why a rehearsal refuses its access plan. No probe ran and nothing was built.
 ///

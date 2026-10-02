@@ -221,9 +221,9 @@ impl Bounds {
 pub enum Refusal {
     /// The host has no room yet.
     NotBuilt,
-    /// The access plan refused the candidate: a pin, a model lane or a model verb.
+    /// The access plan refused the candidate: a pin, a model route or a model verb.
     Plan,
-    /// The candidate holds a jq or convert task, whose rehearsal bounds are not established.
+    /// The candidate uses data processing whose rehearsal bounds are not established.
     DataBounds,
     /// The candidate needs an effect a rehearsal denies: a process, the network, a gate, a
     /// secret or a nested run.
@@ -233,6 +233,11 @@ pub enum Refusal {
     CopyIn,
     /// The admission door refused the candidate, or admitted other bytes than its own.
     Admission,
+    /// The candidate calls a tool outside the surface a rehearsal runs: an unknown one, or one
+    /// a template names.
+    Surface,
+    /// The candidate names a path outside the room, or reads a file nobody observed.
+    Confinement,
 }
 
 impl Refusal {
@@ -243,12 +248,15 @@ impl Refusal {
             Self::NotBuilt => "the rehearsal room is not built",
             Self::Plan => "the access plan refused the candidate",
             Self::DataBounds => {
-                "the candidate holds a jq or convert task, whose rehearsal bounds are not \
-                 established"
+                "the candidate uses data processing whose rehearsal bounds are not established"
             }
             Self::Effect => "the candidate needs an effect a rehearsal denies",
             Self::CopyIn => "an observed input could not be copied whole within the room's bound",
             Self::Admission => "the admission door did not admit the candidate's own bytes",
+            Self::Surface => "the candidate calls a tool outside the surface a rehearsal runs",
+            Self::Confinement => {
+                "the candidate names a path outside the room, or a file nobody observed"
+            }
         }
     }
 }

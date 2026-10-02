@@ -297,6 +297,10 @@ pub fn propose(
     )
 }
 
+/// The review's line on execution: nothing has run. A proposal whose copy was rehearsed in a
+/// room replaces it with what that rehearsal did, never on the originals (`runtime/rehearsed.rs`).
+pub(crate) const NOTHING_RAN: &str = "Nothing has run yet · `yes` saves these exact bytes and checks them · running is its own line (« run it »)\n";
+
 /// The review: what Nika proposes, in the order a human decides — what it
 /// DOES (the tasks, first what runs first), when it RUNS (by hand, or the
 /// schedule the request asked for, which saving never activates), what it
@@ -365,9 +369,7 @@ pub fn render(set: &ProjectChangeSet, out: &CompileOutcome, bytes: &str) -> Stri
     }
     text.push_str("Needs\n");
     text.push_str(&needs_lines(out));
-    text.push_str(
-        "Nothing has run yet · `yes` saves these exact bytes and checks them · running is its own line (« run it »)\n",
-    );
+    text.push_str(NOTHING_RAN);
     // The boundary and the audits, not every byte: `/show` prints those.
     // The identity beside the question is what a `yes` answers.
     text.push_str(&set.preview_condensed());

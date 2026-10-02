@@ -60,9 +60,25 @@ impl SessionRuntime {
         });
     }
 
-    /// At a yes, before anything lands: what the landed report says of the sources, or the
-    /// withdrawal of a proposal whose sources moved or cannot be judged.
+    /// At a yes, before anything lands: what the landed report says of a rehearsed world and of
+    /// the sources, or the withdrawal of a proposal whose world or sources moved or cannot be
+    /// judged. A rehearsed copy's world is judged first (`rehearsed.rs`), then the sources as for
+    /// every proposal.
     pub(super) fn basis_at_yes(
+        &mut self,
+        set: &ProjectChangeSet,
+        id: &ProposalId,
+    ) -> Result<Option<String>, TurnOutcome> {
+        let rehearsed = self.rehearsed_at_yes(set, id)?;
+        let sources = self.sources_at_yes(set, id)?;
+        Ok(match (rehearsed, sources) {
+            (Some(rehearsed), Some(sources)) => Some(format!("{rehearsed}\n  {sources}")),
+            (rehearsed, sources) => rehearsed.or(sources),
+        })
+    }
+
+    /// The sources a proposal was built on, judged again before anything lands.
+    fn sources_at_yes(
         &mut self,
         set: &ProjectChangeSet,
         id: &ProposalId,
@@ -169,7 +185,7 @@ impl SessionRuntime {
 
     /// Withdraw the proposal a yes answered, before any write, consent or money effect: why, in
     /// the conversation's record, and the way on.
-    fn withdraw(&mut self, id: &ProposalId, why: &str) -> TurnOutcome {
+    pub(super) fn withdraw(&mut self, id: &ProposalId, why: &str) -> TurnOutcome {
         let text = format!(
             "{why} · the proposal {id} was withdrawn: nothing was written, no consent or money was recorded · say the request again to build it over the project as it is now"
         );

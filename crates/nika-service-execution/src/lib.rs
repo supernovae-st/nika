@@ -53,7 +53,7 @@ mod rehearsal;
 pub mod run_cost;
 
 pub use nika_providers::ExecutionAccessPlan;
-pub use rehearsal::RehearsalPlanRefusal;
+pub use rehearsal::{ADMITTED_TOOLS, DeniedEffects, DeniedTally, RehearsalPlanRefusal};
 
 /// Metadata a child trace lane commits into its parent's trace-forest row.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

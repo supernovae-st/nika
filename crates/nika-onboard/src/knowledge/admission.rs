@@ -748,6 +748,8 @@ fn inventory(files: &Files, pins: &BTreeMap<String, String>) -> Checked<()> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod constructed;
 #[cfg(test)]
+mod real_payload;
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests;
 #[cfg(test)]
