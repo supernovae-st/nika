@@ -15,5 +15,7 @@
   a verdict on the workflow. A request of the small closed form (read one
   file, keep or count the rows where a field is a value, write the result to
   one file) proves its write required and its count's name free or stated, so
-  a right result can be certified. The contract is a library surface for now:
-  no door runs it yet.
+  a right result can be certified. The engine and Session APIs now build two
+  checked forms of the closed `copy SOURCE as is to TARGET` request and select
+  by rehearsed output before consent. This path has been exercised on
+  synthetic files; the other operations remain library contracts.

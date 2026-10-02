@@ -15,8 +15,12 @@
   composed elsewhere (`--knowledge-pack`, `NIKA_KNOWLEDGE_PACK`) is refused before it is read.
   `--no-knowledge` (now on `nika serve` too) and the exact word `NIKA_KNOWLEDGE=off` turn the
   knowledge off; off beside a source on the same settings layer is refused; the explicit layer
-  wins over the environment. With nothing named, a Session's `/status` says this build embeds no
-  qualified release. The pack builder is `nika-compile/knowledge-door-v4`. For Rust callers this
+  wins over the environment. With nothing named and authoring enabled, the
+  default is an embedded release of three patterns and three workflow blocks,
+  admitted against an identity built into Nika. Recall follows matching
+  patterns to their blocks; an intent with no matching words gets no references.
+  A named source that fails admission never falls back to this default.
+  The pack builder is `nika-compile/knowledge-door-v4`. For Rust callers this
   is a breaking change in the 0.122 minor: `Snapshot::open` and `KnowledgePin::open` take the
   trusted identity (`None` is refused), `KnowledgeSource::Snapshot` carries `identity`,
   `KnowledgeError::NotASnapshot` and `KnowledgeError::Stale` are removed. Strict snapshot-admission

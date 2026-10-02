@@ -25,7 +25,7 @@ claim that the current candidate passed tests.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| HEAD             | `1f7622ecd` (`1f7622ecd148a2516c9dd458d946f4d464da901c`)             |
+| HEAD             | `d1560cd47` (`d1560cd4780d1aba7a68bfcfd0483b79c49eb048`)             |
 | workspace        | v0.121.0                                  |
 | crates (workspace)| 79                                              |
 | crates (admitted)| 69                                             |
@@ -37,5 +37,5 @@ claim that the current candidate passed tests.
 | L2               | 5                                              |
 | L3               | 4                                              |
 | L4               | 21                                              |
-| lib tests        | 8732 passed, 0 failed                              |
-| clippy           | 0 warnings                              |
+| lib tests        | (skipped — pass --no-quick to compute)                              |
+| clippy           | (skipped)                              |
