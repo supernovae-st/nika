@@ -665,10 +665,13 @@ fn a_stated_schedule_is_declared_only_when_activated() {
     session
         .expect("If this machine is off")
         .expect("the missed policy");
+    // Only a line typed after its prompt answers it: earlier typeahead is discarded.
+    session.expect("reply ›").expect("its own prompt");
     session.send_line("1").expect("run once when back");
     session
         .expect("ceiling per scheduled run")
         .expect("the ceiling");
+    session.expect("reply ›").expect("its own prompt");
     session.send_line("0.20").expect("ceiling");
     session
         .expect("Nika proposes to declare the schedule in `nika.yaml`")
