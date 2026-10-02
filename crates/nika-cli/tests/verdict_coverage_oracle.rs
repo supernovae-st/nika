@@ -117,6 +117,9 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
+#[path = "support/verdict_json.rs"]
+mod verdict_json;
+
 /// How long one corpus run may take before it is counted as T3. A taught
 /// workflow that hangs (a live provider dial, a `nika:wait`) must not
 /// wedge the suite — it is simply not runnable here, which is a tier,
@@ -186,7 +189,7 @@ struct Observed {
     deferred_denials: Vec<String>,
     statuses: BTreeMap<String, String>,
     codes: BTreeMap<String, String>,
-    outputs: BTreeMap<String, String>,
+    outputs: BTreeMap<String, Result<String, String>>,
     reached_terminal: bool,
     ok: bool,
     text: String,
@@ -250,8 +253,18 @@ fn observe(text: &str, timed_out: bool) -> Observed {
         {
             codes.insert(task.clone(), code);
         }
-        if let Some(output) = field(&ev, "output") {
-            outputs.insert(task.clone(), output);
+        // A later terminal without a value must not inherit an earlier output.
+        outputs.remove(&task);
+        if let Some(outcome) = field(&ev, "outcome") {
+            match task_output(&outcome, status) {
+                Ok(Some(output)) => {
+                    outputs.insert(task.clone(), Ok(output));
+                }
+                Ok(None) => {}
+                Err(error) => {
+                    outputs.insert(task.clone(), Err(error));
+                }
+            }
         }
         statuses.insert(task, status.to_owned());
     }
@@ -264,6 +277,22 @@ fn observe(text: &str, timed_out: bool) -> Observed {
         outputs,
         ok: false, // overwritten by the caller that owns the exit status
         text: text.to_owned(),
+    }
+}
+
+/// The output claim is the typed outcome payload, not its display rendering.
+/// No output and malformed evidence are distinct from a present JSON null.
+fn task_output(outcome: &str, status: &str) -> Result<Option<String>, String> {
+    let class = verdict_json::member(outcome, "class")?
+        .ok_or_else(|| "HARNESS_INVALID: outcome has no class".to_owned())?;
+    let class: String = serde_json::from_str(&class)
+        .map_err(|error| format!("HARNESS_INVALID: outcome class: {error}"))?;
+    if class != status {
+        return Err("HARNESS_INVALID: terminal kind and outcome class disagree".to_owned());
+    }
+    match verdict_json::member(outcome, "payload")? {
+        Some(payload) => verdict_json::member(&payload, "value"),
+        None => Ok(None),
     }
 }
 
@@ -387,17 +416,24 @@ fn workflows_in(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
-/// One fixture's `expected-run.json` against one observed run — the
-/// same comparison law as `gate_matrix_conformance`. Output assertions
-/// are SUBSTRING contracts: the frame carries the JSON-encoded value and
-/// a provider voice may frame a canary, so the fixture asserts the
-/// substance.
+/// The workflow verdict, statuses, codes and stated output assertions.
+/// `output` is exact recursive JSON equality on the outcome payload;
+/// only `output_contains` asks for a substring. No display field substitutes
+/// for a typed value. Other assertion families remain outside this oracle.
 fn compare_run_contract(
     name: &str,
     observed: &Observed,
     expected: &serde_json::Value,
+    expected_raw: &str,
     failures: &mut Vec<String>,
 ) {
+    let raw_tasks = match verdict_json::member(expected_raw, "tasks") {
+        Ok(Some(tasks)) => tasks,
+        other => {
+            failures.push(format!("{name}: HARNESS_INVALID: task contract: {other:?}"));
+            return;
+        }
+    };
     let want_ok = expected["workflow_state"] == "success";
     if observed.ok != want_ok {
         failures.push(format!(
@@ -421,15 +457,44 @@ fn compare_run_contract(
                 )),
             }
         }
-        if let Some(output) = spec["output"].as_str() {
-            match observed.outputs.get(task) {
-                Some(got) if got.contains(output) => {}
-                got => failures.push(format!(
-                    "{name}: task `{task}` — contract output {output:?} · observed {got:?}"
-                )),
+        let raw_task = match verdict_json::member(&raw_tasks, task) {
+            Ok(Some(raw)) => raw,
+            other => {
+                failures.push(format!("{name}: HARNESS_INVALID: task `{task}`: {other:?}"));
+                continue;
             }
+        };
+        if let Err(error) = compare_output(&raw_task, observed.outputs.get(task)) {
+            failures.push(format!("{name}: task `{task}` — {error}"));
         }
     }
+}
+
+fn compare_output(raw_task: &str, observed: Option<&Result<String, String>>) -> Result<(), String> {
+    let wanted = verdict_json::member(raw_task, "output")?;
+    let contains = verdict_json::member(raw_task, "output_contains")?;
+    if wanted.is_none() && contains.is_none() {
+        return Ok(());
+    }
+    let got = observed
+        .ok_or_else(|| "asserted output is absent".to_owned())?
+        .as_ref()
+        .map_err(Clone::clone)?;
+    if let Some(wanted) = wanted
+        && !verdict_json::equal(got, &wanted)?
+    {
+        return Err(format!(
+            "exact output differs: expected {wanted}, observed {got}"
+        ));
+    }
+    if let Some(contains) = contains {
+        let needle: String = serde_json::from_str(&contains)
+            .map_err(|error| format!("HARNESS_INVALID: output_contains: {error}"))?;
+        if !verdict_json::contains(got, &needle)? {
+            return Err(format!("output does not contain {needle:?}: {got}"));
+        }
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------
@@ -478,9 +543,10 @@ fn every_runtime_tier_honors_the_equivalence_law() {
             if !input.is_file() || !contract.is_file() {
                 continue; // a tier without a run contract (runtime/trace) owes nothing here
             }
-            let expected: serde_json::Value =
-                serde_json::from_str(&std::fs::read_to_string(&contract).expect("contract"))
-                    .expect("contract parses");
+            let expected_raw = std::fs::read_to_string(&contract).expect("contract");
+            verdict_json::validate(&expected_raw).expect("HARNESS_INVALID: run contract");
+            let expected: serde_json::Value = serde_json::from_str(&expected_raw)
+                .expect("HARNESS_INVALID: run contract metadata");
             if expected["workflow_state"].as_str().is_none()
                 || expected["tasks"].as_object().is_none()
             {
@@ -538,7 +604,7 @@ fn every_runtime_tier_honors_the_equivalence_law() {
                 continue;
             }
 
-            compare_run_contract(&name, &observed, &expected, &mut failures);
+            compare_run_contract(&name, &observed, &expected, &expected_raw, &mut failures);
             entry.1 += 1;
         }
     }
@@ -883,5 +949,311 @@ fn the_oracle_is_observed_both_firing_and_staying_silent() {
         failures.is_empty(),
         "the oracle must be observed both firing and staying silent:\n{}",
         failures.join("\n")
+    );
+}
+
+/// Synthetic terminal evidence: no binary, workflow or provider is launched.
+fn output_fixture(raw: Option<&str>) -> Observed {
+    let payload = raw.map_or_else(
+        || "{}".to_owned(),
+        |value| format!(r#"{{"value":{value}}}"#),
+    );
+    let outcome = format!(r#"{{"class":"success","payload":{payload}}}"#);
+    let event = serde_json::json!({"kind": "task_completed", "fields": [
+        {"key": "task", "value": "value"},
+        {"key": "outcome", "value": outcome},
+        {"key": "output", "value": raw.unwrap_or("null")}
+    ]});
+    let mut observed = observe(&event.to_string(), false);
+    observed.ok = true;
+    observed
+}
+
+#[test]
+fn typed_output_contracts_reject_same_status_wrong_values() {
+    for (wanted, wrong) in [
+        ("null", r#""null""#),
+        ("true", r#""true""#),
+        ("42", "43"),
+        ("[1,true]", "[true,1]"),
+        (r#"{"a":1}"#, r#"{"a":2}"#),
+        (r#""answer""#, r#""prefix answer suffix""#),
+    ] {
+        let raw = format!(
+            r#"{{"workflow_state":"success","tasks":{{"value":{{"status":"success","output":{wanted}}}}}}}"#
+        );
+        let expected = serde_json::from_str(&raw).expect("synthetic contract");
+        for (actual, should_agree) in [(wanted, true), (wrong, false)] {
+            let mut failures = Vec::new();
+            compare_run_contract(
+                "synthetic",
+                &output_fixture(Some(actual)),
+                &expected,
+                &raw,
+                &mut failures,
+            );
+            assert_eq!(
+                failures.is_empty(),
+                should_agree,
+                "wanted {wanted}, got {actual}: {failures:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn absent_or_invalid_output_never_becomes_null_or_legacy_display() {
+    let expected_raw =
+        r#"{"workflow_state":"success","tasks":{"value":{"status":"success","output":null}}}"#;
+    let expected = serde_json::from_str(expected_raw).expect("contract");
+    let mut failures = Vec::new();
+    compare_run_contract(
+        "missing",
+        &output_fixture(None),
+        &expected,
+        expected_raw,
+        &mut failures,
+    );
+    assert_eq!(failures.len(), 1);
+    let previous = output_fixture(Some("null"));
+    let current = output_fixture(None);
+    let mut repeated = observe(&format!("{}\n{}", previous.text, current.text), false);
+    repeated.ok = true;
+    failures.clear();
+    compare_run_contract(
+        "later absent",
+        &repeated,
+        &expected,
+        expected_raw,
+        &mut failures,
+    );
+    assert_eq!(
+        failures.len(),
+        1,
+        "a later terminal cannot inherit an earlier value"
+    );
+    for outcome in [
+        "{",
+        r#"{"class":"failure","payload":{"value":null}}"#,
+        r#"{"class":"success","payload":{"value":null,"value":null}}"#,
+    ] {
+        let event = serde_json::json!({"kind": "task_completed", "fields": [
+            {"key": "task", "value": "value"}, {"key": "outcome", "value": outcome},
+            {"key": "output", "value": "null"}
+        ]});
+        let mut observed = observe(&event.to_string(), false);
+        observed.ok = true;
+        let mut failures = Vec::new();
+        compare_run_contract("invalid", &observed, &expected, expected_raw, &mut failures);
+        assert_eq!(failures.len(), 1);
+        assert!(failures[0].contains("HARNESS_INVALID"), "{failures:?}");
+    }
+}
+
+#[test]
+fn output_comparison_preserves_workflow_status_and_error_assertions() {
+    let raw = r#"{"workflow_state":"failure","tasks":{"value":{"status":"failure","error_code":"NIKA-BUILTIN-WRITE-001"}}}"#;
+    let expected = serde_json::from_str(raw).expect("contract");
+    let mut observed = output_fixture(Some("null"));
+    let mut failures = Vec::new();
+    compare_run_contract("wrong", &observed, &expected, raw, &mut failures);
+    assert_eq!(
+        failures.len(),
+        3,
+        "exit, task status and code remain independent"
+    );
+    observed.ok = false;
+    observed
+        .statuses
+        .insert("value".to_owned(), "failure".to_owned());
+    observed
+        .codes
+        .insert("value".to_owned(), "NIKA-BUILTIN-WRITE-001".to_owned());
+    failures.clear();
+    compare_run_contract("correct", &observed, &expected, raw, &mut failures);
+    assert!(failures.is_empty(), "{failures:?}");
+}
+
+/// Preserve the old output-only predicate solely to audit its disagreements.
+fn legacy_output_agrees(raw_task: &str, display: Option<&str>) -> bool {
+    let task: serde_json::Value = serde_json::from_str(raw_task).expect("synthetic contract");
+    match task["output"].as_str() {
+        Some(wanted) => display.is_some_and(|actual| actual.contains(wanted)),
+        None => true,
+    }
+}
+
+// name, contract, canonical value, legacy display, old agreement, new agreement.
+type OutputAuditCase = (
+    &'static str,
+    &'static str,
+    Option<&'static str>,
+    Option<&'static str>,
+    bool,
+    bool,
+);
+const OUTPUT_AUDIT_CASES: [OutputAuditCase; 18] = [
+    (
+        "null",
+        r#"{"output":null}"#,
+        Some("null"),
+        Some("null"),
+        true,
+        true,
+    ),
+    (
+        "missing null",
+        r#"{"output":null}"#,
+        None,
+        None,
+        true,
+        false,
+    ),
+    (
+        "boolean",
+        r#"{"output":true}"#,
+        Some("true"),
+        Some("true"),
+        true,
+        true,
+    ),
+    (
+        "wrong boolean",
+        r#"{"output":true}"#,
+        Some("false"),
+        Some("false"),
+        true,
+        false,
+    ),
+    (
+        "string boolean",
+        r#"{"output":true}"#,
+        Some(r#""true""#),
+        Some("true"),
+        true,
+        false,
+    ),
+    (
+        "missing boolean",
+        r#"{"output":true}"#,
+        None,
+        None,
+        true,
+        false,
+    ),
+    (
+        "number",
+        r#"{"output":2}"#,
+        Some("3"),
+        Some("3"),
+        true,
+        false,
+    ),
+    (
+        "array order",
+        r#"{"output":[1,true]}"#,
+        Some("[true,1]"),
+        Some("[true,1]"),
+        true,
+        false,
+    ),
+    (
+        "object",
+        r#"{"output":{"a":1}}"#,
+        Some(r#"{"a":2}"#),
+        Some(r#"{"a":2}"#),
+        true,
+        false,
+    ),
+    (
+        "exact text",
+        r#"{"output":"ok"}"#,
+        Some(r#""ok""#),
+        Some("ok"),
+        true,
+        true,
+    ),
+    (
+        "text prefix",
+        r#"{"output":"ok"}"#,
+        Some(r#""prefix ok""#),
+        Some("prefix ok"),
+        true,
+        false,
+    ),
+    (
+        "misleading display",
+        r#"{"output":"ok"}"#,
+        Some(r#""wrong""#),
+        Some("ok"),
+        true,
+        false,
+    ),
+    (
+        "contains",
+        r#"{"output_contains":"ok"}"#,
+        Some(r#""prefix ok""#),
+        Some("prefix ok"),
+        true,
+        true,
+    ),
+    (
+        "missing substring",
+        r#"{"output_contains":"ok"}"#,
+        Some(r#""wrong""#),
+        Some("wrong"),
+        true,
+        false,
+    ),
+    (
+        "sorted object",
+        r#"{"output_contains":"{\"a\":null,\"b\":true}"}"#,
+        Some(r#"{"b":true,"a":null}"#),
+        None,
+        true,
+        true,
+    ),
+    (
+        "equal decimals",
+        r#"{"output":1.0}"#,
+        Some("1e0"),
+        Some("1e0"),
+        true,
+        true,
+    ),
+    (
+        "distinct precise decimals",
+        r#"{"output":0.10000000000000000001}"#,
+        Some("0.10000000000000000002"),
+        None,
+        true,
+        false,
+    ),
+    (
+        "display is not authority",
+        r#"{"output":"ok"}"#,
+        Some(r#""ok""#),
+        Some("hidden"),
+        false,
+        true,
+    ),
+];
+
+#[test]
+fn output_oracle_disagreements_are_observed_and_adjudicated() {
+    let mut false_agreements = 0;
+    let mut false_refusals = 0;
+    for (name, contract, value, display, old_expected, new_expected) in OUTPUT_AUDIT_CASES {
+        let old = legacy_output_agrees(contract, display);
+        let observed = value.map(|value| Ok(value.to_owned()));
+        let new = compare_output(contract, observed.as_ref()).is_ok();
+        assert_eq!(old, old_expected, "old predicate: {name}");
+        assert_eq!(new, new_expected, "adjudicated contract: {name}");
+        false_agreements += usize::from(old && !new);
+        false_refusals += usize::from(!old && new);
+    }
+    assert_eq!((false_agreements, false_refusals), (11, 1));
+    println!(
+        "output-only oracle audit: 18 witnesses, 11 false agreements and 1 false refusal corrected"
     );
 }
