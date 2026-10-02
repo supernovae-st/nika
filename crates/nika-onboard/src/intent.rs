@@ -797,7 +797,7 @@ mod tests {
     /// The audit fixture (ux-fixtures/semantic-cases.jsonl · audit UX
     /// 2026-07-30), copied VERBATIM into the crate so the ratchet runs
     /// hermetic — 10 utterances with the template classes each must never
-    /// resolve to. Provenance: /Users/thibaut/Desktop/test-project/ux-fixtures.
+    /// resolve to. The fixture is checked in under tests/fixtures/semantic-cases.jsonl.
     const SEMANTIC_CASES: &str = include_str!("../tests/fixtures/semantic-cases.jsonl");
 
     /// The audit's forbidden CLASSES → the embedded template(s) embodying

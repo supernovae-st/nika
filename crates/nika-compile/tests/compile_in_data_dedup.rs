@@ -58,7 +58,7 @@ fn tells_in_data(out: &CompileOutcome) -> bool {
 }
 
 /// The deterministic door: keyless, these rows stop on their other questions before any state-file
-/// question, on the base as after (measured on the 21 public DEV84 rows with dedup words); what
+/// question, on the base as after (measured on 21 deduplication requests); what
 /// changes is the plan, which holds no obligation and records the reading. The door emits nothing
 /// and names the removal unresolved, so no choice is made silently; a round that binds a workflow
 /// tells the in-data reading in its finding (the cold round below).

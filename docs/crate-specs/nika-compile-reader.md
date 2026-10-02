@@ -173,8 +173,8 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   participle stage (« …, sorted by amount ») is read by no law of the frozen reader and is not
   covered. The identity is a complete recorded rule (`Rule::from_json`); a flag over no clause
   and no stage is not.
-- A removal of duplicates over the rows is no dedup obligation (F2-Q2, E39 PILOT14
-  V6-DEV4-P2). `ObligationKind::Dedup` means no second effect for the same incoming
+- A removal of duplicates over the rows is no dedup obligation.
+  `ObligationKind::Dedup` means no second effect for the same incoming
   identifier, and it asks for a state file. « Déduplique par customer et invoice_id,
   première occurrence conservée » was read as that obligation.
   - A dedup head or marker is read on as an operation when all three hold. The clause stays
@@ -195,11 +195,11 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
     cue (« dédoublonne le callback par identifiant »).
   - The tables are `assets/dedup_words.txt`, the dedup heads and markers included (they read
     as before).
-  - Measured on the 21 public DEV84 rows with dedup words (keyless): the obligation leaves
-    V6-DEV4-P1, P2 and P6 (FR and EN) and stays on V6-DEV4-P3, P4 and P5; nothing else moves.
-  - Not covered: a kept occurrence stated in another clause of the sentence (V6-DEV4-P4,
-    « …, même si des doublons sont éloignés ; première occurrence conservée »), and a
-    removal that names its keys with no kept occurrence (V6-DEV4-P3, P5). These keep the
+  - Measured on 21 deduplication requests (keyless): French and English requests satisfying
+    these conditions lose the obligation; the other requests retain it. Nothing else moves.
+  - Not covered: a kept occurrence stated in another clause of the sentence
+    (« …, même si des doublons sont éloignés ; première occurrence conservée »), and a
+    removal that names its keys with no kept occurrence. These keep the
     obligation.
 - Every public type is `#[non_exhaustive]` (the forward-compatibility ratchet of the
   boundary); the composer builds plan elements through `Step::new`, `Effect::new`,

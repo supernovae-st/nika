@@ -130,7 +130,7 @@ fn typeahead_is_defused(
 /// Before the question: an answer typed while the intent is read must not
 /// answer the question the turn asks.
 #[test]
-#[ignore = "defect: typeahead answers a question painted after it · app.rs replays deferred keys, only the two cost questions discard them · lane ws (app.rs)"]
+#[ignore = "defect: typeahead answers a question painted after it · app.rs replays deferred keys, only the two cost questions discard them · app.rs input handling"]
 fn typeahead_never_answers_a_question_painted_after_it() {
     typeahead_is_defused(
         0,
@@ -162,7 +162,7 @@ fn typeahead_never_consents_to_a_proposal_painted_after_it() {
 /// Before the gate: a `yes` typed while the run starts must not answer the
 /// gate the run pauses on.
 #[test]
-#[ignore = "defect: typeahead answers a gate painted after it · same cause · lane ws (app.rs)"]
+#[ignore = "defect: typeahead answers a gate painted after it · same cause · app.rs input handling"]
 fn typeahead_never_answers_a_gate_painted_after_it() {
     typeahead_is_defused(3, "run it", "yes", GATE, ANSWER, RESULT);
 }
@@ -246,7 +246,7 @@ fn wide_and_combining_glyphs_go_through_whole() {
 /// a script written without spaces) wraps onto the next row and every
 /// character typed stays visible, the cursor with it.
 #[test]
-#[ignore = "defect: a word wider than the composer is clipped at the edge, the rest typed blind · composer.rs uses WrapMode::Word, whose words wider than the viewport are not split (ratatui-textarea 0.9 docs); WordOrGlyph falls back to graphemes · lane cards (composer.rs sizing)"]
+#[ignore = "defect: a word wider than the composer is clipped at the edge, the rest typed blind · composer.rs uses WrapMode::Word, whose words wider than the viewport are not split (ratatui-textarea 0.9 docs); WordOrGlyph falls back to graphemes · composer.rs sizing"]
 fn a_word_wider_than_the_composer_stays_visible() {
     let word: String = TOKEN.repeat(3);
     let mut term = Term::proto(&[], 80, 24);

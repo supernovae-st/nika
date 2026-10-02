@@ -8,7 +8,7 @@ Every case runs on private tmux servers (-L nika-tui-qa-matrix and, for the Esc 
 capture, then case.json (binary, tmux version, options, every step with its UTC time, every check with its
 verdict). Write-once: an existing case directory refuses.
 
-A check marked `known` encodes a defect already reported at the base (the owner lane is named): it is recorded and
+A check marked `known` encodes a defect already reported at the base (the affected component is named): it is recorded and
 shown, and does not fail the case. Exit status 1 when any other check failed.
 
 The demo journey is the one the PTY suites walk (crates/nika-tui/tests/qa_support/mod.rs JOURNEY).
@@ -206,7 +206,7 @@ def case_split(case, width, presentation):
     case.check('gate hint visible', 'nothing else answers a gate' in plain)
     history = tmux('capture-pane', '-p', '-S', '-200', '-t', case.target, check=False).stdout
     case.check('the check layers never split across rows (RUN READY on one row)', 'RUN READY' in history,
-               known='D3 check bar · lane cards')
+               known='D3 check bar · terminal rendering')
 
 
 def case_resize_joined(case, presentation):

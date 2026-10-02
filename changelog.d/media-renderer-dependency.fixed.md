@@ -1,0 +1,3 @@
+- **Patch the media renderer dependency.** Pin the media tooling's
+  transitive Next.js dependency to 16.3.6, including its matching platform
+  packages, to address the ImageResponse security advisory.
