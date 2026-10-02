@@ -1,0 +1,49 @@
+{
+ "base": "p01-base",
+ "expected": {
+  "policy": {
+   "id": "policy-r",
+   "sha256": "a4e94ad9d3fe4c9f01083186b647546cc040d006653b5098856a0928b2e1061f"
+  },
+  "profile": "nika-knowledge-release-profile/r1",
+  "snapshot_sha256": "b74bcc81d92826c9297ba3e833b2364440b4e15ac1fc9d656d6a00683d6449d2"
+ },
+ "fault": null,
+ "files": {
+  "knowledge/blocks.jsonl": {
+   "text": "{\"authority\":[\"fs.read\"],\"callables\":[\"nika:read\"],\"check_receipt\":{\"sha256\":\"7eec561341a54465b542b7d00de6dc50f5db8605c3f7beab08bf12a2fb6a6dd2\",\"spec_sha\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\"verdict\":\"CURRENT_CHECKED\",\"verifier_sha256\":\"da2f38f6b661dd41ad473bbfa47cec505d995cec29138d4acbdc3b5a2c842770\"},\"effects\":[\"read\"],\"file\":\"blocks/digest.nika\",\"file_sha256\":\"7eec561341a54465b542b7d00de6dc50f5db8605c3f7beab08bf12a2fb6a6dd2\",\"holes\":[{\"name\":\"source\",\"owner\":\"caller\"}],\"id\":\"block:digest\",\"interfaces\":[\"nika:read\"],\"kind\":\"block\",\"known_failure_modes\":[],\"pin\":{\"binary\":\"nika 0.122.0 (vectors)\",\"spec_sha\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"},\"proof_level\":\"CHECKED\",\"provenance\":{\"sources\":[\"src:engine\"]},\"purpose\":\"Summarize one document into a short digest.\",\"sha256\":\"5b1452e24b7e6a42a766dcacbe45baa4994463e31e812a305668f8d873a98e1a\",\"status\":\"QUALIFIED\",\"title\":\"Digest block\"}\n"
+  },
+  "knowledge/diagnostics.jsonl": {
+   "text": "{\"id\":\"diagnostic:NIKA-VAR-021\",\"kind\":\"diagnostic\",\"pin\":{\"binary\":\"nika 0.122.0 (vectors)\",\"spec_sha\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"},\"proof_level\":\"NONE\",\"provenance\":{\"sources\":[\"src:spec\"]},\"sha256\":\"5dd670a992a7b5526b4f08f4a820c56d2fb756297fe0406f6988f31008540fed\",\"status\":\"QUALIFIED\",\"title\":\"A task reads tasks.X outside with:\"}\n"
+  },
+  "knowledge/families.jsonl": {
+   "text": "{\"facets\":{\"input\":[\"file\"],\"output\":[\"markdown\"]},\"id\":\"family:digest\",\"kind\":\"family\",\"need\":\"Turn one document into a short digest.\",\"pin\":{\"binary\":\"nika 0.122.0 (vectors)\",\"spec_sha\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"},\"proof_level\":\"NONE\",\"provenance\":{\"sources\":[\"src:spec\"]},\"sha256\":\"e3e5de7bf5b85749039fcf3fa6c11af368a2cec5de0afbb27d6afa0506b7dc6d\",\"status\":\"QUALIFIED\",\"title\":\"Digest family\"}\n"
+  },
+  "knowledge/manifest.json": {
+   "text": "{\n \"downgrades\": {\n  \"CHECK_UNPROVEN\": 1\n },\n \"exclusions\": {\n  \"kinds\": [\n   \"callable\",\n   \"capability_interface\",\n   \"construct\",\n   \"counterexample\",\n   \"example\",\n   \"intent_facet\",\n   \"skeleton\",\n   \"skill\"\n  ],\n  \"rows\": {\n   \"STATUS_EXCLUDED\": 2\n  }\n },\n \"files\": {\n  \"LICENSES/AGPL-3.0-or-later.txt\": \"72723d9923acbbe2be2420bcc6969b68bbf154d96de0bb4625cb1a83e519ef39\",\n  \"LICENSES/Apache-2.0.txt\": \"35db77e814a5629e3a3f37155d4a46cf2eb42191d9b016d0b264d514f00e803b\",\n  \"NOTICE.md\": \"0ba37f2998559184ee1c13f76be878208320d866359ac533f99e029b2751b6ca\",\n  \"blocks/digest.nika\": \"7eec561341a54465b542b7d00de6dc50f5db8605c3f7beab08bf12a2fb6a6dd2\",\n  \"knowledge/blocks.jsonl\": \"32734b7ad52e2e6a88840fc3bfeb2a07fbfb7efaee0495352fd70fe1d15864cf\",\n  \"knowledge/diagnostics.jsonl\": \"c5da3ac0723ed4b5f04b442111e61c04d9c3125798542d1ca1cf762e64d89529\",\n  \"knowledge/families.jsonl\": \"7f1f6e1bca4a41cc092dcf98ae3be90d39db6cbf3cc43de8bf012f53793782e1\",\n  \"knowledge/pattern_packs.jsonl\": \"b32bc8b5161bbb830f4fa07f0310de3bab4bf949c06699eedaedca072625c1ab\",\n  \"knowledge/patterns.jsonl\": \"e7f5305fb032f50c27fe50e434d15999cfab9d10d697a72ebc0d8083940a58db\",\n  \"knowledge/relations.jsonl\": \"208f55d7ad3a1dc0173e01789c7600b39772479a1e9d185b0c20b4df539c3975\",\n  \"knowledge/repair_principles.jsonl\": \"a1971b0c678b974e066b0e11fd553c09202cb0ddb34dbdf36ab0d9fdadb23800\",\n  \"knowledge/source_artifacts.jsonl\": \"2ee361859d98ba8a8884dcb05051e59ac2f55ebc436c83ba0873b04dc9963fac\"\n },\n \"format\": \"nika-knowledge-release/2\",\n \"input_digest\": \"13620d271e041d9064ad6012a23c523f246b686bbb2b9119b24b916339f21142\",\n \"knowledge_version\": \"vectors-r1\",\n \"policy\": {\n  \"id\": \"policy-r\",\n  \"sha256\": \"a4e94ad9d3fe4c9f01083186b647546cc040d006653b5098856a0928b2e1061f\"\n },\n \"profile\": \"nika-knowledge-release-profile/r1\",\n \"relations\": {\n  \"count\": 4,\n  \"file\": \"knowledge/relations.jsonl\"\n },\n \"rows\": {\n  \"block\": {\n   \"count\": 1,\n   \"file\": \"knowledge/blocks.jsonl\"\n  },\n  \"diagnostic\": {\n   \"count\": 1,\n   \"file\": \"knowledge/diagnostics.jsonl\"\n  },\n  \"family\": {\n   \"count\": 1,\n   \"file\": \"knowledge/families.jsonl\"\n  },\n  \"pattern\": {\n   \"count\": 1,\n   \"file\": \"knowledge/patterns.jsonl\"\n  },\n  \"pattern_pack\": {\n   \"count\": 1,\n   \"file\": \"knowledge/pattern_packs.jsonl\"\n  },\n  \"repair_principle\": {\n   \"count\": 1,\n   \"file\": \"knowledge/repair_principles.jsonl\"\n  },\n  \"source_artifact\": {\n   \"count\": 2,\n   \"file\": \"knowledge/source_artifacts.jsonl\"\n  }\n },\n \"target\": {\n  \"binary\": \"nika 0.122.0 (vectors)\",\n  \"spec_sha\": \"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\",\n  \"verifier_sha256\": \"da2f38f6b661dd41ad473bbfa47cec505d995cec29138d4acbdc3b5a2c842770\"\n },\n \"tool\": {\n  \"id\": \"nika_bench.foundry.release\",\n  \"sha256\": \"c39b0390965da0ec211f572565953d8aafe8f7c397c8d89c203434539fc001e2\"\n }\n}\n"
+  },
+  "knowledge/pattern_packs.jsonl": {
+   "text": "{\"id\":\"pack:digest\",\"kind\":\"pattern_pack\",\"pin\":{\"binary\":\"nika 0.122.0 (vectors)\",\"spec_sha\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"},\"proof_level\":\"NONE\",\"provenance\":{\"sources\":[\"src:spec\"]},\"sha256\":\"32ba3aeafc342ebf7903a61f10a1d280a1c65c5d85202d6c92bb8d05a6500f79\",\"status\":\"QUALIFIED\",\"title\":\"Digest pack\"}\n"
+  },
+  "knowledge/patterns.jsonl": {
+   "text": "{\"id\":\"pattern:read-then-infer\",\"kind\":\"pattern\",\"notes\":\"\",\"pin\":{\"binary\":\"nika 0.122.0 (vectors)\",\"spec_sha\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"},\"proof_level\":\"NONE\",\"provenance\":{\"sources\":[\"src:engine\"]},\"purpose\":\"Read a file, then summarize it with one model call.\",\"sha256\":\"793c404aaca47593596cc1d7547b97b0fa3ba7ad972ee153782dc954accdd33c\",\"status\":\"QUALIFIED\",\"title\":\"Read then infer\"}\n"
+  },
+  "knowledge/repair_principles.jsonl": {
+   "text": "{\"id\":\"repair:hoist-binding\",\"kind\":\"repair_principle\",\"pin\":{\"binary\":\"nika 0.122.0 (vectors)\",\"spec_sha\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"},\"proof_level\":\"NONE\",\"provenance\":{\"sources\":[\"src:engine\"]},\"sha256\":\"e38d2c129ae98131945312a7e31243ce2cc25a58bcd4ef9b29446e6c6804cdb3\",\"status\":\"QUALIFIED\",\"strategy\":\"Bind the upstream output in with: and read with.X instead.\",\"title\":\"Hoist the binding\"}\n"
+  },
+  "knowledge/source_artifacts.jsonl": {
+   "text": "{\"id\":\"src:engine\",\"kind\":\"source_artifact\",\"licence\":\"AGPL-3.0-or-later\",\"ownership\":\"project\",\"pin\":{\"binary\":\"nika 0.122.0 (vectors)\",\"spec_sha\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"},\"proof_level\":\"NONE\",\"sha256\":\"9a0774d1c2149bdf7b7a4f250ff88db026578d9eb3cdc0428a8aa2c3165227b3\",\"status\":\"QUALIFIED\",\"title\":\"Nika engine (vectors stand-in)\",\"upstream\":\"\"}\n{\"id\":\"src:spec\",\"kind\":\"source_artifact\",\"licence\":\"Apache-2.0\",\"ownership\":\"project\",\"pin\":{\"binary\":\"nika 0.122.0 (vectors)\",\"spec_sha\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"},\"proof_level\":\"NONE\",\"sha256\":\"472b828e82bac80ca2235f23f5476108a082b22501fd80abfe3c676cba24fc6d\",\"status\":\"QUALIFIED\",\"title\":\"Nika specification (vectors stand-in)\",\"upstream\":\"\"}\n"
+  }
+ },
+ "forms": [
+  "memory",
+  "disk"
+ ],
+ "name": "p05-spec-64",
+ "removed": [],
+ "requirement": "\u00a79.2 spec",
+ "verdict": {
+  "admit": true,
+  "snapshot_sha256": "b74bcc81d92826c9297ba3e833b2364440b4e15ac1fc9d656d6a00683d6449d2"
+ }
+}

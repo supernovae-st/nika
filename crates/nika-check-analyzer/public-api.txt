@@ -345,6 +345,7 @@ pub fn nika_check_analyzer::gates::gate_certain(task: &nika_schema::raw::task::R
 pub fn nika_check_analyzer::gates::gate_verdict(task: &nika_schema::raw::task::RawTask, prompt: &str) -> nika_check_analyzer::gates::Gate
 pub fn nika_check_analyzer::gates::human_confirm(task: &nika_schema::raw::task::RawTask) -> bool
 pub fn nika_check_analyzer::gates::parse_gate(src: &str) -> core::option::Option<nika_tmpl::expression::ast::Expr>
+pub fn nika_check_analyzer::gates::reads_inputs_only(task: &nika_schema::raw::task::RawTask) -> bool
 pub mod nika_check_analyzer::model_scope
 pub fn nika_check_analyzer::model_scope::scan(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub mod nika_check_analyzer::native_first
@@ -429,7 +430,10 @@ pub fn nika_check_analyzer::static_args::ConstStrings::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_check_analyzer::static_args::ConstStrings where T: 'static
 pub fn nika_check_analyzer::static_args::ConstStrings::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_check_analyzer::static_args::judgeable_arg(consts: &nika_check_analyzer::static_args::ConstStrings, a: &nika_schema::raw::action::RawInvokeAction, key: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_check_analyzer::static_args::judgeable_operand<'a>(value: &'a str, consts: &'a nika_check_analyzer::static_args::ConstStrings) -> core::option::Option<&'a str>
 pub fn nika_check_analyzer::static_args::judgeable_program<'a>(command: &'a nika_schema::raw::action::RawCommand, consts: &'a nika_check_analyzer::static_args::ConstStrings) -> core::option::Option<&'a str>
+pub fn nika_check_analyzer::static_args::resolve_against_cwd(script: &str, cwd: core::option::Option<&str>) -> core::option::Option<alloc::string::String>
+pub fn nika_check_analyzer::static_args::resolve_const_argv<'a>(command: &'a nika_schema::raw::action::RawCommand, consts: &'a nika_check_analyzer::static_args::ConstStrings) -> core::option::Option<impl core::iter::traits::iterator::Iterator<Item = &'a str> + 'a>
 pub fn nika_check_analyzer::static_args::static_program(command: &nika_schema::raw::action::RawCommand) -> core::option::Option<&str>
 pub fn nika_check_analyzer::static_args::templated_url_host(raw: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_check_analyzer::static_args::url_host(raw: &str) -> core::option::Option<alloc::string::String>

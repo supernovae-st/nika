@@ -1,0 +1,17 @@
+{
+ "base": "p01-base",
+ "expected": null,
+ "fault": "no expected identity is supplied",
+ "files": {},
+ "forms": [
+  "memory",
+  "disk"
+ ],
+ "name": "n-trust-absent",
+ "removed": [],
+ "requirement": "\u00a72 A1",
+ "verdict": {
+  "admit": false,
+  "code": "ADMISSION_UNTRUSTED"
+ }
+}

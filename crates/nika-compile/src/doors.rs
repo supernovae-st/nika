@@ -131,7 +131,9 @@ pub fn record_ledger(out: &mut CompileOutcome, ledger: &super::ledger::Ledger) {
 /// with zero reading, zero seat calls and zero provider calls. The record's own `strategy`
 /// word is kept as the outcome's strategy; the route says `replayed plan`. A record that
 /// does not parse, is not anchored in this intent or still carries unknown work is a
-/// finding on `recorded_plan`, never a candidate.
+/// finding on `recorded_plan`, never a candidate. A native record's candidate stays pending on
+/// its whole request (no law reads the seat's program): its READY takes a judgment made in the
+/// round ([`replay_judged`]).
 ///
 /// # Errors
 /// Returns representation failures while replaying an admitted record through assembly.
@@ -148,8 +150,9 @@ pub fn replay(
 /// clause only under the binding the core recomputes from the request, the recorded plan and
 /// the bytes it emits, so a judgment of another clause, request or candidate settles nothing.
 /// A judged field the record carries is never read. With `whole`, the whole request waits for
-/// its own judgment too (the first candidate of a model's plan). Every gate of [`replay`]
-/// (anchoring, binding, unknown work, unfed plan) runs before, unchanged.
+/// its own judgment too (the first candidate of a model's plan); a native record's whole
+/// request always does (`native_replay`). Every gate of [`replay`] (anchoring, binding,
+/// unknown work, unfed plan) runs before, unchanged.
 ///
 /// # Errors
 /// Returns representation failures while replaying an admitted record through assembly.
@@ -167,7 +170,7 @@ pub fn replay_judged(
         return Ok(());
     }
     if record.get("strategy").and_then(Value::as_str) == Some(Strategy::Native.word()) {
-        native_replay(intent, record, request, out);
+        native_replay(intent, record, request, judgments, out);
         return Ok(());
     }
     record_route(out, &["replayed plan".to_owned()]);
@@ -434,11 +437,14 @@ fn two_triggers(record: &Value, request: &CompileRequest, out: &mut CompileOutco
     }
 }
 
-/// Replay a native record: the same candidate with this round's answers, zero calls.
+/// Replay a native record: the same candidate with this round's answers, zero calls. The seat
+/// wrote its program, so the whole request stays pending on the bytes this round finishes until a
+/// judgment made in this compile settles it ([`native_pending`], R4 A11 step 2).
 pub(crate) fn native_replay(
     intent: &str,
     record: &Value,
     request: &CompileRequest,
+    judgments: &[super::ledger::Judgment],
     out: &mut CompileOutcome,
 ) {
     record_route(out, &["replayed native candidate".to_owned()]);
@@ -454,6 +460,61 @@ pub(crate) fn native_replay(
     out.provenance.strategy = Some(Strategy::Native);
     out.provenance.plan = Some(record.clone());
     native_apply(record, request, out);
+    native_pending(intent, request, judgments, out);
+}
+
+/// The whole request a replayed native candidate carries (R4 A11, step 2): no law reads the
+/// seat's program, so the request stays pending on the bytes this round finishes, as a model's
+/// first candidate does (the whole-request duty). A judgment settles it only when made in this
+/// compile, `Carried` over the whole request at its whole span, under the binding recomputed here:
+/// the reader's plan of the request with its stated rules promoted (the plan the verifier binds a
+/// native candidate to, never a record's) and these very bytes. Otherwise nothing is READY: the
+/// candidate stays the preview and the finding names the judge a round can permit. Only a READY
+/// finish is held: an outcome the laws already keep from READY (a question open, a check
+/// refusal) is returned as it is, its own findings saying why, and no judge is asked of it, as
+/// the authoring door judges only a READY conclusion.
+fn native_pending(
+    intent: &str,
+    request: &CompileRequest,
+    judgments: &[super::ledger::Judgment],
+    out: &mut CompileOutcome,
+) {
+    let ready = out.status == super::CompileStatus::Ready;
+    let Some(candidate) = out.candidate.as_deref().filter(|_| ready) else {
+        return;
+    };
+    let mut stated = lexicon::read(intent).plan;
+    super::shape::promote_stated_rules(&mut stated, intent);
+    let bound = super::ledger::Binding::of(intent, request, &stated, candidate);
+    let whole = (0, intent.len());
+    let judged = judgments.iter().any(|j| {
+        j.binding == bound
+            && j.clause == intent
+            && j.span == whole
+            && j.disposition == super::ledger::Disposition::Carried
+    });
+    let open = if judged {
+        json!([])
+    } else {
+        json!([{"clause": intent, "witness": null, "spans": [[whole.0, whole.1]]}])
+    };
+    let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
+    decision["pending"] =
+        json!({"candidate_sha256": bound.candidate, "plan_sha256": bound.plan, "open": open});
+    out.provenance.decision = Some(decision);
+    if judged {
+        return;
+    }
+    super::finding(
+        out,
+        DiagnosticKind::Unknown,
+        "semantic_verification",
+        format!(
+            "The seat wrote candidate {} itself: no law reads its programs, and no judgment made in this compile settles the whole request against it. Nothing is READY on a native candidate its round has not judged: a bounded judge permitted in this answer round (the authoring model or a decision seat) judges it against the whole request, or it stays INCOMPLETE.",
+            &bound.candidate[..12]
+        ),
+    );
+    out.status = super::CompileStatus::Incomplete;
 }
 
 /// Bake the answers into the recorded source and finish it: every unanswered question stays

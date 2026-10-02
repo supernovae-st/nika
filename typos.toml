@@ -32,7 +32,7 @@ extend-ignore-identifiers-re = [
 # `"wdth"` (quoted, beside `"wght"`) in its font build, and the per-plane
 # thresholds `1thr=`/`2thr=`/`3thr=` of ffmpeg's deband filter in its encode.
 # Only those shapes are ignored; the same letters elsewhere stay checked.
-extend-ignore-re = ["« [^»]* »", "\"highlihgts\"", "\"chek\"", "view: recods", "classe le problème", "datos del cliente", "\"columnas\"", "\"limite\"", "\"limite \"", "pas de seconde action", "größer als", "o / oder", "\"falso\"", "`falso`", "Copie entree", "Copie\\ \\./data/input\\.csv\\ vers\\ \\./out/copy\\.csv\\.\\ Le\\ budget\\ est\\ de\\ 2\\ dollars\\.", "la copie", "copie-2\\.md", "copie\\.csv", "pas maintenant", "\"quantite\"", "colonne quantite", "\"remplace\"", "remplace explicitement", "salaire_confidentiel", "aout\\.csv", "\"wdth\"", "[123]thr="]
+extend-ignore-re = ["« [^»]* »", "\"highlihgts\"", "\"chek\"", "view: recods", "classe le problème", "datos del cliente", "\"columnas\"", "\"limite\"", "\"limite \"", "pas de seconde action", "größer als", "o / oder", "\"falso\"", "`falso`", "Copie entree", "Copie\\ \\./data/input\\.csv\\ vers\\ \\./out/copy\\.csv\\.\\ Le\\ budget\\ est\\ de\\ 2\\ dollars\\.", "la copie", "copie-2\\.md", "copie\\.csv", "pas maintenant", "\"quantite\"", "colonne quantite", "\"remplace\"", "remplace explicitement", "salaire_confidentiel", "aout\\.csv", "\"wdth\"", "[123]thr=", "\\\\u\\{7f\\}ect", "\"thre\""]
 
 [default.extend-words]
 # Speaches is a real project (speaches.ai · OpenAI-compat speech server), not a typo of "Speeches".
@@ -189,6 +189,9 @@ extend-exclude = [
   # The laws a candidate is judged by ascended from the reader with their multilingual
   # fixtures on 2026-09-24 (ADR-141); the same exclusion follows them.
   "crates/nika-compile-fidelity/",
+  # The trigger reading ascended from the compiler with the six-language tables the reader never
+  # read on 2026-09-30 (ADR-142); the same exclusion follows them.
+  "crates/nika-compile-trigger/",
   # cargo public-api baselines — generated symbol dumps, not prose. Real
   # source typos are still caught in the .rs files they derive from.
   "**/public-api.txt",

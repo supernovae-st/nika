@@ -439,7 +439,11 @@ secrets:
 address) and as SPECIFIC as every other rule: it clears the `outputs:`
 report for taints originating from THIS secret and nothing else — it
 never authorizes a send, and a `nika:fetch` clearance never authorizes
-the boundary. Absent the rule, the report stands (default-deny).
+the boundary. Absent the rule, the report stands (default-deny). It
+declassifies what is DERIVED from the secret (a response), never the
+secret's own value: the engine masks that value on every surface it
+writes, the outputs export included, so an `outputs:` entry that reads
+`${{ secrets.<name> }}` itself stays `NIKA-SEC-007` whatever the rule.
 
 The general untrusted→decision integrity lattice lands surface by surface:
 the permit-parameterization taint (untrusted values under a present

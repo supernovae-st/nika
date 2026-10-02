@@ -761,4 +761,67 @@ mod tests {
         let nested = format!("{}vars.count > 0{}", "(".repeat(40), ")".repeat(40));
         assert!(b(&nested), "40-deep grouping is within the cap");
     }
+
+    #[test]
+    fn a_tree_at_exactly_the_eval_depth_cap_still_computes() {
+        let mut node = Node::Lit(Value::Bool(true));
+        for _ in 0..super::MAX_EVAL_DEPTH {
+            node = Node::Or(Box::new(node), Box::new(Node::Lit(Value::Bool(false))));
+        }
+        let expr = crate::ast::Expr::new(node);
+        assert_eq!(
+            compute(&expr, &ns()).unwrap(),
+            json!(true),
+            "the deepest node sits AT the cap · still inside the bound"
+        );
+    }
+
+    fn ord(op: RelOp, lhs: &Value, rhs: &Value) -> Result<Value, CelError> {
+        let node = Node::Rel {
+            op,
+            lhs: Box::new(Node::Lit(lhs.clone())),
+            rhs: Box::new(Node::Lit(rhs.clone())),
+            span: (0, 0),
+        };
+        compute(&crate::ast::Expr::new(node), &ns())
+    }
+
+    #[test]
+    fn ordering_is_a_full_truth_table_over_the_four_relops() {
+        for (lhs, rhs, lt, le, gt, ge) in [
+            (json!(3), json!(3), false, true, false, true),
+            (json!(3), json!(4), true, true, false, false),
+            (json!(3), json!(2), false, false, true, true),
+            (json!("yes"), json!("yes"), false, true, false, true),
+            (json!("yes"), json!("z"), true, true, false, false),
+            (json!("yes"), json!("a"), false, false, true, true),
+        ] {
+            for (op, want) in [
+                (RelOp::Lt, lt),
+                (RelOp::Le, le),
+                (RelOp::Gt, gt),
+                (RelOp::Ge, ge),
+            ] {
+                assert_eq!(
+                    ord(op, &lhs, &rhs).unwrap(),
+                    json!(want),
+                    "{lhs} {op:?} {rhs}"
+                );
+            }
+        }
+        for op in [RelOp::Lt, RelOp::Le, RelOp::Gt, RelOp::Ge] {
+            let err = ord(op, &json!(3), &json!("x")).unwrap_err();
+            assert_eq!(err.spec_code(), "NIKA-VAR-006", "{op:?} is strongly typed");
+        }
+        for (src, want) in [
+            ("3<=3", true),
+            ("3>=3", true),
+            ("2<=3", true),
+            ("3>=2", true),
+            ("3<=2", false),
+            ("2>=3", false),
+        ] {
+            assert_eq!(b(src), want, "`{src}` is {want}");
+        }
+    }
 }

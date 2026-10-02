@@ -14,11 +14,14 @@
 //! 1. the named path is re-enforced at open time · the same coded
 //!    `NIKA-SEC-004` judgment as the guard, so the window shrinks to the
 //!    stretch between that judgment and the syscall;
-//! 2. the open carries `O_NOFOLLOW` · the KERNEL refuses a symlinked
-//!    final component (`ELOOP`) inside the open syscall itself,
-//!    atomically · no check-then-act, no window;
-//! 3. on `ELOOP` the path is canonicalized and the RESOLVED TARGET is
-//!    re-judged, then opened with `O_NOFOLLOW` again · a pre-existing
+//! 2. the open is the BACKEND's own pin ([`FsReadDyn::read_pinned`]) · the
+//!    host backend opens the final component `O_NOFOLLOW` (the kernel
+//!    refuses a symlinked name inside the open syscall itself, atomically),
+//!    a rooted room refuses a symlink at any component, and a backend with
+//!    no pin answers its typed `PinUnavailable` · no host path of the same
+//!    name is ever opened behind the backend;
+//! 3. on `SymlinkRefused` the path is canonicalized and the RESOLVED TARGET
+//!    is re-judged, then read through the pin again · a pre-existing
 //!    INSIDE-pointing symlink admitted under a glob grant is still served
 //!    (the no-regression rule), a swapped one refuses coded. The loop is
 //!    hard-bounded ([`MAX_HOPS`]): a symlink storm refuses instead of
@@ -29,11 +32,8 @@
 //! follows it) · the executed write is always the judged path's own inode
 //! exchange, and nothing the destination NAME pointed to is ever opened.
 //!
-//! Declared gaps. The pin compiles on the tier-1 unixes (macOS · Linux ·
-//! the `O_NOFOLLOW` value is OS-owned and stated per-OS below · this
-//! workspace holds no `libc` edge to re-export it from); every other
-//! target degenerates to enforce + plain read, the window honestly open
-//! there. And `O_NOFOLLOW` pins the FINAL component only · a swapped
+//! Declared gaps. What a pin covers is the backend's statement: the host
+//! backend's `O_NOFOLLOW` pins the FINAL component only · a swapped
 //! ANCESTOR directory mid-path is still followed by the kernel; that
 //! residual belongs to the exec arm's `--bind-fd` mount follow-on class.
 
@@ -45,38 +45,9 @@ use nika_kernel::io::fs::{FileMetadata, FsError, FsListDyn, FsMetaDyn, FsReadDyn
 use crate::BuiltinFailure;
 use crate::permits::{FsAccess, FsBoundary, SEC_DENIED};
 
-/// The hard bound on the `ELOOP` re-open loop · a path that keeps
-/// resolving to a symlink past this many hops is a storm: refuse, never
-/// hang.
-#[cfg(any(target_os = "macos", target_os = "linux"))]
+/// The hard bound on the re-judge loop · a path that keeps resolving to a
+/// symlink past this many hops is a storm: refuse, never hang.
 const MAX_HOPS: u8 = 8;
-
-/// `O_NOFOLLOW` for the tier-1 unixes · the value is OS-owned (XNU
-/// `bsd/sys/fcntl.h` · Linux `asm-generic/fcntl.h`), stated per-OS
-/// because this workspace holds no `libc` edge to re-export it from.
-#[cfg(target_os = "macos")]
-const O_NOFOLLOW: i32 = 0x0100;
-/// Linux `asm-generic/fcntl.h` · `00400000` octal.
-#[cfg(target_os = "linux")]
-const O_NOFOLLOW: i32 = 0o400_000;
-
-/// `ELOOP` for the tier-1 unixes (XNU `sys/errno.h` 62 · Linux
-/// `asm-generic/errno.h` 40) · matched raw because
-/// `ErrorKind::FilesystemLoop` is still unstable (`io_error_more`) on the
-/// pinned 1.91 toolchain.
-#[cfg(target_os = "macos")]
-const ELOOP: i32 = 62;
-/// Linux `ELOOP`.
-#[cfg(target_os = "linux")]
-const ELOOP: i32 = 40;
-
-/// Whether an `open(2)` failure is the kernel's `ELOOP` · the atomic
-/// refusal of a symlinked final component under `O_NOFOLLOW` (and of a
-/// symlink loop on a following open).
-#[cfg(any(target_os = "macos", target_os = "linux"))]
-fn is_eloop(e: &std::io::Error) -> bool {
-    e.raw_os_error() == Some(ELOOP)
-}
 
 /// The judged fs view one guarded op runs against: `inner` does the I/O,
 /// `boundary` owns the judgment (always `permits.fs.read` · the pin guards
@@ -120,9 +91,8 @@ impl<F: FsReadDyn> JudgedFs<'_, F> {
         })
     }
 
-    /// The pinned read (the tier-1 unixes): re-judge at open time, then
-    /// the `O_NOFOLLOW` open with the bounded resolve-and-re-judge loop.
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    /// The pinned read: re-judge at open time, then the backend's own pin
+    /// with the bounded resolve-and-re-judge loop.
     async fn read_pinned(&self, path: &Path) -> Result<Bytes, PinError> {
         // 1 · the at-open re-judgment · the same helper, the same coded
         // refusal as the dispatch guard — UNWITNESSED: the guard already
@@ -134,9 +104,9 @@ impl<F: FsReadDyn> JudgedFs<'_, F> {
         let mut current = path.to_path_buf();
         let mut hops = 0u8;
         loop {
-            match open_nofollow_read(&current).await {
-                Ok(bytes) => return Ok(Bytes::from(bytes)),
-                Err(e) if is_eloop(&e) => {
+            match self.inner.read_pinned(&current).await {
+                Ok(bytes) => return Ok(bytes),
+                Err(FsError::SymlinkRefused { .. }) => {
                     if hops == MAX_HOPS {
                         return Err(PinError::Denied(storm_refusal(path)));
                     }
@@ -165,55 +135,16 @@ impl<F: FsReadDyn> JudgedFs<'_, F> {
                         .map_err(PinError::Denied)?;
                     current = resolved;
                 }
-                Err(e) => return Err(PinError::Fs(FsError::from_io(&e, &current))),
+                Err(e) => return Err(PinError::Fs(e)),
             }
         }
     }
-
-    /// The declared gap (no portable nofollow open off the tier-1
-    /// unixes): the boundary is still enforced at open time, then the
-    /// plain read follows · today's behavior, the race window honestly
-    /// open on these targets. Unwitnessed like the tier-1 lane — the
-    /// dispatch guard owns the op's fs frame.
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-    async fn read_pinned(&self, path: &Path) -> Result<Bytes, PinError> {
-        self.boundary
-            .enforce_unwitnessed(self.inner, &path.to_string_lossy(), FsAccess::Read)
-            .await
-            .map_err(PinError::Denied)?;
-        self.inner.read(path).await.map_err(PinError::Fs)
-    }
-}
-
-/// The `O_NOFOLLOW` open + read-whole as ONE blocking unit offloaded like
-/// tokio's own `fs::read` (the same detach-on-drop semantics). The open
-/// is the security syscall: the kernel refuses a symlinked final
-/// component with `ELOOP` atomically · no check-then-act · and once it
-/// succeeds the fd is bound to the inode the judgment named, so the read
-/// phase cannot be redirected either.
-#[cfg(any(target_os = "macos", target_os = "linux"))]
-async fn open_nofollow_read(path: &Path) -> std::io::Result<Vec<u8>> {
-    use std::os::unix::fs::OpenOptionsExt as _;
-
-    let owned = path.to_path_buf();
-    tokio::task::spawn_blocking(move || {
-        let mut file = std::fs::OpenOptions::new() // seam-bypass-ok: the O_NOFOLLOW open(2) IS the security mechanism — the FsDyn seam exposes no nofollow open
-            .read(true)
-            .custom_flags(O_NOFOLLOW)
-            .open(&owned)?;
-        let mut buf = Vec::new();
-        std::io::Read::read_to_end(&mut file, &mut buf)?;
-        Ok(buf)
-    })
-    .await
-    .map_err(std::io::Error::other)?
 }
 
 /// The pin's own coded refusal for the path that cannot be resolved at
 /// open time (a ↔ b loop · an unreadable component): the exec arm's
 /// `fs.path_mismatch` voice (NEP-0009 law 3), the `NIKA-SEC-004` class
 /// exactly as `permits.rs` · fail-closed, the cause carried verbatim.
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn loop_refusal(named: &Path, cause: &FsError) -> BuiltinFailure {
     BuiltinFailure::new(
         SEC_DENIED,
@@ -228,7 +159,6 @@ fn loop_refusal(named: &Path, cause: &FsError) -> BuiltinFailure {
 
 /// The coded refusal for the hop-bound storm: the path kept redirecting
 /// past [`MAX_HOPS`] re-opens.
-#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn storm_refusal(named: &Path) -> BuiltinFailure {
     BuiltinFailure::new(
         SEC_DENIED,
@@ -325,7 +255,8 @@ mod tests {
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    use nika_fs::TokioFs;
+    use bytes::Bytes;
+    use nika_fs::{EffectLedger, OwnedDir, RoomLimits, RootedFs, TokioFs};
     use nika_kernel::io::fs::{FsError, FsReadDyn};
     use nika_kernel_mock::MockFs;
 
@@ -346,11 +277,14 @@ mod tests {
         fn new() -> Self {
             let n = SEQ.fetch_add(1, Ordering::Relaxed);
             let root = std::env::temp_dir().join(format!("nika-judged-{}-{n}", std::process::id()));
-            std::fs::create_dir_all(root.join("allowed")).unwrap();
-            std::fs::create_dir_all(root.join("oob")).unwrap();
-            std::fs::write(root.join("allowed/real.txt"), b"inside-bytes").unwrap();
-            std::fs::write(root.join("oob/secret.txt"), b"secret-bytes").unwrap();
-            Self { root }
+            // Created exclusively and owned from here: only a root this test made is removed.
+            std::fs::create_dir(&root).expect("HARNESS_INVALID: the scratch root is not ours");
+            let scratch = Self { root };
+            std::fs::create_dir_all(scratch.root.join("allowed")).unwrap();
+            std::fs::create_dir_all(scratch.root.join("oob")).unwrap();
+            std::fs::write(scratch.root.join("allowed/real.txt"), b"inside-bytes").unwrap();
+            std::fs::write(scratch.root.join("oob/secret.txt"), b"secret-bytes").unwrap();
+            scratch
         }
 
         /// `<root>/allowed/**` · the declared READ boundary glob.
@@ -372,7 +306,7 @@ mod tests {
     #[tokio::test]
     async fn an_honest_regular_file_read_is_served() {
         // The control: a plain file under the declared boundary reads,
-        // byte-exact, both lanes.
+        // byte-exact, both read forms.
         let s = Scratch::new();
         let fs = TokioFs;
         let boundary = s.boundary();
@@ -386,26 +320,29 @@ mod tests {
         assert_eq!(text, "inside-bytes");
     }
 
-    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    #[cfg(unix)]
     #[tokio::test]
-    async fn the_nofollow_open_never_serves_a_symlink_target() {
-        // THE primitive: an `O_NOFOLLOW` open on a symlinked final
-        // component fails with the LOOP class inside the syscall · the
-        // target's bytes never come back. This is the test that is RED
-        // against the un-pinned (plain following) open.
+    async fn the_backend_pin_never_serves_a_symlink_target() {
+        // THE primitive, now the backend's: the host pin refuses a symlinked
+        // final component typed, inside the open · the target's bytes never
+        // come back.
         let s = Scratch::new();
         let link = s.root.join("allowed/link.txt");
         std::os::unix::fs::symlink(s.root.join("allowed/real.txt"), &link).unwrap();
-        // Control: an honest file opens and reads whole.
-        let honest = open_nofollow_read(&s.root.join("allowed/real.txt"))
+        // Control: an honest file reads whole through the same pin.
+        let honest = TokioFs
+            .read_pinned(&s.root.join("allowed/real.txt"))
             .await
             .unwrap();
-        assert_eq!(honest, b"inside-bytes");
-        // The pin: the loop-class error, never the target's bytes.
-        let err = open_nofollow_read(&link)
+        assert_eq!(&honest[..], b"inside-bytes");
+        let err = TokioFs
+            .read_pinned(&link)
             .await
             .expect_err("a symlinked final component must never be followed");
-        assert!(is_eloop(&err), "the kernel's atomic refusal: {err:?}");
+        assert!(
+            matches!(err, FsError::SymlinkRefused { .. }),
+            "the typed refusal: {err:?}"
+        );
     }
 
     #[cfg(unix)]
@@ -552,5 +489,123 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(text, "mock-bytes");
+    }
+
+    /// A unique disposable directory holding `files`, removed on drop.
+    struct Disposable(PathBuf);
+
+    impl Disposable {
+        fn new(files: &[(&str, &str)]) -> Self {
+            let n = SEQ.fetch_add(1, Ordering::Relaxed);
+            let root = std::env::temp_dir().join(format!("nika-pin-{}-{n}", std::process::id()));
+            // Created exclusively and owned from here: only a root this test made is removed.
+            std::fs::create_dir(&root).expect("HARNESS_INVALID: the disposable root is not ours");
+            let disposable = Self(root);
+            for (rel, body) in files {
+                let path = disposable.0.join(rel);
+                std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+                std::fs::write(path, body).unwrap();
+            }
+            disposable
+        }
+
+        fn join(&self, rel: &str) -> PathBuf {
+            self.0.join(rel)
+        }
+
+        fn room(&self) -> RootedFs {
+            RootedFs::new(
+                OwnedDir::open(&self.0).unwrap(),
+                EffectLedger::new(RoomLimits::new(1 << 20, 64)),
+            )
+        }
+    }
+
+    impl Drop for Disposable {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    /// A virtual backend: no real disk behind its paths, and no pin.
+    struct VirtualFs;
+
+    impl FsReadDyn for VirtualFs {
+        async fn read(&self, _: &Path) -> Result<Bytes, FsError> {
+            Ok(Bytes::from_static(b"virtual-bytes"))
+        }
+
+        async fn read_to_string(&self, _: &Path) -> Result<String, FsError> {
+            Ok("virtual-bytes".to_owned())
+        }
+
+        async fn exists(&self, _: &Path) -> bool {
+            true
+        }
+
+        async fn canonicalize(&self, path: &Path) -> Result<PathBuf, FsError> {
+            Ok(path.to_path_buf())
+        }
+    }
+
+    #[tokio::test]
+    async fn a_backend_without_a_pin_refuses_a_declared_read_typed() {
+        let fs = VirtualFs;
+        let boundary = FsBoundary::declared(vec!["/nika-virtual-room/**".to_owned()], vec![]);
+        let refused = JudgedFs::new(&fs, &boundary)
+            .read(Path::new("/nika-virtual-room/data.txt"))
+            .await;
+        assert!(
+            matches!(refused, Err(FsError::PinUnavailable { .. })),
+            "the judge never opens a host path behind the backend: {refused:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_declared_read_over_the_room_serves_the_room_bytes() {
+        let scratch = Disposable::new(&[("data/sales.csv", "a,1\n")]);
+        let room = scratch.room();
+        let boundary = FsBoundary::declared(vec!["./data/**".to_owned()], vec![]);
+        let bytes = JudgedFs::new(&room, &boundary)
+            .read(Path::new("./data/sales.csv"))
+            .await;
+        assert!(
+            matches!(&bytes, Ok(served) if &served[..] == b"a,1\n"),
+            "{bytes:?}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_symlinked_component_inside_the_room_is_a_coded_refusal() {
+        let scratch = Disposable::new(&[("data/real.txt", "inside")]);
+        let outside = Disposable::new(&[("secret.txt", "secret-bytes")]);
+        std::os::unix::fs::symlink(&outside.0, scratch.join("data/linkdir")).unwrap();
+        let room = scratch.room();
+        let boundary = FsBoundary::declared(vec!["./data/**".to_owned()], vec![]);
+        let refused = JudgedFs::new(&room, &boundary)
+            .read(Path::new("./data/linkdir/secret.txt"))
+            .await;
+        let text = format!("{refused:?}");
+        assert!(refused.is_err() && text.contains(SEC_DENIED), "{text}");
+        assert!(!text.contains("secret-bytes"), "{text}");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn the_host_pin_still_follows_an_inside_ancestor_symlink_as_stated() {
+        let scratch = Disposable::new(&[("allowed/real/a.txt", "through-the-ancestor")]);
+        std::os::unix::fs::symlink(
+            scratch.join("allowed/real"),
+            scratch.join("allowed/linkdir"),
+        )
+        .unwrap();
+        let boundary =
+            FsBoundary::declared(vec![format!("{}/allowed/**", scratch.0.display())], vec![]);
+        let bytes = JudgedFs::new(&TokioFs, &boundary)
+            .read(&scratch.join("allowed/linkdir/a.txt"))
+            .await
+            .unwrap();
+        assert_eq!(&bytes[..], b"through-the-ancestor");
     }
 }

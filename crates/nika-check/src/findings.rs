@@ -163,12 +163,21 @@ fn push_secret_rows(out: &mut Vec<UnifiedFinding>, report: &CheckReport) {
         out.push(f);
     }
     for e in &report.secret_egresses {
+        // E39 N7: no egress rule exports a secret's own value (its trace says why).
+        let or_declassify = if crate::flow::is_own_value(&e.trace) {
+            String::new()
+        } else {
+            format!(
+                "; if exporting this secret is intended, add `{{ to: \"outputs\" }}` to `secrets.{}.egress` (keep existing rules)",
+                e.secret
+            )
+        };
         let mut f = UnifiedFinding::new(
             "secret_egress",
             "SECRETS",
             format!(
-                "EGRESS via outputs.{} — {} · fix: remove `outputs.{}`; if exporting this secret is intended, add `{{ to: \"outputs\" }}` to `secrets.{}.egress` (keep existing rules)",
-                e.output, e.trace, e.output, e.secret
+                "EGRESS via outputs.{} — {} · fix: remove `outputs.{}`{or_declassify}",
+                e.output, e.trace, e.output
             ),
         );
         // NIKA-SEC-007 — a tainted value reaches the workflow boundary.

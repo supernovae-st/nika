@@ -45,7 +45,8 @@ If you are unsure whether something is in scope, open an issue first.
 
 ### Prerequisites
 
-- Rust stable (`rust-toolchain.toml` pins the edition).
+- Rust 1.91 (`rust-toolchain.toml` pins the toolchain; the 2024 edition
+  comes from `Cargo.toml`).
 - macOS, Linux, or Windows (WSL). Primary dev on macOS.
 
 ### Core commands
@@ -84,8 +85,10 @@ cargo doc --workspace --no-deps
 
 ## The 12-gate crate admission model
 
-No crate enters `Cargo.toml` `members = [...]` without all 12 gates passing
-in the same PR. No "we'll fix gate X later."
+A crate may join `Cargo.toml` `members = [...]` as WIP, listed in
+`[workspace.metadata.diamond] wip`, before it is admitted. No crate leaves
+that list without all 12 gates passing in the same PR. No "we'll fix gate X
+later."
 
 | # | Gate           | What it checks                                                       |
 |---|----------------|----------------------------------------------------------------------|
@@ -116,7 +119,9 @@ Before modifying any crate, know these:
 - **L1** effect crates: one trait impl each (clock, fs, http, blob, process, ...).
 - **L2** domain crates: `verb-*`, service crates, memory stubs.
 - **L3** orchestration: runtime + daemon.
-- **L4** interfaces: cli, lsp, serve, sdk, init, lints.
+- **L4** interfaces: cli, cli-host, session, tui, tui-core, lsp, mcp, dap,
+  serve, arm, trace, onboard, compile*, models (full list:
+  `docs/architecture/crate-layer-registry.md`).
 - **L5** binary: `nika` (≤ 500 LOC composition root · the `nika` bin target is already born in L4's `nika-cli`; L5 will own it, never rename it · ADR-135).
 
 Strict **downward** dependencies only. No upward imports.
@@ -202,7 +207,7 @@ lanes keep flowing.
 - **Bug**: GitHub Issues, include minimal repro and `nika --version`.
 - **Feature request** (engine behavior): GitHub Issues, describe the use case before the solution.
 - **Language change** (anything normative: syntax, verbs, permits, envelope): the spec's [NEP door](https://github.com/supernovae-st/nika-spec/blob/main/governance/nep-0000-the-nep-process.md) — nobody amends the standard directly, maintainers included. Engine issues cannot change the language.
-- **Security vulnerability**: see [`SECURITY.md`](SECURITY.md). Email `nika@supernovae.studio`, **not** a public issue.
+- **Security vulnerability**: see [`SECURITY.md`](SECURITY.md). Email `security@supernovae.studio`, **not** a public issue.
 
 ---
 

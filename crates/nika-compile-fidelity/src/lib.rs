@@ -16,6 +16,8 @@
 //! - [`sketch`] · the constrained intermediate a seat proposes (tasks, edges, gates, stated
 //!   paths and hosts), its structural laws, its typed holes and the document it states.
 //! - [`candidate`] · the plan a candidate document states, and a revision's delta.
+//! - [`behavior`] · the behavioural contract a request states, independent of any candidate,
+//!   and its typed judgment over what a round of rehearsals consumed and wrote.
 
 #![cfg_attr(
     test,
@@ -29,6 +31,7 @@
     )
 )]
 
+pub mod behavior;
 pub mod candidate;
 pub mod fidelity;
 pub mod predicate;

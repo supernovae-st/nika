@@ -26,6 +26,9 @@
 //! (an older journal) rather than zero; the cause is what the runtime knew
 //! at the boundary, never a reader's inference.
 
+mod publication;
+pub use publication::TerminalDiagnostic;
+
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
 

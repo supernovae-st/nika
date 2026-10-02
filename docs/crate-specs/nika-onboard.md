@@ -41,16 +41,63 @@ keeps the hand · the proof inside the first minute):
 
 ## Shared authoring knowledge door
 
-`compile_config::AuthoringConfig::with_knowledge` applies the selected pack or
-snapshot to a request. Revision intent takes precedence over the caller's
-clarified fallback; snapshot exclusions and byte verification stay with the
-knowledge owner. CLI forwards to this shared door.
+`compile_config::resolve` types the knowledge choice every door shares
+(`KnowledgeChoice`): the first settings layer that says anything decides (a
+door's own explicit values, else the environment's). A named source is `Named`;
+`--no-knowledge` or the exact environment word `NIKA_KNOWLEDGE=off` is `Disabled`
+with the layer that said it. With nothing named, `Default` selects
+`KnowledgeSource::Embedded`: the release in this binary, admitted in memory
+against an identity fixed by the build and pinned when a Session opens. Under
+strategy `off`, nothing named is `Unread` and attaches no knowledge. Naming a
+source under that strategy is refused (`ConfigError::KnowledgeUnread`). Off
+beside a source on one layer is refused (`ConfigError::ContradictoryKnowledge`);
+an explicit path named `off` stays a directory.
 
-`knowledge` owns the read-only Foundry snapshot/pack reader and bounded BM25/graph
-composition shared by CLI, Session and Serve. It is separate from the pure
-in-memory Compile core: this adapter reads the explicitly selected snapshot and
-its pinned files, never credentials or provider endpoints. Selection, exclusion
-reasons, presented references and byte identities remain observable.
+`AuthoringConfig::with_knowledge` composes an admitted release for the request's
+intent; a revision takes precedence over the caller's clarified fallback. An
+empty intent composes nothing. A pack composed elsewhere is refused before it
+is read (`KnowledgeError::PackNotAdmitted`); disabled or unread knowledge
+attaches nothing. CLI, Session and Serve cross this one door. A named release
+requires the identity its host independently trusts (`TrustedIdentity`, supplied
+with `AuthoringSettings::with_knowledge_release` from the host's release record,
+never from the payload). Flags and the environment carry no identity, so a root
+they name is refused (`ADMISSION_UNTRUSTED`). A named source that lacks trust or
+fails admission never falls back to the embedded release. An invalid embedded
+release also refuses with its typed cause; it is not treated as absent.
+
+`knowledge` owns the strict admission of a Foundry knowledge release
+(`nika-knowledge-release/2`, profile `nika-knowledge-release-profile/r1`: the
+shared contract for producer and consumer, with common pinned vectors under
+`tests/knowledge-r1`) and the bounded BM25/graph composition shared by CLI,
+Session and Serve. `Snapshot::open(dir, identity)` on disk and
+`Snapshot::from_files(label, files, identity)` in memory are the only doors.
+Without a trusted identity nothing is collected. The disk form holds the root
+and its three layout directories by descriptor (rustix). The root's final
+component and every entry beneath it are inspected and opened without following
+a link, a file without blocking either, then re-checked and read once; the
+root's ancestors are outside this check. It is Unix only, refused elsewhere, in
+a closed layout, bounded before any read; the memory form judges the same paths
+and bounds before any hash. The manifest's exact bytes must be the trusted
+`SNAPSHOT_SHA256` and name its profile and policy; then the manifest is closed,
+its inventory exact and pinned, every row a canonical line (no number) of its
+kind's closed and typed schema pinned to the target, its evidence bound, its
+lineage typed to retained sources, its relations closed, its licence texts and
+notices present; any failure is one typed `RefusalCode` (the 38 the producer
+shares) and no knowledge (`KnowledgeError::Unavailable`). A pack presents the
+admitted bytes, never a second read. The profile admits no example,
+counterexample or skill; only a block claims `CHECKED`, with a check receipt
+bound to the verifier that checked its bytes; every other kind carries `NONE`.
+The non-default `test-support` feature exposes a synthetic release (and the
+identity its test embedder trusts) for other doors' tests.
+Selection, exclusion reasons, presented references and byte identities remain
+observable. The embedded release contains three patterns and their realizing
+blocks. Lexical recall selects matching patterns, then follows their relations
+to present the blocks; an intent with no matching words receives no references.
+The release contains no examples or repair principles. Records name composed
+references; `presented` and the call instruction digests identify presentation
+to the model.
+Deterministic compilation does not present knowledge to a model. Admission and
+presentation alone do not establish useful generation or better results.
 `nika-cli-host::compile::knowledge` re-exports the same types and functions for
 existing callers. The existing L4 edge remains acyclic; no new crate or compiler
 is introduced. `nika-event` supplies the existing shared SHA-256 byte identity.
@@ -106,6 +153,17 @@ attention), from the facts a host hands it. It never folds the five into one bad
 pure: no crate, no I/O. It moved here from `nika-session` on 2026-09-29 (the `meaning`
 precedent · D8 headroom); `nika_session::lifecycle` re-exports it unchanged. Its tests live
 beside it (`src/lifecycle.rs`).
+
+## The session's activity and the model's identity core (read by Session)
+
+`activity` types what a Session turn is doing now and what just finished (understanding ·
+knowledge · authoring · checking · repairing), from the machine's own truth, never a
+percentage or a phase read back from prose. `identity` holds `IDENTITY_CORE`, the laws the
+model reasons under, and `language_digest()`, the few stable facts of the language; the
+digest's version is this crate's, which tracks the workspace as `nika-session`'s does. Both are
+pure: no crate, no I/O. They moved here from `nika-session` on 2026-09-30 (the `meaning`
+precedent · U3 headroom); `nika_session::{activity, identity}` re-exports them unchanged.
+Their tests live beside them (`src/activity.rs`, `src/identity.rs`).
 
 ## The conversational reading of an outcome (read by Session)
 
@@ -176,9 +234,9 @@ recovers by a zero-call replay (C10).
 
 ## The knowledge pin and its records (read by Session)
 
-`knowledge::pin` owns the identity a session pins for its knowledge snapshot
-(`KnowledgePin`: the declared version and digest, the sha256 of the manifest
-bytes and of the rows as read, opened and compared through the snapshot door
+`knowledge::pin` owns the identity a session pins for its knowledge release
+(`KnowledgePin`: the declared version, the sha256 of the manifest bytes — the
+release's `SNAPSHOT_SHA256` — and of the rows, admitted through the strict door
 beside it) and the pure records a session stamps on a compile outcome: what it
 observed (`observed_in`: paths, states, kinds and column counts, never the
 names, and `world_sha256`, the identity of the whole observation attached), composed (`composed_record`: the pinned identity, the pack digest, each
@@ -188,6 +246,22 @@ and the stamp beside the compiler's own record (`stamp`). It descended from
 `nika-session` on 2026-09-28 (C7 · D1); `nika_session::authoring::KnowledgePin`
 re-exports the same type. Nothing here reads the environment, calls a model or
 decides a policy: the session keeps its seat, its strategy and its consent.
+A pin carries the identity its release was admitted against: `KnowledgePin::of_config`
+pins the configured disk or embedded release. `KnowledgePin::reopen` admits it again
+against that identity through the disk or memory door (Session and Serve alike).
+
+For pre-1.0 callers, `KnowledgePin::dir` is replaced by `origin`:
+`knowledge::pin::KnowledgeOrigin::Disk(PathBuf)` or `Embedded`. Match the origin
+before using a filesystem path; an embedded pin has none.
+`KnowledgePin::embedded(exclude_corpus)` admits and pins the build's release.
+Pin records now carry `source: "disk"` or `source: "embedded"`, with `dir` only
+for disk. Where code matched `KnowledgeChoice::NoDefault`, handle `Default`
+and `Unread`; use the chosen variant's `words()` instead of `NO_DEFAULT`.
+Internal exhaustive matches on `KnowledgeSource` must also handle
+`Embedded { exclude_corpus }`. Default Session contexts now include the pin in
+their derived identity; do not reuse an identity derived from the old unpinned
+context.
+
 `KnowledgePin::moved` names both identities in words when the snapshot read
 now is no longer the one pinned (C10 · D-K); the session refuses it.
 `stamp_seat` places the decision seat's receipt beside the compiler's own record

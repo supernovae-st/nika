@@ -704,4 +704,44 @@ mod tests {
             "in-tree grants are untouched"
         );
     }
+
+    #[test]
+    fn a_star_needs_room_for_both_of_its_fixed_halves() {
+        assert!(glob_admits("*.csv", "data.csv"));
+        assert!(
+            !glob_admits("x*x", "x"),
+            "one `x` cannot serve as both halves"
+        );
+        assert!(!glob_admits("*.csv", "notes.md"), "the suffix decides too");
+        assert!(
+            !glob_admits("report*.csv", "notes.csv"),
+            "and so does the prefix"
+        );
+    }
+
+    #[test]
+    fn a_middle_double_star_spans_depth_without_eating_its_suffix() {
+        assert!(glob_admits("data/**/*.csv", "data/a/b.csv"));
+        assert!(
+            !glob_admits("data/**/*.csv", "data/a/b.md"),
+            "the suffix after `**` still decides"
+        );
+        assert!(glob_admits("**/**/notes.md", "a/b/notes.md"));
+    }
+
+    #[test]
+    fn empty_and_dot_segments_are_spelling_not_structure() {
+        assert!(glob_admits("data/**", "./data/x"));
+        assert!(glob_admits("./data/**", "data/x"));
+        assert!(glob_admits("a/b", "a//b"));
+    }
+
+    #[test]
+    fn a_declared_escape_grant_admits_its_own_subtree() {
+        assert!(bound_subtree_admits("../shared/**", "../shared/x.txt"));
+        assert!(
+            !bound_subtree_admits("data/**", "../shared/x.txt"),
+            "an in-tree grant never admits an escape"
+        );
+    }
 }

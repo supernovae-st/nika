@@ -338,8 +338,8 @@ pub enum AfterSkip {
 pub enum Cadence {
     /// `on-webhook` — event beats share this registry (§5, q5).
     Webhook,
-    /// A 5-field cron over an explicit IANA zone — the only scheduled
-    /// form this grammar accepts (the zone is IN the expression).
+    /// A 5-field cron over an explicit IANA zone (the zone is IN the
+    /// expression). The readable `lundi 9h07` parses to this form too.
     Cron {
         /// The IANA zone name (`Europe/Paris`), resolved against the
         /// EMBEDDED tzdb at computation time — never the host's.
@@ -347,4 +347,29 @@ pub enum Cadence {
         /// The five parsed fields.
         spec: CronSpec,
     },
+    /// `every N weeks from DATE HH:MM` over an explicit IANA zone — the
+    /// anchored interval no cron can say. The slots are the anchor plus a
+    /// whole number of `weeks`-week periods in CIVIL time (09:00 stays
+    /// 09:00 across a change, each slot resolved by N1), never before the
+    /// anchor: the anchor carries the parity, so it is never guessed.
+    Every {
+        /// The IANA zone name, as for [`Cadence::Cron`].
+        tz: String,
+        /// The first slot, in the zone's civil time.
+        anchor: jiff::civil::DateTime,
+        /// The period in weeks, `1..=52`.
+        weeks: u8,
+    },
+}
+
+impl Cadence {
+    /// The IANA zone a clock cadence rides — `None` for a webhook, which
+    /// has no calendar.
+    #[must_use]
+    pub fn tz(&self) -> Option<&str> {
+        match self {
+            Self::Webhook => None,
+            Self::Cron { tz, .. } | Self::Every { tz, .. } => Some(tz),
+        }
+    }
 }

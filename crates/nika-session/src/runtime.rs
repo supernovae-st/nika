@@ -46,6 +46,7 @@ use nika_onboard::compile::money as money_parse;
 mod protocol;
 mod question;
 mod recovery;
+mod rehearsed;
 mod restore;
 mod round;
 mod route;
@@ -232,6 +233,8 @@ pub struct SessionRuntime {
     pending: Option<ProjectChangeSet>,
     /// The source basis the compiler recorded for the pending proposal, judged at its yes (F4).
     basis: Option<fresh::ProposalBasis>,
+    /// A rehearsed copy's proofs, and what this turn's rehearsals spent (`rehearsed.rs`).
+    rehearsals: rehearsed::Rehearsals,
     /// The proposal pending when an earlier session closed: evidence, never authority.
     restored_draft: Option<draft::Restored>,
     /// The authoring round kept when an earlier session closed: evidence, never authority.
@@ -336,6 +339,7 @@ impl SessionRuntime {
             factory: None,
             pending: None,
             basis: None,
+            rehearsals: rehearsed::Rehearsals::default(),
             restored_draft: None,
             restored_round: None,
             money: money_gate::MoneyState::default(),
@@ -792,6 +796,7 @@ impl SessionRuntime {
         // and nothing else (the door routes that line to `consent`).
         self.pending = None;
         self.money.pending = None;
+        self.rehearsals.new_turn();
         match input {
             "/quit" | "/exit" => return TurnOutcome::Quit,
             "/intelligence" => {

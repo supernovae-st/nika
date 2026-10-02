@@ -1033,7 +1033,8 @@ async fn execute_json_lane(
     let tee = Tee::new(JsonSink::new(std::io::stdout().lock()), trace);
     let mut events = ExecutionSink::new(tee, identity.0);
     let (code, outcome) = drive(runtime, stamper, &mut events, scoped).await;
-    let (mut sink, mut trace) = events.into_inner().into_parts();
+    let (tee, diagnostic) = events.into_publication_parts();
+    let (mut sink, mut trace) = tee.into_parts();
     if let (Some(p), Some(pause)) = (
         trace.path().map(std::path::Path::to_path_buf),
         outcome.paused.as_ref(),
@@ -1084,9 +1085,13 @@ async fn execute_json_lane(
     let lanes = runtime
         .access_plan()
         .map(nika_service_execution::access::lane_rows);
+    let Some(published) = diagnostic.project(&outcome.settlement) else {
+        eprintln!("nika run: terminal diagnostic does not match the completed stream");
+        return RunVerdict::renderer_failed(trace_path, std::io::ErrorKind::InvalidData);
+    };
     if let Err(e) = nika_cli_host::run_settlement::write_local_run_settlement(
         &mut sink,
-        &outcome.settlement,
+        &published,
         &outcome.outputs,
         identity.0,
         identity.1,
@@ -1100,7 +1105,12 @@ async fn execute_json_lane(
     epilogue::print_resume_summary(&outcome, resumed, true);
     RunVerdict {
         code,
-        failure: first_failure(&outcome),
+        failure: first_failure(&outcome).map(|mut error| {
+            if let Some(diagnostic) = &published.error {
+                error.message.clone_from(&diagnostic.message);
+            }
+            error
+        }),
         paused: None,
         trace: trace_path,
     }

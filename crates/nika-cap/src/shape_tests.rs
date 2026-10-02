@@ -520,6 +520,10 @@ fn traverse_shape_is_closed() {
             .contains("`traverse:` must be an object")
     );
     assert!(
+        only("nika:fetch", &json!({"url": "u", "traverse": "yes"}))
+            .contains("`traverse:` must be an object")
+    );
+    assert!(
         only(
             "nika:fetch",
             &json!({"url": "u", "traverse": {"max_pages": 1, "depth": 3}})
@@ -571,6 +575,13 @@ fn traverse_respect_robots_is_a_boolean() {
         only(
             "nika:fetch",
             &json!({"url": "u", "traverse": {"max_pages": 1, "respect_robots": 1}})
+        )
+        .contains("must be a boolean")
+    );
+    assert!(
+        only(
+            "nika:fetch",
+            &json!({"url": "u", "traverse": {"max_pages": 1, "respect_robots": "yes"}})
         )
         .contains("must be a boolean")
     );
@@ -681,6 +692,12 @@ fn multipart_parts_carry_a_closed_shape() {
         post(json!({}))
             .iter()
             .any(|m| m.contains("must be an array of parts"))
+    );
+    assert!(
+        post(json!("yes"))
+            .iter()
+            .any(|m| m.contains("must be an array of parts")),
+        "a literal string is judged; only a template is runtime business"
     );
     assert!(
         post(json!([]))

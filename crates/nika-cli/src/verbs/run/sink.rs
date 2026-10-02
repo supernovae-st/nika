@@ -87,21 +87,32 @@ pub(super) struct FoldHandle<W: Write>(pub(super) SharedFold<W>);
 pub(super) struct ExecutionSink<S> {
     inner: S,
     execution: ExecutionId,
+    diagnostic: nika_event::settlement::TerminalDiagnostic,
 }
 
 impl<S> ExecutionSink<S> {
     pub(super) const fn new(inner: S, execution: ExecutionId) -> Self {
-        Self { inner, execution }
+        Self {
+            inner,
+            execution,
+            diagnostic: nika_event::settlement::TerminalDiagnostic::new(execution),
+        }
     }
 
     pub(super) fn into_inner(self) -> S {
         self.inner
     }
+
+    pub(super) fn into_publication_parts(self) -> (S, nika_event::settlement::TerminalDiagnostic) {
+        (self.inner, self.diagnostic)
+    }
 }
 
 impl<S: EventSink> EventSink for ExecutionSink<S> {
     fn emit(&mut self, event: Event) {
-        self.inner.emit(event.with_execution(self.execution));
+        let event = event.with_execution(self.execution);
+        self.diagnostic.observe(&event);
+        self.inner.emit(event);
     }
 }
 

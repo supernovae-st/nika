@@ -25,10 +25,10 @@ claim that the current candidate passed tests.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| HEAD             | `1f7622ecd` (`1f7622ecd148a2516c9dd458d946f4d464da901c`)             |
+| HEAD             | `45f299812` (`45f299812a6a330813323aa9bb6a26b03e61b6fa`)             |
 | workspace        | v0.121.0                                  |
-| crates (workspace)| 78                                              |
-| crates (admitted)| 68                                             |
+| crates (workspace)| 79                                              |
+| crates (admitted)| 69                                             |
 | crates (WIP)     | 10 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-service-execution nika-serve nika-session nika-tui                                  |
 | L0               | 22                                              |
 | L0.5             | 6                                              |
@@ -36,6 +36,6 @@ claim that the current candidate passed tests.
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 4                                              |
-| L4               | 20                                              |
-| lib tests        | 8732 passed, 0 failed                              |
-| clippy           | 0 warnings                              |
+| L4               | 21                                              |
+| lib tests        | (skipped — pass --no-quick to compute)                              |
+| clippy           | (skipped)                              |

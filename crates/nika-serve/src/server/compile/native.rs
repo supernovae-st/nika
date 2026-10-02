@@ -116,8 +116,8 @@ impl NativeAuthoring {
         self
     }
 
-    /// A Foundry knowledge snapshot directory, pinned when the listener attaches; a corpus
-    /// whose examples are never recalled.
+    /// A Foundry knowledge snapshot directory and a corpus whose examples are never recalled.
+    /// Without a trusted identity the door refuses it when the listener attaches.
     #[must_use]
     pub fn with_knowledge(
         mut self,
@@ -125,6 +125,26 @@ impl NativeAuthoring {
         exclude_corpus: Option<String>,
     ) -> Self {
         self.named = self.named.with_knowledge(dir, exclude_corpus);
+        self
+    }
+
+    /// A release root with the identity the operator's host trusts for it, from its own
+    /// release record: admitted and pinned when the listener attaches.
+    #[must_use]
+    pub fn with_knowledge_release(
+        mut self,
+        dir: impl Into<PathBuf>,
+        identity: knowledge::TrustedIdentity,
+    ) -> Self {
+        self.named = self.named.with_knowledge_release(dir, identity);
+        self
+    }
+
+    /// The knowledge turned off on the operator's layer (`--no-knowledge`): nothing is pinned,
+    /// and the shared parser refuses it beside a named snapshot.
+    #[must_use]
+    pub fn without_knowledge(mut self) -> Self {
+        self.named = self.named.with_knowledge_off();
         self
     }
 
@@ -255,6 +275,9 @@ pub fn seat_native_authoring_with_calls(
     if let Some(dir) = &flags.knowledge {
         seat = seat.with_knowledge(dir, flags.knowledge_exclude.clone());
     }
+    if flags.no_knowledge {
+        seat = seat.without_knowledge();
+    }
     if let Some(word) = config::reasoning_word(flags.reasoning.as_deref()) {
         seat = seat.with_reasoning(word);
     }
@@ -270,18 +293,12 @@ pub(in crate::server) struct Seat {
     pub(super) bounds: Bounds,
     /// The shared configuration: strategy `only`, the snapshot, the reasoning effort.
     pub(super) authoring: config::AuthoringConfig,
-    knowledge: Option<Pin>,
+    knowledge: Option<knowledge::pin::KnowledgePin>,
     /// The seat's resolved key and the operator's further values: never answered.
     withheld: Vec<Secret>,
     pub(in crate::server) replays: Arc<Replays>,
     /// Raised once when the server stops: every round of this seat stops with it.
     halt: tokio::sync::watch::Sender<bool>,
-}
-
-/// The bytes the snapshot the shared configuration names was read with at attach.
-struct Pin {
-    manifest_sha256: String,
-    rows_sha256: String,
 }
 
 /// The pinned snapshot no longer reads as pinned (changed, stale or gone).
@@ -300,7 +317,8 @@ impl Seat {
                 model: config.model.clone(),
                 reason: error.to_string(),
             })?;
-        let knowledge = pin(&authoring)?;
+        let knowledge = knowledge::pin::KnowledgePin::of_config(&authoring)
+            .map_err(|error| NativeAuthoringError::Knowledge(error.to_string()))?;
         let mut withheld = config.withheld.clone();
         withheld.extend(key);
         Ok(Self {
@@ -326,28 +344,19 @@ impl Seat {
         self.halt.subscribe()
     }
 
-    /// The pinned snapshot, opened again: `None` without one; refused unless its manifest and
-    /// row files still read as they did at attach. Every generation-2 round checks it first.
+    /// The pinned snapshot, opened again against its trusted identity: `None` without one;
+    /// refused unless it still reads as at attach. Every generation-2 round checks it first.
     pub(super) fn context(
         &self,
     ) -> Result<Option<(knowledge::Snapshot, Option<&str>)>, ContextChanged> {
-        let (
-            Some(pin),
-            Some(config::KnowledgeSource::Snapshot {
-                dir,
-                exclude_corpus,
-            }),
-        ) = (&self.knowledge, &self.authoring.knowledge)
-        else {
+        let Some(pin) = &self.knowledge else {
             return Ok(None);
         };
-        let snapshot = knowledge::Snapshot::open(dir).map_err(|_| ContextChanged)?;
-        if snapshot.manifest_sha256() != pin.manifest_sha256
-            || snapshot.rows_sha256() != pin.rows_sha256
-        {
+        let snapshot = pin.reopen().map_err(|_| ContextChanged)?;
+        if pin.moved(&snapshot).is_some() {
             return Err(ContextChanged);
         }
-        Ok(Some((snapshot, exclude_corpus.as_deref())))
+        Ok(Some((snapshot, pin.exclude_corpus.as_deref())))
     }
 
     /// Whether a document carries a withheld value, raw or as a JSON string carries it
@@ -430,18 +439,4 @@ fn direct_provider(
         nika_providers::profile::canonical_provider(id).to_owned(),
         resolved.key().cloned(),
     ))
-}
-
-/// Pin the snapshot the shared configuration resolved, if any: its bytes as read when the
-/// listener attaches.
-fn pin(authoring: &config::AuthoringConfig) -> Result<Option<Pin>, NativeAuthoringError> {
-    let Some(config::KnowledgeSource::Snapshot { dir, .. }) = &authoring.knowledge else {
-        return Ok(None);
-    };
-    let snapshot = knowledge::Snapshot::open(dir)
-        .map_err(|error| NativeAuthoringError::Knowledge(error.to_string()))?;
-    Ok(Some(Pin {
-        manifest_sha256: snapshot.manifest_sha256().to_owned(),
-        rows_sha256: snapshot.rows_sha256(),
-    }))
 }

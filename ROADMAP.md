@@ -105,10 +105,10 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| HEAD             | `1f7622ecd` (`1f7622ecd148a2516c9dd458d946f4d464da901c`)             |
+| HEAD             | `45f299812` (`45f299812a6a330813323aa9bb6a26b03e61b6fa`)             |
 | workspace        | v0.121.0                                  |
-| crates (workspace)| 78                                              |
-| crates (admitted)| 68                                             |
+| crates (workspace)| 79                                              |
+| crates (admitted)| 69                                             |
 | crates (WIP)     | 10 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-service-execution nika-serve nika-session nika-tui                                  |
 | L0               | 22                                              |
 | L0.5             | 6                                              |
@@ -116,16 +116,17 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 4                                              |
-| L4               | 20                                              |
-| lib tests        | 8732 passed, 0 failed                              |
-| clippy           | 0 warnings                              |
+| L4               | 21                                              |
+| lib tests        | (skipped — pass --no-quick to compute)                              |
+| clippy           | (skipped)                              |
 
-> **Where we are · 2026-09-20.** Engine **v0.120.3** is published from
-> `578352a3` (Serve `POST /v1/compile` foundation, #1709/#1711) and `main`
-> carries the bounded support composition with explicit provider authoring
-> (#1713, independently reviewed; #1714 quota diagnostics). The plugins
-> marketplace (`v0.120.3`) and the One SDK (`@supernovae-st/nika@0.120.3`,
-> qualified against the public archive) are in lockstep. Open gates on the
+> **Where we are · 2026-09-30.** Engine **v0.121.0** is published
+> (2026-09-25, `d71559be5`): bare `nika` opens the terminal Session, `--plain`
+> gives its line interface, and an API route whose price is unknown needs a
+> fresh Run cost review. `main` also carries #1747 (merged 2026-09-29 as
+> `5c2425996`: grounded authoring, Session recovery, run authority), which is
+> not released. The plugins marketplace and the One SDK
+> (`@supernovae-st/nika`) are still at `0.120.3`. Open gates on the
 > way to 1.0: the 7 shadow zones, `.nika` teaching on the public site
 > (#1684), the quickstart SSOT (#1659), and the compiler's general
 > natural-language and pattern breadth (#1663, #1666). Claims here are
@@ -148,7 +149,7 @@ notes · key decisions), not a census.
 - **nika-catalog** — static catalogs with phf+unicase lookup (226 tests after 4B)
   - 42-variant typed `Tag` enum, Cargo feature gating, Shield XOR invariant
   - 105 MCP servers, **32 LLM providers**, 13 embeddings, 63 builtins, 65 transforms
-    *(this is the `nika-catalog` **inventory** — what the engine has metadata for. Distinct from the `nika-spec` **v0.1 stdlib contract** of 16 providers · 27 builtins · 9 extract modes that a conformant engine must support (counts per canon.yaml · spec ADR-104 promoted huggingface + nvidia · the media pair joined the contract at 0.94) · the catalog's extra builtins beyond the contract stay opt-in metadata. The 63→22 catalog reconciliation was D-2026-05-26-N5/N6 + ADR-086/087/088 Rams sweep 2026-05-27.)*
+    *(this is the `nika-catalog` **inventory** — what the engine has metadata for. Distinct from the `nika-spec` **v0.1 stdlib contract** of 17 providers · 28 builtins · 10 extract modes that a conformant engine must support (counts per canon.yaml · spec ADR-104 promoted huggingface + nvidia · the media pair joined the contract at 0.94) · the catalog's extra builtins beyond the contract stay opt-in metadata. The 63→22 catalog reconciliation was D-2026-05-26-N5/N6 + ADR-086/087/088 Rams sweep 2026-05-27.)*
   - **TOML-driven capability resolver** — **49 rules**, zero-alloc, proptest 10k parity
   - `api_dialect` on all 32 providers (closed set, FK-validated at build time)
   - **12-field `ModelCapabilities`**: token_limit_param + temperature + stop + reasoning + input/output modalities + tokenizer (**12 families**: Cl100k/O200k/ClaudeV3/Gemini/LlamaV3/LlamaV4/MistralV3/DeepSeek/Qwen/Granite/Glm/Grok) + supported_parameters (**13 flags**: incl. BatchApi/ContextCaching/PredictedOutputs/ComputerUse/Citations/IncludeReasoning) + system_messages + context_window_tokens + max_output_tokens + json_mode
@@ -609,7 +610,7 @@ Per D-2026-05-22-N18.)
 - Live DAG render + per-task status
 - Benchmark display (TTFT, tok/s, per-provider comparison)
 - CLI format (tables, progress bars)
-- Feeds the TUI (when rebuilt, during L4 phase or later)
+- Feeds the TUI renderer (`nika-tui` paints through its theme roles and glyphs)
 
 **`nika serve` (HTTP API, `nika-serve` L4)**:
 - Routes: `POST /jobs`, `GET /jobs/:id`, `GET /jobs/:id/stream` (SSE), `DELETE /jobs/:id`
@@ -630,7 +631,7 @@ Per D-2026-05-22-N18.)
 - Daemon/Serve: `serve`, `daemon start|stop|status`
 - pck: `pck add`, `pck update`, `pck publish`, `pck search`
 - Diag: `doctor`, `trace`, `records`, `discover`, `inputs`, `tools`, `verbs`, `schema`
-- TUI: `ui` (deferred — rebuilt Act 3 or never)
+- TUI: no `ui` verb; bare `nika` opens the Session in the `nika-tui` renderer (0.121.0)
 - Housekeeping: `clean`, `rules`, `onboarding`, `machine install`
 
 **Event subsystem, artifact modes, output modes, templatable fields**:
@@ -887,7 +888,7 @@ outright or reclassified as a future layer-phase deliverable (no version tag).
 | `nika-sdk` (remote client SDK) | DELETED | 0 consumers, speculative abstraction |
 | `nika-napi` (Node.js bindings) | DELETED | W1 removed, rebuild as `@nika/client` TypeScript if needed |
 | `nika-py` (Python bindings) | DELETED | W1 removed, no clear user pull |
-| `nika-tui` (terminal UI) | DELETED → rebuilt later if pull justifies | W1 removed |
+| `nika-tui` (terminal UI) | DELETED in W1 → **rebuilt**: WIP member since 2026-09-21 (ADR-139), the Session's default renderer since 0.121.0 | the conversational Session pulled it back |
 | `ProviderCategory` enum | DELETED | 11 ex-MCP providers migrated to `McpAlias` catalog |
 | Agent-v2 (multi-turn, 4 guardrails) | **Built during L2** | blocked on memory L1 phase 1e-1f |
 | The Connectome (1 orchestrator + 10 satellites) | **Built during L1 phases 1e-1f-1g** | ontology-graph + auto-descriptive, see §Memory subsystem detail |

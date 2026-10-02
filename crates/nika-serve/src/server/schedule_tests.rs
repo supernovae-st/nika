@@ -12,6 +12,8 @@ use super::store::ShutdownPhase;
 use super::tests::{TestServer, TestWorld, auth_header, get_request, limits};
 use super::{ExecutionBackend, ExecutionDisposition, ExecutionOutcome};
 
+mod refusal_tests;
+
 #[derive(Debug)]
 pub(super) struct NoopBackend;
 
@@ -926,10 +928,21 @@ async fn a_project_beat_fired_by_the_resident_is_proven_in_the_arm_ledger() {
     backend.wait_for_call().await;
     let slot: jiff::Zoned = "2026-09-01T08:01:00Z[UTC]".parse().expect("slot");
     let mut proven = false;
-    for _ in 0..50 {
-        if nika_arm::slot_answered(&world.workflows, "root", &slot).expect("ledger") {
-            proven = true;
-            break;
+    // The resident may still hold the ledger lock on a loaded host: WouldBlock
+    // means « not yet », any other error fails the test.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+    while tokio::time::Instant::now() < deadline {
+        match nika_arm::slot_answered(&world.workflows, "root", &slot) {
+            Ok(true) => {
+                proven = true;
+                break;
+            }
+            Ok(false) => {}
+            Err(error) => assert_eq!(
+                error.kind(),
+                std::io::ErrorKind::WouldBlock,
+                "ledger: {error:?}"
+            ),
         }
         tokio::time::sleep(Duration::from_millis(20)).await;
     }

@@ -208,6 +208,28 @@ mod tests {
     }
 
     #[test]
+    fn a_bound_lowers_as_an_integer_only_while_one_is_exact() {
+        let n = env();
+        let b = lower(
+            &NikaType::BoundedNum(NumBounds::new(Some(0.0), Some(10.5))),
+            &n,
+        );
+        assert_eq!(b["minimum"], json!(0));
+        assert_eq!(b["maximum"], json!(10.5));
+        let edge = lower(
+            &NikaType::BoundedNum(NumBounds::new(
+                Some(9_007_199_254_740_991.0),
+                Some(9_007_199_254_740_992.0),
+            )),
+            &n,
+        );
+        assert_eq!(edge["minimum"], json!(9_007_199_254_740_991_i64));
+        assert_eq!(edge["maximum"], json!(9_007_199_254_740_992.0_f64));
+        assert!(edge["minimum"].is_i64(), "{edge}");
+        assert!(edge["maximum"].is_f64(), "{edge}");
+    }
+
+    #[test]
     fn named_refs_inline_without_dollar_ref() {
         let mut n = env();
         n.insert(

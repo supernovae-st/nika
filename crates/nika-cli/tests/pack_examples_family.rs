@@ -47,6 +47,9 @@ use std::time::{Duration, Instant};
 
 use serde::Deserialize;
 
+#[path = "support/pack_radar_http.rs"]
+mod radar_http;
+
 /// The checked-in manifest, compiled in — the test and its contract are
 /// one artifact (a manifest edit without the test is nothing; the
 /// completeness law below makes the reverse drift a failure too).
@@ -58,7 +61,9 @@ const MAX_TIMEOUT_SECS: u64 = 120;
 /// The one model this gate may name — zero keys, zero keychain. A row
 /// naming anything else is a hermeticity breach. Network is NOT claimed
 /// hermetic: a `door: run` row exercises the workflow's own declared
-/// `permits.net` hosts (the sandbox bounds them to exactly those).
+/// `permits.net` hosts (the sandbox bounds them to exactly those). The weekly
+/// radar substitutes a declared local feed in its staged copy; the real fetch,
+/// gated graph and final write still run, with request and data-flow witnesses.
 const HERMETIC_MODEL: &str = "mock/echo";
 
 // ── The manifest schema ───────────────────────────────────────────────────
@@ -272,7 +277,12 @@ fn nika() -> Command {
 /// Spawn and wait with the row's ceiling — stdout/stderr land in FILES
 /// (a piping poll loop deadlocks the day an example outtalks the pipe
 /// buffer; the file form has no such size).
-fn launch(mut cmd: Command, room: &Room, timeout: u64) -> Outcome {
+fn launch(
+    mut cmd: Command,
+    room: &Room,
+    timeout: u64,
+    mut feed: Option<&mut radar_http::RadarHttp>,
+) -> Outcome {
     let out_path = room.path("out.log");
     let err_path = room.path("err.log");
     let out_file = std::fs::File::create(&out_path).expect("out log");
@@ -281,6 +291,7 @@ fn launch(mut cmd: Command, room: &Room, timeout: u64) -> Outcome {
         .stderr(Stdio::from(err_file));
     hermetic(&mut cmd, room);
     let start = Instant::now();
+    let deadline = start + Duration::from_secs(timeout);
     let mut child = cmd.spawn().expect("the nika binary spawns");
     let mut timed_out = false;
     let code = loop {
@@ -291,7 +302,12 @@ fn launch(mut cmd: Command, room: &Room, timeout: u64) -> Outcome {
                 timed_out = true;
                 break child.wait().ok().and_then(|s| s.code());
             }
-            Ok(None) => std::thread::sleep(Duration::from_millis(50)),
+            Ok(None) => {
+                if let Some(feed) = feed.as_deref_mut() {
+                    feed.poll(deadline);
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
             Err(e) => panic!("wait on the corpus child: {e}"),
         }
     };
@@ -420,6 +436,29 @@ fn entry_command(entry: &Entry, room: &Room, body: &str) -> Command {
     cmd
 }
 
+fn launch_entry(entry: &Entry, room: &Room, body: &str) -> (Outcome, Option<String>) {
+    let mut feed = (entry.slug == "snippets/weekly-radar").then(radar_http::RadarHttp::new);
+    let staged = feed.as_ref().map(|feed| {
+        feed.staged_body(body)
+            .expect("reviewed local feed transport")
+    });
+    let cmd = entry_command(entry, room, staged.as_deref().unwrap_or(body));
+    if feed.is_some() {
+        assert!(
+            !room.cwd.join("radar/radar.md").exists(),
+            "the result must be produced by the workflow"
+        );
+    }
+    let outcome = launch(
+        cmd,
+        room,
+        entry.timeout.unwrap_or(MAX_TIMEOUT_SECS),
+        feed.as_mut(),
+    );
+    let feed_failure = feed.as_ref().and_then(|feed| feed.verify(&room.cwd).err());
+    (outcome, feed_failure)
+}
+
 // ── The verdicts ────────────────────────────────────────────────────────────
 
 fn tail(text: &str) -> String {
@@ -526,8 +565,7 @@ fn every_shipped_example_runs_per_its_manifest_row() {
         }
         let body = nika_pack::example(row).expect("completeness gate ran first");
         let room = Room::enter(row);
-        let cmd = entry_command(entry, &room, body);
-        let outcome = launch(cmd, &room, entry.timeout.unwrap_or(MAX_TIMEOUT_SECS));
+        let (outcome, feed_failure) = launch_entry(entry, &room, body);
         tally.0 += 1;
 
         match entry
@@ -564,7 +602,7 @@ fn every_shipped_example_runs_per_its_manifest_row() {
                     );
                 }
             }
-            None => match judge(entry, &outcome) {
+            None => match judge(entry, &outcome).or(feed_failure) {
                 None => {
                     tally.1 += 1;
                     let door = match entry.door {
@@ -629,7 +667,7 @@ fn release_train_try_rehearses_with_isolated_inputs() {
     ] {
         let mut cmd = nika();
         cmd.args(["try", slug, "--no-progress"]).args(&args);
-        let outcome = launch(cmd, &room, 30);
+        let outcome = launch(cmd, &room, 30, None);
         assert!(!outcome.timed_out, "{slug} {args:?} timed out");
         assert_eq!(
             outcome.code,

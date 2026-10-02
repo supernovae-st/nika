@@ -188,6 +188,28 @@ mod tests {
     }
 
     #[test]
+    fn the_threshold_scales_with_length_and_never_wraps() {
+        let keys = ["impact", "summary", "highlights", "operate"];
+        assert_eq!(damerau_levenshtein("imapcy", "impact"), 2);
+        assert_eq!(did_you_mean("imapcy", keys), Some("impact"));
+        assert_eq!(damerau_levenshtein("opera", "operate"), 2);
+        assert_eq!(did_you_mean("opera", keys), None);
+    }
+
+    #[test]
+    fn the_clause_asks_about_a_key_and_states_a_sentence() {
+        assert_eq!(suggestion_clause(None), "");
+        assert_eq!(
+            suggestion_clause(Some("summary")),
+            " — did you mean `summary`?"
+        );
+        assert_eq!(
+            suggestion_clause(Some("hoist it into with: and read with.x")),
+            " — hoist it into with: and read with.x"
+        );
+    }
+
+    #[test]
     fn ties_break_lexicographically_deterministic() {
         // both 1 edit away from `bd` — `ad` < `cd` wins, whatever the
         // candidate iteration order.

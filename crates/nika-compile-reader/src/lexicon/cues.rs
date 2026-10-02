@@ -171,8 +171,16 @@ pub(crate) const ARTICLES: &[&str] = &[
     "esta", "estos", "estas", "mi", "mis", "nuestro", "nuestra", "su", "sus",
 ];
 /// The prefixes that open a head only over cadence words (« Each weekday at 8, … »): « Each
-/// row whose status is open, … » states no trigger, and « for each » is the distribution.
-pub(super) const CADENCE_HEAD_PREFIXES: &[&str] = &["each "];
+/// row whose status is open, … » states no trigger, and « for each » is the distribution. A
+/// month end opens one the same way (« On the last day of every month at 18:00, … », « Le
+/// dernier jour de chaque mois à 18h, … »), never « On the last day of the sprint, … ».
+pub(super) const CADENCE_HEAD_PREFIXES: &[&str] = &[
+    "each ",
+    "on the last day of ",
+    "the last day of ",
+    "le dernier jour de ",
+    "le dernier jour du ",
+];
 pub(super) const TRIGGER_PREFIXES: &[&str] = &[
     "pour la ",
     "pour le ",
@@ -231,17 +239,105 @@ pub(super) const TRIGGER_PREFIXES: &[&str] = &[
 pub(super) const CADENCE_WORDS: &str = include_str!("../../assets/cadence_words.txt");
 
 /// The small words a cadence head carries between its cadence words (articles, the time
-/// introducers, the quantifiers of a second cadence, a conjunction), folded. A filler never
-/// ends a head.
+/// introducers, the quantifiers of a second cadence, a conjunction, the words of a month end
+/// and of a start date), folded. A filler never ends a head.
 pub(super) const HEAD_FILLERS: &[&str] = &[
-    "a", "at", "au", "aux", "as", "alle", "am", "um", "the", "le", "la", "les", "l", "el", "los",
-    "las", "il", "lo", "gli", "i", "o", "os", "de", "des", "du", "da", "do", "di", "del", "della",
-    "dei", "delle", "der", "die", "das", "dem", "den", "in", "im", "en", "and", "et", "y", "e",
-    "und", "or", "ou", "oder", "each", "every", "chaque", "tous", "toutes", "cada", "ogni", "todo",
-    "toda", "todos", "todas", "jeden", "jede", "jedes", "of", "vers", "around", "towards", "entre",
-    "between", "from", "to", "bis", "von", "ab", "por", "per", "pela", "pelo", "nas", "nos", "na",
+    "a",
+    "at",
+    "au",
+    "aux",
+    "as",
+    "alle",
+    "am",
+    "um",
+    "the",
+    "le",
+    "la",
+    "les",
+    "l",
+    "el",
+    "los",
+    "las",
+    "il",
+    "lo",
+    "gli",
+    "i",
+    "o",
+    "os",
+    "de",
+    "des",
+    "du",
+    "da",
+    "do",
+    "di",
+    "del",
+    "della",
+    "dei",
+    "delle",
+    "der",
+    "die",
+    "das",
+    "dem",
+    "den",
+    "in",
+    "im",
+    "en",
+    "and",
+    "et",
+    "y",
+    "e",
+    "und",
+    "or",
+    "ou",
+    "oder",
+    "each",
+    "every",
+    "chaque",
+    "tous",
+    "toutes",
+    "cada",
+    "ogni",
+    "todo",
+    "toda",
+    "todos",
+    "todas",
+    "jeden",
+    "jede",
+    "jedes",
+    "of",
+    "vers",
+    "around",
+    "towards",
+    "entre",
+    "between",
+    "from",
+    "to",
+    "bis",
+    "von",
+    "ab",
+    "por",
+    "per",
+    "pela",
+    "pelo",
+    "nas",
+    "nos",
+    "na",
     "no",
+    "on",
+    "last",
+    "dernier",
+    "starting",
+    "beginning",
+    "partir",
+    "compter",
 ];
+
+/// The words that introduce a start date inside a cadence head (« from », « starting »,
+/// « à partir du », « à compter du », « dès le »), folded: an ISO date `YYYY-MM-DD` after one
+/// of them (and the fillers around it) belongs to the head, and so does one after a comma
+/// (« Every 2 weeks on Monday at 9:00, starting 2026-10-05, … »).
+pub(super) const START_DATE_WORDS: &[&str] =
+    &["from", "starting", "beginning", "partir", "compter", "des"];
 
 /// The units that follow a clock token and belong to it: « 9 pm », « 18 h », « 9 uhr ».
 pub(super) const CLOCK_SUFFIXES: &[&str] = &["am", "pm", "h", "hs", "uhr"];
@@ -583,27 +679,3 @@ pub fn settle_retrieval(
         None
     }
 }
-
-/// Words that ask for a removal of duplicates or forbid a second action for the same item,
-/// folded: an obligation of kind dedup.
-pub(super) const DEDUP_MARKERS: &[&str] = &[
-    "no second action for the same",
-    "pas de seconde action",
-    "évite les doublons",
-    "évitez les doublons",
-    "avoid duplicates",
-    "déduplique",
-    "dédoublonne",
-    "deduplicate",
-    "de-duplicate",
-    "dedupe",
-    "remove duplicates",
-    "prevent duplicates",
-    "deduplica",
-    "elimina i duplicati",
-    "rimuovi i duplicati",
-    "evita i duplicati",
-    "elimina los duplicados",
-    "quita los duplicados",
-    "evita los duplicados",
-];

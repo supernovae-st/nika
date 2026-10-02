@@ -21,5 +21,4 @@
   - Typed repairs under `--authoring-strategy off` now count.
   - A typed `only` or `escalate` strategy needs `--authoring-max-calls 2` or more, and a typed
     `sketch` needs 3.
-  - Limits: the judge is a model, so its approval is bounded evidence, not proof. A native
-    workflow finished in a later round, by answering its questions, is not judged yet.
+  - Limits: the judge is a model, so its approval is bounded evidence, not proof.

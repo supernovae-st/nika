@@ -67,7 +67,7 @@ impl Composer {
     #[must_use]
     pub fn new() -> Self {
         let mut area = TextArea::default();
-        area.set_wrap_mode(WrapMode::Word);
+        area.set_wrap_mode(WRAP);
         area.set_cursor_line_style(Style::default());
         area.set_cursor_style(Style::default().add_modifier(Modifier::REVERSED));
         Self {
@@ -96,18 +96,18 @@ impl Composer {
         self.area.lines().iter().all(|l| l.trim().is_empty())
     }
 
-    /// The rows the buffer needs at `width` (wrapped), at least one.
+    /// The rows the buffer needs at `width`, at least one: each line wrapped
+    /// the way the text area wraps it (`WRAP`), so the live area grows
+    /// with a multi-line draft and never cuts its last row.
     #[must_use]
     pub fn rows(&self, width: u16) -> u16 {
         let width = usize::from(width.max(1));
+        let tab = self.area.tab_length();
         let rows: usize = self
             .area
             .lines()
             .iter()
-            .map(|line| {
-                let cells = unicode_width::UnicodeWidthStr::width(line.as_str());
-                cells.div_ceil(width).max(1)
-            })
+            .map(|line| wrapped_rows(line, width, tab))
             .sum();
         u16::try_from(rows.max(1)).unwrap_or(u16::MAX)
     }
@@ -299,9 +299,132 @@ fn common_prefix(candidates: &[&String]) -> String {
     prefix
 }
 
+/// How the composer wraps a line: at word boundaries, a word wider than the
+/// row (a pasted URL, a path) cut between characters so none of it hides.
+const WRAP: WrapMode = WrapMode::WordOrGlyph;
+
+/// The rows one line takes wrapped at `width` the way the text area wraps it
+/// ([`WRAP`]): chunks fill a row until the next one would not fit, and a
+/// chunk wider than a whole row is cut between characters. The chunks follow
+/// the word boundaries the text area splits at, closely enough for sizing: a
+/// run of letters and digits (joined across one `'` `.` `:` between letters,
+/// one `,` `;` between digits), a run of katakana, a run of spaces, any
+/// other character alone, a wide character alone.
+fn wrapped_rows(line: &str, width: usize, tab: u8) -> usize {
+    let mut rows = 0usize;
+    let mut used = 0usize;
+    let mut open = false;
+    let mut chunks = word_chunks(line).into_iter().peekable();
+    while let Some(chunk) = chunks.peek() {
+        let cells = cells_from(chunk, used, tab);
+        if used + cells <= width {
+            used += cells;
+            open = true;
+            chunks.next();
+        } else if open {
+            // The row is full: the chunk starts the next one.
+            rows += 1;
+            (used, open) = (0, false);
+        } else {
+            // A chunk wider than a whole row: cut between characters.
+            let mut run = 0usize;
+            for ch in chunk.chars() {
+                let cell = cells_from(&ch.to_string(), run, tab);
+                if run > 0 && run + cell > width {
+                    rows += 1;
+                    run = 0;
+                }
+                run += cell;
+            }
+            rows += 1;
+            used = 0;
+            chunks.next();
+        }
+    }
+    (rows + usize::from(open)).max(1)
+}
+
+/// The cells `text` takes when it starts at column `at` (a tab reaches the
+/// next stop of `tab` columns, as the text area draws it).
+fn cells_from(text: &str, at: usize, tab: u8) -> usize {
+    let mut column = at;
+    for ch in text.chars() {
+        if ch == '\t' {
+            if tab > 0 {
+                let stop = usize::from(tab);
+                column += stop - column % stop;
+            }
+        } else {
+            column += unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+        }
+    }
+    column - at
+}
+
+/// A line cut at the word boundaries [`wrapped_rows`] breaks at.
+fn word_chunks(line: &str) -> Vec<&str> {
+    let chars: Vec<(usize, char)> = line.char_indices().collect();
+    let mut chunks = Vec::new();
+    let mut i = 0usize;
+    while let Some(&(start, ch)) = chars.get(i) {
+        let mut j = i + 1;
+        if ch == ' ' {
+            while chars.get(j).is_some_and(|(_, c)| *c == ' ') {
+                j += 1;
+            }
+        } else if is_katakana(ch) {
+            while chars.get(j).is_some_and(|(_, c)| is_katakana(*c)) {
+                j += 1;
+            }
+        } else if is_word(ch) {
+            while let Some(&(_, next)) = chars.get(j) {
+                if is_word(next) {
+                    j += 1;
+                } else if joins(
+                    chars.get(j - 1).map(|p| p.1),
+                    next,
+                    chars.get(j + 1).map(|p| p.1),
+                ) {
+                    j += 2;
+                } else {
+                    break;
+                }
+            }
+        }
+        let end = chars.get(j).map_or(line.len(), |(at, _)| *at);
+        chunks.push(line.get(start..end).unwrap_or_default());
+        i = j;
+    }
+    chunks
+}
+
+/// A katakana character: a run of them stays one word (`テキスト`), where
+/// ideographs and hiragana break after every character.
+fn is_katakana(ch: char) -> bool {
+    matches!(ch, '\u{30A0}'..='\u{30FF}' | '\u{31F0}'..='\u{31FF}' | '\u{FF66}'..='\u{FF9F}')
+}
+
+/// A character that belongs to a word run: a letter or digit, one cell wide.
+fn is_word(ch: char) -> bool {
+    (ch.is_alphanumeric() || ch == '_') && unicode_width::UnicodeWidthChar::width(ch) == Some(1)
+}
+
+/// Whether `mid` keeps the word run going between `before` and `after`
+/// (`don't`, `e.g`, `3.14`, `1,000`).
+fn joins(before: Option<char>, mid: char, after: Option<char>) -> bool {
+    let (Some(before), Some(after)) = (before, after) else {
+        return false;
+    };
+    if !is_word(before) || !is_word(after) {
+        return false;
+    }
+    let digits = before.is_ascii_digit() && after.is_ascii_digit();
+    matches!(mid, '\'' | '’' | '.' | ':') || (digits && matches!(mid, ',' | ';'))
+}
+
 fn fresh_like(previous: &TextArea<'static>) -> TextArea<'static> {
     let mut area = TextArea::default();
-    area.set_wrap_mode(WrapMode::Word);
+    area.set_wrap_mode(WRAP);
     area.set_cursor_line_style(Style::default());
     area.set_cursor_style(previous.cursor_style());
     let placeholder = previous.placeholder_text();
@@ -396,6 +519,35 @@ mod tests {
         composer.paste("a".repeat(100).as_str());
         assert_eq!(composer.rows(40), 3);
         assert_eq!(composer.rows(200), 1);
+    }
+
+    /// The rows the composer asks for are the rows its text area paints, so
+    /// the live area grows with the draft and never hides its last row: word
+    /// wrap, a word wider than the row cut, a wide script, tabs, line breaks.
+    #[test]
+    fn rows_are_the_rows_the_text_area_paints() {
+        use ratatui::layout::Rect;
+        for text in [
+            "alpha beta gamma delta epsilon zeta eta theta iota kappa",
+            "don't stop, e.g. 3.14 or 1,000 · it's fine: really",
+            "日本語のテキストはここで折り返します、よろしく",
+            "see https://example.com/a/very/long/path/that/never/fits/one/row end",
+            "tab\tseparated\tvalues\there\tand\tthere",
+            "first line\nsecond, longer line of the draft\nthird",
+        ] {
+            for width in [8u16, 13, 20, 33, 72] {
+                let mut composer = Composer::new();
+                composer.paste(text);
+                let height = 60;
+                let mut buffer = Buffer::empty(Rect::new(0, 0, width, height));
+                composer.render(buffer.area, &mut buffer);
+                let painted = (0..height)
+                    .rev()
+                    .find(|&y| (0..width).any(|x| !buffer[(x, y)].symbol().trim().is_empty()))
+                    .map_or(0, |y| y + 1);
+                assert_eq!(composer.rows(width), painted, "{text:?} at {width}");
+            }
+        }
     }
 }
 

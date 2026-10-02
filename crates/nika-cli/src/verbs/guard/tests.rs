@@ -512,11 +512,19 @@ fn plain() -> Theme {
 /// never widens the user's own permission flow).
 #[test]
 fn claude_dialect_shapes() {
-    let dir = fixtures();
+    let dir = tempfile::Builder::new()
+        .prefix("guard dialect ")
+        .tempdir()
+        .expect("fixture directory with spaces");
+    std::fs::write(dir.path().join("bad.nika"), BAD).expect("fixture written");
     let d = dir.path().display().to_string();
-    let payload = format!(
-        r#"{{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{{"command":"nika run {d}/bad.nika"}},"cwd":"{d}"}}"#
-    );
+    let payload = serde_json::json!({
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": { "command": "nika run bad.nika" },
+        "cwd": d,
+    })
+    .to_string();
     let input = parse_payload(&payload).expect("payload parses");
     assert!(input.dialect == Dialect::Claude);
     let out = evaluate(&input, false, plain());
@@ -541,9 +549,17 @@ fn claude_dialect_shapes() {
 /// Cursor dialect: the generic permission envelope.
 #[test]
 fn cursor_dialect_shapes() {
-    let dir = fixtures();
+    let dir = tempfile::Builder::new()
+        .prefix("guard dialect ")
+        .tempdir()
+        .expect("fixture directory with spaces");
+    std::fs::write(dir.path().join("bad.nika"), BAD).expect("fixture written");
     let d = dir.path().display().to_string();
-    let payload = format!(r#"{{"command":"nika run {d}/bad.nika","cwd":"{d}"}}"#);
+    let payload = serde_json::json!({
+        "command": "nika run bad.nika",
+        "cwd": d,
+    })
+    .to_string();
     let input = parse_payload(&payload).expect("payload parses");
     assert!(input.dialect == Dialect::Generic);
     let out = evaluate(&input, false, plain());

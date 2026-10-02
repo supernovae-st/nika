@@ -21,6 +21,7 @@
 // by the descent).
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+pub mod activity;
 mod banner;
 mod bootstrap;
 pub mod briefs;
@@ -40,13 +41,22 @@ pub mod compile {
     };
     pub use nika_compile_cognition::{
         Cognition, NoProvider, authority, compile_with_cognition, compile_with_provider, decide,
+        rehearse,
     };
+    /// The closed copy door: a request that is exactly a text file copied as is, qualified by
+    /// what the assembler's two exact copies did when rehearsed in the observed room (the session
+    /// calls it before it proposes).
+    pub mod copy;
     /// The Meaning view of an outcome's obligation ledger — what survived of the request,
     /// clause by clause — owned beside the ledger it reads (the session re-exports it).
     pub mod meaning;
     /// What one outcome means for a conversation, and the literal a line is at one of its
     /// questions (the session re-exports it).
     pub mod reading;
+    /// The native door's rehearsal host: the observed inputs copied into a scratch room, the
+    /// candidate run there through the existing runtime with no provider, network, process,
+    /// gate, secret or nested run, its outputs read back, the room drained and deleted.
+    pub mod room;
     /// The authoring round a host keeps across a close (C7): the request, the settled
     /// answers and the question that waited, as evidence — never authority.
     pub mod round;
@@ -59,6 +69,7 @@ pub mod fixtures;
 pub mod founding;
 mod gitignore;
 pub mod guard;
+pub mod identity;
 mod intent;
 pub mod knowledge;
 pub mod lifecycle;

@@ -5,12 +5,16 @@
 //! card's default range is not that proof. The seated candidate keeps its caps byte for byte
 //! (so the cost preview prices exactly what was stated). A tight cap on a reasoning seat is
 //! surfaced as the check's `reasoning-cap` guidance, and a cap the catalog knows the seat
-//! cannot serve is refused with its repair.
+//! cannot serve is refused with its repair. These keyless answer rounds hold an admitted finish
+//! for its round's judge (R4 A11, step 2).
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use nika_compile::{
     CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind, compile, intent_sha256,
 };
 use serde_json::json;
+
+mod common;
+use common::held_for_its_judge;
 
 const DEFAULT: &str = "Résume notes.md en trois lignes dans digest.md.";
 const NAMED_700: &str = "Résume notes.md en trois lignes dans digest.md, avec max_tokens 700.";
@@ -108,7 +112,7 @@ fn the_same_700_named_or_defaulted_is_kept_and_guided_never_raised() {
             guided(&out),
             "the tight reasoning cap is surfaced: {intent}"
         );
-        assert_eq!(out.status, CompileStatus::Ready, "{:#?}", out.diagnostics);
+        assert!(held_for_its_judge(&out, intent), "{:#?}", out.diagnostics);
     }
 }
 
@@ -134,6 +138,7 @@ fn a_cap_above_the_known_output_limit_is_refused_and_never_rewritten() {
         "{refused:?}"
     );
     assert_ne!(over.status, CompileStatus::Ready);
+    assert!(!held_for_its_judge(&over, NAMED_4000), "{over:#?}");
     let at = replayed(NAMED_4000, &candidate(limit), FLASH);
     assert!(refusals(&at).is_empty(), "{:?}", refusals(&at));
 }

@@ -98,6 +98,14 @@ fn zero_price_route_observation_and_reservation_agree() {
     let known = super::review::CostRoute::observe(&model, ProvidersConfig::new()).expect("route");
     assert!(!known.needs_unknown_choice());
     for (model, config) in [
+        (
+            "openrouter/vendor/unseen:free".into(),
+            ProvidersConfig::new(),
+        ),
+        (
+            "openrouter/qwen/qwen3.8-max-0902".into(),
+            ProvidersConfig::new(),
+        ),
         (format!("{model}-extra"), ProvidersConfig::new()),
         ("openrouter/openrouter/free".into(), ProvidersConfig::new()),
         (

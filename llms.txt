@@ -12,7 +12,7 @@
 
 ## Use Nika
 
-- [README.md#start-here](README.md#start-here): Install, describe a first workflow in the Session with no AI account, set up a provider key, then compile · check · run · verify a file directly. Ends with the current limits.
+- [README.md#try-it-in-two-minutes](README.md#try-it-in-two-minutes): Install, describe a first workflow in the Session with no AI account, set up a provider key, then compile · check · run · verify a file directly. Ends with the current limits.
 - [docs/usage/conversational-session.md](docs/usage/conversational-session.md): Bare `nika` on a terminal — describe · clarify · review · save (`yes`) · run (`run it`) · inspect (`/proof`). Provider keys come from the environment (DeepSeek example); the AI choice is kept in `~/.nika/session-intelligence.json`. Covers spending ceilings, `/restore`, optional `NIKA_KNOWLEDGE` snapshots (none ship with public releases) and the optional Jev decision model, and downgrade limits.
 - [docs/qa/delivery-a-2026-09.md](docs/qa/delivery-a-2026-09.md): The bounded qualification of the conversational path: six synthetic journeys, one macOS installation, not a general reliability claim.
 - [docs/architecture/session-history.md](docs/architecture/session-history.md): Where Session history lives, how reopening and recovery work, and their limits.

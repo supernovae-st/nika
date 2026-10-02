@@ -109,10 +109,12 @@ pub fn field_answer(
 }
 
 /// Every source key a typed rule reads is grounded (R4 S1, [`grounding`]) and recorded in the
-/// decision: an admissible key is kept, any other is asked (a closed choice of the observed keys,
-/// or the exact key when nothing was observed), and a key some sampled records lack keeps the
-/// rule pending until the request states what happens to those records. Only typed source
-/// references can be rebound; program bytes never undergo replacement.
+/// decision: an admissible key is kept (the request names it, an approval or an answer binds it,
+/// or a value the request states was recorded in that key alone, F2-Q1), any other is asked (a
+/// closed choice of the observed keys, or the exact key when nothing was observed), and a key
+/// some sampled records lack keeps the rule pending until the request states what happens to
+/// those records. Only typed source references can be rebound; program bytes never undergo
+/// replacement.
 pub(crate) fn ground_rule(
     mut rule: crate::rules::Rule,
     path: &str,
@@ -130,13 +132,22 @@ pub(crate) fn ground_rule(
     let mut entries = Vec::new();
     let mut pending = false;
     for (index, field) in rule.source_fields().into_iter().enumerate() {
+        let key = format!("const.rule_field_{}", index + 1);
         let approved = crate::pending_transform::approves(request, &rule, path, &field, recognized);
+        let (grade, everywhere) = grounding::grade(&field, seen.as_ref(), &stated);
+        let mut witness = None;
         let bound_by = if approved {
             Some("approval")
+        } else if names_field(&intent, &field) {
+            Some("request")
         } else {
-            names_field(&intent, &field).then_some("request")
+            // A value the request states, recorded in this key alone, binds it (F2-Q1); an
+            // answer the round carries for its question is read instead (R4 A6).
+            witness = (seen.as_ref())
+                .filter(|_| grade != Grade::Inferred && !request.answers.contains_key(&key))
+                .and_then(|seen| grounding::witness(&rule, &field, &intent, row, seen));
+            witness.as_ref().map(|_| "observation")
         };
-        let (grade, everywhere) = grounding::grade(&field, seen.as_ref(), &stated);
         let text = rule.text().to_owned();
         let entry = |key: &str, grade, everywhere, bound_by| {
             (grounding::Entry {
@@ -150,12 +161,15 @@ pub(crate) fn ground_rule(
             })
             .to_json()
         };
-        let key = format!("const.rule_field_{}", index + 1);
         // The answer to a question this conversation asked is read before the fresh
         // observation's own words: stale after a change, it is asked again (R4 A6 · D6-S1).
         let owned = !approved && owned(request, &key, &field, path, &stated);
         if grade != Grade::Inferred && bound_by.is_some() && !owned {
-            entries.push(entry(&field, grade, everywhere, bound_by));
+            let mut kept = entry(&field, grade, everywhere, bound_by);
+            if let Some(literal) = witness {
+                kept["witness"] = json!(literal);
+            }
+            entries.push(kept);
             continue;
         }
         recognized.insert(key.clone());

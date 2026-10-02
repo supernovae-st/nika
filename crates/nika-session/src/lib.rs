@@ -29,7 +29,12 @@
 //! and `/proof` views). Its identity core ([`identity`]) says so to the
 //! model in six laws.
 
-pub mod activity;
+/// The session's typed activity and the model's identity core (its laws and the language
+/// digest) are owned beside the other engine-knowledge words since 2026-09-30:
+/// `nika_onboard::{activity, identity}`. These paths are kept for source compatibility and
+/// name the very same items (types, functions, constant).
+#[doc(inline)]
+pub use nika_onboard::{activity, identity};
 pub mod authoring;
 pub mod broker;
 pub mod change;
@@ -41,7 +46,6 @@ pub mod facts;
 /// source compatibility and names the very same items (types, functions).
 #[doc(inline)]
 pub use nika_onboard::guard;
-pub mod identity;
 pub mod intelligence;
 /// The Meaning view — what survived of a request, clause by clause, read from
 /// the compiler's obligation ledger — is owned beside that ledger since

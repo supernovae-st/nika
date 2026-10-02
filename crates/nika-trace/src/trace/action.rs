@@ -78,8 +78,9 @@ pub enum TraceAction {
     Outputs {
         /// Trace NDJSON path (default: the workspace's latest trace).
         trace: Option<PathBuf>,
-        /// One JSON document (`trace` · `tasks: [{id, verb, status, cause,
-        /// error_code, recovered_from, …}]`) instead of the table.
+        /// One JSON document (`outputs_version: 2`, `trace`, `tasks`)
+        /// instead of the table. Task cause and terminal error code/message
+        /// are separate from the original `recovered_from` code.
         #[arg(long)]
         json: bool,
     },

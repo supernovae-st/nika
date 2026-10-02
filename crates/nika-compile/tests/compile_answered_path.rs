@@ -6,13 +6,18 @@
 //! with zero calls, and the compiler completes that placeholder from the answer as it grants
 //! an answered endpoint's host: the exact path the capability inference derives, in the
 //! direction the tool uses, inside the workspace. DIALOG-01 (2026-09-24, f140be40) refused
-//! even a correct destination: nothing completed the placeholder.
+//! even a correct destination: nothing completed the placeholder. The finish then waits for its
+//! round's judge (R4 A11, step 2): these keyless rounds permit none, so an admitted finish is
+//! held on the whole request alone, and a refused one never is.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use nika_compile::surface::literal_projection;
 use nika_compile::{
     CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind, compile, intent_sha256,
 };
 use serde_json::{Value, json};
+
+mod common;
+use common::held_for_its_judge;
 
 const INTENT: &str = "Copie entree.txt vers le fichier que je vais choisir.";
 
@@ -92,7 +97,7 @@ fn an_answered_destination_completes_the_empty_write_placeholder() {
             &asked(&["const.destination_path"]),
             &[("const.destination_path", literal.as_str())],
         );
-        assert_eq!(out.status, CompileStatus::Ready, "{path}: {out:#?}");
+        assert!(held_for_its_judge(&out, INTENT), "{path}: {out:#?}");
         assert_eq!(fs(&out, "write"), json!([path]), "{path}");
         assert_eq!(
             fs(&out, "read"),
@@ -125,6 +130,7 @@ fn an_escaping_absolute_home_or_glob_answer_is_never_granted() {
             &[("const.destination_path", literal.as_str())],
         );
         assert_ne!(out.status, CompileStatus::Ready, "{path}: {out:#?}");
+        assert!(!held_for_its_judge(&out, INTENT), "{path}: {out:#?}");
         assert_eq!(
             fs(&out, "write"),
             json!([""]),
@@ -150,6 +156,7 @@ fn an_explicit_or_mixed_boundary_is_never_widened() {
             CompileStatus::Ready,
             "{write}: sortie.txt stays outside what the seat declared"
         );
+        assert!(!held_for_its_judge(&out, INTENT), "{write}: {out:#?}");
     }
 }
 
@@ -179,7 +186,7 @@ tasks:
         &asked(&["const.source_path"]),
         &[("const.source_path", r#""entree.txt""#)],
     );
-    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(held_for_its_judge(&out, INTENT), "{out:#?}");
     assert_eq!(fs(&out, "read"), json!(["entree.txt"]));
     assert_eq!(fs(&out, "write"), json!(["./copie.txt"]));
     assert!(granted(&out, "read") && !granted(&out, "write"));
@@ -212,7 +219,7 @@ tasks:
             ("const.note_text", r#""./secret.txt""#),
         ],
     );
-    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(held_for_its_judge(&out, INTENT), "{out:#?}");
     assert_eq!(fs(&out, "write"), json!(["notes.txt"]));
     assert_eq!(fs(&out, "read"), Value::Null);
 
@@ -266,7 +273,7 @@ fn a_block_placeholder_completes_the_same_and_any_other_block_is_kept() {
     let answer = [("const.destination_path", r#""sortie.txt""#)];
     let questions = asked(&["const.destination_path"]);
     let out = answered(&block, &questions, &answer);
-    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(held_for_its_judge(&out, INTENT), "{out:#?}");
     assert_eq!(fs(&out, "write"), json!(["sortie.txt"]));
     assert!(granted(&out, "write") && !granted(&out, "read"));
     let expected = block
@@ -286,6 +293,7 @@ fn a_block_placeholder_completes_the_same_and_any_other_block_is_kept() {
         let out = answered(&kept, &questions, &answer);
         assert!(!granted(&out, "write"), "{entries}");
         assert_ne!(out.status, CompileStatus::Ready, "{entries}");
+        assert!(!held_for_its_judge(&out, INTENT), "{entries}");
         let source = out.candidate.as_deref().unwrap_or_default();
         assert!(
             source.contains(entries),

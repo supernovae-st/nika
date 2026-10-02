@@ -38,6 +38,10 @@ use crossterm::event::{Event, KeyEvent, KeyEventKind};
 pub const POLL_SLICE: Duration = Duration::from_millis(50);
 /// How long `pause` waits for the reader thread to park before giving up.
 const PAUSE_ACK: Duration = Duration::from_millis(1000);
+// Crossterm's level-triggered Unix backend skips its parser and descriptor
+// for a zero timeout. A positive poll also drains bytes the parked reader
+// has not yet consumed before a fresh consent answer may be accepted.
+const DRAIN_POLL: Duration = Duration::from_millis(1);
 
 /// What the UI loop reacts to. Presses only: a terminal that reports
 /// releases and repeats (the kitty protocol) never doubles a key.
@@ -60,13 +64,13 @@ pub enum UiEvent {
     Closed,
 }
 
-/// The two signals the shell answers.
+/// The signals the shell answers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Signal {
     /// `SIGINT` as a signal (not the `Ctrl+C` key raw mode reports).
     Interrupt,
-    /// `SIGTERM`: leave now, restore first.
+    /// `SIGTERM` or `SIGHUP`: leave now, restore first.
     Terminate,
 }
 
@@ -151,7 +155,7 @@ impl Broker {
             }
             let mut events: Vec<_> = self.rx.try_iter().collect();
             for _ in 0..4096 {
-                if !crossterm::event::poll(Duration::ZERO)? {
+                if !crossterm::event::poll(DRAIN_POLL)? {
                     return Ok(events);
                 }
                 if let Some(event) = decode(crossterm::event::read()?) {
@@ -245,21 +249,44 @@ fn decode(event: Event) -> Option<UiEvent> {
     })
 }
 
+/// What each watched signal means to the loop. `SIGHUP` (the terminal
+/// closed, a pane killed) leaves like `SIGTERM`: restored first, never killed
+/// by the default action with raw mode still on.
+#[cfg(unix)]
+fn meaning(kind: tokio::signal::unix::SignalKind) -> Option<Signal> {
+    use tokio::signal::unix::SignalKind;
+    if kind == SignalKind::interrupt() {
+        Some(Signal::Interrupt)
+    } else if kind == SignalKind::terminate() || kind == SignalKind::hangup() {
+        Some(Signal::Terminate)
+    } else {
+        None
+    }
+}
+
 #[cfg(unix)]
 async fn watch_signals(tx: mpsc::Sender<UiEvent>) {
     use tokio::signal::unix::{SignalKind, signal};
-    let (Ok(mut term), Ok(mut int)) = (
-        signal(SignalKind::terminate()),
-        signal(SignalKind::interrupt()),
-    ) else {
+    let (term, int, hup) = (
+        SignalKind::terminate(),
+        SignalKind::interrupt(),
+        SignalKind::hangup(),
+    );
+    let (Ok(mut on_term), Ok(mut on_int), Ok(mut on_hup)) =
+        (signal(term), signal(int), signal(hup))
+    else {
         return;
     };
     loop {
-        let event = tokio::select! {
-            _ = term.recv() => UiEvent::Signal(Signal::Terminate),
-            _ = int.recv() => UiEvent::Signal(Signal::Interrupt),
+        let kind = tokio::select! {
+            _ = on_term.recv() => term,
+            _ = on_int.recv() => int,
+            _ = on_hup.recv() => hup,
         };
-        if tx.send(event).is_err() {
+        let Some(signal) = meaning(kind) else {
+            continue;
+        };
+        if tx.send(UiEvent::Signal(signal)).is_err() {
             return;
         }
     }
@@ -269,5 +296,22 @@ async fn watch_signals(tx: mpsc::Sender<UiEvent>) {
 async fn watch_signals(tx: mpsc::Sender<UiEvent>) {
     if tokio::signal::ctrl_c().await.is_ok() {
         let _ = tx.send(UiEvent::Signal(Signal::Interrupt));
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use tokio::signal::unix::SignalKind;
+
+    /// A hangup (the terminal closed, the pane killed) leaves like a
+    /// terminate, the terminal restored first; an interrupt stays one; any
+    /// other signal means nothing to the loop.
+    #[test]
+    fn a_hangup_leaves_like_a_terminate() {
+        assert_eq!(meaning(SignalKind::hangup()), Some(Signal::Terminate));
+        assert_eq!(meaning(SignalKind::terminate()), Some(Signal::Terminate));
+        assert_eq!(meaning(SignalKind::interrupt()), Some(Signal::Interrupt));
+        assert_eq!(meaning(SignalKind::user_defined1()), None);
     }
 }

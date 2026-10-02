@@ -1633,5 +1633,21 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-142",
+      "title": "nika-compile size-cap member split: the trigger reading ascends to nika-compile-trigger",
+      "status": "accepted",
+      "date": "2026-09-30",
+      "filename": "adr-142-nika-compile-member-split-nika-compile-trigger.md",
+      "tags": ["architecture","crates","split","size-cap","compile"],
+      "affects_crates": ["nika-compile","nika-compile-trigger","nika-compile-reader"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-137","ADR-138","ADR-140","ADR-141"],
+      "requires": [],
+      "enables": []
+    }
   ]
 }

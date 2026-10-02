@@ -57,9 +57,10 @@ pub fn model_needs(wf: &RawWorkflow, report: &CheckReport) -> Vec<ModelNeed> {
 }
 
 /// Resolve the frozen plan for one execution attempt over THIS
-/// machine's probe rows (provider rows + harness rows · presence only,
-/// no socket): the EFFECTIVE models (`--model` applied · a per-task
-/// `model:` keeps winning) with their verbs, under the `--access` pin.
+/// machine's probe rows: the effective models (`--model` applied; a per-task
+/// `model:` keeps winning), their verbs, and the explicit `--access` pin.
+/// When none requires model access, no provider or harness probe runs.
+/// Otherwise the probes may check authentication through an installed CLI.
 #[must_use]
 pub fn resolve_plan(
     wf: &RawWorkflow,
@@ -67,7 +68,24 @@ pub fn resolve_plan(
     model_override: Option<&str>,
     pin: Option<&str>,
 ) -> ExecutionAccessPlan {
-    resolve_plan_over(wf, report, model_override, pin, &access_probes_env())
+    resolve_plan_using(wf, report, model_override, pin, access_probes_env)
+}
+
+fn resolve_plan_using(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    model_override: Option<&str>,
+    pin: Option<&str>,
+    collect: impl FnOnce() -> Vec<ProviderProbe>,
+) -> ExecutionAccessPlan {
+    let needs = effective_needs(wf, report, model_override);
+    let verbs = verb_needs(wf);
+    let probes = if needs.is_empty() && !verbs.infer && !verbs.agent && pin.is_none() {
+        Vec::new()
+    } else {
+        collect()
+    };
+    resolve_execution_plan_for(&needs, &probes, pin, verbs)
 }
 
 /// [`resolve_plan`] over INJECTED probe rows — the pure half (tests
@@ -80,15 +98,23 @@ pub fn resolve_plan_over(
     pin: Option<&str>,
     probes: &[ProviderProbe],
 ) -> ExecutionAccessPlan {
-    let needs = match model_override {
+    let needs = effective_needs(wf, report, model_override);
+    resolve_execution_plan_for(&needs, probes, pin, verb_needs(wf))
+}
+
+fn effective_needs(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    model_override: Option<&str>,
+) -> Vec<ModelNeed> {
+    match model_override {
         Some(model) => {
             let swapped = nika_check::with_model_override(wf, model);
             let report = nika_check::check(&swapped);
             model_needs(&swapped, &report)
         }
         None => model_needs(wf, report),
-    };
-    resolve_execution_plan_for(&needs, probes, pin, verb_needs(wf))
+    }
 }
 
 /// The verbs the WORKFLOW carries, whatever its models say (W3-F1: a
@@ -307,5 +333,73 @@ mod tests {
             admitted["trust"], "observed",
             "the mock is the engine's own"
         );
+    }
+
+    #[test]
+    fn a_model_free_workflow_never_collects_access_probes() {
+        for (envelope, model_override) in [
+            ("", None),
+            ("model: mistral/mistral-small-latest\n", None),
+            ("", Some("mistral/mistral-small-latest")),
+        ] {
+            let wf = parse(&format!(
+                "nika: copy\n{envelope}tasks:\n  read:\n    invoke: {{ tool: nika:read, args: {{ path: ./input.txt }} }}\n"
+            ));
+            let report = nika_check::check(&wf);
+            let plan = resolve_plan_using(&wf, &report, model_override, None, || {
+                panic!("a file operation must not inspect model credentials or launch a CLI")
+            });
+            assert!(plan.is_admitted());
+            assert!(plan.lanes.is_empty() && plan.pin.is_none() && plan.seat.is_none());
+        }
+    }
+
+    #[test]
+    fn model_verbs_collect_once_and_keep_the_admitted_model() {
+        for action in ["infer: { prompt: hi }", "agent: { prompt: hi, tools: [] }"] {
+            let wf = parse(&format!(
+                "nika: model\nmodel: mistral/mistral-small-latest\ntasks:\n  ask:\n    {action}\n"
+            ));
+            let report = nika_check::check(&wf);
+            let calls = std::cell::Cell::new(0);
+            let plan = resolve_plan_using(&wf, &report, None, None, || {
+                calls.set(calls.get() + 1);
+                vec![api_probe("mistral", true)]
+            });
+            assert_eq!(calls.get(), 1);
+            assert!(plan.is_admitted());
+            assert!(plan.lane("mistral/mistral-small-latest").is_some());
+        }
+    }
+
+    #[test]
+    fn a_model_less_model_verb_still_collects_access_probes() {
+        for action in ["infer: { prompt: hi }", "agent: { prompt: hi, tools: [] }"] {
+            let wf = parse(&format!("nika: missing\ntasks:\n  ask:\n    {action}\n"));
+            let report = nika_check::check(&wf);
+            let calls = std::cell::Cell::new(0);
+            let plan = resolve_plan_using(&wf, &report, None, None, || {
+                calls.set(calls.get() + 1);
+                Vec::new()
+            });
+            assert_eq!(calls.get(), 1, "the verb still requires model access");
+            assert!(plan.lanes.is_empty(), "no static model was invented");
+        }
+    }
+
+    #[test]
+    fn an_explicit_access_pin_still_collects_for_a_model_free_workflow() {
+        let wf = parse(
+            "nika: copy\ntasks:\n  read:\n    invoke: { tool: nika:read, args: { path: ./input.txt } }\n",
+        );
+        let report = nika_check::check(&wf);
+        let calls = std::cell::Cell::new(0);
+        let plan = resolve_plan_using(&wf, &report, None, Some("api"), || {
+            calls.set(calls.get() + 1);
+            vec![api_probe("mistral", true)]
+        });
+        assert_eq!(calls.get(), 1, "an explicit pin keeps its access judgment");
+        assert_eq!(plan.pin.as_deref(), Some("api"));
+        assert!(plan.lanes.is_empty());
     }
 }

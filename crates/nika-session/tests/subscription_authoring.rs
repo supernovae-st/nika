@@ -18,6 +18,9 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
+use nika_cli_host::compile::config::AuthoringSettings;
+use nika_onboard::knowledge::TrustedIdentity;
+use nika_session::authoring::AuthoringContext;
 use nika_session::intelligence::{
     DataLocus, IntelligenceCensus, IntelligenceKind, ResolvedSessionIntelligence,
     UserIntelligencePreference,
@@ -29,7 +32,7 @@ use nika_session::turn::{
 use nika_session::{SessionRuntime, TurnOutcome};
 use serde_json::{Value, json};
 
-/// The verifier's closed choice, approved (native step 1, R4 A11): the explicit answer scripted at
+/// The verifier's closed choice, approved: the explicit answer scripted at
 /// the judge's position, after a candidate READY in its authoring round. The judge's call is a
 /// real call, counted like any other.
 const JUDGE_APPROVES: &str = r#"{"choice":"faithful"}"#;
@@ -58,7 +61,9 @@ fn install_fixture(dir: &Path, scenario: &str) {
         answer
     };
     let second = common::native_answer(&common::candidate("openai/gpt-4.1-mini", true));
-    // The third call of a READY revision is its judgment (native step 1): answered explicitly.
+    // The second call is the judge of the answer round that finishes the native record (native
+    // step 2, the seat permitted as its judge); the fourth is the judgment of the READY revision
+    // (native step 1). Both are answered explicitly.
     for (name, text) in [
         ("one", answer),
         ("two", second),
@@ -83,7 +88,7 @@ if [ -f {observed}/count ]; then n=$(/bin/cat {observed}/count); fi
 printf '%s' "$((n+1))" > {observed}/count
 printf '%s\n' "$@" > {observed}/argv-$n
 /bin/cat > {observed}/prompt-$n
-if [ "$n" = 0 ] || [ {bad} = yes ]; then /bin/cat {one}; elif [ "$n" = 2 ]; then /bin/cat {three}; else /bin/cat {two}; fi
+if [ "$n" = 0 ] || [ {bad} = yes ]; then /bin/cat {one}; elif [ "$n" = 1 ] || [ "$n" = 3 ]; then /bin/cat {three}; else /bin/cat {two}; fi
 "#,
         observed = shell(&observed),
         one = shell(&dir.join("one")),
@@ -106,6 +111,7 @@ fn run(scenario: &str) -> Value {
     let root = dir.path().join("root");
     std::fs::write(root.join("a.md"), "Fixture text\n").unwrap();
     let foundry = common::Foundry::create(&dir.path().join("knowledge"));
+    let identity = foundry.identity();
     install_fixture(dir.path(), scenario);
     let observed = dir.path().join("observed");
     let report = dir.path().join("report.json");
@@ -127,6 +133,15 @@ fn run(scenario: &str) -> Value {
         .env("HOME", dir.path().join("home"))
         .env("NIKA_KEYCHAIN", "off")
         .env("NIKA_AUTHORING_STRATEGY", "only")
+        .env(
+            "SUBSCRIPTION_TEST_KNOWLEDGE_IDENTITY",
+            json!({
+                "profile": identity.profile(),
+                "snapshot_sha256": identity.snapshot_sha256(),
+                "policy": {"id": identity.policy_id(), "sha256": identity.policy_sha256()},
+            })
+            .to_string(),
+        )
         .env(
             "NIKA_KNOWLEDGE",
             if scenario == "no-knowledge" {
@@ -180,6 +195,21 @@ fn run(scenario: &str) -> Value {
         "no consent, Save or Run"
     );
     out
+}
+
+fn authoring_context(scenario: &str) -> AuthoringContext {
+    let explicit = if scenario == "no-knowledge" {
+        AuthoringSettings::none().with_knowledge_off()
+    } else {
+        // The parent created and sealed the fixture; its identity comes from
+        // that trusted host, never from a record beside the payload.
+        let record = std::env::var("SUBSCRIPTION_TEST_KNOWLEDGE_IDENTITY").unwrap();
+        let identity = TrustedIdentity::from_json(&serde_json::from_str(&record).unwrap())
+            .expect("the parent supplies its sealed identity");
+        AuthoringSettings::none()
+            .with_knowledge_release(std::env::var("NIKA_KNOWLEDGE").unwrap(), identity)
+    };
+    AuthoringContext::from_settings(&explicit, &AuthoringSettings::from_env())
 }
 
 fn receipt(report: &Path, observed: &Path) -> Value {
@@ -276,8 +306,7 @@ fn child() {
             })
         };
     let mut session = SessionRuntime::open(Path::new(&root), resolved, reasoner);
-    // `open` takes explicit library inputs; only the host door reads its environment.
-    session.set_authoring_context(nika_session::authoring::AuthoringContext::from_env());
+    session.set_authoring_context(authoring_context(&scenario));
     session.with_classifier(Box::new(RouteOnly));
     let intent = if scenario == "money" {
         "Read ./a.md and do something clever with it, then write ./b.md; budget 10 USD"
@@ -324,8 +353,14 @@ fn child() {
 fn subscription_authors_then_answers_and_revises_through_the_same_native_compiler() {
     let out = run("route");
     assert_eq!(
-        out["calls"], 3,
-        "question round, revision, judgment; the answer continuation makes no new call: {out:#}"
+        out["calls"], 4,
+        "question round, its answer round's judge, revision, judgment: {out:#}"
+    );
+    let judged = |n: usize| out["prompts"][n].as_str().unwrap().contains("unfaithful");
+    assert!(
+        !judged(0) && judged(1) && !judged(2) && judged(3),
+        "{:#}",
+        out["prompts"]
     );
     assert_eq!(out["steps"][1]["kind"], "proposal");
     assert_eq!(out["steps"][2]["kind"], "proposal");
@@ -391,19 +426,26 @@ fn missing_capability_refuses_and_no_intelligence_stays_deterministic() {
 #[test]
 fn replay_retains_subscription_receipt_without_optional_knowledge() {
     let out = run("no-knowledge");
-    assert_eq!(
-        out["calls"], 3,
-        "question round, revision, judgment; replay adds no call: {out:#}"
+    assert!(
+        out["argv"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|argv| { !argv.as_str().unwrap().contains("S03-PATTERN-MARKER") })
     );
+    assert_eq!(
+        out["calls"], 4,
+        "question round, its answer round's judge, revision, judgment: {out:#}"
+    );
+    // The answer round's receipt is its own now: its one call is the judge the subscription
+    // seat is permitted as (native step 2), never a receipt carried as if nothing was sent.
     for text in [
         out["details_answer"].as_str().unwrap(),
         out["meaning_answer"]["text"].as_str().unwrap(),
     ] {
         assert!(text.contains("subscription claude-code"), "{text}");
-        assert!(
-            text.contains("this clarification replay made zero calls"),
-            "{text}"
-        );
+        assert!(text.contains(" · 1 compiler calls · "), "{text}");
+        assert!(!text.contains("made zero calls"), "{text}");
         assert!(text.contains("subscription invoice unknown"), "{text}");
     }
     assert_eq!(out["old_consent_rejected"], true);

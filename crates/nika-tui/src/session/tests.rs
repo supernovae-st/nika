@@ -116,7 +116,7 @@ fn run_live(room: &Room) -> Live {
     .with_run_review(Box::new(move |root, _, busy| {
         let args = vec![
             "-c".to_owned(),
-            "printf '%s\\n' \"$1\"; cat > reply.json".to_owned(),
+            "printf '%s\\n' \"$1\"; exec /bin/cat > reply.json".to_owned(),
             "fixture".to_owned(),
             FRAME.to_owned(),
         ];

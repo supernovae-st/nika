@@ -12,8 +12,9 @@
   keeps the exact `@1`. A well-formed `@2` projects to itself and a malformed
   one to nothing, and the admission reading law reads `@2` only when it is
   well formed. `project_route` and the `origin()` of a choice, an attempt and
-  a billing route name an origin. No writer emits `@2` yet: cost journal
-  rows, traces and saved sessions are unchanged. An unknown-cost route whose
+  a billing route name an origin. The Run terminal receipt, new
+  cost-journal observations and new Session history entries write `@2`;
+  entries already recorded are kept as written. An unknown-cost route whose
   configured endpoint is not canonical (a form the URL parser would rewrite,
   or one with userinfo, a query or a fragment) is now refused before any
   review, naming at most its origin; configure the endpoint as the parser

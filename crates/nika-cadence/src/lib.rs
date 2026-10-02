@@ -42,9 +42,11 @@
 //!   a 6-field expression dies on the count (scar #6), which is why
 //!   the cron parser is hand-counted here and zero cron library is
 //!   linked.
-//! - Both cadence FORMS parse (cron and readable `lundi 9h07`) and
-//!   display normalizes to the readable one. The weekday origin is
-//!   NAMED: `0` and `7` are dimanche/Sunday.
+//! - The cadence FORMS parse (cron, with `L` for the last day of a
+//!   month · readable `lundi 9h07` · the anchored interval `every N
+//!   weeks from DATE HH:MM`) and display normalizes a single weekly
+//!   slot to the readable one. The weekday origin is NAMED: `0` and
+//!   `7` are dimanche/Sunday.
 //! - `dom`+`dow` restricted together is a refusal (the Vixie OR trap).
 //! - Safe values sit in the DEFAULTS (law ⑥): `où: local` ·
 //!   `chevauchement: sauter` · `après_saut: prochain-créneau` — a slow
@@ -78,6 +80,7 @@ pub mod cron;
 pub mod due;
 pub mod emit;
 pub mod error;
+mod every;
 pub mod firing;
 pub mod ledger;
 pub mod next;

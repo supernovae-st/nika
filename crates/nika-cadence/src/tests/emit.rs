@@ -483,8 +483,11 @@ fn expected_dicts(cadence: &Cadence) -> usize {
             usize::try_from(f.len()).unwrap_or(0)
         }
     }
-    let Cadence::Cron { spec, .. } = cadence else {
-        return 0;
+    let spec = match cadence {
+        Cadence::Cron { spec, .. } => *spec,
+        // The anchored interval wakes weekly: one dict.
+        Cadence::Every { .. } => return 1,
+        _ => return 0,
     };
     restricted(*spec.minutes())
         * restricted(*spec.hours())
@@ -552,6 +555,10 @@ const CORPUS: &[&str] = &[
     "TZ=UTC 7 9 * * 1,3,5",
     "TZ=UTC 0/10 8 * * *",
     "TZ=UTC 0 9 1-15 * *",
+    // The month end wakes on its superset (28 to 31), the interval weekly.
+    "TZ=UTC 0 9 L * *",
+    "TZ=UTC 0,30 9 L 1,7 *",
+    "TZ=UTC every 2 weeks from 2026-10-05 09:00",
     // The boundary: 30×12 = 360 rends, 30×12×2 = 720 refuses.
     "TZ=UTC */2 */2 * * *",
     "TZ=UTC */2 */2 1,15 * *",

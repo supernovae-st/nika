@@ -116,11 +116,15 @@ impl SessionRuntime {
         // A closed monetary-only amendment changes Session's own ceiling,
         // never workflow bytes. It has its own preview and fresh consent id.
         if stated.is_ok_and(|(p, _)| p.money_only) {
-            let preview = self.draft_preview(&set);
-            let id = ProposalId::of(&preview);
-            self.bind_proposal_money(&id);
+            let mut preview = self.draft_preview(&set);
+            let new = ProposalId::of(&preview);
+            // A rehearsal's proof follows only its exact identity and bytes (`rehearsed.rs`).
+            if let Err(withdrawn) = self.rebind_rehearsal(id, &new, &set, &mut preview) {
+                return withdrawn;
+            }
+            self.bind_proposal_money(&new);
             self.pending = Some(set);
-            return TurnOutcome::Proposal { id, preview };
+            return TurnOutcome::Proposal { id: new, preview };
         }
         let changed = self
             .money

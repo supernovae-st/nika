@@ -20,10 +20,16 @@ nika-schema      = { path = "../nika-schema", version = "0.121.0" }       # RawW
 nika-types       = { path = "../nika-types", version = "0.121.0" }        # ExecutionId · RunId · CorrelationId · EventId · Timestamp
 nika-providers   = { path = "../nika-providers", version = "0.121.0" }    # ProviderProbe — the access candidates the run gate judges
 nika-harness     = { path = "../nika-harness", version = "0.121.0" }      # build the operator-selected subscription seat
+nika-builtin     = { path = "../nika-builtin", version = "0.121.0" }      # the rehearsal's tool plane: the builtin dispatcher over its room
+nika-kernel      = { path = "../nika-kernel", version = "0.121.0" }       # the seams a rehearsal denies (shell · http · provider · tools · fs)
+nika-verb-exec   = { path = "../nika-verb-exec", version = "0.121.0" }    # the rehearsal runtime's four verbs, composed as production's
+nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.121.0" }
+nika-verb-agent  = { path = "../nika-verb-agent", version = "0.121.0" }
 serde_json       = { workspace = true }
 thiserror        = { workspace = true }                                   # RunShapeError — the typed unknown-cost Run shape refusal (FCI-019)
 
 [dev-dependencies]
+bytes    = { workspace = true }                           # a test backend implements the kernel read seam
 nika-fs  = { path = "../nika-fs", version = "0.121.0" }   # OwnedDir — the admission input the tests capture from
 tempfile = { workspace = true }
 tokio    = { workspace = true }

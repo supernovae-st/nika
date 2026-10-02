@@ -10,5 +10,6 @@
   (`cost_by_source`, `spend.by_source`, the `nika:inspect` cost view) read
   `provider/model @ origin`, and routes of one origin sum under one key; totals
   and call counts are unchanged, and pricing and identity keep the exact endpoint
-  in memory. `inference_calls` no longer decodes as the in-memory call record;
-  `inference_admission` and the cost journal are unchanged until a later slice.
+  in memory. `inference_calls` no longer decodes as the in-memory call record.
+  The terminal frame's `inference_admission` and new cost-journal rows carry
+  the same origin-only projection.

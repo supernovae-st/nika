@@ -4,68 +4,59 @@
 use super::*;
 
 #[test]
-fn a_pack_file_enters_the_door_as_composed_and_a_non_pack_does_not() {
+fn a_pack_file_is_read_strictly_and_a_non_pack_never_enters() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("pack.json");
-    std::fs::write(
-        &path,
-        json!({
-            "identity": {"version": "knowledge-v12", "digest": "abc", "pack_builder": "foundry/v13"},
-            "selection": {"families": ["family:triage"]},
-            "references": [
-                {"kind": "pattern", "id": "pattern:classify-and-route", "text": "classify, then route"},
-                {"kind": "block", "id": "block:x", "text": 7}
-            ],
-            "repairs": {"NIKA-SEC-004": ["ask the endpoint as const.<system>_endpoint"], "NIKA-X": "not a list"}
-        })
-        .to_string(),
-    )
-    .unwrap();
-    let pack = pack_from_file(&path).unwrap().unwrap();
-    assert_eq!(pack.identity["pack_builder"], "foundry/v13");
-    assert_eq!(pack.identity["door"]["kind"], "file");
+    let pack = json!({
+        "identity": {"version": "knowledge-v12", "digest": "abc", "pack_builder": "foundry/v13"},
+        "selection": {"families": ["family:triage"]},
+        "references": [
+            {"kind": "pattern", "id": "pattern:classify-and-route", "text": "classify, then route"}
+        ],
+        "repairs": {"NIKA-SEC-004": ["ask the endpoint as const.<system>_endpoint"]}
+    });
+    std::fs::write(&path, pack.to_string()).unwrap();
+    let read = pack_from_file(&path).unwrap().unwrap();
+    assert_eq!(read.identity["pack_builder"], "foundry/v13");
+    assert_eq!(read.identity["door"]["kind"], "file");
     assert_eq!(
-        pack.identity["door"]["pack_sha256"].as_str().map(str::len),
+        read.identity["door"]["pack_sha256"].as_str().map(str::len),
         Some(64),
         "the door states the digest of what the pack can present"
     );
-    assert_eq!(pack.selection["families"][0], "family:triage");
+    assert_eq!(read.references[0].id, "pattern:classify-and-route");
     assert_eq!(
-        pack.references.len(),
-        1,
-        "a row without a text is not a reference"
-    );
-    assert_eq!(pack.references[0].id, "pattern:classify-and-route");
-    assert_eq!(
-        pack.repairs["NIKA-SEC-004"][0],
+        read.repairs["NIKA-SEC-004"][0],
         "ask the endpoint as const.<system>_endpoint"
     );
-    assert!(pack.repairs["NIKA-X"].is_empty());
-    std::fs::write(&path, "{\"identity\": {}}").unwrap();
-    assert_eq!(
-        pack_from_file(&path).unwrap(),
-        None,
-        "an empty pack carries no knowledge"
-    );
-    std::fs::write(&path, "not json").unwrap();
-    assert!(matches!(
-        pack_from_file(&path),
-        Err(KnowledgeError::NotAPack { .. })
-    ));
+    // Strict: a row without its text, a row with a key more, a strategy list that is not one or
+    // holds no text, an unknown key, an identity that is not an object, a key stated twice, an
+    // empty pack, no JSON, no file -- each refused whole, never filtered, never read as no
+    // knowledge.
+    let refused = [
+        json!({"references": [{"kind": "block", "id": "block:x", "text": 7}]}).to_string(),
+        json!({"references": [{"kind": "pattern", "id": "p", "text": "t", "extra": 1}]})
+            .to_string(),
+        json!({"repairs": {"NIKA-X": "not a list"}}).to_string(),
+        json!({"repairs": {"NIKA-X": [1]}}).to_string(),
+        json!({"references": [], "unknown": 1}).to_string(),
+        json!({"identity": "v13", "references": [{"kind": "pattern", "id": "p", "text": "t"}]})
+            .to_string(),
+        r#"{"references": [], "references": []}"#.to_owned(),
+        r#"{"identity": {}}"#.to_owned(),
+        "not json".to_owned(),
+    ];
+    for text in refused {
+        std::fs::write(&path, &text).unwrap();
+        assert!(
+            matches!(pack_from_file(&path), Err(KnowledgeError::NotAPack { .. })),
+            "{text}"
+        );
+    }
     assert!(matches!(
         pack_from_file(&dir.path().join("absent.json")),
         Err(KnowledgeError::NotAPack { .. })
     ));
-    // A declared identity that is not an object is kept, never a panic.
-    std::fs::write(
-        &path,
-        json!({"identity": "v13", "references": [{"kind": "pattern", "id": "p", "text": "t"}]})
-            .to_string(),
-    )
-    .unwrap();
-    let pack = pack_from_file(&path).unwrap().unwrap();
-    assert_eq!(pack.identity["declared"], "v13");
-    assert_eq!(pack.identity["door"]["kind"], "file");
 }
 
 fn write(path: &Path, text: &str) {
@@ -206,7 +197,7 @@ const DIGEST_INTENT: &str =
 #[test]
 fn the_pack_recalls_the_family_its_patterns_blocks_examples_and_skill_and_states_why() {
     let (_dir, snap) = snapshot();
-    let snapshot = Snapshot::open(&snap).expect("opens");
+    let snapshot = Snapshot::legacy_fixture(&snap);
     assert_eq!(snapshot.identity()["version"], "knowledge-t");
     assert_eq!(snapshot.identity()["digest"], "abc123");
     assert_eq!(snapshot.identity()["pack_builder"], PACK_BUILDER);
@@ -259,13 +250,13 @@ fn the_pack_recalls_the_family_its_patterns_blocks_examples_and_skill_and_states
 #[test]
 fn every_presented_byte_is_the_snapshots_and_the_pack_states_its_digest() {
     let (_dir, snap) = snapshot();
-    let snapshot = Snapshot::open(&snap).expect("opens");
+    let snapshot = Snapshot::legacy_fixture(&snap);
     let identity = snapshot.identity();
     assert_eq!(identity["verification"]["row_files"], 8);
     assert_eq!(
-        identity["verification"]["row_files_unpinned"],
-        json!([]),
-        "every row file is pinned and matched"
+        identity["verification"]["admission"],
+        legacy::NOT_ADMITTED,
+        "a historical fixture never claims an admission"
     );
     assert_eq!(identity["rows_sha256"], json!(snapshot.rows_sha256()));
     assert_eq!(
@@ -273,17 +264,13 @@ fn every_presented_byte_is_the_snapshots_and_the_pack_states_its_digest() {
         Some(64),
         "the manifest's own bytes, computed"
     );
-    assert_eq!(
-        identity["verification"]["digest"],
-        "declared by the manifest, not recomputed"
-    );
     let pack = snapshot.pack(DIGEST_INTENT, Some("sealed")).expect("pack");
     assert_eq!(
         pack.selection["files"]["verified"], 3,
         "the block, the example and the skill were compared to their pins: {}",
         pack.selection["files"]
     );
-    assert_eq!(pack.selection["files"]["unpinned"], json!([]));
+    assert_eq!(pack.selection["files"]["absent"], json!([]));
     let digest = pack.identity["door"]["pack_sha256"].as_str().unwrap();
     assert_eq!(digest, pack_sha256(&pack));
     // The same snapshot and intent compose the same pack, byte for byte.
@@ -296,95 +283,11 @@ fn every_presented_byte_is_the_snapshots_and_the_pack_states_its_digest() {
     assert_ne!(other.identity["door"]["pack_sha256"], json!(digest));
 }
 
+/// A stranger intent recalls little: no example, no family.
 #[test]
-fn a_row_file_edited_after_the_export_is_refused_as_stale() {
+fn a_stranger_intent_recalls_little() {
     let (_dir, snap) = snapshot();
-    write(
-        &snap.join("patterns.jsonl"),
-        r#"{"id": "pattern:summarize", "kind": "pattern", "title": "Summarize", "purpose": "An edited purpose."}"#,
-    );
-    match Snapshot::open(&snap) {
-        Err(KnowledgeError::Stale { version, file, .. }) => {
-            assert_eq!(version, "knowledge-t");
-            assert_eq!(file, "knowledge/patterns.jsonl");
-        }
-        other => panic!("an edited row file is stale: {other:?}"),
-    }
-}
-
-#[test]
-fn a_presented_file_changed_in_the_root_is_refused_as_stale_never_presented() {
-    let (dir, snap) = snapshot();
-    let before = Snapshot::open(&snap).expect("opens");
-    write(
-        &dir.path().join("foundry/blocks/digest.nika"),
-        "nika: digest-edited-after-export\ntasks: {}\n",
-    );
-    // Re-pinned by a new export under the SAME declared version and digest, the snapshot is
-    // consistent again — and only the manifest's own bytes say it is not the same snapshot.
-    pin_manifest(dir.path(), &snap);
-    let repinned = Snapshot::open(&snap).expect("consistent");
-    assert!(repinned.pack(DIGEST_INTENT, Some("sealed")).is_ok());
-    assert_eq!(
-        (repinned.version(), repinned.digest()),
-        (before.version(), before.digest())
-    );
-    assert_eq!(repinned.rows_sha256(), before.rows_sha256());
-    assert_ne!(repinned.manifest_sha256(), before.manifest_sha256());
-    // Back to a stale snapshot: the old manifest, the edited block.
-    std::fs::write(
-        snap.join("manifest.json"),
-        serde_json::to_string(&before.manifest).unwrap(),
-    )
-    .unwrap();
-    let snapshot = Snapshot::open(&snap).expect("the rows still match");
-    let error = snapshot
-        .pack(DIGEST_INTENT, Some("sealed"))
-        .expect_err("the block's bytes are not the snapshot's");
-    match &error {
-        KnowledgeError::Stale { file, .. } => assert_eq!(file, "blocks/digest.nika"),
-        other => panic!("stale: {other:?}"),
-    }
-    assert!(error.to_string().contains("is stale"), "{error}");
-}
-
-#[test]
-fn a_manifest_that_pins_nothing_is_presented_as_unverified_and_says_so() {
-    let (_dir, snap) = snapshot();
-    write(
-        &snap.join("manifest.json"),
-        r#"{"knowledge_version": "hand-made", "digest": "d"}"#,
-    );
-    let snapshot = Snapshot::open(&snap).expect("opens");
-    assert_eq!(
-        snapshot.identity()["verification"]["row_files_unpinned"]
-            .as_array()
-            .map(Vec::len),
-        Some(8)
-    );
-    let pack = snapshot.pack(DIGEST_INTENT, Some("sealed")).expect("pack");
-    assert_eq!(pack.selection["files"]["verified"], 0);
-    assert_eq!(
-        pack.selection["files"]["unpinned"].as_array().map(Vec::len),
-        Some(3),
-        "{}",
-        pack.selection["files"]
-    );
-}
-
-#[test]
-fn a_directory_without_a_manifest_is_no_snapshot_and_a_stranger_intent_recalls_little() {
-    let dir = tempfile::tempdir().unwrap();
-    assert!(matches!(
-        Snapshot::open(dir.path()),
-        Err(KnowledgeError::NotASnapshot { .. })
-    ));
-    write(&dir.path().join("manifest.json"), "[1, 2]");
-    let error = Snapshot::open(dir.path()).unwrap_err();
-    assert!(error.to_string().contains("not a JSON object"), "{error}");
-    let (_dir, snap) = snapshot();
-    let pack = Snapshot::open(&snap)
-        .unwrap()
+    let pack = Snapshot::legacy_fixture(&snap)
         .pack("zzz qqq", None)
         .unwrap();
     assert!(
@@ -503,8 +406,7 @@ fn relevance_not_id_order_decides_the_patterns_and_blocks_presented() {
         ],
         &files,
     );
-    let pack = Snapshot::open(&snap)
-        .unwrap()
+    let pack = Snapshot::legacy_fixture(&snap)
         .pack("Quarantine the invalid invoices of the batch", None)
         .unwrap();
     let presented = ids(&pack, "pattern");
@@ -580,8 +482,7 @@ fn a_secondary_obligation_keeps_its_block_beside_the_leading_family() {
         ],
         &files,
     );
-    let pack = Snapshot::open(&snap)
-        .unwrap()
+    let pack = Snapshot::legacy_fixture(&snap)
         .pack(
             "Keep only the paid rows of sales.csv, then write the total amount to total.txt",
             None,
@@ -644,8 +545,7 @@ fn a_selected_item_the_byte_cap_leaves_out_is_recorded_excluded_never_presented(
         ],
         &files,
     );
-    let pack = Snapshot::open(&snap)
-        .unwrap()
+    let pack = Snapshot::legacy_fixture(&snap)
         .pack("Write the weekly sales report", None)
         .unwrap();
     let presented: BTreeSet<(String, String)> = pack
@@ -729,8 +629,7 @@ fn a_block_states_its_holes_effects_capabilities_known_failures_and_version() {
             "nika: csv-total\ntasks: {}\n".to_owned(),
         )],
     );
-    let pack = Snapshot::open(&snap)
-        .unwrap()
+    let pack = Snapshot::legacy_fixture(&snap)
         .pack("Total the amount column of a csv", None)
         .unwrap();
     let text = &pack
@@ -758,8 +657,7 @@ fn a_block_states_its_holes_effects_capabilities_known_failures_and_version() {
 #[test]
 fn a_request_nothing_matches_is_stated_as_no_match_and_the_pack_still_composes() {
     let (_dir, snap) = snapshot();
-    let pack = Snapshot::open(&snap)
-        .unwrap()
+    let pack = Snapshot::legacy_fixture(&snap)
         .pack("zzz qqq", None)
         .unwrap();
     assert!(pack.references.is_empty(), "{:?}", pack.references);
@@ -797,8 +695,7 @@ fn the_lexical_prefilter_across_french_and_english_is_stated_not_hidden() {
     };
     let french = "Garde uniquement les lignes réglées puis additionne leurs montants";
     let (_dir, english) = custom(&rows("keep only the paid rows and sum their amounts"), &[]);
-    let pack = Snapshot::open(&english)
-        .unwrap()
+    let pack = Snapshot::legacy_fixture(&english)
         .pack(french, None)
         .unwrap();
     assert!(
@@ -811,8 +708,7 @@ fn the_lexical_prefilter_across_french_and_english_is_stated_not_hidden() {
         &rows("garder les lignes reglees, additionner les montants"),
         &[],
     );
-    let pack = Snapshot::open(&bilingual)
-        .unwrap()
+    let pack = Snapshot::legacy_fixture(&bilingual)
         .pack(french, None)
         .unwrap();
     assert_eq!(
@@ -827,11 +723,10 @@ fn the_lexical_prefilter_across_french_and_english_is_stated_not_hidden() {
 #[test]
 fn the_selection_names_its_selector_and_the_builder_version() {
     let (_dir, snap) = snapshot();
-    let pack = Snapshot::open(&snap)
-        .unwrap()
+    let pack = Snapshot::legacy_fixture(&snap)
         .pack(DIGEST_INTENT, Some("sealed"))
         .unwrap();
-    assert_eq!(PACK_BUILDER, "nika-compile/knowledge-door-v3");
+    assert_eq!(PACK_BUILDER, "nika-compile/knowledge-door-v4");
     assert_eq!(pack.identity["door"]["builder"], PACK_BUILDER);
     let selector = &pack.selection["selector"];
     assert!(
@@ -882,8 +777,7 @@ fn metadata_past_its_bound_is_named_as_omitted_never_cut_mid_line() {
         ],
         &[("blocks/long.nika", "nika: long\ntasks: {}\n".to_owned())],
     );
-    let pack = Snapshot::open(&snap)
-        .unwrap()
+    let pack = Snapshot::legacy_fixture(&snap)
         .pack("Read the long file", None)
         .unwrap();
     let text = &pack

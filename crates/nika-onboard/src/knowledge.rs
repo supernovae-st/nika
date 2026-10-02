@@ -1,31 +1,44 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The knowledge door: `--knowledge <snapshot dir>` reads a Foundry knowledge snapshot
-//! (`manifest.json` · one JSONL per kind · `relations.jsonl`) and composes, for one intent,
-//! the authoring pack the seat reads beside the card — the families the intent belongs to,
-//! their patterns and the checked blocks that realize them, the solved examples that read
-//! alike, the skill of the leading family — plus the repair principles the snapshot wires to
-//! diagnostic codes, for the repair rounds. Deterministic retrieval (BM25 over the rows'
-//! text and the snapshot's graph), bounded (three families · eight patterns · four blocks ·
-//! three examples · one skill · ~40 KiB), and stated: the selection record names every row it
-//! selected, why, and whether it was presented or excluded (and for what reason); the identity
-//! carries the snapshot's version and digest and this builder's version. The order of what is
-//! taken is relevance — each recalled family, then the direct text match, in turn — never the
-//! rows' ids, and a block is presented with the holes, effects, capabilities, known failures and
-//! version its row states. The selection is this door's own (Rust BM25 over the Foundry graph),
-//! not the one the Foundry producer computes, and the record says so. Foundry
-//! measured the effect of such a pack on the reference engineer (2026-09-22: 1/20 → 17/20
-//! on twenty generalization intents); this door lets the compiler's own seat read it.
+//! The knowledge door: `--knowledge <release root>` admits a Foundry knowledge release
+//! ([`RELEASE_FORMAT`]: `knowledge/manifest.json` · one JSONL per kind · the relations · the files
+//! its blocks name · the notices) and composes, for one intent, the authoring pack the seat reads
+//! beside the card — the families the intent belongs to, their patterns and the checked blocks
+//! that realize them (and the solved examples and the skill of the leading family, which a
+//! policy-R release never holds) — plus the repair principles the release wires to diagnostic
+//! codes, for the repair rounds. Deterministic retrieval (BM25 over the rows' text and the
+//! release's graph), bounded (three families · eight patterns · four blocks · three examples ·
+//! one skill · ~40 KiB), and stated: the selection record names every row it selected, why, and
+//! whether it was presented or excluded (and for what reason); the identity carries the release's
+//! version, its `SNAPSHOT_SHA256` (the sha256 of its manifest's bytes) and this builder's version.
+//! The order of what is taken is relevance — each recalled family, then the direct text match, in
+//! turn — never the rows' ids, and a block is presented with the holes, effects, capabilities,
+//! known failures and version its row states. The selection is this door's own (Rust BM25 over the
+//! Foundry graph), not the one the Foundry producer computes, and the record says so.
 //!
-//! Verified: a Foundry manifest pins the sha256 of every file under its knowledge root
-//! (`files`, keyed by the path under that root). Every row file the door holds and every file
-//! it presents is compared to that pin before a byte reaches a seat: a snapshot whose bytes are
-//! not the ones its identity names (the root changed after the export, a row edited) is refused
-//! as stale, never presented under that identity; a file the manifest does not pin is presented
-//! as unverified and named so in the record. The pack's own digest (every reference and repair
-//! principle it can present) rides the identity's `door` record. One door: `nika compile
-//! --knowledge` and the session compose through this code.
+//! Admitted against a trusted identity, never trusted for its own claims. One strict admission
+//! ([`Snapshot::open`] on disk, [`Snapshot::from_files`] in memory, [`ADMISSION_PROFILE`]) serves
+//! every product door (`nika compile`, the session, serve).
+//!
+//! The embedder names the [`TrustedIdentity`] it expects (the release's `SNAPSHOT_SHA256` and
+//! its policy), from its own release record. A source without one is refused before anything is
+//! collected. A named directory carries none today. This build embeds one qualified release,
+//! admitted in memory against the identity its owner issued: the knowledge where nothing names
+//! any.
+//!
+//! The release is read once:
+//! - every byte is bound to the manifest's pins;
+//! - every row to its digest, its kind's closed and typed schema, the manifest's target, its
+//!   evidence and its lineage;
+//! - every relation to admitted rows.
+//!
+//! A release that fails any rule is refused as a typed [`KnowledgeError::Unavailable`]. Nothing is
+//! loaded: no partial load, no other source.
+//!
+//! A pack presents the admitted bytes and never reads a second time. A pack composed elsewhere for
+//! one intent is not admitted ([`KnowledgeError::PackNotAdmitted`]). The pack's own digest (every
+//! reference and repair principle it can present) rides the identity's `door` record.
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
@@ -33,8 +46,23 @@ use crate::compile::{AuthoringKnowledge, KnowledgeReference};
 use nika_event::source_id::sha256_hex;
 use serde_json::{Value, json};
 
+/// The strict admission of a release: its profile and its typed refusals.
+mod admission;
+/// The release this build embeds: its issued bytes compiled in, admitted in memory.
+pub(crate) mod bundled;
+/// The byte contract a release shares with its producer: strict JSON and the canonical digest.
+mod canonical;
+/// A synthetic release the strict door admits (tests, and doors with `test-support`).
+#[cfg(any(test, feature = "test-support"))]
+pub mod fixture;
+/// The historical snapshot layout, read for the retrieval baseline tests only.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
+mod legacy;
 /// The pinned snapshot identity and the records a session stamps on an outcome (C7 · D1).
 pub mod pin;
+
+pub use admission::{ADMISSION_PROFILE, RELEASE_FORMAT, RefusalCode, TrustedIdentity};
 
 /// The snapshot identity as an answer may carry it: every hash, count and selection, no host
 /// path (the snapshot directory, the files root).
@@ -53,8 +81,10 @@ pub fn redact_host_paths(identity: &mut serde_json::Value) {
 /// This builder's version, stated beside the snapshot digest (v2: every presented byte is
 /// verified against the manifest's pins, and the pack states its own digest; v3: relevance
 /// survives deduplication, each recalled family gets its block in turn, the receipt separates
-/// selected, excluded with a reason and presented, and a block states its row's metadata).
-pub const PACK_BUILDER: &str = "nika-compile/knowledge-door-v3";
+/// selected, excluded with a reason and presented, and a block states its row's metadata; v4:
+/// one strict admission against a trusted identity (profile r1 of the shared contract), every
+/// presented byte admitted when the release opens, never read again).
+pub const PACK_BUILDER: &str = "nika-compile/knowledge-door-v4";
 const FAMILIES: usize = 3;
 const PATTERNS: usize = 8;
 const BLOCKS: usize = 4;
@@ -75,23 +105,15 @@ const PRINCIPLES: usize = 3;
 pub enum KnowledgeError {
     /// This reader does not implement the configured knowledge-source kind.
     UnsupportedSource,
-    /// The directory holds no readable Foundry snapshot manifest.
-    NotASnapshot {
-        /// The directory named.
-        dir: PathBuf,
-        /// What was missing or unreadable.
-        why: String,
-    },
-    /// A file the door read is not the file its manifest pins: the snapshot is stale.
-    Stale {
-        /// The snapshot's version, as its manifest names it.
-        version: String,
-        /// The file, as the manifest names it (a path under the knowledge root).
-        file: String,
-        /// The sha256 the manifest pins.
-        expected: String,
-        /// The sha256 of the bytes read.
-        found: String,
+    /// The strict door refused the release at `root`: knowledge unavailable, never a partial
+    /// load and never another source.
+    Unavailable {
+        /// The release root named.
+        root: PathBuf,
+        /// The first cause admission found.
+        code: RefusalCode,
+        /// What it found, in words.
+        detail: String,
     },
     /// The file is not a knowledge pack.
     NotAPack {
@@ -99,6 +121,12 @@ pub enum KnowledgeError {
         file: PathBuf,
         /// Why.
         why: String,
+    },
+    /// A pack composed elsewhere for one intent: nothing binds its bytes to an admitted release,
+    /// so no product door enters it.
+    PackNotAdmitted {
+        /// The pack file named.
+        file: PathBuf,
     },
 }
 
@@ -108,109 +136,105 @@ impl std::fmt::Display for KnowledgeError {
             Self::UnsupportedSource => {
                 f.write_str("this knowledge source is not supported by this reader")
             }
-            Self::NotASnapshot { dir, why } => {
-                write!(f, "`{}` is not a knowledge snapshot ({why})", dir.display())
-            }
-            Self::Stale {
-                version,
-                file,
-                expected,
-                found,
-            } => write!(
+            Self::Unavailable { root, code, detail } => write!(
                 f,
-                "knowledge snapshot `{version}` is stale: `{file}` reads sha256 {found:.12}…, its manifest pins {expected:.12}… — export the snapshot again, or name one its files still match"
+                "knowledge unavailable: the strict door refused `{}` ({code}: {detail}) — name a release this engine admits, or turn the knowledge off (--no-knowledge · NIKA_KNOWLEDGE=off)",
+                root.display()
             ),
             Self::NotAPack { file, why } => {
                 write!(f, "`{}` is not a knowledge pack ({why})", file.display())
             }
+            Self::PackNotAdmitted { file } => write!(
+                f,
+                "the knowledge pack `{}` is not admitted: a pack composed elsewhere is bound to no admitted release — name the release root instead (--knowledge · NIKA_KNOWLEDGE)",
+                file.display()
+            ),
         }
     }
 }
 
 impl std::error::Error for KnowledgeError {}
 
-/// A snapshot on disk: its manifest and its pins, the rows by kind (every row file compared to
-/// its pin), the relations by source id.
+/// An admitted release: its manifest and pins, the rows by kind, the relations, and every
+/// file's admitted bytes — what a pack presents is what admission verified.
 #[derive(Debug)]
 pub struct Snapshot {
     dir: PathBuf,
-    files_root: Option<PathBuf>,
     manifest: Value,
     rows: BTreeMap<String, Vec<Value>>,
     relations: Vec<Value>,
-    /// The manifest's pins: a path under the knowledge root → its sha256.
+    /// The manifest's pins: a path under the release root → its sha256.
     pins: BTreeMap<String, String>,
-    /// Every row file held, by name: the sha256 of the bytes read, and whether a pin covered it.
-    row_files: BTreeMap<String, (String, bool)>,
-    /// The sha256 of the manifest's bytes as read — computed here, unlike the `digest` the
-    /// manifest declares (the exporter's, never recomputed by this door).
+    /// Every file's admitted bytes but the manifest's, by path under the root.
+    files: BTreeMap<String, Vec<u8>>,
+    /// Every row file's sha256 as admitted, by name.
+    row_files: BTreeMap<String, String>,
+    /// The sha256 of the manifest's bytes as admitted: the release's `SNAPSHOT_SHA256`, which
+    /// content-addresses every file through the manifest's pins.
     manifest_sha256: String,
+    /// The admission that verified it ([`ADMISSION_PROFILE`]).
+    admission: &'static str,
 }
 
 impl Snapshot {
-    /// Open a snapshot directory: its manifest, then every row file, each compared to the
-    /// manifest's pin (`knowledge/<file>` under the knowledge root).
+    /// Admit the release at the absolute root `dir` through the strict door, against the
+    /// identity an embedder trusts. Nothing of `dir` is touched without one. Then:
+    /// - every file is collected on held descriptors and read once;
+    /// - every byte is bound to its pin;
+    /// - every row and relation is checked against this reader's profile
+    ///   ([`ADMISSION_PROFILE`]).
     ///
     /// # Errors
-    /// No readable manifest ([`KnowledgeError::NotASnapshot`]), or a row file whose bytes are not
-    /// the ones the manifest pins ([`KnowledgeError::Stale`]).
-    pub fn open(dir: &Path) -> Result<Self, KnowledgeError> {
-        let not = |why: String| KnowledgeError::NotASnapshot {
-            dir: dir.to_path_buf(),
-            why,
-        };
-        let text = std::fs::read_to_string(dir.join("manifest.json"))
-            .map_err(|e| not(format!("manifest.json: {e}")))?;
-        let manifest: Value = serde_json::from_str(&text)
-            .map_err(|e| not(format!("manifest.json is not JSON: {e}")))?;
-        if !manifest.is_object() {
-            return Err(not("manifest.json is not a JSON object".to_owned()));
-        }
-        let pins: BTreeMap<String, String> = manifest
-            .get("files")
-            .and_then(Value::as_object)
-            .map(|files| {
-                files
-                    .iter()
-                    .filter_map(|(path, sha)| Some((path.clone(), sha.as_str()?.to_owned())))
-                    .collect()
-            })
-            .unwrap_or_default();
-        let version = manifest_text(&manifest, "knowledge_version").unwrap_or("unversioned");
-        let mut names: Vec<String> = std::fs::read_dir(dir)
-            .map_err(|e| not(e.to_string()))?
-            .filter_map(Result::ok)
-            .filter_map(|entry| entry.file_name().to_str().map(str::to_owned))
-            .collect();
-        names.sort();
-        let mut rows = BTreeMap::new();
-        let mut relations = Vec::new();
-        let mut row_files = BTreeMap::new();
-        for name in names {
-            // The exporter's row files, one JSONL per kind (the lowercase suffix it writes).
-            let Some(kind) = name.strip_suffix(".jsonl") else {
-                continue;
-            };
-            let bytes = std::fs::read(dir.join(&name)).map_err(|e| not(format!("{name}: {e}")))?;
-            let sha = sha256_hex(&bytes);
-            let pinned = verify(&pins, version, &format!("knowledge/{name}"), &sha)?;
-            let parsed = jsonl(&String::from_utf8_lossy(&bytes));
-            if kind == "relations" {
-                relations = parsed;
-            } else {
-                rows.insert(kind.to_owned(), parsed);
+    /// [`KnowledgeError::Unavailable`] with the first cause found ([`RefusalCode`]): no trusted
+    /// identity is [`RefusalCode::Untrusted`]. Nothing is loaded from a refused release, not even
+    /// part of it.
+    pub fn open(dir: &Path, identity: Option<&TrustedIdentity>) -> Result<Self, KnowledgeError> {
+        Self::admitted(
+            dir.to_path_buf(),
+            admission::admit(dir, identity, &mut |_, _| {}),
+        )
+    }
+
+    /// Admit a release an embedder holds in memory: its files by relative path, the manifest's
+    /// included. The rules are the disk form's, its collection aside: the paths and bounds are
+    /// judged before anything is hashed. `label` names the source in a refusal (a build's own
+    /// knowledge root, say).
+    ///
+    /// # Errors
+    /// As [`Self::open`].
+    pub fn from_files(
+        label: &str,
+        files: BTreeMap<String, Vec<u8>>,
+        identity: Option<&TrustedIdentity>,
+    ) -> Result<Self, KnowledgeError> {
+        Self::admitted(
+            PathBuf::from(label),
+            admission::admit_memory(files, identity),
+        )
+    }
+
+    /// The snapshot an admission kept, or its refusal bound to the source it named.
+    fn admitted(
+        dir: PathBuf,
+        admitted: Result<admission::Admitted, admission::Refusal>,
+    ) -> Result<Self, KnowledgeError> {
+        let admitted = admitted.map_err(|admission::Refusal(_step, code, detail)| {
+            KnowledgeError::Unavailable {
+                root: dir.clone(),
+                code,
+                detail,
             }
-            row_files.insert(name, (sha, pinned));
-        }
+        })?;
         Ok(Self {
-            files_root: files_root(dir),
-            dir: dir.to_path_buf(),
-            manifest,
-            rows,
-            relations,
-            pins,
-            row_files,
-            manifest_sha256: sha256_hex(text.as_bytes()),
+            dir,
+            manifest: admitted.manifest,
+            rows: admitted.rows,
+            relations: admitted.relations,
+            pins: admitted.pins,
+            files: admitted.files,
+            row_files: admitted.row_files,
+            manifest_sha256: admitted.manifest_sha256,
+            admission: ADMISSION_PROFILE,
         })
     }
 
@@ -220,60 +244,57 @@ impl Snapshot {
         manifest_text(&self.manifest, "knowledge_version")
     }
 
-    /// The digest the manifest DECLARES (the exporter's): stated, never recomputed here — the
-    /// integrity this door computes is [`Self::manifest_sha256`] and the per-file pins.
+    /// The digest the manifest DECLARES (the exporter's), when it declares one: a release
+    /// declares none — its identity is [`Self::manifest_sha256`], computed here.
     #[must_use]
     pub fn digest(&self) -> Option<&str> {
         manifest_text(&self.manifest, "digest")
     }
 
-    /// The sha256 of the manifest's bytes as this door read them: any change to the manifest
-    /// (a re-pinned file under the same declared version and digest) changes it.
+    /// The sha256 of the manifest's bytes as admitted — the release's `SNAPSHOT_SHA256`: any
+    /// change to any of its files changes a pin, and so the manifest's bytes.
     #[must_use]
     pub fn manifest_sha256(&self) -> &str {
         &self.manifest_sha256
     }
 
-    /// The digest of the row files as the door read them (each name and sha256, in name
-    /// order): the identity of the rows held, pinned or not.
+    /// The digest of the row files as admitted (each name and sha256, in name order): the
+    /// identity of the rows held.
     #[must_use]
     pub fn rows_sha256(&self) -> String {
         use std::fmt::Write as _;
         let lines = self
             .row_files
             .iter()
-            .fold(String::new(), |mut lines, (name, (sha, _))| {
+            .fold(String::new(), |mut lines, (name, sha)| {
                 let _ = writeln!(lines, "{name} {sha}");
                 lines
             });
         sha256_hex(lines.as_bytes())
     }
 
-    /// The snapshot's identity for the provenance record: version and declared digest (the
-    /// manifest's words), the manifest's and the rows' sha256 (computed here), the builder, and
-    /// what the door verified.
+    /// The release's identity for the provenance record: the version its manifest names, its
+    /// `SNAPSHOT_SHA256` and the rows' digest (computed here), the builder, and the admission that
+    /// verified it, with the format and the policy the manifest names.
     #[must_use]
     pub fn identity(&self) -> Value {
-        let unpinned: Vec<&str> = self
-            .row_files
-            .iter()
-            .filter(|(_, (_, pinned))| !pinned)
-            .map(|(name, _)| name.as_str())
-            .collect();
+        let declared = |key: &str| self.manifest.get(key).cloned().unwrap_or(Value::Null);
         json!({
-            "version": self.manifest.get("knowledge_version").cloned().unwrap_or(Value::Null),
-            "digest": self.manifest.get("digest").cloned().unwrap_or(Value::Null),
-            "source_commit": self.manifest.get("source_commit").cloned().unwrap_or(Value::Null),
+            "version": declared("knowledge_version"),
+            "digest": declared("digest"),
+            "source_commit": declared("source_commit"),
             "pack_builder": PACK_BUILDER,
             "dir": self.dir.display().to_string(),
             "manifest_sha256": self.manifest_sha256,
+            "snapshot_sha256": self.manifest_sha256,
             "rows_sha256": self.rows_sha256(),
             "verification": {
-                "digest": "declared by the manifest, not recomputed",
+                "admission": self.admission,
+                "format": declared("format"),
+                "profile": declared("profile"),
+                "policy": declared("policy"),
                 "manifest_pins": self.pins.len(),
                 "row_files": self.row_files.len(),
-                "row_files_unpinned": unpinned,
-                "files_root": self.files_root.as_ref().map(|p| p.display().to_string()),
             },
         })
     }
@@ -324,29 +345,17 @@ impl Snapshot {
             .collect()
     }
 
-    /// A referenced file's text, bounded, compared to its pin first; None when the snapshot's
-    /// files root is unknown or the file is absent (the composition records the absence).
-    fn file_text(
-        &self,
-        relative: &str,
-        composition: &mut Composition,
-    ) -> Result<Option<String>, KnowledgeError> {
-        let Some(root) = self.files_root.as_ref() else {
-            return Ok(None);
-        };
-        let Ok(bytes) = std::fs::read(root.join(relative)) else {
+    /// A referenced file's admitted text, bounded; `None` when the release holds no such file
+    /// (the composition records the absence) or its bytes are not UTF-8.
+    fn file_text(&self, relative: &str, composition: &mut Composition) -> Option<String> {
+        let Some(bytes) = self.files.get(relative) else {
             composition.absent.push(relative.to_owned());
-            return Ok(None);
+            return None;
         };
-        let version = self.version().unwrap_or("unversioned");
-        if verify(&self.pins, version, relative, &sha256_hex(&bytes))? {
-            composition.verified += 1;
-        } else {
-            composition.unpinned.push(relative.to_owned());
-        }
-        Ok(String::from_utf8(bytes)
+        composition.verified += 1;
+        std::str::from_utf8(bytes)
             .ok()
-            .map(|text| cut(&text, FILE_BYTES)))
+            .map(|text| cut(text, FILE_BYTES))
     }
 
     /// The authoring pack for one intent: the references the seat reads, the selection
@@ -354,8 +363,8 @@ impl Snapshot {
     /// honest: no example of the case's own corpus is recalled.
     ///
     /// # Errors
-    /// A referenced file whose bytes are not the ones the manifest pins
-    /// ([`KnowledgeError::Stale`]): no pack is composed from a stale snapshot.
+    /// None once admitted: the strict door verified every byte a pack can present when the
+    /// release opened ([`Self::open`]); the result keeps the door's callers' type.
     pub fn pack(
         &self,
         intent: &str,
@@ -363,9 +372,9 @@ impl Snapshot {
     ) -> Result<AuthoringKnowledge, KnowledgeError> {
         let mut composition = Composition::new(intent);
         let families = self.recall_families(intent, &mut composition);
-        self.recall_shapes(intent, &families, &mut composition)?;
-        self.recall_examples(intent, exclude_corpus, &mut composition)?;
-        self.recall_skill(&families, &mut composition)?;
+        self.recall_shapes(intent, &families, &mut composition);
+        self.recall_examples(intent, exclude_corpus, &mut composition);
+        self.recall_skill(&families, &mut composition);
         composition.close();
         let mut pack = AuthoringKnowledge {
             identity: self.identity(),
@@ -406,7 +415,7 @@ impl Snapshot {
         intent: &str,
         families: &[(String, f64)],
         composition: &mut Composition,
-    ) -> Result<(), KnowledgeError> {
+    ) {
         let mut sources: Vec<(String, Vec<(String, String)>)> = families
             .iter()
             .map(|(family, _)| (family.clone(), self.family_patterns(family)))
@@ -447,10 +456,9 @@ impl Snapshot {
         let blocks = interleave(&covering);
         composition.count("blocks", self.rows("blocks").len(), blocks.len(), BLOCKS);
         for (block, why) in blocks.iter().take(BLOCKS) {
-            let text = self.block_text(block, composition)?;
+            let text = self.block_text(block, composition);
             composition.offer("blocks", "block", block, why, text);
         }
-        Ok(())
     }
 
     /// A family's patterns through the graph (it RECOMMENDS a pack that CONTAINS them), in the
@@ -496,11 +504,7 @@ impl Snapshot {
 
     /// A block as the seat reads it — title and purpose, the metadata that keeps it from being
     /// misused, its code — or why it cannot be presented.
-    fn block_text(
-        &self,
-        id: &str,
-        composition: &mut Composition,
-    ) -> Result<Result<String, String>, KnowledgeError> {
+    fn block_text(&self, id: &str, composition: &mut Composition) -> Result<String, String> {
         let mut omitted = Vec::new();
         let text = self.presentable(id, composition, |row, code| {
             let metadata;
@@ -511,13 +515,13 @@ impl Snapshot {
                 text_of(row, &["purpose"]),
                 code.trim_end()
             )
-        })?;
+        });
         if !omitted.is_empty() {
             composition
                 .omitted
                 .push(json!({"id": id, "metadata_omitted": omitted}));
         }
-        Ok(text)
+        text
     }
 
     /// 5 · the examples that read alike, never one of the case's own corpus.
@@ -526,7 +530,7 @@ impl Snapshot {
         intent: &str,
         exclude_corpus: Option<&str>,
         composition: &mut Composition,
-    ) -> Result<(), KnowledgeError> {
+    ) {
         let examples: Vec<&Value> = self
             .rows("examples")
             .iter()
@@ -545,7 +549,7 @@ impl Snapshot {
                     text_of(row, &["intent"]),
                     text.trim_end()
                 )
-            })?;
+            });
             composition.offer(
                 "examples",
                 "example",
@@ -554,15 +558,10 @@ impl Snapshot {
                 text,
             );
         }
-        Ok(())
     }
 
     /// 6 · the leading family's skill.
-    fn recall_skill(
-        &self,
-        families: &[(String, f64)],
-        composition: &mut Composition,
-    ) -> Result<(), KnowledgeError> {
+    fn recall_skill(&self, families: &[(String, f64)], composition: &mut Composition) {
         let skills: Vec<(String, String)> = families
             .iter()
             .filter_map(|(family, _)| {
@@ -576,35 +575,30 @@ impl Snapshot {
             .collect();
         composition.count("skills", self.rows("skills").len(), skills.len(), SKILLS);
         for (id, why) in skills.into_iter().take(SKILLS) {
-            let text = self.presentable(&id, composition, |_, text| text)?;
+            let text = self.presentable(&id, composition, |_, text| text);
             composition.offer("skills", "skill", &id, &why, text);
         }
-        Ok(())
     }
 
-    /// A selected row's text as the seat reads it (`render` over the row and its file's text), or
-    /// why it cannot be presented: no row, no file named, or a file absent or unreadable.
+    /// A selected row's text as the seat reads it (`render` over the row and its file's admitted
+    /// text), or why it cannot be presented: no row, no file named, a file the release lacks or
+    /// whose bytes are not UTF-8.
     fn presentable(
         &self,
         id: &str,
         composition: &mut Composition,
         render: impl FnOnce(&Value, String) -> String,
-    ) -> Result<Result<String, String>, KnowledgeError> {
+    ) -> Result<String, String> {
         let Some(row) = self.row(id) else {
-            return Ok(Err("no row in the snapshot".to_owned()));
+            return Err("no row in the snapshot".to_owned());
         };
         let Some(file) = row.get("file").and_then(Value::as_str) else {
-            return Ok(Err("the row names no file".to_owned()));
+            return Err("the row names no file".to_owned());
         };
-        Ok(match self.file_text(file, composition)? {
+        match self.file_text(file, composition) {
             Some(text) => Ok(render(row, text)),
-            None if self.files_root.is_none() => {
-                Err(format!("no files root to read `{file}` from"))
-            }
-            None => Err(format!(
-                "`{file}` is absent or not UTF-8 under the files root"
-            )),
-        })
+            None => Err(format!("`{file}` is absent from the release or not UTF-8")),
+        }
     }
 
     /// The repair principles by diagnostic code (`diagnostic:<CODE> --SUGGESTS_REPAIR-->
@@ -646,26 +640,6 @@ fn manifest_text<'a>(manifest: &'a Value, key: &str) -> Option<&'a str> {
     manifest.get(key).and_then(Value::as_str)
 }
 
-/// Compare the bytes read at `path` to the manifest's pin: `Ok(true)` when a pin covers it and
-/// matches, `Ok(false)` when no pin covers it, a stale refusal when the pin differs.
-fn verify(
-    pins: &BTreeMap<String, String>,
-    version: &str,
-    path: &str,
-    found: &str,
-) -> Result<bool, KnowledgeError> {
-    match pins.get(path) {
-        Some(expected) if expected.eq_ignore_ascii_case(found) => Ok(true),
-        Some(expected) => Err(KnowledgeError::Stale {
-            version: version.to_owned(),
-            file: path.to_owned(),
-            expected: expected.clone(),
-            found: found.to_owned(),
-        }),
-        None => Ok(false),
-    }
-}
-
 /// The digest of what a pack can present to a seat: every reference (kind · id · the sha256 of
 /// its text, in the seat's order) and every repair principle by diagnostic code.
 #[must_use]
@@ -680,13 +654,12 @@ pub fn pack_sha256(pack: &AuthoringKnowledge) -> String {
 }
 
 /// The pack under composition: the selection record, the references taken, the bytes left, the
-/// files verified, unpinned and absent.
+/// admitted files presented and the files the release lacks.
 struct Composition {
     selection: Value,
     references: Vec<KnowledgeReference>,
     budget: usize,
     verified: usize,
-    unpinned: Vec<String>,
     absent: Vec<String>,
     /// The blocks whose metadata did not fit whole, with the fields left out.
     omitted: Vec<Value>,
@@ -719,7 +692,6 @@ impl Composition {
             references: Vec::new(),
             budget: PACK_BYTES,
             verified: 0,
-            unpinned: Vec::new(),
             absent: Vec::new(),
             omitted: Vec::new(),
         }
@@ -786,7 +758,6 @@ impl Composition {
         self.selection["bytes"] = json!(PACK_BYTES - self.budget);
         self.selection["files"] = json!({
             "verified": self.verified,
-            "unpinned": self.unpinned,
             "absent": self.absent,
         });
         if !self.omitted.is_empty() {
@@ -916,26 +887,6 @@ fn block_metadata(row: &Value) -> (String, Vec<&'static str>) {
     (text, omitted)
 }
 
-/// The files root a snapshot's `file` fields are relative to: the first ancestor of the
-/// snapshot directory that holds a `foundry/` directory with `blocks/` or `examples/`
-/// inside it (a snapshot lives under a `.local/` tree beside that directory).
-fn files_root(dir: &Path) -> Option<PathBuf> {
-    for ancestor in dir.ancestors().skip(1).take(6) {
-        let candidate = ancestor.join("foundry");
-        if candidate.join("blocks").is_dir() || candidate.join("examples").is_dir() {
-            return Some(candidate);
-        }
-    }
-    None
-}
-
-fn jsonl(text: &str) -> Vec<Value> {
-    text.lines()
-        .filter(|l| !l.trim().is_empty())
-        .filter_map(|l| serde_json::from_str(l).ok())
-        .collect()
-}
-
 /// The words of a text, folded and lowercased, three letters or more.
 fn tokens(text: &str) -> Vec<String> {
     crate::compile::fold(text)
@@ -1025,68 +976,42 @@ fn cut(text: &str, max: usize) -> String {
     format!("{}\n# … cut at {max} bytes", &text[..end])
 }
 
-/// A pack another builder composed for one intent, read from a JSON file: `identity` and
-/// `selection` verbatim, `references` as `{kind, id, text}` rows, `repairs` as diagnostic code
-/// → strategies; the identity gains the door's record (`door`: the file and the pack's digest).
-/// `Ok(None)` when the file holds no reference and no repair (the seat reads the card alone,
-/// and the receipt says so by carrying no knowledge).
+/// A pack another builder composed for one intent, read strictly from a JSON file: strict JSON
+/// (a key stated twice refuses) holding only `identity` (an object) · `selection` ·
+/// `references` (`[{kind, id, text}]`, every row whole) · `repairs` (`{code: [strategy]}`),
+/// nothing dropped or skipped; the identity gains the door's record (`door`: the file and the
+/// pack's digest). No product door enters such a pack ([`KnowledgeError::PackNotAdmitted`]):
+/// nothing binds it to an admitted release. Never `Ok(None)`: a pack with no reference and no
+/// repair is refused.
 ///
 /// # Errors
-/// A file that cannot be read, is not JSON or is not an object ([`KnowledgeError::NotAPack`]).
+/// A file that cannot be read, is not strict JSON, or departs from that closed shape
+/// ([`KnowledgeError::NotAPack`]).
 pub fn pack_from_file(path: &Path) -> Result<Option<AuthoringKnowledge>, KnowledgeError> {
     let not = |why: String| KnowledgeError::NotAPack {
         file: path.to_path_buf(),
         why,
     };
     let text = std::fs::read_to_string(path).map_err(|e| not(e.to_string()))?;
-    let value: Value = serde_json::from_str(&text).map_err(|e| not(format!("not JSON: {e}")))?;
-    let object = value
-        .as_object()
-        .ok_or_else(|| not("not a JSON object".to_owned()))?;
-    let references = object
-        .get("references")
-        .and_then(Value::as_array)
-        .map(|rows| {
-            rows.iter()
-                .filter_map(|row| {
-                    Some(KnowledgeReference {
-                        kind: row.get("kind")?.as_str()?.to_owned(),
-                        id: row.get("id")?.as_str()?.to_owned(),
-                        text: row.get("text")?.as_str()?.to_owned(),
-                    })
-                })
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default();
-    let repairs = object
-        .get("repairs")
-        .and_then(Value::as_object)
-        .map(|map| {
-            map.iter()
-                .map(|(code, strategies)| {
-                    let strategies = strategies
-                        .as_array()
-                        .map(|items| {
-                            items
-                                .iter()
-                                .filter_map(Value::as_str)
-                                .map(str::to_owned)
-                                .collect()
-                        })
-                        .unwrap_or_default();
-                    (code.clone(), strategies)
-                })
-                .collect::<BTreeMap<_, _>>()
-        })
-        .unwrap_or_default();
-    if references.is_empty() && repairs.is_empty() {
-        return Ok(None);
+    // A pack is no release: no value bound but its own size (the depth bound still holds).
+    let value = canonical::strict_json(&text, usize::MAX)
+        .map_err(|e| not(format!("not strict JSON: {e}")))?;
+    let Some(object) = value.as_object() else {
+        return Err(not("not a JSON object".to_owned()));
+    };
+    let fields = ["identity", "selection", "references", "repairs"];
+    if let Some(key) = object.keys().find(|key| !fields.contains(&key.as_str())) {
+        return Err(not(format!("an unknown key `{key}`")));
     }
-    // A declared identity that is not an object is kept whole beside the door's record.
+    let references = pack_references(object.get("references")).map_err(not)?;
+    let repairs = pack_repairs(object.get("repairs")).map_err(not)?;
+    if references.is_empty() && repairs.is_empty() {
+        return Err(not("no reference and no repair".to_owned()));
+    }
     let identity = match object.get("identity") {
         Some(declared @ Value::Object(_)) => declared.clone(),
-        Some(declared) => json!({ "declared": declared }),
         None => json!({}),
+        Some(_) => return Err(not("the identity is not an object".to_owned())),
     };
     let mut pack = AuthoringKnowledge {
         identity,
@@ -1103,6 +1028,53 @@ pub fn pack_from_file(path: &Path) -> Result<Option<AuthoringKnowledge>, Knowled
         "pack_sha256": pack_sha256(&pack),
     });
     Ok(Some(pack))
+}
+
+/// A pack's references, every row exactly `{kind, id, text}` strings; none named is none.
+fn pack_references(value: Option<&Value>) -> Result<Vec<KnowledgeReference>, String> {
+    let rows = match value {
+        None => return Ok(Vec::new()),
+        Some(Value::Array(rows)) => rows,
+        Some(_) => return Err("references is not a list".to_owned()),
+    };
+    rows.iter()
+        .enumerate()
+        .map(|(at, row)| {
+            let field = |key: &str| row.get(key).and_then(Value::as_str).map(str::to_owned);
+            let whole = row.as_object().is_some_and(|object| object.len() == 3);
+            match (whole, field("kind"), field("id"), field("text")) {
+                (true, Some(kind), Some(id), Some(text)) => {
+                    Ok(KnowledgeReference { kind, id, text })
+                }
+                _ => Err(format!(
+                    "references[{at}] is not exactly {{kind, id, text}}"
+                )),
+            }
+        })
+        .collect()
+}
+
+/// A pack's repair principles, each code naming a list of strategies; none named is none.
+fn pack_repairs(value: Option<&Value>) -> Result<BTreeMap<String, Vec<String>>, String> {
+    let map = match value {
+        None => return Ok(BTreeMap::new()),
+        Some(Value::Object(map)) => map,
+        Some(_) => return Err("repairs is not an object".to_owned()),
+    };
+    map.iter()
+        .map(|(code, strategies)| {
+            let items = strategies
+                .as_array()
+                .ok_or_else(|| format!("repairs.{code} is not a list"))?;
+            let strategies: Option<Vec<String>> = items
+                .iter()
+                .map(|item| item.as_str().map(str::to_owned))
+                .collect();
+            strategies
+                .map(|list| (code.clone(), list))
+                .ok_or_else(|| format!("repairs.{code} holds a strategy that is not text"))
+        })
+        .collect()
 }
 
 #[cfg(test)]

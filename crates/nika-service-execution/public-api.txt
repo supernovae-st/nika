@@ -713,6 +713,65 @@ pub fn nika_service_execution::run_cost::request_bound(wf: &nika_schema::raw::wo
 pub fn nika_service_execution::run_cost::run_time_models(wf: &nika_schema::raw::workflow::RawWorkflow, plan: &nika_providers::plan::ExecutionAccessPlan, config: &nika_providers::registry::ProvidersConfig, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::result::Result<bool, nika_service_execution::run_cost::RunTimeModelRefusal>
 pub fn nika_service_execution::run_cost::scheduled_program(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, config: &nika_providers::registry::ProvidersConfig, bindings: &[alloc::string::String], ceiling_usd: f64) -> nika_service_execution::run_cost::ScheduledProgram
 pub fn nika_service_execution::run_cost::unknown_routes(plan: &nika_providers::plan::ExecutionAccessPlan, config: &nika_providers::registry::ProvidersConfig) -> core::result::Result<alloc::vec::Vec<(alloc::string::String, nika_providers::admission::review::CostRoute)>, alloc::string::String>
+#[non_exhaustive] pub enum nika_service_execution::RehearsalPlanRefusal
+pub nika_service_execution::RehearsalPlanRefusal::ModelLane
+pub nika_service_execution::RehearsalPlanRefusal::ModelVerb
+pub nika_service_execution::RehearsalPlanRefusal::Pin
+impl core::clone::Clone for nika_service_execution::RehearsalPlanRefusal
+pub fn nika_service_execution::RehearsalPlanRefusal::clone(&self) -> nika_service_execution::RehearsalPlanRefusal
+impl core::cmp::Eq for nika_service_execution::RehearsalPlanRefusal
+impl core::cmp::PartialEq for nika_service_execution::RehearsalPlanRefusal
+pub fn nika_service_execution::RehearsalPlanRefusal::eq(&self, other: &nika_service_execution::RehearsalPlanRefusal) -> bool
+impl core::fmt::Debug for nika_service_execution::RehearsalPlanRefusal
+pub fn nika_service_execution::RehearsalPlanRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_service_execution::RehearsalPlanRefusal
+pub fn nika_service_execution::RehearsalPlanRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_service_execution::RehearsalPlanRefusal
+impl core::marker::StructuralPartialEq for nika_service_execution::RehearsalPlanRefusal
+impl<D> owo_colors::OwoColorize for nika_service_execution::RehearsalPlanRefusal
+impl<Q, K> equivalent::Equivalent<K> for nika_service_execution::RehearsalPlanRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::RehearsalPlanRefusal::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_service_execution::RehearsalPlanRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::RehearsalPlanRefusal::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_service_execution::RehearsalPlanRefusal where U: core::convert::From<T>
+pub fn nika_service_execution::RehearsalPlanRefusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::RehearsalPlanRefusal where U: core::convert::Into<T>
+pub type nika_service_execution::RehearsalPlanRefusal::Error = core::convert::Infallible
+pub fn nika_service_execution::RehearsalPlanRefusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::RehearsalPlanRefusal where U: core::convert::TryFrom<T>
+pub type nika_service_execution::RehearsalPlanRefusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::RehearsalPlanRefusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_service_execution::RehearsalPlanRefusal where T: core::clone::Clone
+pub type nika_service_execution::RehearsalPlanRefusal::Owned = T
+pub fn nika_service_execution::RehearsalPlanRefusal::clone_into(&self, target: &mut T)
+pub fn nika_service_execution::RehearsalPlanRefusal::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_service_execution::RehearsalPlanRefusal where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_service_execution::RehearsalPlanRefusal::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_service_execution::RehearsalPlanRefusal where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::RehearsalPlanRefusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::RehearsalPlanRefusal where T: ?core::marker::Sized
+pub fn nika_service_execution::RehearsalPlanRefusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::RehearsalPlanRefusal where T: ?core::marker::Sized
+pub fn nika_service_execution::RehearsalPlanRefusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_service_execution::RehearsalPlanRefusal where T: core::clone::Clone
+pub unsafe fn nika_service_execution::RehearsalPlanRefusal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_service_execution::RehearsalPlanRefusal
+pub fn nika_service_execution::RehearsalPlanRefusal::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_service_execution::RehearsalPlanRefusal where T: core::clone::Clone
+pub fn nika_service_execution::RehearsalPlanRefusal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> iri_string::format::ToStringFallible for nika_service_execution::RehearsalPlanRefusal where T: core::fmt::Display
+pub fn nika_service_execution::RehearsalPlanRefusal::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
+impl<T> nika_error::traits::AsAny for nika_service_execution::RehearsalPlanRefusal where T: 'static
+pub fn nika_service_execution::RehearsalPlanRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_service_execution::RehearsalPlanRefusal where T: core::marker::Copy
+pub fn nika_service_execution::RehearsalPlanRefusal::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::RehearsalPlanRefusal where T: ?core::marker::Sized
+pub fn nika_service_execution::RehearsalPlanRefusal::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::RehearsalPlanRefusal::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::RehearsalPlanRefusal
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::RehearsalPlanRefusal
+impl<T> typenum::type_operators::Same for nika_service_execution::RehearsalPlanRefusal
+pub type nika_service_execution::RehearsalPlanRefusal::Output = T
 #[non_exhaustive] pub enum nika_service_execution::ServiceExecutionStatus
 pub nika_service_execution::ServiceExecutionStatus::Cancelled
 pub nika_service_execution::ServiceExecutionStatus::Failed
@@ -871,6 +930,97 @@ impl<T> tracing::instrument::Instrument for nika_service_execution::ChildTraceMe
 impl<T> tracing::instrument::WithSubscriber for nika_service_execution::ChildTraceMetadata
 impl<T> typenum::type_operators::Same for nika_service_execution::ChildTraceMetadata
 pub type nika_service_execution::ChildTraceMetadata::Output = T
+#[non_exhaustive] pub struct nika_service_execution::DeniedEffects
+pub nika_service_execution::DeniedEffects::child: u32
+pub nika_service_execution::DeniedEffects::network: u32
+pub nika_service_execution::DeniedEffects::prompt: u32
+pub nika_service_execution::DeniedEffects::provider: u32
+pub nika_service_execution::DeniedEffects::secret: u32
+pub nika_service_execution::DeniedEffects::spawn: u32
+impl core::clone::Clone for nika_service_execution::DeniedEffects
+pub fn nika_service_execution::DeniedEffects::clone(&self) -> nika_service_execution::DeniedEffects
+impl core::cmp::Eq for nika_service_execution::DeniedEffects
+impl core::cmp::PartialEq for nika_service_execution::DeniedEffects
+pub fn nika_service_execution::DeniedEffects::eq(&self, other: &nika_service_execution::DeniedEffects) -> bool
+impl core::default::Default for nika_service_execution::DeniedEffects
+pub fn nika_service_execution::DeniedEffects::default() -> nika_service_execution::DeniedEffects
+impl core::fmt::Debug for nika_service_execution::DeniedEffects
+pub fn nika_service_execution::DeniedEffects::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_service_execution::DeniedEffects
+impl core::marker::StructuralPartialEq for nika_service_execution::DeniedEffects
+impl<D> owo_colors::OwoColorize for nika_service_execution::DeniedEffects
+impl<Q, K> equivalent::Equivalent<K> for nika_service_execution::DeniedEffects where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::DeniedEffects::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_service_execution::DeniedEffects where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::DeniedEffects::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_service_execution::DeniedEffects where U: core::convert::From<T>
+pub fn nika_service_execution::DeniedEffects::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::DeniedEffects where U: core::convert::Into<T>
+pub type nika_service_execution::DeniedEffects::Error = core::convert::Infallible
+pub fn nika_service_execution::DeniedEffects::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::DeniedEffects where U: core::convert::TryFrom<T>
+pub type nika_service_execution::DeniedEffects::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::DeniedEffects::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_service_execution::DeniedEffects where T: core::clone::Clone
+pub type nika_service_execution::DeniedEffects::Owned = T
+pub fn nika_service_execution::DeniedEffects::clone_into(&self, target: &mut T)
+pub fn nika_service_execution::DeniedEffects::to_owned(&self) -> T
+impl<T> core::any::Any for nika_service_execution::DeniedEffects where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::DeniedEffects::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::DeniedEffects where T: ?core::marker::Sized
+pub fn nika_service_execution::DeniedEffects::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::DeniedEffects where T: ?core::marker::Sized
+pub fn nika_service_execution::DeniedEffects::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_service_execution::DeniedEffects where T: core::clone::Clone
+pub unsafe fn nika_service_execution::DeniedEffects::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_service_execution::DeniedEffects
+pub fn nika_service_execution::DeniedEffects::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_service_execution::DeniedEffects where T: core::clone::Clone
+pub fn nika_service_execution::DeniedEffects::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_service_execution::DeniedEffects where T: 'static
+pub fn nika_service_execution::DeniedEffects::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_service_execution::DeniedEffects where T: core::marker::Copy
+pub fn nika_service_execution::DeniedEffects::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::DeniedEffects where T: ?core::marker::Sized
+pub fn nika_service_execution::DeniedEffects::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::DeniedEffects::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::DeniedEffects
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::DeniedEffects
+impl<T> typenum::type_operators::Same for nika_service_execution::DeniedEffects
+pub type nika_service_execution::DeniedEffects::Output = T
+pub struct nika_service_execution::DeniedTally
+impl nika_service_execution::DeniedTally
+pub fn nika_service_execution::DeniedTally::counted(&self) -> nika_service_execution::DeniedEffects
+impl core::default::Default for nika_service_execution::DeniedTally
+pub fn nika_service_execution::DeniedTally::default() -> nika_service_execution::DeniedTally
+impl core::fmt::Debug for nika_service_execution::DeniedTally
+pub fn nika_service_execution::DeniedTally::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_service_execution::DeniedTally
+impl<T, U> core::convert::Into<U> for nika_service_execution::DeniedTally where U: core::convert::From<T>
+pub fn nika_service_execution::DeniedTally::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::DeniedTally where U: core::convert::Into<T>
+pub type nika_service_execution::DeniedTally::Error = core::convert::Infallible
+pub fn nika_service_execution::DeniedTally::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::DeniedTally where U: core::convert::TryFrom<T>
+pub type nika_service_execution::DeniedTally::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::DeniedTally::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_service_execution::DeniedTally where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::DeniedTally::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::DeniedTally where T: ?core::marker::Sized
+pub fn nika_service_execution::DeniedTally::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::DeniedTally where T: ?core::marker::Sized
+pub fn nika_service_execution::DeniedTally::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_service_execution::DeniedTally
+pub fn nika_service_execution::DeniedTally::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_service_execution::DeniedTally where T: 'static
+pub fn nika_service_execution::DeniedTally::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::DeniedTally where T: ?core::marker::Sized
+pub fn nika_service_execution::DeniedTally::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::DeniedTally::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::DeniedTally
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::DeniedTally
+impl<T> typenum::type_operators::Same for nika_service_execution::DeniedTally
+pub type nika_service_execution::DeniedTally::Output = T
 #[non_exhaustive] pub struct nika_service_execution::ServiceEvent
 impl nika_service_execution::ServiceEvent
 pub const fn nika_service_execution::ServiceEvent::correlation(&self) -> core::option::Option<nika_types::id::CorrelationId>
@@ -944,6 +1094,10 @@ pub const fn nika_service_execution::ServiceExecutionDriver::skills(&self) -> &n
 pub fn nika_service_execution::ServiceExecutionDriver::with_child_trace_factory(self, factory: alloc::sync::Arc<dyn nika_service_execution::ChildTraceFactory>) -> Self
 pub fn nika_service_execution::ServiceExecutionDriver::with_task_scope(self, target: core::option::Option<&str>) -> core::result::Result<Self, alloc::string::String>
 pub const fn nika_service_execution::ServiceExecutionDriver::workflow(&self) -> &nika_schema::raw::workflow::RawWorkflow
+impl nika_service_execution::ServiceExecutionDriver
+pub fn nika_service_execution::ServiceExecutionDriver::rehearsal_plan(&self, pin: core::option::Option<&str>) -> core::result::Result<nika_providers::plan::ExecutionAccessPlan, nika_service_execution::RehearsalPlanRefusal>
+impl nika_service_execution::ServiceExecutionDriver
+pub async fn nika_service_execution::ServiceExecutionDriver::rehearse_over<F>(&self, fs: alloc::sync::Arc<F>, plan: nika_providers::plan::ExecutionAccessPlan, tally: alloc::sync::Arc<nika_service_execution::DeniedTally>) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime_laws::errors::RuntimeError> where F: nika_kernel_core::io::fs::FsReadDyn + nika_kernel_core::io::fs::FsWriteDyn + nika_kernel_core::io::fs::FsListDyn + nika_kernel_core::io::fs::FsMetaDyn + core::marker::Send + core::marker::Sync + 'static
 impl core::clone::Clone for nika_service_execution::ServiceExecutionDriver
 pub fn nika_service_execution::ServiceExecutionDriver::clone(&self) -> Self
 impl core::fmt::Debug for nika_service_execution::ServiceExecutionDriver
@@ -1074,6 +1228,7 @@ impl<T> tracing::instrument::Instrument for nika_service_execution::ServiceExecu
 impl<T> tracing::instrument::WithSubscriber for nika_service_execution::ServiceExecutionResult
 impl<T> typenum::type_operators::Same for nika_service_execution::ServiceExecutionResult
 pub type nika_service_execution::ServiceExecutionResult::Output = T
+pub const nika_service_execution::ADMITTED_TOOLS: &[&str]
 pub trait nika_service_execution::ChildTrace
 pub fn nika_service_execution::ChildTrace::metadata(&self) -> nika_service_execution::ChildTraceMetadata
 pub fn nika_service_execution::ChildTrace::sink(&mut self) -> &mut dyn nika_event::stamp::EventSink

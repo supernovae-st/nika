@@ -129,6 +129,20 @@ pub const NIKA_113: NikaCode = NikaCode {
     severity: Severity::Error,
     slug: "fs-invalid-data",
 };
+/// Filesystem symlink refused (a component the operation will not follow).
+pub const NIKA_114: NikaCode = NikaCode {
+    num: 114,
+    category: Category::FileIo,
+    severity: Severity::Error,
+    slug: "fs-symlink-refused",
+};
+/// Filesystem pinned read unavailable (the backend states no pin).
+pub const NIKA_115: NikaCode = NikaCode {
+    num: 115,
+    category: Category::FileIo,
+    severity: Severity::Error,
+    slug: "fs-pin-unavailable",
+};
 /// Filesystem other I/O error.
 pub const NIKA_119: NikaCode = NikaCode {
     num: 119,
@@ -222,6 +236,8 @@ impl NikaErrorCode for FsError {
             Self::PermissionDenied { .. } => NIKA_111,
             Self::AlreadyExists { .. } => NIKA_112,
             Self::InvalidData { .. } => NIKA_113,
+            Self::SymlinkRefused { .. } => NIKA_114,
+            Self::PinUnavailable { .. } => NIKA_115,
             Self::Io { .. } => NIKA_119,
         }
     }
@@ -419,6 +435,14 @@ mod tests {
         let _ = FsError::InvalidData {
             path: String::new(),
             reason: String::new(),
+        }
+        .nika_code();
+        let _ = FsError::SymlinkRefused {
+            path: String::new(),
+        }
+        .nika_code();
+        let _ = FsError::PinUnavailable {
+            path: String::new(),
         }
         .nika_code();
         let _ = FsError::Io {

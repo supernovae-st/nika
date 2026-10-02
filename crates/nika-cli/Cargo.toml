@@ -91,6 +91,7 @@ name = "nika"
 path = "src/main.rs"
 
 [dev-dependencies]
+serde_json = { workspace = true, features = ["raw_value"] } # exact JSON tokens for runtime conformance assertions
 nika-arm = { path = "../nika-arm", version = "0.121.0", features = ["test-support"] }
 # Test-only seams: the mocks the e2e pipeline + the run-verb tests inject.
 minisign       = { workspace = true }                              # the tier tests' keypair fixtures + the memory-fold teardown test (custody lives in nika-dap)

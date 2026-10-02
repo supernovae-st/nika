@@ -144,6 +144,7 @@ fn drive<R: BufRead, W: Write>(
         } else {
             "nika › "
         };
+        fresh_question(output, prompt)?;
         write!(output, "\n{prompt}")?;
         output.flush()?;
         let mut line = String::new();
@@ -165,6 +166,18 @@ fn drive<R: BufRead, W: Write>(
             return Ok(exit::OK);
         }
     }
+}
+
+/// Only a line typed after a question is shown answers it (C11 · typeahead): on a terminal,
+/// what was typed while Nika worked is discarded before a consent, a gate, a reply or the
+/// choice waits. The idle prompt keeps its typeahead (nothing is answered there), the cost
+/// question drains on its own and fails closed, and a pipe keeps its scripted lines.
+fn fresh_question<W: Write>(output: &mut W, prompt: &str) -> std::io::Result<()> {
+    let asks = !matches!(prompt, "nika › " | "continue once? › ");
+    if asks && std::io::IsTerminal::is_terminal(&std::io::stdin()) {
+        nika_cli_host::lines::fresh_terminal(output)?;
+    }
+    Ok(())
 }
 
 /// Print one turn's outcome and act on it (a run the turn requested is
@@ -386,8 +399,10 @@ pub fn run_tui(theme: Theme) -> u8 {
     options.term = term_name();
     options.reduced_motion = reduced_motion();
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    // The title's separator is a glyph of this door: it takes the ASCII twin.
+    let sep = if theme.ascii { "-" } else { "·" };
     options.title = Some(format!(
-        "nika · {}",
+        "nika {sep} {}",
         cwd.file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("session")

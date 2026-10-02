@@ -717,6 +717,25 @@ fn the_served_contract_pins_the_door_s_enforced_words() {
     );
 }
 
+/// [`wait_for_status`] with sixty seconds of patience: a job admitted through the
+/// real access plan is judged after the machine's probes, which a loaded host
+/// slows well past the five seconds the other jobs are given.
+async fn wait_patiently_for(server: &TestServer, id: &str, expected: &str) -> Result<(), String> {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
+    let mut last = String::new();
+    while tokio::time::Instant::now() < deadline {
+        let response = server
+            .request(&get_request(&format!("/v1/jobs/{id}/status")))
+            .await;
+        if response.status == 200 && response.json()["status"] == expected {
+            return Ok(());
+        }
+        last = format!("HTTP {}: {}", response.status, response.body);
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    Err(format!("job {id} never reached {expected}; last: {last}"))
+}
+
 /// A zero ceiling is a binding veto, never a disarm (C6): the server starts
 /// under it; a review refuses before any question (never an `approve_once`);
 /// a priced job through the production backend fails before its first event.
@@ -757,7 +776,7 @@ async fn a_zero_ceiling_is_a_binding_veto() {
         .await;
     assert_eq!(job.status, 202, "{}", job.body);
     let id = job.json()["id"].as_str().expect("id").to_owned();
-    wait_for_status(&server, &id, "failed")
+    wait_patiently_for(&server, &id, "failed")
         .await
         .expect("the veto fails the job");
     let failed = server

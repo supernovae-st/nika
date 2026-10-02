@@ -228,26 +228,39 @@ pub(super) fn analyze_flow(wf: &RawWorkflow, waves: &[Vec<usize>]) -> FlowFacts 
     // (`egress: [{ to: "outputs" }]` · spec 01-envelope §egress · the DLM
     // owner's act, same as every sink; absent = default-deny, the report
     // stands). Sink-only and secret-SPECIFIC: it clears nothing but THIS
-    // secret's taints reaching `outputs:` — never a send.
+    // secret's taints reaching `outputs:` — never a send. An entry that
+    // reads a declared secret ITSELF is reported whatever the rule, rooted
+    // at THAT secret: the engine masks a secret's own value on every
+    // surface it writes, the outputs export included, so the rule
+    // declassifies what is DERIVED from a secret, never the value (E39 N7).
     for (name, decl) in &wf.outputs {
-        if let Some(trace) = taint_of_refs(
-            refs_in_str(decl_value(decl)),
-            &declared,
-            None,
-            &id_of,
-            &facts,
-        ) {
+        let refs = refs_in_str(decl_value(decl));
+        let own = refs.iter().find_map(|r| match r {
+            NamespaceRef::Secrets(s) if declared.contains(s.as_str()) => Some(s.clone()),
+            _ => None,
+        });
+        if let Some(secret) = own {
+            let trace = TaintTrace::source(&secret).via(OWN_VALUE.to_owned());
+            facts.egress.insert(name.value.clone(), trace);
+        } else if let Some(trace) = taint_of_refs(refs, &declared, None, &id_of, &facts) {
             let egress = egress_of.get(trace.secret.as_str()).copied().unwrap_or(&[]);
-            if egress.iter().any(|rule| rule.to == "outputs") {
-                continue;
+            if !egress.iter().any(|rule| rule.to == "outputs") {
+                let trace = trace.via("outputs".to_owned());
+                facts.egress.insert(name.value.clone(), trace);
             }
-            facts
-                .egress
-                .insert(name.value.clone(), trace.via("outputs".to_owned()));
         }
     }
 
     facts
+}
+
+/// The last hop of an outputs entry that reads a secret's own value (E39 N7).
+const OWN_VALUE: &str = "outputs (the secret's own value: every export masks it, so no \
+                         egress rule clears it)";
+
+/// Whether a rendered outputs trace ends on the own-value hop: removal is its only repair.
+pub(crate) fn is_own_value(rendered: &str) -> bool {
+    rendered.ends_with(OWN_VALUE)
 }
 
 /// Compute one task's `with`-slot taints, effect taint, and output taint,
@@ -1035,5 +1048,28 @@ tasks:
         )
         .expect("a declared secret name is tainted");
         assert_eq!(got.secret, "api_key");
+    }
+
+    /// E39 10C case F5-P03 (N7), its program verbatim: `egress: [{ to: outputs }]` and an outputs
+    /// entry that reads the secret itself. The export masks a secret's own value on every surface
+    /// it writes (`***`), so the boundary declassifies what is derived from a secret, never the
+    /// value: the report stands, and the whole check refuses NIKA-SEC-007.
+    #[test]
+    fn a_secrets_own_value_is_never_declassified_to_outputs() {
+        let y = "nika: \"e10c-f5-p03\"\nsecrets:\n  token:\n    source: \"env\"\n    key: \"E10C_TOKEN\"\n    egress:\n      - to: \"outputs\"\npermits:\n  tools:\n    - \"nika:log\"\ntasks:\n  noop:\n    invoke:\n      tool: \"nika:log\"\n      args:\n        message: \"outputs case\"\n        level: \"info\"\noutputs:\n  tok: \"${{ secrets.token }}\"\n";
+        let (_wf, f) = facts(y);
+        let egress = f.egresses();
+        assert_eq!(egress.len(), 1, "the report stands: {egress:?}");
+        assert_eq!((egress[0].0, egress[0].1.secret.as_str()), ("tok", "token"));
+        let report = crate::check(&parse(y, FileId::new(0), ParseMode::Strict).expect("parse"));
+        assert!(!report.is_clean(), "{report:?}");
+        assert!(
+            report
+                .findings
+                .iter()
+                .any(|f| f.code.as_deref() == Some("NIKA-SEC-007")),
+            "{:#?}",
+            report.findings
+        );
     }
 }

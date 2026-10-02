@@ -1436,6 +1436,7 @@ dependencies = [
  "crossterm_winapi",
  "derive_more",
  "document-features",
+ "filedescriptor",
  "futures-core",
  "mio",
  "parking_lot",
@@ -4703,6 +4704,7 @@ dependencies = [
  "nika-compile-cognition",
  "nika-compile-fidelity",
  "nika-compile-reader",
+ "nika-compile-trigger",
  "nika-error",
  "nika-kernel",
  "nika-pack",
@@ -4748,10 +4750,13 @@ dependencies = [
 name = "nika-compile-fidelity"
 version = "0.121.0"
 dependencies = [
+ "csv",
+ "jaq-core",
  "nika-check-analyzer",
  "nika-compile-reader",
  "nika-schema",
  "serde_json",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -4759,6 +4764,14 @@ name = "nika-compile-reader"
 version = "0.121.0"
 dependencies = [
  "serde_json",
+]
+
+[[package]]
+name = "nika-compile-trigger"
+version = "0.121.0"
+dependencies = [
+ "nika-cadence",
+ "nika-compile-reader",
 ]
 
 [[package]]
@@ -5194,16 +5207,26 @@ dependencies = [
  "nika-check",
  "nika-compile",
  "nika-compile-cognition",
+ "nika-compile-fidelity",
+ "nika-compile-reader",
  "nika-display",
  "nika-error",
  "nika-event",
+ "nika-execution",
+ "nika-fs",
+ "nika-kernel",
  "nika-pack",
  "nika-providers",
+ "nika-runtime",
  "nika-schema",
+ "nika-service-execution",
  "nika-source",
  "nika-vocab",
+ "rustix 1.1.4",
+ "serde",
  "serde_json",
  "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -5443,16 +5466,22 @@ dependencies = [
 name = "nika-service-execution"
 version = "0.121.0"
 dependencies = [
+ "bytes",
+ "nika-builtin",
  "nika-check",
  "nika-event",
  "nika-execution",
  "nika-fs",
  "nika-harness",
+ "nika-kernel",
  "nika-providers",
  "nika-runtime",
  "nika-schema",
  "nika-types",
+ "nika-verb-agent",
+ "nika-verb-exec",
  "nika-verb-infer",
+ "nika-verb-invoke",
  "serde_json",
  "tempfile",
  "thiserror 2.0.20",

@@ -49,4 +49,5 @@ workspace = true
 [dev-dependencies]
 nika-error = { path = "../nika-error", version = "0.121.0" } # cost::Cost — the reasoning-effort tests assert the typed cost
 nika-kernel = { path = "../nika-kernel", version = "0.121.0" } # injected loopback HTTP mechanics
+nika-onboard = { path = "../nika-onboard", version = "0.121.0", features = ["test-support"] } # the synthetic release the strict knowledge door admits
 tempfile = { workspace = true }

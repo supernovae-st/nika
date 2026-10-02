@@ -5,21 +5,22 @@
 //! WHICH Foundry knowledge it reads beside the card, under the seat the human chose. The same
 //! configuration `nika compile` resolves, through the same parser
 //! ([`nika_cli_host::compile::config`]): read from the environment ONCE when a host door opens
-//! the session, or handed by a host as typed values. A named snapshot is opened when the
-//! configuration is resolved — whatever the seat — to verify and pin its identity (its version,
-//! its digest, the digest of its row files); it is opened and verified again at every seated
-//! use: a snapshot that changed under the session is refused, never presented under the identity
-//! the session pinned. A configuration that cannot be honored is said when the session opens and
-//! refused at the first seated turn — never a silent card alone. Under a deterministic seat the
-//! configuration is only stated (`/status`): no pack is composed, nothing is presented to a
-//! model, nothing is sent.
+//! the session, or handed by a host as typed values. A named release is admitted by the strict
+//! door when the configuration is resolved — whatever the seat — and its identity pinned (its
+//! version, its `SNAPSHOT_SHA256`, the digest of its rows); it is admitted again at every seated
+//! use: a release that changed under the session is refused, never presented under the identity
+//! the session pinned. Nothing named is the release this build embeds, pinned the same way (in
+//! memory, no path); knowledge off and unread are stated (`/status`), never silent. A
+//! configuration that cannot be honored is said when the session opens and refused at the first
+//! seated turn — never a silent card alone. Under a deterministic seat the configuration is only
+//! stated: no pack is composed, nothing is presented to a model, nothing is sent.
 
 use std::path::PathBuf;
 
 use nika_cli_host::compile::config::{
-    self, AuthoringConfig, AuthoringSettings, ConfigError, DEFAULT_STRATEGY, KnowledgeSource,
+    self, AuthoringSettings, ConfigError, DEFAULT_STRATEGY, KnowledgeChoice, KnowledgeSource,
 };
-use nika_cli_host::compile::knowledge::{KnowledgeError, Snapshot};
+use nika_cli_host::compile::knowledge::{KnowledgeError, RefusalCode};
 use nika_onboard::compile::{AuthoringKnowledge, AuthoringReasoning, NativeMode};
 // The pin owns its identity beside the snapshot door (C7 · D1); the policy stays here.
 use nika_onboard::knowledge::pin::KnowledgePin;
@@ -34,7 +35,7 @@ pub enum AuthoringContextError {
     /// explicit exclusion with no snapshot.
     #[error(transparent)]
     Config(#[from] ConfigError),
-    /// The knowledge source cannot be read or verified: not a snapshot, a stale snapshot.
+    /// The strict door refused the named release: knowledge unavailable, typed.
     #[error(transparent)]
     Knowledge(#[from] KnowledgeError),
     /// A pack composed elsewhere for ONE request cannot serve a session's requests.
@@ -56,7 +57,8 @@ pub enum AuthoringContextError {
     Changed {
         /// The pinned identity, in words (version · digest · rows).
         pinned: String,
-        /// The identity found on disk, in the same words.
+        /// What is found on disk: the same words for a release admitted on its own, the strict
+        /// door's words for bytes the pinned identity no longer names.
         found: String,
     },
     /// The operator selected a decision seat the session cannot build (no key, a malformed
@@ -77,18 +79,24 @@ pub enum AuthoringContextError {
 pub struct AuthoringContext {
     strategy: NativeMode,
     knowledge: Option<KnowledgePin>,
+    /// What the knowledge resolved to (named, off, the embedded default, unread): stated, never
+    /// hashed — off and unread present the same nothing, and a release read is its pin.
+    choice: KnowledgeChoice,
     refusal: Option<AuthoringContextError>,
     source: &'static str,
     decision: Option<DecisionSetup>,
     project: Option<PathBuf>,
     /// The explicit reasoning effort every seated call asks for, when one is named, or the word
-    /// the parser refused: resolved apart from the rest, so no other refusal drops it (R4 B16).
+    /// the parser refused: resolved apart from the rest, so no other refusal drops it.
     reasoning: Result<Option<AuthoringReasoning>, ConfigError>,
 }
 
+#[allow(clippy::missing_fields_in_debug)] // the hashed identity bytes stay the pre-choice form
 impl std::fmt::Debug for AuthoringContext {
-    /// The derived form, the reasoning effort appended only when one is named (R4 B16): a context
-    /// naming none keeps the bytes every question identity and cost binding hashed.
+    /// The derived form, the reasoning effort appended only when one is named: a context
+    /// naming none keeps the derived form every question identity and cost binding hashes. The
+    /// knowledge choice is never printed: a release read is its pin, off and unread the same
+    /// nothing.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut debug = f.debug_struct("AuthoringContext");
         debug
@@ -108,16 +116,11 @@ impl std::fmt::Debug for AuthoringContext {
 }
 
 impl Default for AuthoringContext {
+    /// Nothing named on either layer, resolved as every door resolves it: this build's embedded
+    /// release, pinned now. A release the strict door refuses is this context's refusal, said and
+    /// typed, never a panic.
     fn default() -> Self {
-        Self {
-            strategy: DEFAULT_STRATEGY,
-            knowledge: None,
-            refusal: None,
-            source: "default",
-            decision: None,
-            project: None,
-            reasoning: Ok(None),
-        }
+        Self::from_settings(&AuthoringSettings::none(), &AuthoringSettings::none())
     }
 }
 
@@ -172,7 +175,8 @@ impl AuthoringContext {
     }
 
     /// A host's typed values over the environment's (either may name nothing), resolved by the
-    /// parser every door shares; a named snapshot is opened, verified and pinned now.
+    /// parser every door shares; the release it reads (the one named, or the one this build
+    /// embeds) is admitted, verified and pinned now.
     #[must_use]
     pub fn from_settings(explicit: &AuthoringSettings, env: &AuthoringSettings) -> Self {
         let source = if *explicit != AuthoringSettings::none() {
@@ -182,49 +186,50 @@ impl AuthoringContext {
         } else {
             "default"
         };
-        // The level resolves apart, through the same parser: no other refusal drops it (R4 B16).
+        // The level resolves apart, through the same parser: no other refusal drops it.
         let reasoning = config::reasoning(explicit, env);
         match Self::pin(explicit, env) {
-            Ok((strategy, knowledge)) => Self {
+            Ok((strategy, knowledge, choice)) => Self {
                 strategy,
                 knowledge,
+                choice,
                 refusal: None,
                 source,
                 decision: None,
                 project: None,
                 reasoning,
             },
+            // Field by field, never through `Default`, which resolves and may refuse in turn: a
+            // refused configuration pins nothing and reads nothing.
             Err(error) => Self {
+                strategy: DEFAULT_STRATEGY,
+                knowledge: None,
+                choice: KnowledgeChoice::Unread,
                 refusal: Some(error),
                 source,
+                decision: None,
+                project: None,
                 reasoning,
-                ..Self::default()
             },
         }
     }
 
-    /// The resolved strategy and the pinned snapshot, or why they cannot be honored.
+    /// The resolved strategy, the pinned release and the choice, or why they cannot be honored.
     fn pin(
         explicit: &AuthoringSettings,
         env: &AuthoringSettings,
-    ) -> Result<(NativeMode, Option<KnowledgePin>), AuthoringContextError> {
-        let AuthoringConfig {
-            strategy,
-            knowledge,
-            ..
-        } = config::resolve(explicit, env)?;
-        let pin = match knowledge {
-            None => None,
-            Some(KnowledgeSource::Snapshot {
-                dir,
-                exclude_corpus,
-            }) => Some(KnowledgePin::open(dir, exclude_corpus)?),
+    ) -> Result<(NativeMode, Option<KnowledgePin>, KnowledgeChoice), AuthoringContextError> {
+        let config = config::resolve(explicit, env)?;
+        match &config.knowledge {
+            None | Some(KnowledgeSource::Snapshot { .. } | KnowledgeSource::Embedded { .. }) => {}
             Some(KnowledgeSource::Pack { file }) => {
-                return Err(AuthoringContextError::PackForOneRequest { file });
+                return Err(AuthoringContextError::PackForOneRequest { file: file.clone() });
             }
             Some(_) => return Err(AuthoringContextError::UnsupportedSource),
-        };
-        Ok((strategy, pin))
+        }
+        // The one pin every door takes: a release on disk, or the one this build embeds.
+        let pin = KnowledgePin::of_config(&config)?;
+        Ok((config.strategy, pin, config.choice))
     }
 
     /// When the seat writes the candidate itself.
@@ -233,10 +238,18 @@ impl AuthoringContext {
         self.strategy
     }
 
-    /// The knowledge snapshot pinned for the session, when one is named.
+    /// The knowledge release pinned for the session: the one named, or the one this build embeds
+    /// when nothing is named; none when the knowledge is off or unread.
     #[must_use]
     pub fn knowledge(&self) -> Option<&KnowledgePin> {
         self.knowledge.as_ref()
+    }
+
+    /// What the knowledge resolved to: a named release, off (and which layer said so), the
+    /// release this build embeds, or unread (the strategy `off`, or a refused configuration).
+    #[must_use]
+    pub fn knowledge_choice(&self) -> &KnowledgeChoice {
+        &self.choice
     }
 
     /// Why the configuration cannot be honored, when it cannot.
@@ -251,14 +264,14 @@ impl AuthoringContext {
         self.source
     }
 
-    /// The explicit reasoning effort every seated call asks for, when one is named (R4 B16).
+    /// The explicit reasoning effort every seated call asks for, when one is named.
     #[must_use]
     pub fn reasoning(&self) -> Option<AuthoringReasoning> {
         self.reasoning.as_ref().ok().copied().flatten()
     }
 
     /// The level every call of the conversation asks, or why none may be asked: a word the parser
-    /// refused is never read as no level (R4 B16).
+    /// refused is never read as no level.
     pub(crate) fn reasoning_asked(&self) -> Result<Option<AuthoringReasoning>, ConfigError> {
         self.reasoning.clone()
     }
@@ -296,8 +309,9 @@ impl AuthoringContext {
         let strategy = self.strategy.word();
         match &self.knowledge {
             None => format!(
-                "authoring context · strategy {strategy} ({}) · no knowledge snapshot",
-                self.source
+                "authoring context · strategy {strategy} ({}) · {}",
+                self.source,
+                self.choice.words()
             ),
             Some(pin) => format!(
                 "authoring context · strategy {strategy} ({}) · {} · presented only under a selected model seat",
@@ -307,10 +321,11 @@ impl AuthoringContext {
         }
     }
 
-    /// The pack for one intent from the pinned snapshot, opened and verified again: `Ok(None)`
-    /// when no snapshot is pinned; refused when the snapshot on disk is no longer the one pinned
-    /// — its manifest's own bytes, its rows, its declared version or digest — or a byte it would
-    /// present is not its manifest's.
+    /// The pack for one intent from the pinned release, admitted again against the same trusted
+    /// identity: `Ok(None)` when none is pinned or the intent has no words (as at the compile
+    /// door); refused when the release is no longer the one pinned — its manifest's own bytes,
+    /// its rows, its declared version or digest — or a byte it would present is not its
+    /// manifest's.
     ///
     /// # Errors
     /// [`AuthoringContextError::Changed`] when the snapshot changed under the session,
@@ -322,7 +337,21 @@ impl AuthoringContext {
         let Some(pin) = &self.knowledge else {
             return Ok(None);
         };
-        let snapshot = Snapshot::open(&pin.dir)?;
+        if intent.trim().is_empty() {
+            return Ok(None);
+        }
+        let snapshot = pin.reopen().map_err(|error| match error {
+            // Other bytes under the pin's trusted identity: the release changed under the session.
+            KnowledgeError::Unavailable {
+                code: RefusalCode::IdentityMismatch,
+                detail,
+                ..
+            } => AuthoringContextError::Changed {
+                pinned: pin.identity_words(),
+                found: detail,
+            },
+            other => other.into(),
+        })?;
         if let Some((pinned, found)) = pin.moved(&snapshot) {
             return Err(AuthoringContextError::Changed { pinned, found });
         }

@@ -265,6 +265,16 @@ impl Cadence {
         let (tz, rest) = split_tz(text, lead)?;
         let base = lead + text.len() - rest.len();
         let tokens: Vec<&str> = rest.split_whitespace().collect();
+        // The anchored interval (`every 2 weeks from 2026-10-05 09:00`):
+        // an attempted form (any case) earns the form's own refusals.
+        if tokens
+            .first()
+            .is_some_and(|word| word.eq_ignore_ascii_case("every"))
+        {
+            let spans = token_spans(rest, base);
+            let (anchor, weeks) = crate::every::parse(&tokens, &spans, (base, lead + text.len()))?;
+            return Ok(Self::Every { tz, anchor, weeks });
+        }
         if let Some(spec) = parse_readable(&tokens) {
             return Ok(Self::Cron { tz, spec });
         }

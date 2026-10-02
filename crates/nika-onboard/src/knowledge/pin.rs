@@ -3,8 +3,10 @@
 
 //! The knowledge a session pins and the records it stamps on a compile outcome, owned beside
 //! the snapshot door they read (descended from `nika-session` on 2026-09-28, C7 · D1). A pin
-//! is the identity of a snapshot as it was opened: its declared version and digest, the sha256
-//! of its manifest bytes and of its rows as read. A record is what one compile observed,
+//! is the identity of a release as the strict door admitted it: where its bytes are read from (a
+//! root on disk, or the release this build embeds), its declared version (and the digest a
+//! manifest declares, which a release never does), the sha256 of its manifest bytes — its
+//! `SNAPSHOT_SHA256` — and of its rows. A record is what one compile observed,
 //! composed, presented or carried, in brief. Pure: an outcome and a value in, a record out —
 //! nothing here reads the environment, calls a model, or decides a policy (the session keeps
 //! its seat, its choices and its consent).
@@ -15,15 +17,42 @@ use std::path::PathBuf;
 use nika_event::source_id::sha256_hex;
 use serde_json::{Value, json};
 
-use super::{KnowledgeError, PACK_BUILDER, Snapshot, pack_sha256};
+use super::{
+    ADMISSION_PROFILE, KnowledgeError, PACK_BUILDER, Snapshot, TrustedIdentity, bundled,
+    pack_sha256,
+};
 use crate::compile::{AuthoringKnowledge, CompileOutcome, Strategy};
+use crate::compile_config::{AuthoringConfig, KnowledgeSource};
 
-/// The identity a session pinned for its knowledge snapshot when it opened.
+/// Where a pinned release's bytes are read from, at its admission and at every reopening.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum KnowledgeOrigin {
+    /// A release root on disk: admitted again at every reopening, and refused once it moved
+    /// ([`KnowledgePin::moved`]).
+    Disk(PathBuf),
+    /// The release this build embeds: admitted again from its compiled-in bytes, through the
+    /// strict memory door. No path, no disk access.
+    Embedded,
+}
+
+impl KnowledgeOrigin {
+    /// The origin in the one word a record names it with.
+    #[must_use]
+    pub const fn word(&self) -> &'static str {
+        match self {
+            Self::Disk(_) => "disk",
+            Self::Embedded => "embedded",
+        }
+    }
+}
+
+/// The identity a session pinned for its knowledge release when it opened.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct KnowledgePin {
-    /// The snapshot directory.
-    pub dir: PathBuf,
+    /// Where the release's bytes are read from: a root on disk, or the release this build embeds.
+    pub origin: KnowledgeOrigin,
     /// A corpus whose examples are never recalled.
     pub exclude_corpus: Option<String>,
     /// The snapshot's version, as its manifest names it.
@@ -34,37 +63,125 @@ pub struct KnowledgePin {
     pub manifest_sha256: String,
     /// The digest of the row files as the door read them (computed).
     pub rows_sha256: String,
+    /// The identity the embedder trusted when the release was admitted: every reopening is
+    /// admitted against it again.
+    pub identity: Option<TrustedIdentity>,
 }
 
 impl KnowledgePin {
-    /// Open the snapshot at `dir` and pin its identity as read now.
+    /// Admit the release at `dir` through the strict door, against the identity an embedder
+    /// trusts, and pin its identity as admitted now.
     ///
     /// # Errors
-    /// The directory is not a snapshot, or it is stale ([`KnowledgeError`]).
-    pub fn open(dir: PathBuf, exclude_corpus: Option<String>) -> Result<Self, KnowledgeError> {
-        let snapshot = Snapshot::open(&dir)?;
-        Ok(Self {
+    /// The strict door refuses it ([`KnowledgeError::Unavailable`]), without a trusted identity
+    /// first of all.
+    pub fn open(
+        dir: PathBuf,
+        exclude_corpus: Option<String>,
+        identity: Option<TrustedIdentity>,
+    ) -> Result<Self, KnowledgeError> {
+        let snapshot = Snapshot::open(&dir, identity.as_ref())?;
+        Ok(Self::admitted(
+            KnowledgeOrigin::Disk(dir),
+            &snapshot,
+            exclude_corpus,
+            identity,
+        ))
+    }
+
+    /// Admit the release this build embeds through the strict memory door, against the
+    /// identity the build was issued, and pin its identity as admitted now: no path, no disk
+    /// access.
+    ///
+    /// # Errors
+    /// The strict door refuses it ([`KnowledgeError::Unavailable`]): typed, never another
+    /// source.
+    pub fn embedded(exclude_corpus: Option<String>) -> Result<Self, KnowledgeError> {
+        let identity = bundled::identity()?;
+        let snapshot = bundled::admit(Some(&identity))?;
+        Ok(Self::admitted(
+            KnowledgeOrigin::Embedded,
+            &snapshot,
+            exclude_corpus,
+            Some(identity),
+        ))
+    }
+
+    /// The pin of a release the strict door admitted from `origin` against `identity`.
+    fn admitted(
+        origin: KnowledgeOrigin,
+        snapshot: &Snapshot,
+        exclude_corpus: Option<String>,
+        identity: Option<TrustedIdentity>,
+    ) -> Self {
+        Self {
+            origin,
+            exclude_corpus,
             version: snapshot.version().map(str::to_owned),
             digest: snapshot.digest().map(str::to_owned),
             manifest_sha256: snapshot.manifest_sha256().to_owned(),
             rows_sha256: snapshot.rows_sha256(),
-            dir,
-            exclude_corpus,
-        })
+            identity,
+        }
     }
 
-    /// The pin's identity record (what a receipt names).
+    /// The pin of the release a resolved configuration names, admitted now — a root on disk,
+    /// or the release this build embeds when nothing names one: `None` when it reads none
+    /// (knowledge off, unread, or a pack, which the door itself refuses). Every door that pins
+    /// a release pins it this way.
+    ///
+    /// # Errors
+    /// As [`Self::open`] and [`Self::embedded`].
+    pub fn of_config(config: &AuthoringConfig) -> Result<Option<Self>, KnowledgeError> {
+        match &config.knowledge {
+            Some(KnowledgeSource::Snapshot {
+                dir,
+                exclude_corpus,
+                identity,
+            }) => Self::open(dir.clone(), exclude_corpus.clone(), identity.clone()).map(Some),
+            Some(KnowledgeSource::Embedded { exclude_corpus }) => {
+                Self::embedded(exclude_corpus.clone()).map(Some)
+            }
+            None | Some(KnowledgeSource::Pack { .. }) => Ok(None),
+        }
+    }
+
+    /// The pinned release opened again, through the strict door of its origin (the disk form,
+    /// or the memory form for the embedded release) and against the same trusted identity: what
+    /// a later round composes from, once [`Self::moved`] finds it unchanged.
+    ///
+    /// # Errors
+    /// The strict door refuses it now ([`KnowledgeError::Unavailable`]).
+    pub fn reopen(&self) -> Result<Snapshot, KnowledgeError> {
+        match &self.origin {
+            KnowledgeOrigin::Disk(dir) => Snapshot::open(dir, self.identity.as_ref()),
+            KnowledgeOrigin::Embedded => bundled::admit(self.identity.as_ref()),
+        }
+    }
+
+    /// The pin's identity record (what a receipt names): where its bytes are read from (its
+    /// `source`), and a release on disk its root; the embedded release names no path.
     #[must_use]
     pub fn record(&self) -> Value {
-        json!({
+        let mut record = json!({
             "version": self.version,
             "digest": self.digest,
             "digest_is": "declared by the manifest, not recomputed",
             "manifest_sha256": self.manifest_sha256,
+            "snapshot_sha256": self.manifest_sha256,
+            "admission": ADMISSION_PROFILE,
+            "policy": self.identity.as_ref().map(|identity| json!({
+                "id": identity.policy_id(),
+                "sha256": identity.policy_sha256(),
+            })),
             "rows_sha256": self.rows_sha256,
-            "dir": self.dir.display().to_string(),
+            "source": self.origin.word(),
             "exclude_corpus": self.exclude_corpus,
-        })
+        });
+        if let KnowledgeOrigin::Disk(dir) = &self.origin {
+            record["dir"] = json!(dir.display().to_string());
+        }
+        record
     }
 
     /// The pin as a snapshot on disk states it now.
@@ -89,14 +206,22 @@ impl KnowledgePin {
             && manifest == self.manifest_sha256
             && rows == self.rows_sha256;
         (!same).then(|| {
-            let pinned = Self::words(
-                self.version.as_deref(),
-                self.digest.as_deref(),
-                &self.manifest_sha256,
-                &self.rows_sha256,
-            );
-            (pinned, Self::words(version, digest, manifest, &rows))
+            (
+                self.identity_words(),
+                Self::words(version, digest, manifest, &rows),
+            )
         })
+    }
+
+    /// The pinned identity in the words [`Self::moved`] says it.
+    #[must_use]
+    pub fn identity_words(&self) -> String {
+        Self::words(
+            self.version.as_deref(),
+            self.digest.as_deref(),
+            &self.manifest_sha256,
+            &self.rows_sha256,
+        )
     }
 
     /// The identity in words: version · declared digest · manifest · rows (cut at twelve).
@@ -116,16 +241,20 @@ impl KnowledgePin {
         )
     }
 
-    /// The identity in the words a status line says: the declared version, the declared digest,
-    /// and the digests of the manifest and the rows as read (cut at twelve).
+    /// The identity in the words a status line says: the declared version, the release's
+    /// `SNAPSHOT_SHA256` and the rows' digest (cut at twelve), that the strict door admitted
+    /// it, and when it is the release this build embeds, that word.
     #[must_use]
     pub fn status_words(&self) -> String {
         format!(
-            "knowledge {} · declared digest {} · manifest {} · rows {}",
+            "knowledge {} · snapshot {} · rows {} · admitted{}",
             self.version.as_deref().unwrap_or("unversioned"),
-            short(self.digest.as_deref().unwrap_or("none")),
             short(&self.manifest_sha256),
-            short(&self.rows_sha256)
+            short(&self.rows_sha256),
+            match self.origin {
+                KnowledgeOrigin::Disk(_) => "",
+                KnowledgeOrigin::Embedded => " · embedded",
+            }
         )
     }
 }
@@ -224,7 +353,7 @@ pub fn composed_record(
         _ => "the native door did not present the pack to the seat".to_owned(),
     });
     // What authored with the pack — the round's receipt in brief — kept with the record, so a
-    // candidate an answer round replays (zero calls) still names its model, host and usage.
+    // candidate an answer round replays (presenting no pack) still names its model, host and usage.
     let seat = out
         .provenance
         .authoring
@@ -386,7 +515,7 @@ pub fn knowledge_lines(record: &Value, text: &mut String) {
             calls.len(),
             if calls.len() == 1 { "" } else { "s" },
             if carried {
-                " of the round that authored this candidate (this answer round replayed it · zero calls)"
+                " of the round that authored this candidate (this answer round replayed it and presented the pack to no call)"
             } else {
                 ""
             }

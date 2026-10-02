@@ -111,7 +111,10 @@ and resolution behavior remain available without a reverse dependency.
 ## Knowledge door
 
 `compile::knowledge` composes, per intent, the bounded authoring pack a seat reads
-from a pinned Foundry snapshot (builder `nika-compile/knowledge-door-v3`). Its
+from a Foundry release the strict door admitted against a trusted identity
+(builder `nika-compile/knowledge-door-v4`; `--no-knowledge` turns it off; a
+release `--knowledge` names carries no identity and is refused until one is
+wired; `nika serve --no-knowledge` is the seat's explicit off). Its
 selection is its own, Rust BM25 over the snapshot's graph, and is not the Foundry
 producer's selection. Patterns and blocks are taken in relevance order, each
 recalled family and then the direct text match in turn, never by row id; each

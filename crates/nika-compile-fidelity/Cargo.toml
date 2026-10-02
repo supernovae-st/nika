@@ -14,6 +14,9 @@ serde_json = { workspace = true } # the projected candidate document, the sketch
 nika-compile-reader = { path = "../nika-compile-reader", version = "0.121.0" } # the plan, the HOT vocabulary and the lexicon the laws read (ONE unit, several members · ADR-141)
 nika-schema = { path = "../nika-schema", version = "0.121.0" } # the approval laws read a gate on the AST the parser gives Check
 nika-check-analyzer = { path = "../nika-check-analyzer", version = "0.121.0" } # the refusal substitution (NEP-0020) those laws reuse
+jaq-core = { workspace = true } # the jq a candidate states, parsed (never run) for the record-scope and instant-order laws (24 · 25)
+csv = { workspace = true } # the behavioural contract reads a CSV a rehearsal consumed or wrote exactly as nika:convert reads it
+sha2 = { workspace = true } # the behavioural contract binds every reading to the sha256 of the bytes it read
 
 [package.metadata.lore]
 daemon        = "forgeron"

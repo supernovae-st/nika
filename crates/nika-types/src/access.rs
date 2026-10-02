@@ -938,6 +938,52 @@ mod tests {
     }
 
     #[test]
+    fn a_missing_acp_speaker_line_names_the_package_to_install() {
+        assert_eq!(
+            HarnessRuntime::GEMINI_CLI.acp_missing(),
+            "Gemini CLI is installed, but Nika could not start its ACP mode. \
+             Upgrade it or pick Nika local / Nika Cloud."
+        );
+        assert_eq!(
+            HarnessRuntime::CLAUDE_CODE.acp_missing(),
+            "Claude Code is installed, but Nika talks to it through ACP. \
+             Install `claude-agent-acp` (`npm i -g @agentclientprotocol/claude-agent-acp`) \
+             or pick Nika local / Nika Cloud."
+        );
+        assert_eq!(
+            HarnessRuntime::GEMINI_CLI.detect_bin,
+            HarnessRuntime::GEMINI_CLI.acp_bin
+        );
+        assert_ne!(
+            HarnessRuntime::CLAUDE_CODE.detect_bin,
+            HarnessRuntime::CLAUDE_CODE.acp_bin
+        );
+    }
+
+    #[test]
+    fn a_not_signed_in_line_names_the_product_to_sign_into() {
+        assert_eq!(
+            HarnessRuntime::CODEX.not_signed_in(),
+            "Codex is installed but not signed in. \
+             Sign in to Codex itself, or pick Nika local / Nika Cloud."
+        );
+        assert_eq!(
+            HarnessRuntime::QWEN_CODE.not_signed_in(),
+            "Qwen Code is installed but not signed in. \
+             Sign in to Qwen Code itself, or pick Nika local / Nika Cloud."
+        );
+        for row in HarnessRuntime::ALL {
+            let line = row.not_signed_in();
+            assert_eq!(
+                line.matches(row.display).count(),
+                2,
+                "{line} must name {} twice",
+                row.display
+            );
+        }
+    }
+
+    #[test]
     fn harness_runtime_tokens_are_one_name_each_and_never_a_class() {
         assert_eq!(HarnessRuntime::ALL.len(), 8);
         for (i, a) in HarnessRuntime::ALL.iter().enumerate() {

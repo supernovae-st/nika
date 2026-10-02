@@ -359,15 +359,24 @@ fn a_restarted_session_never_takes_an_earlier_answer() -> Result<(), String> {
     Ok(())
 }
 
+/// Whether a request the seat received is its round's judge over the bytes that round finished:
+/// the closed choice (faithful · unfaithful) carrying the bound answer.
+fn judged_over(body: &serde_json::Value, bound: &str) -> bool {
+    let body = body.to_string();
+    body.contains("unfaithful") && body.contains(bound)
+}
+
 /// DIALOG-11's shape through the real native door: the seat asks the destination; the
 /// destination changes before any answer, the request is read again, and the seat asks the
 /// SAME key in the SAME words for the revised request. The old answer names the old
 /// question: refused with no route, no call and nothing changed; the current answer binds
-/// and the recorded plan replays with zero calls; only the durable money record changes
-/// before consent, never a workflow or an output file.
+/// and the recorded plan replays, its one call the judge the seat is permitted as when the
+/// round finishes (native step 2); only the durable money record changes before consent,
+/// never a workflow or an output file.
 #[test]
 fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String> {
-    let peer = Peer::start(vec![(200, response(&asks_destination()))]);
+    let asks = || (200, response(&asks_destination()));
+    let peer = Peer::start(vec![asks(), asks(), (200, response(JUDGE_APPROVES))]);
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
     let mut s = open(dir.path());
@@ -424,7 +433,11 @@ fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String
     assert!(preview.contains("archive/copie.txt"), "{preview}");
     assert_eq!(
         (peer.bodies().len(), routings.load(Ordering::SeqCst)),
-        (2, routed + 1)
+        (3, routed + 1)
+    );
+    assert!(
+        judged_over(&peer.bodies()[2], "archive/copie.txt"),
+        "the round's judge"
     );
     let out = s.answer_question_for(&current, "autre.txt");
     assert!(refused(&out, RefusalClass::AlreadyConsumed), "{out:?}");
@@ -433,7 +446,7 @@ fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String
     assert_eq!(s.pending_proposal().as_ref(), Some(id));
     assert_eq!(
         (peer.bodies().len(), routings.load(Ordering::SeqCst)),
-        (2, routed + 1)
+        (3, routed + 1)
     );
     let state_path = dir
         .path()

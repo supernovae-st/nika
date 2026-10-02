@@ -68,5 +68,6 @@ mod cognition;
 mod compose;
 pub mod decide;
 mod predicate;
+pub mod rehearse;
 
 pub use cognition::{Cognition, NoProvider, compile_with_cognition, compile_with_provider};

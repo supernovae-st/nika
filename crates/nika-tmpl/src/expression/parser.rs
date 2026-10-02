@@ -786,6 +786,26 @@ mod tests {
         );
     }
 
+    #[test]
+    fn flat_ternary_siblings_do_not_leak_depth_across_the_list() {
+        let src = format!("[{}]", vec!["a ? b : c"; 64].join(", "));
+        let expr = parse_expression(&src).expect("64 sibling ternaries are legal");
+        let Expr::List(items) = expr else {
+            panic!("a list");
+        };
+        assert_eq!(items.len(), 64);
+        assert!(
+            matches!(items[63], Expr::Ternary { .. }),
+            "the last element is still a parsed ternary, not a truncation"
+        );
+
+        let chain = format!("{}z", "a ? b : ".repeat(60));
+        assert!(
+            parse_expression(&chain).is_ok(),
+            "a 60-long `?:` else-chain must parse — the rung must restore"
+        );
+    }
+
     proptest! {
         #[test]
         fn parse_never_panics(src in ".{0,64}") {

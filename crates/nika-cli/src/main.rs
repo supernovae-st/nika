@@ -666,6 +666,7 @@ fn plain_session_requested() -> bool {
 fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
     let mut json = false;
     let mut ascii = false;
+    let mut plain = false;
     let mut saw_fix = false;
     let mut positional: Vec<&std::ffi::OsStr> = Vec::new();
     let mut skip_value = false;
@@ -676,7 +677,8 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
         }
         match arg.to_str() {
             Some("--json") => json = true,
-            Some("--plain" | "--ascii") => ascii = true,
+            Some("--ascii") => ascii = true,
+            Some("--plain") => plain = true,
             Some("--fix") => saw_fix = true,
             Some("--color" | "--hyperlink") => skip_value = true,
             Some(s) if s.starts_with("--color=") || s.starts_with("--hyperlink=") => {}
@@ -695,18 +697,20 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
     match first {
         None => {
             warn_about_home(!json && std::io::stderr().is_terminal());
-            let theme = term_theme(ColorChoice::Auto, ascii, LinkChoice::Auto);
+            // `--plain` keeps its ASCII twins: it is the sober umbrella.
+            let theme = term_theme(ColorChoice::Auto, ascii || plain, LinkChoice::Auto);
             // ADR-125 · bare `nika` on an interactive terminal is the native
             // session; a pipe keeps the deterministic concierge (exit 0).
             let interactive =
                 !json && std::io::stdin().is_terminal() && std::io::stdout().is_terminal();
             // ADR-139 · UX-2 · one gesture: on a real terminal the session
             // opens behind the renderer (as the agent CLIs a human already
-            // knows do). The plain loop is one gesture away for flat text
+            // knows do); `--ascii` keeps it and only swaps its glyph column.
+            // The plain loop is one gesture away for flat text
             // (`--plain`, or `NIKA_TUI=0`), and it is the automatic fallback
             // when the renderer cannot take the terminal (`TERM=dumb`, a
             // mute cursor report), said once on stderr by the renderer's door.
-            let plain = ascii || plain_session_requested();
+            let plain = plain || plain_session_requested();
             Some(if interactive && plain {
                 std::process::ExitCode::from(verbs::session::run(interactive_theme(theme)))
             } else if interactive {

@@ -7,7 +7,8 @@
 //! without its cadence (« régulièrement », « from time to time ») is a trigger too, whether it
 //! leads the sentence or sits inside a clause. Beside `lexicon.rs` at the 1,500-line file cap.
 use super::cues::{
-    CADENCE_HEAD_PREFIXES, CADENCE_WORDS, CLOCK_SUFFIXES, HEAD_FILLERS, TRIGGER_PREFIXES,
+    CADENCE_HEAD_PREFIXES, CADENCE_WORDS, CLOCK_SUFFIXES, HEAD_FILLERS, START_DATE_WORDS,
+    TRIGGER_PREFIXES,
 };
 use super::{Reading, normalize, number_word};
 use crate::plan::{Op, Step};
@@ -27,35 +28,88 @@ fn head_bounds(body_lower: &str, prefix: &str) -> Option<(usize, usize)> {
 }
 
 /// The cadence part of a head (`head_bounds` without its comma fallback): `None` when no cadence
-/// word or clock token follows the prefix.
+/// word or clock token follows the prefix. A start date the head anchors (« every other monday
+/// at 9 from 2026-10-05 », « … à 9h à partir du 2026-10-05 ») ends it, even after the comma
+/// that closes the rest (« every 2 weeks on monday at 9:00, starting 2026-10-05, … »).
 fn cadence_bounds(body_lower: &str, prefix: &str) -> Option<(usize, usize)> {
     let tail = body_lower.get(prefix.len()..).unwrap_or_default();
     let mut at = prefix.len();
     let mut end = None;
+    let mut anchored = false;
+    let mut closed_on_head = false;
     for piece in tail.split_inclusive(' ') {
         let folded = hot::fold(piece);
         let word = folded.trim_matches(|c: char| !c.is_alphanumeric());
         let cadence =
             CADENCE_WORDS.lines().any(|c| c == word) || words::day_part_compound(word).is_some();
         let clock = end.is_some() && (clock_token(word) || CLOCK_SUFFIXES.contains(&word));
+        let date = end.is_some() && anchored && iso_date(word);
         let filler =
             HEAD_FILLERS.contains(&word) || clock_token(word) || number_word(word).is_some();
-        if !word.is_empty() && !cadence && !clock && !filler {
+        if !word.is_empty() && !cadence && !clock && !date && !filler {
             break;
         }
+        anchored |= START_DATE_WORDS.contains(&word);
         let word_end = at + piece.trim_end_matches(|c: char| !c.is_alphanumeric()).len();
         at += piece.len();
-        if cadence || clock {
+        if cadence || clock || date {
             end = Some(word_end);
         }
         if piece.trim_end().ends_with(',') {
+            closed_on_head = cadence || clock || date;
             break;
         }
     }
-    let end = end?;
+    let mut end = end?;
+    if closed_on_head && let Some(date_end) = body_lower.get(at..).and_then(start_date_after_comma)
+    {
+        end = at + date_end;
+    }
     let rest = body_lower.get(end..).unwrap_or_default();
     let skipped = rest.len() - rest.trim_start_matches([' ', ',']).len();
     Some((end, end + skipped))
+}
+
+/// A civil date in the ISO form `YYYY-MM-DD` (whether the calendar has it is the compiler's
+/// to judge when it binds the cadence).
+fn iso_date(word: &str) -> bool {
+    word.len() == 10
+        && word.bytes().enumerate().all(|(i, b)| {
+            if i == 4 || i == 7 {
+                b == b'-'
+            } else {
+                b.is_ascii_digit()
+            }
+        })
+}
+
+/// After the comma that closes a head, the start date that still belongs to it (« starting
+/// 2026-10-05 », « à partir du 2026-10-05 »): the byte length up to the date's end, when only
+/// start-date words and fillers come before it, one start-date word at least, and a comma, a
+/// full stop or the end closes it. `None` for anything else (« , starting with the oldest
+/// ticket, … », a range « , from 2026-10-05 to 2026-12-31, … »).
+fn start_date_after_comma(text: &str) -> Option<usize> {
+    let mut at = 0;
+    let mut anchored = false;
+    for piece in text.split_inclusive(' ') {
+        let folded = hot::fold(piece);
+        let word = folded.trim_matches(|c: char| !c.is_alphanumeric());
+        if anchored && iso_date(word) {
+            let after = text.get(at + piece.len()..).unwrap_or_default();
+            let closed = piece.trim_end().ends_with([',', '.']) || after.trim().is_empty();
+            return closed
+                .then(|| at + piece.trim_end_matches(|c: char| !c.is_alphanumeric()).len());
+        }
+        if !word.is_empty() && !START_DATE_WORDS.contains(&word) && !HEAD_FILLERS.contains(&word) {
+            return None;
+        }
+        anchored |= START_DATE_WORDS.contains(&word);
+        at += piece.len();
+        if piece.trim_end().ends_with(',') {
+            return None;
+        }
+    }
+    None
 }
 
 /// A clock token: `9`, `9:30`, `9h`, `9h30`, `18h`, `9am`, `9pm`.
@@ -404,6 +458,62 @@ mod head_tests {
                 lower[rest_start..].starts_with(rest),
                 "{intent}: {}",
                 &lower[rest_start..]
+            );
+        }
+    }
+
+    #[test]
+    fn a_start_date_or_a_month_end_stays_in_the_head() {
+        for (intent, head) in [
+            (
+                "Every two weeks from 2026-10-05 at 09:00, read ./tickets.json",
+                "every two weeks from 2026-10-05 at 09:00",
+            ),
+            (
+                "Every 2 weeks on Monday at 9:00, starting 2026-10-05, read ./tickets.json",
+                "every 2 weeks on monday at 9:00, starting 2026-10-05",
+            ),
+            (
+                "Toutes les deux semaines le lundi à 9h à partir du 2026-10-05, lis ./tickets.json",
+                "toutes les deux semaines le lundi à 9h à partir du 2026-10-05",
+            ),
+            (
+                "Every month on the last day at 18:00, read ./tickets.json",
+                "every month on the last day at 18:00",
+            ),
+            (
+                "On the last day of every month at 18:00, read ./tickets.json",
+                "on the last day of every month at 18:00",
+            ),
+            (
+                "Le dernier jour de chaque mois à 18h, lis ./tickets.json",
+                "le dernier jour de chaque mois à 18h",
+            ),
+        ] {
+            let reading = read(intent);
+            assert_eq!(reading.plan.trigger.as_deref(), Some(head), "{intent}");
+            assert!(
+                steps(intent).iter().all(|(_, detail, _)| {
+                    !detail.contains("2026")
+                        && !detail.contains("last")
+                        && !detail.contains("dernier")
+                }),
+                "the clause reads without its head: {:?}",
+                steps(intent)
+            );
+        }
+        // No cadence word after the month-end words is no head; words after the comma that
+        // are not a start date alone (a range, another clause) stay out of it.
+        let sprint = "On the last day of the sprint, send ./summary.md to the team";
+        assert_eq!(read(sprint).plan.trigger, None, "{sprint}");
+        for intent in [
+            "Every monday at 9, starting with the oldest ticket, summarize ./tickets.json",
+            "Every monday at 9, from 2026-10-05 to 2026-12-31, summarize ./tickets.json",
+        ] {
+            assert_eq!(
+                read(intent).plan.trigger.as_deref(),
+                Some("every monday at 9"),
+                "{intent}"
             );
         }
     }

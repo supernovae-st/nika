@@ -395,6 +395,8 @@ fn witness(
     clippy::disallowed_types
 )]
 mod tests {
+    mod free_noninteractive;
+
     use super::*;
     use nika_dap::cost_journal::JOURNAL;
     use nika_runtime::compose::RunSeams;

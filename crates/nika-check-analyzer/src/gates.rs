@@ -191,6 +191,78 @@ pub fn affirmed_by(task: &RawTask, prompt: &str) -> bool {
         && gate_under(task, prompt, false, Some(true)) != Gate::Closed
 }
 
+/// Whether a task's `when:` reads nothing but caller inputs (E39 N4): every root it reads is
+/// `inputs.<x>`, directly or through a `with:` key that itself reads nothing else, and it reads
+/// at least one. Such a gate never reads any confirm gate's answer, so a refusal cannot close it
+/// (spec 10 §the affirmative-consent law: « a `when:` that never reads the answer lets it
+/// through »), whatever the caller's inputs make of it. Any other root (a task record, a const,
+/// a secret, a loop-local, a group, an unknown root), a literal gate, or a gate that does not
+/// scan is not claimed: the fragment's verdict stands.
+#[must_use]
+pub fn reads_inputs_only(task: &RawTask) -> bool {
+    let Some(WhenGate::Expr(src)) = task.when.as_ref().map(|w| &w.value) else {
+        return false;
+    };
+    let Some(refs) = refs_of(&serde_json::Value::String(src.clone())) else {
+        return false;
+    };
+    let mut read = false;
+    for r in refs {
+        let inputs = match r {
+            NamespaceRef::Inputs(_) => true,
+            NamespaceRef::With(key) => {
+                task.with
+                    .iter()
+                    .find(|(k, _)| k.value == key)
+                    .is_some_and(|(_, v)| {
+                        refs_of(&v.value).is_some_and(|refs| {
+                            !refs.is_empty()
+                                && refs.iter().all(|r| matches!(r, NamespaceRef::Inputs(_)))
+                        })
+                    })
+            }
+            _ => false,
+        };
+        if !inputs {
+            return false;
+        }
+        read = true;
+    }
+    read
+}
+
+/// Every root a `with:`-shaped value reads, through nested values: `None` when an island does not
+/// scan.
+fn refs_of(value: &serde_json::Value) -> Option<Vec<NamespaceRef>> {
+    match value {
+        serde_json::Value::String(s) => Some(
+            scan_templates(s)
+                .ok()?
+                .iter()
+                .flat_map(|island| expr_refs(&island.expr))
+                .collect(),
+        ),
+        serde_json::Value::Array(items) => {
+            items
+                .iter()
+                .map(refs_of)
+                .try_fold(Vec::new(), |mut all, refs| {
+                    all.extend(refs?);
+                    Some(all)
+                })
+        }
+        serde_json::Value::Object(map) => {
+            map.values()
+                .map(refs_of)
+                .try_fold(Vec::new(), |mut all, refs| {
+                    all.extend(refs?);
+                    Some(all)
+                })
+        }
+        _ => Some(Vec::new()),
+    }
+}
+
 /// A `with:` value whose evaluation cannot error: no island at all, or
 /// islands that are PLAIN reads (nested values included).
 fn total_binding(value: &serde_json::Value) -> bool {
@@ -713,5 +785,36 @@ mod tests {
             "",
             "invoke: { tool: \"nika:read\", args: { path: \"./a.txt\" } }"
         )));
+    }
+
+    /// E39 N4 · a gate reads nothing but caller inputs only when every root it reads is an input,
+    /// directly or through a `with:` key that reads nothing else: no answer can close it then.
+    /// Any other root (the answer, a const, another task), a gate with no read, a literal gate or
+    /// no gate at all is not claimed, so the fragment's own verdict stands.
+    #[test]
+    fn only_a_gate_of_caller_inputs_alone_reads_no_answer() {
+        let reads =
+            |body: &str| reads_inputs_only(&only_task(body, "exec: { command: [\"true\"] }"));
+        assert!(reads("    when: ${{ inputs.go == true }}\n"));
+        assert!(reads(
+            "    with: { g: \"${{ inputs.go }}\" }\n    when: ${{ with.g == true }}\n"
+        ));
+        assert!(reads("    when: ${{ inputs.a == 1 && inputs.b != 'x' }}\n"));
+        for body in [
+            format!("    with: {{ {GO} }}\n    when: ${{{{ with.go == true }}}}\n"),
+            format!(
+                "    with: {{ {GO} }}\n    when: ${{{{ inputs.go == true && with.go == true }}}}\n"
+            ),
+            "    with: { g: \"${{ inputs.go }}-${{ tasks.ask.output }}\" }\n    when: ${{ with.g == 'x' }}\n"
+                .to_owned(),
+            "    when: ${{ with.missing == true }}\n".to_owned(),
+            "    when: ${{ const.flag == true }}\n".to_owned(),
+            "    when: ${{ tasks.other.output == 'x' }}\n".to_owned(),
+            "    when: ${{ 1 == 1 }}\n".to_owned(),
+            "    when: true\n".to_owned(),
+            String::new(),
+        ] {
+            assert!(!reads(&body), "{body}");
+        }
     }
 }

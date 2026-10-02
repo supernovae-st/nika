@@ -20,6 +20,7 @@ use crate::{ScheduleApplyOutcome, ScheduleApplyPrecondition, ScheduleStoreError}
 use super::AppState;
 use super::error::{ApiError, ResponseBody, json_error};
 use super::route::{collect_body, is_json, json_response};
+use super::scheduler::lock;
 
 const MAX_SCHEDULE_BODY_BYTES: usize = 8 * 1024;
 const MAX_ETAG_HEADER_BYTES: usize = 96;
@@ -243,13 +244,7 @@ pub(super) async fn get(id: String, state: &AppState) -> Response<ResponseBody> 
 /// A project beat the planner refused at load reads as a finding on the
 /// same status projection, never as a live schedule that fires nothing.
 async fn project_refusal_response(id: &str, state: &AppState) -> Response<ResponseBody> {
-    let refused = {
-        let projection = state
-            .project_refusals
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        projection.get(id).cloned()
-    };
+    let refused = lock(&state.project_refusals).get(id).cloned();
     let Some(refused) = refused else {
         return retained_project_response(id, state);
     };
@@ -294,6 +289,9 @@ async fn status_response(
     changed: Option<bool>,
 ) -> Response<ResponseBody> {
     let revision = definition.revision();
+    let refusal = lock(&state.fire_refusals)
+        .get(&ScheduleOrigin::Api.key(definition.id()))
+        .cloned();
     let schedules = Arc::clone(&state.schedules);
     let id = definition.id().to_owned();
     let now = state.clock.now();
@@ -303,11 +301,16 @@ async fn status_response(
         Ok::<_, ScheduleStoreError>(schedule_status(&definition, &now, &prior, last.as_ref()))
     })
     .await;
-    let status = match status {
+    let mut status = match status {
         Ok(Ok(status)) => status,
         Ok(Err(error)) => return store_error_response(&error),
         Err(_) => return ApiError::internal().into_response(),
     };
+    if status.get("finding").is_none()
+        && let Some(detail) = refusal
+    {
+        status["finding"] = json!({"code": "schedule.admission", "detail": detail});
+    }
     let body = changed.map_or_else(
         || status.clone(),
         |changed| json!({"applied": true, "changed": changed, "status": status}),
@@ -549,24 +552,14 @@ fn pause_json(definition: &ScheduleDefinition) -> Value {
 /// no longer loads and this schedule is retained from the last valid
 /// registry (`project.invalid`). Named, never silent (#1351).
 fn retained_project_response(id: &str, state: &AppState) -> Response<ResponseBody> {
-    let fire_refusal = state
-        .fire_refusals
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .get(id)
+    let fire_refusal = lock(&state.fire_refusals)
+        .get(&ScheduleOrigin::Project.key(id))
         .cloned();
-    let retained = state
-        .last_good_project
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
+    let retained = lock(&state.last_good_project)
         .iter()
         .find(|s| s.definition.id() == id)
         .map(|s| s.definition.clone());
-    let load_finding = state
-        .project_load_finding
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .clone();
+    let load_finding = lock(&state.project_load_finding).clone();
     let Some(definition) = retained else {
         return schedule_not_found();
     };

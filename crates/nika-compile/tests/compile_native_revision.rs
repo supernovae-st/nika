@@ -15,7 +15,7 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 mod common;
-use common::{Judged, Rotating, keys};
+use common::{Judged, Rotating, held_for_its_judge, keys};
 
 const ORIGINAL: &str = "Copie entree.txt dans a.txt.";
 const CHANGE: &str = "Finalement, utilise b.txt.";
@@ -123,14 +123,14 @@ async fn the_campaign_revision_replaces_the_destination_and_supersedes_the_old_p
                 && d.message.contains("`a.txt` is replaced by `b.txt`")),
         "{out:#?}"
     );
-    // The answer round replays the record with zero calls: the same READY candidate.
-    let replayed = compile(
-        &CompileRequest::edit(BASE, CHANGE)
-            .with_original_intent(ORIGINAL)
-            .with_plan(record),
-    )
-    .unwrap();
-    assert_eq!(replayed.status, CompileStatus::Ready, "{replayed:#?}");
+    // The answer round replays the record with zero calls: the same candidate, then
+    // held for the round's judge (R4 A11, step 2): this keyless round permits none.
+    let answered = CompileRequest::edit(BASE, CHANGE)
+        .with_original_intent(ORIGINAL)
+        .with_plan(record);
+    let replayed = compile(&answered).unwrap();
+    let revised = nika_compile::revise_intent(&answered).unwrap();
+    assert!(held_for_its_judge(&replayed, &revised), "{replayed:#?}");
     assert_eq!(replayed.candidate, out.candidate);
 }
 
@@ -192,17 +192,16 @@ async fn short_of_proof_the_old_path_is_a_gap_the_human_disposes_of_before_ready
         let record = out.provenance.plan.clone().unwrap();
         assert_eq!(record["gaps"], json!([gap]), "{why}: {record:#}");
         assert!(record.get("superseded").is_none(), "{why}: {record:#}");
-        // The human disposes of it; only then is the revision READY.
-        let disposed = compile(
-            &CompileRequest::edit(BASE, change)
-                .with_original_intent(ORIGINAL)
-                .with_plan(record)
-                .answer("gap.1", r#""drop""#),
-        )
-        .unwrap();
-        assert_eq!(
-            disposed.status,
-            CompileStatus::Ready,
+        // The human disposes of it; only then is the revision admitted, held for the round's
+        // judge (R4 A11, step 2): this keyless round permits none.
+        let answered = CompileRequest::edit(BASE, change)
+            .with_original_intent(ORIGINAL)
+            .with_plan(record)
+            .answer("gap.1", r#""drop""#);
+        let disposed = compile(&answered).unwrap();
+        let revised = nika_compile::revise_intent(&answered).unwrap();
+        assert!(
+            held_for_its_judge(&disposed, &revised),
             "{why}: {disposed:#?}"
         );
     }
@@ -387,14 +386,15 @@ async fn an_explicit_old_path_waits_for_a_gap_decision_instead_of_forcing_a_dupl
     assert!(pending_gap(&out), "{out:#?}");
     let record = out.provenance.plan.clone().unwrap();
     assert!(record.get("superseded").is_none());
-    let resumed = compile(
-        &CompileRequest::edit(FILTER_TOTAL, change)
-            .with_original_intent(FILTER_INTENT)
-            .with_plan(record)
-            .answer("gap.1", r#""drop""#),
-    )
-    .unwrap();
-    assert_eq!(resumed.status, CompileStatus::Ready, "{resumed:#?}");
+    // The gap disposed of, the revision is admitted, then
+    // held for the round's judge (R4 A11, step 2): this keyless round permits none.
+    let answered = CompileRequest::edit(FILTER_TOTAL, change)
+        .with_original_intent(FILTER_INTENT)
+        .with_plan(record)
+        .answer("gap.1", r#""drop""#);
+    let resumed = compile(&answered).unwrap();
+    let revised = nika_compile::revise_intent(&answered).unwrap();
+    assert!(held_for_its_judge(&resumed, &revised), "{resumed:#?}");
     assert!(
         !resumed
             .candidate

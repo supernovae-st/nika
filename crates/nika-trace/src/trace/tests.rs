@@ -38,7 +38,7 @@ fn outputs_json_projects_every_task() {
     let out = outputs_json(&path.to_string_lossy());
     assert_eq!(out.code, exit::OK);
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("one JSON document");
-    assert_eq!(doc["outputs_version"], 1);
+    assert_eq!(doc["outputs_version"], 2);
     assert_eq!(doc["state"], "succeeded", "{doc}");
     assert_eq!(doc["settlement"]["status"], "succeeded", "{doc}");
     let tasks = doc["tasks"].as_array().expect("the task rows");
@@ -625,7 +625,9 @@ fn recovered_task_is_not_a_clean_success_on_peek_outputs_or_json() {
     assert_eq!(json["state"], "succeeded");
     assert_eq!(json["tasks"][0]["status"], "recovered");
     assert_eq!(json["tasks"][0]["recovered_from"], "NIKA-EXEC-001");
-    assert_eq!(json["tasks"][0]["error_code"], "NIKA-EXEC-001");
+    assert!(json["tasks"][0]["cause"].is_null());
+    assert!(json["tasks"][0]["error_code"].is_null());
+    assert!(json["tasks"][0]["error_message"].is_null());
 }
 
 /// #1276 · #1397 · a fan-out's item table reaches every reader: the

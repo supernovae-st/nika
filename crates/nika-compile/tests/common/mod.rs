@@ -3,7 +3,7 @@
 //! Helpers the compile suites share: one hermetic generative provider that returns a fixed
 //! text and counts its calls, the bounded authoring policy, the question keys of an outcome.
 #![allow(dead_code, clippy::unwrap_used, clippy::expect_used)]
-use nika_compile::{AuthoringPolicy, CompileRequest};
+use nika_compile::{AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus};
 use nika_compile_cognition::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat};
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, StopReason,
@@ -286,4 +286,23 @@ pub(crate) fn short(jq: &str) -> String {
         );
     }
     out
+}
+
+/// An answer round's finish the laws admit, held for that round's judge (R4 A11, step 2): no law
+/// reads a native seat's program, so a round that permits no judge is INCOMPLETE on the whole
+/// request alone (`decision.pending`: the `intent` the core replayed, at its whole span), with a
+/// clean check and the candidate as its preview.
+pub(crate) fn held_for_its_judge(out: &CompileOutcome, intent: &str) -> bool {
+    let whole = json!([{"clause": intent, "witness": null, "spans": [[0, intent.len()]]}]);
+    out.status == CompileStatus::Incomplete
+        && out.candidate.is_some()
+        && out
+            .check_preview
+            .as_ref()
+            .is_some_and(|preview| preview.report.is_clean())
+        && out
+            .provenance
+            .decision
+            .as_ref()
+            .is_some_and(|decision| decision["pending"]["open"] == whole)
 }

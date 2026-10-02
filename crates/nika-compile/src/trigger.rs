@@ -8,17 +8,16 @@
 //! state, a cadence word and a time of day, and nothing they do not: a phrase with neither
 //! is an event the operator binds, never a guessed cron. A recurrence stated without its
 //! cadence (« régulièrement », « from time to time ») is a schedule whose cadence is asked.
-
-mod multiple;
-mod schedule;
+//! The reading itself (the words, the cadence, the time of day, the multiples, the cron
+//! fields, the form of a clause) lives in `nika-compile-trigger` (ADR-142); this module binds
+//! what it reads.
 
 use super::plan::Plan;
 use super::{TriggerKind, TriggerRequirement, TriggerStatus, hot};
-use nika_compile_reader::trigger_words::{
-    ARRIVAL_WORDS, AT, BETWEEN, COMPLETION_WORDS, DAILY, EVENT_HEADS, HOURLY, MANUAL, MINUTELY,
-    MONTHLY, NAMED_TIMES, SEQUENCE_HEADS, TIME_UNITS, TIME_WORDS, WEBHOOK, WEEKDAYS, WEEKLY,
-};
-use nika_compile_reader::words::{day_part_compound, recurrence};
+use nika_compile_reader::words::recurrence;
+use nika_compile_trigger::words::{MANUAL, WEBHOOK};
+pub(super) use nika_compile_trigger::{TriggerForm, arriving, classify};
+use nika_compile_trigger::{multiple, phrase_words, schedule, stated_cadence};
 
 /// The requirement the plan's trigger phrase states, when the plan carries one.
 pub(super) fn requirement(plan: &Plan, item: bool) -> Option<TriggerRequirement> {
@@ -138,7 +137,9 @@ fn bind_cadence(
     use super::types::{DiagnosticKind, QuestionType};
     const KEY: &str = "trigger.cadence";
     let hint = trigger.source_hint.clone().unwrap_or_default();
-    let unbound = multiple::unbindable(&phrase_words(&hot::fold(&hint)));
+    // A multiple the words anchor on a start date (« every other monday at 9 from
+    // 2026-10-05 ») is bound: the interval form holds it, and `cron` already carries it.
+    let unbound = multiple::unbindable(&phrase_words(&hot::fold(&hint))) && trigger.cron.is_none();
     if (trigger.cadence.is_some() || trigger.at.is_some()) && !unbound {
         return;
     }
@@ -149,13 +150,15 @@ fn bind_cadence(
             let words = phrase_words(&folded);
             let (cadence, at) = stated_cadence(&words);
             let said = answer.trim();
-            if multiple::unbindable(&words) {
+            let anchored = schedule::fields(&answer);
+            let multiple = multiple::unbindable(&words);
+            if multiple && anchored.is_none() {
                 super::finding(
                     out,
                     DiagnosticKind::Missed,
                     KEY,
                     format!(
-                        "« {said} » is a period a schedule cannot bind either: answer a day, a weekday, a named weekday at a time or an hour or minute interval, or \"manual\"."
+                        "« {said} » is a period a schedule cannot bind as said: an interval of weeks needs its start date (« every other monday at 09:00 from 2026-10-05 »); otherwise answer a day, a weekday, a named weekday at a time, the last day of the month at a time, or an hour or minute interval, or \"manual\"."
                     ),
                 );
             } else if MANUAL.contains(&words.join(" ").as_str()) {
@@ -169,9 +172,10 @@ fn bind_cadence(
                 );
                 return;
             } else if cadence.is_some() || at.is_some() {
-                trigger.cadence = cadence.map(str::to_owned);
+                // A multiple keeps no coarse label, even anchored (never `weekly`).
+                trigger.cadence = cadence.filter(|_| !multiple).map(str::to_owned);
                 trigger.at = at;
-                trigger.cron = schedule::fields(&answer);
+                trigger.cron = anchored;
                 super::finding(
                     out,
                     DiagnosticKind::Applied,
@@ -202,7 +206,7 @@ fn bind_cadence(
     }
     let question = if unbound {
         format!(
-            "The request says `{hint}`, a period a schedule cannot bind: it binds a day, a weekday, a named weekday at a time, or an hour or minute interval, never every other week or a count of days. How should it run? Answer a cadence it binds (« every Monday at 09:00 », « chaque lundi à 9h »), or \"manual\" to start each run by hand."
+            "The request says `{hint}`, a period a schedule cannot bind as said: an interval of weeks needs its start date, and a count of days or months is not bound. How should it run? Answer a cadence it binds (« every other monday at 09:00 from 2026-10-05 », « every Monday at 09:00 », « chaque lundi à 9h », « the last day of every month at 18:00 »), or \"manual\" to start each run by hand."
         )
     } else {
         format!(
@@ -369,115 +373,6 @@ pub(super) fn note(trigger: &TriggerRequirement) -> String {
     )
 }
 
-/// The words of a folded trigger phrase or cadence answer (a clock keeps its `:`).
-fn phrase_words(folded: &str) -> Vec<&str> {
-    folded
-        .split(|c: char| !c.is_alphanumeric() && c != ':')
-        .filter(|w| !w.is_empty())
-        .collect()
-}
-
-/// The cadence and the time of day the words state, each when they state one.
-fn stated_cadence(words: &[&str]) -> (Option<&'static str>, Option<String>) {
-    let (at, consumed) = time_of_day(words);
-    (cadence(words, &consumed), at)
-}
-
-/// The coarsest cadence the words state, the named day or working day winning over the
-/// day it also names ("every monday morning" is weekly).
-fn cadence(words: &[&str], consumed: &[usize]) -> Option<&'static str> {
-    let free: Vec<&str> = words
-        .iter()
-        .enumerate()
-        .filter(|(i, _)| !consumed.contains(i))
-        .map(|(_, w)| *w)
-        .collect();
-    let has = |table: &[&str]| {
-        free.iter().any(|w| {
-            table.contains(w) || day_part_compound(w).is_some_and(|(day, _)| table.contains(&day))
-        })
-    };
-    if has(WEEKDAYS) {
-        Some("weekdays")
-    } else if has(WEEKLY) {
-        Some("weekly")
-    } else if has(MONTHLY) {
-        Some("monthly")
-    } else if has(DAILY) {
-        Some("daily")
-    } else if has(HOURLY) {
-        Some("hourly")
-    } else if has(MINUTELY) {
-        Some("minutely")
-    } else {
-        None
-    }
-}
-
-/// The time of day the words state after an introducer ("at 9", "at 9:30 pm", "à 9h30",
-/// "a las 8", "um 9 uhr") or by name ("noon"), as `HH:MM`, with the indices of the words
-/// the time consumed (a unit after the number is the time's, never a cadence).
-fn time_of_day(words: &[&str]) -> (Option<String>, Vec<usize>) {
-    for (i, word) in words.iter().enumerate() {
-        if let Some((_, time)) = NAMED_TIMES.iter().find(|(name, _)| name == word) {
-            return (Some((*time).to_owned()), vec![i]);
-        }
-        if !AT.contains(word) {
-            continue;
-        }
-        let mut k = i + 1;
-        while words.get(k).is_some_and(|w| BETWEEN.contains(w)) {
-            k += 1;
-        }
-        let Some(number) = words.get(k) else {
-            continue;
-        };
-        let mut consumed = vec![i, k];
-        let mut meridiem = None;
-        let mut token = (*number).to_owned();
-        for suffix in ["am", "pm"] {
-            if let Some(stem) = token.strip_suffix(suffix) {
-                meridiem = Some(suffix);
-                token = stem.to_owned();
-            }
-        }
-        if let Some(next) = words.get(k + 1) {
-            if matches!(*next, "am" | "pm") {
-                meridiem = Some(*next);
-                consumed.push(k + 1);
-            } else if TIME_UNITS.contains(next) {
-                consumed.push(k + 1);
-            }
-        }
-        let Some((hour, minute)) = clock(&token) else {
-            continue;
-        };
-        let hour = match (meridiem, hour) {
-            (Some("pm"), h) if h < 12 => h + 12,
-            (Some("am"), 12) => 0,
-            (_, h) => h,
-        };
-        if hour > 23 || minute > 59 {
-            continue;
-        }
-        return (Some(format!("{hour:02}:{minute:02}")), consumed);
-    }
-    (None, Vec::new())
-}
-
-/// `9` · `09` · `9:30` · `9h` · `9h30` → (hour, minute); anything else is not a clock.
-fn clock(token: &str) -> Option<(u32, u32)> {
-    let (hour, minute) = match token.split_once([':', 'h']) {
-        Some((hour, "")) => (hour, "0"),
-        Some((hour, minute)) => (hour, minute),
-        None => (token, "0"),
-    };
-    if hour.is_empty() || hour.len() > 2 || minute.len() > 2 {
-        return None;
-    }
-    Some((hour.parse().ok()?, minute.parse().ok()?))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -573,109 +468,38 @@ mod tests {
         );
         assert_eq!(stated_cadence(&phrase_words("bientot")), (None, None));
     }
-}
 
-// ── the form of a trigger clause (season 2) ──────────────────────────────────────
-
-/// What form a trigger clause takes.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum TriggerForm {
-    /// One unit of work per item of the material ("for each file", "pour chaque ligne").
-    Distributive,
-    /// An order between the program's own steps ("once all three are done", "after that").
-    Sequence,
-    /// A cadence the program runs on ("every morning", "tous les matins", "at 9:00").
-    Schedule,
-    /// An outside event the program runs on ("when Stripe sends …", "dès qu'un ticket arrive").
-    Event,
-}
-
-/// The folded phrase, one space between words, a leading space for whole-word heads.
-fn padded(phrase: &str) -> String {
-    let folded = hot::fold(phrase);
-    let mut out = String::with_capacity(folded.len() + 2);
-    out.push(' ');
-    let mut space = false;
-    for c in folded.chars() {
-        if c.is_alphanumeric() || matches!(c, '\'' | ':' | '-') {
-            out.push(c);
-            space = false;
-        } else if !space {
-            out.push(' ');
-            space = true;
+    #[test]
+    fn a_month_end_or_an_anchored_interval_on_the_plan_is_proposed_whole() {
+        // The phrase a plan carries (a model's plan record states it whole) reaches the
+        // cadence grammar's two forms; a multiple keeps no coarse label, a month end keeps
+        // `monthly` beside the exact day.
+        for (phrase, cadence, cron) in [
+            (
+                "on the last day of every month at 18:00",
+                Some("monthly"),
+                "0 18 L * *",
+            ),
+            (
+                "le dernier jour de chaque mois à 18h",
+                Some("monthly"),
+                "0 18 L * *",
+            ),
+            (
+                "every other monday at 09:00 from 2026-10-05",
+                None,
+                "every 2 weeks from 2026-10-05 09:00",
+            ),
+            (
+                "un lundi sur deux à 9h à partir du 2026-10-05",
+                None,
+                "every 2 weeks from 2026-10-05 09:00",
+            ),
+        ] {
+            let trigger = read(phrase, false);
+            assert_eq!(trigger.kind, TriggerKind::Schedule, "{phrase}");
+            assert_eq!(trigger.cadence.as_deref(), cadence, "{phrase}");
+            assert_eq!(trigger.cron.as_deref(), Some(cron), "{phrase}");
         }
     }
-    if !out.ends_with(' ') {
-        out.push(' ');
-    }
-    out
-}
-
-fn words(padded: &str) -> impl Iterator<Item = &str> {
-    padded.split(' ').filter(|w| !w.is_empty())
-}
-
-/// A clock time: `9:00`, `09:30`, `9h`, `9h30`, `14h`.
-fn clock_time(word: &str) -> bool {
-    let word = word.trim_matches(|c: char| !c.is_alphanumeric() && c != ':');
-    let (hours, rest) = match word.find([':', 'h']) {
-        Some(at) => (&word[..at], &word[at + 1..]),
-        None => return false,
-    };
-    !hours.is_empty()
-        && hours.len() <= 2
-        && hours.chars().all(|c| c.is_ascii_digit())
-        && (rest.is_empty() || (rest.len() == 2 && rest.chars().all(|c| c.is_ascii_digit())))
-}
-
-/// Whether a distributive phrase quantifies over arriving items rather than a located set.
-pub(super) fn arriving(phrase: &str) -> bool {
-    let padded: String = format!(" {} ", super::hot::fold(phrase))
-        .chars()
-        .map(|c| {
-            if c.is_alphanumeric() || c == '\'' {
-                c
-            } else {
-                ' '
-            }
-        })
-        .collect();
-    ARRIVAL_WORDS
-        .iter()
-        .any(|w| padded.contains(&format!(" {w} ")))
-}
-
-/// Read the form of a trigger clause.
-pub(super) fn classify(phrase: &str) -> TriggerForm {
-    let padded = padded(phrase);
-    let mentions_time = words(&padded).any(|w| TIME_WORDS.contains(&w) || clock_time(w));
-    let completes = words(&padded).any(|w| COMPLETION_WORDS.contains(&w));
-    if SEQUENCE_HEADS
-        .iter()
-        .any(|h| padded.starts_with(&format!(" {h}")))
-    {
-        return TriggerForm::Sequence;
-    }
-    if EVENT_HEADS
-        .iter()
-        .any(|h| padded.starts_with(&format!(" {h}")))
-    {
-        return if completes {
-            TriggerForm::Sequence
-        } else {
-            TriggerForm::Event
-        };
-    }
-    // A recurrence without its cadence is a schedule; « every » in « every so often »
-    // quantifies no item.
-    if recurrence(phrase).is_some() {
-        return TriggerForm::Schedule;
-    }
-    if super::shape::led_by_quantifier(phrase) && !mentions_time {
-        return TriggerForm::Distributive;
-    }
-    if mentions_time {
-        return TriggerForm::Schedule;
-    }
-    TriggerForm::Distributive
 }

@@ -1,0 +1,28 @@
+{
+ "base": "p01-base",
+ "expected": {
+  "policy": {
+   "id": "policy-r",
+   "sha256": "a4e94ad9d3fe4c9f01083186b647546cc040d006653b5098856a0928b2e1061f"
+  },
+  "profile": "nika-knowledge-release-profile/r1",
+  "snapshot_sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+ },
+ "fault": "the manifest is an array",
+ "files": {
+  "knowledge/manifest.json": {
+   "text": "[]\n"
+  }
+ },
+ "forms": [
+  "memory",
+  "disk"
+ ],
+ "name": "n-manifest-array",
+ "removed": [],
+ "requirement": "\u00a74 D2",
+ "verdict": {
+  "admit": false,
+  "code": "MANIFEST_SHAPE"
+ }
+}

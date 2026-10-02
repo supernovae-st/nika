@@ -15,6 +15,8 @@ pub const nika_kernel_core::errors::NIKA_110: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_111: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_112: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_113: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_114: nika_error::codes::NikaCode
+pub const nika_kernel_core::errors::NIKA_115: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_119: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_140: nika_error::codes::NikaCode
 pub const nika_kernel_core::errors::NIKA_141: nika_error::codes::NikaCode
@@ -1018,6 +1020,10 @@ pub nika_kernel_core::io::fs::FsError::NotFound
 pub nika_kernel_core::io::fs::FsError::NotFound::path: alloc::string::String
 pub nika_kernel_core::io::fs::FsError::PermissionDenied
 pub nika_kernel_core::io::fs::FsError::PermissionDenied::path: alloc::string::String
+pub nika_kernel_core::io::fs::FsError::PinUnavailable
+pub nika_kernel_core::io::fs::FsError::PinUnavailable::path: alloc::string::String
+pub nika_kernel_core::io::fs::FsError::SymlinkRefused
+pub nika_kernel_core::io::fs::FsError::SymlinkRefused::path: alloc::string::String
 impl nika_kernel_core::io::fs::FsError
 pub fn nika_kernel_core::io::fs::FsError::from_io(err: &core::io::error::Error, path: &std::path::Path) -> Self
 impl core::error::Error for nika_kernel_core::io::fs::FsError
@@ -1109,16 +1115,19 @@ pub trait nika_kernel_core::io::fs::FsRead: core::marker::Send + core::marker::S
 pub async fn nika_kernel_core::io::fs::FsRead::canonicalize(&self, path: &std::path::Path) -> core::result::Result<std::path::PathBuf, nika_kernel_core::io::fs::FsError>
 pub async fn nika_kernel_core::io::fs::FsRead::exists(&self, path: &std::path::Path) -> bool
 pub async fn nika_kernel_core::io::fs::FsRead::read(&self, path: &std::path::Path) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>
+pub fn nika_kernel_core::io::fs::FsRead::read_pinned(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub async fn nika_kernel_core::io::fs::FsRead::read_to_string(&self, path: &std::path::Path) -> core::result::Result<alloc::string::String, nika_kernel_core::io::fs::FsError>
 impl<TraitVariantBlanketType: nika_kernel_core::io::fs::FsReadDyn> nika_kernel_core::io::fs::FsRead for TraitVariantBlanketType
 pub async fn TraitVariantBlanketType::canonicalize(&self, path: &std::path::Path) -> core::result::Result<std::path::PathBuf, nika_kernel_core::io::fs::FsError>
 pub async fn TraitVariantBlanketType::exists(&self, path: &std::path::Path) -> bool
 pub async fn TraitVariantBlanketType::read(&self, path: &std::path::Path) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>
+pub fn TraitVariantBlanketType::read_pinned(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub async fn TraitVariantBlanketType::read_to_string(&self, path: &std::path::Path) -> core::result::Result<alloc::string::String, nika_kernel_core::io::fs::FsError>
 pub trait nika_kernel_core::io::fs::FsReadDyn: core::marker::Send + core::marker::Sync + core::marker::Send
 pub fn nika_kernel_core::io::fs::FsReadDyn::canonicalize(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<std::path::PathBuf, nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub fn nika_kernel_core::io::fs::FsReadDyn::exists(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = bool> + core::marker::Send
 pub fn nika_kernel_core::io::fs::FsReadDyn::read(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>> + core::marker::Send
+pub fn nika_kernel_core::io::fs::FsReadDyn::read_pinned(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::fs::FsError>> + core::marker::Send + core::marker::Send
 pub fn nika_kernel_core::io::fs::FsReadDyn::read_to_string(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<alloc::string::String, nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub trait nika_kernel_core::io::fs::FsWrite: core::marker::Send + core::marker::Sync
 pub async fn nika_kernel_core::io::fs::FsWrite::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>

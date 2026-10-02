@@ -823,6 +823,114 @@ mod tests {
     }
 
     #[test]
+    fn the_name_hint_picks_the_nearest_and_stays_silent_past_reach() {
+        let err = parse_type(&json!("Zzzzzzzz"), &names(&["Inner"]), "t").unwrap_err();
+        assert!(!err.detail.contains("did you mean"), "{}", err.detail);
+        let err = parse_type(&json!("Ybc"), &names(&["Abc", "Xbc"]), "t").unwrap_err();
+        assert!(err.detail.contains("`Abc`"), "{}", err.detail);
+        let err = parse_type(&json!("Xbc"), &names(&["Abcd", "Ybc"]), "t").unwrap_err();
+        assert!(err.detail.contains("`Ybc`"), "{}", err.detail);
+        let err = parse_type(&json!("Inn"), &names(&["Inner"]), "t").unwrap_err();
+        assert!(err.detail.contains("`Inner`"), "{}", err.detail);
+    }
+
+    #[test]
+    fn a_union_needs_two_members_and_an_enum_needs_one() {
+        let n = names(&[]);
+        let err = parse_type(&json!({"union": ["string"]}), &n, "t").unwrap_err();
+        assert!(err.detail.contains("≥ 2 members"), "{}", err.detail);
+        let three = parse_type(&json!({"union": ["string", "integer", "bool"]}), &n, "t").unwrap();
+        assert!(matches!(&three, NikaType::Union(ms) if ms.len() == 3));
+        let err = parse_type(&json!({"enum": []}), &n, "t").unwrap_err();
+        assert!(err.detail.contains("≥ 1 member"), "{}", err.detail);
+    }
+
+    #[test]
+    fn a_numeric_refinement_keeps_the_kind_that_was_asked_for() {
+        let n = names(&[]);
+        assert_eq!(
+            parse_type(&json!({"integer": {}}), &n, "t"),
+            Ok(NikaType::Prim(Primitive::Integer))
+        );
+        assert_eq!(
+            parse_type(&json!({"number": {}}), &n, "t"),
+            Ok(NikaType::Prim(Primitive::Number))
+        );
+        assert_eq!(
+            parse_type(&json!({"integer": {"min": 0}}), &n, "t"),
+            Ok(NikaType::BoundedInt(NumBounds::new(Some(0.0), None)))
+        );
+        assert_eq!(
+            parse_type(&json!({"number": {"max": 1.5}}), &n, "t"),
+            Ok(NikaType::BoundedNum(NumBounds::new(None, Some(1.5))))
+        );
+        assert_eq!(
+            parse_type(&json!({"integer": {"min": 0, "max": 10}}), &n, "t"),
+            Ok(NikaType::BoundedInt(NumBounds::new(Some(0.0), Some(10.0))))
+        );
+        assert_eq!(
+            parse_type(&json!({"number": {"min": 0, "max": 10}}), &n, "t"),
+            Ok(NikaType::BoundedNum(NumBounds::new(Some(0.0), Some(10.0))))
+        );
+        assert!(parse_type(&json!({"integer": {"min": 5, "max": 5}}), &n, "t").is_ok());
+        let err = parse_type(&json!({"integer": {"min": 10, "max": 0}}), &n, "t").unwrap_err();
+        assert!(err.detail.contains("min > max"), "{}", err.detail);
+    }
+
+    #[test]
+    fn a_string_refinement_lands_each_key_in_its_own_slot() {
+        let n = names(&[]);
+        assert_eq!(
+            parse_type(&json!({"string": {}}), &n, "t"),
+            Ok(NikaType::Prim(Primitive::String)),
+            "an unbounded refinement IS its primitive"
+        );
+        assert_eq!(
+            parse_type(&json!({"string": {"min_len": 2}}), &n, "t"),
+            Ok(NikaType::RefinedStr(StrBounds::new(None, Some(2), None)))
+        );
+        assert_eq!(
+            parse_type(&json!({"string": {"max_len": 8}}), &n, "t"),
+            Ok(NikaType::RefinedStr(StrBounds::new(None, None, Some(8))))
+        );
+        assert_eq!(
+            parse_type(&json!({"string": {"pattern": "^a+$"}}), &n, "t"),
+            Ok(NikaType::RefinedStr(StrBounds::new(
+                Some("^a+$".to_owned()),
+                None,
+                None
+            )))
+        );
+        assert!(parse_type(&json!({"string": {"min_len": 2, "max_len": 8}}), &n, "t").is_ok());
+        assert!(parse_type(&json!({"string": {"min_len": 2, "max_len": 2}}), &n, "t").is_ok());
+        let err =
+            parse_type(&json!({"string": {"min_len": 9, "max_len": 2}}), &n, "t").unwrap_err();
+        assert!(err.detail.contains("min_len > max_len"), "{}", err.detail);
+    }
+
+    #[test]
+    fn only_a_lone_optional_key_records_presence() {
+        let n = names(&[]);
+        let field = |ty: NikaType, optional: bool| NikaType::Object {
+            fields: [("a".to_owned(), Field::new(ty, optional))]
+                .into_iter()
+                .collect(),
+            additional: false,
+        };
+        assert_eq!(
+            parse_type(&json!({"object": {"a": {"array": "string"}}}), &n, "t"),
+            Ok(field(
+                NikaType::Array(Box::new(NikaType::Prim(Primitive::String))),
+                false
+            ))
+        );
+        assert_eq!(
+            parse_type(&json!({"object": {"a": {"optional": "string"}}}), &n, "t"),
+            Ok(field(NikaType::Prim(Primitive::String), true))
+        );
+    }
+
+    #[test]
     fn the_dialect_accepts_the_whitelist() {
         for pat in [
             "^abc$",
@@ -885,6 +993,71 @@ mod tests {
             e,
             NikaType::Enum(alloc::vec!["a".to_owned(), "b".to_owned()])
         );
+    }
+
+    #[test]
+    fn a_character_class_reads_its_own_escapes() {
+        assert_eq!(regex_dialect_violation(r"[\w\-\]]"), None);
+        assert_eq!(
+            regex_dialect_violation(r"[\\q]"),
+            None,
+            "an escaped backslash, then a plain q"
+        );
+        for (pat, why) in [
+            (r"[\q]", "out of dialect"),
+            ("[\\", "trailing backslash"),
+            ("[abc", "unterminated character class"),
+        ] {
+            let v = regex_dialect_violation(pat);
+            assert!(
+                v.as_deref().is_some_and(|d| d.contains(why)),
+                "{pat} → {v:?} (wanted {why})"
+            );
+        }
+        for pat in ["[{]", "[*+?]", "[(?:]", "[^]", "[a{2}]"] {
+            assert_eq!(regex_dialect_violation(pat), None, "{pat}");
+        }
+    }
+
+    #[test]
+    fn the_dialect_judges_at_its_exact_edges() {
+        assert_eq!(regex_dialect_violation(&"a".repeat(512)), None);
+        assert!(regex_dialect_violation(&"a".repeat(513)).is_some());
+        for pat in ["a|*b", "^*", "$*", "|+"] {
+            let v = regex_dialect_violation(pat);
+            assert!(
+                v.as_deref()
+                    .is_some_and(|d| d.contains("nothing to repeat")),
+                "{pat} → {v:?}"
+            );
+        }
+        assert_eq!(regex_dialect_violation("a{2}b"), None);
+        for pat in ["a{2}?", "a{2}+", "a{2,}?", "a{2,4}+"] {
+            let v = regex_dialect_violation(pat);
+            assert!(
+                v.as_deref().is_some_and(|d| d.contains("lazy/possessive")),
+                "{pat} → {v:?}"
+            );
+        }
+        for pat in [r"\q", r"\y", r"\A"] {
+            let v = regex_dialect_violation(pat);
+            assert!(
+                v.as_deref().is_some_and(|d| d.contains("out of dialect")),
+                "{pat} → {v:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn only_a_pascal_case_string_is_a_reference_and_lists_are_walked() {
+        assert!(type_name_refs(&json!("string")).is_empty());
+        assert!(type_name_refs(&json!("uri")).is_empty());
+        assert_eq!(type_name_refs(&json!("Inner")).len(), 1);
+        let refs = type_name_refs(&json!({"union": ["Left", "Right", "string", null]}));
+        assert!(refs.contains("Left"), "{refs:?}");
+        assert!(refs.contains("Right"), "{refs:?}");
+        assert_eq!(refs.len(), 2, "{refs:?}");
+        assert!(type_name_refs(&json!({"a": 1, "b": true, "c": ["x", 2]})).is_empty());
     }
 
     #[test]

@@ -8,9 +8,11 @@
 //! same fixture and the terminal lifecycle is proven from a PTY: the normal
 //! exit, `Ctrl+C`, a panic (`--panic-after N`) and `SIGTERM` all restore the
 //! terminal. It is not `nika`: nothing here reaches the session runtime.
+//! `--demo-pace MS` holds each scripted turn busy that long (0, the default,
+//! answers at once), so a proof can type while Nika works.
 //!
 //! ```text
-//! nika-tui-proto [--focus] [--color] [--panic-after N] [--exit-after N]
+//! nika-tui-proto [--focus] [--color] [--demo-pace MS] [--panic-after N] [--exit-after N]
 //! ```
 //!
 //! Exit codes: `0` closed · `130` two `Ctrl+C` · `143` `SIGTERM` · `2` the
@@ -18,39 +20,77 @@
 
 use std::io::Write as _;
 use std::process::ExitCode;
+use std::sync::mpsc::Sender;
+use std::time::Duration;
 
 use nika_tui::app::{self, Options};
-use nika_tui::model::{Presentation, Script};
+use nika_tui::model::{Beat, Conversation, Handoff, Presentation, Script, Turn};
 
 fn usage() -> &'static str {
-    "usage: nika-tui-proto [--focus] [--color] [--panic-after N] [--exit-after N]"
+    "usage: nika-tui-proto [--focus] [--color] [--demo-pace MS] [--panic-after N] [--exit-after N]"
 }
 
-fn parse(args: impl Iterator<Item = String>) -> Result<Options, String> {
+/// The shell's options and the demo's own pace.
+struct Flags {
+    options: Options,
+    pace: Duration,
+}
+
+fn parse(args: impl Iterator<Item = String>) -> Result<Flags, String> {
     let mut options = Options::new(Presentation::Inline);
+    let mut pace = Duration::ZERO;
     let mut args = args.peekable();
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--focus" => options.presentation = Presentation::Focus,
             "--inline" => options.presentation = Presentation::Inline,
             "--color" => options.color = true,
-            "--panic-after" | "--exit-after" => {
+            "--panic-after" | "--exit-after" | "--demo-pace" => {
                 let count = args
                     .next()
                     .ok_or_else(|| format!("{arg} needs a count"))?
                     .parse::<usize>()
                     .map_err(|e| format!("{arg}: {e}"))?;
-                if arg == "--panic-after" {
-                    options.panic_after = Some(count);
-                } else {
-                    options.exit_after = Some(count);
+                match arg.as_str() {
+                    "--panic-after" => options.panic_after = Some(count),
+                    "--exit-after" => options.exit_after = Some(count),
+                    _ => pace = Duration::from_millis(u64::try_from(count).unwrap_or(u64::MAX)),
                 }
             }
             "-h" | "--help" => return Err(usage().to_owned()),
             other => return Err(format!("unknown argument {other}\n{}", usage())),
         }
     }
-    Ok(options)
+    Ok(Flags { options, pace })
+}
+
+/// The demo conversation, each turn held busy for `pace` while the shell
+/// shows it working.
+struct Demo {
+    script: Script,
+    pace: Duration,
+}
+
+impl Conversation for Demo {
+    fn open(&mut self) -> Vec<Beat> {
+        self.script.open()
+    }
+
+    fn submit(&mut self, line: &str) -> Turn {
+        Conversation::submit(&mut self.script, line)
+    }
+
+    fn submit_with(&mut self, line: &str, busy: &Sender<String>) -> Turn {
+        if !self.pace.is_zero() {
+            let _ = busy.send("the demo holds this turn".to_owned());
+            std::thread::sleep(self.pace);
+        }
+        self.submit(line)
+    }
+
+    fn perform(&mut self, handoff: &Handoff) -> Vec<Beat> {
+        Conversation::perform(&mut self.script, handoff)
+    }
 }
 
 /// `TERM` for the probe. The `disallowed_methods` ban on `std::env::var`
@@ -62,16 +102,19 @@ fn term() -> Option<String> {
 }
 
 fn main() -> ExitCode {
-    let options = match parse(std::env::args().skip(1)) {
-        Ok(options) => options,
+    let Flags { mut options, pace } = match parse(std::env::args().skip(1)) {
+        Ok(flags) => flags,
         Err(message) => {
             let _ = writeln!(std::io::stderr(), "{message}");
             return ExitCode::from(2);
         }
     };
-    let mut options = options;
     options.term = term();
-    match app::run(Script::demo(), options) {
+    let demo = Demo {
+        script: Script::demo(),
+        pace,
+    };
+    match app::run(demo, options) {
         Ok(exit) => {
             if exit.code() == 0 {
                 let _ = writeln!(std::io::stdout(), "nika-tui-proto: left cleanly");
@@ -90,18 +133,36 @@ fn main() -> ExitCode {
 mod tests {
     use super::*;
 
+    fn parsed(args: &[&str]) -> Result<Flags, String> {
+        parse(args.iter().map(|s| (*s).to_owned()))
+    }
+
     #[test]
     fn flags_parse_and_unknown_ones_refuse() {
-        let options = parse(
-            ["--focus", "--color", "--panic-after", "2"]
-                .into_iter()
-                .map(str::to_owned),
-        )
-        .expect("valid");
+        let Flags { options, pace } =
+            parsed(&["--focus", "--color", "--panic-after", "2"]).expect("valid");
         assert_eq!(options.presentation, Presentation::Focus);
         assert!(options.color);
         assert_eq!(options.panic_after, Some(2));
-        assert!(parse(["--nope"].into_iter().map(str::to_owned)).is_err());
-        assert!(parse(["--exit-after"].into_iter().map(str::to_owned)).is_err());
+        assert_eq!(pace, Duration::ZERO, "the demo answers at once by default");
+        assert!(parsed(&["--nope"]).is_err());
+        assert!(parsed(&["--exit-after"]).is_err());
+        assert!(parsed(&["--demo-pace", "soon"]).is_err());
+    }
+
+    #[test]
+    fn the_demo_pace_holds_each_turn() {
+        let Flags { pace, .. } = parsed(&["--demo-pace", "800"]).expect("valid");
+        assert_eq!(pace, Duration::from_millis(800));
+        let mut demo = Demo {
+            script: Script::demo(),
+            pace: Duration::from_millis(30),
+        };
+        let (tx, rx) = std::sync::mpsc::channel();
+        let started = std::time::Instant::now();
+        let turn = demo.submit_with("x", &tx);
+        assert!(started.elapsed() >= Duration::from_millis(30));
+        assert_eq!(rx.try_recv().as_deref(), Ok("the demo holds this turn"));
+        assert!(!turn.beats.is_empty());
     }
 }

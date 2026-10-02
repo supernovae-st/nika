@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Shared fixtures for the session's knowledge route: a synthetic Foundry snapshot in the
-//! exporter's own layout (a knowledge root `foundry/` beside `.local/foundry/snapshots/<v>/`,
-//! a manifest pinning the sha256 of every file under the root), and a loopback seat that speaks
-//! the OpenAI-compatible wire, answers from a script and keeps every request body it received.
+//! Shared fixtures for the session's knowledge route: a synthetic Foundry knowledge release the
+//! strict door admits (built with the knowledge door's own test support, every row invented),
+//! and a loopback seat that speaks the OpenAI-compatible wire, answers from a script and keeps
+//! every request body it received.
 #![allow(
     dead_code,
     clippy::unwrap_used,
@@ -13,12 +13,15 @@
     clippy::disallowed_methods
 )]
 
+use std::cell::RefCell;
 use std::io::{Read as _, Write as _};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use nika_event::source_id::sha256_hex;
+use nika_onboard::knowledge::TrustedIdentity;
+use nika_onboard::knowledge::fixture::{self, Payload};
 use serde_json::{Value, json};
 
 /// The request every scenario authors: work the deterministic reader reads but cannot settle.
@@ -30,153 +33,153 @@ pub(crate) const CHANGE: &str = "also keep a copy of the result in ./c.md";
 /// The model the human chose for this session (a local engine's wire name).
 pub(crate) const SEAT_MODEL: &str = "vllm/s03-seat";
 
-/// The snapshot's version.
+/// The release's version.
 pub(crate) const VERSION: &str = "knowledge-s03";
 
-/// A Foundry snapshot on disk: the knowledge root and the snapshot directory.
+/// The block the release ships: its first line is a marker a test finds in a seat's instruction.
+const BLOCK_FILE: &str = "blocks/s03-transform.nika";
+const BLOCK_TEXT: &str = "# S03-BLOCK-MARKER\nnika: read-transform-write\ntasks: {}\n";
+
+/// A Foundry knowledge release on disk, at a root the session is told to read (`snapshot`, the
+/// name every door's flag still takes; `root`, the same directory), and the identity the test,
+/// as the host that sealed it, trusts for its latest seal.
 pub(crate) struct Foundry {
     pub(crate) root: PathBuf,
     pub(crate) snapshot: PathBuf,
+    sealed: RefCell<Option<TrustedIdentity>>,
 }
 
-fn write(path: &Path, text: &str) {
-    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-    std::fs::write(path, text).unwrap();
+/// The release: a policy-R payload the strict door admits — a family, its pack, the pattern a
+/// checked block realizes, a repair principle a diagnostic suggests — every row synthetic.
+fn release() -> Payload {
+    let mut payload = Payload::minimal();
+    for kind in [
+        "family",
+        "pattern_pack",
+        "pattern",
+        "block",
+        "repair_principle",
+    ] {
+        payload.kind(kind).clear();
+    }
+    payload.files.remove(fixture::BLOCK_FILE);
+    payload
+        .files
+        .insert(BLOCK_FILE.to_owned(), BLOCK_TEXT.as_bytes().to_vec());
+    let row = |kind: &str, id: &str, title: &str, proof: &str| {
+        fixture::row(kind, id, title, "EXPERIMENTAL", proof)
+    };
+    let mut family = row("family", "family:s03-text-rewrite", "Text rewrite", "NONE");
+    family["need"] =
+        json!("Read a text file, do something clever with it, write the result to a file");
+    family["facets"] = json!({});
+    let pack = row("pattern_pack", "pack:s03-rewrite", "Rewrite pack", "NONE");
+    let mut pattern = row(
+        "pattern",
+        "pattern:s03-transform-text",
+        "Transform text",
+        "NONE",
+    );
+    pattern["purpose"] =
+        json!("S03-PATTERN-MARKER one infer transforms the text read, then the result is written");
+    pattern["notes"] = json!("state max_tokens");
+    let file_sha = sha256_hex(BLOCK_TEXT.as_bytes());
+    let mut block = row(
+        "block",
+        "block:s03-transform",
+        "Read, transform, write",
+        "CHECKED",
+    );
+    block["purpose"] = json!("read a file, one infer, write the result");
+    block["file"] = json!(BLOCK_FILE);
+    block["file_sha256"] = json!(file_sha);
+    for list in ["holes", "authority", "interfaces", "known_failure_modes"] {
+        block[list] = json!([]);
+    }
+    block["effects"] = json!(["fs.read", "fs.write"]);
+    block["callables"] = json!(["nika:read", "nika:write"]);
+    block["check_receipt"] = json!({
+        "verifier_sha256": fixture::VERIFIER, "spec_sha": fixture::SPEC, "sha256": file_sha,
+        "verdict": "CURRENT_CHECKED",
+    });
+    let mut repair = row(
+        "repair_principle",
+        "repair:S03_PATH",
+        "stated paths only",
+        "NONE",
+    );
+    repair["strategy"] =
+        json!("S03-REPAIR-MARKER read and write exactly the paths the request states");
+    for (kind, value) in [
+        ("family", family),
+        ("pattern_pack", pack),
+        ("pattern", pattern),
+        ("block", block),
+        ("repair_principle", repair),
+    ] {
+        payload.kind(kind).push(value);
+    }
+    payload.relations = vec![
+        fixture::edge("family:s03-text-rewrite", "RECOMMENDS", "pack:s03-rewrite"),
+        fixture::edge("pack:s03-rewrite", "CONTAINS", "pattern:s03-transform-text"),
+        fixture::edge(
+            "block:s03-transform",
+            "REALIZES",
+            "pattern:s03-transform-text",
+        ),
+        fixture::edge(
+            "diagnostic:NIKA-PARSE-022",
+            "SUGGESTS_REPAIR",
+            "repair:S03_PATH",
+        ),
+    ];
+    payload
 }
-
-/// The row files the exporter copies into a snapshot.
-const ROW_FILES: [&str; 8] = [
-    "families.jsonl",
-    "pattern_packs.jsonl",
-    "patterns.jsonl",
-    "blocks.jsonl",
-    "examples.jsonl",
-    "skills.jsonl",
-    "repair_principles.jsonl",
-    "relations.jsonl",
-];
-
-/// The files under the knowledge root the rows name.
-const ROOT_FILES: [&str; 3] = [
-    "blocks/s03-transform.nika",
-    "examples/s03-rewrite/workflow.nika",
-    "skills/s03-rewrite/SKILL.md",
-];
 
 impl Foundry {
-    /// A synthetic snapshot under `base`, its manifest pinning every file.
+    /// A synthetic release under `base`, sealed at [`VERSION`].
     pub(crate) fn create(base: &Path) -> Self {
-        let root = base.join("foundry");
-        let snapshot = base.join(".local/foundry/snapshots").join(VERSION);
-        let rows = [
-            (
-                "families.jsonl",
-                vec![
-                    json!({"id": "family:s03-text-rewrite", "kind": "family", "title": "Text rewrite", "need": "Read a text file, do something clever with it, write the result to a file"}),
-                ],
-            ),
-            (
-                "pattern_packs.jsonl",
-                vec![
-                    json!({"id": "pack:s03-rewrite", "kind": "pattern_pack", "members": ["pattern:s03-transform-text"]}),
-                ],
-            ),
-            (
-                "patterns.jsonl",
-                vec![
-                    json!({"id": "pattern:s03-transform-text", "kind": "pattern", "title": "Transform text", "purpose": "S03-PATTERN-MARKER one infer transforms the text read, then the result is written", "notes": "state max_tokens"}),
-                ],
-            ),
-            (
-                "blocks.jsonl",
-                vec![
-                    json!({"id": "block:s03-transform", "kind": "block", "title": "Read, transform, write", "purpose": "read a file, one infer, write the result", "file": "blocks/s03-transform.nika"}),
-                ],
-            ),
-            (
-                "examples.jsonl",
-                vec![
-                    json!({"id": "example:s03-rewrite", "kind": "example", "corpus": "dev", "intent": "Read ./notes.md and do something clever with it, then write ./out.md", "file": "examples/s03-rewrite/workflow.nika"}),
-                ],
-            ),
-            (
-                "skills.jsonl",
-                vec![
-                    json!({"id": "skill:s03-rewrite", "kind": "skill", "family": "family:s03-text-rewrite", "file": "skills/s03-rewrite/SKILL.md"}),
-                ],
-            ),
-            (
-                "repair_principles.jsonl",
-                vec![
-                    json!({"id": "repair:S03_PATH", "kind": "repair_principle", "title": "stated paths only", "strategy": "S03-REPAIR-MARKER read and write exactly the paths the request states"}),
-                ],
-            ),
-            (
-                "relations.jsonl",
-                vec![
-                    json!({"from": "family:s03-text-rewrite", "rel": "RECOMMENDS", "to": "pack:s03-rewrite"}),
-                    json!({"from": "pack:s03-rewrite", "rel": "CONTAINS", "to": "pattern:s03-transform-text"}),
-                    json!({"from": "block:s03-transform", "rel": "REALIZES", "to": "pattern:s03-transform-text"}),
-                    json!({"from": "diagnostic:NIKA-PARSE-022", "rel": "SUGGESTS_REPAIR", "to": "repair:S03_PATH"}),
-                ],
-            ),
-        ];
-        for (name, lines) in rows {
-            let text = lines.iter().fold(String::new(), |mut text, line| {
-                use std::fmt::Write as _;
-                let _ = writeln!(text, "{line}");
-                text
-            });
-            write(&snapshot.join(name), &text);
-        }
-        write(
-            &root.join("blocks/s03-transform.nika"),
-            "# S03-BLOCK-MARKER\nnika: read-transform-write\ntasks: {}\n",
-        );
-        write(
-            &root.join("examples/s03-rewrite/workflow.nika"),
-            "# S03-EXAMPLE-MARKER\nnika: s03-rewrite\ntasks: {}\n",
-        );
-        write(
-            &root.join("skills/s03-rewrite/SKILL.md"),
-            "# S03-SKILL-MARKER\nWhen a text is read, transformed by one infer and written.\n",
-        );
-        let foundry = Self { root, snapshot };
-        foundry.pin(VERSION, "digest-s03-a");
+        let root = base.join("release");
+        let foundry = Self {
+            root: root.clone(),
+            snapshot: root,
+            sealed: RefCell::new(None),
+        };
+        foundry.reseal(VERSION, "fixture-producer");
         foundry
     }
 
-    /// Write the manifest the exporter writes: every row file pinned under `knowledge/`, every
-    /// file of the root pinned under its own path, as they are on disk now.
-    pub(crate) fn pin(&self, version: &str, digest: &str) {
-        let mut files = serde_json::Map::new();
-        for name in ROW_FILES {
-            let bytes = std::fs::read(self.snapshot.join(name)).unwrap();
-            files.insert(format!("knowledge/{name}"), json!(sha256_hex(&bytes)));
-        }
-        for relative in ROOT_FILES {
-            let bytes = std::fs::read(self.root.join(relative)).unwrap();
-            files.insert(relative.to_owned(), json!(sha256_hex(&bytes)));
-        }
-        write(
-            &self.snapshot.join("manifest.json"),
-            &json!({
-                "knowledge_version": version,
-                "digest": digest,
-                "source_commit": "synthetic",
-                "files": files,
-            })
-            .to_string(),
-        );
+    /// The identity of the latest seal, from the bytes this host wrote (never read back).
+    pub(crate) fn identity(&self) -> TrustedIdentity {
+        self.sealed.borrow().clone().expect("sealed")
     }
 
-    /// Edit the block in the knowledge root after the export (the manifest still pins the old
-    /// bytes): the snapshot is stale.
-    pub(crate) fn edit_block_after_export(&self) {
-        write(
-            &self.root.join("blocks/s03-transform.nika"),
-            "# S03-BLOCK-MARKER edited after the export\nnika: read-transform-write\ntasks: {}\n",
+    /// Write the release again, sealed at `version` by the producer `tool`: the same rows under
+    /// another version, or the same rows and version under another manifest.
+    pub(crate) fn reseal(&self, version: &str, tool: &str) {
+        let mut files = release().render();
+        let mut manifest = Payload::manifest(&files);
+        manifest["knowledge_version"] = json!(version);
+        manifest["tool"]["id"] = json!(tool);
+        files.insert(
+            fixture::manifest_path().to_owned(),
+            fixture::manifest_bytes(&manifest),
         );
+        *self.sealed.borrow_mut() = fixture::identity_of(&files);
+        if self.root.exists() {
+            std::fs::remove_dir_all(&self.root).unwrap();
+        }
+        fixture::write_files(&self.root, &files).unwrap();
+    }
+
+    /// Edit the block in the release after it was sealed (its manifest still pins the old bytes):
+    /// the strict door refuses it.
+    pub(crate) fn edit_block_after_export(&self) {
+        std::fs::write(
+            self.root.join(BLOCK_FILE),
+            "# S03-BLOCK-MARKER edited after the export\nnika: read-transform-write\ntasks: {}\n",
+        )
+        .unwrap();
     }
 }
 

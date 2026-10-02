@@ -617,8 +617,8 @@ pub fn compile_deterministic(request: &CompileRequest) -> Result<CompileOutcome,
     Ok(compile(request)?)
 }
 
-/// Compile one request through the seat under the default context (the
-/// escalate strategy, no knowledge): [`compile_in`] with nothing configured.
+/// Compile one request through the seat under the default authoring context.
+/// The empty intent composes no knowledge; [`compile_in`] accepts an intent.
 /// A deterministic seat never contacts a model.
 ///
 /// # Errors

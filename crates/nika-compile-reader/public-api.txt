@@ -1673,22 +1673,11 @@ pub fn nika_compile_reader::text::fold_quote(ch: char) -> char
 pub fn nika_compile_reader::text::is_label(seg: &str) -> bool
 pub fn nika_compile_reader::text::quoted_literal(text: &str) -> core::option::Option<alloc::string::String>
 pub mod nika_compile_reader::trigger_words
-pub const nika_compile_reader::trigger_words::ARRIVAL_WORDS: &[&str]
-pub const nika_compile_reader::trigger_words::AT: &[&str]
-pub const nika_compile_reader::trigger_words::BETWEEN: &[&str]
-pub const nika_compile_reader::trigger_words::COMPLETION_WORDS: &[&str]
 pub const nika_compile_reader::trigger_words::DAILY: &[&str]
-pub const nika_compile_reader::trigger_words::EVENT_HEADS: &[&str]
 pub const nika_compile_reader::trigger_words::HOURLY: &[&str]
-pub const nika_compile_reader::trigger_words::MANUAL: &[&str]
 pub const nika_compile_reader::trigger_words::MINUTELY: &[&str]
 pub const nika_compile_reader::trigger_words::MONTHLY: &[&str]
-pub const nika_compile_reader::trigger_words::NAMED_TIMES: &[(&str, &str)]
 pub const nika_compile_reader::trigger_words::RECURRENT: &[&str]
-pub const nika_compile_reader::trigger_words::SEQUENCE_HEADS: &[&str]
-pub const nika_compile_reader::trigger_words::TIME_UNITS: &[&str]
-pub const nika_compile_reader::trigger_words::TIME_WORDS: &[&str]
-pub const nika_compile_reader::trigger_words::WEBHOOK: &[&str]
 pub const nika_compile_reader::trigger_words::WEEKDAYS: &[&str]
 pub const nika_compile_reader::trigger_words::WEEKLY: &[&str]
 pub mod nika_compile_reader::unknowns

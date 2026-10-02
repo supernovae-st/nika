@@ -16,18 +16,23 @@ leave records you can inspect.
 
 This guide describes the engine in this repository. An installed release older
 than this source does not have every feature described here: compare
-`nika --version` with the [changelog](../../CHANGELOG.md).
+`nika --version` with the [changelog](../../CHANGELOG.md). What this source
+carries beyond the latest release is described one file per change in
+[`changelog.d/`](../../changelog.d/).
 
 ## Before you start
 
-- [Install Nika](../../README.md#start-here), then run `nika` from the folder
+- [Install Nika](../../README.md#try-it-in-two-minutes), then run `nika` from the folder
   you want to work in. That folder is the Session's project root. Nika works
   only under it: it lists the workflows there, reads the files your request
   names, and proposes new files inside it.
-- The full-screen view is the default on an interactive terminal. `nika --plain`
-  (or `NIKA_TUI=0`) opens the same Session as plain lines, for screen readers,
-  recorders and scripts. When the terminal cannot host the full-screen view,
-  the plain view opens instead. When its input or output is not a terminal,
+- On an interactive terminal, `nika` opens the terminal view inline, at the
+  bottom of the terminal: finished blocks stay in its own scrollback.
+  `Ctrl+T` switches it to full screen and back (`Esc` also returns), and
+  `Alt+Enter` breaks a line. `nika --plain` (or `NIKA_TUI=0`) opens the same
+  Session as plain lines, for screen readers, recorders and scripts. When the
+  terminal cannot host the terminal view, the plain view opens instead. When
+  its input or output is not a terminal,
   such as a pipe, `nika` prints a welcome card and does not open a Session.
 - `/help` lists the commands. `/quit` closes the Session.
 
@@ -265,7 +270,7 @@ clause by clause.
 - When a run pauses at an approval step, the Session shows that step's
   question and your answer resumes the same run. Nothing answers for you.
   Answer a waiting approval before you ask for another run.
-- When a run's cost cannot be estimated, the full-screen view asks a separate
+- When a run's cost cannot be estimated, the terminal view asks a separate
   `yes / no / details` question that approves that one run only.
 - The qualified sequence is review, `yes`, then a separate `run it`. It does not
   cover stating a run ceiling while a proposal still waits for its `yes`.
@@ -334,7 +339,7 @@ Mistral endpoints, require a fresh Run cost review if their exact route and
 model are not admitted. Scripts and CI invocations without a review channel
 refuse before dispatch. The production Serve backend also refuses those routes:
 HTTP jobs are queued normally, then settle as `failed` / `admission_refused`
-before any model or tool effect. Resident schedule fires use the same gate. The full-screen Session and interactive local
+before any model or tool effect. Resident schedule fires use the same gate. The terminal Session and interactive local
 `nika run` can ask for this choice; an explicit `--cost-review-stdio` host must
 implement the review exchange. A workflow's saved ceiling is not that choice.
 
@@ -352,16 +357,29 @@ startup file as your key. The walkthroughs above need none of them.
 | Variable | Effect |
 |---|---|
 | `NIKA_AUTHORING_STRATEGY` | When the model writes the workflow itself: `escalate` (default), `only`, `sketch` or `off` |
-| `NIKA_KNOWLEDGE` | A knowledge snapshot directory presented to the authoring model beside Nika's built-in language card |
-| `NIKA_KNOWLEDGE_EXCLUDE` | A corpus in that snapshot whose examples are never recalled |
+| `NIKA_KNOWLEDGE` | An optional Foundry release root; the environment carries no trusted identity, so a named root is refused with `ADMISSION_UNTRUSTED`. Unset uses the embedded release; the exact word `off` disables knowledge |
+| `NIKA_KNOWLEDGE_EXCLUDE` | A corpus whose examples are never recalled from the selected release, including the embedded default |
 | `NIKA_SESSION_DECISION_MODEL` | An optional decision model; only `typesafe/<model>` (Jev) is supported, with `TYPESAFE_API_KEY` |
 
-**Knowledge snapshots.** Public releases do not include a knowledge snapshot.
-Without one, authoring uses the language card built into the binary. With
-`NIKA_KNOWLEDGE`, the Session pins the snapshot's identity when it opens. It
-refuses to author if the snapshot changes underneath it. `/status` and
-`/details` show the pin and what was presented to the model. A record that
-references were presented is not proof that results improved.
+**Knowledge releases.** By default, the Session admits the release embedded in
+its binary against the build's trusted identity and pins it when it opens.
+`/status` names that identity and its embedded origin. The release contains three
+blocks linked to three patterns. Matching words in an intention select patterns
+and their blocks as reference material; an intention with no lexical match adds
+none. The release contains no examples or repair principles. The record
+distinguishes composed references from those presented in an authoring
+instruction; neither proves a better result.
+Deterministic authoring does not present knowledge to a model.
+
+`NIKA_KNOWLEDGE=off` disables knowledge. With authoring strategy `off` and no
+source named, the choice is unread and composes nothing; naming a source under
+that strategy is refused. A host embedding the Session can name a disk release
+with the trusted identity from its own release record. The environment cannot
+supply that identity, so a root named only by `NIKA_KNOWLEDGE` is refused with
+`ADMISSION_UNTRUSTED`. A named release that lacks trust or fails admission never
+falls back to the embedded release. A release that changes after it was pinned
+is also refused before authoring. `/details` records what was actually presented,
+separately from the release available to the Session.
 
 **Jev.** The decision model is consulted only when the compiler faces a finite
 choice it cannot settle alone. For example: does a clause ask for a search, a
@@ -377,9 +395,9 @@ is a third-party service with its own account and terms.
 - Nika is pre-1.0. The conversational path was qualified on six synthetic
   journeys with one installed macOS build, recorded in the
   [qualification note](../qa/delivery-a-2026-09.md). That installation also
-  used a knowledge snapshot and Jev, which public releases do not include. It
-  does not establish correctness for arbitrary requests, platforms or
-  providers.
+  used a knowledge snapshot and Jev; this historical note does not qualify the
+  current embedded knowledge release. It does not establish correctness for
+  arbitrary requests, platforms or providers.
 - Some requests cannot be expressed yet. Nika then says what stopped it and
   what could help, and writes nothing.
 - A clean check describes the file's structure and boundary. It does not prove

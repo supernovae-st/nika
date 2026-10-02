@@ -156,6 +156,36 @@ impl CostCeiling {
             has_unbounded: unbounded,
         });
     }
+
+    /// The refusal a zero budget owes before any request (E39 N6): the tasks that certainly call
+    /// a priced model at least once with no token ceiling (ungated, a known non-empty fan). Their
+    /// floor is above zero though its size is unknown, so `--max-cost-usd 0` admits none of them;
+    /// mock (a proven $0) and unpriced local seats never count. `None` under a budget above zero
+    /// (the documented warn-and-proceed) or when no task qualifies.
+    #[must_use]
+    pub fn zero_budget_refusal(&self, budget: f64) -> Option<String> {
+        let priced = |model: Option<&str>| {
+            model
+                .and_then(output_price_per_million)
+                .is_some_and(|price| price > 0.0)
+        };
+        let tasks: Vec<String> = self
+            .tasks
+            .iter()
+            .filter(|t| !t.gated && t.iterations > 0 && t.max_tokens.is_none())
+            .filter(|t| priced(t.model.as_deref()))
+            .map(|t| format!("`{}`", t.task))
+            .collect();
+        (budget <= 0.0 && !tasks.is_empty()).then(|| {
+            format!(
+                "refusing to start: --max-cost-usd ${budget:.6} admits no metered request, and \
+                 task(s) {} call a priced model with no token ceiling, so nothing bounds their \
+                 spend. Set `max_tokens` (`max_tokens_total` for an agent), or drop the cap for a \
+                 local/mock rehearsal.\n",
+                tasks.join(", ")
+            )
+        })
+    }
 }
 
 /// Compute the cost envelope for a workflow.
@@ -778,6 +808,43 @@ mod ceiling_arithmetic {
             c.min_path_total_usd,
             c.bounded_total_usd
         );
+    }
+
+    /// E39 N6 · the refusal a zero budget owes: only a task that certainly calls a priced model
+    /// with no token ceiling (ungated, a known non-empty fan). Mock (a proven $0), unpriced local
+    /// seats, gated work and a bounded task never count, and a budget above zero refuses nothing.
+    #[test]
+    fn a_zero_budget_refuses_only_certain_unbounded_priced_calls() {
+        let of = |model: &str, task: &str| {
+            ceiling_of(&format!("nika: z\nmodel: {model}\ntasks:\n  ask:\n{task}"))
+        };
+        let priced = "anthropic/claude-sonnet-4-6";
+        let unbounded = "    infer: { prompt: \"hi\" }\n";
+        let refusal = of(priced, unbounded)
+            .zero_budget_refusal(0.0)
+            .expect("refused");
+        assert!(
+            refusal.contains("`ask`") && refusal.contains("max_tokens"),
+            "{refusal}"
+        );
+        let agent = "    agent: { prompt: \"hi\", max_turns: 1 }\n";
+        assert!(of(priced, agent).zero_budget_refusal(0.0).is_some());
+        for (model, task) in [
+            ("mock/echo", unbounded),
+            ("ollama/llama3", unbounded),
+            (
+                priced,
+                "    when: \"${{ inputs.go }}\"\n    infer: { prompt: \"hi\" }\n",
+            ),
+            (priced, "    infer: { prompt: \"hi\", max_tokens: 100 }\n"),
+        ] {
+            assert_eq!(
+                of(model, task).zero_budget_refusal(0.0),
+                None,
+                "{model}: {task}"
+            );
+        }
+        assert_eq!(of(priced, unbounded).zero_budget_refusal(0.01), None);
     }
 }
 

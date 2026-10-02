@@ -119,6 +119,28 @@ async fn revise<P: ProviderInferDyn>(
     else {
         return Ok(deterministic);
     };
+    // A native revision's answer round: the core replayed its record, and the whole request it
+    // finishes is judged in this round by the round's judge, or stays pending (R4 A11, step 2).
+    let native = (request.plan.as_ref()).filter(|record| {
+        record.get("strategy").and_then(Value::as_str) == Some(Strategy::Native.word())
+    });
+    if let (Some(record), Some(folded)) = (native, super::revise_intent(request))
+        && deterministic.provenance.strategy == Some(Strategy::Native)
+    {
+        let provider = (request.authoring.as_ref())
+            .filter(|policy| policy_bounded(policy, &folded))
+            .zip(cognition.provider);
+        let judges = (cognition.seat, provider);
+        return Box::pin(verify::replayed(
+            &folded,
+            record,
+            request,
+            judges,
+            false,
+            super::initial(),
+        ))
+        .await;
+    }
     let unresolved = deterministic
         .diagnostics
         .iter()

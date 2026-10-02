@@ -62,6 +62,12 @@
 //! it holds a directory descriptor, admits only contained child components,
 //! and refuses symlinks at every directory and file open. Callers still choose
 //! the root, names, and lifecycle policy.
+//!
+//! [`RootedFs`] serves one such owned room through the kernel traits, every
+//! component walked without following a symlink, every blocking operation
+//! registered in the room's [`EffectLedger`] (phases, seal then drain,
+//! budgets, write evidence). It is the backend whose pin covers every
+//! component; [`TokioFs`]'s pin covers the final component only.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -72,10 +78,26 @@ use nika_kernel::fs::{FileMetadata, FsError, FsListDyn, FsMetaDyn, FsReadDyn, Fs
 
 mod owned_dir;
 pub use owned_dir::OwnedDir;
+mod ledger;
+pub use ledger::{Drain, Drained, EffectLedger, LedgerRefusal, Phase, Reservation, RoomLimits};
+mod rooted;
+pub use rooted::{Capped, RootedFs, read_capped};
 mod write_new;
 
 #[cfg(test)]
 mod write_new_tests;
+
+#[cfg(test)]
+mod room_harness;
+
+#[cfg(test)]
+mod ledger_tests;
+
+#[cfg(test)]
+mod rooted_tests;
+
+#[cfg(test)]
+mod pin_tests;
 
 /// Monotonic discriminator for temp-file names: two concurrent writes to
 /// the same destination must never collide on the same temp path.
@@ -129,6 +151,49 @@ impl FsReadDyn for TokioFs {
             .await
             .map_err(|e| FsError::from_io(&e, path))
     }
+
+    /// Read a file through the host pin: the final component is opened with
+    /// `O_NOFOLLOW`, so the kernel refuses a symlinked name inside the open
+    /// itself (`SymlinkRefused`). An ancestor symlink is still followed: only
+    /// a boundary judgment made before the open covers the ancestors, and
+    /// [`RootedFs`] is the backend that pins every component.
+    ///
+    /// CANCEL SAFETY: cancel-safe (read-only); the blocking open and read run
+    /// to completion in the background when the future is dropped.
+    async fn read_pinned(&self, path: &Path) -> Result<Bytes, FsError> {
+        let owned = path.to_path_buf();
+        tokio::task::spawn_blocking(move || read_final_nofollow(&owned))
+            .await
+            .map_err(|error| FsError::Io {
+                reason: format!("pinned read worker failed: {error}"),
+            })?
+    }
+}
+
+/// The host pin's open and read as one blocking unit: `O_NOFOLLOW` on the
+/// final component only (its `ELOOP` is the typed `SymlinkRefused`), without
+/// `O_NONBLOCK`, the same open the judged read has always made.
+fn read_final_nofollow(path: &Path) -> Result<Bytes, FsError> {
+    use nix::fcntl::OFlag;
+
+    let opened = nix::fcntl::open(
+        path,
+        OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        nix::sys::stat::Mode::empty(),
+    );
+    let fd = match opened {
+        Ok(fd) => fd,
+        Err(nix::errno::Errno::ELOOP) => {
+            return Err(FsError::SymlinkRefused {
+                path: path.display().to_string(),
+            });
+        }
+        Err(errno) => return Err(FsError::from_io(&std::io::Error::from(errno), path)),
+    };
+    let mut contents = Vec::new();
+    std::io::Read::read_to_end(&mut std::fs::File::from(fd), &mut contents)
+        .map_err(|error| FsError::from_io(&error, path))?;
+    Ok(Bytes::from(contents))
 }
 
 impl FsWriteDyn for TokioFs {

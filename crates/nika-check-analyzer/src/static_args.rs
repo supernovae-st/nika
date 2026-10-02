@@ -161,11 +161,55 @@ pub fn static_program(command: &RawCommand) -> Option<&str> {
 /// Input defaults remain replaceable by the run and cannot authorize a verdict.
 #[must_use]
 pub fn judgeable_program<'a>(command: &'a RawCommand, consts: &'a ConstStrings) -> Option<&'a str> {
-    static_program(command).or_else(|| {
-        let program = command.argv_program()?;
-        // Outside whitespace is literal argv data, not expression trivia.
-        (program == program.trim())
-            .then(|| consts.resolve(program))
-            .flatten()
-    })
+    static_program(command).or_else(|| judgeable_operand(command.argv_program()?, consts))
+}
+
+/// A literal argv value or one bare immutable string constant. Outside
+/// whitespace is literal argv data; inputs, compositions and missing values
+/// remain unknown. Resolution is never recursive.
+#[must_use]
+pub fn judgeable_operand<'a>(value: &'a str, consts: &'a ConstStrings) -> Option<&'a str> {
+    if !value.contains("${{") {
+        return Some(value);
+    }
+    (value == value.trim())
+        .then(|| consts.resolve(value))
+        .flatten()
+}
+
+/// Resolve known constants in array arguments, retaining every unknown value
+/// verbatim so callers can keep their existing dynamic-operand checks.
+/// Shell text is never split or expanded here.
+#[must_use]
+pub fn resolve_const_argv<'a>(
+    command: &'a RawCommand,
+    consts: &'a ConstStrings,
+) -> Option<impl Iterator<Item = &'a str> + 'a> {
+    let RawCommand::Argv(parts) = command else {
+        return None;
+    };
+    Some(
+        parts
+            .iter()
+            .map(move |p| judgeable_operand(&p.value, consts).unwrap_or(&p.value)),
+    )
+}
+
+/// Where the interpreter will look for its script. An ABSOLUTE script
+/// ignores `cwd:` (it is already an identity); a relative one is opened
+/// relative to the subprocess's working directory, so a declared `cwd:`
+/// re-anchors it — while the BOUNDARY stays anchored at the run root
+/// (`sandbox_spec`'s own law: « a task-level `cwd:` does not re-anchor the
+/// boundary »). `None` means the answer is not statically knowable.
+#[must_use]
+pub fn resolve_against_cwd(script: &str, cwd: Option<&str>) -> Option<String> {
+    if script.starts_with('/') || script.starts_with('~') {
+        return Some(script.to_owned());
+    }
+    match cwd {
+        None => Some(script.to_owned()),
+        Some(c) if c.contains("${{") => None,
+        Some(c) if c == "." || c == "./" => Some(script.to_owned()),
+        Some(c) => Some(format!("{}/{script}", c.trim_end_matches('/'))),
+    }
 }

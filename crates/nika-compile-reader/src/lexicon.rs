@@ -36,9 +36,9 @@ pub(crate) use cadence::{quoted, quoted_at, unquoted};
 pub use cues::settle_retrieval;
 pub(crate) use cues::{ARTICLES, OBJECT_CONNECTORS};
 use cues::{
-    CONSTRAINT_OPENERS, DEDUP_MARKERS, FINAL_GATE_MARKERS, FORBIDDEN_MARKERS, LEADING_FILLER,
-    NAMED_GATE_MARKERS, NEGATION_OPENERS, REVISION_MARKERS, SECOND_WORD_FILLERS, STOP_MARKERS,
-    STRONG_CONNECTORS, UNDECIDED_MARKERS, WEAK_CONNECTORS,
+    CONSTRAINT_OPENERS, FINAL_GATE_MARKERS, FORBIDDEN_MARKERS, LEADING_FILLER, NAMED_GATE_MARKERS,
+    NEGATION_OPENERS, REVISION_MARKERS, SECOND_WORD_FILLERS, STOP_MARKERS, STRONG_CONNECTORS,
+    UNDECIDED_MARKERS, WEAK_CONNECTORS,
 };
 pub use effects::effect_words;
 pub(crate) use effects::kindred;
@@ -488,6 +488,34 @@ struct ReadState {
     money_sentences: Vec<String>,
     /// The sentence-final cadences cut off during the walk, settled once it ends.
     tails: Vec<String>,
+    /// A cross-run cue anywhere in the request: every removal of duplicates is the obligation.
+    cross_run: bool,
+}
+
+/// The removal-of-duplicates tables (F2-Q2), one `[name]` section each: the heads, the scope
+/// words and what is no scope, the kept occurrences and the cross-run cues.
+const DEDUP_WORDS: &str = include_str!("../assets/dedup_words.txt");
+
+fn dedup_words(name: &str) -> Vec<&'static str> {
+    super::rule_tokens::section(DEDUP_WORDS, name)
+}
+
+/// A cross-run cue: a phrase (« already processed », « déjà traité ») or an event-shaped word.
+fn cross_run_cue(text: &str) -> bool {
+    let events = dedup_words("cross_run_words");
+    let mut words = text.split(|c: char| !c.is_alphanumeric());
+    earliest(text, &dedup_words("cross_run")).is_some() || words.any(|w| events.contains(&w))
+}
+
+/// A removal of duplicates over the rows (F2-Q2): scoped by the fields it names (« par
+/// customer ») and keeping a stated occurrence (« première occurrence conservée »), in a request
+/// with no cross-run cue. An operation the seat states, never the dedup obligation.
+fn in_data_dedup(text: &str, cross_run: bool) -> bool {
+    let (scope, not) = (dedup_words("scope"), dedup_words("not_scope"));
+    let split = text.split(|c: char| !c.is_alphanumeric());
+    let words: Vec<&str> = split.filter(|w| !w.is_empty()).collect();
+    let scoping = |w: &[&str]| scope.contains(&w[0]) && !not.contains(&w[1]);
+    !cross_run && words.windows(2).any(scoping) && earliest(text, &dedup_words("kept")).is_some()
 }
 
 /// The earliest policy marker of a clause that governs it: a marker inside quoted content
@@ -642,46 +670,27 @@ fn read_one(clause: &str, reading: &mut Reading, state: &mut ReadState) {
         );
         return;
     }
-    // Deduplication by identifier.
-    let dedup_head = [
-        "déduplique",
-        "dédoublonne",
-        "dédoublonnez",
-        "dédupliquez",
-        "deduplicate",
-        "dedupe",
-        "remove duplicates",
-        "prevent duplicates",
-        "de-duplicate",
-        "deduplica",
-        "elimina i duplicati",
-        "rimuovi i duplicati",
-        "evita i duplicati",
-        "elimina los duplicados",
-        "quita los duplicados",
-        "evita los duplicados",
-    ]
-    .iter()
-    .any(|m| text.starts_with(m));
-    if !dedup_head && let Some((pos, _)) = earliest(text, DEDUP_MARKERS) {
-        read_prefix(prefix_before(text, pos), clause, reading, state);
-        push_obligation(
-            &mut reading.plan,
-            Obligation {
-                kind: ObligationKind::Dedup,
-                evidence: clause.to_owned(),
-            },
-        );
-        return;
-    }
-    if dedup_head {
-        push_obligation(
-            &mut reading.plan,
-            Obligation {
-                kind: ObligationKind::Dedup,
-                evidence: clause.to_owned(),
-            },
-        );
+    // Deduplication by identifier; a removal of duplicates over the rows stays unresolved for
+    // the seat to state and is recorded as read (F2-Q2), never the obligation, never swallowed.
+    let (heads, markers) = (dedup_words("heads"), dedup_words("markers"));
+    let dedup_head = heads.iter().any(|m| text.starts_with(m));
+    let marker = earliest(text, &markers).filter(|_| !dedup_head);
+    if dedup_head || marker.is_some() {
+        if let Some((pos, _)) = marker {
+            read_prefix(prefix_before(text, pos), clause, reading, state);
+        }
+        if in_data_dedup(text, state.cross_run) {
+            reading.unresolved.push(clause.to_owned());
+            reading
+                .plan
+                .bindings
+                .push(Binding::new("in_data_dedup", clause));
+        } else {
+            push_obligation(
+                &mut reading.plan,
+                Obligation::new(ObligationKind::Dedup, clause),
+            );
+        }
         return;
     }
     // « Non serve chiedermi conferma », « no need to ask me »: a waiver is no gate. It is a
@@ -841,6 +850,7 @@ pub fn read(intent: &str) -> Reading {
         final_gate: false,
         money_sentences: Vec::new(),
         tails: Vec::new(),
+        cross_run: cross_run_cue(&normalize(intent)),
     };
     for sentence in split_sentences(intent) {
         let lower = normalize(sentence);

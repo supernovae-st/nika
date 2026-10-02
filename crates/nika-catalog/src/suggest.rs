@@ -399,4 +399,118 @@ mod tests {
             hits.iter().map(|h| h.name).collect::<Vec<_>>()
         );
     }
+
+    #[test]
+    fn either_half_of_a_model_row_is_an_exact_provider_hit() {
+        for query in ["sonnet", "claude-sonnet-4-6"] {
+            let hits = suggest(query);
+            let providers: Vec<&str> = hits
+                .iter()
+                .filter(|h| h.namespace == Namespace::Provider)
+                .map(|h| h.name)
+                .collect();
+            assert_eq!(
+                providers,
+                ["anthropic"],
+                "`{query}` names one provider row and stops there",
+            );
+            assert_eq!(
+                hits.first().map(|h| (h.namespace, h.name)),
+                Some((Namespace::Provider, "anthropic")),
+                "`{query}` leads with the provider that serves it",
+            );
+            assert_eq!(
+                hits[0].score.total_cmp(&1.0),
+                std::cmp::Ordering::Equal,
+                "an exact hit scores 1.0, got {}",
+                hits[0].score,
+            );
+        }
+    }
+
+    #[test]
+    fn one_row_per_name_and_namespace() {
+        let hits = suggest("anthropic");
+        let keys: Vec<(Namespace, &str)> = hits.iter().map(|h| (h.namespace, h.name)).collect();
+        for (i, key) in keys.iter().enumerate() {
+            assert!(
+                !keys[..i].contains(key),
+                "`{}` ({:?}) came back twice: {keys:?}",
+                key.1,
+                key.0,
+            );
+        }
+        assert!(
+            keys.contains(&(Namespace::Provider, "openrouter")),
+            "openrouter is reached through both of its `anthropic/…` models \
+             and must survive the collapse exactly once: {keys:?}",
+        );
+        assert!(
+            keys.iter()
+                .filter(|(ns, _)| *ns == Namespace::Provider)
+                .count()
+                >= 2,
+            "several distinct providers answer `anthropic`: {keys:?}",
+        );
+    }
+
+    #[test]
+    fn a_name_shared_by_two_catalogs_keeps_both_rows() {
+        let hits = suggest("claude");
+        let keys: Vec<(Namespace, &str)> = hits.iter().map(|h| (h.namespace, h.name)).collect();
+        for (i, key) in keys.iter().enumerate() {
+            assert!(
+                !keys[..i].contains(key),
+                "`{}` ({:?}) came back twice: {keys:?}",
+                key.1,
+                key.0,
+            );
+        }
+        assert_eq!(
+            keys.first(),
+            Some(&(Namespace::Provider, "anthropic")),
+            "`claude` is anthropic's alias: {keys:?}",
+        );
+        assert!(
+            keys.contains(&(Namespace::Provider, "cloudflare")),
+            "the cloudflare PROVIDER row is an answer here: {keys:?}",
+        );
+        assert!(
+            keys.contains(&(Namespace::McpServer, "cloudflare")),
+            "the cloudflare MCP row is a different answer, not a duplicate: {keys:?}",
+        );
+    }
+
+    #[test]
+    fn pasteable_for_reads_the_nickname_and_the_wire_id() {
+        assert_eq!(
+            pasteable_for("sonnet").as_deref(),
+            Some("anthropic/claude-sonnet-4-6"),
+            "the nickname alone resolves",
+        );
+        assert_eq!(
+            pasteable_for("claude-sonnet-4-6").as_deref(),
+            Some("anthropic/claude-sonnet-4-6"),
+            "the wire id alone resolves to the same row",
+        );
+        assert_eq!(pasteable_for("no-such-model-anywhere").as_deref(), None);
+    }
+
+    #[test]
+    fn pasteable_for_refuses_a_nickname_two_providers_share() {
+        let claimants: Vec<String> = generated::ALL_PROVIDERS
+            .iter()
+            .filter(|p| p.models.iter().any(|m| m.id == "default"))
+            .map(|p| format!("{}/{}", p.id, p.id))
+            .collect();
+        assert!(
+            claimants.len() >= 2,
+            "the ambiguity this test rests on is real: {claimants:?}",
+        );
+        assert_eq!(
+            pasteable_for("default"),
+            None,
+            "an ambiguous nickname resolves to nothing, not to a winner",
+        );
+    }
 }

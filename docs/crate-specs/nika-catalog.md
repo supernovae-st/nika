@@ -398,8 +398,14 @@ there is no substring lookup, gateway nickname inference or free unpriced row.
 `reserve(output)` prices full context at the maximum input/cache rate and the
 explicit output cap. `price` uses checked integer nano-USD/token arithmetic;
 cache is a subset of input and thinking is included in output. Integral rates
-avoid downward quote rounding. Missing, invalid or zero tariff axes are rejected
-by codegen. The first rows use peak DeepSeek rates observed 2026-09-24; no time
+avoid downward quote rounding. Missing or invalid tariff axes are rejected by
+codegen. A tariff marked `declared_free = true` must explicitly supply zero for
+every required input, output and cached-input rate; without that declaration,
+every required rate must be positive. A missing axis, a partly-zero tariff, a
+model-name suffix or a models.dev zero-price row does not establish free
+admission. The declared free tariff remains bound to its exact provider, model,
+endpoint and qualified request shape, with a bounded output. The first rows use
+peak DeepSeek rates observed 2026-09-24; no time
 discount is inferred. Pricing can change externally: these are pinned admission
 estimates, not authoritative invoices or a hard external charge guarantee.
 

@@ -41,7 +41,12 @@ use serde_json::{Value, json};
 use std::collections::BTreeSet;
 
 mod emit;
+mod read;
 pub(super) use emit::{Laws, emit};
+pub use read::{CopyLowering, assemble_lowered};
+
+#[cfg(test)]
+mod copy_tests;
 
 /// What a fact is for: prompts and anchor laws see the corpus and the derived
 /// results; code rules also see the parsed data.
@@ -362,6 +367,27 @@ pub fn assemble_judged(
     whole: bool,
     out: &mut CompileOutcome,
 ) -> Result<(), CompileError> {
+    assembled(
+        plan,
+        intent,
+        request,
+        judgments,
+        whole,
+        CopyLowering::Text,
+        out,
+    )
+}
+
+/// The assembly under one lowering of the source read, which [`assemble_lowered`] admits.
+fn assembled(
+    plan: &Plan,
+    intent: &str,
+    request: &CompileRequest,
+    judgments: &[Judgment],
+    whole: bool,
+    lowering: CopyLowering,
+    out: &mut CompileOutcome,
+) -> Result<(), CompileError> {
     let given = plan;
     // The requester's decisions over the plan come first (a money movement's approval):
     // the assembler works on the decided plan; the recorded plan stays as it was read.
@@ -390,16 +416,7 @@ pub fn assemble_judged(
     if repeated_effect_asked(plan, intent, &b, out) || !b.ready(plan) {
         return Ok(());
     }
-    if plan.obligation("revision_check")
-        && matches!(b.lookup, Need::Absent)
-        && matches!(b.search, Need::Absent)
-    {
-        super::finding(
-            out,
-            DiagnosticKind::Unknown,
-            "revision_check",
-            "The request asks to recheck the current version before the final action, but no retrievable source exists to recheck.",
-        );
+    if missing_revision_source(plan, &b, out) {
         return Ok(());
     }
     let id = request
@@ -414,7 +431,7 @@ pub fn assemble_judged(
         d.root["const"][slug] = value.clone();
     }
     emit_lookup(&mut d, &b);
-    emit_read(&mut d, plan, &b);
+    read::emit_read(&mut d, plan, &b, lowering);
     emit_search_fetch_dedup(&mut d, plan, &b);
     let guide = guidance(plan, &b.consumed);
     for step in &plan.steps {
@@ -435,6 +452,9 @@ pub fn assemble_judged(
         d.tool("dedup_next", "nika:jq", json!({"input": {"state": "${{ with.state }}", "id": "${{ inputs.event_id }}"}, "expression": ". as $r | (($r.state | fromjson) + [$r.id]) | tojson"}), Some(json!({"state": "${{ tasks.dedup_read.output }}"})), true);
         d.tool("dedup_record", "nika:write", json!({"path": "${{ const.state_file }}", "content": "${{ with.next }}", "overwrite": true, "create_dirs": true}), Some(json!({"next": "${{ tasks.dedup_next.output }}"})), false);
     }
+    if !read::lowered(&d, lowering, out) {
+        return Ok(());
+    }
     settle_candidate(
         plan,
         &b,
@@ -452,6 +472,23 @@ pub fn assemble_judged(
         },
         out,
     )
+}
+
+/// A requested revision check needs a retrievable source before assembly can continue.
+fn missing_revision_source(plan: &Plan, b: &bindings::Bindings, out: &mut CompileOutcome) -> bool {
+    if plan.obligation("revision_check")
+        && matches!(b.lookup, Need::Absent)
+        && matches!(b.search, Need::Absent)
+    {
+        super::finding(
+            out,
+            DiagnosticKind::Unknown,
+            "revision_check",
+            "The request asks to recheck the current version before the final action, but no retrievable source exists to recheck.",
+        );
+        return true;
+    }
+    false
 }
 
 /// The actions an approval gates, the writes then the wired effects, each named as the one gate
@@ -650,38 +687,6 @@ fn emit_lookup(d: &mut Doc, b: &Bindings) {
     );
     d.tool("lookup_admit", "nika:assert", json!({"condition": "${{ with.valid }}", "message": "Lookup returned no record; no facts may be fabricated."}), Some(json!({"valid": "${{ tasks.lookup_valid.output }}"})), false);
     d.fact("record", "${{ tasks.lookup_record.output }}", Kind::Corpus);
-}
-
-/// One file is one read (parsed too when structured); several files or a glob are
-/// a bounded fan-out whose batch is folded into one document with a heading per file,
-/// or, when the request distributes its draft, zipped into `{path, text}` items.
-fn emit_read(d: &mut Doc, plan: &Plan, b: &Bindings) {
-    match b.read.bound() {
-        Some(Source::File(path)) => {
-            d.root["const"]["source_path"] = json!(path);
-            d.reads.push(json!(path));
-            d.tool(
-                "read_source",
-                "nika:read",
-                json!({"path": "${{ const.source_path }}"}),
-                None,
-                false,
-            );
-            d.fact("document", "${{ tasks.read_source.output }}", Kind::Corpus);
-            if let Some(format) = Structured::of(path)
-                && b.parses()
-            {
-                if format == Structured::Csv && writes_csv(b) {
-                    emit_source_columns(d);
-                }
-                emit_parse(d, format, b.guard_scope().as_deref());
-            } else if b.rule_over_lines() {
-                emit_parse_lines(d);
-            }
-        }
-        Some(source @ (Source::Files(_) | Source::Glob(_))) => emit_fan_out(d, plan, b, source),
-        Some(Source::Item) | None => {}
-    }
 }
 
 /// A CSV source written back as CSV keeps its column order. The engine never preserves

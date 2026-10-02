@@ -6,6 +6,9 @@ require
 wait
 await
 check
+request
+seek
+solicit
 demande
 demandez
 demander

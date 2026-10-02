@@ -30,7 +30,8 @@ use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
     is_raw_mode_enabled, supports_keyboard_enhancement,
 };
-use ratatui::backend::CrosstermBackend;
+use ratatui::backend::{Backend, ClearType, CrosstermBackend};
+use ratatui::layout::Position;
 use ratatui::{Terminal, TerminalOptions, Viewport};
 
 use crate::model::Presentation;
@@ -49,7 +50,10 @@ static ALT: AtomicBool = AtomicBool::new(false);
 static TITLE: AtomicBool = AtomicBool::new(false);
 
 /// Name the terminal window for this session, keeping the previous title
-/// on the terminal's stack so [`restore_everything`] gives it back.
+/// on the terminal's stack so [`restore_everything`] gives it back. No
+/// control character reaches the terminal: the title comes from a directory
+/// name, and an ESC or BEL in it would close the title sequence and start
+/// one of its own (an OSC 52 clipboard write under tmux, for one).
 ///
 /// # Errors
 ///
@@ -60,8 +64,13 @@ pub fn set_title(title: &str) -> io::Result<()> {
     if !TITLE.swap(true, Ordering::SeqCst) {
         write!(out, "\x1b[22;0t")?;
     }
-    crossterm::execute!(out, crossterm::terminal::SetTitle(title))?;
+    crossterm::execute!(out, crossterm::terminal::SetTitle(printable(title)))?;
     out.flush()
+}
+
+/// `text` without its control characters: C0, DEL and C1.
+fn printable(text: &str) -> String {
+    text.chars().filter(|ch| !ch.is_control()).collect()
 }
 
 /// The inline viewport height the shell asks for at entry: the live area
@@ -134,12 +143,7 @@ pub fn enter(presentation: Presentation, term: Option<&str>) -> io::Result<(Owne
         owner.restore()?;
         return Err(error);
     }
-    let backend = CrosstermBackend::new(io::stdout());
-    let viewport = match presentation {
-        Presentation::Inline => Viewport::Inline(INLINE_HEIGHT),
-        Presentation::Focus => Viewport::Fullscreen,
-    };
-    match Terminal::with_options(backend, TerminalOptions { viewport }) {
+    match screen_over(CrosstermBackend::new(io::stdout()), presentation) {
         Ok(screen) => Ok((owner, screen)),
         Err(error) => {
             owner.restore()?;
@@ -148,8 +152,38 @@ pub fn enter(presentation: Presentation, term: Option<&str>) -> io::Result<(Owne
     }
 }
 
+/// The screen for one presentation over `backend`. An inline viewport is
+/// cleared as it is created (without a second cursor query): a partial
+/// line the shell or a handed-back run left under the cursor never shows
+/// inside the live area.
+fn screen_over<B: Backend>(
+    backend: B,
+    presentation: Presentation,
+) -> Result<Terminal<B>, B::Error> {
+    let viewport = match presentation {
+        Presentation::Inline => Viewport::Inline(INLINE_HEIGHT),
+        Presentation::Focus => Viewport::Fullscreen,
+    };
+    let mut screen = Terminal::with_options(backend, TerminalOptions { viewport })?;
+    if presentation == Presentation::Inline {
+        clear_inline(&mut screen)?;
+    }
+    Ok(screen)
+}
+
+/// Make the renderer's colour decision the only one: crossterm reads
+/// `NO_COLOR` on its own and would drop every hue even when the caller's
+/// chain (`--color`, `CLICOLOR_FORCE`) asked for colour, after the renderer
+/// had already traded its weights for hues. The caller's decision
+/// (`app::Options::color`) already honours `NO_COLOR`; crossterm's second
+/// reading is switched off, so what the renderer paints is what shows.
+fn own_the_colour() {
+    crossterm::style::Colored::set_ansi_color_disabled(false);
+}
+
 fn enter_modes(presentation: Presentation) -> io::Result<()> {
     let mut out = io::stdout();
+    own_the_colour();
     enable_raw_mode()?;
     RAW.store(true, Ordering::SeqCst);
     crossterm::execute!(out, EnableBracketedPaste)?;
@@ -198,6 +232,24 @@ pub fn set_alternate_screen(on: bool) -> io::Result<()> {
 #[must_use]
 pub fn on_alternate_screen() -> bool {
     ALT.load(Ordering::SeqCst)
+}
+
+/// Erase the inline viewport on the way out: the live area (status,
+/// composer, hint, the « interrupted » notice) is chrome that leaves with
+/// the door, so the shell's prompt returns right under the conversation.
+/// The cursor moves to the viewport's first row and everything from there
+/// down is cleared; the scrollback above stays as the session left it. The
+/// loop calls it before [`Owner::restore`] when it leaves the inline
+/// presentation; the focus presentation's alternate screen needs nothing.
+///
+/// # Errors
+///
+/// The backend could not move the cursor, clear or flush.
+pub fn clear_inline<B: Backend>(screen: &mut Terminal<B>) -> Result<(), B::Error> {
+    let top = screen.get_frame().area().y;
+    screen.set_cursor_position(Position::new(0, top))?;
+    screen.backend_mut().clear_region(ClearType::AfterCursor)?;
+    screen.backend_mut().flush()
 }
 
 impl Owner {
@@ -314,10 +366,128 @@ mod tests {
         assert!(!NotATerminal::Dumb.to_string().is_empty());
     }
 
+    /// A title keeps no control byte: ESC, BEL, DEL and the C1 range would
+    /// let a directory name end the title sequence and write its own (an
+    /// OSC 52 clipboard write, a CSI colour); every other character stays.
+    #[test]
+    fn a_title_keeps_no_control_byte() {
+        let hostile = "proj\x1b]52;c;ZXZpbA==\x07\x1b\\\u{9b}31m\u{9d}0;x\u{7f}ect";
+        let clean = printable(hostile);
+        assert_eq!(clean, "proj]52;c;ZXZpbA==\\31m0;xect");
+        assert!(!clean.chars().any(char::is_control), "{clean:?}");
+        assert_eq!(printable("nika · démo 日本 🦋"), "nika · démo 日本 🦋");
+    }
+
+    /// The inline viewport starts clean: a partial line left under the cursor
+    /// (the shell's, or a handed-back run's last words) is cleared as the
+    /// viewport is created, and the rows above it stay as they were.
+    #[test]
+    #[allow(clippy::expect_used)]
+    fn the_inline_viewport_is_cleared_as_it_is_created() {
+        use ratatui::backend::TestBackend;
+        let mut lines = vec!["the run said this", "partial line"];
+        lines.resize(16, "");
+        let mut backend = TestBackend::with_lines(lines);
+        backend
+            .set_cursor_position(Position::new(12, 1))
+            .expect("a cursor");
+        let screen = screen_over(backend, Presentation::Inline).expect("an inline screen");
+        let buffer = screen.backend().buffer().clone();
+        let row = |y: u16| -> String {
+            (0..buffer.area.width)
+                .map(|x| buffer[(x, y)].symbol().to_owned())
+                .collect::<String>()
+                .trim_end()
+                .to_owned()
+        };
+        assert_eq!(row(0), "the run said this", "the scrollback stays");
+        for y in 1..buffer.area.height {
+            assert_eq!(row(y), "", "row {y} inside the viewport");
+        }
+    }
+
+    /// The renderer owns colour: once the terminal is taken, crossterm's own
+    /// `NO_COLOR` reading no longer drops the hues a `--color` asked for.
+    #[test]
+    fn the_renderer_owns_the_colour() {
+        use crossterm::style::{Color, Colored};
+        // As crossterm memoizes it when NO_COLOR=1 is in the environment.
+        Colored::set_ansi_color_disabled(true);
+        assert!(
+            Colored::ForegroundColor(Color::Yellow)
+                .to_string()
+                .is_empty()
+        );
+        own_the_colour();
+        assert!(!Colored::ansi_color_disabled_memoized());
+        assert!(
+            !Colored::ForegroundColor(Color::Yellow)
+                .to_string()
+                .is_empty()
+        );
+    }
+
     #[test]
     fn entering_on_a_pipe_fails_and_leaves_no_owner_behind() {
         let error = enter(Presentation::Inline, None).err();
         assert_eq!(error.map(|e| e.kind()), Some(io::ErrorKind::Other));
         assert!(!RAW.load(Ordering::SeqCst));
+    }
+
+    /// B4 · the live area leaves with the door: after two `Ctrl+C` the
+    /// composer frame and the « interrupted » notice were still painted under
+    /// the conversation. The clear erases every viewport row, keeps what the
+    /// session committed above it, and parks the cursor on the viewport's
+    /// first row, where the shell's prompt comes back.
+    #[test]
+    #[allow(clippy::expect_used)]
+    fn leaving_inline_erases_the_live_area_and_keeps_the_conversation() {
+        use ratatui::backend::TestBackend;
+        use ratatui::style::Style;
+        let mut backend = TestBackend::new(24, 8);
+        backend
+            .set_cursor_position(Position::new(0, 1))
+            .expect("a cursor");
+        let mut screen = Terminal::with_options(
+            backend,
+            TerminalOptions {
+                viewport: Viewport::Inline(4),
+            },
+        )
+        .expect("an inline test terminal");
+        screen
+            .insert_before(1, |buf| {
+                buf.set_string(0, 0, "the conversation", Style::default());
+            })
+            .expect("a committed block");
+        screen
+            .draw(|frame| {
+                let area = frame.area();
+                let buf = frame.buffer_mut();
+                buf.set_string(0, area.y, "interrupted", Style::default());
+                buf.set_string(0, area.y + 1, "nika ›", Style::default());
+                buf.set_string(0, area.y + 2, "describe work", Style::default());
+            })
+            .expect("the live area");
+        let top = screen.get_frame().area().y;
+        clear_inline(&mut screen).expect("the clear");
+        let buffer = screen.backend().buffer().clone();
+        let row = |y: u16| -> String {
+            (0..buffer.area.width)
+                .map(|x| buffer[(x, y)].symbol().to_owned())
+                .collect::<String>()
+                .trim_end()
+                .to_owned()
+        };
+        assert_eq!(row(top - 1), "the conversation", "the scrollback stays");
+        for y in top..buffer.area.height {
+            assert_eq!(row(y), "", "viewport row {y} still painted");
+        }
+        let cursor = screen.backend_mut().get_cursor_position().ok();
+        assert_eq!(
+            cursor,
+            Some(Position::new(0, top)),
+            "the prompt returns here"
+        );
     }
 }

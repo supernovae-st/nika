@@ -23,6 +23,7 @@
 //! in [`mod@emit`]; the per-beat `inputs:` law (#1370) in [`mod@inputs`].
 
 mod emit;
+mod forms;
 mod inputs;
 mod planner;
 mod tick;

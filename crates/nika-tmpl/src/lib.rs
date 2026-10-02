@@ -224,3 +224,7 @@ pub fn single_island(s: &str) -> Option<&str> {
         _ => None,
     }
 }
+
+// Keep scanner behavior in the library test target.
+#[cfg(test)]
+mod scan_tests;

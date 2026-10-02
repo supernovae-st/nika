@@ -606,7 +606,7 @@ fn lateness(now: Timestamp, scheduled_for: Timestamp) -> u64 {
 
 fn parse_canonical_cadence(expression: &str) -> Result<Cadence, SchedulePlanError> {
     match Cadence::parse(expression) {
-        Ok(cadence @ Cadence::Cron { .. }) => Ok(cadence),
+        Ok(cadence @ (Cadence::Cron { .. } | Cadence::Every { .. })) => Ok(cadence),
         Ok(Cadence::Webhook) => Err(SchedulePlanError::InvalidCanonicalCadence(
             "timed definition parsed as webhook".to_owned(),
         )),

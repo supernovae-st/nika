@@ -16,7 +16,7 @@ use serde_json::{Value, json};
 use std::time::Duration;
 
 mod common;
-use common::{Judged, Rotating, keys};
+use common::{Judged, Rotating, held_for_its_judge, keys};
 
 const OPEN: &str = "Additionne une colonne de ventes.csv dans total.txt.";
 
@@ -126,14 +126,15 @@ async fn an_open_column_is_asked_among_the_observed_columns_and_only_they_are_an
         record["questions"][0]["answer_type"], "choice",
         "{record:#}"
     );
-    // The answer round replays the record: an offered key is baked, and READY.
+    // The answer round replays the record: an offered key is baked, then
+    // held for the round's judge (R4 A11, step 2): this keyless round permits none.
     let answered = compile(
         &CompileRequest::create(OPEN)
             .with_plan(record.clone())
             .answer("const.sum_column", r#""montant""#),
     )
     .unwrap();
-    assert_eq!(answered.status, CompileStatus::Ready, "{answered:#?}");
+    assert!(held_for_its_judge(&answered, OPEN), "{answered:#?}");
     assert!(
         answered
             .candidate

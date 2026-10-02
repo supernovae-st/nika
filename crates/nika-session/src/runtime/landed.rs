@@ -26,6 +26,9 @@ impl SessionRuntime {
     ) -> TurnOutcome {
         self.save_proposal_money(&set, &id);
         let evidence = self.evidence_applied(&set, &id, applied);
+        // A rehearsed copy's proof moves to the workflow it was saved as (`rehearsed.rs`).
+        let first = set.workflows().into_iter().next();
+        let rehearsed = self.land_rehearsal(&id, first.as_deref());
         self.decided = Some(id);
         let written: Vec<String> = applied
             .written
@@ -97,9 +100,7 @@ impl SessionRuntime {
                 TurnOutcome::Facts(report)
             }
             None if all_clean => {
-                report.push_str(
-                    "\nSaved · checked · not active · nothing has run\n  say « run it » to run it once (a ceiling is announced first)",
-                );
+                report.push_str(Self::landed_words(rehearsed));
                 if let Some(t) = &self.last_trigger
                     && t.status == nika_onboard::compile::TriggerStatus::RequiresBinding
                 {

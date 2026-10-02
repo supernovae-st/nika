@@ -17,9 +17,12 @@ use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
 mod final_gate;
+mod instants;
+mod record_scope;
 mod records;
 mod scope;
 pub use final_gate::unbound_final_gate;
+pub use instants::instant_shape;
 pub use records::raw_text_as_records;
 pub use scope::unsettled_performed;
 
@@ -145,7 +148,8 @@ pub fn laws(
 
 /// The fidelity laws with the host's observation of the paths the request names (the
 /// compile request's knowledge, `{"observed": [{path, state, …}]}`): [`laws`], where a bare
-/// file name the request states is also realized where that observation places it (Law 1).
+/// file name the request states is also realized where that observation places it (Law 1), and
+/// a `nika:jq` expression is read in the scope of the records it observed (Laws 24 and 25).
 pub fn laws_observed(
     intent: &str,
     plan: &Plan,
@@ -165,6 +169,7 @@ pub fn laws_observed(
     unnamed_writes(plan, doc, out);
     prohibitions(plan, doc, out);
     raw_text_as_records(doc, out);
+    record_scope::record_laws(doc, world, out);
     invented(intent, &literals, allowed, out);
 }
 

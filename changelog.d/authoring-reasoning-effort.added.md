@@ -20,5 +20,5 @@
   dispatched (`unobserved` when no response carried them), the served
   effort as unknown, the reasoning tokens the provider reported (null when
   it reported none) and the model it named. The read-back is the adapter's
-  own observation of its serialized request, not a network capture. The
-  Session does not ask an explicit effort yet.
+  own observation of its serialized request, not a network capture. A
+  Session asks the same levels through `NIKA_AUTHORING_REASONING`.

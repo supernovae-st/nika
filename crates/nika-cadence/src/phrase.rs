@@ -82,13 +82,24 @@ impl Cadence {
                         "TZ={tz} {} {} {} {} {}",
                         show_field(*spec.minutes()),
                         show_field(*spec.hours()),
-                        show_field(*spec.dom()),
+                        show_dom(spec),
                         show_field(*spec.months()),
                         show_field(*spec.dow()),
                     )
                 }
             }
+            Self::Every { tz, anchor, weeks } => crate::every::describe(tz, *anchor, *weeks),
         }
+    }
+}
+
+/// The day-of-month as the cron text speaks it: `L` for the month's last
+/// day (its bitset is only the superset `28-31`), else the field.
+pub(crate) fn show_dom(spec: &CronSpec) -> String {
+    if spec.dom_last() {
+        "L".to_owned()
+    } else {
+        show_field(*spec.dom())
     }
 }
 
@@ -108,7 +119,7 @@ fn weekly_readable(spec: &CronSpec) -> Option<String> {
 
 /// A field as the cron text speaks it: `*` when full (the bitset's one
 /// encoding — never the expansion), else the values comma-joined.
-fn show_field<const LO: u8, const HI: u8>(field: Field<LO, HI>) -> String {
+pub(crate) fn show_field<const LO: u8, const HI: u8>(field: Field<LO, HI>) -> String {
     if field.is_full() {
         "*".to_owned()
     } else {

@@ -260,9 +260,14 @@ impl SessionRuntime {
     /// compiler's reasons), what helps — never a request for syntax, never
     /// « rephrase with implementation details ».
     fn cannot_express(&mut self, out: CompileOutcome) -> TurnOutcome {
-        let text = cannot_express_text(&out);
+        let text = held_words(&out, &self.seat).unwrap_or_else(|| cannot_express_text(&out));
         self.last_outcome = Some(out);
         TurnOutcome::Facts(text)
+    }
+
+    /// What the reader could not settle, or a native finish held for its round's judge.
+    fn unsettled_words(&self, out: &CompileOutcome) -> String {
+        held_words(out, &self.seat).unwrap_or_else(|| incomplete_words(out, None))
     }
 
     /// A change, a mixed line or new work said at a question: the request
@@ -289,7 +294,11 @@ impl SessionRuntime {
 
     /// Propose the revised bytes and the Meaning delta while retaining the
     /// original request and the human's change as the source of truth.
-    fn propose_revision(&mut self, round: &AuthoringRound, out: &CompileOutcome) -> TurnOutcome {
+    pub(super) fn propose_revision(
+        &mut self,
+        round: &AuthoringRound,
+        out: &CompileOutcome,
+    ) -> TurnOutcome {
         let delta = self
             .last_outcome
             .as_ref()
@@ -304,8 +313,11 @@ impl SessionRuntime {
         match self.propose(round, out) {
             TurnOutcome::Proposal { id, preview } => {
                 // The Meaning and details doors must describe the bytes now
-                // awaiting consent. Keep the earlier reading if proposal fails.
-                self.last_outcome = Some(out.clone());
+                // awaiting consent. Keep the earlier reading if proposal fails;
+                // a rehearsed selection is already the one `propose` installed.
+                if !self.rehearsed_pending(&id) {
+                    self.last_outcome = Some(out.clone());
+                }
                 let mut text = preview;
                 if let Some(delta) = delta {
                     text.push('\n');
@@ -388,6 +400,10 @@ impl SessionRuntime {
         set: crate::change::ProjectChangeSet,
         change: &str,
     ) -> TurnOutcome {
+        // A rehearsed proposal waits as it was: a change never carries a rehearsal.
+        if let Some(held) = self.rehearsed_change(&set) {
+            return held;
+        }
         let base = set.changes.iter().find_map(|c| match c {
             crate::change::ProjectChange::CreateWorkflow { content, .. }
             | crate::change::ProjectChange::UpdateWorkflow { content, .. } => Some(content.clone()),
@@ -520,7 +536,7 @@ impl SessionRuntime {
             Reading::Questions(out) => {
                 round.absorb(&out);
                 let Some(question) = round.current() else {
-                    return TurnOutcome::Facts(incomplete_words(&out, None));
+                    return TurnOutcome::Facts(self.unsettled_words(&out));
                 };
                 let key = question.key.clone();
                 // A rule the compiler can only ask as code is never asked
@@ -570,7 +586,7 @@ impl SessionRuntime {
                 }
             }
             Reading::Unsettled(out) | Reading::NotWork(out) => {
-                TurnOutcome::Facts(incomplete_words(&out, None))
+                TurnOutcome::Facts(self.unsettled_words(&out))
             }
             // A turn the session could not finish: the recovery card (what
             // is kept · what did not happen · the ways on), never a bare
@@ -606,13 +622,20 @@ impl SessionRuntime {
     /// The Ready candidate of `round` as the proposal the consent line answers:
     /// exact bytes, a fresh destination, the same check facade.
     fn propose(&mut self, round: &AuthoringRound, out: &CompileOutcome) -> TurnOutcome {
+        // A closed copy is proposed only as the candidate its rehearsals selected (`rehearsed.rs`).
+        let qualified = match self.rehearse_copy(round) {
+            Ok(qualified) => qualified,
+            Err(refused) => return refused,
+        };
+        let out = qualified.as_ref().map_or(out, |q| &q.outcome);
         match review::propose(&self.snapshot.root, &round.intent, out) {
             Ok(set) => {
                 let bytes = self.draft_preview(&set);
                 let id = ProposalId::of(&bytes);
                 // What the candidate records of its sources is bound before any yes (F4).
                 self.bind_basis(&id, &set, compiled(round.request(), out), out);
-                let preview = self.draft_review(&set, out, &bytes);
+                let mut preview = self.draft_review(&set, out, &bytes);
+                self.bind_rehearsal(&id, qualified.as_ref(), &mut preview);
                 self.authoring = None;
                 self.intent.unresolved.clear();
                 self.remember(&round.intent, &format!("(proposed {id})"));
@@ -879,6 +902,10 @@ impl SessionRuntime {
                 "nothing to run — name a workflow file (« run brief.nika »), or describe the work and Nika builds one first",
             ));
         };
+        // A rehearsed copy runs only over the bytes and the world it was rehearsed on.
+        if let Some(withdrawn) = self.rehearsed_at_run(&workflow) {
+            return withdrawn;
+        }
         let audit = check_on_disk(&root, &workflow);
         if !audit.clean {
             let mut text = format!(
@@ -1105,6 +1132,23 @@ pub(super) fn revision_way(out: &CompileOutcome) -> &'static str {
     } else {
         "say the change another way"
     }
+}
+
+/// A native finish held for its round's judge (R4 A11 step 2), in words: the seat's program kept
+/// as the preview while the whole request stays open (`decision.pending.open`), waiting for a
+/// judge its round can permit — never an authoring failure nor a gap in the language.
+fn held_words(out: &CompileOutcome, seat: &AuthoringSeat) -> Option<String> {
+    let open = (out.provenance.decision.as_ref()).and_then(|d| d.pointer("/pending/open"));
+    open.and_then(serde_json::Value::as_array)
+        .filter(|open| !open.is_empty() && out.candidate.is_some())?;
+    let why = if seat.has_model() {
+        "no judgment made in this round settled it; nothing was written.\n  state the request again for another attempt, or `/intelligence` for another model"
+    } else {
+        "this session has no authoring model to judge it; nothing was written.\n  `/intelligence` chooses one, then state the request again"
+    };
+    Some(format!(
+        "The workflow is built but not proposed: the seat wrote this program, and only a judge this round can permit settles it against your whole request — {why} · `/meaning` shows what was understood"
+    ))
 }
 
 pub(super) fn cannot_express_text(out: &CompileOutcome) -> String {

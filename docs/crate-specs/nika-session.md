@@ -5,7 +5,7 @@
 | Status | **WIP → ADMISSION** (One Door · wave 4 · ADR-125). In `workspace.metadata.diamond.wip` until the 12 gates land (Gate 5 mutation and Gate 11 swarm owed). |
 | Layer | **L4 — interface** (the human's terminal) · a host runtime over the installed engine · **sync** on the terminal, one current-thread runtime per inference · lateral `nika-session → nika-cli-host` for the ONE probe and the ONE oracle facade (the ADR-124 precedent) · lateral `nika-session → nika-trace` for the run facts behind the result, gate and `/proof` views (never back). |
 | Sub-tier | L4-surface — bare `nika` on an interactive terminal (the `nika-tui` renderer by default · the plain loop with `--plain` or `NIKA_TUI=0`, and as the renderer's fallback · a pipe gets the concierge). The session opens on the human's request; the deterministic compiler and the engine facts answer with no choice made. The first line only an intelligence can answer asks, in context, how Nika should think with the human (an AI app they already have · an API · a local engine · none · in that order, in human words), resumes that line exactly as typed once chosen, and keeps the answer at `~/.nika/session-intelligence.json`. The session observes the project once, answers Nika facts from the engine, hands the chosen intelligence a minimal typed bundle, and reads every reply through the hallucination guard. |
-| Design | Eight modules, one law each: `identity` (the six laws + the language digest) · `snapshot` (the proven root · the project file · the ONE walker) · `intelligence` (the census · the persisted choice · the resolution that refuses, never replaces · the data locus) · `reasoner` (ONE inference over the seat, the provider registry, or none — never a temporary workflow) · `broker` (the bundle: named files inside the root, bounded, redacted, with provenance · the environment never injected) · `guard` (builtins · models · codes · MCP servers · verbs · fields · claimed ignorance, corrected under the reply) — owned by `nika-onboard` since 2026-09-29 and re-exported here unchanged · `facts` (the workflows · the builtins · the providers · a verdict through the facade · a code through the ladder · a shape through the ONE router) · `change` (ADR-126 · the typed change set a reply proposes: previewed from the exact bytes the apply consumes · witnessed against stale targets · landed atomically only on the consent line · the real check after it lands · a run requested only on a clean check · the pending gate read from a paused trace) · `runtime` (the loop · the proposal · the consent · the run observed). Owns nothing the engine owns. |
+| Design | Eight modules, one law each: `identity` (the six laws + the language digest) — owned by `nika-onboard` since 2026-09-30 and re-exported here unchanged · `snapshot` (the proven root · the project file · the ONE walker) · `intelligence` (the census · the persisted choice · the resolution that refuses, never replaces · the data locus) · `reasoner` (ONE inference over the seat, the provider registry, or none — never a temporary workflow) · `broker` (the bundle: named files inside the root, bounded, redacted, with provenance · the environment never injected) · `guard` (builtins · models · codes · MCP servers · verbs · fields · claimed ignorance, corrected under the reply) — owned by `nika-onboard` since 2026-09-29 and re-exported here unchanged · `facts` (the workflows · the builtins · the providers · a verdict through the facade · a code through the ladder · a shape through the ONE router) · `change` (ADR-126 · the typed change set a reply proposes: previewed from the exact bytes the apply consumes · witnessed against stale targets · landed atomically only on the consent line · the real check after it lands · a run requested only on a clean check · the pending gate read from a paused trace) · `runtime` (the loop · the proposal · the consent · the run observed). Owns nothing the engine owns. |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (Diamond caps) |
 | IMPL | projected, never hand-typed: `scripts/crate-metrics.sh nika-session` (src LOC · largest file · unit and integration tests) |
 | Crate version | tracks workspace · License `AGPL-3.0-or-later` · Edition 2024 · Publish `false` (Foundation crate · ADR-022) |
@@ -490,16 +490,27 @@ a workflow, a reply or retrieved context.
 |---|---|
 | `NIKA_<PROVIDER>_API_KEY` or the catalog's variable (`DEEPSEEK_API_KEY` …) | Presence only, for the census; the provider client reads the value when it calls |
 | `~/.nika/session-intelligence.json` | The kept choice (kind · model · time); a corrupt file reads as never chosen |
-| `NIKA_AUTHORING_STRATEGY` · `NIKA_KNOWLEDGE` · `NIKA_KNOWLEDGE_EXCLUDE` | The authoring context, through the parser `nika compile` uses; a named snapshot is opened and pinned now. `NIKA_KNOWLEDGE_PACK` is refused: a pack was composed for one request |
+| `NIKA_AUTHORING_STRATEGY` · `NIKA_KNOWLEDGE` · `NIKA_KNOWLEDGE_EXCLUDE` | The shared authoring configuration: a trusted named release or the embedded default is admitted and pinned when the context opens. Knowledge off attaches nothing; strategy off with no source is unread. `NIKA_KNOWLEDGE_PACK` is refused: a pack was composed for one request |
 | `NIKA_AUTHORING_REASONING` | The explicit reasoning effort every seated authoring call asks (`low` · `high` · `max`), through the same parser; a host's typed word outranks it |
 | `NIKA_SESSION_DECISION_MODEL` with `TYPESAFE_API_KEY` | The optional decision seat (`typesafe/<jev>` only) |
 | `NIKA_TUI` | `0` · `off` · `false` · `no` · `plain` keep bare `nika` on the plain loop |
 
-There is no provider credential store and no default knowledge location. A
-clean install therefore presents no snapshot: native authoring composes the
-embedded language card, the request, answers and observed world. Release
-archives carry no snapshot. An operator who wants these values in every
-session sets them in the login environment.
+There is no provider credential store. The default knowledge needs no filesystem
+location: `AuthoringContext::default()` resolves and pins the release embedded
+in the binary, with an independently trusted build identity. The current release
+contains three patterns linked to three blocks. Matching words recall patterns
+and their blocks beside the language card, request, answers and observed world;
+an intent with no lexical match adds no reference. There are no examples or
+repair principles. Records distinguish composed references from those presented
+in a native authoring instruction; neither proves better generation.
+Deterministic authoring presents no knowledge to a model. Explicit knowledge
+off and strategy off with nothing named compose none.
+A named source must be admitted against the host's trusted identity; a missing
+identity or invalid release refuses without falling back to the embedded one.
+See the [shared knowledge door](nika-onboard.md#shared-authoring-knowledge-door)
+and [pin migration](nika-onboard.md#the-knowledge-pin-and-its-records-read-by-session)
+for the typed choices and disk/embedded origins. Operator overrides are read
+from the login environment when the door opens.
 
 ## Explicit authoring reasoning (R4 B16 · C11)
 

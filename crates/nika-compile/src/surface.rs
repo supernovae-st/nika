@@ -143,9 +143,12 @@ pub fn admit_hot(
 }
 
 /// The assembler's entry (also under the judgments made in this compile, R4 A11), its
-/// unfed-plan law and its contradiction refusal.
+/// unfed-plan law and its contradiction refusal, and the assembly under one lowering of an
+/// exact copy's read.
 pub mod assemble {
-    pub use crate::assemble::{assemble, assemble_judged, refuse_contradiction, unfed};
+    pub use crate::assemble::{
+        CopyLowering, assemble, assemble_judged, assemble_lowered, refuse_contradiction, unfed,
+    };
 }
 
 /// The bounded support clauses: resolution and assembly.

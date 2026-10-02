@@ -1,0 +1,26 @@
+{
+ "base": "p01-base",
+ "expected": {
+  "policy": {
+   "id": "policy-r",
+   "sha256": "a4e94ad9d3fe4c9f01083186b647546cc040d006653b5098856a0928b2e1061f"
+  },
+  "profile": "nika-knowledge-release-profile/r1",
+  "snapshot_sha256": "c13b93faad94a564d3da644456c4c58be8c586de4f5bd832545c6c7dd3265175"
+ },
+ "fault": "a pinned block file is absent",
+ "files": {},
+ "forms": [
+  "memory",
+  "disk"
+ ],
+ "name": "n-inventory-missing",
+ "removed": [
+  "blocks/digest.nika"
+ ],
+ "requirement": "\u00a75 E1",
+ "verdict": {
+  "admit": false,
+  "code": "INVENTORY_MISSING"
+ }
+}

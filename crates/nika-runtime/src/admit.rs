@@ -244,6 +244,9 @@ pub fn budget_floor_refusal_bound(
     if !seated_on_harness && let Some(err) = unpriced_cloud_cap_refusal(effective, budget) {
         return Some(err);
     }
+    if !seated_on_harness && let Some(message) = effective.cost.zero_budget_refusal(budget) {
+        return Some(RuntimeError::BudgetFloor { message });
+    }
     let floor = effective.cost.min_path_total_usd + priced_builtin_floor(wf);
     let message = floor_refusal(floor, budget)?;
     Some(RuntimeError::BudgetFloor { message })

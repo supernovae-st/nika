@@ -104,8 +104,17 @@ clock, and every N hours/minutes where N divides 24/60 (digits, plus one/two in
 FR/EN). Examples: every Tuesday at 09:15, chaque vendredi à 18h30, toutes les
 deux heures. The interval phase is zero on the local clock, not elapsed time;
 the activation review displays it and the canonical scheduler owns DST. Missing
-time/weekday, conflicting periods/clocks, mixed periods, monthly/alternate-week
-recurrence and non-divisor intervals retain their words and yield null `cron`.
+time/weekday, conflicting periods/clocks, mixed periods, other monthly recurrence
+and non-divisor intervals retain their words and yield null `cron`. Two forms go
+beyond five plain fields, the ones the arming grammar holds: the last day of
+every month at a clock time (« the last day of every month at 18:00 », « le
+dernier jour de chaque mois à 18h ») is `M H L * *`, and an interval of weeks
+with its start date written YYYY-MM-DD (« every other Monday at 09:00 from
+2026-10-05 », « toutes les deux semaines le lundi à 9h à partir du 2026-10-05 »)
+is `every N weeks from DATE HH:MM`, the date on the weekday the words name if
+they name one. A vaguer month end (« at the end of every month », « the last
+business day »), a date in another format, a date the calendar lacks or a word
+left over yields null `cron`.
 This does not claim unrestricted natural-language cadence understanding or add
 another cron parser. `nika-cadence` alone validates/executes the bound expression.
 
@@ -115,8 +124,11 @@ an alternating or counted day-or-longer period (« every other Monday », « eve
 frequency (« twice a week », « deux fois par semaine ») or an hour/minute
 interval that does not divide its day or hour (« every 5 hours ») keeps a null
 `cadence` and a null `cron`, keeps its time of day, and asks the mandatory
-`trigger.cadence` question before READY. Only the human's explicit replacement
-cadence or « manual » resolves it; another unbindable period is refused as an
+`trigger.cadence` question before READY, unless it is an interval of weeks the
+words anchor on a start date (then `cron` holds the anchored form and nothing is
+asked; `cadence` stays null). The question names the start date an interval of
+weeks needs. Only the human's explicit replacement cadence (an anchored interval
+included) or « manual » resolves it; another unbindable period is refused as an
 answer and the question stays. Weekly, weekday, daily and dividing-interval
 schedules are unchanged. A clause the reader does not take as a trigger stays
 an unresolved clause, never READY.
@@ -318,7 +330,7 @@ obligation). Grades: `declared` (a CSV/TSV header names the column), `observed_c
 presence, never absence, and the revision is the peek's hash, never the unread tail),
 `user_asserted` (the request's own column list, or an answer given in the context it was
 asked), `inferred` (anything else). A key is admissible only above `inferred` and bound by the
-request's own words, an answer or an approval: with nothing observed, a key the request merely
+request's own words, an answer, an approval or an observed value the request states (below): with nothing observed, a key the request merely
 names is asked for its exact spelling, never lowered, unless the request lists its columns. A
 word the observed keys do not hold is a closed choice over every observed key (the partial ones
 included); no synonym, spelling or similarity maps it. An answer counts only against the
@@ -341,6 +353,40 @@ Not covered: nested paths, joins and folders of several files, the keys of a nat
 candidate's own jq, and every value or operator meaning (units, types, dates, null comparisons:
 a key present with a null value is grounded, and a numeric comparison over the null fails the
 run: S2 and S3).
+
+A key the request never names is bound by the observation when the request states its value
+(F2-Q1; E39 PILOT14 DEV2-P4: « Sum integer amount_cents of paid rows by customer » names `paid`,
+never `status`, and the cold round asked which field `status` means). The binding holds only
+when all of the following hold:
+
+- The rule compares the key to a literal. That is a typed text equality or inequality, or a
+  verified program's literal comparison: `.F == "L"`, `.F != "L"` or `."F" == "L"`, or the
+  operands reversed. The comparison may have only whitespace inside it, and on each side a token
+  that binds more loosely, such as a bracket, a pipe, a comma, `;`, `//`, `and`, `or` or a
+  conditional's keyword. No jq is parsed.
+- The request states the literal with identifier boundaries.
+- The literal names no observed column.
+- The host recorded the literal among the key's categorical values, exactly or canonically
+  equivalent under the canonical-spelling law above, and among no other column's values.
+
+The grade is unchanged, `bound_by` is `observation`, and the entry carries the `witness`
+literal. When the round carries an answer for the key's question, the answer is read instead
+(R4 A6).
+
+Otherwise the question stays:
+
+- the literal is recorded in two columns;
+- no recorded sample shows the literal;
+- the host recorded no values for the column, for instance two sampled rows holding two
+  distinct values form no categorical set (DEV7-P3-EN);
+- the request never states the literal;
+- the literal also names a column;
+- the observation does not hold the key, which is never rebound to the witnessed column;
+- the comparison is a containment;
+- a program holds the literal anywhere but in that comparison.
+
+Not covered: a type the rule needs (an instant window, a number), which no recorded observation
+carries (DEV6-P3-FR); this is queued as F2-Q1b.
 
 A pending transformation preserves intent, plan and observed source identity,
 field choices and bounded attempt lineage across answer rounds. Record replay
@@ -475,11 +521,27 @@ binding, not a chronological nonce or a grant of execution authority.
 plan or answers are data and are never accepted as active judgments.
 
 The ordinary `assemble` and `replay` entries pass no judgments and add no
-whole-request duty. Deterministically closed duties replay with zero calls.
+whole-request duty to a plan (a native record always carries one, below).
+Deterministically closed duties replay with zero calls.
 Cognition judges the remainder named in `decision.pending.open` using the
 current round's judge, or leaves it INCOMPLETE with a finding for each open
 clause. A regenerated candidate after a field answer is judged as the first
 candidate of its plan. A failed or abstaining judge settles nothing.
+
+A native record (strategy `native`, written by the native and sketch doors) is
+no plan (R4 A11, step 2). Its replay bakes the round's answers into the
+recorded source with zero calls (`native_replay`, then `native_apply`), and no
+law reads the seat's program. A finish the laws admit (READY) therefore carries
+a pending whole-request duty: `decision.pending.open` names the whole request
+at its whole span. The duty is bound by `Binding::of` over the reader's plan of
+the request, with its stated rules promoted, and over the candidate's exact
+bytes. Only a `Carried` whole-request judgment made in this compile under that
+binding settles it; `replay_judged` passes its judgments to the native door.
+Otherwise the round is INCOMPLETE, the candidate stays the preview, and a
+`semantic_verification` finding names the judge a round can permit. A finish
+the laws keep from READY (a question open, a check refusal) is returned as it
+is, and no judge is asked of it. A record never carries a judgment, so the
+round that finishes the bytes judges them.
 
 The core does not judge unrestricted meaning. A clause split across two named
 elements can require judgment, and the model's approval remains bounded
@@ -505,6 +567,27 @@ A technical failure retains the request and round candidates instead of requesti
 replacement intent. An optional initial output limit can increase after a reported
 truncation, using the same repair count and never exceeding the original hard limit.
 Per-call receipts record the output limit, timeout, elapsed time, stop reason and usage.
+
+## One copy, two lowerings
+
+`surface::assemble::assemble_lowered` assembles a plan under one closed choice,
+`CopyLowering`. `Text`, the default, is the ordinary assembly: `assemble` and
+`assemble_judged` are it, byte for byte. `Bytes` holds only an exact copy of one text file to
+another: a plan of one read and its one automatic write (no policy words, no value alone, path
+bindings and nothing else), emitted as exactly two tasks, the source read with `binary: true`
+and the one write fed that whole read, between two distinct files whose suffix the fidelity
+judgment reads as text. The read returns the envelope `{bytes_base64, len}`, the single-island
+`with:` binding passes it typed, and `nika:write` decodes it: the same tasks, paths, permits
+and stated plan as the text lowering, another program. Anywhere else the byte lowering emits
+no candidate (a `lowering` refusal, status `Refused`), and no other plan gains an option.
+Each lowering crosses its own ledger, fidelity laws, literal round trip and Check, so each
+candidate is its own bytes and its own identity; nothing is rewritten after READY. The
+envelope holds the whole file as base64 (`4·⌈n/3⌉` characters for `n` bytes) in the read's
+output, its binding and the trace, and the write writes the same `n` bytes as the text
+lowering. The suffix bounds the shape and proves no encoding; only a run shows the bytes
+copied. Both lowerings state one plan and so one plan signature: a door that wants both
+calls `assemble_lowered` once per lowering, each on its own outcome, and hands each
+candidate to the rehearsal host. No door does so yet.
 
 ## Source basis of a candidate
 
