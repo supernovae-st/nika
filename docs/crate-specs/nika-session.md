@@ -490,16 +490,24 @@ a workflow, a reply or retrieved context.
 |---|---|
 | `NIKA_<PROVIDER>_API_KEY` or the catalog's variable (`DEEPSEEK_API_KEY` …) | Presence only, for the census; the provider client reads the value when it calls |
 | `~/.nika/session-intelligence.json` | The kept choice (kind · model · time); a corrupt file reads as never chosen |
-| `NIKA_AUTHORING_STRATEGY` · `NIKA_KNOWLEDGE` · `NIKA_KNOWLEDGE_EXCLUDE` | The authoring context, through the parser `nika compile` uses; a named snapshot is opened and pinned now. `NIKA_KNOWLEDGE_PACK` is refused: a pack was composed for one request |
+| `NIKA_AUTHORING_STRATEGY` · `NIKA_KNOWLEDGE` · `NIKA_KNOWLEDGE_EXCLUDE` | The shared authoring configuration: a trusted named release or the embedded default is admitted and pinned when the context opens. Knowledge off attaches nothing; strategy off with no source is unread. `NIKA_KNOWLEDGE_PACK` is refused: a pack was composed for one request |
 | `NIKA_AUTHORING_REASONING` | The explicit reasoning effort every seated authoring call asks (`low` · `high` · `max`), through the same parser; a host's typed word outranks it |
 | `NIKA_SESSION_DECISION_MODEL` with `TYPESAFE_API_KEY` | The optional decision seat (`typesafe/<jev>` only) |
 | `NIKA_TUI` | `0` · `off` · `false` · `no` · `plain` keep bare `nika` on the plain loop |
 
-There is no provider credential store and no default knowledge location. A
-clean install therefore presents no snapshot: native authoring composes the
-embedded language card, the request, answers and observed world. Release
-archives carry no snapshot. An operator who wants these values in every
-session sets them in the login environment.
+There is no provider credential store. The default knowledge needs no filesystem
+location: `AuthoringContext::default()` resolves and pins the release embedded
+in the binary, with an independently trusted build identity. The current release
+makes three blocks available but composes zero references and zero repair
+principles, so it adds no reference material to the language card, request,
+answers and observed world. Deterministic authoring presents no knowledge to a
+model. Explicit knowledge off and strategy off with nothing named compose none.
+A named source must be admitted against the host's trusted identity; a missing
+identity or invalid release refuses without falling back to the embedded one.
+See the [shared knowledge door](nika-onboard.md#shared-authoring-knowledge-door)
+and [pin migration](nika-onboard.md#the-knowledge-pin-and-its-records-read-by-session)
+for the typed choices and disk/embedded origins. Operator overrides are read
+from the login environment when the door opens.
 
 ## Explicit authoring reasoning (R4 B16 · C11)
 

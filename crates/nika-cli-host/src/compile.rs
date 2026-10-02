@@ -89,8 +89,8 @@ pub struct CompileArgs {
     #[arg(long, requires = "authoring_model")]
     pub knowledge: Option<std::path::PathBuf>,
     /// A corpus whose examples the knowledge door never recalls (a benchmark's own), for the
-    /// snapshot `--knowledge` or `NIKA_KNOWLEDGE` names; refused when neither names one.
-    /// `NIKA_KNOWLEDGE_EXCLUDE` in the environment names one when the flag is absent.
+    /// release `--knowledge` or `NIKA_KNOWLEDGE` names, else the embedded one; refused where no
+    /// release is read. `NIKA_KNOWLEDGE_EXCLUDE` in the environment names one without the flag.
     #[arg(long, requires = "authoring_model")]
     pub knowledge_exclude: Option<String>,
     /// A pack another builder composed for one intent: refused, since the knowledge door enters
@@ -218,7 +218,7 @@ pub fn run_with(args: &CompileArgs, authority: &AuthoringAuthority) -> VerbOutpu
         Ok(setup) => setup,
         Err(failure) => return failure,
     };
-    // Every free-intent door grounds the keys a rule reads in what the host observes (R4 S1):
+    // Every free-intent door grounds the keys a rule reads in what the host observes:
     // the deterministic door too, never only a seat; a named skeleton or template reads no file.
     if !named && let Ok(root) = std::env::current_dir() {
         request = observed_world(&root, &effective_intent(args, cognition), request);
@@ -268,7 +268,7 @@ pub fn run_with(args: &CompileArgs, authority: &AuthoringAuthority) -> VerbOutpu
             },
         );
     }
-    // A named destination this compile did not write (R4 A6): what is there remains; only its
+    // A named destination this compile did not write: what is there remains; only its
     // presence is read, never through a link, never its bytes.
     let existing = dest
         .filter(|path| written.is_none() && Path::new(path.as_str()).symlink_metadata().is_ok())
@@ -321,7 +321,7 @@ struct Setup {
 
 /// The request the arguments state: an edit of the base (with the original intent beside it
 /// when stated) or a creation (named after its destination), the HOT policy, the answers, and
-/// the money the operator states in its words, which this door meters for no seat (R4 B15).
+/// the money the operator states in its words, which this door meters for no seat.
 fn build_request(args: &CompileArgs, dest: Option<&String>) -> Result<CompileRequest, VerbOutput> {
     let mut request = if let Some(base) = &args.base {
         let source = match std::fs::read_to_string(base) {
@@ -498,8 +498,9 @@ mod tests {
     }
 
     /// A held-out corpus named on the command line guards the snapshot the environment names:
-    /// the door's own resolver carries it whatever side names the snapshot, and refuses it when
-    /// no snapshot is named at all — never a silent, unguarded evaluation.
+    /// the door's own resolver carries it whatever side names the snapshot, guards this build's
+    /// embedded release when none is named, and refuses it where no release is read — never a
+    /// silent, unguarded evaluation.
     #[test]
     fn an_explicit_exclusion_reaches_the_environments_snapshot_through_the_door() {
         let args = parse(&[
@@ -547,13 +548,32 @@ mod tests {
             })
         );
         assert_eq!(resolved.strategy, nika_onboard::compile::NativeMode::Only);
-        // No snapshot anywhere: the exclusion is refused, not dropped.
+        // No release named: the exclusion guards this build's embedded release, never dropped.
         let args = parse(&[
             "x",
             "--authoring-model",
             "mock/echo",
             "--knowledge-exclude",
             "heldout",
+        ]);
+        assert_eq!(
+            config::resolve(
+                &explicit_settings(&args),
+                &config::AuthoringSettings::none()
+            )
+            .map(|resolved| resolved.knowledge),
+            Ok(Some(config::KnowledgeSource::Embedded {
+                exclude_corpus: Some("heldout".to_owned()),
+            }))
+        );
+        // With the knowledge off no release is read: the exclusion is refused, not dropped.
+        let args = parse(&[
+            "x",
+            "--authoring-model",
+            "mock/echo",
+            "--knowledge-exclude",
+            "heldout",
+            "--no-knowledge",
         ]);
         assert_eq!(
             config::resolve(
@@ -603,8 +623,8 @@ mod tests {
         assert!(Door::try_parse_from(["compile", "x", "--no-knowledge"]).is_err());
     }
 
-    /// Every free-intent door carries the host observation of the files its request states (R4
-    /// S1): the bounded, project-confined observer's keys and short repeated values only. An
+    /// Every free-intent door carries the host observation of the files its request states:
+    /// the bounded, project-confined observer's keys and short repeated values only. An
     /// absent file and a link out of the project are named states, never keys, and a unique
     /// secret-like value never leaves its file.
     #[test]

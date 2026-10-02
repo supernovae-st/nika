@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The explicit reasoning effort a Session names (R4 B16 · C11): resolved once by the shared
+//! The explicit reasoning effort a Session names: resolved once by the shared
 //! parser, kept in the context (bound into its identity only when named), said at `/status`, and
 //! asked on every provider-seated authoring and repair call, as the exact bytes the provider
 //! client dispatched show on a direct `DeepSeek` route the catalog qualifies. Loopback mechanics
@@ -9,6 +9,7 @@
 
 use nika_cli_host::compile::config::{AuthoringSettings, ConfigError};
 use nika_onboard::compile::{AuthoringReasoning, CompileOutcome, CompileRequest};
+use nika_onboard::knowledge::pin::KnowledgePin;
 use nika_providers::InferenceAdmission;
 use serde_json::{Value, json};
 
@@ -97,11 +98,21 @@ fn carries_the_observation(body: &Value) {
 }
 
 #[test]
-fn a_context_naming_no_effort_keeps_every_identity_it_hashed() {
-    // The derived form every question identity and unknown-cost binding hashed before C11.
+fn a_context_naming_no_effort_hashes_its_derived_form_and_the_default_names_its_pin() {
+    // The derived form every question identity and unknown-cost binding hashes, with no effort
+    // field while none is named: a context reading no knowledge names none, and the default names
+    // the embedded release it pinned (its identity changed when the release was embedded).
+    let off = host(&AuthoringSettings::none().with_knowledge_off());
+    assert_eq!(
+        format!("{off:?}"),
+        "AuthoringContext { strategy: Escalate, knowledge: None, refusal: None, source: \"host\", decision: None, project: None }"
+    );
+    let pin = KnowledgePin::embedded(None).expect("this build's embedded release");
     assert_eq!(
         format!("{:?}", AuthoringContext::default()),
-        "AuthoringContext { strategy: Escalate, knowledge: None, refusal: None, source: \"default\", decision: None, project: None }"
+        format!(
+            "AuthoringContext {{ strategy: Escalate, knowledge: Some({pin:?}), refusal: None, source: \"default\", decision: None, project: None }}"
+        )
     );
     let named = format!(
         "{:?}",
@@ -259,6 +270,37 @@ fn a_session_naming_no_effort_sends_what_it_sent_before() {
     for (call, reasoning) in recorded(&out.expect("an outcome")) {
         assert_eq!(reasoning["configured"], Value::Null, "{call}");
     }
+}
+
+/// The seated change a default session makes, real and stated: it composes the embedded release
+/// for its request and records it beside the outcome — admitted, composed, and with no reference,
+/// since this payload holds no pattern — while every byte the seat receives is the byte a session
+/// reading no knowledge sends.
+#[test]
+fn a_default_session_records_the_embedded_release_and_sends_what_knowledge_off_sends() {
+    let round = AuthoringRound::new(REQUEST);
+    let (out, bodies) = dispatched(&AuthoringContext::default(), QUALIFIED, &round);
+    let off = host(&AuthoringSettings::none().with_knowledge_off());
+    let (unread, unread_bodies) = dispatched(&off, QUALIFIED, &round);
+    assert!(!bodies.is_empty(), "the seat was asked");
+    assert_eq!(
+        bodies, unread_bodies,
+        "the embedded release moves no byte the seat reads"
+    );
+    let stamped = |out: Result<CompileOutcome, AuthoringError>| {
+        let decision = out.expect("an outcome").provenance.decision;
+        decision.expect("stamped")["session"]["authoring"]["knowledge"].clone()
+    };
+    let record = stamped(out);
+    assert_eq!(record["identity"]["source"], "embedded", "{record}");
+    assert_eq!(
+        record["identity"]["snapshot_sha256"],
+        "5bcd108a78e9fbb6e27827b34d8090b74f6285a125cdcef812b33dd51738e692"
+    );
+    assert!(record["identity"].get("dir").is_none(), "{record}");
+    assert_eq!(record["references"], json!([]), "composed, empty: {record}");
+    assert!(record["presented"].is_boolean(), "{record}");
+    assert!(stamped(unread).is_null(), "knowledge off attaches nothing");
 }
 
 #[test]

@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Admit the issued knowledge release through the public memory and disk doors.
+//! Admit the issued knowledge release, as this build embeds it (`bundled`'s table), through the
+//! public memory and disk doors, against the owner's identity written out here.
 
 use std::collections::BTreeMap;
 
-use super::super::{Snapshot, fixture};
+use super::super::{Snapshot, bundled, fixture};
 use super::TrustedIdentity;
 
 // The release owner's issued identity, independent of the payload's own declarations.
@@ -15,67 +16,8 @@ const EXPECTED_POLICY_SHA256: &str =
     "5b567a1557ba430fe57fe9a80934de29b2b09805d4cf26b4868e3395c8795465";
 const EXPECTED_PROFILE: &str = "nika-knowledge-release-profile/r1";
 
-const FILES: [(&str, &[u8]); 14] = [
-    (
-        "LICENSES/AGPL-3.0-or-later.txt",
-        include_bytes!("../../../tests/knowledge-real-release/LICENSES/AGPL-3.0-or-later.txt"),
-    ),
-    (
-        "NOTICE.md",
-        include_bytes!("../../../tests/knowledge-real-release/NOTICE.md"),
-    ),
-    (
-        "blocks/run-deterministic.nika",
-        include_bytes!("../../../tests/knowledge-real-release/blocks/run-deterministic.nika"),
-    ),
-    (
-        "blocks/typed-inputs-outputs.nika",
-        include_bytes!("../../../tests/knowledge-real-release/blocks/typed-inputs-outputs.nika"),
-    ),
-    (
-        "blocks/when-skipped-fallback.nika",
-        include_bytes!("../../../tests/knowledge-real-release/blocks/when-skipped-fallback.nika"),
-    ),
-    (
-        "knowledge/blocks.jsonl",
-        include_bytes!("../../../tests/knowledge-real-release/knowledge/blocks.jsonl"),
-    ),
-    (
-        "knowledge/diagnostics.jsonl",
-        include_bytes!("../../../tests/knowledge-real-release/knowledge/diagnostics.jsonl"),
-    ),
-    (
-        "knowledge/families.jsonl",
-        include_bytes!("../../../tests/knowledge-real-release/knowledge/families.jsonl"),
-    ),
-    (
-        "knowledge/manifest.json",
-        include_bytes!("../../../tests/knowledge-real-release/knowledge/manifest.json"),
-    ),
-    (
-        "knowledge/pattern_packs.jsonl",
-        include_bytes!("../../../tests/knowledge-real-release/knowledge/pattern_packs.jsonl"),
-    ),
-    (
-        "knowledge/patterns.jsonl",
-        include_bytes!("../../../tests/knowledge-real-release/knowledge/patterns.jsonl"),
-    ),
-    (
-        "knowledge/relations.jsonl",
-        include_bytes!("../../../tests/knowledge-real-release/knowledge/relations.jsonl"),
-    ),
-    (
-        "knowledge/repair_principles.jsonl",
-        include_bytes!("../../../tests/knowledge-real-release/knowledge/repair_principles.jsonl"),
-    ),
-    (
-        "knowledge/source_artifacts.jsonl",
-        include_bytes!("../../../tests/knowledge-real-release/knowledge/source_artifacts.jsonl"),
-    ),
-];
-
 fn files() -> BTreeMap<String, Vec<u8>> {
-    FILES
+    bundled::FILES
         .into_iter()
         .map(|(path, bytes)| (path.to_owned(), bytes.to_vec()))
         .collect()

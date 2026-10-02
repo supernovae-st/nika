@@ -15,10 +15,11 @@ mod common;
 
 use common::{Foundry, INTENT, SEAT_MODEL};
 use nika_cli_host::compile::config::{
-    self, AuthoringSettings, ConfigError, KnowledgeChoice, KnowledgeLayer, NO_DEFAULT,
+    self, AuthoringSettings, ConfigError, KnowledgeChoice, KnowledgeLayer,
 };
 use nika_cli_host::compile::knowledge::{KnowledgeError, RefusalCode, Snapshot, TrustedIdentity};
 use nika_onboard::compile::{CompileRequest, NativeMode};
+use nika_onboard::knowledge::pin::KnowledgeOrigin;
 use nika_session::authoring::{
     AuthoringContext, AuthoringContextError, AuthoringError, AuthoringRound, AuthoringSeat,
     compile_in,
@@ -56,7 +57,22 @@ fn nothing_named_is_the_cli_default_and_a_host_names_its_own() {
         NativeMode::Escalate,
         "the CLI's default"
     );
-    assert!(default.knowledge().is_none() && default.refusal().is_none());
+    // Nothing named is the release this build embeds, pinned in memory: no path.
+    let pin = default.knowledge().expect("the embedded release, pinned");
+    assert_eq!(pin.origin, KnowledgeOrigin::Embedded);
+    assert_eq!(
+        pin.manifest_sha256,
+        "5bcd108a78e9fbb6e27827b34d8090b74f6285a125cdcef812b33dd51738e692"
+    );
+    assert!(default.refusal().is_none());
+    assert_eq!(default.knowledge_choice(), &KnowledgeChoice::Default);
+    assert!(
+        default
+            .line()
+            .contains(" · admitted · embedded · presented only under a selected model seat"),
+        "{}",
+        default.line()
+    );
     let none =
         AuthoringContext::from_settings(&AuthoringSettings::none(), &AuthoringSettings::none());
     assert_eq!(none, default);
@@ -159,9 +175,22 @@ fn a_held_out_corpus_named_by_the_environment_guards_the_hosts_release() {
         "the held-out corpus is never recalled: {:#}",
         pack.selection
     );
-    // Named with no snapshot anywhere, the exclusion is refused, never dropped.
-    let unguarded = AuthoringContext::from_settings(
+    // Named with no release anywhere, it guards the embedded one, never dropped.
+    let embedded = AuthoringContext::from_settings(
         &AuthoringSettings::none().with_knowledge_exclude("dev"),
+        &AuthoringSettings::none(),
+    );
+    assert_eq!(
+        embedded
+            .knowledge()
+            .and_then(|p| p.exclude_corpus.as_deref()),
+        Some("dev")
+    );
+    // With the knowledge off there is nothing to exclude it from: refused, never dropped.
+    let unguarded = AuthoringContext::from_settings(
+        &AuthoringSettings::none()
+            .with_knowledge_exclude("dev")
+            .with_knowledge_off(),
         &AuthoringSettings::none(),
     );
     assert_eq!(
@@ -391,10 +420,10 @@ fn a_deterministic_seat_composes_and_presents_nothing_and_calls_no_one() {
     assert!(out.provenance.authoring.is_none());
 }
 
-/// Knowledge off and no default are said, typed, never a silent card alone; off beside a
-/// source on one layer is refused; the explicit layer's off wins over the environment's release.
+/// Knowledge off and unread are said, typed, never a silent card alone; off beside a source on
+/// one layer is refused; the explicit layer's off wins over the environment's release.
 #[test]
-fn knowledge_off_and_no_default_are_stated_and_a_contradiction_is_refused() {
+fn knowledge_off_and_unread_are_stated_and_a_contradiction_is_refused() {
     let dir = tempfile::tempdir().unwrap();
     let foundry = Foundry::create(dir.path());
     let env_word = AuthoringSettings::none().with_knowledge("off", None);
@@ -433,9 +462,18 @@ fn knowledge_off_and_no_default_are_stated_and_a_contradiction_is_refused() {
         "{}",
         explicit.line()
     );
-    let none = AuthoringContext::default();
-    assert_eq!(none.knowledge_choice(), &KnowledgeChoice::NoDefault);
-    assert!(none.line().contains(NO_DEFAULT), "{}", none.line());
+    // The strategy `off` with nothing named reads nothing: no pin, no refusal, said.
+    let unread = AuthoringContext::from_settings(
+        &AuthoringSettings::none().with_strategy("off"),
+        &AuthoringSettings::none(),
+    );
+    assert_eq!(unread.knowledge_choice(), &KnowledgeChoice::Unread);
+    assert!(unread.knowledge().is_none() && unread.refusal().is_none());
+    assert!(
+        unread.line().contains(&KnowledgeChoice::Unread.words()),
+        "{}",
+        unread.line()
+    );
     let contradiction = AuthoringContext::from_settings(
         &AuthoringSettings::none(),
         &env_word.with_knowledge_pack(dir.path().join("pack.json")),

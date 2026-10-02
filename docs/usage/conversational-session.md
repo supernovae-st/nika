@@ -357,22 +357,27 @@ startup file as your key. The walkthroughs above need none of them.
 | Variable | Effect |
 |---|---|
 | `NIKA_AUTHORING_STRATEGY` | When the model writes the workflow itself: `escalate` (default), `only`, `sketch` or `off` |
-| `NIKA_KNOWLEDGE` | A Foundry knowledge release root: refused until a qualified identity source is wired, since the environment carries no trusted identity; the exact word `off` turns knowledge off |
-| `NIKA_KNOWLEDGE_EXCLUDE` | A corpus in that snapshot whose examples are never recalled |
+| `NIKA_KNOWLEDGE` | An optional Foundry release root; the environment carries no trusted identity, so a named root is refused with `ADMISSION_UNTRUSTED`. Unset uses the embedded release; the exact word `off` disables knowledge |
+| `NIKA_KNOWLEDGE_EXCLUDE` | A corpus whose examples are never recalled from the selected release, including the embedded default |
 | `NIKA_SESSION_DECISION_MODEL` | An optional decision model; only `typesafe/<model>` (Jev) is supported, with `TYPESAFE_API_KEY` |
 
-**Knowledge releases.** Public releases do not include a knowledge release
-yet: without one, `/status` says there is no default knowledge in this build,
-and authoring uses the language card built into the binary. A release is
-admitted only against the identity its host trusts: `NIKA_KNOWLEDGE` names a
-root but carries no identity, so the Session refuses it with its cause
-(`ADMISSION_UNTRUSTED`) and its seated turns send nothing. A host that embeds the
-Session names the release with the identity from its own release record; the
-Session then admits it through the strict door and pins it when it opens; a
-release that fails any rule is refused with its cause, never read in part. It
-refuses to author if the release changes underneath it. `/status` and `/details` show the pin and what was
-presented to the model. A record that references were presented is not proof
-that results improved.
+**Knowledge releases.** By default, the Session admits the release embedded in
+its binary against the build's trusted identity and pins it when it opens.
+`/status` names that identity and its embedded origin. The release contains three
+blocks, but its current composition selects none: it adds zero reference material
+or repair principles to model requests. A recorded pack identity, including
+`presented: true` with an empty reference list, is not evidence that knowledge
+helped the model. Deterministic authoring does not present it to a model.
+
+`NIKA_KNOWLEDGE=off` disables knowledge. With authoring strategy `off` and no
+source named, the choice is unread and composes nothing; naming a source under
+that strategy is refused. A host embedding the Session can name a disk release
+with the trusted identity from its own release record. The environment cannot
+supply that identity, so a root named only by `NIKA_KNOWLEDGE` is refused with
+`ADMISSION_UNTRUSTED`. A named release that lacks trust or fails admission never
+falls back to the embedded release. A release that changes after it was pinned
+is also refused before authoring. `/details` records what was actually presented,
+separately from the release available to the Session.
 
 **Jev.** The decision model is consulted only when the compiler faces a finite
 choice it cannot settle alone. For example: does a clause ask for a search, a
@@ -388,9 +393,9 @@ is a third-party service with its own account and terms.
 - Nika is pre-1.0. The conversational path was qualified on six synthetic
   journeys with one installed macOS build, recorded in the
   [qualification note](../qa/delivery-a-2026-09.md). That installation also
-  used a knowledge snapshot and Jev, which public releases do not include. It
-  does not establish correctness for arbitrary requests, platforms or
-  providers.
+  used a knowledge snapshot and Jev; this historical note does not qualify the
+  current embedded knowledge release. It does not establish correctness for
+  arbitrary requests, platforms or providers.
 - Some requests cannot be expressed yet. Nika then says what stopped it and
   what could help, and writes nothing.
 - A clean check describes the file's structure and boundary. It does not prove

@@ -1,21 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The authoring configuration every door that seats the compiler shares: WHEN the seat writes
-//! the candidate itself (the compiler's own [`NativeMode`], the `--authoring-strategy` word) and
-//! WHICH knowledge it reads beside the card (a Foundry snapshot directory the door composes a pack
-//! from per intent, or a pack another builder composed for one intent). One parser: `nika compile`
-//! resolves its flags and the environment through [`resolve`], the session resolves a host's typed
-//! values and the environment it read once at its open through the same function. A door's own
-//! explicit values win over the environment's; a knowledge source under `off` is refused, never
-//! carried unread (only the native door reads knowledge). The explicit reasoning effort every
-//! seat asks for is resolved the same way, and every door bounds and builds one seat's policy
-//! through [`call_bounds`] and [`AuthoringConfig::policy`] (R4 B16).
+//! The authoring configuration every door that seats the compiler shares: WHEN the seat writes the
+//! candidate itself (the compiler's own [`NativeMode`], the `--authoring-strategy` word) and WHICH
+//! knowledge it reads beside the card (a Foundry snapshot directory the door composes a pack from
+//! per intent, the release this build embeds, or a pack another builder composed for one intent).
+//! One parser: `nika compile` resolves its flags and the environment through [`resolve`], the
+//! session resolves a host's typed values and the environment it read once at its open through the
+//! same function. A door's own explicit values win over the environment's; a knowledge source under
+//! `off` is refused, never carried unread (only the native door reads knowledge). The explicit
+//! reasoning effort every seat asks for is resolved the same way, and every door bounds and builds
+//! one seat's policy through [`call_bounds`] and [`AuthoringConfig::policy`].
 //!
 //! The knowledge choice is typed ([`KnowledgeChoice`]) and every door resolves it alike: the
 //! first layer that says anything decides — the door's own explicit values, else the
-//! environment's — and nothing said anywhere is this build's default, which holds no knowledge
-//! until a qualified release is embedded ([`KnowledgeChoice::NoDefault`], said, never silent).
+//! environment's — and nothing said anywhere is this build's default: the release it embeds
+//! ([`KnowledgeChoice::Default`]), admitted like any release, or nothing read under the strategy
+//! `off` ([`KnowledgeChoice::Unread`]); said, never silent. A source named and refused never
+//! falls back to it.
 //! Knowledge is turned off by `--no-knowledge` on a door's own layer, or by the exact
 //! environment word `NIKA_KNOWLEDGE=off`; off beside a source on the same layer is refused.
 //!
@@ -127,6 +129,12 @@ pub enum KnowledgeSource {
         /// The pack file (JSON).
         file: PathBuf,
     },
+    /// The release this build embeds, read where nothing names knowledge: no path, its identity
+    /// the build's own issued constants, admitted by the strict memory door at every use.
+    Embedded {
+        /// A corpus whose examples are never recalled (a benchmark's own), as for any release.
+        exclude_corpus: Option<String>,
+    },
 }
 
 /// The settings layer that decided a knowledge choice.
@@ -153,10 +161,6 @@ impl KnowledgeLayer {
 /// The word `NIKA_KNOWLEDGE` takes, exactly, to turn the knowledge off.
 pub const KNOWLEDGE_OFF: &str = "off";
 
-/// What the knowledge is when nothing names any and no qualified release is embedded.
-pub const NO_DEFAULT: &str =
-    "no default knowledge in this build (no qualified release is embedded)";
-
 /// What a door resolved for its authoring knowledge, before any byte is read.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -174,9 +178,12 @@ pub enum KnowledgeChoice {
         /// The layer that turned it off.
         by: KnowledgeLayer,
     },
-    /// Nothing named anywhere and no qualified release embedded in this build: a stated
-    /// development state ([`NO_DEFAULT`]), never a claim that the release ships its knowledge.
-    NoDefault,
+    /// Nothing named anywhere: the release this build embeds ([`KnowledgeSource::Embedded`]),
+    /// admitted like any release and composed where the strategy reads knowledge.
+    Default,
+    /// Nothing named anywhere under the strategy `off`: no knowledge is read, the compile is the
+    /// pure one.
+    Unread,
 }
 
 impl KnowledgeChoice {
@@ -191,7 +198,8 @@ impl KnowledgeChoice {
             Self::Disabled {
                 by: KnowledgeLayer::Environment,
             } => format!("knowledge off (NIKA_KNOWLEDGE={KNOWLEDGE_OFF})"),
-            Self::NoDefault => NO_DEFAULT.to_owned(),
+            Self::Default => "knowledge embedded (default)".to_owned(),
+            Self::Unread => "knowledge unread (strategy off)".to_owned(),
         }
     }
 }
@@ -251,12 +259,14 @@ impl AuthoringSettings {
         self
     }
 
-    /// The reasoning effort word alone: all a door without an authoring seat reads (a decision
-    /// seat asks the effort; the strategy and the knowledge are an authoring seat's).
+    /// The reasoning effort word alone, with the knowledge off on this layer: all a door without
+    /// an authoring seat reads (a decision seat asks the effort; the strategy and the knowledge
+    /// are an authoring seat's), so it composes nothing, the embedded release included.
     #[must_use]
     pub fn reasoning_only(&self) -> Self {
         Self {
             reasoning: self.reasoning.clone(),
+            knowledge_off: true,
             ..Self::none()
         }
     }
@@ -342,16 +352,17 @@ impl AuthoringSettings {
 pub struct AuthoringConfig {
     /// When the seat writes the candidate itself.
     pub strategy: NativeMode,
-    /// The knowledge it reads beside the card, when one is named.
+    /// The knowledge it reads beside the card: a named source, or the embedded release.
     pub knowledge: Option<KnowledgeSource>,
-    /// What the knowledge resolved to and which layer decided: named, off, or no default.
+    /// What the knowledge resolved to and which layer decided: named, off, the embedded
+    /// default, or unread.
     pub choice: KnowledgeChoice,
-    /// The explicit reasoning effort every seat asks for, when one is named (R4 B16).
+    /// The explicit reasoning effort every seat asks for, when one is named.
     pub reasoning: Option<AuthoringReasoning>,
 }
 
 impl AuthoringConfig {
-    /// The policy one seat authors under, as every door builds it (R4 B16): `model` bounded by
+    /// The policy one seat authors under, as every door builds it: `model` bounded by
     /// `max_tokens` and `timeout` (checked by [`check_call_bounds`]), with this configuration's
     /// strategy and reasoning effort. Samples and repairs keep the policy's own defaults.
     ///
@@ -371,11 +382,11 @@ impl AuthoringConfig {
         })
     }
 
-    /// The knowledge door: a release the strict door admits composes the pack for the intent
-    /// the compiler reads (a revision's request with its change, a clarification's replacement),
-    /// every presented byte admitted when the release opened; a pack composed elsewhere is
-    /// refused before it is read; knowledge off or no default attaches nothing. The provenance
-    /// names the release and the selection.
+    /// The knowledge door: a release the strict door admits — named on disk, or the one this
+    /// build embeds — composes the pack for the intent the compiler reads (a revision's request
+    /// with its change, a clarification's replacement), every presented byte admitted when the
+    /// release opened; a pack composed elsewhere is refused before it is read; knowledge off or
+    /// unread attaches nothing. The provenance names the release and the selection.
     ///
     /// # Errors
     /// A release the strict door refuses ([`crate::knowledge::KnowledgeError::Unavailable`]), a
@@ -394,18 +405,33 @@ impl AuthoringConfig {
                 dir,
                 exclude_corpus,
                 identity,
-            }) => {
-                let intent = crate::compile::revise_intent(&request)
-                    .unwrap_or_else(|| fallback_intent.to_owned());
-                if intent.trim().is_empty() {
-                    return Ok(request);
-                }
-                let pack = crate::knowledge::Snapshot::open(dir, identity.as_ref())?
-                    .pack(&intent, exclude_corpus.as_deref())?;
-                Ok(request.with_authoring_knowledge(pack))
+            }) => composed(request, fallback_intent, exclude_corpus.as_deref(), || {
+                crate::knowledge::Snapshot::open(dir, identity.as_ref())
+            }),
+            Some(KnowledgeSource::Embedded { exclude_corpus }) => {
+                composed(request, fallback_intent, exclude_corpus.as_deref(), || {
+                    crate::knowledge::bundled::admit(Some(&crate::knowledge::bundled::identity()?))
+                })
             }
         }
     }
+}
+
+/// The request with the pack composed for the intent the compiler reads, from the release `open`
+/// admits — opened only for an intent with words: none attaches nothing.
+fn composed(
+    request: crate::compile::CompileRequest,
+    fallback_intent: &str,
+    exclude_corpus: Option<&str>,
+    open: impl FnOnce() -> Result<crate::knowledge::Snapshot, crate::knowledge::KnowledgeError>,
+) -> Result<crate::compile::CompileRequest, crate::knowledge::KnowledgeError> {
+    let intent =
+        crate::compile::revise_intent(&request).unwrap_or_else(|| fallback_intent.to_owned());
+    if intent.trim().is_empty() {
+        return Ok(request);
+    }
+    let pack = open()?.pack(&intent, exclude_corpus)?;
+    Ok(request.with_authoring_knowledge(pack))
 }
 
 /// Why a configuration cannot be honored.
@@ -419,8 +445,9 @@ pub enum ConfigError {
         /// The knowledge source, as named.
         source: String,
     },
-    /// A corpus exclusion is named explicitly, but no snapshot is named to exclude it from (no
-    /// knowledge, or a pack composed elsewhere): a held-out corpus is never silently unguarded.
+    /// A corpus exclusion is named explicitly, but no release is read to exclude it from
+    /// (knowledge off, a pack composed elsewhere, or nothing read under the strategy `off`): a
+    /// held-out corpus is never silently unguarded.
     ExclusionWithoutSnapshot {
         /// The corpus named.
         corpus: String,
@@ -466,13 +493,15 @@ impl std::error::Error for ConfigError {}
 
 /// Resolve a door's explicit values over the environment's: the explicit strategy, else the
 /// environment's, else [`DEFAULT_STRATEGY`]; the knowledge of the first layer that says
-/// anything — the explicit one, else the environment's — and [`KnowledgeChoice::NoDefault`] when
-/// neither does. On a layer, knowledge off beside a source is refused, and a pack comes before a
-/// snapshot; the environment's knowledge off is the exact word `NIKA_KNOWLEDGE=off`, while an
-/// explicit path named `off` is a directory. The corpus a benchmark excludes applies to
-/// whichever snapshot is named, whichever side named the corpus. Knowledge named under the
-/// strategy `off` is refused: the only door that reads it never opens. An exclusion named
-/// explicitly with no snapshot to exclude it from (no knowledge, knowledge off, a pack) is
+/// anything — the explicit one, else the environment's — and, when neither does, the release
+/// this build embeds ([`KnowledgeChoice::Default`]), or nothing read under the strategy `off`
+/// ([`KnowledgeChoice::Unread`]). On a layer, knowledge off beside a source is refused, and a
+/// pack comes before a snapshot; the environment's knowledge off is the exact word
+/// `NIKA_KNOWLEDGE=off`, while an explicit path named `off` is a directory. A named source is
+/// never replaced by the embedded release. The corpus a benchmark excludes applies to whichever
+/// release is read, the embedded one included, whichever side named the corpus. Knowledge named
+/// under the strategy `off` is refused: the only door that reads it never opens. An exclusion
+/// named explicitly with no release read to exclude it from (knowledge off, a pack, unread) is
 /// refused; the environment's, with none, simply has nothing to exclude.
 ///
 /// # Errors
@@ -494,12 +523,18 @@ pub fn resolve(
         .or(env.knowledge_exclude.as_ref());
     let choice = match layer_choice(explicit, KnowledgeLayer::Explicit, exclude)? {
         Some(choice) => choice,
-        None => layer_choice(env, KnowledgeLayer::Environment, exclude)?
-            .unwrap_or(KnowledgeChoice::NoDefault),
+        None => match layer_choice(env, KnowledgeLayer::Environment, exclude)? {
+            Some(choice) => choice,
+            None if strategy == NativeMode::Off => KnowledgeChoice::Unread,
+            None => KnowledgeChoice::Default,
+        },
     };
     let knowledge = match &choice {
         KnowledgeChoice::Named { source, .. } => Some(source.clone()),
-        KnowledgeChoice::Disabled { .. } | KnowledgeChoice::NoDefault => None,
+        KnowledgeChoice::Default => Some(KnowledgeSource::Embedded {
+            exclude_corpus: exclude.cloned(),
+        }),
+        KnowledgeChoice::Disabled { .. } | KnowledgeChoice::Unread => None,
     };
     if strategy == NativeMode::Off
         && let Some(source) = &knowledge
@@ -508,11 +543,15 @@ pub fn resolve(
             source: match source {
                 KnowledgeSource::Snapshot { dir, .. } => dir.display().to_string(),
                 KnowledgeSource::Pack { file } => file.display().to_string(),
+                KnowledgeSource::Embedded { .. } => "the embedded release".to_owned(),
             },
         });
     }
     if let Some(corpus) = &explicit.knowledge_exclude
-        && !matches!(knowledge, Some(KnowledgeSource::Snapshot { .. }))
+        && !matches!(
+            knowledge,
+            Some(KnowledgeSource::Snapshot { .. } | KnowledgeSource::Embedded { .. })
+        )
     {
         return Err(ConfigError::ExclusionWithoutSnapshot {
             corpus: corpus.clone(),
@@ -527,14 +566,14 @@ pub fn resolve(
 }
 
 /// The effort word a door's flag names, else the environment's `NIKA_AUTHORING_REASONING`
-/// (R4 B16): for a door that reads its flags once and checks the word when its seat opens.
+///: for a door that reads its flags once and checks the word when its seat opens.
 #[must_use]
 pub fn reasoning_word(flag: Option<&str>) -> Option<String> {
     flag.map(str::to_owned)
         .or_else(|| AuthoringSettings::from_env().reasoning)
 }
 
-/// The explicit reasoning effort a door's own word names, else the environment's (R4 B16):
+/// The explicit reasoning effort a door's own word names, else the environment's:
 /// `None` when neither names one. Both pass the same closed parser; the environment is not read
 /// for a level the door names.
 ///
@@ -605,10 +644,54 @@ mod tests {
     }
 
     #[test]
-    fn nothing_named_is_the_default_strategy_without_knowledge() {
+    fn nothing_named_is_the_default_strategy_and_the_embedded_release() {
         let config = resolve(&AuthoringSettings::none(), &AuthoringSettings::none()).unwrap();
         assert_eq!(config.strategy, NativeMode::Escalate);
+        assert_eq!(config.choice, KnowledgeChoice::Default);
+        assert_eq!(
+            config.knowledge,
+            Some(KnowledgeSource::Embedded {
+                exclude_corpus: None
+            })
+        );
+    }
+
+    /// A door without an authoring seat reads the effort alone: its layer turns the knowledge
+    /// off, so neither a named release nor the embedded one is composed.
+    #[test]
+    fn a_door_without_an_authoring_seat_reads_the_effort_and_composes_nothing() {
+        let named = AuthoringSettings::none()
+            .with_strategy("only")
+            .with_knowledge("/flag/snap", None)
+            .with_reasoning("max");
+        assert_eq!(
+            named.reasoning_only(),
+            AuthoringSettings::none()
+                .with_reasoning("max")
+                .with_knowledge_off()
+        );
+        let env = AuthoringSettings::none()
+            .with_knowledge("/env/snap", None)
+            .with_reasoning("high");
+        let config = resolve(&named.reasoning_only(), &env.reasoning_only()).unwrap();
+        assert_eq!(
+            config.choice,
+            KnowledgeChoice::Disabled {
+                by: KnowledgeLayer::Explicit
+            }
+        );
         assert_eq!(config.knowledge, None);
+        assert_eq!(config.strategy, DEFAULT_STRATEGY);
+        assert_eq!(config.reasoning, Some(AuthoringReasoning::Max));
+        let config = resolve(
+            &AuthoringSettings::none().reasoning_only(),
+            &env.reasoning_only(),
+        )
+        .unwrap();
+        assert_eq!(
+            (config.knowledge, config.reasoning),
+            (None, Some(AuthoringReasoning::High))
+        );
     }
 
     /// `NIKA_KNOWLEDGE=off`, as the environment's raw word reaches the parser, resolves to no
@@ -674,25 +757,33 @@ mod tests {
                 identity: None,
             })
         );
-        // No snapshot to exclude it from (nothing, or a pack composed elsewhere): refused.
-        for env in [
-            AuthoringSettings::none(),
-            AuthoringSettings::none().with_knowledge_pack("/env/pack.json"),
-        ] {
-            assert_eq!(
-                resolve(&explicit, &env),
-                Err(ConfigError::ExclusionWithoutSnapshot {
-                    corpus: "heldout".to_owned()
-                })
-            );
-        }
-        // The environment's own exclusion with no snapshot has nothing to exclude.
+        // Nothing named: it guards the release this build embeds, never dropped.
+        let embedded = Some(KnowledgeSource::Embedded {
+            exclude_corpus: Some("heldout".to_owned()),
+        });
+        assert_eq!(
+            resolve(&explicit, &AuthoringSettings::none())
+                .unwrap()
+                .knowledge,
+            embedded
+        );
+        // A pack composed elsewhere reads no release to exclude it from: refused.
+        assert_eq!(
+            resolve(
+                &explicit,
+                &AuthoringSettings::none().with_knowledge_pack("/env/pack.json")
+            ),
+            Err(ConfigError::ExclusionWithoutSnapshot {
+                corpus: "heldout".to_owned()
+            })
+        );
+        // The environment's own exclusion guards the embedded release the same way.
         let ambient = AuthoringSettings::none().with_knowledge_exclude("heldout");
         assert_eq!(
             resolve(&AuthoringSettings::none(), &ambient)
                 .unwrap()
                 .knowledge,
-            None
+            embedded
         );
     }
 
@@ -709,11 +800,12 @@ mod tests {
         let error = resolve(&unread, &AuthoringSettings::none()).unwrap_err();
         assert!(matches!(error, ConfigError::KnowledgeUnread { .. }));
         assert!(error.to_string().contains("never reads it"), "{error}");
-        // `off` without knowledge stays a legitimate ablation.
+        // `off` without knowledge stays a legitimate ablation: nothing read, the pure compile.
         let off = AuthoringSettings::none().with_strategy("off");
+        let config = resolve(&off, &AuthoringSettings::none()).unwrap();
         assert_eq!(
-            resolve(&off, &AuthoringSettings::none()).unwrap().strategy,
-            NativeMode::Off
+            (config.strategy, config.choice, config.knowledge),
+            (NativeMode::Off, KnowledgeChoice::Unread, None)
         );
     }
 

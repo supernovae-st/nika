@@ -43,3 +43,6 @@
 # GitHub Linguist has no Nika language entry; map programs to YAML for
 # display only. This is not a Nika semantic claim (#1684).
 *.nika linguist-language=YAML
+
+# Embedded release identities hash the distributed bytes.
+crates/nika-onboard/assets/knowledge-release/** -text

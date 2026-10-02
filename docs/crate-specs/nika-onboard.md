@@ -43,23 +43,27 @@ keeps the hand · the proof inside the first minute):
 
 `compile_config::resolve` types the knowledge choice every door shares
 (`KnowledgeChoice`): the first settings layer that says anything decides (a
-door's own explicit values, else the environment's), a named source is
-`Named`, `--no-knowledge` or the exact environment word `NIKA_KNOWLEDGE=off`
-is `Disabled` with the layer that said it, and nothing said anywhere is
-`NoDefault` — no qualified release is embedded in this build, and the state is
-said, never presented as knowledge. Off beside a source on one layer is
-refused (`ConfigError::ContradictoryKnowledge`); an explicit path named `off`
-stays a directory. `AuthoringConfig::with_knowledge` applies the choice to a
-request: an admitted release composes the pack, a pack composed elsewhere is
-refused before it is read (`KnowledgeError::PackNotAdmitted`), off and no
-default attach nothing. Revision intent takes precedence over the caller's
-clarified fallback. CLI, Session and Serve cross this one door. A named release
-is admitted only against the identity its host trusts (`TrustedIdentity`,
-named on the host's own layer with `AuthoringSettings::with_knowledge_release`
-from its own release record, never read from the release). Flags and the
-environment carry none, so a directory they name is refused
-(`ADMISSION_UNTRUSTED`) until a qualified identity source is wired; nothing
-falls back.
+door's own explicit values, else the environment's). A named source is `Named`;
+`--no-knowledge` or the exact environment word `NIKA_KNOWLEDGE=off` is `Disabled`
+with the layer that said it. With nothing named, `Default` selects
+`KnowledgeSource::Embedded`: the release in this binary, admitted in memory
+against an identity fixed by the build and pinned when a Session opens. Under
+strategy `off`, nothing named is `Unread` and attaches no knowledge. Naming a
+source under that strategy is refused (`ConfigError::KnowledgeUnread`). Off
+beside a source on one layer is refused (`ConfigError::ContradictoryKnowledge`);
+an explicit path named `off` stays a directory.
+
+`AuthoringConfig::with_knowledge` composes an admitted release for the request's
+intent; a revision takes precedence over the caller's clarified fallback. An
+empty intent composes nothing. A pack composed elsewhere is refused before it
+is read (`KnowledgeError::PackNotAdmitted`); disabled or unread knowledge
+attaches nothing. CLI, Session and Serve cross this one door. A named release
+requires the identity its host independently trusts (`TrustedIdentity`, supplied
+with `AuthoringSettings::with_knowledge_release` from the host's release record,
+never from the payload). Flags and the environment carry no identity, so a root
+they name is refused (`ADMISSION_UNTRUSTED`). A named source that lacks trust or
+fails admission never falls back to the embedded release. An invalid embedded
+release also refuses with its typed cause; it is not treated as absent.
 
 `knowledge` owns the strict admission of a Foundry knowledge release
 (`nika-knowledge-release/2`, profile `nika-knowledge-release-profile/r1`: the
@@ -86,7 +90,12 @@ bound to the verifier that checked its bytes; every other kind carries `NONE`.
 The non-default `test-support` feature exposes a synthetic release (and the
 identity its test embedder trusts) for other doors' tests.
 Selection, exclusion reasons, presented references and byte identities remain
-observable.
+observable. The embedded release contains three blocks, but no patterns or
+relations make them selectable: its packs contain zero references and zero
+repair principles. A native record with `presented: true` and `references: []`
+records the pack identity, not useful reference material. Deterministic
+compilation does not present knowledge to a model. Availability alone does not
+establish informed generation or better results.
 `nika-cli-host::compile::knowledge` re-exports the same types and functions for
 existing callers. The existing L4 edge remains acyclic; no new crate or compiler
 is introduced. `nika-event` supplies the existing shared SHA-256 byte identity.
@@ -236,8 +245,21 @@ and the stamp beside the compiler's own record (`stamp`). It descended from
 re-exports the same type. Nothing here reads the environment, calls a model or
 decides a policy: the session keeps its seat, its strategy and its consent.
 A pin carries the identity its release was admitted against: `KnowledgePin::of_config`
-pins the release a resolved configuration names and `KnowledgePin::reopen` admits it again
-against that identity (the Session and Serve pin alike).
+pins the configured disk or embedded release. `KnowledgePin::reopen` admits it again
+against that identity through the disk or memory door (Session and Serve alike).
+
+For pre-1.0 callers, `KnowledgePin::dir` is replaced by `origin`:
+`knowledge::pin::KnowledgeOrigin::Disk(PathBuf)` or `Embedded`. Match the origin
+before using a filesystem path; an embedded pin has none.
+`KnowledgePin::embedded(exclude_corpus)` admits and pins the build's release.
+Pin records now carry `source: "disk"` or `source: "embedded"`, with `dir` only
+for disk. Where code matched `KnowledgeChoice::NoDefault`, handle `Default`
+and `Unread`; use the chosen variant's `words()` instead of `NO_DEFAULT`.
+Internal exhaustive matches on `KnowledgeSource` must also handle
+`Embedded { exclude_corpus }`. Default Session contexts now include the pin in
+their derived identity; do not reuse an identity derived from the old unpinned
+context.
+
 `KnowledgePin::moved` names both identities in words when the snapshot read
 now is no longer the one pinned (C10 · D-K); the session refuses it.
 `stamp_seat` places the decision seat's receipt beside the compiler's own record

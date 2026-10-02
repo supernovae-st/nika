@@ -213,6 +213,53 @@ fn a_pin_says_when_its_snapshot_moved_under_it() {
     assert_eq!(resealed.rows_sha256(), pin.rows_sha256, "the same rows");
 }
 
+/// The release this build embeds, pinned: its origin and its record name no path, it reopens
+/// through the strict memory door against the same identity and has not moved, pinning it again
+/// pins the same, and it is what a configuration naming nothing pins. Without its identity the
+/// memory door refuses it, typed.
+#[test]
+fn an_embedded_pin_reopens_from_memory_with_the_same_identity_and_record() {
+    let pin = KnowledgePin::embedded(Some("heldout".to_owned())).expect("pinned");
+    assert_eq!(pin.origin, KnowledgeOrigin::Embedded);
+    assert_eq!(
+        pin.manifest_sha256,
+        "5bcd108a78e9fbb6e27827b34d8090b74f6285a125cdcef812b33dd51738e692"
+    );
+    assert_eq!(pin.version.as_deref(), Some("knowledge-0.122.0-r1"));
+    let reopened = pin.reopen().expect("admitted again in memory");
+    assert_eq!(pin.moved(&reopened), None, "the same release has not moved");
+    let again = KnowledgePin::embedded(Some("heldout".to_owned())).expect("pinned again");
+    assert_eq!(again, pin);
+    let record = pin.record();
+    assert_eq!(again.record(), record);
+    assert_eq!(record["source"], "embedded");
+    assert!(record.get("dir").is_none(), "no path: {record}");
+    assert_eq!(record["snapshot_sha256"], pin.manifest_sha256.as_str());
+    assert_eq!(record["policy"]["id"], "policy-r");
+    assert_eq!(record["admission"], ADMISSION_PROFILE);
+    assert_eq!(record["exclude_corpus"], "heldout");
+    assert!(
+        pin.status_words().ends_with(" · admitted · embedded"),
+        "{}",
+        pin.status_words()
+    );
+    let none = crate::compile_config::AuthoringSettings::none();
+    let config = crate::compile_config::resolve(&none, &none).expect("resolves");
+    assert_eq!(
+        KnowledgePin::of_config(&config).expect("pinned"),
+        Some(KnowledgePin::embedded(None).expect("pinned"))
+    );
+    let mut untrusted = pin;
+    untrusted.identity = None;
+    assert!(matches!(
+        untrusted.reopen(),
+        Err(KnowledgeError::Unavailable {
+            code: RefusalCode::Untrusted,
+            ..
+        })
+    ));
+}
+
 /// C10 · the decision seat's receipt sits beside the compiler's own record of the same
 /// questions, created when there is none, and the session's later stamp keeps it.
 #[test]
@@ -256,6 +303,11 @@ fn a_pin_says_its_identity_as_the_status_line_reads_it() {
     );
     let record = pin.record();
     assert_eq!(record["snapshot_sha256"], json!(pin.manifest_sha256));
+    assert_eq!(record["source"], "disk");
+    assert!(
+        record["dir"].is_string(),
+        "a release on disk names its root"
+    );
     assert_eq!(record["admission"], ADMISSION_PROFILE);
     assert_eq!(record["policy"]["id"], fixture::POLICY_ID);
     assert_eq!(

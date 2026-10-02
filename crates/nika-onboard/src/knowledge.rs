@@ -23,7 +23,9 @@
 //!
 //! The embedder names the [`TrustedIdentity`] it expects (the release's `SNAPSHOT_SHA256` and
 //! its policy), from its own release record. A source without one is refused before anything is
-//! collected. A named directory carries none today.
+//! collected. A named directory carries none today. This build embeds one qualified release,
+//! admitted in memory against the identity its owner issued: the knowledge where nothing names
+//! any.
 //!
 //! The release is read once:
 //! - every byte is bound to the manifest's pins;
@@ -46,6 +48,8 @@ use serde_json::{Value, json};
 
 /// The strict admission of a release: its profile and its typed refusals.
 mod admission;
+/// The release this build embeds: its issued bytes compiled in, admitted in memory.
+pub(crate) mod bundled;
 /// The byte contract a release shares with its producer: strict JSON and the canonical digest.
 mod canonical;
 /// A synthetic release the strict door admits (tests, and doors with `test-support`).

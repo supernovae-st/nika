@@ -2,8 +2,9 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The knowledge choice every door resolves alike: the first layer that says anything decides,
-//! off and a source on one layer contradict, nothing said is this build's stated no-default, and
-//! the door enters an admitted release, refuses a pack, attaches nothing when off.
+//! off and a source on one layer contradict, nothing said is the release this build embeds
+//! (nothing read under the strategy `off`), and the door enters an admitted release and never
+//! another, refuses a pack, attaches nothing when off.
 
 #![cfg_attr(not(unix), allow(unused_imports, dead_code))]
 
@@ -12,7 +13,7 @@ use std::path::PathBuf;
 use super::*;
 use crate::compile::CompileRequest;
 use crate::knowledge::fixture::{self, Payload};
-use crate::knowledge::{KnowledgeError, RefusalCode, Snapshot};
+use crate::knowledge::{KnowledgeError, RefusalCode, Snapshot, bundled};
 
 use super::KnowledgeLayer::{Environment, Explicit};
 
@@ -75,7 +76,7 @@ fn only_the_exact_environment_word_turns_the_knowledge_off() {
 }
 
 /// The whole precedence table, each expectation written out: the explicit layer decides when it
-/// says anything (a source or off), else the environment, else the stated no-default.
+/// says anything (a source or off), else the environment, else the embedded default.
 #[test]
 fn the_first_layer_that_says_anything_decides() {
     let explicit_layers = [
@@ -92,7 +93,7 @@ fn the_first_layer_that_says_anything_decides() {
         ("pack", none().with_knowledge_pack("/env/pack.json")),
     ];
     let expected = |explicit: &str, env: &str| match (explicit, env) {
-        ("absent", "absent") => KnowledgeChoice::NoDefault,
+        ("absent", "absent") => KnowledgeChoice::Default,
         ("absent", "flag off" | "word off") => KnowledgeChoice::Disabled { by: Environment },
         ("absent", "snapshot") => snapshot("/env/snap", Environment),
         ("absent", "pack") => pack("/env/pack.json", Environment),
@@ -166,25 +167,32 @@ fn off_and_a_source_on_one_layer_contradict_and_only_the_deciding_layer_is_read(
 }
 
 #[test]
-fn nothing_named_is_the_stated_no_default_never_a_claim_of_knowledge() {
+fn nothing_named_is_the_embedded_release_and_under_off_nothing_is_read() {
     let config = resolve(&none(), &none()).expect("resolves");
-    assert_eq!(config.choice, KnowledgeChoice::NoDefault);
-    assert_eq!(config.knowledge, None);
-    assert_eq!(config.choice.words(), NO_DEFAULT);
-    assert!(
-        NO_DEFAULT.contains("no qualified release is embedded"),
-        "{NO_DEFAULT}"
+    assert_eq!(config.choice, KnowledgeChoice::Default);
+    assert_eq!(
+        config.knowledge,
+        Some(KnowledgeSource::Embedded {
+            exclude_corpus: None
+        })
+    );
+    assert_eq!(config.choice.words(), "knowledge embedded (default)");
+    // Under the strategy `off` nothing named reads nothing: no source, no refusal.
+    let off = resolve(&none().with_strategy("off"), &none()).expect("resolves");
+    assert_eq!((off.choice, off.knowledge), (KnowledgeChoice::Unread, None));
+    assert_eq!(
+        KnowledgeChoice::Unread.words(),
+        "knowledge unread (strategy off)"
     );
 }
 
 #[test]
-fn an_explicit_exclusion_needs_a_snapshot_whatever_turned_the_knowledge_off() {
+fn an_explicit_exclusion_guards_the_release_read_and_is_refused_where_none_is() {
     let explicit = none().with_knowledge_exclude("heldout");
     let refused = Err(ConfigError::ExclusionWithoutSnapshot {
         corpus: "heldout".to_owned(),
     });
     for env in [
-        none(),
         none().with_knowledge("off", None),
         none().with_knowledge_off(),
     ] {
@@ -197,6 +205,18 @@ fn an_explicit_exclusion_needs_a_snapshot_whatever_turned_the_knowledge_off() {
     assert_eq!(
         resolve(&explicit.clone().with_knowledge_off(), &none()).map(|c| c.choice),
         refused
+    );
+    // Nothing read under the strategy `off`: nothing to exclude from, refused too.
+    assert_eq!(
+        resolve(&explicit.clone().with_strategy("off"), &none()).map(|c| c.choice),
+        refused
+    );
+    // Nothing named: it guards the release this build embeds, never dropped.
+    assert_eq!(
+        resolve(&explicit, &none()).map(|c| c.knowledge),
+        Ok(Some(KnowledgeSource::Embedded {
+            exclude_corpus: Some("heldout".to_owned()),
+        }))
     );
     // The environment's own exclusion with the knowledge off has nothing to exclude.
     let ambient = none()
@@ -266,11 +286,67 @@ fn attached(config: &AuthoringConfig) -> Result<CompileRequest, KnowledgeError> 
 }
 
 #[test]
-fn knowledge_off_and_no_default_attach_nothing() {
-    for env in [none().with_knowledge("off", None), none()] {
-        let config = resolve(&none(), &env).expect("resolves");
+fn knowledge_off_and_unread_attach_nothing() {
+    for (explicit, env) in [
+        (none(), none().with_knowledge("off", None)),
+        (none().with_knowledge_off(), none()),
+        (none().with_strategy("off"), none()),
+    ] {
+        let config = resolve(&explicit, &env).expect("resolves");
         let request = attached(&config).expect("nothing to refuse");
         assert!(request.authoring_knowledge.is_none(), "{:?}", config.choice);
+    }
+}
+
+/// Nothing named attaches the release this build embeds, composed by the door for the intent as
+/// the memory door composes it. Admitted is not presented: this payload holds no pattern, so the
+/// pack carries no reference and no repair principle, and says so.
+#[test]
+fn nothing_named_attaches_the_embedded_release_composed_for_the_intent() {
+    let config = resolve(&none().with_knowledge_exclude("heldout"), &none()).expect("resolves");
+    let request = attached(&config).expect("admitted");
+    let pack = request.authoring_knowledge.expect("attached");
+    assert_eq!(
+        pack.identity["snapshot_sha256"],
+        "5bcd108a78e9fbb6e27827b34d8090b74f6285a125cdcef812b33dd51738e692"
+    );
+    assert_eq!(pack.identity["verification"]["policy"]["id"], "policy-r");
+    let direct = bundled::admit(Some(&bundled::identity().unwrap()))
+        .unwrap()
+        .pack(INTENT, Some("heldout"))
+        .unwrap();
+    assert_eq!(pack, direct, "the door's pack is the memory door's");
+    assert!(
+        pack.references.is_empty() && pack.repairs.is_empty(),
+        "{:#}",
+        pack.selection
+    );
+    // An intent with no words composes nothing, as for any release.
+    let request = config
+        .with_knowledge(CompileRequest::create("  "), "  ")
+        .expect("nothing to refuse");
+    assert!(request.authoring_knowledge.is_none());
+}
+
+/// A named release the strict door refuses is refused, typed, under its own name: never replaced
+/// by the release this build embeds.
+#[test]
+#[cfg(unix)] // the disk form is defined for Unix descriptors only
+fn a_broken_named_source_refuses_and_never_falls_back_to_the_embedded_release() {
+    let dir = tempfile::tempdir().unwrap();
+    let missing = dir.path().join("no-release");
+    let identity = Payload::minimal()
+        .identity()
+        .expect("the fixture's identity");
+    let config =
+        resolve(&none().with_knowledge_release(&missing, identity), &none()).expect("resolves");
+    assert!(matches!(
+        config.choice,
+        KnowledgeChoice::Named { by: Explicit, .. }
+    ));
+    match attached(&config) {
+        Err(KnowledgeError::Unavailable { root, .. }) => assert_eq!(root, missing),
+        other => panic!("refused under its own name: {other:?}"),
     }
 }
 
