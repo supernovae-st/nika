@@ -9,7 +9,9 @@ use serde_json::Value;
 use std::path::Path;
 use std::process::Command;
 
-const CANARY: &str = "827351";
+// Include non-hexadecimal punctuation so evidence hashes and numeric
+// timestamps cannot accidentally match the synthetic secret.
+const CANARY: &str = "zQ!7x?";
 
 fn command(room: &Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_nika"));
@@ -41,14 +43,34 @@ fn workflow(paged: bool, fails: bool) -> String {
 }
 
 fn assert_no_canary(bytes: &[u8], surface: &str) {
+    let offset = canary_offset(bytes, CANARY);
     assert!(
-        !bytes
-            .windows(CANARY.len())
-            .any(|part| part == CANARY.as_bytes()),
-        "synthetic content escaped on {surface}"
+        offset.is_none(),
+        "synthetic content escaped on {surface} at byte {offset:?}"
     );
 }
 
+fn canary_offset(bytes: &[u8], canary: &str) -> Option<usize> {
+    bytes
+        .windows(canary.len())
+        .position(|part| part == canary.as_bytes())
+}
+
+#[test]
+fn secret_witness_distinguishes_metadata_from_unmasked_content() {
+    // The old all-digit marker collides with unrelated integrity metadata.
+    let metadata = br#"{"timestamp":1790827351000000000,"chain":"aa827351bb"}"#;
+    assert!(canary_offset(metadata, "827351").is_some());
+    assert!(canary_offset(metadata, CANARY).is_none());
+    assert!(!CANARY.bytes().all(|byte| byte.is_ascii_hexdigit()));
+    assert_eq!(CANARY.len(), 6, "keep the item display witness short");
+    for field in ["item", "message", "output"] {
+        let exposed = serde_json::json!({field: CANARY}).to_string();
+        assert!(canary_offset(exposed.as_bytes(), CANARY).is_some());
+        let masked = serde_json::json!({field: "***"}).to_string();
+        assert!(canary_offset(masked.as_bytes(), CANARY).is_none());
+    }
+}
 fn assert_rows(rows: &[Value], paged: bool, fails: bool) {
     assert_eq!(rows.len(), if paged { 2000 } else { 2 });
     for (index, row) in rows.iter().enumerate() {
