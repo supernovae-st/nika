@@ -17,8 +17,9 @@
 //!   the only one reported.
 //!
 //! Nothing here asks a model or composes a pack, and the request a round compiled is used as it
-//! is. The user's files are only read, by the room and by the [`Witness`]; the only files written
-//! are the fixture roots this door creates and removes.
+//! is. The user's files are only read, by the room and by the
+//! [`Witness`](crate::compile::copy::Witness); the only files written are the fixture roots
+//! this door creates and removes.
 
 mod rounds;
 mod shape;

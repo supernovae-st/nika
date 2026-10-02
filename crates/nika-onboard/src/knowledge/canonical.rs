@@ -5,8 +5,8 @@
 //! and §9.1).
 //!
 //! **Strict JSON, bounded while it is read** (§9.1).
-//! - Arrays and objects nest at most [`MAX_DEPTH`] deep: the top-level one at 1, a scalar adding
-//!   no depth.
+//! - Arrays and objects nest at most [`MAX_DEPTH`](crate::knowledge::canonical::MAX_DEPTH)
+//!   deep: the top-level one at 1, a scalar adding no depth.
 //! - A text holds at most the values its caller allows. Every object, array, string, member name,
 //!   number and literal counts once, every occurrence: a key stated twice counts twice, and so
 //!   does the value it first held.

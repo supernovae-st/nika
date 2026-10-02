@@ -55,21 +55,23 @@ fn assert_identity(snapshot: &Snapshot) {
 }
 
 #[test]
-fn qualified_payload_is_admitted_in_memory() -> Result<(), Box<dyn std::error::Error>> {
+fn qualified_payload_is_admitted_in_memory() -> Result<(), String> {
     let trusted = trusted_identity()?;
-    let snapshot = Snapshot::from_files("qualified-release", files(), Some(&trusted))?;
+    let snapshot = Snapshot::from_files("qualified-release", files(), Some(&trusted))
+        .map_err(|error| error.to_string())?;
     assert_identity(&snapshot);
     Ok(())
 }
 
 #[test]
 #[cfg(unix)]
-fn qualified_payload_is_admitted_on_disk() -> Result<(), Box<dyn std::error::Error>> {
+fn qualified_payload_is_admitted_on_disk() -> Result<(), String> {
     let trusted = trusted_identity()?;
-    let root = tempfile::tempdir()?;
+    let root = tempfile::tempdir().map_err(|error| error.to_string())?;
     assert!(root.path().is_absolute());
-    fixture::write_files(root.path(), &files())?;
-    let snapshot = Snapshot::open(root.path(), Some(&trusted))?;
+    fixture::write_files(root.path(), &files()).map_err(|error| error.to_string())?;
+    let snapshot =
+        Snapshot::open(root.path(), Some(&trusted)).map_err(|error| error.to_string())?;
     assert_identity(&snapshot);
     Ok(())
 }
