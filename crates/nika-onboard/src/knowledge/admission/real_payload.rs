@@ -10,7 +10,7 @@ use super::super::{Snapshot, bundled, fixture};
 use super::TrustedIdentity;
 
 // The release owner's issued identity, independent of the payload's own declarations.
-const EXPECTED_SNAPSHOT: &str = "effc8d45b88a62c08cd4569abaadb8863823baaa0d52a313b925e9e1faf51b11";
+const EXPECTED_SNAPSHOT: &str = "b787fc53d6858db43d55958daaf02539fadcad4feeacc17b63c5aefcb92cc32b";
 const EXPECTED_POLICY: &str = "policy-r";
 const EXPECTED_POLICY_SHA256: &str =
     "d0471eeb904416dd411fde12244918771a5578ae1526f1e0a775b5d421087f36";

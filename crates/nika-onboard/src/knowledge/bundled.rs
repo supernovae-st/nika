@@ -5,8 +5,8 @@
 //! compiled in from the product's one copy (`assets/knowledge-release/`) and admitted through the
 //! strict memory door ([`Snapshot::from_files`]) against the identity its owner issued — constants
 //! of this build, never read from the payload's own declarations. Nothing is read from disk. A
-//! qualified payload, whose owner's record states `official_release: false`: nothing here calls it
-//! an official release. It is the knowledge where nothing names any
+//! qualified knowledge payload; qualification does not publish an official product release.
+//! It supplies the default knowledge when no explicit source is configured
 //! ([`crate::compile_config::KnowledgeChoice::Default`]).
 //!
 //! This payload (policy-R) holds three patterns and their realizing blocks, diagnostics and source
@@ -25,7 +25,7 @@ pub(crate) const LABEL: &str = "embedded:nika-knowledge-release";
 
 /// The issued `SNAPSHOT_SHA256`: the sha256 of the payload manifest's bytes.
 pub(crate) const SNAPSHOT_SHA256: &str =
-    "effc8d45b88a62c08cd4569abaadb8863823baaa0d52a313b925e9e1faf51b11";
+    "b787fc53d6858db43d55958daaf02539fadcad4feeacc17b63c5aefcb92cc32b";
 
 /// The policy the payload was qualified under.
 pub(crate) const POLICY_ID: &str = "policy-r";
