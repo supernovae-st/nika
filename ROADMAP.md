@@ -105,7 +105,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| HEAD             | `9af505015` (`9af505015bad111ad290e165c702c6f25e4ea04a`)             |
+| HEAD             | `82d08d617` (`82d08d6172afbb8306ef5e6127e88d600bf4ea9b`)             |
 | workspace        | v0.121.0                                  |
 | crates (workspace)| 79                                              |
 | crates (admitted)| 69                                             |
