@@ -38,6 +38,10 @@ use crossterm::event::{Event, KeyEvent, KeyEventKind};
 pub const POLL_SLICE: Duration = Duration::from_millis(50);
 /// How long `pause` waits for the reader thread to park before giving up.
 const PAUSE_ACK: Duration = Duration::from_millis(1000);
+// Crossterm's level-triggered Unix backend skips its parser and descriptor
+// for a zero timeout. A positive poll also drains bytes the parked reader
+// has not yet consumed before a fresh consent answer may be accepted.
+const DRAIN_POLL: Duration = Duration::from_millis(1);
 
 /// What the UI loop reacts to. Presses only: a terminal that reports
 /// releases and repeats (the kitty protocol) never doubles a key.
@@ -151,7 +155,7 @@ impl Broker {
             }
             let mut events: Vec<_> = self.rx.try_iter().collect();
             for _ in 0..4096 {
-                if !crossterm::event::poll(Duration::ZERO)? {
+                if !crossterm::event::poll(DRAIN_POLL)? {
                     return Ok(events);
                 }
                 if let Some(event) = decode(crossterm::event::read()?) {

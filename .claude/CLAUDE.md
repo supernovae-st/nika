@@ -25,7 +25,7 @@ claim that the current candidate passed tests.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| HEAD             | `a45545cdd` (`a45545cdd43401c5fa6c80d5d617804be7655085`)             |
+| HEAD             | `9af505015` (`9af505015bad111ad290e165c702c6f25e4ea04a`)             |
 | workspace        | v0.121.0                                  |
 | crates (workspace)| 79                                              |
 | crates (admitted)| 69                                             |

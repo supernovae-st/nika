@@ -22,7 +22,8 @@ workspace = true
 
 [dependencies]
 ratatui          = { workspace = true, features = ["unstable-rendered-line-info"] }
-crossterm        = { workspace = true }
+# Level-triggered Unix input keeps unread keys observable after a resize.
+crossterm        = { workspace = true, features = ["use-dev-tty"] }
 ratatui-textarea = { workspace = true }
 tokio            = { workspace = true, features = ["sync", "signal", "time", "rt", "macros"] }
 unicode-width    = "0.2"
