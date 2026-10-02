@@ -64,7 +64,7 @@ pub(super) const MAX_BYTES: u64 = 33_554_432;
 /// The most bytes the manifest holds.
 pub(super) const MAX_MANIFEST_BYTES: u64 = 4_194_304;
 /// The most entries one directory listing holds (`.` and `..` aside), judged before any sort.
-#[cfg_attr(not(unix), allow(dead_code))] // only the Unix walk lists directories
+#[cfg(unix)]
 pub(super) const MAX_ENTRIES: usize = 10_001;
 /// The most bytes one JSONL line holds, its LF aside.
 pub(super) const MAX_LINE_BYTES: usize = 2_097_152;

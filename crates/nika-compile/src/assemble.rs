@@ -416,16 +416,7 @@ fn assembled(
     if repeated_effect_asked(plan, intent, &b, out) || !b.ready(plan) {
         return Ok(());
     }
-    if plan.obligation("revision_check")
-        && matches!(b.lookup, Need::Absent)
-        && matches!(b.search, Need::Absent)
-    {
-        super::finding(
-            out,
-            DiagnosticKind::Unknown,
-            "revision_check",
-            "The request asks to recheck the current version before the final action, but no retrievable source exists to recheck.",
-        );
+    if missing_revision_source(plan, &b, out) {
         return Ok(());
     }
     let id = request
@@ -481,6 +472,23 @@ fn assembled(
         },
         out,
     )
+}
+
+/// A requested revision check needs a retrievable source before assembly can continue.
+fn missing_revision_source(plan: &Plan, b: &bindings::Bindings, out: &mut CompileOutcome) -> bool {
+    if plan.obligation("revision_check")
+        && matches!(b.lookup, Need::Absent)
+        && matches!(b.search, Need::Absent)
+    {
+        super::finding(
+            out,
+            DiagnosticKind::Unknown,
+            "revision_check",
+            "The request asks to recheck the current version before the final action, but no retrievable source exists to recheck.",
+        );
+        return true;
+    }
+    false
 }
 
 /// The actions an approval gates, the writes then the wired effects, each named as the one gate

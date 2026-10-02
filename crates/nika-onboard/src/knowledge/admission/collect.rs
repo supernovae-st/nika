@@ -36,16 +36,20 @@ pub(super) type Files = BTreeMap<String, Vec<u8>>;
 pub(super) const LAYOUT_DIRS: [&str; 3] = ["knowledge", "blocks", "LICENSES"];
 
 /// A step of the disk walk a test barrier may stand between; a door's probe does nothing.
+/// No step can occur on platforms without the descriptor walk.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(not(unix), allow(dead_code))] // only the Unix walk has steps
 pub(crate) enum Stage {
     /// A layout directory was inspected and is about to be opened.
+    #[cfg(unix)]
     DirInspected,
     /// A layout directory is open and held.
+    #[cfg(unix)]
     DirHeld,
     /// A regular file was inspected and is about to be opened.
+    #[cfg(unix)]
     FileInspected,
     /// A file was read and is about to be checked again.
+    #[cfg(unix)]
     FileRead,
 }
 
