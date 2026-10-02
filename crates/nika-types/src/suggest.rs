@@ -189,11 +189,11 @@ mod tests {
 
     #[test]
     fn the_threshold_scales_with_length_and_never_wraps() {
-        let keys = ["impact", "summary", "highlights", "article"];
+        let keys = ["impact", "summary", "highlights", "operate"];
         assert_eq!(damerau_levenshtein("imapcy", "impact"), 2);
         assert_eq!(did_you_mean("imapcy", keys), Some("impact"));
-        assert_eq!(damerau_levenshtein("artic", "article"), 2);
-        assert_eq!(did_you_mean("artic", keys), None);
+        assert_eq!(damerau_levenshtein("opera", "operate"), 2);
+        assert_eq!(did_you_mean("opera", keys), None);
     }
 
     #[test]
