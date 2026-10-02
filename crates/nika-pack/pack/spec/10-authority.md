@@ -151,12 +151,14 @@ resolved content hash differs halts (`approval.content_mismatch` at the
 receipt) · (2) **scoped and TTL'd** — this run × this step × this
 content hash, with a bounded TTL; an expired ticket re-prompts, a
 cross-run replay is refused, and a decided ticket is **single-use for
-the run**: its claim is written once in the operator's HOME and in the
-run's project (`<project>/.nika/approval-claims`, the project a resume
-is already bound to), so a replay is refused from any HOME; a trace
-resumed under the waived chain (`--resume-unverified`) or recorded
-before that binding can reach a fresh store from another project, and
-its TTL bounds it · (3) **rate-limited** — at most N=5
+the run**: a change of the operator's home directory or of the
+project's location creates no new authority to reuse a consumed
+decision. Before a gated effect the engine MUST establish the ticket's
+binding to the resumed run and that its decision was not already
+consumed; where it cannot, it MUST refuse the reuse, and proceeding
+needs a fresh ticket and a new affirmative decision. A
+chain-verification waiver and an unexpired TTL are never substitutes
+for fresh consent · (3) **rate-limited** — at most N=5
 approvals per run; identical prompts dedup (the same content hash rides
 one ticket, attested `dedup`); a heterogeneous batch is refused at
 check (one prompt gates one action of one class); the N+1th prompt is a
@@ -165,6 +167,14 @@ decision emits a hash-chained `approval_decided` event (ticket digest ·
 shown hash · decision · remaining TTL · scope), and the digests rise to
 the receipt · (5) **revocable before execution only** — never after:
 the receipt shows what executed under which authority.
+
+**Reference-engine storage note (nonnormative)** · the reference engine
+records approval claims in an operator store and in a store bound to the
+run's project (`<project>/.nika/approval-claims`); those locations are
+implementation details, not the law above. Historical traces and resumes
+that waive chain verification (`--resume-unverified`) need separate
+qualification of their lineage and replay protection: their TTL alone
+does not establish single-use authority.
 
 ## The affirmative-consent law · *normative · NEP-0020*
 

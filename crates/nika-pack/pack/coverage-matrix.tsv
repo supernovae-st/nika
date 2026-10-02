@@ -117,16 +117,23 @@ errors	NIKA-BUILTIN-ASSERT	recovered	EMPTY (w06 dropped for budget; BUILTIN-reco
 variables	NIKA-VAR	recovered	partial (errors/error-field-canonical-code.nika recovers a VAR-006 args error)
 variables	NIKA-VAR	index-out-of-range	EMPTY (c12/c14 fire VAR-001 "unresolved reference"; spec code ambiguous — FINDINGS.md F-2; v0.2 after spec call)
 envelope	NIKA-SEC-gate	check-reject	conformance/envelope/secrets-leak-outputs-boundary.nika
-envelope	(positive)	positive-run	conformance/envelope/secrets-outputs-egress-sanctioned.nika
+envelope	(positive)	positive-check	conformance/envelope/secrets-outputs-egress-sanctioned.nika
+envelope	NIKA-SEC-007	check-reject	conformance/envelope/secrets-direct-output-egress-refused.nika
+envelope	(positive)	derived-task-value	conformance/tests/runtime/secrets/001-derived-output-egress/input.nika
+envelope	(secret-identity)	export-masking	DECLARED-UNQUALIFIED (conformance/tests/runtime/secrets-export/002-identity; secret-export-v1; named surfaces only, other export surfaces remain unqualified)
+envelope	(secret-export)	export-delivery	DECLARED-UNQUALIFIED (conformance/tests/runtime/secrets-export/001-derived and 003-direct; secret-export-v1; runtime/secrets/001 still asserts only the task value)
 envelope	NIKA-SEC-009	check-fail	conformance/envelope/trifecta-realized-flow-ungated.nika
 envelope	(positive)	positive-check	conformance/envelope/trifecta-human-gate-dominates.nika
 composition	NIKA-COMP-003	check-fail	conformance/composition/self-launch-cycle.nika
 composition	(positive)	positive-run	conformance/composition/parent-child-acyclic.nika
+composition	NIKA-COMP-001	check-reject	conformance/tests/deep/composition/010-missing-child/input.yaml
+composition	(compose-intrinsic)	tool-invocation	DECLARED-UNQUALIFIED (conformance/tests/runtime/compose; compose-intrinsic-v1; actual intrinsic invocation and effect/read observers required)
 authority	NIKA-AUTH-011	check-reject	conformance/tests/core/authority/028-lift-that-lifts-nothing-refused
 authority	NIKA-AUTH-011	check-reject	conformance/tests/core/authority/029-lift-data-as-code-on-inert-refused
 authority	NIKA-AUTH-006	check-reject	conformance/tests/core/authority/030-skill-read-under-absent-permits-refused
 authority	(positive)	positive-check	conformance/tests/core/authority/011-declassify-declared-opens-the-door
 authority	(positive)	positive-check	conformance/tests/core/authority/021-inert-door-declared-passes
+authority	(approval-lineage)	approval-replay	DECLARED-UNQUALIFIED (conformance/tests/runtime/approval; approval-session-v1; same run and decision, isolated store/project/lineage variants)
 envelope	NIKA-PARSE-026	check-reject	conformance/tests/core/envelope/026-run-ambient-virtual-refused
 envelope	NIKA-PARSE-027	check-reject	conformance/tests/core/envelope/027-run-none-system-refused
 envelope	NIKA-PARSE-027	check-reject	conformance/tests/core/envelope/031-run-seeded-system-refused
@@ -168,6 +175,12 @@ variables	(input-origin)	journal-prologue	conformance/tests/runtime/trace/010-ap
 stdlib	(positive)	positive-run	conformance/tests/stdlib/behavioral/006-convert-explicit-header-order/input.nika
 stdlib	(positive)	positive-run	conformance/tests/stdlib/behavioral/007-convert-partial-header-order/input.nika
 stdlib	NIKA-BUILTIN-CONVERT	run-fail	conformance/tests/stdlib/behavioral/008-convert-reject-invalid-columns/input.nika
+stdlib	(positive)	positive-run	conformance/tests/stdlib/behavioral/009-write-json-values/input.nika
+stdlib	(positive)	positive-run	conformance/tests/stdlib/behavioral/010-write-strings-verbatim/input.nika
+stdlib	(positive)	positive-run	conformance/tests/stdlib/behavioral/011-write-base64-value/input.nika
+stdlib	NIKA-BUILTIN-WRITE	run-fail	conformance/tests/stdlib/behavioral/012-write-base64-refused/input.nika
+stdlib	NIKA-BUILTIN-WRITE	run-fail	conformance/tests/stdlib/behavioral/013-write-base64-type-refused/input.nika
+stdlib	NIKA-BUILTIN-WRITE	run-fail	conformance/tests/stdlib/behavioral/014-write-null-refused/input.nika
 variables	NIKA-VAR-005	check-reject	conformance/tests/core/variables/021-single-brace-output-refused/input.yaml
 variables	NIKA-VAR-005	check-reject	conformance/tests/core/variables/022-single-brace-binding-refused/input.yaml
 variables	NIKA-VAR-005	check-reject	conformance/tests/core/variables/023-single-brace-argument-refused/input.yaml
@@ -215,6 +228,7 @@ stdlib	(positive)	positive-check	conformance/tests/stdlib/builtins/044-fetch-res
 stdlib	(positive)	positive-check	conformance/tests/stdlib/builtins/045-fetch-response-status-upper-bound/input.yaml
 stdlib	NIKA-BUILTIN	check-reject	conformance/tests/stdlib/builtins/046-fetch-response-wildcard-refused/input.yaml
 stdlib	NIKA-BUILTIN	check-reject	conformance/tests/stdlib/builtins/047-fetch-response-scalar-accept-refused/input.yaml
+stdlib	(fetch-response)	transport-behavior	DECLARED-UNQUALIFIED (conformance/tests/stdlib/behavioral/fetch-response; http-transport-v1; 020-047 still prove static admission only)
 dag	(item-cancellation)	trace-projection	conformance/tests/runtime/trace/011-cancelled-item-inline
 dag	(item-cancellation)	trace-projection	conformance/tests/runtime/trace/012-cancelled-item-paged
 dag	(item-cancellation)	trace-projection	conformance/tests/runtime/trace/013-historical-count-absence
