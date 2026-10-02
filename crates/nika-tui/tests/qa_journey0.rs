@@ -178,7 +178,7 @@ fn first_contact_at_80x24_asks_the_intelligence_and_calls_no_provider() {
 /// stay · kept
 /// ```
 #[test]
-#[ignore = "defect: typeahead picks and keeps an intelligence on a choice screen painted after it (observed at 513ca8465) · needs NIKA_TUI_QA_NIKA · lane ws (app.rs)"]
+#[ignore = "defect: typeahead picks and keeps an intelligence on a choice screen painted after it (observed at 513ca8465) · needs NIKA_TUI_QA_NIKA · app.rs input handling"]
 fn typeahead_never_picks_an_intelligence_on_a_screen_painted_after_it() {
     let room = Room::new("choice");
     let listener = listener();

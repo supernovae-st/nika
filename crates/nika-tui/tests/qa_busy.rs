@@ -75,7 +75,7 @@ fn keys_typed_during_a_busy_turn_are_kept_for_after_it() {
 }
 
 #[test]
-#[ignore = "gap: keys typed during a busy turn are not drawn until the turn ends (app.rs run_turn defers every key) · J2/J3 need a live composer during activity · lane ws (app.rs) with the U3 contract"]
+#[ignore = "gap: keys typed during a busy turn are not drawn until the turn ends (app.rs run_turn defers every key) · J2/J3 need a live composer during activity · app.rs input handling and the conversation-switching contract"]
 fn keys_typed_during_a_busy_turn_show_at_once() {
     let release = Release::new("live");
     let mut term = busy("slow-free", &release);
@@ -139,7 +139,7 @@ fn a_resize_during_a_busy_turn_redraws_at_the_new_size_in_focus() {
 /// The transcript scrolls while a turn runs: `PgUp` in focus moves the view
 /// at once, not after the turn.
 #[test]
-#[ignore = "gap: PgUp during a busy turn is deferred until the turn ends (app.rs run_turn defers every key) · J2 scroll during activity · lane ws (app.rs)"]
+#[ignore = "gap: PgUp during a busy turn is deferred until the turn ends (app.rs run_turn defers every key) · J2 scroll during activity · app.rs input handling"]
 fn scrolling_during_a_busy_turn_moves_the_view_at_once() {
     let release = Release::new("scroll");
     let mut term = child::spawn("slow-free:200:focus", Some(release.path()), 100, 32);
@@ -167,7 +167,7 @@ fn scrolling_during_a_busy_turn_moves_the_view_at_once() {
 /// A `yes` typed while the turn runs, before any gate exists, must not
 /// answer the gate the turn ends on.
 #[test]
-#[ignore = "defect: a yes typed during a busy turn answers the gate painted after it · app.rs replays deferred keys, Live::fresh_input_required covers only the cost questions · lane ws + session owner"]
+#[ignore = "defect: a yes typed during a busy turn answers the gate painted after it · app.rs replays deferred keys, Live::fresh_input_required covers only the cost questions · app.rs input handling and Session freshness"]
 fn typeahead_during_a_busy_turn_never_answers_the_gate_it_ends_on() {
     let release = Release::new("gate");
     let mut term = busy("slow-gate", &release);

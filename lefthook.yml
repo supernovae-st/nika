@@ -2,8 +2,8 @@
 # Separate config because the engine is a separate git repo (public submodule).
 # Install: cd nika && lefthook install -c lefthook.yml
 #
-# This fixes the dangling core.hooksPath that currently points to
-# /Users/thibaut/dev/supernovae/nika/.husky (deleted path = no hooks fire).
+# This fixes the dangling core.hooksPath that pointed to a deleted
+# .husky directory (a deleted path means no hooks fire).
 #
 # Engine-specific additions on top of what the root lefthook.yml covers:
 #   - commit-msg: same Conventional Commits validator, scoped to engine types

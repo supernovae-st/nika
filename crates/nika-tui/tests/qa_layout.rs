@@ -9,7 +9,7 @@
 //! Reception proofs of layout (`docs/qa/tui/RECEPTION.md`, J6): the demo
 //! journey read off a real screen at the four qualified sizes in both
 //! presentations, colour and its absence, and the baseline defects B1-B4 of
-//! the design pass kept as acceptance checks for the lane that owns each
+//! the design pass kept as acceptance checks for the component that owns each
 //! (ignored while the defect stands, never deleted).
 //!
 //! The screen is `qa_support::vt::Screen`: what a terminal shows after the
@@ -181,7 +181,7 @@ fn with_colour_the_gate_wears_the_warning_slot() {
 /// the renderer, told colour is on, has dropped the weights that carry the
 /// meaning without it: the gate prompt keeps neither hue nor weight.
 #[test]
-#[ignore = "defect: under NO_COLOR a forced colour paints no hue (crossterm reads NO_COLOR) and the renderer has dropped the weight substitutes · one colour owner needed (terminal.rs: Colored::set_ansi_color_disabled from Options.color) · lane cards or ws"]
+#[ignore = "defect: under NO_COLOR a forced colour paints no hue (crossterm reads NO_COLOR) and the renderer has dropped the weight substitutes · one colour owner needed (terminal.rs: Colored::set_ansi_color_disabled from Options.color) · terminal rendering and input handling"]
 fn a_forced_colour_under_no_color_is_the_colour_the_terminal_sees() {
     let mut term = Term::proto_with(&["--color"], 80, 24, &[("NO_COLOR", "1")]);
     term.wait_prompt(FREE);
@@ -197,7 +197,7 @@ fn a_forced_colour_under_no_color_is_the_colour_the_terminal_sees() {
 /// B1 · the hint sits right under the composer: the live area takes its
 /// natural height instead of stretching the editor over the 12-row viewport.
 #[test]
-#[ignore = "defect: B1 · the inline composer stretches over the 12-row viewport (9 blank rows between prompt and hint at every size) · lane cards"]
+#[ignore = "defect: B1 · the inline composer stretches over the 12-row viewport (9 blank rows between prompt and hint at every size) · terminal rendering"]
 fn inline_hint_sits_right_under_the_composer() {
     for (cols, rows) in SIZES {
         let mut term = Term::proto(&[], cols, rows);
@@ -217,7 +217,7 @@ fn inline_hint_sits_right_under_the_composer() {
 
 /// B2 · a line the human sent is echoed with one marker.
 #[test]
-#[ignore = "defect: B2 · the echo reads `› nika › digest my monday notes` (two markers) · lane cards"]
+#[ignore = "defect: B2 · the echo reads `› nika › digest my monday notes` (two markers) · terminal rendering"]
 fn a_human_line_is_echoed_with_one_marker() {
     let mut term = Term::proto(&[], 80, 24);
     term.wait_prompt(FREE);
@@ -235,7 +235,7 @@ fn a_human_line_is_echoed_with_one_marker() {
 /// B3 · the lines of one run stay together in focus: space between blocks,
 /// not inside one run story.
 #[test]
-#[ignore = "defect: B3 · focus puts a blank row between every run line · lane cards"]
+#[ignore = "defect: B3 · focus puts a blank row between every run line · terminal rendering"]
 fn focus_keeps_the_lines_of_one_run_together() {
     let mut term = Term::proto(&["--focus"], 120, 40);
     term.wait_prompt(FREE);
@@ -250,7 +250,7 @@ fn focus_keeps_the_lines_of_one_run_together() {
 /// stay in the scrollback (they are the record), the composer, its hint and
 /// the interrupted notice do not stay painted under the shell prompt.
 #[test]
-#[ignore = "defect: B4 · after two Ctrl+C the composer, its hint and the interrupted notice stay painted · lane cards"]
+#[ignore = "defect: B4 · after two Ctrl+C the composer, its hint and the interrupted notice stay painted · terminal rendering"]
 fn leaving_inline_clears_the_live_area() {
     let mut term = Term::proto(&[], 80, 24);
     term.wait_prompt(FREE);
@@ -270,7 +270,7 @@ fn leaving_inline_clears_the_live_area() {
 /// (120 to 80 columns) while a proposal waits, the proposal is still
 /// visible above `apply? ›`, not only in a scrollback some terminals keep.
 #[test]
-#[ignore = "defect: a width shrink in inline wipes the screen and the waiting proposal leaves it; only apply? and its hint stay (ratatui resize clears on a horizontal shrink and moves the viewport to row 0) · lane cards or ws (inline viewport)"]
+#[ignore = "defect: a width shrink in inline wipes the screen and the waiting proposal leaves it; only apply? and its hint stay (ratatui resize clears on a horizontal shrink and moves the viewport to row 0) · inline viewport handling"]
 fn a_width_shrink_keeps_the_waiting_proposal_on_screen() {
     let mut term = Term::proto(&[], 120, 40);
     term.wait_prompt(FREE);

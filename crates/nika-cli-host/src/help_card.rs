@@ -266,7 +266,7 @@ mod tests {
     fn scratch_home_is_warned() {
         assert!(home_looks_like_scratch("/tmp/nika-scratch-home"));
         assert!(home_looks_like_scratch("/var/folders/xx/scratch"));
-        assert!(!home_looks_like_scratch("/Users/thibaut"));
+        assert!(!home_looks_like_scratch("/home/operator"));
         assert!(!home_looks_like_scratch("/home/nika"));
         let text = isolation_warning_text("/tmp/scratch");
         assert!(text.contains("env -i"), "{text}");
