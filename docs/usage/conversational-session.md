@@ -282,6 +282,21 @@ clause by clause.
 
 ## Inspect the result
 
+In the workspace, the run object has Run, Outputs, Files and Proof faces. Focus
+that region with `F6`, use Left/Right to change face, and `r` to read again.
+Outputs are the values carried by the run's settlement. Files shows up to eight
+files the run reported writing, read now (at most 1 MiB each). Those current
+bytes are not certified as the bytes written by the run.
+
+Proof captures up to 8 MiB of the journal and verifies those bytes. It shows
+separately whether execution, source and receipt match the selected run. A
+missing or conflicting identity stays unbound; a seal declared by the run is
+not a verified signature. The verdict checks the record, not business success.
+A refused or unavailable read stays visible; use `nika trace verify` for a
+journal above the workspace's interactive cap.
+Custody key files must themselves be regular files; a linked key file is
+refused as unavailable, even when its parent directory is a link.
+
 After a run, the Session lists what the run produced and read, the model usage
 it recorded, and the path of its trace.
 
@@ -320,7 +335,9 @@ instead proposes it again against the current project, as described above.
 Neither path restores consent, Run authority or a spending allowance.
 
 Reopening restores the conversation's goal, decisions, open questions and
-recent turns. Earlier approvals and approval answers do not carry over, and
+recent turns. The workspace repaints retained turns as history and reopens the
+last observed run as evidence. Its outputs, file list and task rows are not
+restored; Proof is verified again when opened. Nothing is replayed. Earlier approvals and approval answers do not carry over, and
 neither does a ceiling agreed for a saved file. To run a workflow saved in an
 earlier Session, name its ceiling:
 `run compiled-workflow.nika with a ceiling of 0.25`.

@@ -45,6 +45,17 @@ job through an idempotent submission key. It therefore does not recover a run
 by guessing from the latest trace, nor promise automatic resume or exactly-once
 external effects. `observe_run` remains a host-supplied observation.
 
+`observe_run_leg` additionally keeps the observed execution, source hash and
+receipt head/length in an optional versioned `last_run` value. Session owns its
+persistence; `nika_trace::run_view::KeptRun` is only an observation, with no
+history or authority. Reopen exposes it and repaints retained dialogue as history;
+it does not restore task rows, outputs, a file inventory or execution. The
+workspace verifies the journal again only when Proof is opened. A resumed leg
+has its own execution and journal; no identity is inferred from a previous leg.
+Legacy absence stays absent. An unreadable kept value is preserved and reported,
+not repaired; a present null is refused. Older engines whose closed history
+format lacks `last_run` refuse new records rather than silently discarding it.
+
 ## Format and limits
 
 The private format is versioned and hash chained. Unknown versions/fields,

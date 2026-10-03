@@ -86,6 +86,20 @@ Two reasons, one mechanism (the same two as every descent):
 - **The size formatter (C10).** `run_view::human_size` is public: the session's
   produced-files line reads it instead of keeping an identical copy.
 
+### Captured journal and kept run
+
+`trace_verify::verify_captured(trace, raw, opts)` applies the same verifier to
+already captured journal bytes, within `JOURNAL_BOUND`; it refuses replay and
+never reopens the journal. Custody keys, anchor sidecar and liveness remain
+separate reads by their existing owners. `RunFacts::of` folds the same bytes
+without I/O or a verification claim. Its execution/start/hash observations let
+a host bind that verdict; `terminal` returns no terminal word when none was
+observed, and names `paused` for a journal ending at a gate.
+
+`run_view::KeptRun` is a pure, closed, versioned observation of workflow, exit,
+trace, execution, source hash and receipt head/length. Missing parts stay absent.
+Its owner persists it; this crate adds neither history storage nor authority.
+
 ## 3 · Cost door (P4, 2026-09-28)
 
 `nika trace cost` is the operator's door onto the cost journal. The law and

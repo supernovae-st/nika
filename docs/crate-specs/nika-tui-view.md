@@ -29,8 +29,9 @@ currently shows the artifact viewers.
 
 ## 2. The viewers of the object in view
 
-The native workspace wires the four workflow faces. Artifact viewers remain library
-surfaces awaiting their Live owner. A viewer is a pure function: bytes or text, the facts the caller knows (`Meta`:
+The native workspace wires the four workflow faces and calls `artifact` for a
+run's settlement outputs and bounded current reads of files it reported writing.
+The Live host owns acquisition and provenance. A viewer is a pure function: bytes or text, the facts the caller knows (`Meta`:
 name, declared type, format word, size, dimensions, duration, digest, producer, provenance,
 availability, protected) and the cells offered (`Canvas`: width, glyph column, colour, bounds)
 become a `Rendered` (title, facts, styled lines, notes). It reads no file, clock or
@@ -60,8 +61,9 @@ default) and says what it cut.
 - A control character or a bidirectional override reaches the screen as a visible mark, widths
   are measured by grapheme, facts and notes agree in number, and every view keeps its meaning
   under `NO_COLOR` and in the ASCII column (the engine's words included).
-- The artifact viewers have no on-terminal witness yet: the gallery example was not
-  recovered and no Live owner calls them.
+- Workspace PTYs exercise settlement output and Markdown file display through
+  the Live owner. This does not qualify every supported artifact format or a
+  stamped integrated build; the gallery example remains unrecovered.
 
 ## 3. Boundary
 
