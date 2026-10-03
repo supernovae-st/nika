@@ -790,7 +790,7 @@ fn hex_lower(bytes: &[u8]) -> String {
 ///
 /// A reason string when the explicit key file cannot be read, a custody file
 /// that exists is refused (never taken for an absent key) or more than
-/// [`MAX_CANDIDATES`] keys are found (never cut): the invocation's own
+/// `MAX_CANDIDATES` keys are found (never cut): the invocation's own
 /// failure, never a forgery signal.
 pub fn candidate_pubkeys(key_file: Option<&Path>) -> Result<Vec<(String, String)>, String> {
     let mut out = Vec::new();
