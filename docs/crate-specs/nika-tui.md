@@ -81,7 +81,10 @@ Below 60×16, focus presentation preserves the conversation. The Live host adapt
 lists the Session project, opens only a listed workflow below its owned root,
 and reads at most 1 MiB of UTF-8 without following symlinks. Source, Plan, Graph
 and Check share the same byte witness and one `audit_source` result. Inspection
-runs before drawing and opens no consent, Save or Run authority.
+runs before drawing and opens no consent, Save or Run authority. For a workflow with
+`infer:`/`agent:` tasks, the readiness judgement may observe provider key presence and,
+in a harness build, run the installed agent CLIs' authentication status probes; it never
+calls a model.
 
 The check is explicitly `ParentOnly`: imports, skills and registry closure are
 unobserved, and RUN READY stays UNKNOWN. Rendering is cached by observation,

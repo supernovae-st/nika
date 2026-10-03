@@ -19,7 +19,7 @@ inv: []
 shadow_zones: []
 nika_codes: []
 timeline: "v0.121"
-follow_ups: ["the admission evidence of the member, pending with its WIP unit", "one owner for the role mapping once nika-tui depends on the member (the renderer may then re-export the member's copy)", "the object region of the workspace paints a Rendered value (lane ws), which makes the member a normal dependency of nika-tui"]
+follow_ups: ["the admission evidence of the member, pending with its WIP unit", "one owner for the role mapping once nika-tui depends on the member (the renderer may then re-export the member's copy)", "the object region of the workspace paints a Rendered value (lane ws), which makes the member a normal dependency of nika-tui (done 2026-10-03, TUI-01)"]
 ---
 
 # ADR-143: nika-tui size-cap member split — nika-tui-view
@@ -117,17 +117,22 @@ the renderer's own transcript, status and composer. Cutting one would move edges
 The wall counts comments and blank lines by design; the work queued behind it needs thousands
 of lines, not tens.
 
-## Amendment 2026-10-03 · recovered onto main, a production edge
+## Amendment 2026-10-03 · recovered from the terminal UI branches, a production edge
 
-The member was recovered onto `main` `c15cf94da` (TUI-01) from the terminal UI branches, where
-its bytes were identical. The third follow-up above is now done: the workspace's object region
+The member was recovered from the terminal UI branches (TUI-01), where its bytes were
+identical, onto an integration carrier based on `main` `c15cf94da`; it reaches `main`
+through the normal integration. The third follow-up above is now done: the workspace's object region
 paints one face of the look the Live host adapter takes of an opened workflow, so `nika-tui`
 takes the member as a normal dependency (still `nika-tui → nika-tui-view`, never back). The
 member gains one verdict, `Verdict::ParentOnly`: layers computed over one file read alone, with
 RUN READY unknown and what the look did not capture named, never the readiness of a composed
-workflow. With it `nika-tui` measures 7,290 prod LOC and the member 6,210 (the gate's counter at
-`e0e2e37a4`, base `nika-tui` 5,399); the split keeps the unit's
+workflow. With it `nika-tui` measures 7,183 prod LOC and the member 6,210 (the gate's counter at
+`0695db637`, base `nika-tui` 5,399); the split keeps the unit's
 room for the queued work rather than answering a breach today.
+
+The `view_gallery` example and the dev-dependency it required were not recovered; the
+decision text and measurements above describe the 2026-09-30 split. Artifact viewers
+remain library surfaces awaiting a Live owner and an on-terminal witness.
 
 ## Related
 

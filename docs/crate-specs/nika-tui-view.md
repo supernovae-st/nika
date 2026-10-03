@@ -23,8 +23,9 @@ renderer. Per D-2026-07-09-N1 a size-cap split is ONE architectural unit in seve
 members: the viewers descend here, below the renderer, which keeps 7,735 prod LOC (ADR-143).
 
 The paths change from `nika_tui::view::…` to `nika_tui_view::…`; nothing is re-exported by
-`nika-tui`. The renderer's `view_gallery` example stays in `nika-tui`, which now also uses this
-member as a normal dependency for the workspace workflow faces.
+`nika-tui`. The renderer uses this member as a normal dependency for the workspace workflow
+faces. The `view_gallery` example of the terminal UI branches was not recovered; no example
+currently shows the artifact viewers.
 
 ## 2. The viewers of the object in view
 
@@ -59,9 +60,8 @@ default) and says what it cut.
 - A control character or a bidirectional override reaches the screen as a visible mark, widths
   are measured by grapheme, facts and notes agree in number, and every view keeps its meaning
   under `NO_COLOR` and in the ASCII column (the engine's words included).
-- `nika-tui`'s `examples/view_gallery.rs` shows every view on a real terminal; standing in for
-  the Session, it audits its three fixtures once before taking the screen and never on the
-  display path.
+- The artifact viewers have no on-terminal witness yet: the gallery example was not
+  recovered and no Live owner calls them.
 
 ## 3. Boundary
 
