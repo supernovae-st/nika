@@ -20,12 +20,23 @@ use crate::authoring::{
 use crate::reasoner::test_transport;
 use crate::runtime::inference_tests::wire::{Peer, response};
 
-/// The one route whose catalog lists the three levels (`low` · `high` · `max`).
+/// A route whose catalog lists the three levels (`low` · `high` · `max`).
 const QUALIFIED: &str = "deepseek/deepseek-v4-pro";
-/// A route that asks efforts but lists no level of its own: an explicit level is refused there.
-const UNLISTED: &str = "deepseek/deepseek-flash";
+/// The exact Flash ID, whose catalog lists the three levels of its own (CALIBRATION-01).
+const FLASH: &str = "deepseek/deepseek-flash";
+/// A route that lists no level of its own (a suffixed Flash name the catalog never qualifies): an
+/// explicit level is refused there.
+const UNLISTED: &str = "deepseek/deepseek-flash-0731";
 const REQUEST: &str = "Read ./orders.csv, keep the rows whose status is paid, write them to ./paid.csv with the same header and write their total amount as a number to ./paid-total.txt.";
 const ORDERS: &str = "id,date,customer,status,amount,currency,ref\n1,2026-09-01,Acme,paid,120.50,EUR,A-1\n2,2026-09-02,Bolt,due,80,EUR,A-2\n";
+
+/// The loopback's answer `text` on `model`'s route, naming that route's own model as the provider
+/// does (a Flash call answered as Pro would be contradictory usage, rightly refused).
+fn answer(model: &str, text: &str) -> Value {
+    let mut answer = response(text);
+    answer["model"] = Value::from(model.rsplit('/').next().unwrap_or(model));
+    answer
+}
 
 /// A context a host names: its own words over an empty environment.
 fn host(settings: &AuthoringSettings) -> AuthoringContext {
@@ -39,7 +50,7 @@ fn dispatched(
     model: &str,
     round: &AuthoringRound,
 ) -> (Result<CompileOutcome, AuthoringError>, Vec<Value>) {
-    let peer = Peer::start(vec![(200, response("{}"))]);
+    let peer = Peer::start(vec![(200, answer(model, "{}"))]);
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().expect("project");
     std::fs::write(dir.path().join("orders.csv"), ORDERS).expect("fixture");
@@ -238,6 +249,95 @@ fn a_later_round_sends_its_answers_and_the_named_effort() {
     assert!(!bodies.is_empty(), "the answer round asked the seat");
     for body in &bodies {
         asks_max_for_the_whole_request(body);
+        carries_the_observation(body);
+    }
+}
+
+/// A body asks `low` as the exact Flash model's two keys, on that model, and carries the request
+/// whole.
+fn asks_flash_low_for_the_whole_request(body: &Value) {
+    assert_eq!(body["model"], "deepseek-flash", "{body}");
+    assert_eq!(body["thinking"]["type"], "enabled", "{body}");
+    assert_eq!(body["reasoning_effort"], "low", "{body}");
+    assert!(
+        body.to_string().contains(REQUEST),
+        "the request whole: {body}"
+    );
+}
+
+/// CALIBRATION-01 · every seated authoring and repair call on the exact Flash ID asks `low`, under
+/// the ceilings and in the number of calls of the same round naming none; each call's record says
+/// configured `low`, the keys read back from the bytes sent, and the effort served unknown.
+#[test]
+fn flash_low_rides_every_authoring_and_repair_call_with_the_same_caps() {
+    let context = host(&AuthoringSettings::none().with_reasoning("low"));
+    let (out, bodies) = dispatched(&context, FLASH, &AuthoringRound::new(REQUEST));
+    let calls = recorded(&out.expect("an outcome"));
+    assert!(
+        bodies.len() >= 2 && bodies.len() == calls.len(),
+        "a first call and its repair, each recorded: {} bodies · {calls:?}",
+        bodies.len()
+    );
+    bodies.iter().for_each(asks_flash_low_for_the_whole_request);
+    for (call, reasoning) in &calls {
+        assert_eq!(reasoning["configured"], "low", "{call}");
+        assert_eq!(
+            reasoning["transmitted"],
+            json!({"thinking": "enabled", "effort": "low"}),
+            "{call}: the keys read back from the bytes sent"
+        );
+        assert_eq!(reasoning["served"], "unknown", "{call}");
+    }
+    assert!(
+        calls.iter().any(|(call, _)| call.contains("repair")),
+        "a repair call is covered: {calls:?}"
+    );
+    let (_, before) = dispatched(
+        &AuthoringContext::default(),
+        FLASH,
+        &AuthoringRound::new(REQUEST),
+    );
+    let caps = |bodies: &[Value]| {
+        bodies
+            .iter()
+            .map(|b| b["max_tokens"].clone())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        caps(&bodies),
+        caps(&before),
+        "the same calls under the same ceilings"
+    );
+}
+
+/// CALIBRATION-01 · on the exact Flash ID, the native door and the round that answers its question
+/// ask `low` with the request and the project observed for it.
+#[test]
+fn flash_low_rides_the_native_door_and_the_next_round_with_their_context() {
+    let context = host(
+        &AuthoringSettings::none()
+            .with_strategy("only")
+            .with_reasoning("low"),
+    );
+    let (out, bodies) = dispatched(&context, FLASH, &AuthoringRound::new(REQUEST));
+    let calls = recorded(&out.expect("an outcome"));
+    assert!(
+        !bodies.is_empty() && bodies.len() == calls.len(),
+        "{calls:?}"
+    );
+    for body in &bodies {
+        asks_flash_low_for_the_whole_request(body);
+        carries_the_observation(body);
+    }
+    let mut round = AuthoringRound::new("Sort the payments.");
+    round.answers.insert(
+        "intent.clarification".to_owned(),
+        serde_json::to_string(REQUEST).expect("literal"),
+    );
+    let (_, bodies) = dispatched(&context, FLASH, &round);
+    assert!(!bodies.is_empty(), "the answer round asked the seat");
+    for body in &bodies {
+        asks_flash_low_for_the_whole_request(body);
         carries_the_observation(body);
     }
 }

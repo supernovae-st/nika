@@ -20,6 +20,10 @@ use crate::registry::{ProviderRegistry, ProvidersConfig, ResolvedProvider};
 use crate::test_support::{FakeHttp, collect, resolved_with};
 
 const PRO: &str = "deepseek/deepseek-v4-pro";
+/// The exact Flash ID, on its own direct route (CALIBRATION-01).
+const FLASH: &str = "deepseek/deepseek-flash";
+/// The direct endpoint the normal `DeepSeek` profile dispatches to.
+const DIRECT: &str = "https://api.deepseek.com/v1/chat/completions";
 const ANSWER: &str = r#"{"model":"deepseek-v4-pro","choices":[{"message":{"content":"{}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":3}}"#;
 const STREAM: &str = concat!(
     "data: {\"choices\":[{\"delta\":{\"content\":\"{}\"},\"finish_reason\":null}]}\n\n",
@@ -103,6 +107,71 @@ async fn max_rides_the_direct_deepseek_route_as_two_structural_keys() {
     }
 }
 
+/// The exact Flash ID asks each level it documents on both doors, on the direct endpoint, for the
+/// same model and under the caller's cap (the authoring 16384 and the label 4096): two structural
+/// keys added, nothing else moved. Hermetic: the bytes handed the HTTP effect, never the service.
+#[tokio::test]
+async fn flash_rides_each_documented_level_on_the_direct_route_unchanged() {
+    let levels = [
+        (ReasoningEffort::Low, "low"),
+        (ReasoningEffort::High, "high"),
+        (ReasoningEffort::Max, "max"),
+    ];
+    for (level, word) in levels {
+        for cap in [4096, 16_384] {
+            let fake = FakeHttp::with_json(200, ANSWER);
+            let provider = resolved_with(&fake, FLASH, "fixture");
+            let response = provider
+                .infer(request(cap, Some(level)))
+                .await
+                .unwrap_or_else(|e| panic!("{word} {cap}: {e}"));
+            let captured = fake.captured();
+            assert_eq!(captured.len(), 1, "{word} {cap}");
+            assert_eq!(captured[0].url, DIRECT, "{word} {cap}: the direct route");
+            let body = &sent(&fake)[0];
+            assert_eq!(
+                body["model"], "deepseek-flash",
+                "{word} {cap}: the exact model"
+            );
+            assert_eq!(body["thinking"], json!({"type": "enabled"}), "{word} {cap}");
+            assert_eq!(body["reasoning_effort"], word, "{word} {cap}");
+            assert_eq!(body["max_tokens"], cap, "{word}: the cap is the caller's");
+            assert_eq!(
+                response.reasoning_wire,
+                Some(ReasoningWire::new(
+                    Some("enabled".into()),
+                    Some(word.into())
+                )),
+                "{word} {cap}: read back from the bytes"
+            );
+
+            let fake = FakeHttp::with_stream(200, STREAM, 7);
+            let provider = resolved_with(&fake, FLASH, "fixture");
+            let events = collect(
+                provider
+                    .infer_stream(request(cap, Some(level)))
+                    .await
+                    .expect("opens"),
+            )
+            .await;
+            assert!(events.iter().all(Result::is_ok), "{events:?}");
+            let captured = fake.captured();
+            assert_eq!(captured.len(), 1, "stream {word} {cap}");
+            assert_eq!(captured[0].url, DIRECT, "stream {word} {cap}");
+            let body = &sent(&fake)[0];
+            assert_eq!(body["stream"], true);
+            assert_eq!(body["model"], "deepseek-flash", "stream {word} {cap}");
+            assert_eq!(
+                body["thinking"],
+                json!({"type": "enabled"}),
+                "stream {word}"
+            );
+            assert_eq!(body["reasoning_effort"], word, "stream {word} {cap}");
+            assert_eq!(body["max_tokens"], cap, "stream {word}");
+        }
+    }
+}
+
 #[tokio::test]
 async fn no_level_keeps_the_route_bytes_and_the_wire_says_what_went() {
     for (cap, route_default) in [(2048, Some("low")), (16_384, None)] {
@@ -152,7 +221,9 @@ async fn refuses_on_both_doors(
 #[tokio::test]
 async fn an_unqualified_route_refuses_before_any_byte_on_both_doors() {
     for model in [
-        "deepseek/deepseek-flash",
+        "deepseek/deepseek-flash-0731",
+        "deepseek/deepseek-v4-flash",
+        "openrouter/deepseek/deepseek-flash",
         "deepseek/deepseek-chat",
         "openai/deepseek-v4-pro",
         "openrouter/deepseek/deepseek-v4-pro",
@@ -171,9 +242,11 @@ async fn an_unqualified_route_refuses_before_any_byte_on_both_doors() {
         "https://api.deepseek.com/v1/chat/completions?beta=true",
         "https://gateway.example/v1/chat/completions",
     ] {
-        let fake = FakeHttp::with_stream(200, STREAM, 7);
-        let provider = overridden(&fake, PRO, url);
-        refuses_on_both_doors(&provider, &fake, url).await;
+        for model in [PRO, FLASH] {
+            let fake = FakeHttp::with_stream(200, STREAM, 7);
+            let provider = overridden(&fake, model, url);
+            refuses_on_both_doors(&provider, &fake, &format!("{model} {url}")).await;
+        }
     }
 }
 
@@ -193,12 +266,14 @@ async fn a_level_never_rides_beside_a_budget_or_a_raw_reasoning_key() {
         },
     ];
     for tweak in tweaks {
-        let fake = FakeHttp::with_json(200, ANSWER);
-        let provider = resolved_with(&fake, PRO, "fixture");
-        let mut req = request(2048, Some(ReasoningEffort::Max));
-        tweak(&mut req);
-        let error = provider.infer(req).await.expect_err("refused");
-        assert!(denied(&error).is_some(), "{error}");
-        assert!(fake.captured().is_empty());
+        for (model, level) in [(PRO, ReasoningEffort::Max), (FLASH, ReasoningEffort::Low)] {
+            let fake = FakeHttp::with_json(200, ANSWER);
+            let provider = resolved_with(&fake, model, "fixture");
+            let mut req = request(2048, Some(level));
+            tweak(&mut req);
+            let error = provider.infer(req).await.expect_err("refused");
+            assert!(denied(&error).is_some(), "{model}: {error}");
+            assert!(fake.captured().is_empty(), "{model}");
+        }
     }
 }

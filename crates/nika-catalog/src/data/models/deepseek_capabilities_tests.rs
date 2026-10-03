@@ -33,38 +33,45 @@ fn deepseek_rules_do_not_invent_gateway_or_future_model_capabilities() {
     }
 }
 
-/// The effort levels are the exact model's own evidence (R4 B16): deepseek-v4-pro lists low,
-/// high and max; Flash, old aliases, suffixed names and gateways list none, whatever their name.
+/// The effort levels are each exact model's own evidence (R4 B16 · CALIBRATION-01): deepseek-v4-pro
+/// and deepseek-flash each list low, high and max; old aliases, suffixed or unqualified Flash
+/// names and gateways list none, whatever their name.
 #[test]
-fn only_deepseek_v4_pro_documents_effort_levels() {
+fn only_the_exact_deepseek_models_document_effort_levels() {
     for provider in ["deepseek", "deep-seek"] {
-        let pro = model_capabilities(provider, "deepseek-v4-pro");
-        assert_eq!(
-            pro.reasoning_efforts,
-            [
-                ReasoningLevel::Low,
-                ReasoningLevel::High,
-                ReasoningLevel::Max
-            ],
-            "{provider}"
-        );
-        assert!(
-            pro.supported_parameters
-                .contains(&ParamFlag::ReasoningEffort)
-        );
-        let flash = model_capabilities(provider, "deepseek-flash");
-        assert!(
-            flash.reasoning && flash.reasoning_efforts.is_empty(),
-            "{provider}"
-        );
+        for model in ["deepseek-v4-pro", "deepseek-flash"] {
+            let caps = model_capabilities(provider, model);
+            assert_eq!(
+                caps.reasoning_efforts,
+                [
+                    ReasoningLevel::Low,
+                    ReasoningLevel::High,
+                    ReasoningLevel::Max
+                ],
+                "{provider}/{model}"
+            );
+            assert!(
+                caps.reasoning
+                    && caps
+                        .supported_parameters
+                        .contains(&ParamFlag::ReasoningEffort),
+                "{provider}/{model}"
+            );
+        }
     }
     for (provider, model) in [
         ("deepseek", "deepseek-chat"),
         ("deepseek", "deepseek-reasoner"),
         ("deepseek", "deepseek-v4-pro-0813"),
         ("deepseek", "deepseek-future"),
+        ("deepseek", "deepseek-flash-0731"),
+        ("deepseek", "deepseek-v4-flash"),
+        ("deepseek", "deepseek-flash-latest"),
+        ("scaleway", "deepseek-v4-flash-0731"),
         ("openai", "deepseek-v4-pro"),
+        ("openai", "deepseek-flash"),
         ("openrouter", "deepseek/deepseek-v4-pro"),
+        ("openrouter", "deepseek/deepseek-flash"),
         ("huggingface", "deepseek-ai/deepseek-v4-pro"),
     ] {
         let caps = model_capabilities(provider, model);
