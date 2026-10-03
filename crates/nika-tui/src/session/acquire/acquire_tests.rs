@@ -61,10 +61,17 @@ struct Room(PathBuf);
 
 impl Room {
     fn new(tag: &str) -> Self {
+        // Tests run in parallel threads of one process and the clock is
+        // coarser than their starts: the count keeps two rooms apart.
+        static MADE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_nanos());
-        let name = format!("nika-tui-acquire-{tag}-{}-{nanos}", std::process::id());
+        let made = MADE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let name = format!(
+            "nika-tui-acquire-{tag}-{}-{nanos}-{made}",
+            std::process::id()
+        );
         let path = std::env::temp_dir().join(name);
         std::fs::create_dir_all(&path).expect("room");
         Self(path)
