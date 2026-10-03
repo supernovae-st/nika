@@ -79,9 +79,11 @@ async fn call<T: Shaped, P: ProviderInferDyn>(
     provider: &P,
     out: &mut CompileOutcome,
 ) -> Option<(T, String)> {
-    let Some(response) =
-        super::call_with_schema(policy, provider, role, talk.messages.clone(), schema, out).await
-    else {
+    let before = super::receipt::journaled(out);
+    let response =
+        super::call_with_schema(policy, provider, role, talk.messages.clone(), schema, out).await;
+    super::receipt::stamp_references(out, before, &talk.presented);
+    let Some(response) = response else {
         talk.rounds
             .push(json!({"round": round, "phase": role, "call": "failed"}));
         return None;
@@ -141,6 +143,89 @@ fn holes_message(sketch: &Sketch) -> String {
         "Answer one JSON object {\"fills\": [{\"task\", \"field\", \"value\"}], \"notes\"}.",
     );
     text
+}
+
+/// The task keys a sketch parse reads; any other key of a task is ignored by it.
+const TASK_KEYS: &[&str] = &[
+    "id", "verb", "tool", "reads", "writes", "hosts", "after", "with", "gated_by", "for_each",
+    "purpose",
+];
+
+/// How many keys of `object` are not in `known`: data the parse never read.
+fn ignored_keys(object: &Value, known: &[&str]) -> usize {
+    object.as_object().map_or(0, |map| {
+        map.keys().filter(|k| !known.contains(&k.as_str())).count()
+    })
+}
+
+/// An accepted sketch as the compiler consumed it: the closed form of every field the parse read,
+/// the digest of the seat's raw graph, and how many keys the parse ignored (never their text).
+fn consumed_sketch(sketch: &Sketch, raw: &Value) -> Value {
+    let tasks = raw["tasks"]
+        .as_array()
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    let ignored: usize = tasks
+        .iter()
+        .map(|task| {
+            let edges = task["with"]
+                .as_array()
+                .map(Vec::as_slice)
+                .unwrap_or_default();
+            ignored_keys(task, TASK_KEYS)
+                + edges
+                    .iter()
+                    .map(|e| ignored_keys(e, &["name", "from"]))
+                    .sum::<usize>()
+        })
+        .sum();
+    json!({
+        "name": sketch.name,
+        "tasks": sketch.tasks.iter().map(|t| json!({
+            "id": t.id, "verb": t.verb.word(), "tool": t.tool, "reads": t.reads,
+            "writes": t.writes, "hosts": t.hosts, "after": t.after,
+            "with": t.with.iter().map(|e| json!({"name": e.name, "from": e.from})).collect::<Vec<_>>(),
+            "gated_by": t.gated_by, "for_each": t.for_each, "purpose": t.purpose,
+        })).collect::<Vec<_>>(),
+        "sha256": super::knowledge::sha256(&raw.to_string()),
+        "ignored_keys": ignored,
+    })
+}
+
+/// Every fill the seat sent, in order: the first fill of a declared hole in the closed form the
+/// document reads (`task`, `field`, `value`) with the raw fill's digest and how many keys it
+/// carried beside them; any other — no such hole, a repeated fill of one, or every fill of an
+/// answer no document was emitted from — by digest, shape and reason. Whether the document read
+/// a fill is the emitted candidate's to show (an invoke task applies every `args.*` fill).
+fn proposed_fills(sketch: &Sketch, fills: &[Value], used: bool) -> Vec<Value> {
+    let holes = ir::holes(sketch);
+    let mut seen: Vec<(&str, &str)> = Vec::new();
+    let keys = ["task", "field", "value"];
+    fills
+        .iter()
+        .map(|fill| {
+            let task = fill["task"].as_str().unwrap_or_default();
+            let field = fill["field"].as_str().unwrap_or_default();
+            let declared = holes.iter().any(|h| h.task == task && h.field == field);
+            let reason = if !used {
+                "the document was not emitted from these fills"
+            } else if !declared {
+                "not a declared hole"
+            } else if seen.contains(&(task, field)) {
+                "a repeated fill of one declared hole"
+            } else {
+                seen.push((task, field));
+                return json!({
+                    "task": task,
+                    "field": field,
+                    "value": fill.get("value").cloned().unwrap_or(Value::Null),
+                    "sha256": super::knowledge::sha256(&fill.to_string()),
+                    "ignored_keys": ignored_keys(fill, &keys),
+                });
+            };
+            super::receipt::withheld(&fill.to_string(), &keys, reason)
+        })
+        .collect()
 }
 
 fn diagnostics_record(diagnostics: &[Diagnostic]) -> Vec<Value> {
@@ -211,10 +296,18 @@ async fn propose<P: ProviderInferDyn>(
                 None,
             ),
         };
+        // The graph the laws accepted, as parsed; a refused one by digest, shape and reason.
+        let proposed = match &parsed {
+            Some(sketch) if diagnostics.is_empty() => consumed_sketch(sketch, &record),
+            _ => {
+                super::receipt::withheld(&record.to_string(), &["name", "tasks"], "refused sketch")
+            }
+        };
         talk.rounds.push(json!({
             "round": round,
             "phase": "sketch",
             "sketch_sha256": super::knowledge::sha256(&record.to_string()),
+            "proposed_sketch": proposed,
             "tasks": parsed.as_ref().map_or(0, |s| s.tasks.len()),
             "questions": answer.questions.iter().map(|q| q.key.clone()).collect::<Vec<_>>(),
             "gaps": answer.gaps.clone(),
@@ -273,7 +366,8 @@ async fn fill<P: ProviderInferDyn>(
             Ok(fills) => fills,
             Err(message) => {
                 talk.rounds
-                    .push(json!({"round": round, "phase": "fill", "answer": message}));
+                    .push(json!({"round": round, "phase": "fill", "answer": message,
+                    "proposed_fills": proposed_fills(sketch, &filling.fills, false)}));
                 return None;
             }
         };
@@ -284,6 +378,7 @@ async fn fill<P: ProviderInferDyn>(
                     "round": round,
                     "phase": "fill",
                     "answer": format!("the document is not representable: {error}"),
+                    "proposed_fills": proposed_fills(sketch, &filling.fills, false),
                 }));
                 return None;
             }
@@ -305,6 +400,7 @@ async fn fill<P: ProviderInferDyn>(
             "phase": "fill",
             "candidate_sha256": super::knowledge::sha256(&candidate),
             "fills": fills.len(),
+            "proposed_fills": proposed_fills(sketch, &filling.fills, true),
             "notes": filling.notes.clone(),
             "diagnostics": diagnostics_record(&diagnostics),
         }));
@@ -364,6 +460,7 @@ pub(super) async fn author<P: ProviderInferDyn>(
         allowed,
         request,
     );
+    talk.presented = json!(sent);
     let (spent, sketched) = propose(&mut talk, intent, reading, policy, provider, &mut out).await;
     let mut accepted = None;
     if let Some(pair) = &sketched {

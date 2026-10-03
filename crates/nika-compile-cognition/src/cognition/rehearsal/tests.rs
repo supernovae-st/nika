@@ -589,5 +589,68 @@ async fn an_open_question_starts_no_rehearsal_and_its_answer_replays_afresh() {
     );
 }
 
+fn forensic(out: &CompileOutcome) -> Value {
+    out.provenance.decision.as_ref().unwrap()["forensic"].clone()
+}
+
+/// The forensic record binds a rehearsal to the exact final bytes and keeps every attempt's
+/// identity; an observed run, a judge's verdict and a READY are never called satisfaction.
+#[tokio::test]
+async fn the_forensic_record_binds_rehearsal_to_the_final_bytes_and_proves_no_satisfaction() {
+    let author = Author::new(vec![answer(&source(false)), answer(&source(true))]);
+    let out = compiled(&request(1), &author, &Host::new(Mode::ByDirectories)).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let summary = forensic(&out);
+    let evidence = &summary["evidence"];
+    let final_sha = crate::cognition::knowledge::sha256(out.candidate.as_deref().unwrap());
+    assert_eq!(evidence["candidate_sha256"], final_sha);
+    assert_eq!(evidence["check"], "clean");
+    assert_eq!(evidence["rehearsal"]["state"], "observed", "{summary:#}");
+    assert_eq!(evidence["rehearsal"]["bound_to_candidate"], true);
+    assert_eq!(evidence["rehearsal"]["outcome"], "passed");
+    assert_eq!(evidence["semantic_judge"]["state"], "recorded");
+    assert_eq!(
+        evidence["semantic_judge"]["candidate_binding"],
+        "NOT_CAPTURED"
+    );
+    assert_eq!(evidence["behavioral_judge"]["state"], "not_run");
+    assert_eq!(evidence["satisfaction"], "UNKNOWN");
+    // The repaired attempt keeps its own identity beside the rehearsal that refused it.
+    let attempts = summary["attempts"].as_array().unwrap();
+    assert_eq!(attempts.len(), 2, "{summary:#}");
+    assert_eq!(
+        attempts[0]["candidate_sha256"],
+        reports(&out)[0]["candidate_sha256"]
+    );
+    assert_eq!(attempts[1]["candidate_sha256"], final_sha);
+    let calls = &summary["calls"]["generative"];
+    assert_eq!(calls["by_role"]["native"], 1, "{calls:#}");
+    assert_eq!(calls["by_role"]["native-repair"], 1, "{calls:#}");
+    assert_eq!(
+        calls["count"],
+        out.provenance.authoring.as_ref().unwrap().calls
+    );
+    assert_eq!(calls["usage"], "complete");
+    assert_eq!(summary["door"]["name"], "native_source");
+    assert_eq!(summary["door"]["reason"], "policy_native_only_before_hot");
+    assert_eq!(summary["door"]["source_owner"], "model");
+    // READY over a run the host never attempted: visible as such, never as an observation.
+    let author = Author::new(vec![answer(&source(true))]);
+    let out = compiled(&request(0), &author, &Host::new(Mode::NotRun)).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let evidence = forensic(&out)["evidence"].clone();
+    assert_eq!(evidence["rehearsal"]["state"], "not_run", "{evidence:#}");
+    assert_eq!(evidence["rehearsal"]["outcome"], "not_run");
+    assert_eq!(evidence["satisfaction"], "UNKNOWN");
+    // A report for other bytes is not evidence about this candidate.
+    let author = Author::new(vec![answer(&source(true))]);
+    let out = compiled(&request(0), &author, &Host::new(Mode::WrongDigest)).await;
+    let evidence = forensic(&out)["evidence"].clone();
+    assert_eq!(
+        evidence["rehearsal"]["bound_to_candidate"], false,
+        "{evidence:#}"
+    );
+}
+
 #[path = "tests/answered_paths.rs"]
 mod answered_paths;

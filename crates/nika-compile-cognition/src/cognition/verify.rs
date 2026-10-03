@@ -292,16 +292,9 @@ fn grounded(reference: &str, instructions: &str) -> String {
     format!("{reference}\n\n{instructions}")
 }
 
-/// The journal entry of the call just made, when that call was journaled after `before`
-/// entries, records the references its messages carried (R4 A11, E36), never an empty list.
-fn stamp(out: &mut CompileOutcome, before: usize, receipts: &Value) {
-    if let Some(receipt) = out.provenance.authoring.as_mut()
-        && receipt.context.len() > before
-        && let Some(entry) = receipt.context.last_mut()
-    {
-        entry["references"] = receipts.clone();
-    }
-}
+// The journal entry of the call just made, when that call was journaled after `before`
+// entries, records the references its messages carried (R4 A11, E36), never an empty list.
+use super::receipt::stamp_references as stamp;
 
 /// The parts of the request a localization offers: its own text cut where punctuation ends a
 /// phrase ([`phrases`]), never a reader's reading nor a proposal's region, so the part a judge
