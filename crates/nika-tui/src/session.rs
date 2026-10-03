@@ -761,7 +761,7 @@ impl Conversation for Live {
         let legs = self.legs.lock().ok()?;
         Some(match legs.find(execution) {
             Some(leg) => match leg.trace.as_deref() {
-                Some(trace) => acquire::prove(root, trace, &leg.expect()),
+                Some(trace) => acquire::prove(root, trace, &leg.proof_expectation()),
                 None => Proven::refused("", "its settlement named no journal"),
             },
             None => Proven::refused("", "this run's settlement was not observed here"),

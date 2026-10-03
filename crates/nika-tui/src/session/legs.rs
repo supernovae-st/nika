@@ -101,7 +101,7 @@ impl Leg {
     }
 
     /// What a captured journal must name to be this leg's.
-    pub(crate) fn expect(&self) -> Expect {
+    pub(crate) fn proof_expectation(&self) -> Expect {
         Expect {
             execution: self.execution,
             workflow_sha256: self.workflow_sha256().map(str::to_owned),

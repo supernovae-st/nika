@@ -66,7 +66,7 @@ fn a_leg_keeps_what_the_host_relayed_and_nothing_else() {
     let leg = legs.newest().expect("the leg");
     assert_eq!(leg.written, ["./out/copy.md"]);
     assert_eq!(leg.workflow_sha256(), Some("aa"));
-    let expect = leg.expect();
+    let expect = leg.proof_expectation();
     assert_eq!(expect.execution, leg.execution);
     assert_eq!(
         (expect.chain_head.as_deref(), expect.chain_len),
@@ -103,7 +103,7 @@ fn a_kept_identity_converts_back_to_the_very_execution() {
         restored.kept && restored.written.is_empty(),
         "a record lists no file"
     );
-    assert_eq!(restored.expect(), leg.expect());
+    assert_eq!(restored.proof_expectation(), leg.proof_expectation());
     assert!(
         later.newest().is_none(),
         "a kept leg is never the run just relayed"
