@@ -430,6 +430,19 @@ pub trait Conversation: Send {
         let _ = busy;
         self.submit(line)
     }
+    /// [`Conversation::submit_with`], with the shell's queue for what it
+    /// observes of a run the turn drives ([`crate::session::feed::Seen`]): the
+    /// request, then each typed frame of the run's stream. The default
+    /// observes none.
+    fn submit_observed(
+        &mut self,
+        line: &str,
+        busy: &std::sync::mpsc::Sender<String>,
+        seen: &crate::session::feed::Seen,
+    ) -> Turn {
+        let _ = seen;
+        self.submit_with(line, busy)
+    }
     /// Perform the handed-off work with the terminal handed back; the beats
     /// that follow it (the observation, the next prompt).
     fn perform(&mut self, handoff: &Handoff) -> Vec<Beat>;
@@ -460,6 +473,51 @@ pub trait Conversation: Send {
     /// grants nothing and is never sent to a model. The default takes none,
     /// and the object then shows what the listing judged.
     fn inspect(&mut self, _path: &str) -> Option<crate::workspace::inspect::Inspected> {
+        None
+    }
+    /// The candidate under review, as the conversation's Session lends it:
+    /// the identity a consent names, the changes a yes lands, what its
+    /// workflow reaches, its rehearsal and the look of its exact pending
+    /// bytes, folded when the turn that proposed it ended. The shell asks
+    /// after every batch of beats, never while it draws; showing it grants
+    /// nothing. The default lends none.
+    fn candidate(&self) -> Option<crate::workspace::candidate::Proposed> {
+        None
+    }
+    /// A file the run `execution` reported writing, read now by the
+    /// conversation's host below its project (never while drawing): today's
+    /// bytes at that path, never called the run's own. The default reads none.
+    fn fetch(
+        &mut self,
+        _execution: &nika_display::run_story::ExecutionId,
+        _path: &str,
+    ) -> Option<crate::session::acquire::Fetched> {
+        None
+    }
+    /// The Proof of the journal the run `execution` settled with, captured
+    /// and verified by the host (never while drawing). The default proves none.
+    fn prove(
+        &mut self,
+        _execution: &nika_display::run_story::ExecutionId,
+    ) -> Option<crate::session::acquire::Proven> {
+        None
+    }
+    /// The journal of the child run task `task` of the run `execution`
+    /// called, as the relation `relation` its settle frame named: read by
+    /// the host only when it kept that very relation itself (never a path
+    /// the renderer names), captured once and verified, never while
+    /// drawing. The default reads none.
+    fn child(
+        &mut self,
+        _execution: &nika_display::run_story::ExecutionId,
+        _task: &str,
+        _relation: &nika_display::run_story::ChildRun,
+    ) -> Option<crate::session::acquire::ChildRead> {
+        None
+    }
+    /// The last run an earlier session kept, as HOME history recorded it:
+    /// evidence, never authority. The default keeps none.
+    fn kept_run(&self) -> Option<Result<nika_session::KeptRun, String>> {
         None
     }
 }

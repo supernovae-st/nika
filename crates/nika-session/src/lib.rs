@@ -72,6 +72,7 @@ pub mod turn;
 // here, never owned: the flight-recorder reader holds it, and
 // `crate::run_view` stays the session's one path to it.
 use nika_trace::run_view;
+pub use nika_trace::run_view::KeptRun;
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]

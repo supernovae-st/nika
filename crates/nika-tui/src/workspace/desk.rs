@@ -13,11 +13,18 @@
 //! | `Esc`                      | back to the composer               | leaves to inline, draft intact  |
 //! | `PgUp` · `PgDn`            | the object scrolls (object region) | the transcript scrolls          |
 //! | arrows, `Home` · `End`     | aside selection · object scroll    | the composer (history, cursor)  |
+//! | `Up` · `Down` (run tasks)  | the previous · next task picked    | the composer (history)          |
 //! | `Left` · `Right` (aside)   | Nika · Files                       | the composer (cursor)           |
 //! | `Left` · `Right` (object)  | the previous · next face           | the composer (cursor)           |
 //! | `r` (object)               | the Session reads the file again   | the composer                    |
-//! | `Enter`                    | opens the aside entry              | sends the line                  |
+//! | `Enter`                    | opens the aside entry · the task   | sends the line                  |
+//! | `Backspace` (task detail)  | back to the run's tasks            | the composer (erases)           |
 //! | `Tab` and any other key    | ignored                            | the composer (`Tab` completes)  |
+//!
+//! On the run face of the run in view, the task list takes `Up`/`Down` (the
+//! page keys still scroll) and `Enter` opens the picked task's detail, where
+//! the arrows scroll; the pick is the task's id in that run's execution,
+//! never a painted line, and the list's scroll comes back with `Backspace`.
 //!
 //! Opening a workflow asks its Session for one look ([`Route::Inspect`]): the
 //! shell takes it from the conversation, never while drawing, and hands it
@@ -35,6 +42,16 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
 
+use super::candidate::Proposed;
+use super::live::{LiveRun, Pick, RunFace, Want};
+use crate::model::Conversation;
+use crate::session::acquire::{ChildRead, Fetched, Proven};
+use crate::session::feed::{Gap, Observed};
+use nika_display::run_story::ExecutionId;
+use nika_session::KeptRun;
+
+/// How many past legs of runs the desk keeps beside the one in flight.
+const PAST_LEGS: usize = 4;
 use super::focus::{Action, Extent, Focus, Region};
 use super::geometry::Geometry;
 use super::inspect::Inspected;
@@ -66,7 +83,7 @@ pub(crate) enum Route {
 }
 
 /// The workspace's own state.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Debug)]
 #[non_exhaustive]
 pub(crate) struct Desk {
     /// The project the conversation last lent; `None` when it lends none.
@@ -83,18 +100,106 @@ pub(crate) struct Desk {
     /// A look was asked while a turn held the conversation: it is taken when
     /// the turn ends.
     pub(crate) wants_look: bool,
+    /// The candidate the conversation proposes, as it lent it last.
+    pub(crate) candidate: Option<Proposed>,
+    /// The run leg the shell observes (the latest asked), and the legs before it.
+    pub(crate) live: Option<LiveRun>,
+    pub(crate) past: Vec<LiveRun>,
+    /// The face of the run in view.
+    pub(crate) run_face: RunFace,
+    /// The task picked in the run in view, and whether its detail is open.
+    pick: Pick,
+    /// The run an earlier session kept was offered once, at the opening.
+    kept_seen: bool,
     /// The face of the look as the viewers last rendered it, and for what.
     drawn: Option<Drawn>,
+}
+
+/// The reading a request was made for: the leg's reading, and the child
+/// view opening it asked for when it asks a child's journal. An answer is
+/// applied only to the same reading, and a child's only to that opening.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Reading {
+    generation: u64,
+    opening: Option<u64>,
+}
+
+/// One thing acquired for a run's face.
+#[derive(Debug)]
+pub(crate) enum Got {
+    /// A file the run reported writing, as read now.
+    File(Fetched),
+    /// The run's journal, captured and verified.
+    Proof(Proven),
+    /// A child run's journal, read for the relation it was asked by.
+    Child {
+        task: String,
+        relation: nika_display::run_story::ChildRun,
+        read: Box<ChildRead>,
+    },
+}
+
+/// Ask `conversation`'s host for each of `wants` of the leg `execution` (on
+/// the shell's worker, never while drawing); what it cannot acquire is a
+/// refusal with its reason, never an absence.
+pub(crate) fn acquire_all<C: Conversation + ?Sized>(
+    conversation: &mut C,
+    execution: &ExecutionId,
+    wants: Vec<Want>,
+) -> Vec<Got> {
+    (wants.into_iter())
+        .map(|want| match want {
+            Want::File(path) => Got::File(
+                (conversation.fetch(execution, &path))
+                    .unwrap_or_else(|| Fetched::refused(&path, "this conversation reads no file")),
+            ),
+            Want::Proof => {
+                Got::Proof((conversation.prove(execution)).unwrap_or_else(|| {
+                    Proven::refused("", "this conversation verifies no journal")
+                }))
+            }
+            Want::Child { task, relation } => {
+                let read = (conversation.child(execution, &task, &relation)).unwrap_or_else(|| {
+                    ChildRead::refused("", "this conversation reads no child journal")
+                });
+                Got::Child {
+                    task,
+                    relation,
+                    read: Box::new(read),
+                }
+            }
+        })
+        .collect()
 }
 
 /// One face of one look rendered for one region: what the frame paints.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Drawn {
-    /// The look's path and witness, the face, the region's width, the glyph
-    /// column and the colour it was rendered for.
-    key: (String, Option<String>, Face, u16, bool, bool),
+    /// What was rendered (a look's path, or a candidate's identity) and the
+    /// witness of its bytes, the face, the region's width, the glyph column
+    /// and the colour it was rendered for.
+    key: (String, Option<String>, Face, RunFace, u16, bool, bool),
     title: Line<'static>,
     body: Vec<Line<'static>>,
+    /// The body line of the picked task, when the run's list shows one.
+    picked: Option<usize>,
+    /// The object rows the body was last shown in (not part of the key: a
+    /// new height shows the same lines in another viewport).
+    rows: usize,
+}
+
+/// Move `scroll` the least that shows `line` among `rows` rows.
+fn follow(scroll: &mut usize, line: usize, rows: usize) {
+    if line < *scroll {
+        *scroll = line;
+    } else if line >= *scroll + rows {
+        *scroll = line + 1 - rows;
+    }
+}
+
+/// What a rendering of `candidate` is keyed by: its identity and standing.
+fn candidate_key(candidate: &Proposed) -> String {
+    format!("proposal {} {}", candidate.id().as_str(), candidate.aside())
 }
 
 impl Default for Desk {
@@ -114,34 +219,264 @@ impl Desk {
             look: None,
             face: Face::Source,
             wants_look: false,
+            candidate: None,
+            live: None,
+            past: Vec::new(),
+            run_face: RunFace::Run,
+            pick: Pick::new(),
+            kept_seen: false,
             drawn: None,
         }
     }
 
+    /// Whether a run is pinned: the leg the shell observes, else the view's.
+    fn pins(&self) -> bool {
+        self.live.is_some() || self.view.as_ref().is_some_and(|v| v.pinned.is_some())
+    }
+
+    /// What the shell observed of a run during a turn. A request starts a
+    /// new leg (the leg before it is kept as history) and becomes the object
+    /// in view; a frame folds into the leg in flight. `true` when anything
+    /// was observed.
+    pub(crate) fn observe(&mut self, seen: impl Iterator<Item = Observed>) -> bool {
+        let mut any = false;
+        for observed in seen {
+            any = true;
+            match observed {
+                Observed::Asked {
+                    workflow,
+                    resume,
+                    typed,
+                    look,
+                } => {
+                    if let Some(leg) = self.live.take() {
+                        self.past.insert(0, leg);
+                        self.past.truncate(PAST_LEGS);
+                    }
+                    self.live = Some(LiveRun::asked(workflow, resume, typed, look.map(|l| *l)));
+                    self.opened = Some(Target::Live);
+                    self.run_face = RunFace::Run;
+                    self.pick = Pick::new();
+                    self.focus.scroll = 0;
+                }
+                Observed::Frame(frame) => {
+                    if let Some(leg) = self.live.as_mut() {
+                        leg.apply(frame);
+                    }
+                }
+            }
+        }
+        any
+    }
+
+    /// The end of a turn: every observation still queued is folded before
+    /// the turn's result is handled (a settlement already sent is never
+    /// dropped), then what the queue could not carry is recorded.
+    pub(crate) fn close_turn(&mut self, queued: &std::sync::mpsc::Receiver<Observed>, gap: &Gap) {
+        self.observe(queued.try_iter());
+        self.lost(gap.dropped(), gap.unread());
+    }
+
+    /// What the turn's queue could not carry, to the leg in flight.
+    pub(crate) fn lost(&mut self, dropped: usize, unread: usize) {
+        if let (Some(leg), true) = (self.live.as_mut(), dropped + unread > 0) {
+            leg.lost(dropped, unread);
+        }
+    }
+
+    /// What the object in view renders from, keyed: the candidate under
+    /// review, or the look of the opened workflow when it is that file's.
+    fn rendered_from(&self) -> Option<(String, Option<String>)> {
+        match self.shown()? {
+            Opened::Candidate(c) => Some((candidate_key(c), c.witness().map(str::to_owned))),
+            Opened::Live(leg) => {
+                let pick = (
+                    self.pick.current(leg),
+                    self.pick.is_open(),
+                    self.pick.child_open(),
+                );
+                Some((format!("{} {} {pick:?}", leg.label(), leg.revision()), None))
+            }
+            Opened::Workflow(w) => (self.look.as_ref())
+                .filter(|l| l.path() == w.path)
+                .map(|l| (l.path().to_owned(), l.witness().map(str::to_owned))),
+            _ => None,
+        }
+    }
+
     /// Render the face in view for a terminal of `size`, before the frame and
-    /// only when the look, the face, the region's width, the glyph column or
-    /// the colour changed: drawing paints these lines and calls no viewer.
+    /// only when the look or the candidate, the face, the region's width, the
+    /// glyph column or the colour changed: drawing paints these lines and
+    /// calls no viewer.
     pub(crate) fn prepare(&mut self, size: (u16, u16), ascii: bool, color: bool) {
-        let pinned = self.view.as_ref().is_some_and(|v| v.pinned.is_some());
+        let pinned = self.pins();
         let area = Rect::new(0, 0, size.0, size.1);
-        let (Some(look), Some(geometry)) = (&self.look, Geometry::of(area, pinned)) else {
+        let (Some((from, witness)), Some(geometry)) =
+            (self.rendered_from(), Geometry::of(area, pinned))
+        else {
             return;
         };
         let width = geometry.object.width;
-        let witness = look.witness().map(str::to_owned);
-        let key = (
-            look.path().to_owned(),
-            witness,
-            self.face,
-            width,
-            ascii,
-            color,
-        );
-        if self.drawn.as_ref().is_some_and(|d| d.key == key) {
+        let rows = usize::from(geometry.object.height.saturating_sub(1)).max(1);
+        let key = (from, witness, self.face, self.run_face, width, ascii, color);
+        if let Some(drawn) = self.drawn.as_mut().filter(|d| d.key == key) {
+            // The same lines in another viewport: a picked task stays in view.
+            if drawn.rows != rows {
+                drawn.rows = rows;
+                if let Some(line) = drawn.picked {
+                    follow(&mut self.focus.scroll, line, rows);
+                }
+            }
             return;
         }
-        let (title, body) = look.face_lines(self.face, width, ascii, color);
-        self.drawn = Some(Drawn { key, title, body });
+        let resized = (self.drawn.as_ref()).is_some_and(|d| d.key.4 != width || d.rows != rows);
+        let mut picked_line = None;
+        let lines = match (self.shown(), &self.look) {
+            (Some(Opened::Candidate(c)), _) => c.face_lines(self.face, width, ascii, color),
+            (Some(Opened::Live(leg)), _) => {
+                let lines = leg.view(self.run_face, &self.pick, width, ascii, color);
+                if self.run_face == RunFace::Run && !self.pick.is_open() {
+                    // The list is the run face's last rows, one per task.
+                    let listed = leg.listed();
+                    let at = (self.pick.current(leg))
+                        .and_then(|id| listed.iter().position(|(l, _)| *l == id));
+                    picked_line = at.map(|at| lines.1.len().saturating_sub(listed.len()) + at);
+                }
+                lines
+            }
+            (_, Some(look)) => look.face_lines(self.face, width, ascii, color),
+            (_, None) => return,
+        };
+        if let (Some(line), true) = (picked_line, self.pick.follows() || resized) {
+            // A moved pick, or one a new size shows elsewhere, stays in
+            // view: the scroll follows it once, never the page keys.
+            follow(&mut self.focus.scroll, line, rows);
+        }
+        let (title, body) = lines;
+        self.drawn = Some(Drawn {
+            key,
+            title,
+            body,
+            picked: picked_line,
+            rows,
+        });
+    }
+
+    /// The run in view, what its face still needs acquired, and the reading
+    /// it is for (with the child opening it asks for), when it needs something.
+    pub(crate) fn wanted(&self) -> Option<(ExecutionId, Vec<Want>, Reading)> {
+        let Some(Opened::Live(leg)) = self.shown() else {
+            return None;
+        };
+        let mut wants = leg.wants(self.run_face);
+        let mut opening = None;
+        if self.run_face == RunFace::Run
+            && let Some((task, relation)) = self.pick.child_wanted(leg)
+        {
+            wants.push(Want::Child { task, relation });
+            opening = self.pick.child_opening();
+        }
+        let reading = Reading {
+            generation: leg.generation(),
+            opening,
+        };
+        (!wants.is_empty()).then_some((leg.execution()?, wants, reading))
+    }
+
+    /// What was acquired for the leg `execution` at `reading`: applied only
+    /// while that leg and that reading are still the ones in the desk (`false`
+    /// when it came too late and was dropped); a child's journal only to the
+    /// opening that asked it.
+    pub(crate) fn acquired(
+        &mut self,
+        execution: ExecutionId,
+        reading: Reading,
+        got: Vec<Got>,
+    ) -> bool {
+        let current = |l: &&mut LiveRun| {
+            l.execution() == Some(execution) && l.generation() == reading.generation
+        };
+        let Some(leg) = self.live.as_mut().filter(current) else {
+            return false;
+        };
+        for item in got {
+            match item {
+                Got::File(fetched) => leg.fetched(fetched),
+                Got::Proof(proven) => leg.proven(proven),
+                // Applied only to the child in view, for that relation and
+                // while it is still the task's own (never one re-emitted).
+                Got::Child {
+                    task,
+                    relation,
+                    read,
+                } => {
+                    let asked = (reading.opening, task.as_str(), &relation);
+                    self.pick.child_read(leg, asked, *read);
+                }
+            }
+        }
+        self.drawn = None;
+        true
+    }
+
+    /// The last run an earlier session kept, offered once at the opening:
+    /// the object in view and the pinned leg while no run of this session
+    /// is; never run, its proof read again only when that face opens. An
+    /// unreadable record shows nothing here (the conversation says why).
+    pub(crate) fn kept(&mut self, kept: Option<Result<KeptRun, String>>) {
+        if std::mem::replace(&mut self.kept_seen, true) || self.live.is_some() {
+            return;
+        }
+        let Some(Ok(run)) = kept else {
+            return;
+        };
+        if let Some(execution) = crate::session::legs::execution_of(&run) {
+            self.live = Some(LiveRun::kept(run, execution));
+            self.opened = Some(Target::Live);
+            self.run_face = RunFace::Run;
+            self.pick = Pick::new();
+            self.drawn = None;
+        }
+    }
+
+    /// The candidate the conversation lends after a batch of beats. A new
+    /// identity (a proposal, a revision, a set aside) becomes the object in
+    /// view at its top, in the face already in view when a candidate was;
+    /// the same candidate changes nothing. When the candidate in view leaves,
+    /// the workflow the view now lists at its path is opened (a yes landed
+    /// it: a fresh look reads the file), else the welcome returns.
+    pub(crate) fn proposed(&mut self, next: Option<Proposed>) {
+        if next == self.candidate {
+            return;
+        }
+        // The same identity with other facts (its rehearsal words): rendered
+        // anew where it is, never taken back from another object in view.
+        let identity = |c: &Proposed| (c.id().clone(), c.aside());
+        if next.as_ref().map(identity) == self.candidate.as_ref().map(identity) {
+            self.drawn = None;
+            self.candidate = next;
+            return;
+        }
+        let showing = self.opened == Some(Target::Candidate);
+        let left = self.candidate.take();
+        if next.is_some() {
+            if !showing {
+                self.face = Face::Source;
+            }
+            self.opened = Some(Target::Candidate);
+            self.look = None;
+            self.focus.scroll = 0;
+        } else if showing {
+            let path = left.map(|c| c.path().to_owned());
+            let listed = path.filter(|p| self.view.as_ref().and_then(|v| v.workflow(p)).is_some());
+            self.wants_look = listed.is_some();
+            self.opened = listed.map(Target::Workflow);
+            self.look = None;
+            self.face = Face::Source;
+            self.focus.scroll = 0;
+        }
+        self.drawn = None;
+        self.candidate = next;
     }
 
     /// The path of the opened workflow, while the view still lists it.
@@ -149,7 +484,7 @@ impl Desk {
     pub(crate) fn opened_workflow(&self) -> Option<&str> {
         match self.shown()? {
             Opened::Workflow(workflow) => Some(&workflow.path),
-            Opened::Run(_) => None,
+            _ => None,
         }
     }
 
@@ -171,27 +506,30 @@ impl Desk {
         self.look = look.filter(|l| l.path() == path);
     }
 
-    /// The object in view for `opened`: a workflow's look when its Session
-    /// took one of it, else what the listing judged of it.
+    /// The object in view for `opened`: the faces rendered for it (a
+    /// workflow's look, the candidate), else the facts the view holds of it.
     fn object_of(&self, opened: Opened<'_>, ascii: bool) -> Object {
+        let current = self.rendered_from();
         let drawn = self.drawn.as_ref().filter(|d| {
-            let current = self.look.as_ref().map(|l| (l.path(), l.witness()));
-            current == Some((d.key.0.as_str(), d.key.1.as_deref())) && d.key.2 == self.face
+            current.as_ref() == Some(&(d.key.0.clone(), d.key.1.clone())) && d.key.2 == self.face
         });
-        match (opened, drawn) {
-            (Opened::Workflow(workflow), Some(drawn)) if drawn.key.0 == workflow.path => {
-                Object::Workflow {
-                    title: drawn.title.clone(),
-                    body: drawn.body.clone(),
-                }
-            }
-            _ => opened.object(ascii),
+        match drawn {
+            Some(drawn) => Object::Workflow {
+                title: drawn.title.clone(),
+                body: drawn.body.clone(),
+            },
+            None => opened.object(ascii),
         }
     }
 
-    /// The object opened, when the current view still lists it.
+    /// The object opened, when the current view or candidate still holds it.
     fn shown(&self) -> Option<Opened<'_>> {
-        project::resolve(self.view.as_ref(), self.opened.as_ref())
+        project::resolve(
+            self.view.as_ref(),
+            self.opened.as_ref(),
+            self.candidate.as_ref(),
+            self.live.as_ref(),
+        )
     }
 
     /// Whether the object in view is the welcome (nothing opened).
@@ -213,13 +551,17 @@ impl Desk {
         );
         let label = shown.map(Opened::label);
         let opened = shown.and(self.opened.as_ref());
+        let candidate = self.candidate.as_ref();
         let screen = Screen::new(
             project::place(view),
-            project::aside(view, self.focus.tab, opened),
+            project::aside(view, self.focus.tab, opened, candidate, self.live.as_ref()),
             object,
             project::thread(view, label.as_deref()),
         );
-        match view.and_then(|v| v.pinned.clone()) {
+        let project = view.map_or("", |v| v.name.as_str());
+        let pinned = (self.live.as_ref().map(|leg| leg.pinned(project)))
+            .or_else(|| view.and_then(|v| v.pinned.clone()));
+        match pinned {
             Some(run) => screen.pinning(run),
             None => screen,
         }
@@ -240,12 +582,17 @@ impl Desk {
             // focus kept for the workspace's return.
             return composer_route(key);
         };
+        if self.focus.region == Region::Object
+            && let Some(route) = self.task_key(key.code)
+        {
+            return route;
+        }
         match self.focus.handle(key, extent) {
             Action::Compose => composer_route(key),
             Action::Moved => Route::Repaint,
             Action::Open(index) => {
                 let route = self.open(index);
-                let pinned = self.view.as_ref().is_some_and(|v| v.pinned.is_some());
+                let pinned = self.pins();
                 let area = Rect::new(0, 0, size.0, size.1);
                 let folded = Geometry::of(area, pinned).is_some_and(|g| g.aside.is_none());
                 if folded && self.focus.region == Region::Aside && self.opened.is_some() {
@@ -257,14 +604,88 @@ impl Desk {
             }
             Action::Face(next) => self.turn(next),
             Action::Again if self.opened_workflow().is_some() => Route::Inspect,
+            // A run in view is read again: its files and journal as they are now.
+            Action::Again if matches!(self.shown(), Some(Opened::Live(_))) => {
+                if let Some(leg) = self.live.as_mut() {
+                    leg.forget();
+                }
+                self.drawn = None;
+                if self.wanted().is_some() {
+                    Route::Inspect
+                } else {
+                    Route::Repaint
+                }
+            }
             _ => Route::Nothing,
         }
     }
 
-    /// Show the next face of the look in view (or the previous one), from
-    /// its top; nothing turns while no look is in view.
+    /// A key of the run face's task list or of the picked task's detail;
+    /// `None` leaves it to the focus (the page keys, the faces, `Esc`).
+    fn task_key(&mut self, code: KeyCode) -> Option<Route> {
+        if self.run_face != RunFace::Run || !matches!(self.shown(), Some(Opened::Live(_))) {
+            return None;
+        }
+        let leg = self.live.as_ref()?;
+        let open = self.pick.is_open();
+        if !open && leg.listed().is_empty() {
+            // No task to pick: the arrows scroll the facts as before.
+            return None;
+        }
+        let moved = match code {
+            KeyCode::Up | KeyCode::Down if !open => self.pick.step(leg, code == KeyCode::Down),
+            KeyCode::Enter if !open => {
+                let opened = self.pick.open(leg, self.focus.scroll);
+                if opened {
+                    self.focus.scroll = 0;
+                }
+                opened
+            }
+            KeyCode::Enter if !self.pick.child_open() => {
+                if !self.pick.open_child(leg, self.focus.scroll) {
+                    return Some(Route::Nothing);
+                }
+                self.focus.scroll = 0;
+                // Its journal is read outside the frame, on the worker.
+                return Some(Route::Inspect);
+            }
+            KeyCode::Enter => false,
+            KeyCode::Backspace => match self.pick.close_child().or_else(|| self.pick.close()) {
+                Some(scroll) => {
+                    self.focus.scroll = scroll;
+                    true
+                }
+                None => false,
+            },
+            _ => return None,
+        };
+        Some(if moved {
+            Route::Repaint
+        } else {
+            Route::Nothing
+        })
+    }
+
+    /// Show the next face of the look, the candidate or the run in view (or
+    /// the previous one), from its top; nothing turns while none is in view.
+    /// A run's face that needs acquiring asks for it (outside the frame).
     fn turn(&mut self, next: bool) -> Route {
-        if self.look.is_none() || self.opened_workflow().is_none() {
+        if let Some(Opened::Live(_)) = self.shown() {
+            let at = RunFace::ALL
+                .iter()
+                .position(|f| *f == self.run_face)
+                .unwrap_or(0);
+            let step = if next { 1 } else { RunFace::ALL.len() - 1 };
+            self.run_face = RunFace::ALL[(at + step) % RunFace::ALL.len()];
+            self.focus.scroll = 0;
+            return if self.wanted().is_some() {
+                Route::Inspect
+            } else {
+                Route::Repaint
+            };
+        }
+        let candidate = matches!(self.shown(), Some(Opened::Candidate(_)));
+        if !candidate && (self.look.is_none() || self.opened_workflow().is_none()) {
             return Route::Nothing;
         }
         let at = Face::ALL.iter().position(|f| *f == self.face).unwrap_or(0);
@@ -280,7 +701,8 @@ impl Desk {
     /// (opened again, it is read again). Nothing is attached to the next
     /// message.
     fn open(&mut self, index: usize) -> Route {
-        match project::target(self.view.as_ref(), self.focus.tab, index) {
+        let (candidate, live) = (self.candidate.as_ref(), self.live.as_ref());
+        match project::target(self.view.as_ref(), self.focus.tab, index, candidate, live) {
             Some(Target::Conversation) => {
                 self.focus.region = Region::Conversation;
                 Route::Repaint
@@ -350,6 +772,7 @@ mod tests {
     use crate::model::demo_project;
     use crate::workspace::aside::Tab;
     use crate::workspace::object::Object;
+    use nika_display::run_story::RunFrame;
 
     fn key(code: KeyCode) -> KeyEvent {
         KeyEvent::new(code, KeyModifiers::NONE)
@@ -625,9 +1048,9 @@ mod tests {
         desk.opened = Some(Target::Workflow("enrich.nika".to_owned()));
         desk.took("enrich.nika", Some(refused("enrich.nika", "abcdef")));
         desk.prepare((160, 48), true, false);
-        let wide = desk.drawn.as_ref().map(|d| d.key.3);
+        let wide = desk.drawn.as_ref().map(|d| d.key.4);
         desk.prepare((60, 18), true, false);
-        let narrow = desk.drawn.as_ref().map(|d| d.key.3);
+        let narrow = desk.drawn.as_ref().map(|d| d.key.4);
         assert_eq!((wide, narrow), (Some(82), Some(60)));
         let Object::Workflow { title, body } = desk.screen(false).object else {
             panic!("the look is in view");
@@ -658,6 +1081,309 @@ mod tests {
         );
     }
 
+    /// A candidate `preview` names, over unjudged bytes landing at `path`.
+    fn candidate(preview: &str, path: &str, aside: bool) -> Proposed {
+        let look = Inspected::unjudged(path, format!("{preview}-bytes"), "nika: x\n".to_owned());
+        Proposed::new(nika_session::ProposalId::of(preview), aside, look)
+    }
+
+    /// A proposal becomes the object in view, listed under this conversation;
+    /// a revision (a new identity) replaces it in the face already in view,
+    /// and the same candidate lent again changes nothing.
+    #[test]
+    fn a_new_candidate_becomes_the_object_and_a_revision_replaces_it() {
+        let mut desk = demo();
+        desk.opened = Some(Target::Workflow("enrich.nika".to_owned()));
+        desk.proposed(Some(candidate("A", "compiled-workflow.nika", false)));
+        assert_eq!(desk.opened, Some(Target::Candidate));
+        assert_eq!(desk.face, Face::Source);
+        let screen = desk.screen(false);
+        assert_eq!(
+            screen.aside.entries[1].label,
+            "proposal compiled-workflow.nika"
+        );
+        assert!(screen.aside.entries[1].open);
+        assert_eq!(
+            screen.thread.on_screen.as_deref(),
+            Some("proposal compiled-workflow.nika")
+        );
+        desk.prepare(WIDE, false, false);
+        let Object::Workflow { body, .. } = desk.screen(false).object else {
+            panic!("the candidate's face is in view");
+        };
+        let a = nika_session::ProposalId::of("A").to_string();
+        assert!(body.iter().any(|l| l.to_string().contains(&a)));
+        // The face turns on a candidate; a revision keeps it and shows B only.
+        desk.focus.region = Region::Object;
+        assert_eq!(desk.route(key(KeyCode::Right), WIDE), Route::Repaint);
+        assert_eq!(desk.route(key(KeyCode::Char('r')), WIDE), Route::Nothing);
+        desk.proposed(Some(candidate("B", "compiled-workflow.nika", false)));
+        assert_eq!(desk.face, Face::Plan, "the face in view stays");
+        desk.prepare(WIDE, false, false);
+        let Object::Workflow { body, .. } = desk.screen(false).object else {
+            panic!("B is in view");
+        };
+        let rows: Vec<String> = body.iter().map(ToString::to_string).collect();
+        let b = nika_session::ProposalId::of("B").to_string();
+        assert!(rows.iter().any(|r| r.contains(&b)), "{rows:?}");
+        assert!(!rows.iter().any(|r| r.contains(&a)), "A is gone: {rows:?}");
+        let drawn = desk.drawn.clone();
+        desk.proposed(Some(candidate("B", "compiled-workflow.nika", false)));
+        assert_eq!(desk.drawn, drawn, "the same candidate changes nothing");
+    }
+
+    /// A candidate that leaves takes the object with it: the workflow the view
+    /// now lists at its path is opened (and looked at), else the welcome.
+    #[test]
+    fn the_candidate_in_view_leaves_for_the_saved_workflow_or_the_welcome() {
+        let mut desk = demo();
+        desk.proposed(Some(candidate("A", "release.nika", false)));
+        desk.proposed(None);
+        assert_eq!(
+            desk.opened,
+            Some(Target::Workflow("release.nika".to_owned()))
+        );
+        assert!(desk.wants_look, "the saved file is looked at anew");
+        let mut desk = demo();
+        desk.proposed(Some(candidate("A", "compiled-workflow.nika", false)));
+        desk.proposed(None);
+        assert!(desk.welcoming(), "a discarded create leaves the welcome");
+        assert!(!desk.wants_look);
+        let mut desk = demo();
+        desk.proposed(Some(candidate("A", "compiled-workflow.nika", false)));
+        desk.opened = Some(Target::Workflow("enrich.nika".to_owned()));
+        desk.proposed(None);
+        assert_eq!(
+            desk.opened,
+            Some(Target::Workflow("enrich.nika".to_owned())),
+            "another object in view stays"
+        );
+    }
+
+    /// A run asked becomes the object in view, an aside entry and the pinned
+    /// row, with no identity before its first frame; a second request (a
+    /// resume) is a new leg and the first one is kept as history.
+    #[test]
+    fn an_asked_run_is_the_object_and_the_pinned_row() {
+        let mut desk = demo();
+        let asked = |resume| Observed::Asked {
+            workflow: "release.nika".to_owned(),
+            resume,
+            typed: true,
+            look: None,
+        };
+        assert!(!desk.observe(std::iter::empty()));
+        assert!(desk.observe(std::iter::once(asked(false))));
+        assert_eq!(desk.opened, Some(Target::Live));
+        let screen = desk.screen(false);
+        let pinned = screen.pinned.as_ref().expect("the run is pinned");
+        assert_eq!(
+            (pinned.run.as_str(), pinned.workflow.as_str()),
+            ("run (starting)", "release.nika")
+        );
+        assert!(
+            screen
+                .aside
+                .entries
+                .iter()
+                .any(|e| e.label == "run (starting) release.nika" && e.open)
+        );
+        desk.prepare(WIDE, false, false);
+        let Object::Workflow { title, body } = desk.screen(false).object else {
+            panic!("the run is in view");
+        };
+        assert!(title.to_string().contains("run (starting)"), "{title}");
+        assert!(
+            body.iter()
+                .any(|l| l.to_string().contains("no run identity yet"))
+        );
+        desk.observe(std::iter::once(asked(true)));
+        assert_eq!(desk.past.len(), 1, "the first leg is kept as history");
+        desk.lost(2, 0);
+        desk.prepare(WIDE, false, false);
+        let Object::Workflow { body, .. } = desk.screen(false).object else {
+            panic!("the resumed leg is in view");
+        };
+        let rows: Vec<String> = body.iter().map(ToString::to_string).collect();
+        assert!(rows.iter().any(|r| r.contains("a resumed leg")), "{rows:?}");
+        assert!(
+            rows.iter().any(|r| r.contains("2 lost on the way")),
+            "{rows:?}"
+        );
+    }
+
+    /// The turn's result arrives after the child already queued its last
+    /// frames: closing the turn folds every queued frame first, so the
+    /// settlement already sent settles the leg, and the losses are recorded.
+    #[test]
+    fn closing_a_turn_folds_the_settlement_already_queued() {
+        use nika_display::run_story::RunFrame;
+        let mut desk = demo();
+        let (tx, rx) = std::sync::mpsc::sync_channel(8);
+        let gap = Gap::default();
+        let frames = [
+            r#"{"correlation":null,"execution":{"uuid":"01a0ef11-0212-70de-a8b3-99de9427fccc"},"fields":[{"key":"workflow","value":"release"}],"id":{"uuid":"01a0ef11-03a1-73d9-a2bc-2548bdab1943"},"kind":"workflow_started","run":null,"timestamp":1}"#,
+            r#"{"kind":"run_settled","status":"succeeded","cause":"normal","execution":{"uuid":"01a0ef11-0212-70de-a8b3-99de9427fccc"},"spend":{"priced_calls":0,"qualifier":"unmetered","unpriced_calls":0},"evidence":"none"}"#,
+        ];
+        tx.send(Observed::Asked {
+            workflow: "release.nika".to_owned(),
+            resume: false,
+            typed: true,
+            look: None,
+        })
+        .expect("queued");
+        for frame in frames {
+            tx.send(Observed::Frame(RunFrame::decode(frame).expect("a frame")))
+                .expect("queued");
+        }
+        drop(tx);
+        desk.close_turn(&rx, &gap);
+        let leg = desk.live.as_ref().expect("the leg");
+        assert_eq!(
+            leg.reported(),
+            Some(nika_display::run_story::RunState::Succeeded)
+        );
+        assert!(leg.whole(), "nothing lost, settled");
+    }
+
+    /// The same candidate identity folded again with other facts is
+    /// rendered anew where it is: it never takes the object back from another
+    /// view the human opened. A new identity does.
+    #[test]
+    fn the_same_identity_with_other_facts_never_steals_the_view() {
+        let mut desk = demo();
+        desk.proposed(Some(candidate("A", "compiled-workflow.nika", false)));
+        desk.opened = Some(Target::Workflow("enrich.nika".to_owned()));
+        let renewed =
+            candidate("A", "compiled-workflow.nika", false).rehearsed(Some("rehearsed".into()));
+        desk.proposed(Some(renewed.clone()));
+        assert_eq!(
+            desk.opened,
+            Some(Target::Workflow("enrich.nika".to_owned()))
+        );
+        assert_eq!(
+            desk.candidate.as_ref(),
+            Some(&renewed),
+            "the facts are kept"
+        );
+        desk.proposed(Some(candidate("B", "compiled-workflow.nika", false)));
+        assert_eq!(desk.opened, Some(Target::Candidate), "a new identity shows");
+    }
+
+    /// A conversation that counts what the desk asks it to acquire.
+    #[derive(Default)]
+    struct Lender {
+        fetched: usize,
+        proved: usize,
+    }
+
+    impl Conversation for Lender {
+        fn open(&mut self) -> Vec<crate::model::Beat> {
+            Vec::new()
+        }
+        fn submit(&mut self, _line: &str) -> crate::model::Turn {
+            crate::model::Turn {
+                beats: Vec::new(),
+                handoff: None,
+            }
+        }
+        fn perform(&mut self, _handoff: &crate::model::Handoff) -> Vec<crate::model::Beat> {
+            Vec::new()
+        }
+        fn fetch(&mut self, _execution: &ExecutionId, path: &str) -> Option<Fetched> {
+            self.fetched += 1;
+            Some(Fetched::refused(path, "lent"))
+        }
+        fn prove(&mut self, _execution: &ExecutionId) -> Option<Proven> {
+            self.proved += 1;
+            Some(Proven::refused("", "lent"))
+        }
+    }
+
+    /// A run's face turns in the object region; what it needs is acquired
+    /// once, by the conversation, never while preparing the frame; `r` reads
+    /// it again.
+    #[test]
+    fn a_run_face_is_acquired_outside_the_frame_and_read_again_on_demand() {
+        let exec = r#""execution":{"uuid":"01a0ef11-0212-70de-a8b3-99de9427fccc"}"#;
+        let frame = |n: u32, kind: &str, fields: &str| {
+            let line = format!(
+                r#"{{"correlation":null,{exec},"fields":[{fields}],"id":{{"uuid":"01a0ef11-03a7-74fb-bba0-{n:012x}"}},"kind":"{kind}","run":null,"timestamp":{n}}}"#
+            );
+            Observed::Frame(RunFrame::decode(&line).expect("frame"))
+        };
+        let settled = format!(
+            r#"{{"kind":"run_settled","status":"succeeded","cause":"normal",{exec},"spend":{{"priced_calls":0,"qualifier":"unmetered","unpriced_calls":0}},"evidence":"unsealed"}}"#
+        );
+        let starting =
+            r#"{"key":"task","value":"save"},{"key":"note","value":"invoke · nika:write"}"#;
+        let ending =
+            r#"{"key":"task","value":"save"},{"key":"output","value":"\"./out/copy.md\""}"#;
+        let mut desk = demo();
+        desk.observe(
+            [
+                Observed::Asked {
+                    workflow: "copy.nika".to_owned(),
+                    resume: false,
+                    typed: true,
+                    look: None,
+                },
+                frame(1, "workflow_started", ""),
+                frame(2, "task_started", starting),
+                frame(3, "task_completed", ending),
+                Observed::Frame(RunFrame::decode(&settled).expect("settled")),
+            ]
+            .into_iter(),
+        );
+        desk.focus.region = Region::Object;
+        let mut lender = Lender::default();
+        assert_eq!(
+            desk.route(key(KeyCode::Right), WIDE),
+            Route::Repaint,
+            "outputs: held"
+        );
+        assert_eq!(
+            desk.route(key(KeyCode::Right), WIDE),
+            Route::Inspect,
+            "files: to read"
+        );
+        desk.prepare(WIDE, false, false);
+        assert_eq!(
+            (lender.fetched, lender.proved),
+            (0, 0),
+            "drawing reads nothing"
+        );
+        assert!(acquire(&mut desk, &mut lender));
+        assert!(!acquire(&mut desk, &mut lender), "read once");
+        assert_eq!(desk.route(key(KeyCode::Char('r')), WIDE), Route::Inspect);
+        // A reading asked before `r` arrives late: dropped, asked again.
+        let (execution, wants, stale) = desk.wanted().expect("read again");
+        let late = acquire_all(&mut lender, &execution, wants);
+        assert_eq!(desk.route(key(KeyCode::Char('r')), WIDE), Route::Inspect);
+        assert!(
+            !desk.acquired(execution, stale, late),
+            "a late reading is dropped"
+        );
+        assert!(acquire(&mut desk, &mut lender));
+        assert_eq!(
+            desk.route(key(KeyCode::Right), WIDE),
+            Route::Inspect,
+            "proof: to verify"
+        );
+        assert!(acquire(&mut desk, &mut lender));
+        assert_eq!((lender.fetched, lender.proved), (3, 1));
+    }
+
+    /// What the shell's worker does, inline: acquire what the face wants,
+    /// then hand it to the desk for the reading it was asked for.
+    fn acquire(desk: &mut Desk, lender: &mut Lender) -> bool {
+        let Some((execution, wants, generation)) = desk.wanted() else {
+            return false;
+        };
+        let got = acquire_all(lender, &execution, wants);
+        desk.acquired(execution, generation, got)
+    }
+
     /// A refused look of `path`, read with `witness`.
     fn refused(path: &str, witness: &str) -> Inspected {
         Inspected::read(
@@ -666,5 +1392,86 @@ mod tests {
             "nika: x\nbogus: 1\n".to_owned(),
             Err(("NIKA-PARSE-005".to_owned(), "unknown key bogus".to_owned())),
         )
+    }
+    /// A run of thirty scheduled tasks, its last one picked, the object
+    /// holding the keys.
+    fn long_list() -> Desk {
+        let exec = r#""execution":{"uuid":"01a0ef11-0212-70de-a8b3-99de9427fccc"}"#;
+        let frame = |n: u32, kind: &str, fields: &str| {
+            let line = format!(
+                r#"{{"correlation":null,{exec},"fields":[{fields}],"id":{{"uuid":"01a0ef11-03a7-74fb-bba0-{n:012x}"}},"kind":"{kind}","run":null,"timestamp":{n}}}"#
+            );
+            Observed::Frame(RunFrame::decode(&line).expect("frame"))
+        };
+        let mut seen = vec![
+            Observed::Asked {
+                workflow: "long.nika".to_owned(),
+                resume: false,
+                typed: true,
+                look: None,
+            },
+            frame(1, "workflow_started", ""),
+        ];
+        for n in 0..30 {
+            let task = format!(r#"{{"key":"task","value":"step_{n:02}"}}"#);
+            seen.push(frame(2 + n, "task_scheduled", &task));
+        }
+        let mut desk = demo();
+        desk.observe(seen.into_iter());
+        desk.focus.region = Region::Object;
+        desk
+    }
+
+    /// The painted line of the picked task, and the object rows at `size`.
+    fn picked_line(desk: &mut Desk, size: (u16, u16)) -> (usize, usize) {
+        desk.prepare(size, false, false);
+        let Object::Workflow { body, .. } = desk.screen(false).object else {
+            panic!("the run is in view");
+        };
+        let at =
+            (body.iter().position(|l| l.to_string().starts_with("› "))).expect("a task is picked");
+        let rows = usize::from(desk.extent(size).expect("the workspace").object_rows);
+        (at, rows)
+    }
+
+    /// Only the height changes: the cached lines stay the same, the viewport
+    /// does not, and the picked task stays in view; a page key's scroll at
+    /// an unchanged size is never pulled back.
+    #[test]
+    fn a_height_only_resize_keeps_the_picked_task_in_view() {
+        const TALL: (u16, u16) = (120, 40);
+        const SHORT: (u16, u16) = (120, 24);
+        let mut desk = long_list();
+        for _ in 0..29 {
+            assert_eq!(desk.route(key(KeyCode::Down), TALL), Route::Repaint);
+            desk.prepare(TALL, false, false);
+        }
+        let (at, rows) = picked_line(&mut desk, TALL);
+        let scroll = desk.focus.scroll;
+        assert!(
+            scroll <= at && at < scroll + rows,
+            "{at} in {scroll}+{rows}"
+        );
+        let key_before = desk.drawn.as_ref().map(|d| d.key.clone());
+        let (at, rows) = picked_line(&mut desk, SHORT);
+        assert_eq!(
+            desk.drawn.as_ref().map(|d| d.key.clone()),
+            key_before,
+            "the same rendering, kept"
+        );
+        let scroll = desk.focus.scroll;
+        assert!(
+            scroll <= at && at < scroll + rows,
+            "{at} in {scroll}+{rows}"
+        );
+        assert_eq!(desk.route(key(KeyCode::Home), SHORT), Route::Repaint);
+        let (_, _) = picked_line(&mut desk, SHORT);
+        assert_eq!(desk.focus.scroll, 0, "the page keys are not pulled back");
+        let (at, rows) = picked_line(&mut desk, TALL);
+        let scroll = desk.focus.scroll;
+        assert!(
+            scroll <= at && at < scroll + rows,
+            "back: {at} in {scroll}+{rows}"
+        );
     }
 }

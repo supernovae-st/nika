@@ -16,8 +16,10 @@
 //! the viewers; the crate-private `workflow_object` is the seam they replace.
 
 use super::aside::{Aside, Entry, Tab, Verdict};
+use super::candidate::Proposed;
 use super::conversation::Thread;
 use super::header::{Manifest, Place};
+use super::live::LiveRun;
 use super::object::Object;
 use super::pinned::Pinned;
 use super::text::marks;
@@ -178,6 +180,11 @@ pub(crate) enum Target {
     Workflow(String),
     /// The run the view pins, by its name (`#043`): it becomes the object.
     Run(String),
+    /// The candidate the conversation proposes, not saved: it becomes the
+    /// object while the conversation lends it.
+    Candidate,
+    /// The run leg the shell observes: it becomes the object while held.
+    Live,
 }
 
 /// What the object in view is, resolved against the current view.
@@ -188,6 +195,10 @@ pub(crate) enum Opened<'a> {
     Workflow(&'a WorkflowView),
     /// The pinned run.
     Run(&'a Pinned),
+    /// The candidate under review.
+    Candidate(&'a Proposed),
+    /// The run leg the shell observes.
+    Live(&'a LiveRun),
 }
 
 impl Opened<'_> {
@@ -197,6 +208,8 @@ impl Opened<'_> {
         match self {
             Self::Workflow(workflow) => workflow.path.clone(),
             Self::Run(run) => format!("{} {}", run.run, run.workflow),
+            Self::Candidate(candidate) => candidate.label(),
+            Self::Live(leg) => format!("{} {}", leg.label(), leg.workflow()),
         }
     }
 
@@ -207,18 +220,35 @@ impl Opened<'_> {
         match self {
             Self::Workflow(workflow) => workflow_object(workflow),
             Self::Run(run) => run_object(run, ascii),
+            Self::Candidate(candidate) => Object::Shown {
+                icon: Icon::Workflow,
+                name: candidate.label(),
+                lines: vec![format!("proposal {}", candidate.id())],
+            },
+            Self::Live(leg) => Object::Shown {
+                icon: Icon::Run,
+                name: leg.label(),
+                lines: vec![leg.workflow().to_owned()],
+            },
         }
     }
 }
 
-/// `target`, resolved against `view`: `None` when the view no longer lists
-/// it (the object then falls back to the welcome and nothing claims to be on
-/// screen).
+/// `target`, resolved against `view` and the candidate the conversation lends:
+/// `None` when neither holds it any more (the object then falls back to the
+/// welcome and nothing claims to be on screen).
 #[must_use]
 pub(crate) fn resolve<'a>(
     view: Option<&'a ProjectView>,
     target: Option<&Target>,
+    candidate: Option<&'a Proposed>,
+    live: Option<&'a LiveRun>,
 ) -> Option<Opened<'a>> {
+    match target? {
+        Target::Candidate => return candidate.map(Opened::Candidate),
+        Target::Live => return live.map(Opened::Live),
+        _ => {}
+    }
     let view = view?;
     match target? {
         Target::Workflow(path) => view.workflow(path).map(Opened::Workflow),
@@ -244,9 +274,16 @@ pub(crate) fn place(view: Option<&ProjectView>) -> Place {
 }
 
 /// The `tab` projection's entries, each with what it opens: this
-/// conversation, the judged workflows, then the pinned run when there is
-/// one; the entry `opened` is marked as the object in view.
-fn entries(view: Option<&ProjectView>, tab: Tab, opened: Option<&Target>) -> Vec<(Entry, Target)> {
+/// conversation, the candidate it proposes when there is one, the judged
+/// workflows, then the pinned run when there is one; the entry `opened` is
+/// marked as the object in view.
+fn entries(
+    view: Option<&ProjectView>,
+    tab: Tab,
+    opened: Option<&Target>,
+    candidate: Option<&Proposed>,
+    live: Option<&LiveRun>,
+) -> Vec<(Entry, Target)> {
     if tab != Tab::Nika {
         return Vec::new();
     }
@@ -261,6 +298,14 @@ fn entries(view: Option<&ProjectView>, tab: Tab, opened: Option<&Target>) -> Vec
             entry
         }
     };
+    if let Some(candidate) = candidate {
+        let entry = Entry::new(Icon::Workflow, candidate.label()).at(1);
+        out.push((mark(entry, &Target::Candidate), Target::Candidate));
+    }
+    if let Some(leg) = live {
+        let entry = Entry::new(Icon::Run, format!("{} {}", leg.label(), leg.workflow())).at(1);
+        out.push((mark(entry, &Target::Live), Target::Live));
+    }
     for workflow in view.map_or(&[][..], |v| v.workflows.as_slice()) {
         let target = Target::Workflow(workflow.path.clone());
         let entry = Entry::new(Icon::Workflow, &workflow.path).judged(workflow.verdict());
@@ -274,11 +319,18 @@ fn entries(view: Option<&ProjectView>, tab: Tab, opened: Option<&Target>) -> Vec
     out
 }
 
-/// The aside: the `tab` projection of the view, the entry `opened` marked
-/// open, and in words what the projection cannot list.
+/// The aside: the `tab` projection of the view and of the conversation's
+/// `candidate`, the entry `opened` marked open, and in words what the
+/// projection cannot list.
 #[must_use]
-pub(crate) fn aside(view: Option<&ProjectView>, tab: Tab, opened: Option<&Target>) -> Aside {
-    let listed = entries(view, tab, opened)
+pub(crate) fn aside(
+    view: Option<&ProjectView>,
+    tab: Tab,
+    opened: Option<&Target>,
+    candidate: Option<&Proposed>,
+    live: Option<&LiveRun>,
+) -> Aside {
+    let listed = entries(view, tab, opened, candidate, live)
         .into_iter()
         .map(|(entry, _)| entry)
         .collect();
@@ -298,8 +350,14 @@ pub(crate) fn aside(view: Option<&ProjectView>, tab: Tab, opened: Option<&Target
 
 /// What the aside entry at `index` of the `tab` projection opens.
 #[must_use]
-pub(crate) fn target(view: Option<&ProjectView>, tab: Tab, index: usize) -> Option<Target> {
-    entries(view, tab, None)
+pub(crate) fn target(
+    view: Option<&ProjectView>,
+    tab: Tab,
+    index: usize,
+    candidate: Option<&Proposed>,
+    live: Option<&LiveRun>,
+) -> Option<Target> {
+    entries(view, tab, None, candidate, live)
         .into_iter()
         .nth(index)
         .map(|(_, target)| target)
@@ -452,7 +510,7 @@ mod tests {
     fn the_nika_projection_lists_this_conversation_then_the_judged_workflows() {
         let demo = demo_project();
         let enrich = Target::Workflow("enrich.nika".to_owned());
-        let aside = aside(Some(&demo), Tab::Nika, Some(&enrich));
+        let aside = aside(Some(&demo), Tab::Nika, Some(&enrich), None, None);
         let labels: Vec<(&str, Option<Verdict>, bool)> = aside
             .entries
             .iter()
@@ -469,34 +527,36 @@ mod tests {
         );
         assert!(aside.complete && aside.note.is_none());
         assert_eq!(
-            target(Some(&demo), Tab::Nika, 0),
+            target(Some(&demo), Tab::Nika, 0, None, None),
             Some(Target::Conversation)
         );
         assert_eq!(
-            target(Some(&demo), Tab::Nika, 2),
+            target(Some(&demo), Tab::Nika, 2, None, None),
             Some(Target::Workflow("enrich.nika".to_owned()))
         );
-        assert_eq!(target(Some(&demo), Tab::Nika, 4), None);
+        assert_eq!(target(Some(&demo), Tab::Nika, 4, None, None), None);
     }
 
     #[test]
     fn what_cannot_be_listed_is_said_never_left_blank() {
         let demo = demo_project();
-        let files = aside(Some(&demo), Tab::Files, None);
+        let files = aside(Some(&demo), Tab::Files, None, None, None);
         assert!(files.entries.is_empty());
         assert_eq!(files.note.as_deref(), Some(FILES_NOT_LENT));
-        assert_eq!(target(Some(&demo), Tab::Files, 0), None);
+        assert_eq!(target(Some(&demo), Tab::Files, 0, None, None), None);
         let empty = ProjectView::new("local", "veille", "~/veille").listing(Vec::new(), false);
-        let nika = aside(Some(&empty), Tab::Nika, None);
+        let nika = aside(Some(&empty), Tab::Nika, None, None, None);
         assert_eq!(nika.entries.len(), 1, "this conversation only");
         assert_eq!(nika.note.as_deref(), Some("none found in the listed part"));
         assert!(!nika.complete);
         let fresh = ProjectView::new("local", "veille", "~/veille").listing(Vec::new(), true);
         assert_eq!(
-            aside(Some(&fresh), Tab::Nika, None).note.as_deref(),
+            aside(Some(&fresh), Tab::Nika, None, None, None)
+                .note
+                .as_deref(),
             Some("No workflow in veille yet")
         );
-        let unknown = aside(None, Tab::Nika, None);
+        let unknown = aside(None, Tab::Nika, None, None, None);
         assert_eq!(
             unknown.note.as_deref(),
             Some("no project is known to this conversation")
@@ -597,12 +657,12 @@ mod tests {
         let demo = demo_project();
         let run = Target::Run("#1".to_owned());
         assert!(
-            !aside(Some(&demo), Tab::Nika, None)
+            !aside(Some(&demo), Tab::Nika, None, None, None)
                 .entries
                 .iter()
                 .any(|e| e.icon == Icon::Run)
         );
-        assert_eq!(resolve(Some(&demo), Some(&run)), None);
+        assert_eq!(resolve(Some(&demo), Some(&run), None, None), None);
         let pinned = demo.pinning(
             Pinned::new(
                 "demo",
@@ -613,14 +673,17 @@ mod tests {
             )
             .offering("answer the gate"),
         );
-        let listed = aside(Some(&pinned), Tab::Nika, Some(&run));
+        let listed = aside(Some(&pinned), Tab::Nika, Some(&run), None, None);
         let last = listed.entries.last().expect("the run");
         assert_eq!(
             (last.icon, last.label.as_str(), last.open),
             (Icon::Run, "#1 digest-notes.nika", true)
         );
-        assert_eq!(target(Some(&pinned), Tab::Nika, 4), Some(run.clone()));
-        let opened = resolve(Some(&pinned), Some(&run)).expect("pinned");
+        assert_eq!(
+            target(Some(&pinned), Tab::Nika, 4, None, None),
+            Some(run.clone())
+        );
+        let opened = resolve(Some(&pinned), Some(&run), None, None).expect("pinned");
         assert_eq!(opened.label(), "#1 digest-notes.nika");
         assert_eq!(
             words(&opened.object(true)),
@@ -633,11 +696,11 @@ mod tests {
         );
         let enrich = Target::Workflow("enrich.nika".to_owned());
         assert_eq!(
-            resolve(Some(&pinned), Some(&enrich))
+            resolve(Some(&pinned), Some(&enrich), None, None)
                 .map(Opened::label)
                 .as_deref(),
             Some("enrich.nika")
         );
-        assert_eq!(resolve(None, Some(&enrich)), None);
+        assert_eq!(resolve(None, Some(&enrich), None, None), None);
     }
 }

@@ -121,8 +121,12 @@ fn door(
     route: &[String],
 ) -> Value {
     let has = |step: &str| route.iter().any(|s| s == step);
-    // The sketch door's own route step names it before any record (a floor refusal has none).
-    let sketch = decision["native"].get("sketch").is_some() || has(NATIVE_SKETCH);
+    // The sketch door's own route steps name it before any record (a floor refusal has none):
+    // the policy door before HOT, or a COLD round's composition the plan could not keep apart.
+    // A composition stopped before any sketch call (native off, no repair allowance) has neither
+    // step and stays the plan round's own record.
+    let composition = has(super::sketch::COMPOSITION);
+    let sketch = decision["native"].get("sketch").is_some() || has(NATIVE_SKETCH) || composition;
     let (name, reason) = match out.provenance.strategy {
         _ if request.plan.is_some() => ("replay", "answer_round_replays_a_recorded_plan"),
         Some(Strategy::Skeleton) => ("skeleton", "exact_skeleton_name"),
@@ -135,6 +139,8 @@ fn door(
                 "nonconstant_revision"
             } else if has(NATIVE_SKETCH) {
                 "policy_sketch_before_hot"
+            } else if composition {
+                "plan_composition_requires_sketch"
             } else if has(NATIVE_ONLY) {
                 "policy_native_only_before_hot"
             } else if has(NATIVE_INFORMED) {

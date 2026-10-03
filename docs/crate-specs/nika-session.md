@@ -21,6 +21,13 @@ The workflow grammar · the builtin catalog · the model catalog · the error de
 
 ## Run facts: read here, owned by the trace reader
 
+The workspace also consumes `RunFacts::of` and the canonical captured verifier
+through its own `nika-trace` dependency. Session re-exports only `KeptRun` for
+`SessionRuntime::observe_run_leg`; `kept_run` and `kept_turns` expose retained
+observations. Session remains the sole history owner. Existing `observe_run`
+keeps its signature and supplies no inferred execution identity. See
+[history and downgrade limits](../architecture/session-history.md).
+
 The views of a run the session observed are read from the run's own
 journal, never from what the run printed. The reading and its three views
 (the result after exit 0 or 1, the gate at exit 4, `/proof` on request)

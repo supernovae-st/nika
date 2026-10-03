@@ -218,9 +218,14 @@ caps  = { supports_temperature = false, reasoning = true, tokenizer = "deepseek"
 # gateway capabilities from these names. Observed 2026-09-24:
 # https://api-docs.deepseek.com/api/create-chat-completion/
 # https://api-docs.deepseek.com/guides/thinking_mode/
-# The effort levels are deepseek-v4-pro's own, observed 2026-09-28T21:33Z on
-# GET https://api.deepseek.com/models (effort.supported_levels low, high,
-# max; default high). No other name inherits them.
+# The effort levels are each exact model's own. deepseek-v4-pro: observed
+# 2026-09-28T21:33Z on GET https://api.deepseek.com/models
+# (effort.supported_levels low, high, max; default high). deepseek-flash:
+# observed 2026-10-03 on the same GET (low, high, max; default high), and the
+# official create-chat-completion and thinking-mode documentation consulted that
+# day names Flash with thinking enabled and reasoning_effort low. A listed level
+# is what may be asked, never what a call was served. No other name (an alias,
+# a suffixed or dated name, a gateway) inherits them.
 [[rules]]
 name  = "deepseek-v4-pro-thinking"
 scope = { providers = ["deepseek"] }
@@ -231,7 +236,7 @@ caps  = { supports_temperature = false, reasoning = true, tokenizer = "deepseek"
 name  = "deepseek-current-thinking"
 scope = { providers = ["deepseek"] }
 match = { kind = "exact", model = "deepseek-flash" }
-caps  = { supports_temperature = false, reasoning = true, tokenizer = "deepseek", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort"], json_mode = "object" }
+caps  = { supports_temperature = false, reasoning = true, tokenizer = "deepseek", input_modalities = ["text"], output_modalities = ["text"], supported_parameters = ["reasoning-effort"], json_mode = "object", reasoning_efforts = ["low", "high", "max"] }
 
 # [12] Any other DeepSeek model — loses vision (API limitation).
 #      ⚠ NO StructuredOutputNative (same json_object-only constraint).

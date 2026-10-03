@@ -796,7 +796,8 @@ async fn repair<P: ProviderInferDyn>(
     stamp(pre, before, &reference.record["references"]);
     let (proposal, _) = called?;
     let mut scratch = crate::initial();
-    let plan = super::merge(intent, proposal, reading, &mut scratch);
+    // A repair proposal is judged as a plan only; a composition is not repaired here.
+    let plan = super::merged(intent, proposal, reading, &mut scratch).into_plan();
     for finding in scratch
         .diagnostics
         .into_iter()

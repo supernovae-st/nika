@@ -370,6 +370,8 @@ fn consumed_recap(raw: &Value) -> Value {
                 "hosts": [], "after": [],
                 "with": t.get("with").cloned().unwrap_or_else(|| json!([])),
                 "gated_by": null, "for_each": null, "purpose": t["purpose"],
+                // The recap has no agent and no loop: no control is stated or defaulted.
+                "max_turns": null, "tools": null, "fail_fast": null, "defaulted": [],
             })
         })
         .collect();
@@ -403,95 +405,51 @@ async fn sketch_with_fills(fills: Vec<Value>) -> (CompileOutcome, Script) {
     (out, provider)
 }
 
-/// The candidate the sketch door emits from the valid fills alone.
-async fn valid_candidate_sha() -> String {
-    let (out, _) = sketch_with_fills(valid_fills()).await;
-    let rounds = native_rounds(&out);
-    rounds[1]["candidate_sha256"].as_str().unwrap().to_owned()
-}
-
+/// Formerly the witness `witness_fills_outside_the_declared_holes_vanish_from_the_candidate_without_a_refusal`
+/// (COMPILER-01, frozen at c15cf94: ghost/duplicate/undeclared fills accepted with the valid
+/// bytes, `expression: 42` emitted, overrides refused only by Check). Since the sketch emission
+/// integrity slice, each is refused by the fill laws before any document exists.
 #[tokio::test]
-async fn witness_fills_outside_the_declared_holes_vanish_from_the_candidate_without_a_refusal() {
-    let valid = valid_candidate_sha().await;
+async fn fills_outside_the_declared_holes_are_refused_before_emission() {
     for (name, fills) in malformed_fills() {
         let (out, provider) = sketch_with_fills(fills.clone()).await;
         let native = &out.provenance.decision.as_ref().unwrap()["native"];
         let rounds = native_rounds(&out);
-        assert_eq!(provider.calls(), 2, "{name}");
-        // Each fill keeps its place: a first fill of a declared hole exactly as sent, any other
-        // by digest, shape and reason, never its text.
+        assert_eq!(provider.calls(), 2, "{name}: no call is added");
+        assert_eq!(native["accepted"], false, "{name}");
+        assert!(out.candidate.is_none(), "{name}");
+        assert!(
+            rounds[1].get("candidate_sha256").is_none(),
+            "{name}: {:#}",
+            rounds[1]
+        );
+        let kinds: Vec<&str> = rounds[1]["diagnostics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|d| d["kind"].as_str().unwrap())
+            .collect();
+        assert!(
+            !kinds.is_empty() && kinds.iter().all(|k| *k == "fill"),
+            "{name}: {kinds:?}"
+        );
+        // No document was emitted from these fills: every fill is kept by digest only.
         let kept = rounds[1]["proposed_fills"].as_array().unwrap();
         assert_eq!(kept.len(), fills.len(), "{name}");
         for (fill, kept) in fills.iter().zip(kept) {
-            let declared = valid_fills().contains(fill)
-                || (name == "wrong_type" && fill["task"] == "open_only");
-            if declared {
-                assert_eq!(kept, &consumed_fill(fill), "{name}");
-            } else {
-                assert_eq!(kept["withheld"], true, "{name}: {kept}");
-                assert_eq!(kept["sha256"], sha(&fill.to_string()), "{name}");
-                assert!(kept.get("value").is_none(), "{name}: {kept}");
-            }
+            assert_eq!(kept["withheld"], true, "{name}: {kept}");
+            assert_eq!(kept["sha256"], sha(&fill.to_string()), "{name}");
+            assert!(kept.get("value").is_none(), "{name}: {kept}");
         }
         assert!(
             !outcome_document(&out).to_string().contains(SECRET),
             "{name}"
         );
-        let sha = rounds[1]["candidate_sha256"].as_str().unwrap();
         let summary = forensic(&out);
         assert_eq!(summary["door"]["name"], "sketch", "{name}");
-        assert_eq!(
-            summary["door"]["reason"], "policy_sketch_before_hot",
-            "{name}"
-        );
+        assert_eq!(summary["door"]["source_owner"], "none", "{name}");
         assert_eq!(summary["evidence"]["behavioral_judge"]["state"], "not_run");
         assert_eq!(summary["evidence"]["satisfaction"], "UNKNOWN");
-        match name {
-            // DEFECT (frozen, not fixed): a fill for a task or field no hole declares, or a second
-            // fill of one hole, is accepted and silently dropped: the same bytes as the valid
-            // fills, no diagnostic, the sketch accepted.
-            "ghost_task" | "duplicate" | "undeclared_field" => {
-                assert_eq!(native["accepted"], true, "{name}");
-                assert_eq!(sha, valid, "{name}");
-                assert!(
-                    rounds[1]["diagnostics"].as_array().unwrap().is_empty(),
-                    "{name}"
-                );
-            }
-            // DEFECT (frozen, not fixed): a jq hole filled with a number passes the laws and the
-            // Check and is emitted as `expression: 42`.
-            "wrong_type" => {
-                assert_eq!(native["accepted"], true, "{name}");
-                let source = out.provenance.plan.as_ref().unwrap()["source"]
-                    .as_str()
-                    .unwrap();
-                assert!(source.contains("expression: 42"), "{source}");
-            }
-            // Refused, but by the Check and the fidelity laws of the emitted document, never by
-            // a validation of the fills against the holes.
-            refused => {
-                assert!(
-                    [
-                        "missing_required",
-                        "args_path_override",
-                        "args_object_override"
-                    ]
-                    .contains(&refused),
-                    "{refused}"
-                );
-                assert_eq!(native["accepted"], false, "{name}");
-                assert!(out.candidate.is_none(), "{name}");
-                let kinds: Vec<&str> = rounds[1]["diagnostics"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .map(|d| d["kind"].as_str().unwrap())
-                    .collect();
-                assert!(kinds.contains(&"check"), "{name}: {kinds:?}");
-                assert!(!kinds.contains(&"sketch"), "{name}: {kinds:?}");
-                assert_eq!(summary["door"]["source_owner"], "none", "{name}");
-            }
-        }
     }
 }
 
@@ -873,19 +831,31 @@ async fn a_refused_sketch_is_kept_by_digest_and_its_repair_exactly() {
     assert_eq!(calls[1]["call"], "sketch-repair");
 }
 
+/// Formerly `keys_the_compiler_ignores_in_accepted_fills_and_sketches_never_reach_the_record`
+/// (COMPILER-01: an extra key beside a valid fill, task or edge was ignored and the candidate
+/// emitted). The closed shapes now refuse them by their path; the canary still never reaches the
+/// wire and no call is added.
 #[tokio::test]
-async fn keys_the_compiler_ignores_in_accepted_fills_and_sketches_never_reach_the_record() {
-    let valid = valid_candidate_sha().await;
-    // An accepted fill carrying a key the document never reads.
+async fn keys_outside_the_closed_fill_and_sketch_shapes_are_refused_unechoed() {
     let mut fills = valid_fills();
     fills[1]["api_key"] = json!(SECRET);
-    let (out, _) = sketch_with_fills(fills.clone()).await;
+    let (out, provider) = sketch_with_fills(fills.clone()).await;
     let rounds = native_rounds(&out);
-    assert_eq!(rounds[1]["candidate_sha256"], valid, "the same document");
-    assert_eq!(rounds[1]["proposed_fills"][1], consumed_fill(&fills[1]));
-    assert_eq!(rounds[1]["proposed_fills"][1]["ignored_keys"], 1);
+    assert_eq!(provider.calls(), 2);
+    assert!(out.candidate.is_none());
+    assert!(
+        rounds[1].get("candidate_sha256").is_none(),
+        "{:#}",
+        rounds[1]
+    );
+    assert!(
+        rounds[1]["diagnostics"].to_string().contains("fills[1]"),
+        "{:#}",
+        rounds[1]
+    );
+    assert_eq!(rounds[1]["proposed_fills"][1]["withheld"], true);
     assert!(!outcome_document(&out).to_string().contains(SECRET));
-    // An accepted sketch whose task carries a key the parse never reads.
+    // A sketch whose task and edge carry keys outside the closed shapes is never filled.
     let mut sketch = recap_sketch();
     sketch["tasks"][1]["api_key"] = json!(SECRET);
     sketch["tasks"][1]["with"][0]["token"] = json!(SECRET);
@@ -897,9 +867,143 @@ async fn keys_the_compiler_ignores_in_accepted_fills_and_sketches_never_reach_th
         CompileRequest::create(SKETCH_INTENT).with_authoring_policy(policy(NativeMode::Sketch, 0));
     let out = compile_with_provider(&request, &provider).await.unwrap();
     let rounds = native_rounds(&out);
-    assert_eq!(rounds[1]["candidate_sha256"], valid, "the same document");
-    let kept = &rounds[0]["proposed_sketch"];
-    assert_eq!(kept["ignored_keys"], 2, "{kept}");
-    assert_eq!(kept["tasks"], consumed_recap(&recap_sketch())["tasks"]);
+    assert_eq!(provider.calls(), 1);
+    assert_eq!(rounds.len(), 1, "{rounds:#?}");
+    assert!(rounds[0]["diagnostics"].to_string().contains("tasks[1]"));
+    assert_eq!(rounds[0]["proposed_sketch"]["withheld"], true);
     assert!(!outcome_document(&out).to_string().contains(SECRET));
+}
+
+// ── A plan composition handed to the sketch door is named as such; its early stops stay none ──
+
+const COPIES: &str = "Copie ./alpha.txt dans ./out/alpha.txt et ./beta.txt dans ./out/beta.txt.";
+
+/// Two paired copies (automatic writes) the private plan cannot keep apart.
+fn copies_plan() -> String {
+    json!({"steps": [
+        {"op": "read", "detail": "./alpha.txt", "evidence": "Copie ./alpha.txt"},
+        {"op": "read", "detail": "./beta.txt", "evidence": "./beta.txt"}
+    ], "effects": [
+        {"verb": "write", "target": "./out/alpha.txt", "policy": "automatic", "evidence": "./alpha.txt dans ./out/alpha.txt"},
+        {"verb": "write", "target": "./out/beta.txt", "policy": "automatic", "evidence": "./beta.txt dans ./out/beta.txt"}
+    ], "obligations": [], "constraints": [], "unknowns": []})
+    .to_string()
+}
+
+fn copies_sketch() -> String {
+    let read = |id: &str, path: &str| json!({"id": id, "verb": "invoke", "tool": "nika:read", "purpose": id, "reads": [path]});
+    let write = |id: &str, path: &str, from: &str| {
+        json!({"id": id, "verb": "invoke", "tool": "nika:write", "purpose": id, "writes": [path],
+               "with": [{"name": "text", "from": from}]})
+    };
+    json!({"name": "copies", "tasks": [
+        read("read_alpha", "./alpha.txt"),
+        read("read_beta", "./beta.txt"),
+        write("write_alpha", "./out/alpha.txt", "read_alpha"),
+        write("write_beta", "./out/beta.txt", "read_beta"),
+    ], "questions": [], "gaps": [], "notes": "graph"})
+    .to_string()
+}
+
+fn calls(out: &CompileOutcome) -> Vec<String> {
+    context(out)
+        .iter()
+        .map(|c| c["call"].as_str().unwrap().to_owned())
+        .collect()
+}
+
+async fn copies(native: NativeMode, repairs: u32) -> (CompileOutcome, Script) {
+    let provider = Script::texts(&[
+        copies_plan(),
+        copies_sketch(),
+        json!({"fills": [], "notes": "nothing to fill"}).to_string(),
+    ]);
+    let request = CompileRequest::create(COPIES).with_authoring_policy(policy(native, repairs));
+    let out = compile_with_provider(&request, &provider).await.unwrap();
+    (out, provider)
+}
+
+#[tokio::test]
+async fn a_plan_composition_sent_to_the_sketch_door_is_named_with_its_reason() {
+    let (out, provider) = copies(NativeMode::Escalate, 1).await;
+    let summary = forensic(&out);
+    assert_eq!(summary["door"]["name"], "sketch", "{summary:#}");
+    assert_eq!(
+        summary["door"]["reason"], "plan_composition_requires_sketch",
+        "{summary:#}"
+    );
+    assert_eq!(
+        summary["doors_tried"]["cold_plan"],
+        json!({"called": "cold: 1 sample(s)"})
+    );
+    assert_eq!(
+        summary["proposal"]["kind"], "sketch_and_fills",
+        "{summary:#}"
+    );
+    // Every paid call stays in order: the plan first, then the sketch door's own calls.
+    assert_eq!(calls(&out).len(), provider.calls());
+    assert_eq!(
+        &calls(&out)[..3],
+        ["plan", "sketch", "fill"],
+        "{:?}",
+        calls(&out)
+    );
+    let kept = out.candidate.is_some() || out.provenance.plan.is_some();
+    let owner = if kept {
+        "compiler_from_model_sketch_and_fills"
+    } else {
+        "none"
+    };
+    assert_eq!(summary["door"]["source_owner"], owner, "{summary:#}");
+}
+
+#[tokio::test]
+async fn a_composition_stopped_before_any_sketch_call_keeps_its_no_call_record() {
+    // native: off, and an Escalate policy with no repair allowance: the composition is named,
+    // no sketch request is sent, and the summary says no door produced a candidate.
+    for (native, repairs) in [(NativeMode::Off, 1), (NativeMode::Escalate, 0)] {
+        let (out, provider) = copies(native, repairs).await;
+        let summary = forensic(&out);
+        assert_eq!(provider.calls(), 1, "{native:?}/{repairs}: the plan alone");
+        assert_eq!(calls(&out), ["plan"], "{native:?}/{repairs}");
+        assert_eq!(
+            summary["door"]["name"], "none",
+            "{native:?}/{repairs}: {summary:#}"
+        );
+        assert_eq!(
+            summary["door"]["reason"], "cold_plan_without_candidate",
+            "{summary:#}"
+        );
+        assert_eq!(summary["door"]["source_owner"], "none");
+        assert!(out.candidate.is_none());
+    }
+}
+
+#[tokio::test]
+async fn the_policy_sketch_door_and_a_plan_without_composition_keep_their_reasons() {
+    // The policy door before HOT keeps its own reason (control for the matcher's order).
+    let (out, _) = sketch_with_fills(valid_fills()).await;
+    assert_eq!(forensic(&out)["door"]["reason"], "policy_sketch_before_hot");
+    // Two reads merged into one result written twice: no pairing, so the plan stays the door.
+    let merged = "Lis ./a.txt et ./b.txt, fusionne-les, écris le résultat fusionné dans ./out/x.txt et une copie dans ./out/y.txt.";
+    let plan = json!({"steps": [
+        {"op": "read", "detail": "./a.txt", "evidence": "Lis ./a.txt"},
+        {"op": "read", "detail": "./b.txt", "evidence": "./b.txt"},
+        {"op": "draft", "detail": "la fusion des deux", "evidence": "fusionne-les"}
+    ], "effects": [
+        {"verb": "write", "target": "./out/x.txt", "policy": "automatic", "evidence": "écris le résultat fusionné dans ./out/x.txt"},
+        {"verb": "write", "target": "./out/y.txt", "policy": "automatic", "evidence": "une copie dans ./out/y.txt"}
+    ], "obligations": [], "constraints": [], "unknowns": []})
+    .to_string();
+    let provider = Script::texts(&[plan]);
+    let request =
+        CompileRequest::create(merged).with_authoring_policy(policy(NativeMode::Escalate, 1));
+    let out = compile_with_provider(&request, &provider).await.unwrap();
+    let summary = forensic(&out);
+    assert_eq!(summary["door"]["name"], "cold_plan", "{summary:#}");
+    assert_eq!(
+        summary["door"]["reason"],
+        "hot_rejected_and_warm_not_settling"
+    );
+    assert_eq!(calls(&out), ["plan"]);
 }

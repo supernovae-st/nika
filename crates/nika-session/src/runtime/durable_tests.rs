@@ -1348,6 +1348,9 @@ fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() 
 /// The kept-draft suite: evidence across a close, re-proposal, and the record's schema.
 mod draft_tests;
 
+/// The last observed run kept across a close: evidence, never authority.
+mod last_run_tests;
+
 /// A stale question in either durable store must not be projected as active
 /// after reopening and observing an unrelated local run. Opening never writes.
 #[test]

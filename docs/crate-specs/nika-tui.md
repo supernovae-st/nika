@@ -12,7 +12,7 @@
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 (workspace-inherited) |
 | Publish | `false` |
-| Dependencies | **read from `Cargo.toml`, which is authoritative** · `ratatui` 0.30 (features `scrolling-regions` · `unstable-rendered-line-info`) · `crossterm` 0.29 (`event-stream` · `bracketed-paste`) · `ratatui-textarea` 0.9 · `tokio` · `unicode-width` · `nika-fs` (bounded Live inspection) · lateral L4 `nika-session` (the live conversation), `nika-cli-host` (the one-use Run child, no admission authority), `nika-tui-view` (pure workflow faces), and `nika-display` (the theme seam: roles, verb and state glyphs, motion frames; already under the other two) · dev: `expectrl` (the PTY proof), `sha2` (the logomark provenance proof). `tachyonfx` and `nika-tui-core` are not dependencies yet; ADR-139 §Consequences leaves tachyonfx and the web-studio port out of the first product. |
+| Dependencies | **read from `Cargo.toml`, which is authoritative** · `ratatui` 0.30 (features `scrolling-regions` · `unstable-rendered-line-info`) · `crossterm` 0.29 (`event-stream` · `bracketed-paste`) · `ratatui-textarea` 0.9 · `tokio` · `unicode-width` · `nika-fs` (bounded Live inspection) · lateral L4 `nika-session` (the live conversation), `nika-cli-host` (the one-use Run child, no admission authority), `nika-tui-view` (pure workflow and artifact faces), `nika-trace` (the canonical verifier and captured-journal fold, never back), and `nika-display` (the theme seam: roles, verb and state glyphs, motion frames; already under the other two) · dev: `expectrl` (the PTY proof), `sha2` (the logomark provenance proof). `tachyonfx` and `nika-tui-core` are not dependencies yet; ADR-139 §Consequences leaves tachyonfx and the web-studio port out of the first product. |
 | NIKA codes | none owed — the renderer refuses nothing · it displays the refusal the engine rendered |
 | Depends on | **T28 admitted** (`nika-tui-core` out of wip, done 2026-08-14) · ADR-139 records the original renderer milestone and the 2026-10-03 workspace amendment |
 
@@ -79,7 +79,8 @@ Bare `nika` on an interactive terminal opens the workspace. `NIKA_TUI=inline`
 selects the earlier inline presentation; plain and pipe behavior stay available.
 Below 60×16, focus presentation preserves the conversation. The Live host adapter
 lists the Session project, opens only a listed workflow below its owned root,
-and reads at most 1 MiB of UTF-8 without following symlinks. Source, Plan, Graph
+and resolves that selected project root once. Below the held root it reads at
+most 1 MiB of UTF-8, refusing child symlinks. Source, Plan, Graph
 and Check share the same byte witness and one `audit_source` result. Inspection
 runs before drawing and opens no consent, Save or Run authority. For a workflow with
 `infer:`/`agent:` tasks, the readiness judgement may observe provider key presence and,
@@ -95,9 +96,50 @@ changes neither the conversation nor its attached context.
 The real CLI PTY suite `workspace_pty` covers startup, the four faces and witness,
 re-read after edits, resize, ASCII/no-color/reduced motion, focus and typeahead,
 terminal restoration, inline/plain/pipe, inspection without effects, and Save
-without Run. These proofs cover this inspection slice. Live run hierarchy,
-output viewers and Proof, project/conversation switching and complete execution
-closure are not implemented by this slice.
+without Run. These proofs cover workflow inspection; the run faces below add a
+separate result and evidence slice, not complete workspace qualification.
+
+The run object offers Run, Outputs, Files and Proof. Outputs come from that
+leg's settlement. Files show at most eight reported writes, read now at up to
+1 MiB each; without a digest of the bytes written, the view claims neither
+unchanged nor changed since the run. The host acquires files and Proof on its
+worker, outside drawing, and applies a result only to the same execution and
+reading generation. Typing and drawing remain available during acquisition.
+
+Proof captures at most 8 MiB of the named journal once. `RunFacts::of` and
+`trace_verify::verify_captured` consume those same bytes. Binding requires exactly
+the observed execution, one start naming its source hash, and the receipt head
+and length; missing or conflicting identities remain unbound. The journal
+witness does not cover the verifier's separately acquired custody keys, anchor
+sidecar or writer lease. Run status, a declared seal and a verified verdict are
+separate observations; none proves the requested business result correct.
+
+The Run face lets the user select a task, open its detail and return to the
+list. Selection is bound to the execution and task id, and stays visible after
+a height-only resize. Detail distinguishes observed state, failures, measured
+usage and output from missing observations. Graph facts are added only when
+the run names the exact source shown; a declared task without an event stays
+not observed. Inspection adds no file access, execution or consent.
+
+From a task whose admitted settle frame names a child, Enter opens that child's
+journal one level down. The host reads at most 8 MiB through the held project
+root; the target's displayed words are never a fallback path. Verification and
+the child view consume the same captured bytes. Head, source and outcome are
+compared only with the parent's recorded commitments; absent or contradictory
+facts stay explicit. The child's execution identity and length stay not
+compared. Each opening asks its own read; a late answer from an earlier opening
+is discarded. Keys remain available during acquisition, and Backspace returns
+to the parent with its selection and scroll. This view starts no child work and
+adds no child usage to the parent's measurements. Live child frames, a produced
+child execution identity and a failed-child summary remain outside this slice.
+
+Reopening repaints retained turns as history and exposes the last observed run.
+It restores neither task rows, outputs nor a file inventory; Proof is read again
+on demand. It calls no model, starts no run and restores no consent. Full child
+hierarchy, project/conversation switching, concurrent
+revision during a run and the complete paid journey remain outside this slice's
+qualification. The workspace PTYs use cargo-test binaries; they do not qualify
+a stamped integrated build or a paid model route.
 
 - `workspace::geometry::Geometry::of` places the header, the project aside,
   the object in view, the conversation with its composer and the pinned
@@ -127,7 +169,7 @@ closure are not implemented by this slice.
   `nika_display::theme::Theme::glyph` paints.
 - `workspace::object` paints the centre. An open object is named by its kind's
   icon and its name, and its given lines are cut at the edge, never wrapped
-  (workflow faces use `nika-tui-view`; result and Proof wiring remain pending). With nothing open it welcomes: the largest
+  (workflow faces use `nika-tui-view`; observed run faces use `workspace::live`). With nothing open it welcomes: the largest
   butterfly that fits whole above the Session's first words (16×8 in the 80×24
   object rows, 48×20 from 120×40), revealed once from the caller's clock, final
   at once under reduced motion.
@@ -151,8 +193,10 @@ closure are not implemented by this slice.
   the listing always shows, and `Enter` opens the entry: the object in view
   changes, the conversation does not, and nothing is attached to the next
   message. In the object the arrows and page keys scroll its lines under a
-  title row that stays. `screen::extent` gives the key handler what the
-  regions hold at the current size.
+  title row that stays. On the Run face, Up/Down select a task and Enter opens
+  its detail; Enter there opens a recorded child relation, and Backspace
+  returns one level. `screen::extent` gives the key handler what the regions
+  hold at the current size.
 - The ASCII glyph column is the theme's decision (`--ascii`, CI logs, a legacy
   console), passed by the CLI door as `app::Options::ascii` and held in
   `UiState::ascii`: bare `nika --ascii` keeps the renderer, `--plain` and

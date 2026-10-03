@@ -249,3 +249,31 @@ fn a_look_joins_no_reasoner_facts() {
     assert_eq!(snapshot.facts_lines(), before);
     assert!(before.iter().all(|l| !l.contains("message: d")));
 }
+
+/// The project root the operator selected may be reached through a link: it
+/// is resolved once, and a listed workflow below it is looked at; a link
+/// inside the project stays unread.
+#[test]
+fn a_project_root_reached_through_a_link_is_looked_at_and_its_children_stay_unfollowed() {
+    let room = Room::new("linked");
+    let outer = Room::new("outer");
+    room.write("diamond.nika", DIAMOND);
+    room.write("alias.nika", SINGLE);
+    let linked = outer.0.join("project");
+    std::os::unix::fs::symlink(&room.0, &linked).expect("a linked root");
+    let snapshot = observe(&linked);
+    let look = take(&snapshot, "diamond.nika").expect("listed");
+    assert!(look.why_unread().is_none(), "{:?}", look.why_unread());
+    assert_eq!(
+        look.witness(),
+        Some(Witness::of(DIAMOND.as_bytes()).0.as_str())
+    );
+    std::fs::remove_file(room.0.join("alias.nika")).expect("unlink");
+    std::os::unix::fs::symlink(room.0.join("diamond.nika"), room.0.join("alias.nika"))
+        .expect("a child link");
+    let child = take(&snapshot, "alias.nika").expect("listed");
+    assert!(
+        child.witness().is_none() && child.why_unread().is_some(),
+        "a child link"
+    );
+}

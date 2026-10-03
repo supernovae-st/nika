@@ -48,7 +48,7 @@ pub(crate) use receipt::{effort, reasoning_record};
 mod sketch;
 mod transform;
 mod verify;
-use proposal::{Proposal, decode, merge};
+use proposal::{Composition, Merged, Proposal, decode, merged};
 pub(super) use proposal::{ProposedRegion, nullable_default};
 pub(crate) use transform::MAX_CALLS as TRANSFORM_QUESTIONS;
 pub(crate) use verify::{CLAUSE_QUESTIONS, WHOLE_QUESTIONS};
@@ -593,6 +593,7 @@ async fn author_create<P: ProviderInferDyn>(
             .await;
         }
         route.push(format!("cold: {} sample(s)", policy.samples.clamp(1, 5)));
+        let mut found: Option<Composition> = None;
         let cold = sampled(
             intent,
             policy,
@@ -602,39 +603,85 @@ async fn author_create<P: ProviderInferDyn>(
             assembly_request,
             route.clone(),
             out,
+            &mut found,
         )
         .await?;
-        // The private plan is not the language's ceiling: a cold round that ends without a
-        // candidate, or hands the human a machine's problem, escalates to a native candidate.
-        if cold
-            .provenance
-            .plan
-            .as_ref()
-            .is_some_and(|record| record.get("pending_transform").is_some())
-        {
-            return Ok(cold);
-        }
-        if policy.native == NativeMode::Escalate && native::escalates(&cold) {
-            let mut route = route;
-            route.push(forensic::NATIVE_ESCALATED.to_owned());
-            return Box::pin(native::author(
-                intent,
-                &reading,
-                policy,
-                provider,
-                assembly_request,
-                route,
-                cold,
-                rehearsals,
-            ))
-            .await;
-        }
-        return Ok(cold);
+        return Box::pin(after_cold(
+            intent,
+            &reading,
+            policy,
+            provider,
+            assembly_request,
+            route,
+            cold,
+            found,
+            rehearsals,
+        ))
+        .await;
     }
     route.push("needs cognition".to_owned());
     record_route(&mut out, &route);
     unresolved(&reading, &mut out);
     Ok(out)
+}
+
+/// What follows a COLD round: a pending transform waits for its answer; branches the plan could not
+/// keep apart go to the sketch door that represents them, with the same request, answers, floor
+/// and receipt, never to source generation; under Escalate, a round that ends without a candidate
+/// or hands the human a machine's problem escalates to a native candidate (the private plan is
+/// not the language's ceiling); otherwise the round's own outcome.
+#[allow(clippy::too_many_arguments)] // the cold round's inputs, its outcome and its composition
+async fn after_cold<P: ProviderInferDyn>(
+    intent: &str,
+    reading: &Reading,
+    policy: &AuthoringPolicy,
+    provider: &P,
+    assembly_request: &CompileRequest,
+    mut route: Vec<String>,
+    cold: CompileOutcome,
+    found: Option<Composition>,
+    rehearsals: &mut rehearsal::Rehearsals<'_>,
+) -> Result<CompileOutcome, CompileError> {
+    let pending = cold
+        .provenance
+        .plan
+        .as_ref()
+        .is_some_and(|record| record.get("pending_transform").is_some());
+    if pending {
+        return Ok(cold);
+    }
+    if let Some(composition) = found
+        && cold.candidate.is_none()
+        && cold.questions.is_empty()
+    {
+        let request = assembly_request;
+        return sketch::compose(
+            intent,
+            reading,
+            policy,
+            provider,
+            request,
+            route,
+            cold,
+            &composition,
+        )
+        .await;
+    }
+    if policy.native == NativeMode::Escalate && native::escalates(&cold) {
+        route.push(forensic::NATIVE_ESCALATED.to_owned());
+        return Box::pin(native::author(
+            intent,
+            reading,
+            policy,
+            provider,
+            assembly_request,
+            route,
+            cold,
+            rehearsals,
+        ))
+        .await;
+    }
+    Ok(cold)
 }
 
 const POLICY_BOUNDS: &str = "Authoring requires an explicit model, 1..32768 output tokens, a timeout up to 600 seconds, and an intent no larger than 32768 bytes.";
@@ -982,6 +1029,7 @@ async fn sampled<P: ProviderInferDyn>(
     request: &CompileRequest,
     mut route: Vec<String>,
     mut out: CompileOutcome,
+    found: &mut Option<Composition>,
 ) -> Result<CompileOutcome, CompileError> {
     let mut accepted: Vec<(usize, Plan)> = Vec::new();
     let mut rejected: Vec<CompileOutcome> = Vec::new();
@@ -994,7 +1042,15 @@ async fn sampled<P: ProviderInferDyn>(
     for index in 0..policy.samples.clamp(1, 5) as usize {
         let mut scratch = super::initial();
         let proposal = propose(intent, policy, provider, &mut scratch).await;
-        let plan = proposal.and_then(|p| merge(intent, p, reading, &mut scratch));
+        let merged = proposal.map(|p| merged(intent, p, reading, &mut scratch));
+        let needs_sketch = matches!(merged, Some(Merged::NeedsSketch(_)));
+        let plan = match merged {
+            Some(Merged::NeedsSketch(composition)) => {
+                found.get_or_insert(composition);
+                None
+            }
+            other => other.and_then(Merged::into_plan),
+        };
         if let Some(receipt) = &scratch.provenance.authoring {
             calls += receipt.calls;
             elapsed_ms += receipt.elapsed_ms;
@@ -1016,11 +1072,14 @@ async fn sampled<P: ProviderInferDyn>(
             "sample": index,
             "calls": scratch.provenance.authoring.as_ref().map_or(0, |r| r.calls),
             "accepted": plan.is_some(),
+            "needs_sketch": needs_sketch,
             "signature": plan.as_ref().map(compose::signature),
             "findings": findings,
         }));
         match plan {
             Some(plan) => accepted.push((index, plan)),
+            // A lawful composition is not a refusal: its findings are not reported as one.
+            None if needs_sketch => {}
             None => rejected.push(scratch),
         }
     }

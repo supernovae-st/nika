@@ -14,7 +14,7 @@
     clippy::disallowed_methods
 )]
 use expectrl::{Eof, Expect};
-use nika_cli_host::lane::{ChildSlot, drive_reviewed_child};
+use nika_cli_host::lane::{ChildSlot, drive_reviewed_child_observed};
 use nika_kernel::http::{HttpError, HttpPostDyn, HttpRequest, HttpResponse, HttpStreamResponse};
 use nika_providers::{ProviderRegistry, ProvidersConfig};
 use nika_session::ScriptedReasoner;
@@ -288,7 +288,7 @@ fn dispatch_fixture_parent() {
         Box::new(|_| Box::new(ScriptedReasoner::new(Vec::new()))),
         runners,
     )
-    .with_run_review(Box::new(move |root, _, busy| {
+    .with_run_review_observed(Box::new(move |root, _, busy| {
         let exe = std::env::current_exe().unwrap();
         let args = vec![
             "-c".into(),
@@ -296,7 +296,7 @@ fn dispatch_fixture_parent() {
             "fixture".into(),
             exe.display().to_string(),
         ];
-        drive_reviewed_child(Path::new("/bin/sh"), &args, root, busy, &slot)
+        drive_reviewed_child_observed(Path::new("/bin/sh"), &args, root, busy, &slot)
     }));
     let mut options = nika_tui::app::Options::new(nika_tui::model::Presentation::Inline);
     options.term = Some("xterm-256color".into());

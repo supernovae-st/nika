@@ -62,6 +62,8 @@ use crate::workspace::desk::{self, Desk, Route};
 use crate::workspace::object::Paint;
 use crate::workspace::{conversation, project};
 
+mod acquire;
+
 /// How the shell runs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -598,6 +600,10 @@ impl<C: Conversation + 'static> Shell<C> {
                 broker.stop();
                 return Ok(Exit::Quit);
             }
+            if let Some(exit) = self.acquire_wanted(&mut broker)? {
+                broker.stop();
+                return Ok(exit);
+            }
         }
     }
 
@@ -861,7 +867,8 @@ impl<C: Conversation + 'static> Shell<C> {
 
     /// Take the look the opened workflow needs from the conversation, on this
     /// thread and never while drawing; while a turn holds the conversation it
-    /// waits for the turn's end ([`Self::apply_all`]).
+    /// waits for the turn's end ([`Self::apply_all`]). What a run's face needs
+    /// is acquired apart, on a worker ([`Self::acquire_wanted`]).
     fn look(&mut self) {
         let Some(path) = self.desk.opened_workflow().map(str::to_owned) else {
             self.desk.wants_look = false;
@@ -880,9 +887,12 @@ impl<C: Conversation + 'static> Shell<C> {
         // The project the conversation lends, read once per batch of beats
         // (the opening, a turn, a performed work, a cancellation), never
         // while drawing: a projection of what it already holds. The opened
-        // workflow is looked at again: a turn may have replaced its bytes.
+        // workflow is looked at again: a turn may have replaced its bytes. The
+        // candidate it proposes is the one it folded when the turn ended.
         if let Some(conversation) = self.conversation.as_ref() {
             self.desk.view = conversation.project();
+            self.desk.proposed(conversation.candidate());
+            self.desk.kept(conversation.kept_run());
         }
         if self.desk.wants_look || self.desk.opened_workflow().is_some() {
             self.look();
@@ -990,6 +1000,11 @@ impl<C: Conversation + 'static> Shell<C> {
     fn run_turn(&mut self, line: &str, broker: &mut Broker) -> io::Result<TurnEnd> {
         let (tx, rx) = mpsc::channel::<String>();
         let (done_tx, done_rx) = mpsc::channel::<(C, Turn)>();
+        // What the shell observes of a run the turn drives: a bounded queue
+        // drained each tick, its losses counted beside it (`session::feed`).
+        let (seen_tx, seen_rx) = mpsc::sync_channel(crate::session::feed::QUEUE);
+        let gap = std::sync::Arc::new(crate::session::feed::Gap::default());
+        let seen = crate::session::feed::Seen::new(seen_tx, std::sync::Arc::clone(&gap));
         let mut conversation = self.conversation.take().ok_or_else(conversation_left)?;
         let line = line.to_owned();
         // The shell keeps one sender: the busy channel never disconnects,
@@ -998,7 +1013,7 @@ impl<C: Conversation + 'static> Shell<C> {
         let worker = std::thread::Builder::new()
             .name("nika-tui-turn".to_owned())
             .spawn(move || {
-                let turn = conversation.submit_with(&line, &tx);
+                let turn = conversation.submit_observed(&line, &tx, &seen);
                 let _ = done_tx.send((conversation, turn));
             })?;
         self.typed_live = false;
@@ -1018,29 +1033,18 @@ impl<C: Conversation + 'static> Shell<C> {
                 }
                 shown = u64::MAX;
             }
+            if self.desk.observe(seen_rx.try_iter()) {
+                shown = u64::MAX;
+            }
             match done_rx.try_recv() {
                 Ok((mut conversation, mut turn)) => {
-                    if conversation.fresh_input_required() {
-                        let buffered: Vec<_> = self
-                            .deferred
-                            .drain(..)
-                            .chain(std::iter::from_fn(|| broker.try_recv()))
-                            .collect();
-                        for event in buffered {
-                            match event {
-                                UiEvent::Signal(Signal::Terminate) => {
-                                    return Ok(TurnEnd::Left(Exit::Terminated));
-                                }
-                                UiEvent::Closed => return Ok(TurnEnd::Left(Exit::Closed)),
-                                UiEvent::Signal(Signal::Interrupt) => armed = true,
-                                UiEvent::Key(ref key) if is_ctrl_c(key) => armed = true,
-                                UiEvent::Resize(_, _) => self.deferred.push_back(event),
-                                _ => {}
-                            }
-                        }
-                        if armed {
-                            turn.beats = conversation.cancel_pending();
-                        }
+                    // The last frames before the result, then what was lost.
+                    self.desk.close_turn(&seen_rx, &gap);
+                    if conversation.fresh_input_required()
+                        && let Some(exit) =
+                            self.fresh_end(&mut conversation, &mut turn, broker, armed)
+                    {
+                        return Ok(TurnEnd::Left(exit));
                     }
                     self.conversation = Some(conversation);
                     return Ok(TurnEnd::Done(turn));
@@ -1082,6 +1086,37 @@ impl<C: Conversation + 'static> Shell<C> {
                 self.draw()?;
             }
         }
+    }
+
+    /// A turn that ends on a fresh spending question: what was typed while it
+    /// ran is read now, never as its answer; a termination or a closed reader
+    /// leaves, an interruption (`armed` already, or heard now) cancels it.
+    fn fresh_end(
+        &mut self,
+        conversation: &mut C,
+        turn: &mut Turn,
+        broker: &mut Broker,
+        mut armed: bool,
+    ) -> Option<Exit> {
+        let buffered: Vec<_> = self
+            .deferred
+            .drain(..)
+            .chain(std::iter::from_fn(|| broker.try_recv()))
+            .collect();
+        for event in buffered {
+            match event {
+                UiEvent::Signal(Signal::Terminate) => return Some(Exit::Terminated),
+                UiEvent::Closed => return Some(Exit::Closed),
+                UiEvent::Signal(Signal::Interrupt) => armed = true,
+                UiEvent::Key(ref key) if is_ctrl_c(key) => armed = true,
+                UiEvent::Resize(_, _) => self.deferred.push_back(event),
+                _ => {}
+            }
+        }
+        if armed {
+            turn.beats = conversation.cancel_pending();
+        }
+        None
     }
 
     /// One event heard while a turn runs. An interruption acts now (the

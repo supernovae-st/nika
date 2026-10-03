@@ -866,4 +866,58 @@ mod tests {
             "schema must name the pre-pass not to take: {desc}"
         );
     }
+
+    /// Every filesystem slot `nika_cap::unbound_fs_args` names is a declared parameter of that
+    /// builtin's model-facing definition: probing each definition with every declared parameter
+    /// set to an unstated path, the slots the query refuses have a declared root. Name parity
+    /// only: the runtime's reads and writes are not proven exhaustive by it.
+    #[test]
+    fn every_bound_filesystem_slot_is_a_declared_parameter() {
+        let tools = tools_json();
+        let mut covered: Vec<String> = Vec::new();
+        for tool in tools["tools"].as_array().expect("tools") {
+            let name = tool["name"].as_str().expect("name");
+            let declared: Vec<&str> = tool["parameters"]["properties"]
+                .as_object()
+                .map(|p| p.keys().map(String::as_str).collect())
+                .unwrap_or_default();
+            let probe: serde_json::Map<String, serde_json::Value> = declared
+                .iter()
+                .map(|key| ((*key).to_owned(), serde_json::json!("./unstated")))
+                .collect();
+            let args = serde_json::Value::Object(probe);
+            for finding in nika_cap::unbound_fs_args(name, Some(&args), &[], &[]) {
+                let slot = finding.split('`').nth(3).expect("a named slot");
+                let root = slot.split(['.', '[']).next().unwrap_or(slot);
+                assert!(
+                    declared.contains(&root),
+                    "{name}: `{slot}` is not a declared parameter ({declared:?})"
+                );
+                covered.push(format!("{name}.{root}"));
+            }
+        }
+        for expected in [
+            "nika:read.path",
+            "nika:grep.path",
+            "nika:glob.pattern",
+            "nika:write.path",
+            "nika:edit.path",
+            "nika:chart.out",
+            "nika:chart.data",
+            "nika:image_fx.input",
+            "nika:image_fx.out",
+            "nika:image_generate.output_dir",
+            "nika:image_generate.image",
+            "nika:image_generate.images",
+            "nika:image_generate.mask",
+            "nika:tts_generate.output_dir",
+            "nika:decide.bundle",
+            "nika:fetch.multipart",
+        ] {
+            assert!(
+                covered.iter().any(|c| c == expected),
+                "{expected} not probed: {covered:?}"
+            );
+        }
+    }
 }

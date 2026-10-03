@@ -20,7 +20,9 @@ use serde::Deserialize;
 
 mod effects;
 mod material;
+mod occurrences;
 mod seat_rules;
+pub(super) use occurrences::{Composition, Merged, merged};
 pub(super) use seat_rules::told;
 
 #[derive(Deserialize)]
@@ -945,7 +947,7 @@ pub(super) fn only_a_place_and_a_law(detail: &str) -> bool {
 /// The proposal joins the deterministic reading; deterministic facts win every disagreement,
 /// and the proposal must account for every region of the request.
 #[allow(clippy::too_many_lines)] // one validation walk over steps, effects, obligations, regions
-pub(super) fn merge(
+fn merge(
     intent: &str,
     proposal: Proposal,
     reading: &Reading,

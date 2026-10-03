@@ -16,7 +16,10 @@ use super::native::{
     self, Answer, Prelude, Question, Shaped, Talk, cold, conclude, decode, floor_refuses, judge,
     prelude, repair_message, system_message,
 };
-use super::{AuthoringPolicy, CompileOutcome, CompileRequest, Strategy};
+use super::proposal::Composition;
+use super::{
+    AuthoringPolicy, CompileOutcome, CompileRequest, DiagnosticKind, NativeMode, Strategy,
+};
 use crate::fidelity::{self, Diagnostic};
 use crate::sketch::{self as ir, Fill, Sketch};
 use crate::{CompileError, lexicon::Reading};
@@ -31,6 +34,9 @@ struct SketchAnswer {
     name: String,
     #[serde(default, deserialize_with = "super::nullable_default")]
     tasks: Vec<Value>,
+    /// The workflow's named results as the seat stated them; read by `Sketch::from_json`.
+    #[serde(default)]
+    outputs: Option<Value>,
     #[serde(default, deserialize_with = "super::nullable_default")]
     questions: Vec<Question>,
     #[serde(default, deserialize_with = "super::nullable_default")]
@@ -110,6 +116,9 @@ fn judge_sketch(
         })
         .collect();
     if out.is_empty() {
+        out.extend(reach_laws(sketch));
+    }
+    if out.is_empty() {
         let doc = ir::document(sketch, &[]);
         fidelity::laws(
             intent,
@@ -122,6 +131,61 @@ fn judge_sketch(
         );
     }
     out.dedup();
+    out
+}
+
+/// The reach laws a graph must hold before any hole is filled, since no fill can repair them:
+/// each side a builtin always reaches (`nika_cap::required_fs_directions`, e.g. a chart's write,
+/// an edit's read and write) is stated in the task's `reads`/`writes`, and every path the sketch
+/// itself derives for the task (the partial projection's arguments) is bound to that reach on
+/// each side its effect touches (`nika_cap::unbound_fs_args`). Optional slots and inline data are
+/// never required here; a filled argument is judged again at emission.
+fn reach_laws(sketch: &Sketch) -> Vec<Diagnostic> {
+    let doc = ir::document(sketch, &[]);
+    let mut out = Vec::new();
+    // An agent's whitelist is its own; a tool whose calls can reach a file, a host or a process is
+    // not yet representable in a sketch agent (its effects have no stated reach here).
+    for task in sketch.tasks.iter().filter(|t| t.verb == ir::Verb::Agent) {
+        for tool in task.tools.iter().flatten() {
+            if !nika_cap::pure_internal_for_all_calls(tool) {
+                out.push(Diagnostic {
+                    kind: "sketch",
+                    message: format!(
+                        "`{}` lists `{tool}`, a tool with effects a sketch agent cannot yet carry: use an invoke task that states its reach, or only effect-free tools",
+                        task.id
+                    ),
+                });
+            }
+        }
+    }
+    for task in sketch.tasks.iter().filter(|t| t.verb == ir::Verb::Invoke) {
+        let Some(tool) = task.tool.as_deref() else {
+            continue;
+        };
+        let mut push = |message: String| {
+            out.push(Diagnostic {
+                kind: "sketch",
+                message,
+            });
+        };
+        if let Some((read, write)) = nika_cap::required_fs_directions(tool) {
+            for (needed, stated, side) in [
+                (read, &task.reads, "reads"),
+                (write, &task.writes, "writes"),
+            ] {
+                if needed && stated.is_empty() {
+                    push(format!(
+                        "`{}` invokes `{tool}`, which always {side} a file: state that path in its `{side}`",
+                        task.id
+                    ));
+                }
+            }
+        }
+        let derived = doc["tasks"][task.id.as_str()]["invoke"].get("args");
+        for finding in nika_cap::unbound_fs_args(tool, derived, &task.reads, &task.writes) {
+            push(format!("`{}`: {finding}", task.id));
+        }
+    }
     out
 }
 
@@ -140,15 +204,27 @@ fn holes_message(sketch: &Sketch) -> String {
         );
     }
     text.push_str(
-        "Answer one JSON object {\"fills\": [{\"task\", \"field\", \"value\"}], \"notes\"}.",
+        "Fill each hole once, with its value; fill every hole not marked optional; an `args` object never names an argument the sketch states for its task (the path or glob it reaches, its edge input or bound content, its channel); a content template reads every edge its task is bound to; a builtin's file argument is one of the paths its own task states in reads or writes. Answer one JSON object {\"fills\": [{\"task\", \"field\", \"value\"}], \"notes\"}.",
     );
     text
 }
 
 /// The task keys a sketch parse reads; any other key of a task is ignored by it.
 const TASK_KEYS: &[&str] = &[
-    "id", "verb", "tool", "reads", "writes", "hosts", "after", "with", "gated_by", "for_each",
+    "id",
+    "verb",
+    "tool",
+    "reads",
+    "writes",
+    "hosts",
+    "after",
+    "with",
+    "gated_by",
+    "for_each",
     "purpose",
+    "max_turns",
+    "tools",
+    "fail_fast",
 ];
 
 /// How many keys of `object` are not in `known`: data the parse never read.
@@ -156,6 +232,25 @@ fn ignored_keys(object: &Value, known: &[&str]) -> usize {
     object.as_object().map_or(0, |map| {
         map.keys().filter(|k| !known.contains(&k.as_str())).count()
     })
+}
+
+/// The controls this task's verb carries that the sketch left to the historical emission (an
+/// agent's `max_turns` 4 and empty `tools`, a loop's `fail_fast` false): projected so the record
+/// never presents them as requested.
+fn defaulted(task: &ir::SketchTask) -> Vec<&'static str> {
+    let mut out = Vec::new();
+    if task.verb == ir::Verb::Agent {
+        if task.max_turns.is_none() {
+            out.push("max_turns");
+        }
+        if task.tools.is_none() {
+            out.push("tools");
+        }
+    }
+    if task.for_each.is_some() && task.fail_fast.is_none() {
+        out.push("fail_fast");
+    }
+    out
 }
 
 /// An accepted sketch as the compiler consumed it: the closed form of every field the parse read,
@@ -186,7 +281,13 @@ fn consumed_sketch(sketch: &Sketch, raw: &Value) -> Value {
             "writes": t.writes, "hosts": t.hosts, "after": t.after,
             "with": t.with.iter().map(|e| json!({"name": e.name, "from": e.from})).collect::<Vec<_>>(),
             "gated_by": t.gated_by, "for_each": t.for_each, "purpose": t.purpose,
+            "max_turns": t.max_turns, "tools": t.tools, "fail_fast": t.fail_fast,
+            "defaulted": defaulted(t),
         })).collect::<Vec<_>>(),
+        "outputs": sketch.outputs.as_ref().map(|outputs| outputs
+            .iter()
+            .map(|o| json!({"name": o.name, "from": o.from}))
+            .collect::<Vec<_>>()),
         "sha256": super::knowledge::sha256(&raw.to_string()),
         "ignored_keys": ignored,
     })
@@ -226,6 +327,93 @@ fn proposed_fills(sketch: &Sketch, fills: &[Value], used: bool) -> Vec<Value> {
             super::receipt::withheld(&fill.to_string(), &keys, reason)
         })
         .collect()
+}
+
+/// The journal entry of a fill round refused before emission: no candidate and no candidate
+/// digest, the fills by digest only, the named diagnostics.
+fn refused_round(
+    round: u32,
+    sketch: &Sketch,
+    filling: &Filling,
+    diagnostics: &[Diagnostic],
+) -> Value {
+    json!({
+        "round": round,
+        "phase": "fill",
+        "fills": filling.fills.len(),
+        "proposed_fills": proposed_fills(sketch, &filling.fills, false),
+        "notes": filling.notes,
+        "diagnostics": diagnostics_record(diagnostics),
+    })
+}
+
+/// The tail of a fill repair: the sketch stays as accepted, only the named holes are filled again.
+const FILL_AGAIN: &str = "\nFill the named holes again (the sketch stays as accepted); answer the same {\"fills\", \"notes\"} object.";
+
+/// The fills as the compiler consumes them and the complete document they state, or every
+/// refusal before any document exists: the fill laws of the accepted sketch, then each invoke's
+/// builtin contract (`nika_cap`) over the arguments it would carry. A refusal never repeats a
+/// value a fill proposed.
+fn validated(sketch: &Sketch, raw: &[Value]) -> Result<(Vec<Fill>, Value), Vec<Diagnostic>> {
+    let refused = |messages: Vec<String>| -> Vec<Diagnostic> {
+        messages
+            .into_iter()
+            .map(|message| Diagnostic {
+                kind: "fill",
+                message,
+            })
+            .collect()
+    };
+    let fills = ir::fills_from_json(&json!({"fills": raw})).map_err(|m| refused(vec![m]))?;
+    let doc = ir::complete_document(sketch, &fills).map_err(refused)?;
+    let mut findings = Vec::new();
+    for (id, node) in doc["tasks"].as_object().into_iter().flatten() {
+        let Some(tool) = node["invoke"]["tool"].as_str() else {
+            continue;
+        };
+        let args = node["invoke"].get("args");
+        for finding in nika_cap::builtin_shape_findings(tool, args) {
+            findings.push(format!(
+                "task `{id}` (`{tool}`): {}",
+                redacted(&finding, &fills)
+            ));
+        }
+        // Each filesystem argument the builtin contract names is bound to THIS task's stated
+        // reach, never to the union of permits (`nika_cap::unbound_fs_args`, the effect owner).
+        if let Some(task) = sketch.tasks.iter().find(|t| &t.id == id) {
+            for finding in nika_cap::unbound_fs_args(tool, args, &task.reads, &task.writes) {
+                findings.push(format!("task `{id}`: {finding}"));
+            }
+        }
+    }
+    if findings.is_empty() {
+        Ok((fills, doc))
+    } else {
+        Err(refused(findings))
+    }
+}
+
+/// A contract finding with every string a fill proposed (four characters or more) replaced, so
+/// the record names the broken rule without repeating the refused value.
+fn redacted(message: &str, fills: &[Fill]) -> String {
+    fn leaves(value: &Value, out: &mut Vec<String>) {
+        match value {
+            Value::String(text) if text.chars().count() >= 4 => out.push(text.clone()),
+            Value::Array(items) => items.iter().for_each(|v| leaves(v, out)),
+            Value::Object(map) => map.values().for_each(|v| leaves(v, out)),
+            _ => {}
+        }
+    }
+    let mut texts = Vec::new();
+    for fill in fills {
+        leaves(&fill.value, &mut texts);
+    }
+    texts.sort_by_key(|t| std::cmp::Reverse(t.len()));
+    let mut out = message.to_owned();
+    for text in texts {
+        out = out.replace(&text, "<proposed value>");
+    }
+    out
 }
 
 fn diagnostics_record(diagnostics: &[Diagnostic]) -> Vec<Value> {
@@ -282,7 +470,10 @@ async fn propose<P: ProviderInferDyn>(
         else {
             return (round + 1, None);
         };
-        let record = json!({"name": answer.name, "tasks": answer.tasks});
+        let mut record = json!({"name": answer.name, "tasks": answer.tasks});
+        if let Some(outputs) = &answer.outputs {
+            record["outputs"] = outputs.clone();
+        }
         let (diagnostics, parsed) = match Sketch::from_json(&record) {
             Ok(parsed) => (
                 judge_sketch(intent, reading, &parsed, &talk.allowed, &talk.clarified),
@@ -362,16 +553,21 @@ async fn fill<P: ProviderInferDyn>(
             out,
         )
         .await?;
-        let fills: Vec<Fill> = match ir::fills_from_json(&json!({"fills": filling.fills})) {
-            Ok(fills) => fills,
-            Err(message) => {
+        // Every fill is judged against the accepted sketch before a document exists: a refusal
+        // is a named diagnostic for the same bounded repair, never a candidate or its digest.
+        let (fills, doc) = match validated(sketch, &filling.fills) {
+            Ok(valid) => valid,
+            Err(diagnostics) => {
                 talk.rounds
-                    .push(json!({"round": round, "phase": "fill", "answer": message,
-                    "proposed_fills": proposed_fills(sketch, &filling.fills, false)}));
-                return None;
+                    .push(refused_round(round, sketch, &filling, &diagnostics));
+                round += 1;
+                if !repair(talk, text, diagnostics, FILL_AGAIN) {
+                    break;
+                }
+                continue;
             }
         };
-        let candidate = match serde_yaml_bw::to_string(&ir::document(sketch, &fills)) {
+        let candidate = match serde_yaml_bw::to_string(&doc) {
             Ok(candidate) => candidate,
             Err(error) => {
                 talk.rounds.push(json!({
@@ -415,12 +611,69 @@ async fn fill<P: ProviderInferDyn>(
             });
         }
         talk.refused = Some(candidate);
-        let tail = "\nFill the named holes again (the sketch stays as accepted); answer the same {\"fills\", \"notes\"} object.";
-        if !repair(talk, text, diagnostics, tail) {
+        if !repair(talk, text, diagnostics, FILL_AGAIN) {
             break;
         }
     }
     None
+}
+
+/// The route step of a COLD round whose plan could not keep the request's branches apart.
+pub(super) const COMPOSITION: &str = "native: sketch for branches the plan cannot keep apart";
+
+/// The sketch door for a composition the private plan cannot carry, after a COLD round paid for
+/// its plan: the same request, answers, reading floor and receipt. Within the bound the policy
+/// already grants: the sketch door takes one request more than the native door, so its repair
+/// allowance is one less (none left is a budget finding, no request). A policy with no native
+/// door names the composition and assembles nothing. Never source generation.
+#[allow(clippy::too_many_arguments)] // the sketch door's own inputs, plus the composition
+pub(super) async fn compose<P: ProviderInferDyn>(
+    intent: &str,
+    reading: &Reading,
+    policy: &AuthoringPolicy,
+    provider: &P,
+    request: &CompileRequest,
+    mut route: Vec<String>,
+    mut out: CompileOutcome,
+    composition: &Composition,
+) -> Result<CompileOutcome, CompileError> {
+    let kinds: Vec<String> = composition
+        .occurrences
+        .iter()
+        .map(|(op, _)| format!("`{}`", op.word()))
+        .collect();
+    let what = format!(
+        "The request composes {} independent branches ({}) that the private plan cannot keep apart",
+        kinds.len(),
+        kinds.join(", ")
+    );
+    let refusal = if policy.native == NativeMode::Off {
+        Some(format!(
+            "{what}, and this authoring policy permits no sketch door (native: off). No candidate was assembled."
+        ))
+    } else if policy.repairs.min(5).checked_sub(1).is_none() {
+        Some(format!(
+            "{what}; the sketch door needs one request more than the native door this policy bounds, and its repair allowance (0) leaves none. No request was sent and no candidate was assembled."
+        ))
+    } else {
+        None
+    };
+    if let Some(message) = refusal {
+        crate::finding(
+            &mut out,
+            DiagnosticKind::RequiresHuman,
+            "authoring_plan",
+            message,
+        );
+        route.push("cold: composition needs the sketch door".to_owned());
+        super::record_route(&mut out, &route);
+        return Ok(out);
+    }
+    route.push(COMPOSITION.to_owned());
+    let bounded = policy
+        .clone()
+        .with_repairs(policy.repairs.min(5).saturating_sub(1));
+    author(intent, reading, &bounded, provider, request, route, out).await
 }
 
 /// The sketch door: the two-phase conversation, judged at each phase, settled by the native

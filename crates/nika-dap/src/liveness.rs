@@ -184,11 +184,22 @@ pub fn hold(trace: &Path) -> std::io::Result<Lease> {
     }
 }
 
-/// Ask the lease: is the writer of `trace` alive on this host?
+/// A lease record's byte cap (a pid and a host name; more reads `unknown`).
+pub(crate) const LEASE_CAP: u64 = 4096;
+
+/// Ask the lease: is the writer of `trace` alive on this host? One descriptor
+/// (no symlink, nothing created) gives the record and the lock; anything
+/// else reads `unknown`, never `dead`.
 #[must_use]
 pub fn probe(trace: &Path) -> Liveness {
     let path = lease_path(trace);
-    let Ok(text) = std::fs::read_to_string(&path) else {
+    let Ok(Some(mut file)) = crate::anchor::open_owned(&path) else {
+        return Liveness::Unknown;
+    };
+    let capped = nika_fs::read_capped(&mut file, LEASE_CAP)
+        .ok()
+        .filter(|c| !c.over);
+    let Some(text) = capped.and_then(|c| String::from_utf8(c.bytes.to_vec()).ok()) else {
         return Liveness::Unknown;
     };
     let (pid, host) = parse_record(&text);
@@ -201,13 +212,6 @@ pub fn probe(trace: &Path) -> Liveness {
     #[cfg(unix)]
     {
         use nix::fcntl::{Flock, FlockArg};
-        let Ok(file) = std::fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open(&path)
-        else {
-            return Liveness::Unknown;
-        };
         match Flock::lock(file, FlockArg::LockExclusiveNonblock) {
             // Nobody holds it: the kernel released the writer's lock when
             // the writer died. Our probe lock drops here.
@@ -220,7 +224,7 @@ pub fn probe(trace: &Path) -> Liveness {
     }
     #[cfg(not(unix))]
     {
-        let _ = pid;
+        let _ = (pid, file);
         Liveness::Unknown
     }
 }

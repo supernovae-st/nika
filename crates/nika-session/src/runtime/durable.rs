@@ -15,6 +15,7 @@ use super::inference::{
     is_money_marker,
 };
 use super::round::KeptRound;
+use crate::run_view::KeptRun;
 use nika_trace::lineage::{Standing, lineage_of};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -65,6 +66,7 @@ impl SessionRuntime {
             unresolved: history.state.unresolved.clone(),
         });
         self.recent.clone_from(&history.state.recent);
+        self.kept_run.clone_from(&history.state.last_run);
         self.restored_draft = history.state.pending.clone().map(Restored::from_raw);
         self.money.reconfirm |= history.restored && history.monetary_seen;
         if self.money.reconfirm {
@@ -209,6 +211,16 @@ impl SessionRuntime {
     /// execution. Every observed run keeps the project's structured record
     /// (#1464): the gate it paused on, when it did, is what waits.
     pub fn observe_run(&mut self, exit: u8, trace: Option<&Path>) -> TurnOutcome {
+        self.observe_run_leg(exit, trace, KeptRun::new())
+    }
+
+    /// [`Self::observe_run`] with the run's observed identity (`leg`), kept in HOME
+    /// history as the last run: evidence for a later open, never authority to run.
+    pub fn observe_run_leg(&mut self, exit: u8, trace: Option<&Path>, leg: KeptRun) -> TurnOutcome {
+        self.kept_run = Some(
+            leg.ended(self.last_workflow.as_deref(), exit, trace)
+                .to_value(),
+        );
         let outcome = self.recorded(Operation::Observation, "(run observation)", |s| {
             s.observe_run_unrecorded(exit, trace)
         });
@@ -646,7 +658,20 @@ impl SessionRuntime {
                 .and_then(|set| draft::capture(&self.proposal_id(set), set))
                 .or_else(|| self.restored_draft.as_ref().map(|r| r.raw().clone())),
             round: self.round_to_keep(),
+            last_run: self.kept_run.clone(),
         }
+    }
+
+    /// The last observed run, read back (unreadable: its reason, its bytes kept).
+    #[must_use]
+    pub fn kept_run(&self) -> Option<Result<KeptRun, String>> {
+        self.kept_run.as_ref().map(KeptRun::from_value)
+    }
+
+    /// The recent turns kept (restored at open): what was said, never replayed.
+    #[must_use]
+    pub fn kept_turns(&self) -> &[(String, String)] {
+        &self.recent
     }
 }
 

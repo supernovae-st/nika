@@ -4,8 +4,9 @@
 //! The look the Live host adapter takes when the human opens a workflow in the
 //! workspace: an acquisition of view, never an authority. The Session lists
 //! the workflows (its runtime's snapshot); this reads ONE of them, exactly as
-//! listed, once: below the snapshot's root through an owned directory (no
-//! symlink at any component, regular files only), at most [`LOOK_CAP`] bytes,
+//! listed, once: below the snapshot's root (resolved once: a link to the
+//! project is the operator's) through an owned directory (no symlink at any
+//! component below it, regular files only), at most [`LOOK_CAP`] bytes,
 //! UTF-8 text. The bytes are witnessed with the Session's own witness, then
 //! judged by the shared check facade (`oracle::audit_source`) with no reader
 //! and no skills base: the file ALONE, so nothing it imports is read here and
@@ -33,7 +34,10 @@ pub(crate) const LOOK_CAP: u64 = 1 << 20;
 pub(crate) fn take(snapshot: &ProjectSnapshot, path: &str) -> Option<Inspected> {
     let listed = snapshot.workflows.iter().find(|w| w.path == path)?;
     let path = listed.path.clone();
-    let read = nika_fs::OwnedDir::open(&snapshot.root)
+    // The selected project root may be reached through a link (the
+    // operator's own): resolved once, then held; below it nothing is followed.
+    let read = std::fs::canonicalize(&snapshot.root)
+        .and_then(|root| nika_fs::OwnedDir::open(&root))
         .and_then(|dir| dir.open_relative(Path::new(&path)))
         .and_then(|mut file| nika_fs::read_capped(&mut file, LOOK_CAP))
         .map_err(|e| e.to_string());
@@ -51,9 +55,17 @@ pub(crate) fn take(snapshot: &ProjectSnapshot, path: &str) -> Option<Inspected> 
     let Ok(source) = String::from_utf8(bytes) else {
         return Some(Inspected::unread(path, "not UTF-8 text"));
     };
-    // The file alone: no reader, no skills base (see the module docs).
+    Some(judge(path, witness, source))
+}
+
+/// The look of `source` at the logical `path`, witnessed `witness`: ONE audit
+/// by the shared check facade of these bytes ALONE (no reader, no skills base:
+/// see the module docs) and the graph of that same audit, or the parser's
+/// refusal beside the bytes. A file read here and a proposal's pending bytes
+/// are judged by this one fold.
+pub(crate) fn judge(path: String, witness: String, source: String) -> Inspected {
     let judged = audit_source(&source, &path, None, None, AuditOptions::default());
-    let look = match &judged {
+    match &judged {
         Ok(audit) => {
             let graph = nika_display::dag_art::project(&audit.wf, &audit.report);
             Inspected::read(path, witness, source, Ok((audit, graph)))
@@ -63,8 +75,7 @@ pub(crate) fn take(snapshot: &ProjectSnapshot, path: &str) -> Option<Inspected> 
             let refused = Err((said.code.to_string(), said.message));
             Inspected::read(path, witness, source, refused)
         }
-    };
-    Some(look)
+    }
 }
 
 #[cfg(test)]

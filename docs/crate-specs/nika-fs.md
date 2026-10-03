@@ -69,6 +69,16 @@ effect; it is never completed by a second write that could interleave another
 writer's row. This mechanism does not replace a caller's transaction lease,
 and arbitrary filesystems still need their own append/locking guarantees.
 
+### Caller-selected files and contained descendants
+
+`open_owned(path)` resolves the caller-selected parent once, holds it and opens
+only the final regular file without following a link or waiting for a FIFO.
+`read_owned(path, cap)` reads UTF-8 on that descriptor with a cap+1 probe, refusing
+oversize input. Missing parent/file is `None`; other failures remain errors.
+These helpers are not containment for a root joined to an untrusted relative
+path: use `OwnedDir::open_relative` below the held root for those descendants.
+The existing `OwnedDir::open` component rules are unchanged.
+
 ### Exclusive publication and backend migration
 
 `write_new(path, contents)` publishes a complete file only if the destination

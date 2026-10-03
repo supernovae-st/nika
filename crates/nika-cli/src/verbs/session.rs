@@ -29,7 +29,7 @@ use nika_dap::resume::ResumeRequest;
 
 use crate::Theme;
 use crate::verbs::exit;
-use nika_cli_host::lane::{ChildSlot, drive_child};
+use nika_cli_host::lane::{ChildSlot, RunSink, drive_child_observed};
 use nika_cli_host::lines::{PerCallLines, read_burst};
 
 /// The reasoner for a resolved choice — the seat, the provider, or none.
@@ -357,14 +357,14 @@ fn term_name() -> Option<String> {
 /// The run inside the renderer's turn: this binary's own machine lane
 /// (`nika run --json`) as a child whose pipes never touch the terminal
 /// the viewport owns. Each frame the lane prints becomes one line of the
-/// run's story, handed to the busy sink as it happens and kept for the
-/// block the transcript commits; the exit code is the child's, the trace
+/// run's story and one typed frame, told to the sink as it happens, the
+/// story kept for the block the transcript commits; the exit code is the child's, the trace
 /// the settle frame names. A human gate pauses headless (exit 4): the
 /// session asks it in the viewport and the answer resumes through here.
 fn run_tapped(
     root: &std::path::Path,
     work: &nika_tui::session::Work,
-    busy: &std::sync::mpsc::Sender<String>,
+    busy: &dyn RunSink,
     slot: &ChildSlot,
 ) -> (u8, Option<std::path::PathBuf>, Vec<String>) {
     use nika_tui::session::Work;
@@ -392,7 +392,7 @@ fn run_tapped(
             vec!["this binary cannot name itself".to_owned()],
         );
     };
-    drive_child(&exe, &args, root, busy, slot)
+    drive_child_observed(&exe, &args, root, busy, slot)
 }
 
 /// Open the native session behind the terminal renderer (bare `nika` on a terminal ·
@@ -442,20 +442,21 @@ pub fn run_tui(theme: Theme) -> u8 {
         run_resume: Box::new(move |root, workflow, trace, answer| {
             run_resume(root, workflow, trace, answer, theme)
         }),
-        run_tapped: Some(Box::new(move |root, work, busy| {
-            run_tapped(root, work, busy, &slot)
-        })),
+        run_tapped: None,
     };
-    let slot = std::sync::Arc::clone(&child);
+    let tapped = std::sync::Arc::clone(&child);
     let live = Live::new(cwd, census, kept, home, Box::new(reasoner_for), runners)
         .with_cost_host_evidence(nika_session::CostHostEvidence::unmanaged_interactive_local())
-        .with_run_review(Box::new(move |root, run, busy| {
+        .with_run_tapped_observed(Box::new(move |root, work, busy| {
+            run_tapped(root, work, busy, &tapped)
+        }))
+        .with_run_review_observed(Box::new(move |root, run, busy| {
             let args =
                 nika_cli_host::lane::run_args(root, &run.workflow, run.max_cost_usd, &run.vars);
             match std::env::current_exe() {
-                Ok(exe) => {
-                    nika_cli_host::lane::drive_reviewed_child(&exe, &args, root, busy, &slot)
-                }
+                Ok(exe) => nika_cli_host::lane::drive_reviewed_child_observed(
+                    &exe, &args, root, busy, &slot,
+                ),
                 Err(e) => nika_cli_host::lane::RunProgress::Complete((
                     exit::ENV,
                     None,

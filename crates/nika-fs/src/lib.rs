@@ -77,7 +77,7 @@ use globset::GlobMatcher;
 use nika_kernel::fs::{FileMetadata, FsError, FsListDyn, FsMetaDyn, FsReadDyn, FsWriteDyn};
 
 mod owned_dir;
-pub use owned_dir::OwnedDir;
+pub use owned_dir::{OwnedDir, open_owned, read_owned};
 mod ledger;
 pub use ledger::{Drain, Drained, EffectLedger, LedgerRefusal, Phase, Reservation, RoomLimits};
 mod rooted;

@@ -268,6 +268,7 @@ pub struct RunView {
     rows: Vec<TaskRow>,
     item_pages: BTreeMap<String, crate::item_pages::Pages>,
     index: BTreeMap<String, usize>,
+    children: BTreeMap<String, crate::run_story::ChildRun>,
     blocked_by: BTreeMap<String, String>,
     cleanup: BTreeMap<String, Vec<cleanup::Attachment>>,
 }
@@ -285,6 +286,37 @@ impl RunView {
     #[must_use]
     pub fn rows(&self) -> &[TaskRow] {
         &self.rows
+    }
+
+    /// The child run task `id` called, as its latest settle frame named it.
+    /// A new attempt (its start) or a settle naming none leaves none: a
+    /// relation is never inherited from an earlier attempt.
+    #[must_use]
+    pub fn child(&self, id: &str) -> Option<&crate::run_story::ChildRun> {
+        self.children.get(id)
+    }
+
+    /// Keep the child relation a task's settle names. Its start (a new
+    /// attempt), a settle naming none and a cache hit (a resume, never
+    /// run here) leave none.
+    fn relate(&mut self, event: &Event) {
+        if !matches!(
+            event.kind,
+            EventKind::TaskStarted | EventKind::TaskCompleted | EventKind::TaskCacheHit
+        ) {
+            return;
+        }
+        let Some(task) = str_field(event, "task") else {
+            return;
+        };
+        match crate::run_story::ChildRun::of(event) {
+            Some(child) => {
+                self.children.insert(task.to_owned(), child);
+            }
+            None => {
+                self.children.remove(task);
+            }
+        }
     }
 
     /// The upstream whose settle kept `task_id`'s gate closed.
@@ -375,6 +407,7 @@ impl RunView {
         let first = *self.first_ts_ms.get_or_insert(ts);
         self.last_ts_ms = Some(ts);
         self.elapsed_ms = u64::try_from(ts.saturating_sub(first)).unwrap_or(0);
+        self.relate(event);
 
         match event.kind {
             EventKind::WorkflowStarted => {
@@ -1300,5 +1333,41 @@ mod tests {
             &[("task", s("ask")), ("tokens", Value::Int(4))],
         ));
         assert!(view.rows()[0].meters().is_empty(), "no split, no meters");
+    }
+
+    /// The relation a task's settle named is the fold's, for that task: a
+    /// new attempt drops it, the next settle replaces it, and a row on any
+    /// other frame names none.
+    #[test]
+    fn the_fold_keeps_the_child_relation_of_the_latest_settle() {
+        let row = |trace: &str| {
+            s(&serde_json::json!({"target": "./child.nika", "trace_id": trace, "outcome": "success"})
+                .to_string())
+        };
+        let trace = |view: &RunView| view.child("call").and_then(|c| c.trace_id.clone());
+        let mut view = RunView::new();
+        view.apply(&ev_at(
+            EventKind::TaskStarted,
+            1,
+            &[("task", s("call")), ("child", row("a.ndjson"))],
+        ));
+        assert_eq!(trace(&view), None, "a start names no relation");
+        view.apply(&ev_at(
+            EventKind::TaskCompleted,
+            2,
+            &[("task", s("call")), ("child", row("a.ndjson"))],
+        ));
+        assert_eq!(trace(&view).as_deref(), Some("a.ndjson"));
+        view.apply(&ev_at(EventKind::TaskStarted, 3, &[("task", s("call"))]));
+        assert_eq!(trace(&view), None, "a new attempt drops it");
+        view.apply(&ev_at(
+            EventKind::TaskCompleted,
+            4,
+            &[("task", s("call")), ("child", row("b.ndjson"))],
+        ));
+        assert_eq!(trace(&view).as_deref(), Some("b.ndjson"));
+        view.apply(&ev_at(EventKind::TaskCompleted, 5, &[("task", s("call"))]));
+        assert_eq!(trace(&view), None, "a settle naming none leaves none");
+        assert!(view.child("other").is_none());
     }
 }

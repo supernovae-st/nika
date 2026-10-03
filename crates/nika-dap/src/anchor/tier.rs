@@ -10,7 +10,7 @@
 
 use std::io::Cursor;
 
-use super::{AnchorSidecar, pk32_of_box, sidecar_path, verify_offline};
+use super::{AnchorSidecar, open_owned, parse_sidecar, pk32_of_box, sidecar_path, verify_offline};
 
 /// A verified seal's attestation.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -173,6 +173,7 @@ fn verify_seal_signature(covers: &serde_json::Value, sig: &str, pk_box: &str) ->
 
 /// The anchor ladder's outcome.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum AnchorTier {
     /// No sidecar and none required.
     NotPresent,
@@ -182,6 +183,10 @@ pub enum AnchorTier {
     Anchored(super::VerifiedAnchor),
     /// A present sidecar that fails any check (the forgery class).
     Gap(String),
+    /// The sidecar could not be acquired (its final name a link, a special
+    /// file, an unreadable parent or file): nothing is claimed about it, and
+    /// the anchor vouches for nothing (the ENV class, never a forgery).
+    Unavailable(String),
 }
 
 /// The ANCHORED tier: load + verify the sidecar against the recomputed
@@ -195,14 +200,26 @@ pub fn anchor_tier(
     required: bool,
 ) -> AnchorTier {
     let path = sidecar_path(trace);
-    if !path.exists() {
-        return if required {
-            AnchorTier::Required
-        } else {
-            AnchorTier::NotPresent
-        };
-    }
-    let sidecar: AnchorSidecar = match super::load_sidecar(&path) {
+    // Acquiring the sidecar (opening, reading) is apart from judging its bytes:
+    // what cannot be acquired is unavailable, only acquired bytes can be a gap.
+    let shown = path.display();
+    let mut file = match open_owned(&path) {
+        Ok(Some(file)) => file,
+        Ok(None) if required => return AnchorTier::Required,
+        Ok(None) => return AnchorTier::NotPresent,
+        Err(e) => return AnchorTier::Unavailable(format!("cannot open {shown}: {e}")),
+    };
+    let bound = crate::bounded::MAX_ARTIFACT_BYTES;
+    let capped = match nika_fs::read_capped(&mut file, bound as u64) {
+        Ok(capped) => capped,
+        Err(e) => return AnchorTier::Unavailable(format!("cannot read {shown}: {e}")),
+    };
+    let raw = match (capped.over, String::from_utf8(capped.bytes.to_vec())) {
+        (false, Ok(raw)) => raw,
+        (true, _) => return AnchorTier::Gap(format!("{shown}: over the {bound}-byte bound")),
+        (false, Err(_)) => return AnchorTier::Gap(format!("{shown}: not UTF-8")),
+    };
+    let sidecar: AnchorSidecar = match parse_sidecar(&path, &raw) {
         Ok(sidecar) => sidecar,
         Err(e) => return AnchorTier::Gap(e),
     };
@@ -926,6 +943,11 @@ fn anchor_leg(
             lines.push(format!("ANCHOR FORGED — {reason}"));
             lines.push("  reported tier: SEALED (the anchor vouches for nothing)".to_owned());
             (AttainedTier::Sealed, TierExit::File)
+        }
+        AnchorTier::Unavailable(reason) => {
+            lines.push(format!("ANCHOR UNAVAILABLE — {reason}"));
+            lines.push("  the sidecar was not acquired: nothing is claimed about it · reported tier: SEALED (the anchor vouches for nothing)".to_owned());
+            (AttainedTier::Sealed, TierExit::Env)
         }
     };
     Some((anchor, attained, exit))

@@ -12,6 +12,7 @@ its structure, and a revision's delta. Nothing here reads an intent, calls a mod
 the file system or grants authority. It is a size-cap member of the `nika-onboard` unit
 (ADR-141 · D-2026-07-09-N1 · the ADR-137 and ADR-138 precedents), ascended from
 `nika-compile-reader` at the 15k prod-LOC wall: `nika-compile` depends on this crate and this
-crate depends on the reader, never the reverse. Its public types (`fidelity::Diagnostic`,
-`sketch::{Sketch, SketchTask, Edge, Verb, Hole, Fill}`) moved as they were and are not yet
-`#[non_exhaustive]`: that ratchet is owed, not claimed.
+crate depends on the reader, never the reverse. Its public types moved as they were at
+extraction. In 0.123, `Sketch` and `SketchTask` are `#[non_exhaustive]` and expose constructors;
+external Rust struct literals must migrate to those constructors. The ratchet remains owed
+for `fidelity::Diagnostic` and `sketch::{Edge, Verb, Hole, Fill}`.

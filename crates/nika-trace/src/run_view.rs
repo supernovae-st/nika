@@ -34,6 +34,7 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 use nika_event::EventKind;
+use nika_types::id::ExecutionId;
 use nika_types::resource::Value as FieldValue;
 use serde_json::Value;
 
@@ -141,6 +142,12 @@ pub struct RunFacts {
     pub(crate) seal: Option<Seal>,
     /// Frames read (lines that parsed as events).
     pub(crate) events: usize,
+    /// The executions the frames carry, distinct, first seen first.
+    pub(crate) executions: Vec<ExecutionId>,
+    /// Frames whose execution is absent or not one (never guessed).
+    pub(crate) unidentified: usize,
+    /// The source hash each `workflow_started` names, in order (`None`: none named).
+    pub(crate) starts: Vec<Option<String>>,
 }
 
 /// A frame's `fields` (`[{key, value}]`) as a map.
@@ -190,6 +197,14 @@ impl RunFacts {
     #[must_use]
     pub fn read(trace: &Path) -> Option<Self> {
         let raw = std::fs::read_to_string(trace).ok()?;
+        Self::of(trace, &raw)
+    }
+
+    /// The frames of journal bytes a host already captured from `trace`:
+    /// what [`Self::read`] folds, without reading anything. A fold, never a
+    /// verdict: the chain is the verifier's to judge.
+    #[must_use]
+    pub fn of(trace: &Path, raw: &str) -> Option<Self> {
         let mut facts = Self {
             trace: trace.to_path_buf(),
             ..Self::default()
@@ -203,13 +218,57 @@ impl RunFacts {
                 continue;
             };
             facts.events += 1;
-            facts.absorb(kind, &fields(&frame));
+            let execution = frame.get("execution").cloned().map(serde_json::from_value);
+            match execution {
+                Some(Ok(id)) if !facts.executions.contains(&id) => facts.executions.push(id),
+                Some(Ok(_)) => {}
+                _ => facts.unidentified += 1,
+            }
+            let fields = fields(&frame);
+            if kind == "workflow_started" {
+                facts.starts.push(text(&fields, "workflow_sha256"));
+            }
+            facts.absorb(kind, &fields);
             if kind == "workflow_paused" && !paused {
                 paused = true;
                 facts.gate = first_gate(&frame);
             }
         }
         (facts.events > 0).then_some(facts)
+    }
+
+    /// The executions the frames carry, distinct, first seen first.
+    #[must_use]
+    pub fn executions(&self) -> &[ExecutionId] {
+        &self.executions
+    }
+
+    /// How many frames carry no execution, or one that is not one.
+    #[must_use]
+    pub fn unidentified(&self) -> usize {
+        self.unidentified
+    }
+
+    /// The source hash each `workflow_started` frame names, in order: one
+    /// start naming one hash is the only shape a single run leaves.
+    #[must_use]
+    pub fn starts(&self) -> &[Option<String>] {
+        &self.starts
+    }
+
+    /// The source hash the last `workflow_started` names ([`Self::starts`]
+    /// holds every one).
+    #[must_use]
+    pub fn workflow_sha256(&self) -> Option<&str> {
+        self.workflow_sha256.as_deref()
+    }
+
+    /// The terminal frame's word (`succeeded` · `failed` · `cancelled`, or
+    /// `paused` when the journal ends at a gate); `None` when it holds no
+    /// terminal frame, never « done ».
+    #[must_use]
+    pub fn terminal(&self) -> Option<&str> {
+        (self.status.as_deref()).or_else(|| self.pause.as_ref().map(|_| "paused"))
     }
 
     /// The gate a paused run asks a host to answer (C9): the task, message and mode of its FIRST
@@ -878,6 +937,60 @@ pub fn human_size(bytes: u64) -> String {
         format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
     }
 }
+
+/// What a green run of `workflow` left behind under `root`: the files the
+/// workflow's own boundary lets it write (`permits.fs.write`, literal paths
+/// only) that exist there now, with their sizes. The boundary is the claim;
+/// the file on disk is the evidence; a glob is not a file. Read now, never the
+/// bytes the run wrote.
+#[must_use]
+pub fn produced(root: &Path, workflow: &Path) -> Option<String> {
+    let source = std::fs::read_to_string(root.join(workflow)).ok()?;
+    let wf = nika_schema::parse(
+        &source,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .ok()?;
+    let writes = wf.permits.as_ref()?.value.fs.as_ref()?.write.clone();
+    let mut produced = Vec::new();
+    for path in writes {
+        if path.contains(['*', '?', '[']) {
+            continue;
+        }
+        let Ok(meta) = std::fs::metadata(root.join(&path)) else {
+            continue;
+        };
+        if meta.is_file() {
+            produced.push(format!("{path} ({})", human_size(meta.len())));
+        }
+    }
+    (!produced.is_empty()).then(|| format!("produced · {}", produced.join(" · ")))
+}
+
+/// In a git work tree (`git_root`) whose `.gitignore` does not keep
+/// `.nika/traces/` out, a run's trace (model outputs · file contents · 0600)
+/// would be one `git add` away from a commit: the note that says so.
+#[must_use]
+pub fn hygiene_note(git_root: Option<&Path>) -> Option<String> {
+    let ignored = std::fs::read_to_string(git_root?.join(".gitignore"))
+        .map(|text| {
+            text.lines().any(|l| {
+                l.trim().contains(".nika/traces") || l.trim() == ".nika" || l.trim() == ".nika/"
+            })
+        })
+        .unwrap_or(false);
+    (!ignored).then(|| {
+        "runs write `.nika/traces/` (model outputs · file contents · mode 0600) — not ignored by git here · `nika init` adds the line, or add `.nika/traces/` to `.gitignore`".to_owned()
+    })
+}
+
+mod kept;
+pub use kept::KeptRun;
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod identity_tests;
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]

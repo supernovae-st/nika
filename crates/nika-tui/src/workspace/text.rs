@@ -64,6 +64,23 @@ pub(crate) fn fit_head(text: &str, width: usize, cut: &str) -> String {
     format!("{head}{cut}")
 }
 
+/// Words the Session wrote for the Unicode column (its separators, quotes,
+/// marks and arrows) in the glyph column in use; any other character is
+/// content and stays.
+pub(crate) fn twins(text: &str, ascii: bool) -> String {
+    if !ascii || text.is_ascii() {
+        return text.to_owned();
+    }
+    text.replace('·', "-")
+        .replace('…', "...")
+        .replace('→', "->")
+        .replace(['—', '–'], "-")
+        .replace(['«', '»'], "\"")
+        .replace('✔', "ok")
+        .replace('✖', "X")
+        .replace('○', "-")
+}
+
 /// `text` broken into rows of at most `width` cells at its spaces; a word
 /// wider than a row is cut with `cut`. Nothing when `width` is zero.
 pub(crate) fn wrap(text: &str, width: usize, cut: &str) -> Vec<String> {

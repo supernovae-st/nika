@@ -4,7 +4,8 @@
 //! The verb carries an explicit reasoning effort to the provider request (R4 B16 · C11), as the
 //! bytes the capturing http seam received show: on the route whose catalog lists the level, the
 //! body holds `thinking` enabled and the level, never the implicit `low` a short structured call
-//! gets; on a route that lists none nothing leaves; without one the body keeps its bytes.
+//! gets; on a route that lists none (a suffixed name the catalog never qualifies) nothing
+//! leaves; without one the body keeps its bytes.
 
 use super::*;
 
@@ -56,7 +57,7 @@ async fn an_explicit_effort_rides_the_dispatched_body_on_a_qualified_route() {
 #[tokio::test]
 async fn an_explicit_effort_on_a_route_that_lists_no_level_sends_nothing() {
     let seam = SeamHttp::with_json(&[&answer(r#"{"v":"work"}"#)]);
-    let refused = deepseek(&seam, "deepseek/deepseek-flash")
+    let refused = deepseek(&seam, "deepseek/deepseek-flash-0731")
         .run(short_structured(Some(ReasoningEffort::Max)))
         .await;
     assert!(refused.is_err(), "{refused:?}");

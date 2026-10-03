@@ -453,6 +453,59 @@ fn validate_component(value: &str) -> io::Result<()> {
     }
 }
 
+/// Open the file `path` names, without holding a root first: the parent the
+/// caller selected is resolved once (links above the final name are the
+/// caller's own), then held, and the final name is opened as a regular file,
+/// never through a link, without waiting for a FIFO peer; nothing is created.
+/// `None` when the parent or the file is absent; any other failure is
+/// returned, never an absence.
+///
+/// It is not for a root joined to an untrusted, multi-component relative
+/// path: every directory of that path would be resolved, links included.
+/// Open such descendants with [`OwnedDir::open_relative`] below a held root.
+///
+/// # Errors
+/// The path names no file, the parent cannot be resolved or held, or the
+/// final name is a link, a special file or cannot be opened.
+pub fn open_owned(path: &Path) -> io::Result<Option<File>> {
+    let name = path.file_name().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "owned file: the path names no file",
+        )
+    })?;
+    let parent = path.parent().filter(|p| !p.as_os_str().is_empty());
+    let resolved = match std::fs::canonicalize(parent.unwrap_or(Path::new("."))) {
+        Ok(resolved) => resolved,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    };
+    match OwnedDir::open(&resolved).and_then(|dir| dir.open_relative(Path::new(name))) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        opened => opened.map(Some),
+    }
+}
+
+/// [`open_owned`], then at most `cap` bytes of UTF-8 from that one
+/// descriptor (`cap + 1` probed): a file holding more is refused, never cut.
+///
+/// # Errors
+/// [`open_owned`]'s errors, a failed read, more than `cap` bytes, or bytes
+/// that are not UTF-8.
+pub fn read_owned(path: &Path, cap: u64) -> io::Result<Option<String>> {
+    let Some(mut file) = open_owned(path)? else {
+        return Ok(None);
+    };
+    let capped = crate::read_capped(&mut file, cap)?;
+    let invalid = |why| io::Error::new(io::ErrorKind::InvalidData, why);
+    if capped.over {
+        return Err(invalid("over its byte cap"));
+    }
+    String::from_utf8(capped.bytes.to_vec())
+        .map(Some)
+        .map_err(|_| invalid("not UTF-8"))
+}
+
 fn io_error(error: nix::errno::Errno) -> io::Error {
     io::Error::from_raw_os_error(error as i32)
 }
@@ -461,6 +514,52 @@ fn io_error(error: nix::errno::Errno) -> io::Error {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+
+    /// A file opened by its path: a link above it is the caller's own, an
+    /// absent parent or file is `None`, the final name is never followed, a
+    /// special file never waited on, a read never cut.
+    #[test]
+    fn a_named_file_is_opened_below_its_resolved_parent_and_never_through_a_final_link() {
+        let root = tempfile::tempdir().expect("root");
+        std::fs::create_dir(root.path().join("real")).expect("real");
+        let link = root.path().join("link");
+        std::os::unix::fs::symlink(root.path().join("real"), &link).expect("ancestor link");
+        std::fs::write(link.join("key.pub"), "box").expect("file");
+        assert_eq!(
+            read_owned(&link.join("key.pub"), 3)
+                .expect("read")
+                .as_deref(),
+            Some("box")
+        );
+        assert!(
+            read_owned(&link.join("gone/key.pub"), 3)
+                .expect("absent parent")
+                .is_none()
+        );
+        assert!(
+            open_owned(&link.join("gone.pub"))
+                .expect("absent file")
+                .is_none()
+        );
+        std::os::unix::fs::symlink(link.join("key.pub"), link.join("alias.pub"))
+            .expect("final link");
+        assert!(
+            open_owned(&link.join("alias.pub")).is_err(),
+            "a final link is refused, not absent"
+        );
+        nix::unistd::mkfifo(&link.join("pipe"), Mode::from_bits_truncate(0o600)).expect("fifo");
+        assert!(
+            open_owned(&link.join("pipe")).is_err(),
+            "a special file, never waited on"
+        );
+        assert!(
+            read_owned(&link.join("key.pub"), 2).is_err(),
+            "over its cap"
+        );
+        std::fs::write(link.join("bytes.bin"), [0xff, 0xfe]).expect("bytes");
+        assert!(read_owned(&link.join("bytes.bin"), 8).is_err(), "not UTF-8");
+        assert!(open_owned(Path::new("/")).is_err(), "no file named");
+    }
 
     #[test]
     fn concurrent_appenders_keep_each_line_and_terminator_together() {

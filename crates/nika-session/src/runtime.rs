@@ -29,6 +29,8 @@ use crate::snapshot::ProjectSnapshot;
 mod answer;
 mod aside;
 mod authoring;
+mod candidate;
+pub use candidate::Candidate;
 mod decision;
 mod details;
 mod draft;
@@ -251,6 +253,8 @@ pub struct SessionRuntime {
     last_check_clean: Option<bool>,
     /// The trace the last observed run left (`/proof` reads it).
     last_trace: Option<PathBuf>,
+    /// The last observed run HOME history keeps (`KeptRun`): evidence, never authority.
+    kept_run: Option<serde_json::Value>,
     /// The authoring round whose question the next line answers.
     authoring: Option<AuthoringRound>,
     /// The proposal a revision's question set aside, with the reading it came from: it waits
@@ -351,6 +355,7 @@ impl SessionRuntime {
             last_workflow: None,
             last_check_clean: None,
             last_trace: None,
+            kept_run: None,
             authoring: None,
             revising: None,
             questions: question::Identities::default(),
@@ -1272,65 +1277,21 @@ impl SessionRuntime {
             ),
             None => format!("run observed · exit {exit} · {meaning}"),
         };
-        let line = match self.trace_hygiene_note() {
+        // The trace's git hygiene, once per run, and what a green run left behind
+        // (`run_view::{hygiene_note, produced}`).
+        let line = match crate::run_view::hygiene_note(self.snapshot.git_root.as_deref()) {
             Some(note) => format!("{line}\n  {note}"),
             None => line,
         };
-        let line = match (exit, self.produced_line()) {
+        let produced = (self.last_workflow.as_ref())
+            .and_then(|w| crate::run_view::produced(&self.snapshot.root, w));
+        let line = match (exit, produced) {
             (0, Some(produced)) if with_produced => format!("{line}\n  {produced}"),
             _ => line,
         };
         self.last_run = Some((exit, line.clone()));
         self.remember("(run)", &line);
         line
-    }
-
-    /// What a green run left behind: the files the workflow's own boundary
-    /// lets it write (`permits.fs.write`, literal paths only) that exist
-    /// under the root now, with their sizes. The boundary is the claim; the
-    /// file on disk is the evidence; a glob is not a file.
-    fn produced_line(&self) -> Option<String> {
-        let workflow = self.last_workflow.as_ref()?;
-        let root = &self.snapshot.root;
-        let source = std::fs::read_to_string(root.join(workflow)).ok()?;
-        let wf = nika_schema::parse(
-            &source,
-            nika_schema::FileId::new(0),
-            nika_schema::ParseMode::Strict,
-        )
-        .ok()?;
-        let writes = wf.permits.as_ref()?.value.fs.as_ref()?.write.clone();
-        let mut produced = Vec::new();
-        for path in writes {
-            if path.contains(['*', '?', '[']) {
-                continue;
-            }
-            let Ok(meta) = std::fs::metadata(root.join(&path)) else {
-                continue;
-            };
-            if meta.is_file() {
-                let size = crate::run_view::human_size(meta.len());
-                produced.push(format!("{path} ({size})"));
-            }
-        }
-        (!produced.is_empty()).then(|| format!("produced · {}", produced.join(" · ")))
-    }
-
-    /// In a git repository whose `.gitignore` does not keep `.nika/traces/`
-    /// out, a run's trace (model outputs · file contents · 0600) would be
-    /// one `git add` away from a commit: say so once per run.
-    fn trace_hygiene_note(&self) -> Option<String> {
-        let root = self.snapshot.git_root.as_ref()?;
-        let ignored = std::fs::read_to_string(root.join(".gitignore"))
-            .map(|text| {
-                text.lines().any(|l| {
-                    l.trim().contains(".nika/traces") || l.trim() == ".nika" || l.trim() == ".nika/"
-                })
-            })
-            .unwrap_or(false);
-        (!ignored).then(|| {
-            "runs write `.nika/traces/` (model outputs · file contents · mode 0600) — not ignored by git here · `nika init` adds the line, or add `.nika/traces/` to `.gitignore`".to_owned()
-        })
     }
 
     fn intelligence_card(&self) -> String {
