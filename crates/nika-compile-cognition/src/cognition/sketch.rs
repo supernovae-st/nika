@@ -110,6 +110,9 @@ fn judge_sketch(
         })
         .collect();
     if out.is_empty() {
+        out.extend(reach_laws(sketch));
+    }
+    if out.is_empty() {
         let doc = ir::document(sketch, &[]);
         fidelity::laws(
             intent,
@@ -122,6 +125,46 @@ fn judge_sketch(
         );
     }
     out.dedup();
+    out
+}
+
+/// The reach laws a graph must hold before any hole is filled, since no fill can repair them:
+/// each side a builtin always reaches (`nika_cap::required_fs_directions`, e.g. a chart's write,
+/// an edit's read and write) is stated in the task's `reads`/`writes`, and every path the sketch
+/// itself derives for the task (the partial projection's arguments) is bound to that reach on
+/// each side its effect touches (`nika_cap::unbound_fs_args`). Optional slots and inline data are
+/// never required here; a filled argument is judged again at emission.
+fn reach_laws(sketch: &Sketch) -> Vec<Diagnostic> {
+    let doc = ir::document(sketch, &[]);
+    let mut out = Vec::new();
+    for task in sketch.tasks.iter().filter(|t| t.verb == ir::Verb::Invoke) {
+        let Some(tool) = task.tool.as_deref() else {
+            continue;
+        };
+        let mut push = |message: String| {
+            out.push(Diagnostic {
+                kind: "sketch",
+                message,
+            });
+        };
+        if let Some((read, write)) = nika_cap::required_fs_directions(tool) {
+            for (needed, stated, side) in [
+                (read, &task.reads, "reads"),
+                (write, &task.writes, "writes"),
+            ] {
+                if needed && stated.is_empty() {
+                    push(format!(
+                        "`{}` invokes `{tool}`, which always {side} a file: state that path in its `{side}`",
+                        task.id
+                    ));
+                }
+            }
+        }
+        let derived = doc["tasks"][task.id.as_str()]["invoke"].get("args");
+        for finding in nika_cap::unbound_fs_args(tool, derived, &task.reads, &task.writes) {
+            push(format!("`{}`: {finding}", task.id));
+        }
+    }
     out
 }
 
@@ -140,7 +183,7 @@ fn holes_message(sketch: &Sketch) -> String {
         );
     }
     text.push_str(
-        "Answer one JSON object {\"fills\": [{\"task\", \"field\", \"value\"}], \"notes\"}.",
+        "Fill each hole once, with its value; fill every hole not marked optional; an `args` object never names an argument the sketch states for its task (the path or glob it reaches, its edge input or bound content, its channel); a content template reads every edge its task is bound to; a builtin's file argument is one of the paths its own task states in reads or writes. Answer one JSON object {\"fills\": [{\"task\", \"field\", \"value\"}], \"notes\"}.",
     );
     text
 }
@@ -226,6 +269,93 @@ fn proposed_fills(sketch: &Sketch, fills: &[Value], used: bool) -> Vec<Value> {
             super::receipt::withheld(&fill.to_string(), &keys, reason)
         })
         .collect()
+}
+
+/// The journal entry of a fill round refused before emission: no candidate and no candidate
+/// digest, the fills by digest only, the named diagnostics.
+fn refused_round(
+    round: u32,
+    sketch: &Sketch,
+    filling: &Filling,
+    diagnostics: &[Diagnostic],
+) -> Value {
+    json!({
+        "round": round,
+        "phase": "fill",
+        "fills": filling.fills.len(),
+        "proposed_fills": proposed_fills(sketch, &filling.fills, false),
+        "notes": filling.notes,
+        "diagnostics": diagnostics_record(diagnostics),
+    })
+}
+
+/// The tail of a fill repair: the sketch stays as accepted, only the named holes are filled again.
+const FILL_AGAIN: &str = "\nFill the named holes again (the sketch stays as accepted); answer the same {\"fills\", \"notes\"} object.";
+
+/// The fills as the compiler consumes them and the complete document they state, or every
+/// refusal before any document exists: the fill laws of the accepted sketch, then each invoke's
+/// builtin contract (`nika_cap`) over the arguments it would carry. A refusal never repeats a
+/// value a fill proposed.
+fn validated(sketch: &Sketch, raw: &[Value]) -> Result<(Vec<Fill>, Value), Vec<Diagnostic>> {
+    let refused = |messages: Vec<String>| -> Vec<Diagnostic> {
+        messages
+            .into_iter()
+            .map(|message| Diagnostic {
+                kind: "fill",
+                message,
+            })
+            .collect()
+    };
+    let fills = ir::fills_from_json(&json!({"fills": raw})).map_err(|m| refused(vec![m]))?;
+    let doc = ir::complete_document(sketch, &fills).map_err(refused)?;
+    let mut findings = Vec::new();
+    for (id, node) in doc["tasks"].as_object().into_iter().flatten() {
+        let Some(tool) = node["invoke"]["tool"].as_str() else {
+            continue;
+        };
+        let args = node["invoke"].get("args");
+        for finding in nika_cap::builtin_shape_findings(tool, args) {
+            findings.push(format!(
+                "task `{id}` (`{tool}`): {}",
+                redacted(&finding, &fills)
+            ));
+        }
+        // Each filesystem argument the builtin contract names is bound to THIS task's stated
+        // reach, never to the union of permits (`nika_cap::unbound_fs_args`, the effect owner).
+        if let Some(task) = sketch.tasks.iter().find(|t| &t.id == id) {
+            for finding in nika_cap::unbound_fs_args(tool, args, &task.reads, &task.writes) {
+                findings.push(format!("task `{id}`: {finding}"));
+            }
+        }
+    }
+    if findings.is_empty() {
+        Ok((fills, doc))
+    } else {
+        Err(refused(findings))
+    }
+}
+
+/// A contract finding with every string a fill proposed (four characters or more) replaced, so
+/// the record names the broken rule without repeating the refused value.
+fn redacted(message: &str, fills: &[Fill]) -> String {
+    fn leaves(value: &Value, out: &mut Vec<String>) {
+        match value {
+            Value::String(text) if text.chars().count() >= 4 => out.push(text.clone()),
+            Value::Array(items) => items.iter().for_each(|v| leaves(v, out)),
+            Value::Object(map) => map.values().for_each(|v| leaves(v, out)),
+            _ => {}
+        }
+    }
+    let mut texts = Vec::new();
+    for fill in fills {
+        leaves(&fill.value, &mut texts);
+    }
+    texts.sort_by_key(|t| std::cmp::Reverse(t.len()));
+    let mut out = message.to_owned();
+    for text in texts {
+        out = out.replace(&text, "<proposed value>");
+    }
+    out
 }
 
 fn diagnostics_record(diagnostics: &[Diagnostic]) -> Vec<Value> {
@@ -362,16 +492,21 @@ async fn fill<P: ProviderInferDyn>(
             out,
         )
         .await?;
-        let fills: Vec<Fill> = match ir::fills_from_json(&json!({"fills": filling.fills})) {
-            Ok(fills) => fills,
-            Err(message) => {
+        // Every fill is judged against the accepted sketch before a document exists: a refusal
+        // is a named diagnostic for the same bounded repair, never a candidate or its digest.
+        let (fills, doc) = match validated(sketch, &filling.fills) {
+            Ok(valid) => valid,
+            Err(diagnostics) => {
                 talk.rounds
-                    .push(json!({"round": round, "phase": "fill", "answer": message,
-                    "proposed_fills": proposed_fills(sketch, &filling.fills, false)}));
-                return None;
+                    .push(refused_round(round, sketch, &filling, &diagnostics));
+                round += 1;
+                if !repair(talk, text, diagnostics, FILL_AGAIN) {
+                    break;
+                }
+                continue;
             }
         };
-        let candidate = match serde_yaml_bw::to_string(&ir::document(sketch, &fills)) {
+        let candidate = match serde_yaml_bw::to_string(&doc) {
             Ok(candidate) => candidate,
             Err(error) => {
                 talk.rounds.push(json!({
@@ -415,8 +550,7 @@ async fn fill<P: ProviderInferDyn>(
             });
         }
         talk.refused = Some(candidate);
-        let tail = "\nFill the named holes again (the sketch stays as accepted); answer the same {\"fills\", \"notes\"} object.";
-        if !repair(talk, text, diagnostics, tail) {
+        if !repair(talk, text, diagnostics, FILL_AGAIN) {
             break;
         }
     }

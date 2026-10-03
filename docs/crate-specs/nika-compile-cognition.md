@@ -434,6 +434,35 @@ undeclared or repeated fills, retain digest, shape and reason only. Transform
 program proposals and an external DecisionSeat's own usage remain explicitly
 `not_captured`. The record grants no authority and changes no routing decision.
 
+## Sketch fills are validated before emission
+
+The sketch door judges each fill round before any document exists: the fidelity
+`fills_from_json` and `complete_document` laws over the accepted sketch, then each emitted
+invoke's builtin contract (`nika_cap::builtin_shape_findings`, e.g. the closed `nika:fetch`
+extract modes), with any fill string echoed by a finding replaced by `<proposed value>`. A
+refused round records named `fill` diagnostics, the fills by digest only and no candidate or
+candidate digest, and enters the same bounded repair loop as a refused candidate (same
+`policy.repairs` cap, no reset; a repeated refusal still ends the talk). The schemas and the
+sketch card state the same closed shapes and fill rules. Routing, defaults and the
+assembler's output for a lawful fill set are unchanged.
+
+Each emitted invoke's filesystem arguments are then bound to the stated reach of its own task
+(0.123 A2): `nika_cap::unbound_fs_args(tool, args, task.reads, task.writes)`, the effect owner's
+query, refuses a read slot not in the task's `reads`, a write slot not in its `writes` (both
+for `edit`), and any present slot that is not a literal path, covering the primary
+`builtin_effect` path plus `image_fx.input`, `chart.data.path`, `image_generate`
+`image`/`images[]`/`mask`, a string `decide.bundle` and `fetch.multipart[].path`. Another
+task's path is refused even where the sketch's derived permits admit it. This binds and refuses;
+it does not make Rust derive those arguments, and its slot list proves names
+(`nika-builtin` parity test), not that every runtime read or write is listed.
+
+A reach no fill can repair is judged at the sketch phase instead (0.123 A2b), so the sketch
+repair loop can fix the graph: each side `nika_cap::required_fs_directions` says a builtin always
+reaches must be stated in its task's `reads`/`writes` (an `edit` in both, a `chart` in
+`writes`), and every path the sketch derives for a task (the partial projection's arguments) is
+bound by the same `unbound_fs_args` query. Optional slots and inline data are never required at
+that phase.
+
 ## Numeric conversion cardinality
 
 Transform examples execute the same numeric conversion definition as the runtime; successful parsing alone never establishes semantic fidelity.

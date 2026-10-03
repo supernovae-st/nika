@@ -151,6 +151,31 @@ needs keeps its default.
   Fill}`) moved as they were and are not yet `#[non_exhaustive]`: the ratchet is owed, not
   claimed.
 
+### Sketch emission integrity (0.123 slice A)
+
+`Sketch::from_json` reads closed task and edge objects with exact types: a field outside the
+task set (`id verb tool reads writes hosts after with gated_by for_each purpose`) or the edge
+set (`name from`), a value of another type or a malformed array item is refused by its path;
+absent or null optional fields are their empty value, never a filtered remainder. The
+structural laws also refuse an empty, non-snake_case or repeated edge name and an edge named
+`approved` on a gated task or `items` on a looping one (the names the assembler binds).
+
+`fills_from_json` reads closed `{task, field, value}` objects with `value` present.
+`complete_document(sketch, fills)` is the only complete emission: every fill names a declared
+hole of that sketch, once, with a value of the hole's kind; every required hole is filled; a
+whole `args` object never carries an argument the sketch owns for that task (every argument the
+assembler derives for it, plus `path` for read/grep/write/edit and `pattern` for glob even where
+no path is stated, and `input` for jq/convert/validate, read only by an edge), while another tool's own argument of the same name (`nika:grep`'s
+`pattern`, `nika:hash`'s `content`) stays fillable; a write's content template reads every edge its task is bound to; no fill value references
+`tasks.<id>` inside `${{ }}` (a data edge the sketch never stated). Refusals repeat only names
+the accepted sketch or a tool contract declares (a task id, a declared hole, an argument the
+sketch owns); any other fill is named by its index (`fills[k]`), a key outside a closed object
+is never named, and no refused value is repeated (0.123 A2). On success it returns `document(sketch, fills)`
+unchanged; `document` itself stays the partial projection the structural judge inspects with no
+fill. Kind checks are JSON shape only: they do not prove a jq program, an argv, a URL or a
+schema safe or correct, and the builtin argument vocabulary stays the Check's catalog scan (and,
+before emission, the cognition door's `nika_cap` contract), which this crate cannot reach.
+
 - Added: the behavioural contract (`behavior`), pure like the laws. `contract_of` reads the
   reader's plan of the request (its operations, effects with their policies and the value
   written alone, its unknowns, each rule's typed fields), the paths the request names and the
