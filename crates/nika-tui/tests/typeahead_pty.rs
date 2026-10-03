@@ -252,8 +252,10 @@ fn words_typed_while_nika_works_show_at_once_and_enter_waits() {
     );
     expect_or_dump(&mut session, &tee, NOTICE, "the turn ended on the question");
     expect_or_dump(&mut session, &tee, "reply", "the question's prompt");
-    // The busy hint left with the turn: the question's own hint is back.
-    expect_or_dump(&mut session, &tee, "default", "the question's hint row");
+    // The busy hint left with the turn: the question's own hint is back. Its
+    // « default » shares a cell with the free hint before it, which the
+    // renderer never writes again: the needle is a word that one never held.
+    expect_or_dump(&mut session, &tee, "an empty", "the question's hint row");
     never(
         &mut session,
         &tee,
