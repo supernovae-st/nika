@@ -436,7 +436,7 @@ program proposals and an external DecisionSeat's own usage remain explicitly
 
 ## Sketch fills are validated before emission
 
-The sketch door judges each fill round before any document exists: the fidelity
+The sketch door judges each fill round before a candidate is serialized or journaled: the fidelity
 `fills_from_json` and `complete_document` laws over the accepted sketch, then each emitted
 invoke's builtin contract (`nika_cap::builtin_shape_findings`, e.g. the closed `nika:fetch`
 extract modes), with any fill string echoed by a finding replaced by `<proposed value>`. A

@@ -216,6 +216,15 @@ checks. These declarations let a consumer validate the same shapes that the
 existing builtins consume, without a string-serialization pre-pass. They do
 not establish that an input file exists or that rendering will succeed.
 
+### Compiler filesystem-slot name parity
+
+`defs::tests::every_bound_filesystem_slot_is_a_declared_parameter` checks that the
+filesystem slots named by `nika_cap::unbound_fs_args` have declared root parameters in
+the model-facing `tools_json()` definitions and exercises the expected primary and
+secondary slot families. This is a name-parity guard, not proof that every runtime read
+or write is enumerated. The A2 change adds this test only: builtin dispatch, parameter
+schemas, tool export version and runtime filesystem enforcement are unchanged.
+
 ## Numeric conversion cardinality
 
 The runtime jq builtin and fetch jq mode share this evaluator. Its `tonumber` and `scan` are

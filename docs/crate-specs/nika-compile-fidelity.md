@@ -176,6 +176,10 @@ fill. Kind checks are JSON shape only: they do not prove a jq program, an argv, 
 schema safe or correct, and the builtin argument vocabulary stays the Check's catalog scan (and,
 before emission, the cognition door's `nika_cap` contract), which this crate cannot reach.
 
+`complete_document` checks the declared-hole/fill laws; the cognition consumer additionally
+checks builtin shapes and task-bound filesystem slots before candidate serialization.
+Calling the pure fidelity function alone does not establish those additional contracts or READY.
+
 - Added: the behavioural contract (`behavior`), pure like the laws. `contract_of` reads the
   reader's plan of the request (its operations, effects with their policies and the value
   written alone, its unknowns, each rule's typed fields), the paths the request names and the
