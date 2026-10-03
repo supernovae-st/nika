@@ -399,7 +399,9 @@ the resolved strategy are refused before any request. So is a count the
 compiler would run as another: repairs above 5, samples outside 1 to 5, a
 grant of 0. A typed value the strategy cannot apply is recorded as ignored,
 never refused. A seated `--decision-model` is outside this authority: it
-keeps its own client, protocol retries included, and the receipt says so.
+keeps its own client. A `typesafe/<jev>` question is sent at most once,
+without protocol retries; a `provider/name` seat keeps its client’s protocol
+retries. The receipt states which transport applies.
 The authoring receipt's `backend` carries the account (`authority`, whose
 `http_requests` holds `sent`, `refused` and `unknown` in one shape),
 `requested_model`, `observed_models`, `unreported_models` (responses that
