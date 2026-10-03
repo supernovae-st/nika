@@ -25,7 +25,7 @@ jobs:
       # drift-issue spam (2026-06; vector 15 was the last holdout, the
       # standing YELLOW in the #240 drift table).
       - name: Install supply-chain tools (cargo-deny + cargo-machete + cargo-audit)
-        uses: taiki-e/install-action@26e9283f268b880168bdbd2c545dfcd60ec2c6ab # v2
+        uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2
         with:
           tool: cargo-deny,cargo-machete,cargo-audit
 
