@@ -704,6 +704,8 @@ pub fn nika_providers::admission::observation_request_ids(observation: &serde_js
 pub fn nika_providers::admission::observation_route(observation: &serde_json::value::Value) -> serde_json::value::Value
 pub fn nika_providers::admission::unknown_cost_route(model: &str, config: nika_providers::registry::ProvidersConfig) -> core::result::Result<core::option::Option<nika_providers::admission::CostRoute>, alloc::string::String>
 pub mod nika_providers::authoring
+pub fn nika_providers::authoring::authoring_backend<H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static>(registry: &nika_providers::registry::ProviderRegistry<H>, model: &str) -> serde_json::value::Value
+pub fn nika_providers::authoring::authoring_host(raw: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::authoring::redact_authoring_error(error: nika_kernel_ai::provider::ProviderError, admission_remedy: &str) -> nika_kernel_ai::provider::ProviderError
 pub mod nika_providers::census
 pub struct nika_providers::census::AccessCensus

@@ -180,6 +180,8 @@ pub fn nika_cli_host::clients_registry::registry_ships_kit(target: &str) -> bool
 pub fn nika_cli_host::clients_registry::registry_wires(target: &str) -> bool
 pub fn nika_cli_host::clients_registry::vendored() -> core::option::Option<&'static nika_cli_host::clients_registry::ClientsRegistry>
 pub mod nika_cli_host::compile
+pub use nika_cli_host::compile::authoring_backend
+pub use nika_cli_host::compile::authoring_host
 pub use nika_cli_host::compile::redact_authoring_error
 pub mod nika_cli_host::compile::config
 pub use nika_cli_host::compile::config::<<nika_onboard::compile_config::*>>
@@ -689,8 +691,6 @@ pub type nika_cli_host::serve_args::NativeAuthoringArgs::Output = T
 impl<T> zvariant::optional::NoneValue for nika_cli_host::serve_args::NativeAuthoringArgs where T: core::default::Default
 pub type nika_cli_host::serve_args::NativeAuthoringArgs::NoneType = T
 pub fn nika_cli_host::serve_args::NativeAuthoringArgs::null_value() -> T
-pub fn nika_cli_host::compile::authoring_backend<H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static>(registry: &nika_providers::registry::ProviderRegistry<H>, model: &str) -> serde_json::value::Value
-pub fn nika_cli_host::compile::authoring_host(raw: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_cli_host::compile::authoring_http() -> core::result::Result<impl nika_kernel_core::io::http::HttpPostDyn, nika_kernel_core::io::http::HttpError>
 pub fn nika_cli_host::compile::run(args: &nika_cli_host::compile::CompileArgs) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli_host::compile::run_with(args: &nika_cli_host::compile::CompileArgs, authority: &nika_cli_host::compile::AuthoringAuthority) -> nika_cli_host::output::VerbOutput

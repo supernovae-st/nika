@@ -931,7 +931,7 @@ mod tests {
         assert_eq!(validate(b"{} {}", false), Verdict::Invalid(3));
         assert_eq!(validate(b"\"a\x01\"", false), Verdict::Invalid(2));
         assert_eq!(validate(b"\"\xff\"", false), Verdict::Invalid(0));
-        assert_eq!(validate(b"[tru", true), Verdict::Cut);
+        assert_eq!(validate(&b"[true]"[..4], true), Verdict::Cut);
         assert_eq!(
             validate(b"[12", true),
             Verdict::Cut,
