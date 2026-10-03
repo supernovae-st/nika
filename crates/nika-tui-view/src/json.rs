@@ -992,7 +992,10 @@ mod tests {
         assert_eq!(s.notes, [Note::Masked { count: 4 }]);
         let text = rows(s).join("\n");
         for secret in ["abc", "t0k", "sk-proj"] {
-            assert!(!text.contains(secret), "{secret} leaked: {text}");
+            assert!(
+                !text.contains(secret),
+                "protected fixture value was not masked"
+            );
         }
         assert!(text.contains("\"ann\""));
     }
