@@ -7,6 +7,7 @@
 //! settlement, the stream's wholeness and the declared evidence stay apart.
 
 use super::*;
+use crate::session::acquire::Proven;
 use nika_display::run_story::RunFrame;
 
 const EXEC: &str = "01a0ef11-0212-70de-a8b3-99de9427fccc";
@@ -65,7 +66,7 @@ fn look() -> Inspected {
 }
 
 fn text(run: &LiveRun) -> String {
-    let (title, body) = run.lines(100, false, false);
+    let (title, body) = run.lines(RunFace::Run, 100, false, false);
     std::iter::once(title)
         .chain(body)
         .map(|l| l.to_string())
@@ -215,7 +216,7 @@ fn the_bound_graph_paints_each_node_in_its_state() {
     let shown = text(&run);
     assert!(shown.contains("✔ first"), "{shown}");
     assert!(shown.contains("○ second"), "{shown}");
-    let (_, body) = run.lines(100, true, false);
+    let (_, body) = run.lines(RunFace::Run, 100, true, false);
     let ascii: String = body.iter().map(ToString::to_string).collect();
     assert!(
         ascii.contains("okfirst") || ascii.contains("ok first"),
@@ -306,4 +307,116 @@ fn a_story_only_runner_leaves_the_leg_unfollowed_and_says_so() {
     assert!(shown.contains("story only"), "{shown}");
     let typed = LiveRun::asked("two.nika".to_owned(), false, true, Some(look()));
     assert!(!text(&typed).contains("story only"));
+}
+
+/// A write task's two frames, its output the path it wrote (JSON-encoded).
+fn wrote(exec: &str, n: u32, id: &str, path: &str) -> [RunFrame; 2] {
+    let started = format!(
+        r#"{{"key":"task","value":"{id}"}},{{"key":"note","value":"invoke · nika:write"}}"#
+    );
+    let output = serde_json::to_string(&serde_json::to_string(path).expect("json")).expect("json");
+    let completed =
+        format!(r#"{{"key":"task","value":"{id}"}},{{"key":"output","value":{output}}}"#);
+    [
+        event(exec, n, "task_started", &started),
+        event(exec, n + 1, "task_completed", &completed),
+    ]
+}
+
+fn face(run: &LiveRun, face: RunFace) -> String {
+    let (title, body) = run.lines(face, 100, false, false);
+    std::iter::once(title)
+        .chain(body)
+        .map(|l| l.to_string())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[test]
+fn each_face_shows_only_what_was_acquired_and_names_the_rest() {
+    let mut run = LiveRun::asked("two.nika".to_owned(), false, true, Some(look()));
+    run.apply(start(EXEC, SOURCE));
+    run.apply(task(EXEC, 2, "task_scheduled", "save"));
+    for frame in wrote(EXEC, 3, "save", "./out/copy.md") {
+        run.apply(frame);
+    }
+    assert!(face(&run, RunFace::Outputs).contains("outputs are unknown, never empty"));
+    assert!(
+        run.wants(RunFace::Proof).is_empty(),
+        "no settlement, no journal yet"
+    );
+    run.apply(settled(EXEC, "succeeded"));
+    assert_eq!(
+        run.wants(RunFace::Files),
+        [Want::File("./out/copy.md".to_owned())]
+    );
+    assert_eq!(run.wants(RunFace::Proof), [Want::Proof]);
+    assert!(run.wants(RunFace::Run).is_empty() && run.wants(RunFace::Outputs).is_empty());
+    let files = face(&run, RunFace::Files);
+    assert!(
+        files.contains("reported written by `save`") && files.contains("not read yet"),
+        "{files}"
+    );
+    assert!(face(&run, RunFace::Proof).contains("captured and verified when this face opens"));
+    run.fetched(crate::session::acquire::Fetched::refused(
+        "./out/copy.md",
+        "a symlink",
+    ));
+    assert!(run.wants(RunFace::Files).is_empty());
+    assert!(face(&run, RunFace::Files).contains("not read · a symlink"));
+    let doc = serde_json::json!({"tier": "ok", "exit": 0, "chain": {"events": 5, "head": "cd".repeat(32), "headline": "intact"}, "lines": ["UNSEALED — no run_sealed frame"]});
+    run.proven(Proven::judged(
+        ".nika/traces/t.ndjson",
+        doc.clone(),
+        Vec::new(),
+    ));
+    let proof = face(&run, RunFace::Proof);
+    assert!(
+        proof.contains("verdict · OK · exit 0")
+            && proof.contains("this run's journal · its execution, source and receipt match"),
+        "{proof}"
+    );
+    assert!(
+        proof.contains("UNSEALED — no run_sealed frame")
+            && proof.contains("never proves the work was right"),
+        "{proof}"
+    );
+    run.proven(Proven::judged(
+        ".nika/traces/t.ndjson",
+        doc,
+        vec!["the journal records another execution".to_owned()],
+    ));
+    let foreign = face(&run, RunFace::Proof);
+    assert!(
+        foreign.contains("not bound to this run · no badge")
+            && foreign.contains("another execution"),
+        "{foreign}"
+    );
+    assert!(!foreign.contains("this run's journal"), "{foreign}");
+    run.forget();
+    assert_eq!(
+        run.wants(RunFace::Proof),
+        [Want::Proof],
+        "read again on demand"
+    );
+}
+
+#[test]
+fn a_kept_leg_is_evidence_whose_proof_is_read_on_demand() {
+    let mut kept = nika_session::KeptRun::new();
+    kept.workflow = Some("two.nika".to_owned());
+    kept.exit = Some(0);
+    let execution = serde_json::from_value(serde_json::json!({ "uuid": EXEC })).expect("id");
+    let run = LiveRun::kept(kept, execution);
+    let shown = face(&run, RunFace::Run);
+    assert!(
+        shown.contains("earlier session · exit 0") && shown.contains("nothing was replayed"),
+        "{shown}"
+    );
+    assert!(shown.contains("not followed in this session"), "{shown}");
+    assert_eq!(run.wants(RunFace::Proof), [Want::Proof]);
+    assert!(run.wants(RunFace::Files).is_empty());
+    assert!(face(&run, RunFace::Files).contains("the record lists no file"));
+    assert!(face(&run, RunFace::Outputs).contains("the record keeps no outputs"));
+    assert_eq!(run.execution(), Some(execution));
 }

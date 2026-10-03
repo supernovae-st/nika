@@ -788,13 +788,15 @@ fn hex_lower(bytes: &[u8]) -> String {
 ///
 /// # Errors
 ///
-/// A reason string when the explicit key file cannot be read (the
-/// invocation's own failure — never a forgery signal).
+/// A reason string when the explicit key file cannot be read, a custody file
+/// that exists is refused (never taken for an absent key) or more than
+/// [`MAX_CANDIDATES`] keys are found (never cut): the invocation's own
+/// failure, never a forgery signal.
 pub fn candidate_pubkeys(key_file: Option<&Path>) -> Result<Vec<(String, String)>, String> {
     let mut out = Vec::new();
     if let Some(path) = key_file {
-        // seam-bypass-ok: reading the operator-named key file (the custody idiom above)
-        let text = std::fs::read_to_string(path)
+        let read = crate::anchor::read_owned(path, KEY_FILE_CAP).map_err(|e| e.to_string());
+        let text = (read.and_then(|t| t.ok_or_else(|| "no such file".to_owned())))
             .map_err(|e| format!("cannot read --key {}: {e}", path.display()))?;
         extend_candidate_pubkeys(&mut out, &text, &path.display().to_string());
     }
@@ -802,14 +804,24 @@ pub fn candidate_pubkeys(key_file: Option<&Path>) -> Result<Vec<(String, String)
         let Some(path) = keys_path(name) else {
             continue;
         };
-        // seam-bypass-ok: reading the operator's own key custody (the idiom above)
-        let Ok(text) = std::fs::read_to_string(&path) else {
-            continue;
-        };
-        extend_candidate_pubkeys(&mut out, &text, &format!("~/.nika/keys/{name}"));
+        let text = crate::anchor::read_owned(&path, KEY_FILE_CAP)
+            .map_err(|e| format!("cannot read ~/.nika/keys/{name}: {e}"))?;
+        if let Some(text) = text {
+            extend_candidate_pubkeys(&mut out, &text, &format!("~/.nika/keys/{name}"));
+        }
+    }
+    if out.len() > MAX_CANDIDATES {
+        return Err(format!(
+            "more than {MAX_CANDIDATES} candidate keys: none was weighed"
+        ));
     }
     Ok(out)
 }
+
+/// A custody file's byte cap (a public box is ~150 bytes; more is refused).
+const KEY_FILE_CAP: u64 = 64 * 1024;
+/// The most candidate keys one verify weighs (more is refused, never cut).
+const MAX_CANDIDATES: usize = 256;
 
 /// Read one or more minisign public-key boxes from a custody file. A public
 /// box is two lines (comment + payload); splitting the file line-by-line turns
@@ -835,6 +847,11 @@ fn keys_path(name: &str) -> Option<PathBuf> {
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map(|home| PathBuf::from(home).join(".nika").join("keys").join(name))
 }
+
+#[cfg(test)]
+#[cfg(unix)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
+mod captured_tests;
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used)]

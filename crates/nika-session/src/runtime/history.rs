@@ -50,6 +50,17 @@ pub(super) struct Saved {
     /// otherwise. Absent from records that had none, whose bytes stay exactly as before.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub round: Option<serde_json::Value>,
+    /// The last observed run (a `run_view::KeptRun` value), kept unchanged when unreadable;
+    /// absent from records that had none. A present `null` is refused, never an absence.
+    #[serde(default, deserialize_with = "present")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_run: Option<serde_json::Value>,
+}
+
+fn present<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<serde_json::Value>, D::Error> {
+    let value = serde_json::Value::deserialize(d)?;
+    let null = || serde::de::Error::custom("a kept run is present but null");
+    (!value.is_null()).then_some(Some(value)).ok_or_else(null)
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]

@@ -19,6 +19,10 @@
 //! settlement reports, whether the stream arrived whole (frames lost, lines
 //! unread, a fold past its bound, no settlement), the evidence the producer
 //! declared, and the proof, which only the trace's own verification judges.
+//!
+//! A leg kept from an earlier session shows what HOME history recorded of it
+//! (its execution, workflow and exit as observed then): nothing replays, and
+//! its proof is read again from its journal when that face opens.
 
 use std::collections::BTreeSet;
 
@@ -30,10 +34,15 @@ use nika_display::theme::{Role, Theme};
 use ratatui::text::{Line, Span};
 
 use super::inspect::Inspected;
+use crate::session::acquire::{Fetched, Proven};
+use nika_session::KeptRun;
+
+mod faces;
 use super::pinned::Pinned;
 use super::text::{fit_head, marks, wrap};
 use crate::visual::icon::Icon;
 use crate::visual::{role, state};
+pub use faces::{FILES_READ, RunFace, Want};
 
 /// The most events one leg's fold takes, and the most ids it remembers to
 /// count a repeat; past it an event is only counted and the stream is
@@ -77,6 +86,11 @@ pub struct LiveRun {
     dropped: usize,
     unread: usize,
     settled: Option<Box<Settled>>,
+    fetched: Vec<Fetched>,
+    proven: Option<Proven>,
+    kept: Option<KeptRun>,
+    /// How many times what was acquired was forgotten: a reading's key.
+    generation: u64,
     revision: usize,
 }
 
@@ -121,8 +135,27 @@ impl LiveRun {
             dropped: 0,
             unread: 0,
             settled: None,
+            fetched: Vec::new(),
+            proven: None,
+            kept: None,
+            generation: 0,
             revision: 0,
         }
+    }
+
+    /// The last run HOME history kept from an earlier session, as the leg of
+    /// `execution`: evidence of what was observed then, nothing replayed.
+    #[must_use]
+    pub(crate) fn kept(run: KeptRun, execution: ExecutionId) -> Self {
+        let workflow = run
+            .workflow
+            .clone()
+            .unwrap_or_else(|| "(not recorded)".to_owned());
+        let mut leg = Self::asked(workflow, false, true, None);
+        leg.execution = Some(execution);
+        leg.binding = Binding::Unseen;
+        leg.kept = Some(run);
+        leg
     }
 
     /// Fold one frame: the first binds the leg's execution, another's is
@@ -248,6 +281,12 @@ impl LiveRun {
 
     /// The run in the pinned row's words: its state glyph's state and words.
     fn standing(&self) -> (TaskState, String) {
+        if let Some(kept) = &self.kept {
+            let exit = kept
+                .exit
+                .map_or_else(|| "not recorded".to_owned(), |e| e.to_string());
+            return (TaskState::Pending, format!("earlier session · exit {exit}"));
+        }
         match (self.reported(), self.execution) {
             (Some(RunState::Succeeded), _) => (TaskState::Ok, "settled · succeeded".to_owned()),
             (Some(RunState::Failed), _) => (TaskState::Failed, "settled · failed".to_owned()),
@@ -300,8 +339,9 @@ impl LiveRun {
         } else {
             "a fresh run"
         };
+        let (_, words) = self.standing();
         let mut rows = vec![(
-            format!("{}{sep}{}{sep}{leg}", self.label(), self.workflow),
+            format!("{}{sep}{leg}{sep}{words}", self.workflow),
             Role::Strong,
         )];
         let witness: String = (self.look.as_ref())
@@ -362,6 +402,11 @@ impl LiveRun {
 
     /// The settlement's report, or what is known without one.
     fn report(&self, sep: &str) -> String {
+        if self.kept.is_some() {
+            return format!(
+                "kept from an earlier session{sep}HOME history recorded it{sep}nothing was replayed"
+            );
+        }
         let Some(settled) = &self.settled else {
             return match (self.execution, self.view.verdict) {
                 (None, _) => format!("asked{sep}no frame yet{sep}no run identity yet"),
@@ -389,6 +434,9 @@ impl LiveRun {
 
     /// Whether the stream arrived whole, and what is missing when not.
     fn stream(&self, sep: &str) -> String {
+        if self.kept.is_some() {
+            return format!("stream{sep}not followed in this session");
+        }
         if self.whole() {
             return format!(
                 "stream{sep}{} events and the settlement, whole",
@@ -418,29 +466,55 @@ impl LiveRun {
         )
     }
 
-    /// The leg as the object in view on a region `width` cells wide: the
-    /// title, the facts, the graph of the bound bytes with each node in its
-    /// state (or why it is not drawn), then the tasks as the fold has them.
+    /// The leg's `face` as the object in view on a region `width` cells
+    /// wide: the title (the run, its standing, the faces with the one in
+    /// view marked), then that face. Pure: what a face needs from the disk
+    /// was acquired before ([`Self::wants`]).
     #[must_use]
     pub fn lines(
         &self,
+        face: RunFace,
         width: u16,
         ascii: bool,
         color: bool,
     ) -> (Line<'static>, Vec<Line<'static>>) {
         let (sep, cut) = marks(ascii);
         let cells = usize::from(width);
-        let (task_state, words) = self.standing();
+        let (task_state, _) = self.standing();
         let (glyph, _) = state::cell(task_state, ascii);
+        let tabs: Vec<String> = (RunFace::ALL.iter())
+            .map(|f| {
+                if *f == face {
+                    format!("[{}]", f.label())
+                } else {
+                    f.label().to_owned()
+                }
+            })
+            .collect();
         let head = format!(
-            "{} {}{sep}{glyph} {words}",
+            "{} {} {glyph}{sep}{}",
             Icon::Run.glyph(ascii),
-            self.label()
+            self.label(),
+            tabs.join(" ")
         );
         let title = Line::from(Span::styled(
             fit_head(&head, cells, cut),
             role::style(Role::Strong, color),
         ));
+        let canvas = nika_tui_view::Canvas::new(width, ascii, color);
+        let body = match face {
+            RunFace::Outputs => self.outputs_body(canvas),
+            RunFace::Files => self.files_body(canvas),
+            RunFace::Proof => self.proof_body(cells, ascii, color),
+            _ => self.run_body(cells, ascii, color),
+        };
+        (title, body)
+    }
+
+    /// The run face: the facts, the graph of the bound bytes with each node
+    /// in its state (or why it is not drawn), then the tasks as the fold has them.
+    fn run_body(&self, cells: usize, ascii: bool, color: bool) -> Vec<Line<'static>> {
+        let (sep, cut) = marks(ascii);
         let mut body = Vec::new();
         for (row, tone) in self.facts(ascii) {
             for part in wrap(&row, cells, cut) {
@@ -463,7 +537,7 @@ impl LiveRun {
                 role::style(tone, color),
             )));
         }
-        (title, body)
+        body
     }
 
     /// The bound bytes' graph, each node's chip its state as the fold has it.

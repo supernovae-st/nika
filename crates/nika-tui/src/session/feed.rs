@@ -9,12 +9,13 @@
 //! stream that was no frame this reader types. The queue grants nothing and
 //! decides nothing: the run, its review and its gate keep their own doors.
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Sender, SyncSender};
+use std::sync::{Arc, Mutex};
 
 use nika_display::run_story::{RunFrame, RunSink};
 
+use super::legs::Legs;
 use crate::workspace::inspect::Inspected;
 
 /// The most observations the queue holds; past it a frame is counted lost.
@@ -91,13 +92,24 @@ impl Seen {
 pub struct Feed {
     busy: Sender<String>,
     seen: Option<Seen>,
+    legs: Option<Arc<Mutex<Legs>>>,
 }
 
 impl Feed {
     /// A feed speaking to `busy`, and to `seen` when the shell lent it.
     #[must_use]
     pub fn new(busy: Sender<String>, seen: Option<Seen>) -> Self {
-        Self { busy, seen }
+        Self {
+            busy,
+            seen,
+            legs: None,
+        }
+    }
+
+    /// The same feed, also recording each leg in the host's own ledger.
+    pub(crate) fn with_legs(mut self, legs: Arc<Mutex<Legs>>) -> Self {
+        self.legs = Some(legs);
+        self
     }
 
     /// Tell the shell a run of `workflow` was asked, over the bytes `look`.
@@ -108,6 +120,9 @@ impl Feed {
         typed: bool,
         look: Option<Inspected>,
     ) {
+        if let Some(mut legs) = self.legs.as_ref().and_then(|l| l.lock().ok()) {
+            legs.asked();
+        }
         if let Some(seen) = &self.seen {
             let look = look.map(Box::new);
             seen.tell(Observed::Asked {
@@ -131,6 +146,9 @@ impl RunSink for Feed {
     }
 
     fn frame(&self, frame: RunFrame) {
+        if let Some(mut legs) = self.legs.as_ref().and_then(|l| l.lock().ok()) {
+            legs.frame(&frame);
+        }
         if let Some(seen) = &self.seen {
             seen.tell(Observed::Frame(frame));
         }

@@ -984,3 +984,158 @@ fn a_run_is_followed_from_its_frames_before_it_settles() {
     assert!(!shown.contains("graph not bound"), "{}", term.dump());
     term.leave();
 }
+
+/// A read and a write with an output: what the run left is found from its own frames.
+const COPY: &str = r#"nika: copy
+permits:
+  fs: { read: ["./notes/brief.md"], write: ["./out/copy.md"] }
+  tools: ["nika:read", "nika:write"]
+tasks:
+  read_source:
+    invoke: { tool: "nika:read", args: { path: "./notes/brief.md" } }
+  write_output:
+    with: { text: "${{ tasks.read_source.output }}" }
+    invoke: { tool: "nika:write", args: { path: "./out/copy.md", content: "${{ with.text }}" } }
+outputs:
+  written: ${{ tasks.write_output.output }}
+"#;
+
+/// The run's label the object region shows (`run <12 hex>`), when it shows one.
+fn run_label(screen: &str) -> Option<String> {
+    screen.lines().find_map(|line| {
+        line.match_indices("run ").find_map(|(at, _)| {
+            let hex = line.get(at + 4..at + 16)?;
+            hex.chars()
+                .all(|c| c.is_ascii_hexdigit())
+                .then(|| format!("run {hex}"))
+        })
+    })
+}
+
+const LEFT: &str = "\x1b[D";
+
+/// 14 · What a run left, then the same run after a reopen: its outputs as
+/// the settlement carried them, the file it reported writing as read now
+/// (edited after the run, read again: other bytes, never called the run's),
+/// and its Proof bound to its execution, source and receipt. Closed and
+/// reopened, the conversation is repainted as history and the same run is
+/// offered as evidence whose Proof is read again; nothing replays.
+#[test]
+fn a_run_result_its_file_and_proof_are_found_again_after_a_reopen() {
+    let rig = Rig::new("result");
+    std::fs::create_dir_all(rig.path("notes")).expect("notes");
+    std::fs::write(rig.path("notes/brief.md"), "# Brief\nline two\n").expect("brief");
+    std::fs::write(rig.path("copy.nika"), COPY).expect("copy");
+    let mut term = rig.spawn("14-result", 120, 40);
+    wait_workspace(&mut term);
+    term.send("run copy.nika\r");
+    term.wait_until("the settlement", |s| s.contains("settled · succeeded"));
+    let label = run_label(&term.text()).expect("the run names its execution");
+    term.keys(F6);
+    term.keys(F6);
+    term.keys(RIGHT);
+    term.wait_until("the outputs the settlement carried", |s| {
+        s.contains("[outputs]") && s.contains("written")
+    });
+    term.keys(RIGHT);
+    term.wait_until("the file read now", |s| {
+        s.contains("[files]") && s.contains("reported written by") && s.contains("# Brief")
+    });
+    term.keys(RIGHT);
+    term.wait_until("the proof bound to the run", |s| {
+        s.contains("[proof]") && s.contains("this run's journal") && s.contains("receipt match")
+    });
+    std::fs::write(rig.path("out/copy.md"), "# Edited after the run\n").expect("edit");
+    term.keys(LEFT);
+    term.keys("r");
+    term.wait_until("today's bytes, read again", |s| {
+        s.contains("[files]") && s.contains("# Edited after the run")
+    });
+    assert!(!term.text().contains("unchanged"), "{}", term.dump());
+    term.leave();
+    let mut again = rig.spawn("14-reopen", 120, 40);
+    wait_workspace(&mut again);
+    again.wait_until("the earlier conversation, as history", |s| {
+        s.contains("earlier in this conversation") && s.contains("(run)")
+    });
+    // One line of a wrapped notice: a needle never spans a wrap.
+    again.wait_text("last run, observed in an earlier");
+    again.wait_until("the same run, as evidence", |s| {
+        s.contains(&label) && s.contains("earlier session")
+    });
+    again.keys(F6);
+    again.keys(F6);
+    for _ in 0..3 {
+        again.keys(RIGHT);
+    }
+    again.wait_until("its proof read again, bound to it", |s| {
+        s.contains("[proof]") && s.contains("this run's journal")
+    });
+    assert!(again.text().contains(&label), "{}", again.dump());
+    again.leave();
+}
+
+/// A valid chained journal just under 8 MiB (of another execution: never
+/// bound to the run), written over the run's own journal at `path`.
+fn heavy_journal(path: &std::path::Path) {
+    use sha2::{Digest as _, Sha256};
+    let hex = |bytes: &[u8]| -> String {
+        Sha256::digest(bytes)
+            .iter()
+            .fold(String::new(), |mut out, b| {
+                let _ = std::fmt::Write::write_fmt(&mut out, format_args!("{b:02x}"));
+                out
+            })
+    };
+    let mut chain = hex(b"nika-trace-v1");
+    let mut out = String::new();
+    let mut n = 0_u64;
+    while out.len() < 8 * 1024 * 1024 - 4096 {
+        let kind = if n == 0 {
+            "workflow_started"
+        } else {
+            "task_completed"
+        };
+        let line = format!(
+            r#"{{"chain":"{chain}","correlation":null,"execution":{{"uuid":"01a0ef11-0212-70de-a8b3-99de9427fccc"}},"fields":[{{"key":"task","value":"t{n}"}},{{"key":"note","value":"{}"}}],"id":{{"uuid":"01a0ef11-03a1-73d9-a2bc-{n:012x}"}},"kind":"{kind}","run":null,"timestamp":{n}}}"#,
+            "x".repeat(300)
+        );
+        chain = hex(line.as_bytes());
+        out.push_str(&line);
+        out.push('\n');
+        n += 1;
+    }
+    std::fs::write(path, out).expect("heavy journal");
+}
+
+/// 15 · Reading what a run left never freezes the shell: while the proof of
+/// a journal near the 8 MiB cap is verified on a worker, the busy row says
+/// what is being read and words typed land in the composer at once; the
+/// verdict follows, the words stay in the draft, nothing is sent.
+#[test]
+fn the_shell_stays_live_while_a_run_proof_is_verified() {
+    let rig = Rig::new("acquire");
+    std::fs::create_dir_all(rig.path("notes")).expect("notes");
+    std::fs::write(rig.path("notes/brief.md"), "# Brief\n").expect("brief");
+    std::fs::write(rig.path("copy.nika"), COPY).expect("copy");
+    let mut term = rig.spawn("15-acquire", 120, 40);
+    wait_workspace(&mut term);
+    term.send("run copy.nika\r");
+    term.wait_until("the settlement", |s| s.contains("settled · succeeded"));
+    let traces = std::fs::read_dir(rig.path(".nika/traces")).expect("traces");
+    let journal = (traces.filter_map(Result::ok))
+        .map(|entry| entry.path())
+        .find(|path| path.extension().is_some_and(|e| e == "ndjson"))
+        .expect("the run's journal");
+    heavy_journal(&journal);
+    term.send(&format!("{F6}{F6}{RIGHT}{RIGHT}{RIGHT}{F6}zz"));
+    term.wait_until("words typed while the proof is read", |s| {
+        s.contains("zz") && s.contains("reading what the run left") && !s.contains("verdict ·")
+    });
+    term.wait_until("the verdict, then", |s| {
+        s.contains("verdict ·") && s.contains("zz")
+    });
+    // The words are the draft alone: never echoed into the conversation.
+    assert_eq!(term.text().matches("zz").count(), 1, "{}", term.dump());
+    term.leave();
+}

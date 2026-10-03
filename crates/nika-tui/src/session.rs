@@ -31,7 +31,11 @@ use nika_cli_host::lane::{PendingRun, RunProgress};
 use nika_display::run_story::RunSink;
 use nika_session::RunRequest;
 
+use acquire::{Fetched, Proven};
 use feed::{Feed, Seen};
+use legs::{Leg, Legs};
+use nika_display::run_story::ExecutionId;
+use nika_session::KeptRun;
 
 /// A fresh Run may suspend at a child-owned cost question. Only the run's
 /// story reaches the sender: no frame is typed, so the workspace cannot follow
@@ -149,6 +153,11 @@ pub struct Live {
     /// The candidate under review, folded when the last turn ended: what the
     /// workspace shows, and the identity a consent typed here answers.
     candidate: Option<Proposed>,
+    /// What this host relayed of each run leg: the only identities, paths
+    /// and journals its fetch and proof may reach.
+    legs: Arc<Mutex<Legs>>,
+    /// The last run an earlier session kept (HOME history), as read at open.
+    kept: Option<Result<KeptRun, String>>,
 }
 
 impl std::fmt::Debug for Live {
@@ -188,6 +197,8 @@ impl Live {
             next_id: 1,
             busy: Arc::new(Mutex::new(None)),
             candidate: None,
+            legs: Arc::default(),
+            kept: None,
         };
         live.open_runtime(kept);
         live
@@ -294,6 +305,15 @@ impl Live {
         if let Some(notice) = runtime.restore_state() {
             beats.push(Beat::Say(Committed::new(Kind::Notice, notice)));
         }
+        beats.extend(earlier(runtime.kept_turns()));
+        let kept = runtime.kept_run();
+        if let Some(line) = kept_line(kept.as_ref()) {
+            beats.push(Beat::Say(Committed::new(Kind::Notice, line)));
+        }
+        if let (Some(Ok(run)), Ok(mut legs)) = (&kept, self.legs.lock()) {
+            legs.kept(run);
+        }
+        self.kept = kept;
         beats.push(Beat::Rail(runtime.lifecycle().rail()));
         beats.push(Beat::Status(runtime.status_line()));
         beats.push(Beat::Wait(self.waiting()));
@@ -513,7 +533,13 @@ impl Live {
             beats.push(Beat::Quit);
             return beats;
         };
-        let outcome = runtime.observe_run(code, trace.as_deref());
+        // The leg this host relayed for this request, when frames came: its
+        // identity rides the observation into HOME history.
+        let leg = (self.legs.lock().ok()).and_then(|legs| legs.newest().map(Leg::kept_run));
+        let outcome = match leg {
+            Some(leg) => runtime.observe_run_leg(code, trace.as_deref(), leg),
+            None => runtime.observe_run(code, trace.as_deref()),
+        };
         let (more, again) = self.map(outcome);
         beats.extend(more);
         if again.is_some() {
@@ -551,6 +577,49 @@ impl Live {
 /// the same words as the first screen of a fresh Run cost question.
 const REVIEW_CHOICE: &str = "Continue once? yes / no";
 const CHOICES: &str = "Continue once? yes / no / details";
+/// The recent turns HOME history kept, repainted as history: what was said
+/// in an earlier session, never replayed.
+fn earlier(turns: &[(String, String)]) -> Vec<Beat> {
+    if turns.is_empty() {
+        return Vec::new();
+    }
+    let mut beats = vec![Beat::Say(Committed::new(
+        Kind::Notice,
+        "earlier in this conversation · kept in your history · nothing is replayed",
+    ))];
+    for (said, reply) in turns {
+        beats.push(Beat::Say(Committed::new(Kind::Human, said.clone())));
+        beats.push(Beat::Say(Committed::new(Kind::Reply, reply.clone())));
+    }
+    beats
+}
+
+/// The last run an earlier session kept, in one line: evidence of what was
+/// observed then; its journal is verified again only when its proof opens.
+fn kept_line(kept: Option<&Result<KeptRun, String>>) -> Option<String> {
+    Some(match kept? {
+        Ok(run) => {
+            let id: String = run
+                .execution
+                .as_deref()
+                .unwrap_or("unrecorded")
+                .chars()
+                .take(13)
+                .collect();
+            let workflow = run.workflow.as_deref().unwrap_or("(not recorded)");
+            let exit = run
+                .exit
+                .map_or_else(|| "not recorded".to_owned(), |e| e.to_string());
+            format!(
+                "last run, observed in an earlier session · {id} of `{workflow}` · exit {exit} · its proof is read again from its journal when you open it · nothing replays"
+            )
+        }
+        Err(why) => format!(
+            "the last run's record is unreadable ({why}) · kept unchanged · nothing replays"
+        ),
+    })
+}
+
 /// A consent line while no candidate is on screen.
 const NOTHING_SHOWN: &str = "no proposal is on screen to answer · nothing was applied · the proposal is shown again after this line";
 
@@ -672,13 +741,44 @@ impl Conversation for Live {
     fn candidate(&self) -> Option<Proposed> {
         self.candidate.clone()
     }
+
+    /// A file the leg `execution` reported writing (as this host relayed
+    /// it), read now below the root; any other path is refused unread.
+    fn fetch(&mut self, execution: &ExecutionId, path: &str) -> Option<Fetched> {
+        let root = &self.runtime.as_ref()?.snapshot.root;
+        let legs = self.legs.lock().ok()?;
+        let leg = legs.find(execution);
+        Some(match leg {
+            Some(leg) if leg.written.iter().any(|w| w == path) => acquire::fetch(root, path),
+            _ => Fetched::refused(path, "not a file this run reported writing"),
+        })
+    }
+
+    /// The Proof of the journal the leg `execution` settled with, bound to
+    /// what this host relayed of it (never a path the renderer names).
+    fn prove(&mut self, execution: &ExecutionId) -> Option<Proven> {
+        let root = &self.runtime.as_ref()?.snapshot.root;
+        let legs = self.legs.lock().ok()?;
+        Some(match legs.find(execution) {
+            Some(leg) => match leg.trace.as_deref() {
+                Some(trace) => acquire::prove(root, trace, &leg.expect()),
+                None => Proven::refused("", "its settlement named no journal"),
+            },
+            None => Proven::refused("", "this run's settlement was not observed here"),
+        })
+    }
+
+    /// The last run an earlier session kept, as read at open.
+    fn kept_run(&self) -> Option<Result<KeptRun, String>> {
+        self.kept.clone()
+    }
 }
 
 impl Live {
     /// One submitted line with `feed` lent to the runtime for the turn.
     fn lent(&mut self, feed: Feed, line: &str) -> Turn {
         if let Ok(mut guard) = self.busy.lock() {
-            *guard = Some(feed);
+            *guard = Some(feed.with_legs(Arc::clone(&self.legs)));
         }
         let turn = self.submit(line);
         if let Ok(mut guard) = self.busy.lock() {
@@ -962,8 +1062,10 @@ fn seat(runtime: &SessionRuntime) -> Option<String> {
     Some(format!("{base}{model}{ready}"))
 }
 
+pub mod acquire;
 mod candidate;
 pub mod feed;
+pub(crate) mod legs;
 mod look;
 
 /// The one audit fold of a look, for the workspace's own tests.

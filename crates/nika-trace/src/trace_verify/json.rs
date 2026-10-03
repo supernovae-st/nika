@@ -69,6 +69,13 @@ pub(super) fn ladder_doc(
             "gen_time": a.gen_time,
         }),
         tier::AnchorTier::Gap(reason) => serde_json::json!({"tier": "gap", "reason": reason}),
+        tier::AnchorTier::Unavailable(reason) => {
+            serde_json::json!({"tier": "unavailable", "reason": reason})
+        }
+        // A class newer than this projection: named unknown, never passed or forged.
+        _ => {
+            serde_json::json!({"tier": "unknown", "reason": "an anchor outcome this engine does not name"})
+        }
     };
     let replay = match &report.replay {
         tier::ReplayTier::NotAsked => serde_json::json!({"tier": "not-asked"}),

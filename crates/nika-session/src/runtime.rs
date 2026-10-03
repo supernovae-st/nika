@@ -253,6 +253,8 @@ pub struct SessionRuntime {
     last_check_clean: Option<bool>,
     /// The trace the last observed run left (`/proof` reads it).
     last_trace: Option<PathBuf>,
+    /// The last observed run HOME history keeps (`KeptRun`): evidence, never authority.
+    kept_run: Option<serde_json::Value>,
     /// The authoring round whose question the next line answers.
     authoring: Option<AuthoringRound>,
     /// The proposal a revision's question set aside, with the reading it came from: it waits
@@ -353,6 +355,7 @@ impl SessionRuntime {
             last_workflow: None,
             last_check_clean: None,
             last_trace: None,
+            kept_run: None,
             authoring: None,
             revising: None,
             questions: question::Identities::default(),

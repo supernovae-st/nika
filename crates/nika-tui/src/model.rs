@@ -484,6 +484,29 @@ pub trait Conversation: Send {
     fn candidate(&self) -> Option<crate::workspace::candidate::Proposed> {
         None
     }
+    /// A file the run `execution` reported writing, read now by the
+    /// conversation's host below its project (never while drawing): today's
+    /// bytes at that path, never called the run's own. The default reads none.
+    fn fetch(
+        &mut self,
+        _execution: &nika_display::run_story::ExecutionId,
+        _path: &str,
+    ) -> Option<crate::session::acquire::Fetched> {
+        None
+    }
+    /// The Proof of the journal the run `execution` settled with, captured
+    /// and verified by the host (never while drawing). The default proves none.
+    fn prove(
+        &mut self,
+        _execution: &nika_display::run_story::ExecutionId,
+    ) -> Option<crate::session::acquire::Proven> {
+        None
+    }
+    /// The last run an earlier session kept, as HOME history recorded it:
+    /// evidence, never authority. The default keeps none.
+    fn kept_run(&self) -> Option<Result<nika_session::KeptRun, String>> {
+        None
+    }
 }
 
 /// The project the demo conversation ([`Script::demo`]) stands in: a fixture

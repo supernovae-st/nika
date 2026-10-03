@@ -62,6 +62,8 @@ use crate::workspace::desk::{self, Desk, Route};
 use crate::workspace::object::Paint;
 use crate::workspace::{conversation, project};
 
+mod acquire;
+
 /// How the shell runs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -598,6 +600,10 @@ impl<C: Conversation + 'static> Shell<C> {
                 broker.stop();
                 return Ok(Exit::Quit);
             }
+            if let Some(exit) = self.acquire_wanted(&mut broker)? {
+                broker.stop();
+                return Ok(exit);
+            }
         }
     }
 
@@ -861,7 +867,8 @@ impl<C: Conversation + 'static> Shell<C> {
 
     /// Take the look the opened workflow needs from the conversation, on this
     /// thread and never while drawing; while a turn holds the conversation it
-    /// waits for the turn's end ([`Self::apply_all`]).
+    /// waits for the turn's end ([`Self::apply_all`]). What a run's face needs
+    /// is acquired apart, on a worker ([`Self::acquire_wanted`]).
     fn look(&mut self) {
         let Some(path) = self.desk.opened_workflow().map(str::to_owned) else {
             self.desk.wants_look = false;
@@ -885,6 +892,7 @@ impl<C: Conversation + 'static> Shell<C> {
         if let Some(conversation) = self.conversation.as_ref() {
             self.desk.view = conversation.project();
             self.desk.proposed(conversation.candidate());
+            self.desk.kept(conversation.kept_run());
         }
         if self.desk.wants_look || self.desk.opened_workflow().is_some() {
             self.look();

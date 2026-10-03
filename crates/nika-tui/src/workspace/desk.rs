@@ -36,8 +36,12 @@ use ratatui::layout::Rect;
 use ratatui::text::Line;
 
 use super::candidate::Proposed;
-use super::live::LiveRun;
+use super::live::{LiveRun, RunFace, Want};
+use crate::model::Conversation;
+use crate::session::acquire::{Fetched, Proven};
 use crate::session::feed::{Gap, Observed};
+use nika_display::run_story::ExecutionId;
+use nika_session::KeptRun;
 
 /// How many past legs of runs the desk keeps beside the one in flight.
 const PAST_LEGS: usize = 4;
@@ -94,8 +98,44 @@ pub(crate) struct Desk {
     /// The run leg the shell observes (the latest asked), and the legs before it.
     pub(crate) live: Option<LiveRun>,
     pub(crate) past: Vec<LiveRun>,
+    /// The face of the run in view.
+    pub(crate) run_face: RunFace,
+    /// The run an earlier session kept was offered once, at the opening.
+    kept_seen: bool,
     /// The face of the look as the viewers last rendered it, and for what.
     drawn: Option<Drawn>,
+}
+
+/// One thing acquired for a run's face.
+#[derive(Debug)]
+pub(crate) enum Got {
+    /// A file the run reported writing, as read now.
+    File(Fetched),
+    /// The run's journal, captured and verified.
+    Proof(Proven),
+}
+
+/// Ask `conversation`'s host for each of `wants` of the leg `execution` (on
+/// the shell's worker, never while drawing); what it cannot acquire is a
+/// refusal with its reason, never an absence.
+pub(crate) fn acquire_all<C: Conversation + ?Sized>(
+    conversation: &mut C,
+    execution: &ExecutionId,
+    wants: Vec<Want>,
+) -> Vec<Got> {
+    (wants.into_iter())
+        .map(|want| match want {
+            Want::File(path) => Got::File(
+                (conversation.fetch(execution, &path))
+                    .unwrap_or_else(|| Fetched::refused(&path, "this conversation reads no file")),
+            ),
+            Want::Proof => {
+                Got::Proof((conversation.prove(execution)).unwrap_or_else(|| {
+                    Proven::refused("", "this conversation verifies no journal")
+                }))
+            }
+        })
+        .collect()
 }
 
 /// One face of one look rendered for one region: what the frame paints.
@@ -104,7 +144,7 @@ struct Drawn {
     /// What was rendered (a look's path, or a candidate's identity) and the
     /// witness of its bytes, the face, the region's width, the glyph column
     /// and the colour it was rendered for.
-    key: (String, Option<String>, Face, u16, bool, bool),
+    key: (String, Option<String>, Face, RunFace, u16, bool, bool),
     title: Line<'static>,
     body: Vec<Line<'static>>,
 }
@@ -134,6 +174,8 @@ impl Desk {
             candidate: None,
             live: None,
             past: Vec::new(),
+            run_face: RunFace::Run,
+            kept_seen: false,
             drawn: None,
         }
     }
@@ -164,6 +206,7 @@ impl Desk {
                     }
                     self.live = Some(LiveRun::asked(workflow, resume, typed, look.map(|l| *l)));
                     self.opened = Some(Target::Live);
+                    self.run_face = RunFace::Run;
                     self.focus.scroll = 0;
                 }
                 Observed::Frame(frame) => {
@@ -217,18 +260,71 @@ impl Desk {
             return;
         };
         let width = geometry.object.width;
-        let key = (from, witness, self.face, width, ascii, color);
+        let key = (from, witness, self.face, self.run_face, width, ascii, color);
         if self.drawn.as_ref().is_some_and(|d| d.key == key) {
             return;
         }
         let lines = match (self.shown(), &self.look) {
             (Some(Opened::Candidate(c)), _) => c.face_lines(self.face, width, ascii, color),
-            (Some(Opened::Live(leg)), _) => leg.lines(width, ascii, color),
+            (Some(Opened::Live(leg)), _) => leg.lines(self.run_face, width, ascii, color),
             (_, Some(look)) => look.face_lines(self.face, width, ascii, color),
             (_, None) => return,
         };
         let (title, body) = lines;
         self.drawn = Some(Drawn { key, title, body });
+    }
+
+    /// The run in view, what its face still needs acquired, and the reading
+    /// it is for, when it needs something.
+    pub(crate) fn wanted(&self) -> Option<(ExecutionId, Vec<Want>, u64)> {
+        let Some(Opened::Live(leg)) = self.shown() else {
+            return None;
+        };
+        let wants = leg.wants(self.run_face);
+        (!wants.is_empty()).then_some((leg.execution()?, wants, leg.generation()))
+    }
+
+    /// What was acquired for the leg `execution` at reading `generation`:
+    /// applied only while that leg and that reading are still the ones in the
+    /// desk (`false` when it came too late and was dropped).
+    pub(crate) fn acquired(
+        &mut self,
+        execution: ExecutionId,
+        generation: u64,
+        got: Vec<Got>,
+    ) -> bool {
+        let current =
+            |l: &&mut LiveRun| l.execution() == Some(execution) && l.generation() == generation;
+        let Some(leg) = self.live.as_mut().filter(current) else {
+            return false;
+        };
+        for item in got {
+            match item {
+                Got::File(fetched) => leg.fetched(fetched),
+                Got::Proof(proven) => leg.proven(proven),
+            }
+        }
+        self.drawn = None;
+        true
+    }
+
+    /// The last run an earlier session kept, offered once at the opening:
+    /// the object in view and the pinned leg while no run of this session
+    /// is; never run, its proof read again only when that face opens. An
+    /// unreadable record shows nothing here (the conversation says why).
+    pub(crate) fn kept(&mut self, kept: Option<Result<KeptRun, String>>) {
+        if std::mem::replace(&mut self.kept_seen, true) || self.live.is_some() {
+            return;
+        }
+        let Some(Ok(run)) = kept else {
+            return;
+        };
+        if let Some(execution) = crate::session::legs::execution_of(&run) {
+            self.live = Some(LiveRun::kept(run, execution));
+            self.opened = Some(Target::Live);
+            self.run_face = RunFace::Run;
+            self.drawn = None;
+        }
     }
 
     /// The candidate the conversation lends after a batch of beats. A new
@@ -391,13 +487,40 @@ impl Desk {
             }
             Action::Face(next) => self.turn(next),
             Action::Again if self.opened_workflow().is_some() => Route::Inspect,
+            // A run in view is read again: its files and journal as they are now.
+            Action::Again if matches!(self.shown(), Some(Opened::Live(_))) => {
+                if let Some(leg) = self.live.as_mut() {
+                    leg.forget();
+                }
+                self.drawn = None;
+                if self.wanted().is_some() {
+                    Route::Inspect
+                } else {
+                    Route::Repaint
+                }
+            }
             _ => Route::Nothing,
         }
     }
 
-    /// Show the next face of the look or the candidate in view (or the
-    /// previous one), from its top; nothing turns while neither is in view.
+    /// Show the next face of the look, the candidate or the run in view (or
+    /// the previous one), from its top; nothing turns while none is in view.
+    /// A run's face that needs acquiring asks for it (outside the frame).
     fn turn(&mut self, next: bool) -> Route {
+        if let Some(Opened::Live(_)) = self.shown() {
+            let at = RunFace::ALL
+                .iter()
+                .position(|f| *f == self.run_face)
+                .unwrap_or(0);
+            let step = if next { 1 } else { RunFace::ALL.len() - 1 };
+            self.run_face = RunFace::ALL[(at + step) % RunFace::ALL.len()];
+            self.focus.scroll = 0;
+            return if self.wanted().is_some() {
+                Route::Inspect
+            } else {
+                Route::Repaint
+            };
+        }
         let candidate = matches!(self.shown(), Some(Opened::Candidate(_)));
         if !candidate && (self.look.is_none() || self.opened_workflow().is_none()) {
             return Route::Nothing;
@@ -486,6 +609,7 @@ mod tests {
     use crate::model::demo_project;
     use crate::workspace::aside::Tab;
     use crate::workspace::object::Object;
+    use nika_display::run_story::RunFrame;
 
     fn key(code: KeyCode) -> KeyEvent {
         KeyEvent::new(code, KeyModifiers::NONE)
@@ -761,9 +885,9 @@ mod tests {
         desk.opened = Some(Target::Workflow("enrich.nika".to_owned()));
         desk.took("enrich.nika", Some(refused("enrich.nika", "abcdef")));
         desk.prepare((160, 48), true, false);
-        let wide = desk.drawn.as_ref().map(|d| d.key.3);
+        let wide = desk.drawn.as_ref().map(|d| d.key.4);
         desk.prepare((60, 18), true, false);
-        let narrow = desk.drawn.as_ref().map(|d| d.key.3);
+        let narrow = desk.drawn.as_ref().map(|d| d.key.4);
         assert_eq!((wide, narrow), (Some(82), Some(60)));
         let Object::Workflow { title, body } = desk.screen(false).object else {
             panic!("the look is in view");
@@ -981,6 +1105,120 @@ mod tests {
         );
         desk.proposed(Some(candidate("B", "compiled-workflow.nika", false)));
         assert_eq!(desk.opened, Some(Target::Candidate), "a new identity shows");
+    }
+
+    /// A conversation that counts what the desk asks it to acquire.
+    #[derive(Default)]
+    struct Lender {
+        fetched: usize,
+        proved: usize,
+    }
+
+    impl Conversation for Lender {
+        fn open(&mut self) -> Vec<crate::model::Beat> {
+            Vec::new()
+        }
+        fn submit(&mut self, _line: &str) -> crate::model::Turn {
+            crate::model::Turn {
+                beats: Vec::new(),
+                handoff: None,
+            }
+        }
+        fn perform(&mut self, _handoff: &crate::model::Handoff) -> Vec<crate::model::Beat> {
+            Vec::new()
+        }
+        fn fetch(&mut self, _execution: &ExecutionId, path: &str) -> Option<Fetched> {
+            self.fetched += 1;
+            Some(Fetched::refused(path, "lent"))
+        }
+        fn prove(&mut self, _execution: &ExecutionId) -> Option<Proven> {
+            self.proved += 1;
+            Some(Proven::refused("", "lent"))
+        }
+    }
+
+    /// A run's face turns in the object region; what it needs is acquired
+    /// once, by the conversation, never while preparing the frame; `r` reads
+    /// it again.
+    #[test]
+    fn a_run_face_is_acquired_outside_the_frame_and_read_again_on_demand() {
+        let exec = r#""execution":{"uuid":"01a0ef11-0212-70de-a8b3-99de9427fccc"}"#;
+        let frame = |n: u32, kind: &str, fields: &str| {
+            let line = format!(
+                r#"{{"correlation":null,{exec},"fields":[{fields}],"id":{{"uuid":"01a0ef11-03a7-74fb-bba0-{n:012x}"}},"kind":"{kind}","run":null,"timestamp":{n}}}"#
+            );
+            Observed::Frame(RunFrame::decode(&line).expect("frame"))
+        };
+        let settled = format!(
+            r#"{{"kind":"run_settled","status":"succeeded","cause":"normal",{exec},"spend":{{"priced_calls":0,"qualifier":"unmetered","unpriced_calls":0}},"evidence":"unsealed"}}"#
+        );
+        let starting =
+            r#"{"key":"task","value":"save"},{"key":"note","value":"invoke · nika:write"}"#;
+        let ending =
+            r#"{"key":"task","value":"save"},{"key":"output","value":"\"./out/copy.md\""}"#;
+        let mut desk = demo();
+        desk.observe(
+            [
+                Observed::Asked {
+                    workflow: "copy.nika".to_owned(),
+                    resume: false,
+                    typed: true,
+                    look: None,
+                },
+                frame(1, "workflow_started", ""),
+                frame(2, "task_started", starting),
+                frame(3, "task_completed", ending),
+                Observed::Frame(RunFrame::decode(&settled).expect("settled")),
+            ]
+            .into_iter(),
+        );
+        desk.focus.region = Region::Object;
+        let mut lender = Lender::default();
+        assert_eq!(
+            desk.route(key(KeyCode::Right), WIDE),
+            Route::Repaint,
+            "outputs: held"
+        );
+        assert_eq!(
+            desk.route(key(KeyCode::Right), WIDE),
+            Route::Inspect,
+            "files: to read"
+        );
+        desk.prepare(WIDE, false, false);
+        assert_eq!(
+            (lender.fetched, lender.proved),
+            (0, 0),
+            "drawing reads nothing"
+        );
+        assert!(acquire(&mut desk, &mut lender));
+        assert!(!acquire(&mut desk, &mut lender), "read once");
+        assert_eq!(desk.route(key(KeyCode::Char('r')), WIDE), Route::Inspect);
+        // A reading asked before `r` arrives late: dropped, asked again.
+        let (execution, wants, stale) = desk.wanted().expect("read again");
+        let late = acquire_all(&mut lender, &execution, wants);
+        assert_eq!(desk.route(key(KeyCode::Char('r')), WIDE), Route::Inspect);
+        assert!(
+            !desk.acquired(execution, stale, late),
+            "a late reading is dropped"
+        );
+        assert!(acquire(&mut desk, &mut lender));
+        assert_eq!(
+            desk.route(key(KeyCode::Right), WIDE),
+            Route::Inspect,
+            "proof: to verify"
+        );
+        assert!(acquire(&mut desk, &mut lender));
+        assert_eq!((lender.fetched, lender.proved), (3, 1));
+    }
+
+    /// What the shell's worker does, inline: acquire what the face wants,
+    /// then hand it to the desk for the reading it was asked for.
+    fn acquire(desk: &mut Desk, lender: &mut Lender) -> bool {
+        let Some((execution, wants, generation)) = desk.wanted() else {
+            return false;
+        };
+        let got = acquire_all(lender, &execution, wants);
+        desk.acquired(execution, generation, got)
     }
 
     /// A refused look of `path`, read with `witness`.

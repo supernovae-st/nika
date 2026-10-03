@@ -795,3 +795,72 @@ fn a_story_only_tap_tells_its_story_and_no_frame() {
     );
     assert!(joined(&turn.beats).contains("a line of the story"));
 }
+
+/// Both review builders and both taps lent: a fresh run admitted by the
+/// Session goes to the typed review alone (the story-only review and the two
+/// taps panic if called), once, its request marked typed; a line the Session
+/// does not admit as a run reaches no runner at all.
+#[test]
+fn the_typed_review_goes_first_and_only_after_the_session_admits_the_run() {
+    use crate::session::feed::{Gap, Observed, Seen};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let room = Room::new("precedence");
+    let source = "nika: two\npermits: {}\ntasks:\n  first:\n    invoke: { tool: \"nika:log\", args: { message: one } }\n";
+    std::fs::write(room.0.join("two.nika"), source).expect("workflow");
+    let none = UserIntelligencePreference::new(IntelligenceKind::None, None);
+    let reviewed = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&reviewed);
+    let mut live = Live::new(
+        room.0.clone(),
+        IntelligenceCensus::empty(),
+        Some(none),
+        None,
+        Box::new(|_| Box::new(ScriptedReasoner::new(Vec::new()))),
+        Runners {
+            run_once: Box::new(|_, _| panic!("no plain run")),
+            run_resume: Box::new(|_, _, _, _| panic!("no resume")),
+            run_tapped: Some(Box::new(|_, _, _| panic!("the story tap is never first"))),
+        },
+    )
+    .with_run_tapped_observed(Box::new(|_, _, _| panic!("a fresh run is reviewed first")))
+    .with_run_review(Box::new(|_, _, _| panic!("the typed review goes first")))
+    .with_run_review_observed(Box::new(move |_, run, sink| {
+        counted.fetch_add(1, Ordering::SeqCst);
+        assert_eq!(run.workflow, Path::new("two.nika"));
+        sink.said("reviewed".to_owned());
+        nika_cli_host::lane::RunProgress::Complete((0, None, vec!["reviewed".to_owned()]))
+    }));
+    let _ = live.open();
+    let (busy, _said) = std::sync::mpsc::channel();
+    let (tx, rx) = std::sync::mpsc::sync_channel(16);
+    let gap = Arc::new(Gap::default());
+    let refused = live.submit_observed(
+        "run missing.nika",
+        &busy,
+        &Seen::new(tx.clone(), Arc::clone(&gap)),
+    );
+    assert_eq!(
+        reviewed.load(Ordering::SeqCst),
+        0,
+        "{}",
+        joined(&refused.beats)
+    );
+    assert!(rx.try_iter().next().is_none(), "nothing was asked");
+    let turn = live.submit_observed("run two.nika", &busy, &Seen::new(tx, Arc::clone(&gap)));
+    assert_eq!(
+        reviewed.load(Ordering::SeqCst),
+        1,
+        "{}",
+        joined(&turn.beats)
+    );
+    let seen: Vec<Observed> = rx.try_iter().collect();
+    assert!(
+        matches!(seen.first(), Some(Observed::Asked { typed: true, .. })),
+        "{seen:?}"
+    );
+    assert!(
+        joined(&turn.beats).contains("run observed · exit 0"),
+        "{}",
+        joined(&turn.beats)
+    );
+}
