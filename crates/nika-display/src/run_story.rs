@@ -2,8 +2,8 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Pure projection of the existing Run machine stream: the story a busy row
 //! shows and a transcript keeps, and the same frames told typed to whoever
-//! renders the run ([`RunSink`]): the runtime's own [`Event`], or the
-//! settlement envelope that closes the stream ([`Settled`]). A line of the
+//! renders the run ([`RunSink`](crate::run_story::RunSink)): the runtime's own [`Event`](crate::run_story::Event), or the
+//! settlement envelope that closes the stream ([`Settled`](crate::run_story::Settled)). A line of the
 //! stream that should have been a frame and is not is said to the sink as
 //! unread; nothing here fabricates an event from the story's words.
 use std::path::PathBuf;
