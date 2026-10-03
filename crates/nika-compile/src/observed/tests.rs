@@ -465,3 +465,19 @@ fn arbitrary_program_bytes_are_never_renamed() {
         rule.jq()
     );
 }
+
+#[test]
+fn protected_parent_does_not_hide_the_only_observed_source() {
+    let sample = crate::observation::records(&[json!({"id": 1, "status": "open"})]);
+    let world = json!({"observed": [{
+        "path": "./records/input.json", "state": "observed", "kind": "json",
+        "complete": true, "columns": sample.columns, "common_columns": sample.common,
+    }]});
+    let intent = "Lis ./records/input.json. Ne modifie rien dans ./records.";
+    assert_eq!(
+        for_intent(Some(&world), intent),
+        Some(vec!["id".into(), "status".into()])
+    );
+    assert_eq!(for_intent(Some(&world), "Lis ./records"), None);
+    assert_eq!(columns(Some(&world), "./records"), None);
+}

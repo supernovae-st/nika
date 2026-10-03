@@ -249,6 +249,93 @@ fn own_clause(before: &str) -> &str {
     before.get(mark.max(opener)..).unwrap_or_default()
 }
 
+/// Closed absolute file-protection phrases (English and French). These classify only a
+/// path occurrence, never remove the full policy from the request sent to the composer.
+/// Longer or conditional clauses remain unresolved by this projection.
+const PATH_PROTECTIONS: &[&str] = &[
+    "ne modifie rien dans",
+    "ne modifiez rien dans",
+    "ne rien modifier dans",
+    "ne modifie pas",
+    "ne modifiez pas",
+    "ne touche pas à",
+    "ne touche pas au dossier",
+    "sans toucher à",
+    "sans toucher au dossier",
+    "do not modify",
+    "don't modify",
+    "never modify",
+    "without modifying",
+    "do not change anything in",
+    "don't change anything in",
+    "do not write to",
+    "never write to",
+    "ne jamais écrire dans",
+];
+
+/// Whether this exact literal ends an absolute protection clause. A suffix such as
+/// « until I approve » prevents this classification; it must not erase a requested effect.
+/// The caller supplies a sentence and byte spans from the literal lexer, not substring hits.
+pub(crate) fn protected_path_at(sentence: &str, start: usize, end: usize) -> bool {
+    let Some(before) = sentence.get(..start) else {
+        return false;
+    };
+    if !sentence
+        .get(end..)
+        .is_some_and(|after| after.trim().is_empty())
+    {
+        return false;
+    }
+    let lower = normalize(before);
+    let clause = own_clause(&lower);
+    PATH_PROTECTIONS.contains(&clause.trim()) && protection_context_is_closed(&lower, clause)
+}
+
+/// A coordinated protection cannot silently take the object of an earlier unfinished
+/// request, nor erase a condition before its comma. Unknown context stays in the projection.
+fn protection_context_is_closed(before: &str, clause: &str) -> bool {
+    let prefix = before
+        .get(..before.len() - clause.len())
+        .unwrap_or_default();
+    if prefix.trim().is_empty() {
+        return true;
+    }
+    // Keep the whole sentence's condition, not just the fragment after its last comma.
+    let conditional = prefix
+        .split(|c: char| !c.is_alphanumeric() && c != '\'')
+        .any(|word| {
+            matches!(
+                word,
+                "if" | "unless"
+                    | "when"
+                    | "provided"
+                    | "once"
+                    | "until"
+                    | "after"
+                    | "before"
+                    | "si"
+                    | "sauf"
+                    | "lorsque"
+                    | "quand"
+                    | "tant"
+                    | "après"
+                    | "avant"
+                    | "dès"
+            )
+        });
+    if conditional || super::lexicon::head_of_exact(prefix.trim()).is_none() {
+        return false;
+    }
+    // A known governor before the protection must already have its own literal object.
+    let Some((_, _, end)) = super::paths::located(prefix).last().cloned() else {
+        return false;
+    };
+    let tail = prefix.get(end..).unwrap_or_default();
+    !tail
+        .split(|c: char| !c.is_alphanumeric() && c != '\'')
+        .any(|word| !word.is_empty() && super::lexicon::head_of_exact(word).is_some())
+}
+
 /// A word without its elided article or pronoun (« l'écrire » → « écrire »).
 fn bare(word: &str) -> &str {
     word.split_once(['\'', '’']).map_or(word, |(_, rest)| rest)

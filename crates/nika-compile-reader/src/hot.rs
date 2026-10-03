@@ -242,53 +242,52 @@ fn carrier_of(
     })
 }
 
-/// The source-shaped paths of the request, in order, without duplicates.
-fn source_paths(intent: &str) -> Vec<String> {
-    super::paths::literals(intent)
-        .into_iter()
-        .filter_map(|shape| match shape {
-            super::paths::PathShape::File(path)
+/// The requested paths in occurrence order, with a source occurrence taking precedence.
+/// A literal is matched as one token, never as the prefix of another path. A closed,
+/// absolute protection clause names neither material to read nor a destination to write.
+fn requested_paths(intent: &str) -> Vec<(String, bool)> {
+    let mut found: Vec<(String, bool)> = Vec::new();
+    for sentence in lexicon::split_sentences(intent) {
+        for (shape, start, end) in super::paths::located(sentence) {
+            let (super::paths::PathShape::File(path)
             | super::paths::PathShape::Directory(path)
-            | super::paths::PathShape::Glob(path) => Some(path),
-            _ => None,
-        })
-        .filter(|path| source_like(path))
-        .collect()
-}
-
-/// Whether some occurrence of `path` in the request is introduced by no destination connector.
-fn stated_as_a_source(lower: &str, path: &str) -> bool {
-    let needle = path.to_lowercase();
-    let mut from = 0;
-    while let Some(pos) = lower.get(from..).and_then(|rest| rest.find(&needle)) {
-        let at = from + pos;
-        if super::objects::destination_at(lower, at).is_none() {
-            return true;
+            | super::paths::PathShape::Glob(path)) = shape
+            else {
+                continue;
+            };
+            if !source_like(&path) || super::objects::protected_path_at(sentence, start, end) {
+                continue;
+            }
+            // Fold only the prefix: Unicode case changes cannot invalidate a source span.
+            let before = sentence.get(..start).unwrap_or_default().to_lowercase();
+            let source = super::objects::destination_at(&before, before.len()).is_none();
+            if let Some((_, existing)) = found.iter_mut().find(|(seen, _)| seen == &path) {
+                *existing |= source;
+            } else {
+                found.push((path, source));
+            }
         }
-        from = at + needle.len();
     }
-    false
+    found
 }
 
-/// The paths the request states as material to read (at least one occurrence no destination
-/// connector introduces): what a candidate must open.
+/// The paths the request states as material to read: at least one exact, non-protection
+/// occurrence is not introduced by a destination connector. What a candidate must open.
 #[must_use]
 pub fn stated_sources(intent: &str) -> Vec<String> {
-    let lower = intent.to_lowercase();
-    source_paths(intent)
+    requested_paths(intent)
         .into_iter()
-        .filter(|path| stated_as_a_source(&lower, path))
+        .filter_map(|(path, source)| source.then_some(path))
         .collect()
 }
 
-/// The paths the request states only as places to write (every occurrence follows a
-/// destination connector): what a candidate must write.
+/// The paths the request states only as places to write: every non-protection occurrence
+/// follows a destination connector. A protection alone never requests a write.
 #[must_use]
 pub fn stated_destinations(intent: &str) -> Vec<String> {
-    let lower = intent.to_lowercase();
-    source_paths(intent)
+    requested_paths(intent)
         .into_iter()
-        .filter(|path| !stated_as_a_source(&lower, path))
+        .filter_map(|(path, source)| (!source).then_some(path))
         .collect()
 }
 
@@ -1284,6 +1283,132 @@ mod tests {
                     .any(|u| u == lexicon::GATE_WITHOUT_EFFECT),
                 "{intent}: {:?}",
                 reading.plan.unknowns
+            );
+        }
+    }
+    #[test]
+    fn a_path_prefix_does_not_inherit_the_childs_read_role() {
+        let intent = "Read ./records/input.json and write the result to ./records";
+        assert_eq!(stated_sources(intent), ["./records/input.json"]);
+        assert_eq!(stated_destinations(intent), ["./records"]);
+    }
+
+    #[test]
+    fn a_protected_parent_is_neither_a_source_nor_a_destination() {
+        for protection in [
+            "ne modifie rien dans ./records",
+            "ne modifiez rien dans ./records",
+            "ne rien modifier dans ./records",
+            "ne modifie pas ./records",
+            "ne touche pas au dossier ./records",
+            "sans toucher au dossier ./records",
+            "do not modify ./records",
+            "don't modify ./records",
+            "never modify ./records",
+            "without modifying ./records",
+            "do not change anything in ./records",
+            "never write to ./records",
+        ] {
+            let intent = format!(
+                "Lis ./records/input.json. Écris le résultat dans ./out/result.json, {protection}."
+            );
+            assert_eq!(
+                stated_sources(&intent),
+                ["./records/input.json"],
+                "{intent}"
+            );
+            assert_eq!(
+                stated_destinations(&intent),
+                ["./out/result.json"],
+                "{intent}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_protection_does_not_erase_an_independent_positive_use() {
+        let intent = "Read ./records/data.json. Do not modify ./records/data.json.";
+        assert_eq!(stated_sources(intent), ["./records/data.json"]);
+        assert!(stated_destinations(intent).is_empty());
+        let intent = "Do not modify ./records/data.json. Read ./records/data.json.";
+        assert_eq!(stated_sources(intent), ["./records/data.json"]);
+        let intent = "Read ./records";
+        assert_eq!(stated_sources(intent), ["./records"]);
+    }
+
+    #[test]
+    fn protection_only_requests_no_file_access() {
+        for intent in [
+            "Ne modifie rien dans ./records.",
+            "Do not modify ./records/private.json.",
+            "Never write to ./records/*.json.",
+        ] {
+            assert!(stated_sources(intent).is_empty(), "{intent}");
+            assert!(stated_destinations(intent).is_empty(), "{intent}");
+        }
+    }
+
+    #[test]
+    fn an_unsettled_or_conditional_clause_is_not_dropped_as_protection() {
+        for intent in [
+            "N'oublie pas de lire ./records/data.json.",
+            "Ne modifie rien dans ./records avant mon accord.",
+            "Do not modify ./records unless I approve.",
+            "Do not rewrite ./records.",
+        ] {
+            assert!(!requested_paths(intent).is_empty(), "{intent}");
+        }
+    }
+
+    #[test]
+    fn paths_in_quoted_prose_do_not_become_authority() {
+        let intent = "Write 'never modify ./records' to ./out/note.txt";
+        assert!(stated_sources(intent).is_empty());
+        assert_eq!(stated_destinations(intent), ["./out/note.txt"]);
+    }
+
+    #[test]
+    fn exact_occurrences_keep_case_and_unicode_prefix_boundaries() {
+        let intent = "İ Read ./Records/input.json. Write to ./Records.";
+        assert_eq!(stated_sources(intent), ["./Records/input.json"]);
+        assert_eq!(stated_destinations(intent), ["./Records"]);
+    }
+
+    #[test]
+    fn a_shared_read_object_is_not_erased_by_a_coordinated_protection() {
+        for intent in [
+            "Read and never modify ./records/data.json.",
+            "Lis et ne modifie pas ./records/data.json.",
+            "Read ./other.json and read and never modify ./records/data.json.",
+            "Lis ./other.json et lis et ne modifie pas ./records/data.json.",
+        ] {
+            assert!(
+                stated_sources(intent)
+                    .iter()
+                    .any(|p| p == "./records/data.json"),
+                "{intent}"
+            );
+        }
+        let intent = "Read ./other.json and never modify ./records/data.json.";
+        assert_eq!(stated_sources(intent), ["./other.json"]);
+        assert!(stated_destinations(intent).is_empty());
+    }
+
+    #[test]
+    fn a_prefix_condition_does_not_become_an_absolute_protection() {
+        for intent in [
+            "If I approve, do not modify ./records.",
+            "Si je confirme, ne modifie rien dans ./records.",
+            "If I approve, read ./other.json and never modify ./records.",
+            "Read ./other.json if I approve, do not modify ./records.",
+            "Lis ./other.json si je confirme, ne modifie rien dans ./records.",
+            "Maybe read ./other.json and never modify ./records.",
+        ] {
+            assert!(
+                requested_paths(intent)
+                    .iter()
+                    .any(|(p, _)| p == "./records"),
+                "{intent}"
             );
         }
     }
