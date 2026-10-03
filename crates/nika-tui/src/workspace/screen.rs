@@ -65,12 +65,15 @@ impl Screen {
 }
 
 /// What the regions hold on a frame of `area`, for [`Focus::handle`]; none
-/// when the terminal is below [`super::geometry::MIN_SIZE`].
+/// when the terminal is below
+/// [`super::geometry::MIN_SIZE`]. The aside is always reachable: where the
+/// width folds it, it is drawn over the object while it holds the keys, so
+/// a workflow can be chosen at every size the workspace fits.
 #[must_use]
 pub fn extent(screen: &Screen, area: Rect) -> Option<Extent> {
     let geometry = Geometry::of(area, screen.pinned.is_some())?;
     Some(Extent {
-        aside_shown: geometry.aside.is_some(),
+        aside_shown: true,
         aside_entries: screen.aside.entries.len(),
         object_lines: object::length(&screen.object),
         // The title row stays; the rest scrolls.
@@ -80,8 +83,8 @@ pub fn extent(screen: &Screen, area: Rect) -> Option<Extent> {
 
 /// Draw the workspace on the whole frame, the aside selection and the object
 /// scroll following `focus`. Returns `false`, drawing nothing, when the
-/// terminal is below [`super::geometry::MIN_SIZE`]: the caller keeps the
-/// inline presentation.
+/// terminal is below [`super::geometry::MIN_SIZE`]: the caller draws the focus
+/// view there.
 pub fn draw(
     frame: &mut Frame<'_>,
     screen: &Screen,
@@ -101,10 +104,10 @@ pub fn draw(
         ascii,
         color,
     );
+    let selected = (focus.region == Region::Aside).then_some(focus.selected);
     if let Some(area) = geometry.aside {
         let [list, edge] =
             Layout::horizontal([Constraint::Min(1), Constraint::Length(1)]).areas(area);
-        let selected = (focus.region == Region::Aside).then_some(focus.selected);
         let rows = aside::lines_selecting(
             &screen.aside,
             list.width,
@@ -115,14 +118,29 @@ pub fn draw(
         );
         frame.render_widget(Paragraph::new(rows), list);
         rule_column(edge, ascii, color, frame.buffer_mut());
+    } else if selected.is_some() {
+        // The width folds the aside: while it holds the keys it stands over
+        // the object, which returns as soon as the keys leave it.
+        let area = geometry.object;
+        let rows = aside::lines_selecting(
+            &screen.aside,
+            area.width,
+            area.height,
+            ascii,
+            color,
+            selected,
+        );
+        frame.render_widget(Paragraph::new(rows), area);
     }
-    object::render_from(
-        &screen.object,
-        geometry.object,
-        frame.buffer_mut(),
-        paint,
-        focus.scroll,
-    );
+    if geometry.aside.is_some() || selected.is_none() {
+        object::render_from(
+            &screen.object,
+            geometry.object,
+            frame.buffer_mut(),
+            paint,
+            focus.scroll,
+        );
+    }
     panel(frame, screen, &geometry, paint, state, composer);
     if let (Some(run), Some(area)) = (&screen.pinned, geometry.pinned) {
         let row = pinned::line(run, area.width, ascii, color);
@@ -202,16 +220,16 @@ mod tests {
         let place = Place::on("local")
             .with_project("studio", "~/Projects/studio")
             .observed(true, false);
-        let aside = Aside {
-            project: "studio".to_owned(),
-            tab: Tab::Nika,
-            entries: vec![
+        let aside = Aside::new(
+            "studio",
+            Tab::Nika,
+            vec![
                 Entry::new(Icon::Conversation, "release checklist").opened(),
                 Entry::new(Icon::Workflow, "release.nika"),
                 Entry::new(Icon::Run, "#043").at(1),
             ],
-            complete: true,
-        };
+            true,
+        );
         let thread = Thread::new("studio", "release checklist").viewing("release.nika");
         let run = Pinned::new(
             "studio",

@@ -1,7 +1,51 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-//! Credential-safe projection of provider failures for authoring consumers.
-//! Local admission retains its typed distinction; remote text never escapes.
+//! Credential-safe provider configuration and failure projections for authoring consumers.
+//! Endpoints omit credentials; local admission retains its typed distinction.
+
+use nika_kernel::http::HttpPostDyn;
+
+/// The configured endpoint's host and optional nondefault port, without user info,
+/// path, query or fragment. Bare local host:port values use the same HTTP spelling
+/// as the local provider door. This is configuration evidence, not a remote identity.
+#[must_use]
+pub fn authoring_host(raw: &str) -> Option<String> {
+    let raw = if raw.contains("://") {
+        raw.to_owned()
+    } else {
+        format!("http://{raw}")
+    };
+    let parsed = url::Url::parse(&raw).ok()?;
+    let host = parsed.host()?.to_string();
+    Some(
+        parsed
+            .port()
+            .map_or(host.clone(), |port| format!("{host}:{port}")),
+    )
+}
+
+/// Describe the exact registry configuration seated by an authoring door, without
+/// credentials or a fabricated price. Callers add observed identities and usage.
+#[must_use]
+pub fn authoring_backend<H: HttpPostDyn + Send + Sync + 'static>(
+    registry: &crate::ProviderRegistry<H>,
+    model: &str,
+) -> serde_json::Value {
+    let provider = model.split('/').next().unwrap_or(model);
+    let effective = registry.effective_base_url(provider);
+    let seed = registry
+        .profiles()
+        .iter()
+        .find(|profile| profile.id == crate::canonical_provider(provider))
+        .map(|profile| profile.base_url);
+    serde_json::json!({
+        "kind": "direct_api", "provider": provider, "requested_model": model,
+        "host": effective.and_then(authoring_host),
+        "base_url_overridden": effective.zip(seed).map(|(actual, seed)| actual != seed),
+        "endpoint_basis": "operator_configuration",
+        "cost_basis": "unpriced; billing_unverified",
+    })
+}
 
 /// Sanitize provider failures at an authoring transport boundary while preserving
 /// a typed local admission refusal. Provider text may carry credentials or bodies;

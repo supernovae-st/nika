@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 #
-# nika-tui · L4 · the Ratatui renderer of the session (ADR-139) · inline-first ·
+# nika-tui · L4 · the Ratatui renderer of the session (ADR-139) · the workspace, inline on request ·
 # one terminal owner · typed events in, lines out · plain mode never touched.
 # Joined the workspace as WIP 2026-09-21 (the nika-tui-core precedent).
 [package]
 name        = "nika-tui"
-description = "L4 interface — the terminal renderer of the Nika session: one owner of the terminal, an inline viewport whose finished lines live in the terminal's own scrollback, a focus mode on request, a composer that treats a paste as data (ADR-139)"
+description = "L4 interface — the terminal renderer of the Nika session: one owner of the terminal, the workspace over the real project and the faces of a workflow it opens, an inline viewport on request whose finished lines live in the terminal's own scrollback, a composer that treats a paste as data (ADR-139)"
 
 version.workspace      = true
 edition.workspace      = true
@@ -31,6 +31,8 @@ nika-session     = { path = "../nika-session", version = "0.122.0", default-feat
 
 nika-cli-host    = { path = "../nika-cli-host", version = "0.122.0", default-features = false } # live one-use child review, no admission authority
 nika-display     = { path = "../nika-display", version = "0.122.0" }   # the theme seam (Role · verb and state glyphs), already under nika-session and nika-cli-host
+nika-fs          = { path = "../nika-fs", version = "0.122.0" }   # OwnedDir · read_capped — the Live host adapter reads one listed workflow below the root, no symlink, bounded (never the renderer)
+nika-tui-view    = { path = "../nika-tui-view", version = "0.122.0" }   # the faces of an opened workflow, from the Session's look (ADR-143 · nika-tui → nika-tui-view, never back)
 
 [dev-dependencies]
 expectrl = { workspace = true }   # PTY proof · the terminal is restored on every exit path (unix)

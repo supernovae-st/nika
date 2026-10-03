@@ -579,6 +579,11 @@ OpenAI-compatible usage requires both prompt and completion counts to parse as u
 
 `authoring::redact_authoring_error` projects provider failures without remote text. Local AdmissionDenied keeps its type and only an engine-authored remedy. The Host compatibility re-export shares this exact projection with CLI, Session and Serve; it adds no call, retry or monetary authority.
 
+`authoring::{authoring_host, authoring_backend}` projects the configured endpoint
+and registry provenance without credentials or an invented price. Host retains
+compatibility re-exports of these pure projections; their ownership changes
+neither the transport nor its request authority.
+
 ## Dispatch journal (B7 · 2026-09-28)
 
 `dispatch_journal::DispatchJournal::observe(dispatch, lost)` runs one dispatch

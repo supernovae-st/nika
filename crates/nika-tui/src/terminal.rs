@@ -162,7 +162,7 @@ fn screen_over<B: Backend>(
 ) -> Result<Terminal<B>, B::Error> {
     let viewport = match presentation {
         Presentation::Inline => Viewport::Inline(INLINE_HEIGHT),
-        Presentation::Focus => Viewport::Fullscreen,
+        Presentation::Focus | Presentation::Workspace => Viewport::Fullscreen,
     };
     let mut screen = Terminal::with_options(backend, TerminalOptions { viewport })?;
     if presentation == Presentation::Inline {
@@ -199,7 +199,7 @@ fn enter_modes(presentation: Presentation) -> io::Result<()> {
         )?;
         KITTY.store(true, Ordering::SeqCst);
     }
-    if presentation == Presentation::Focus {
+    if presentation != Presentation::Inline {
         crossterm::execute!(out, EnterAlternateScreen)?;
         ALT.store(true, Ordering::SeqCst);
     }

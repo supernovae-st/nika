@@ -302,12 +302,13 @@ fn a_pasted_yes_is_data_and_the_focus_switch_keeps_the_draft() {
     // Bracketed paste: the terminal wraps the text; the shell must insert
     // it, never act on the `yes` inside.
     session.send("\x1b[200~yes\n/quit\x1b[201~").expect("paste");
-    session.send("\x14").expect("Ctrl+T · focus view");
+    // Ctrl+T from inline opens the workspace when the terminal holds it.
+    session.send("\x14").expect("Ctrl+T · the workspace");
     expect_or_dump(
         &mut session,
         &tee,
-        "focus · Esc returns inline",
-        "the focus status line",
+        "workspace · F6 moves the keys",
+        "the workspace status line",
     );
     session.send("\x1b").expect("Esc · back inline");
     answer_cursor_report(&mut session);
@@ -324,7 +325,7 @@ fn a_pasted_yes_is_data_and_the_focus_switch_keeps_the_draft() {
         !text.contains("nika-tui-proto: left cleanly"),
         "a pasted yes never closed anything"
     );
-    assert!(text.contains(ALT_OFF), "the focus view was left:\n{text:?}");
+    assert!(text.contains(ALT_OFF), "the workspace was left:\n{text:?}");
 }
 
 #[test]

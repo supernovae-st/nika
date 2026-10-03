@@ -80,6 +80,7 @@ nika-tmpl
 nika-trace
 nika-tui
 nika-tui-core
+nika-tui-view
 nika-types
 nika-verb-agent
 nika-verb-exec

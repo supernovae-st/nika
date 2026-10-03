@@ -1649,5 +1649,21 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-143",
+      "title": "nika-tui size-cap member split: the viewers of the object in view descend to nika-tui-view",
+      "status": "accepted",
+      "date": "2026-09-30",
+      "filename": "adr-143-nika-tui-view-member-split.md",
+      "tags": ["architecture","crates","split","size-cap","tui"],
+      "affects_crates": ["nika-tui","nika-tui-view"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-137","ADR-138","ADR-139","ADR-140","ADR-141"],
+      "requires": [],
+      "enables": []
+    }
   ]
 }

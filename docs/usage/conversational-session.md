@@ -26,10 +26,15 @@ carries beyond the latest release is described one file per change in
   you want to work in. That folder is the Session's project root. Nika works
   only under it: it lists the workflows there, reads the files your request
   names, and proposes new files inside it.
-- On an interactive terminal, `nika` opens the terminal view inline, at the
-  bottom of the terminal: finished blocks stay in its own scrollback.
-  `Ctrl+T` switches it to full screen and back (`Esc` also returns), and
-  `Alt+Enter` breaks a line. `nika --plain` (or `NIKA_TUI=0`) opens the same
+- On an interactive terminal, `nika` opens the full-screen workspace with the
+  current project, workflow inspection and conversation. At narrow sizes the
+  conversation stays in focus. `F6` moves between regions, `Esc` returns to the
+  composer, and `Alt+Enter` breaks a line. Opening a workflow from the project
+  list shows Source, Plan, Graph and Check for the same observed bytes; it does
+  not attach the workflow to your message or run it. The check covers the parent
+  file only and keeps imported dependencies and run readiness unknown.
+  `NIKA_TUI=inline nika` selects the inline view with finished blocks in the
+  terminal's scrollback; `Ctrl+T` switches presentation. `nika --plain` (or `NIKA_TUI=0`) opens the same
   Session as plain lines, for screen readers, recorders and scripts. When the
   terminal cannot host the terminal view, the plain view opens instead. When
   its input or output is not a terminal,
@@ -307,6 +312,12 @@ your answer is kept. The next `nika` in the same folder offers `/restore`,
 which shows the original request and proposes the kept draft again, checked
 against the project as it is now. It calls no AI and writes nothing until you
 type `yes`.
+
+A kept authoring question takes priority when `/restore` finds one. It replays
+its recorded plan against the recorded observation, without a model call or a
+fresh observation; a changed edit base is held for resolution. Restoring a draft
+instead proposes it again against the current project, as described above.
+Neither path restores consent, Run authority or a spending allowance.
 
 Reopening restores the conversation's goal, decisions, open questions and
 recent turns. Earlier approvals and approval answers do not carry over, and

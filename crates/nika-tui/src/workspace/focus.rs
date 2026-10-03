@@ -5,12 +5,16 @@
 //! there. The conversation's composer has the keys by default, so typing never
 //! needs a first click. `F6` moves to the next region and `Shift+F6` back (the
 //! aside is skipped when the width folds it); `Esc` returns to the composer.
-//! In the aside, the arrows move the selection and `Enter` opens the entry:
-//! the object in view changes, the conversation does not, and nothing is
-//! attached to the next message. In the object, the arrows and the page keys
-//! scroll it. `Tab` stays the composer's completion key.
+//! In the aside, `Up`/`Down`/`Home`/`End` move the selection, `Left`/`Right`
+//! choose the projection (Nika · Files) and `Enter` opens the entry: the
+//! object in view changes, the conversation does not, and nothing is attached
+//! to the next message. In the object, `Up`/`Down` and the page keys scroll
+//! it, `Left`/`Right` change its face and `r` asks its owner to read it again.
+//! `Tab` stays the composer's completion key.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+
+use super::aside::Tab;
 
 /// A region that can hold the keyboard.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -37,6 +41,10 @@ pub enum Action {
     /// Open the aside entry at this index as the object in view. It opens
     /// only; attaching it to the next message is a separate act.
     Open(usize),
+    /// Show the object's next face (`true`) or its previous one.
+    Face(bool),
+    /// Look at the object again: its owner reads it anew.
+    Again,
 }
 
 /// What the regions hold at the moment of the key, as the screen shows them.
@@ -62,17 +70,21 @@ pub struct Focus {
     pub selected: usize,
     /// The first object line shown.
     pub scroll: usize,
+    /// The aside's projection.
+    pub tab: Tab,
 }
 
 impl Focus {
-    /// The composer has the keys; nothing selected or scrolled. (No `Default`:
-    /// the start is named, like every other state of the screen.)
+    /// The composer has the keys; the Nika projection, nothing selected or
+    /// scrolled. (No `Default`: the start is named, like every other state of
+    /// the screen.)
     #[must_use]
     pub const fn composing() -> Self {
         Self {
             region: Region::Conversation,
             selected: 0,
             scroll: 0,
+            tab: Tab::Nika,
         }
     }
 
@@ -107,6 +119,20 @@ impl Focus {
     }
 
     fn aside_key(&mut self, code: KeyCode, entries: usize) -> Action {
+        let tab = match code {
+            KeyCode::Left => Some(Tab::Nika),
+            KeyCode::Right => Some(Tab::Files),
+            _ => None,
+        };
+        if let Some(tab) = tab {
+            if tab == self.tab {
+                return Action::Ignored;
+            }
+            // Another projection lists other entries: the selection starts over.
+            self.tab = tab;
+            self.selected = 0;
+            return Action::Moved;
+        }
         let last = entries.saturating_sub(1);
         let before = self.selected.min(last);
         let after = match code {
@@ -132,6 +158,9 @@ impl Focus {
             .saturating_sub(usize::from(extent.object_rows));
         let before = self.scroll.min(last);
         let after = match code {
+            KeyCode::Right => return Action::Face(true),
+            KeyCode::Left => return Action::Face(false),
+            KeyCode::Char('r') => return Action::Again,
             KeyCode::Up => before.saturating_sub(1),
             KeyCode::Down => (before + 1).min(last),
             KeyCode::PageUp => before.saturating_sub(page),
@@ -225,6 +254,23 @@ mod tests {
         let mut none = Focus::composing();
         none.handle(key(KeyCode::F(6)), empty);
         assert_eq!(none.handle(key(KeyCode::Enter), empty), Action::Ignored);
+    }
+
+    /// Left and Right choose the projection in the aside only; another
+    /// projection starts its selection over.
+    #[test]
+    fn the_aside_arrows_choose_the_projection() {
+        let mut focus = Focus::composing();
+        assert_eq!(focus.handle(key(KeyCode::Right), WIDE), Action::Compose);
+        assert_eq!(focus.tab, Tab::Nika);
+        focus.handle(key(KeyCode::F(6)), WIDE);
+        focus.handle(key(KeyCode::Down), WIDE);
+        assert_eq!(focus.handle(key(KeyCode::Left), WIDE), Action::Ignored);
+        assert_eq!(focus.handle(key(KeyCode::Right), WIDE), Action::Moved);
+        assert_eq!((focus.tab, focus.selected), (Tab::Files, 0));
+        assert_eq!(focus.handle(key(KeyCode::Right), WIDE), Action::Ignored);
+        assert_eq!(focus.handle(key(KeyCode::Left), WIDE), Action::Moved);
+        assert_eq!(focus.tab, Tab::Nika);
     }
 
     #[test]

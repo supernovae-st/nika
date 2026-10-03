@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The object in view: the centre of the workspace. A viewer (task
-//! T-nika-tui-viewers) will paint a workflow graph, a source, a diff, a check,
-//! a result or a proof here; until then the region names the object by its
-//! kind's icon and its name and shows the lines it is given, cut at the edge,
-//! never wrapped into a shape the object does not have. With nothing open it
-//! welcomes: the butterfly, the largest rendition that fits whole above the
-//! Session's first words, revealed once and still afterwards.
+//! The object in view: the centre of the workspace. An opened workflow shows
+//! one face of the look its Session took (its source, its plan, its graph or
+//! its check), as the viewers rendered it before the frame
+//! ([`super::inspect::Inspected::face_lines`]). Any
+//! other object is named by its kind's icon and its name with the lines it is
+//! given, cut at the edge, never wrapped into a shape the object does not
+//! have. With nothing open it welcomes: the butterfly, the largest rendition
+//! that fits whole above the Session's first words.
 
 use std::time::Duration;
 
@@ -40,6 +41,14 @@ pub enum Object {
         name: String,
         /// The lines of its content, top first.
         lines: Vec<String>,
+    },
+    /// A workflow opened from the listing: one face of the look its Session
+    /// took, rendered by the viewers before the frame (never while drawing).
+    Workflow {
+        /// The title row: the icon, the name, the faces, the one in view marked.
+        title: Line<'static>,
+        /// The face's rows: the viewer's facts and notes, the bytes shown, the body.
+        body: Vec<Line<'static>>,
     },
 }
 
@@ -92,15 +101,24 @@ pub fn lines_from(
             let from = scroll.min(lines.len());
             shown(*icon, name, &lines[from..], width, height, paint)
         }
+        Object::Workflow { title, body } => {
+            let from = scroll.min(body.len());
+            let mut out = vec![title.clone()];
+            out.extend(body[from..].iter().cloned());
+            out.truncate(usize::from(height));
+            out
+        }
     }
 }
 
-/// The lines an open object holds (none for the welcome): what a scroll runs over.
+/// The lines an open object holds under its title row (none for the
+/// welcome): what a scroll runs over.
 #[must_use]
 pub fn length(object: &Object) -> usize {
     match object {
         Object::Welcome { .. } => 0,
         Object::Shown { lines, .. } => lines.len(),
+        Object::Workflow { body, .. } => body.len(),
     }
 }
 
@@ -163,7 +181,7 @@ pub fn render_from(object: &Object, area: Rect, buf: &mut Buffer, paint: Paint, 
     let text = lines_from(object, area.width, area.height, paint, scroll);
     let alignment = match object {
         Object::Welcome { .. } => Alignment::Center,
-        Object::Shown { .. } => Alignment::Left,
+        Object::Shown { .. } | Object::Workflow { .. } => Alignment::Left,
     };
     Paragraph::new(text).alignment(alignment).render(area, buf);
 }

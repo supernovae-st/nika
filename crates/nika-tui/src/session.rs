@@ -36,6 +36,10 @@ use nika_session::intelligence::{IntelligenceCensus, UserIntelligencePreference}
 use nika_session::runtime::{ReasonerFactory, SessionRuntime, TurnOutcome};
 
 use crate::model::{Beat, Committed, Conversation, Handoff, Kind, Turn, Waiting};
+use crate::workspace::header::Manifest;
+use crate::workspace::inspect::Inspected;
+use crate::workspace::project::{ProjectView, WorkflowView};
+use nika_session::ProjectSnapshot;
 
 /// The exit code and the trace a run left.
 pub type RunOutcome = (u8, Option<PathBuf>);
@@ -702,7 +706,222 @@ impl Conversation for Live {
         }
         beats
     }
+
+    fn project(&self) -> Option<ProjectView> {
+        let runtime = self.runtime.as_ref()?;
+        Some(project_view(runtime, self.home.as_deref()))
+    }
+
+    /// The look (the crate-private `look::take`): only a workflow the runtime's snapshot
+    /// lists, read once below its root. Nothing here joins the look to the
+    /// conversation, its facts or a consent.
+    fn inspect(&mut self, path: &str) -> Option<Inspected> {
+        look::take(&self.runtime.as_ref()?.snapshot, path)
+    }
 }
+
+/// The project as this session observed it when it opened, lent read-only to
+/// the workspace: the runtime's own snapshot in words, never a new walk of
+/// the disk. The session runs in this process, so its host is `local`. No
+/// run is pinned: the Session lends no typed identity of a run in flight or
+/// paused (the gate's id names its trace and task, not its workflow).
+fn project_view(runtime: &SessionRuntime, home: Option<&Path>) -> ProjectView {
+    let snapshot = &runtime.snapshot;
+    let root = &snapshot.root;
+    let name = root
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| root.display().to_string());
+    let workflows = snapshot
+        .workflows
+        .iter()
+        .map(|w| WorkflowView::new(&w.path, w.name.as_deref(), w.clean, w.findings, w.tasks))
+        .collect();
+    let complete = !(snapshot.truncated || snapshot.walk_truncated);
+    let view = ProjectView::new("local", name, shown_path(root, home))
+        .with_git(snapshot.git_root.is_some())
+        .governed(governing(snapshot, home))
+        .listing(workflows, complete);
+    match seat(runtime) {
+        Some(seat) => view.seated(seat),
+        None => view,
+    }
+}
+
+/// A path as the human reads it: home-relative under the home.
+fn shown_path(path: &Path, home: Option<&Path>) -> String {
+    match home.and_then(|home| path.strip_prefix(home).ok()) {
+        Some(rest) if rest.as_os_str().is_empty() => "~".to_owned(),
+        Some(rest) => format!("~/{}", rest.display()),
+        None => path.display().to_string(),
+    }
+}
+
+/// What governs the root: the project file the Session's discovery found (in
+/// the root, or in an ancestor named by its path from the root), none, or
+/// one it refused.
+fn governing(snapshot: &ProjectSnapshot, home: Option<&Path>) -> Manifest {
+    if snapshot.project_error.is_some() {
+        return Manifest::Refused;
+    }
+    let Some(file) = snapshot.project_file.as_deref() else {
+        return Manifest::Absent;
+    };
+    let up = file
+        .parent()
+        .and_then(|dir| snapshot.root.ancestors().position(|a| a == dir));
+    match (up, file.file_name()) {
+        (Some(0), _) => Manifest::Here,
+        (Some(up), Some(name)) => {
+            Manifest::Above(format!("{}{}", "../".repeat(up), name.to_string_lossy()))
+        }
+        _ => Manifest::Above(shown_path(file, home)),
+    }
+}
+
+/// The intelligence the session reasons with, in words (the model when one
+/// is named, and a choice this machine cannot serve now says so); `None`
+/// while none was chosen.
+fn seat(runtime: &SessionRuntime) -> Option<String> {
+    use nika_session::intelligence::{DataLocus, IntelligenceKind};
+    if !runtime.intelligence_chosen() {
+        return None;
+    }
+    let chosen = &runtime.intelligence;
+    let base = match (&chosen.kind, &chosen.locus) {
+        (IntelligenceKind::None, _) => return Some("none, the engine facts answer".to_owned()),
+        (IntelligenceKind::Harness { seat }, _) => format!("{seat}, through your account"),
+        (IntelligenceKind::Api { provider }, DataLocus::Gateway { host, .. }) => {
+            format!("{provider} API through {host}, metered")
+        }
+        (IntelligenceKind::Api { provider }, _) => format!("{provider} API, metered"),
+        (IntelligenceKind::Local { provider }, _) => format!("{provider}, on this machine"),
+        _ => "an intelligence this view cannot name".to_owned(),
+    };
+    let model = chosen
+        .model
+        .as_deref()
+        .map_or_else(String::new, |model| format!(", model {model}"));
+    let ready = if chosen.ready { "" } else { ", not ready here" };
+    Some(format!("{base}{model}{ready}"))
+}
+
+mod look;
 
 #[cfg(all(test, unix))]
 mod tests;
+
+/// The project view a live session lends: its runtime's snapshot, in words.
+#[cfg(all(test, unix))]
+#[allow(clippy::expect_used, clippy::panic)]
+mod project_view_tests {
+    use super::*;
+    use nika_session::ScriptedReasoner;
+
+    /// A temporary directory, removed when the test ends.
+    struct Room(PathBuf);
+
+    impl Room {
+        fn new(tag: &str) -> Self {
+            let nanos = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_nanos());
+            let path = std::env::temp_dir()
+                .join(format!("nika-tui-ws-{tag}-{}-{nanos}", std::process::id()));
+            std::fs::create_dir_all(&path).expect("room");
+            Self(path)
+        }
+    }
+
+    impl Drop for Room {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    /// A live conversation over `root` with no intelligence chosen: nothing
+    /// reasons and nothing runs.
+    fn live(root: &Path, home: Option<PathBuf>) -> Live {
+        Live::new(
+            root.to_path_buf(),
+            IntelligenceCensus::empty(),
+            None,
+            home,
+            Box::new(|_| Box::new(ScriptedReasoner::new(Vec::new()))),
+            Runners {
+                run_once: Box::new(|_, _| panic!("nothing runs here")),
+                run_resume: Box::new(|_, _, _, _| panic!("nothing resumes here")),
+                run_tapped: None,
+            },
+        )
+    }
+
+    #[test]
+    fn the_live_view_projects_the_snapshot_the_runtime_holds() {
+        let room = Room::new("project");
+        std::fs::create_dir_all(room.0.join(".git")).expect("a git root");
+        std::fs::write(room.0.join("nika.yaml"), "nika: demo\n").expect("manifest");
+        let project = room.0.join("ventures").join("one");
+        std::fs::create_dir_all(&project).expect("a project below it");
+        std::fs::write(
+            project.join("alpha.nika"),
+            "nika: alpha\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
+        )
+        .expect("alpha");
+        std::fs::write(
+            project.join("beta.nika"),
+            "nika: beta\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n",
+        )
+        .expect("beta");
+        let view = live(&project, Some(room.0.clone()))
+            .project()
+            .expect("an open runtime lends its project");
+        assert_eq!(
+            (
+                view.host.as_str(),
+                view.name.as_str(),
+                view.location.as_str()
+            ),
+            ("local", "one", "~/ventures/one")
+        );
+        assert_eq!(view.git, Some(true));
+        assert_eq!(
+            view.manifest,
+            Some(Manifest::Above("../../nika.yaml".to_owned())),
+            "the parent file governs, named where it is"
+        );
+        assert!(view.complete);
+        let judged: Vec<(&str, Option<&str>, bool, usize)> = view
+            .workflows
+            .iter()
+            .map(|w| (w.path.as_str(), w.name.as_deref(), w.clean, w.tasks))
+            .collect();
+        assert_eq!(
+            judged,
+            [
+                ("alpha.nika", Some("alpha"), true, 1),
+                ("beta.nika", Some("beta"), false, 1)
+            ]
+        );
+        assert_eq!(view.seat, None, "no intelligence chosen, none named");
+        assert!(view.pinned.is_none(), "no typed run identity is lent");
+    }
+
+    #[test]
+    fn a_refused_project_file_and_an_absent_one_are_named() {
+        let room = Room::new("refused");
+        std::fs::write(room.0.join("nika.yaml"), "not: [valid\n").expect("a broken file");
+        let view = live(&room.0, None).project().expect("view");
+        assert_eq!(view.manifest, Some(Manifest::Refused));
+        let bare = Room::new("bare");
+        let view = live(&bare.0, None).project().expect("view");
+        assert_eq!(view.manifest, Some(Manifest::Absent));
+        assert_eq!(view.git, Some(false));
+        assert!(
+            view.location.starts_with('/'),
+            "no home given: the path stays whole: {}",
+            view.location
+        );
+    }
+}

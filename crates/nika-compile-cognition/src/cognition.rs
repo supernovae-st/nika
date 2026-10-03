@@ -37,6 +37,7 @@ mod admitted;
 mod instructions;
 use instructions::INSTRUCTIONS;
 mod backstops;
+mod forensic;
 pub(super) mod knowledge;
 mod native;
 mod proposal;
@@ -182,10 +183,7 @@ async fn revise<P: ProviderInferDyn>(
         policy,
         provider,
         request,
-        vec![
-            "edit: the constant door could not settle the change; the seat revises the base"
-                .to_owned(),
-        ],
+        vec![forensic::EDIT_NATIVE.to_owned()],
         out,
         rehearsals,
     ))
@@ -245,6 +243,7 @@ pub async fn compile_with_cognition_rehearsed<P: ProviderInferDyn>(
         );
     }
     nika_compile::surface::observed::record(request, &mut out);
+    forensic::record(request, offered, &mut out);
     Ok(out)
 }
 
@@ -410,7 +409,7 @@ async fn route_create<P: ProviderInferDyn>(
             return Ok(out);
         }
         if policy.native == NativeMode::Sketch {
-            route.push("native: sketch".to_owned());
+            route.push(forensic::NATIVE_SKETCH.to_owned());
             // Boxed: the seat doors are rare and large; they must not grow every compile future.
             return Box::pin(sketch::author(
                 intent,
@@ -423,7 +422,7 @@ async fn route_create<P: ProviderInferDyn>(
             ))
             .await;
         }
-        route.push("native: only".to_owned());
+        route.push(forensic::NATIVE_ONLY.to_owned());
         return Box::pin(native::author(
             intent,
             &reading,
@@ -580,7 +579,7 @@ async fn author_create<P: ProviderInferDyn>(
                 .as_ref()
                 .is_some_and(|pack| !pack.references.is_empty())
         {
-            route.push("native: informed generation".to_owned());
+            route.push(forensic::NATIVE_INFORMED.to_owned());
             return Box::pin(native::author(
                 intent,
                 &reading,
@@ -617,7 +616,7 @@ async fn author_create<P: ProviderInferDyn>(
         }
         if policy.native == NativeMode::Escalate && native::escalates(&cold) {
             let mut route = route;
-            route.push("native: escalated".to_owned());
+            route.push(forensic::NATIVE_ESCALATED.to_owned());
             return Box::pin(native::author(
                 intent,
                 &reading,

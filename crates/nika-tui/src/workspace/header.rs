@@ -4,9 +4,10 @@
 //! The header answers « where am I »: the active project (a selector, marked by
 //! its chevron, never a hidden button), its location and the host, then the
 //! facts about that location the Session observed. Git and a `nika.yaml` are
-//! both optional: a known absence is said, an unobserved fact is not invented.
-//! When the row is too narrow the location gives way from its start, never the
-//! project name.
+//! both optional: a known absence is said, a `nika.yaml` that governs from an
+//! ancestor is named by its real path, one the Session refused says so, and an
+//! unobserved fact is not invented. When the row is too narrow the location
+//! gives way from its start, never the project name.
 
 use nika_display::theme::Role;
 use ratatui::buffer::Buffer;
@@ -34,8 +35,37 @@ pub struct Place {
     pub location: Option<String>,
     /// Whether the location is inside a Git work tree, when observed.
     pub git: Option<bool>,
-    /// Whether a `nika.yaml` governs the project, when observed.
-    pub manifest: Option<bool>,
+    /// What `nika.yaml` governs the project, when observed.
+    pub manifest: Option<Manifest>,
+}
+
+/// What governs a location, as the Session's discovery found it: the first
+/// `nika.yaml` up from the location, none, or one it refused to read.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Manifest {
+    /// A `nika.yaml` in the location itself.
+    Here,
+    /// A `nika.yaml` in an ancestor, by its path from the location
+    /// (`../../nika.yaml`): a parent's file governs, and the header says whose.
+    Above(String),
+    /// No `nika.yaml` governs the location.
+    Absent,
+    /// A `nika.yaml` governs, and the Session refused it (unreadable or
+    /// malformed): nothing it declares applies until it is corrected.
+    Refused,
+}
+
+impl Manifest {
+    /// The fact in words, the same in both glyph columns.
+    fn words(&self) -> String {
+        match self {
+            Self::Here => "nika.yaml".to_owned(),
+            Self::Above(path) => path.clone(),
+            Self::Absent => "no nika.yaml".to_owned(),
+            Self::Refused => "nika.yaml refused".to_owned(),
+        }
+    }
 }
 
 impl Place {
@@ -59,21 +89,34 @@ impl Place {
         self
     }
 
-    /// This place with the observed Git and manifest facts.
+    /// This place with the observed Git fact and a `nika.yaml` present in the
+    /// location (`true`) or absent everywhere up from it (`false`).
     #[must_use]
     pub fn observed(mut self, git: bool, manifest: bool) -> Self {
         self.git = Some(git);
+        self.manifest = Some(if manifest {
+            Manifest::Here
+        } else {
+            Manifest::Absent
+        });
+        self
+    }
+
+    /// This place governed by `manifest`, as the Session found it.
+    #[must_use]
+    pub fn governed(mut self, manifest: Manifest) -> Self {
         self.manifest = Some(manifest);
         self
     }
 
     /// The observed facts about the location, in words; unobserved ones are absent.
-    fn facts(&self) -> Vec<&'static str> {
-        let git = self.git.map(|g| if g { "git" } else { "no git" });
-        let manifest = self
-            .manifest
-            .map(|m| if m { "nika.yaml" } else { "no nika.yaml" });
-        git.into_iter().chain(manifest).collect()
+    fn facts(&self) -> Vec<String> {
+        let git = self
+            .git
+            .map(|g| if g { "git" } else { "no git" }.to_owned());
+        git.into_iter()
+            .chain(self.manifest.as_ref().map(Manifest::words))
+            .collect()
     }
 }
 
@@ -99,7 +142,9 @@ pub fn lines(place: &Place, width: u16, rows: u16, ascii: bool, color: bool) -> 
     let facts = place.facts().join(sep);
     let location = place.location.clone().unwrap_or_default();
     if rows >= 2 {
-        first.push(Span::styled(format!("  {}", place.host), dim));
+        if !place.host.is_empty() {
+            first.push(Span::styled(format!("  {}", place.host), dim));
+        }
         let mut second = format!("  {location}");
         if !facts.is_empty() {
             second.push_str(sep);
@@ -203,6 +248,36 @@ mod tests {
         assert!(
             cut[0].is_ascii() && cut[0].contains("...") && cut[0].len() <= 40,
             "{cut:?}"
+        );
+    }
+
+    /// A parent's `nika.yaml` is named by its path, a refused one says so, and
+    /// a place with no host names none.
+    #[test]
+    fn the_governing_file_is_named_where_it_is_and_a_refusal_is_said() {
+        let above = Place::on("local")
+            .with_project("one", "~/repo/ventures/one")
+            .governed(Manifest::Above("../../nika.yaml".to_owned()));
+        assert_eq!(
+            text(&lines(&above, 80, 1, false, false)),
+            ["▱ one ⌄ · ~/repo/ventures/one · ../../nika.yaml · local"]
+        );
+        let refused = Place::on("local")
+            .with_project("one", "~/one")
+            .observed(false, true)
+            .governed(Manifest::Refused);
+        assert_eq!(
+            text(&lines(&refused, 80, 1, true, false)),
+            ["[P] one v - ~/one - no git - nika.yaml refused - local"]
+        );
+        let hostless = Place::on("");
+        assert_eq!(
+            text(&lines(&hostless, 80, 2, false, false))[0],
+            "▱ no project ⌄"
+        );
+        assert_eq!(
+            text(&lines(&hostless, 80, 1, false, false)),
+            ["▱ no project ⌄"]
         );
     }
 

@@ -16,12 +16,14 @@
 //!   enabled in one place and restored in reverse in one place, on the
 //!   normal exit, on `Ctrl+C`, on a panic and on `SIGTERM`. A broken
 //!   terminal after a crash is P0.
-//! - **Inline first** ([`app`]). The default presentation is
-//!   `Viewport::Inline`: finished blocks (a proposal accepted, a run's
-//!   result) are pushed into the terminal's own scrollback with
-//!   `Terminal::insert_before`, so history stays copyable and tmux, SSH and
-//!   the shell's own scrolling stay ordinary. The focus presentation (the
-//!   alternate screen) is entered on request and left with the draft intact.
+//! - **The workspace, inline on request** ([`app`]). The door chooses the
+//!   presentation: bare `nika` opens the workspace ([`workspace`]) on the
+//!   alternate screen, and `NIKA_TUI=inline` the inline viewport, whose
+//!   finished blocks (a proposal accepted, a run's result) are pushed into
+//!   the terminal's own scrollback with `Terminal::insert_before`, so history
+//!   stays copyable and tmux, SSH and the shell's own scrolling stay
+//!   ordinary. `Ctrl+T` moves between them with the draft intact; the focus
+//!   presentation stands in where the workspace does not fit.
 //! - **A paste is data** ([`composer`]). A pasted `yes`, `run it` or `/quit`
 //!   never acts; `Enter` sends, `Alt+Enter` breaks a line, `Up`/`Down` recall
 //!   history only at the buffer's edges.
@@ -38,10 +40,15 @@
 //! Every colour and glyph comes through [`visual`]: the engine's theme roles
 //! resolved at paint time, the workspace icons with their ASCII twins, and the
 //! butterfly sampled from the repository's own logomark. The full-terminal
-//! workspace screen ([`workspace`]) is being built on fixtures: its geometry,
-//! header, project aside, object in view, conversation panel and pinned row
-//! compose one frame ([`workspace::screen::draw`]), the keyboard moves between
-//! them ([`workspace::focus`]), and nothing opens it yet.
+//! workspace ([`workspace`]) composes its geometry, header, project aside,
+//! object in view, conversation panel and pinned row in one frame
+//! ([`workspace::screen::draw`]), the keyboard moves between them
+//! ([`workspace::focus`], routed by the crate-private desk), and the project
+//! it shows is the one the conversation lends, read-only
+//! ([`model::Conversation::project`]). A workflow opened in the aside shows
+//! the faces of the one look the Live host adapter takes of it
+//! ([`model::Conversation::inspect`], [`workspace::inspect`]), painted by
+//! `nika-tui-view`; the renderer reads no file and grants nothing.
 
 pub mod app;
 pub mod composer;

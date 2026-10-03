@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The loop: one owner, one broker, one state, two presentations, one
+//! The loop: one owner, one broker, one state, three presentations, one
 //! conversation.
 //!
 //! Inline: every block the session finishes goes ABOVE the viewport through
@@ -10,6 +10,25 @@
 //! transcript and the same live area; leaving it returns to the inline
 //! viewport with the draft intact and the blocks finished meanwhile pushed
 //! to the scrollback at that moment (they were never printed there).
+//! Workspace: the alternate screen as the workspace ([`crate::workspace`]):
+//! the project the conversation lends, the object in view, and the same
+//! transcript and live area in the conversation panel. A door may open on it;
+//! `Ctrl+T` opens it from inline when the terminal holds it (the focus view
+//! otherwise); a resize below its minimum draws the focus view until the size
+//! allows it again, the draft and the keyboard focus intact.
+//!
+//! Key precedence, first match wins: `Ctrl+C` (the interruption, in every
+//! presentation and region), `Ctrl+T` (inline to full screen and back),
+//! `Ctrl+L` (everything drawn again), then the full-screen presentation's own
+//! keys (`decide`; the workspace's table is the crate-private
+//! `workspace::desk`'s), then the composer. `Tab` stays the composer's
+//! completion key everywhere.
+//!
+//! Opening a workflow in the workspace asks the conversation for one look
+//! ([`Conversation::inspect`]) on this thread, never while drawing; a look
+//! asked while a turn holds the conversation is taken when the turn ends, and
+//! the opened workflow is looked at again after every turn, so the object
+//! never stays on bytes a turn may have replaced. A look grants nothing.
 //!
 //! A handoff (a run through the plain path) hands the terminal back: the
 //! reader parks, the viewport is cleared, the cursor moves to its first
@@ -29,6 +48,8 @@ use crossterm::cursor::MoveTo;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{Clear, ClearType};
 
+use ratatui::Frame;
+
 use crate::composer::{Composer, ComposerAction};
 use crate::events::{Broker, Signal, UiEvent};
 use crate::model::{
@@ -36,6 +57,10 @@ use crate::model::{
 };
 use crate::render;
 use crate::terminal::{self, Owner, Screen};
+use crate::visual::logomark;
+use crate::workspace::desk::{self, Desk, Route};
+use crate::workspace::object::Paint;
+use crate::workspace::{conversation, project};
 
 /// How the shell runs.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -126,6 +151,52 @@ struct Shell<C: Conversation> {
     commands: Vec<String>,
     /// Words were typed into the composer while the current turn ran.
     typed_live: bool,
+    /// The workspace's own state: the project the conversation last lent,
+    /// the keyboard focus, the object in view and its look. Kept across
+    /// presentations.
+    desk: Desk,
+    /// The composer's placeholder in effect: the workspace names the
+    /// recipient there; the other presentations show none.
+    placeholder: String,
+}
+
+/// What one key press decides, before anything is done about it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum KeyDecision {
+    /// `Ctrl+C`: the state-aware interruption, in every presentation.
+    Interrupt,
+    /// `Ctrl+T`: go to this presentation.
+    Present(Presentation),
+    /// `Ctrl+L`: everything drawn again, in every presentation.
+    Repaint,
+    /// A full-screen presentation read the key.
+    Route(Route),
+    /// The composer's key.
+    Compose,
+}
+
+/// Decide one key by the precedence the module names: `Ctrl+C`, `Ctrl+T`,
+/// `Ctrl+L`, the full-screen presentation's keys, then the composer. The
+/// workspace's focus moves here when the key moves it; nothing else changes.
+fn decide(state: &UiState, desk: &mut Desk, key: KeyEvent) -> KeyDecision {
+    let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+    match key.code {
+        KeyCode::Char('c') if ctrl => return KeyDecision::Interrupt,
+        KeyCode::Char('t') if ctrl => {
+            return KeyDecision::Present(state.presentation.toggled_at(state.size));
+        }
+        KeyCode::Char('l') if ctrl => return KeyDecision::Repaint,
+        _ => {}
+    }
+    let route = match state.presentation {
+        Presentation::Inline => return KeyDecision::Compose,
+        Presentation::Focus => desk::composer_route(key),
+        Presentation::Workspace => desk.route(key, state.size),
+    };
+    match route {
+        Route::Compose => KeyDecision::Compose,
+        other => KeyDecision::Route(other),
+    }
 }
 
 /// A terminal the renderer holds, between [`enter`] and [`run_on`].
@@ -189,6 +260,8 @@ pub fn run_on<C: Conversation + 'static>(
         deferred: VecDeque::new(),
         commands: Vec::new(),
         typed_live: false,
+        desk: Desk::new(),
+        placeholder: String::new(),
     };
     if let Some(title) = shell.options.title.as_deref() {
         // The previous title rides the terminal's stack; the restore pops it.
@@ -206,6 +279,8 @@ enum Step {
     Leave(Exit),
     Switch(Presentation),
     Handoff(Handoff),
+    /// Clear the screen and draw it whole (`Ctrl+L`).
+    Repaint,
 }
 
 /// How a turn ended: with its beats, or abandoned by an interruption
@@ -360,10 +435,41 @@ enum Busy {
     Newer,
     /// Anything else: it waits for the turn.
     Later,
+    /// `Esc` from the workspace's composer region: it leaves once the turn is
+    /// over, and the hint row says so.
+    Leave,
+    /// A workspace region read the key (a selection, a scroll, a face, an
+    /// opened entry, the keyboard focus): only the view changed.
+    Region,
 }
 
 /// The hint row's words when `Enter` is pressed while Nika works.
 const ENTER_WAITS: &str = "Nika is working · Enter sends when it is your turn";
+
+/// The hint row's words when `Esc` would leave the workspace while Nika works.
+const LEAVE_WAITS: &str = "Nika is working · Esc leaves when it is your turn";
+
+/// Sort a key typed while a turn runs: in the workspace the region that holds
+/// the keyboard reads it first (only the view changes; a look it asks for is
+/// taken when the turn ends), leaving waits for the turn, and what reaches
+/// the composer follows [`during_turn`].
+fn busy_key(state: &UiState, desk: &mut Desk, key: KeyEvent) -> Busy {
+    let ctrl_t = key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('t');
+    if state.presentation != Presentation::Workspace || ctrl_t {
+        return during_turn(state.presentation, key);
+    }
+    match desk.route(key, state.size) {
+        Route::Compose => during_turn(state.presentation, key),
+        Route::Older => Busy::Older,
+        Route::Newer => Busy::Newer,
+        Route::Leave => Busy::Leave,
+        Route::Inspect => {
+            desk.wants_look = true;
+            Busy::Region
+        }
+        Route::Repaint | Route::Nothing => Busy::Region,
+    }
+}
 
 /// Sort a key typed while a turn runs in `presentation` (`Ctrl+C` is heard
 /// before this).
@@ -481,6 +587,8 @@ impl<C: Conversation + 'static> Shell<C> {
                     let beats = handed?;
                     self.apply_all(beats)?;
                 }
+                // The next draw writes every cell again.
+                Step::Repaint => self.screen.clear()?,
                 Step::Stay => {}
             }
             // The last blocks are drawn before the door closes: a result the
@@ -494,29 +602,37 @@ impl<C: Conversation + 'static> Shell<C> {
     }
 
     fn on_key(&mut self, key: KeyEvent, broker: &mut Broker) -> io::Result<Step> {
-        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
-        match key.code {
-            KeyCode::Char('c') if ctrl => return self.interrupt(),
-            KeyCode::Char('t') if ctrl => {
-                self.state.interrupt_armed = false;
-                return Ok(Step::Switch(self.state.presentation.toggled()));
-            }
-            KeyCode::Esc if self.state.presentation == Presentation::Focus => {
-                return Ok(Step::Switch(Presentation::Inline));
-            }
-            KeyCode::PageUp if self.state.presentation == Presentation::Focus => {
+        let decision = decide(&self.state, &mut self.desk, key);
+        if decision == KeyDecision::Interrupt {
+            return self.interrupt();
+        }
+        // Any other key keeps the session (« any key stays »).
+        self.state.interrupt_armed = false;
+        if decision == KeyDecision::Repaint {
+            return Ok(Step::Repaint);
+        }
+        self.state.completion = None;
+        match decision {
+            KeyDecision::Present(to) => return Ok(Step::Switch(to)),
+            KeyDecision::Route(Route::Leave) => return Ok(Step::Switch(Presentation::Inline)),
+            KeyDecision::Route(Route::Older) => {
                 let max = self.state.transcript.len().saturating_sub(1);
                 self.state.focus_scroll = (self.state.focus_scroll + 1).min(max);
                 return Ok(Step::Stay);
             }
-            KeyCode::PageDown if self.state.presentation == Presentation::Focus => {
+            KeyDecision::Route(Route::Newer) => {
                 self.state.focus_scroll = self.state.focus_scroll.saturating_sub(1);
                 return Ok(Step::Stay);
             }
-            _ => {}
+            KeyDecision::Route(Route::Inspect) => {
+                self.look();
+                return Ok(Step::Stay);
+            }
+            // A focus, a selection, a scroll, a face or the object moved: the
+            // loop draws after every event.
+            KeyDecision::Route(_) => return Ok(Step::Stay),
+            KeyDecision::Interrupt | KeyDecision::Repaint | KeyDecision::Compose => {}
         }
-        self.state.interrupt_armed = false;
-        self.state.completion = None;
         match self.composer.handle(key) {
             ComposerAction::Submit(line) => match self.submit(&line, broker)? {
                 Submitted::Left(exit) => return Ok(Step::Leave(exit)),
@@ -743,7 +859,34 @@ impl<C: Conversation + 'static> Shell<C> {
         Ok(beats)
     }
 
+    /// Take the look the opened workflow needs from the conversation, on this
+    /// thread and never while drawing; while a turn holds the conversation it
+    /// waits for the turn's end ([`Self::apply_all`]).
+    fn look(&mut self) {
+        let Some(path) = self.desk.opened_workflow().map(str::to_owned) else {
+            self.desk.wants_look = false;
+            return;
+        };
+        match self.conversation.as_mut() {
+            Some(conversation) => {
+                let look = conversation.inspect(&path);
+                self.desk.took(&path, look);
+            }
+            None => self.desk.wants_look = true,
+        }
+    }
+
     fn apply_all(&mut self, beats: Vec<Beat>) -> io::Result<()> {
+        // The project the conversation lends, read once per batch of beats
+        // (the opening, a turn, a performed work, a cancellation), never
+        // while drawing: a projection of what it already holds. The opened
+        // workflow is looked at again: a turn may have replaced its bytes.
+        if let Some(conversation) = self.conversation.as_ref() {
+            self.desk.view = conversation.project();
+        }
+        if self.desk.wants_look || self.desk.opened_workflow().is_some() {
+            self.look();
+        }
         for beat in beats {
             let busy = matches!(beat, Beat::Busy(_));
             self.state.apply(beat);
@@ -798,20 +941,41 @@ impl<C: Conversation + 'static> Shell<C> {
             return Ok(());
         }
         match to {
-            Presentation::Focus => {
+            Presentation::Focus | Presentation::Workspace => {
+                if self.state.presentation == Presentation::Inline {
+                    // The live area leaves with inline: erased, the cursor
+                    // parked on its first row, which the alternate screen
+                    // saves and gives back, so the viewport that returns is
+                    // drawn where this one was, never below its ghost.
+                    terminal::clear_inline(&mut self.screen)?;
+                }
                 terminal::set_alternate_screen(true)?;
-                self.screen = fresh_screen(Presentation::Focus)?;
-                self.state.presentation = Presentation::Focus;
+                self.screen = fresh_screen(to)?;
+                self.state.presentation = to;
                 self.state.focus_scroll = 0;
+                if to == Presentation::Workspace {
+                    // The composer has the keys at every entry.
+                    self.desk.enter();
+                }
             }
             Presentation::Inline => {
                 terminal::set_alternate_screen(false)?;
                 self.screen = fresh_screen(Presentation::Inline)?;
                 self.state.presentation = Presentation::Inline;
+                self.name_recipient(String::new());
                 self.commit_inline()?;
             }
         }
         Ok(())
+    }
+
+    /// Show `placeholder` in the empty composer (the workspace names the
+    /// recipient of the next message there; the other presentations none).
+    fn name_recipient(&mut self, placeholder: String) {
+        if placeholder != self.placeholder {
+            self.composer.set_placeholder(&placeholder);
+            self.placeholder = placeholder;
+        }
     }
 
     /// One turn on a worker thread (the conversation travels with it and
@@ -944,12 +1108,21 @@ impl<C: Conversation + 'static> Shell<C> {
                 return Heard::Redraw;
             }
             UiEvent::Key(key) => key,
+            UiEvent::Resize(cols, rows) if self.state.presentation != Presentation::Inline => {
+                // A full screen reads its size without asking the terminal:
+                // the frames drawn while the turn runs, and the keys the
+                // workspace routes meanwhile, follow the new size at once.
+                // The resize is still replayed once the turn ends.
+                self.state.size = (cols, rows);
+                self.deferred.push_back(event);
+                return Heard::Redraw;
+            }
             other => {
                 self.deferred.push_back(other);
                 return Heard::Nothing;
             }
         };
-        match during_turn(self.state.presentation, key) {
+        match busy_key(&self.state, &mut self.desk, key) {
             Busy::Edit => {
                 self.state.completion = None;
                 self.typed_live = true;
@@ -978,6 +1151,12 @@ impl<C: Conversation + 'static> Shell<C> {
                 self.deferred.push_back(UiEvent::Key(key));
                 Heard::Nothing
             }
+            Busy::Leave => {
+                self.state.completion = Some(LEAVE_WAITS.to_owned());
+                self.deferred.push_back(UiEvent::Key(key));
+                Heard::Redraw
+            }
+            Busy::Region => Heard::Redraw,
         }
     }
 
@@ -992,7 +1171,25 @@ impl<C: Conversation + 'static> Shell<C> {
     }
 
     fn draw(&mut self) -> io::Result<()> {
-        draw_parts(&mut self.screen, &self.state, &self.composer)
+        if self.state.presentation != Presentation::Inline {
+            // The frame takes the terminal's size as the backend reports it
+            // (no query to the terminal): the state, the regions the keys
+            // move over and the face rendered below take the same one.
+            let size = self.screen.size()?;
+            self.state.size = (size.width, size.height);
+        }
+        if self.state.presentation == Presentation::Workspace {
+            let thread = project::thread(self.desk.view.as_ref(), None);
+            self.name_recipient(conversation::placeholder(&thread));
+            // The face in view is rendered here, before the frame, only when
+            // it changed; the frame paints its lines.
+            let (ascii, color) = (self.state.ascii, self.state.color);
+            self.desk.prepare(self.state.size, ascii, color);
+        }
+        let (state, composer, desk) = (&self.state, &self.composer, &self.desk);
+        self.screen
+            .draw(|frame| draw_frame(frame, state, composer, desk))?;
+        Ok(())
     }
 }
 
@@ -1006,17 +1203,26 @@ fn spinner_frame(elapsed: std::time::Duration) -> u8 {
     u8::try_from((elapsed.as_millis() / 100) % render::SPINNER.len() as u128).unwrap_or(0)
 }
 
-/// Draw the live area from the state (both presentations).
-fn draw_parts(screen: &mut Screen, state: &UiState, composer: &Composer) -> io::Result<()> {
+/// Draw one frame of the presentation in effect. Below the workspace's
+/// minimum the focus view stands in, whole, until the size allows the
+/// workspace again. The welcome's butterfly is drawn final at once: no cue
+/// plays in this presentation.
+fn draw_frame(frame: &mut Frame<'_>, state: &UiState, composer: &Composer, desk: &Desk) {
     match state.presentation {
-        Presentation::Inline => {
-            screen.draw(|frame| render::draw_inline(frame, state, composer))?;
-        }
-        Presentation::Focus => {
-            screen.draw(|frame| render::draw_focus(frame, state, composer))?;
+        Presentation::Inline => render::draw_inline(frame, state, composer),
+        Presentation::Focus => render::draw_focus(frame, state, composer),
+        Presentation::Workspace => {
+            let paint = Paint {
+                ascii: state.ascii,
+                color: state.color,
+                elapsed: logomark::REVEAL_ENDS,
+                reduced_motion: true,
+            };
+            if !desk::draw(frame, desk, paint, state, composer) {
+                render::draw_focus(frame, state, composer);
+            }
         }
     }
-    Ok(())
 }
 
 fn fresh_screen(presentation: Presentation) -> io::Result<Screen> {
@@ -1024,7 +1230,7 @@ fn fresh_screen(presentation: Presentation) -> io::Result<Screen> {
     use ratatui::{Terminal, TerminalOptions, Viewport};
     let viewport = match presentation {
         Presentation::Inline => Viewport::Inline(terminal::INLINE_HEIGHT),
-        Presentation::Focus => Viewport::Fullscreen,
+        Presentation::Focus | Presentation::Workspace => Viewport::Fullscreen,
     };
     Terminal::with_options(
         CrosstermBackend::new(io::stdout()),

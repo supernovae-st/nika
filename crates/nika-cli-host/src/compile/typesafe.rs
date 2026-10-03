@@ -175,9 +175,7 @@ impl TypesafeSeat {
                 .ok()
                 .and_then(|u| u.host_str().map(str::to_owned))
                 .ok_or_else(|| unsent("invalid seat base URL".to_owned()))?;
-            let mut config = HttpConfig::new();
-            config.net = NetBoundary::Declared(vec![host]);
-            let http = ReqwestHttp::with_config(config).map_err(|e| unsent(e.to_string()))?;
+            let http = decision_http(host).map_err(unsent)?;
             let mut request = HttpRequest::post(format!("{}/v1/systemone", self.base));
             request.follow_redirects = false;
             request.timeout = Some(self.timeout);
@@ -209,6 +207,25 @@ impl TypesafeSeat {
                 billing_units,
             })
         })
+    }
+}
+
+/// The seat's client: the endpoint host only, no redirect hop and no protocol-NACK replay, so a
+/// question is one physical request. A client that could still replay a request on its own is
+/// refused before any byte leaves, as the authoring transport is.
+fn decision_http(host: String) -> Result<ReqwestHttp, String> {
+    let mut config = HttpConfig::new();
+    config.net = NetBoundary::Declared(vec![host]);
+    config.retry_protocol_nacks = false;
+    single_attempt(ReqwestHttp::with_config(config).map_err(|e| e.to_string())?)
+}
+
+/// `http`, only when it sends each request once.
+fn single_attempt(http: ReqwestHttp) -> Result<ReqwestHttp, String> {
+    if http.supports_single_attempt() {
+        Ok(http)
+    } else {
+        Err("the decision transport would replay a refused request on its own; not sent".to_owned())
     }
 }
 
@@ -271,9 +288,32 @@ impl DecisionSeat for TypesafeSeat {
 }
 
 #[cfg(test)]
+mod wire_tests;
+
+#[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+
+    /// A refused request is never replayed. The seat's own client is a single-attempt client: the
+    /// `nika-http` protocol-NACK test binds that property to ONE request reaching a peer that
+    /// refuses every HTTP/2 stream, against three for a default client. A default client, which
+    /// would replay, is refused before it can send.
+    #[test]
+    fn the_decision_client_never_replays_a_refused_request() {
+        use nika_kernel::http::HttpPostDyn;
+        let seat = decision_http("api.typesafe.ai".to_owned()).unwrap();
+        assert!(
+            HttpPostDyn::supports_single_attempt(&seat),
+            "the decision client could replay a refused request"
+        );
+        let replaying = ReqwestHttp::new().unwrap();
+        assert!(!HttpPostDyn::supports_single_attempt(&replaying));
+        assert!(
+            single_attempt(replaying).is_err(),
+            "a client that replays was accepted for a metered exchange"
+        );
+    }
 
     #[test]
     fn an_endpoint_must_be_https_or_loopback_http_and_the_key_well_formed() {

@@ -372,7 +372,9 @@ pub(super) fn decode(response: &InferResponse, out: &mut CompileOutcome) -> Opti
             return None;
         }
     };
-    if let Ok(plan) = serde_json::from_str(json) {
+    let decoded = serde_json::from_str(json);
+    super::receipt::record_proposed(out, json, decoded.is_ok(), super::receipt::PLAN_KEYS);
+    if let Ok(plan) = decoded {
         Some(plan)
     } else {
         crate::finding(

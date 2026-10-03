@@ -159,6 +159,9 @@ pub(super) struct Talk {
     /// The base and the change words of a revision in words: a stated path the change leaves
     /// behind is waived only as `revision` proves it or the human disposes of it.
     pub(super) revision: Option<(String, String)>,
+    /// The receipts of the references and callables the system message carries, stamped on
+    /// every call of the conversation's journal: what the seat was actually shown.
+    pub(super) presented: Value,
 }
 
 impl Talk {
@@ -186,6 +189,7 @@ impl Talk {
             clarified: fidelity::clarified_sources(&request.answers),
             observed: request.knowledge.clone(),
             revision: revision::of(request),
+            presented: Value::Null,
             repairs: request
                 .authoring_knowledge
                 .as_ref()
@@ -268,6 +272,7 @@ pub(super) async fn author<P: ProviderInferDyn>(
         allowed,
         request,
     );
+    talk.presented = json!(sent);
     let (mut accepted, mut asked): (Option<Answer>, Option<(Answer, ask::Admitted)>) = (None, None);
     let mut round_policy = policy.clone();
     round_policy.max_tokens = policy.initial_max_tokens.unwrap_or(policy.max_tokens);
@@ -463,9 +468,11 @@ async fn exchange<P: ProviderInferDyn>(
     } else {
         "native-repair"
     };
-    let Some(response) =
-        super::call_with_schema(policy, provider, role, talk.messages.clone(), schema(), out).await
-    else {
+    let before = super::receipt::journaled(out);
+    let response =
+        super::call_with_schema(policy, provider, role, talk.messages.clone(), schema(), out).await;
+    super::receipt::stamp_references(out, before, &talk.presented);
+    let Some(response) = response else {
         talk.rounds.push(json!({"round": round, "call": "failed"}));
         return Round::Stop;
     };

@@ -24,7 +24,7 @@ use std::time::{Duration, Instant};
 
 use nika_tui::app::{self, Options};
 use nika_tui::model::{
-    Beat, Committed, Conversation, Handoff, Kind, Presentation, Script, Turn, Waiting,
+    Beat, Committed, Conversation, Handoff, Kind, Presentation, Script, Turn, Waiting, demo_project,
 };
 
 use crate::qa_support::{Term, sized};
@@ -54,6 +54,8 @@ pub(crate) struct Child {
     fresh_at_gate: bool,
     submitted: usize,
     gate_waits: bool,
+    /// The workspace mode lends the demo project ([`demo_project`]).
+    lends_project: bool,
 }
 
 impl Child {
@@ -76,6 +78,10 @@ impl Child {
 impl Conversation for Child {
     fn fresh_input_required(&self) -> bool {
         self.fresh_at_gate && self.gate_waits
+    }
+
+    fn project(&self) -> Option<nika_tui::workspace::project::ProjectView> {
+        self.lends_project.then(demo_project)
     }
 
     fn open(&mut self) -> Vec<Beat> {
@@ -108,7 +114,8 @@ fn say(kind: Kind, text: impl Into<String>) -> Beat {
     Beat::Say(Committed::new(kind, text))
 }
 
-/// The conversation and presentation of one mode, `<kind>[:<n>[:<inline|focus>]]`:
+/// The conversation and presentation of one mode, `<kind>[:<n>[:<inline|focus|workspace>]]`
+/// (the workspace mode lends the demo project):
 /// `slow-free` · `slow-gate` · `slow-gate-fresh` (the gate asks for fresh
 /// input) · `big` (no held turn) open on `n` transcript lines; `flood`
 /// sends `n` busy labels in its first turn.
@@ -118,6 +125,7 @@ pub(crate) fn conversation_for(mode: &str, release: Option<PathBuf>) -> (Child, 
     let count: usize = parts.next().and_then(|n| n.parse().ok()).unwrap_or(0);
     let presentation = match parts.next() {
         Some("focus") => Presentation::Focus,
+        Some("workspace") => Presentation::Workspace,
         _ => Presentation::Inline,
     };
     let mut opening = vec![say(Kind::Banner, BANNER)];
@@ -146,6 +154,7 @@ pub(crate) fn conversation_for(mode: &str, release: Option<PathBuf>) -> (Child, 
         fresh_at_gate: kind == "slow-gate-fresh",
         submitted: 0,
         gate_waits: false,
+        lends_project: presentation == Presentation::Workspace,
     };
     (child, presentation)
 }

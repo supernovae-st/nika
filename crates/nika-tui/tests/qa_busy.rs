@@ -136,6 +136,48 @@ fn a_resize_during_a_busy_turn_redraws_at_the_new_size_in_focus() {
     });
 }
 
+/// A resize while the turn runs reaches the workspace at once: its regions
+/// and the keys they route follow the new size, not the size the turn began
+/// at. With the keys parked in the aside, a terminal shrunk below the
+/// workspace's minimum mid-turn draws the focus view, and the words typed
+/// then reach the draft (the focus view's composer region), never a region
+/// that is no longer on screen; the size coming back restores the workspace.
+#[test]
+fn a_resize_during_a_busy_turn_reaches_the_workspace_regions_at_once() {
+    let release = Release::new("resize-workspace");
+    let mut term = child::spawn("slow-free:0:workspace", Some(release.path()), 160, 48);
+    term.wait_text("release.nika");
+    term.send("work\r");
+    term.wait_text(BUSY);
+    term.send("\x1b[17~");
+    term.settle(SETTLE);
+    term.resize(50, 14);
+    term.wait_until("the focus view below the minimum", |screen| {
+        screen.contains(BUSY) && !screen.contains("release.nika")
+    });
+    term.send("xyz");
+    term.settle(SETTLE);
+    term.resize(160, 48);
+    term.wait_until("the workspace back at 160x48", |screen| {
+        screen.contains(BUSY) && screen.contains("release.nika")
+    });
+    release.open();
+    term.wait_until("the draft typed below the minimum", |screen| {
+        screen.seen(DONE)
+            && screen
+                .lines()
+                .iter()
+                .any(|l| l.contains(FREE) && l.contains("xyz"))
+    });
+    term.settle(SETTLE);
+    assert!(
+        !term.screen.seen(SECOND),
+        "the draft was sent\n{}",
+        term.dump()
+    );
+    leave(&mut term);
+}
+
 /// The transcript scrolls while a turn runs: `PgUp` in focus moves the view
 /// at once, not after the turn.
 #[test]
@@ -167,7 +209,6 @@ fn scrolling_during_a_busy_turn_moves_the_view_at_once() {
 /// A `yes` typed while the turn runs, before any gate exists, must not
 /// answer the gate the turn ends on.
 #[test]
-#[ignore = "defect: a yes typed during a busy turn answers the gate painted after it · app.rs replays deferred keys, Live::fresh_input_required covers only the cost questions · app.rs input handling and Session freshness"]
 fn typeahead_during_a_busy_turn_never_answers_the_gate_it_ends_on() {
     let release = Release::new("gate");
     let mut term = busy("slow-gate", &release);
@@ -184,6 +225,30 @@ fn typeahead_during_a_busy_turn_never_answers_the_gate_it_ends_on() {
     assert!(
         term.screen.row_starting(ANSWER).is_some(),
         "{}",
+        term.dump()
+    );
+    leave(&mut term);
+}
+
+/// The same law in the workspace: a `yes` typed while the turn runs, before
+/// the gate exists, never answers it, whichever region holds the keys.
+#[test]
+fn typeahead_during_a_busy_turn_never_answers_the_gate_in_the_workspace() {
+    let release = Release::new("gate-workspace");
+    let mut term = child::spawn("slow-gate:0:workspace", Some(release.path()), 120, 40);
+    term.wait_text("release.nika");
+    term.send("work\r");
+    term.wait_text(BUSY);
+    term.send("yes\r");
+    term.send("\x1b[17~");
+    term.send("yes\r");
+    term.settle(SETTLE);
+    release.open();
+    term.wait_until("the gate", |screen| screen.seen(GATE_SAYS));
+    term.settle(SETTLE);
+    assert!(
+        !term.screen.seen(AFTER_GATE),
+        "a yes typed before the gate answered it\n{}",
         term.dump()
     );
     leave(&mut term);
