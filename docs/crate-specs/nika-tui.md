@@ -114,10 +114,17 @@ witness does not cover the verifier's separately acquired custody keys, anchor
 sidecar or writer lease. Run status, a declared seal and a verified verdict are
 separate observations; none proves the requested business result correct.
 
+The Run face lets the user select a task, open its detail and return to the
+list. Selection is bound to the execution and task id, and stays visible after
+a height-only resize. Detail distinguishes observed state, failures, measured
+usage and output from missing observations. Graph facts are added only when
+the run names the exact source shown; a declared task without an event stays
+not observed. Inspection adds no file access, execution or consent.
+
 Reopening repaints retained turns as history and exposes the last observed run.
 It restores neither task rows, outputs nor a file inventory; Proof is read again
 on demand. It calls no model, starts no run and restores no consent. Full child
-hierarchy and task drill-down, project/conversation switching, concurrent
+hierarchy, project/conversation switching, concurrent
 revision during a run and the complete paid journey remain outside this slice's
 qualification. The workspace PTYs use cargo-test binaries; they do not qualify
 a stamped integrated build or a paid model route.
