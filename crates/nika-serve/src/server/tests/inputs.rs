@@ -69,20 +69,29 @@ fn body(inputs: Value) -> String {
     request.to_string()
 }
 async fn result(server: &TestServer, id: &str) -> Value {
+    // These requests run one job at a time. Allow its configured execution
+    // window and a final HTTP observation; a poll count can expire first.
+    let limits = input_limits();
+    let window = limits.execution_timeout() + limits.request_timeout();
+    let started = tokio::time::Instant::now();
     let mut last = Value::Null;
-    for _ in 0..800 {
-        last = server
-            .request(&get_request(&format!("/v1/jobs/{id}")))
-            .await
-            .json();
-        if !matches!(last["status"].as_str(), Some("queued" | "running")) {
-            return last;
+    let observed = tokio::time::timeout(window, async {
+        loop {
+            last = server
+                .request(&get_request(&format!("/v1/jobs/{id}")))
+                .await
+                .json();
+            if !matches!(last["status"].as_str(), Some("queued" | "running")) {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
         }
-        tokio::time::sleep(Duration::from_millis(10)).await;
-    }
+    })
+    .await;
     assert!(
-        !matches!(last["status"].as_str(), Some("queued" | "running")),
-        "job did not settle: {last}"
+        observed.is_ok(),
+        "job did not settle after {:?} (window {window:?}): {last}",
+        started.elapsed()
     );
     last
 }
