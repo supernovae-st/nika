@@ -67,12 +67,20 @@ fn stamp_backend(
         backend["unreported_models"] = serde_json::json!(unreported);
         backend["usage_complete"] = serde_json::json!(usage_complete(&receipt.context));
         backend["authority"] = authority;
-        if args.decision_model.is_some() {
-            backend["authority"]["decision_seat"] = serde_json::json!(
-                "outside this authority: its own client, protocol retries included"
-            );
+        if let Some(model) = args.decision_model.as_deref() {
+            backend["authority"]["decision_seat"] = serde_json::json!(decision_seat_note(model));
         }
         receipt.backend = Some(backend);
+    }
+}
+
+/// What the receipt states about a seated decision model's own client: a `typesafe/<jev>` seat
+/// sends each question once; a `provider/name` seat keeps its provider client's protocol retries.
+fn decision_seat_note(model: &str) -> &'static str {
+    if model.starts_with("typesafe/") {
+        "outside this authority: its own single-attempt client"
+    } else {
+        "outside this authority: its own client, protocol retries included"
     }
 }
 
@@ -246,5 +254,22 @@ fn typesafe_seat(
             super::typesafe::TypesafeSeat::from_env(model.trim_start_matches("typesafe/"))?,
         )),
         _ => Ok(None),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::decision_seat_note;
+
+    #[test]
+    fn the_receipt_names_the_client_of_the_seated_decision_model() {
+        assert_eq!(
+            decision_seat_note("typesafe/jev-1.13.0"),
+            "outside this authority: its own single-attempt client"
+        );
+        assert_eq!(
+            decision_seat_note("vllm/loopback-seat"),
+            "outside this authority: its own client, protocol retries included"
+        );
     }
 }
