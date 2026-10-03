@@ -3,21 +3,19 @@
 //! The machine lane as a child: a door that owns the terminal (the
 //! renderer's viewport) runs `nika run --json` as a child of the binary
 //! with pipes only, so nothing the run prints reaches the terminal; each
-//! frame becomes one line of the run's story, handed to a busy sink as it
-//! happens and kept for the block the transcript commits; the exit code
-//! is the child's, the trace the settle frame's. A size-cap member of the
-//! nika-cli unit hosts it (D-2026-07-09-N1 · ADR-110).
+//! frame becomes one line of the run's story and one typed frame, told to
+//! the sink as it happens, the story kept for the block the transcript
+//! commits; the exit code is the child's, the trace the settle frame's.
+//! Every frame is bounded (1 MiB) by the one reader both paths share. A
+//! size-cap member of the nika-cli unit hosts it (D-2026-07-09-N1 · ADR-110).
 
 mod request;
 pub use request::{RunHostOptions, resume_args, run_args};
 mod review;
-pub use review::{PendingRun, RunProgress, drive_reviewed_child};
+pub use review::{PendingRun, RunProgress, drive_reviewed_child, drive_reviewed_child_observed};
 
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::Sender;
-
-/// The environment exit code (spec §4): the lane could not start.
-const ENV: u8 = 3;
 
 /// The renderer's run child, by pid, while it runs: the door that leaves
 /// while a run is in flight ends it (SIGTERM: the engine cancels and the
@@ -35,66 +33,31 @@ pub fn drive_child(
     busy: &Sender<String>,
     slot: &ChildSlot,
 ) -> (u8, Option<PathBuf>, Vec<String>) {
-    let runtime = match tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    {
-        Ok(runtime) => runtime,
-        Err(error) => return (ENV, None, vec![format!("no executor for the run: {error}")]),
-    };
-    runtime.block_on(child_story(exe, args, root, busy, slot))
+    drive_child_observed(exe, args, root, busy, slot)
 }
 
-/// The child's frames, one story line each, until it settles.
-async fn child_story(
+/// [`drive_child`], the run told to `sink`: its story and its frames, typed.
+/// An oversize frame, one that is not UTF-8 or a stream that cannot be read
+/// ends the child and is said, never taken for a settled run.
+#[must_use]
+pub fn drive_child_observed(
     exe: &Path,
     args: &[String],
     root: &Path,
-    busy: &Sender<String>,
+    sink: &dyn RunSink,
     slot: &ChildSlot,
 ) -> (u8, Option<PathBuf>, Vec<String>) {
-    use tokio::io::AsyncBufReadExt as _;
-    let mut child = match tokio::process::Command::new(exe)
-        .args(args)
-        .current_dir(root)
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .kill_on_drop(true)
-        .spawn()
-    {
+    let mut child = match review::spawn(exe, args, root, slot, false) {
         Ok(child) => child,
-        Err(error) => {
-            return (ENV, None, vec![format!("the run could not start: {error}")]);
-        }
+        Err(result) => return result,
     };
-    if let Ok(mut guard) = slot.lock() {
-        *guard = child.id();
+    match child.read(sink, false) {
+        Ok(_) => child.complete(),
+        Err(why) => child.cut(&why),
     }
-    let mut story = RunStory::default();
-    if let Some(stdout) = child.stdout.take() {
-        let mut lines = tokio::io::BufReader::new(stdout).lines();
-        while let Ok(Some(line)) = lines.next_line().await {
-            if let Some(said) = story.frame(&line) {
-                let _ = busy.send(said);
-            }
-        }
-    }
-    let status = child.wait().await;
-    if let Ok(mut guard) = slot.lock() {
-        *guard = None;
-    }
-    let code = match status {
-        Ok(status) => status
-            .code()
-            .and_then(|c| u8::try_from(c).ok())
-            .unwrap_or(ENV),
-        Err(_) => ENV,
-    };
-    (code, story.trace, story.lines)
 }
 
-pub use nika_display::run_story::RunStory;
+pub use nika_display::run_story::{RunFrame, RunSink, RunStory};
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
@@ -145,7 +108,7 @@ mod tests {
             &busy,
             &slot,
         );
-        assert_eq!(code, ENV);
+        assert_eq!(code, 3, "the environment exit");
         assert!(trace.is_none());
         assert!(
             lines
@@ -153,5 +116,115 @@ mod tests {
                 .is_some_and(|l| l.starts_with("the run could not start: ")),
             "{lines:?}"
         );
+    }
+
+    /// A sink that takes the frames too hears the very story lines a busy
+    /// sender hears, and every machine frame typed: the runtime event, then
+    /// the settlement that closes the stream, both naming their execution.
+    #[test]
+    fn drive_child_tells_a_typed_sink_the_frames_it_decoded() {
+        use nika_display::run_story::{EventKind, RunState};
+        #[derive(Default)]
+        struct Typed {
+            lines: std::sync::Mutex<Vec<String>>,
+            frames: std::sync::Mutex<Vec<RunFrame>>,
+        }
+        impl RunSink for Typed {
+            fn said(&self, line: String) {
+                self.lines.lock().expect("lines").push(line);
+            }
+            fn frame(&self, frame: RunFrame) {
+                self.frames.lock().expect("frames").push(frame);
+            }
+        }
+        let script = concat!(
+            "printf '%s\\n' ",
+            "'{\"chain\":\"c1\",\"correlation\":null,\"execution\":{\"uuid\":\"01a0ef11-0212-70de-a8b3-99de9427fccc\"},",
+            "\"fields\":[{\"key\":\"task\",\"value\":\"t\"},{\"key\":\"duration_ms\",\"value\":1}],",
+            "\"id\":{\"uuid\":\"01a0ef11-03b2-71ee-9ad4-17a755fad3ae\"},\"kind\":\"task_completed\",\"run\":null,\"timestamp\":1}'",
+            " '{\"kind\":\"run_settled\",\"status\":\"succeeded\",\"cause\":\"normal\",",
+            "\"execution\":{\"uuid\":\"01a0ef11-0212-70de-a8b3-99de9427fccc\"},",
+            "\"spend\":{\"priced_calls\":0,\"qualifier\":\"unmetered\",\"unpriced_calls\":0},\"evidence\":\"none\"}'"
+        );
+        let typed = Typed::default();
+        let slot: ChildSlot = std::sync::Arc::default();
+        let (code, _, lines) = drive_child_observed(
+            Path::new("/bin/sh"),
+            &["-c".to_owned(), script.to_owned()],
+            Path::new("/"),
+            &typed,
+            &slot,
+        );
+        assert_eq!(code, 0);
+        assert_eq!(lines, vec!["✔ t · 1 ms · 1/0".to_owned()]);
+        assert_eq!(*typed.lines.lock().expect("lines"), lines);
+        let frames = typed.frames.lock().expect("frames");
+        assert!(
+            matches!(
+                frames.as_slice(),
+                [RunFrame::Event(event), RunFrame::Settled(settled)]
+                    if event.kind == EventKind::TaskCompleted
+                        && settled.settlement.state == RunState::Succeeded
+                        && event.execution.is_some()
+                        && settled.execution == event.execution
+            ),
+            "{frames:?}"
+        );
+    }
+
+    /// A frame over 1 MiB on the plain lane stops the reading: the child is
+    /// ended and reaped (its pid leaves the slot), the story says the stream
+    /// stopped and that effects may have happened, and the exit is the
+    /// environment's, never the child's success.
+    #[test]
+    fn an_oversize_frame_ends_the_child_and_is_said() {
+        let (busy, _heard) = std::sync::mpsc::channel();
+        let slot: ChildSlot = std::sync::Arc::default();
+        let script = "head -c 1048600 /dev/zero | tr '\\0' 'a'; echo; exec sleep 30";
+        let started = std::time::Instant::now();
+        let (code, trace, lines) = drive_child(
+            Path::new("/bin/sh"),
+            &["-c".to_owned(), script.to_owned()],
+            Path::new("/"),
+            &busy,
+            &slot,
+        );
+        assert_eq!(code, 3);
+        assert!(trace.is_none());
+        assert!(
+            lines.last().is_some_and(
+                |l| l.contains("Run frame exceeds 1 MiB") && l.contains("may have had effects")
+            ),
+            "{lines:?}"
+        );
+        assert!(
+            started.elapsed() < std::time::Duration::from_secs(20),
+            "the child was ended, not waited for"
+        );
+        assert!(slot.lock().expect("slot").is_none(), "reaped");
+    }
+
+    /// A frame that is not UTF-8 is refused like an oversize one, never
+    /// repaired: what a review answers must be the child's exact bytes.
+    #[test]
+    fn a_frame_that_is_not_utf8_ends_the_child_and_is_said() {
+        let (busy, _heard) = std::sync::mpsc::channel();
+        let slot: ChildSlot = std::sync::Arc::default();
+        let script = "printf '\\377\\376 not text\\n'; exec sleep 30";
+        let (code, trace, lines) = drive_child(
+            Path::new("/bin/sh"),
+            &["-c".to_owned(), script.to_owned()],
+            Path::new("/"),
+            &busy,
+            &slot,
+        );
+        assert_eq!((code, trace), (3, None));
+        assert!(
+            lines.last().is_some_and(
+                |l| l.contains("Run frame is not UTF-8") && l.contains("may have had effects")
+            ),
+            "{lines:?}"
+        );
+        assert!(slot.lock().expect("slot").is_none(), "reaped");
     }
 }

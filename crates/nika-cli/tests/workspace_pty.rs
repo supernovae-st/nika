@@ -835,3 +835,152 @@ fn save_is_never_run_in_the_workspace() {
         "nothing ran before the door closed"
     );
 }
+
+/// The candidate identity the object region shows (`proposal <12 hex> · what
+/// a yes answers`), when one is shown.
+fn shown_identity(screen: &str) -> Option<String> {
+    let tail = " · what a yes answers";
+    screen.lines().find_map(|line| {
+        let at = line.find(tail)?;
+        let id = line[..at].rsplit("proposal ").next()?;
+        (id.len() == 12 && id.chars().all(|c| c.is_ascii_hexdigit())).then(|| id.to_owned())
+    })
+}
+
+/// The witness of the candidate's pending bytes the object region shows
+/// (`these bytes <12 hex>, the proposal's own`), when it shows one.
+fn shown_bytes(screen: &str) -> Option<String> {
+    let head = "these bytes ";
+    screen.lines().find_map(|line| {
+        let at = line.find(head)? + head.len();
+        let rest = line.get(at..)?;
+        let witness = rest.get(..12)?;
+        let own = rest.get(12..)?.starts_with(", the proposal");
+        (own && witness.chars().all(|c| c.is_ascii_hexdigit())).then(|| witness.to_owned())
+    })
+}
+
+/// 12 · A sentence becomes a candidate the workspace shows before any Save:
+/// the identity a yes answers, what it creates, what it reaches, the witness
+/// of its exact pending bytes, and its four faces, while nothing is written. A
+/// revision of its ceiling is a new identity over the same bytes and the old
+/// one leaves the object; `yes` lands exactly those bytes (the saved file then
+/// shows the same witness) and nothing runs until a separate line asks.
+#[test]
+fn the_candidate_is_inspected_and_revised_before_a_separate_save() {
+    let rig = Rig::new("candidate");
+    std::fs::create_dir_all(rig.path("notes")).expect("notes");
+    std::fs::write(rig.path("notes/brief.md"), "# Brief\n").expect("brief");
+    let before = rig.tree();
+    let mut term = rig.spawn("12-candidate", 120, 36);
+    wait_workspace(&mut term);
+    term.send("Read ./notes/brief.md and write it to ./out/copy.md\r");
+    term.wait_until("the candidate in view", |s| {
+        s.contains("apply?") && s.contains("what a yes answers")
+    });
+    let shown = term.text();
+    let a = shown_identity(&shown).expect("an identity is shown");
+    for said in [
+        "not saved",
+        "creates compiled-workflow.nika",
+        "when it runs",
+        "rehearsal",
+        "[source]",
+    ] {
+        assert!(shown.contains(said), "{said}\n{}", term.dump());
+    }
+    assert_eq!(rig.tree(), before, "a proposal writes nothing");
+    // Its faces, read in the object region; none of them is a consent.
+    term.keys(F6);
+    term.keys(F6);
+    for face in ["[plan]", "[graph]", "[check]"] {
+        term.keys(RIGHT);
+        term.wait_text(face);
+    }
+    term.wait_text("IMPORTS");
+    assert!(
+        !term.text().contains("nothing known blocks a run"),
+        "{}",
+        term.dump()
+    );
+    term.keys(ESC);
+    // A revision of the proposal's money: a new identity, A gone from the object.
+    term.send("budget 0.10 USD\r");
+    term.wait_until("the revised candidate", |s| {
+        shown_identity(&s.lines().join("\n")).is_some_and(|id| id != a)
+    });
+    let b = shown_identity(&term.text()).expect("B");
+    let witness_row = shown_bytes(&term.text()).expect("the pending bytes' witness");
+    assert_eq!(rig.tree(), before, "a revision writes nothing");
+    term.send("yes\r");
+    let landed = rig.path("compiled-workflow.nika");
+    term.wait_until("the exact bytes saved", |s| {
+        landed.exists() && s.contains("as last read")
+    });
+    let saved = short_witness(&std::fs::read(&landed).expect("landed"));
+    assert!(
+        witness_row == saved,
+        "the saved bytes are the ones shown before the yes: {witness_row} vs {saved}\n{}",
+        term.dump()
+    );
+    assert!(term.text().contains(&saved), "{}", term.dump());
+    assert_ne!(
+        shown_identity(&term.text()),
+        Some(b),
+        "a saved candidate is no longer one"
+    );
+    for _ in 0..4 {
+        term.settle();
+    }
+    assert!(!rig.path("out/copy.md").exists(), "a save ran the workflow");
+    term.leave();
+    assert!(
+        !rig.path("out/copy.md").exists(),
+        "nothing ran before the door closed"
+    );
+}
+
+/// Two keyless tasks a second apart: the child's frames arrive over time.
+const SLOW: &str = r#"nika: slow
+permits:
+  tools: ["nika:wait"]
+tasks:
+  first:
+    invoke: { tool: "nika:wait", args: { duration: "1s" } }
+  second:
+    with: { x: "${{ tasks.first.output }}" }
+    invoke: { tool: "nika:wait", args: { duration: "1s" } }
+"#;
+
+/// 13 · A run asked in the workspace is followed from its own frames: the
+/// leg names the execution its first frame carries, binds the graph to the
+/// bytes the run names (their sha256), and shows each task as the child
+/// reports it while the run has not settled; the settlement and the
+/// stream's wholeness come last, apart from the proof. The runtime reports a
+/// task's start with its end, so a task shows done or not yet, never a
+/// guessed « running ».
+#[test]
+fn a_run_is_followed_from_its_frames_before_it_settles() {
+    let rig = Rig::new("live");
+    std::fs::write(rig.path("slow.nika"), SLOW).expect("slow");
+    let mut term = rig.spawn("13-live", 120, 36);
+    wait_workspace(&mut term);
+    term.send("run slow.nika\r");
+    term.wait_until("the leg bound to the bytes it runs", |s| {
+        s.contains("graph · the bytes") && s.contains("it was asked over")
+    });
+    term.wait_until("the first task done, the run not settled", |s| {
+        s.contains("✔ first") && s.contains("○ second") && !s.contains("settled · succeeded")
+    });
+    term.wait_until("the settlement", |s| s.contains("settled · succeeded"));
+    let shown = term.text();
+    for said in [
+        "events and the settlement, whole",
+        "evidence · unsealed, as the run declared it",
+        "✔ second",
+    ] {
+        assert!(shown.contains(said), "{said}\n{}", term.dump());
+    }
+    assert!(!shown.contains("graph not bound"), "{}", term.dump());
+    term.leave();
+}

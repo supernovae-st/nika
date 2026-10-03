@@ -120,6 +120,7 @@ fn run_live(room: &Room) -> Live {
             "fixture".to_owned(),
             FRAME.to_owned(),
         ];
+        // The story-only alias as the base consumers wrote it: it still compiles.
         drive_reviewed_child(Path::new("/bin/sh"), &args, root, busy, &slot)
     }));
     let _ = live.open();
@@ -672,4 +673,125 @@ fn the_authoring_projection_keeps_any_other_wording_whole() {
         authoring_cost_question("A sentence the Session wrote."),
         "Fresh authoring cost decision · this request only; approving it never saves or runs anything\nA sentence the Session wrote.\nContinue once? yes / no / details"
     );
+}
+
+/// A run asked inside the turn is observed before its child exists: the
+/// request names the workflow and carries the look of its exact bytes at
+/// that moment; the frames the runner tells follow it on the same queue; a
+/// line that is no frame is counted, never queued. The runner here is a
+/// stub that tells three frames: no process, no model.
+#[test]
+fn a_run_is_observed_from_its_request_to_its_frames() {
+    use crate::session::feed::{Gap, Observed, Seen};
+    let room = Room::new("observed");
+    let source = "nika: two\npermits: {}\ntasks:\n  first:\n    invoke: { tool: \"nika:log\", args: { message: one } }\n";
+    std::fs::write(room.0.join("two.nika"), source).expect("workflow");
+    let none = UserIntelligencePreference::new(IntelligenceKind::None, None);
+    let frames = [
+        r#"{"correlation":null,"execution":{"uuid":"01a0ef11-0212-70de-a8b3-99de9427fccc"},"fields":[{"key":"workflow","value":"two"}],"id":{"uuid":"01a0ef11-03a1-73d9-a2bc-2548bdab1943"},"kind":"workflow_started","run":null,"timestamp":1}"#,
+        "not a frame",
+        r#"{"correlation":null,"execution":{"uuid":"01a0ef11-0212-70de-a8b3-99de9427fccc"},"fields":[{"key":"task","value":"first"}],"id":{"uuid":"01a0ef11-03a7-74fb-bba0-bfe19b901333"},"kind":"task_scheduled","run":null,"timestamp":2}"#,
+    ];
+    let mut live = Live::new(
+        room.0.clone(),
+        IntelligenceCensus::empty(),
+        Some(none),
+        None,
+        Box::new(|_| Box::new(ScriptedReasoner::new(Vec::new()))),
+        Runners {
+            run_once: Box::new(|_, _| panic!("no plain run")),
+            run_resume: Box::new(|_, _, _, _| panic!("no resume")),
+            // A story-only tap lent beside the typed one: the typed one wins.
+            run_tapped: Some(Box::new(|_, _, _| panic!("the typed runner goes first"))),
+        },
+    )
+    .with_run_tapped_observed(Box::new(move |_, _, sink| {
+        let mut story = nika_display::run_story::RunStory::default();
+        for line in frames {
+            story.tell(line, sink);
+        }
+        (0, None, story.lines)
+    }));
+    let _ = live.open();
+    let (busy, _said) = std::sync::mpsc::channel();
+    let (tx, rx) = std::sync::mpsc::sync_channel(16);
+    let gap = Arc::new(Gap::default());
+    let turn = live.submit_observed("run two.nika", &busy, &Seen::new(tx, Arc::clone(&gap)));
+    let seen: Vec<Observed> = rx.try_iter().collect();
+    let Some(Observed::Asked {
+        workflow,
+        resume,
+        typed,
+        look,
+    }) = seen.first()
+    else {
+        panic!("the request comes first: {seen:?}\n{}", joined(&turn.beats));
+    };
+    assert_eq!(
+        (workflow.as_str(), *resume, *typed),
+        ("two.nika", false, true)
+    );
+    let look = look
+        .as_ref()
+        .expect("the bytes were read when it was asked");
+    assert_eq!(
+        look.witness(),
+        Some(
+            nika_session::change::Witness::of(source.as_bytes())
+                .0
+                .as_str()
+        )
+    );
+    assert_eq!(seen.len(), 3, "the request and two frames: {seen:?}");
+    assert!(matches!(seen[1], Observed::Frame(_)) && matches!(seen[2], Observed::Frame(_)));
+    assert_eq!((gap.dropped(), gap.unread()), (0, 1));
+    assert!(
+        joined(&turn.beats).contains("run observed · exit 0"),
+        "{}",
+        joined(&turn.beats)
+    );
+}
+
+/// The story-only tap the base consumers lend (`Runners::run_tapped`) still
+/// runs inside the turn: its story reaches the busy row, no frame is typed,
+/// and the request says the run cannot be followed.
+#[test]
+fn a_story_only_tap_tells_its_story_and_no_frame() {
+    use crate::session::feed::{Gap, Observed, Seen};
+    let room = Room::new("story-only");
+    let source = "nika: two\npermits: {}\ntasks:\n  first:\n    invoke: { tool: \"nika:log\", args: { message: one } }\n";
+    std::fs::write(room.0.join("two.nika"), source).expect("workflow");
+    let none = UserIntelligencePreference::new(IntelligenceKind::None, None);
+    let mut live = Live::new(
+        room.0.clone(),
+        IntelligenceCensus::empty(),
+        Some(none),
+        None,
+        Box::new(|_| Box::new(ScriptedReasoner::new(Vec::new()))),
+        Runners {
+            run_once: Box::new(|_, _| panic!("no plain run")),
+            run_resume: Box::new(|_, _, _, _| panic!("no resume")),
+            run_tapped: Some(Box::new(|_, _, busy: &std::sync::mpsc::Sender<String>| {
+                let _ = busy.send("a line of the story".to_owned());
+                (0, None, vec!["a line of the story".to_owned()])
+            })),
+        },
+    );
+    let _ = live.open();
+    let (busy, said) = std::sync::mpsc::channel();
+    let (tx, rx) = std::sync::mpsc::sync_channel(16);
+    let gap = Arc::new(Gap::default());
+    let turn = live.submit_observed("run two.nika", &busy, &Seen::new(tx, Arc::clone(&gap)));
+    let seen: Vec<Observed> = rx.try_iter().collect();
+    assert!(
+        matches!(seen.as_slice(), [Observed::Asked { typed: false, .. }]),
+        "the request alone, untyped: {seen:?}\n{}",
+        joined(&turn.beats)
+    );
+    let heard: Vec<String> = said.try_iter().collect();
+    assert!(
+        heard.iter().any(|l| l == "a line of the story"),
+        "{heard:?}"
+    );
+    assert!(joined(&turn.beats).contains("a line of the story"));
 }

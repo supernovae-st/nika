@@ -103,6 +103,14 @@ impl Rehearsals {
         self.native = None;
     }
 
+    /// The words of the proof bound to `id`, pending or suspended by a revision.
+    pub(super) fn lines_of(&self, id: &ProposalId) -> Option<&str> {
+        let pending = (self.pending.as_ref()).filter(|(proven, _)| proven == id);
+        let suspended = (self.revising.as_ref()).filter(|s| &s.id == id);
+        let proof = pending.map(|(_, p)| p).or(suspended.map(|s| &s.proof))?;
+        Some(proof.lines.as_str())
+    }
+
     /// Expire pending authority without erasing already spent rehearsal usage.
     pub(super) fn expire_pending(&mut self) {
         self.pending = None;

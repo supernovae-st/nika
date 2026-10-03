@@ -879,6 +879,53 @@ pub fn human_size(bytes: u64) -> String {
     }
 }
 
+/// What a green run of `workflow` left behind under `root`: the files the
+/// workflow's own boundary lets it write (`permits.fs.write`, literal paths
+/// only) that exist there now, with their sizes. The boundary is the claim;
+/// the file on disk is the evidence; a glob is not a file. Read now, never the
+/// bytes the run wrote.
+#[must_use]
+pub fn produced(root: &Path, workflow: &Path) -> Option<String> {
+    let source = std::fs::read_to_string(root.join(workflow)).ok()?;
+    let wf = nika_schema::parse(
+        &source,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .ok()?;
+    let writes = wf.permits.as_ref()?.value.fs.as_ref()?.write.clone();
+    let mut produced = Vec::new();
+    for path in writes {
+        if path.contains(['*', '?', '[']) {
+            continue;
+        }
+        let Ok(meta) = std::fs::metadata(root.join(&path)) else {
+            continue;
+        };
+        if meta.is_file() {
+            produced.push(format!("{path} ({})", human_size(meta.len())));
+        }
+    }
+    (!produced.is_empty()).then(|| format!("produced · {}", produced.join(" · ")))
+}
+
+/// In a git work tree (`git_root`) whose `.gitignore` does not keep
+/// `.nika/traces/` out, a run's trace (model outputs · file contents · 0600)
+/// would be one `git add` away from a commit: the note that says so.
+#[must_use]
+pub fn hygiene_note(git_root: Option<&Path>) -> Option<String> {
+    let ignored = std::fs::read_to_string(git_root?.join(".gitignore"))
+        .map(|text| {
+            text.lines().any(|l| {
+                l.trim().contains(".nika/traces") || l.trim() == ".nika" || l.trim() == ".nika/"
+            })
+        })
+        .unwrap_or(false);
+    (!ignored).then(|| {
+        "runs write `.nika/traces/` (model outputs · file contents · mode 0600) — not ignored by git here · `nika init` adds the line, or add `.nika/traces/` to `.gitignore`".to_owned()
+    })
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {

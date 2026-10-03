@@ -21,12 +21,14 @@
 //! the plain loop stay as they are.
 
 pub mod aside;
+pub mod candidate;
 pub mod conversation;
 pub(crate) mod desk;
 pub mod focus;
 pub mod geometry;
 pub mod header;
 pub mod inspect;
+pub mod live;
 pub mod object;
 pub mod pinned;
 pub mod project;

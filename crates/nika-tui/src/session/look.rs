@@ -51,9 +51,17 @@ pub(crate) fn take(snapshot: &ProjectSnapshot, path: &str) -> Option<Inspected> 
     let Ok(source) = String::from_utf8(bytes) else {
         return Some(Inspected::unread(path, "not UTF-8 text"));
     };
-    // The file alone: no reader, no skills base (see the module docs).
+    Some(judge(path, witness, source))
+}
+
+/// The look of `source` at the logical `path`, witnessed `witness`: ONE audit
+/// by the shared check facade of these bytes ALONE (no reader, no skills base:
+/// see the module docs) and the graph of that same audit, or the parser's
+/// refusal beside the bytes. A file read here and a proposal's pending bytes
+/// are judged by this one fold.
+pub(crate) fn judge(path: String, witness: String, source: String) -> Inspected {
     let judged = audit_source(&source, &path, None, None, AuditOptions::default());
-    let look = match &judged {
+    match &judged {
         Ok(audit) => {
             let graph = nika_display::dag_art::project(&audit.wf, &audit.report);
             Inspected::read(path, witness, source, Ok((audit, graph)))
@@ -63,8 +71,7 @@ pub(crate) fn take(snapshot: &ProjectSnapshot, path: &str) -> Option<Inspected> 
             let refused = Err((said.code.to_string(), said.message));
             Inspected::read(path, witness, source, refused)
         }
-    };
-    Some(look)
+    }
 }
 
 #[cfg(test)]

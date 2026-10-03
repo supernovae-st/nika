@@ -430,6 +430,19 @@ pub trait Conversation: Send {
         let _ = busy;
         self.submit(line)
     }
+    /// [`Conversation::submit_with`], with the shell's queue for what it
+    /// observes of a run the turn drives ([`crate::session::feed::Seen`]): the
+    /// request, then each typed frame of the run's stream. The default
+    /// observes none.
+    fn submit_observed(
+        &mut self,
+        line: &str,
+        busy: &std::sync::mpsc::Sender<String>,
+        seen: &crate::session::feed::Seen,
+    ) -> Turn {
+        let _ = seen;
+        self.submit_with(line, busy)
+    }
     /// Perform the handed-off work with the terminal handed back; the beats
     /// that follow it (the observation, the next prompt).
     fn perform(&mut self, handoff: &Handoff) -> Vec<Beat>;
@@ -460,6 +473,15 @@ pub trait Conversation: Send {
     /// grants nothing and is never sent to a model. The default takes none,
     /// and the object then shows what the listing judged.
     fn inspect(&mut self, _path: &str) -> Option<crate::workspace::inspect::Inspected> {
+        None
+    }
+    /// The candidate under review, as the conversation's Session lends it:
+    /// the identity a consent names, the changes a yes lands, what its
+    /// workflow reaches, its rehearsal and the look of its exact pending
+    /// bytes, folded when the turn that proposed it ended. The shell asks
+    /// after every batch of beats, never while it draws; showing it grants
+    /// nothing. The default lends none.
+    fn candidate(&self) -> Option<crate::workspace::candidate::Proposed> {
         None
     }
 }
