@@ -280,11 +280,12 @@ impl<T> typenum::type_operators::Same for nika_dap::anchor::run::AnchoredReport
 pub type nika_dap::anchor::run::AnchoredReport::Output = T
 pub async fn nika_dap::anchor::run::anchor_journal(http: &impl nika_kernel_core::io::http::HttpPostDyn, trace: &str, rekor_url: &str, tsa_url: &str) -> core::result::Result<nika_dap::anchor::run::AnchoredReport, nika_dap::anchor::run::AnchorFailure>
 pub mod nika_dap::anchor::tier
-pub enum nika_dap::anchor::tier::AnchorTier
+#[non_exhaustive] pub enum nika_dap::anchor::tier::AnchorTier
 pub nika_dap::anchor::tier::AnchorTier::Anchored(nika_dap::anchor::VerifiedAnchor)
 pub nika_dap::anchor::tier::AnchorTier::Gap(alloc::string::String)
 pub nika_dap::anchor::tier::AnchorTier::NotPresent
 pub nika_dap::anchor::tier::AnchorTier::Required
+pub nika_dap::anchor::tier::AnchorTier::Unavailable(alloc::string::String)
 impl core::clone::Clone for nika_dap::anchor::tier::AnchorTier
 pub fn nika_dap::anchor::tier::AnchorTier::clone(&self) -> nika_dap::anchor::tier::AnchorTier
 impl core::cmp::Eq for nika_dap::anchor::tier::AnchorTier

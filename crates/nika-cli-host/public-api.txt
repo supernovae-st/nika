@@ -1922,6 +1922,8 @@ pub fn nika_cli_host::help_card::isolation_warning_text(home: &str) -> alloc::st
 pub fn nika_cli_host::help_card::misplaced_fix_teaching() -> &'static str
 pub fn nika_cli_host::help_card::permits_teaching() -> &'static str
 pub mod nika_cli_host::lane
+pub use nika_cli_host::lane::RunFrame
+pub use nika_cli_host::lane::RunSink
 pub use nika_cli_host::lane::RunStory
 #[non_exhaustive] pub enum nika_cli_host::lane::RunProgress
 pub nika_cli_host::lane::RunProgress::Complete((u8, core::option::Option<std::path::PathBuf>, alloc::vec::Vec<alloc::string::String>))
@@ -1955,6 +1957,7 @@ pub type nika_cli_host::lane::RunProgress::Output = T
 #[non_exhaustive] pub struct nika_cli_host::lane::PendingRun
 impl nika_cli_host::lane::PendingRun
 pub fn nika_cli_host::lane::PendingRun::answer(self, yes: bool, busy: &std::sync::mpsc::Sender<alloc::string::String>) -> (u8, core::option::Option<std::path::PathBuf>, alloc::vec::Vec<alloc::string::String>)
+pub fn nika_cli_host::lane::PendingRun::answer_observed(self, yes: bool, sink: &dyn nika_display::run_story::RunSink) -> (u8, core::option::Option<std::path::PathBuf>, alloc::vec::Vec<alloc::string::String>)
 pub fn nika_cli_host::lane::PendingRun::details(&self) -> alloc::string::String
 pub fn nika_cli_host::lane::PendingRun::question(&self) -> alloc::string::String
 impl core::ops::drop::Drop for nika_cli_host::lane::PendingRun
@@ -2023,7 +2026,9 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli_host::lane::RunHostOpti
 impl<T> typenum::type_operators::Same for nika_cli_host::lane::RunHostOptions
 pub type nika_cli_host::lane::RunHostOptions::Output = T
 pub fn nika_cli_host::lane::drive_child(exe: &std::path::Path, args: &[alloc::string::String], root: &std::path::Path, busy: &std::sync::mpsc::Sender<alloc::string::String>, slot: &nika_cli_host::lane::ChildSlot) -> (u8, core::option::Option<std::path::PathBuf>, alloc::vec::Vec<alloc::string::String>)
+pub fn nika_cli_host::lane::drive_child_observed(exe: &std::path::Path, args: &[alloc::string::String], root: &std::path::Path, sink: &dyn nika_display::run_story::RunSink, slot: &nika_cli_host::lane::ChildSlot) -> (u8, core::option::Option<std::path::PathBuf>, alloc::vec::Vec<alloc::string::String>)
 pub fn nika_cli_host::lane::drive_reviewed_child(exe: &std::path::Path, args: &[alloc::string::String], root: &std::path::Path, busy: &std::sync::mpsc::Sender<alloc::string::String>, slot: &nika_cli_host::lane::ChildSlot) -> nika_cli_host::lane::RunProgress
+pub fn nika_cli_host::lane::drive_reviewed_child_observed(exe: &std::path::Path, args: &[alloc::string::String], root: &std::path::Path, sink: &dyn nika_display::run_story::RunSink, slot: &nika_cli_host::lane::ChildSlot) -> nika_cli_host::lane::RunProgress
 pub fn nika_cli_host::lane::resume_args(root: &std::path::Path, workflow: &std::path::Path, trace: &std::path::Path, answer: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_cli_host::lane::run_args(root: &std::path::Path, workflow: &std::path::Path, ceiling: f64, vars: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
 pub type nika_cli_host::lane::ChildSlot = alloc::sync::Arc<std::sync::poison::mutex::Mutex<core::option::Option<u32>>>

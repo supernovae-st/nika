@@ -5,6 +5,7 @@ pub use nika_session::CapEvidence
 pub use nika_session::CostHostEvidence
 pub use nika_session::Finding
 pub use nika_session::InferenceReceipt
+pub use nika_session::KeptRun
 pub use nika_session::KnownWorld
 pub use nika_session::Lifecycle
 pub use nika_session::LifecycleFacts
@@ -2397,6 +2398,49 @@ impl<T> tracing::instrument::Instrument for nika_session::runtime::TurnOutcome
 impl<T> tracing::instrument::WithSubscriber for nika_session::runtime::TurnOutcome
 impl<T> typenum::type_operators::Same for nika_session::runtime::TurnOutcome
 pub type nika_session::runtime::TurnOutcome::Output = T
+#[non_exhaustive] pub struct nika_session::runtime::Candidate<'a>
+pub nika_session::runtime::Candidate::aside: bool
+pub nika_session::runtime::Candidate::id: nika_session::outcome::ProposalId
+pub nika_session::runtime::Candidate::rehearsed: core::option::Option<&'a str>
+pub nika_session::runtime::Candidate::set: &'a nika_session::change::ProjectChangeSet
+impl<'a> core::clone::Clone for nika_session::runtime::Candidate<'a>
+pub fn nika_session::runtime::Candidate<'a>::clone(&self) -> nika_session::runtime::Candidate<'a>
+impl<'a> core::fmt::Debug for nika_session::runtime::Candidate<'a>
+pub fn nika_session::runtime::Candidate<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_session::runtime::Candidate<'a>
+impl<T, U> core::convert::Into<U> for nika_session::runtime::Candidate<'a> where U: core::convert::From<T>
+pub fn nika_session::runtime::Candidate<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_session::runtime::Candidate<'a> where U: core::convert::Into<T>
+pub type nika_session::runtime::Candidate<'a>::Error = core::convert::Infallible
+pub fn nika_session::runtime::Candidate<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_session::runtime::Candidate<'a> where U: core::convert::TryFrom<T>
+pub type nika_session::runtime::Candidate<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_session::runtime::Candidate<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_session::runtime::Candidate<'a> where T: core::clone::Clone
+pub type nika_session::runtime::Candidate<'a>::Owned = T
+pub fn nika_session::runtime::Candidate<'a>::clone_into(&self, target: &mut T)
+pub fn nika_session::runtime::Candidate<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_session::runtime::Candidate<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_session::runtime::Candidate<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_session::runtime::Candidate<'a> where T: ?core::marker::Sized
+pub fn nika_session::runtime::Candidate<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_session::runtime::Candidate<'a> where T: ?core::marker::Sized
+pub fn nika_session::runtime::Candidate<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_session::runtime::Candidate<'a> where T: core::clone::Clone
+pub unsafe fn nika_session::runtime::Candidate<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_session::runtime::Candidate<'a>
+pub fn nika_session::runtime::Candidate<'a>::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_session::runtime::Candidate<'a> where T: core::clone::Clone
+pub fn nika_session::runtime::Candidate<'a>::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_session::runtime::Candidate<'a> where T: 'static
+pub fn nika_session::runtime::Candidate<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_session::runtime::Candidate<'a> where T: ?core::marker::Sized
+pub fn nika_session::runtime::Candidate<'a>::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_session::runtime::Candidate<'a>::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_session::runtime::Candidate<'a>
+impl<T> tracing::instrument::WithSubscriber for nika_session::runtime::Candidate<'a>
+impl<T> typenum::type_operators::Same for nika_session::runtime::Candidate<'a>
+pub type nika_session::runtime::Candidate<'a>::Output = T
 #[non_exhaustive] pub struct nika_session::runtime::IntentDraft
 pub nika_session::runtime::IntentDraft::decisions: alloc::vec::Vec<alloc::string::String>
 pub nika_session::runtime::IntentDraft::goal: core::option::Option<alloc::string::String>
@@ -2461,7 +2505,10 @@ pub fn nika_session::runtime::SessionRuntime::answer_gate(&mut self, line: &str)
 pub fn nika_session::runtime::SessionRuntime::choose(&mut self, answer: &str) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::consent(&mut self, answer: &str) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::enable_history(&mut self, home: &std::path::Path) -> core::result::Result<core::option::Option<alloc::string::String>, nika_session::outcome::Refusal>
+pub fn nika_session::runtime::SessionRuntime::kept_run(&self) -> core::option::Option<core::result::Result<nika_trace::run_view::kept::KeptRun, alloc::string::String>>
+pub fn nika_session::runtime::SessionRuntime::kept_turns(&self) -> &[(alloc::string::String, alloc::string::String)]
 pub fn nika_session::runtime::SessionRuntime::observe_run(&mut self, exit: u8, trace: core::option::Option<&std::path::Path>) -> nika_session::runtime::TurnOutcome
+pub fn nika_session::runtime::SessionRuntime::observe_run_leg(&mut self, exit: u8, trace: core::option::Option<&std::path::Path>, leg: nika_trace::run_view::kept::KeptRun) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::restore_state(&mut self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::runtime::SessionRuntime::turn(&mut self, input: &str) -> nika_session::runtime::TurnOutcome
 impl nika_session::runtime::SessionRuntime
@@ -2489,6 +2536,8 @@ pub fn nika_session::runtime::SessionRuntime::authoring_seat(&self) -> &nika_ses
 pub fn nika_session::runtime::SessionRuntime::pending_input(&self) -> core::option::Option<&str>
 pub fn nika_session::runtime::SessionRuntime::pending_question(&self) -> core::option::Option<&nika_compile::types::CompileQuestion>
 pub fn nika_session::runtime::SessionRuntime::set_authoring_context(&mut self, context: nika_session::authoring::AuthoringContext)
+impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::candidate(&self) -> core::option::Option<nika_session::runtime::Candidate<'_>>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::cost_choice_details(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::runtime::SessionRuntime::cost_observations(&self) -> alloc::vec::Vec<serde_json::value::Value>
@@ -4768,7 +4817,10 @@ pub fn nika_session::runtime::SessionRuntime::answer_gate(&mut self, line: &str)
 pub fn nika_session::runtime::SessionRuntime::choose(&mut self, answer: &str) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::consent(&mut self, answer: &str) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::enable_history(&mut self, home: &std::path::Path) -> core::result::Result<core::option::Option<alloc::string::String>, nika_session::outcome::Refusal>
+pub fn nika_session::runtime::SessionRuntime::kept_run(&self) -> core::option::Option<core::result::Result<nika_trace::run_view::kept::KeptRun, alloc::string::String>>
+pub fn nika_session::runtime::SessionRuntime::kept_turns(&self) -> &[(alloc::string::String, alloc::string::String)]
 pub fn nika_session::runtime::SessionRuntime::observe_run(&mut self, exit: u8, trace: core::option::Option<&std::path::Path>) -> nika_session::runtime::TurnOutcome
+pub fn nika_session::runtime::SessionRuntime::observe_run_leg(&mut self, exit: u8, trace: core::option::Option<&std::path::Path>, leg: nika_trace::run_view::kept::KeptRun) -> nika_session::runtime::TurnOutcome
 pub fn nika_session::runtime::SessionRuntime::restore_state(&mut self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::runtime::SessionRuntime::turn(&mut self, input: &str) -> nika_session::runtime::TurnOutcome
 impl nika_session::runtime::SessionRuntime
@@ -4796,6 +4848,8 @@ pub fn nika_session::runtime::SessionRuntime::authoring_seat(&self) -> &nika_ses
 pub fn nika_session::runtime::SessionRuntime::pending_input(&self) -> core::option::Option<&str>
 pub fn nika_session::runtime::SessionRuntime::pending_question(&self) -> core::option::Option<&nika_compile::types::CompileQuestion>
 pub fn nika_session::runtime::SessionRuntime::set_authoring_context(&mut self, context: nika_session::authoring::AuthoringContext)
+impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::candidate(&self) -> core::option::Option<nika_session::runtime::Candidate<'_>>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::cost_choice_details(&self) -> core::option::Option<alloc::string::String>
 pub fn nika_session::runtime::SessionRuntime::cost_observations(&self) -> alloc::vec::Vec<serde_json::value::Value>

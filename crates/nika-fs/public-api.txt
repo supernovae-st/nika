@@ -456,4 +456,6 @@ pub async fn nika_fs::TokioFs::create_dir_all(&self, path: &std::path::Path) -> 
 pub async fn nika_fs::TokioFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_fs::TokioFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub fn nika_fs::TokioFs::write_new(&self, path: &std::path::Path, contents: &[u8]) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send
+pub fn nika_fs::open_owned(path: &std::path::Path) -> core::io::error::Result<core::option::Option<std::fs::File>>
 pub fn nika_fs::read_capped(reader: &mut impl alloc::io::read::Read, limit: u64) -> core::io::error::Result<nika_fs::Capped>
+pub fn nika_fs::read_owned(path: &std::path::Path, cap: u64) -> core::io::error::Result<core::option::Option<alloc::string::String>>
