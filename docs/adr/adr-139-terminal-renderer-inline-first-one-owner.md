@@ -18,6 +18,20 @@ amends: []
 
 # ADR-139 · The terminal renderer: Ratatui, inline-first, one owner of the terminal
 
+## Amendment — native workspace default (2026-10-03)
+
+The 0.123 product convergence direction supersedes decision 2's inline default:
+bare interactive `nika` opens the native workspace, with focus below 60×16 and
+`NIKA_TUI=inline` as an explicit reduced presentation. One terminal owner, typed
+Session beats, plain fallback and the existing consent law remain. The first
+Live workspace slice lists the project and inspects one parent workflow through
+four faces of the same witnessed bytes; it does not claim full execution closure
+or completion of the run/result/Proof surfaces. See
+[the current crate contract](../crate-specs/nika-tui.md) and
+[ADR-143](adr-143-nika-tui-view-member-split.md) for the viewers member.
+
+The original context and decision below describe the inline-first milestone.
+
 ## Context
 
 Bare `nika` on an interactive terminal opens the native session (ADR-125):

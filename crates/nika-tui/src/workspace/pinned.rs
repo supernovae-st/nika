@@ -4,10 +4,12 @@
 //! The pinned activity row: the run that asks for attention, named by its own
 //! identity (its owning project, its workflow, its run), its state as the
 //! theme's glyph with the Session's words beside it, and the one useful action
-//! when the Session offers one. Pinning never moves a run nor changes the
-//! revision it runs; the row keeps naming the owning project while another
-//! project is in view. When the row is narrow the action goes first, then the
-//! workflow's end; the run and its state words stay.
+//! when the Session offers one. The row leads with the pinned icon (`⌖`, `^`
+//! in ASCII), never a `>` a reader could take for a prompt marker. Pinning
+//! never moves a run nor changes the revision it runs; the row keeps naming
+//! the owning project while another project is in view. When the row is narrow
+//! the action goes first, then the workflow's end; the run and its state words
+//! stay.
 
 use nika_display::state::TaskState;
 use nika_display::theme::Role;
@@ -71,7 +73,7 @@ pub fn line(pinned: &Pinned, width: u16, ascii: bool, color: bool) -> Line<'stat
     let (sep, cut) = marks(ascii);
     let dim = role::style(Role::Dim, color);
     let (glyph, state_role) = state::cell(pinned.state, ascii);
-    let head = format!("{} {} ", Icon::Run.glyph(ascii), pinned.project);
+    let head = format!("{} {} ", Icon::Pinned.glyph(ascii), pinned.project);
     let run = format!(" {}", pinned.run);
     let status = format!("{sep}{glyph} {}", pinned.words);
     let action = pinned
@@ -118,11 +120,11 @@ mod tests {
 
     #[test]
     fn the_row_names_the_owning_project_the_run_its_state_and_the_action() {
-        // The run icon's Unicode proposal is East Asian ambiguous, so its twin is drawn.
+        // The pinned icon leads, never a `>` that reads as a prompt marker.
         let row = text(&line(&gate(), 120, false, false));
         assert_eq!(
             row,
-            "> studio / release.nika #043 · ◇ waiting for your approval · answer the gate"
+            "⌖ studio / release.nika #043 · ◇ waiting for your approval · answer the gate"
         );
     }
 
@@ -146,7 +148,7 @@ mod tests {
         let ascii = text(&line(&gate(), 120, true, false));
         assert_eq!(
             ascii,
-            "> studio / release.nika #043 - ? waiting for your approval - answer the gate"
+            "^ studio / release.nika #043 - ? waiting for your approval - answer the gate"
         );
         let failed = Pinned::new(
             "studio",

@@ -130,7 +130,6 @@ fn typeahead_is_defused(
 /// Before the question: an answer typed while the intent is read must not
 /// answer the question the turn asks.
 #[test]
-#[ignore = "defect: typeahead answers a question painted after it · app.rs replays deferred keys, only the two cost questions discard them · app.rs input handling"]
 fn typeahead_never_answers_a_question_painted_after_it() {
     typeahead_is_defused(
         0,
@@ -154,7 +153,6 @@ fn typeahead_never_answers_a_question_painted_after_it() {
 /// nika ›
 /// ```
 #[test]
-#[ignore = "defect: typeahead consents at apply?"]
 fn typeahead_never_consents_to_a_proposal_painted_after_it() {
     typeahead_is_defused(1, "./notes/lundi.md", "yes", PROPOSAL, APPLY, SAVED);
 }
@@ -162,7 +160,6 @@ fn typeahead_never_consents_to_a_proposal_painted_after_it() {
 /// Before the gate: a `yes` typed while the run starts must not answer the
 /// gate the run pauses on.
 #[test]
-#[ignore = "defect: typeahead answers a gate painted after it · same cause · app.rs input handling"]
 fn typeahead_never_answers_a_gate_painted_after_it() {
     typeahead_is_defused(3, "run it", "yes", GATE, ANSWER, RESULT);
 }

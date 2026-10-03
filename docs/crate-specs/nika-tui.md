@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| Status | **WIP · in the workspace since 2026-09-21** (the `nika-tui-core` precedent) · Gate 1 (this document) authored 2026-08-12, amended 2026-09-21 by ADR-139 (the renderer architecture: inline-first, one owner of the terminal) · D-2026-08-11-N6 (T27 after T28 · the renderer is to be the first native consumer of `nika-tui-core`) |
+| Status | **WIP · in the workspace since 2026-09-21** (the `nika-tui-core` precedent) · Gate 1 (this document) authored 2026-08-12, amended by ADR-139 (2026-09-21 inline milestone; 2026-10-03 workspace default, one owner of the terminal) · D-2026-08-11-N6 (T27 after T28 · the renderer is to be the first native consumer of `nika-tui-core`) |
 | Layer | L4 — interfaces (the native terminal surface) |
-| Design | The session's Ratatui renderer (ADR-139) · ONE owner of the terminal (raw mode · bracketed paste · focus · probed keyboard protocol · alternate screen, enabled in a fixed order and restored in reverse from one place; the panic hook restores BEFORE the message) · INLINE presentation first (`Viewport::Inline` + `insert_before` with scrolling regions: finished blocks live in the terminal's scrollback) · FOCUS presentation on demand (alternate screen, scrollable transcript, draft kept) · ONE event broker, paused around each cursor-position query · one composer (`ratatui-textarea` behind a wrapper: Enter sends, Alt+Enter inserts a line break, a paste is data, history at the edges of the buffer). It decides no product law: it paints and it listens. `nika-session` stays the truth and supplies what it shows as typed turn outcomes; ADR-139 assigns `nika-tui-core` to derive what a screen may claim, which is not wired yet (§1). |
+| Design | The session's Ratatui renderer (ADR-139) · ONE owner of the terminal (raw mode · bracketed paste · focus · probed keyboard protocol · alternate screen, enabled in a fixed order and restored in reverse from one place; the panic hook restores BEFORE the message) · WORKSPACE presentation first on interactive terminals (project, workflow inspection, conversation); explicit INLINE (`NIKA_TUI=inline`) keeps finished blocks in terminal scrollback · FOCUS presentation on demand (alternate screen, scrollable transcript, draft kept) · ONE event broker, paused around each cursor-position query · one composer (`ratatui-textarea` behind a wrapper: Enter sends, Alt+Enter inserts a line break, a paste is data, history at the edges of the buffer). It decides no product law: it paints and it listens. `nika-session` stays the truth and supplies what it shows as typed turn outcomes; ADR-139 assigns `nika-tui-core` to derive what a screen may claim, which is not wired yet (§1). |
 | LOC budget | ≤6,000 src prod · ≤15,000 hard cap |
 | File cap | ≤1,500 LOC each |
 | Function cap | ≤100 lines each |
@@ -12,9 +12,9 @@
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 (workspace-inherited) |
 | Publish | `false` |
-| Dependencies | **read from `Cargo.toml`, which is authoritative** · `ratatui` 0.30 (features `scrolling-regions` · `unstable-rendered-line-info`) · `crossterm` 0.29 (`event-stream` · `bracketed-paste`) · `ratatui-textarea` 0.9 · `tokio` · `unicode-width` · lateral L4 `nika-session` (the live conversation), `nika-cli-host` (the one-use Run child, no admission authority) and `nika-display` (the theme seam: roles, verb and state glyphs, motion frames; already under the other two) · dev: `expectrl` (the PTY proof), `sha2` (the logomark provenance proof). `tachyonfx` and `nika-tui-core` are not dependencies yet; ADR-139 §Consequences leaves tachyonfx and the web-studio port out of the first product. |
+| Dependencies | **read from `Cargo.toml`, which is authoritative** · `ratatui` 0.30 (features `scrolling-regions` · `unstable-rendered-line-info`) · `crossterm` 0.29 (`event-stream` · `bracketed-paste`) · `ratatui-textarea` 0.9 · `tokio` · `unicode-width` · `nika-fs` (bounded Live inspection) · lateral L4 `nika-session` (the live conversation), `nika-cli-host` (the one-use Run child, no admission authority), `nika-tui-view` (pure workflow faces), and `nika-display` (the theme seam: roles, verb and state glyphs, motion frames; already under the other two) · dev: `expectrl` (the PTY proof), `sha2` (the logomark provenance proof). `tachyonfx` and `nika-tui-core` are not dependencies yet; ADR-139 §Consequences leaves tachyonfx and the web-studio port out of the first product. |
 | NIKA codes | none owed — the renderer refuses nothing · it displays the refusal the engine rendered |
-| Depends on | **T28 admitted** (`nika-tui-core` out of wip, done 2026-08-14) · ADR-139 proposed (confirmed or overturned by the two UX-1 prototypes on the same fixtures) |
+| Depends on | **T28 admitted** (`nika-tui-core` out of wip, done 2026-08-14) · ADR-139 records the original renderer milestone and the 2026-10-03 workspace amendment |
 
 ---
 
@@ -73,10 +73,28 @@ Nothing in `visual` reads the clock, the environment or a file; the caller
 passes the elapsed time, the colour and ASCII choices and reduced motion. Where
 the layout places the mark and the icons is UI-LAYOUT's work.
 
-### The workspace screen (T-nika-tui-layout · in progress)
+### The workspace screen (native entry and parent workflow inspection)
 
-`workspace` builds the full-terminal screen on fixtures; nothing opens it yet,
-and the inline presentation and the plain loop are unchanged.
+Bare `nika` on an interactive terminal opens the workspace. `NIKA_TUI=inline`
+selects the earlier inline presentation; plain and pipe behavior stay available.
+Below 60×16, focus presentation preserves the conversation. The Live host adapter
+lists the Session project, opens only a listed workflow below its owned root,
+and reads at most 1 MiB of UTF-8 without following symlinks. Source, Plan, Graph
+and Check share the same byte witness and one `audit_source` result. Inspection
+runs before drawing and opens no consent, Save or Run authority.
+
+The check is explicitly `ParentOnly`: imports, skills and registry closure are
+unobserved, and RUN READY stays UNKNOWN. Rendering is cached by observation,
+face and width; every new observation, including an unread result, invalidates
+it. Resize updates geometry before preparing the next frame. Opening an object
+changes neither the conversation nor its attached context.
+
+The real CLI PTY suite `workspace_pty` covers startup, the four faces and witness,
+re-read after edits, resize, ASCII/no-color/reduced motion, focus and typeahead,
+terminal restoration, inline/plain/pipe, inspection without effects, and Save
+without Run. These proofs cover this inspection slice. Live run hierarchy,
+output viewers and Proof, project/conversation switching and complete execution
+closure are not implemented by this slice.
 
 - `workspace::geometry::Geometry::of` places the header, the project aside,
   the object in view, the conversation with its composer and the pinned
@@ -84,7 +102,7 @@ and the inline presentation and the plain loop are unchanged.
   conversation sits under the object and keeps at least half the rows; from 100
   columns it stands beside the object (36 to 56 columns); from 120 columns the
   project aside appears (20 to 32 columns); from 30 rows the header takes a
-  second row. Below 60×16 there is no workspace and the caller keeps the inline
+  second row. Below 60×16 there is no workspace and the caller keeps the focus
   presentation. The regions cover the screen exactly without overlap at 80×24,
   100×32, 120×40 and 160×48, with and without a pinned row.
 - `workspace::header` paints where the human stands from a `Place` the Session
@@ -106,8 +124,7 @@ and the inline presentation and the plain loop are unchanged.
   `nika_display::theme::Theme::glyph` paints.
 - `workspace::object` paints the centre. An open object is named by its kind's
   icon and its name, and its given lines are cut at the edge, never wrapped
-  (the viewers of T-nika-tui-viewers will paint graphs, sources, diffs, checks,
-  results and proofs there). With nothing open it welcomes: the largest
+  (workflow faces use `nika-tui-view`; result and Proof wiring remain pending). With nothing open it welcomes: the largest
   butterfly that fits whole above the Session's first words (16×8 in the 80×24
   object rows, 48×20 from 120×40), revealed once from the caller's clock, final
   at once under reduced motion.
@@ -122,7 +139,7 @@ and the inline presentation and the plain loop are unchanged.
   painted by the same functions as the focus presentation. Beside the object
   a rule column and a blank column separate the panel; under it, the panel's
   title is a rule across. Below 60×16 it draws nothing and returns `false`, so
-  the caller keeps the inline presentation.
+  the caller keeps the focus presentation.
 - `workspace::focus` says which region holds the keyboard. The composer has
   it by default, so typing never needs a first move; `F6` moves to the next
   region and `Shift+F6` back (a folded aside is skipped), `Esc` returns to the
@@ -176,7 +193,7 @@ scenario is qualified on the REAL binary, never when the code exists:
    switch is retired: bare `nika` on a real terminal opens the renderer, and
    `nika --plain` or `NIKA_TUI=0` keeps the plain loop. The plain loop is also
    the automatic fallback when the renderer cannot take the terminal
-   (`TERM=dumb`, a terminal that never answers the cursor-position report),
+   (`TERM=dumb`, or an explicitly inline terminal that never answers the cursor-position report),
    said once on stderr.
 3. **UX-3 · contextual cognition and recovery** · the intelligence picker,
    typed recovery.
@@ -202,9 +219,10 @@ UX-7 human qualification.
 - The same session state gives the same buffer. Painting is pure; the clock
   enters only through effects (in the target design tachyonfx carries time,
   and widgets never read it).
-- The crate's own code performs no I/O beyond the event loop and the
-  terminal. Engine reads and writes belong to the session runtime
-  (`nika-session`); runs go through the runners the CLI door injects.
+- Painting and the viewers perform no I/O. The Live host adapter additionally
+  reads a listed parent workflow through `nika-fs` before preparing inspection
+  (bounded, no symlink; see above). Session mutations remain in `nika-session`;
+  runs go through the runners the CLI door injects.
 
 ## 6. Related
 

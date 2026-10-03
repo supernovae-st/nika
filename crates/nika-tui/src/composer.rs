@@ -119,9 +119,11 @@ impl Composer {
             .insert_str(text.replace("\r\n", "\n").replace('\r', "\n"));
     }
 
-    /// The composer's own placeholder line, shown when empty.
+    /// The composer's own placeholder line, shown when empty: dim, never a
+    /// hue (the text area's own default is a grey that `NO_COLOR` forbids).
     pub fn set_placeholder(&mut self, text: &str) {
         self.area.set_placeholder_text(text.to_owned());
+        self.area.set_placeholder_style(PLACEHOLDER);
     }
 
     /// Handle one key press.
@@ -430,13 +432,31 @@ fn fresh_like(previous: &TextArea<'static>) -> TextArea<'static> {
     let placeholder = previous.placeholder_text();
     if !placeholder.is_empty() {
         area.set_placeholder_text(placeholder.to_owned());
+        area.set_placeholder_style(PLACEHOLDER);
     }
     area
 }
 
+/// The placeholder's look in every glyph column and colour mode.
+const PLACEHOLDER: Style = Style::new().add_modifier(Modifier::DIM);
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The placeholder is dim and carries no hue, whatever the colour mode.
+    #[test]
+    fn the_placeholder_carries_no_hue() {
+        let mut composer = Composer::new();
+        composer.set_placeholder("Message to demo / this conversation");
+        let area = Rect::new(0, 0, 40, 1);
+        let mut buf = Buffer::empty(area);
+        composer.render(area, &mut buf);
+        for x in 0..40 {
+            let cell = &buf[(x, 0)];
+            assert_eq!(cell.fg, ratatui::style::Color::Reset, "x {x}: {cell:?}");
+        }
+    }
 
     fn key(code: KeyCode, modifiers: KeyModifiers) -> KeyEvent {
         KeyEvent::new(code, modifiers)

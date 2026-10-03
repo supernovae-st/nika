@@ -165,6 +165,7 @@ fn status_line(state: &UiState) -> Line<'static> {
         let mode = match state.presentation {
             Presentation::Inline => "",
             Presentation::Focus => "focus · Esc returns inline · PgUp/PgDn scroll",
+            Presentation::Workspace => "workspace · F6 moves the keys · Esc returns inline",
         };
         let mode = own(mode, state.ascii);
         let sep = own(" · ", state.ascii);

@@ -64,9 +64,54 @@ pub(crate) fn fit_head(text: &str, width: usize, cut: &str) -> String {
     format!("{head}{cut}")
 }
 
+/// `text` broken into rows of at most `width` cells at its spaces; a word
+/// wider than a row is cut with `cut`. Nothing when `width` is zero.
+pub(crate) fn wrap(text: &str, width: usize, cut: &str) -> Vec<String> {
+    if width == 0 {
+        return Vec::new();
+    }
+    let mut rows: Vec<String> = Vec::new();
+    let mut row = String::new();
+    for word in text.split_whitespace() {
+        let word = fit_head(word, width, cut);
+        if !row.is_empty() && row.width() + 1 + word.width() > width {
+            rows.push(std::mem::take(&mut row));
+        }
+        if !row.is_empty() {
+            row.push(' ');
+        }
+        row.push_str(&word);
+    }
+    if !row.is_empty() {
+        rows.push(row);
+    }
+    rows
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn wrapping_breaks_at_spaces_and_cuts_a_word_wider_than_a_row() {
+        assert_eq!(
+            wrap("the file listing needs a Session contract", 20, "…"),
+            ["the file listing", "needs a Session", "contract"]
+        );
+        assert_eq!(
+            wrap("unbreakable-identifier here", 8, "..."),
+            ["unbre...", "here"]
+        );
+        assert!(wrap("anything", 0, "…").is_empty());
+        for width in 1..24 {
+            assert!(
+                wrap("conversation d'équipe · 日本語のプロジェクト", width, "…")
+                    .iter()
+                    .all(|row| row.width() <= width),
+                "{width}"
+            );
+        }
+    }
 
     #[test]
     fn fitting_keeps_within_the_width_on_both_ends() {

@@ -156,9 +156,10 @@ fn every_effect_ends_in_silence() {
         term.walk(&[step]);
         quiet(&mut term, step.shows, window);
     }
+    // Ctrl+T from inline opens the workspace when the terminal holds it.
     term.send("\x14");
-    term.wait_text("focus · Esc returns inline");
-    quiet(&mut term, "the switch to focus", window);
+    term.wait_text("workspace · F6 moves the keys");
+    quiet(&mut term, "the switch to the workspace", window);
     term.send("\x1b");
     term.wait_until("back inline", |screen| !screen.on_alt());
     quiet(&mut term, "the return inline", window);

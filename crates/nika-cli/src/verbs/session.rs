@@ -332,6 +332,20 @@ fn reduced_motion() -> bool {
     std::env::var("NIKA_REDUCED_MOTION").is_ok_and(|v| !v.trim().is_empty())
 }
 
+/// Where bare `nika` opens on a terminal: the workspace, or the inline
+/// conversation when `NIKA_TUI=inline` asks for it (`Ctrl+T` moves between
+/// them). A display choice, not a secret (the same allow `term_name` carries).
+#[allow(clippy::disallowed_methods)]
+fn presentation() -> nika_tui::model::Presentation {
+    use nika_tui::model::Presentation;
+    let inline = std::env::var("NIKA_TUI").is_ok_and(|v| v.trim().eq_ignore_ascii_case("inline"));
+    if inline {
+        Presentation::Inline
+    } else {
+        Presentation::Workspace
+    }
+}
+
 /// `TERM` as the renderer's probe reads it. The `disallowed_methods` ban on
 /// `std::env::var` routes SECRET lookups through the vault; a display
 /// capability variable is not a secret (the same allow `main.rs` carries).
@@ -382,7 +396,8 @@ fn run_tapped(
 }
 
 /// Open the native session behind the terminal renderer (bare `nika` on a terminal ·
-/// ADR-139 · UX-2): the same runtime, the same census and kept choice, the
+/// ADR-139 · UX-2), in the workspace unless `NIKA_TUI=inline` asks for the inline
+/// conversation: the same runtime, the same census and kept choice, the
 /// same two run paths lent as runners, and the tapped runner that keeps
 /// the terminal: a run shows inside the viewport, its gate asks there.
 ///
@@ -393,7 +408,7 @@ fn run_tapped(
 #[must_use]
 pub fn run_tui(theme: Theme) -> u8 {
     use nika_tui::session::{Live, Runners};
-    let mut options = nika_tui::app::Options::new(nika_tui::model::Presentation::Inline);
+    let mut options = nika_tui::app::Options::new(presentation());
     options.color = theme.color;
     options.ascii = theme.ascii;
     options.term = term_name();

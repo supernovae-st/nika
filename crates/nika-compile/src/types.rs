@@ -606,10 +606,11 @@ pub struct AuthoringReceipt {
     pub output_tokens: Option<u64>,
     /// Wall time spent awaiting the provider, including timeout/failure.
     pub elapsed_ms: u64,
-    /// What each call received, in call order: its role (`plan` · `repair` · `transform`),
-    /// the sha256 of the instruction and of the answer schema it was given, the bytes of its
-    /// messages, and the references sent with it (none today: recall is recorded, never
-    /// sent). A journal of what the seat actually read, never of what the repository holds.
+    /// Context prepared for each call, in call order: its role (`plan` · `repair` ·
+    /// `transform`), the sha256 of its instructions and answer schema, message bytes,
+    /// and references carried by native, sketch or verifier calls (none for a plan).
+    /// This records prepared context, not proof of delivery or of what the model read;
+    /// the forensic record reports delivery separately.
     pub context: Vec<serde_json::Value>,
     /// The backend that answered, named by the transport that seated it: `direct_api` (a
     /// provider of the registry, tokens metered) or `acp_harness` (the operator's own agent

@@ -21,15 +21,33 @@ pub enum Presentation {
     Inline,
     /// On request: the alternate screen with the transcript scrollable.
     Focus,
+    /// The alternate screen as the workspace ([`crate::workspace`]): the
+    /// project the conversation lends in its header and aside, the object in
+    /// view, the conversation beside or below it. Below
+    /// [`crate::workspace::geometry::MIN_SIZE`] it draws the focus view
+    /// instead, and comes back whole when the size allows.
+    Workspace,
 }
 
 impl Presentation {
-    /// The other presentation.
+    /// The other presentation when the terminal's size is unknown: inline
+    /// leads to the focus view, a full screen back to inline.
     #[must_use]
     pub fn toggled(self) -> Self {
         match self {
             Self::Inline => Self::Focus,
-            Self::Focus => Self::Inline,
+            Self::Focus | Self::Workspace => Self::Inline,
+        }
+    }
+
+    /// What `Ctrl+T` opens on a terminal of `size` (columns, rows): from
+    /// inline the workspace when it fits, the focus view otherwise; from
+    /// either full screen, inline.
+    #[must_use]
+    pub fn toggled_at(self, size: (u16, u16)) -> Self {
+        match self {
+            Self::Inline if crate::workspace::geometry::fits(size) => Self::Workspace,
+            other => other.toggled(),
         }
     }
 }
@@ -124,7 +142,9 @@ impl Waiting {
     #[must_use]
     pub fn hint(&self) -> &'static str {
         match self {
-            Self::Free => "describe work · /help · Ctrl+T focus view · Ctrl+C twice to leave",
+            Self::Free => {
+                "describe work · /help · Ctrl+T switches the view · Ctrl+C twice to leave"
+            }
             Self::Choosing => "type a number · `cancel` continues without a choice",
             Self::Question { key } if key == "unknown_cost" || key == "run_cost" => {
                 "yes approves once · no or Ctrl+C cancels · details shows the full evidence"
@@ -425,6 +445,50 @@ pub trait Conversation: Send {
     fn commands(&self) -> Vec<String> {
         Vec::new()
     }
+    /// The project this conversation stands in, read-only, as its Session
+    /// observed it: the workspace's header, aside and welcome read it. The
+    /// shell asks after the opening and after every turn, never while it
+    /// draws; the answer is a projection of what the conversation already
+    /// holds, never a fresh walk of the disk. The default lends none, and
+    /// the workspace then says that no project is known.
+    fn project(&self) -> Option<crate::workspace::project::ProjectView> {
+        None
+    }
+    /// One look at the listed workflow `path`, taken by the conversation's
+    /// Session when the human opens it (never while drawing): the exact bytes,
+    /// their witness, and the check and graph of those same bytes. A look
+    /// grants nothing and is never sent to a model. The default takes none,
+    /// and the object then shows what the listing judged.
+    fn inspect(&mut self, _path: &str) -> Option<crate::workspace::inspect::Inspected> {
+        None
+    }
+}
+
+/// The project the demo conversation ([`Script::demo`]) stands in: a fixture
+/// of the shape a Session lends ([`Conversation::project`]), with one
+/// workflow of each verdict. It names nothing on this machine.
+#[must_use]
+pub fn demo_project() -> crate::workspace::project::ProjectView {
+    use crate::workspace::header::Manifest;
+    use crate::workspace::project::{ProjectView, WorkflowView};
+    ProjectView::new("local", "demo", "~/Projects/demo")
+        .with_git(true)
+        .governed(Manifest::Here)
+        .listing(
+            vec![
+                WorkflowView::new("release.nika", Some("release"), true, 0, 4),
+                WorkflowView::new("enrich.nika", Some("enrich"), false, 2, 3),
+                WorkflowView::new(
+                    "flows/weekly-digest.nika",
+                    Some("weekly-digest"),
+                    true,
+                    0,
+                    5,
+                ),
+            ],
+            true,
+        )
+        .seated("the demo script, no model is called")
 }
 
 impl Conversation for Script {

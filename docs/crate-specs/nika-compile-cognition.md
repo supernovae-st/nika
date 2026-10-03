@@ -414,6 +414,26 @@ reported identities remain exact and deduplicated in first-observed order; the r
 provider response is preserved. This observation is not independent provider or
 invoice verification. CLI, Session and native Serve use this same owner.
 
+### Forensic record (`decision.forensic`, v1)
+
+A cognition compile offered a seat or provider projects one summary after Rehearsal
+from the journals it already keeps: the door and its reason, the source owner, the
+routes tried, request digests apart from proposals, the proposal kind and state
+(`NOT_CAPTURED` for source-direct and replay), and the finite candidate universe
+or `not_applicable`. Foundry references distinguish attached, prepared and
+confirmed-presented: only an answered call confirms delivery; a provider failure
+is `delivery_unknown`, and a local refusal is not sent. Calls retain their roles,
+delivery and unknown usage as null. Evidence names the exact final bytes checked
+or rehearsed, while the semantic judge lacks a candidate binding and behavioral
+satisfaction remains `UNKNOWN` (`behavioral_judge: not_run`).
+
+Each authoring call journals its response digest and, for a plan, the decoded
+object. Accepted sketches and declared fills retain the closed form consumed by
+the compiler and a count of ignored keys. Refused plans and sketches, and
+undeclared or repeated fills, retain digest, shape and reason only. Transform
+program proposals and an external DecisionSeat's own usage remain explicitly
+`not_captured`. The record grants no authority and changes no routing decision.
+
 ## Numeric conversion cardinality
 
 Transform examples execute the same numeric conversion definition as the runtime; successful parsing alone never establishes semantic fidelity.

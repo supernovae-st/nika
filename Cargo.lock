@@ -4634,6 +4634,7 @@ dependencies = [
  "sha2 0.10.9",
  "tempfile",
  "tokio",
+ "unicode-width 0.2.2",
  "uuid",
 ]
 
@@ -5585,7 +5586,9 @@ dependencies = [
  "expectrl",
  "nika-cli-host",
  "nika-display",
+ "nika-fs",
  "nika-session",
+ "nika-tui-view",
  "ratatui",
  "ratatui-textarea",
  "sha2 0.10.9",
@@ -5604,6 +5607,17 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.20",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "nika-tui-view"
+version = "0.122.0"
+dependencies = [
+ "nika-cli-host",
+ "nika-display",
+ "nika-session",
+ "ratatui",
+ "unicode-width 0.2.2",
 ]
 
 [[package]]

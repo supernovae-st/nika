@@ -208,8 +208,8 @@ fn nika_thread_is_an_unrecognized_subcommand() {
 }
 
 /// One gesture: bare `nika` on a real terminal opens the renderer (its
-/// probe asks the terminal's attributes and the cursor position before
-/// the first paint); `NIKA_TUI=0` keeps the plain loop, which asks the
+/// probe asks the terminal's attributes, then the workspace takes the
+/// alternate screen); `NIKA_TUI=0` keeps the plain loop, which asks the
 /// terminal nothing.
 #[test]
 fn bare_nika_opens_the_renderer_and_nika_tui_zero_keeps_the_plain_loop() {
@@ -228,12 +228,13 @@ fn bare_nika_opens_the_renderer_and_nika_tui_zero_keeps_the_plain_loop() {
         .expect("the renderer's probe asks the terminal's attributes: the renderer opened");
     session.send("\x1b[?62;22c").expect("answer the attributes");
     session
-        .expect("\x1b[6n")
-        .expect("the inline viewport asks where the cursor is");
-    session.send("\x1b[24;1R").expect("answer the report");
+        .expect("\x1b[?1049h")
+        .expect("bare nika opens the workspace on the alternate screen");
+    // The status row is the workspace's own: the banner may already have
+    // scrolled out of a small transcript region.
     session
-        .expect("automate?")
-        .expect("the banner inside the viewport");
+        .expect("workspace · F6 moves the keys")
+        .expect("the workspace drawn");
     session.send("/quit\r").expect("quit in raw mode");
     session.expect(Eof).expect("closes");
     assert_eq!(exit_code(&mut session), 0);

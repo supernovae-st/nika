@@ -3,9 +3,12 @@
 
 //! The project aside: what the project named in the header holds, in two
 //! projections, **Nika** (conversations, workflows, runs, activations) and
-//! **Files**. It lists only entries the Session exposes; an inventory the
-//! Session marks partial says so on its last row instead of pretending to show
-//! the whole disk. Opening an entry changes the object in view, never the
+//! **Files**. It lists only entries the Session exposes, a workflow with the
+//! installed checker's verdict in words; an inventory the Session marks partial
+//! says so on its last row instead of pretending to show the whole disk, and
+//! what a projection cannot list is said in a note, never left blank. When the
+//! selection slides the list, the rows it hides are counted where they are,
+//! above or below. Opening an entry changes the object in view, never the
 //! conversation, and never attaches its content to the next message.
 
 use nika_display::theme::Role;
@@ -13,7 +16,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use unicode_width::UnicodeWidthStr;
 
-use super::text::{fit_head, marks};
+use super::text::{fit_head, marks, wrap};
 use crate::visual::icon::Icon;
 use crate::visual::role;
 
@@ -25,6 +28,38 @@ pub enum Tab {
     Nika,
     /// The project's files.
     Files,
+}
+
+/// The installed checker's verdict on a workflow, as the Session lends it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Verdict {
+    /// The check found nothing.
+    Clean,
+    /// The check did not pass, with the findings it counted (none counted
+    /// when the file did not read or parse: « not clean »).
+    Findings(usize),
+}
+
+impl Verdict {
+    /// The verdict in words and the role they wear: a hue accompanies the
+    /// words, never replaces them.
+    #[must_use]
+    pub(crate) fn words(self) -> String {
+        match self {
+            Self::Clean => "ok".to_owned(),
+            Self::Findings(0) => "not clean".to_owned(),
+            Self::Findings(1) => "1 finding".to_owned(),
+            Self::Findings(n) => format!("{n} findings"),
+        }
+    }
+
+    fn role(self) -> Role {
+        match self {
+            Self::Clean => Role::Good,
+            Self::Findings(_) => Role::Warn,
+        }
+    }
 }
 
 /// One entry of the aside, as the Session lists it.
@@ -39,10 +74,12 @@ pub struct Entry {
     pub depth: u8,
     /// Whether it is the object in view.
     pub open: bool,
+    /// The checker's verdict, for a workflow the Session judged.
+    pub verdict: Option<Verdict>,
 }
 
 impl Entry {
-    /// A top-level entry, not open.
+    /// A top-level entry, not open, not judged.
     #[must_use]
     pub fn new(icon: Icon, label: impl Into<String>) -> Self {
         Self {
@@ -50,6 +87,7 @@ impl Entry {
             label: label.into(),
             depth: 0,
             open: false,
+            verdict: None,
         }
     }
 
@@ -66,6 +104,13 @@ impl Entry {
         self.open = true;
         self
     }
+
+    /// This entry with the checker's verdict beside it.
+    #[must_use]
+    pub fn judged(mut self, verdict: Verdict) -> Self {
+        self.verdict = Some(verdict);
+        self
+    }
 }
 
 /// The aside's content, as the Session projects it.
@@ -80,6 +125,30 @@ pub struct Aside {
     pub entries: Vec<Entry>,
     /// Whether the listing is complete; `false` says it is partial.
     pub complete: bool,
+    /// What the projection cannot list, in words, under its entries.
+    pub note: Option<String>,
+}
+
+impl Aside {
+    /// The `tab` projection of `project` listing `entries`, `complete` or
+    /// partial, with no note.
+    #[must_use]
+    pub fn new(project: impl Into<String>, tab: Tab, entries: Vec<Entry>, complete: bool) -> Self {
+        Self {
+            project: project.into(),
+            tab,
+            entries,
+            complete,
+            note: None,
+        }
+    }
+
+    /// This aside with `note` under its entries.
+    #[must_use]
+    pub fn noting(mut self, note: impl Into<String>) -> Self {
+        self.note = Some(note.into());
+        self
+    }
 }
 
 /// The aside lines for a `width` × `height` region, nothing selected.
@@ -92,6 +161,28 @@ pub fn lines(
     color: bool,
 ) -> Vec<Line<'static>> {
     lines_selecting(aside, width, height, ascii, color, None)
+}
+
+/// The listed window `[start, end)` of `count` entries in `room` rows, the
+/// selected entry always inside it: a row says how many entries are hidden
+/// above when the list slid, another how many below.
+fn window(count: usize, room: usize, selected: Option<usize>) -> (usize, usize) {
+    if count <= room {
+        return (0, count);
+    }
+    let at = selected.map_or(0, |s| s.min(count - 1));
+    // One row counts what is hidden: below at the top, above at the end.
+    let one = room.saturating_sub(1).max(1);
+    if at < one {
+        return (0, one);
+    }
+    if at >= count - one {
+        return (count - one, count);
+    }
+    // In the middle both rows count, and the selection stands last.
+    let both = room.saturating_sub(2).max(1);
+    let start = at + 1 - both;
+    (start, start + both)
 }
 
 /// The aside lines with the entry at `selected` reversed (the keyboard is in
@@ -110,10 +201,12 @@ pub fn lines_selecting(
     let dim = role::style(Role::Dim, color);
     let strong = role::style(Role::Strong, color);
     let chosen = strong.add_modifier(Modifier::UNDERLINED);
-    let mut out = vec![Line::from(Span::styled(
-        fit_head(&format!("in {}", aside.project), width, cut),
-        dim,
-    ))];
+    let scope = if aside.project.is_empty() {
+        "no project".to_owned()
+    } else {
+        format!("in {}", aside.project)
+    };
+    let mut out = vec![Line::from(Span::styled(fit_head(&scope, width, cut), dim))];
     let (nika, files) = match aside.tab {
         Tab::Nika => (chosen, dim),
         Tab::Files => (dim, chosen),
@@ -123,31 +216,20 @@ pub fn lines_selecting(
         Span::styled(sep.trim_end().to_owned() + " ", dim),
         Span::styled("Files", files),
     ]));
-    let footer = usize::from(!aside.complete);
+    let note = aside
+        .note
+        .as_deref()
+        .map(|n| wrap(n, width, cut))
+        .unwrap_or_default();
+    let footer = usize::from(!aside.complete) + note.len();
     let room = height.saturating_sub(out.len() + footer);
-    let hidden = aside.entries.len().saturating_sub(room);
-    // When entries are hidden, the last listed row says how many.
-    let listed = if hidden > 0 {
-        room.saturating_sub(1)
-    } else {
-        room
-    };
-    let start = match selected {
-        Some(at) if listed > 0 && at >= listed => at + 1 - listed,
-        _ => 0,
-    };
-    for (index, entry) in aside.entries.iter().enumerate().skip(start).take(listed) {
-        let indent = "  ".repeat(usize::from(entry.depth));
-        let glyph = entry.icon.glyph(ascii);
-        let marker = if entry.open {
-            if ascii { ">" } else { "›" }
-        } else {
-            " "
-        };
-        let head = format!("{marker}{indent}{glyph} ");
-        let label = fit_head(&entry.label, width.saturating_sub(head.width()), cut);
-        let style = if entry.open { strong } else { Style::default() };
-        let row = Line::from(vec![Span::styled(head, dim), Span::styled(label, style)]);
+    let count = aside.entries.len();
+    let (start, end) = window(count, room, selected);
+    if start > 0 {
+        out.push(Line::from(Span::styled(format!("  +{start} above"), dim)));
+    }
+    for (index, entry) in aside.entries.iter().enumerate().take(end).skip(start) {
+        let row = entry_row(entry, width, ascii, color);
         // A weight, never a hue: the selection reads without colour too.
         out.push(if selected == Some(index) {
             row.patch_style(Style::default().add_modifier(Modifier::REVERSED))
@@ -155,10 +237,16 @@ pub fn lines_selecting(
             row
         });
     }
-    if hidden > 0 && room > 0 {
-        let more = aside.entries.len() - listed;
-        out.push(Line::from(Span::styled(format!("  +{more} more"), dim)));
+    if end < count {
+        out.push(Line::from(Span::styled(
+            format!("  +{} below", count - end),
+            dim,
+        )));
     }
+    out.extend(
+        note.into_iter()
+            .map(|row| Line::from(Span::styled(row, dim))),
+    );
     if !aside.complete {
         out.push(Line::from(Span::styled(
             fit_head("partial listing", width, cut),
@@ -167,6 +255,42 @@ pub fn lines_selecting(
     }
     out.truncate(height);
     out
+}
+
+/// One entry's row, `width` cells: the open marker, the indent, the glyph,
+/// the label, and the verdict at the row's end. A narrow row cuts the label
+/// before the verdict, and drops the verdict only when no label would remain.
+fn entry_row(entry: &Entry, width: usize, ascii: bool, color: bool) -> Line<'static> {
+    let (_, cut) = marks(ascii);
+    let dim = role::style(Role::Dim, color);
+    let strong = role::style(Role::Strong, color);
+    let indent = "  ".repeat(usize::from(entry.depth));
+    let glyph = entry.icon.glyph(ascii);
+    let marker = if entry.open {
+        if ascii { ">" } else { "›" }
+    } else {
+        " "
+    };
+    let head = format!("{marker}{indent}{glyph} ");
+    let style = if entry.open { strong } else { Style::default() };
+    let verdict = entry.verdict.map(|v| (v.words(), v.role()));
+    let room = width.saturating_sub(head.width());
+    // The verdict, a space, and at least one character of the label and the cut.
+    let with_verdict = verdict
+        .as_ref()
+        .filter(|(words, _)| room > words.width() + 1 + cut.width());
+    let Some((words, verdict_role)) = with_verdict else {
+        let label = fit_head(&entry.label, room, cut);
+        return Line::from(vec![Span::styled(head, dim), Span::styled(label, style)]);
+    };
+    let label = fit_head(&entry.label, room - words.width() - 1, cut);
+    let pad = room - label.width() - words.width();
+    Line::from(vec![
+        Span::styled(head, dim),
+        Span::styled(label, style),
+        Span::raw(" ".repeat(pad)),
+        Span::styled(words.clone(), role::style(*verdict_role, color)),
+    ])
 }
 
 #[cfg(test)]
@@ -181,18 +305,18 @@ mod tests {
     }
 
     fn studio() -> Aside {
-        Aside {
-            project: "studio".into(),
-            tab: Tab::Nika,
-            entries: vec![
+        Aside::new(
+            "studio",
+            Tab::Nika,
+            vec![
                 Entry::new(Icon::Conversation, "Prepare the release"),
                 Entry::new(Icon::Workflow, "workflows"),
                 Entry::new(Icon::Workflow, "release.nika").at(1).opened(),
                 Entry::new(Icon::Workflow, "enrich.nika").at(1),
                 Entry::new(Icon::Activation, "weekly digest"),
             ],
-            complete: true,
-        }
+            true,
+        )
     }
 
     #[test]
@@ -229,10 +353,15 @@ mod tests {
         aside.complete = false;
         let rows = text(&lines(&aside, 28, 6, false, false));
         assert_eq!(rows.len(), 6);
-        assert_eq!(rows[4], "  +3 more");
+        assert_eq!(rows[4], "  +3 below");
         assert_eq!(rows[5], "partial listing");
         let full = text(&lines(&studio(), 28, 7, false, false));
-        assert!(!full.iter().any(|r| r.contains("more")), "{full:?}");
+        assert!(
+            !full
+                .iter()
+                .any(|r| r.contains("above") || r.contains("below")),
+            "{full:?}"
+        );
     }
 
     #[test]
@@ -246,16 +375,80 @@ mod tests {
         assert_eq!(rows[4], ">  [W] rele...");
     }
 
+    /// Sliding the list counts the hidden entries where they are: above when
+    /// the selection went down, below and above in the middle of the list.
     #[test]
-    fn the_selected_entry_is_reversed_and_always_listed() {
+    fn the_selected_entry_is_reversed_and_the_hidden_ones_counted_where_they_are() {
         let reversed = |line: &Line<'_>| line.style.add_modifier.contains(Modifier::REVERSED);
         let all = lines_selecting(&studio(), 28, 20, false, false, Some(1));
         assert!(reversed(&all[3]) && !reversed(&all[2]), "{all:?}");
-        // Five entries in three listed rows: selecting the last slides the list.
+        // Five entries in four rows: selecting the last slides the list.
         let tight = lines_selecting(&studio(), 28, 6, false, false, Some(4));
         let rows = text(&tight);
-        assert_eq!(rows[5], "  +2 more");
-        assert!(rows[4].ends_with("weekly digest"), "{rows:?}");
-        assert!(reversed(&tight[4]) && !reversed(&tight[3]));
+        assert_eq!(rows[2], "  +2 above", "{rows:?}");
+        assert!(rows[5].ends_with("weekly digest"), "{rows:?}");
+        assert!(reversed(&tight[5]) && !reversed(&tight[4]));
+        assert!(!rows.iter().any(|r| r.contains("below")), "{rows:?}");
+        // Seven entries in four rows, the fourth selected: both sides counted,
+        // the selection on the last listed row.
+        let mut long = studio();
+        long.entries.push(Entry::new(Icon::Run, "#043"));
+        long.entries.push(Entry::new(Icon::Run, "#044"));
+        let middle = lines_selecting(&long, 28, 6, false, false, Some(3));
+        let rows = text(&middle);
+        assert_eq!(rows.len(), 6, "{rows:?}");
+        assert_eq!(rows[2], "  +2 above", "{rows:?}");
+        assert!(
+            rows[4].ends_with("enrich.nika") && reversed(&middle[4]),
+            "{rows:?}"
+        );
+        assert_eq!(rows[5], "  +3 below", "{rows:?}");
+    }
+
+    /// A workflow wears the checker's verdict in words at the row's end; a
+    /// narrow row cuts the label first and keeps the verdict.
+    #[test]
+    fn a_workflow_wears_its_verdict_in_words_at_the_row_end() {
+        let aside = Aside::new(
+            "demo",
+            Tab::Nika,
+            vec![
+                Entry::new(Icon::Workflow, "release.nika").judged(Verdict::Clean),
+                Entry::new(Icon::Workflow, "enrich.nika").judged(Verdict::Findings(2)),
+                Entry::new(Icon::Workflow, "broken.nika").judged(Verdict::Findings(0)),
+            ],
+            true,
+        );
+        let rows = text(&lines(&aside, 28, 10, false, false));
+        let row =
+            |label: &str, gap: usize, words: &str| format!(" ⑂ {label}{}{words}", " ".repeat(gap));
+        assert_eq!(rows[2], row("release.nika", 11, "ok"));
+        assert_eq!(rows[3], row("enrich.nika", 4, "2 findings"));
+        assert_eq!(rows[4], row("broken.nika", 5, "not clean"));
+        assert!(rows[2..5].iter().all(|r| r.width() == 28), "{rows:?}");
+        let narrow = text(&lines(&aside, 20, 10, true, false));
+        assert_eq!(narrow[3], " [W] e... 2 findings");
+        assert!(narrow.iter().all(|r| r.width() <= 20), "{narrow:?}");
+        let colored = lines(&aside, 28, 10, false, true);
+        assert_eq!(colored[2].spans[3].style, role::style(Role::Good, true));
+        assert_eq!(colored[3].spans[3].style, role::style(Role::Warn, true));
+        assert_eq!(Verdict::Findings(1).words(), "1 finding");
+    }
+
+    /// What a projection cannot list is said in words, wrapped to the width.
+    #[test]
+    fn a_note_says_what_the_projection_cannot_list() {
+        let files = Aside::new("demo", Tab::Files, Vec::new(), true)
+            .noting("the file listing needs a Session contract");
+        let rows = text(&lines(&files, 20, 10, false, false));
+        assert_eq!(
+            rows[2..],
+            ["the file listing", "needs a Session", "contract"]
+        );
+        let partial = Aside::new("demo", Tab::Nika, Vec::new(), false).noting("no workflow");
+        assert_eq!(
+            text(&lines(&partial, 20, 10, false, false))[2..],
+            ["no workflow", "partial listing"]
+        );
     }
 }

@@ -7,7 +7,7 @@
 // on a terminal (ADR-139) — unreachable from every piped harness.
 #![allow(clippy::disallowed_types)]
 //! The renderer's first five seconds (UX-2 · ADR-139): a human launches
-//! `nika`, the same session opens behind the inline viewport, a
+//! `nika` with `NIKA_TUI=inline`, the same session opens behind the inline viewport, a
 //! sentence becomes a proposal committed above the composer, `oui` lands the
 //! exact bytes and the real check runs, « run it » hands the terminal back
 //! to the plain run path and the observation returns into the viewport,
@@ -86,7 +86,10 @@ fn open_tui(project: &Path, home: &Path) -> (LoggedSession, Duration) {
         .env("NO_COLOR", "1")
         .env("TERM", "xterm-256color")
         .env("HOME", home)
-        .env("NIKA_KEYCHAIN", "off");
+        .env("NIKA_KEYCHAIN", "off")
+        // This suite qualifies the inline door; bare `nika` opens the
+        // workspace (tests/workspace_pty.rs).
+        .env("NIKA_TUI", "inline");
     let started = Instant::now();
     let session = OsSession::spawn(cmd).expect("pty spawn");
     let mut session = expectrl::session::log(session, std::io::stderr()).expect("log tee");
@@ -283,7 +286,8 @@ fn tui_command(project: &Path, home: &Path, term: &str) -> Command {
         .env("NO_COLOR", "1")
         .env("TERM", term)
         .env("HOME", home)
-        .env("NIKA_KEYCHAIN", "off");
+        .env("NIKA_KEYCHAIN", "off")
+        .env("NIKA_TUI", "inline");
     cmd
 }
 
@@ -850,7 +854,7 @@ fn ascii_keeps_the_renderer_in_its_twins_and_plain_keeps_the_loop() {
         );
     }
     for twin in [
-        "describe work - /help - Ctrl+T focus view",
+        "describe work - /help - Ctrl+T switches the view",
         "\x1b]0;nika - ",
     ] {
         assert!(ascii.contains(twin), "no ASCII twin `{twin}`: {ascii:?}");

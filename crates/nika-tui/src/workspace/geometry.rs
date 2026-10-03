@@ -18,9 +18,16 @@ pub const SIDE_BY_SIDE_MIN_WIDTH: u16 = 100;
 pub const ASIDE_MIN_WIDTH: u16 = 120;
 /// The shortest terminal that gives the header its second row (the location).
 pub const TALL_HEADER_MIN_HEIGHT: u16 = 30;
-/// Below this size the workspace does not fit and the caller keeps the inline
-/// presentation, which never needs more than a few rows.
+/// Below this size the workspace does not fit: `Ctrl+T` opens the focus view
+/// instead, and a workspace resized below it draws the focus view until the
+/// size allows it again.
 pub const MIN_SIZE: (u16, u16) = (60, 16);
+
+/// Whether a terminal of `size` (columns, rows) holds the workspace.
+#[must_use]
+pub const fn fits(size: (u16, u16)) -> bool {
+    size.0 >= MIN_SIZE.0 && size.1 >= MIN_SIZE.1
+}
 
 /// The regions of one workspace frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -45,7 +52,7 @@ impl Geometry {
     /// `pinned`; none when the terminal is smaller than [`MIN_SIZE`].
     #[must_use]
     pub fn of(area: Rect, pinned: bool) -> Option<Self> {
-        if area.width < MIN_SIZE.0 || area.height < MIN_SIZE.1 {
+        if !fits((area.width, area.height)) {
             return None;
         }
         let header_rows = if area.height >= TALL_HEADER_MIN_HEIGHT {
@@ -178,10 +185,12 @@ mod tests {
     }
 
     #[test]
-    fn a_terminal_below_the_minimum_keeps_the_inline_presentation() {
+    fn a_terminal_below_the_minimum_holds_no_workspace() {
         assert_eq!(Geometry::of(Rect::new(0, 0, 59, 40), false), None);
         assert_eq!(Geometry::of(Rect::new(0, 0, 200, 15), false), None);
         assert!(Geometry::of(Rect::new(0, 0, MIN_SIZE.0, MIN_SIZE.1), true).is_some());
+        assert!(fits(MIN_SIZE) && fits((80, 24)));
+        assert!(!fits((59, 40)) && !fits((200, 15)));
     }
 
     #[test]

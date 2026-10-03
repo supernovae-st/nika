@@ -57,10 +57,15 @@ impl Thread {
     }
 }
 
-/// The composer's placeholder: the full recipient of the next message.
+/// The composer's placeholder: the full recipient of the next message (the
+/// thread alone when no project is known).
 #[must_use]
 pub fn placeholder(thread: &Thread) -> String {
-    format!("Message to {} / {}", thread.project, thread.name)
+    if thread.project.is_empty() {
+        format!("Message to {}", thread.name)
+    } else {
+        format!("Message to {} / {}", thread.project, thread.name)
+    }
 }
 
 /// The title row, `width` cells: the thread, then its project. A narrow row
@@ -78,7 +83,11 @@ pub fn title(thread: &Thread, width: u16, ascii: bool, color: bool, rule: bool) 
         String::new()
     };
     let head = format!("{lead}{} ", Icon::Conversation.glyph(ascii));
-    let project = format!("{sep}{}", thread.project);
+    let project = if thread.project.is_empty() {
+        String::new()
+    } else {
+        format!("{sep}{}", thread.project)
+    };
     let room = width.saturating_sub(head.width() + project.width());
     let name = fit_head(&thread.name, room, cut);
     let project = fit_head(
@@ -160,6 +169,17 @@ mod tests {
         let narrow = text(&title(&release(), 20, false, false, false));
         assert_eq!(narrow, "◌ release … · studio");
         assert!(narrow.width() <= 20);
+    }
+
+    /// With no project known, the thread alone is the recipient.
+    #[test]
+    fn a_thread_outside_any_project_is_named_alone() {
+        let bare = Thread::new("", "this conversation");
+        assert_eq!(placeholder(&bare), "Message to this conversation");
+        assert_eq!(
+            text(&title(&bare, 40, false, false, false)),
+            "◌ this conversation"
+        );
     }
 
     #[test]

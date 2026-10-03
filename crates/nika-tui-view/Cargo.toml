@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#
+# nika-tui-view · L4 · the viewers of the object in view · pure functions ·
+# typed facts and bytes in, styled lines out · no file, clock, environment,
+# spawn or store. Size-cap member of the nika-tui unit (D-2026-07-09-N1 ·
+# ADR-143), split from nika-tui at the 15k prod-LOC wall: nika-tui →
+# nika-tui-view, never back. WIP with its unit.
+[package]
+name        = "nika-tui-view"
+description = "L4 interface — the viewers of the object in view: a workflow's source, plan, graph and check from the typed facts its owner hands over, and every artifact a workflow produces, bounded, masked when protected, readable under NO_COLOR and in ASCII; a size-cap member of the nika-tui unit (ADR-143)"
+
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Interface crate — a member of the nika-tui unit; the `nika` binary is the only consumer.
+
+[lints]
+workspace = true
+
+[dependencies]
+ratatui       = { workspace = true }   # the styled lines a view renders (Line · Span · Style)
+unicode-width = "0.2"                  # widths grapheme by grapheme, the table the buffer uses
+nika-session  = { path = "../nika-session", version = "0.122.0", default-features = false }   # the plan face reads the review's run order and gates (nika_session::review)
+nika-display  = { path = "../nika-display", version = "0.122.0" }   # the theme roles, the wires of the graph face, the check layers, the JSON shape
+
+[dev-dependencies]
+nika-cli-host = { path = "../nika-cli-host", version = "0.122.0", default-features = false }   # the faces tests stand in for the owner of the check facts (oracle::audit_source, once per fixture)

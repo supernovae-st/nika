@@ -12,17 +12,23 @@
 //! what the project holds when the width allows it.
 //!
 //! This module decides geometry and paints only facts it is given: every
-//! value comes from a view the Session projects (UI-STATE), never from a
-//! guess. Nothing here reads a file, a clock or the environment, and nothing
-//! grants an access: a project, a file or a connection on screen is never an
-//! authority. The inline presentation and the plain loop stay as they are.
+//! value comes from the view the conversation lends ([`project`], read-only,
+//! a projection of what its Session observed), never from a guess. Nothing
+//! here reads a file, a clock or the environment, and nothing grants an
+//! access: a project, a file or a connection on screen is never an authority.
+//! `Ctrl+T` opens it from inline when the terminal holds it (the crate-private
+//! `desk` keeps its state and routes its keys); the inline presentation and
+//! the plain loop stay as they are.
 
 pub mod aside;
 pub mod conversation;
+pub(crate) mod desk;
 pub mod focus;
 pub mod geometry;
 pub mod header;
+pub mod inspect;
 pub mod object;
 pub mod pinned;
+pub mod project;
 pub mod screen;
 mod text;
