@@ -147,6 +147,28 @@ pub fn find_pricing_scoped(provider: &str, model: &str) -> Option<&'static Model
         .find(|p| pricing_provider_matches(p.provider, provider) && model.contains(p.model_pattern))
 }
 
+/// An exact vendored row whose every disclosed rate is zero.
+///
+/// This is a declaration, not a missing price. The match is exact on
+/// `model_pattern` inside the provider: a `contains` hit is not a
+/// declaration, and a row that is absent stays unknown. A zero input
+/// with a positive cache or image rate is not free.
+#[cfg(feature = "pricing")]
+#[must_use]
+pub fn declares_exact_zero_price(provider: &str, model: &str) -> bool {
+    use crate::data::ALL_PRICING;
+    ALL_PRICING.iter().any(|p| {
+        pricing_provider_matches(p.provider, provider)
+            && model == p.model_pattern
+            && p.input_per_million == 0.0
+            && p.output_per_million == 0.0
+            && p.cache_write_per_million.unwrap_or(0.0) == 0.0
+            && p.cache_read_per_million.unwrap_or(0.0) == 0.0
+            && p.reasoning_tokens_per_million.unwrap_or(0.0) == 0.0
+            && p.image_per_million.unwrap_or(0.0) == 0.0
+    })
+}
+
 /// A snapshot row and a query name the same catalog seat.
 ///
 /// models.dev ships Gemini under `google`; the engine id is `gemini`
@@ -1440,3 +1462,30 @@ mod provenance_tests {
 
 #[cfg(test)]
 mod capabilities_proptests;
+
+#[cfg(all(test, feature = "pricing"))]
+mod zero_price_declaration {
+    #[test]
+    fn exact_zero_row_is_a_declaration_and_a_longer_name_is_not() {
+        assert!(super::declares_exact_zero_price(
+            "openrouter",
+            "qwen/qwen3.8-27b:free"
+        ));
+        assert!(!super::declares_exact_zero_price(
+            "openrouter",
+            "qwen/qwen3.8-27b:free-extra"
+        ));
+        assert!(!super::declares_exact_zero_price(
+            "openrouter",
+            "qwen/qwen3.8-max-0902"
+        ));
+        assert!(!super::declares_exact_zero_price(
+            "openrouter",
+            "not-in-the-snapshot"
+        ));
+        assert!(!super::declares_exact_zero_price(
+            "deepseek",
+            "deepseek-v4-pro"
+        ));
+    }
+}
