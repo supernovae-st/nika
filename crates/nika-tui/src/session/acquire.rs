@@ -22,12 +22,22 @@
 //!   the witness covers the journal only. A verified journal records what
 //!   happened; it never proves the work was right.
 //!
+//! - the journal of a child run a task called, by the whole file name its
+//!   parent's settle frame named and this host kept (one name, under
+//!   `.nika/traces/`, nothing else; never the call site's target): captured
+//!   once like a run's journal, judged by the same verifier, folded, and
+//!   compared with each engagement that frame made (the head the verifier
+//!   computes, the source its one start names, the outcome its terminal
+//!   says). The frame names no child execution and no length: those stay
+//!   not compared, so such a journal is never called bound whole.
+//!
 //! A path that leaves the root, a symlink, a special file, a missing file or
 //! one over its cap is refused with its reason, never read.
 
 use std::path::{Component, Path, PathBuf};
 
-use nika_display::run_story::ExecutionId;
+use nika_display::run_story::{ChildOutcome, ChildRun, ExecutionId, RunFrame};
+use nika_display::state::{RunView, TaskRow};
 use nika_session::change::Witness;
 use nika_trace::run_view::RunFacts;
 use nika_trace::trace_verify::{VerifyOptions, verify_captured};
@@ -176,6 +186,46 @@ impl Proven {
     }
 }
 
+/// A child journal captured from the relation its parent's settle named,
+/// judged, folded and compared with each engagement of that relation.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct ChildRead {
+    proven: Proven,
+    compared: Vec<(bool, String)>,
+    rows: Vec<TaskRow>,
+}
+
+impl ChildRead {
+    pub(crate) fn refused(trace: &str, why: impl Into<String>) -> Self {
+        Self {
+            proven: Proven::refused(trace, why),
+            compared: Vec::new(),
+            rows: Vec::new(),
+        }
+    }
+
+    /// The verifier's verdict over the captured bytes, or why none was read;
+    /// its `unbound` lists every engagement that does not hold.
+    #[must_use]
+    pub fn proven(&self) -> &Proven {
+        &self.proven
+    }
+
+    /// Each engagement, compared: `true` only when it holds; otherwise the
+    /// words say whether it differs or was not compared.
+    #[must_use]
+    pub fn compared(&self) -> &[(bool, String)] {
+        &self.compared
+    }
+
+    /// The child's tasks, folded from the same captured bytes.
+    #[must_use]
+    pub fn rows(&self) -> &[TaskRow] {
+        &self.rows
+    }
+}
+
 #[cfg(test)]
 impl Proven {
     /// A Proof as the verifier judged it, for the faces' tests.
@@ -277,6 +327,177 @@ pub(crate) fn prove(root: &Path, trace: &str, expect: &Expect) -> Proven {
         doc,
         unbound,
         why: None,
+    }
+}
+
+/// The child journal `relation` names, read once below `.nika/traces/` of
+/// `root` by its whole file name: judged, folded and compared, the same
+/// captured bytes for each, never bound to anything the frame did not name.
+pub(crate) fn read_child(root: &Path, relation: &ChildRun) -> ChildRead {
+    let name = relation.trace_id.as_deref().unwrap_or_default();
+    let trace = format!(".nika/traces/{name}");
+    let one = Path::new(name).components().collect::<Vec<_>>();
+    if !matches!(one.as_slice(), [Component::Normal(_)]) {
+        return ChildRead::refused(&trace, "not one journal name of this project's traces");
+    }
+    let rel = Path::new(".nika/traces").join(name);
+    let raw = match capture(root, &rel, JOURNAL_CAP) {
+        Ok(Some(bytes)) => bytes,
+        Ok(None) => return ChildRead::refused(&trace, "no journal is at this path now"),
+        Err(why) => return ChildRead::refused(&trace, why),
+    };
+    let witness = Witness::of(&raw).0;
+    let Ok(raw) = String::from_utf8(raw) else {
+        return ChildRead::refused(&trace, "the journal is not UTF-8");
+    };
+    let original = root.join(&rel);
+    let opts = VerifyOptions {
+        json: true,
+        ..VerifyOptions::default()
+    };
+    let judged = verify_captured(&original.to_string_lossy(), &raw, &opts);
+    let doc: Option<Value> =
+        (judged.text.lines().last()).and_then(|l| serde_json::from_str(l).ok());
+    let facts = RunFacts::of(&original, &raw);
+    let compared = engagements(facts.as_ref(), doc.as_ref(), relation);
+    let mut view = RunView::new();
+    for line in raw.lines() {
+        if let Some(RunFrame::Event(event)) = RunFrame::decode(line) {
+            view.apply(&event);
+        }
+    }
+    ChildRead {
+        proven: Proven {
+            trace,
+            witness: Some(witness),
+            terminal: facts.as_ref().and_then(|f| f.terminal().map(str::to_owned)),
+            doc,
+            unbound: (compared.iter())
+                .filter(|(holds, _)| !holds)
+                .map(|(_, why)| why.clone())
+                .collect(),
+            why: None,
+        },
+        compared,
+        rows: view.rows().to_vec(),
+    }
+}
+
+/// Each engagement of the parent's frame against the captured journal.
+/// The frame names no child execution and no length: both are said, never
+/// compared, so the relation is never bound whole by their absence.
+fn engagements(
+    facts: Option<&RunFacts>,
+    doc: Option<&Value>,
+    relation: &ChildRun,
+) -> Vec<(bool, String)> {
+    let Some(facts) = facts else {
+        return vec![(
+            false,
+            "not compared: the journal holds no frame the fold reads".to_owned(),
+        )];
+    };
+    let identity = match (facts.executions(), facts.unidentified()) {
+        ([], _) => "its execution is not recorded on its frames".to_owned(),
+        ([one], 0) => format!("it records execution {one}"),
+        (all, n) => format!(
+            "it records {} and {n} frame(s) naming none",
+            nika_display::vocab::count(all.len(), "execution")
+        ),
+    };
+    let computed = (doc.and_then(|d| d.get("chain")))
+        .and_then(|c| c.get("head"))
+        .and_then(Value::as_str);
+    let head = match (relation.chain_head.as_deref(), computed) {
+        (None, _) => (
+            false,
+            "head not compared: the parent's frame named no head".to_owned(),
+        ),
+        (Some(_), None) => (
+            false,
+            "head not compared: the verifier computed no chain".to_owned(),
+        ),
+        (Some(named), Some(head)) if named == head => (
+            true,
+            "head holds: the chain the verifier computed ends where the parent's frame named"
+                .to_owned(),
+        ),
+        (Some(_), Some(_)) => (
+            false,
+            "head differs: the journal ends elsewhere than the parent's frame named".to_owned(),
+        ),
+    };
+    let source = match (facts.starts(), relation.def_hash.as_deref()) {
+        (_, None) => (
+            false,
+            "source not compared: the parent's frame named none".to_owned(),
+        ),
+        ([Some(named)], Some(sha)) if named == sha => (
+            true,
+            "source holds: its one start names the bytes the parent's frame named".to_owned(),
+        ),
+        ([None], Some(_)) => (
+            false,
+            "source not compared: its start names no source hash".to_owned(),
+        ),
+        ([_], Some(_)) => (
+            false,
+            "source differs: its start names other bytes than the parent's frame".to_owned(),
+        ),
+        (starts, Some(_)) => (
+            false,
+            format!(
+                "source not compared: the journal holds {} starts, not one",
+                starts.len()
+            ),
+        ),
+    };
+    vec![
+        head,
+        source,
+        outcome(relation.outcome, facts.terminal()),
+        (
+            false,
+            format!(
+                "identity not compared: {identity}; the parent's frame names no child execution"
+            ),
+        ),
+        (
+            false,
+            "length not compared: the parent's frame names none".to_owned(),
+        ),
+    ]
+}
+
+/// The outcome the parent's frame named against the journal's terminal. The
+/// producer calls a child successful only when its run settled succeeded,
+/// and a failure otherwise (failed, cancelled, paused); any other word, or
+/// none, is not compared.
+fn outcome(named: Option<ChildOutcome>, terminal: Option<&str>) -> (bool, String) {
+    let ended = terminal.unwrap_or_default();
+    match (named, terminal) {
+        (None, _) => (
+            false,
+            "outcome not compared: the parent's frame names none recognized".to_owned(),
+        ),
+        (Some(_), None) => (
+            false,
+            "outcome not compared: the journal holds no terminal frame".to_owned(),
+        ),
+        (Some(ChildOutcome::Success), Some("succeeded"))
+        | (Some(ChildOutcome::Failure), Some("failed" | "cancelled" | "paused")) => (
+            true,
+            format!("outcome holds: the journal ends {ended}, as the parent's frame named"),
+        ),
+        (Some(ChildOutcome::Success), Some("failed" | "cancelled" | "paused"))
+        | (Some(ChildOutcome::Failure), Some("succeeded")) => (
+            false,
+            format!("outcome differs: the journal ends {ended}, the parent's frame named another"),
+        ),
+        (Some(_), Some(_)) => (
+            false,
+            format!("outcome not compared: the journal ends `{ended}`"),
+        ),
     }
 }
 

@@ -21,10 +21,13 @@ use nika_display::theme::Role;
 use nika_tui_view::{Availability, Canvas, Content, Meta};
 use ratatui::text::{Line, Span};
 
+use super::child::{ChildView, openable};
 use super::faces::lines_of;
 use super::{Binding, LiveRun};
+use crate::session::acquire::ChildRead;
 use crate::visual::{role, state};
 use crate::workspace::text::{fit_head, marks};
+use nika_display::run_story::ChildRun;
 use nika_display::run_story::ExecutionId;
 
 /// The task picked in the run in view, and whether its detail is open.
@@ -36,6 +39,10 @@ pub(crate) struct Pick {
     open: Option<usize>,
     /// The pick moved: the scroll follows it once.
     follow: bool,
+    /// The child journal opened from the detail, one level down.
+    child: Option<ChildView>,
+    /// How many child views were opened: each opening's own name.
+    openings: u64,
 }
 
 /// Where a listed task comes from.
@@ -56,6 +63,8 @@ impl Pick {
             task: None,
             open: None,
             follow: false,
+            child: None,
+            openings: 0,
         }
     }
 
@@ -118,6 +127,66 @@ impl Pick {
     pub(crate) fn follows(&mut self) -> bool {
         std::mem::take(&mut self.follow)
     }
+
+    /// Open the child journal the picked task's relation names, from its
+    /// open detail, keeping the detail's `scroll`; `false` when there is
+    /// none to open.
+    pub(crate) fn open_child(&mut self, leg: &LiveRun, scroll: usize) -> bool {
+        if !self.is_open() || self.child.is_some() {
+            return false;
+        }
+        let Some(id) = self.current(leg).map(str::to_owned) else {
+            return false;
+        };
+        let Some(relation) = leg.child(&id).filter(|r| openable(r).is_ok()).cloned() else {
+            return false;
+        };
+        let epoch = leg.relation_epoch(&id);
+        self.openings = self.openings.wrapping_add(1);
+        let opened = (epoch, self.openings);
+        self.child = Some(ChildView::new(id, relation, opened, scroll));
+        true
+    }
+
+    /// Close the child view: the detail's scroll to return to, when one was open.
+    pub(crate) fn close_child(&mut self) -> Option<usize> {
+        self.child.take().map(|view| view.scroll())
+    }
+
+    /// Whether a child journal is in view.
+    pub(crate) fn child_open(&self) -> bool {
+        self.child.is_some()
+    }
+
+    /// The child view, when one is open.
+    pub(crate) fn child_view(&self) -> Option<&ChildView> {
+        self.child.as_ref()
+    }
+
+    /// Which opening the open child view is, when one is open.
+    pub(crate) fn child_opening(&self) -> Option<u64> {
+        self.child.as_ref().map(ChildView::opening)
+    }
+
+    /// What the open child view still needs read (its task and relation),
+    /// while that relation is still the task's own and unread this reading.
+    pub(crate) fn child_wanted(&self, leg: &LiveRun) -> Option<(String, ChildRun)> {
+        self.child.as_ref()?.wanted(leg)
+    }
+
+    /// Keep `read` for the open child view when it answers that very view
+    /// (asked by this opening, for its task and relation, still current);
+    /// `false` when it is dropped.
+    pub(crate) fn child_read(
+        &mut self,
+        leg: &LiveRun,
+        asked: (Option<u64>, &str, &ChildRun),
+        read: ChildRead,
+    ) -> bool {
+        self.child
+            .as_mut()
+            .is_some_and(|view| view.keep(leg, asked, read))
+    }
 }
 
 impl LiveRun {
@@ -145,7 +214,7 @@ impl LiveRun {
     }
 
     /// The graph of the bytes the run names, when it names those shown.
-    fn bound_graph(&self) -> Option<(&nika_display::dag_art::GraphDoc, &[Vec<usize>])> {
+    pub(super) fn bound_graph(&self) -> Option<(&nika_display::dag_art::GraphDoc, &[Vec<usize>])> {
         if self.binding != Binding::Same {
             return None;
         }
@@ -210,6 +279,7 @@ impl LiveRun {
         };
         rows.push(measured(row, sep));
         rows.extend(said(row, sep));
+        rows.extend(self.child_section(id, sep));
         let mut body = lines_of(&rows, cells, canvas.ascii, canvas.color);
         body.push(Line::default());
         body.extend(self.task_output(id, row, canvas));

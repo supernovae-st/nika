@@ -31,10 +31,10 @@ use nika_cli_host::lane::{PendingRun, RunProgress};
 use nika_display::run_story::RunSink;
 use nika_session::RunRequest;
 
-use acquire::{Fetched, Proven};
+use acquire::{ChildRead, Fetched, Proven};
 use feed::{Feed, Seen};
 use legs::{Leg, Legs};
-use nika_display::run_story::ExecutionId;
+use nika_display::run_story::{ChildRun, ExecutionId};
 use nika_session::KeptRun;
 
 /// A fresh Run may suspend at a child-owned cost question. Only the run's
@@ -765,6 +765,30 @@ impl Conversation for Live {
                 None => Proven::refused("", "its settlement named no journal"),
             },
             None => Proven::refused("", "this run's settlement was not observed here"),
+        })
+    }
+
+    /// The journal of the child run the leg `execution`'s task `task`
+    /// called: only the relation this host kept for that task, and only
+    /// while it is the one asked; anything else is refused unread.
+    fn child(
+        &mut self,
+        execution: &ExecutionId,
+        task: &str,
+        relation: &ChildRun,
+    ) -> Option<ChildRead> {
+        let root = &self.runtime.as_ref()?.snapshot.root;
+        let legs = self.legs.lock().ok()?;
+        let trace = relation.trace_id.as_deref().unwrap_or_default();
+        Some(match legs.find(execution).map(|leg| leg.child(task)) {
+            Some(Some(kept)) if kept == relation => acquire::read_child(root, kept),
+            Some(Some(_)) => {
+                ChildRead::refused(trace, "the task's relation changed since it was asked")
+            }
+            Some(None) => {
+                ChildRead::refused(trace, "no child relation this host kept for that task")
+            }
+            None => ChildRead::refused(trace, "this run's frames were not observed here"),
         })
     }
 

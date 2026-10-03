@@ -24,10 +24,10 @@
 //! (its execution, workflow and exit as observed then): nothing replays, and
 //! its proof is read again from its journal when that face opens.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use nika_display::run_story::{
-    Event, EventKind, Evidence, ExecutionId, RunFrame, RunState, Settled, started_on,
+    ChildRun, Event, EventKind, Evidence, ExecutionId, RunFrame, RunState, Settled, started_on,
 };
 use nika_display::state::{RunView, TaskRow, TaskState};
 use nika_display::theme::{Role, Theme};
@@ -37,6 +37,7 @@ use super::inspect::Inspected;
 use crate::session::acquire::{Fetched, Proven};
 use nika_session::KeptRun;
 
+mod child;
 mod faces;
 mod task;
 use super::pinned::Pinned;
@@ -93,6 +94,10 @@ pub struct LiveRun {
     kept: Option<KeptRun>,
     /// How many times what was acquired was forgotten: a reading's key.
     generation: u64,
+    /// How many times each task's child relation changed (set, replaced or
+    /// dropped): a child read is applied only for the relation it was
+    /// opened on, never one that left and came back equal.
+    relations: BTreeMap<String, u64>,
     revision: usize,
 }
 
@@ -141,6 +146,7 @@ impl LiveRun {
             proven: None,
             kept: None,
             generation: 0,
+            relations: BTreeMap::new(),
             revision: 0,
         }
     }
@@ -218,7 +224,15 @@ impl LiveRun {
                 self.disorder += 1;
             }
             self.events += 1;
+            let task = event.str_field("task");
+            let before = task.and_then(|t| self.view.child(t).cloned());
             self.view.apply(event);
+            if let Some(task) = task
+                && before.as_ref() != self.view.child(task)
+            {
+                let epoch = self.relations.entry(task.to_owned()).or_default();
+                *epoch = epoch.saturating_add(1);
+            }
         }
     }
 
@@ -280,6 +294,16 @@ impl LiveRun {
     /// The fold's row of task `id`, borrowed.
     pub(crate) fn row(&self, id: &str) -> Option<&TaskRow> {
         self.view.rows().iter().find(|r| r.id == id)
+    }
+
+    /// The child run task `id` called, as its latest settle frame named it.
+    pub(crate) fn child(&self, id: &str) -> Option<&ChildRun> {
+        self.view.child(id)
+    }
+
+    /// How many times task `id`'s child relation changed.
+    pub(crate) fn relation_epoch(&self, id: &str) -> u64 {
+        self.relations.get(id).copied().unwrap_or(0)
     }
 
     /// The run in the pinned row's words: its state glyph's state and words.
@@ -507,7 +531,10 @@ impl LiveRun {
             && pick.is_open()
             && let Some(id) = pick.current(self)
         {
-            return self.detail(id, canvas);
+            return match pick.child_view() {
+                Some(child) => self.child_lines(child, canvas),
+                None => self.detail(id, canvas),
+            };
         }
         let (sep, cut) = marks(ascii);
         let cells = usize::from(width);
@@ -612,3 +639,7 @@ mod live_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod task_tests;
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod child_tests;

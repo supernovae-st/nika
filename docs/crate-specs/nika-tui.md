@@ -121,6 +121,18 @@ usage and output from missing observations. Graph facts are added only when
 the run names the exact source shown; a declared task without an event stays
 not observed. Inspection adds no file access, execution or consent.
 
+From a task whose admitted settle frame names a child, Enter opens that child's
+journal one level down. The host reads at most 8 MiB through the held project
+root; the target's displayed words are never a fallback path. Verification and
+the child view consume the same captured bytes. Head, source and outcome are
+compared only with the parent's recorded commitments; absent or contradictory
+facts stay explicit. The child's execution identity and length stay not
+compared. Each opening asks its own read; a late answer from an earlier opening
+is discarded. Keys remain available during acquisition, and Backspace returns
+to the parent with its selection and scroll. This view starts no child work and
+adds no child usage to the parent's measurements. Live child frames, a produced
+child execution identity and a failed-child summary remain outside this slice.
+
 Reopening repaints retained turns as history and exposes the last observed run.
 It restores neither task rows, outputs nor a file inventory; Proof is read again
 on demand. It calls no model, starts no run and restores no consent. Full child
@@ -157,7 +169,7 @@ a stamped integrated build or a paid model route.
   `nika_display::theme::Theme::glyph` paints.
 - `workspace::object` paints the centre. An open object is named by its kind's
   icon and its name, and its given lines are cut at the edge, never wrapped
-  (workflow faces use `nika-tui-view`; result and Proof wiring remain pending). With nothing open it welcomes: the largest
+  (workflow faces use `nika-tui-view`; observed run faces use `workspace::live`). With nothing open it welcomes: the largest
   butterfly that fits whole above the Session's first words (16×8 in the 80×24
   object rows, 48×20 from 120×40), revealed once from the caller's clock, final
   at once under reduced motion.
@@ -181,8 +193,10 @@ a stamped integrated build or a paid model route.
   the listing always shows, and `Enter` opens the entry: the object in view
   changes, the conversation does not, and nothing is attached to the next
   message. In the object the arrows and page keys scroll its lines under a
-  title row that stays. `screen::extent` gives the key handler what the
-  regions hold at the current size.
+  title row that stays. On the Run face, Up/Down select a task and Enter opens
+  its detail; Enter there opens a recorded child relation, and Backspace
+  returns one level. `screen::extent` gives the key handler what the regions
+  hold at the current size.
 - The ASCII glyph column is the theme's decision (`--ascii`, CI logs, a legacy
   console), passed by the CLI door as `app::Options::ascii` and held in
   `UiState::ascii`: bare `nika --ascii` keeps the renderer, `--plain` and

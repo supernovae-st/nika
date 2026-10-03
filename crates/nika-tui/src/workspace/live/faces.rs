@@ -59,6 +59,14 @@ pub enum Want {
     File(String),
     /// The run's journal, captured and verified.
     Proof,
+    /// The journal of the child run `task` called, by the relation its
+    /// settle frame named: read by the host only if it kept that relation.
+    Child {
+        /// The task whose settle frame named the relation.
+        task: String,
+        /// The relation as the fold had it when asked.
+        relation: nika_display::run_story::ChildRun,
+    },
 }
 
 /// Rows of words, each wrapped within `cells`, in its role.

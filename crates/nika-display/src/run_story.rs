@@ -334,31 +334,59 @@ impl Evidence {
     }
 }
 
+/// How a child run ended, as the row its parent's settle frame carries says.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ChildOutcome {
+    /// The row says `success`.
+    Success,
+    /// The row says `failure`.
+    Failure,
+}
+
 /// The child run a task called (`invoke: workflow`), as the task's settle
-/// frame names it: an observation of that row, never the whole hierarchy.
+/// frame names it: an observation of that row, never the whole hierarchy,
+/// and never proof that the journal it names is that child's.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ChildRun {
-    /// The target as written at the call site.
+    /// The target as written at the call site: words, never a path to read.
     pub target: String,
-    /// The child's own trace, when it left one.
+    /// The child's own journal, by the whole file name its runner gave it.
     pub trace_id: Option<String>,
-    /// The child run settled as a success.
+    /// The row says `success` (the same as `outcome == Some(Success)`).
     pub succeeded: bool,
+    /// The head of the child's own chain the parent's frame commits to.
+    pub chain_head: Option<String>,
+    /// The sha256 of the source bytes the child ran from, as the row names it.
+    pub def_hash: Option<String>,
+    /// How the row says the child ended; `None` when it says nothing or a
+    /// word nobody recognises, never a failure.
+    pub outcome: Option<ChildOutcome>,
 }
 
 impl ChildRun {
-    /// The child row a task's settle frame carries, if it carries one.
+    /// The child row a task's settle frame (`task_completed`, the only frame
+    /// the producer writes it on) carries, if it carries one.
     #[must_use]
     pub fn of(event: &Event) -> Option<Self> {
+        if event.kind != EventKind::TaskCompleted {
+            return None;
+        }
         let row: Value = serde_json::from_str(event.str_field("child")?).ok()?;
+        let text = |key: &str| row.get(key).and_then(Value::as_str).map(str::to_owned);
+        let outcome = match row.get("outcome").and_then(Value::as_str) {
+            Some("success") => Some(ChildOutcome::Success),
+            Some("failure") => Some(ChildOutcome::Failure),
+            _ => None,
+        };
         Some(Self {
             target: row.get("target")?.as_str()?.to_owned(),
-            trace_id: row
-                .get("trace_id")
-                .and_then(Value::as_str)
-                .map(str::to_owned),
-            succeeded: row.get("outcome").and_then(Value::as_str) == Some("success"),
+            trace_id: text("trace_id"),
+            succeeded: outcome == Some(ChildOutcome::Success),
+            chain_head: text("chain_head"),
+            def_hash: text("def_hash"),
+            outcome,
         })
     }
 }
@@ -687,6 +715,9 @@ mod tests {
                 target: "./child.nika".to_owned(),
                 trace_id: Some("t-9".to_owned()),
                 succeeded: true,
+                chain_head: Some("ab".to_owned()),
+                def_hash: None,
+                outcome: Some(ChildOutcome::Success),
             })
         );
         let Some(RunFrame::Event(first)) = RunFrame::decode(REAL_LEG[0]) else {
@@ -732,5 +763,72 @@ mod tests {
         assert_eq!(story.lines.len(), STORY_KEPT);
         assert_eq!(story.untold, 3);
         assert_eq!(heard.lines.borrow().len(), STORY_KEPT + 3, "all said");
+    }
+
+    /// A task settle frame of `kind` whose `child` field holds `row`.
+    fn child_frame(kind: &str, row: &str) -> Event {
+        let fields = serde_json::json!([
+            {"key": "task", "value": "sub"},
+            {"key": "child", "value": row},
+        ]);
+        let line = serde_json::json!({
+            "chain": "c", "correlation": null, "fields": fields,
+            "id": {"uuid": "01a0ef11-03b2-71ee-9ad4-17a755fad3ae"},
+            "kind": kind, "run": null, "timestamp": 1,
+        })
+        .to_string();
+        let Some(RunFrame::Event(event)) = RunFrame::decode(&line) else {
+            panic!("a task frame decodes");
+        };
+        *event
+    }
+
+    /// The child row keeps every engagement the producer wrote; an outcome
+    /// nobody recognises is unknown, never a failure; only a task's settle
+    /// frame (`task_completed`) carries one.
+    #[test]
+    fn a_child_row_keeps_its_engagements_and_only_a_settle_carries_it() {
+        let row = |outcome: &str| {
+            serde_json::json!({"target": "./child.nika", "trace_id": "c.ndjson",
+                "chain_head": "ab", "def_hash": "cd", "outcome": outcome})
+            .to_string()
+        };
+        let child = ChildRun::of(&child_frame("task_completed", &row("success"))).expect("a child");
+        assert_eq!(child.trace_id.as_deref(), Some("c.ndjson"));
+        assert_eq!(child.chain_head.as_deref(), Some("ab"));
+        assert_eq!(child.def_hash.as_deref(), Some("cd"));
+        assert_eq!(child.outcome, Some(ChildOutcome::Success));
+        assert!(child.succeeded);
+        let failed =
+            ChildRun::of(&child_frame("task_completed", &row("failure"))).expect("a child");
+        assert_eq!(failed.outcome, Some(ChildOutcome::Failure));
+        assert!(!failed.succeeded);
+        let unknown = ChildRun::of(&child_frame("task_completed", &row("maybe"))).expect("a child");
+        assert_eq!(unknown.outcome, None, "an unknown word is not a failure");
+        let bare = ChildRun::of(&child_frame(
+            "task_completed",
+            r#"{"target":"./child.nika"}"#,
+        ))
+        .expect("a child");
+        assert_eq!(
+            (bare.trace_id, bare.chain_head, bare.def_hash, bare.outcome),
+            (None, None, None, None)
+        );
+        for kind in [
+            "task_started",
+            "task_failed",
+            "task_cache_hit",
+            "workflow_completed",
+        ] {
+            assert_eq!(
+                ChildRun::of(&child_frame(kind, &row("success"))),
+                None,
+                "{kind}"
+            );
+        }
+        assert_eq!(
+            ChildRun::of(&child_frame("task_completed", "{\"target\": ")),
+            None
+        );
     }
 }

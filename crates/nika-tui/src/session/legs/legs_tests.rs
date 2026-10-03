@@ -324,3 +324,60 @@ fn a_reopen_repaints_history_and_runs_nothing() {
     assert_eq!(calls.load(Ordering::SeqCst), 0, "no reasoner call");
     let _ = std::fs::remove_dir_all(&base);
 }
+
+/// A settle frame of `task` in `exec` naming the child journal `trace`.
+fn called(exec: &str, n: u32, kind: &str, task: &str, trace: &str) -> RunFrame {
+    let row = serde_json::json!({"target": "./child.nika", "trace_id": trace,
+        "chain_head": "ab", "def_hash": "cd", "outcome": "success"})
+    .to_string();
+    let fields = format!(
+        r#"{{"key":"task","value":"{task}"}},{{"key":"child","value":{}}}"#,
+        serde_json::to_string(&row).expect("json")
+    );
+    event(exec, n, kind, &fields)
+}
+
+/// The host learns a child relation from the same admissible settle the
+/// fold reads, for the leg it binds only: never from a start, another
+/// execution or a frame after the settlement; a new attempt drops it.
+#[test]
+fn the_host_keeps_the_child_relation_of_an_admissible_settle_only() {
+    let mut legs = Legs::default();
+    legs.asked();
+    legs.frame(&start(EXEC, 1, "aa"));
+    legs.frame(&called(EXEC, 2, "task_started", "call", "early.ndjson"));
+    assert!(legs.find(&id(EXEC)).and_then(|l| l.child("call")).is_none());
+    let settle = called(EXEC, 3, "task_completed", "call", "child.ndjson");
+    legs.frame(&settle);
+    legs.frame(&called(
+        OTHER,
+        4,
+        "task_completed",
+        "other",
+        "foreign.ndjson",
+    ));
+    let leg = legs.find(&id(EXEC)).expect("the leg");
+    let RunFrame::Event(settled_event) = &settle else {
+        panic!("an event");
+    };
+    assert_eq!(
+        leg.child("call"),
+        nika_display::run_story::ChildRun::of(settled_event).as_ref()
+    );
+    assert!(leg.child("other").is_none());
+    legs.frame(&event(
+        EXEC,
+        5,
+        "task_started",
+        r#"{"key":"task","value":"call"}"#,
+    ));
+    assert!(
+        legs.find(&id(EXEC)).and_then(|l| l.child("call")).is_none(),
+        "a new attempt drops it"
+    );
+    legs.frame(&called(EXEC, 6, "task_completed", "call", "second.ndjson"));
+    legs.frame(&settled(EXEC));
+    legs.frame(&called(EXEC, 7, "task_completed", "call", "late.ndjson"));
+    let kept = (legs.find(&id(EXEC)).and_then(|l| l.child("call"))).expect("kept");
+    assert_eq!(kept.trace_id.as_deref(), Some("second.ndjson"));
+}

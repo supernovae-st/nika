@@ -17,10 +17,10 @@ use crate::workspace::focus::Region;
 use crate::workspace::inspect::Inspected;
 use crate::workspace::object::Object;
 
-const EXEC: &str = "01a0ef11-0212-70de-a8b3-99de9427fccc";
+pub(super) const EXEC: &str = "01a0ef11-0212-70de-a8b3-99de9427fccc";
 const NEXT: &str = "01a0ef11-0212-70de-a8b3-99de94271111";
-const WIDE: (u16, u16) = (120, 40);
-const SMALL: (u16, u16) = (80, 24);
+pub(super) const WIDE: (u16, u16) = (120, 40);
+pub(super) const SMALL: (u16, u16) = (80, 24);
 const NARROW: (u16, u16) = (60, 18);
 const HUGE: (u16, u16) = (240, 60);
 
@@ -31,22 +31,22 @@ const THREE: &str = "nika: three\npermits: {}\ntasks:\n  first:\n    invoke: { t
 /// The glyphs of a state the fold reports, in both glyph columns' Unicode.
 const STATES: [&str; 8] = ["○", "◐", "✔", "✖", "↻", "↷", "⊘", "◇"];
 
-fn key(code: KeyCode) -> KeyEvent {
+pub(super) fn key(code: KeyCode) -> KeyEvent {
     KeyEvent::new(code, KeyModifiers::NONE)
 }
 
 /// One `{"key":…,"value":…}` field, its value already JSON.
-fn field(key: &str, value: &str) -> String {
+pub(super) fn field(key: &str, value: &str) -> String {
     format!(r#"{{"key":"{key}","value":{value}}}"#)
 }
 
 /// A JSON string holding `text`.
-fn quoted(text: &str) -> String {
+pub(super) fn quoted(text: &str) -> String {
     serde_json::to_string(text).expect("json")
 }
 
 /// A runtime event of `kind` in execution `exec`, with id `n` and `fields`.
-fn event(exec: &str, n: u32, kind: &str, fields: &[String]) -> Observed {
+pub(super) fn event(exec: &str, n: u32, kind: &str, fields: &[String]) -> Observed {
     let line = format!(
         r#"{{"correlation":null,"execution":{{"uuid":"{exec}"}},"fields":[{}],"id":{{"uuid":"01a0ef11-03a7-74fb-bba0-{n:012x}"}},"kind":"{kind}","run":null,"timestamp":{n}}}"#,
         fields.join(",")
@@ -55,14 +55,14 @@ fn event(exec: &str, n: u32, kind: &str, fields: &[String]) -> Observed {
 }
 
 /// A task event of `kind` naming `id`, with `extra` fields.
-fn task(exec: &str, n: u32, kind: &str, id: &str, extra: &[String]) -> Observed {
+pub(super) fn task(exec: &str, n: u32, kind: &str, id: &str, extra: &[String]) -> Observed {
     let mut fields = vec![field("task", &quoted(id))];
     fields.extend_from_slice(extra);
     event(exec, n, kind, &fields)
 }
 
 /// The run's start, naming the sha256 of `bytes`.
-fn start(exec: &str, bytes: &str) -> Observed {
+pub(super) fn start(exec: &str, bytes: &str) -> Observed {
     use sha2::{Digest as _, Sha256};
     let hash = Sha256::digest(bytes.as_bytes())
         .iter()
@@ -81,7 +81,7 @@ fn start(exec: &str, bytes: &str) -> Observed {
     )
 }
 
-fn settled(exec: &str, status: &str) -> Observed {
+pub(super) fn settled(exec: &str, status: &str) -> Observed {
     let line = format!(
         r#"{{"kind":"run_settled","status":"{status}","cause":"normal","elapsed_ms":2,"execution":{{"uuid":"{exec}"}},"evidence":"unsealed","spend":{{"priced_calls":0,"qualifier":"unmetered","unpriced_calls":0}},"outputs":{{}}}}"#
     );
@@ -89,7 +89,7 @@ fn settled(exec: &str, status: &str) -> Observed {
 }
 
 /// A run of `two.nika` asked over `look`.
-fn asked(look: Option<Inspected>, resume: bool) -> Observed {
+pub(super) fn asked(look: Option<Inspected>, resume: bool) -> Observed {
     Observed::Asked {
         workflow: "two.nika".to_owned(),
         resume,
@@ -103,7 +103,7 @@ fn look(source: &str) -> Inspected {
 }
 
 /// The desk of the demo project after `seen`, the object holding the keys.
-fn desk(seen: Vec<Observed>) -> Desk {
+pub(super) fn desk(seen: Vec<Observed>) -> Desk {
     let mut desk = Desk::new();
     desk.view = Some(demo_project());
     desk.observe(seen.into_iter());
@@ -112,7 +112,7 @@ fn desk(seen: Vec<Observed>) -> Desk {
 }
 
 /// The object in view on a terminal of `size`, as its title and body rows.
-fn object(desk: &mut Desk, size: (u16, u16), ascii: bool) -> (String, Vec<String>) {
+pub(super) fn object(desk: &mut Desk, size: (u16, u16), ascii: bool) -> (String, Vec<String>) {
     desk.prepare(size, ascii, false);
     let Object::Workflow { title, body } = desk.screen(ascii).object else {
         panic!("the run is in view");

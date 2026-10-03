@@ -9,13 +9,19 @@
 //! names; a frame of another execution, or after the settlement, adds
 //! nothing. Bounded: [`LEGS_KEPT`] legs, [`FILES_KEPT`] files each.
 //!
+//! The child run a task called is kept as its settle frame named it, by
+//! the rule the fold follows (`RunView::child`): only that frame names one,
+//! a new attempt leaves none. The journal of a child is opened only by the
+//! relation kept here, [`CHILDREN_KEPT`] at most: a relation past the bound
+//! is not kept and opens nothing, never by evicting another.
+//!
 //! A leg kept from an earlier session (`KeptRun`) carries its execution,
 //! source hash and receipt as HOME history recorded them, and no file: a
 //! record is evidence to re-verify, never a list of paths to read.
 
 use std::collections::BTreeSet;
 
-use nika_display::run_story::{Event, EventKind, ExecutionId, RunFrame, Settled};
+use nika_display::run_story::{ChildRun, Event, EventKind, ExecutionId, RunFrame, Settled};
 use nika_session::KeptRun;
 
 use super::acquire::Expect;
@@ -24,6 +30,8 @@ use super::acquire::Expect;
 pub(crate) const LEGS_KEPT: usize = 4;
 /// The most written files one leg remembers; more are counted.
 pub(crate) const FILES_KEPT: usize = 64;
+/// The most child relations one leg keeps (one per task).
+pub(crate) const CHILDREN_KEPT: usize = 64;
 
 /// One leg, as the host relayed it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -36,6 +44,7 @@ pub(crate) struct Leg {
     pub trace: Option<String>,
     chain_head: Option<String>,
     chain_len: Option<u64>,
+    children: Vec<(String, ChildRun)>,
     pub settled: bool,
     pub kept: bool,
 }
@@ -51,12 +60,46 @@ impl Leg {
             trace: None,
             chain_head: None,
             chain_len: None,
+            children: Vec::new(),
             settled: false,
             kept: false,
         }
     }
 
+    /// The child relation task `task` holds: its settle frame's row, set,
+    /// replaced or dropped by the fold's rule.
+    fn relate(&mut self, event: &Event) {
+        if !matches!(
+            event.kind,
+            EventKind::TaskStarted | EventKind::TaskCompleted | EventKind::TaskCacheHit
+        ) {
+            return;
+        }
+        let Some(task) = event.str_field("task") else {
+            return;
+        };
+        let at = self.children.iter().position(|(kept, _)| kept == task);
+        match (ChildRun::of(event), at) {
+            (Some(child), Some(at)) => self.children[at].1 = child,
+            (Some(child), None) if self.children.len() < CHILDREN_KEPT => {
+                self.children.push((task.to_owned(), child));
+            }
+            (None, Some(at)) => {
+                self.children.remove(at);
+            }
+            _ => {}
+        }
+    }
+
+    /// The child run task `task` called, as this leg's frames named it.
+    pub(crate) fn child(&self, task: &str) -> Option<&ChildRun> {
+        (self.children.iter())
+            .find(|(kept, _)| kept == task)
+            .map(|(_, child)| child)
+    }
+
     fn event(&mut self, event: &Event) {
+        self.relate(event);
         let task = event.str_field("task").map(str::to_owned);
         match (event.kind, task) {
             (EventKind::WorkflowStarted, _) => {

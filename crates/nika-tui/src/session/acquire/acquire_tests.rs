@@ -296,3 +296,277 @@ fn a_start_naming_no_hash_is_not_compared_never_other_bytes() {
         "{proven:?}"
     );
 }
+
+/// A child journal as the local child route writes it: frames with NO
+/// execution, `starts` starts naming `sha`, one task, then `end` (a
+/// terminal kind, or none); its head.
+fn child_journal(sha: Option<&str>, starts: usize, end: Option<&str>) -> (String, String) {
+    let mut chain = sha256_hex(GENESIS);
+    let mut out = String::new();
+    let mut frames: Vec<(&str, Vec<serde_json::Value>)> = Vec::new();
+    for _ in 0..starts {
+        let mut fields = vec![serde_json::json!({"key": "workflow", "value": "child"})];
+        fields.extend(sha.map(|s| serde_json::json!({"key": "workflow_sha256", "value": s})));
+        frames.push(("workflow_started", fields));
+    }
+    frames.push((
+        "task_started",
+        vec![serde_json::json!({"key": "task", "value": "greet"})],
+    ));
+    frames.push((
+        "task_completed",
+        vec![serde_json::json!({"key": "task", "value": "greet"})],
+    ));
+    if let Some(end) = end {
+        frames.push((end, Vec::new()));
+    }
+    for (n, (kind, fields)) in frames.into_iter().enumerate() {
+        let line = serde_json::json!({
+            "chain": chain, "correlation": null, "fields": fields,
+            "id": {"uuid": format!("01a0ef11-03a1-73d9-a2bc-{n:012x}")},
+            "kind": kind, "run": null, "timestamp": n,
+        })
+        .to_string();
+        chain = sha256_hex(line.as_bytes());
+        out.push_str(&line);
+        out.push('\n');
+    }
+    (out, chain)
+}
+
+/// The relation a parent's settle names for `trace`, read as the fold reads it.
+fn relation(trace: &str, head: Option<&str>, sha: Option<&str>, outcome: &str) -> ChildRun {
+    let mut row =
+        serde_json::json!({"target": "./child.nika", "trace_id": trace, "outcome": outcome});
+    if let Some(head) = head {
+        row["chain_head"] = head.into();
+    }
+    if let Some(sha) = sha {
+        row["def_hash"] = sha.into();
+    }
+    let line = serde_json::json!({
+        "correlation": null, "execution": {"uuid": EXEC},
+        "fields": [{"key": "task", "value": "call"}, {"key": "child", "value": row.to_string()}],
+        "id": {"uuid": "01a0ef11-03a1-73d9-a2bc-00000000ffff"},
+        "kind": "task_completed", "run": null, "timestamp": 9,
+    })
+    .to_string();
+    let Some(nika_display::run_story::RunFrame::Event(event)) =
+        nika_display::run_story::RunFrame::decode(&line)
+    else {
+        panic!("a settle frame");
+    };
+    ChildRun::of(&event).expect("a relation")
+}
+
+/// The words of every engagement that does not hold.
+fn unheld(read: &ChildRead) -> Vec<&str> {
+    (read.compared().iter())
+        .filter(|(holds, _)| !holds)
+        .map(|(_, words)| words.as_str())
+        .collect()
+}
+
+/// The child journal is read for real though it records no execution: the
+/// verdict is the verifier's over the captured bytes; the head it computes,
+/// the source its one start names and its terminal hold against what the
+/// parent's frame named; its identity and length are said, never compared,
+/// so the relation is not bound whole by their absence.
+#[test]
+fn a_child_journal_without_an_execution_is_read_and_compared() {
+    let room = room();
+    let (raw, head) = child_journal(Some("cd"), 1, Some("workflow_completed"));
+    std::fs::write(room.path().join(".nika/traces/child.ndjson"), &raw).expect("trace");
+    let named = relation("child.ndjson", Some(&head), Some("cd"), "success");
+    let read = read_child(room.path(), &named);
+    let proven = read.proven();
+    assert!(
+        proven.why().is_none() && proven.verdict().is_some(),
+        "{read:?}"
+    );
+    let holds: Vec<&str> = (read.compared().iter())
+        .filter(|(holds, _)| *holds)
+        .map(|(_, w)| w.as_str())
+        .collect();
+    for word in ["head holds", "source holds", "outcome holds"] {
+        assert!(
+            holds.iter().any(|w| w.starts_with(word)),
+            "{word}: {read:?}"
+        );
+    }
+    let unheld = unheld(&read);
+    assert_eq!(unheld.len(), 2, "{read:?}");
+    assert!(
+        unheld.iter().all(|w| w.contains("not compared")),
+        "{read:?}"
+    );
+    assert!(
+        unheld.iter().any(|w| w.contains("not recorded")),
+        "{read:?}"
+    );
+    assert_eq!(proven.unbound(), unheld, "unbound lists what does not hold");
+    assert!(!unheld.iter().any(|w| w.contains("differs")), "{read:?}");
+    assert_eq!(proven.terminal(), Some("succeeded"));
+    assert_eq!(
+        read.rows().len(),
+        1,
+        "its one task, folded from the same bytes"
+    );
+    assert_eq!(read.rows()[0].id, "greet");
+    let outer = Room::new("child-outer");
+    let linked = outer.path().join("project");
+    std::os::unix::fs::symlink(room.path(), &linked).expect("a linked root");
+    let through = read_child(&linked, &named);
+    assert_eq!(unheld_of(&through), 2, "{through:?}");
+}
+
+fn unheld_of(read: &ChildRead) -> usize {
+    unheld(read).len()
+}
+
+/// The outcome the parent's frame named is compared with the journal's
+/// terminal: success only with `succeeded`; failure only with a terminal
+/// the producer calls a failure; a missing terminal, or a contradiction,
+/// leaves the relation not bound even when head and source hold.
+#[test]
+fn the_named_outcome_is_compared_with_the_journal_terminal() {
+    let room = room();
+    for (end, file) in [
+        (Some("workflow_completed"), "ok.ndjson"),
+        (Some("workflow_failed"), "failed.ndjson"),
+        (None, "open.ndjson"),
+    ] {
+        let (raw, _) = child_journal(Some("cd"), 1, end);
+        std::fs::write(room.path().join(".nika/traces").join(file), &raw).expect("trace");
+    }
+    let head_of = |file: &str| {
+        let raw = std::fs::read(room.path().join(".nika/traces").join(file)).expect("raw");
+        let last = raw
+            .split(|b| *b == b'\n')
+            .filter(|l| !l.is_empty())
+            .next_back()
+            .expect("line");
+        sha256_hex(last)
+    };
+    for (file, outcome, said) in [
+        ("ok.ndjson", "success", "outcome holds"),
+        ("failed.ndjson", "failure", "outcome holds"),
+        ("failed.ndjson", "success", "outcome differs"),
+        ("ok.ndjson", "failure", "outcome differs"),
+        ("open.ndjson", "success", "outcome not compared"),
+    ] {
+        let named = relation(file, Some(&head_of(file)), Some("cd"), outcome);
+        let read = read_child(room.path(), &named);
+        assert!(
+            read.compared().iter().any(|(_, w)| w.starts_with(said)),
+            "{file} {outcome} {said}: {read:?}"
+        );
+        let bound_parts = (read.compared().iter()).filter(|(holds, _)| *holds).count();
+        if said != "outcome holds" {
+            assert!(
+                read.proven()
+                    .unbound()
+                    .iter()
+                    .any(|w| w.starts_with("outcome")),
+                "{file} {outcome}: an outcome that does not hold never binds: {read:?}"
+            );
+            assert_eq!(bound_parts, 2, "head and source still hold: {read:?}");
+        }
+    }
+}
+
+/// Another head, other bytes, several starts, several identities or a
+/// corrupted journal: each says its own reason, none is bound.
+#[test]
+fn a_child_journal_that_is_not_the_named_one_says_why() {
+    let room = room();
+    let (raw, head) = child_journal(Some("cd"), 1, Some("workflow_completed"));
+    std::fs::write(room.path().join(".nika/traces/child.ndjson"), &raw).expect("trace");
+    let (two, two_head) = child_journal(Some("cd"), 2, Some("workflow_completed"));
+    std::fs::write(room.path().join(".nika/traces/two.ndjson"), &two).expect("two");
+    let (ids, ids_head) = journal(&[
+        (EXEC, "workflow_started", Some("cd")),
+        (OTHER, "workflow_completed", None),
+    ]);
+    std::fs::write(room.path().join(".nika/traces/ids.ndjson"), &ids).expect("ids");
+    let mut torn = raw.clone();
+    torn.insert(10, 'x');
+    std::fs::write(room.path().join(".nika/traces/torn.ndjson"), &torn).expect("torn");
+    for (trace, named, sha, reason) in [
+        ("child.ndjson", "ff".repeat(32), "cd", "head differs"),
+        ("child.ndjson", head.clone(), "ee", "source differs"),
+        ("two.ndjson", two_head, "cd", "2 starts"),
+        ("ids.ndjson", ids_head, "cd", "2 executions"),
+    ] {
+        let read = read_child(
+            room.path(),
+            &relation(trace, Some(&named), Some(sha), "success"),
+        );
+        assert!(
+            read.proven().unbound().iter().any(|w| w.contains(reason)),
+            "{trace} {reason}: {read:?}"
+        );
+    }
+    let torn = read_child(
+        room.path(),
+        &relation("torn.ndjson", Some(&head), Some("cd"), "success"),
+    );
+    assert!(
+        torn.proven().exit() != Some(0) || torn.compared().iter().any(|(h, _)| !h),
+        "{torn:?}"
+    );
+    let unnamed = read_child(
+        room.path(),
+        &relation("child.ndjson", None, None, "success"),
+    );
+    for word in ["head not compared", "source not compared"] {
+        assert!(
+            unnamed
+                .compared()
+                .iter()
+                .any(|(holds, w)| !holds && w.starts_with(word)),
+            "{word}: {unnamed:?}"
+        );
+    }
+}
+
+/// The journal's name is the producer's whole file name, local, under
+/// `.nika/traces`: anything else is refused before a byte is read, no link
+/// below the root is followed, what is not a regular file is never opened, the
+/// cap holds.
+#[test]
+fn a_child_journal_name_that_is_not_local_is_refused_unread() {
+    let room = room();
+    let (raw, _) = child_journal(Some("cd"), 1, Some("workflow_completed"));
+    std::fs::write(room.path().join("elsewhere.ndjson"), &raw).expect("elsewhere");
+    std::fs::create_dir_all(room.path().join(".nika/traces/sub")).expect("sub");
+    std::fs::write(room.path().join(".nika/traces/sub/x.ndjson"), &raw).expect("sub");
+    std::os::unix::fs::symlink(
+        room.path().join("elsewhere.ndjson"),
+        room.path().join(".nika/traces/linked.ndjson"),
+    )
+    .expect("link");
+    // Not a regular file: a directory under a journal's name.
+    std::fs::create_dir_all(room.path().join(".nika/traces/dir.ndjson")).expect("not a file");
+    let big = vec![b'a'; usize::try_from(JOURNAL_CAP).expect("cap") + 1];
+    std::fs::write(room.path().join(".nika/traces/big.ndjson"), big).expect("big");
+    for name in [
+        "/etc/passwd",
+        "../elsewhere.ndjson",
+        "../../elsewhere.ndjson",
+        "sub/x.ndjson",
+        ".",
+        "",
+        "linked.ndjson",
+        "dir.ndjson",
+        "big.ndjson",
+        "gone.ndjson",
+    ] {
+        let read = read_child(room.path(), &relation(name, None, None, "success"));
+        assert!(
+            read.proven().verdict().is_none() && read.proven().why().is_some(),
+            "{name}: {read:?}"
+        );
+        assert!(read.rows().is_empty(), "{name}");
+    }
+}

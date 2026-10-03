@@ -502,6 +502,19 @@ pub trait Conversation: Send {
     ) -> Option<crate::session::acquire::Proven> {
         None
     }
+    /// The journal of the child run task `task` of the run `execution`
+    /// called, as the relation `relation` its settle frame named: read by
+    /// the host only when it kept that very relation itself (never a path
+    /// the renderer names), captured once and verified, never while
+    /// drawing. The default reads none.
+    fn child(
+        &mut self,
+        _execution: &nika_display::run_story::ExecutionId,
+        _task: &str,
+        _relation: &nika_display::run_story::ChildRun,
+    ) -> Option<crate::session::acquire::ChildRead> {
+        None
+    }
     /// The last run an earlier session kept, as HOME history recorded it:
     /// evidence, never authority. The default keeps none.
     fn kept_run(&self) -> Option<Result<nika_session::KeptRun, String>> {

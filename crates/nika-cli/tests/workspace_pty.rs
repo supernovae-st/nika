@@ -1245,3 +1245,105 @@ fn a_task_of_the_run_is_picked_read_and_left() {
     }
     ascii.leave();
 }
+
+/// A parent whose one task calls a child workflow: both may log (a
+/// composed run grants the child's tool in both files), nothing else.
+const PARENT: &str = r#"nika: parent
+permits:
+  tools: ["nika:log"]
+tasks:
+  call:
+    invoke: { workflow: "./child.nika" }
+"#;
+
+/// The child the parent calls.
+const CHILD: &str = r#"nika: child
+permits:
+  tools: ["nika:log"]
+tasks:
+  greet:
+    invoke: { tool: "nika:log", args: { message: hello } }
+"#;
+
+/// The `.ndjson` journals under the rig's `.nika/traces`.
+fn journals(rig: &Rig) -> usize {
+    (std::fs::read_dir(rig.path(".nika/traces")).expect("traces"))
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().extension().is_some_and(|e| e == "ndjson"))
+        .count()
+}
+
+/// 17 · From a task of the run, the child run its settle frame named is
+/// opened one level down: the host reads the journal that child really
+/// wrote, says its identity is not recorded (the local child route binds
+/// none), shows the verifier's verdict and the child's own task, and
+/// Backspace returns to the parent's task, then its list, through a resize
+/// and the focus view, running and writing nothing.
+#[test]
+fn a_child_run_is_opened_from_its_task_and_left_for_the_parent() {
+    let rig = Rig::new("child");
+    std::fs::write(rig.path("parent.nika"), PARENT).expect("parent");
+    std::fs::write(rig.path("child.nika"), CHILD).expect("child");
+    let mut term = rig.spawn("17-child", 120, 40);
+    wait_workspace(&mut term);
+    term.send("run parent.nika\r");
+    term.wait_until("the parent settled", |s| s.contains("settled · succeeded"));
+    let (tree, written) = (rig.tree(), journals(&rig));
+    term.keys(F6);
+    term.keys(F6);
+    term.wait_text("› ✔ call");
+    term.keys("\r");
+    term.wait_until("the task names its child", |s| {
+        s.contains("task call") && s.contains("child run · ./child.nika")
+    });
+    term.wait_text("Enter: open its journal");
+    term.keys("\r");
+    term.wait_until("the child's journal, read", |s| {
+        s.contains("child ./child.nika") && s.contains("verdict ·") && s.contains("greet")
+    });
+    assert!(term.text().contains("not recorded"), "{}", term.dump());
+    term.resize(80, 24);
+    term.wait_until("the child at 80x24", |s| s.contains("child ./child.nika"));
+    term.resize(50, 14);
+    term.wait_until("the focus view below the minimum", |s| {
+        !s.contains("child ./child.nika") && s.contains("nika ›")
+    });
+    term.resize(120, 40);
+    term.wait_until("the child back with the workspace", |s| {
+        s.contains("child ./child.nika") && s.contains("verdict ·")
+    });
+    term.keys(BACKSPACE);
+    term.wait_until("the parent's task again", |s| {
+        s.contains("task call") && !s.contains("child ./child.nika")
+    });
+    term.keys(BACKSPACE);
+    term.wait_until("the parent's list again", |s| {
+        s.contains("› ✔ call") && !s.contains("task call")
+    });
+    assert_eq!(journals(&rig), written, "opening the child runs nothing");
+    assert_eq!(rig.tree(), tree, "the project's files are untouched");
+    term.leave();
+    let env = [("NO_COLOR", "1"), ("NIKA_REDUCED_MOTION", "1")];
+    let mut ascii = rig.spawn_with("17-child-ascii", &["--ascii"], 120, 40, &env);
+    wait_workspace(&mut ascii);
+    ascii.send("run parent.nika\r");
+    ascii.wait_until("the parent settled", |s| s.contains("settled - succeeded"));
+    ascii.keys(F6);
+    ascii.keys(F6);
+    ascii.wait_text("* ok call");
+    ascii.keys("\r");
+    ascii.wait_text("Enter: open its journal");
+    ascii.keys("\r");
+    ascii.wait_until("the ASCII child", |s| {
+        s.contains("child ./child.nika") && s.contains("verdict -")
+    });
+    let object: Vec<String> = (ascii.text().lines())
+        .filter_map(|line| line.split('|').nth(1).map(str::to_owned))
+        .collect();
+    assert_renderer_ascii(&object.join("\n"));
+    let raw = String::from_utf8_lossy(&ascii.raw).into_owned();
+    for hue in ["\x1b[38;5;", "\x1b[38;2;", "\x1b[48;5;", "\x1b[48;2;"] {
+        assert!(!raw.contains(hue), "a colour under NO_COLOR: {hue:?}");
+    }
+    ascii.leave();
+}

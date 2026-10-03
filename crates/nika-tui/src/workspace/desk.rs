@@ -45,7 +45,7 @@ use ratatui::text::Line;
 use super::candidate::Proposed;
 use super::live::{LiveRun, Pick, RunFace, Want};
 use crate::model::Conversation;
-use crate::session::acquire::{Fetched, Proven};
+use crate::session::acquire::{ChildRead, Fetched, Proven};
 use crate::session::feed::{Gap, Observed};
 use nika_display::run_story::ExecutionId;
 use nika_session::KeptRun;
@@ -115,6 +115,15 @@ pub(crate) struct Desk {
     drawn: Option<Drawn>,
 }
 
+/// The reading a request was made for: the leg's reading, and the child
+/// view opening it asked for when it asks a child's journal. An answer is
+/// applied only to the same reading, and a child's only to that opening.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Reading {
+    generation: u64,
+    opening: Option<u64>,
+}
+
 /// One thing acquired for a run's face.
 #[derive(Debug)]
 pub(crate) enum Got {
@@ -122,6 +131,12 @@ pub(crate) enum Got {
     File(Fetched),
     /// The run's journal, captured and verified.
     Proof(Proven),
+    /// A child run's journal, read for the relation it was asked by.
+    Child {
+        task: String,
+        relation: nika_display::run_story::ChildRun,
+        read: Box<ChildRead>,
+    },
 }
 
 /// Ask `conversation`'s host for each of `wants` of the leg `execution` (on
@@ -142,6 +157,16 @@ pub(crate) fn acquire_all<C: Conversation + ?Sized>(
                 Got::Proof((conversation.prove(execution)).unwrap_or_else(|| {
                     Proven::refused("", "this conversation verifies no journal")
                 }))
+            }
+            Want::Child { task, relation } => {
+                let read = (conversation.child(execution, &task, &relation)).unwrap_or_else(|| {
+                    ChildRead::refused("", "this conversation reads no child journal")
+                });
+                Got::Child {
+                    task,
+                    relation,
+                    read: Box::new(read),
+                }
             }
         })
         .collect()
@@ -265,7 +290,11 @@ impl Desk {
         match self.shown()? {
             Opened::Candidate(c) => Some((candidate_key(c), c.witness().map(str::to_owned))),
             Opened::Live(leg) => {
-                let pick = (self.pick.current(leg), self.pick.is_open());
+                let pick = (
+                    self.pick.current(leg),
+                    self.pick.is_open(),
+                    self.pick.child_open(),
+                );
                 Some((format!("{} {} {pick:?}", leg.label(), leg.revision()), None))
             }
             Opened::Workflow(w) => (self.look.as_ref())
@@ -334,26 +363,39 @@ impl Desk {
     }
 
     /// The run in view, what its face still needs acquired, and the reading
-    /// it is for, when it needs something.
-    pub(crate) fn wanted(&self) -> Option<(ExecutionId, Vec<Want>, u64)> {
+    /// it is for (with the child opening it asks for), when it needs something.
+    pub(crate) fn wanted(&self) -> Option<(ExecutionId, Vec<Want>, Reading)> {
         let Some(Opened::Live(leg)) = self.shown() else {
             return None;
         };
-        let wants = leg.wants(self.run_face);
-        (!wants.is_empty()).then_some((leg.execution()?, wants, leg.generation()))
+        let mut wants = leg.wants(self.run_face);
+        let mut opening = None;
+        if self.run_face == RunFace::Run
+            && let Some((task, relation)) = self.pick.child_wanted(leg)
+        {
+            wants.push(Want::Child { task, relation });
+            opening = self.pick.child_opening();
+        }
+        let reading = Reading {
+            generation: leg.generation(),
+            opening,
+        };
+        (!wants.is_empty()).then_some((leg.execution()?, wants, reading))
     }
 
-    /// What was acquired for the leg `execution` at reading `generation`:
-    /// applied only while that leg and that reading are still the ones in the
-    /// desk (`false` when it came too late and was dropped).
+    /// What was acquired for the leg `execution` at `reading`: applied only
+    /// while that leg and that reading are still the ones in the desk (`false`
+    /// when it came too late and was dropped); a child's journal only to the
+    /// opening that asked it.
     pub(crate) fn acquired(
         &mut self,
         execution: ExecutionId,
-        generation: u64,
+        reading: Reading,
         got: Vec<Got>,
     ) -> bool {
-        let current =
-            |l: &&mut LiveRun| l.execution() == Some(execution) && l.generation() == generation;
+        let current = |l: &&mut LiveRun| {
+            l.execution() == Some(execution) && l.generation() == reading.generation
+        };
         let Some(leg) = self.live.as_mut().filter(current) else {
             return false;
         };
@@ -361,6 +403,16 @@ impl Desk {
             match item {
                 Got::File(fetched) => leg.fetched(fetched),
                 Got::Proof(proven) => leg.proven(proven),
+                // Applied only to the child in view, for that relation and
+                // while it is still the task's own (never one re-emitted).
+                Got::Child {
+                    task,
+                    relation,
+                    read,
+                } => {
+                    let asked = (reading.opening, task.as_str(), &relation);
+                    self.pick.child_read(leg, asked, *read);
+                }
             }
         }
         self.drawn = None;
@@ -589,8 +641,16 @@ impl Desk {
                 }
                 opened
             }
+            KeyCode::Enter if !self.pick.child_open() => {
+                if !self.pick.open_child(leg, self.focus.scroll) {
+                    return Some(Route::Nothing);
+                }
+                self.focus.scroll = 0;
+                // Its journal is read outside the frame, on the worker.
+                return Some(Route::Inspect);
+            }
             KeyCode::Enter => false,
-            KeyCode::Backspace => match self.pick.close() {
+            KeyCode::Backspace => match self.pick.close_child().or_else(|| self.pick.close()) {
                 Some(scroll) => {
                     self.focus.scroll = scroll;
                     true
