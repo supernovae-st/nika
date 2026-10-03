@@ -147,16 +147,39 @@ needs keeps its default.
   them as a member of the same unit (the ADR-115, ADR-137 and ADR-138 posture). Mutation and
   property attestations for the moved laws are owed as pending evidence, tracked with the
   unit's, never claimed.
-- The public types (`fidelity::Diagnostic`, `sketch::{Sketch, SketchTask, Edge, Verb, Hole,
-  Fill}`) moved as they were and are not yet `#[non_exhaustive]`: the ratchet is owed, not
-  claimed.
+- The public types moved as they were at extraction. In 0.123, `Sketch` and `SketchTask`
+  are `#[non_exhaustive]` and have constructors (see the source-compatibility note below).
+  The ratchet remains owed for `fidelity::Diagnostic` and `sketch::{Edge, Verb, Hole, Fill}`.
+
+### Sketch graph semantics (0.123 slice B)
+
+`Sketch` carries the workflow's named results, `outputs: Option<Vec<Edge>>` (the existing
+`{name, from}` type): omitted or `null` keeps the historical single `result` of the last task;
+`[]` states no workflow output; a list emits exactly `{<name>: ${{ tasks.<from>.output }}}` and
+nothing else. Each output name is a `snake_case` identifier, named once, the result of a task the
+sketch has (any task: an output is the workflow's, not a binding, so edge reservations and the
+earlier-task rule do not apply). `SketchTask` carries an agent's `max_turns: Option<u32>` (the
+language's 1..=1000) and `tools: Option<Vec<String>>` (named `nika:`/`mcp:` tools, no glob or
+negation, each once, the agent's own list), and a loop's `fail_fast: Option<bool>`. A control on
+the wrong verb or out of range refuses the sketch; omitted or `null` controls keep the
+historical emission (`max_turns: 4`, `tools: []`, `fail_fast: false`), never overriding a
+stated value; explicit `tools: []` is no tool. A stated agent tool joins the derived tool
+requirement (`permits.tools`); it grants nothing else. A write bound by more than one edge
+requires its content template (a first edge is never silently the content).
+
+Source compatibility (0.123): `Sketch` and `SketchTask` are now `#[non_exhaustive]`, with
+`Sketch::new(name, tasks)` and `SketchTask::new(id, verb, purpose)` building the legacy shape
+(outputs and controls omitted, collections empty). An external Rust literal of either type no
+longer compiles; function signatures are unchanged. `Edge` is unchanged. The wire is additive:
+a sketch JSON without the new keys reads and emits exactly as before.
 
 ### Sketch emission integrity (0.123 slice A)
 
 `Sketch::from_json` reads closed task and edge objects with exact types: a field outside the
-task set (`id verb tool reads writes hosts after with gated_by for_each purpose`) or the edge
-set (`name from`), a value of another type or a malformed array item is refused by its path;
-absent or null optional fields are their empty value, never a filtered remainder. The
+task set (`id verb tool reads writes hosts after with gated_by for_each purpose max_turns
+tools fail_fast`) or the edge set (`name from`), a value of another type or a malformed array
+item is refused by its path. Absent or null optional fields retain their omission semantics
+(the controls are described above), never a filtered remainder. The
 structural laws also refuse an empty, non-snake_case or repeated edge name and an edge named
 `approved` on a gated task or `items` on a looping one (the names the assembler binds).
 

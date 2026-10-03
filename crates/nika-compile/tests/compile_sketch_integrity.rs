@@ -784,3 +784,83 @@ async fn a_chart_that_states_no_write_is_repaired_in_the_graph_and_inline_rows_n
     )
     .await;
 }
+
+// ── QUAL13 · an intrinsic read is repaired in the graph; an optional one is never required ──────
+
+#[tokio::test]
+async fn an_image_filter_stated_only_as_a_write_is_repaired_into_its_read() {
+    let image_fx = |extra: &Value| vec![task("make", "invoke", Some("nika:image_fx"), extra)];
+    let (out, calls) = compile_with(
+        "Applique un filtre gris à ./in.png et écris le résultat dans ./out/a.png",
+        vec![
+            sketch_answer(&image_fx(&json!({"writes": ["./out/a.png"]}))),
+            sketch_answer(&image_fx(&json!({"reads": ["./in.png"], "writes": ["./out/a.png"]}))),
+            fills_answer(&json!([{"task": "make", "field": "args",
+                "value": {"input": "./in.png", "out": "./out/a.png", "ops": [{"grayscale": {}}]}}])),
+        ],
+        policy_with(1),
+    )
+    .await;
+    let rounds = rounds(&out);
+    let first = rounds[0]["diagnostics"].to_string();
+    assert!(
+        first.contains("`make` invokes `nika:image_fx`, which always reads a file"),
+        "{first}"
+    );
+    assert_eq!(calls, 3, "sketch, sketch-repair, fill: {rounds:#?}");
+    assert_eq!(
+        out.provenance.decision.as_ref().unwrap()["native"]["accepted"],
+        true,
+        "{:#}",
+        rounds.last().unwrap()
+    );
+}
+
+/// The reach laws' own messages: none may refuse a tool whose read is optional.
+fn reach_refusal(round: &Value) -> bool {
+    let text = round["diagnostics"].to_string();
+    text.contains("which always") || text.contains("the task states in its")
+}
+
+#[tokio::test]
+async fn an_optional_read_is_never_required_at_the_sketch_phase() {
+    let cases: Vec<(&str, Vec<Value>, Value)> = vec![
+        (
+            "Génère une image d'un phare dans ./out/imgs",
+            vec![task(
+                "make",
+                "invoke",
+                Some("nika:image_generate"),
+                &json!({"writes": ["./out/imgs"]}),
+            )],
+            json!([{"task": "make", "field": "args",
+                "value": {"prompt": "a lighthouse at dawn", "output_dir": "./out/imgs"}}]),
+        ),
+        (
+            "Décide si la demande est acceptable selon la politique interne",
+            vec![task("make", "invoke", Some("nika:decide"), &json!({}))],
+            json!([{"task": "make", "field": "args",
+                "value": {"bundle": {"policy": {}}, "evidence": {}}}]),
+        ),
+        (
+            FETCH,
+            fetch_tasks(),
+            json!([{"task": "get_news", "field": "args.url", "value": "https://example.org/news"}]),
+        ),
+    ];
+    for (intent, tasks, fills) in cases {
+        let (out, _) = compile(intent, vec![sketch_answer(&tasks), fills_answer(&fills)]).await;
+        let rounds = rounds(&out);
+        assert_eq!(rounds[0]["phase"], "sketch", "{intent}: {rounds:#?}");
+        assert!(!reach_refusal(&rounds[0]), "{intent}: {:#}", rounds[0]);
+        assert!(
+            rounds.iter().all(|r| !reach_refusal(r)),
+            "{intent}: no reach law refuses an optional read: {rounds:#?}"
+        );
+        assert_eq!(
+            rounds.len(),
+            2,
+            "{intent}: the sketch is accepted and filled: {rounds:#?}"
+        );
+    }
+}

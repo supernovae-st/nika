@@ -463,6 +463,42 @@ reaches must be stated in its task's `reads`/`writes` (an `edit` in both, a `cha
 bound by the same `unbound_fs_args` query. Optional slots and inline data are never required at
 that phase.
 
+## Sketch graph semantics (0.123 slice B)
+
+The sketch answer accepts `outputs` (and the task controls `max_turns`, `tools`, `fail_fast`);
+the schema, the card and the fidelity decoder state the same closed shapes. `consumed_sketch`
+projects the outputs and every control as consumed, with a per-task `defaulted` list naming the
+controls left to the historical emission, so a receipt never presents a default as requested.
+An agent's `tools` must be effect-free for every call (`nika_cap::pure_internal_for_all_calls`);
+a tool that can reach a file, a host or a process is refused at the sketch phase. Effectful
+agent tools are the named remaining part of slice B, not supported by this lot.
+
+A COLD proposal is classified before `Plan::push_step` folds its operations
+(`cognition/proposal/occurrences.rs`): the merge runs exactly as before, and a proposal it
+refuses stays refused; a lawful proposal whose source steps (`read`, `fetch`) each name a
+distinct stated path that no write targets, two or more of them, whose write targets name two or
+more distinct stated paths (a written path comes from the target only: a write's evidence that
+cites the source it copies leaves that source a read source), and whose own cited texts pair
+every read source with exactly one written path and back (a step's detail and evidence, or a
+write's target and evidence, naming one of each) is `NeedsSketch` (private `Merged`): independent branches the plan's one step per
+operation would merge. Path counts alone are not branches: two sources merged into one result
+written twice carry no pairing and keep their plan. Several reads feeding one destination, typed
+rule sequences and every other unpaired proposal keep exactly their prior merge result, which is
+not thereby claimed sound. The pairing is lexical over stated paths, not semantic. When no sample yields a candidate and one
+carried such a composition, the existing sketch door continues with the same intent, answers,
+reading floor and receipt (the paid plan calls stay first), never source generation. Under
+`native: off` the composition is named and nothing is sent. The sketch door takes one request
+more than the native door the Escalate bound counts, so it runs with one repair less (checked);
+with no repair allowance the budget is named and no request is sent. The advertised bound
+(`authority::worst_case`) is unchanged. The forensic summary names this door `sketch` with the
+reason `plan_composition_requires_sketch` (from its route step); a composition stopped before any
+sketch request (native off, no repair allowance) keeps the plan round's own record, door `none`
+with `cold_plan_without_candidate`, and the finding that names the stop. Remaining limits: the
+classification is lexical over the request's stated paths (a host, a URL or an unstated path is
+never a branch, and a target naming two stated paths cannot pair); a lawful proposal without the
+pairing keeps its plan, which is not thereby judged faithful; agent tools with effects are
+refused at the sketch phase, not carried.
+
 ## Numeric conversion cardinality
 
 Transform examples execute the same numeric conversion definition as the runtime; successful parsing alone never establishes semantic fidelity.

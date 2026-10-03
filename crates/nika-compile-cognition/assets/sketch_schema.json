@@ -29,8 +29,20 @@
           },
           "gated_by": {"type": ["string", "null"]},
           "for_each": {"type": ["string", "null"]},
-          "purpose": {"type": "string"}
+          "purpose": {"type": "string"},
+          "max_turns": {"type": ["integer", "null"], "minimum": 1, "maximum": 1000},
+          "tools": {"type": ["array", "null"], "items": {"type": "string"}},
+          "fail_fast": {"type": ["boolean", "null"]}
         }
+      }
+    },
+    "outputs": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "from"],
+        "properties": {"name": {"type": "string"}, "from": {"type": "string"}}
       }
     },
     "questions": {

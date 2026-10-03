@@ -17,6 +17,7 @@ use super::hot::fold;
 
 /// One task of a sketch: what it is and what it reaches, never how it is worded.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct SketchTask {
     pub id: String,
     pub verb: Verb,
@@ -38,6 +39,39 @@ pub struct SketchTask {
     pub for_each: Option<String>,
     /// One line on what the task is for: the hole's prompt to the seat.
     pub purpose: String,
+    /// An agent's turn bound (1..=1000), when the sketch states one; `None` keeps the historical
+    /// emission (4).
+    pub max_turns: Option<u32>,
+    /// An agent's own tool whitelist, when the sketch states one (`[]` is no tool); `None` keeps
+    /// the historical emission (no tool). Each agent keeps its own list.
+    pub tools: Option<Vec<String>>,
+    /// A loop's stop-at-first-error policy, when the sketch states one; `None` keeps the
+    /// historical emission (`false`).
+    pub fail_fast: Option<bool>,
+}
+
+impl SketchTask {
+    /// A task with no reach, edge, control or purpose beyond its words: every optional control
+    /// omitted (the historical emission) and every collection empty.
+    #[must_use]
+    pub fn new(id: impl Into<String>, verb: Verb, purpose: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            verb,
+            tool: None,
+            reads: Vec::new(),
+            writes: Vec::new(),
+            hosts: Vec::new(),
+            after: Vec::new(),
+            with: Vec::new(),
+            gated_by: None,
+            for_each: None,
+            purpose: purpose.into(),
+            max_turns: None,
+            tools: None,
+            fail_fast: None,
+        }
+    }
 }
 
 /// One data edge: the name the task reads under, and the task it reads.
@@ -78,11 +112,29 @@ impl Verb {
     }
 }
 
-/// A sketch: a name and its tasks in order (a task references only earlier ones).
+/// A sketch: a name, its tasks in order (a task references only earlier ones) and the workflow's
+/// named results.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Sketch {
     pub name: String,
     pub tasks: Vec<SketchTask>,
+    /// The workflow's named results, each `{name, from}` (an output name and the task whose
+    /// output it is). `None` (omitted or null) keeps the historical single `result` of the last
+    /// task; `Some([])` states no output; a list states exactly these.
+    pub outputs: Option<Vec<Edge>>,
+}
+
+impl Sketch {
+    /// A sketch of these tasks with its outputs omitted (the historical single `result`).
+    #[must_use]
+    pub fn new(name: impl Into<String>, tasks: Vec<SketchTask>) -> Self {
+        Self {
+            name: name.into(),
+            tasks,
+            outputs: None,
+        }
+    }
 }
 
 /// A typed place the seat fills: the task, the field (`prompt` · `schema` · `expression` ·
@@ -106,8 +158,20 @@ pub struct Fill {
 
 /// The fields a sketch task may carry, and an edge's: anything else is refused, never ignored.
 const TASK_FIELDS: &[&str] = &[
-    "id", "verb", "tool", "reads", "writes", "hosts", "after", "with", "gated_by", "for_each",
+    "id",
+    "verb",
+    "tool",
+    "reads",
+    "writes",
+    "hosts",
+    "after",
+    "with",
+    "gated_by",
+    "for_each",
     "purpose",
+    "max_turns",
+    "tools",
+    "fail_fast",
 ];
 const EDGE_FIELDS: &[&str] = &["name", "from"];
 
@@ -160,16 +224,25 @@ fn optional_texts(map: &Map<String, Value>, key: &str, at: &str) -> Result<Vec<S
 
 /// A task's data edges: each a closed `{name, from}` object with both strings present.
 fn edges(map: &Map<String, Value>, at: &str) -> Result<Vec<Edge>, String> {
-    let items = match map.get("with") {
-        None | Some(Value::Null) => return Ok(Vec::new()),
+    Ok(edge_list(map, "with", at)?.unwrap_or_default())
+}
+
+/// A list of closed `{name, from}` objects under `key`: `None` when absent or null.
+fn edge_list(map: &Map<String, Value>, key: &str, at: &str) -> Result<Option<Vec<Edge>>, String> {
+    let items = match map.get(key) {
+        None | Some(Value::Null) => return Ok(None),
         Some(Value::Array(items)) => items,
-        Some(_) => return Err(format!("`{at}.with` must be an array of edges")),
+        Some(_) => {
+            return Err(format!(
+                "`{at}.{key}` must be an array of `{{name, from}}` objects"
+            ));
+        }
     };
     items
         .iter()
         .enumerate()
         .map(|(k, edge)| {
-            let at = format!("{at}.with[{k}]");
+            let at = format!("{at}.{key}[{k}]");
             let edge = closed(edge, EDGE_FIELDS, &at)?;
             let field = |key: &str| {
                 optional_text(edge, key, &at)?
@@ -180,7 +253,28 @@ fn edges(map: &Map<String, Value>, at: &str) -> Result<Vec<Edge>, String> {
                 from: field("from")?,
             })
         })
-        .collect()
+        .collect::<Result<Vec<_>, String>>()
+        .map(Some)
+}
+
+/// An optional control of an exact JSON type: absent or null is none; another type is refused.
+fn optional_u32(map: &Map<String, Value>, key: &str, at: &str) -> Result<Option<u32>, String> {
+    match map.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(value) => value
+            .as_u64()
+            .and_then(|n| u32::try_from(n).ok())
+            .map(Some)
+            .ok_or_else(|| format!("`{at}.{key}` must be a whole number")),
+    }
+}
+
+fn optional_bool(map: &Map<String, Value>, key: &str, at: &str) -> Result<Option<bool>, String> {
+    match map.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Bool(b)) => Ok(Some(*b)),
+        Some(_) => Err(format!("`{at}.{key}` must be a boolean")),
+    }
 }
 
 /// One task read exactly: closed fields, exact types, `id` and `verb` present.
@@ -203,24 +297,35 @@ fn task_of(value: &Value, at: &str) -> Result<SketchTask, String> {
         gated_by: optional_text(task, "gated_by", at)?,
         for_each: optional_text(task, "for_each", at)?,
         purpose: optional_text(task, "purpose", at)?.unwrap_or_default(),
+        max_turns: optional_u32(task, "max_turns", at)?,
+        tools: match task.get("tools") {
+            None | Some(Value::Null) => None,
+            Some(_) => Some(optional_texts(task, "tools", at)?),
+        },
+        fail_fast: optional_bool(task, "fail_fast", at)?,
     })
 }
 
 impl Sketch {
     /// A sketch read exactly from the seat's JSON (`{name?, tasks: [{id, verb, tool?, reads?,
-    /// writes?, hosts?, after?, with?: [{name, from}], gated_by?, for_each?, purpose?}]}`).
+    /// writes?, hosts?, after?, with?: [{name, from}], gated_by?, for_each?, purpose?, max_turns?,
+    /// tools?, fail_fast?}], outputs?: [{name, from}]}`).
     /// An omitted or null optional field is its empty value; a field outside the closed set, a
     /// value of the wrong type or a malformed array item is refused by its path, never dropped.
     ///
     /// # Errors
     /// The path and reason the record cannot be read: nothing is guessed.
     pub fn from_json(record: &Value) -> Result<Self, String> {
-        let name = record
-            .as_object()
+        let root = record.as_object();
+        let name = root
             .map(|map| optional_text(map, "name", "sketch"))
             .transpose()?
             .flatten()
             .unwrap_or_default();
+        let outputs = root
+            .map(|map| edge_list(map, "outputs", "sketch"))
+            .transpose()?
+            .flatten();
         let tasks = record
             .get("tasks")
             .and_then(Value::as_array)
@@ -237,6 +342,7 @@ impl Sketch {
                 name
             },
             tasks,
+            outputs,
         })
     }
 }
@@ -269,6 +375,7 @@ pub fn structural_laws(sketch: &Sketch, intent: &str, allowed: &[String]) -> Vec
             out.push(format!("`{id}` is declared twice"));
         }
         edge_laws(task, &mut out);
+        control_laws(task, &mut out);
         let earlier = |target: &str| seen.contains(&target);
         for from in task.with.iter().map(|e| e.from.as_str()) {
             if !earlier(from) {
@@ -329,6 +436,7 @@ pub fn structural_laws(sketch: &Sketch, intent: &str, allowed: &[String]) -> Vec
         }
         seen.push(id);
     }
+    output_laws(sketch, &mut out);
     out
 }
 
@@ -355,6 +463,83 @@ fn edge_laws(task: &SketchTask, out: &mut Vec<String>) {
         if reserved {
             out.push(format!(
                 "`{id}` binds the edge name `{name}`, which its gate or loop binds: rename the edge"
+            ));
+        }
+    }
+}
+
+/// The language's own agent turn ceiling (`nika-schema` parser, the runtime's mirror).
+const MAX_TURNS: std::ops::RangeInclusive<u32> = 1..=1000;
+
+/// The laws over one task's controls: an agent's turn bound and tool whitelist only on an agent,
+/// the bound inside the language's range, each tool a named `nika:`/`mcp:` tool once (never a
+/// glob or a negation); a loop's failure policy only on a task that loops. Effects an agent tool
+/// may carry are judged by the caller's tool owner.
+fn control_laws(task: &SketchTask, out: &mut Vec<String>) {
+    let id = task.id.as_str();
+    let agent = task.verb == Verb::Agent;
+    if task.max_turns.is_some() && !agent {
+        out.push(format!(
+            "`{id}` states `max_turns`, which only an agent carries"
+        ));
+    }
+    if let Some(turns) = task.max_turns
+        && !MAX_TURNS.contains(&turns)
+    {
+        out.push(format!(
+            "`{id}` states `max_turns` outside {}..={}",
+            MAX_TURNS.start(),
+            MAX_TURNS.end()
+        ));
+    }
+    if let Some(tools) = &task.tools {
+        if !agent {
+            out.push(format!(
+                "`{id}` states `tools`, which only an agent carries"
+            ));
+        }
+        let mut seen: Vec<&str> = Vec::new();
+        for tool in tools {
+            let named = (tool.starts_with("nika:") || tool.starts_with("mcp:"))
+                && !tool.contains(['*', '?', '[', '!', ' ']);
+            if !named {
+                out.push(format!(
+                    "`{id}` lists a tool that is not one named `nika:<tool>` or `mcp:<server>/<tool>`"
+                ));
+            } else if seen.contains(&tool.as_str()) {
+                out.push(format!("`{id}` lists the tool `{tool}` twice"));
+            }
+            seen.push(tool);
+        }
+    }
+    if task.fail_fast.is_some() && task.for_each.is_none() {
+        out.push(format!(
+            "`{id}` states `fail_fast`, which only a task that loops carries"
+        ));
+    }
+}
+
+/// The laws over the workflow's named results: each a `snake_case` identifier, named once, the
+/// result of a task the sketch has (any task, not only an earlier one). Edge reservations do not
+/// apply: an output name is the workflow's, never a task's binding.
+fn output_laws(sketch: &Sketch, out: &mut Vec<String>) {
+    let Some(outputs) = &sketch.outputs else {
+        return;
+    };
+    let mut names: Vec<&str> = Vec::new();
+    for (k, output) in outputs.iter().enumerate() {
+        let name = output.name.as_str();
+        if !is_identifier(name) {
+            out.push(format!(
+                "`outputs[{k}]` names a result that is not a snake_case identifier"
+            ));
+        } else if names.contains(&name) {
+            out.push(format!("`outputs[{k}]` names the result `{name}` twice"));
+        }
+        names.push(name);
+        if !sketch.tasks.iter().any(|t| t.id == output.from) {
+            out.push(format!(
+                "`outputs[{k}]` is the result of a task the sketch does not have"
             ));
         }
     }
@@ -391,8 +576,9 @@ pub fn holes(sketch: &Sketch) -> Vec<Hole> {
             (Verb::Agent, _) => hole(task, "prompt", "text", true),
             (Verb::Exec, _) => hole(task, "command", "argv", true),
             (Verb::Invoke, Some("nika:jq")) => hole(task, "expression", "jq", true),
+            // One edge is the content itself; none or several need a template that reads them.
             (Verb::Invoke, Some("nika:write")) => {
-                hole(task, "args.content", "template", task.with.is_empty());
+                hole(task, "args.content", "template", task.with.len() != 1);
             }
             (Verb::Invoke, Some("nika:notify")) => {
                 hole(task, "args.target", "url", true);
@@ -696,7 +882,7 @@ fn task_node(task: &SketchTask, fills: &[Fill], reach: &mut Reach) -> Value {
         with.insert("items".to_owned(), output_of(items));
         node.insert(
             "for_each".to_owned(),
-            json!({"items": "${{ with.items }}", "fail_fast": false}),
+            json!({"items": "${{ with.items }}", "fail_fast": task.fail_fast.unwrap_or(false)}),
         );
     }
     if !with.is_empty() {
@@ -740,7 +926,12 @@ fn verb_node(task: &SketchTask, fills: &[Fill], reach: &mut Reach) -> Value {
         }
         (Verb::Agent, _) => {
             reach.needs_model = true;
-            json!({"agent": {"prompt": fill("prompt").unwrap_or_else(|| json!("")), "max_turns": 4, "tools": []}})
+            let tools = task.tools.clone().unwrap_or_default();
+            for tool in &tools {
+                push_once(&mut reach.tools, tool);
+            }
+            json!({"agent": {"prompt": fill("prompt").unwrap_or_else(|| json!("")),
+                "max_turns": task.max_turns.unwrap_or(4), "tools": tools}})
         }
         (Verb::Exec, _) => {
             json!({"exec": {"command": fill("command").unwrap_or_else(|| json!([]))}})
@@ -785,8 +976,21 @@ pub fn document(sketch: &Sketch, fills: &[Fill]) -> Value {
     }
     root.insert("permits".to_owned(), Value::Object(reach.permits()));
     root.insert("tasks".to_owned(), Value::Object(tasks));
-    if let Some(last) = sketch.tasks.last() {
-        root.insert("outputs".to_owned(), json!({"result": output_of(&last.id)}));
+    match &sketch.outputs {
+        // The historical single result of the last task, for a sketch that states no outputs.
+        None => {
+            if let Some(last) = sketch.tasks.last() {
+                root.insert("outputs".to_owned(), json!({"result": output_of(&last.id)}));
+            }
+        }
+        Some(outputs) if outputs.is_empty() => {}
+        Some(outputs) => {
+            let named: Map<String, Value> = outputs
+                .iter()
+                .map(|o| (o.name.clone(), output_of(&o.from)))
+                .collect();
+            root.insert("outputs".to_owned(), Value::Object(named));
+        }
     }
     Value::Object(root)
 }
@@ -975,17 +1179,7 @@ mod tests {
             "{text}"
         );
         assert!(Sketch::from_json(&json!({"tasks": [{"id": "x", "verb": "think"}]})).is_err());
-        assert!(
-            structural_laws(
-                &Sketch {
-                    name: "e".into(),
-                    tasks: vec![]
-                },
-                INTENT,
-                &[]
-            )[0]
-            .contains("no task")
-        );
+        assert!(structural_laws(&Sketch::new("e", vec![]), INTENT, &[])[0].contains("no task"));
     }
 
     #[test]

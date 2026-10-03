@@ -6,8 +6,10 @@ result against the request as it judges any candidate.
 
 ## Call 1 · the sketch
 
-Answer one JSON object: `{"name": "<kebab-name>", "tasks": [...], "questions": [...], "gaps": [...],
-"notes": "<one line>"}`. Each task is `{"id", "verb", "tool"?, "reads"?, "writes"?, "hosts"?,
+Answer one JSON object: `{"name": "<kebab-name>", "tasks": [...], "outputs": [...], "questions": [...],
+"gaps": [...], "notes": "<one line>"}`. `outputs` lists every result the request names, each
+`{"name": "<snake_case>", "from": "<task id>"}`; `[]` when it names none, omitted only for a
+single unnamed result. Each task is `{"id", "verb", "tool"?, "reads"?, "writes"?, "hosts"?,
 "after"?, "with"?, "gated_by"?, "for_each"?, "purpose"}`:
 
 - `id` · snake_case, unique; a task references only EARLIER tasks.
@@ -30,6 +32,11 @@ Answer one JSON object: `{"name": "<kebab-name>", "tasks": [...], "questions": [
   approval the request states is one such task before the effect it guards).
 - `for_each` · the earlier task whose output is the list this task loops over.
 - `purpose` · one line on what the task is for: the hole's brief to yourself.
+- `max_turns` / `tools` · an `agent` only: the turn bound (1-1000) and its own whitelist of
+  named effect-free tools (`nika:jq`, never a glob) the request states; omit them when the
+  request states none.
+- `fail_fast` · a task with `for_each` only: `true` stops the loop at the first failed item, as
+  the request states; omit it when the request states nothing.
 
 `questions` are the business values the request leaves open (`const.<snake_slug>`, a label, a
 type, why); `gaps` name the clauses no task realizes. Structure only: no prompt, no jq, no
