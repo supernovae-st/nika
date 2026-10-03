@@ -1139,3 +1139,109 @@ fn the_shell_stays_live_while_a_run_proof_is_verified() {
     assert_eq!(term.text().matches("zz").count(), 1, "{}", term.dump());
     term.leave();
 }
+
+/// Two tasks, the second reading a file that is not there: a run that fails
+/// the same way every time, with nothing to configure and no model.
+const PICK: &str = r#"nika: pick
+permits:
+  fs: { read: ["./notes/absent.md"] }
+  tools: ["nika:read"]
+tasks:
+  greet:
+    invoke: { tool: "nika:log", args: { message: hello } }
+  look:
+    after: { greet: success }
+    invoke: { tool: "nika:read", args: { path: "./notes/absent.md" } }
+"#;
+
+const BACKSPACE: &str = "\x7f";
+
+/// 16 · A task of the run is picked by its id and read in detail, then the
+/// list comes back: the pick survives a resize and the focus view, the
+/// detail says the failure the stream carried, and reading it runs nothing
+/// again (one journal, the project's files untouched).
+#[test]
+fn a_task_of_the_run_is_picked_read_and_left() {
+    let rig = Rig::new("pick");
+    std::fs::write(rig.path("pick.nika"), PICK).expect("pick");
+    let mut term = rig.spawn("16-pick", 120, 40);
+    wait_workspace(&mut term);
+    term.send("run pick.nika\r");
+    term.wait_until("the settlement", |s| s.contains("settled · failed"));
+    let tree = rig.tree();
+    term.keys(F6);
+    term.keys(F6);
+    term.wait_until("the task list, the first task picked", |s| {
+        s.contains("tasks · ↑↓ pick · Enter details") && s.contains("› ✔ greet")
+    });
+    term.keys(DOWN);
+    term.wait_text("› ✖ look");
+    term.resize(80, 24);
+    term.wait_until("the same task at 80x24", |s| s.contains("› ✖ look"));
+    term.keys("\r");
+    term.wait_until("its detail at 80x24", |s| {
+        s.contains("task look") && s.contains("Backspace") && s.contains("failed")
+    });
+    assert!(term.text().contains("why ·"), "{}", term.dump());
+    term.resize(50, 14);
+    term.wait_until("the focus view below the minimum", |s| {
+        !s.contains("task look") && s.contains("nika ›")
+    });
+    term.resize(120, 40);
+    term.wait_until("the detail back with the workspace", |s| {
+        s.contains("task look") && s.contains("why ·")
+    });
+    term.keys(BACKSPACE);
+    term.wait_until("the list again, the same task picked", |s| {
+        s.contains("› ✖ look") && !s.contains("task look")
+    });
+    let journals = (std::fs::read_dir(rig.path(".nika/traces")).expect("traces"))
+        .filter_map(Result::ok)
+        .filter(|entry| entry.path().extension().is_some_and(|e| e == "ndjson"))
+        .count();
+    assert_eq!(journals, 1, "reading a task runs nothing again");
+    assert_eq!(rig.tree(), tree, "the project's files are untouched");
+    term.leave();
+    let env = [("NO_COLOR", "1"), ("NIKA_REDUCED_MOTION", "1")];
+    let mut ascii = rig.spawn_with("16-pick-ascii", &["--ascii"], 120, 40, &env);
+    wait_workspace(&mut ascii);
+    ascii.send("run pick.nika\r");
+    ascii.wait_until("the settlement", |s| s.contains("settled - failed"));
+    ascii.keys(F6);
+    ascii.keys(F6);
+    ascii.wait_until("the ASCII list", |s| {
+        s.contains("tasks - Up/Down pick - Enter details") && s.contains("* ok greet")
+    });
+    ascii.keys(DOWN);
+    ascii.wait_text("* X look");
+    ascii.keys("\r");
+    ascii.wait_until("the ASCII detail", |s| {
+        s.contains("task look") && s.contains("why -")
+    });
+    // The object region's own rows (the conversation keeps the run story's
+    // words as the Session wrote them).
+    let object: Vec<String> = (ascii.text().lines())
+        .filter_map(|line| line.split('|').nth(1).map(str::to_owned))
+        .collect();
+    assert!(
+        object.iter().any(|row| row.contains("task look")),
+        "{}",
+        ascii.dump()
+    );
+    assert_renderer_ascii(&object.join("\n"));
+    let raw = String::from_utf8_lossy(&ascii.raw).into_owned();
+    // The colour forms the renderer writes (indexed, true colour, basic):
+    // `ESC[38;<col>H` on a 40-row screen is a cursor move, not a colour.
+    for hue in [
+        "\x1b[38;5;",
+        "\x1b[38;2;",
+        "\x1b[48;5;",
+        "\x1b[48;2;",
+        "\x1b[31m",
+        "\x1b[32m",
+        "\x1b[33m",
+    ] {
+        assert!(!raw.contains(hue), "a colour under NO_COLOR: {hue:?}");
+    }
+    ascii.leave();
+}

@@ -9,7 +9,9 @@
 //! choose the projection (Nika · Files) and `Enter` opens the entry: the
 //! object in view changes, the conversation does not, and nothing is attached
 //! to the next message. In the object, `Up`/`Down` and the page keys scroll
-//! it, `Left`/`Right` change its face and `r` asks its owner to read it again.
+//! it, `Left`/`Right` change its face and `r` asks its owner to read it again;
+//! on the task list of a run in view the desk reads `Up`/`Down`, `Enter` and
+//! `Backspace` first (it picks a task and opens its detail).
 //! `Tab` stays the composer's completion key.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};

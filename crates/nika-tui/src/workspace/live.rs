@@ -29,7 +29,7 @@ use std::collections::BTreeSet;
 use nika_display::run_story::{
     Event, EventKind, Evidence, ExecutionId, RunFrame, RunState, Settled, started_on,
 };
-use nika_display::state::{RunView, TaskState};
+use nika_display::state::{RunView, TaskRow, TaskState};
 use nika_display::theme::{Role, Theme};
 use ratatui::text::{Line, Span};
 
@@ -38,11 +38,13 @@ use crate::session::acquire::{Fetched, Proven};
 use nika_session::KeptRun;
 
 mod faces;
+mod task;
 use super::pinned::Pinned;
 use super::text::{fit_head, marks, wrap};
 use crate::visual::icon::Icon;
 use crate::visual::{role, state};
 pub use faces::{FILES_READ, RunFace, Want};
+pub(crate) use task::Pick;
 
 /// The most events one leg's fold takes, and the most ids it remembers to
 /// count a repeat; past it an event is only counted and the stream is
@@ -272,11 +274,12 @@ impl LiveRun {
     /// The task state of `id`, as the fold has it.
     #[must_use]
     pub fn task(&self, id: &str) -> Option<TaskState> {
-        self.view
-            .rows()
-            .iter()
-            .find(|r| r.id == id)
-            .map(|r| r.state)
+        self.row(id).map(|r| r.state)
+    }
+
+    /// The fold's row of task `id`, borrowed.
+    pub(crate) fn row(&self, id: &str) -> Option<&TaskRow> {
+        self.view.rows().iter().find(|r| r.id == id)
     }
 
     /// The run in the pinned row's words: its state glyph's state and words.
@@ -468,8 +471,8 @@ impl LiveRun {
 
     /// The leg's `face` as the object in view on a region `width` cells
     /// wide: the title (the run, its standing, the faces with the one in
-    /// view marked), then that face. Pure: what a face needs from the disk
-    /// was acquired before ([`Self::wants`]).
+    /// view marked), then that face, its first listed task picked. Pure:
+    /// what a face needs from the disk was acquired before ([`Self::wants`]).
     #[must_use]
     pub fn lines(
         &self,
@@ -478,10 +481,36 @@ impl LiveRun {
         ascii: bool,
         color: bool,
     ) -> (Line<'static>, Vec<Line<'static>>) {
-        let (sep, cut) = marks(ascii);
-        let cells = usize::from(width);
+        self.view(face, &Pick::new(), width, ascii, color)
+    }
+
+    /// The run's icon, label and standing glyph: the head of every title.
+    fn head(&self, ascii: bool) -> String {
         let (task_state, _) = self.standing();
         let (glyph, _) = state::cell(task_state, ascii);
+        format!("{} {} {glyph}", Icon::Run.glyph(ascii), self.label())
+    }
+
+    /// [`Self::lines`] with the desk's `pick`: on the run face, the list
+    /// marks the picked task, or the picked task's detail stands in its
+    /// place while it is open.
+    pub(crate) fn view(
+        &self,
+        face: RunFace,
+        pick: &Pick,
+        width: u16,
+        ascii: bool,
+        color: bool,
+    ) -> (Line<'static>, Vec<Line<'static>>) {
+        let canvas = nika_tui_view::Canvas::new(width, ascii, color);
+        if face == RunFace::Run
+            && pick.is_open()
+            && let Some(id) = pick.current(self)
+        {
+            return self.detail(id, canvas);
+        }
+        let (sep, cut) = marks(ascii);
+        let cells = usize::from(width);
         let tabs: Vec<String> = (RunFace::ALL.iter())
             .map(|f| {
                 if *f == face {
@@ -491,29 +520,25 @@ impl LiveRun {
                 }
             })
             .collect();
-        let head = format!(
-            "{} {} {glyph}{sep}{}",
-            Icon::Run.glyph(ascii),
-            self.label(),
-            tabs.join(" ")
-        );
+        let head = format!("{}{sep}{}", self.head(ascii), tabs.join(" "));
         let title = Line::from(Span::styled(
             fit_head(&head, cells, cut),
             role::style(Role::Strong, color),
         ));
-        let canvas = nika_tui_view::Canvas::new(width, ascii, color);
         let body = match face {
             RunFace::Outputs => self.outputs_body(canvas),
             RunFace::Files => self.files_body(canvas),
             RunFace::Proof => self.proof_body(cells, ascii, color),
-            _ => self.run_body(cells, ascii, color),
+            _ => self.run_body(canvas, pick.current(self)),
         };
         (title, body)
     }
 
     /// The run face: the facts, the graph of the bound bytes with each node
-    /// in its state (or why it is not drawn), then the tasks as the fold has them.
-    fn run_body(&self, cells: usize, ascii: bool, color: bool) -> Vec<Line<'static>> {
+    /// in its state (or why it is not drawn), then the tasks, `picked`
+    /// marked. The list is the body's last rows, one row per task.
+    fn run_body(&self, canvas: nika_tui_view::Canvas, picked: Option<&str>) -> Vec<Line<'static>> {
+        let (cells, ascii, color) = (usize::from(canvas.width), canvas.ascii, canvas.color);
         let (sep, cut) = marks(ascii);
         let mut body = Vec::new();
         for (row, tone) in self.facts(ascii) {
@@ -526,16 +551,27 @@ impl LiveRun {
             body.extend(self.graph(cells, ascii, color));
             body.push(Line::default());
         }
-        for row in self.view.rows() {
-            let (glyph, tone) = state::cell(row.state, ascii);
-            let ms = row
-                .wall_ms()
-                .map_or(String::new(), |ms| format!("{sep}{ms} ms"));
-            let text = format!("{glyph} {}{ms}", row.id);
-            body.push(Line::from(Span::styled(
-                fit_head(&text, cells, cut),
-                role::style(tone, color),
-            )));
+        let listed = self.listed();
+        if listed.is_empty() {
+            if self.kept.is_some() {
+                body.push(Line::from(Span::styled(
+                    fit_head(
+                        "the record keeps no task: the run's journal holds them",
+                        cells,
+                        cut,
+                    ),
+                    role::style(Role::Dim, color),
+                )));
+            }
+            return body;
+        }
+        let keys = if ascii { "Up/Down pick" } else { "↑↓ pick" };
+        body.push(Line::from(Span::styled(
+            fit_head(&format!("tasks{sep}{keys}{sep}Enter details"), cells, cut),
+            role::style(Role::Dim, color),
+        )));
+        for item in listed {
+            body.push(self.list_row(item, picked == Some(item.0), canvas));
         }
         body
     }
@@ -572,3 +608,7 @@ impl LiveRun {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod live_tests;
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod task_tests;

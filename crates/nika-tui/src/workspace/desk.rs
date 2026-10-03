@@ -13,11 +13,18 @@
 //! | `Esc`                      | back to the composer               | leaves to inline, draft intact  |
 //! | `PgUp` · `PgDn`            | the object scrolls (object region) | the transcript scrolls          |
 //! | arrows, `Home` · `End`     | aside selection · object scroll    | the composer (history, cursor)  |
+//! | `Up` · `Down` (run tasks)  | the previous · next task picked    | the composer (history)          |
 //! | `Left` · `Right` (aside)   | Nika · Files                       | the composer (cursor)           |
 //! | `Left` · `Right` (object)  | the previous · next face           | the composer (cursor)           |
 //! | `r` (object)               | the Session reads the file again   | the composer                    |
-//! | `Enter`                    | opens the aside entry              | sends the line                  |
+//! | `Enter`                    | opens the aside entry · the task   | sends the line                  |
+//! | `Backspace` (task detail)  | back to the run's tasks            | the composer (erases)           |
 //! | `Tab` and any other key    | ignored                            | the composer (`Tab` completes)  |
+//!
+//! On the run face of the run in view, the task list takes `Up`/`Down` (the
+//! page keys still scroll) and `Enter` opens the picked task's detail, where
+//! the arrows scroll; the pick is the task's id in that run's execution,
+//! never a painted line, and the list's scroll comes back with `Backspace`.
 //!
 //! Opening a workflow asks its Session for one look ([`Route::Inspect`]): the
 //! shell takes it from the conversation, never while drawing, and hands it
@@ -36,7 +43,7 @@ use ratatui::layout::Rect;
 use ratatui::text::Line;
 
 use super::candidate::Proposed;
-use super::live::{LiveRun, RunFace, Want};
+use super::live::{LiveRun, Pick, RunFace, Want};
 use crate::model::Conversation;
 use crate::session::acquire::{Fetched, Proven};
 use crate::session::feed::{Gap, Observed};
@@ -100,6 +107,8 @@ pub(crate) struct Desk {
     pub(crate) past: Vec<LiveRun>,
     /// The face of the run in view.
     pub(crate) run_face: RunFace,
+    /// The task picked in the run in view, and whether its detail is open.
+    pick: Pick,
     /// The run an earlier session kept was offered once, at the opening.
     kept_seen: bool,
     /// The face of the look as the viewers last rendered it, and for what.
@@ -147,6 +156,20 @@ struct Drawn {
     key: (String, Option<String>, Face, RunFace, u16, bool, bool),
     title: Line<'static>,
     body: Vec<Line<'static>>,
+    /// The body line of the picked task, when the run's list shows one.
+    picked: Option<usize>,
+    /// The object rows the body was last shown in (not part of the key: a
+    /// new height shows the same lines in another viewport).
+    rows: usize,
+}
+
+/// Move `scroll` the least that shows `line` among `rows` rows.
+fn follow(scroll: &mut usize, line: usize, rows: usize) {
+    if line < *scroll {
+        *scroll = line;
+    } else if line >= *scroll + rows {
+        *scroll = line + 1 - rows;
+    }
 }
 
 /// What a rendering of `candidate` is keyed by: its identity and standing.
@@ -175,6 +198,7 @@ impl Desk {
             live: None,
             past: Vec::new(),
             run_face: RunFace::Run,
+            pick: Pick::new(),
             kept_seen: false,
             drawn: None,
         }
@@ -207,6 +231,7 @@ impl Desk {
                     self.live = Some(LiveRun::asked(workflow, resume, typed, look.map(|l| *l)));
                     self.opened = Some(Target::Live);
                     self.run_face = RunFace::Run;
+                    self.pick = Pick::new();
                     self.focus.scroll = 0;
                 }
                 Observed::Frame(frame) => {
@@ -239,7 +264,10 @@ impl Desk {
     fn rendered_from(&self) -> Option<(String, Option<String>)> {
         match self.shown()? {
             Opened::Candidate(c) => Some((candidate_key(c), c.witness().map(str::to_owned))),
-            Opened::Live(leg) => Some((format!("{} {}", leg.label(), leg.revision()), None)),
+            Opened::Live(leg) => {
+                let pick = (self.pick.current(leg), self.pick.is_open());
+                Some((format!("{} {} {pick:?}", leg.label(), leg.revision()), None))
+            }
             Opened::Workflow(w) => (self.look.as_ref())
                 .filter(|l| l.path() == w.path)
                 .map(|l| (l.path().to_owned(), l.witness().map(str::to_owned))),
@@ -260,18 +288,49 @@ impl Desk {
             return;
         };
         let width = geometry.object.width;
+        let rows = usize::from(geometry.object.height.saturating_sub(1)).max(1);
         let key = (from, witness, self.face, self.run_face, width, ascii, color);
-        if self.drawn.as_ref().is_some_and(|d| d.key == key) {
+        if let Some(drawn) = self.drawn.as_mut().filter(|d| d.key == key) {
+            // The same lines in another viewport: a picked task stays in view.
+            if drawn.rows != rows {
+                drawn.rows = rows;
+                if let Some(line) = drawn.picked {
+                    follow(&mut self.focus.scroll, line, rows);
+                }
+            }
             return;
         }
+        let resized = (self.drawn.as_ref()).is_some_and(|d| d.key.4 != width || d.rows != rows);
+        let mut picked_line = None;
         let lines = match (self.shown(), &self.look) {
             (Some(Opened::Candidate(c)), _) => c.face_lines(self.face, width, ascii, color),
-            (Some(Opened::Live(leg)), _) => leg.lines(self.run_face, width, ascii, color),
+            (Some(Opened::Live(leg)), _) => {
+                let lines = leg.view(self.run_face, &self.pick, width, ascii, color);
+                if self.run_face == RunFace::Run && !self.pick.is_open() {
+                    // The list is the run face's last rows, one per task.
+                    let listed = leg.listed();
+                    let at = (self.pick.current(leg))
+                        .and_then(|id| listed.iter().position(|(l, _)| *l == id));
+                    picked_line = at.map(|at| lines.1.len().saturating_sub(listed.len()) + at);
+                }
+                lines
+            }
             (_, Some(look)) => look.face_lines(self.face, width, ascii, color),
             (_, None) => return,
         };
+        if let (Some(line), true) = (picked_line, self.pick.follows() || resized) {
+            // A moved pick, or one a new size shows elsewhere, stays in
+            // view: the scroll follows it once, never the page keys.
+            follow(&mut self.focus.scroll, line, rows);
+        }
         let (title, body) = lines;
-        self.drawn = Some(Drawn { key, title, body });
+        self.drawn = Some(Drawn {
+            key,
+            title,
+            body,
+            picked: picked_line,
+            rows,
+        });
     }
 
     /// The run in view, what its face still needs acquired, and the reading
@@ -323,6 +382,7 @@ impl Desk {
             self.live = Some(LiveRun::kept(run, execution));
             self.opened = Some(Target::Live);
             self.run_face = RunFace::Run;
+            self.pick = Pick::new();
             self.drawn = None;
         }
     }
@@ -470,6 +530,11 @@ impl Desk {
             // focus kept for the workspace's return.
             return composer_route(key);
         };
+        if self.focus.region == Region::Object
+            && let Some(route) = self.task_key(key.code)
+        {
+            return route;
+        }
         match self.focus.handle(key, extent) {
             Action::Compose => composer_route(key),
             Action::Moved => Route::Repaint,
@@ -501,6 +566,44 @@ impl Desk {
             }
             _ => Route::Nothing,
         }
+    }
+
+    /// A key of the run face's task list or of the picked task's detail;
+    /// `None` leaves it to the focus (the page keys, the faces, `Esc`).
+    fn task_key(&mut self, code: KeyCode) -> Option<Route> {
+        if self.run_face != RunFace::Run || !matches!(self.shown(), Some(Opened::Live(_))) {
+            return None;
+        }
+        let leg = self.live.as_ref()?;
+        let open = self.pick.is_open();
+        if !open && leg.listed().is_empty() {
+            // No task to pick: the arrows scroll the facts as before.
+            return None;
+        }
+        let moved = match code {
+            KeyCode::Up | KeyCode::Down if !open => self.pick.step(leg, code == KeyCode::Down),
+            KeyCode::Enter if !open => {
+                let opened = self.pick.open(leg, self.focus.scroll);
+                if opened {
+                    self.focus.scroll = 0;
+                }
+                opened
+            }
+            KeyCode::Enter => false,
+            KeyCode::Backspace => match self.pick.close() {
+                Some(scroll) => {
+                    self.focus.scroll = scroll;
+                    true
+                }
+                None => false,
+            },
+            _ => return None,
+        };
+        Some(if moved {
+            Route::Repaint
+        } else {
+            Route::Nothing
+        })
     }
 
     /// Show the next face of the look, the candidate or the run in view (or
@@ -1229,5 +1332,86 @@ mod tests {
             "nika: x\nbogus: 1\n".to_owned(),
             Err(("NIKA-PARSE-005".to_owned(), "unknown key bogus".to_owned())),
         )
+    }
+    /// A run of thirty scheduled tasks, its last one picked, the object
+    /// holding the keys.
+    fn long_list() -> Desk {
+        let exec = r#""execution":{"uuid":"01a0ef11-0212-70de-a8b3-99de9427fccc"}"#;
+        let frame = |n: u32, kind: &str, fields: &str| {
+            let line = format!(
+                r#"{{"correlation":null,{exec},"fields":[{fields}],"id":{{"uuid":"01a0ef11-03a7-74fb-bba0-{n:012x}"}},"kind":"{kind}","run":null,"timestamp":{n}}}"#
+            );
+            Observed::Frame(RunFrame::decode(&line).expect("frame"))
+        };
+        let mut seen = vec![
+            Observed::Asked {
+                workflow: "long.nika".to_owned(),
+                resume: false,
+                typed: true,
+                look: None,
+            },
+            frame(1, "workflow_started", ""),
+        ];
+        for n in 0..30 {
+            let task = format!(r#"{{"key":"task","value":"step_{n:02}"}}"#);
+            seen.push(frame(2 + n, "task_scheduled", &task));
+        }
+        let mut desk = demo();
+        desk.observe(seen.into_iter());
+        desk.focus.region = Region::Object;
+        desk
+    }
+
+    /// The painted line of the picked task, and the object rows at `size`.
+    fn picked_line(desk: &mut Desk, size: (u16, u16)) -> (usize, usize) {
+        desk.prepare(size, false, false);
+        let Object::Workflow { body, .. } = desk.screen(false).object else {
+            panic!("the run is in view");
+        };
+        let at =
+            (body.iter().position(|l| l.to_string().starts_with("› "))).expect("a task is picked");
+        let rows = usize::from(desk.extent(size).expect("the workspace").object_rows);
+        (at, rows)
+    }
+
+    /// Only the height changes: the cached lines stay the same, the viewport
+    /// does not, and the picked task stays in view; a page key's scroll at
+    /// an unchanged size is never pulled back.
+    #[test]
+    fn a_height_only_resize_keeps_the_picked_task_in_view() {
+        const TALL: (u16, u16) = (120, 40);
+        const SHORT: (u16, u16) = (120, 24);
+        let mut desk = long_list();
+        for _ in 0..29 {
+            assert_eq!(desk.route(key(KeyCode::Down), TALL), Route::Repaint);
+            desk.prepare(TALL, false, false);
+        }
+        let (at, rows) = picked_line(&mut desk, TALL);
+        let scroll = desk.focus.scroll;
+        assert!(
+            scroll <= at && at < scroll + rows,
+            "{at} in {scroll}+{rows}"
+        );
+        let key_before = desk.drawn.as_ref().map(|d| d.key.clone());
+        let (at, rows) = picked_line(&mut desk, SHORT);
+        assert_eq!(
+            desk.drawn.as_ref().map(|d| d.key.clone()),
+            key_before,
+            "the same rendering, kept"
+        );
+        let scroll = desk.focus.scroll;
+        assert!(
+            scroll <= at && at < scroll + rows,
+            "{at} in {scroll}+{rows}"
+        );
+        assert_eq!(desk.route(key(KeyCode::Home), SHORT), Route::Repaint);
+        let (_, _) = picked_line(&mut desk, SHORT);
+        assert_eq!(desk.focus.scroll, 0, "the page keys are not pulled back");
+        let (at, rows) = picked_line(&mut desk, TALL);
+        let scroll = desk.focus.scroll;
+        assert!(
+            scroll <= at && at < scroll + rows,
+            "back: {at} in {scroll}+{rows}"
+        );
     }
 }
