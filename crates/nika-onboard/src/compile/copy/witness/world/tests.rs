@@ -290,3 +290,40 @@ async fn the_checked_witness_still_refuses_a_changed_saved_candidate() {
     std::fs::write(root.path().join(saved), "other candidate").unwrap();
     assert!(witness.drift(root.path(), Some(saved)).is_some());
 }
+
+#[tokio::test]
+async fn protected_parent_is_not_captured_but_an_explicit_directory_read_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir(root.path().join("records")).unwrap();
+    let input = "[{\"id\":1}]\n";
+    let sentinel = "[{\"unrelated\":true}]\n";
+    std::fs::write(root.path().join("records/input.json"), input).unwrap();
+    std::fs::write(root.path().join("records/other.json"), sentinel).unwrap();
+    let intent = "Lis ./records/input.json. Ne modifie rien dans ./records.";
+    let inputs = nika_compile::stated_sources(intent);
+    let targets = nika_compile::stated_destinations(intent);
+    let captured = WorldBefore::capture(root.path(), CANDIDATE, &inputs, &targets)
+        .await
+        .expect("observe the declared file without its protected parent");
+    assert_eq!(
+        captured.world,
+        vec![(
+            "./records/input.json".into(),
+            Seen::File(Digest::of(input.as_bytes()))
+        )],
+    );
+    let directory = nika_compile::stated_sources("Lis ./records");
+    assert_eq!(directory, ["./records"]);
+    let error = WorldBefore::capture(root.path(), CANDIDATE, &directory, &[])
+        .await
+        .expect_err("a directory cannot supply the before-state of a file");
+    assert!(error.contains("is not a regular file"), "{error}");
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("records/input.json")).unwrap(),
+        input
+    );
+    assert_eq!(
+        std::fs::read_to_string(root.path().join("records/other.json")).unwrap(),
+        sentinel
+    );
+}

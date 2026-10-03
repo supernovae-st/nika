@@ -653,3 +653,29 @@ fn old_money_spans_do_not_break_a_replacements_actual_field_answer() {
         Basis::Unjudged(_)
     ));
 }
+
+#[test]
+fn protected_parent_keeps_assertions_bound_to_the_only_source() {
+    let source = "./records/input.jsonl";
+    let intent = "Read ./records/input.jsonl (columns id, amount). Ne modifie rien dans ./records.";
+    let recorded = json!({"grounding": [{
+        "source": source, "field": "amount", "grade": "user_asserted",
+        "bound_by": "request", "revision": "absent",
+    }]});
+    // A bounded sample does not disprove the request's explicit column assertion.
+    let fresh = observed(&[(source, "{\"id\":1}\n")]);
+    assert_eq!(
+        basis(Some(&recorded), Some(&fresh), intent),
+        Basis::Holds(1)
+    );
+    let two_sources = format!("{intent} Read ./other.jsonl.");
+    assert!(matches!(
+        basis(Some(&recorded), Some(&fresh), &two_sources),
+        Basis::Moved(_)
+    ));
+    let unrelated = observed(&[("./other.jsonl", "{\"id\":1}\n")]);
+    assert!(matches!(
+        basis(Some(&recorded), Some(&unrelated), intent),
+        Basis::Unjudged(_)
+    ));
+}
