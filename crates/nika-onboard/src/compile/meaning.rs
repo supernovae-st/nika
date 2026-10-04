@@ -183,7 +183,7 @@ fn carrier_verb(clause: &Clause, candidate: Option<&str>) -> Option<&'static str
 /// The Meaning view of a compile outcome: one line per clause, its
 /// disposition and assurance, then the honest footer. A semantic record,
 /// which keeps no realization ledger, is shown as the compiler read the
-/// request ([`render_reading`]). `None` when the outcome carries neither.
+/// request (`render_reading`). `None` when the outcome carries neither.
 #[must_use]
 pub fn render(out: &CompileOutcome) -> Option<String> {
     match out
