@@ -145,7 +145,15 @@ again (`AuthoringRound::absorb`, R4 A6): the same goal keeps its round, only a f
 answer binds, and a verified or pending transform is never carried to another source. Revisions retain
 the exact base bytes, original request and raw change. A failed edit keeps the
 previous proposal or saved workflow; Session never substitutes a model
-paraphrase as the source of a fresh Create request. The adapter passes
+paraphrase as the source of a fresh Create request. A saved-file revision binds
+its destination and original byte witness before compilation. Its proposal must
+update that same file over those bytes; a moved base refuses without proposing
+a new sibling file. Pending updates retain this target through further
+corrections and question continuations. Save still requires fresh consent.
+For an unsettled work line beside a saved workflow, Modify or Mixed revises it,
+NewWork starts a new creation, and failed, absent or unknown classification
+keeps the current state without authoring. This routing does not reinterpret
+lines already settled by the deterministic reader. The adapter passes
 the whole returned answer to Compiler validation, exposes no workflow tools,
 and accepts no tool-bearing answer. Codex authoring currently refuses before
 any call: its existing infer-grade boundary only rejects observed tool events
@@ -367,6 +375,12 @@ Run ceiling can replace it, and changed bytes require a fresh decision. Neither
 money nor Save grants a Run. File lookup resolves symlink aliases to the saved
 path and checks the exact byte witness. Ambiguous or changed identities refuse;
 independent files with identical bytes do not inherit each other's decisions.
+
+A saved-file revision without a new amount uses the same in-memory binding
+only when the resolved file and exact compiled base bytes agree. Ambiguous,
+stale or unreadable bindings refuse before cognition. With no binding, revision
+keeps the existing change-money/default law; this does not restore a saved
+ceiling across restart or alter Run's journal-based refusal below.
 
 The existing consent journal proves which files Save wrote but does not persist
 their monetary constraints. When an in-memory binding is unavailable, including

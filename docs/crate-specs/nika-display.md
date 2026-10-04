@@ -70,7 +70,7 @@ pub mod shape    { bounded type-aware output summaries }
 pub mod snippet  { paint_span — rustc-grade span frames }
 pub mod vocab    { hint · arrow · at_least — the glyph/hint vocabulary }
 pub mod demo     { deterministic §3.3 storyboard streams (success · failure · …) }
-pub mod check_render::review { finding_rows · effect_rows · plan_lines · plan_lines_in_order · task_face }
+pub mod check_render::review { finding_rows · effect_rows · plan_lines · plan_lines_in_order · task_face · external_effects }
 pub mod front_door { welcome and choice views · doctor human/JSON report cells }
 pub mod repair_render { Repair · StopNotes · Refusal · render_refusals · render_stops · summary }
 ```
@@ -109,6 +109,12 @@ these views use the existing `Theme` without collecting, choosing or persisting.
 `repair_render` owns repair report values and text, while the host applies and
 judges repairs. `check_render::review` owns the candidate plan lines and task faces
 formerly rendered by Session; parsing for presentation grants no authority.
+
+`external_effects(candidate, boundary)` renders the network hosts and programs
+declared by strictly parsed workflow bytes together with the check report's
+inferred requirements. It retains declared loopback hosts and names unresolved
+network or program requirements when the check is partial. This is the same
+pure renderer used by Session previews; it opens nothing and grants no permit.
 
 ## Recorded terminal outputs
 
