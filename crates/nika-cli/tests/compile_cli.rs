@@ -13,6 +13,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
+#[path = "compile_cli/capture.rs"]
+mod capture;
+
 fn command(room: &Path) -> Command {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika"));
     cmd.env_clear()
@@ -78,6 +81,14 @@ impl LoopbackSeat {
                 next += 1;
                 if let Some(target) = text.strip_prefix("redirect ") {
                     redirect(&mut stream, target);
+                } else if let Some(blocks) = text.strip_prefix("anthropic ") {
+                    respond_anthropic(&mut stream, blocks);
+                } else if text == "hold" {
+                    // Received and counted, never answered: the connection stays open until
+                    // the seat is dropped.
+                    while !halt.load(Ordering::SeqCst) {
+                        std::thread::sleep(std::time::Duration::from_millis(20));
+                    }
                 } else if let Some(text) = text.strip_prefix("nomodel ") {
                     respond(&mut stream, text, None);
                 } else {
@@ -166,6 +177,29 @@ fn respond(stream: &mut TcpStream, text: &str, model: Option<&str>) {
         body["model"] = serde_json::json!(model);
     }
     let body = body.to_string();
+    let head = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        body.len()
+    );
+    let _ = stream.write_all(head.as_bytes());
+    let _ = stream.write_all(body.as_bytes());
+    let _ = stream.flush();
+}
+
+/// A scripted `anthropic <content>` is answered on the Anthropic messages wire with exactly
+/// that JSON content array (text, empty text, thinking or tool blocks, in order).
+fn respond_anthropic(stream: &mut TcpStream, blocks: &str) {
+    let content: Value = serde_json::from_str(blocks).expect("scripted content array");
+    let body = serde_json::json!({
+        "id": "msg_loopback",
+        "type": "message",
+        "role": "assistant",
+        "model": "loopback-served-model",
+        "content": content,
+        "stop_reason": "end_turn",
+        "usage": {"input_tokens": 1000, "output_tokens": 200},
+    })
+    .to_string();
     let head = format!(
         "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
         body.len()

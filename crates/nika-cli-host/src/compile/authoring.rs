@@ -7,10 +7,11 @@
 //! capability (WARM): `typesafe/<jev>` through System One, any other `provider/name` through
 //! a closed JSON-schema enum.
 use super::{authoring_http, config};
+use nika_kernel::ai::provider::ProviderInferDyn;
 use nika_kernel::http::HttpPostDyn;
 use nika_onboard::compile::authority::{Authority, Envelope, Seat, Wire, usage_complete};
 use nika_onboard::compile::{
-    Cognition, CompileOutcome, CompileRequest, NoProvider, compile_with_cognition,
+    Cognition, CompileError, CompileOutcome, CompileRequest, NoProvider, compile_with_cognition,
     decide::{DecisionSeat, ProviderChoice},
 };
 use std::{sync::Arc, time::Duration};
@@ -93,6 +94,7 @@ pub(super) fn compile(
     args: &super::CompileArgs,
     config: &config::AuthoringConfig,
     authority: &Authority,
+    capture_flags: &super::CaptureFlags,
 ) -> Result<CompileOutcome, String> {
     let (request, (max_tokens, timeout)) = with_policy(request, args, config)?;
     let runtime = tokio::runtime::Builder::new_current_thread()
@@ -135,41 +137,18 @@ pub(super) fn compile(
             (None, Some(seat)) => Some(seat),
             (None, None) => None,
         };
-        // The compile future carries a whole `CompileOutcome` (its boundary, its trigger
-        // requirement, its preview): boxed so the host's stack frame stays small
-        // (clippy::large_futures) whatever the outcome grows to.
-        let outcome = match (harness.as_ref(), provider.as_ref()) {
-            (Some(harness), _) => {
-                Box::pin(compile_with_cognition(
-                    &request,
-                    Cognition {
-                        provider: Some(harness),
-                        seat,
-                    },
-                ))
-                .await
-            }
-            (None, Some(provider)) => {
-                Box::pin(compile_with_cognition(
-                    &request,
-                    Cognition {
-                        provider: Some(provider),
-                        seat,
-                    },
-                ))
-                .await
-            }
-            (None, None) => {
-                Box::pin(compile_with_cognition::<NoProvider>(
-                    &request,
-                    Cognition {
-                        provider: None,
-                        seat,
-                    },
-                ))
-                .await
-            }
-        };
+        // The resolved keys are withheld from private capture; a harness seat's context is not
+        // admitted by the CLI opt-in, so its Text is observed but withheld.
+        let keys = [
+            provider.as_ref().and_then(|seat| seat.inner().key()),
+            decision_provider.as_ref().and_then(|seat| seat.key()),
+        ];
+        let keys = keys.iter().flatten().map(|key| key.expose());
+        let keys = keys.chain(typesafe.as_ref().map(super::typesafe::TypesafeSeat::key));
+        let scope = (args.authoring_model.as_deref(), max_tokens, timeout);
+        let work = seated(&request, harness.as_ref(), provider.as_ref(), seat);
+        let outcome =
+            super::capture::cli_observe(capture_flags, keys, harness.is_none(), scope, work).await;
         let mut outcome = outcome.map_err(|e| e.to_string())?;
         #[cfg(feature = "access-harness")]
         let described = harness.as_ref().map(|seat| seat.inner().descriptor());
@@ -187,6 +166,50 @@ pub(super) fn compile(
         stamp_backend(&mut outcome, args, backend, (reported, account));
         Ok(outcome)
     })
+}
+
+/// One compile under its generative seat: the operator's harness when named, else the
+/// provider, else none (the decision seat rides beside either). The compile future carries a
+/// whole `CompileOutcome` (its boundary, its trigger requirement, its preview): boxed so the
+/// host's stack frame stays small (`clippy::large_futures`) whatever the outcome grows to.
+async fn seated<H: ProviderInferDyn, P: ProviderInferDyn>(
+    request: &CompileRequest,
+    harness: Option<&H>,
+    provider: Option<&P>,
+    seat: Option<&dyn DecisionSeat>,
+) -> Result<CompileOutcome, CompileError> {
+    match (harness, provider) {
+        (Some(harness), _) => {
+            Box::pin(compile_with_cognition(
+                request,
+                Cognition {
+                    provider: Some(harness),
+                    seat,
+                },
+            ))
+            .await
+        }
+        (None, Some(provider)) => {
+            Box::pin(compile_with_cognition(
+                request,
+                Cognition {
+                    provider: Some(provider),
+                    seat,
+                },
+            ))
+            .await
+        }
+        (None, None) => {
+            Box::pin(compile_with_cognition::<NoProvider>(
+                request,
+                Cognition {
+                    provider: None,
+                    seat,
+                },
+            ))
+            .await
+        }
+    }
 }
 
 /// The registry of the authoring seat: the shared authoring transport, under the authority's

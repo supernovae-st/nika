@@ -16,6 +16,9 @@ use nix::unistd::{UnlinkatFlags, linkat, unlinkat};
 const DIR_MODE: Mode = Mode::from_bits_truncate(0o700);
 const FILE_MODE: Mode = Mode::from_bits_truncate(0o600);
 
+mod reserved_log;
+pub use reserved_log::ReservedLog;
+
 /// An opened directory whose child I/O stays relative to a held descriptor.
 ///
 /// Replacing any visible ancestor after construction cannot redirect later

@@ -125,6 +125,12 @@ impl TypesafeSeat {
         Self::new(key, model)
     }
 
+    /// The key this seat resolved, borrowed by this crate's private capture policy so the key
+    /// is withheld from captured Text; never printed, logged or exposed outside the crate.
+    pub(crate) fn key(&self) -> &str {
+        &self.key
+    }
+
     /// The wire model id (`jev-1.13.0`).
     #[must_use]
     pub fn model(&self) -> &str {

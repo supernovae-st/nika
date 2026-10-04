@@ -3,6 +3,11 @@
 
 //! CLI transport and explicit materialization for the stateless Compile core.
 mod authoring;
+mod capture;
+pub use capture::{
+    Capture, CaptureContext, CaptureFlags, CaptureListener, CapturePolicy, CaptureReport,
+    CaptureState, CaptureStatus, TextAdmission,
+};
 mod authority;
 pub use authority::{authoring_backend, authoring_host, authoring_http, redact_authoring_error};
 pub mod config;
@@ -162,19 +167,30 @@ pub struct CompileCommand {
     pub args: CompileArgs,
     #[command(flatten)]
     pub authority: AuthoringAuthority,
+    #[command(flatten)]
+    pub capture: CaptureFlags,
 }
 
 impl CompileCommand {
     /// The compile flags beside the authority they run under.
     #[must_use]
     pub const fn new(args: CompileArgs, authority: AuthoringAuthority) -> Self {
-        Self { args, authority }
+        Self {
+            args,
+            authority,
+            capture: CaptureFlags::new(),
+        }
     }
 
     /// Compile once as the command line states it.
     #[must_use]
     pub fn run(&self) -> VerbOutput {
-        run_with(&self.args, &self.authority)
+        let output = run_with_capture(&self.args, &self.authority, &self.capture);
+        if self.capture.enabled {
+            let line = format!("{}\n", self.capture.status().summary());
+            let _ = std::io::Write::write_all(&mut std::io::stderr().lock(), line.as_bytes());
+        }
+        output
     }
 }
 
@@ -189,6 +205,15 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
 /// destination writes files.
 #[must_use]
 pub fn run_with(args: &CompileArgs, authority: &AuthoringAuthority) -> VerbOutput {
+    run_with_capture(args, authority, &CaptureFlags::new())
+}
+
+fn run_with_capture(
+    args: &CompileArgs,
+    authority: &AuthoringAuthority,
+    capture: &CaptureFlags,
+) -> VerbOutput {
+    capture.begin();
     if args.list {
         return render::listing(args.json);
     }
@@ -243,7 +268,9 @@ pub fn run_with(args: &CompileArgs, authority: &AuthoringAuthority) -> VerbOutpu
     });
     let (request, note) = sidecar::replay(sha.as_deref(), args, request);
     let result = match (&resolved, &authoring_config) {
-        (Some(resolved), Some(config)) => authoring::compile(&request, args, config, resolved),
+        (Some(resolved), Some(config)) => {
+            authoring::compile(&request, args, config, resolved, capture)
+        }
         _ => compile(&request).map_err(|error| error.to_string()),
     };
     let outcome = match result {
