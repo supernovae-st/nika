@@ -18,7 +18,7 @@ The real tool layer. `nika-verb-invoke` and `nika-verb-agent` dispatch over
 the kernel `ToolExecuteDyn` seam, and the agent enumerates definitions over
 `ToolDefinitionProviderDyn` — until now only mocks implement either. This
 crate is the production implementation: a **closed registry of the 29
-stdlib builtins** (core 6 · file 5 · data 9 · introspection 2 ·
+stdlib builtins** (core 6 · file 6 · data 9 · introspection 2 ·
 network 2 · media 4), each a thin composition over kernel effect seams, plus the
 model-facing `ToolDef` (name · description · JSON-Schema params) for every
 tool.
@@ -45,7 +45,7 @@ tool.
 ```
 
 - **Kernel seams consumed** (all `trait_variant` Dyn · generics not
-  `Box<dyn>` per house pattern): `FsReadDyn+FsWriteDyn+FsListDyn` (file 5)
+  `Box<dyn>` per house pattern): `FsReadDyn+FsWriteDyn+FsListDyn` (file 6)
   · `HttpGetDyn+HttpPostDyn` (fetch · notify) · `ClockDyn` (wait · date
   `op:now`). The event seam `Emitter` (log · emit) is **LOCAL** — owned here
   (single-consumer · alongside `Prompter`/`WorkflowIntrospect` below), NOT a

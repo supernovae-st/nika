@@ -7,7 +7,7 @@
 #   sealed outcome_class enum) · the 15 ledger sections (canon/EXCEPTIONS.md ·
 #   SSOT-1 §18) stay AUTHORED and are carried verbatim — editing those is legal.
 # regenerate: python3 scripts/ssot-compiler.py --emit-canon
-# body-sha256: 7215e163e8352820d7b6694772ba53270e18d9d3acd86e451afed211e37e36b4
+# body-sha256: adb37d81ad85be47ec5a94d2a9d1037add1f17b3b2ab6cba386d50a3829dac70
 #   (digest of every byte below the end-of-header line · detached self-hash per PAA-006)
 # ---- end generated header (SSOT-1 §21-23 · the canon flip · C0)
 # nika canonical registry · the single source of truth for Nika canonical facts
@@ -59,7 +59,7 @@ schema_version: 1
 counts:
   verbs: 4
   namespaces: 5
-  builtins: 28
+  builtins: 29
   providers: 17
   extract_modes: 10
   templates: 22
@@ -135,7 +135,7 @@ namespaces:
 # Admission test · 3 razors · (1) NOT-expressible-in-jq+CEL+Schema · (2) canonical
 # interop format (RFC-6902/7396/9562 · etc.) · (3) cookbook-clarity.
 builtins:
-  count: 28
+  count: 29
   reference: stdlib/builtins-v0.1.md
   items:
     - assert
@@ -161,6 +161,7 @@ builtins:
     - notify
     - prompt
     - read
+    - remove_file
     - tts_generate
     - uuid
     - validate
@@ -410,7 +411,7 @@ error_codes:
     - { code: NIKA-SEC-009, category: security_error, transient: "false", failure: "lethal trifecta complete — the declared boundary grants private read (fs.read non-empty) + untrusted ingress (a nika:fetch builtin invoked · an mcp:* tool invoked · an agent: whose whitelist admits ingress) + external egress (net.http non-empty · an escaping fs.write glob · exec enabled), the untrusted content REACHES an egress-capable task's effect surface (a realized flow), and no blocking invoke: nika:prompt (no default:) dominates it (NEP-0002 v2.0 · the Rule of Two as a static check)" }
     - { code: NIKA-SEC-010, category: security_error, transient: "false", failure: "the approval-capability law is violated · a rate-limited approval burst (the N+1th distinct mint of a run) · an approval whose resolved content hash differs from the shown hash (content_mismatch) · a ticket replayed across runs or steps (scope_mismatch) · or the static heterogeneous-batch refusal (one prompt unleashing two or more effect classes) — the 6th invariant (NEP-0013 · F-P4)" }
     - { code: NIKA-SEC-011, category: security_error, transient: "false", failure: "preview-commit divergence — the commit digest recomputed at the sink over the exact bytes about to fire differs from the preview digest computed at resolution (one bit of rendered argv · a permuted context field · a mutated tool argument) · the step refuses fail-closed and the receipt carries divergence:{preview, commit} — judged = executed at the action scale (NEP-0015 · F-P6)" }
-    - { code: NIKA-SEC-012, category: security_error, transient: "false", failure: "unordered shared writes — two tasks incomparable in the DAG closure whose literal nika:write/nika:edit paths collide with no ordering edge (after: · with:) to serialize them, or a for_each fan writing one constant path · parallelism is safe exactly where the writes are provably disjoint (NEP-0014 law 1 · F-P15)" }
+    - { code: NIKA-SEC-012, category: security_error, transient: "false", failure: "unordered shared mutations — two tasks incomparable in the DAG closure whose nika:write/nika:edit/nika:remove_file targets collide (a literal path in lexical normal form · a whole bare const/inputs reference with a string const value or string input default, keyed by that string's lexical normal form · otherwise that reference's own immutable binding identity, distinct from file names) with no precedence path (with: · group fold · after: other than unwind) to serialize them, or a for_each fan mutating one known path · parallelism is safe exactly where the mutations are provably disjoint (NEP-0014 law 1 · F-P15)" }
     - { code: NIKA-SEC-014, category: security_error, transient: "false", failure: "the affirmative-consent law — a confirm-mode human gate (invoke: nika:prompt · mode absent or confirm) reaches an egress-capable task over a route no affirmative gate closes: a REFUSED confirm settles success with value false, so a bare after: { gate: success } edge, a when: that never reads the answer, and a when: provably true on the refusal all let the effect through · the gate is credited only when every route consumes the answer and proves false on it (the Kleene-falsifiable when: · when: false · a closer confirm gate owns its closure) · an undecidable gate (a nested binding · a non-fragment expression) defers to the advisory hint, never a refusal (NEP-0020 · P0-2 of the 2026-07-30 audit)" }
     - { code: NIKA-SEC-015, category: security_error, transient: "false", failure: "the order law — an exec: task sits transitively downstream of a net-effecting task (nika:fetch · nika:notify) over the derived graph (with: data edges ∪ after: control edges) · content the workflow did not author must not reach a shell · UNCONDITIONAL: no block declares it and none can disable it" }
     - { code: NIKA-SEC-016, category: security_error, transient: "false", failure: "the effect-safe retry law — a declared retry: (max_attempts > 1) on a nika:fetch whose method replays side effects (POST · PUT · DELETE · PATCH) with no idempotency-key header: the failure may be ambiguous (the server may have committed before the socket dropped or the error was emitted), so the engine types the keyless call's failures non-transient and the declared retry is refused statically (an on_codes: retry would blind-replay regardless of transient) · pair an idempotency-key header (the receiver dedups the replay) or drop the retry: — GET/HEAD retry free (issue #1371)" }

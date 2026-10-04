@@ -640,4 +640,88 @@ mod tests {
         assert!(plane.tool_defs().is_empty());
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    /// The `21st` server — a digit-initial name the `mcp:` grammar admits.
+    fn digit_config() -> McpServerConfig {
+        McpServerConfig::stdio("21st", "never-run", vec!["--stdio".to_owned()])
+    }
+
+    /// An isolated project whose registry declares only `21st` (data: the
+    /// command is never spawned here, the connector is scripted).
+    fn digit_project(tag: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("nika-mcp-dispatch-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join(".nika")).expect("tmp dir");
+        std::fs::write(
+            dir.join(SERVERS_PATH),
+            r#"{"mcp_servers_format": 1, "servers": {"21st": {"command": "never-run", "args": ["--stdio"]}}}"#,
+        )
+        .unwrap();
+        dir
+    }
+
+    /// A digit-initial server reaches the approval gate: before approval its
+    /// call is the unapproved refusal (never a registry fault), nothing is
+    /// offered and nothing connects.
+    #[test]
+    fn a_digit_initial_server_is_gated_by_approval_not_by_its_name() {
+        let dir = digit_project("digit-unapproved");
+        let script = Script::serving(tools());
+        let plane = McpToolPlane::with_connector(&dir, Box::new(script.clone()));
+        let out = plane
+            .call(&call("mcp:21st/ping", json!({})))
+            .expect("a refusal is a tool result, not a dispatch error");
+        assert!(out.is_error);
+        assert_eq!(
+            out.error_meta.as_ref().and_then(|m| m.spec_code.as_deref()),
+            Some("NIKA-MCP-006"),
+            "{}",
+            out.content
+        );
+        assert!(
+            out.content.contains("nika mcp approve 21st"),
+            "{}",
+            out.content
+        );
+        assert_eq!(script.connects(), 0, "no connect for an unapproved server");
+        assert!(
+            plane.tool_defs().is_empty(),
+            "nothing approved = nothing offered"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// After an explicit approval, a NEW plane (the world is cached per
+    /// plane) offers `mcp:21st/ping`, keeps the arguments, returns the
+    /// scripted answer and reuses one session for two calls.
+    #[test]
+    fn an_approved_digit_initial_server_is_reached_once_per_session() {
+        let dir = digit_project("digit-approved");
+        let script = Script::serving(tools());
+        approve_server(&digit_config(), &script, &dir, 1_700_000_000).expect("approve pins");
+        let plane = McpToolPlane::with_connector(&dir, Box::new(script.clone()));
+        let defs = plane.tool_defs();
+        assert_eq!(defs.len(), 1);
+        assert_eq!(defs[0].name, "mcp:21st/ping");
+        assert_eq!(defs[0].description, "Echo a greeting");
+        let out = plane
+            .call(&call("mcp:21st/ping", json!({"who": "nika"})))
+            .unwrap();
+        assert!(!out.is_error, "{}", out.content);
+        assert_eq!(out.content, "pong");
+        assert_eq!(out.structured, Some(json!({"who": "x"})));
+        plane
+            .call(&call("mcp:21st/ping", json!({"who": "again"})))
+            .unwrap();
+        assert_eq!(script.connects(), 1, "one session per server per plane");
+        assert_eq!(
+            script.calls(),
+            vec![
+                ("ping".to_owned(), json!({"who": "nika"})),
+                ("ping".to_owned(), json!({"who": "again"})),
+            ]
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

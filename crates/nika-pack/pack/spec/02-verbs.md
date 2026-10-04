@@ -252,8 +252,8 @@ mcp:my-server/do_thing      MCP · server names admit kebab-case · tools admit 
 
 The `mcp:` form **requires the slash**: `mcp:postgres` alone (no tool) is a
 parse error (`NIKA-PARSE` · `validation_error`) · server segment
-`[a-z][a-z0-9-]*` · tool segment `[A-Za-z0-9_-]+` (tool names are the MCP
-server's to define).
+`[a-z0-9][a-z0-9-]*` (a digit-initial name such as `21st` is legal) · tool
+segment `[A-Za-z0-9_-]+` (tool names are the MCP server's to define).
 
 One rule everywhere · the **colon** marks the namespace boundary (exactly once),
 the **slash** separates the path within it. No `::`, no mixed `.`/`:`. Globs are
@@ -274,7 +274,7 @@ read_config:
         path: "./config.yaml"
 ```
 
-See [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md) for the canonical builtin list (<!-- canon:builtins -->28<!-- /canon --> builtins in v0.1).
+See [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md) for the canonical builtin list (<!-- canon:builtins -->29<!-- /canon --> builtins in v0.1).
 
 > **Grouped paths are grammar-legal · v0.1 ships none.** The reference
 > grammar admits `nika:<group>/<tool>` (the `nika:connectome/recall`

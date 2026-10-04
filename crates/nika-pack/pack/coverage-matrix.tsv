@@ -235,3 +235,44 @@ dag	(item-cancellation)	trace-projection	conformance/tests/runtime/trace/013-his
 dag	(item-cancellation)	trace-projection	conformance/tests/runtime/trace/014-cancelled-count-absent
 dag	(item-cancellation)	trace-projection	conformance/tests/runtime/trace/015-cancelled-count-mismatch
 dag	(item-cancellation)	trace-projection	conformance/tests/runtime/trace/016-unknown-item-status
+stdlib	(positive)	positive-check	conformance/tests/stdlib/builtins/048-valid-remove-file-write-only/input.yaml
+stdlib	NIKA-SEC-004	check-reject	conformance/tests/stdlib/builtins/049-remove-file-tool-grant-required/input.yaml
+stdlib	NIKA-SEC-004	check-reject	conformance/tests/stdlib/builtins/050-remove-file-write-grant-required/input.yaml
+stdlib	NIKA-SEC-004	check-reject	conformance/tests/stdlib/builtins/051-remove-file-outside-write-boundary/input.yaml
+stdlib	NIKA-BUILTIN-001	check-reject	conformance/tests/stdlib/builtins/052-remove-file-path-required/input.yaml
+stdlib	NIKA-BUILTIN-001	check-reject	conformance/tests/stdlib/builtins/053-remove-file-path-type-refused/input.yaml
+stdlib	NIKA-BUILTIN-001	check-reject	conformance/tests/stdlib/builtins/054-remove-file-unknown-argument-refused/input.yaml
+stdlib	NIKA-BUILTIN-001	check-reject	conformance/tests/stdlib/builtins/055-remove-file-empty-path-refused/input.yaml
+stdlib	NIKA-BUILTIN-001	check-reject	conformance/tests/stdlib/builtins/056-remove-file-directory-spelling-refused/input.yaml
+stdlib	(positive)	positive-check	conformance/tests/stdlib/builtins/057-remove-file-ordered-mutations/input.yaml
+stdlib	NIKA-SEC-012	check-reject	conformance/tests/stdlib/builtins/058-remove-file-unordered-write-remove/input.yaml
+stdlib	NIKA-SEC-012	check-reject	conformance/tests/stdlib/builtins/059-remove-file-unordered-removes/input.yaml
+stdlib	NIKA-BUILTIN-001	check-reject	conformance/tests/stdlib/builtins/060-remove-file-final-dot-refused/input.yaml
+stdlib	(positive)	positive-check	conformance/tests/stdlib/builtins/061-remove-file-dynamic-path-deferred/input.yaml
+stdlib	NIKA-SEC-012	check-reject	conformance/tests/stdlib/builtins/062-remove-file-constant-fan-refused/input.yaml
+stdlib	NIKA-SEC-012	check-reject	conformance/tests/stdlib/builtins/063-remove-file-quoted-reference-not-order/input.yaml
+authority	NIKA-AUTH-006	check-reject	conformance/tests/core/authority/031-remove-file-absent-permits
+authority	NIKA-SEC-004	check-reject	conformance/tests/core/authority/032-remove-file-const-write-escape
+authority	NIKA-AUTH-008	check-reject	conformance/tests/core/authority/033-remove-file-untrusted-write-escape
+authority	(positive)	positive-check	conformance/tests/core/authority/034-remove-file-untrusted-write-contained
+authority	NIKA-SEC-004	check-reject	conformance/tests/core/authority/035-remove-file-relative-grant-absolute-path
+authority	NIKA-SEC-004	check-reject	conformance/tests/core/authority/036-remove-file-write-star-segment
+authority	NIKA-SEC-004	check-reject	conformance/tests/core/authority/037-remove-file-question-mark-is-literal
+authority	(positive)	positive-check	conformance/tests/core/authority/038-remove-file-question-mark-filename
+composition	NIKA-COMP-002	check-reject	conformance/tests/deep/composition/011-remove-child-write-boundary-refused/input.yaml
+composition	(positive)	positive-check	conformance/tests/deep/composition/012-remove-child-contained/input.yaml
+authority	NIKA-SEC-014	check-reject	conformance/tests/core/consent/004-remove-file-bare-after-refused/input.yaml
+authority	(positive)	positive-check	conformance/tests/core/consent/005-remove-file-affirmative/input.yaml
+stdlib	(positive)	positive-run	DECLARED-UNQUALIFIED (conformance/tests/stdlib/behavioral/015-remove-regular-file-write-only; authored contract, native observation pending; returned path is not independent disk proof)
+stdlib	NIKA-BUILTIN-REMOVE_FILE	run-fail	DECLARED-UNQUALIFIED (conformance/tests/stdlib/behavioral/016-remove-absent-file-refused; authored contract, native observation pending)
+stdlib	NIKA-BUILTIN-REMOVE_FILE	run-fail	DECLARED-UNQUALIFIED (conformance/tests/stdlib/behavioral/017-remove-directory-refused; authored contract, native observation pending)
+stdlib	NIKA-BUILTIN-READ	run-fail	DECLARED-UNQUALIFIED (conformance/tests/stdlib/behavioral/018-remove-then-read-missing; authored contract, native observation pending; indirect read-after witness)
+stdlib	NIKA-BUILTIN-REMOVE_FILE	run-fail	DECLARED-UNQUALIFIED (conformance/tests/stdlib/behavioral/019-remove-resolved-invalid-path; authored contract, native observation pending)
+authority	NIKA-SEC-004	run-fail	DECLARED-UNQUALIFIED (conformance/tests/runtime/permits/008-remove-file-runtime-regate; authored contract, native observation pending)
+stdlib	NIKA-SEC-004	check-reject	conformance/tests/stdlib/builtins/064-remove-file-typed-const-write-escape/input.yaml
+stdlib	NIKA-SEC-012	check-reject	conformance/tests/stdlib/builtins/065-remove-file-typed-const-literal-collision/input.yaml
+stdlib	NIKA-SEC-012	check-reject	conformance/tests/stdlib/builtins/066-remove-file-input-default-literal-collision/input.yaml
+stdlib	NIKA-SEC-012	check-reject	conformance/tests/stdlib/builtins/067-remove-file-unwind-is-not-order/input.yaml
+stdlib	(positive)	positive-check	conformance/tests/stdlib/builtins/068-remove-file-template-separator-deferred/input.yaml
+stdlib	(positive)	positive-check	conformance/tests/stdlib/builtins/069-remove-file-template-dot-deferred/input.yaml
+stdlib	(positive)	positive-check	conformance/tests/stdlib/builtins/070-remove-file-typed-const-write-contained/input.yaml

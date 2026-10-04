@@ -707,6 +707,7 @@
                 "nika:notify",
                 "nika:prompt",
                 "nika:read",
+                "nika:remove_file",
                 "nika:tts_generate",
                 "nika:uuid",
                 "nika:validate",

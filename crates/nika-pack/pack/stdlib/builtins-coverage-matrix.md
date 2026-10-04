@@ -1,6 +1,6 @@
 # Stdlib v0.1 · Builtin coverage matrix
 
-> The <!-- canon:builtins -->28<!-- /canon --> builtins audited **as a SET** (2026-06-10) · capability coverage ·
+> The <!-- canon:builtins -->29<!-- /canon --> builtins audited **as a SET** (2026-06-10) · capability coverage ·
 > overlap boundaries · naming grammar · deliberate absences. Per-builtin
 > specs live in [builtins-v0.1.md](./builtins-v0.1.md); this file answers
 > the set-level questions · « can it do everything? » and « is anything
@@ -14,7 +14,7 @@
 |---|---|---|
 | data-shaping | `jq` · `json_diff` · `json_merge_patch` · `convert` · `validate` | ✅ full (jq is the one data language) |
 | web I/O | `fetch` (<!-- canon:extract_modes -->10<!-- /canon --> extract modes · all 6 methods · headers/body/form/multipart · SSRF-guarded) · `notify` (outbound) | ✅ content AND APIs · the two residual shapes are named in §overlap boundaries |
-| files | `read` · `write` · `edit` · `glob` · `grep` | ✅ full |
+| files | `read` · `write` · `edit` · `remove_file` (one existing regular file · no recursion) · `glob` · `grep` | ✅ read · write · patch · exact-file removal · search · NOT every filesystem operation: no move/rename, directory removal, recursive or glob deletion, permission or link management (`exec:`/`mcp:` territory) |
 | databases | — | ✅ **deliberate** · `mcp:<server>/<tool>` (e.g. `mcp:postgres/query`) |
 | memory / recall | — | ✅ **deliberate** · `mcp:memory-server/*` today · `nika:connectome/*` reserved ([08 §Connectome](../spec/08-out-of-scope.md)) |
 | workflow composition | — | ✅ **deliberate** · never a builtin — the `invoke: workflow:` tagged union ([14-composition](../spec/14-composition.md) · the once-proposed `nika:run` is abandoned) |
@@ -40,6 +40,7 @@ posture** with an escape hatch (`exec:` · `mcp:`). No silent gaps.
 | `jq` vs `convert` | jq is JSON-in/JSON-out · `convert` crosses formats (yaml↔json↔toml…). |
 | `validate` vs per-task `schema:` | `schema:` gates a task's OWN output (auto-retry) · `validate` checks any value mid-flow · same JSON Schema dialect. |
 | `write` vs `edit` | whole-file vs in-place patch (mirrors agent-tool conventions). |
+| `write` vs `remove_file` | `write` creates or replaces a file and never deletes one · `remove_file` removes exactly one existing regular file and never creates one. Both are fs **write** effects under the same grant and the same-path mutation law (`NIKA-SEC-012`); a copy then a removal is two effects, never a transaction. |
 | `log` vs `emit` | human-facing line vs structured machine event. |
 | `assert` vs `when:` | fail-fast guard vs skip-guard. |
 | `wait` vs `timeout:` | a tool that *consumes* time vs a *bound* on time. |
@@ -60,7 +61,9 @@ real ones (`sleep`+`wait_until`→`wait` · 4 introspections→`inspect` ·
 ## Naming grammar
 
 `nika:<noun>` · single lowercase word · snake_case compound ONLY when
-disambiguating a format-bound operation (`json_diff` · `json_merge_patch`).
+disambiguating a format-bound operation (`json_diff` · `json_merge_patch`)
+or an operation bound to an exact target kind (`remove_file` · it removes
+a regular file, never a directory or a tree).
 Multi-format tools stay unprefixed (`validate` · `convert`). Multi-mode
 tools are ONE builtin with a discriminating argument (`wait` mode ·
 `inspect` view), never N siblings.
@@ -70,8 +73,11 @@ tools are ONE builtin with a discriminating argument (`wait` mode ·
 ~~Per-builtin **formal args/returns schemas** are not yet published.~~
 **Stale — they ARE published.** `nika catalog --tools --json` ships a
 full JSON Schema per builtin (`parameters` with `properties` and
-`required`) for all <!-- canon:builtins -->28<!-- /canon -->. The
-machine surface exists; this paragraph claiming otherwise was the drift.
+`required`) for each builtin the engine ships. The machine surface
+exists; this paragraph claiming otherwise was the drift. `remove_file` is
+the exception until its engine lands: its registry row carries the
+placeholder `to-mint-c1/remove-file-args`, and no callable schema is
+claimed for it here.
 
 What remains genuinely missing is the **prose** half: `builtins-v0.1.md`
 carries examples and description, not a rendered contract block beside
@@ -80,4 +86,4 @@ already exists — not an unwritten contract.
 
 ---
 
-🦋 *<!-- canon:builtins -->28<!-- /canon --> builtins · zero duplicates · every absence written.*
+🦋 *<!-- canon:builtins -->29<!-- /canon --> builtins · zero duplicates · every absence written.*
