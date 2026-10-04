@@ -1086,11 +1086,30 @@ pub(super) async fn judged_native<P: ProviderInferDyn>(
     policy: &AuthoringPolicy,
     provider: &P,
     request: &CompileRequest,
-    mut out: CompileOutcome,
+    out: CompileOutcome,
 ) -> CompileOutcome {
+    match native_verdict(intent, reading, policy, provider, request, out).await {
+        Ok(out) => out,
+        Err(judged) => {
+            let (out, verdict) = *judged;
+            withdrawn(out, &verdict)
+        }
+    }
+}
+
+/// The judgment of [`judged_native`] before its consequence: the outcome as judged, or the
+/// outcome and the verdict that leave it not READY (its defects are what a repair starts from).
+pub(super) async fn native_verdict<P: ProviderInferDyn>(
+    intent: &str,
+    reading: &Reading,
+    policy: &AuthoringPolicy,
+    provider: &P,
+    request: &CompileRequest,
+    mut out: CompileOutcome,
+) -> Result<CompileOutcome, Box<(CompileOutcome, Verdict)>> {
     let ready = out.status == CompileStatus::Ready;
     let Some(candidate) = out.candidate.clone().filter(|_| ready) else {
-        return out;
+        return Ok(out);
     };
     let judge = Judge::Provider(policy, provider);
     let journaled = journal(&out).len();
@@ -1108,8 +1127,14 @@ pub(super) async fn judged_native<P: ProviderInferDyn>(
     record(&mut out, &judge, &verdict, 0);
     if verdict.defects.is_empty() && verdict.unknown.is_empty() {
         route(&mut out, &format!("verify: judged ({})", judge.kind()));
-        return out;
+        return Ok(out);
     }
+    Err(Box::new((out, verdict)))
+}
+
+/// A judged candidate that is not READY, withdrawn with its questions, its requested boundary and
+/// its replayable record; the request stays INCOMPLETE naming the part.
+pub(super) fn withdrawn(mut out: CompileOutcome, verdict: &Verdict) -> CompileOutcome {
     route(&mut out, "verify: not ready");
     out.status = CompileStatus::Incomplete;
     out.candidate = None;
@@ -1117,7 +1142,7 @@ pub(super) async fn judged_native<P: ProviderInferDyn>(
     out.requested_boundary = None;
     out.questions.clear();
     out.provenance.plan = None;
-    blocked(&mut out, &verdict, 0);
+    blocked(&mut out, verdict, 0);
     out
 }
 

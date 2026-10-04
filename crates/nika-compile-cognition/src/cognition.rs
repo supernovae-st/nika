@@ -236,7 +236,11 @@ pub async fn compile_with_cognition_rehearsed<P: ProviderInferDyn>(
     } else {
         cognition
     };
-    let mut rehearsals = rehearsal::Rehearsals::new(host);
+    let mut rehearsals = rehearsal::Rehearsals::new(host).serving(rehearsal::Serves {
+        caller: caller.clone(),
+        raw: request.clone(),
+        reading: reading.clone(),
+    });
     let mut out = if request
         .plan
         .as_ref()
@@ -327,7 +331,7 @@ async fn compile_inner<P: ProviderInferDyn>(
         &effective_intent,
         request,
         &assembly_request,
-        cognition,
+        (cognition, rehearsals),
         out,
     ))
     .await
@@ -337,7 +341,7 @@ async fn resolve_create<P: ProviderInferDyn>(
     intent: &str,
     request: &CompileRequest,
     assembly_request: &CompileRequest,
-    cognition: Cognition<'_, P>,
+    (cognition, rehearsals): (Cognition<'_, P>, &mut rehearsal::Rehearsals<'_>),
     mut out: CompileOutcome,
 ) -> Result<CompileOutcome, CompileError> {
     // An answer round replays the plan its previous round produced: no reading, no seat,
@@ -389,14 +393,15 @@ async fn resolve_create<P: ProviderInferDyn>(
         reading.columns = columns;
     }
     backstop(intent, &mut reading.plan);
-    route_create(intent, request, assembly_request, cognition, reading, out).await
+    let seats = (cognition, rehearsals);
+    route_create(intent, request, assembly_request, seats, reading, out).await
 }
 
 async fn route_create<P: ProviderInferDyn>(
     intent: &str,
     request: &CompileRequest,
     assembly_request: &CompileRequest,
-    cognition: Cognition<'_, P>,
+    (cognition, rehearsals): (Cognition<'_, P>, &mut rehearsal::Rehearsals<'_>),
     reading: Reading,
     mut out: CompileOutcome,
 ) -> Result<CompileOutcome, CompileError> {
@@ -453,7 +458,7 @@ async fn route_create<P: ProviderInferDyn>(
             intent,
             &reading,
             policy,
-            provider,
+            (provider, rehearsals),
             assembly_request,
             route,
             out,
@@ -474,7 +479,7 @@ async fn route_create<P: ProviderInferDyn>(
         intent,
         request,
         assembly_request,
-        cognition,
+        (cognition, rehearsals),
         reading,
         route,
         out,
@@ -486,7 +491,7 @@ async fn choose_create<P: ProviderInferDyn>(
     intent: &str,
     request: &CompileRequest,
     assembly_request: &CompileRequest,
-    cognition: Cognition<'_, P>,
+    (cognition, rehearsals): (Cognition<'_, P>, &mut rehearsal::Rehearsals<'_>),
     mut reading: Reading,
     mut route: Vec<String>,
     mut out: CompileOutcome,
@@ -575,7 +580,7 @@ async fn choose_create<P: ProviderInferDyn>(
         intent,
         request,
         assembly_request,
-        cognition,
+        (cognition, rehearsals),
         reading,
         route,
         out,
@@ -620,7 +625,7 @@ async fn author_create<P: ProviderInferDyn>(
     intent: &str,
     request: &CompileRequest,
     assembly_request: &CompileRequest,
-    cognition: Cognition<'_, P>,
+    (cognition, rehearsals): (Cognition<'_, P>, &mut rehearsal::Rehearsals<'_>),
     reading: Reading,
     mut route: Vec<String>,
     mut out: CompileOutcome,
@@ -656,7 +661,7 @@ async fn author_create<P: ProviderInferDyn>(
             intent,
             &reading,
             policy,
-            provider,
+            (provider, rehearsals),
             assembly_request,
             route,
             cold,
@@ -680,7 +685,7 @@ async fn after_cold<P: ProviderInferDyn>(
     intent: &str,
     reading: &Reading,
     policy: &AuthoringPolicy,
-    provider: &P,
+    (provider, rehearsals): (&P, &mut rehearsal::Rehearsals<'_>),
     assembly_request: &CompileRequest,
     route: Vec<String>,
     cold: CompileOutcome,
@@ -705,7 +710,14 @@ async fn after_cold<P: ProviderInferDyn>(
     };
     let request = assembly_request;
     Box::pin(sketch::compose(
-        intent, reading, policy, provider, request, route, cold, &why,
+        intent,
+        reading,
+        policy,
+        (provider, rehearsals),
+        request,
+        route,
+        cold,
+        &why,
     ))
     .await
 }

@@ -4,7 +4,9 @@
 //! One compile's rehearsal journal. Only reports produced in this call can discharge its
 //! final barrier. Replayed provenance is data, never evidence that the present world ran.
 
-use nika_compile_fidelity::behavior::{Cause, RunEnd, Usage};
+use nika_compile_fidelity::behavior::{
+    Budget, Cause, Contract, Limits, Report, Run, RunEnd, Usage, judge,
+};
 use serde_json::{Value, json};
 
 use crate::fidelity::Diagnostic;
@@ -36,6 +38,10 @@ struct Checked {
     inputs: Vec<String>,
     targets: Vec<String>,
     verdict: Verdict,
+    /// The judged run of that report, what this call had spent before it, and the room's bounds.
+    run: Run,
+    spent_before: Usage,
+    room_bytes: u64,
 }
 
 /// The journal and consumption of one invocation. The native loop owns its repair limit;
@@ -45,6 +51,16 @@ pub(super) struct Rehearsals<'a> {
     last: Option<Checked>,
     records: Vec<Value>,
     usage: Usage,
+    /// The compile this journal serves: the caller's own basis and request, which bind a
+    /// semantic record before its paths are read, and the request the final barrier reads.
+    serves: Option<Serves>,
+}
+
+/// The compile a journal serves (slice C): what binds a semantic record, what the barrier reads.
+pub(super) struct Serves {
+    pub(super) caller: Value,
+    pub(super) raw: CompileRequest,
+    pub(super) reading: CompileRequest,
 }
 
 impl<'a> Rehearsals<'a> {
@@ -54,7 +70,19 @@ impl<'a> Rehearsals<'a> {
             last: None,
             records: Vec::new(),
             usage: Usage::default(),
+            serves: None,
         }
+    }
+
+    /// The same journal, serving this compile.
+    pub(super) fn serving(mut self, serves: Serves) -> Self {
+        self.serves = Some(serves);
+        self
+    }
+
+    /// The compile this journal serves, when its entry named one.
+    pub(super) fn serves(&self) -> Option<&Serves> {
+        self.serves.as_ref()
     }
 
     pub(super) fn offered(&self) -> bool {
@@ -110,6 +138,7 @@ impl<'a> Rehearsals<'a> {
         let run = judged_run("observed", &report, &inputs, &targets, &declared);
         let result = classify(candidate, &report, &run.end);
         let entry = record::report(&report, bound, &run, &result);
+        let spent_before = self.usage;
         self.usage = self.usage.plus(&run.usage);
         self.records.push(entry.clone());
         let verdict = Verdict {
@@ -121,8 +150,41 @@ impl<'a> Rehearsals<'a> {
             inputs,
             targets,
             verdict: verdict.clone(),
+            run,
+            spent_before,
+            room_bytes: report.observation.bounds.room_bytes,
         });
         verdict
+    }
+
+    /// Whether this call may rehearse once more under `attempts` rehearsals in all: checked
+    /// before the host is asked, never after.
+    pub(super) fn admits(&self, attempts: u32) -> bool {
+        self.usage.fixtures < attempts
+    }
+
+    /// The behavioural judgment of this call's last run against `contract` (the request's own,
+    /// never one the candidate states). The round admits that one run within the host's own
+    /// bounds (its time bound, twice its room); the turn admits `attempts` such runs. The run was
+    /// charged once when it ran: the turn resumes from what was spent before it.
+    pub(super) fn judged(&self, contract: &Contract, attempts: u32) -> Option<Report> {
+        let last = self.last.as_ref()?;
+        let host = self.host?;
+        let time = u64::try_from(host.bound().as_millis()).unwrap_or(u64::MAX);
+        let bytes = last.room_bytes.saturating_mul(2);
+        let round = Limits::new(1, 1, bytes, time);
+        let turn = Limits::new(
+            attempts,
+            attempts,
+            bytes.saturating_mul(u64::from(attempts)),
+            time.saturating_mul(u64::from(attempts)),
+        );
+        let mut budget = Budget::new(round, turn, last.spent_before);
+        Some(judge(
+            contract,
+            std::slice::from_ref(&last.run),
+            &mut budget,
+        ))
     }
 
     /// Every returned Ready candidate, including COLD and replay, faces the same barrier on

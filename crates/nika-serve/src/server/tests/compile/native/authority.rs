@@ -368,7 +368,7 @@ async fn an_explicit_grant_reaches_a_judged_sketch_and_the_default_one_never_sen
 }
 
 /// The seat's policy and its account resolve one strategy, `escalate`: the configured worst
-/// case follows the repair preference (the default preference of three asks 62, an explicit
+/// case follows the repair preference (the default preference of three asks 66, an explicit
 /// zero 14, an explicit one 32) and is never a grant — the grant stays one request unless the
 /// operator names more, and the sends are counted apart.
 /// How a case seats its operator over the controlled seat.
@@ -377,7 +377,7 @@ type Operator = fn(&Seat) -> NativeAuthoring;
 #[tokio::test(flavor = "multi_thread")]
 async fn the_policy_and_its_account_resolve_one_strategy() {
     let cases: [(Operator, u64, u64); 3] = [
-        (|seat| NativeAuthoring::new(SEAT, seat.providers()), 62, 1),
+        (|seat| NativeAuthoring::new(SEAT, seat.providers()), 66, 1),
         (
             |seat| NativeAuthoring::new(SEAT, seat.providers()).with_repairs(0),
             14,

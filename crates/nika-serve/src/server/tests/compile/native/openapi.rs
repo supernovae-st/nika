@@ -373,14 +373,14 @@ fn the_published_ceilings_are_the_ones_a_seat_is_validated_against() {
     let repairs = u32::try_from(max("repairs")).expect("u32");
     let tokens = u32::try_from(max("max_tokens")).expect("u32");
     // The published repair ceiling, honored only with the grant the shared law states for it
-    // under the seat's strategy (a creation's worst case: 92 for five), and never above it.
+    // under the seat's strategy (a creation's worst case: 100 for five), and never above it.
     let needed = nika_onboard::compile::authority::worst_case(
         nika_onboard::compile::NativeMode::Escalate,
         1,
         repairs,
         false,
     );
-    assert_eq!((repairs, needed), (5, 92));
+    assert_eq!((repairs, needed), (5, 100));
     assert!(
         seated(at().with_max_calls(needed).with_repairs(repairs))
             && !seated(at().with_max_calls(needed - 1).with_repairs(repairs))

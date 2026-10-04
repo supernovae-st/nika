@@ -26,6 +26,10 @@ use crate::{CompileError, lexicon::Reading};
 use nika_kernel::ai::provider::{Message, ProviderInferDyn, Role};
 use serde_json::{Value, json};
 
+mod evidence;
+use super::rehearsal::Rehearsals;
+use evidence::Evidence;
+
 /// The seat's first answer: the sketch, its business questions, the clauses no task realizes.
 #[derive(serde::Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -477,18 +481,19 @@ fn sketch_round(
     })
 }
 
-/// Phase 1 · the sketch, judged structurally, repaired within the budget. Returns the rounds
-/// spent and the accepted sketch with the answer that carried it.
+/// Phase 1 · the sketch, judged structurally, repaired within the budget, from round `first` of
+/// the door's one round count (a graph reopened by evidence continues it, never resets it).
+/// Returns the rounds spent and the accepted sketch with the answer that carried it.
 async fn propose<P: ProviderInferDyn>(
     talk: &mut Talk,
     intent: &str,
     reading: &Reading,
     policy: &AuthoringPolicy,
-    provider: &P,
+    (provider, first): (&P, u32),
     out: &mut CompileOutcome,
 ) -> (u32, Option<(Sketch, SketchAnswer)>) {
     let budget = policy.repairs.min(5);
-    let mut round = 0;
+    let mut round = first;
     while round <= budget {
         let role = if round == 0 {
             "sketch"
@@ -663,6 +668,7 @@ async fn fill<P: ProviderInferDyn>(
                 notes: answer.notes.clone(),
                 dual: None,
             };
+            talk.messages.push(Message::text(Role::Assistant, text));
             return Some((answer, filling.fills));
         }
         talk.refused = Some(candidate);
@@ -697,7 +703,7 @@ pub(super) async fn compose<P: ProviderInferDyn>(
     intent: &str,
     reading: &Reading,
     policy: &AuthoringPolicy,
-    provider: &P,
+    seats: (&P, &mut Rehearsals<'_>),
     request: &CompileRequest,
     mut route: Vec<String>,
     mut out: CompileOutcome,
@@ -750,7 +756,7 @@ pub(super) async fn compose<P: ProviderInferDyn>(
     let bounded = policy
         .clone()
         .with_repairs(policy.repairs.min(5).saturating_sub(1));
-    author(intent, reading, &bounded, provider, request, route, out).await
+    author(intent, reading, &bounded, seats, request, route, out).await
 }
 
 /// The question fields a native settlement reads (`apply_native`, `bake`, `ask`).
@@ -872,12 +878,14 @@ pub(super) async fn author<P: ProviderInferDyn>(
     intent: &str,
     reading: &Reading,
     policy: &AuthoringPolicy,
-    provider: &P,
+    (provider, rehearsals): (&P, &mut Rehearsals<'_>),
     request: &CompileRequest,
     mut route: Vec<String>,
     mut out: CompileOutcome,
 ) -> Result<CompileOutcome, CompileError> {
-    let cold = cold(&mut out);
+    // The cold round as the door opened on it: every attempt concludes against the same one.
+    let opened = out.clone();
+    let _ = cold(&mut out);
     if floor_refuses(reading, &mut out) {
         route.push("native: refused by the floor".to_owned());
         super::record_route(&mut out, &route);
@@ -905,39 +913,201 @@ pub(super) async fn author<P: ProviderInferDyn>(
         request,
     );
     talk.presented = json!(sent);
-    let (spent, sketched) = propose(&mut talk, intent, reading, policy, provider, &mut out).await;
-    let mut accepted = None;
-    if let Some(pair) = &sketched {
-        accepted = fill(
-            &mut talk, intent, reading, policy, provider, &mut out, pair, spent,
+    // One round count spans the sketch, its fills and every reopening (the last round leaves the
+    // fill its turn).
+    let last = policy.repairs.min(5);
+    let mut first = 0;
+    loop {
+        let (spent, sketched) = propose(
+            &mut talk,
+            intent,
+            reading,
+            policy,
+            (provider, first),
+            &mut out,
         )
         .await;
+        let accepted = match &sketched {
+            Some(pair) => {
+                fill(
+                    &mut talk, intent, reading, policy, provider, &mut out, pair, spent,
+                )
+                .await
+            }
+            None => None,
+        };
+        let mut done = out.clone();
+        let settled = (sketched.as_ref(), accepted.as_ref());
+        settle(
+            (intent, reading, request),
+            &talk,
+            (&sent, revision),
+            basis.clone(),
+            settled,
+            (&opened, &mut done),
+        );
+        if accepted.is_none() {
+            return Ok(done);
+        }
+        let next = next_round(&talk);
+        let door = (intent, reading, policy, request);
+        let step = examine(
+            door,
+            (provider, &mut *rehearsals),
+            &mut talk,
+            done,
+            (next, last),
+        );
+        let (mut done, defects) = match step.await {
+            Step::Done(answer) => return Ok(answer),
+            Step::Reopen(done, defects) => (done, defects),
+        };
+        if next > last || !reopen(&mut talk, defects) {
+            let why = "The evidence refused this candidate and the repair allowance is spent: nothing is READY.";
+            evidence::refuse(&mut done, why.to_owned());
+            return Ok(done);
+        }
+        // The judge's calls, when it was asked, belong to the door's one journal.
+        out.provenance
+            .authoring
+            .clone_from(&done.provenance.authoring);
+        first = next;
     }
-    let answer = accepted.as_ref().map(|(answer, _)| answer);
-    native::record(&mut out, request, &cold, &talk, &sent, answer, revision);
-    if let Some(decision) = out.provenance.decision.as_mut() {
-        decision["native"]["sketch"] = json!({
-            "accepted": sketched.is_some(),
-            "tasks": sketched.as_ref().map_or(0, |(s, _)| s.tasks.len()),
-            "holes": sketched.as_ref().map_or(0, |(s, _)| ir::holes(s).len()),
-        });
+}
+
+/// Where one settled candidate leads: the door's answer, or a reopening from these defects.
+enum Step {
+    Done(CompileOutcome),
+    Reopen(CompileOutcome, Vec<Diagnostic>),
+}
+
+/// One settled candidate faces its evidence (journalled in the attempt's record and the talk),
+/// then, when nothing there refuses it, the whole-request judgment. Round `next` is the one a
+/// reopening would spend; past `last` a refusal withdraws the candidate.
+async fn examine<P: ProviderInferDyn>(
+    (intent, reading, policy, request): (&str, &Reading, &AuthoringPolicy, &CompileRequest),
+    (provider, rehearsals): (&P, &mut Rehearsals<'_>),
+    talk: &mut Talk,
+    mut done: CompileOutcome,
+    (next, last): (u32, u32),
+) -> Step {
+    // The room admits one rehearsal per candidate the door's rounds can produce.
+    let (found, record) = evidence::examined(rehearsals, request, intent, &done, last + 2).await;
+    if !record.is_null() {
+        // The evidence of the candidate the last round produced, in the journal this attempt
+        // returns and in the talk a reopened graph continues.
+        let entry = json!({"round": next.saturating_sub(1), "evidence": record});
+        let rounds = (done.provenance.decision.as_mut())
+            .and_then(|decision| decision["native"]["rounds"].as_array_mut());
+        if let Some(rounds) = rounds {
+            rounds.push(entry.clone());
+        }
+        talk.rounds.push(entry);
     }
-    conclude(intent, reading, request, answer, &talk, cold, &mut out);
-    // The settlement's record becomes the semantic record: the accepted pair from its producer,
-    // the basis read before the proposal; the source it emitted stays an observation.
-    if let (Some((_, fills)), Some((_, stated))) = (&accepted, &sketched)
-        && let Some(settled) = out.provenance.plan.take()
-    {
-        out.provenance.plan = semantic_record(basis, &graph(stated), fills, &settled, &out);
-        if out.provenance.plan.is_none() {
-            withhold_record(&mut out);
+    match found {
+        Evidence::Stop(reason) => {
+            evidence::refuse(&mut done, reason);
+            Step::Done(done)
+        }
+        Evidence::Defect(defect) => Step::Reopen(done, vec![defect]),
+        Evidence::Unoffered | Evidence::Holds | Evidence::Unknown => {
+            let verdict =
+                super::verify::native_verdict(intent, reading, policy, provider, request, done);
+            match verdict.await {
+                Ok(judged) => Step::Done(judged),
+                Err(judged) => {
+                    let (judged, verdict) = *judged;
+                    if verdict.defects.is_empty() || next > last {
+                        Step::Done(super::verify::withdrawn(judged, &verdict))
+                    } else {
+                        let defects = judge_defects(&verdict.defects);
+                        Step::Reopen(judged, defects)
+                    }
+                }
+            }
         }
     }
-    out.provenance.strategy = Some(Strategy::Native);
-    if accepted.is_some() {
-        out = super::verify::judged_native(intent, reading, policy, provider, request, out).await;
+}
+
+/// The round after the journal's last: where a reopened graph continues the door's count.
+fn next_round(talk: &Talk) -> u32 {
+    (talk.rounds.iter())
+        .filter_map(|round| round["round"].as_u64())
+        .max()
+        .and_then(|round| u32::try_from(round + 1).ok())
+        .unwrap_or(0)
+}
+
+/// The judge's defects as the repair reads them: the parts of the request the bytes miss.
+fn judge_defects(defects: &[String]) -> Vec<Diagnostic> {
+    (defects.iter())
+        .map(|defect| Diagnostic {
+            kind: "semantic_verification",
+            message: format!(
+                "the judge compared the whole request with the candidate's bytes: it does not carry `{defect}`"
+            ),
+        })
+        .collect()
+}
+
+/// Reopen the graph from evidence: the diagnostics go back with the instruction to answer the
+/// whole sketch again (its holes are filled again after it); a repeated refusal is no progress.
+fn reopen(talk: &mut Talk, diagnostics: Vec<Diagnostic>) -> bool {
+    if talk.last.as_ref() == Some(&diagnostics) {
+        talk.route.push("native: no progress".to_owned());
+        return false;
     }
-    Ok(out)
+    talk.messages.push(Message::text(
+        Role::User,
+        format!(
+            "{}{SKETCH_AGAIN}",
+            repair_message(&diagnostics, &talk.repairs)
+        ),
+    ));
+    talk.last = Some(diagnostics);
+    true
+}
+
+/// What a reopened graph is asked.
+const SKETCH_AGAIN: &str = "\n\nThe workflow these fills made was refused by the evidence above. Answer the whole SKETCH again (call 1 schema), corrected so that it does what the request asks; its holes are filled again after it.";
+
+/// The accepted sketch with the answer that carried it.
+type Sketched = (Sketch, SketchAnswer);
+/// The accepted fill's answer with the fills exactly as accepted.
+type Filled = (Answer, Vec<Value>);
+
+/// One attempt's conclusion on `done`: the native record, the sketch summary, the settlement
+/// against the cold round the door opened on, and the semantic record of the accepted pair.
+fn settle(
+    (intent, reading, request): (&str, &Reading, &CompileRequest),
+    talk: &Talk,
+    (sent, revision): (&[Value], Option<(&str, &str)>),
+    basis: Value,
+    (sketched, accepted): (Option<&Sketched>, Option<&Filled>),
+    (opened, done): (&CompileOutcome, &mut CompileOutcome),
+) {
+    let cold = cold(&mut opened.clone());
+    let answer = accepted.map(|(answer, _)| answer);
+    native::record(done, request, &cold, talk, sent, answer, revision);
+    if let Some(decision) = done.provenance.decision.as_mut() {
+        decision["native"]["sketch"] = json!({
+            "accepted": sketched.is_some(),
+            "tasks": sketched.map_or(0, |(s, _)| s.tasks.len()),
+            "holes": sketched.map_or(0, |(s, _)| ir::holes(s).len()),
+        });
+    }
+    conclude(intent, reading, request, answer, talk, cold, done);
+    // The settlement's record becomes the semantic record: the accepted pair from its producer,
+    // the basis read before the proposal; the source it emitted stays an observation.
+    if let (Some((_, fills)), Some((_, stated))) = (accepted, sketched)
+        && let Some(settled) = done.provenance.plan.take()
+    {
+        done.provenance.plan = semantic_record(basis, &graph(stated), fills, &settled, done);
+        if done.provenance.plan.is_none() {
+            withhold_record(done);
+        }
+    }
+    done.provenance.strategy = Some(Strategy::Native);
 }
 
 #[cfg(test)]

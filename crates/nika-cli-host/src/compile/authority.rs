@@ -156,14 +156,14 @@ mod tests {
         let record = default.record(&default.envelope(), None);
         assert_eq!(default.max_calls(), 1);
         assert_eq!(record["source"], "default: one request");
-        assert_eq!(record["configured"]["worst_case"], 62);
-        // Typed repairs under escalate can need sixty-two: refused, with the number to authorize.
+        assert_eq!(record["configured"]["worst_case"], 66);
+        // Typed repairs under escalate can need sixty-six: refused, with the number to authorize.
         let refused = resolve(&["--authoring-repairs", "3"], NativeMode::Escalate).unwrap_err();
         assert_eq!(
             refused,
-            "the repairs or samples typed can need 62 authoring requests under the escalate strategy, and 1 is authorized: authorize them with --authoring-max-calls 62, or ask for fewer"
+            "the repairs or samples typed can need 66 authoring requests under the escalate strategy, and 1 is authorized: authorize them with --authoring-max-calls 66, or ask for fewer"
         );
-        let typed = ["--authoring-repairs", "3", "--authoring-max-calls", "62"];
+        let typed = ["--authoring-repairs", "3", "--authoring-max-calls", "66"];
         assert!(resolve(&typed, NativeMode::Escalate).is_ok());
         // Nothing extra asked, and a typed only granted its judgment: never refused.
         let only = ["--authoring-strategy", "only", "--authoring-max-calls", "2"];

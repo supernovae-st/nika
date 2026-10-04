@@ -26,7 +26,8 @@ use crate::NativeMode;
 /// `r` repairs clamped to [`SAMPLES`] and [`REPAIRS`]:
 /// - an edit's native revision: the candidate and its repairs, then the whole-request judgment
 ///   and its locate question (`verify::WHOLE_QUESTIONS`, 2): `3 + r`;
-/// - the sketch door: the sketch, its fills and their repairs, then the same judgment: `4 + r`;
+/// - the sketch door: the sketch, its fills and `r` repairs (a fill, or the graph reproposed),
+///   each new candidate judged afresh: `2 + r + 2 (1 + r) = 4 + 3r`;
 /// - COLD: each sample and its one evidence repair (`2s`), then `1 + r` verification attempts,
 ///   each asking at most `verify::CLAUSE_QUESTIONS` (8) clause questions, the whole-request
 ///   judgment (2) and one transform synthesis of at most `transform::MAX_CALLS` (2) questions;
@@ -41,7 +42,7 @@ pub fn worst_case(strategy: NativeMode, samples: u32, repairs: u32, edit: bool) 
     let count = |questions: usize| u32::try_from(questions).unwrap_or(u32::MAX);
     let judged = count(crate::cognition::WHOLE_QUESTIONS);
     let native = 1 + repairs + judged;
-    let sketch = |repairs: u32| repairs + 2 + judged;
+    let sketch = |repairs: u32| repairs + 2 + judged * (1 + repairs);
     let attempt = count(crate::cognition::CLAUSE_QUESTIONS)
         + judged
         + count(crate::cognition::TRANSFORM_QUESTIONS);
@@ -530,26 +531,27 @@ mod tests {
     fn the_worst_case_follows_the_resolved_strategy() {
         // Every request a configuration can send, the verifier's included (nv1b): an edit's
         // native candidate and its repairs, then its whole-request judgment and locate question
-        // (3 + r); the sketch, its fills and repairs, then the same judgment (4 + r); COLD's
+        // (3 + r); the sketch, its fills and r repairs, each new candidate judged afresh
+        // (4 + 3r: a repair from the room or the judge reopens the graph or its fills); COLD's
         // samples and their evidence repairs (2s), then 1 + r verification attempts of at most 8
         // clause questions, the whole-request judgment and one synthesis of at most 2 transforms
         // each, with its r verify repairs and r transform repairs (2s + 14r + 12); escalate adds
-        // the sketch door with one repair less (3 + r, none at r = 0). A creation under `only`
+        // the sketch door with one repair less (1 + 3r, none at r = 0). A creation under `only`
         // sends nothing. Before the verifier was counted, the default work was bounded at 2 + 1 + 3.
-        assert_eq!(worst_case(NativeMode::Escalate, 1, 3, false), 62);
+        assert_eq!(worst_case(NativeMode::Escalate, 1, 3, false), 56 + 10);
         assert_eq!(worst_case(NativeMode::Escalate, 1, 0, false), 14);
         assert_eq!(worst_case(NativeMode::Escalate, 1, 1, false), 28 + 4);
         assert_eq!(worst_case(NativeMode::Only, 1, 0, false), 0);
         assert_eq!(worst_case(NativeMode::Only, 1, 3, false), 0);
         assert_eq!(worst_case(NativeMode::Sketch, 1, 0, false), 4);
-        assert_eq!(worst_case(NativeMode::Sketch, 1, 3, false), 7);
+        assert_eq!(worst_case(NativeMode::Sketch, 1, 3, false), 13);
         assert_eq!(worst_case(NativeMode::Off, 1, 0, false), 14);
         assert_eq!(worst_case(NativeMode::Off, 3, 5, false), 88);
         assert_eq!(worst_case(NativeMode::Escalate, 1, 3, true), 6);
         assert_eq!(worst_case(NativeMode::Only, 1, 3, true), 6);
         assert_eq!(worst_case(NativeMode::Off, 1, 3, true), 0);
         // Clamped as the policy clamps: five samples, five repairs.
-        assert_eq!(worst_case(NativeMode::Escalate, 9, 9, false), 100);
+        assert_eq!(worst_case(NativeMode::Escalate, 9, 9, false), 92 + 16);
     }
 
     /// Totals are complete only when every call's usage is known (E10 P3-e): a local refusal
@@ -585,17 +587,17 @@ mod tests {
         // No grant: one request, and the defaults run within it.
         let default = resolve(None, Escalate, nothing).expect("one request");
         assert_eq!(default.max_calls(), 1);
-        assert_eq!(default.configured["worst_case"], 62);
-        // Typed repairs under escalate can need sixty-two: refused, naming what they need.
+        assert_eq!(default.configured["worst_case"], 66);
+        // Typed repairs under escalate can need sixty-six: refused, naming what they need.
         let repairs = nothing.with_repairs(Some(3));
-        let refused = resolve(None, Escalate, repairs).expect_err("sixty-two");
+        let refused = resolve(None, Escalate, repairs).expect_err("sixty-six");
         let needed = Refusal::Multiplicity {
-            needed: 62,
+            needed: 66,
             authorized: 1,
             strategy: Escalate,
         };
         assert_eq!(refused, needed);
-        assert!(resolve(Some(62), Escalate, repairs).is_ok());
+        assert!(resolve(Some(66), Escalate, repairs).is_ok());
         // Nothing extra typed: never refused for what the defaults would allow (a typed only
         // strategy needs its judgment, below).
         let none = nothing.with_strategy().with_repairs(Some(0));
@@ -651,7 +653,7 @@ mod tests {
         );
         assert_eq!(
             record["configured"],
-            json!({"strategy": "escalate", "samples": 1, "repairs": 3, "worst_case": 62, "ignored": []})
+            json!({"strategy": "escalate", "samples": 1, "repairs": 3, "worst_case": 66, "ignored": []})
         );
     }
 
@@ -721,7 +723,7 @@ mod tests {
         assert_eq!(ignored(&revision), json!(["strategy", "samples"]));
         // A value the strategy applies is never ignored, and is honored in full or refused.
         assert!(resolve(None, Off, nothing.with_samples(Some(2))).is_err());
-        let repaired = resolve(Some(62), Escalate, nothing.with_repairs(Some(3))).expect("62");
+        let repaired = resolve(Some(66), Escalate, nothing.with_repairs(Some(3))).expect("66");
         assert_eq!(ignored(&repaired), json!([]));
     }
 
