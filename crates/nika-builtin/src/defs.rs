@@ -190,6 +190,7 @@ fn file_defs() -> Vec<ToolDef> {
             }),
             &["path", "find", "replace"],
         ),
+        remove_file_def(),
         def(
             "glob",
             "Glob match · returns paths sorted lexicographically.",
@@ -216,6 +217,22 @@ fn file_defs() -> Vec<ToolDef> {
             &["pattern"],
         ),
     ]
+}
+
+/// `nika:remove_file` (builtins-v0.1.md `§nika:remove_file`): exactly
+/// `{ path: string }`, closed · no recursive, glob, force, missing-ok or
+/// destination option exists, so the schema admits no other key.
+fn remove_file_def() -> ToolDef {
+    let mut parameters = schema(
+        serde_json::json!({ "path": s("the ONE existing regular file to remove (never a directory, link or pattern)") }),
+        &["path"],
+    );
+    parameters["additionalProperties"] = serde_json::Value::Bool(false);
+    ToolDef::new(
+        "nika:remove_file",
+        "Remove ONE existing regular file · returns the requested path. Needs the tool grant and a permits.fs.write bound holding the exact path; reads no content and creates no directory. A missing name, a directory, a symlink or a special file fails; nothing is recursive or expanded, and a returned path is not proof of disk state.",
+        parameters,
+    )
 }
 
 fn hash_def() -> ToolDef {
@@ -722,10 +739,11 @@ mod tests {
         let defs = tool_defs();
         assert_eq!(
             defs.len(),
-            28,
-            "stdlib ships exactly 28 (22 Rams-swept + nika:compose ADR-096 + \
+            29,
+            "stdlib ships exactly 29 (22 Rams-swept + nika:compose ADR-096 + \
              nika:image_generate stdlib §Media + nika:tts_generate stdlib §Audio + \
-             nika:image_fx stdlib §Media + nika:decide spec 11 W-DEC)"
+             nika:image_fx stdlib §Media + nika:decide spec 11 W-DEC + \
+             nika:remove_file §nika:remove_file)"
         );
         let mut names: Vec<&str> = defs.iter().map(|d| d.name.as_str()).collect();
         names.sort_unstable();
@@ -733,6 +751,37 @@ mod tests {
         names.dedup();
         assert_eq!(names.len(), before, "no duplicate builtin names");
         assert!(defs.iter().all(|d| d.name.starts_with("nika:")));
+    }
+
+    #[test]
+    fn remove_file_discovery_is_exactly_one_required_path() {
+        let payload = tools_json();
+        assert_eq!(payload["tools_version"], 1);
+        let tool = payload["tools"]
+            .as_array()
+            .expect("tools array")
+            .iter()
+            .find(|tool| tool["name"] == "nika:remove_file")
+            .expect("nika:remove_file is discoverable");
+        let parameters = &tool["parameters"];
+        assert_eq!(parameters["required"], serde_json::json!(["path"]));
+        assert_eq!(parameters["additionalProperties"], false);
+        let keys: Vec<&str> = parameters["properties"]
+            .as_object()
+            .expect("properties")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(keys, vec!["path"], "no option beside the one path");
+        assert_eq!(parameters["properties"]["path"]["type"], "string");
+        assert!(
+            payload["tools"]
+                .as_array()
+                .expect("tools")
+                .iter()
+                .all(|tool| tool["name"] != "nika:delete"),
+            "no alias of the removal"
+        );
     }
 
     #[test]
@@ -902,6 +951,7 @@ mod tests {
             "nika:glob.pattern",
             "nika:write.path",
             "nika:edit.path",
+            "nika:remove_file.path",
             "nika:chart.out",
             "nika:chart.data",
             "nika:image_fx.input",

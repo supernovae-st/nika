@@ -266,6 +266,19 @@ enforcement. It is not a complete argument validator, an exhaustive census of ru
 or an interpretation of arbitrary MCP arguments. Required arguments, callable shapes,
 Check, request fidelity and runtime admission retain their existing owners.
 
+### 3.6 Regular file removal (`nika:remove_file`)
+
+`builtin_effect("nika:remove_file")` is the exact-path filesystem write
+`Fs { path_arg: "path", reads: false, writes: true, recursive: false,
+walk_root: false }`, and the coarse effect vocabulary names it `write` +
+`tools`: a read grant never covers it and no directory walk is implied. The
+static shape rule refuses, before templating, a non-object argument set, a
+non-string `path`, and a literal path that names no regular file (empty, a
+trailing separator, a final `.` or `..`, a root or prefix without a file
+name); a templated path is deferred to the runtime's identical raw-shape
+check. The rule is lexical: wildcard-looking characters and a POSIX
+backslash are ordinary name characters, and nothing is trimmed.
+
 ## 4. Module structure with LOC estimates
 
 ```

@@ -4,7 +4,7 @@
 |---|---|
 | Status | **SPEC** (Gate 1 · authored 2026-06-11 · announce-ladder step s16) |
 | Layer | **L1.5** — the builtin tool layer · above the L1 effects it composes · below the L2 verbs that dispatch into it |
-| Design | the 28 canonical stdlib builtins behind ONE dispatcher implementing the three kernel tool seams (`ToolExecuteDyn` + `ToolBatchDyn` + `ToolDefinitionProviderDyn`) |
+| Design | the 29 canonical stdlib builtins behind ONE dispatcher implementing the three kernel tool seams (`ToolExecuteDyn` + `ToolBatchDyn` + `ToolDefinitionProviderDyn`) |
 | Normative source | `nika-spec stdlib/builtins-v0.1.md` (contracts · error codes) + `stdlib/extract-modes-v0.1.md` (fetch modes) + `spec/05-errors.md` (4-segment code grammar) — **this doc never restates a contract, it cites** |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (Diamond caps) — one module per builtin family |
 | Crate version | tracks workspace |
@@ -17,7 +17,7 @@
 The real tool layer. `nika-verb-invoke` and `nika-verb-agent` dispatch over
 the kernel `ToolExecuteDyn` seam, and the agent enumerates definitions over
 `ToolDefinitionProviderDyn` — until now only mocks implement either. This
-crate is the production implementation: a **closed registry of the 28
+crate is the production implementation: a **closed registry of the 29
 stdlib builtins** (core 6 · file 5 · data 9 · introspection 2 ·
 network 2 · media 4), each a thin composition over kernel effect seams, plus the
 model-facing `ToolDef` (name · description · JSON-Schema params) for every
@@ -28,9 +28,9 @@ tool.
 ```text
                     ┌───────────────────────────────────────┐
  verbs (L2) ──────▶ │ BuiltinDispatcher<F, H, C, E, P, W>   │  implements
-   invoke · agent   │   the closed 28-registry              │  ToolExecuteDyn
+   invoke · agent   │   the closed 29-registry              │  ToolExecuteDyn
                     │   route(name) → the builtin fn        │  ToolBatchDyn
- agent tool-defs ─▶ │   tool_defs() → 28 × ToolDef          │  ToolDefinitionProviderDyn
+ agent tool-defs ─▶ │   tool_defs() → 29 × ToolDef          │  ToolDefinitionProviderDyn
                     └──┬────┬────┬────┬─────┬────┬──────────┘
                        │    │    │    │     │    │
                   F: Fs │ H: HttpClient │ C: ClockDyn │ E: Emitter
@@ -141,8 +141,8 @@ after an uncertain result.
 Mock-first over kernel-mock (`MockFs` · `MockHttp` · `MockClock` ·
 `NullEventSink`) + local mocks for the two owned seams. Per-builtin unit
 tests pin the spec contract lines (codes · defaults · sort orders ·
-exactly-one-output). Dispatcher tests pin: routing totality (all 28
-addressable · unknown → NotFound) · `tool_defs()` returns 28 schemas ·
+exactly-one-output). Dispatcher tests pin: routing totality (all 29
+addressable · unknown → NotFound) · `tool_defs()` returns 29 schemas ·
 done rejected · batch = sequential map. Property: jq exactly-one-output
 over arbitrary JSON · glob/grep determinism · sniff totality on arbitrary
 bytes (+ magic-prefixed tails) · sanitize_component traversal-freedom.
@@ -204,6 +204,25 @@ writes that literal text. This repairs the former string-only discovery
 hint without changing file effects, permits, overwrite policy or runtime
 serialization. Parameter validation is still not proof of base64 validity,
 filesystem authority or successful publication.
+
+### Regular file removal
+
+`nika:remove_file` takes exactly `{ path: string }` and removes one existing
+regular file, returning the requested path. Its order is fixed: the closed
+arguments and the raw path shape (empty, trailing separator, final `.` or `..`,
+no file name) refuse `NIKA-BUILTIN-REMOVE_FILE-001` before any effect; the
+`permits.fs` write boundary is then judged and witnessed once (`NIKA-SEC-004`),
+with no parent creation and no read grant; the judged view re-judges the write
+boundary unwitnessed and calls the backend's `remove_regular_file`, never the
+raw `remove_file`. That re-judgment returns its refusal as a separate typed
+layer (`JudgedFs::remove_regular`), so an authority denial after the first
+allow stays `NIKA-SEC-004`; only the permitted operation's own failure
+(absent name, directory, link, special file, unsupported backend, ordinary OS
+error) is `NIKA-BUILTIN-REMOVE_FILE-002`. A backend that keeps the provided
+default fails without I/O. The returned path is not proof of disk state, and
+the backend's check-then-unlink is two steps, not one atomic operation on the
+same file. Tests use a private scratch directory; a FIFO through the callable
+and a substitution between check and unlink are not exercised here.
 
 ### Media argument discovery
 

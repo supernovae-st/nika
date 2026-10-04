@@ -136,15 +136,22 @@ pub(crate) fn matches_code(spec: SpecCode, expected: &ExpectedError) -> bool {
 pub(crate) fn check_extra(yaml: &str, mode: ParseMode, dir: &Path) -> Vec<SpecCode> {
     match parse(yaml, FileId::new(0), mode) {
         Ok(wf) => {
-            // The COMPOSED lane (spec 14): a fixture's `workflow:` targets
-            // resolve against the fixture directory (sibling files) — the
-            // same reader shape the CLI injects.
-            let root = dir.join("input.yaml").to_string_lossy().into_owned();
-            let mut codes = nika_check::check_composed(&wf, &root, &mut |p| {
-                std::fs::read_to_string(p).map_err(|e| e.to_string())
+            // A fixture's context is its OWN directory (runner-protocol: the
+            // fixture's files, never the caller's): resolved once to an
+            // absolute root, never the process cwd. The composed lane's
+            // `workflow:` targets arrive already absolute and `join` keeps
+            // them; a relative request — `.nika/mcp_servers.json`, a sibling
+            // file — reads from this root. An absent or malformed file stays
+            // the checker's own refusal. Not an OS confinement boundary.
+            let root = dir
+                .canonicalize()
+                .unwrap_or_else(|e| panic!("fixture root {} does not resolve: {e}", dir.display()));
+            let entry = root.join("input.yaml").to_string_lossy().into_owned();
+            let mut codes = nika_check::check_composed(&wf, &entry, &mut |p| {
+                std::fs::read_to_string(root.join(p)).map_err(|e| e.to_string())
             })
             .extra_conformance_codes();
-            codes.extend(skills_codes(&wf, dir));
+            codes.extend(skills_codes(&wf, &root));
             codes
         }
         // A parse error surfaces through `run_engine` (analyze) as a SchemaError.
@@ -170,90 +177,29 @@ pub(crate) fn skills_codes(wf: &nika_schema::raw::RawWorkflow, dir: &Path) -> Ve
         .collect()
 }
 
-/// The CORE-tier check-only codes (`policy:` surface of spec 10 · F-O8's
-/// AUTH namespace of NEP-0003 · and spec 14's COMP namespace — law 3/4's
-/// « absent child = ∅ » is judged in core/authority/006): the lane lives
-/// in `check()` (it reads the derived graph — and the composed read for
-/// the child files), and the reference oracle judges these on every tier.
-/// Never the deep-only builtin/permits-fit classes, which stay deep
-/// concerns.
-pub(crate) fn check_core_codes(yaml: &str, mode: ParseMode, dir: &Path) -> Vec<SpecCode> {
-    match parse(yaml, FileId::new(0), mode) {
-        Ok(wf) => {
-            let root = dir.join("input.yaml").to_string_lossy().into_owned();
-            let mut codes = nika_check::check_composed(&wf, &root, &mut |p| {
-                std::fs::read_to_string(p).map_err(|e| e.to_string())
-            })
-            .extra_conformance_codes();
-            codes.extend(skills_codes(&wf, dir));
-            codes
-                .into_iter()
-                .filter(|c| {
-                    matches!(c.namespace, "POLICY" | "AUTH" | "COMP")
-                    || c.namespace == "AGENT"
-                    || (c.namespace == "PARSE" && c.num == 28)
-                    // NEP-0006 · the data-as-code sink (NIKA-SEC-008) is a
-                    // Core-visible law: the reference oracle judges it on
-                    // every tier, so the core verdict must too — the REST
-                    // of the SEC namespace (004 escape · 009 trifecta)
-                    // stays the deep tier's ground.
-                    || (c.namespace == "SEC" && c.num == 8)
-                    // NEP-0008 law 5 · the floor-parity dead grant
-                    // (NIKA-SEC-005) is Core-visible for the same reason:
-                    // the reference oracle judges the net boundary on
-                    // every tier (deep_static.py net_egress_boundary_errors),
-                    // and the law lives in the authority suite's home tier
-                    // (core/authority/026) — a fetch-side SEC-005 emitted
-                    // at run stays the deep/runtime ground as before.
-                    || (c.namespace == "SEC" && c.num == 5)
-                    // NEP-0020 · the affirmative-consent law (NIKA-SEC-014)
-                    // is Core-visible for the same reason: the reference
-                    // oracle judges it on every tier (deep_static.py
-                    // consent_errors) and its fixtures live in
-                    // core/policy/ — the human-gate family's home tier.
-                    || (c.namespace == "SEC" && c.num == 14)
-                    // The unconditional order law (NIKA-SEC-015) is
-                    // Core-visible by construction: it is what SURVIVED
-                    // the `policy:` death, its fixtures live in
-                    // core/order/, and a law no block can disable
-                    // belongs to every tier or to none.
-                    || (c.namespace == "SEC" && c.num == 15)
-                })
-                .collect()
-        }
-        // A parse error (fixture 009's closed-set refusal) surfaces
-        // through `run_engine` (analyze) as a SchemaError.
-        Err(_) => Vec::new(),
-    }
-}
-
 /// One fixture's verdict against its `expected.json` (None = conformant).
 ///
-/// `deep` selects the conformance TIER (spec `07-conformance.md` §Levels):
-/// - `false` · the **Core** tier (`tests/core/`) — parse · validate · DAG ·
-///   variables · errors · the `analyze()` contract a minimal engine implements.
-/// - `true` · the **Deep-static** tier (`tests/deep/`) — Core PLUS the
-///   builtin-arg contracts + capability-boundary fit the fuller `check()`
-///   adds (`nika:write` without `content` · `nika:jq` wrong-arg · a body
-///   outside `permits:`). The deep tier verdicts against the real
-///   `nika check` surface; the core tier must not (a builtin-arg defect is a
-///   deep concern, not a Core-rules one).
-pub(crate) fn fixture_verdict(dir: &Path, deep: bool) -> Option<String> {
+/// Every tier (Core · Deep-static · Values · HTTP response) is verdicted
+/// against the SAME surface: the `analyze()` errors plus every
+/// hard-invalidating check-only code ([`check_extra`]). Tier scoping lives
+/// in the fixture, never in the runner (`conformance/runner-protocol.md`
+/// §The tier-scoping rule): a namespace filter that drops out-of-tier
+/// refusals is fail-open — it once let the Core tier accept removal
+/// fixtures whose `NIKA-SEC-004` refusal `check()` did emit.
+///
+/// `_deep` names the caller's tier for compatibility only; it never
+/// narrows the surface.
+pub(crate) fn fixture_verdict(dir: &Path, _deep: bool) -> Option<String> {
     let yaml = std::fs::read_to_string(dir.join("input.yaml")).expect("read input.yaml");
     let expected_raw =
         std::fs::read_to_string(dir.join("expected.json")).expect("read expected.json");
     let expected: Expected = serde_json::from_str(&expected_raw).expect("parse expected.json");
     let mode = expected.parse_mode();
-    // The Core tier is `analyze()` (rich SchemaErrors) PLUS the policy
-    // surface (spec 10 files its fixtures under core/); the Deep tier
-    // adds every check-only invalidating surface (builtin args ·
-    // capability escapes · policy included via `extra_conformance_codes`).
+    // `analyze()` (rich SchemaErrors) plus every check-only invalidating
+    // surface (builtin args · capability escapes · policy · authority ·
+    // composition · skills) — advisory findings never enter.
     let emitted = run_engine(&yaml, mode);
-    let extra = if deep {
-        check_extra(&yaml, mode, dir)
-    } else {
-        check_core_codes(&yaml, mode, dir)
-    };
+    let extra = check_extra(&yaml, mode, dir);
 
     if expected.valid {
         if !emitted.is_empty() || !extra.is_empty() {

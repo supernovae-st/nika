@@ -53,7 +53,7 @@ impl EffectClass {
     /// projection of the builtin classification, mirroring the reference
     /// evaluator's `_task_effect_classes` exactly: `exec` = the `exec:`
     /// verb · `tools` = every `invoke:` · `net` = `nika:fetch`/`nika:notify`
-    /// · `write` = `nika:write`/`nika:edit`. The fine-grained boundary
+    /// · `write` = `nika:write`/`nika:edit`/`nika:remove_file`. The fine-grained boundary
     /// table (`builtin_effect` in nika-schema) answers a DIFFERENT
     /// question (which arg carries the target); the two are pinned
     /// coherent by test, never derived from each other.
@@ -68,7 +68,7 @@ impl EffectClass {
             if matches!(tool, "nika:fetch" | "nika:notify") {
                 out.insert(Self::Net);
             }
-            if matches!(tool, "nika:write" | "nika:edit") {
+            if matches!(tool, "nika:write" | "nika:edit" | "nika:remove_file") {
                 out.insert(Self::Write);
             }
         }
@@ -145,6 +145,11 @@ mod tests {
         };
         assert_eq!(names("exec", None), vec!["exec"]);
         assert_eq!(names("invoke", Some("nika:write")), vec!["write", "tools"]);
+        assert_eq!(
+            names("invoke", Some("nika:remove_file")),
+            vec!["write", "tools"],
+            "a removal is the coarse write class, never a read"
+        );
         assert_eq!(names("invoke", Some("nika:fetch")), vec!["net", "tools"]);
         assert_eq!(names("invoke", Some("nika:read")), vec!["tools"]);
         assert_eq!(names("infer", None), Vec::<&str>::new());

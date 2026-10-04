@@ -19,6 +19,8 @@ mod glob_grep_tests;
 #[cfg(test)]
 mod read_tests;
 #[cfg(test)]
+mod remove_tests;
+#[cfg(test)]
 mod write_tests;
 
 /// `nika:read` — text (default) or binary. Returns the file content.
@@ -305,6 +307,78 @@ pub(crate) async fn edit<F: FsReadDyn + FsWriteDyn>(fs: &F, args: &Args) -> Buil
         .await
         .map_err(|e| BuiltinFailure::new(C2, format!("write after edit failed: {e}")))?;
     Ok(serde_json::Value::String(path.to_owned()))
+}
+
+/// `nika:remove_file` (builtins-v0.1.md `§nika:remove_file`) — remove ONE
+/// existing regular file, return the requested path. The closed
+/// `{ path: string }` and the RAW path shape are judged before any effect
+/// (`NIKA-BUILTIN-REMOVE_FILE-001`); then the `permits.fs` WRITE boundary,
+/// witnessed once (`NIKA-SEC-004`), with no parent creation and no read
+/// grant; then the judged view re-judges the write boundary and calls the
+/// backend's regular-only removal. The permitted operation failing (absent,
+/// nonregular, unsupported backend, ordinary OS error) is
+/// `NIKA-BUILTIN-REMOVE_FILE-002`. The returned path is not proof of disk
+/// state, and the backend's check-then-unlink is two steps, not one atomic
+/// operation on the same file.
+pub(crate) async fn remove<F: FsReadDyn + FsWriteDyn>(
+    fs: &F,
+    boundary: &FsBoundary,
+    args: &Args,
+) -> BuiltinOutcome {
+    let path = removal_args(args)?;
+    boundary.enforce(fs, path, FsAccess::Write).await?;
+    let judged = crate::judged_fs::JudgedFs::new(fs, boundary);
+    judged.remove_regular(Path::new(path)).await?.map_err(|e| {
+        BuiltinFailure::new(
+            "NIKA-BUILTIN-REMOVE_FILE-002",
+            format!("cannot remove `{path}`: {e}"),
+        )
+    })?;
+    Ok(serde_json::Value::String(path.to_owned()))
+}
+
+/// The resolved arguments of a removal: exactly `{ path: string }` whose RAW
+/// spelling names a regular file. Every refusal is
+/// `NIKA-BUILTIN-REMOVE_FILE-001` and happens before any effect.
+fn removal_args(args: &Args) -> Result<&str, BuiltinFailure> {
+    const C1: &str = "NIKA-BUILTIN-REMOVE_FILE-001";
+    if let Some(extra) = args.keys().find(|key| key.as_str() != "path") {
+        return Err(BuiltinFailure::new(
+            C1,
+            format!(
+                "takes exactly `{{ path }}` · `{extra}:` is not an argument (no recursive, glob, \
+                 force, missing-ok or destination option)"
+            ),
+        ));
+    }
+    let path = req_str(args, "path", C1)?;
+    if let Some(why) = removal_path_refusal(path) {
+        return Err(BuiltinFailure::new(C1, format!("`path:` `{path}` {why}")));
+    }
+    Ok(path)
+}
+
+/// Why a raw removal path names no regular file, judged before any
+/// normalization (the same law as the static `nika-cap` shape rule, pinned
+/// equal by `remove_tests`): empty, a trailing separator, a final `.` or `..`,
+/// or a root or prefix with no file name. Not trimmed; a POSIX backslash and
+/// wildcard-looking characters are ordinary file-name characters.
+fn removal_path_refusal(raw: &str) -> Option<&'static str> {
+    let separator = |c: char| c == '/' || c == std::path::MAIN_SEPARATOR;
+    if raw.is_empty() {
+        return Some("is empty: it names no file");
+    }
+    if raw.ends_with(separator) {
+        return Some("ends with a separator: it names a directory, never a regular file");
+    }
+    let leaf = raw.rsplit(separator).next().unwrap_or_default();
+    if leaf == "." || leaf == ".." {
+        return Some("ends in `.` or `..`: it names a directory, never a regular file");
+    }
+    if Path::new(raw).file_name().is_none() {
+        return Some("is a root or prefix with no file name");
+    }
+    None
 }
 
 /// A `nika:glob` result: the file list (the value a consumer receives —

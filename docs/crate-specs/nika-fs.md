@@ -44,7 +44,7 @@ pub struct OwnedDir; // held dirfd · contained components · nofollow children
 impl FsReadDyn  for TokioFs { read · read_to_string · exists · canonicalize }
 impl FsWriteDyn for TokioFs {
   write (temp+rename, replaces) · write_new (complete temp+exclusive hard link)
-  create_dir_all · remove_file
+  create_dir_all · remove_file · remove_regular_file (held parent · no-follow · unlinkat)
 }
 impl FsMetaDyn  for TokioFs { metadata }
 impl FsListDyn  for TokioFs { list_dir (sorted) · glob (literal_separator · sorted) }
@@ -113,6 +113,49 @@ before publication, occupied destinations, normal cleanup, and preservation
 of ordinary replacement. These checks do
 not establish crash durability, worker quiescence, or every filesystem's
 behavior. The earlier admission results below do not cover this new method.
+
+### Regular-file removal
+
+`remove_regular_file(path)` removes only a regular file. The private helper
+`remove::remove_regular_at(parent, name, shown)` classifies the final name
+with `fstatat(AT_SYMLINK_NOFOLLOW)` and unlinks it with
+`unlinkat(NoRemoveDir)` relative to the same held parent descriptor. It never
+opens or reads the file, creates nothing, retries nothing and touches no ledger
+state. Absent is `NotFound`, a symlink `SymlinkRefused`, a directory or a
+special node `InvalidData`; other failures keep their translated errno. The
+raw spelling is checked before any `Path` decomposition, so empty, root, `.`,
+`..`, `file/` and `file/.` are `InvalidData` and never become `file`.
+
+TokioFs holds the existing parent with `OwnedDir::open` (no symlink at any of
+its components, nothing created; a bare name's parent is `.`) and runs the
+helper in `spawn_blocking`. An ancestor refused by that open keeps its
+translated I/O error. The host backend is not a permit sandbox: it acts on the
+path its caller chose. RootedFs keeps its path law (absolute, `..` and
+non-UTF-8 refused), opens the parents with its existing walk, and registers
+the removal as a write of the current phase: read-back and closed rooms refuse
+it, no budget is refunded and `written()` keeps its history. The raw
+`remove_file` of both backends, which unlinks a symlink name without touching
+its target, is unchanged.
+
+The check and the unlink are two steps, not an atomic compare-and-remove of
+one inode: a name substituted between them may be removed in its place, a
+substituted link being unlinked, never followed. A held parent stops a renamed
+or replaced ancestor name from redirecting the removal; it does not re-check
+where the held directory now sits. A dropped future may let the removal finish
+in the background.
+
+The lib tests in `src/remove_tests.rs` use a private parent per test (the room
+harness for RootedFs) and check removal of a binary and an unreadable file
+with neighbours unchanged, refusals for absent names and missing parents (none
+created), internal, external and dangling links, directories, FIFOs, raw
+spellings and escapes with every name and target unchanged, the raw removal
+still unlinking a link the new operation refuses, a symlinked ancestor, the
+removal staying in a held parent after its visible name was replaced, phase
+refusals, and no budget refund. They do not drive a substitution between classification and unlink, or
+completion of a dropped removal. The separate `tests/remove_relative.rs`
+exercises a bare relative host name in an isolated process. The workflow
+callable `nika:remove_file` delegates to this method through `JudgedFs`; the
+backend itself grants no permits.
 
 ### Diamond upgrades vs brouillon (CRAFT · ADR-001)
 

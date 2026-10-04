@@ -74,9 +74,68 @@ pub fn builtin_shape_findings(tool: &str, args: Option<&serde_json::Value>) -> V
         "nika:tts_generate" => check_tts_generate_shape(args, &mut out),
         "nika:decide" => check_decide_shape(args, &mut out),
         "nika:hash" => check_hash_shape(args, &mut out),
+        "nika:remove_file" => check_remove_file_shape(args, &mut out),
         _ => {}
     }
     out
+}
+
+/// `nika:remove_file` static contracts (builtins-v0.1.md `§nika:remove_file`):
+/// `args` is an object, a present `path:` is a string, and a LITERAL path is
+/// judged on its raw spelling before any normalization. A templated path
+/// (`${{ }}` anywhere in it) defers its whole shape to the resolved run
+/// judgment, a visible trailing `/` or final `/.` included; it never hides a
+/// non-object `args` or a non-string `path`. A missing `path` and unknown keys
+/// are the closed catalog row's refusals, not this rule's.
+fn check_remove_file_shape(args: Option<&serde_json::Value>, out: &mut Vec<String>) {
+    let Some(args) = args else {
+        return;
+    };
+    let Some(map) = args.as_object() else {
+        out.push(
+            "`args:` must be an object `{ path: string }` (builtins-v0.1.md §nika:remove_file)"
+                .to_owned(),
+        );
+        return;
+    };
+    match map.get("path") {
+        None => {}
+        Some(serde_json::Value::String(raw)) if raw.contains("${{") => {}
+        Some(serde_json::Value::String(raw)) => {
+            if let Some(why) = removal_path_refusal(raw) {
+                out.push(format!(
+                    "`path:` {why} (builtins-v0.1.md §nika:remove_file)"
+                ));
+            }
+        }
+        Some(_) => out.push(
+            "`path:` must be a string, never coerced (builtins-v0.1.md §nika:remove_file)"
+                .to_owned(),
+        ),
+    }
+}
+
+/// Why a raw removal path names no regular file, judged before any
+/// normalization: empty, a trailing separator (`/` or the platform's own), a
+/// final `.` or `..` component, or a root or platform prefix with no file
+/// name. It is not trimmed: a single space is a name. A backslash on POSIX and
+/// wildcard-looking characters are ordinary file-name characters.
+fn removal_path_refusal(raw: &str) -> Option<&'static str> {
+    let separator = |c: char| c == '/' || c == std::path::MAIN_SEPARATOR;
+    if raw.is_empty() {
+        return Some("is empty: it names no file");
+    }
+    if raw.ends_with(separator) {
+        return Some("ends with a separator: it names a directory, never a regular file");
+    }
+    let leaf = raw.rsplit(separator).next().unwrap_or_default();
+    if leaf == "." || leaf == ".." {
+        return Some("ends in `.` or `..`: it names a directory, never a regular file");
+    }
+    if std::path::Path::new(raw).file_name().is_none() {
+        return Some("is a root or prefix with no file name");
+    }
+    None
 }
 
 /// Judge literal choices independently: one templated argument does not
@@ -829,3 +888,55 @@ fn check_image_v1_reservations(
 #[cfg(test)]
 #[path = "shape_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+mod remove_file_shape_tests {
+    use super::builtin_shape_findings;
+    use serde_json::json;
+
+    fn findings(args: &serde_json::Value) -> Vec<String> {
+        builtin_shape_findings("nika:remove_file", Some(args))
+    }
+
+    #[test]
+    fn a_literal_path_naming_a_regular_file_holds() {
+        for path in [
+            "./out/stale.txt",
+            "out/./note",
+            "out/part/../note",
+            "out/...",
+            " ",
+            "out/?.txt",
+            "out/[a]*.txt",
+            "out\\back.txt",
+        ] {
+            assert!(findings(&json!({ "path": path })).is_empty(), "{path:?}");
+        }
+    }
+
+    #[test]
+    fn a_literal_path_naming_a_directory_or_nothing_is_refused_raw() {
+        for path in ["", "/", "out/sub/", "out/.", "out/..", ".", "..", "out//"] {
+            let found = findings(&json!({ "path": path }));
+            assert_eq!(found.len(), 1, "{path:?}: {found:?}");
+            assert!(found[0].contains("`path:`"), "{found:?}");
+        }
+    }
+
+    #[test]
+    fn a_templated_path_defers_its_whole_shape_but_never_its_type() {
+        for path in [
+            "${{ inputs.target }}",
+            "${{ inputs.target }}/",
+            "out/${{ inputs.target }}/.",
+        ] {
+            assert!(findings(&json!({ "path": path })).is_empty(), "{path:?}");
+        }
+        let typed = findings(&json!({ "path": 42 }));
+        assert!(typed[0].contains("must be a string"), "{typed:?}");
+        let object = findings(&json!("./out/stale.txt"));
+        assert!(object[0].contains("must be an object"), "{object:?}");
+        // A missing path is the closed catalog row's required-arg refusal.
+        assert!(findings(&json!({})).is_empty());
+    }
+}

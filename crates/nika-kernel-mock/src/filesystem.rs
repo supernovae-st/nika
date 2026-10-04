@@ -144,6 +144,41 @@ impl FsWriteDyn for MockFs {
                 path: path.display().to_string(),
             })
     }
+
+    /// Remove exactly the stored file `path` names, in one mutation under the
+    /// store's lock (no await under it). A raw spelling that names no final
+    /// file (empty, `/`, a trailing separator, a final `.` or `..`) is
+    /// `InvalidData` before `Path` equality could read `file/` as `file`; an
+    /// implicit directory is `InvalidData` and keeps its descendants; absent
+    /// is `NotFound`. The store holds no symlink or special node: this proves
+    /// bookkeeping, never real confinement.
+    async fn remove_regular_file(&self, path: &Path) -> Result<(), FsError> {
+        let shown = path.display().to_string();
+        let raw = path.to_string_lossy();
+        let leaf = raw.rsplit('/').next().unwrap_or_default();
+        if leaf.is_empty() || leaf == "." || leaf == ".." {
+            return Err(FsError::InvalidData {
+                path: shown,
+                reason: "the path names no final file".to_owned(),
+            });
+        }
+        let mut files = self.files.write();
+        if files.remove(path).is_some() {
+            return Ok(());
+        }
+        // Component-aware: `/out//dir` holds `/out/dir/inner`, and `/out/dir`
+        // never holds a sibling `/out/directory/inner`.
+        if files
+            .keys()
+            .any(|child| child.starts_with(path) && child.as_path() != path)
+        {
+            return Err(FsError::InvalidData {
+                path: shown,
+                reason: "a directory is not a regular file".to_owned(),
+            });
+        }
+        Err(FsError::NotFound { path: shown })
+    }
 }
 
 impl FsMetaDyn for MockFs {
@@ -433,6 +468,95 @@ mod tests {
         assert!(!glob_match("foo", "foo.rs"));
         // `**` matches zero segments
         assert!(glob_match("**/foo.rs", "foo.rs"));
+    }
+
+    // A regular removal in memory: no symlink or special node exists here, so
+    // these witnesses prove the map's bookkeeping, never real confinement.
+
+    #[tokio::test]
+    async fn regular_removal_takes_the_exact_file_seen_by_every_clone() {
+        let fs = MockFs::new()
+            .with_file("/out/victim.bin", vec![0x00, 0xff])
+            .with_file("/out/victim.bin.bak", "kept")
+            .with_file("/out/neighbour.txt", "kept");
+        let clone = fs.clone();
+        fs.remove_regular_file(Path::new("/out/victim.bin"))
+            .await
+            .unwrap();
+        assert!(!clone.exists(Path::new("/out/victim.bin")).await);
+        assert_eq!(
+            clone.file_paths(),
+            vec![
+                PathBuf::from("/out/neighbour.txt"),
+                PathBuf::from("/out/victim.bin.bak")
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn regular_removal_refuses_an_absent_name_and_an_implicit_directory() {
+        let fs = MockFs::new().with_file("/out/dir/inner.txt", "inner");
+        let absent = fs.remove_regular_file(Path::new("/out/gone.txt")).await;
+        assert!(
+            matches!(absent, Err(FsError::NotFound { .. })),
+            "{absent:?}"
+        );
+        let directory = fs.remove_regular_file(Path::new("/out/dir")).await;
+        assert!(
+            matches!(directory, Err(FsError::InvalidData { .. })),
+            "{directory:?}"
+        );
+        assert_eq!(fs.file_paths(), vec![PathBuf::from("/out/dir/inner.txt")]);
+    }
+
+    #[tokio::test]
+    async fn regular_removal_reads_an_implicit_directory_by_its_components() {
+        let fs = MockFs::new()
+            .with_file("/out/dir/inner.txt", "inner")
+            .with_file("/out/directory/inner.txt", "sibling");
+        // A doubled separator still names the directory that holds a file.
+        let doubled = fs.remove_regular_file(Path::new("/out//dir")).await;
+        assert!(
+            matches!(doubled, Err(FsError::InvalidData { .. })),
+            "{doubled:?}"
+        );
+        // A name that only prefixes a sibling's text is no directory of it.
+        let prefix = fs.remove_regular_file(Path::new("/out/direc")).await;
+        assert!(
+            matches!(prefix, Err(FsError::NotFound { .. })),
+            "{prefix:?}"
+        );
+        assert_eq!(
+            fs.file_paths(),
+            vec![
+                PathBuf::from("/out/dir/inner.txt"),
+                PathBuf::from("/out/directory/inner.txt")
+            ],
+            "every descendant kept"
+        );
+        let fs = MockFs::new().with_file("/out/directory/inner.txt", "sibling");
+        let sibling = fs.remove_regular_file(Path::new("/out/dir")).await;
+        assert!(
+            matches!(sibling, Err(FsError::NotFound { .. })),
+            "`/out/dir` holds nothing: {sibling:?}"
+        );
+        assert_eq!(
+            fs.file_paths(),
+            vec![PathBuf::from("/out/directory/inner.txt")]
+        );
+    }
+
+    #[tokio::test]
+    async fn regular_removal_never_reads_file_slash_or_file_dot_as_the_file() {
+        let fs = MockFs::new().with_file("/out/file.txt", "kept");
+        for spelling in ["/out/file.txt/", "/out/file.txt/.", "/out/..", "", "/"] {
+            let refused = fs.remove_regular_file(Path::new(spelling)).await;
+            assert!(
+                matches!(refused, Err(FsError::InvalidData { .. })),
+                "{spelling:?}: {refused:?}"
+            );
+        }
+        assert_eq!(fs.file_paths(), vec![PathBuf::from("/out/file.txt")]);
     }
 
     /// Verify blanket Fs trait is satisfied.

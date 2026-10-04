@@ -71,8 +71,9 @@ pub(crate) const NET_WILDCARD_CODE: &str = "NIKA-AUTH-010";
 /// defers to the runtime re-gate).
 const FS_READ_TOOLS: &[&str] = &["nika:read", "nika:glob", "nika:grep"];
 /// The fs-write twin (an `edit`'s untrusted path re-gates on the WRITE
-/// direction only — the read half is the runtime boundary's).
-const FS_WRITE_TOOLS: &[&str] = &["nika:write", "nika:edit"];
+/// direction only — the read half is the runtime boundary's; a removal is a
+/// write of its exact path and reads nothing).
+const FS_WRITE_TOOLS: &[&str] = &["nika:write", "nika:edit", "nika:remove_file"];
 /// The net egress arg for a tool, ASKED of the authoritative table
 /// rather than re-typed here.
 ///

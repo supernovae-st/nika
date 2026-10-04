@@ -231,7 +231,9 @@ pub fn builtin_effect(tool: &str, args: Option<&serde_json::Value>) -> Option<Bu
             recursive: true,
             walk_root: false,
         }),
-        "nika:write" => Some(BuiltinEffect::Fs {
+        // A removal is a write of its exact path (builtins-v0.1.md
+        // §nika:remove_file): no content is read, nothing below it is walked.
+        "nika:write" | "nika:remove_file" => Some(BuiltinEffect::Fs {
             path_arg: "path",
             reads: false,
             writes: true,
@@ -719,7 +721,7 @@ mod tests {
             Some(BuiltinEffect::Net { .. })
         ));
         // write: every coarse Write member is a fine-grained Fs writer.
-        for tool in ["nika:write", "nika:edit"] {
+        for tool in ["nika:write", "nika:edit", "nika:remove_file"] {
             let coarse = EffectClass::classify("invoke", Some(tool));
             assert!(coarse.contains(&EffectClass::Write), "{tool}");
             assert!(
@@ -1003,5 +1005,34 @@ mod tests {
         assert!(only_write.join("").contains("its reads"), "{only_write:?}");
         let both = stated(&["./notes.md"]);
         assert!(unbound_fs_args("nika:edit", Some(&edit), &both, &both).is_empty());
+    }
+
+    #[test]
+    fn a_removal_is_an_exact_path_write_that_reads_nothing() {
+        assert_eq!(
+            builtin_effect("nika:remove_file", None),
+            Some(BuiltinEffect::Fs {
+                path_arg: "path",
+                reads: false,
+                writes: true,
+                recursive: false,
+                walk_root: false,
+            })
+        );
+        assert_eq!(
+            required_fs_directions("nika:remove_file"),
+            Some((false, true))
+        );
+        assert!(crate::effect::builtin_egresses("nika:remove_file"));
+        assert!(!is_pure_internal("nika:remove_file"));
+        assert!(!is_pure_internal_call("nika:remove_file", None));
+        // Its one path binds to a stated write, never to a read alone.
+        let args = json!({"path": "./out/stale.txt"});
+        let written = stated(&["./out/stale.txt"]);
+        assert!(unbound_fs_args("nika:remove_file", Some(&args), &[], &written).is_empty());
+        let read_only = unbound_fs_args("nika:remove_file", Some(&args), &written, &[]);
+        assert!(read_only.join("").contains("its writes"), "{read_only:?}");
+        let dynamic = json!({"path": "${{ inputs.target }}"});
+        assert!(!unbound_fs_args("nika:remove_file", Some(&dynamic), &[], &written).is_empty());
     }
 }

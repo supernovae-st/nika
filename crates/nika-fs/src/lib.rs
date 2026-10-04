@@ -82,10 +82,14 @@ mod ledger;
 pub use ledger::{Drain, Drained, EffectLedger, LedgerRefusal, Phase, Reservation, RoomLimits};
 mod rooted;
 pub use rooted::{Capped, RootedFs, read_capped};
+mod remove;
 mod write_new;
 
 #[cfg(test)]
 mod write_new_tests;
+
+#[cfg(test)]
+mod remove_tests;
 
 #[cfg(test)]
 mod room_harness;
@@ -287,6 +291,44 @@ impl FsWriteDyn for TokioFs {
             .await
             .map_err(|e| FsError::from_io(&e, path))
     }
+
+    /// Remove the regular file `path` names on the host: its existing parent
+    /// is held through [`OwnedDir::open`] (no symlink at any component of it,
+    /// nothing created; a bare name's parent is `.`), then the final name is
+    /// classified without following it and unlinked relative to that held
+    /// parent. The host backend is not a sandbox: it acts on the path its
+    /// caller chose.
+    ///
+    /// CANCEL SAFETY: the blocking classification and unlink run to completion
+    /// in the background when the future is dropped; dropping it does not
+    /// prove the removal stopped.
+    async fn remove_regular_file(&self, path: &Path) -> Result<(), FsError> {
+        let path = path.to_path_buf();
+        tokio::task::spawn_blocking(move || remove_regular_host(&path))
+            .await
+            .map_err(|error| FsError::Io {
+                reason: format!("regular removal worker failed: {error}"),
+            })?
+    }
+}
+
+/// The host's regular removal as one blocking unit: the raw spelling must name
+/// a final file, its existing parent is held, then the shared helper acts.
+fn remove_regular_host(path: &Path) -> Result<(), FsError> {
+    remove::final_name(path)?;
+    let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
+        return Err(FsError::InvalidData {
+            path: path.display().to_string(),
+            reason: "the path names no final file".to_owned(),
+        });
+    };
+    let parent = if parent.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        parent
+    };
+    let held = OwnedDir::open(parent).map_err(|error| FsError::from_io(&error, path))?;
+    remove::remove_regular_at(held.as_file(), name, path)
 }
 
 impl FsMetaDyn for TokioFs {

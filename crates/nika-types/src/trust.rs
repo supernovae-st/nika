@@ -218,12 +218,14 @@ const TRUST_PURE_BUILTINS: &[&str] = &[
     "nika:wait",
 ];
 
-/// Builtins with external I/O (always Untrusted output · 5).
+/// Builtins with external I/O (always Untrusted output · 6). A removal is a
+/// filesystem effect: its returned path is never evidence of disk state.
 const TRUST_EXTERNAL_BUILTINS: &[&str] = &[
     "nika:edit",
     "nika:fetch",
     "nika:notify",
     "nika:prompt",
+    "nika:remove_file",
     "nika:write",
 ];
 
@@ -608,13 +610,16 @@ mod tests {
         assert_eq!(TRUST_PURE_BUILTINS.len(), 10, "expected 10 pure builtins");
         assert_eq!(
             TRUST_EXTERNAL_BUILTINS.len(),
-            5,
-            "expected 5 external builtins"
+            6,
+            "expected 6 external builtins"
         );
         let total = TRUST_PROPAGATING_BUILTINS.len()
             + TRUST_PURE_BUILTINS.len()
             + TRUST_EXTERNAL_BUILTINS.len();
-        assert_eq!(total, 22, "trust categorization total must equal spec 22");
+        assert_eq!(
+            total, 23,
+            "trust categorization total must equal spec 22 + remove_file"
+        );
     }
 
     #[test]
@@ -625,6 +630,14 @@ mod tests {
         assert!(is_categorized_builtin("nika:notify"));
         assert!(is_categorized_builtin("nika:validate"));
         assert!(is_categorized_builtin("nika:inspect"));
+        assert!(is_categorized_builtin("nika:remove_file"));
+        assert_eq!(
+            builtin_output_trust("nika:remove_file", TrustLevel::TRUSTED),
+            TrustLevel::UNTRUSTED,
+            "a removal's output is untrusted whatever its input"
+        );
+        // The retired destructive name stays unknown: no alias of the removal.
+        assert!(!is_categorized_builtin("nika:delete"));
     }
 
     #[test]
