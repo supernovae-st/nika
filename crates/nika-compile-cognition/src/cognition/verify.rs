@@ -995,6 +995,76 @@ pub(super) async fn replayed<P: ProviderInferDyn>(
     Ok(pre)
 }
 
+/// The answer round of a semantic record (slice C): the core compiles the raw request with no
+/// call (`compile_judged`); a graph the reach laws (read only here) refuse is named and nothing
+/// is judged; a whole request still pending on a candidate is judged by the round's admitted
+/// judge, a counted call bound to `intent`/`request` as this round derives them, and the raw
+/// request is compiled again with those judgments, which settle only under the core's own
+/// binding (a mismatch leaves it INCOMPLETE). The judge's journal joins that outcome; nothing
+/// is read from the record as a judgment.
+pub(super) async fn semantic<P: ProviderInferDyn>(
+    raw: &CompileRequest,
+    intent: &str,
+    request: &CompileRequest,
+    judges: (Option<&dyn DecisionSeat>, Option<(&AuthoringPolicy, &P)>),
+) -> Result<CompileOutcome, CompileError> {
+    let mut out = nika_compile::compile_judged(raw, &[])?;
+    let rebuilt = out.provenance.plan.as_ref();
+    let refused = rebuilt.map(super::sketch::replay_laws).unwrap_or_default();
+    if !refused.is_empty() {
+        crate::finding(
+            &mut out,
+            DiagnosticKind::Unknown,
+            "recorded_plan",
+            format!(
+                "The recorded sketch no longer holds the reach laws ({} refusal(s), not repeated from the record): nothing is judged and nothing is READY; compile the intent again without the record.",
+                refused.len()
+            ),
+        );
+        out.candidate = None;
+        out.check_preview = None;
+        out.status = CompileStatus::Incomplete;
+        return Ok(out);
+    }
+    let open = (out.provenance.decision.as_ref())
+        .and_then(|d| d["pending"]["open"].as_array())
+        .is_some_and(|open| !open.is_empty());
+    let judge = match judges {
+        (Some(seat), _) => Judge::Seat(seat),
+        (None, Some((policy, provider))) => Judge::Provider(policy, provider),
+        (None, None) => return Ok(out),
+    };
+    if out.candidate.is_none() || !open {
+        return Ok(out);
+    }
+    let mut pre = crate::initial();
+    let plan = crate::lexicon::read(intent).plan;
+    let verdict = verdict_on(intent, request, &plan, &out, &judge, &mut pre).await;
+    record(&mut pre, &judge, &verdict, 0);
+    let settled = verdict.defects.is_empty() && verdict.unknown.is_empty();
+    let judgments = if settled {
+        verdict.judgments.as_slice()
+    } else {
+        &[]
+    };
+    let mut done = nika_compile::compile_judged(raw, judgments)?;
+    done.provenance.authoring = pre.provenance.authoring.take();
+    done.provenance.cognition = pre.provenance.cognition;
+    if let (Some(decision), Some(verified)) =
+        (done.provenance.decision.as_mut(), pre.provenance.decision)
+    {
+        decision["semantic_verification"] = verified["semantic_verification"].clone();
+    }
+    done.diagnostics.extend(pre.diagnostics);
+    if settled {
+        route(&mut done, &format!("verify: judged ({})", judge.kind()));
+    } else {
+        route(&mut done, "verify: not ready");
+        blocked(&mut done, &verdict, 0);
+    }
+    Ok(done)
+}
+
 /// A candidate the native or the sketch door finishes READY is judged before READY (R4 A11, E39
 /// C3): the seat wrote the workflow itself (the sketch door's seat its tasks and program holes),
 /// so no law of the core reads its programs, and the parser, Check and the fidelity laws only

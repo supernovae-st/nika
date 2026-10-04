@@ -559,13 +559,6 @@ fn empty_models_store_teaches_pull_only_on_a_sidecar_build() {
 }
 
 #[test]
-fn level_glyphs_are_distinct() {
-    assert_eq!(Level::Ok.glyph(), '✔');
-    assert_eq!(Level::Warn.glyph(), '⚠');
-    assert_eq!(Level::Fail.glyph(), '✖');
-}
-
-#[test]
 fn the_ascii_theme_folds_every_doctor_glyph() {
     // LANG-04 (gauntlet G-B): `--plain` promises ASCII glyph twins,
     // and doctor's ✔/⚠/· column shipped raw Unicode for a train while
@@ -1451,3 +1444,5 @@ fn serve_row_fails_when_the_token_is_a_symlink() {
             .is_some_and(|f| f.contains("openssl rand -hex 24"))
     );
 }
+
+mod render_parity;

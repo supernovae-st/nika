@@ -70,7 +70,9 @@ pub mod shape    { bounded type-aware output summaries }
 pub mod snippet  { paint_span — rustc-grade span frames }
 pub mod vocab    { hint · arrow · at_least — the glyph/hint vocabulary }
 pub mod demo     { deterministic §3.3 storyboard streams (success · failure · …) }
-pub mod check_render::review { finding_rows · effect_rows — the rows a review shows of one report }
+pub mod check_render::review { finding_rows · effect_rows · plan_lines · plan_lines_in_order · task_face }
+pub mod front_door { welcome and choice views · doctor human/JSON report cells }
+pub mod repair_render { Repair · StopNotes · Refusal · render_refusals · render_stops · summary }
 ```
 
 ## 4. Invariants
@@ -97,6 +99,16 @@ name, and the spend a run can reach from the report's cost envelope (no model ca
 nothing on inference, a model with no catalog price is unknown and never free, a missing
 token or iteration bound stays unbounded). Pure text over the report: the caller keeps the
 verdict, the path and every authority.
+
+## Passive operator views
+
+`front_door` also owns welcome/choice data views and their renderers, including
+`front_door::doctor` and its serializable `Finding`/`Level`. The host supplies
+resolved context, selected next actions, redacted facts and prepared doctor rows;
+these views use the existing `Theme` without collecting, choosing or persisting.
+`repair_render` owns repair report values and text, while the host applies and
+judges repairs. `check_render::review` owns the candidate plan lines and task faces
+formerly rendered by Session; parsing for presentation grants no authority.
 
 ## Recorded terminal outputs
 

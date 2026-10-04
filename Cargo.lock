@@ -4742,6 +4742,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml_bw",
+ "sha2 0.10.9",
  "thiserror 2.0.20",
  "tokio",
  "unicode-normalization",
@@ -4847,6 +4848,7 @@ dependencies = [
  "nika-graph",
  "nika-schema",
  "nika-types",
+ "serde",
  "serde_json",
  "uuid",
 ]

@@ -610,6 +610,13 @@ exit vocabulary.
 - **No CLI framework below the root**: `CanvasTheme` stays a plain enum
   here; the root mirrors it as its clap `ValueEnum`.
 
+## Authoring observation facade
+
+`compile::observe` re-exports the shared Cognition observer for a host's own
+compile future. It is the same callback before answer decoding, not a second
+provider tap. Borrowed Text and optional metadata are not persisted here; the
+host retains admission, privacy policy and any eventual capture lifecycle.
+
 ## Metrics
 
 Live numbers come from the projector — `scripts/crate-metrics.sh

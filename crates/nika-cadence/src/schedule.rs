@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 
 use jiff::Timestamp;
 use nika_error::prelude::{NikaCode, NikaErrorCode, codes};
+use serde_json::{Value, json};
 
 use crate::firing::{quoted, sha256_hex};
 use crate::parse::{valid_tolerance, valid_workflow_path};
@@ -53,6 +54,18 @@ pub enum ScheduleWhen {
     Once { at: Timestamp },
     Cadence { expression: String },
     Webhook,
+}
+
+/// The existing API/status shape of an already admitted schedule time; no planning or I/O.
+#[must_use]
+pub fn when_json(when: &ScheduleWhen) -> Value {
+    match when {
+        ScheduleWhen::Once { at } => json!({"kind": "once", "at": at.to_string()}),
+        ScheduleWhen::Cadence { expression } => {
+            json!({"kind": "cadence", "expression": expression})
+        }
+        ScheduleWhen::Webhook => json!({"kind": "webhook"}),
+    }
 }
 
 impl ScheduleWhen {

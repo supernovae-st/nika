@@ -32,8 +32,10 @@
 )]
 
 pub mod behavior;
+pub mod binding;
 pub mod candidate;
 pub mod fidelity;
+pub mod literal;
 pub mod predicate;
 pub mod sketch;
 

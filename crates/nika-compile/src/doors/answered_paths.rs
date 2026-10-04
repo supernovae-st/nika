@@ -89,16 +89,25 @@ pub fn native_answered_paths(
         Some(raw) => serde_json::from_str::<String>(raw).ok()?,
         None => original.clone(),
     };
-    if effective.trim().is_empty()
-        || record["strategy"].as_str() != Some("native")
-        || record["intent_sha256"].as_str() != Some(super::intent_sha256(&effective).as_str())
-        || !record["source"].is_string()
-        || !record["questions"].is_array()
+    // A semantic record is read through the replay's own validated rebuild, never its stored
+    // source; a legacy native record as it was.
+    let view = if record.get("semantic_record").is_some() {
+        let folded = crate::lexicon::fold_apostrophes(&effective);
+        Some(super::rebuilt(&folded, record, request).ok()?.0)
+    } else {
+        None
+    };
+    if view.is_none()
+        && (effective.trim().is_empty()
+            || record["strategy"].as_str() != Some("native")
+            || record["intent_sha256"].as_str() != Some(super::intent_sha256(&effective).as_str())
+            || !record["source"].is_string()
+            || !record["questions"].is_array())
     {
         return None;
     }
     let mut out = crate::initial();
-    let paths = super::apply_native(record, request, &mut out);
+    let paths = super::apply_native(view.as_ref().unwrap_or(record), request, &mut out);
     (out.status == CompileStatus::Ready
         && out.candidate.as_deref() == Some(candidate)
         && out

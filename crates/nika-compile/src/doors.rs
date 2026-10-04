@@ -169,11 +169,7 @@ pub fn replay_judged(
 ) -> Result<(), CompileError> {
     let folded = lexicon::fold_apostrophes(intent);
     let intent = folded.as_str();
-    if super::pending_transform::replay(intent, record, request, out) {
-        return Ok(());
-    }
-    if record.get("strategy").and_then(Value::as_str) == Some(Strategy::Native.word()) {
-        native_replay(intent, record, request, judgments, out);
+    if seat_record(intent, record, request, judgments, out) {
         return Ok(());
     }
     record_route(out, &["replayed plan".to_owned()]);
@@ -438,6 +434,31 @@ fn two_triggers(record: &Value, request: &CompileRequest, out: &mut CompileOutco
             QuestionType::Text,
         );
     }
+}
+
+/// A record no plan replay reads: a semantic record (first, whatever else it carries), a pending
+/// transform, a native record. `true` when one of them answered the round.
+fn seat_record(
+    intent: &str,
+    record: &Value,
+    request: &CompileRequest,
+    judgments: &[super::ledger::Judgment],
+    out: &mut CompileOutcome,
+) -> bool {
+    if record.get("semantic_record").is_some() {
+        semantic_refusal(
+            out,
+            "it replays only through a compile of the caller's raw request",
+        );
+    } else if !super::pending_transform::replay(intent, record, request, out) {
+        let native =
+            record.get("strategy").and_then(Value::as_str) == Some(Strategy::Native.word());
+        if native {
+            native_replay(intent, record, request, judgments, out);
+        }
+        return native;
+    }
+    true
 }
 
 /// Replay a native record: the same candidate with this round's answers, zero calls. The seat
@@ -863,6 +884,202 @@ fn seat_model(source: &mut String, request: &CompileRequest, out: &mut CompileOu
             false
         }
     }
+}
+
+/// The basis a door reads, before any proposal: its effective words and initial answers, the
+/// world's identity, every clause occurrence in order (repeats kept), the reader's floor, the
+/// ledger and the partial behavior contract (unsupported portion named). No candidate in it.
+#[must_use]
+pub fn request_basis(intent: &str, request: &CompileRequest) -> Value {
+    let mut basis = nika_compile_fidelity::sketch::read_basis(intent, &request.answers);
+    let world = request.knowledge.clone().unwrap_or(Value::Null).to_string();
+    basis["world_sha256"] = json!(super::surface::sha256(&world));
+    basis["ledger"] = super::ledger::Ledger::extract_reading(&lexicon::read(intent)).to_json();
+    basis
+}
+
+/// The caller's own request, before money is blanked or a clarification taken.
+fn caller_basis(request: &CompileRequest) -> Value {
+    let words = match &request.input {
+        super::Input::Create(text) => Some(text.as_str()),
+        super::Input::Edit { .. } => None,
+    };
+    let money: Vec<_> = request.money.iter().map(|r| [r.start, r.end]).collect();
+    json!({"input": words, "original_intent": request.original_intent, "answers": request.answers,
+           "money": money, "stated_money": request.stated_money})
+}
+
+/// Read at a compile's entry on the raw request: its caller basis; or the refused outcome when it
+/// replays a semantic record of another caller (words, original, money, an initial answer, or a
+/// clarification the record never had: a replacement is a new basis). No call, nothing emitted.
+///
+/// # Errors
+/// The refused outcome of a semantic record this caller cannot replay.
+pub fn caller(request: &CompileRequest) -> Result<Value, Box<CompileOutcome>> {
+    let now = caller_basis(request);
+    let Some(stored) = (request.plan.as_ref())
+        .filter(|r| r.get("semantic_record").is_some())
+        .map(|r| &r["basis"]["caller"])
+    else {
+        return Ok(now);
+    };
+    let same = same_caller(stored, &now, &request.answers);
+    if same {
+        return Ok(now);
+    }
+    let mut out = super::initial();
+    semantic_refusal(
+        &mut out,
+        "its caller's words, money or initial answers are not this request's",
+    );
+    Err(Box::new(out))
+}
+
+/// Whether `now`, this request's caller basis, is the one a record's `stored` caller basis
+/// states: the same words, original, money spans and operator money, each initial answer
+/// unchanged in `current`, and no clarification the record never had (a replacement is a new
+/// basis). An initial answer map that is not one of strings matches nothing.
+fn same_caller(
+    stored: &Value,
+    now: &Value,
+    current: &std::collections::BTreeMap<String, String>,
+) -> bool {
+    let initial = (stored["answers"].as_object()).filter(|map| map.values().all(Value::is_string));
+    ["input", "original_intent", "money", "stated_money"]
+        .iter()
+        .all(|key| stored[*key] == now[*key])
+        && initial.is_some_and(|initial| {
+            (initial.iter()).all(|(k, v)| current.get(k).map(String::as_str) == v.as_str())
+                && (initial.contains_key("intent.clarification")
+                    || !current.contains_key("intent.clarification"))
+        })
+}
+
+/// The answer round of a semantic record, reached only from a compile whose raw caller was
+/// read: the request the door read is derived as the door derived it (a clarification taken as
+/// the effective words, folded), then [`semantic_replay`]. `false` when the request carries no
+/// semantic record.
+pub(crate) fn semantic_round(
+    request: &CompileRequest,
+    judgments: &[super::ledger::Judgment],
+    out: &mut CompileOutcome,
+) -> bool {
+    let (Some(record), super::Input::Create(words)) = (request.plan.as_ref(), &request.input)
+    else {
+        return false;
+    };
+    if record.get("semantic_record").is_none() {
+        return false;
+    }
+    let mut assembly = request.clone();
+    let clarified = (assembly.answers.remove("intent.clarification"))
+        .and_then(|raw| serde_json::from_str::<String>(&raw).ok());
+    let intent = lexicon::fold_apostrophes(clarified.as_deref().unwrap_or(words));
+    semantic_replay(&intent, record, &assembly, judgments, out);
+    true
+}
+
+/// A semantic record's refusal: static, never a record value or key name repeated.
+fn semantic_refusal(out: &mut CompileOutcome, why: &str) {
+    record_route(out, &["replayed semantic record".to_owned()]);
+    super::finding(
+        out,
+        DiagnosticKind::Unknown,
+        "recorded_plan",
+        format!(
+            "The recorded sketch cannot be replayed: {why}. Nothing was emitted, its stored source is never used and no model was asked; compile the intent again without the record."
+        ),
+    );
+}
+
+/// Replay a semantic record: its graph and fills are emitted again under THIS request; its bound
+/// answers must still emit its final candidate; a new answer must answer a question that
+/// candidate asks, and binds anew; a gap stays an open duty; the stored source is never read and
+/// the whole request stays pending ([`native_pending`]). Any mismatch is a refusal.
+fn semantic_replay(
+    intent: &str,
+    record: &Value,
+    request: &CompileRequest,
+    judgments: &[super::ledger::Judgment],
+    out: &mut CompileOutcome,
+) {
+    out.provenance.strategy = Some(Strategy::Native);
+    let (view, bound) = match rebuilt(intent, record, request) {
+        Ok(rebuilt) => rebuilt,
+        Err(why) => return semantic_refusal(out, why),
+    };
+    let mut earlier = request.clone();
+    earlier.answers.clone_from(&bound);
+    let mut asked = super::initial();
+    apply_native(&view, &earlier, &mut asked);
+    let sha = |out: &CompileOutcome| json!(out.candidate.as_deref().map(super::surface::sha256));
+    let fresh = (request.answers.keys()).filter(|key| !bound.contains_key(*key));
+    if sha(&asked) != record["final"]["candidate_sha256"] {
+        return semantic_refusal(
+            out,
+            "its answers no longer emit the final candidate it binds",
+        );
+    }
+    if fresh
+        .into_iter()
+        .any(|k| !asked.questions.iter().any(|q| &q.key == k))
+    {
+        return semantic_refusal(out, "an answer of this round answers no question it asks");
+    }
+    // Origin only: judgments a host supplied, never their authenticity or their acceptance.
+    let mut route = vec!["replayed semantic record".to_owned()];
+    if !judgments.is_empty() {
+        route.push("judgments supplied by the host".to_owned());
+    }
+    record_route(out, &route);
+    native_apply(&view, request, out);
+    if !view["gaps"].as_array().is_none_or(Vec::is_empty)
+        && out.status == super::CompileStatus::Ready
+    {
+        out.status = super::CompileStatus::Incomplete;
+        super::finding(
+            out,
+            DiagnosticKind::Missed,
+            "recorded_plan",
+            "A clause the seat could not realize stays an open duty: a `gap` answer records a disposition, never its realization; nothing is READY.",
+        );
+    }
+    let mut kept = record.clone();
+    kept["final"] = json!({"answers": request.answers, "candidate_sha256": sha(out)});
+    out.provenance.plan = Some(kept);
+    native_pending(intent, request, judgments, out);
+}
+
+/// The record emitted again under this request, its answers held to A0 ⊆ Ak ⊆ Ac (the initial
+/// answers within the bound ones, the bound ones this round's), its basis recomputed from the
+/// request with only A0, its graph and fills completed by the sketch laws and lowered to bytes
+/// that must be the assembly it names: the view a native settlement reads, with the bound
+/// answers; or why the record does not replay.
+pub(crate) fn rebuilt(
+    intent: &str,
+    record: &Value,
+    request: &CompileRequest,
+) -> Result<(Value, std::collections::BTreeMap<String, String>), &'static str> {
+    let read = &record["basis"]["read"];
+    let (initial, bound) = nika_compile_fidelity::sketch::bound_answers(record, &request.answers)?;
+    let mut basis = request.clone();
+    basis.answers.retain(|key, _| initial.contains_key(key));
+    if request_basis(intent, &basis) != *read {
+        return Err("it was recorded for another request, answers, world or reading");
+    }
+    let allowed = nika_compile_fidelity::fidelity::allowed_values(&basis.answers);
+    let mut view = nika_compile_fidelity::sketch::replayed(record, intent, &allowed)?;
+    let source = serde_yaml_bw::to_string(&view["document"])
+        .map_err(|_| "its document is not representable")?;
+    if record["assembly_sha256"] != json!(super::surface::sha256(&source)) {
+        return Err("its graph and fills do not emit the candidate it names");
+    }
+    view["document"] = json!(source);
+    Ok((
+        json!({"source": view["document"], "questions": view["questions"], "gaps": view["gaps"],
+               "trigger": view["trigger"]}),
+        bound,
+    ))
 }
 
 #[cfg(test)]

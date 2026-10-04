@@ -19,17 +19,21 @@
 //! - A written literal (a `content` binding) is the one the reader reads as a write's content.
 //! - An identity (no clause, stage, program or flag) is a conversion's: bound only where the
 //!   reader reads its words as that very conversion, never by a seat's law.
-use crate::plan::Plan;
-use crate::rules::{self, Rule};
+use nika_compile_reader::plan::Plan;
+use nika_compile_reader::rules::{self, Rule};
 use serde_json::Value;
 
 /// The first recorded literal or rule its law does not re-derive, named with what differs, or
 /// `None` when every one is bound to its words.
-pub(crate) fn unbound(plan: &Plan, intent: &str, observed: Option<Vec<String>>) -> Option<String> {
+#[must_use]
+pub fn unbound(plan: &Plan, intent: &str, observed: Option<Vec<String>>) -> Option<String> {
     if let Some(why) = unread_content(plan, intent) {
         return Some(why);
     }
-    let mut hints = vec![crate::columns::columns_hint(intent), Vec::new()];
+    let mut hints = vec![
+        nika_compile_reader::columns::columns_hint(intent),
+        Vec::new(),
+    ];
     hints.extend(observed);
     plan.rules
         .iter()
@@ -46,7 +50,7 @@ fn unread_content(plan: &Plan, intent: &str) -> Option<String> {
         .filter(|b| b.role == "content")
         .peekable();
     stated.peek()?;
-    let read = crate::lexicon::read(intent).plan.bindings;
+    let read = nika_compile_reader::lexicon::read(intent).plan.bindings;
     let unread = stated.find(|b| !read.contains(b))?;
     Some(format!(
         "the recorded content {} is not a literal the request writes",
@@ -57,7 +61,10 @@ fn unread_content(plan: &Plan, intent: &str) -> Option<String> {
 fn unbound_rule(rule: &Rule, plan: &Plan, intent: &str, hints: &[Vec<String>]) -> Option<String> {
     let text = rule.text();
     if !rule.filters() && !rule.shaped() && !rule.summary() && !rule.lines() {
-        let converted = crate::lexicon::read(text).plan.rules.contains(rule);
+        let converted = nika_compile_reader::lexicon::read(text)
+            .plan
+            .rules
+            .contains(rule);
         return (!converted).then(|| {
             format!("the recorded identity for `{text}` is no conversion its words state")
         });
@@ -75,9 +82,7 @@ fn unbound_rule(rule: &Rule, plan: &Plan, intent: &str, hints: &[Vec<String>]) -
     if readings.iter().any(|reading| reading == rule) {
         return None;
     }
-    let seat = |hint: &Vec<String>| {
-        nika_compile_fidelity::predicate::rederives(rule, intent, &plan.slots, hint)
-    };
+    let seat = |hint: &Vec<String>| crate::predicate::rederives(rule, intent, &plan.slots, hint);
     if readings.is_empty() && hints.iter().any(seat) {
         return None;
     }

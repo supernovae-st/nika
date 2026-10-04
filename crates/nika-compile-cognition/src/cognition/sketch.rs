@@ -470,10 +470,7 @@ async fn propose<P: ProviderInferDyn>(
         else {
             return (round + 1, None);
         };
-        let mut record = json!({"name": answer.name, "tasks": answer.tasks});
-        if let Some(outputs) = &answer.outputs {
-            record["outputs"] = outputs.clone();
-        }
+        let record = graph(&answer);
         let (diagnostics, parsed) = match Sketch::from_json(&record) {
             Ok(parsed) => (
                 judge_sketch(intent, reading, &parsed, &talk.allowed, &talk.clarified),
@@ -519,8 +516,19 @@ async fn propose<P: ProviderInferDyn>(
     (round, None)
 }
 
+/// The graph a sketch answer states, as `Sketch::from_json` reads it: its name, its tasks and,
+/// when stated, its named results (omitted and explicit stay distinct).
+fn graph(answer: &SketchAnswer) -> Value {
+    let mut record = json!({"name": answer.name, "tasks": answer.tasks});
+    if let Some(outputs) = &answer.outputs {
+        record["outputs"] = outputs.clone();
+    }
+    record
+}
+
 /// Phase 2 · the holes, filled and judged as the whole document they state, repaired within
-/// the budget. Returns the accepted answer, its candidate the emitted document.
+/// the budget. Returns the accepted answer, its candidate the emitted document, and the fills
+/// exactly as accepted (the semantic record replays them).
 async fn fill<P: ProviderInferDyn>(
     talk: &mut Talk,
     intent: &str,
@@ -530,7 +538,7 @@ async fn fill<P: ProviderInferDyn>(
     out: &mut CompileOutcome,
     accepted: &(Sketch, SketchAnswer),
     first_round: u32,
-) -> Option<Answer> {
+) -> Option<(Answer, Vec<Value>)> {
     let (sketch, answer) = accepted;
     let last_round = policy.repairs.min(5) + 1;
     talk.last = None;
@@ -602,13 +610,14 @@ async fn fill<P: ProviderInferDyn>(
         }));
         round += 1;
         if diagnostics.is_empty() {
-            return Some(Answer {
+            let answer = Answer {
                 candidate,
                 questions: answer.questions.clone(),
                 gaps: answer.gaps.clone(),
                 notes: answer.notes.clone(),
                 dual: None,
-            });
+            };
+            return Some((answer, filling.fills));
         }
         talk.refused = Some(candidate);
         if !repair(talk, text, diagnostics, FILL_AGAIN) {
@@ -676,6 +685,100 @@ pub(super) async fn compose<P: ProviderInferDyn>(
     author(intent, reading, &bounded, provider, request, route, out).await
 }
 
+/// The question fields a native settlement reads (`apply_native`, `bake`, `ask`).
+const QUESTION_KEYS: [&str; 5] = ["key", "label", "answer_type", "why", "options"];
+
+/// The semantic record of the accepted pair (slice C), closed: the basis read before the
+/// proposal, the graph and fills exactly as decoded, the settlement fields a native settlement
+/// reads (questions through an allowlist, gaps, trigger), the pre-answer assembly (`source`,
+/// labelled so: an observation no replay reads) and the final candidate bound to its answers. No
+/// `strategy` word, judgment or journal. `None` when the settlement lacks a field it needs.
+fn semantic_record(
+    basis: Value,
+    stated: &Value,
+    fills: &[Value],
+    settled: &Value,
+    out: &CompileOutcome,
+) -> Option<Value> {
+    let assembled = settled["source"].as_str()?;
+    let questions: Vec<Value> = (settled["questions"].as_array()?.iter())
+        .map(|q| {
+            let kept = (q.as_object().into_iter().flatten())
+                .filter(|(key, _)| QUESTION_KEYS.contains(&key.as_str()))
+                .map(|(k, v)| (k.clone(), v.clone()));
+            Value::Object(kept.collect())
+        })
+        .collect();
+    let sha = super::knowledge::sha256;
+    let mut record = json!({
+        "semantic_record": 1,
+        "lowering": 1,
+        "intent_sha256": settled["intent_sha256"].as_str()?,
+        "final": {"answers": basis["answers"], "candidate_sha256": out.candidate.as_deref().map(sha)},
+        "sketch": stated,
+        "fills": fills,
+        "settlement": {"questions": questions, "gaps": settled["gaps"].as_array()?,
+                       "trigger": settled["trigger"]},
+        "assembly_sha256": sha(assembled),
+        "source": assembled,
+        "source_is": "pre_answer_assembly",
+    });
+    record["basis"] = json!({});
+    record["basis"]["read"] = basis;
+    Some(record)
+}
+
+/// At the compile's entry, once the door returned: the caller basis read before any money was
+/// blanked joins the semantic record the door just produced (a replayed record keeps its own),
+/// which is kept only when the core's own replay reproduces its final binding with no call;
+/// otherwise no record, a finding and INCOMPLETE: an answer round compiles afresh, no retry.
+pub(super) fn bind_caller(caller: Value, raw: &CompileRequest, out: &mut CompileOutcome) {
+    let fresh =
+        |r: &&mut Value| r.get("semantic_record").is_some() && r["basis"].get("caller").is_none();
+    let Some(record) = out.provenance.plan.as_mut().filter(fresh) else {
+        return;
+    };
+    record["basis"]["caller"] = caller;
+    let mut replay = raw.clone();
+    replay.plan = Some(record.clone());
+    let kept = nika_compile::compile_judged(&replay, &[]).is_ok_and(|replayed| {
+        (replayed.provenance.plan.as_ref()).is_some_and(|p| p["final"] == record["final"])
+    });
+    if !kept {
+        withhold_record(out);
+    }
+}
+
+/// No replay record for an accepted sketch that cannot be recorded or does not replay: the round
+/// is INCOMPLETE with a static finding, never READY without its record and never retried (the
+/// judge of the whole request is asked only of a READY conclusion); an answer round compiles the
+/// request again.
+fn withhold_record(out: &mut CompileOutcome) {
+    out.provenance.plan = None;
+    out.status = crate::CompileStatus::Incomplete;
+    super::super::finding(
+        out,
+        DiagnosticKind::Unknown,
+        "recorded_plan",
+        "The accepted sketch cannot be kept as a replay record under this request, so nothing is READY: compile the request again.",
+    );
+}
+
+/// The laws a replayed semantic record must still hold before any judgment is asked of it: the
+/// reach of each task (`nika_cap`, which the core cannot read) and every fill judged again as
+/// emitted. The core's replay already ran the structural and fill laws and the emission.
+pub(super) fn replay_laws(record: &Value) -> Vec<String> {
+    let Ok(sketch) = Sketch::from_json(&record["sketch"]) else {
+        return vec!["its graph does not decode".to_owned()];
+    };
+    let mut refused: Vec<Diagnostic> = reach_laws(&sketch);
+    if refused.is_empty() {
+        let fills = record["fills"].as_array().map_or(&[][..], Vec::as_slice);
+        refused = validated(&sketch, fills).err().unwrap_or_default();
+    }
+    refused.into_iter().map(|d| d.message).collect()
+}
+
 /// The sketch door: the two-phase conversation, judged at each phase, settled by the native
 /// door's own conclusion (questions asked, answers baked, the record replayable with zero
 /// calls) and recorded beside it.
@@ -706,6 +809,8 @@ pub(super) async fn author<P: ProviderInferDyn>(
     let mut system = system_message(&references, &callables);
     system.push_str("\n\n");
     system.push_str(SKETCH);
+    // The request's own basis, read before any proposal: no answer of the seat reaches it.
+    let basis = nika_compile::surface::semantic::request_basis(intent, request);
     let mut talk = Talk::open(
         system,
         format!("{opening}\n\nAnswer with the SKETCH (call 1), not a file."),
@@ -722,15 +827,8 @@ pub(super) async fn author<P: ProviderInferDyn>(
         )
         .await;
     }
-    native::record(
-        &mut out,
-        request,
-        &cold,
-        &talk,
-        &sent,
-        accepted.as_ref(),
-        revision,
-    );
+    let answer = accepted.as_ref().map(|(answer, _)| answer);
+    native::record(&mut out, request, &cold, &talk, &sent, answer, revision);
     if let Some(decision) = out.provenance.decision.as_mut() {
         decision["native"]["sketch"] = json!({
             "accepted": sketched.is_some(),
@@ -738,15 +836,17 @@ pub(super) async fn author<P: ProviderInferDyn>(
             "holes": sketched.as_ref().map_or(0, |(s, _)| ir::holes(s).len()),
         });
     }
-    conclude(
-        intent,
-        reading,
-        request,
-        accepted.as_ref(),
-        &talk,
-        cold,
-        &mut out,
-    );
+    conclude(intent, reading, request, answer, &talk, cold, &mut out);
+    // The settlement's record becomes the semantic record: the accepted pair from its producer,
+    // the basis read before the proposal; the source it emitted stays an observation.
+    if let (Some((_, fills)), Some((_, stated))) = (&accepted, &sketched)
+        && let Some(settled) = out.provenance.plan.take()
+    {
+        out.provenance.plan = semantic_record(basis, &graph(stated), fills, &settled, &out);
+        if out.provenance.plan.is_none() {
+            withhold_record(&mut out);
+        }
+    }
     out.provenance.strategy = Some(Strategy::Native);
     if accepted.is_some() {
         out = super::verify::judged_native(intent, reading, policy, provider, request, out).await;
@@ -756,7 +856,29 @@ pub(super) async fn author<P: ProviderInferDyn>(
 
 #[cfg(test)]
 mod tests {
-    use super::{FILLS_SCHEMA, SKETCH_SCHEMA, schema};
+    use super::{FILLS_SCHEMA, SKETCH_SCHEMA, schema, semantic_record, withhold_record};
+    use serde_json::json;
+
+    #[test]
+    fn a_settlement_missing_a_field_builds_no_record_and_the_round_is_withheld() {
+        let mut out = nika_compile::surface::initial();
+        out.status = crate::CompileStatus::Ready;
+        let settled = json!({"intent_sha256": "x", "questions": [], "gaps": [], "trigger": null});
+        let basis = json!({"answers": {}});
+        let record = semantic_record(
+            basis,
+            &json!({"name": "x", "tasks": []}),
+            &[],
+            &settled,
+            &out,
+        );
+        assert!(record.is_none(), "no source: no record built from defaults");
+        out.provenance.plan = Some(json!({"strategy": "native"}));
+        withhold_record(&mut out);
+        assert_eq!(out.status, crate::CompileStatus::Incomplete);
+        assert!(out.provenance.plan.is_none());
+        assert!(out.diagnostics.iter().any(|d| d.target == "recorded_plan"));
+    }
 
     #[test]
     fn the_two_answer_schemas_parse_and_close_their_objects() {

@@ -664,3 +664,78 @@ an authoring model. A model-assisted candidate is not reproducible across
 calls. Its recorded plan replays answer rounds with zero calls for duties the
 core closes from the bytes; its pending remainder is judged in that round or
 named INCOMPLETE. The reviewed bytes are what runs.
+
+
+## Semantic record of an accepted sketch (0.123 slice C-core)
+
+The sketch door no longer leaves a legacy native-source record. Its opaque plan is a closed,
+versioned **semantic record** (`semantic_record: 1`, `lowering: 1`, independent of the wire
+generations and the forensic summary; private format, not a secret: it travels on the visible
+wire). It holds exactly: the request basis `basis.caller` (the caller's own words, original,
+every initial answer including a clarification, money spans and `stated_money`, read at the
+compile's entry before any money is blanked) and `basis.read` (computed by
+`surface::semantic::request_basis` before any proposal: the effective words the door reads,
+its initial answers, the observed world's identity, every `Reading.seen` occurrence in order
+with repeats, the reader's floor, the obligation ledger and an explicit partial projection of
+`contract_of_request` whose unsupported portion stays named); the accepted graph
+(`{name, tasks, outputs?}`) and fills exactly as decoded at their producer; the settlement fields
+a native settlement reads (questions through a key allowlist, gaps, trigger); the pre-answer
+assembly identity; and `final` (the cumulative bound answers and the final candidate identity).
+`source` is that pre-answer assembly, labelled `source_is: pre_answer_assembly`, an observation
+no replay reads. No `strategy` word, judgment, journal or plan vocabulary is kept; any other key
+refuses the record. The cognition door builds the record and keeps it only when the core's own
+replay reproduces its final binding under the authoring request (no record otherwise, the round
+INCOMPLETE). The literal-conservation helpers of the edit door now live in
+`nika_compile_fidelity::literal` (moved unchanged; the core reached its line wall).
+
+Replay dispatches before every legacy door and before the apostrophe fold:
+`compile` first runs `surface::semantic::caller` on the raw request (the money recursion then
+compiles the normalized request without comparing it again). A record whose caller words,
+original, money or initial answers differ, that gains a clarification it never had (a
+replacement is a new basis), or that carries no caller basis is refused. Then the closed keys,
+versions and bound answers are checked (A0 ⊆ Ak ⊆ Ac, string maps only), `basis.read` is
+recomputed from the current request with only its initial answers, the graph is judged by
+`structural_laws`, the fills by `fills_from_json`/`complete_document` (the pure decode is
+`nika_compile_fidelity::sketch::replayed`), and the bytes the core lowers must match
+`assembly_sha256`. The
+old final is always rebuilt under its bound answers and must match its identity; a new answer
+must answer a question that candidate asks and produces a new `final` binding, while the basis
+stays the one frozen at authoring. Every refusal is a static finding on `recorded_plan`: no
+record value or unknown key name is repeated, nothing is emitted, the stored source is never
+used and no model is asked. A gap keeps its duty at its position (`gap.N`): its words are
+repeated only when they are the request's own, and a replayed candidate with a gap is never
+READY whatever the gap's answer. Reconstruction is not satisfaction: the core replay keeps the
+whole request pending ([`native_pending`]) and is at most INCOMPLETE with zero calls; READY takes a
+judgment made, and counted, in that round. The rehearsal's answered paths read the same validated
+rebuild.
+
+Limitations: hashes are consistency checks, not producer authentication (a self-consistent
+forged record reassembles but cannot become READY without a current judgment, and Check still
+runs); the core cannot run the `nika_cap` reach laws (no dependency), so only the cognition
+replay re-runs them before any judgment; a question's label and reason are static, and only
+its placeholder key, answer type and a choice's bounded options (each option's key and label)
+are taken from the record; the trigger and a gap's words are repeated only when they are the
+request's own; historical native and Plan records keep their replay unchanged.
+
+### Guarded semantic replay and judgments (QUAL20 P2a–P2c)
+
+A semantic record replays only through `compile` / `compile_judged(raw, judgments)` on the raw
+request as the caller sent it: the caller is read once before any money is blanked, then the
+private path derives the request the door read (a clarification taken, folded) and replays it.
+The public `replay` and `replay_judged` refuse a semantic record with a static finding; legacy
+Plan, native and pending-transform records replay through them unchanged. `judgments` are the
+judgments a judge made in this round; each settles the whole request only under the binding the
+core recomputes from that request and the bytes it emits. This is data consistency for a trusted
+host, not an authentication of the judge (a Rust caller can build a matching `Judgment`), and
+never a permission or consent; no record, model text, HTTP body or Session state feeds it. The
+cognition door asks the judge with the request it derives itself; a derivation the core does not
+share leaves the round INCOMPLETE, never READY. The record's questions must be exactly the
+rebuilt candidate's open placeholders and are shown under static wording; the trigger, like a
+gap, is repeated only when it is the request's own words. A semantic record's money is read by
+`admitted::reading`, the one derivation the seats' door also uses: changed clarification words
+discard the host's admission, identical words keep it and are read blanked, and money stated on
+the door is re-read from the replacement. When judgments are supplied, the route names them
+("judgments supplied by the host"): their origin, never their authenticity or acceptance. The
+raw caller is checked by each entry that receives the raw request (the cognition entry,
+`compile_judged`, and the authoring door's own validation of its record); no check runs on the
+normalized request of the money recursion.

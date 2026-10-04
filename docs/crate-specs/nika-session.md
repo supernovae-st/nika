@@ -672,3 +672,10 @@ run again, live (`run_view::live_again`, judged by the resume's own fold);
 nothing is said when the fold's plan carries every completion, which promises
 nothing more: the run serves a carried completion only while its definition and
 inputs are unchanged (C10 · Q8).
+
+## Passive candidate plan presentation
+
+`review::{plan_lines, plan_lines_in_order}` re-export the pure projections in
+`nika_display::check_render::review`, which also owns their task-face rendering.
+Session retains candidate identity, destination selection, consent, application
+and history; rendering candidate text does not approve or save it.

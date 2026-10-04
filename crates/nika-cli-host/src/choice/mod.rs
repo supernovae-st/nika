@@ -8,62 +8,18 @@
 //! Sort: ready first, then scale rank.
 //! No editorial. A detected, authenticated harness seat takes the arrow.
 
-use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-use serde::{Deserialize, Serialize};
+pub(crate) use nika_display::front_door::{AcpRuntime, InferenceChoice, Rung};
+use serde::Deserialize;
 
-use crate::display::theme::{Role, Theme};
+#[cfg(test)]
+use crate::display::theme::Theme;
 use crate::probe::{self, env_present};
 
 const TABLE_YAML: &str = include_str!("models.yaml");
 const ALIAS: &str = "nika/gear-one";
 const SLOGAN: &str = "Local first. Cloud when you want it.";
-
-/// One barreau of the scale (D-cand-1).
-///
-/// No `next` here. Every rung used to carry its own copy of the same
-/// string, and the JSON mirror served those copies while the TTY
-/// derived a fresh one from the directory — so `rungs[].next` kept
-/// saying `nika compile hello hello.nika` in a folder that already held the file
-/// (#1187). The next step belongs to the SCREEN, not to a rung.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub(crate) struct Rung {
-    pub id: String,
-    pub name: String,
-    pub available: bool,
-    pub ready: bool,
-    pub reason: String,
-}
-
-/// The cascade — persisté, source unique.
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub(crate) struct InferenceChoice {
-    pub rungs: Vec<Rung>,
-    /// Featured rung id after sort (the arrow).
-    pub arrow: String,
-    /// Suggested execution model; never an authoring mutation.
-    pub chosen_model: String,
-    pub slogan: String,
-    pub ram_gb: Option<u32>,
-    pub local_tier: String,
-    pub local_pull: String,
-    pub local_download_gb: String,
-    /// ACP seats observed (ids only). Doctor --json projects this.
-    pub acp_runtimes: Vec<AcpRuntime>,
-    /// Env NAMES present, never values.
-    pub keys_present: Vec<String>,
-    /// Harness seat id when the arrow is ACCESS · what `--access` pins.
-    pub chosen_access: Option<String>,
-}
-
-/// One harness seat as doctor --json names it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub(crate) struct AcpRuntime {
-    pub id: String,
-    pub detected: bool,
-    pub authenticated: bool,
-}
 
 #[derive(Debug, Clone, Deserialize)]
 struct Table {
@@ -494,123 +450,39 @@ fn wrapper_class(seat_id: &str) -> bool {
         .is_some_and(|rt| rt.detect_bin != rt.acp_bin)
 }
 
-impl InferenceChoice {
-    /// The cascade rendered against the bare directory door — the
-    /// choice-only seam (`Next:` keys on the files in `cwd`, never on
-    /// the crate that compiled the binary · gauntlet P15). The screen
-    /// itself renders through [`Self::render_human_next`]: `welcome`
-    /// knows the sole file's VERDICT, and a verdict outranks a listing.
-    #[must_use]
-    #[cfg(test)]
-    pub(crate) fn render_human_at(&self, theme: Theme, cwd: Option<&Path>) -> String {
-        self.render_human_next(theme, &front_door_next(cwd))
-    }
+/// Machine projection of the cascade (env NAMES only).
+#[must_use]
+pub(crate) fn doctor_cascade_json(choice: &InferenceChoice) -> serde_json::Value {
+    let ram = choice.ram_gb.unwrap_or(0);
+    serde_json::json!({
+        "hardware_ok_for_workstation": ram >= 64,
+        "hardware_ok_for_default": ram >= 24,
+        "hardware_ok_for_standard": ram >= 16,
+        "hardware_ok_for_lite": ram >= 8,
+        "local_model_ready": choice.rungs.iter().any(|r| r.id == "local" && r.ready),
+        "local_tier": choice.local_tier,
+        "acp_runtimes": choice.acp_runtimes,
+        "keys_present": choice.keys_present,
+        "nika_cloud_session": serde_json::Value::Null,
+        "arrow": choice.arrow,
+        "chosen_model": choice.chosen_model,
+        "chosen_access": choice.chosen_access,
+    })
+}
 
-    /// Human projection — TTY and pipe render this same product, and
-    /// so does `--json`: `next` is computed ONCE by the caller and
-    /// handed to every projection (#1187).
-    #[must_use]
-    pub(crate) fn render_human_next(&self, theme: Theme, next: &str) -> String {
-        let mut s = String::new();
-        let _ = writeln!(s, "{}", theme.paint(Role::Strong, &self.slogan));
-        let _ = writeln!(s);
-        let _ = writeln!(s, "Nika runs a plan from a file, with a model you pick.");
-        if let Some(gb) = self.ram_gb {
-            let _ = writeln!(
-                s,
-                "{}",
-                // « this hardware », not « this machine » — the body's
-                // `this machine` section is the ENVIRONMENT one
-                // (editors · providers · workspace). One name, one
-                // referent: the same two words stood for three things
-                // on this screen (#1196 · the A-06 class in prose).
-                theme.paint(
-                    Role::Dim,
-                    &format!(
-                        "this hardware · {gb} GB · Gear One {} ({})",
-                        self.local_tier, self.local_download_gb
-                    )
-                )
-            );
-        }
-        let _ = writeln!(s);
-        for rung in self.rungs.iter().filter(|r| r.id != "cloud") {
-            if !rung.available && !rung.ready && rung.id == "harness" {
-                continue;
-            }
-            if !rung.available && !rung.ready && rung.id == "key" {
-                continue;
-            }
-            let arrow = if rung.id == self.arrow { "▸ " } else { "  " };
-            let name = if rung.id == self.arrow {
-                theme.paint(Role::Strong, &rung.name)
-            } else {
-                rung.name.clone()
-            };
-            let _ = writeln!(s, "{arrow}{name:<22} {}", rung.reason);
-        }
-        let _ = writeln!(s);
-        let _ = writeln!(s, "Next:");
-        let _ = writeln!(s, "  {}", theme.paint(Role::Strong, next));
-        let _ = writeln!(s);
-        let _ = writeln!(
-            s,
-            "Coming: Nika Cloud · our models, our tools, your workflows online."
-        );
-        s
-    }
-
-    /// Machine projection of the cascade (env NAMES only).
-    #[must_use]
-    pub(crate) fn doctor_cascade_json(&self) -> serde_json::Value {
-        let ram = self.ram_gb.unwrap_or(0);
-        serde_json::json!({
-            "hardware_ok_for_workstation": ram >= 64,
-            "hardware_ok_for_default": ram >= 24,
-            "hardware_ok_for_standard": ram >= 16,
-            "hardware_ok_for_lite": ram >= 8,
-            "local_model_ready": self.rungs.iter().any(|r| r.id == "local" && r.ready),
-            "local_tier": self.local_tier,
-            "acp_runtimes": self.acp_runtimes,
-            "keys_present": self.keys_present,
-            "nika_cloud_session": serde_json::Value::Null,
-            "arrow": self.arrow,
-            "chosen_model": self.chosen_model,
-            "chosen_access": self.chosen_access,
-        })
-    }
-
-    /// Versioned welcome envelope fragment.
-    ///
-    /// `next` is the screen's ONE next step, passed in rather than
-    /// derived: an agent reading `rungs[].next` and a human reading
-    /// the `Next:` block must be told the same thing (#1187). Cloud is
-    /// the one rung with no door — it does not ship yet.
-    #[must_use]
-    pub(crate) fn welcome_json(&self, next: &str) -> serde_json::Value {
-        let rungs: Vec<serde_json::Value> = self
-            .rungs
-            .iter()
-            .map(|r| {
-                serde_json::json!({
-                    "id": r.id,
-                    "name": r.name,
-                    "available": r.available,
-                    "ready": r.ready,
-                    "reason": r.reason,
-                    "next": if r.id == "cloud" { "" } else { next },
-                })
-            })
-            .collect();
-        serde_json::json!({
-            "arrow": self.arrow,
-            "next": next,
-            "chosen_model": self.chosen_model,
-            "chosen_access": self.chosen_access,
-            "slogan": self.slogan,
-            "rungs": rungs,
-        })
-    }
+/// The cascade rendered against the bare directory door — the
+/// choice-only seam (`Next:` keys on the files in `cwd`, never on
+/// the crate that compiled the binary · gauntlet P15). The screen
+/// itself renders through [`InferenceChoice::render_human_next`]: `welcome`
+/// knows the sole file's VERDICT, and a verdict outranks a listing.
+#[must_use]
+#[cfg(test)]
+pub(crate) fn render_human_at(
+    choice: &InferenceChoice,
+    theme: Theme,
+    cwd: Option<&Path>,
+) -> String {
+    choice.render_human_next(theme, &front_door_next(cwd))
 }
 
 fn persist(choice: &InferenceChoice) -> std::io::Result<()> {

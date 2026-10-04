@@ -509,3 +509,49 @@ an enclosing aggregate cannot silently omit or double-count that operand. An exp
 authored `try` or `?` still controls error handling. `fromjson` retains its stream semantics.
 This cardinality correction does not promise arbitrary decimal arithmetic or a field name in
 the generic error; typed numeric laws remain responsible for those contracts.
+
+
+## Semantic replay and request basis (0.123 slice C-core)
+
+`compile_with_cognition_rehearsed` reads the caller basis on the raw request before money is
+blanked (`surface::semantic::caller`), refusing with no call a semantic record its caller cannot
+replay, and binds the captured basis into the record a door just produced before any rehearsal
+(`sketch::bind_caller`, which keeps the record only when the core's own replay of it reproduces
+its final binding; a replayed record keeps its original basis forever). The sketch door computes
+`request_basis` before its first proposal, carries the accepted graph and fills from `fill`
+itself (never from journals) and builds the closed record; when it cannot be built or does not
+replay, the round is INCOMPLETE with a finding and no retry. An answer round of a semantic record
+dispatches before the hello, template and no-seat shortcuts: the core rebuilds it, then the
+reach laws only this crate reads (`nika_cap`) are re-run on its graph and fills — a refusal is
+static, nothing is judged — and the whole request is judged in that round by an admitted judge,
+a counted call, or stays pending. Serialized judgments are never read. The rehearsal reads a
+semantic record's answered paths through the core's validated rebuild. Effectful agent tools,
+raw rejected-text capture on disk, host adapters and semantic EDIT remain open work.
+
+## Authoring answer observation (0.123 slice C-core)
+
+`observe::observe_authoring(sink, future)` scopes a host's observer (tokio task-local) around its
+own compile future. `call_with_schema` emits one `AuthoringObservation` per authoring or repair
+call (plan, native, sketch, fill, their repairs, transform; never a judge) after the response and
+before any decode: a scope-local ordinal, the role, the prompt and schema by identity only, and
+either every Text block in order as received at `compiler_provider_response` with the count of
+other blocks and a private identity over the length-framed blocks (distinct from the public
+digest of their concatenation), or `NoResponse(Timeout | AdmissionRefused | ProviderError)`. A
+response with no Text block is an empty block list, never confused with a failure; a request
+never built before dispatch makes no call and no observation. The observation is borrowed, not
+`Debug` or `Serialize`; the public receipt keeps withholding refused text and unknown keys,
+and candidate, authority, call counts and outcome are identical with or without a sink. Received
+is not persisted: no file, cap, redaction or retention lives here, and no crash durability is
+promised. Open (C is not closed): the common private writer and the CLI, Session and Serve
+adapters, each with an exact rejected→repair artifact and privacy/cap/isolation evidence.
+
+The same observation carries the ordered prompt role/block shape by digest and
+optional counts (messages, Text/other blocks and UTF-8 Text bytes), plus the
+existing instruction identity. An unrepresentable shape remains unknown. Usage
+presence, input/output/reasoning token counts, returned model and closed stop
+reason are optional facts of that response; missing usage is not reported zero.
+Provider model text and an unknown stop's detail still require host admission.
+`TextBlocks` exposes only borrowed Text iteration, length and emptiness, with no
+public constructor, `Debug` or serialization. `NoResponse` is not evidence of
+zero spend, and a dropped scope promises no closing observation. These additions
+do not persist raw answers or implement the private writer and host adapters.

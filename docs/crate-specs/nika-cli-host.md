@@ -396,3 +396,15 @@ and its login name when the account database names one. It never reads a
 flag or the environment. This is the principal `nika trace cost reconcile`
 records: attributable, not authenticated, through the existing `nix` user
 feature.
+
+## Passive views and the repair prepass
+
+The welcome and choice views render through `nika_display::front_door`; the host
+still collects facts, resolves the context envelope, redacts endpoints and selects
+next actions. Doctor keeps diagnosis, row visibility, link preparation, receipt
+projection and exit codes here; `Finding` and `Level` remain compatibility
+re-exports of the passive human/JSON view types.
+
+`fix_ladder` calls the four pure prepass helpers in `nika_migrate` and re-exports
+the repair records and renderers from `nika_display::repair_render`. Applying,
+judging and rolling back repair rounds remain host responsibilities.

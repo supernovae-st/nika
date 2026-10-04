@@ -195,11 +195,9 @@ fn effective_paths(
     let mut inputs = nika_compile::stated_sources(&intent);
     let mut targets = nika_compile::stated_destinations(&intent);
     if matches!(&request.input, crate::types::Input::Create(_)) {
-        let native = out
-            .provenance
-            .plan
-            .as_ref()
-            .filter(|record| record["strategy"] == "native");
+        let native = out.provenance.plan.as_ref().filter(|record| {
+            record["strategy"] == "native" || record.get("semantic_record").is_some()
+        });
         if let Some(record) = native {
             let paths = nika_compile::surface::native_answered_paths(
                 record,

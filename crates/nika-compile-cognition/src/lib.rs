@@ -74,3 +74,10 @@ pub use cognition::{
     Cognition, NoProvider, compile_with_cognition, compile_with_cognition_rehearsed,
     compile_with_provider,
 };
+
+/// A host's scoped observation of its compile's authoring answers as received (slice C).
+pub mod observe {
+    pub use crate::cognition::receipt::observe::{
+        Answered, AuthoringObservation, Failure, Sink, TextBlocks, observe_authoring,
+    };
+}

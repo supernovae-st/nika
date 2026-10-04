@@ -597,3 +597,10 @@ Authoring receipt truth: the native Gate retains a local invocation-ceiling refu
 Direct API authoring endpoint metadata comes from the exact seated registry: `host` strips user info, path, query and fragment; `base_url_overridden` compares the effective URL with its profile seed when available. `endpoint_basis: operator_configuration` distinguishes this configuration from an authenticated remote identity or an observed model. Session host diagnostics use the same redaction.
 
 Both compile response generations describe the decision, plan, strategy and suggested file fields emitted by the shared compiler wire owner. A generation-1 replay preserves those observations without another provider call. Mixed-usage authoring counters are partial observed sums when `backend.usage_complete` is false, never totals for an unobserved round.
+
+## Schedule projection ownership
+
+`server::schedule_http` uses `nika_cadence::schedule::when_json` and
+`nika_cadence::schedule_plan::{due_json, slot_json}` for the existing schedule
+value shapes. HTTP routing, authorization, request admission, clock/store access
+and the surrounding response envelopes remain server responsibilities.

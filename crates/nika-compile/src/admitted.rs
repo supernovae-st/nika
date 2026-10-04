@@ -92,6 +92,68 @@ pub fn read(request: &CompileRequest) -> Result<Option<(CompileRequest, Value)>,
     Ok(Some((reading, money)))
 }
 
+/// The money of a request, read before any strategy, by every door that reads one (the seats'
+/// door and a semantic record's replay alike): a creation's clarification replaces its request
+/// under its own law, else the request's directives ([`read`]). The request it reads, and the
+/// record of its directives when it states any.
+///
+/// # Errors
+/// The refusal of a span that is no directive, or of malformed or conflicting stated money.
+pub fn reading(request: &CompileRequest) -> Result<(CompileRequest, Option<Value>), String> {
+    clarified(request).unwrap_or_else(|| {
+        read(request).map(|read| {
+            read.map_or_else(
+                || (request.clone(), None),
+                |(reading, money)| (reading, Some(money)),
+            )
+        })
+    })
+}
+
+/// A creation's clarification replaces its request. A host admission belongs to those exact
+/// bytes: changed words discard it, identical words keep it and their blanked reading. On a
+/// door that states money, the answer's own directives are read afresh. A revision's change
+/// is never replaced: its money is read by [`read`].
+fn clarified(request: &CompileRequest) -> Option<Result<(CompileRequest, Option<Value>), String>> {
+    let Input::Create(original) = &request.input else {
+        return None;
+    };
+    let raw = request.answers.get("intent.clarification")?;
+    let text = serde_json::from_str::<Value>(raw)
+        .ok()?
+        .as_str()?
+        .to_owned();
+    if !request.stated_money {
+        if text != *original {
+            return Some(Ok((request.clone().with_admitted_money(Vec::new()), None)));
+        }
+        return Some(read(request).map(|read| match read {
+            Some((mut reading, money)) => {
+                if let Input::Create(blanked) = &reading.input {
+                    reading.answers.insert(
+                        "intent.clarification".to_owned(),
+                        json!(blanked).to_string(),
+                    );
+                }
+                (reading, Some(money))
+            }
+            None => (request.clone(), None),
+        }));
+    }
+    let mut reading = request.clone();
+    reading.stated_money = false;
+    Some(replacement(request, &text).map(|read| match read {
+        Some((blanked, money)) => {
+            reading.answers.insert(
+                "intent.clarification".to_owned(),
+                json!(blanked).to_string(),
+            );
+            (reading, Some(money))
+        }
+        None => (reading, None),
+    }))
+}
+
 /// The words a request states: a creation's intent, a revision's change in words.
 fn words(request: &CompileRequest) -> Option<&String> {
     match &request.input {

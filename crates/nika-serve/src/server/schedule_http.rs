@@ -6,10 +6,12 @@ use hyper::body::Incoming;
 use hyper::header::{CONTENT_ENCODING, ETAG, HeaderValue, IF_MATCH, IF_NONE_MATCH};
 use hyper::{Request, Response, StatusCode};
 use jiff::Zoned;
+use nika_cadence::schedule::when_json;
+use nika_cadence::schedule_plan::{due_json, slot_json};
 use nika_cadence::{
     AfterSkip, MissPolicy, Overlap, ScheduleDecisionState, ScheduleDefinition, ScheduleDraft,
-    ScheduleDueVerdict, ScheduleFinding, ScheduleJitter, ScheduleOrigin, SchedulePlanError,
-    ScheduleRevision, ScheduleSlot, ScheduleWhen, ScheduleWhenDraft, Shift, plan_schedule,
+    ScheduleFinding, ScheduleJitter, ScheduleOrigin, SchedulePlanError, ScheduleRevision,
+    ScheduleWhenDraft, plan_schedule,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -454,63 +456,6 @@ fn definition_json(definition: &ScheduleDefinition) -> Value {
     })
 }
 
-fn when_json(when: &ScheduleWhen) -> Value {
-    match when {
-        ScheduleWhen::Once { at } => json!({"kind": "once", "at": at.to_string()}),
-        ScheduleWhen::Cadence { expression } => {
-            json!({"kind": "cadence", "expression": expression})
-        }
-        ScheduleWhen::Webhook => json!({"kind": "webhook"}),
-        _ => json!({"kind": "unknown"}),
-    }
-}
-
-fn due_json(due: &ScheduleDueVerdict) -> Value {
-    match due {
-        ScheduleDueVerdict::ScheduledOnTime { slot } => {
-            json!({"kind": "scheduled", "slot": slot_json(slot)})
-        }
-        ScheduleDueVerdict::CatchUp { slot, missed_slots } => json!({
-            "kind": "catch_up", "slot": slot_json(slot), "missedSlots": missed_slots
-        }),
-        ScheduleDueVerdict::SkippedMissed { slot, missed_slots } => json!({
-            "kind": "skipped_missed", "slot": slot_json(slot), "missedSlots": missed_slots
-        }),
-        ScheduleDueVerdict::SkippedTooLate {
-            slot,
-            lateness_seconds,
-            maximum_seconds,
-        } => json!({
-            "kind": "skipped_too_late", "slot": slot_json(slot),
-            "latenessSeconds": lateness_seconds, "maximumSeconds": maximum_seconds
-        }),
-        ScheduleDueVerdict::PausedInactive {
-            reason,
-            pause_until,
-        } => json!({
-            "kind": "paused", "reason": reason, "pauseUntil": pause_until
-        }),
-        ScheduleDueVerdict::OnceConsumed {
-            slot_id,
-            scheduled_for,
-        } => json!({
-            "kind": "once_consumed", "slotId": slot_id.as_str(),
-            "scheduledFor": scheduled_for.to_string()
-        }),
-        ScheduleDueVerdict::NotDue => json!({"kind": "not_due"}),
-        _ => json!({"kind": "unknown"}),
-    }
-}
-
-fn slot_json(slot: &ScheduleSlot) -> Value {
-    json!({
-        "slotId": slot.id().as_str(),
-        "scheduledFor": slot.scheduled_for().to_string(),
-        "requestedCivil": slot.requested_civil().map(|civil| civil.to_string()),
-        "shift": shift_word(slot.shift()),
-    })
-}
-
 fn last_decision_json(last: &ScheduleDecisionRecord) -> Value {
     json!({
         "action": match last.action() {
@@ -709,15 +654,6 @@ const fn after_skip_word(value: AfterSkip) -> &'static str {
     match value {
         AfterSkip::ProchainCreneau => "next_slot",
         AfterSkip::ACompletion => "on_completion",
-        _ => "unknown",
-    }
-}
-
-const fn shift_word(value: Shift) -> &'static str {
-    match value {
-        Shift::Exact => "exact",
-        Shift::AdvancedFirstValid => "advanced_first_valid",
-        Shift::FoldedFirst => "folded_first",
         _ => "unknown",
     }
 }

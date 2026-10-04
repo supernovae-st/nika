@@ -30,11 +30,15 @@ pub mod dag_art;
 pub mod demo;
 pub mod flow;
 pub mod format;
+/// Passive views of the host's composed welcome front door.
+pub mod front_door;
 pub mod fruit;
 mod item_pages;
 pub mod model_scope;
 pub mod project_render;
 pub mod render;
+/// Passive repair-ledger presentation, without applying or judging repairs.
+pub mod repair_render;
 pub mod shape;
 pub mod snippet;
 pub mod state;

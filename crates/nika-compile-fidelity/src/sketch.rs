@@ -1049,6 +1049,9 @@ fn default_args(task: &SketchTask, tool: &str) -> Map<String, Value> {
     args
 }
 
+mod record;
+pub use record::{bound_answers, contract_projection, read_basis, replayed};
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {

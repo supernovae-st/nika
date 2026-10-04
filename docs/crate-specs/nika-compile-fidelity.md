@@ -173,6 +173,30 @@ Source compatibility (0.123): `Sketch` and `SketchTask` are now `#[non_exhaustiv
 longer compiles; function signatures are unchanged. `Edge` is unchanged. The wire is additive:
 a sketch JSON without the new keys reads and emits exactly as before.
 
+### Semantic record decode and literal conservation (0.123 slice C-core)
+
+`sketch::record` holds the pure half of a semantic record's replay; the compile core keeps the
+caller, the answers' application, the lowering to bytes, grants and the current judgment.
+`replayed(record, intent, allowed)` checks the closed, typed format at every level (required
+fields present and of their type, `source_is` label, versions), decodes the graph, runs
+`structural_laws` under the caller's `intent` and allowed values (never the record's), the fill
+laws and `complete_document`, and returns `{document, questions, gaps, trigger}`; a gap's words
+are kept only when they are the request's own, else its position. A refusal is a static reason,
+never a record value or key name. `bound_answers(record, current)` holds the record's answer
+maps to strings and to A0 ⊆ Ak ⊆ Ac; `read_basis(intent, initial)` is the reader's and the
+behavior contract's part of a request basis (`contract_projection` keeps each obligation's
+identity, target, presence kind, unsupported reason and evidence). These are reconstruction and
+consistency checks, never READY, authority or producer authentication.
+
+`binding::unbound(plan, intent, observed)` is the recorded-plan binding law (each recorded
+rule re-derived from its words by the law that created it, the first difference named), moved
+unchanged from the compile core, whose two callers keep every refusal and continuation.
+
+`literal` holds the literal-conservation helpers the edit door uses (`has_expression`,
+`inexact_integer`, `literal_at`, `fill_slot`), moved unchanged from the compile core's
+`edit.rs` (the core reached its 15 000-line wall); the answer laws, slot and operation choice,
+emission, Check and grants stay in the core. `inexact_integer` reads JSON already validated.
+
 ### Sketch emission integrity (0.123 slice A)
 
 `Sketch::from_json` reads closed task and edge objects with exact types: a field outside the

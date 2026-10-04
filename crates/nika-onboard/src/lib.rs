@@ -41,7 +41,7 @@ pub mod compile {
     };
     pub use nika_compile_cognition::{
         Cognition, NoProvider, authority, compile_with_cognition, compile_with_cognition_rehearsed,
-        compile_with_provider, decide, rehearse,
+        compile_with_provider, decide, observe, rehearse,
     };
     /// The closed copy door: a request that is exactly a text file copied as is, qualified by
     /// what the assembler's two exact copies did when rehearsed in the observed room (the session

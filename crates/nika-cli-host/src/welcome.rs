@@ -24,16 +24,17 @@
 //! hands the cwd it can name (never a process-cwd fallback), and a
 //! chat-only envelope renders « chat only », never a workspace pretence.
 
-use std::fmt::Write as _;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use nika_providers::probe::ExecutionLocus;
 
 use crate::context_envelope::{self, ContextEnvelope, ContextMode, EnvFacts, EvidenceSource};
-use crate::display::theme::{Role, Theme};
+use crate::display::theme::Theme;
 use crate::door::DoorId;
 use crate::probe::Probe;
 use crate::{output::VerbOutput, probe};
+pub use nika_display::front_door::SAMPLE;
+use nika_display::front_door::{self, ContextView, EngineCounts, Glance};
 
 /// The ONE next command the first-contact screen promises.
 ///
@@ -73,23 +74,6 @@ fn next_command(mode: ContextMode, glance: Glance, gate: Option<&RunGate>, door:
     }
 }
 
-/// What the current directory already holds — the workspace half of the
-/// mirror (the machine half is the probe).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Glance {
-    /// Inside a git repository (any ancestor carries `.git`).
-    git: bool,
-    /// `*.nika` / `*.nika` files under the directory (bounded walk).
-    workflows: usize,
-    /// An `AGENTS.md` sits at the root — the repo's agents are briefed.
-    agents_md: bool,
-    /// The walk finished (P0-4): `false` = the count above is a LOWER
-    /// BOUND (budget died · unreadable dir), and zero is UNKNOWN — the
-    /// stranger's claims (« no workflows yet » · the sample) are gated
-    /// on this flag.
-    complete: bool,
-}
-
 /// The one-file verdict behind the run CTA (P0-3 · LOI-3) — computed
 /// ONLY when the workspace carries exactly one workflow (the audit cost
 /// is bounded to that file; the multi case keeps a generic CTA).
@@ -103,45 +87,6 @@ struct RunGate {
     /// At least one resolved task model carries a catalog price (LOI-3:
     /// a priced run suggestion always bears `--max-cost-usd`).
     priced: bool,
-}
-
-/// Counts DERIVED from the embedded surfaces at call time — never typed by
-/// hand, so they cannot drift from the binary that prints them.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct EngineCounts {
-    builtins: usize,
-    locals: usize,
-    clouds: usize,
-    examples: usize,
-    templates: usize,
-}
-
-/// The envelope facts the mirror renders (P0-14 · W2) — the envelope
-/// itself stays in `context_envelope`; the mirror eats this small owned
-/// view. The legacy render ([`ContextView::legacy`]) is Workspace with an
-/// EMPTY root: the workspace row then keeps its historical shape, so the
-/// pre-envelope render tests stay byte-identical.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct ContextView {
-    /// Chat-only vs workspace — the one branch (the envelope's own).
-    mode: ContextMode,
-    /// The RESOLVED root the workspace row names (display form) — empty
-    /// in chat-only and in the legacy render.
-    root: String,
-    /// The subdir the candidate expanded FROM, when it sat below the
-    /// root — always displayed, never a silent rewrite.
-    expanded_from: Option<PathBuf>,
-}
-
-impl ContextView {
-    /// The pre-envelope render: workspace mode, no root segment.
-    fn legacy() -> Self {
-        Self {
-            mode: ContextMode::Workspace,
-            root: String::new(),
-            expanded_from: None,
-        }
-    }
 }
 
 /// The chat-only glance: zero walk ran, so zero claim — every stranger
@@ -274,7 +219,7 @@ impl Mirror {
                 glance: CHAT_ONLY_GLANCE,
                 gate: None,
                 ctx: ContextView {
-                    mode: ContextMode::ChatOnly,
+                    chat_only: true,
                     ..ContextView::legacy()
                 },
             };
@@ -283,9 +228,13 @@ impl Mirror {
         let (glance, sole) = glance(&root, 4000);
         let gate = sole.as_deref().map(|rel| run_gate(&root, rel));
         let ctx = ContextView {
-            mode: ContextMode::Workspace,
+            chat_only: false,
             root: root_label(&envelope),
-            expanded_from: envelope.evidence.expanded_from.clone(),
+            expanded_from: envelope
+                .evidence
+                .expanded_from
+                .as_ref()
+                .map(|from| under_home(&from.display().to_string())),
         };
         Self {
             probe,
@@ -301,31 +250,50 @@ impl Mirror {
     /// by whatever verdict this mirror already paid for.
     fn next(&self, candidate: Option<&Path>) -> String {
         let door = crate::choice::front_door_next(candidate);
-        next_command(self.ctx.mode, self.glance, self.gate.as_ref(), &door)
+        next_command(self.envelope.mode, self.glance, self.gate.as_ref(), &door)
     }
 
     fn render_body(&self, theme: Theme) -> String {
-        render_with_context(&self.probe, self.glance, self.counts, &self.ctx, theme)
+        front_door::render_with_context(
+            &machine_view(&self.probe, self.counts),
+            self.glance,
+            self.counts,
+            &self.ctx,
+            theme,
+        )
     }
 
     fn render_json(&self, next: &str) -> serde_json::Value {
         let experience =
             experience_block(&self.probe, &self.envelope, self.glance, self.gate.as_ref());
-        if self.ctx.mode == ContextMode::ChatOnly {
-            return render_chat_only_json(&self.probe, self.counts, experience, next);
+        if self.envelope.mode == ContextMode::ChatOnly {
+            return front_door::render_chat_only_json(
+                &self.probe.version,
+                machine_json(&self.probe),
+                self.counts,
+                experience,
+                next,
+            );
         }
-        render_json(&self.probe, self.glance, self.counts, experience, next)
+        front_door::render_json(
+            &self.probe.version,
+            machine_json(&self.probe),
+            self.glance,
+            self.counts,
+            experience,
+            next,
+        )
     }
 
     fn record_session(&self) {
         crate::metrics::record_if_enabled(
             crate::metrics::EventKind::ContextResolved,
             crate::metrics::Facts {
-                session: Some(match self.ctx.mode {
+                session: Some(match self.envelope.mode {
                     ContextMode::ChatOnly => crate::metrics::Session::ChatOnly,
                     ContextMode::Workspace => crate::metrics::Session::Workspace,
                 }),
-                flag: (self.ctx.mode == ContextMode::Workspace)
+                flag: (self.envelope.mode == ContextMode::Workspace)
                     .then(|| self.envelope.evidence.expanded_from.is_some()),
                 ..crate::metrics::Facts::none()
             },
@@ -433,414 +401,92 @@ fn run_gate(root: &Path, rel: &Path) -> RunGate {
     verdict(report.is_clean(), priced)
 }
 
-/// The wired/unwired glyph pair — ✓/✗ with an ASCII column (`+`/`x`),
-/// painted Good/Dim: an unwired editor is an opportunity, never a
-/// failure (Bad stays the run-verdict red, nothing here earns it).
-fn mark(theme: Theme, on: bool) -> String {
-    let raw = match (theme.ascii, on) {
-        (false, true) => "✓",
-        (false, false) => "✗",
-        (true, true) => "+",
-        (true, false) => "x",
-    };
-    theme.paint(if on { Role::Good } else { Role::Dim }, raw)
-}
-
-/// One client's cell in the editors row (`cursor ✓` · `vscode ✗`).
-fn client_cell(theme: Theme, c: &crate::probe::ClientProbe) -> String {
-    format!("{} {}", c.id, mark(theme, c.current))
-}
-
-/// The six-line taste of the language — shown ONLY when the workspace has
-/// zero workflows (the stranger's moment; a workspace with files already
-/// knows). The SAME shape as the embedded `01-hello` example, so the
-/// START block's `nika try 01-hello` runs exactly what the eye
-/// just read — a test pins that the sample checks clean for real.
-pub const SAMPLE: &str = r#"nika: hello
-model: mock/echo
-tasks:
-  greet:
-    infer: { prompt: "say hello to the operator", max_tokens: 50 }"#;
-
-/// The human mirror — sections: identity · this machine · this binary ·
-/// (the language, first time only) · learn. This legacy entry is the
-/// TEST seam: it carries NO envelope view (an empty root), so the
-/// pre-envelope render tests stay byte-identical; [`Mirror::render_body`]
-/// renders through [`render_with_context`] with the resolved envelope.
-#[cfg(test)]
-fn render_human(probe: &Probe, glance: Glance, counts: EngineCounts, theme: Theme) -> String {
-    render_with_context(probe, glance, counts, &ContextView::legacy(), theme)
-}
-
-/// The envelope-aware mirror — the one `run_in` renders with.
-fn render_with_context(
-    probe: &Probe,
-    glance: Glance,
-    counts: EngineCounts,
-    ctx: &ContextView,
-    theme: Theme,
-) -> String {
-    let mut s = String::new();
-    identity_section(&mut s, probe, theme);
-    machine_section(&mut s, probe, glance, ctx, theme);
-    binary_section(&mut s, counts, glance, ctx, theme);
-    learn_line(&mut s, theme);
-    s
-}
-
-/// Who nika is — logo · version · the three-line identity.
-fn identity_section(s: &mut String, probe: &Probe, theme: Theme) {
-    let _ = writeln!(
-        s,
-        "{} {} — Intent as Code. The workflow language for AI.",
-        theme.logo(),
-        theme.paint(Role::Strong, &format!("nika {}", probe.version)),
-    );
-    let _ = writeln!(
-        s,
-        "   one file · 4 verbs · one binary · audited BEFORE it runs"
-    );
-    let _ = writeln!(
-        s,
-        "   every run records a tamper-evident, hash-chained trace"
-    );
-    let _ = writeln!(s);
-}
-
-/// The hanging indent under `  editors    ` — continuation rows and the
-/// wire handle line both sit under the label, never under the margin.
-const EDITOR_HANG: &str = "             ";
-
-/// Pack the client cells into rows that stay inside 80 display columns.
-///
-/// The roster is NOT a constant. Six hosts ship today, the registry
-/// already names a seventh, and every addition silently widened this
-/// row: on a real machine it measured **112 columns** under a published
-/// 0.107.0 — a third of the line hanging off an 80-column terminal. The
-/// ratchet that should have caught it was measuring a four-host fixture
-/// the binary stopped matching two hosts ago (the same drift its own
-/// doc comment records having learned once already, for providers).
-///
-/// So this measures instead of assuming, and it measures the PLAIN
-/// width (`id` + space + one mark glyph) — the painted cell carries
-/// zero-width escapes that would make a colour terminal wrap early.
-fn editor_rows(probe: &Probe, theme: Theme) -> Vec<String> {
-    let cells: Vec<(usize, String)> = probe
-        .clients
-        .iter()
-        .map(|c| (c.id.chars().count() + 2, client_cell(theme, c)))
-        .collect();
-    pack_cells(&cells)
-}
-
-/// The shared column budget. Eighty is the one terminal width nobody
-/// configures, so it is the one every row has to survive.
-const LIMIT: usize = 80;
-
-/// Pack `(plain_width, painted)` cells into rows that fit under a
-/// 13-column label with a matching hanging indent.
-///
-/// Every caller here renders a list whose length is DATA, not a
-/// constant — the host roster, the drifted kits — and a row that
-/// assumes its data is short is a row that breaks on somebody else's
-/// machine. The width is taken from the plain text because the painted
-/// cell carries zero-width escapes.
-fn pack_cells(cells: &[(usize, String)]) -> Vec<String> {
-    let hang = EDITOR_HANG.chars().count();
-    let mut rows: Vec<String> = Vec::new();
-    let mut row = String::new();
-    let mut used = hang;
-    for (plain, painted) in cells {
-        if !row.is_empty() && used + 3 + plain > LIMIT {
-            rows.push(std::mem::take(&mut row));
-            used = hang;
-        }
-        if !row.is_empty() {
-            row.push_str(" · ");
-            used += 3;
-        }
-        row.push_str(painted);
-        used += plain;
-    }
-    // An empty list still owns its label row — the mirror shows an
-    // empty cell, it never lets the label vanish.
-    if rows.is_empty() || !row.is_empty() {
-        rows.push(row);
-    }
-    rows
-}
-
-/// The machine half of the mirror — editors · local · keys · the P0-14
-/// session row ([`session_row`]).
-fn machine_section(s: &mut String, probe: &Probe, glance: Glance, ctx: &ContextView, theme: Theme) {
-    let _ = writeln!(s, "{}", theme.paint(Role::Strong, "this machine"));
-    for (i, row) in editor_rows(probe, theme).iter().enumerate() {
-        let _ = writeln!(
-            s,
-            "{}{row}",
-            if i == 0 { "  editors    " } else { EDITOR_HANG }
-        );
-    }
+/// Build passive display facts after all host selection and redaction.
+fn machine_view(probe: &Probe, counts: EngineCounts) -> front_door::MachineView {
     let unwired: Vec<&str> = probe
         .clients
         .iter()
-        .filter(|c| !c.current)
-        .map(|c| c.id.as_str())
+        .filter(|client| !client.current)
+        .map(|client| client.id.as_str())
         .collect();
     // H7 (audit UX 2026-07-30): never recommend `wire all` — one named
     // host, one consented mutation at a time. The handle takes its own
     // line unconditionally: hanging it off the cell list is what made
     // the row 112 columns wide, and one handle standing behind three
     // gaps reads as one gap, so the count is spoken (gauntlet 08-01).
-    if let Some((first, rest)) = unwired.split_first() {
-        let line = if rest.is_empty() {
+    let wire_hint = unwired.split_first().map(|(first, rest)| {
+        if rest.is_empty() {
             format!("→ nika wire {first}")
         } else {
             format!(
                 "{} unwired · one command each → nika wire {first}",
                 unwired.len()
             )
-        };
-        let _ = writeln!(s, "{EDITOR_HANG}{}", theme.paint(Role::Dim, &line));
-    }
-    local_provider_lines(s, probe, theme);
-    sovereign_and_keys_lines(s, probe, glance, ctx, theme);
-}
-
-/// The keyless rows: the local-provider summary line + the P0-20
-/// endpoint rows (an override moves « local » off the box — the engine
-/// is NAMED with endpoint + locus, never laundered under « no key
-/// needed »; loopback stays silent, the default render keeps its bytes).
-fn local_provider_lines(s: &mut String, probe: &Probe, theme: Theme) {
-    let locals: Vec<&str> = probe
-        .providers
-        .iter()
-        .filter(|p| !p.requires_key)
-        .map(|p| p.id.as_str())
-        .collect();
-    if locals.is_empty() {
-        let _ = writeln!(s, "  local      no local providers in this build");
-    } else {
-        // This row lives under « this machine », and it used to read as
-        // an inventory: `ollama · lmstudio · llamacpp · localai · vllm`
-        // with nothing listening on any of them (gauntlet P2 · B15). The
-        // names are what the BINARY supports; the header promises what the
-        // MACHINE has. Say the count and the probe, and the row stops
-        // claiming a server that is not there — `nika catalog` still
-        // names them, where naming them is true.
-        let _ = writeln!(
-            s,
-            "  local      {} keyless engines supported {}",
-            locals.len(),
-            theme.paint(Role::Dim, "· none probed → nika doctor --ping"),
-        );
-    }
-    for p in &probe.providers {
-        if !p.requires_key
-            && matches!(
-                p.readiness.execution_locus,
-                ExecutionLocus::Lan | ExecutionLocus::Remote
-            )
-        {
-            let _ = writeln!(
-                s,
-                "  endpoint   {} → {} ({})",
-                p.id,
-                crate::doctor::redact_userinfo(&p.endpoint),
-                p.readiness.execution_locus.label()
-            );
         }
-    }
-}
-
-/// The tail of the machine section (post-provider rows).
-fn sovereign_and_keys_lines(
-    s: &mut String,
-    probe: &Probe,
-    glance: Glance,
-    ctx: &ContextView,
-    theme: Theme,
-) {
-    // The sovereign lane — ONLY when bytes are on disk (a mirror line
-    // must carry information, never a lecture; zero models = silence).
-    if probe.models.count > 0 {
-        let _ = writeln!(
-            s,
-            "  models     {} pulled · {} on disk {}",
-            probe.models.count,
-            nika_models::store::human_size(probe.models.bytes),
-            theme.paint(Role::Dim, "· nika model list"),
-        );
-    }
-    // P0-21 — the adoption rung replaces the raw key ratio: ONE state,
-    // its own metric, its own CTA (the same classifier doctor --json
-    // serializes — one truth, two voices).
+    });
     let state = probe::adoption_state(probe);
-    let _ = writeln!(
-        s,
-        "  state      {} {}",
-        state.metric(probe),
-        theme.paint(Role::Dim, &format!("— {}", state.cta())),
-    );
-    // The plugin-kit lane — ONLY on train drift (an aligned or absent
-    // kit is silence; the same carry-information-never-lecture law as
-    // the models row · the per-client fix lives in doctor).
-    let drifted: Vec<String> = probe
-        .kits
-        .iter()
-        .filter(|k| crate::probe::train_differs(&k.version, &probe.version))
-        .map(|k| format!("{} {}", k.client, k.version))
-        .collect();
-    if !drifted.is_empty() {
-        // Same width law as the editors roster: the drifted list is
-        // data, not a constant. Three drifted kits plus the binary
-        // version plus the handle measured 100 columns on a normal
-        // machine — the verdict and the handle take the hanging line.
-        let cells: Vec<(usize, String)> = drifted
+    front_door::MachineView {
+        version: probe.version.clone(),
+        clients: probe
+            .clients
             .iter()
-            .map(|d| (d.chars().count(), d.clone()))
-            .collect();
-        for (i, row) in pack_cells(&cells).iter().enumerate() {
-            let _ = writeln!(
-                s,
-                "{}{row}",
-                if i == 0 { "  kits       " } else { EDITOR_HANG }
-            );
-        }
-        let _ = writeln!(
-            s,
-            "{EDITOR_HANG}{}",
-            theme.paint(
-                Role::Dim,
-                &format!("vs binary {} · fixes → nika doctor", probe.version),
-            ),
-        );
-    }
-    // `session_row` closes the section with its own blank line — a
-    // second one here rendered two, and the screen is meant to be the
-    // short one (#1196).
-    session_row(s, glance, ctx, theme);
-}
-
-/// The P0-14 row closing the machine section: chat-only SAYS « chat
-/// only » and claims nothing (no git bit, no count, no agents row —
-/// there is no workspace here); workspace names the RESOLVED root and
-/// traces the subdir expansion (displayed, never silent).
-fn session_row(s: &mut String, glance: Glance, ctx: &ContextView, theme: Theme) {
-    match ctx.mode {
-        ContextMode::ChatOnly => {
-            let _ = writeln!(s, "  session    chat only — no reliable project detected");
-        }
-        ContextMode::Workspace => {
-            // The root is a PATH — the one field in this whole screen
-            // whose width belongs to the person, not to us. A normal
-            // checkout rendered this row at 150 columns. So the facts
-            // move under the label when the two cannot share a line;
-            // the path is never truncated (a half-path is a lie about
-            // where you are).
-            let facts = workspace_facts(glance, theme);
-            let plain = workspace_facts(glance, Theme::new(false, false, false));
-            let root_w = ctx.root.chars().count();
-            if ctx.root.is_empty() {
-                let _ = writeln!(s, "  workspace  {facts}");
-            } else if EDITOR_HANG.chars().count() + root_w + 3 + plain.chars().count() <= LIMIT {
-                let _ = writeln!(s, "  workspace  {} · {facts}", ctx.root);
-            } else {
-                let _ = writeln!(s, "  workspace  {}", ctx.root);
-                let _ = writeln!(s, "{EDITOR_HANG}{facts}");
-            }
-            // The expansion trace carries a SECOND path — the subdir
-            // the person actually stood in. Two unbounded paths never
-            // share a line (this one rendered at 161 columns beside the
-            // facts); it earns its own, and its own `~`.
-            if let Some(from) = &ctx.expanded_from {
-                let _ = writeln!(
-                    s,
-                    "{EDITOR_HANG}{}",
-                    theme.paint(
-                        Role::Dim,
-                        &format!("from {}", under_home(&from.display().to_string())),
+            .map(|c| (c.id.clone(), c.current))
+            .collect(),
+        wire_hint,
+        local_providers: probe.providers.iter().filter(|p| !p.requires_key).count(),
+        endpoints: probe
+            .providers
+            .iter()
+            .filter(|p| {
+                !p.requires_key
+                    && matches!(
+                        p.readiness.execution_locus,
+                        ExecutionLocus::Lan | ExecutionLocus::Remote
                     )
-                );
-            }
-        }
+            })
+            .map(|p| {
+                (
+                    p.id.clone(),
+                    crate::doctor::redact_userinfo(&p.endpoint),
+                    p.readiness.execution_locus.label().to_owned(),
+                )
+            })
+            .collect(),
+        model_count: probe.models.count,
+        model_size: nika_models::store::human_size(probe.models.bytes),
+        state_metric: state.metric(probe),
+        state_cta: state.cta(),
+        drifted_kits: probe
+            .kits
+            .iter()
+            .filter(|k| crate::probe::train_differs(&k.version, &probe.version))
+            .map(|k| format!("{} {}", k.client, k.version))
+            .collect(),
+        wired_facet: nika_providers::wired_facet(counts.locals + counts.clouds, counts.locals),
     }
-    let _ = writeln!(s);
 }
 
-/// The workspace row's facts — git bit · workflow count · agents brief
-/// · the subdir expansion when there was one. Built twice per render
-/// (painted for the eye, plain to MEASURE), because a painted string
-/// carries escapes that lie about its width.
-fn workspace_facts(glance: Glance, theme: Theme) -> String {
-    let mut s = String::new();
-    {
-        let s = &mut s;
-        let _ = write!(
-            s,
-            "git {} · {} · agents {}",
-            mark(theme, glance.git),
-            match (glance.workflows, glance.complete) {
-                // P0-4: « no workflows yet » is a claim only a COMPLETE scan
-                // may make; a truncated walk renders the honest lower bound.
-                (0, true) => "no workflows yet".to_owned(),
-                (0, false) => "0 found · scan partial".to_owned(),
-                (1, true) => "1 workflow".to_owned(),
-                (n, true) => format!("{n} workflows"),
-                (n, false) => format!("{n}+ found · scan partial"),
-            },
-            if glance.agents_md {
-                format!("briefed {} (AGENTS.md)", mark(theme, true))
-            } else {
-                format!("not briefed {}", theme.paint(Role::Dim, "→ nika init"))
-            }
-        );
-    }
-    s
+/// The machine JSON, including host configuration, has one host producer.
+fn machine_json(probe: &Probe) -> serde_json::Value {
+    let mut machine = probe::environment_json(probe);
+    machine["config"] = serde_json::json!(probe.config_path);
+    machine
 }
 
-/// What this binary carries — derived counts, and the six-line taste of
-/// the language itself (first contact only — chat-only included: the
-/// isolated example IS the sample's run).
-fn binary_section(
-    s: &mut String,
-    counts: EngineCounts,
-    glance: Glance,
-    ctx: &ContextView,
-    theme: Theme,
-) {
-    let _ = writeln!(s, "{}", theme.paint(Role::Strong, "this binary"));
-    let _ = writeln!(
-        s,
-        "  4 verbs · {} builtins · {} providers · {} examples · {} templates",
-        counts.builtins,
-        counts.locals + counts.clouds,
-        counts.examples,
-        counts.templates
-    );
-    // #1398 — the facet's split on its own line (the card keeps its
-    // eighty columns): the same sentence the catalog header and the
-    // check refusal print, so the three surfaces cannot disagree.
-    let _ = writeln!(
-        s,
-        "  {}",
-        nika_providers::wired_facet(counts.locals + counts.clouds, counts.locals)
-    );
-    let _ = writeln!(s);
-    // The stranger's moment is gated on a COMPLETE zero (P0-4) — a
-    // partial scan cannot know the workspace is empty. Chat-only holds
-    // no scan at all: the sample rides as the isolated example instead.
-    if ctx.mode == ContextMode::ChatOnly || (glance.workflows == 0 && glance.complete) {
-        let _ = writeln!(
-            s,
-            "{}",
-            theme.paint(Role::Strong, "a whole workflow is one file")
-        );
-        for line in SAMPLE.lines() {
-            let _ = writeln!(s, "  {line}");
-        }
-        let _ = writeln!(s);
-    }
+/// The human mirror — sections: identity · this machine · this binary ·
+/// (the language, first time only) · learn. This legacy entry is the
+/// TEST seam: it carries NO envelope view (an empty root), so the
+/// pre-envelope render tests stay byte-identical; [`Mirror::render_body`]
+/// renders through [`front_door::render_with_context`] with the resolved envelope.
+#[cfg(test)]
+fn render_human(probe: &Probe, glance: Glance, counts: EngineCounts, theme: Theme) -> String {
+    front_door::render_with_context(
+        &machine_view(probe, counts),
+        glance,
+        counts,
+        &ContextView::legacy(),
+        theme,
+    )
 }
 
 /// Every command the concierge can ever teach — the parse-ratchet
@@ -905,31 +551,6 @@ pub fn taught_start_commands() -> Vec<String> {
         push(route.to_owned());
     }
     commands
-}
-
-/// Where to learn more — the tail of the body.
-///
-/// This used to sit under a `start here` menu of three commands. The
-/// cascade above already carries the ONE next step, and that menu was
-/// precisely what the first-wow cascade replaced: keeping both put the
-/// fork back in front of a stranger (#1196).
-fn learn_line(s: &mut String, theme: Theme) {
-    let _ = writeln!(
-        s,
-        "{}",
-        theme.paint(
-            Role::Dim,
-            &format!(
-                "learn: {} · docs: {} · ⭐ {}",
-                theme.link("https://nika.sh", "nika.sh"),
-                theme.link("https://docs.nika.sh", "docs.nika.sh"),
-                theme.link(
-                    "https://github.com/supernovae-st/nika",
-                    "github.com/supernovae-st/nika"
-                ),
-            )
-        )
-    );
 }
 
 /// The experience block riding `welcome --json` (additive against
@@ -1041,83 +662,6 @@ fn experience_block(
     // #1585 — the journal's word, never the router's constant.
     let action = route(&state).with_recorded_runs(probe.recorded_runs);
     serde_json::json!({ "state": state, "action": action })
-}
-
-/// The versioned machine mirror — additive-only (`welcome_version: 1`).
-/// Names and booleans and counts, by construction: nothing in the probe
-/// carries a value a secret could ride.
-fn render_json(
-    probe: &Probe,
-    glance: Glance,
-    counts: EngineCounts,
-    experience: serde_json::Value,
-    next: &str,
-) -> serde_json::Value {
-    let mut machine = probe::environment_json(probe);
-    machine["config"] = serde_json::json!(probe.config_path);
-    let mut v = serde_json::json!({
-        "welcome_version": 1,
-        "version": probe.version,
-        "machine": machine,
-        "workspace": {
-            "git": glance.git,
-            "workflows": glance.workflows,
-            "agents_md": glance.agents_md,
-            "inventory_complete": glance.complete,
-        },
-        "engine": {
-            "verbs": 4,
-            "builtins": counts.builtins,
-            "local_providers": counts.locals,
-            "cloud_providers": counts.clouds,
-            "examples": counts.examples,
-            "templates": counts.templates,
-        },
-        // ONE next step, the same string the `Next:` block prints. It
-        // was a three-command array that had met neither the cascade
-        // nor the cwd key — an agent reading `start[0]` on 0.115 was
-        // handed the retired door (#1187). `start` stays an array so a
-        // consumer indexing it still works; it just tells the truth now.
-        "next": next,
-        "start": [next],
-    });
-    v["experience"] = experience;
-    v
-}
-
-/// The chat-only machine mirror — the SAME versioned envelope, minus
-/// every workspace claim (there is none to make), plus the mode and the
-/// two doors the spec allows. Additive against `welcome_version: 1`: the
-/// `context` key is the chat-only signal.
-fn render_chat_only_json(
-    probe: &Probe,
-    counts: EngineCounts,
-    experience: serde_json::Value,
-    next: &str,
-) -> serde_json::Value {
-    let mut machine = probe::environment_json(probe);
-    machine["config"] = serde_json::json!(probe.config_path);
-    let mut v = serde_json::json!({
-        "welcome_version": 1,
-        "version": probe.version,
-        "context": { "mode": "chat_only" },
-        "machine": machine,
-        "engine": {
-            "verbs": 4,
-            "builtins": counts.builtins,
-            "local_providers": counts.locals,
-            "cloud_providers": counts.clouds,
-            "examples": counts.examples,
-            "templates": counts.templates,
-        },
-        // ONE source with the rendered text (the W8 law): the machine
-        // mirror is handed the same string the `Next:` block prints,
-        // never a hand-kept twin — two lists of the same moves drift.
-        "next": next,
-        "start": [next],
-    });
-    v["experience"] = experience;
-    v
 }
 
 #[cfg(test)]

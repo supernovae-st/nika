@@ -21,6 +21,8 @@ use nika_kernel::ai::provider::{
 use serde_json::{Value, json};
 use std::{sync::Mutex, time::Duration};
 
+#[path = "compile_forensic/capture_metadata.rs"]
+mod capture_metadata;
 mod common;
 use common::INTENT;
 
@@ -1006,4 +1008,205 @@ async fn the_policy_sketch_door_and_a_plan_without_composition_keep_their_reason
         "hot_rejected_and_warm_not_settling"
     );
     assert_eq!(calls(&out), ["plan"]);
+}
+
+// ── Slice C · the authoring answer as the compiler received it, to a host's scoped observer ───
+//
+// A hermetic in-memory sink. The public record keeps withholding a refused answer's text; only a
+// host that scoped an observer around its compile receives the exact text blocks of authoring and
+// repair calls (never a judge's), in order, identities only for the prompt. No disk, no global.
+
+mod observation {
+    use super::*;
+    use nika_compile_cognition::observe::{
+        Answered, AuthoringObservation, Failure, observe_authoring,
+    };
+    use std::sync::{Arc, Mutex};
+
+    const SENTINEL: &str = "zz_raw_sentinel";
+    const VALUE: &str = "value-7f3a-unique";
+
+    /// What a test sink keeps of one observation (an owned copy, made inside the callback).
+    #[derive(Clone, Debug, PartialEq)]
+    struct Seen {
+        ordinal: u32,
+        role: String,
+        blocks: Option<Vec<String>>,
+        failure: Option<Failure>,
+        framed: Option<String>,
+    }
+
+    fn sink() -> (Arc<Mutex<Vec<Seen>>>, nika_compile_cognition::observe::Sink) {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let kept = Arc::clone(&seen);
+        let sink: nika_compile_cognition::observe::Sink =
+            Arc::new(move |o: &AuthoringObservation<'_>| {
+                let (blocks, failure, framed) = match &o.answered {
+                    Answered::Text {
+                        blocks,
+                        framed_sha256,
+                        ..
+                    } => (
+                        Some(blocks.iter().map(|b| (*b).to_owned()).collect()),
+                        None,
+                        Some(framed_sha256.clone()),
+                    ),
+                    Answered::NoResponse(failure) => (None, Some(*failure), None),
+                    _ => (None, None, None),
+                };
+                kept.lock().unwrap().push(Seen {
+                    ordinal: o.ordinal,
+                    role: o.role.to_owned(),
+                    blocks,
+                    failure,
+                    framed,
+                });
+            });
+        (seen, sink)
+    }
+
+    /// A sketch answer the door refuses (an unknown key), then a valid sketch and its fills.
+    fn replies() -> Vec<String> {
+        // An unknown task key: the sketch laws refuse it unechoed, and the round is repaired.
+        let mut sketch = recap_sketch();
+        sketch["tasks"][0][SENTINEL] = json!(VALUE);
+        let refused = sketch.to_string();
+        vec![
+            refused,
+            recap_sketch().to_string(),
+            json!({"fills": valid_fills(), "notes": "fills"}).to_string(),
+        ]
+    }
+
+    fn request() -> CompileRequest {
+        CompileRequest::create(SKETCH_INTENT).with_authoring_policy(policy(NativeMode::Sketch, 1))
+    }
+
+    #[tokio::test]
+    async fn a_scoped_observer_receives_the_exact_refused_text_the_record_withholds() {
+        let provider = Script::texts(&replies());
+        let (seen, sink) = sink();
+        let out = observe_authoring(sink, Box::pin(compile_with_provider(&request(), &provider)))
+            .await
+            .unwrap();
+        let seen = seen.lock().unwrap().clone();
+        let roles: Vec<&str> = seen.iter().map(|s| s.role.as_str()).collect();
+        assert_eq!(&roles[..3], ["sketch", "sketch-repair", "fill"], "{seen:?}");
+        assert!(
+            roles.iter().all(|r| !r.starts_with("judge")),
+            "no judge is observed: {roles:?}"
+        );
+        assert_eq!(
+            seen.iter().map(|s| s.ordinal).collect::<Vec<_>>(),
+            (1..=seen.len())
+                .map(|n| u32::try_from(n).unwrap())
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            seen[0].blocks.as_deref(),
+            Some(&[replies()[0].clone()][..]),
+            "the exact bytes received"
+        );
+        // The public record still withholds the refused text and its unknown key.
+        let public = outcome_document(&out).to_string();
+        assert!(
+            !public.contains(SENTINEL) && !public.contains(VALUE),
+            "{public}"
+        );
+        // The framed private identity is not the public concatenated digest.
+        let first = &context(&out)[0]["response"]["sha256"];
+        assert_ne!(json!(seen[0].framed), *first);
+    }
+
+    #[tokio::test]
+    async fn the_observer_changes_nothing_the_compile_decides() {
+        let observed = {
+            let provider = Script::texts(&replies());
+            let (_, sink) = sink();
+            observe_authoring(sink, Box::pin(compile_with_provider(&request(), &provider)))
+                .await
+                .unwrap()
+        };
+        let plain = {
+            let provider = Script::texts(&replies());
+            compile_with_provider(&request(), &provider).await.unwrap()
+        };
+        assert_eq!(observed.candidate, plain.candidate);
+        assert_eq!(observed.status, plain.status);
+        assert_eq!(
+            format!("{:?}", observed.diagnostics),
+            format!("{:?}", plain.diagnostics)
+        );
+        assert_eq!(
+            observed.provenance.authoring.as_ref().map(|r| r.calls),
+            plain.provenance.authoring.as_ref().map(|r| r.calls)
+        );
+    }
+
+    #[tokio::test]
+    async fn concurrent_scopes_never_mix_and_nothing_is_observed_outside_one() {
+        let (left, left_sink) = sink();
+        let (right, right_sink) = sink();
+        let left_provider = Script::texts(&replies());
+        let right_provider = Script::texts(&[
+            recap_sketch().to_string(),
+            json!({"fills": valid_fills(), "notes": "fills"}).to_string(),
+        ]);
+        let (left_request, right_request) = (request(), request());
+        let (a, b) = tokio::join!(
+            observe_authoring(
+                left_sink,
+                Box::pin(compile_with_provider(&left_request, &left_provider))
+            ),
+            observe_authoring(
+                right_sink,
+                Box::pin(compile_with_provider(&right_request, &right_provider))
+            ),
+        );
+        a.unwrap();
+        b.unwrap();
+        let left = left.lock().unwrap().clone();
+        let right = right.lock().unwrap().clone();
+        assert!(
+            left.iter()
+                .any(|s| s.blocks.as_ref().is_some_and(|b| b[0].contains(SENTINEL)))
+        );
+        assert!(
+            right
+                .iter()
+                .all(|s| s.blocks.as_ref().is_none_or(|b| !b[0].contains(SENTINEL)))
+        );
+        assert_eq!(right[0].ordinal, 1, "each scope counts its own calls");
+        // Outside any scope: a plain compile reaches no sink at all.
+        let (outside, _unused) = sink();
+        let provider = Script::texts(&replies());
+        compile_with_provider(&request(), &provider).await.unwrap();
+        assert!(outside.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_call_without_a_response_is_a_failure_never_an_empty_text() {
+        let provider = Script::new(vec![Reply::Fail]);
+        let (seen, sink) = sink();
+        observe_authoring(sink, Box::pin(compile_with_provider(&request(), &provider)))
+            .await
+            .unwrap();
+        let seen = seen.lock().unwrap().clone();
+        assert_eq!(seen.len(), 1, "{seen:?}");
+        assert_eq!(seen[0].blocks, None);
+        assert_eq!(seen[0].failure, Some(Failure::ProviderError));
+    }
+
+    #[tokio::test]
+    async fn a_dropped_scope_reports_nothing_more() {
+        let provider = Script::texts(&replies());
+        let (seen, sink) = sink();
+        let request = request();
+        let compile = observe_authoring(sink, Box::pin(compile_with_provider(&request, &provider)));
+        drop(compile);
+        assert!(
+            seen.lock().unwrap().is_empty(),
+            "a scope never polled observes nothing"
+        );
+    }
 }

@@ -99,9 +99,15 @@ pub mod observed {
 
 /// The money a caller admitted or its operator stated, read before any strategy (R4 B15).
 pub mod admitted {
-    pub use crate::admitted::{read, record, refused, replacement};
+    pub use crate::admitted::{read, reading, record, refused, replacement};
 }
 pub use crate::{finding, finish, initial, literal_answer, parse, question};
+
+/// The sketch door's semantic record (slice C): the request basis read before any proposal, and
+/// the caller basis read at a compile's entry, which a replay must match.
+pub mod semantic {
+    pub use crate::doors::{caller, request_basis};
+}
 
 /// Durable unresolved computation and its exact field-choice context.
 pub mod pending_transform {

@@ -41,7 +41,7 @@ mod forensic;
 pub(super) mod knowledge;
 mod native;
 mod proposal;
-mod receipt;
+pub(crate) mod receipt;
 mod rehearsal;
 use receipt::call_with_schema;
 pub(crate) use receipt::{effort, reasoning_record};
@@ -217,6 +217,11 @@ pub async fn compile_with_cognition_rehearsed<P: ProviderInferDyn>(
     cognition: Cognition<'_, P>,
     host: Option<&dyn crate::rehearse::Rehearse>,
 ) -> Result<CompileOutcome, CompileError> {
+    // The caller's own request, read before money or a clarification changes it (slice C).
+    let caller = match nika_compile::surface::semantic::caller(request) {
+        Ok(caller) => caller,
+        Err(refused) => return Ok(*refused),
+    };
     let admitted::Money {
         reading,
         record,
@@ -232,7 +237,16 @@ pub async fn compile_with_cognition_rehearsed<P: ProviderInferDyn>(
         cognition
     };
     let mut rehearsals = rehearsal::Rehearsals::new(host);
-    let mut out = compile_inner(&reading, seats, &mut rehearsals).await?;
+    let mut out = if request
+        .plan
+        .as_ref()
+        .is_some_and(|r| r.get("semantic_record").is_some())
+    {
+        Box::pin(semantic_replayed(request, &reading, seats)).await?
+    } else {
+        compile_inner(&reading, seats, &mut rehearsals).await?
+    };
+    sketch::bind_caller(caller, request, &mut out);
     rehearsals.finish(&reading, &mut out).await;
     if let Some(money) = record {
         admitted::record(
@@ -245,6 +259,27 @@ pub async fn compile_with_cognition_rehearsed<P: ProviderInferDyn>(
     nika_compile::surface::observed::record(request, &mut out);
     forensic::record(request, offered, &mut out);
     Ok(out)
+}
+
+/// An answer round of a semantic record (slice C), before every shortcut: the request the
+/// door read is derived from `reading` as `compile_inner` derives it (a clarification taken,
+/// folded), only to bind this round's judge; the record replays from the raw request alone.
+async fn semantic_replayed<P: ProviderInferDyn>(
+    raw: &CompileRequest,
+    reading: &CompileRequest,
+    cognition: Cognition<'_, P>,
+) -> Result<CompileOutcome, CompileError> {
+    let Input::Create(words) = &reading.input else {
+        return nika_compile::compile(raw);
+    };
+    let mut assembly = reading.clone();
+    let clarified = (assembly.answers.remove("intent.clarification"))
+        .and_then(|raw| serde_json::from_str::<String>(&raw).ok());
+    let intent = lexicon::fold_apostrophes(clarified.as_deref().unwrap_or(words));
+    let provider = (reading.authoring.as_ref())
+        .filter(|policy| policy_bounded(policy, &intent))
+        .zip(cognition.provider);
+    verify::semantic(raw, &intent, &assembly, (cognition.seat, provider)).await
 }
 
 async fn compile_inner<P: ProviderInferDyn>(

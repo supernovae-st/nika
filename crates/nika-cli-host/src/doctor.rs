@@ -25,7 +25,7 @@ use std::fmt::Write as _;
 // detection engine `doctor` and `welcome` share. Re-exported crate-internally
 // so this module's tests keep their historical names.
 use crate::clients_registry::RegistryCoverage;
-use crate::display::theme::{Role, Theme};
+use crate::display::theme::Theme;
 use crate::output::{VerbOutput, exit};
 pub(crate) use crate::probe::{
     AdoptionState, CapabilityLevel, ClientProbe, HostCapabilityReceipt, ImageProbe, KitProbe,
@@ -35,47 +35,10 @@ use nika_providers::probe::{ExecutionLocus, KeyAuth};
 
 mod local_models;
 
-/// Severity of one diagnosis line.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Level {
-    /// `✔` healthy.
-    Ok,
-    /// `⚠` advisory (the run may still work).
-    Warn,
-    /// `✖` a hard environment problem (drives `exit 3`).
-    Fail,
-}
-
-impl Level {
-    /// The semantic colour role — the SAME closed vocabulary the run
-    /// storyboard speaks (`Role` · theme.rs): green ok · yellow advisory ·
-    /// red hard-fail. Never decorative.
-    const fn role(self) -> Role {
-        match self {
-            Self::Ok => Role::Good,
-            Self::Warn => Role::Warn,
-            Self::Fail => Role::Bad,
-        }
-    }
-
-    fn glyph(self) -> char {
-        match self {
-            Self::Ok => '✔',
-            Self::Warn => '⚠',
-            Self::Fail => '✖',
-        }
-    }
-}
-
-/// One diagnosis line · a problem carries the exact PRINTED fix (never run).
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
-pub struct Finding {
-    pub level: Level,
-    pub label: String,
-    pub detail: String,
-    pub fix: Option<String>,
-}
+#[cfg(test)]
+use doctor_view::LABEL_COL;
+use nika_display::front_door::doctor as doctor_view;
+pub use nika_display::front_door::doctor::{Finding, Level};
 
 /// Pure diagnosis → ordered findings (binary · config · cloud providers ·
 /// local summary · the inference-readiness gate).
@@ -780,18 +743,8 @@ pub fn exit_code(findings: &[Finding]) -> u8 {
     }
 }
 
-/// Render findings as the `nika doctor` report (spec §8 layout · glyph · label
-/// padded · detail · an indented `fix:` line under a problem) — opened by the
-/// ONE verdict line (`✔ 6 ok · 4 warn · 0 fail`) so the state of the
-/// environment reads before the sections do. Sections stay unchanged.
-/// The machine lane (Q7): findings verbatim + a computed summary —
-/// agents/CI branch on `summary.fail` instead of parsing glyphs. P0-21:
-/// the adoption rung rides alongside (additive) — ONE state token the
-/// flat findings could never express. H5: the per-host runtime receipts
-/// ride alongside too (additive) — what each host earned, what was
-/// verified versus assumed, and the repair, per host. R4: the access
-/// census rides alongside (additive) — every path with its custody and
-/// fix, the ready seats, the best path; one read, never recomputed.
+/// Project the host-owned adoption, receipt and access values for machine rendering.
+/// The passive renderer neither recollects facts nor grants authority from them.
 #[must_use]
 pub fn render_json(
     findings: &[Finding],
@@ -799,7 +752,6 @@ pub fn render_json(
     receipts: &[HostCapabilityReceipt],
     census: &nika_providers::census::AccessCensus,
 ) -> String {
-    let count = |lvl: Level| findings.iter().filter(|f| f.level == lvl).count();
     let paths: Vec<serde_json::Value> = census
         .paths
         .iter()
@@ -813,108 +765,55 @@ pub fn render_json(
             })
         })
         .collect();
-    let payload = serde_json::json!({
-        "summary": {
-            "ok": count(Level::Ok),
-            "warn": count(Level::Warn),
-            "fail": count(Level::Fail),
-        },
-        "adoption_state": state.as_str(),
-        "findings": findings,
-        "receipts": receipts,
-        "access": {
+    doctor_view::render_json(
+        findings,
+        state.as_str(),
+        serde_json::json!(receipts),
+        serde_json::json!({
             "paths": paths,
             "seats_ready": census.seats_ready,
             "best": census.best.as_ref().map(|p| p.id.clone()),
-        },
-    });
-    format!("{payload:#}")
+        }),
+    )
 }
 
 fn with_cascade(raw: String) -> String {
     let Ok(mut v) = serde_json::from_str::<serde_json::Value>(&raw) else {
         return raw;
     };
-    v["cascade"] = crate::choice::collect().doctor_cascade_json();
+    v["cascade"] = crate::choice::doctor_cascade_json(&crate::choice::collect());
     format!("{v:#}")
 }
 
-/// The fixed label column (nextest school: one grid, computed on RAW text).
-/// Every label `diagnose` can emit fits STRICTLY inside it (pinned by
-/// `every_label_fits_the_fixed_column`) so the detail column never shears.
-const LABEL_COL: usize = 10;
-
-/// Render the findings through the ONE colour seam (`Theme` · semantic
-/// never decorative — the same law welcome/run obey). Doctor rows carry NO
-/// durations, so the nextest discipline reduces to the status/label
-/// columns — a fixed 1-cell status glyph + the fixed `LABEL_COL` label
-/// cell, both laid out on RAW text and painted AFTER (ANSI escapes never
-/// enter width arithmetic — the same law as `Theme::glyph`). The sober
-/// register (colour off · links off · every pipe) is byte-identical to the
-/// themeless render it replaces.
-///
-/// B-8b (the 2026-07-31 gauntlet): a healthy keyless machine printed 13+
-/// ⚠ rows — every unwired agent, every unconfigured provider, the
-/// config-less default — and the alarm glyph taught the user to ignore
-/// it. `verbose: false` folds those three advisory classes into ONE calm
-/// line (`--verbose` unfolds each); the verdict line keeps counting the
-/// truth, the machine lane (`render_json`) always carries every finding.
+/// Render the human report after the host's existing visibility and link policy.
+/// Link only the rows the old renderer would show, in the same detail/fix order.
 #[must_use]
 pub fn render(findings: &[Finding], verbose: bool, theme: Theme) -> String {
-    let mut s = String::new();
-    let count = |level: Level| findings.iter().filter(|f| f.level == level).count();
-    let (ok, warn, fail) = (count(Level::Ok), count(Level::Warn), count(Level::Fail));
-    let verdict = if fail > 0 { Level::Fail } else { Level::Ok };
-    let glyph = |level: Level| theme.paint(level.role(), &level.glyph().to_string());
-    let _ = writeln!(s, "{} {ok} ok · {warn} warn · {fail} fail", glyph(verdict));
-    for f in findings {
-        if !verbose && calm_foldable(f) {
-            continue;
+    let rows: Vec<doctor_view::PreparedRow<'_>> = findings
+        .iter()
+        .filter(|finding| verbose || !calm_foldable(finding))
+        .map(|finding| doctor_view::PreparedRow {
+            finding,
+            detail: link_targets(theme, &finding.detail),
+            fix: finding.fix.as_deref().map(|fix| link_targets(theme, fix)),
+        })
+        .collect();
+    let folded = |label: &str| {
+        if verbose {
+            0
+        } else {
+            findings
+                .iter()
+                .filter(|f| calm_foldable(f) && f.label == label)
+                .count()
         }
-        let _ = writeln!(
-            s,
-            "{} {:<LABEL_COL$} {}",
-            glyph(f.level),
-            f.label,
-            link_targets(theme, &f.detail)
-        );
-        if let Some(fix) = &f.fix {
-            let _ = writeln!(s, "  fix: {}", link_targets(theme, fix));
-        }
-    }
-    if !verbose {
-        let agents = findings
-            .iter()
-            .filter(|f| calm_foldable(f) && f.label == "agent")
-            .count();
-        let providers = findings
-            .iter()
-            .filter(|f| calm_foldable(f) && f.label == "provider")
-            .count();
-        let config = findings
-            .iter()
-            .any(|f| calm_foldable(f) && f.label == "config");
-        let mut classes = Vec::new();
-        if agents > 0 {
-            classes.push(format!("{agents} agents unwired"));
-        }
-        if providers > 0 {
-            classes.push(format!("{providers} providers unconfigured"));
-        }
-        if config {
-            classes.push("config defaults".to_owned());
-        }
-        if !classes.is_empty() {
-            let _ = writeln!(
-                s,
-                "{} {:<LABEL_COL$} a healthy machine's notes — {} · nika doctor --verbose unfolds each",
-                theme.paint(Role::Dim, "·"),
-                theme.paint(Role::Dim, "advisory"),
-                theme.paint(Role::Dim, &classes.join(" · "))
-            );
-        }
-    }
-    s
+    };
+    doctor_view::render(
+        findings,
+        &rows,
+        (folded("agent"), folded("provider"), folded("config") > 0),
+        theme,
+    )
 }
 
 /// The B-8b fold classes — advisory by construction on a healthy
