@@ -1,5 +1,6 @@
-Keep authoring notes and refused Sketch question keys and gaps out of the
-public round journal, retaining their digest and shape. Report schema decode
-failures by class and position while preserving the internal repair diagnostic.
-Accepted typed questions remain available; this does not sanitize every public
-compiler diagnostic or the historical native candidate journal.
+Keep authoring notes and refused Sketch and native question keys and gaps out
+of the public round journal, retaining their digest and shape. Native ask
+rounds follow the same rule and retain admitted questions for the human.
+Report schema decode failures by class and position while preserving the
+internal repair diagnostic. Structural and admission diagnostics and the
+historical native candidate remain separate public paths.

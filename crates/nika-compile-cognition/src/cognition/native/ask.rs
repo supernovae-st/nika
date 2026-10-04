@@ -37,12 +37,23 @@ pub(super) fn round(
         Ok(admitted) => (admitted, Vec::new()),
         Err(diagnostic) => (Vec::new(), vec![diagnostic]),
     };
+    // The seat's notes are kept by digest, and so are a refused ask's keys and gaps (an admitted
+    // ask's are what the human is asked).
+    let withheld = crate::cognition::receipt::withheld;
+    let listed = |values: Value, what: &str| {
+        if diagnostics.is_empty() {
+            values
+        } else {
+            withheld(&values.to_string(), &[], what)
+        }
+    };
+    let keys: Vec<&str> = answer.questions.iter().map(|q| q.key.as_str()).collect();
     talk.rounds.push(json!({
         "round": round,
-        "asked": answer.questions.iter().map(|q| q.key.clone()).collect::<Vec<_>>(),
-        "gaps": gaps(&answer),
+        "asked": listed(json!(keys), "refused ask question keys"),
+        "gaps": listed(json!(gaps(&answer)), "refused ask gaps"),
         "gaps_dropped": dropped(&answer),
-        "notes": answer.notes.clone(),
+        "notes": withheld(&answer.notes, &[], "native ask notes"),
         "diagnostics": diagnostics.iter().map(|d| json!({"kind": d.kind, "message": d.message})).collect::<Vec<_>>(),
     }));
     if diagnostics.is_empty() {

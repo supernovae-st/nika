@@ -24,6 +24,8 @@ use std::{sync::Mutex, time::Duration};
 #[path = "compile_forensic/capture_metadata.rs"]
 mod capture_metadata;
 mod common;
+#[path = "compile_forensic/public_rounds.rs"]
+mod public_rounds;
 use common::INTENT;
 
 /// One scripted reply: a text with reported usage, a text without usage, or a provider failure.

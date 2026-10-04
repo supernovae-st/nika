@@ -440,9 +440,9 @@ program proposals and an external DecisionSeat's own usage remain explicitly
 `not_captured`. The record grants no authority and changes no routing decision.
 
 
-Sketch, Fill and judged native round notes retain their digest and shape through
-the existing `receipt::withheld` form. Refused Sketch question keys
-and gaps, and refused native gaps, use the same form. Accepted typed question
+Sketch, Fill, judged native and native ask round notes retain their digest and
+shape through the existing `receipt::withheld` form. Refused Sketch and native
+question keys and gaps use the same form, including refused native asks. Accepted typed question
 keys and gaps remain available to their existing compiler consumers. A schema
 (`Data`) decode failure is reported publicly by its fixed class and position;
 its detailed error remains available to the internal repair. Syntax and EOF
@@ -451,7 +451,8 @@ classification are preserved.
 
 This is a bounded public-journal rule, not global sanitization. Structural
 findings may still quote task identifiers and literals; the native question
-admission refusal, native ask round and whole candidate remain separate paths.
+admission refusals and whole candidate remain separate paths. Admitted native
+asks preserve the question keys and gaps needed by the human.
 Private capture is host-owned and grants no authority to replay these records.
 The `compile_forensic` sentinel tests exercise the covered paths with capture
 disabled, beside a positive control that preserves a valid typed question.
