@@ -158,6 +158,9 @@ pub struct Live {
     legs: Arc<Mutex<Legs>>,
     /// The last run an earlier session kept (HOME history), as read at open.
     kept: Option<Result<KeptRun, String>>,
+    /// The program the host named to run `nika:jq` in the observed room, given to every
+    /// runtime this Live opens.
+    jq: Option<nika_session::JqHelper>,
 }
 
 impl std::fmt::Debug for Live {
@@ -199,6 +202,7 @@ impl Live {
             candidate: None,
             legs: Arc::default(),
             kept: None,
+            jq: None,
         };
         live.open_runtime(kept);
         live
@@ -210,6 +214,17 @@ impl Live {
         if let Some(runtime) = self.runtime.as_mut() {
             runtime.set_cost_host_evidence(evidence);
         }
+        self
+    }
+
+    /// Run the observed room's `nika:jq` steps through `helper`, a bounded process of the
+    /// binary hosting this session; without one a jq step is never rehearsed.
+    #[must_use]
+    pub fn with_jq_helper(mut self, helper: nika_session::JqHelper) -> Self {
+        if let Some(runtime) = self.runtime.as_mut() {
+            runtime.with_jq_helper(helper.clone());
+        }
+        self.jq = Some(helper);
         self
     }
 
@@ -266,6 +281,9 @@ impl Live {
                 factory,
             ),
         };
+        if let Some(helper) = &self.jq {
+            runtime.with_jq_helper(helper.clone());
+        }
         // The plain loop prints progress lines to stdout; here the viewport
         // owns stdout: a progress line becomes the busy label the shell
         // draws while the turn runs (`submit_with` arms the sink), and is

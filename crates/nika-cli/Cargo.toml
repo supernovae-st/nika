@@ -37,6 +37,8 @@ clap        = { workspace = true }                             # verb tree (comp
 clap_complete = { workspace = true }                           # `nika completions <shell>` (spec §9)
 serde_json  = { workspace = true }                             # trace NDJSON parse · --json surfaces
 nix         = { workspace = true, features = ["fs", "signal"] }  # kernel advisory leases + stdout→stderr fold + the renderer's run child ended on leave
+cap         = { workspace = true }  # the isolated jq helper: a heap-allocation cap, unlimited outside helper mode
+nika-exec-runner = { path = "../nika-exec-runner", version = "0.122.0" }  # the isolated jq helper's process side: its CPU limit and stdio
 # The `nika run` composer (verbs/run/compose.rs · the verb/agent/effect
 # crates) descended to `nika_runtime::compose` 2026-07-22 (the 15k wall —
 # compute descends, render stays); what remains below is what the CLI's own

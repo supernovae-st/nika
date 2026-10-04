@@ -9,7 +9,6 @@
 //! decide its own read boundary.
 
 use std::fmt::Write as _;
-use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
 use crate::identity::{IDENTITY_CORE, language_digest};
@@ -221,17 +220,13 @@ fn read_context_file(path: &Path) -> Result<String, &'static str> {
     read_bounded_context(file)
 }
 
-fn read_bounded_context(reader: impl std::io::Read) -> Result<String, &'static str> {
-    let mut bytes = Vec::new();
-    // One lookahead byte distinguishes an exact-size file from a larger one.
-    reader
-        .take(MAX_CONTEXT_FILE_BYTES as u64 + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|_| "could not be read")?;
-    if bytes.len() > MAX_CONTEXT_FILE_BYTES {
+fn read_bounded_context(mut reader: impl std::io::Read) -> Result<String, &'static str> {
+    let read = nika_fs::read_capped(&mut reader, MAX_CONTEXT_FILE_BYTES as u64);
+    let capped = read.map_err(|_| "could not be read")?;
+    if capped.over {
         return Err("exceeds the 256 KiB context read limit");
     }
-    String::from_utf8(bytes).map_err(|_| "is not valid UTF-8")
+    String::from_utf8(capped.bytes.to_vec()).map_err(|_| "is not valid UTF-8")
 }
 
 /// Redact obvious secrets before anything leaves: API keys, private key

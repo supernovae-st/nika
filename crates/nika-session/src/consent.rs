@@ -9,7 +9,7 @@
 //! never the transcript (that is the history under the home). One JSON
 //! object per line, readable by any `nika trace`-class reader.
 
-use std::io::{self, Read as _};
+use std::io;
 use std::path::{Path, PathBuf};
 
 use nika_fs::OwnedDir;
@@ -126,24 +126,15 @@ impl ConsentRecord {
     /// A journal beyond 16 MiB, a line that is not a record, or the file
     /// system's refusal.
     pub fn read_all(root: &Path) -> io::Result<Vec<Self>> {
-        let dir = match OwnedDir::open(root).and_then(|dir| dir.open_below(&[NIKA_DIR])) {
-            Ok(dir) => dir,
+        let over = "the consent journal exceeds 16 MiB; preserve it for migration";
+        let text = match OwnedDir::open(root).and_then(|dir| {
+            dir.read_capped_below(&[NIKA_DIR], CONSENTS_FILE, MAX_JOURNAL_BYTES, over)
+        }) {
+            Ok(Some(text)) => text,
+            Ok(None) => return Ok(Vec::new()),
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
             Err(error) => return Err(error),
         };
-        let file = match dir.open_relative(Path::new(CONSENTS_FILE)) {
-            Ok(file) => file,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
-            Err(error) => return Err(error),
-        };
-        let mut text = String::new();
-        file.take(MAX_JOURNAL_BYTES + 1).read_to_string(&mut text)?;
-        if text.len() as u64 > MAX_JOURNAL_BYTES {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "the consent journal exceeds 16 MiB; preserve it for migration",
-            ));
-        }
         text.lines()
             .filter(|line| !line.trim().is_empty())
             .map(|line| serde_json::from_str(line).map_err(io::Error::from))

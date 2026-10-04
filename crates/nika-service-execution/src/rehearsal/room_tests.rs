@@ -529,3 +529,43 @@ async fn a_run_stopped_at_its_bound_leaves_its_operation_to_the_drain() -> TestR
     );
     Ok(())
 }
+
+// ─── the isolated jq evaluator, before any helper runs ──────────────────
+
+fn jq_call(input: &serde_json::Value) -> nika_kernel::tool_executor::ToolCall {
+    let args = serde_json::json!({"input": input, "expression": "length"});
+    nika_kernel::tool_executor::ToolCall::new("call-1", "nika:jq", args)
+}
+
+#[tokio::test]
+async fn an_oversized_jq_request_is_bounded_before_any_helper_starts() {
+    // The helper path names nothing: a request that reached a spawn would fail to start, a
+    // different reason from the one asserted here.
+    let helper = super::JqHelper::new("/nonexistent/nika-helper");
+    let jq = super::IsolatedJq::new(helper, Instant::now() + Duration::from_secs(5));
+    let refused = jq
+        .evaluate(&jq_call(&serde_json::json!("x".repeat(3 * 1024 * 1024))))
+        .await;
+    let error = refused.expect_err("bounded");
+    assert!(error.to_string().contains("rehearsal jq bound"), "{error}");
+    let bound = jq.bound().expect("the bound is kept");
+    assert!(bound.reason.contains("bytes, over the"), "{}", bound.reason);
+    assert!(bound.reaped, "nothing started, nothing left");
+}
+
+#[tokio::test]
+async fn a_helper_that_cannot_start_bounds_the_call_and_the_first_bound_is_kept() {
+    let helper = super::JqHelper::new("/nonexistent/nika-helper");
+    let jq = super::IsolatedJq::new(helper, Instant::now() + Duration::from_secs(5));
+    let first = jq.evaluate(&jq_call(&serde_json::json!([1, 2]))).await;
+    assert!(first.is_err());
+    let kept = jq.bound().expect("a bound");
+    assert!(kept.reason.contains("could not run"), "{}", kept.reason);
+    let oversized = serde_json::json!("x".repeat(3 * 1024 * 1024));
+    let _ = jq.evaluate(&jq_call(&oversized)).await;
+    assert_eq!(
+        jq.bound(),
+        Some(kept),
+        "the first bound of the run is the one kept"
+    );
+}

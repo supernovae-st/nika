@@ -257,3 +257,145 @@ async fn explicit_cancel_stops_only_its_own_group() -> Result<(), String> {
     );
     Ok(())
 }
+
+// ─── the bounded collection ─────────────────────────────────────────────
+
+const SH: &str = "/bin/sh";
+
+fn caps() -> Caps {
+    Caps::new(1024, 1024, Duration::from_secs(5))
+}
+
+fn within(seconds: u64) -> std::time::Instant {
+    std::time::Instant::now() + Duration::from_secs(seconds)
+}
+
+fn signalled(status: std::process::ExitStatus) -> Option<i32> {
+    std::os::unix::process::ExitStatusExt::signal(&status)
+}
+
+#[tokio::test]
+async fn a_collection_returns_what_a_process_wrote_and_reaps_it() -> Result<(), String> {
+    let program = std::path::Path::new(SH);
+    // Read exactly the bytes written, never to an end of stdin: on macOS a process another
+    // test forks at the same instant can inherit the write end of this pipe.
+    let script = "head -c 5; printf err >&2";
+    let collected = collect(program, &["-c", script], b"hello", caps(), within(10))
+        .await
+        .map_err(|error| error.to_string())?;
+    let Collected::Exited {
+        status,
+        stdout,
+        stderr,
+    } = collected
+    else {
+        return Err(format!("{collected:?}"));
+    };
+    assert!(status.success());
+    assert_eq!(stdout, b"hello");
+    assert_eq!(stderr, b"err");
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_deadline_kills_the_whole_group_then_drains_and_reaps_it() -> Result<(), String> {
+    let program = std::path::Path::new(SH);
+    // A grandchild in the same group holds stdout: the kill must reach it too, or the drain
+    // would never end.
+    let script = "(sleep 30) & sleep 30";
+    let start = std::time::Instant::now();
+    let deadline = start + Duration::from_millis(300);
+    let collected = collect(program, &["-c", script], b"", caps(), deadline)
+        .await
+        .map_err(|error| error.to_string())?;
+    let Collected::Killed { ended, status } = collected else {
+        return Err(format!("{collected:?}"));
+    };
+    assert_eq!(ended, Ended::Deadline);
+    assert_eq!(signalled(status), Some(9), "the reaped leader was killed");
+    assert!(
+        start.elapsed() < Duration::from_secs(10),
+        "{:?}",
+        start.elapsed()
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn an_output_past_its_cap_ends_the_process_and_is_never_kept() -> Result<(), String> {
+    let program = std::path::Path::new(SH);
+    for (script, expected) in [
+        ("while :; do printf 0123456789; done", Ended::Stdout),
+        ("while :; do printf 0123456789 >&2; done", Ended::Stderr),
+    ] {
+        let collected = collect(program, &["-c", script], b"", caps(), within(30))
+            .await
+            .map_err(|error| error.to_string())?;
+        let Collected::Killed { ended, status } = collected else {
+            return Err(format!("{script}: {collected:?}"));
+        };
+        assert_eq!(ended, expected, "{script}");
+        assert_eq!(signalled(status), Some(9), "{script}");
+    }
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_group_escape_holding_an_output_is_abandoned_never_claimed_clean() -> Result<(), String> {
+    let program = std::path::Path::new(SH);
+    // Job control gives the background job a process group of its own: the group kill cannot
+    // reach it, it keeps stdout open, and it ends on its own after one second (well past this
+    // collection's grace, well within the others': a process another test forks at the same
+    // instant can inherit their pipes, and holds them as long as it lives).
+    let script = "set -m; sleep 1 & sleep 30";
+    let caps = Caps::new(1024, 1024, Duration::from_millis(300));
+    let deadline = std::time::Instant::now() + Duration::from_millis(300);
+    let collected = collect(program, &["-c", script], b"", caps, deadline)
+        .await
+        .map_err(|error| error.to_string())?;
+    assert!(
+        matches!(
+            collected,
+            Collected::Abandoned {
+                ended: Ended::Deadline
+            }
+        ),
+        "{collected:?}"
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn a_lane_holds_one_collection_and_a_waiter_starts_nothing_past_its_deadline() {
+    let lane = Lane::new();
+    let program = std::path::Path::new(SH);
+    let first_deadline = std::time::Instant::now() + Duration::from_millis(600);
+    let second_deadline = std::time::Instant::now() + Duration::from_millis(150);
+    let (first, second) = tokio::join!(
+        lane.collect(program, &["-c", "sleep 30"], b"", caps(), first_deadline),
+        async {
+            // The first collection takes the lane before this one asks for it.
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            lane.collect(
+                program,
+                &["-c", "printf never"],
+                b"",
+                caps(),
+                second_deadline,
+            )
+            .await
+        },
+    );
+    assert!(
+        matches!(
+            first,
+            Ok(Collected::Killed {
+                ended: Ended::Deadline,
+                ..
+            })
+        ),
+        "{first:?}"
+    );
+    let waited = second.expect_err("the waiter started nothing");
+    assert_eq!(waited.kind(), std::io::ErrorKind::TimedOut, "{waited}");
+}

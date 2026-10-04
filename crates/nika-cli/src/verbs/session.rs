@@ -71,8 +71,9 @@ fn default_model(provider: &str) -> String {
         )
 }
 
-/// The session loop over any reader and writer (the tests drive it with
-/// a cursor; `run` drives it with the terminal).
+/// The session loop over any reader and writer, with no jq helper (the tests drive it with a
+/// cursor).
+#[cfg(test)]
 fn drive<R: BufRead, W: Write>(
     input: &mut R,
     output: &mut W,
@@ -82,6 +83,20 @@ fn drive<R: BufRead, W: Write>(
     theme: Theme,
     factory: nika_session::runtime::ReasonerFactory,
 ) -> std::io::Result<u8> {
+    drive_with(input, output, census, home, cwd, (theme, None), factory)
+}
+
+/// The session loop over any reader and writer; `run` drives it with the terminal and the jq
+/// helper its binary names.
+fn drive_with<R: BufRead, W: Write>(
+    input: &mut R,
+    output: &mut W,
+    census: &IntelligenceCensus,
+    home: Option<&std::path::Path>,
+    cwd: &std::path::Path,
+    (theme, jq): (Theme, Option<nika_onboard::compile::room::JqHelper>),
+    factory: nika_session::runtime::ReasonerFactory,
+) -> std::io::Result<u8> {
     // The kept choice opens the session as chosen; without one the session
     // opens all the same and asks the first screen in context, the first
     // time a turn needs an intelligence.
@@ -89,6 +104,9 @@ fn drive<R: BufRead, W: Write>(
         Some(pref) => SessionRuntime::open_with(cwd, census.clone(), &pref, home, factory),
         None => SessionRuntime::open_unchosen(cwd, census.clone(), home, factory),
     };
+    if let Some(helper) = jq {
+        session.with_jq_helper(helper);
+    }
     // This unmanaged interactive host has no configured hard-cap source.
     // Project discovery is re-read by Session on review and confirmation.
     if std::io::IsTerminal::is_terminal(&std::io::stdin())
@@ -406,7 +424,8 @@ fn run_tapped(
 /// gets the plain session instead — the same session, said once on
 /// stderr, never a dead door (UX-2 · the terminal matrix).
 #[must_use]
-pub fn run_tui(theme: Theme) -> u8 {
+/// `jq` is the helper the binary names to run a rehearsal's `nika:jq` steps (itself), if any.
+pub fn run_tui(theme: Theme, jq: Option<nika_onboard::compile::room::JqHelper>) -> u8 {
     use nika_tui::session::{Live, Runners};
     let mut options = nika_tui::app::Options::new(presentation());
     options.color = theme.color;
@@ -429,7 +448,7 @@ pub fn run_tui(theme: Theme) -> u8 {
                 std::io::stderr(),
                 "nika: the renderer cannot take this terminal ({error}) · the plain session opens instead"
             );
-            return run(theme);
+            return run(theme, jq);
         }
     };
     let census = IntelligenceCensus::take();
@@ -445,8 +464,12 @@ pub fn run_tui(theme: Theme) -> u8 {
         run_tapped: None,
     };
     let tapped = std::sync::Arc::clone(&child);
-    let live = Live::new(cwd, census, kept, home, Box::new(reasoner_for), runners)
-        .with_cost_host_evidence(nika_session::CostHostEvidence::unmanaged_interactive_local())
+    let mut live = Live::new(cwd, census, kept, home, Box::new(reasoner_for), runners)
+        .with_cost_host_evidence(nika_session::CostHostEvidence::unmanaged_interactive_local());
+    if let Some(helper) = jq {
+        live = live.with_jq_helper(helper);
+    }
+    let live = live
         .with_run_tapped_observed(Box::new(move |root, work, busy| {
             run_tapped(root, work, busy, &tapped)
         }))
@@ -486,19 +509,20 @@ pub fn run_tui(theme: Theme) -> u8 {
 
 /// Open the native session on this terminal.
 #[must_use]
-pub fn run(theme: Theme) -> u8 {
+/// `jq` is the helper the binary names to run a rehearsal's `nika:jq` steps (itself), if any.
+pub fn run(theme: Theme, jq: Option<nika_onboard::compile::room::JqHelper>) -> u8 {
     let mut input = PerCallLines::new(read_burst);
     let mut output = std::io::stdout();
     let census = IntelligenceCensus::take();
     let home = nika_cli_host::probe::home_dir();
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    match drive(
+    match drive_with(
         &mut input,
         &mut output,
         &census,
         home.as_deref(),
         &cwd,
-        theme,
+        (theme, jq),
         Box::new(reasoner_for),
     ) {
         Ok(code) => code,

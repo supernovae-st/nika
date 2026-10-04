@@ -37,6 +37,7 @@ use nika_verb_exec::ExecVerb;
 use nika_verb_infer::InferVerb;
 use nika_verb_invoke::InvokeVerb;
 
+use super::isolated_jq::IsolatedJq;
 use crate::{ServiceExecutionDriver, SilentSink};
 
 /// The builtins a rehearsal runs: the room's file reads and writes, the run's clock, its logs
@@ -140,6 +141,24 @@ impl ServiceExecutionDriver {
     where
         F: FsReadDyn + FsWriteDyn + FsListDyn + FsMetaDyn + Send + Sync + 'static,
     {
+        self.rehearse_over_with(fs, plan, tally, None).await
+    }
+
+    /// [`Self::rehearse_over`], its `nika:jq` calls evaluated by `jq` when one is given (a
+    /// bounded process of the host's own), refused as outside the surface otherwise.
+    ///
+    /// # Errors
+    /// As [`Self::rehearse_over`].
+    pub async fn rehearse_over_with<F>(
+        &self,
+        fs: Arc<F>,
+        plan: ExecutionAccessPlan,
+        tally: Arc<DeniedTally>,
+        jq: Option<Arc<IsolatedJq>>,
+    ) -> Result<RunOutcome, RuntimeError>
+    where
+        F: FsReadDyn + FsWriteDyn + FsListDyn + FsMetaDyn + Send + Sync + 'static,
+    {
         let seams = RunSeams::of(self.workflow.run.as_ref().map(|run| &run.value));
         let model = self
             .workflow
@@ -159,6 +178,7 @@ impl ServiceExecutionDriver {
         let gate = Arc::new(Gate {
             inner: Arc::new(plane),
             tally: Arc::clone(&tally),
+            jq,
         });
         let invoke = Arc::new(InvokeVerb::new(Arc::clone(&gate)));
         let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::new()));
@@ -181,11 +201,13 @@ impl ServiceExecutionDriver {
     }
 }
 
-/// The tool plane of a rehearsal: the admitted surface reaches the builtin dispatcher, every
-/// other tool is refused before it, and one that reaches beyond the room is counted.
+/// The tool plane of a rehearsal: the admitted surface reaches the builtin dispatcher, `nika:jq`
+/// the isolated evaluator when the host gave one, every other tool is refused before it, and one
+/// that reaches beyond the room is counted.
 struct Gate<D> {
     inner: Arc<D>,
     tally: Arc<DeniedTally>,
+    jq: Option<Arc<IsolatedJq>>,
 }
 
 impl<D> ToolExecuteDyn for Gate<D>
@@ -193,6 +215,9 @@ where
     D: ToolExecuteDyn,
 {
     async fn execute(&self, call: ToolCall) -> Result<ToolResult, ToolExecError> {
+        if let Some(jq) = self.jq.as_ref().filter(|_| call.name == "nika:jq") {
+            return jq.evaluate(&call).await;
+        }
         if ADMITTED_TOOLS.contains(&call.name.as_str()) {
             return self.inner.execute(call).await;
         }

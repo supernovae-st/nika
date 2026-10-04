@@ -1,6 +1,15 @@
 pub mod nika_builtin
 pub mod nika_builtin::core_tools
 pub mod nika_builtin::data
+pub const nika_builtin::data::JQ_FRAME_HEADER: usize
+pub const nika_builtin::data::JQ_HELPER_WORD: &str
+pub fn nika_builtin::data::jq_answer(call_id: &str, answer: &[u8]) -> core::option::Option<nika_kernel_runtime::tool_executor::ToolResult>
+pub fn nika_builtin::data::jq_frame(payload: &[u8]) -> alloc::vec::Vec<u8>
+pub fn nika_builtin::data::jq_frame_length(header: [u8; 8]) -> u64
+pub fn nika_builtin::data::jq_request(request: &[u8]) -> alloc::vec::Vec<u8>
+pub fn nika_builtin::data::jq_request_bytes(args: &serde_json::value::Value, run_start_ns: i64) -> alloc::vec::Vec<u8>
+pub fn nika_builtin::data::jq_serve(input: &mut dyn alloc::io::read::Read, output: &mut dyn core::io::write::Write, max_request: u64) -> core::io::error::Result<()>
+pub fn nika_builtin::data::jq_unframe(frame: &[u8]) -> core::option::Option<&[u8]>
 pub mod nika_builtin::date
 pub mod nika_builtin::decide
 #[non_exhaustive] pub enum nika_builtin::decide::DecideError

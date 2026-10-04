@@ -234,12 +234,14 @@ pub fn nika_fs::OwnedDir::directory_names(&self) -> core::io::error::Result<allo
 pub fn nika_fs::OwnedDir::display_path(&self) -> &std::path::Path
 pub fn nika_fs::OwnedDir::exists(&self, name: &str) -> core::io::error::Result<bool>
 pub fn nika_fs::OwnedDir::hard_link(&self, from: &str, to: &str) -> core::io::error::Result<()>
+pub fn nika_fs::OwnedDir::hold_lock(&self, name: &str, grace: core::time::Duration) -> core::io::error::Result<std::fs::File>
 pub fn nika_fs::OwnedDir::names(&self) -> core::io::error::Result<alloc::vec::Vec<alloc::string::String>>
 pub fn nika_fs::OwnedDir::open(path: &std::path::Path) -> core::io::error::Result<Self>
 pub fn nika_fs::OwnedDir::open_below(&self, components: &[&str]) -> core::io::error::Result<Self>
 pub fn nika_fs::OwnedDir::open_lock(&self, name: &str) -> core::io::error::Result<std::fs::File>
 pub fn nika_fs::OwnedDir::open_relative(&self, relative: &std::path::Path) -> core::io::error::Result<std::fs::File>
 pub fn nika_fs::OwnedDir::read(&self, name: &str) -> core::io::error::Result<alloc::string::String>
+pub fn nika_fs::OwnedDir::read_capped_below(&self, components: &[&str], name: &str, cap: u64, over: &str) -> core::io::error::Result<core::option::Option<alloc::string::String>>
 pub fn nika_fs::OwnedDir::read_optional(&self, name: &str) -> core::io::error::Result<core::option::Option<alloc::string::String>>
 pub fn nika_fs::OwnedDir::remove(&self, name: &str) -> core::io::error::Result<()>
 pub fn nika_fs::OwnedDir::try_clone(&self) -> core::io::error::Result<Self>

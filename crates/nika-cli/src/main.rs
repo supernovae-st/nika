@@ -711,10 +711,14 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
             // when the renderer cannot take the terminal (`TERM=dumb`, a
             // mute cursor report), said once on stderr by the renderer's door.
             let plain = plain || plain_session_requested();
+            // This binary is the jq helper its own rehearsals start, in either session.
+            let jq = std::env::current_exe()
+                .ok()
+                .map(nika_onboard::compile::room::JqHelper::new);
             Some(if interactive && plain {
-                std::process::ExitCode::from(verbs::session::run(interactive_theme(theme)))
+                std::process::ExitCode::from(verbs::session::run(interactive_theme(theme), jq))
             } else if interactive {
-                std::process::ExitCode::from(verbs::session::run_tui(interactive_theme(theme)))
+                std::process::ExitCode::from(verbs::session::run_tui(interactive_theme(theme), jq))
             } else {
                 concierge(json, theme)
             })
@@ -742,7 +746,26 @@ fn is_runnable_workflow(arg: &std::ffi::OsStr) -> bool {
     })
 }
 
+/// Every allocation of this binary, unlimited except in the jq helper, which caps it first.
+#[global_allocator]
+static ALLOCATOR: cap::Cap<std::alloc::System> = cap::Cap::new(std::alloc::System, usize::MAX);
+
 fn main() -> std::process::ExitCode {
+    // The jq helper runs on this thread alone, before any other code of the binary: its heap
+    // allocations are capped first (256 MiB through this allocator, no bound on its resident
+    // memory), then its CPU time (10 s), then it serves one framed request of at most 4 MiB.
+    if std::env::args_os()
+        .nth(1)
+        .is_some_and(|word| word == nika_builtin::data::JQ_HELPER_WORD)
+    {
+        if ALLOCATOR.set_limit(256 * 1024 * 1024).is_err() {
+            return std::process::ExitCode::from(70);
+        }
+        let serve = |input: &mut dyn std::io::Read, output: &mut dyn std::io::Write| {
+            nika_builtin::data::jq_serve(input, output, 4 * 1024 * 1024)
+        };
+        return std::process::ExitCode::from(nika_exec_runner::serve_stdio(10, serve));
+    }
     pipe_hygiene::guard(real_main)
 }
 

@@ -162,6 +162,7 @@ pub use nika_onboard::compile::intent_sha256
 pub use nika_onboard::compile::materialize_ready
 pub use nika_onboard::compile::money
 pub use nika_onboard::compile::observation
+pub use nika_onboard::compile::observe
 pub use nika_onboard::compile::outcome_document
 pub use nika_onboard::compile::rehearse
 pub use nika_onboard::compile::retrieve
@@ -784,16 +785,19 @@ pub fn nika_onboard::compile::reading::reasons(out: &nika_compile::types::Compil
 pub fn nika_onboard::compile::reading::receipt_words(receipt: &nika_compile::types::AuthoringReceipt, run_cost: &str) -> alloc::string::String
 pub fn nika_onboard::compile::reading::syntax_question(clause: &str) -> alloc::string::String
 pub mod nika_onboard::compile::room
+pub use nika_onboard::compile::room::JqHelper
 pub struct nika_onboard::compile::room::ObservedRoom
 impl nika_onboard::compile::room::ObservedRoom
 pub const nika_onboard::compile::room::ObservedRoom::BOUND: core::time::Duration
 pub const nika_onboard::compile::room::ObservedRoom::COPY_BOUND: u64
 pub const nika_onboard::compile::room::ObservedRoom::LOGICAL_ROOT: &'static str
 pub const nika_onboard::compile::room::ObservedRoom::PREVIEW_BOUND: u64
+pub fn nika_onboard::compile::room::ObservedRoom::jq_helper(&self) -> core::option::Option<&nika_service_execution::rehearsal::isolated_jq::JqHelper>
 pub fn nika_onboard::compile::room::ObservedRoom::new(root: impl core::convert::Into<std::path::PathBuf>) -> Self
 pub fn nika_onboard::compile::room::ObservedRoom::root(&self) -> &std::path::Path
 pub fn nika_onboard::compile::room::ObservedRoom::scratch_parent(&self) -> core::option::Option<&std::path::Path>
 pub fn nika_onboard::compile::room::ObservedRoom::with_bound(self, bound: core::time::Duration) -> Self
+pub fn nika_onboard::compile::room::ObservedRoom::with_jq_helper(self, helper: nika_service_execution::rehearsal::isolated_jq::JqHelper) -> Self
 pub fn nika_onboard::compile::room::ObservedRoom::with_scratch_parent(self, parent: impl core::convert::Into<std::path::PathBuf>) -> Self
 impl core::clone::Clone for nika_onboard::compile::room::ObservedRoom
 pub fn nika_onboard::compile::room::ObservedRoom::clone(&self) -> nika_onboard::compile::room::ObservedRoom

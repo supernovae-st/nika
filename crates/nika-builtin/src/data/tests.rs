@@ -875,3 +875,109 @@ fn convert_formula_guard_is_a_strict_bool_not_silently_coerced() {
         "non-bool formula_guard is a loud CONVERT-001: {bad:?}"
     );
 }
+
+// ─── one isolated evaluation answers as the in-process builtin ─────────
+
+/// The isolated round trip, and the in-process outcome rendered by the dispatcher, for `args`.
+fn both_ways(args: &serde_json::Value, run_start_ns: i64) -> (String, String) {
+    let request = jq_request_bytes(args, run_start_ns);
+    let isolated = jq_answer("call-1", &jq_request(&request)).expect("an answer");
+    let clock = JqClock::at(nika_types::timestamp::Timestamp::from_unix_ns(run_start_ns));
+    let in_process = crate::render("call-1", jq_with_clock(&self::args(args.clone()), clock));
+    (format!("{isolated:?}"), format!("{in_process:?}"))
+}
+
+#[test]
+fn an_isolated_evaluation_renders_exactly_as_the_in_process_builtin() {
+    let rows = r#"[{"status":"paid"},{"status":"late"}]"#;
+    for args in [
+        serde_json::json!({"input": rows, "expression": "fromjson | map(select(.status == \"paid\")) | length"}),
+        serde_json::json!({"input": {"rows": [1, 2]}, "expression": "$rows | add"}),
+        serde_json::json!({"input": null, "expression": "now"}),
+        serde_json::json!({"input": "text", "expression": ".x"}),
+        serde_json::json!({"input": [1, 2], "expression": ".[]"}),
+        serde_json::json!({"input": [], "expression": ".[]"}),
+        serde_json::json!({"input": null, "expression": "[ ."}),
+        serde_json::json!({"input": null, "expression": "undefined_filter"}),
+        serde_json::json!({"input": null, "expression": "infinite"}),
+        serde_json::json!({"input": "a string verbatim", "expression": "."}),
+        serde_json::json!({"expression": 7}),
+    ] {
+        let (isolated, in_process) = both_ways(&args, 1_700_000_000_125_000_000);
+        assert_eq!(isolated, in_process, "{args}");
+    }
+}
+
+#[test]
+fn a_frame_carries_exactly_its_payload() {
+    let frame = jq_frame(b"payload");
+    assert_eq!(frame.len(), JQ_FRAME_HEADER + 7);
+    assert_eq!(jq_unframe(&frame), Some(&b"payload"[..]));
+    assert_eq!(jq_unframe(&frame[..frame.len() - 1]), None, "truncated");
+    let mut longer = frame.clone();
+    longer.push(0);
+    assert_eq!(jq_unframe(&longer), None, "trailing bytes");
+    assert_eq!(jq_unframe(&frame[..3]), None, "no header");
+    assert_eq!(jq_unframe(&jq_frame(b"")), Some(&b""[..]));
+}
+
+#[test]
+fn bytes_that_are_no_request_are_answered_by_the_builtins_own_failure() {
+    let answer = jq_answer("c", &jq_request(b"not json")).expect("an answer");
+    let shown = format!("{answer:?}");
+    assert!(shown.contains("NIKA-BUILTIN-JQ-001"), "{shown}");
+    assert!(
+        shown.contains("the isolated request is malformed"),
+        "{shown}"
+    );
+}
+
+#[test]
+fn an_answer_this_evaluator_never_gives_is_refused() {
+    for answer in [
+        &b"not json"[..],
+        br#"{"code": "NIKA-BUILTIN-FETCH-001", "message": "m", "transient": false}"#,
+        br#"{"code": "NIKA-BUILTIN-JQ-001", "message": "m"}"#,
+        br#"{"other": 1}"#,
+    ] {
+        assert!(
+            jq_answer("c", answer).is_none(),
+            "{}",
+            String::from_utf8_lossy(answer)
+        );
+    }
+}
+
+#[test]
+fn serving_reads_exactly_one_framed_request_and_answers_it_framed() {
+    let request = jq_request_bytes(
+        &serde_json::json!({"input": [1, 2], "expression": "length"}),
+        0,
+    );
+    let mut input = std::io::Cursor::new([jq_frame(&request), b"trailing bytes".to_vec()].concat());
+    let mut output = Vec::new();
+    jq_serve(&mut input, &mut output, 1024).expect("served");
+    assert_eq!(jq_unframe(&output), Some(&jq_request(&request)[..]));
+    // Exactly the frame was read: whatever follows it is never consumed.
+    assert_eq!(
+        input.position(),
+        u64::try_from(JQ_FRAME_HEADER + request.len()).unwrap()
+    );
+}
+
+#[test]
+fn serving_refuses_an_oversized_or_truncated_request_before_answering() {
+    let request = jq_request_bytes(&serde_json::json!({"input": null, "expression": "."}), 0);
+    let mut output = Vec::new();
+    let mut oversized = std::io::Cursor::new(jq_frame(&request));
+    let refused = jq_serve(&mut oversized, &mut output, 4).expect_err("over its bound");
+    assert_eq!(refused.kind(), std::io::ErrorKind::InvalidData);
+    assert_eq!(
+        oversized.position(),
+        u64::try_from(JQ_FRAME_HEADER).unwrap(),
+        "no payload read"
+    );
+    let mut truncated = std::io::Cursor::new(jq_frame(&request)[..JQ_FRAME_HEADER + 2].to_vec());
+    assert!(jq_serve(&mut truncated, &mut output, 1024).is_err());
+    assert!(output.is_empty(), "nothing answered");
+}

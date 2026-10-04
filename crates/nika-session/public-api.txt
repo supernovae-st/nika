@@ -5,6 +5,7 @@ pub use nika_session::CapEvidence
 pub use nika_session::CostHostEvidence
 pub use nika_session::Finding
 pub use nika_session::InferenceReceipt
+pub use nika_session::JqHelper
 pub use nika_session::KeptRun
 pub use nika_session::KnownWorld
 pub use nika_session::Lifecycle
@@ -2566,6 +2567,8 @@ pub fn nika_session::runtime::SessionRuntime::repropose_restored_draft(&mut self
 pub fn nika_session::runtime::SessionRuntime::restored_draft_id(&self) -> core::option::Option<&str>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::restore_round(&mut self) -> nika_session::runtime::TurnOutcome
+impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::with_jq_helper(&mut self, helper: nika_service_execution::rehearsal::isolated_jq::JqHelper)
 impl core::fmt::Debug for nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_session::runtime::SessionRuntime
@@ -4878,6 +4881,8 @@ pub fn nika_session::runtime::SessionRuntime::repropose_restored_draft(&mut self
 pub fn nika_session::runtime::SessionRuntime::restored_draft_id(&self) -> core::option::Option<&str>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::restore_round(&mut self) -> nika_session::runtime::TurnOutcome
+impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::with_jq_helper(&mut self, helper: nika_service_execution::rehearsal::isolated_jq::JqHelper)
 impl core::fmt::Debug for nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_session::runtime::SessionRuntime

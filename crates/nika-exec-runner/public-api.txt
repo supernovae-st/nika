@@ -27,6 +27,37 @@ impl<T> nika_error::traits::AsAny for nika_exec_runner::sandbox_spec::PathMismat
 pub fn nika_exec_runner::sandbox_spec::PathMismatch::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_exec_runner::sandbox_spec::spec_of(permits: &nika_cap::permits::Permits, root: &std::path::Path) -> core::result::Result<nika_kernel_core::io::process::SandboxSpec, alloc::boxed::Box<nika_exec_runner::sandbox_spec::PathMismatch>>
 pub fn nika_exec_runner::sandbox_spec::spec_of_with_home(permits: &nika_cap::permits::Permits, root: &std::path::Path, home: core::option::Option<&str>) -> core::result::Result<nika_kernel_core::io::process::SandboxSpec, alloc::boxed::Box<nika_exec_runner::sandbox_spec::PathMismatch>>
+#[non_exhaustive] pub enum nika_exec_runner::Collected
+pub nika_exec_runner::Collected::Abandoned
+pub nika_exec_runner::Collected::Abandoned::ended: nika_exec_runner::Ended
+pub nika_exec_runner::Collected::Exited
+pub nika_exec_runner::Collected::Exited::status: std::process::ExitStatus
+pub nika_exec_runner::Collected::Exited::stderr: alloc::vec::Vec<u8>
+pub nika_exec_runner::Collected::Exited::stdout: alloc::vec::Vec<u8>
+pub nika_exec_runner::Collected::Killed
+pub nika_exec_runner::Collected::Killed::ended: nika_exec_runner::Ended
+pub nika_exec_runner::Collected::Killed::status: std::process::ExitStatus
+impl core::fmt::Debug for nika_exec_runner::Collected
+pub fn nika_exec_runner::Collected::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_exec_runner::Collected
+impl<T, U> core::convert::Into<U> for nika_exec_runner::Collected where U: core::convert::From<T>
+pub fn nika_exec_runner::Collected::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_exec_runner::Collected where U: core::convert::Into<T>
+pub type nika_exec_runner::Collected::Error = core::convert::Infallible
+pub fn nika_exec_runner::Collected::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_exec_runner::Collected where U: core::convert::TryFrom<T>
+pub type nika_exec_runner::Collected::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_exec_runner::Collected::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_exec_runner::Collected where T: 'static + ?core::marker::Sized
+pub fn nika_exec_runner::Collected::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_exec_runner::Collected where T: ?core::marker::Sized
+pub fn nika_exec_runner::Collected::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_exec_runner::Collected where T: ?core::marker::Sized
+pub fn nika_exec_runner::Collected::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_exec_runner::Collected
+pub fn nika_exec_runner::Collected::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_exec_runner::Collected where T: 'static
+pub fn nika_exec_runner::Collected::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_exec_runner::EgressEvent
 pub nika_exec_runner::EgressEvent::Closed
 pub nika_exec_runner::EgressEvent::Closed::bytes_down: u64
@@ -69,6 +100,88 @@ impl<T> core::convert::From<T> for nika_exec_runner::EgressEvent
 pub fn nika_exec_runner::EgressEvent::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_exec_runner::EgressEvent where T: 'static
 pub fn nika_exec_runner::EgressEvent::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_exec_runner::Ended
+pub nika_exec_runner::Ended::Deadline
+pub nika_exec_runner::Ended::Stderr
+pub nika_exec_runner::Ended::Stdout
+impl core::clone::Clone for nika_exec_runner::Ended
+pub fn nika_exec_runner::Ended::clone(&self) -> nika_exec_runner::Ended
+impl core::cmp::Eq for nika_exec_runner::Ended
+impl core::cmp::PartialEq for nika_exec_runner::Ended
+pub fn nika_exec_runner::Ended::eq(&self, other: &nika_exec_runner::Ended) -> bool
+impl core::fmt::Debug for nika_exec_runner::Ended
+pub fn nika_exec_runner::Ended::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_exec_runner::Ended
+impl core::marker::StructuralPartialEq for nika_exec_runner::Ended
+impl<D> owo_colors::OwoColorize for nika_exec_runner::Ended
+impl<Q, K> hashbrown::Equivalent<K> for nika_exec_runner::Ended where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_exec_runner::Ended::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_exec_runner::Ended where U: core::convert::From<T>
+pub fn nika_exec_runner::Ended::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_exec_runner::Ended where U: core::convert::Into<T>
+pub type nika_exec_runner::Ended::Error = core::convert::Infallible
+pub fn nika_exec_runner::Ended::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_exec_runner::Ended where U: core::convert::TryFrom<T>
+pub type nika_exec_runner::Ended::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_exec_runner::Ended::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_exec_runner::Ended where T: core::clone::Clone
+pub type nika_exec_runner::Ended::Owned = T
+pub fn nika_exec_runner::Ended::clone_into(&self, target: &mut T)
+pub fn nika_exec_runner::Ended::to_owned(&self) -> T
+impl<T> core::any::Any for nika_exec_runner::Ended where T: 'static + ?core::marker::Sized
+pub fn nika_exec_runner::Ended::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_exec_runner::Ended where T: ?core::marker::Sized
+pub fn nika_exec_runner::Ended::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_exec_runner::Ended where T: ?core::marker::Sized
+pub fn nika_exec_runner::Ended::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_exec_runner::Ended where T: core::clone::Clone
+pub unsafe fn nika_exec_runner::Ended::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_exec_runner::Ended
+pub fn nika_exec_runner::Ended::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_exec_runner::Ended where T: 'static
+pub fn nika_exec_runner::Ended::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_exec_runner::Caps
+pub nika_exec_runner::Caps::grace: core::time::Duration
+pub nika_exec_runner::Caps::stderr: usize
+pub nika_exec_runner::Caps::stdout: usize
+impl nika_exec_runner::Caps
+pub const fn nika_exec_runner::Caps::new(stdout: usize, stderr: usize, grace: core::time::Duration) -> Self
+impl core::clone::Clone for nika_exec_runner::Caps
+pub fn nika_exec_runner::Caps::clone(&self) -> nika_exec_runner::Caps
+impl core::cmp::Eq for nika_exec_runner::Caps
+impl core::cmp::PartialEq for nika_exec_runner::Caps
+pub fn nika_exec_runner::Caps::eq(&self, other: &nika_exec_runner::Caps) -> bool
+impl core::fmt::Debug for nika_exec_runner::Caps
+pub fn nika_exec_runner::Caps::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_exec_runner::Caps
+impl core::marker::StructuralPartialEq for nika_exec_runner::Caps
+impl<D> owo_colors::OwoColorize for nika_exec_runner::Caps
+impl<Q, K> hashbrown::Equivalent<K> for nika_exec_runner::Caps where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_exec_runner::Caps::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_exec_runner::Caps where U: core::convert::From<T>
+pub fn nika_exec_runner::Caps::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_exec_runner::Caps where U: core::convert::Into<T>
+pub type nika_exec_runner::Caps::Error = core::convert::Infallible
+pub fn nika_exec_runner::Caps::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_exec_runner::Caps where U: core::convert::TryFrom<T>
+pub type nika_exec_runner::Caps::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_exec_runner::Caps::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_exec_runner::Caps where T: core::clone::Clone
+pub type nika_exec_runner::Caps::Owned = T
+pub fn nika_exec_runner::Caps::clone_into(&self, target: &mut T)
+pub fn nika_exec_runner::Caps::to_owned(&self) -> T
+impl<T> core::any::Any for nika_exec_runner::Caps where T: 'static + ?core::marker::Sized
+pub fn nika_exec_runner::Caps::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_exec_runner::Caps where T: ?core::marker::Sized
+pub fn nika_exec_runner::Caps::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_exec_runner::Caps where T: ?core::marker::Sized
+pub fn nika_exec_runner::Caps::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_exec_runner::Caps where T: core::clone::Clone
+pub unsafe fn nika_exec_runner::Caps::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_exec_runner::Caps
+pub fn nika_exec_runner::Caps::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_exec_runner::Caps where T: 'static
+pub fn nika_exec_runner::Caps::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_exec_runner::EgressDecision
 pub nika_exec_runner::EgressDecision::allowed: bool
 pub nika_exec_runner::EgressDecision::host: alloc::string::String
@@ -108,6 +221,33 @@ impl<T> core::convert::From<T> for nika_exec_runner::EgressDecision
 pub fn nika_exec_runner::EgressDecision::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_exec_runner::EgressDecision where T: 'static
 pub fn nika_exec_runner::EgressDecision::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_exec_runner::Lane
+impl nika_exec_runner::Lane
+pub async fn nika_exec_runner::Lane::collect(&self, program: &std::path::Path, args: &[&str], stdin: &[u8], caps: nika_exec_runner::Caps, deadline: std::time::Instant) -> core::io::error::Result<nika_exec_runner::Collected>
+pub fn nika_exec_runner::Lane::new() -> Self
+impl core::default::Default for nika_exec_runner::Lane
+pub fn nika_exec_runner::Lane::default() -> Self
+impl core::fmt::Debug for nika_exec_runner::Lane
+pub fn nika_exec_runner::Lane::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_exec_runner::Lane
+impl<T, U> core::convert::Into<U> for nika_exec_runner::Lane where U: core::convert::From<T>
+pub fn nika_exec_runner::Lane::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_exec_runner::Lane where U: core::convert::Into<T>
+pub type nika_exec_runner::Lane::Error = core::convert::Infallible
+pub fn nika_exec_runner::Lane::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_exec_runner::Lane where U: core::convert::TryFrom<T>
+pub type nika_exec_runner::Lane::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_exec_runner::Lane::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_exec_runner::Lane where T: 'static + ?core::marker::Sized
+pub fn nika_exec_runner::Lane::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_exec_runner::Lane where T: ?core::marker::Sized
+pub fn nika_exec_runner::Lane::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_exec_runner::Lane where T: ?core::marker::Sized
+pub fn nika_exec_runner::Lane::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_exec_runner::Lane
+pub fn nika_exec_runner::Lane::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_exec_runner::Lane where T: 'static
+pub fn nika_exec_runner::Lane::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_exec_runner::TokioShell
 impl nika_exec_runner::TokioShell
 pub fn nika_exec_runner::TokioShell::new() -> Self
@@ -153,4 +293,8 @@ impl<TraitVariantBlanketType> nika_kernel_core::io::process::ShellCancel for nik
 pub async fn nika_exec_runner::TokioShell::cancel(&self, id: &str) -> core::result::Result<(), nika_kernel_core::io::process::ShellError>
 impl<TraitVariantBlanketType> nika_kernel_core::io::process::ShellRun for nika_exec_runner::TokioShell where TraitVariantBlanketType: nika_kernel_core::io::process::ShellRunDyn
 pub async fn nika_exec_runner::TokioShell::run(&self, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>
+pub const nika_exec_runner::SERVE_FAILED: u8
+pub const nika_exec_runner::SERVE_NO_CPU_LIMIT: u8
+pub async fn nika_exec_runner::collect(program: &std::path::Path, args: &[&str], stdin: &[u8], caps: nika_exec_runner::Caps, deadline: std::time::Instant) -> core::io::error::Result<nika_exec_runner::Collected>
+pub fn nika_exec_runner::serve_stdio(cpu_seconds: u64, serve: impl core::ops::function::FnOnce(&mut dyn alloc::io::read::Read, &mut dyn core::io::write::Write) -> core::io::error::Result<()>) -> u8
 pub type nika_exec_runner::EgressObserver = alloc::sync::Arc<(dyn core::ops::function::Fn(&nika_exec_runner::EgressEvent) + core::marker::Send + core::marker::Sync)>

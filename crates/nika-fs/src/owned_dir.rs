@@ -187,6 +187,62 @@ impl OwnedDir {
         )
     }
 
+    /// [`Self::open_lock`], then take its exclusive lock, waiting at most `grace` while it only
+    /// looks held: a sibling thread spawning a child duplicates this process's descriptors until
+    /// the child's exec closes them, and a BSD `flock` rides the duplicate for that window. A
+    /// lock still held after `grace` belongs to another owner and is refused. The lock lasts as
+    /// long as the returned file.
+    ///
+    /// # Errors
+    /// [`Self::open_lock`]'s errors; another owner holds the lock; the lock call fails.
+    pub fn hold_lock(&self, name: &str, grace: std::time::Duration) -> io::Result<File> {
+        const STEP: std::time::Duration = std::time::Duration::from_millis(5);
+        let lock = self.open_lock(name)?;
+        let mut waited = std::time::Duration::ZERO;
+        loop {
+            match lock.try_lock() {
+                Ok(()) => return Ok(lock),
+                Err(std::fs::TryLockError::WouldBlock) if waited < grace => {
+                    std::thread::sleep(STEP);
+                    waited += STEP;
+                }
+                Err(error) => return Err(io::Error::other(error.to_string())),
+            }
+        }
+    }
+
+    /// The UTF-8 text of `name` below the directories `components` of this one, read from one
+    /// descriptor and never through a symlink: `None` when a directory on the way or the file
+    /// is absent. A file holding more than `cap` bytes is refused with `over`, never cut.
+    ///
+    /// # Errors
+    /// An unsafe child, a failed read, more than `cap` bytes (`over`), or bytes that are not
+    /// UTF-8.
+    pub fn read_capped_below(
+        &self,
+        components: &[&str],
+        name: &str,
+        cap: u64,
+        over: &str,
+    ) -> io::Result<Option<String>> {
+        let file = self
+            .open_below(components)
+            .and_then(|dir| dir.open_relative(Path::new(name)));
+        let mut file = match file {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        let capped = crate::read_capped(&mut file, cap)?;
+        let invalid = |why: &str| io::Error::new(io::ErrorKind::InvalidData, why.to_owned());
+        if capped.over {
+            return Err(invalid(over));
+        }
+        String::from_utf8(capped.bytes.to_vec())
+            .map(Some)
+            .map_err(|_| invalid("stream did not contain valid UTF-8"))
+    }
+
     /// Read an optional UTF-8 regular file without following a symlink.
     ///
     /// # Errors
@@ -797,5 +853,64 @@ mod tests {
             "claim\nreceipt\n"
         );
         assert!(!outside.join("history.ndjson").exists());
+    }
+
+    /// A held lock is exclusive between two holders past the grace; a release lets the next one
+    /// take it.
+    #[test]
+    fn a_held_lock_refuses_a_second_holder_until_it_is_released() {
+        let root = tempfile::tempdir().expect("root");
+        let dir = OwnedDir::create(root.path(), &["held"]).expect("owned");
+        let grace = std::time::Duration::from_millis(50);
+        let first = dir.hold_lock("x.lock", grace).expect("first holder");
+        let refused = dir.hold_lock("x.lock", grace).expect_err("held elsewhere");
+        assert_eq!(refused.kind(), io::ErrorKind::Other, "{refused}");
+        drop(first);
+        dir.hold_lock("x.lock", grace).expect("released");
+    }
+
+    /// A capped text read below a held directory: absent is `None` (directory or file), the cap
+    /// refuses a larger file with the caller's words, never cuts it, and a link is never followed.
+    #[test]
+    fn a_capped_read_below_is_none_when_absent_and_refuses_beyond_its_cap() {
+        use std::os::unix::fs::symlink;
+        let root = tempfile::tempdir().expect("root");
+        let dir = OwnedDir::create(root.path(), &["held"]).expect("owned");
+        assert_eq!(
+            dir.read_capped_below(&["sub"], "f", 4, "big")
+                .expect("no dir"),
+            None
+        );
+        std::fs::create_dir(root.path().join("held/sub")).expect("sub");
+        assert_eq!(
+            dir.read_capped_below(&["sub"], "f", 4, "big")
+                .expect("no file"),
+            None
+        );
+        std::fs::write(root.path().join("held/sub/f"), "abcd").expect("four");
+        assert_eq!(
+            dir.read_capped_below(&["sub"], "f", 4, "big")
+                .expect("at the cap")
+                .as_deref(),
+            Some("abcd")
+        );
+        std::fs::write(root.path().join("held/sub/f"), "abcde").expect("five");
+        let over = dir
+            .read_capped_below(&["sub"], "f", 4, "big")
+            .expect_err("over");
+        assert_eq!(over.to_string(), "big");
+        assert_eq!(
+            std::fs::read_to_string(root.path().join("held/sub/f")).expect("kept"),
+            "abcde"
+        );
+        symlink(
+            root.path().join("held/sub/f"),
+            root.path().join("held/link"),
+        )
+        .expect("link");
+        assert!(
+            dir.read_capped_below(&[], "link", 9, "big").is_err(),
+            "a link is refused"
+        );
     }
 }

@@ -15,10 +15,12 @@ use nika_providers::ExecutionAccessPlan;
 
 use crate::ServiceExecutionDriver;
 
+mod isolated_jq;
 mod room;
 #[cfg(test)]
 mod room_tests;
 
+pub use isolated_jq::{IsolatedJq, JqBound, JqHelper};
 pub use room::{ADMITTED_TOOLS, DeniedEffects, DeniedTally};
 
 /// Why a rehearsal refuses its access plan. No probe ran and nothing was built.

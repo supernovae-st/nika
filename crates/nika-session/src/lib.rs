@@ -95,6 +95,8 @@ pub use intelligence::{
     UserIntelligencePreference,
 };
 pub use lifecycle::{Lifecycle, LifecycleFacts, RunFact, Stage};
+/// The program a host names to run the observed room's `nika:jq` steps.
+pub use nika_onboard::compile::room::JqHelper;
 pub use nika_runtime::cost_choice::{CapEvidence, CostHostEvidence};
 pub use outcome::{GateId, ProposalId, QuestionId, Refusal, RefusalClass};
 pub use reasoner::{ReasonError, Reply, ScriptedReasoner, SessionReasoner};

@@ -6,8 +6,8 @@
 //! across inference. Hash chaining detects accidental damage, not forgery
 //! by someone who can rewrite the private history directory.
 
-use std::fs::{File, TryLockError};
-use std::io::{self, Read as _};
+use std::fs::File;
+use std::io;
 use std::path::Path;
 use std::time::Duration;
 
@@ -24,7 +24,6 @@ const GENESIS: &str = "000000000000000000000000000000000000000000000000000000000
 /// descriptors until the child's exec closes them, and a BSD `flock` rides the
 /// duplicate for that window: a bounded wait tells that window from an owner.
 const LEASE_GRACE: Duration = Duration::from_millis(250);
-const LEASE_STEP: Duration = Duration::from_millis(5);
 
 pub(super) enum HistoryMode {
     Ephemeral,
@@ -176,8 +175,13 @@ impl History {
             dir.as_file().sync_all()?;
             dir = child;
         }
-        let lease = dir.open_lock("session.lock")?;
-        acquire(&lease)?;
+        let lease = dir
+            .hold_lock("session.lock", LEASE_GRACE)
+            .map_err(|error| {
+                io::Error::other(format!(
+                    "cannot exclusively open conversation history: {error}"
+                ))
+            })?;
         let mut history = Self {
             dir,
             _lease: lease,
@@ -193,15 +197,14 @@ impl History {
             restored: false,
             monetary_seen: false,
         };
-        match history.dir.open_relative(Path::new(LOG)) {
-            Ok(file) => history.replay(file)?,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                let line = history.encode(Event::Opened)?;
-                // First publication syncs both file and its directory.
-                history.dir.write_once(LOG, &format!("{line}\n"))?;
-                history.accept_line(&line)?;
-            }
-            Err(error) => return Err(error),
+        let over = "conversation history exceeds 16 MiB; preserve it for migration";
+        if let Some(text) = (history.dir).read_capped_below(&[], LOG, MAX_LOG_BYTES as u64, over)? {
+            history.replay(&text)?;
+        } else {
+            let line = history.encode(Event::Opened)?;
+            // First publication syncs both file and its directory.
+            history.dir.write_once(LOG, &format!("{line}\n"))?;
+            history.accept_line(&line)?;
         }
         if history.restored {
             // Expire pending authority and record uncertainty before any new
@@ -211,16 +214,7 @@ impl History {
         Ok(history)
     }
 
-    fn replay(&mut self, file: File) -> io::Result<()> {
-        let mut bytes = Vec::new();
-        file.take(MAX_LOG_BYTES as u64 + 1)
-            .read_to_end(&mut bytes)?;
-        if bytes.len() > MAX_LOG_BYTES {
-            return Err(invalid(
-                "conversation history exceeds 16 MiB; preserve it for migration",
-            ));
-        }
-        let text = String::from_utf8(bytes).map_err(|_| invalid("history is not UTF-8"))?;
+    fn replay(&mut self, text: &str) -> io::Result<()> {
         if text.is_empty() || !text.ends_with('\n') {
             return Err(invalid(
                 "conversation history is empty or truncated; nothing was reset",
@@ -402,25 +396,4 @@ impl History {
 
 fn invalid(message: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, message)
-}
-
-/// Take the project's writer lease, or refuse it as held by another opener.
-/// A lease that only looks held for a fork window is acquired within the
-/// grace; one held past it is a foreign owner, named as before.
-fn acquire(lease: &File) -> io::Result<()> {
-    let mut waited = Duration::ZERO;
-    loop {
-        match lease.try_lock() {
-            Ok(()) => return Ok(()),
-            Err(TryLockError::WouldBlock) if waited < LEASE_GRACE => {
-                std::thread::sleep(LEASE_STEP);
-                waited += LEASE_STEP;
-            }
-            Err(error) => {
-                return Err(io::Error::other(format!(
-                    "cannot exclusively open conversation history: {error}"
-                )));
-            }
-        }
-    }
 }

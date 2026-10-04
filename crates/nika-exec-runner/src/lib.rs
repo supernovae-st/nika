@@ -78,6 +78,9 @@ pub mod sandbox_spec;
 mod scratch;
 
 pub use egress::{EgressDecision, EgressEvent, EgressObserver};
+pub use process::{
+    Caps, Collected, Ended, Lane, SERVE_FAILED, SERVE_NO_CPU_LIMIT, collect, serve_stdio,
+};
 
 use std::collections::BTreeMap;
 use std::process::Stdio;

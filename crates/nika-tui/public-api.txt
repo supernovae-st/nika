@@ -1400,6 +1400,7 @@ pub struct nika_tui::session::Live
 impl nika_tui::session::Live
 pub fn nika_tui::session::Live::new(cwd: std::path::PathBuf, census: nika_session::intelligence::IntelligenceCensus, kept: core::option::Option<nika_session::intelligence::UserIntelligencePreference>, home: core::option::Option<std::path::PathBuf>, factory: nika_session::runtime::ReasonerFactory, runners: nika_tui::session::Runners) -> Self
 pub fn nika_tui::session::Live::with_cost_host_evidence(self, evidence: nika_providers::admission::review::CostHostEvidence) -> Self
+pub fn nika_tui::session::Live::with_jq_helper(self, helper: nika_service_execution::rehearsal::isolated_jq::JqHelper) -> Self
 pub fn nika_tui::session::Live::with_run_review(self, runner: nika_tui::session::RunReviewed) -> Self
 pub fn nika_tui::session::Live::with_run_review_observed(self, runner: nika_tui::session::RunReviewedObserved) -> Self
 pub fn nika_tui::session::Live::with_run_tapped_observed(self, runner: nika_tui::session::RunTappedObserved) -> Self

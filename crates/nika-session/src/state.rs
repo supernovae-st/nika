@@ -10,7 +10,7 @@
 //! reads it at open). What was pending at close never regains authority
 //! (ADR-133): the record says what it was, the door says it expired.
 
-use std::io::{self, Read as _};
+use std::io;
 use std::path::{Path, PathBuf};
 
 use nika_fs::OwnedDir;
@@ -94,24 +94,15 @@ impl SessionState {
     /// A record beyond 1 MiB, of another format, or that is not this
     /// record; the file system's refusal. Nothing is rewritten.
     pub fn load(root: &Path) -> io::Result<Option<Self>> {
-        let dir = match OwnedDir::open(root).and_then(|dir| dir.open_below(&[NIKA_DIR])) {
-            Ok(dir) => dir,
+        let over = "the session record exceeds 1 MiB";
+        let text = match OwnedDir::open(root)
+            .and_then(|dir| dir.read_capped_below(&[NIKA_DIR], STATE_FILE, MAX_STATE_BYTES, over))
+        {
+            Ok(Some(text)) => text,
+            Ok(None) => return Ok(None),
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(error),
         };
-        let file = match dir.open_relative(Path::new(STATE_FILE)) {
-            Ok(file) => file,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-            Err(error) => return Err(error),
-        };
-        let mut text = String::new();
-        file.take(MAX_STATE_BYTES + 1).read_to_string(&mut text)?;
-        if text.len() as u64 > MAX_STATE_BYTES {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "the session record exceeds 1 MiB",
-            ));
-        }
         let state: Self = serde_json::from_str(&text)?;
         if state.version != Self::VERSION {
             return Err(io::Error::new(
