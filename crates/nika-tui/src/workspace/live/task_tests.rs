@@ -451,8 +451,8 @@ fn an_output_absent_null_empty_masked_or_cut_reads_apart() {
     );
     assert!(!blank.contains("no output on the stream"), "{blank}");
     let secret = said("secret");
-    assert!(secret.contains("masked"), "{secret}");
-    assert!(!secret.contains("sk-live-0123456789abcdef"), "{secret}");
+    assert!(secret.contains("masked"), "the value is shown masked");
+    assert!(!secret.contains("sk-live-0123456789abcdef"), "never shown");
     let large = said("large");
     assert!(
         large.contains("more follow"),
