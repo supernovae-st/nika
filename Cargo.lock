@@ -5497,9 +5497,7 @@ version = "0.122.0"
 dependencies = [
  "blake3",
  "nika-cadence",
- "nika-cap",
  "nika-catalog",
- "nika-check",
  "nika-cli-host",
  "nika-dap",
  "nika-display",

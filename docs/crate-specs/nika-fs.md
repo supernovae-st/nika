@@ -69,6 +69,35 @@ effect; it is never completed by a second write that could interleave another
 writer's row. This mechanism does not replace a caller's transaction lease,
 and arbitrary filesystems still need their own append/locking guarantees.
 
+### Reserved private logs
+
+`OwnedDir::reserve_private_log(name, file_bytes, container_bytes,
+closing_bytes, entry_limit)` creates a `ReservedLog` under a held directory.
+It takes a nonblocking lock shared by cooperating writers, inventories the
+held directory with an entry bound, and charges the logical length of every
+regular file. The directory and opened files must belong to the effective
+uid and have no group/other permissions; files must have one link. Links,
+special files, exhausted bounds and occupied names refuse. The lock file may
+remain after a refused reservation. A failure after exclusive creation leaves
+the partial reservation in place, charged to subsequent reservations.
+
+The file is filled with spaces and synchronized before the handle is returned.
+`append_encoded` stores one complete encoded record and a newline within its
+ordinary allowance; `finish_encoded` uses a separately reserved closing
+allowance. `Some(n)` means those bytes were written and synchronized. `None`
+means the record did not fit and nothing was written; the log remains open.
+Other encoder or sink errors poison the handle, including an error swallowed
+by an encoder, so later calls neither encode nor write. A failed disk write
+may have partial effects and is never retried. Closing or dropping does not
+truncate, refund, rename or remove the reservation. Operators own retention.
+
+This mechanism bounds cooperating writers' logical file lengths. It is not a
+physical disk quota, a boundary against another process of the same uid, a
+provider-send receipt or compiler authority. `nika-cli-host` is the first
+consumer and owns context admission, withheld values, names and capture caps.
+`src/owned_dir/reserved_log/tests.rs` exercises these laws with real files and
+fault injection; historical admission results below do not qualify this API.
+
 ### Caller-selected files and contained descendants
 
 `open_owned(path)` resolves the caller-selected parent once, holds it and opens

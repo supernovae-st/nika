@@ -108,6 +108,50 @@ transport with the resident door.
 their tests have one owner beside the authoring facade; existing import paths
 and resolution behavior remain available without a reverse dependency.
 
+## Private authoring capture
+
+`nika compile --private-authoring-capture --authoring-model ...` opts into
+bounded diagnostic capture of application Text returned by the authoring
+seat. The default is off. The CLI selects `.nika/compile/capture` below its
+process working directory; this is not a project-root resolution contract.
+The model and HTTP callers cannot select a capture directory. The existing
+`CompileArgs` literal remains unchanged; `CompileCommand` carries the new
+`CaptureFlags` field. Its existing `new(args, authority)` constructor keeps
+capture off; the command remains `non_exhaustive`.
+
+The host checks its held container's ownership and private mode, then creates
+or verifies an exact `*\n` ignore marker before reserving a round. It uses
+`nika-fs::ReservedLog`: 1 MiB per round, with 16 KiB reserved for closing
+metadata, a container allowance below 16 MiB and a 256-entry inventory bound.
+Finished and failed reservations remain charged until operator removal.
+Concurrent cooperating reservations share the filesystem mechanism's lock.
+Storage refusal does not refuse compilation or discard its normal outcome.
+
+A `CapturePolicy` combines explicit context admission with withheld values.
+It refuses oversized policy input: at most 128 initial values, 32 KiB per
+value, 256 retained raw/escaped needles and 512 KiB aggregate under the
+constructor's documented counting law. Known resolved authoring and TypeSafe
+credentials are withheld in raw and JSON-escaped forms. The CLI does not
+admit a harness seat's Text merely because capture was requested. This is an
+explicit host policy, not a claim to recognize every possible secret.
+
+`CaptureContext` carries a trusted held directory, policy and local report;
+`fresh` gives another round its own status. The observer runs around the
+actual compile future. The capture holds response framing, counts, digests
+and bounded selected metadata; withheld payloads retain their disposition.
+An `outcome_returned` flag distinguishes a returned compile result from a
+best-effort close on interruption. Capture observes returned authoring work,
+not all physical provider sends. It is never a workflow, permit, semantic
+record or replay input. Public status contains bounded facts, not raw Text
+or paths. Separate cognition diagnostics remain subject to their own
+contracts; capture does not sanitize those pre-existing public paths.
+
+The CLI process tests in `tests/compile_cli/capture.rs` cover explicit opt-in,
+public-output parity, marker refusals and resolved-key withholding with local
+synthetic seats. Host and filesystem unit tests cover the shared mechanisms.
+These results do not establish paid-provider, native TUI or Serve consumption
+of the context seam, or program-wide private-capture qualification.
+
 ## Knowledge door
 
 `compile::knowledge` composes, per intent, the bounded authoring pack a seat reads

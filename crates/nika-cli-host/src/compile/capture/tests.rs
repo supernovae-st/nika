@@ -290,7 +290,7 @@ fn without_a_safe_container_capture_is_unavailable_and_writes_nothing() {
     let names: Vec<_> = fs::read_dir(capture_dir(root.path())).unwrap().collect();
     assert!(
         names.is_empty(),
-        "nothing is created in an unsafe container"
+        "nothing is created in a non-private container"
     );
 
     // A policy whose bounds failed never reserves.
