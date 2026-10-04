@@ -1073,7 +1073,9 @@ fn default_args(task: &SketchTask, tool: &str) -> Map<String, Value> {
     args
 }
 
+mod admission;
 mod record;
+pub use admission::{judge_sketch, reach_laws, validated};
 pub use record::{bound_answers, contract_projection, read_basis, replayed, replayed_observed};
 
 #[cfg(test)]

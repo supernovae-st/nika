@@ -2326,6 +2326,8 @@ pub fn nika_compile_fidelity::behavior::pipeline_of(rule: &nika_compile_reader::
 pub fn nika_compile_fidelity::behavior::read_request(intent: &str) -> (nika_compile_reader::plan::Plan, nika_compile_fidelity::behavior::Provenance)
 pub fn nika_compile_fidelity::behavior::select(contract: &nika_compile_fidelity::behavior::Contract, candidates: &[nika_compile_fidelity::behavior::Candidate], round: nika_compile_fidelity::behavior::Limits, turn: nika_compile_fidelity::behavior::Limits, before: nika_compile_fidelity::behavior::Usage) -> nika_compile_fidelity::behavior::Ruling
 pub fn nika_compile_fidelity::behavior::targets(contract: &nika_compile_fidelity::behavior::Contract) -> impl core::iter::traits::iterator::Iterator<Item = alloc::string::String>
+pub mod nika_compile_fidelity::binding
+pub fn nika_compile_fidelity::binding::unbound(plan: &nika_compile_reader::plan::Plan, intent: &str, observed: core::option::Option<alloc::vec::Vec<alloc::string::String>>) -> core::option::Option<alloc::string::String>
 pub mod nika_compile_fidelity::candidate
 pub fn nika_compile_fidelity::candidate::delta(base: &serde_json::value::Value, revised: &serde_json::value::Value) -> serde_json::value::Value
 pub fn nika_compile_fidelity::candidate::plan_of_document(doc: &serde_json::value::Value) -> nika_compile_reader::plan::Plan
@@ -2394,6 +2396,131 @@ pub fn nika_compile_fidelity::fidelity::strings(value: &serde_json::value::Value
 pub fn nika_compile_fidelity::fidelity::tool_of<'a>(doc: &'a serde_json::value::Value, task: &str) -> &'a str
 pub fn nika_compile_fidelity::fidelity::unbound_final_gate(plan: &nika_compile_reader::plan::Plan) -> bool
 pub fn nika_compile_fidelity::fidelity::unsettled_performed(plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value) -> alloc::vec::Vec<alloc::string::String>
+pub mod nika_compile_fidelity::grounding
+pub mod nika_compile_fidelity::grounding::semantic
+pub const nika_compile_fidelity::grounding::semantic::BOUND_BY: &str
+pub fn nika_compile_fidelity::grounding::semantic::facts(record: &serde_json::value::Value, world: core::option::Option<&serde_json::value::Value>) -> alloc::vec::Vec<serde_json::value::Value>
+pub enum nika_compile_fidelity::grounding::Grade
+pub nika_compile_fidelity::grounding::Grade::Declared
+pub nika_compile_fidelity::grounding::Grade::Inferred
+pub nika_compile_fidelity::grounding::Grade::ObservedComplete
+pub nika_compile_fidelity::grounding::Grade::ObservedPartial
+pub nika_compile_fidelity::grounding::Grade::UserAsserted
+impl nika_compile_fidelity::grounding::Grade
+pub const fn nika_compile_fidelity::grounding::Grade::word(self) -> &'static str
+impl core::clone::Clone for nika_compile_fidelity::grounding::Grade
+pub fn nika_compile_fidelity::grounding::Grade::clone(&self) -> nika_compile_fidelity::grounding::Grade
+impl core::cmp::Eq for nika_compile_fidelity::grounding::Grade
+impl core::cmp::PartialEq for nika_compile_fidelity::grounding::Grade
+pub fn nika_compile_fidelity::grounding::Grade::eq(&self, other: &nika_compile_fidelity::grounding::Grade) -> bool
+impl core::fmt::Debug for nika_compile_fidelity::grounding::Grade
+pub fn nika_compile_fidelity::grounding::Grade::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_fidelity::grounding::Grade
+impl core::marker::StructuralPartialEq for nika_compile_fidelity::grounding::Grade
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::grounding::Grade
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_fidelity::grounding::Grade where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Grade::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_fidelity::grounding::Grade where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Grade::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::grounding::Grade where U: core::convert::From<T>
+pub fn nika_compile_fidelity::grounding::Grade::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::grounding::Grade where U: core::convert::Into<T>
+pub type nika_compile_fidelity::grounding::Grade::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::grounding::Grade::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::grounding::Grade where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::grounding::Grade::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::grounding::Grade::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_fidelity::grounding::Grade where T: core::clone::Clone
+pub type nika_compile_fidelity::grounding::Grade::Owned = T
+pub fn nika_compile_fidelity::grounding::Grade::clone_into(&self, target: &mut T)
+pub fn nika_compile_fidelity::grounding::Grade::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_fidelity::grounding::Grade where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Grade::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::grounding::Grade where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Grade::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::grounding::Grade where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Grade::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_fidelity::grounding::Grade where T: core::clone::Clone
+pub unsafe fn nika_compile_fidelity::grounding::Grade::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_fidelity::grounding::Grade
+pub fn nika_compile_fidelity::grounding::Grade::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_fidelity::grounding::Grade where T: core::clone::Clone
+pub fn nika_compile_fidelity::grounding::Grade::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::grounding::Grade where T: 'static
+pub fn nika_compile_fidelity::grounding::Grade::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile_fidelity::grounding::Grade where T: core::marker::Copy
+pub fn nika_compile_fidelity::grounding::Grade::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::grounding::Grade
+pub type nika_compile_fidelity::grounding::Grade::Output = T
+pub struct nika_compile_fidelity::grounding::Entry<'a>
+pub nika_compile_fidelity::grounding::Entry::bound_by: core::option::Option<&'static str>
+pub nika_compile_fidelity::grounding::Entry::everywhere: bool
+pub nika_compile_fidelity::grounding::Entry::grade: nika_compile_fidelity::grounding::Grade
+pub nika_compile_fidelity::grounding::Entry::key: &'a str
+pub nika_compile_fidelity::grounding::Entry::row: core::option::Option<&'a serde_json::value::Value>
+pub nika_compile_fidelity::grounding::Entry::rule: &'a str
+pub nika_compile_fidelity::grounding::Entry::source: &'a str
+impl nika_compile_fidelity::grounding::Entry<'_>
+pub fn nika_compile_fidelity::grounding::Entry<'_>::admissible(&self) -> bool
+pub fn nika_compile_fidelity::grounding::Entry<'_>::open(&self) -> bool
+pub fn nika_compile_fidelity::grounding::Entry<'_>::to_json(&self) -> serde_json::value::Value
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::grounding::Entry<'a>
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::grounding::Entry<'a> where U: core::convert::From<T>
+pub fn nika_compile_fidelity::grounding::Entry<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::grounding::Entry<'a> where U: core::convert::Into<T>
+pub type nika_compile_fidelity::grounding::Entry<'a>::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::grounding::Entry<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::grounding::Entry<'a> where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::grounding::Entry<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::grounding::Entry<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_compile_fidelity::grounding::Entry<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Entry<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::grounding::Entry<'a> where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Entry<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::grounding::Entry<'a> where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Entry<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_compile_fidelity::grounding::Entry<'a>
+pub fn nika_compile_fidelity::grounding::Entry<'a>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::grounding::Entry<'a> where T: 'static
+pub fn nika_compile_fidelity::grounding::Entry<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::grounding::Entry<'a>
+pub type nika_compile_fidelity::grounding::Entry<'a>::Output = T
+pub struct nika_compile_fidelity::grounding::Seen
+pub nika_compile_fidelity::grounding::Seen::all: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_fidelity::grounding::Seen::complete: bool
+pub nika_compile_fidelity::grounding::Seen::declared: bool
+pub nika_compile_fidelity::grounding::Seen::everywhere: alloc::vec::Vec<alloc::string::String>
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::grounding::Seen
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::grounding::Seen where U: core::convert::From<T>
+pub fn nika_compile_fidelity::grounding::Seen::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::grounding::Seen where U: core::convert::Into<T>
+pub type nika_compile_fidelity::grounding::Seen::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::grounding::Seen::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::grounding::Seen where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::grounding::Seen::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::grounding::Seen::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_compile_fidelity::grounding::Seen where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Seen::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::grounding::Seen where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Seen::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::grounding::Seen where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Seen::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_compile_fidelity::grounding::Seen
+pub fn nika_compile_fidelity::grounding::Seen::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::grounding::Seen where T: 'static
+pub fn nika_compile_fidelity::grounding::Seen::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::grounding::Seen
+pub type nika_compile_fidelity::grounding::Seen::Output = T
+pub fn nika_compile_fidelity::grounding::compares(jq: &str, field: &str, literal: &str) -> bool
+pub fn nika_compile_fidelity::grounding::grade(key: &str, seen: core::option::Option<&nika_compile_fidelity::grounding::Seen>, stated_columns: &[alloc::string::String]) -> (nika_compile_fidelity::grounding::Grade, bool)
+pub fn nika_compile_fidelity::grounding::revision(row: core::option::Option<&serde_json::value::Value>) -> alloc::string::String
+pub fn nika_compile_fidelity::grounding::row<'a>(world: core::option::Option<&'a serde_json::value::Value>, path: &str) -> core::option::Option<&'a serde_json::value::Value>
+pub fn nika_compile_fidelity::grounding::seen(row: core::option::Option<&serde_json::value::Value>) -> core::option::Option<nika_compile_fidelity::grounding::Seen>
+pub mod nika_compile_fidelity::literal
+pub fn nika_compile_fidelity::literal::fill_slot(node: &mut serde_json::value::Value, answer: serde_json::value::Value) -> bool
+pub fn nika_compile_fidelity::literal::has_expression(value: &serde_json::value::Value) -> bool
+pub fn nika_compile_fidelity::literal::inexact_integer(json: &str) -> core::option::Option<&str>
+pub fn nika_compile_fidelity::literal::literal_at<'a>(doc: &'a mut serde_json::value::Value, path: &str) -> core::option::Option<&'a mut serde_json::value::Value>
 pub mod nika_compile_fidelity::predicate
 pub fn nika_compile_fidelity::predicate::rederives(rule: &nika_compile_reader::rules::Rule, intent: &str, slots: &[nika_compile_reader::plan::Slot], columns: &[alloc::string::String]) -> bool
 pub fn nika_compile_fidelity::predicate::typed_rule(intent: &str, evidence: &str, computation: &serde_json::value::Value, unknowns: &[alloc::string::String], columns: &[alloc::string::String]) -> core::option::Option<(nika_compile_reader::rules::Rule, alloc::vec::Vec<nika_compile_reader::plan::Slot>)>
@@ -2687,8 +2814,17 @@ impl<T> nika_error::traits::AsAny for nika_compile_fidelity::sketch::SketchTask 
 pub fn nika_compile_fidelity::sketch::SketchTask::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_fidelity::sketch::SketchTask
 pub type nika_compile_fidelity::sketch::SketchTask::Output = T
+pub fn nika_compile_fidelity::sketch::bound_answers(record: &serde_json::value::Value, current: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> core::result::Result<(alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>), &'static str>
 pub fn nika_compile_fidelity::sketch::complete_document(sketch: &nika_compile_fidelity::sketch::Sketch, fills: &[nika_compile_fidelity::sketch::Fill]) -> core::result::Result<serde_json::value::Value, alloc::vec::Vec<alloc::string::String>>
+pub fn nika_compile_fidelity::sketch::contract_projection(contract: &nika_compile_fidelity::behavior::Contract) -> serde_json::value::Value
 pub fn nika_compile_fidelity::sketch::document(sketch: &nika_compile_fidelity::sketch::Sketch, fills: &[nika_compile_fidelity::sketch::Fill]) -> serde_json::value::Value
 pub fn nika_compile_fidelity::sketch::fills_from_json(record: &serde_json::value::Value) -> core::result::Result<alloc::vec::Vec<nika_compile_fidelity::sketch::Fill>, alloc::string::String>
 pub fn nika_compile_fidelity::sketch::holes(sketch: &nika_compile_fidelity::sketch::Sketch) -> alloc::vec::Vec<nika_compile_fidelity::sketch::Hole>
+pub fn nika_compile_fidelity::sketch::judge_sketch(intent: &str, reading: &nika_compile_reader::lexicon::Reading, sketch: &nika_compile_fidelity::sketch::Sketch, (allowed, clarified): (&[alloc::string::String], &[alloc::string::String]), observed: core::option::Option<&serde_json::value::Value>) -> alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>
+pub fn nika_compile_fidelity::sketch::reach_laws(sketch: &nika_compile_fidelity::sketch::Sketch) -> alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>
+pub fn nika_compile_fidelity::sketch::read_basis(intent: &str, initial: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> serde_json::value::Value
+pub fn nika_compile_fidelity::sketch::replayed(record: &serde_json::value::Value, intent: &str, allowed: &[alloc::string::String]) -> core::result::Result<serde_json::value::Value, &'static str>
+pub fn nika_compile_fidelity::sketch::replayed_observed(record: &serde_json::value::Value, intent: &str, allowed: &[alloc::string::String], observed: core::option::Option<&serde_json::value::Value>) -> core::result::Result<serde_json::value::Value, &'static str>
 pub fn nika_compile_fidelity::sketch::structural_laws(sketch: &nika_compile_fidelity::sketch::Sketch, intent: &str, allowed: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_fidelity::sketch::structural_laws_observed(sketch: &nika_compile_fidelity::sketch::Sketch, intent: &str, allowed: &[alloc::string::String], observed: core::option::Option<&serde_json::value::Value>) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_fidelity::sketch::validated(sketch: &nika_compile_fidelity::sketch::Sketch, raw: &[serde_json::value::Value]) -> core::result::Result<(alloc::vec::Vec<nika_compile_fidelity::sketch::Fill>, serde_json::value::Value), alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>>

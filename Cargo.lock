@@ -4754,6 +4754,7 @@ version = "0.122.0"
 dependencies = [
  "csv",
  "jaq-core",
+ "nika-cap",
  "nika-check-analyzer",
  "nika-compile-reader",
  "nika-schema",
