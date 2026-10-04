@@ -142,7 +142,7 @@ pub fn revision(row: Option<&Value>) -> String {
 /// Whether a program's text compares `field` to the string `literal` literally (F2-Q1): `.F` (a
 /// bare key) or `."F"`, then `==` or `!=`, then the literal as JSON, or the operands reversed,
 /// apart only by whitespace and set off on each side by a token that binds more loosely
-/// ([`looser`]). No jq is parsed: any other shape (a nested path, a longer key, a tighter
+/// (`looser`). No jq is parsed: any other shape (a nested path, a longer key, a tighter
 /// operator, the literal elsewhere) is no comparison.
 #[must_use]
 pub fn compares(jq: &str, field: &str, literal: &str) -> bool {
