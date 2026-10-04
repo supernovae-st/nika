@@ -438,7 +438,7 @@ pub fn for_builtin(name: &str) -> Option<Format> {
         "tts_generate" => Format::Mp3,
         "json_diff" => Format::JsonPatch,
         "fetch" => Format::Markdown,
-        "read" | "write" | "edit" => Format::Text,
+        "read" | "write" | "edit" | "remove_file" => Format::Text,
         "log" | "emit" | "assert" | "prompt" | "done" | "wait" | "jq" | "json_merge_patch"
         | "validate" | "convert" | "uuid" | "date" | "hash" | "decide" | "glob" | "grep"
         | "notify" | "compose" | "inspect" => Format::Json,
@@ -542,7 +542,7 @@ mod tests {
     #[test]
     fn every_builtin_the_catalog_ships_has_a_viewer() {
         let names = nika_session::guard::builtin_names();
-        assert_eq!(names.len(), 28, "the catalog grew or shrank: map it here");
+        assert_eq!(names.len(), 29, "the catalog grew or shrank: map it here");
         for name in &names {
             assert!(
                 for_builtin(name).is_some(),
@@ -550,6 +550,8 @@ mod tests {
             );
         }
         assert_eq!(for_builtin("nika:chart"), Some(Format::Svg));
+        // A removal returns the path it was asked to remove: words, as an edit's path.
+        assert_eq!(for_builtin("nika:remove_file"), Some(Format::Text));
         assert_eq!(for_builtin("mcp:server/tool"), None);
     }
 }
