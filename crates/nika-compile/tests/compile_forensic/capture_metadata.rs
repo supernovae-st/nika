@@ -445,11 +445,15 @@ async fn observed(answers: Vec<Answer>) -> (CompileOutcome, Vec<Meta>, Canned) {
 // ── Product parity with the reference ───────────────────────────────────────────────────────
 
 /// The legacy prompt and response identities the pre-change observer produced for [`three_calls`]:
-/// streaming them must leave every byte of the identity unchanged.
+/// streaming them must leave every byte of the identity unchanged. The third prompt is the fill
+/// call's: its baseline was rederived on 2026-10-04 from the legacy framing over the request
+/// messages once the fill instruction gained the clause on a program bound to several edges
+/// (`sketch.rs::holes_message`); without that clause the same framing gives the former
+/// `13cce2041aeb39f23ea3b32e0a8f099e0f40556aa561f78c28fc2a2bb2540f60`.
 const PRE_CHANGE_PROMPTS: [&str; 3] = [
     "0e4a52651458457939dabd8f6cd7d180694e878379a3c93c224200362e32e9d2",
     "a88d8dbd44640c28802bed0c058d02671f5d54ebc8376193e0d12baf290d0976",
-    "13cce2041aeb39f23ea3b32e0a8f099e0f40556aa561f78c28fc2a2bb2540f60",
+    "6cf4dfc3521a4dbaeb8a8500470f2cd8789b3709d1f3c0af6924dc06325a0d97",
 ];
 const PRE_CHANGE_FRAMED: [&str; 3] = [
     "6efb41e17fac4b9d131098b896e9ce39723cc35e3d5038daa6653e604b5c176a",
