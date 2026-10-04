@@ -578,18 +578,18 @@ impl LiveRun {
             body.extend(self.graph(cells, ascii, color));
             body.push(Line::default());
         }
+        if let Some(journal) = self.history() {
+            let short: String = journal.witness().unwrap_or("").chars().take(12).collect();
+            let said = format!(
+                "journal {}{sep}captured bytes {short}{sep}its tasks as it recorded them",
+                journal.trace()
+            );
+            body.extend(faces::lines_of(&[(said, Role::Dim)], cells, ascii, color));
+        } else if let Some(why) = self.history_missing() {
+            body.extend(faces::lines_of(&[(why, Role::Dim)], cells, ascii, color));
+        }
         let listed = self.listed();
         if listed.is_empty() {
-            if self.kept.is_some() {
-                body.push(Line::from(Span::styled(
-                    fit_head(
-                        "the record keeps no task: the run's journal holds them",
-                        cells,
-                        cut,
-                    ),
-                    role::style(Role::Dim, color),
-                )));
-            }
             return body;
         }
         let keys = if ascii { "Up/Down pick" } else { "↑↓ pick" };

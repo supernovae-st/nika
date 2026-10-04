@@ -570,3 +570,78 @@ fn a_child_journal_name_that_is_not_local_is_refused_unread() {
         assert!(read.rows().is_empty(), "{name}");
     }
 }
+
+/// A verified journal of exactly the run lends its events, decoded from the
+/// very bytes captured; one not exactly the run's keeps its verdict and lends
+/// none, saying why.
+#[test]
+fn only_a_verified_journal_of_exactly_the_run_lends_its_events() {
+    use nika_display::run_story::EventKind;
+    let room = room();
+    let frames = [
+        (EXEC, "workflow_started", Some("aa")),
+        (EXEC, "workflow_completed", None),
+    ];
+    let (raw, head) = journal(&frames);
+    std::fs::write(room.path().join(".nika/traces/t.ndjson"), &raw).expect("trace");
+    let trace = ".nika/traces/t.ndjson";
+    let proven = prove(
+        room.path(),
+        trace,
+        &expect(Some("aa"), Some(&head), Some(2)),
+    );
+    let kinds: Vec<EventKind> = (proven.events().expect("lent").iter())
+        .map(|e| e.kind)
+        .collect();
+    assert_eq!(
+        kinds,
+        [EventKind::WorkflowStarted, EventKind::WorkflowCompleted]
+    );
+    assert!(proven.projection_why().is_none());
+    let other = prove(
+        room.path(),
+        trace,
+        &expect(Some("aa"), Some(&"cd".repeat(32)), Some(2)),
+    );
+    assert_eq!(other.tier(), Some("ok"), "its verdict stays readable");
+    assert!(other.events().is_none(), "{other:?}");
+    assert!(
+        other
+            .projection_why()
+            .is_some_and(|w| w.contains("not exactly this run's")),
+        "{other:?}"
+    );
+}
+
+/// The projection lends events only from a passed verdict, with every
+/// non-empty line an event, within the fold's bound (exactly the bound is
+/// lent, one more is refused, never cut).
+#[test]
+fn the_projection_lends_every_line_as_an_event_or_none() {
+    let (raw, _) = journal(&[
+        (EXEC, "workflow_started", Some("aa")),
+        (EXEC, "workflow_completed", None),
+    ]);
+    let passed = serde_json::json!({"exit": 0});
+    let lent = |raw: &str| project(raw, Some(&passed), &[]).0.map(|e| e.len());
+    assert_eq!(lent(&raw), Some(2));
+    assert_eq!(lent(&raw.replace('\n', "\n\n")), Some(2), "blank lines");
+    let why = |raw: &str, doc: Option<&Value>, unbound: &[String]| project(raw, doc, unbound).1;
+    let failed = serde_json::json!({"exit": 1});
+    assert!(why(&raw, Some(&failed), &[]).is_some_and(|w| w.contains("did not pass")));
+    assert!(why(&raw, None, &[]).is_some_and(|w| w.contains("did not pass")));
+    let foreign = ["the journal records another execution".to_owned()];
+    assert!(why(&raw, Some(&passed), &foreign).is_some_and(|w| w.contains("not exactly")));
+    let settled = format!("{raw}{{\"kind\":\"run_settled\"}}\n");
+    assert_eq!(
+        why(&settled, Some(&passed), &[]).as_deref(),
+        Some("line 3 is not an event the fold reads")
+    );
+    let line = raw.lines().next().expect("a line").to_owned() + "\n";
+    let bound = crate::workspace::live::EVENTS_KEPT;
+    assert_eq!(lent(&line.repeat(bound)), Some(bound));
+    assert!(
+        why(&line.repeat(bound + 1), Some(&passed), &[])
+            .is_some_and(|w| w.contains("more events than the fold keeps"))
+    );
+}

@@ -502,6 +502,18 @@ pub trait Conversation: Send {
     ) -> Option<crate::session::acquire::Proven> {
         None
     }
+    /// Adopt what `proven` (the verified journal of the kept run
+    /// `execution`, the reading the shell has just accepted as current)
+    /// records: its written names and child relations, for reading only.
+    /// Called once per accepted reading; `false` when nothing is adopted.
+    /// The default adopts nothing.
+    fn adopt(
+        &mut self,
+        _execution: &nika_display::run_story::ExecutionId,
+        _proven: &crate::session::acquire::Proven,
+    ) -> bool {
+        false
+    }
     /// The journal of the child run task `task` of the run `execution`
     /// called, as the relation `relation` its settle frame named: read by
     /// the host only when it kept that very relation itself (never a path

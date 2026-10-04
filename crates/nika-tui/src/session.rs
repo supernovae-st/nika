@@ -755,17 +755,46 @@ impl Conversation for Live {
     }
 
     /// The Proof of the journal the leg `execution` settled with, bound to
-    /// what this host relayed of it (never a path the renderer names).
+    /// what this host relayed of it (never a path the renderer names). A
+    /// pure acquisition: a kept leg forgets what an earlier reading lent
+    /// before the capture, and nothing is lent until [`Self::adopt`]. The
+    /// ledger is not held while the journal is read and verified.
     fn prove(&mut self, execution: &ExecutionId) -> Option<Proven> {
-        let root = &self.runtime.as_ref()?.snapshot.root;
-        let legs = self.legs.lock().ok()?;
-        Some(match legs.find(execution) {
-            Some(leg) => match leg.trace.as_deref() {
-                Some(trace) => acquire::prove(root, trace, &leg.proof_expectation()),
-                None => Proven::refused("", "its settlement named no journal"),
-            },
-            None => Proven::refused("", "this run's settlement was not observed here"),
-        })
+        let root = self.runtime.as_ref()?.snapshot.root.clone();
+        let asked = {
+            let mut legs = self.legs.lock().ok()?;
+            (legs.find_mut(execution)).map(|leg| {
+                leg.forget_history();
+                (leg.trace.clone(), leg.proof_expectation())
+            })
+        };
+        let proven = match asked {
+            Some((Some(trace), expect)) => acquire::prove(&root, &trace, &expect),
+            Some((None, _)) => return Some(Proven::refused("", "its settlement named no journal")),
+            None => {
+                return Some(Proven::refused(
+                    "",
+                    "this run's settlement was not observed here",
+                ));
+            }
+        };
+        if let Ok(mut legs) = self.legs.lock()
+            && let Some(leg) = legs.find_mut(execution)
+        {
+            leg.captured(&proven);
+        }
+        Some(proven)
+    }
+
+    /// Lend the kept leg `execution` what `proven` (the reading this host
+    /// captured last for it, a verified journal) records: its written names
+    /// and child relations, for reading only.
+    fn adopt(&mut self, execution: &ExecutionId, proven: &Proven) -> bool {
+        let Ok(mut legs) = self.legs.lock() else {
+            return false;
+        };
+        legs.find_mut(execution)
+            .is_some_and(|leg| leg.adopt(proven))
     }
 
     /// The journal of the child run the leg `execution`'s task `task`

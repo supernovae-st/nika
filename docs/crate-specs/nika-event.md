@@ -181,3 +181,13 @@ kinds 1:1 (INV-024 — the adapter is the ONE emission site). Per AgentOps
 - **Future `nika-connectome`** — ingests events for the chronicle/recall split
   (the engine chronicle projects into the Connectome's RDF substrate; raw
   payloads stay hashed per sovereignty Rule 1).
+
+## Terminal outputs companion fields
+
+`settlement::{OUTPUTS_FIELD, OUTPUTS_BYTES_FIELD, OUTPUTS_WITHHELD_FIELD,
+OUTPUTS_KEPT}` name the bounded resolved-output projection beside the terminal
+settlement. Exactly one companion is emitted by the normal close: `outputs`
+is a complete compact JSON object up to 65,536 bytes; `outputs_bytes` records
+the exact larger size without payload; `outputs_withheld: true` withholds the
+whole map. An older terminal may have none. These fields do not alter
+`RunSettlement`, the run state, ledger or authority.

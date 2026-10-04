@@ -284,7 +284,7 @@ clause by clause.
 
 In the workspace, the run object has Run, Outputs, Files and Proof faces. Focus
 that region with `F6`, use Left/Right to change face, and `r` to read again.
-Outputs are the values carried by the run's settlement. Files shows up to eight
+Outputs are the resolved values recorded beside the run's terminal settlement. Files shows up to eight
 files the run reported writing, read now (at most 1 MiB each). Those current
 bytes are not certified as the bytes written by the run.
 
@@ -336,8 +336,12 @@ Neither path restores consent, Run authority or a spending allowance.
 
 Reopening restores the conversation's goal, decisions, open questions and
 recent turns. The workspace repaints retained turns as history and reopens the
-last observed run as evidence. Its outputs, file list and task rows are not
-restored; Proof is verified again when opened. Nothing is replayed. Earlier approvals and approval answers do not carry over, and
+last observed run as evidence. Opening Run, Outputs or Files reads and verifies
+its journal. When that reading belongs to the run and the host accepts it, the
+view shows recorded task rows, outputs and reported file names. Files are read
+now; an older journal may have no outputs map. A refused or unbound reading
+leaves the missing information explicit, and Proof keeps its verdict and reason.
+Nothing is replayed. Earlier approvals and approval answers do not carry over, and
 neither does a ceiling agreed for a saved file. To run a workflow saved in an
 earlier Session, name its ceiling:
 `run compiled-workflow.nika with a ceiling of 0.25`.

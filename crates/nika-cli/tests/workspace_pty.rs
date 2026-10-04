@@ -1053,6 +1053,7 @@ fn a_run_result_its_file_and_proof_are_found_again_after_a_reopen() {
     });
     assert!(!term.text().contains("unchanged"), "{}", term.dump());
     term.leave();
+    let (kept, files) = (journal_bytes(&rig), rig.tree());
     let mut again = rig.spawn("14-reopen", 120, 40);
     wait_workspace(&mut again);
     again.wait_until("the earlier conversation, as history", |s| {
@@ -1065,14 +1066,81 @@ fn a_run_result_its_file_and_proof_are_found_again_after_a_reopen() {
     });
     again.keys(F6);
     again.keys(F6);
-    for _ in 0..3 {
-        again.keys(RIGHT);
-    }
+    // Before any Proof: the run's tasks, one task, its outputs and its file,
+    // from the journal it left (captured once, the same bytes the Proof reads).
+    again.wait_until("its tasks, from its journal", |s| {
+        s.contains("› ✔ read_source") && s.contains("write_output")
+    });
+    let witness = captured(&again.text()).expect("the captured journal's witness");
+    again.keys("\r");
+    again.wait_until("one task, as its journal recorded it", |s| {
+        s.contains("task read_source") && s.contains("as its journal recorded it")
+    });
+    again.keys(BACKSPACE);
+    again.keys(RIGHT);
+    again.wait_until("the outputs its journal recorded", |s| {
+        s.contains("[outputs]") && s.contains("written") && s.contains("./out/copy.md")
+    });
+    again.keys(RIGHT);
+    again.wait_until("the file it wrote, read now", |s| {
+        s.contains("[files]")
+            && s.contains("reported written by")
+            && s.contains("# Edited after the run")
+    });
+    again.keys(RIGHT);
     again.wait_until("its proof read again, bound to it", |s| {
         s.contains("[proof]") && s.contains("this run's journal")
     });
+    assert_eq!(
+        captured(&again.text()),
+        Some(witness),
+        "the Proof reads the same bytes"
+    );
     assert!(again.text().contains(&label), "{}", again.dump());
+    // Narrowed, folded below the minimum and widened again: the same run.
+    again.resize(80, 24);
+    again.wait_until("the proof at 80x24", |s| {
+        s.contains("[proof]") && s.contains("verdict")
+    });
+    again.resize(50, 14);
+    again.wait_until("the focus view below the minimum", |s| {
+        !s.contains("[proof]") && s.contains("nika ›")
+    });
+    again.resize(120, 40);
+    again.wait_until("the proof back at 120x40", |s| {
+        s.contains("[proof]") && s.contains("receipt")
+    });
+    // Consulting it ran, wrote and resumed nothing: the same journals and
+    // the same files.
+    assert_eq!(journal_bytes(&rig), kept, "no journal written or changed");
+    assert_eq!(rig.tree(), files, "no file written or changed");
     again.leave();
+}
+
+/// Every journal under the project's traces, with its bytes.
+fn journal_bytes(rig: &Rig) -> Vec<(PathBuf, Vec<u8>)> {
+    let mut out: Vec<_> = (std::fs::read_dir(rig.path(".nika/traces")).expect("traces"))
+        .map(|entry| entry.expect("entry").path())
+        .filter(|path| path.is_file())
+        .map(|path| {
+            let bytes = std::fs::read(&path).expect("journal");
+            (path, bytes)
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+/// The twelve hex digits of the captured journal a screen names
+/// (`captured bytes <hex>`), when it names one.
+fn captured(screen: &str) -> Option<String> {
+    screen.lines().find_map(|line| {
+        let at = line.find("captured bytes ")? + "captured bytes ".len();
+        let hex = line.get(at..at + 12)?;
+        hex.chars()
+            .all(|c| c.is_ascii_hexdigit())
+            .then(|| hex.to_owned())
+    })
 }
 
 /// A valid chained journal just under 8 MiB (of another execution: never

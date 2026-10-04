@@ -314,7 +314,10 @@ impl LiveRun {
         };
         let (glyph, tone) = state::cell(row.state, ascii);
         vec![(
-            format!("{glyph} {id}{sep}{words}{repaired}{sep}as the stream folded it"),
+            format!(
+                "{glyph} {id}{sep}{words}{repaired}{sep}{}",
+                self.source_words()
+            ),
             tone,
         )]
     }
@@ -377,24 +380,25 @@ impl LiveRun {
         rows
     }
 
-    /// The output the stream carried, through the viewers, or why there is
-    /// none; then a fan-out's items the same way.
+    /// The output the stream (a kept leg: its journal) carried, through the
+    /// viewers, or why there is none; then a fan-out's items the same way.
     fn task_output(&self, id: &str, row: &TaskRow, canvas: Canvas) -> Vec<Line<'static>> {
         let (sep, _) = marks(canvas.ascii);
         let cells = usize::from(canvas.width);
         let Some(json) = row.output_json.as_deref() else {
+            let medium = self.medium();
             let why = match row.state {
                 TaskState::Pending
                 | TaskState::Running
                 | TaskState::Retrying
-                | TaskState::Paused => "not finished: no output yet",
-                TaskState::Failed => "no output on the stream: the task failed",
+                | TaskState::Paused => "not finished: no output yet".to_owned(),
+                TaskState::Failed => format!("no output {medium}: the task failed"),
                 TaskState::Skipped | TaskState::Cancelled => {
-                    "no output on the stream: it never ran to its end"
+                    format!("no output {medium}: it never ran to its end")
                 }
-                TaskState::Ok => {
-                    "no output on the stream: its frame carried none (a value withheld as secret, or an older engine)"
-                }
+                TaskState::Ok => format!(
+                    "no output {medium}: its frame carried none (a value withheld as secret, or an older engine)"
+                ),
             };
             return lines_of(
                 &[(format!("output{sep}{why}"), Role::Dim)],
@@ -411,7 +415,8 @@ impl LiveRun {
         lines
     }
 
-    /// One JSON value the stream carried for task `id`, by the viewers.
+    /// One JSON value the stream (or a kept leg's journal) carried for task
+    /// `id`, by the viewers.
     fn task_value(&self, name: &str, id: &str, json: &str, canvas: Canvas) -> Vec<Line<'static>> {
         let (sep, _) = marks(canvas.ascii);
         let mut meta = Meta::new(name);
@@ -427,7 +432,7 @@ impl LiveRun {
         let rendered = nika_tui_view::artifact(content, &meta, canvas);
         let mut lines = lines_of(
             &[(
-                format!("{name}{sep}{} bytes on the stream", json.len()),
+                format!("{name}{sep}{} bytes {}", json.len(), self.medium()),
                 Role::Strong,
             )],
             usize::from(canvas.width),

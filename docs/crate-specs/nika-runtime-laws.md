@@ -5,7 +5,7 @@
 | Status | **ADMITTED member** of the `nika-runtime` unit (ADR-127 · the size-cap member split · D-2026-07-09-N1: one architectural unit in two workspace members). Never a new unit. |
 | Layer | **L3 — runtime** (the same row as `nika-runtime`) · `publish = false` · one public surface re-exported by the operator crate at every historical path. |
 | Sub-tier | L3-laws — what a run obeys before and after it executes; nothing here dispatches a task or folds a definition. |
-| Design | Ten modules, one law each: `errors` (the one-voice `RuntimeError`) · `contract` (the typed `outputs:` contract) · `compat_record` (the public record mirror) · `origins` (input origins) · `identity` (the engine identity + the build-support pins) · `integrity` (the record integrity law · `ValueTaint`) · `secret` (the secret resolver seam · the redacting sink · the payload field list) · `sandbox_select` (the sandbox verdict for a command) · `witness` · `stamp` (the event stamp seams) · `resume_fields` (the resume projection's payload field names). |
+| Design | Existing law modules: `errors` (the one-voice `RuntimeError`) · `contract` (the typed `outputs:` contract) · `compat_record` (the public record mirror) · `origins` (input origins) · `identity` (the engine identity + the build-support pins) · `integrity` (the record integrity law · `ValueTaint`) · `secret` (the secret resolver seam · the redacting sink · the payload field list) · `sandbox_select` (the sandbox verdict for a command) · `witness` · `stamp` (the event stamp seams) · `resume_fields` (the resume projection's payload field names) · `retry` (pure backoff arithmetic). |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (Diamond caps) — the descent leaves `nika-runtime` at 13 234 lines (1 766 below the wall) and this member ≈ 1.8k. |
 | IMPL | live · `scripts/crate-metrics.sh nika-runtime-laws` |
 | Crate version | tracks workspace · License `AGPL-3.0-or-later` · Edition 2024 · Publish `false` |
@@ -44,3 +44,16 @@ additive `compile` token means exactly "`nika compile --json` speaks the
 `compile_version` 1 foundation wire" (exact-skeleton CREATE, constant EDIT,
 literal answers). It promises no authoring cognition beyond what that
 document's provenance states, and it grants no authority.
+
+### Terminal output projection and retry arithmetic
+
+`secret::output_fields` serializes the resolved map through a capped writer:
+whole compact JSON within `OUTPUTS_KEPT`, otherwise its exact byte count, or
+a whole-map withheld marker if it cannot be encoded or represented. The
+redacting sink examines terminal output JSON structurally: a secret key or
+any changed value withholds the whole map instead of publishing rewritten
+JSON. Absence, an empty object, truncation and withholding stay distinct.
+
+`retry::{delay_ms, rand_unit}` owns the existing pure ramp, clamp and seeded
+jitter arithmetic. Runtime keeps retry admission, attempts and injected-clock
+sleep; moving the arithmetic grants no new execution authority.

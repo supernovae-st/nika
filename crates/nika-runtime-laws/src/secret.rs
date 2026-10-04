@@ -9,7 +9,10 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
-use nika_event::Event;
+use nika_event::settlement::{
+    OUTPUTS_BYTES_FIELD, OUTPUTS_FIELD, OUTPUTS_KEPT, OUTPUTS_WITHHELD_FIELD,
+};
+use nika_event::{Event, EventKind};
 use nika_types::resource::Value as FieldValue;
 use serde_json::Value;
 
@@ -135,6 +138,83 @@ impl<'a> RedactingSink<'a> {
             Cow::Borrowed(text)
         }
     }
+
+    /// Whether a terminal frame's outputs map may be published as it is:
+    /// it is a JSON object, no key at any depth holds a needle, and
+    /// scrubbing its values changes nothing. Examined as JSON, never by
+    /// replacing text inside it: anything else withholds the whole map.
+    fn outputs_unchanged(&self, text: &str) -> bool {
+        let Ok(map @ Value::Object(_)) = serde_json::from_str::<Value>(text) else {
+            return false;
+        };
+        if key_holds(&map, &self.needles) {
+            return false;
+        }
+        let mut scrubbed = map.clone();
+        scrub_value(&mut scrubbed, &self.needles);
+        scrubbed == map
+    }
+}
+
+/// Whether a key of `value`, at any depth, holds a needle.
+fn key_holds(value: &Value, needles: &[(String, String)]) -> bool {
+    let holds = |key: &str| {
+        (needles.iter())
+            .any(|(raw, escaped)| key.contains(raw.as_str()) || key.contains(escaped.as_str()))
+    };
+    match value {
+        Value::Object(map) => map.iter().any(|(k, v)| holds(k) || key_holds(v, needles)),
+        Value::Array(items) => items.iter().any(|v| key_holds(v, needles)),
+        _ => false,
+    }
+}
+
+/// The companion field a run's terminal frame records its resolved
+/// `outputs:` map in: the compact JSON object when it fits [`OUTPUTS_KEPT`]
+/// bytes; past it, its exact size and no payload; withheld when it cannot
+/// be encoded or its size is not an `i64`. Exactly one field. The JSON is
+/// written into a buffer kept only up to the cap; past it the bytes are
+/// counted and dropped.
+#[must_use]
+pub fn output_fields(outputs: &BTreeMap<String, Value>) -> Vec<(&'static str, FieldValue)> {
+    let withheld = (OUTPUTS_WITHHELD_FIELD, FieldValue::Bool(true));
+    let mut capped = Capped::default();
+    let field = match serde_json::to_writer(&mut capped, outputs) {
+        Err(_) => withheld,
+        Ok(()) if capped.total <= OUTPUTS_KEPT => match String::from_utf8(capped.kept) {
+            Ok(json) => (OUTPUTS_FIELD, FieldValue::String(json)),
+            Err(_) => withheld,
+        },
+        Ok(()) => match i64::try_from(capped.total) {
+            Ok(bytes) => (OUTPUTS_BYTES_FIELD, FieldValue::Int(bytes)),
+            Err(_) => withheld,
+        },
+    };
+    vec![field]
+}
+
+/// A writer that keeps bytes up to [`OUTPUTS_KEPT`] and counts every byte.
+#[derive(Default)]
+struct Capped {
+    kept: Vec<u8>,
+    total: usize,
+}
+
+impl std::io::Write for Capped {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.total = (self.total.checked_add(buf.len()))
+            .ok_or_else(|| std::io::Error::other("the outputs size overflows"))?;
+        if self.total <= OUTPUTS_KEPT {
+            self.kept.extend_from_slice(buf);
+        } else if !self.kept.is_empty() {
+            self.kept = Vec::new();
+        }
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }
 
 /// Scrub the run's resolved `outputs:` map with the same needles the
@@ -210,7 +290,20 @@ fn scrub_value(value: &mut Value, needles: &[(String, String)]) {
 impl EventSink for RedactingSink<'_> {
     fn emit(&mut self, mut event: Event) {
         if !self.needles.is_empty() {
+            let terminal = matches!(
+                event.kind,
+                EventKind::WorkflowCompleted | EventKind::WorkflowFailed
+            );
             for kv in &mut event.fields {
+                // The terminal's outputs map is published unchanged or
+                // withheld whole, never rewritten inside its JSON.
+                if terminal && kv.key == OUTPUTS_FIELD {
+                    if !matches!(&kv.value, FieldValue::String(t) if self.outputs_unchanged(t)) {
+                        OUTPUTS_WITHHELD_FIELD.clone_into(&mut kv.key);
+                        kv.value = FieldValue::Bool(true);
+                    }
+                    continue;
+                }
                 // Only a String field can carry a value (the enum's other
                 // arms are numbers/bools) — and the marker swaps whole
                 // bytes, never the field's shape.
@@ -820,5 +913,176 @@ mod outputs_scrub_tests {
         let before = outputs.clone();
         scrub_outputs(&mut outputs, &BTreeMap::new());
         assert_eq!(outputs, before);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+mod outputs_record_tests {
+    //! The outputs map a terminal frame records: one bounded companion field,
+    //! examined by the sink as JSON, published unchanged or withheld whole.
+
+    use super::*;
+    use nika_types::id::EventId;
+    use nika_types::resource::KeyValue;
+    use nika_types::timestamp::Timestamp;
+    use serde_json::json;
+
+    fn map(value: Value) -> BTreeMap<String, Value> {
+        serde_json::from_value(value).expect("a map")
+    }
+
+    fn terminal(kind: EventKind, fields: Vec<(&'static str, FieldValue)>) -> Event {
+        let mut event = Event::new(
+            EventId::new(uuid::Uuid::nil()),
+            Timestamp::from_unix_ms(0),
+            kind,
+        );
+        for (key, value) in fields {
+            event = event.with_field(KeyValue::new(key, value));
+        }
+        event
+    }
+
+    /// The fields an event carries after the sink, with `secrets` resolved.
+    fn through(secrets: &[&str], event: Event) -> Vec<(String, FieldValue)> {
+        let resolved: BTreeMap<String, Value> = (secrets.iter().enumerate())
+            .map(|(n, s)| (format!("s{n}"), Value::String((*s).to_owned())))
+            .collect();
+        let mut inner = crate::VecSink::new();
+        {
+            let mut sink = RedactingSink::new(&mut inner, &resolved);
+            sink.emit(event);
+        }
+        let events = inner.into_events();
+        (events[0].fields.iter())
+            .map(|kv| (kv.key.clone(), kv.value.clone()))
+            .collect()
+    }
+
+    #[test]
+    fn the_map_is_one_compact_json_object_within_the_cap() {
+        for value in [
+            json!({}),
+            json!({"x": null}),
+            json!({"x": ""}),
+            json!({"é": "\"\n"}),
+        ] {
+            let fields = output_fields(&map(value.clone()));
+            assert_eq!(fields.len(), 1, "{value}");
+            let (key, FieldValue::String(json)) = &fields[0] else {
+                panic!("a JSON text: {fields:?}");
+            };
+            assert_eq!(*key, OUTPUTS_FIELD);
+            assert_eq!(serde_json::from_str::<Value>(json).expect("json"), value);
+            assert_eq!(json, &serde_json::to_string(&value).expect("compact"));
+        }
+    }
+
+    /// `{"value":"<n x>"}` is twelve bytes plus `n`: the cap is kept whole,
+    /// one byte more records the exact size and no payload.
+    #[test]
+    fn past_the_cap_only_the_exact_size_is_recorded() {
+        let at_cap = map(json!({"value": "x".repeat(OUTPUTS_KEPT - 12)}));
+        assert!(
+            matches!(&output_fields(&at_cap)[0], (OUTPUTS_FIELD, FieldValue::String(j)) if j.len() == OUTPUTS_KEPT)
+        );
+        let over = map(json!({"value": "x".repeat(OUTPUTS_KEPT - 11)}));
+        let size = i64::try_from(OUTPUTS_KEPT + 1).expect("size");
+        assert_eq!(
+            output_fields(&over),
+            [(OUTPUTS_BYTES_FIELD, FieldValue::Int(size))]
+        );
+        let wide = map(json!({"é": "é".repeat(OUTPUTS_KEPT)}));
+        let exact = serde_json::to_string(&wide).expect("json").len();
+        let exact = i64::try_from(exact).expect("size");
+        assert_eq!(
+            output_fields(&wide),
+            [(OUTPUTS_BYTES_FIELD, FieldValue::Int(exact))]
+        );
+    }
+
+    #[test]
+    fn a_map_no_needle_touches_is_published_unchanged() {
+        let json = r#"{"n":1,"note":"***","s":"a b"}"#.to_owned();
+        let event = terminal(
+            EventKind::WorkflowCompleted,
+            vec![(OUTPUTS_FIELD, FieldValue::String(json.clone()))],
+        );
+        // `***` is a legitimate value; the short needles `1` and `:` never
+        // rewrite the JSON text (the number 1 is not a string holding `1`).
+        let out = through(&["zz-secret-zz", "1", ":"], event);
+        assert_eq!(out, [(OUTPUTS_FIELD.to_owned(), FieldValue::String(json))]);
+    }
+
+    #[test]
+    fn any_change_or_a_secret_key_withholds_the_whole_map() {
+        let cases: [(&[&str], Value); 7] = [
+            (&["tok-123"], json!({"v": "a tok-123 b"})),
+            (&["tok-123"], json!({"tok-123": 1})),
+            (&["tok-123"], json!({"v": {"inner tok-123": true}})),
+            (&["*"], json!({"v": "***"})),
+            (&[":"], json!({"v": "a:b"})),
+            (&["ab", "abc"], json!({"v": ["xabcx"]})),
+            (&["1"], json!({"v": ["1"]})),
+        ];
+        for (secrets, value) in cases {
+            let json = value.to_string();
+            for kind in [EventKind::WorkflowCompleted, EventKind::WorkflowFailed] {
+                let event = terminal(
+                    kind,
+                    vec![(OUTPUTS_FIELD, FieldValue::String(json.clone()))],
+                );
+                let out = through(secrets, event);
+                assert_eq!(
+                    out,
+                    [(OUTPUTS_WITHHELD_FIELD.to_owned(), FieldValue::Bool(true))],
+                    "{secrets:?} {json}"
+                );
+            }
+        }
+        for broken in ["{\"v\":", "[1]", "null", "\"text\""] {
+            let event = terminal(
+                EventKind::WorkflowCompleted,
+                vec![(OUTPUTS_FIELD, FieldValue::String(broken.to_owned()))],
+            );
+            let out = through(&["zz-secret-zz"], event);
+            assert_eq!(
+                out,
+                [(OUTPUTS_WITHHELD_FIELD.to_owned(), FieldValue::Bool(true))],
+                "{broken}"
+            );
+        }
+    }
+
+    #[test]
+    fn sizes_markers_other_frames_and_secretless_runs_keep_their_rules() {
+        let size = (OUTPUTS_BYTES_FIELD, FieldValue::Int(70_000));
+        let event = terminal(EventKind::WorkflowCompleted, vec![size.clone()]);
+        assert_eq!(through(&["tok-123"], event), [(size.0.to_owned(), size.1)]);
+        // An `outputs` field elsewhere keeps the generic scrub, as before.
+        let task = terminal(
+            EventKind::TaskCompleted,
+            vec![(
+                OUTPUTS_FIELD,
+                FieldValue::String("a long-secret-value".to_owned()),
+            )],
+        );
+        assert_eq!(
+            through(&["long-secret-value"], task),
+            [(
+                OUTPUTS_FIELD.to_owned(),
+                FieldValue::String(format!("a {REDACTED}"))
+            )]
+        );
+        let json = r#"{"tok-123":"tok-123"}"#.to_owned();
+        let event = terminal(
+            EventKind::WorkflowCompleted,
+            vec![(OUTPUTS_FIELD, FieldValue::String(json.clone()))],
+        );
+        assert_eq!(
+            through(&[], event),
+            [(OUTPUTS_FIELD.to_owned(), FieldValue::String(json))]
+        );
     }
 }

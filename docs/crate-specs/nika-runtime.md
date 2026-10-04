@@ -406,8 +406,13 @@ are NOT the duration source — a settle-time stamp pair would lie
 about a task that ran long before its settle slot). Record inserted at settle. Terminal: `WorkflowCompleted`
 iff zero unrecovered failures else `WorkflowFailed` (always-pattern
 tasks may have run after a failure · the verdict stands · spec 05).
-`outputs:` resolve after the terminal event from the records (an
-unresolvable output is omitted · the verdict unchanged).
+`outputs:` resolve from the records before the normal terminal frame
+(an unresolvable output is omitted). A typed-output mismatch can make that
+terminal fail under NIKA-VAR-009. The resolved map is recorded beside its
+settlement through `nika-runtime-laws::secret::output_fields`: at most 64 KiB
+of whole JSON, otherwise an exact byte count or a whole-map withheld marker.
+The secret sink withholds any map whose keys or values need scrubbing; the
+projection does not promote a failed run or change its ledger.
 
 ## 4 · Errors (NIKA-1700 range · Category::Runtime)
 

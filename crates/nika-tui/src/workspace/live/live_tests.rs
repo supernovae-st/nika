@@ -401,22 +401,137 @@ fn each_face_shows_only_what_was_acquired_and_names_the_rest() {
     );
 }
 
-#[test]
-fn a_kept_leg_is_evidence_whose_proof_is_read_on_demand() {
+/// A leg kept from an earlier session (exit 0), nothing read yet.
+fn kept_leg() -> LiveRun {
     let mut kept = nika_session::KeptRun::new();
     kept.workflow = Some("two.nika".to_owned());
     kept.exit = Some(0);
     let execution = serde_json::from_value(serde_json::json!({ "uuid": EXEC })).expect("id");
-    let run = LiveRun::kept(kept, execution);
+    LiveRun::kept(kept, execution)
+}
+
+/// The Proof of a kept leg's verified journal, lending `frames`' events.
+fn lending(frames: Vec<RunFrame>) -> Proven {
+    let doc = serde_json::json!({"tier": "ok", "exit": 0, "chain": {"events": 5, "head": "cd".repeat(32), "headline": "intact"}, "lines": []});
+    let events = (frames.into_iter())
+        .filter_map(|f| match f {
+            RunFrame::Event(event) => Some(*event),
+            _ => None,
+        })
+        .collect();
+    Proven::judged(".nika/traces/t.ndjson", doc, Vec::new()).lending(events)
+}
+
+#[test]
+fn a_kept_leg_is_evidence_whose_journal_is_read_first_on_every_face() {
+    let run = kept_leg();
+    let execution = serde_json::from_value(serde_json::json!({ "uuid": EXEC })).expect("id");
     let shown = face(&run, RunFace::Run);
     assert!(
         shown.contains("earlier session · exit 0") && shown.contains("nothing was replayed"),
         "{shown}"
     );
     assert!(shown.contains("not followed in this session"), "{shown}");
-    assert_eq!(run.wants(RunFace::Proof), [Want::Proof]);
-    assert!(run.wants(RunFace::Files).is_empty());
-    assert!(face(&run, RunFace::Files).contains("the record lists no file"));
-    assert!(face(&run, RunFace::Outputs).contains("the record keeps no outputs"));
+    for each in RunFace::ALL {
+        assert_eq!(run.wants(each), [Want::Proof], "{each:?}");
+    }
+    for each in [RunFace::Run, RunFace::Files, RunFace::Outputs] {
+        let said = face(&run, each);
+        assert!(said.contains("captured and verified when"), "{said}");
+    }
     assert_eq!(run.execution(), Some(execution));
+}
+
+/// Its verified journal's events, its execution's only, become a kept leg's
+/// tasks, outputs and written names, named after that journal; a refresh
+/// takes them away until the journal is read again.
+#[test]
+fn a_kept_leg_folds_its_verified_journal_and_names_it() {
+    let mut run = kept_leg();
+    let mut frames = vec![event(EXEC, 1, "workflow_started", "")];
+    frames.extend(wrote(EXEC, 2, "save", "./out/copy.md"));
+    frames.push(task(OTHER, 4, "task_started", "foreign"));
+    let outputs = r#"{"key":"outputs","value":"{\"total\":5}"}"#;
+    frames.push(event(EXEC, 5, "workflow_completed", outputs));
+    run.proven(lending(frames));
+    let shown = face(&run, RunFace::Run);
+    assert!(
+        shown.contains("journal .nika/traces/t.ndjson")
+            && shown.contains("captured bytes abababababab"),
+        "{shown}"
+    );
+    assert!(
+        shown.contains("✔ save") && !shown.contains("foreign"),
+        "{shown}"
+    );
+    let (_, detail) = run.detail("save", nika_tui_view::Canvas::new(100, false, false));
+    let detail = (detail.iter().map(ToString::to_string))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        detail.contains("as its journal recorded it") && detail.contains("15 bytes in its journal"),
+        "{detail}"
+    );
+    let outputs = face(&run, RunFace::Outputs);
+    assert!(
+        outputs.contains("total") && outputs.contains("its journal"),
+        "{outputs}"
+    );
+    assert_eq!(
+        run.wants(RunFace::Files),
+        [Want::File("./out/copy.md".to_owned())]
+    );
+    assert!(face(&run, RunFace::Files).contains("reported written by `save`"));
+    run.forget();
+    assert_eq!(run.wants(RunFace::Files), [Want::Proof], "journal first");
+    assert!(
+        !face(&run, RunFace::Run).contains("save"),
+        "{}",
+        face(&run, RunFace::Run)
+    );
+}
+
+/// A kept leg's outputs face says what its journal's close recorded: the
+/// map, an empty map, only a size, a whole withholding, an unreadable
+/// record, none (an older close) or no close; a refused journal shows none.
+#[test]
+fn a_kept_leg_s_outputs_say_what_its_journal_recorded() {
+    let said = |fields: &str| {
+        let mut run = kept_leg();
+        run.proven(lending(vec![event(EXEC, 1, "workflow_completed", fields)]));
+        face(&run, RunFace::Outputs)
+    };
+    let cases = [
+        (
+            r#"{"key":"outputs","value":"{}"}"#,
+            "records an empty outputs map",
+        ),
+        (
+            r#"{"key":"outputs_bytes","value":70000}"#,
+            "70000 bytes: only its size",
+        ),
+        (
+            r#"{"key":"outputs_withheld","value":true}"#,
+            "withheld whole",
+        ),
+        (r#"{"key":"outputs","value":"{\"a\":"}"#, "cannot be read"),
+        (r#"{"key":"status","value":"succeeded"}"#, "older engine"),
+    ];
+    for (fields, words) in cases {
+        let text = said(fields);
+        assert!(text.contains(words), "{fields}: {text}");
+        assert!(!text.contains("total"), "{text}");
+    }
+    let mut open = kept_leg();
+    open.proven(lending(vec![event(EXEC, 1, "workflow_started", "")]));
+    assert!(face(&open, RunFace::Outputs).contains("holds no terminal frame"));
+    let mut refused = kept_leg();
+    refused.proven(Proven::refused(".nika/traces/t.ndjson", "a symlink"));
+    for each in [RunFace::Run, RunFace::Outputs, RunFace::Files] {
+        let text = face(&refused, each);
+        assert!(
+            text.contains("nothing it records is shown: a symlink"),
+            "{text}"
+        );
+    }
 }

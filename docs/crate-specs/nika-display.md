@@ -97,3 +97,11 @@ name, and the spend a run can reach from the report's cost envelope (no model ca
 nothing on inference, a model with no catalog price is unknown and never free, a missing
 token or iteration bound stays unbounded). Pure text over the report: the caller keeps the
 verdict, the path and every authority.
+
+## Recorded terminal outputs
+
+`RunView::workflow_outputs()` returns the terminal frame's recorded outputs:
+`None` before a terminal, then `Outputs` with distinct absent, kept, oversized,
+withheld or unreadable states. A new start clears the earlier map. A failed
+run remains failed even when its terminal carries resolved values. The fold
+never reconstructs outputs from a current workflow or from task homonyms.

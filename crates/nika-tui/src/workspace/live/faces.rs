@@ -105,9 +105,14 @@ impl LiveRun {
             .collect()
     }
 
-    /// What `face` needs acquired that is not yet.
+    /// What `face` needs acquired that is not yet. A leg kept from an
+    /// earlier session asks its journal first, whatever the face: its
+    /// tasks, outputs, files and children come from that reading alone.
     #[must_use]
     pub fn wants(&self, face: RunFace) -> Vec<Want> {
+        if self.kept.is_some() && self.proven.is_none() {
+            return vec![Want::Proof];
+        }
         match face {
             RunFace::Files => (self.written().into_iter())
                 .filter(|(_, path)| !self.fetched.iter().any(|f| f.path() == path))
@@ -136,18 +141,89 @@ impl LiveRun {
     }
 
     /// Forget what was acquired: the faces read the files and the journal
-    /// again, as they are now.
+    /// again, as they are now (a kept leg's tasks with it).
     pub(crate) fn forget(&mut self) {
         self.revision += 1;
         self.generation += 1;
         self.fetched.clear();
         self.proven = None;
+        self.forget_history();
     }
 
-    /// The Proof acquired for the proof face.
+    /// The Proof acquired for the proof face; for a leg kept from an earlier
+    /// session, the events its verified journal records are folded anew by
+    /// the live rules (its execution's only, within the window).
     pub(crate) fn proven(&mut self, proven: Proven) {
         self.revision += 1;
+        self.forget_history();
+        if self.kept.is_some() {
+            for event in proven.events().unwrap_or_default() {
+                if event.execution == self.execution {
+                    self.event(event);
+                } else {
+                    self.foreign += 1;
+                }
+            }
+        }
         self.proven = Some(proven);
+    }
+
+    /// A kept leg's fold emptied: what an earlier reading of its journal
+    /// lent is gone, each child relation it named counted as dropped.
+    fn forget_history(&mut self) {
+        if self.kept.is_none() {
+            return;
+        }
+        for row in self.view.rows() {
+            if self.view.child(&row.id).is_some() {
+                let epoch = self.relations.entry(row.id.clone()).or_default();
+                *epoch = epoch.saturating_add(1);
+            }
+        }
+        self.view = nika_display::state::RunView::new();
+        self.seen.clear();
+        (self.events, self.foreign, self.repeated) = (0, 0, 0);
+        (self.beyond, self.disorder) = (0, 0);
+    }
+
+    /// The journal a kept leg's tasks come from, when one was read and lent
+    /// its events.
+    pub(super) fn history(&self) -> Option<&Proven> {
+        self.kept.as_ref()?;
+        self.proven.as_ref().filter(|p| p.events().is_some())
+    }
+
+    /// Where the tasks in view come from, in words.
+    pub(super) fn source_words(&self) -> &'static str {
+        if self.history().is_some() {
+            "as its journal recorded it"
+        } else {
+            "as the stream folded it"
+        }
+    }
+
+    /// Where the task outputs in view were carried, in words.
+    pub(super) fn medium(&self) -> &'static str {
+        if self.history().is_some() {
+            "in its journal"
+        } else {
+            "on the stream"
+        }
+    }
+
+    /// For a kept leg, why its journal lends nothing yet, or nothing at all.
+    pub(super) fn history_missing(&self) -> Option<String> {
+        self.kept.as_ref()?;
+        let Some(proven) = &self.proven else {
+            return Some("its journal is captured and verified when this face opens".to_owned());
+        };
+        if proven.events().is_some() {
+            return None;
+        }
+        let why = (proven.why())
+            .or(proven.projection_why())
+            .unwrap_or("its journal lends nothing");
+        Some(format!("nothing it records is shown: {why}"))
     }
 
     /// The outputs face: what the settlement carried, each output shown by
@@ -161,37 +237,61 @@ impl LiveRun {
                 canvas.color,
             )
         };
-        if self.kept.is_some() {
-            return dim("the record keeps no outputs: the run's journal holds them");
+        if let Some(why) = self.history_missing() {
+            return dim(&why);
         }
-        let Some(settled) = &self.settled else {
-            return dim("no settlement yet: the outputs are unknown, never empty");
+        let (outputs, whence) = match (self.history(), &self.settled) {
+            (Some(journal), _) => match self.view.workflow_outputs() {
+                Some(outputs) => (outputs, format!("its journal {}", journal.trace())),
+                None => return dim("its journal holds no terminal frame: its outputs are unknown"),
+            },
+            (None, Some(settled)) => (&settled.outputs, "its settlement".to_owned()),
+            (None, None) => return dim("no settlement yet: the outputs are unknown, never empty"),
         };
-        let value = match &settled.outputs {
+        let value = match outputs {
             Outputs::Kept(value) => value,
             Outputs::TooLarge { bytes } => {
                 return dim(&format!(
-                    "the outputs hold {bytes} bytes, more than this view keeps: the trace holds them"
+                    "the outputs map held {bytes} bytes: only its size was recorded, not its payload"
                 ));
+            }
+            Outputs::Withheld => {
+                return dim(
+                    "the outputs map was withheld whole when the run closed: neither its keys nor its values were recorded",
+                );
+            }
+            Outputs::Unreadable => {
+                return dim("the outputs map recorded here cannot be read: it is not shown");
+            }
+            _ if self.history().is_some() => {
+                return dim(
+                    "this journal records no workflow outputs map (an older engine, or a close that kept none): unknown, never empty",
+                );
             }
             _ => return dim("the settlement carried no outputs"),
         };
         let Some(map) = value.as_object() else {
-            return self.output("outputs", &value.to_string(), canvas);
+            return self.output("outputs", &value.to_string(), (&whence, canvas));
         };
         if map.is_empty() {
-            return dim("the workflow declares no outputs");
+            return dim(&format!("{whence} records an empty outputs map"));
         }
         map.iter()
-            .flat_map(|(key, item)| self.output(key, &item.to_string(), canvas))
+            .flat_map(|(key, item)| self.output(key, &item.to_string(), (&whence, canvas)))
             .collect()
     }
 
-    /// One output, rendered by the viewers from its JSON text.
-    fn output(&self, name: &str, json: &str, canvas: Canvas) -> Vec<Line<'static>> {
+    /// One output, rendered by the viewers from its JSON text, named after
+    /// where it was recorded.
+    fn output(
+        &self,
+        name: &str,
+        json: &str,
+        (whence, canvas): (&str, Canvas),
+    ) -> Vec<Line<'static>> {
         let mut meta = Meta::new(name);
         meta.format = Some("json".to_owned());
-        meta.provenance = Some(format!("{} · its settlement", self.label()));
+        meta.provenance = Some(format!("{} · {whence}", self.label()));
         meta.protected = true;
         meta.availability = Availability::Present;
         let rendered = nika_tui_view::artifact(Content::Text(json), &meta, canvas);
@@ -214,10 +314,13 @@ impl LiveRun {
     pub(super) fn files_body(&self, canvas: Canvas) -> Vec<Line<'static>> {
         let cells = usize::from(canvas.width);
         let row = |tone, text: String| lines_of(&[(text, tone)], cells, canvas.ascii, canvas.color);
+        if let Some(why) = self.history_missing() {
+            return row(Role::Dim, why);
+        }
         let written = self.written();
         if written.is_empty() {
-            let why = if self.kept.is_some() {
-                "the record lists no file: the run's journal names what it wrote"
+            let why = if self.history().is_some() {
+                "its journal reports writing no file (nika:write)"
             } else {
                 "the run reported writing no file (nika:write); the trace holds its other effects"
             };

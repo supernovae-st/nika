@@ -268,7 +268,8 @@ fn the_keys_keep_their_other_roles_and_the_hint_promises_only_the_available() {
     assert_eq!(desk.route(key(KeyCode::Backspace), SMALL), Route::Compose);
     let (title, _) = object(&mut desk, SMALL, false);
     assert!(title.contains("task first"), "{title}");
-    // A leg that kept no task lists none and promises nothing.
+    // A kept leg whose journal is not read yet lists no task and promises
+    // nothing.
     let mut kept = Desk::new();
     kept.view = Some(demo_project());
     let mut record = nika_session::KeptRun::new();
@@ -282,7 +283,8 @@ fn the_keys_keep_their_other_roles_and_the_hint_promises_only_the_available() {
         "{body:#?}"
     );
     assert!(
-        body.iter().any(|r| r.contains("the record keeps no task")),
+        body.iter()
+            .any(|r| r.contains("captured and verified when")),
         "{body:#?}"
     );
     assert_eq!(kept.route(key(KeyCode::Enter), WIDE), Route::Nothing);

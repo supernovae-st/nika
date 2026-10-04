@@ -31,12 +31,19 @@
 //!   says). The frame names no child execution and no length: those stay
 //!   not compared, so such a journal is never called bound whole.
 //!
+//! A verified journal that is exactly the run's (verdict exit 0, bound to its
+//! execution, source, head and length) is also decoded, every non-empty line
+//! an event, into the run's own observations: the fold and the host's
+//! ledger read those, never a second read of the journal. Anything less
+//! keeps the verdict readable and the observations refused, with the reason.
+//!
 //! A path that leaves the root, a symlink, a special file, a missing file or
 //! one over its cap is refused with its reason, never read.
 
 use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
 
-use nika_display::run_story::{ChildOutcome, ChildRun, ExecutionId, RunFrame};
+use nika_display::run_story::{ChildOutcome, ChildRun, Event, ExecutionId, RunFrame};
 use nika_display::state::{RunView, TaskRow};
 use nika_session::change::Witness;
 use nika_trace::run_view::RunFacts;
@@ -123,6 +130,10 @@ pub struct Proven {
     terminal: Option<String>,
     unbound: Vec<String>,
     why: Option<String>,
+    /// The run's events from these very bytes, when they are its verified
+    /// journal; else why nothing historical is shown.
+    events: Option<Arc<[Event]>>,
+    projection_why: Option<String>,
 }
 
 impl Proven {
@@ -134,7 +145,28 @@ impl Proven {
             terminal: None,
             unbound: Vec::new(),
             why: Some(why.into()),
+            events: None,
+            projection_why: None,
         }
+    }
+
+    /// The run's events decoded from the captured bytes, only when they are
+    /// its verified journal (the fold and the ledger read these).
+    pub(crate) fn events(&self) -> Option<&[Event]> {
+        self.events.as_deref()
+    }
+
+    /// Why the captured journal lends no event, when it was read but lends none.
+    pub(crate) fn projection_why(&self) -> Option<&str> {
+        self.projection_why.as_deref()
+    }
+
+    /// This Proof lending nothing: its verdict, witness and reasons kept,
+    /// `why` said for its projection (a reading the host did not adopt).
+    pub(crate) fn without_lending(mut self, why: impl Into<String>) -> Self {
+        self.events = None;
+        self.projection_why = Some(why.into());
+        self
     }
 
     /// The trace the settlement named.
@@ -228,6 +260,12 @@ impl ChildRead {
 
 #[cfg(test)]
 impl Proven {
+    /// This Proof lending `events`, as a verified journal of the run does.
+    pub(crate) fn lending(mut self, events: Vec<Event>) -> Self {
+        self.events = Some(events.into());
+        self
+    }
+
     /// A Proof as the verifier judged it, for the faces' tests.
     pub(crate) fn judged(trace: &str, doc: Value, unbound: Vec<String>) -> Self {
         Self {
@@ -237,6 +275,8 @@ impl Proven {
             terminal: Some("succeeded".to_owned()),
             unbound,
             why: None,
+            events: None,
+            projection_why: None,
         }
     }
 }
@@ -320,6 +360,7 @@ pub(crate) fn prove(root: &Path, trace: &str, expect: &Expect) -> Proven {
         .and_then(|l| serde_json::from_str(l).ok());
     let facts = RunFacts::of(&original, &raw);
     let unbound = binding(facts.as_ref(), doc.as_ref(), expect);
+    let (events, projection_why) = project(&raw, doc.as_ref(), &unbound);
     Proven {
         trace: trace.to_owned(),
         witness: Some(witness),
@@ -327,7 +368,45 @@ pub(crate) fn prove(root: &Path, trace: &str, expect: &Expect) -> Proven {
         doc,
         unbound,
         why: None,
+        events,
+        projection_why,
     }
+}
+
+/// The run's events from the captured bytes, when the verifier passed them
+/// (exit 0) and they are exactly the run's: every non-empty line decoded as
+/// an event, at most the fold's bound; otherwise why none is lent.
+fn project(
+    raw: &str,
+    doc: Option<&Value>,
+    unbound: &[String],
+) -> (Option<Arc<[Event]>>, Option<String>) {
+    let refused = |why: String| (None, Some(why));
+    if doc.and_then(|d| d.get("exit")).and_then(Value::as_u64) != Some(0) {
+        return refused(
+            "the verifier did not pass this journal: nothing it records is shown".to_owned(),
+        );
+    }
+    if !unbound.is_empty() {
+        return refused(
+            "the journal is not exactly this run's: nothing it records is shown".to_owned(),
+        );
+    }
+    let mut events = Vec::new();
+    for (n, line) in raw
+        .lines()
+        .enumerate()
+        .filter(|(_, l)| !l.trim().is_empty())
+    {
+        let Some(RunFrame::Event(event)) = RunFrame::decode(line) else {
+            return refused(format!("line {} is not an event the fold reads", n + 1));
+        };
+        if events.len() == crate::workspace::live::EVENTS_KEPT {
+            return refused("the journal holds more events than the fold keeps".to_owned());
+        }
+        events.push(*event);
+    }
+    (Some(events.into()), None)
 }
 
 /// The child journal `relation` names, read once below `.nika/traces/` of
@@ -377,6 +456,8 @@ pub(crate) fn read_child(root: &Path, relation: &ChildRun) -> ChildRead {
                 .map(|(_, why)| why.clone())
                 .collect(),
             why: None,
+            events: None,
+            projection_why: None,
         },
         compared,
         rows: view.rows().to_vec(),

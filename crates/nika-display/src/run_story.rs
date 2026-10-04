@@ -11,14 +11,13 @@ use std::sync::mpsc::Sender;
 
 use serde_json::Value;
 
+pub use nika_event::settlement::OUTPUTS_KEPT;
 pub use nika_event::settlement::{RunSettlement, RunState};
 pub use nika_event::{Event, EventKind};
 pub use nika_types::id::ExecutionId;
 
 /// The most story lines one run keeps; past it a line is counted, not kept.
 pub const STORY_KEPT: usize = 2_000;
-/// The most bytes of a settlement's `outputs` its typed twin keeps.
-pub const OUTPUTS_KEPT: usize = 64 * 1024;
 
 /// The run's story, folded from the machine lane's frames: one short
 /// line per task settle, the header, the summary, the pause — the words
@@ -290,6 +289,13 @@ pub enum Outputs {
         /// Their size, serialized.
         bytes: usize,
     },
+    /// The journal says the outputs map was withheld whole: neither its
+    /// keys nor its values were recorded (and a `***` inside a recorded
+    /// value never means this).
+    Withheld,
+    /// The journal records an outputs map this reader cannot interpret
+    /// (two forms, a wrong type, a size within the cap, a broken JSON).
+    Unreadable,
 }
 
 impl Outputs {
@@ -302,6 +308,47 @@ impl Outputs {
             Self::TooLarge { bytes }
         } else {
             Self::Kept(value.clone())
+        }
+    }
+
+    /// The outputs map a run's terminal frame (`workflow_completed`,
+    /// `workflow_failed`) records, read strictly from every field of the
+    /// frame: none is [`Self::Absent`] (an older engine, or a close that did
+    /// not record it); exactly one well-formed companion is its state;
+    /// anything else is [`Self::Unreadable`]. Another frame records none.
+    pub(crate) fn from_event(event: &Event) -> Self {
+        use nika_event::settlement::{OUTPUTS_BYTES_FIELD, OUTPUTS_FIELD, OUTPUTS_WITHHELD_FIELD};
+        use nika_types::resource::Value as FieldValue;
+        if !matches!(
+            event.kind,
+            EventKind::WorkflowCompleted | EventKind::WorkflowFailed
+        ) {
+            return Self::Absent;
+        }
+        let named = [OUTPUTS_FIELD, OUTPUTS_BYTES_FIELD, OUTPUTS_WITHHELD_FIELD];
+        let found: Vec<_> = (event.fields.iter())
+            .filter(|kv| named.contains(&kv.key.as_str()))
+            .collect();
+        let [kv] = found.as_slice() else {
+            return if found.is_empty() {
+                Self::Absent
+            } else {
+                Self::Unreadable
+            };
+        };
+        match (kv.key.as_str(), &kv.value) {
+            (OUTPUTS_FIELD, FieldValue::String(json)) if json.len() <= OUTPUTS_KEPT => {
+                match serde_json::from_str::<Value>(json) {
+                    Ok(map @ Value::Object(_)) => Self::Kept(map),
+                    _ => Self::Unreadable,
+                }
+            }
+            (OUTPUTS_BYTES_FIELD, FieldValue::Int(bytes)) => match usize::try_from(*bytes) {
+                Ok(bytes) if bytes > OUTPUTS_KEPT => Self::TooLarge { bytes },
+                _ => Self::Unreadable,
+            },
+            (OUTPUTS_WITHHELD_FIELD, FieldValue::Bool(true)) => Self::Withheld,
+            _ => Self::Unreadable,
         }
     }
 }
@@ -830,5 +877,96 @@ mod tests {
             ChildRun::of(&child_frame("task_completed", "{\"target\": ")),
             None
         );
+    }
+
+    /// A terminal frame of `kind` with `fields`.
+    fn terminal_with(kind: &str, fields: &serde_json::Value) -> Event {
+        let line = serde_json::json!({
+            "correlation": null, "fields": fields,
+            "id": {"uuid": "01a0ef11-03b2-71ee-9ad4-17a755fad3ae"},
+            "kind": kind, "run": null, "timestamp": 1,
+        })
+        .to_string();
+        let Some(RunFrame::Event(event)) = RunFrame::decode(&line) else {
+            panic!("a frame decodes");
+        };
+        *event
+    }
+
+    /// The outputs map a terminal frame records is read strictly: each form
+    /// alone is its state; none is Absent; two forms, a wrong type, a size
+    /// within the cap, `false` or a JSON that is not an object is
+    /// Unreadable; another frame's homonym is no workflow output.
+    #[test]
+    fn the_recorded_outputs_map_is_read_strictly() {
+        let kv =
+            |key: &str, value: serde_json::Value| serde_json::json!({"key": key, "value": value});
+        let read = |kind: &str, fields: Vec<serde_json::Value>| {
+            Outputs::from_event(&terminal_with(kind, &serde_json::Value::Array(fields)))
+        };
+        let big = i64::try_from(OUTPUTS_KEPT + 1).expect("size");
+        for kind in ["workflow_completed", "workflow_failed"] {
+            assert_eq!(read(kind, vec![]), Outputs::Absent);
+            assert_eq!(
+                read(
+                    kind,
+                    vec![kv("outputs", serde_json::json!("{\"total\":5,\"x\":null}"))]
+                ),
+                Outputs::Kept(serde_json::json!({"total": 5, "x": null}))
+            );
+            assert_eq!(
+                read(kind, vec![kv("outputs", serde_json::json!("{}"))]),
+                Outputs::Kept(serde_json::json!({}))
+            );
+            assert_eq!(
+                read(kind, vec![kv("outputs_bytes", serde_json::json!(big))]),
+                Outputs::TooLarge {
+                    bytes: OUTPUTS_KEPT + 1
+                }
+            );
+            assert_eq!(
+                read(kind, vec![kv("outputs_withheld", serde_json::json!(true))]),
+                Outputs::Withheld
+            );
+            assert_eq!(
+                read(
+                    kind,
+                    vec![kv("outputs", serde_json::json!("{\"v\":\"***\"}"))]
+                ),
+                Outputs::Kept(serde_json::json!({"v": "***"})),
+                "a marker in a value is a value"
+            );
+            for broken in [
+                vec![
+                    kv("outputs", serde_json::json!("{}")),
+                    kv("outputs", serde_json::json!("{}")),
+                ],
+                vec![
+                    kv("outputs", serde_json::json!("{}")),
+                    kv("outputs_withheld", serde_json::json!(true)),
+                ],
+                vec![kv("outputs", serde_json::json!("[1]"))],
+                vec![kv("outputs", serde_json::json!("null"))],
+                vec![kv("outputs", serde_json::json!("{\"v\":"))],
+                vec![kv("outputs", serde_json::json!(5))],
+                vec![kv("outputs_bytes", serde_json::json!(10))],
+                vec![kv("outputs_bytes", serde_json::json!(-1))],
+                vec![kv("outputs_bytes", serde_json::json!("70000"))],
+                vec![kv("outputs_withheld", serde_json::json!(false))],
+            ] {
+                assert_eq!(
+                    read(kind, broken.clone()),
+                    Outputs::Unreadable,
+                    "{broken:?}"
+                );
+            }
+        }
+        for kind in ["task_completed", "workflow_cancelled", "run_sealed"] {
+            assert_eq!(
+                read(kind, vec![kv("outputs", serde_json::json!("{\"x\":1}"))]),
+                Outputs::Absent,
+                "{kind}"
+            );
+        }
     }
 }

@@ -9,6 +9,12 @@
 //! names; a frame of another execution, or after the settlement, adds
 //! nothing. Bounded: [`LEGS_KEPT`] legs, [`FILES_KEPT`] files each.
 //!
+//! A leg kept from an earlier session learns the names its writes reported
+//! and its child relations only from its own verified journal, when the
+//! shell adopts the reading the host captured last ([`Leg::adopt`]); a new
+//! capture forgets them first, so a refused or stale reading lends nothing.
+//! Its kept identity, source, head, length and settlement never move.
+//!
 //! The child run a task called is kept as its settle frame named it, by
 //! the rule the fold follows (`RunView::child`): only that frame names one,
 //! a new attempt leaves none. The journal of a child is opened only by the
@@ -24,7 +30,7 @@ use std::collections::BTreeSet;
 use nika_display::run_story::{ChildRun, Event, EventKind, ExecutionId, RunFrame, Settled};
 use nika_session::KeptRun;
 
-use super::acquire::Expect;
+use super::acquire::{Expect, Proven};
 
 /// The most legs the host remembers.
 pub(crate) const LEGS_KEPT: usize = 4;
@@ -45,6 +51,8 @@ pub(crate) struct Leg {
     chain_head: Option<String>,
     chain_len: Option<u64>,
     children: Vec<(String, ChildRun)>,
+    /// The witness of the last journal captured for this leg.
+    capture: Option<String>,
     pub settled: bool,
     pub kept: bool,
 }
@@ -61,6 +69,7 @@ impl Leg {
             chain_head: None,
             chain_len: None,
             children: Vec::new(),
+            capture: None,
             settled: false,
             kept: false,
         }
@@ -99,13 +108,18 @@ impl Leg {
     }
 
     fn event(&mut self, event: &Event) {
+        if event.kind == EventKind::WorkflowStarted {
+            self.starts
+                .push(event.str_field("workflow_sha256").map(str::to_owned));
+        }
         self.relate(event);
+        self.writes(event);
+    }
+
+    /// The names a `nika:write` task reported writing, as its frames say.
+    fn writes(&mut self, event: &Event) {
         let task = event.str_field("task").map(str::to_owned);
         match (event.kind, task) {
-            (EventKind::WorkflowStarted, _) => {
-                self.starts
-                    .push(event.str_field("workflow_sha256").map(str::to_owned));
-            }
             (EventKind::TaskStarted, Some(task))
                 if event
                     .str_field("note")
@@ -133,6 +147,46 @@ impl Leg {
         self.chain_head.clone_from(&settled.chain_head);
         self.chain_len = settled.chain_len;
         self.settled = true;
+    }
+
+    /// A new capture of a kept leg's journal: what an earlier reading lent
+    /// (written names, child relations) is forgotten before it is read.
+    pub(crate) fn forget_history(&mut self) {
+        if self.kept {
+            self.writing.clear();
+            self.written.clear();
+            self.unlisted = 0;
+            self.children.clear();
+            self.capture = None;
+        }
+    }
+
+    /// The journal just captured for this leg: its witness stays adoptable
+    /// only when that capture lends its events (a refused projection lends
+    /// nothing, even over the same bytes).
+    pub(crate) fn captured(&mut self, proven: &Proven) {
+        self.capture = (proven.events().and(proven.witness())).map(str::to_owned);
+    }
+
+    /// Adopt `proven` for a kept leg: when it is the reading captured last
+    /// and lends events, its written names and child relations are rebuilt
+    /// from them by the live rules (never its start or settlement). `false`
+    /// when nothing is adopted.
+    pub(crate) fn adopt(&mut self, proven: &Proven) -> bool {
+        let (Some(events), Some(witness)) = (proven.events(), proven.witness()) else {
+            return false;
+        };
+        if !self.kept || self.capture.as_deref() != Some(witness) {
+            return false;
+        }
+        let capture = self.capture.take();
+        self.forget_history();
+        self.capture = capture;
+        for event in events {
+            self.relate(event);
+            self.writes(event);
+        }
+        true
     }
 
     /// The source hash the leg's start named, when it saw exactly one start.
@@ -210,6 +264,13 @@ impl Legs {
         self.relayed.iter().find(|leg| leg.execution == *execution)
     }
 
+    /// The leg of `execution`, to change.
+    pub(crate) fn find_mut(&mut self, execution: &ExecutionId) -> Option<&mut Leg> {
+        self.relayed
+            .iter_mut()
+            .find(|leg| leg.execution == *execution)
+    }
+
     /// The leg the host relayed since the last request, when a frame came.
     pub(crate) fn newest(&self) -> Option<&Leg> {
         self.relayed.first().filter(|leg| self.current && !leg.kept)
@@ -241,4 +302,4 @@ pub(crate) fn execution_of(run: &KeptRun) -> Option<ExecutionId> {
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
-mod legs_tests;
+pub(crate) mod legs_tests;

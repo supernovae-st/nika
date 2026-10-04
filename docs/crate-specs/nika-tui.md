@@ -99,8 +99,8 @@ terminal restoration, inline/plain/pipe, inspection without effects, and Save
 without Run. These proofs cover workflow inspection; the run faces below add a
 separate result and evidence slice, not complete workspace qualification.
 
-The run object offers Run, Outputs, Files and Proof. Outputs come from that
-leg's settlement. Files show at most eight reported writes, read now at up to
+The run object offers Run, Outputs, Files and Proof. Outputs come from the
+resolved map recorded beside that leg's terminal settlement. Files show at most eight reported writes, read now at up to
 1 MiB each; without a digest of the bytes written, the view claims neither
 unchanged nor changed since the run. The host acquires files and Proof on its
 worker, outside drawing, and applies a result only to the same execution and
@@ -134,8 +134,17 @@ adds no child usage to the parent's measurements. Live child frames, a produced
 child execution identity and a failed-child summary remain outside this slice.
 
 Reopening repaints retained turns as history and exposes the last observed run.
-It restores neither task rows, outputs nor a file inventory; Proof is read again
-on demand. It calls no model, starts no run and restores no consent. Full child
+Opening Run, Outputs or Files first captures and verifies its journal once.
+Only a bound, verified reading accepted by the Desk and adopted by the host
+lends its task rows, terminal outputs, reported write names and child relations.
+These observations come from the captured bytes, never from today's workflow.
+An older terminal without an outputs map stays absent, not an empty map. A
+refused capture revokes the earlier lending even for the same journal bytes.
+If the host declines adoption, the historical projection is withdrawn while
+Proof keeps its verdict, witness and reason; it does not trigger a refresh
+loop. Two admitted captures of identical bytes share a witness. Revocation
+bounds later reads; a read already in flight is not cancelled. It calls no
+model, starts no run and restores no consent. Full child
 hierarchy, project/conversation switching, concurrent
 revision during a run and the complete paid journey remain outside this slice's
 qualification. The workspace PTYs use cargo-test binaries; they do not qualify
