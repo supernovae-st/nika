@@ -9,8 +9,8 @@
 //! bounds (output tokens and seconds per call, repair rounds, one request's deadline) and an
 //! optional Foundry knowledge snapshot, opened, verified and pinned when the listener attaches
 //! through the configuration parser and knowledge reader every door shares
-//! (`nika_cli_host::compile::{config, knowledge}`). The strategy is fixed: the seat writes the
-//! candidate itself (`only`), one sample, at the reasoning effort the operator names. A round
+//! (`nika_cli_host::compile::{config, knowledge}`). The strategy is fixed: the shared default
+//! `escalate` (the compiler writes the source), one sample, at the operator's effort. A round
 //! permits one physical request by default; the operator must explicitly grant `max_calls` for
 //! more. Repair preferences are not grants. Redirects are disabled; provider resends consume
 //! that grant. A caller opts in per request and may narrow each bound, never widen one; it names
@@ -25,7 +25,6 @@ use std::time::Duration;
 use nika_cli_host::compile::{config, knowledge};
 use nika_error::prelude::{NikaCode, NikaErrorCode, codes};
 use nika_kernel::secret::Secret;
-use nika_onboard::compile::NativeMode;
 use nika_providers::{ProviderRegistry, ProvidersConfig};
 
 use super::super::config::ServerConfig;
@@ -72,7 +71,7 @@ impl NativeAuthoring {
                 max_calls: None,
                 grant: "operator: NativeAuthoring::with_max_calls",
             },
-            named: config::AuthoringSettings::none().with_strategy(NativeMode::Only.word()),
+            named: config::AuthoringSettings::none(),
             replay_entries: DEFAULT_REPLAY_ENTRIES,
             replay_ttl: DEFAULT_REPLAY_TTL,
             withheld: Vec::new(),
@@ -291,7 +290,7 @@ pub(in crate::server) struct Seat {
     pub(super) provider: String,
     pub(super) providers: ProvidersConfig,
     pub(super) bounds: Bounds,
-    /// The shared configuration: strategy `only`, the snapshot, the reasoning effort.
+    /// The shared configuration: the default strategy, the snapshot, the reasoning effort.
     pub(super) authoring: config::AuthoringConfig,
     knowledge: Option<knowledge::pin::KnowledgePin>,
     /// The seat's resolved key and the operator's further values: never answered.
@@ -306,7 +305,7 @@ pub(super) struct ContextChanged;
 
 impl Seat {
     /// Validate a seat: bounds, a direct provider model that resolves with its key, the shared
-    /// configuration (strategy `only`, a snapshot, the effort word named; only that word can
+    /// configuration (the default strategy, a snapshot, the effort word named; only that word can
     /// refuse there), no environment read. The provider's key joins the withheld values.
     pub(in crate::server) fn open(config: &NativeAuthoring) -> Result<Self, NativeAuthoringError> {
         let bounds = bounds(config)?;

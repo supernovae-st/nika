@@ -221,10 +221,63 @@ pub(super) fn candidate(model: &str, copy: bool) -> String {
     )
 }
 
-/// The native answer the seat returns for a candidate.
+/// The native answer the seat returns for a candidate: the whole-source form a revision in words
+/// still answers (the EDIT door); a creation is never authored from it.
 pub(super) fn native_answer(candidate: &str) -> String {
     json!({"candidate": candidate, "questions": [], "gaps": [], "notes": "read, transform, write"})
         .to_string()
+}
+
+/// The words of [`INTENT`] its draft step cites.
+pub(super) const DRAFT: &str = "do something clever with it";
+/// A part of [`INTENT`] the plan leaves open: the private plan hands the request to the sketch
+/// door.
+pub(super) const OPEN: &str = "which model runs the rewrite";
+
+/// The private plan's answer for [`INTENT`] (its closed schema): the stated read, a draft whose
+/// detail is `draft`, the stated write, and the parts the plan leaves open. The compiler, never
+/// the seat, assembles the candidate from it.
+pub(super) fn plan_answer(draft: &str, unknowns: &[&str]) -> String {
+    json!({"steps": [
+        {"op": "read", "detail": "./a.md", "evidence": "Read ./a.md"},
+        {"op": "draft", "detail": draft, "evidence": DRAFT},
+    ], "effects": [
+        {"verb": "write", "target": "./b.md", "policy": "automatic", "evidence": "then write ./b.md"},
+    ], "obligations": [], "constraints": [], "unknowns": unknowns, "regions": [],
+       "approval_bypass": {"present": false}})
+    .to_string()
+}
+
+/// The sketch door's graph for [`INTENT`]: read the stated source, one infer, write the stated
+/// destination. Structure only; the compiler emits the document and derives its permits.
+pub(super) fn sketch_answer() -> String {
+    json!({"name": "clever-rewrite", "tasks": [
+        {"id": "read_source", "verb": "invoke", "tool": "nika:read", "purpose": "read",
+         "reads": ["./a.md"]},
+        {"id": "transform", "verb": "infer", "purpose": "rewrite cleverly",
+         "with": [{"name": "text", "from": "read_source"}]},
+        {"id": "write_result", "verb": "invoke", "tool": "nika:write", "purpose": "write",
+         "writes": ["./b.md"], "with": [{"name": "text", "from": "transform"}]},
+    ], "questions": [], "gaps": [], "notes": "read, transform, write"})
+    .to_string()
+}
+
+/// The sketch's one typed hole, filled.
+pub(super) fn fills_answer() -> String {
+    json!({"fills": [{"task": "transform", "field": "prompt",
+        "value": "Rewrite this text in a clever way, inventing nothing: ${{ with.text }}"}],
+        "notes": "one hole"})
+    .to_string()
+}
+
+/// A kept native question round: the plan leaves a part open, the sketch and its fill follow,
+/// and the compiler asks for the run model — three requests, the round and its token kept.
+pub(super) fn question_round() -> Vec<Reply> {
+    vec![
+        Reply::Text(plan_answer(DRAFT, &[OPEN])),
+        Reply::Text(sketch_answer()),
+        Reply::Text(fills_answer()),
+    ]
 }
 
 /// A Foundry knowledge release on disk: its root, which is the directory the operator names
@@ -513,9 +566,15 @@ fn message(body: &Value, role: &str) -> String {
 
 /// The first round: the seat received the operator's model and bound, the pack composed for
 /// the request byte for byte, and the receipt names that instruction and that pack — with
-/// the snapshot's hashes and none of its host paths.
+/// the snapshot's hashes and none of its host paths. `sent` is the round's first request (the
+/// private plan's), `calls` the requests the round sent.
 #[cfg(unix)] // the disk form is defined for Unix descriptors only
-fn assert_first_round(foundry: &Foundry, world: &TestWorld, sent: &Value, document: &Value) {
+fn assert_first_round(
+    foundry: &Foundry,
+    world: &TestWorld,
+    (sent, calls): (&Value, u64),
+    document: &Value,
+) {
     assert_eq!(
         sent["model"], "s06-seat",
         "the operator's model, never another"
@@ -535,16 +594,17 @@ fn assert_first_round(foundry: &Foundry, world: &TestWorld, sent: &Value, docume
     for reference in &pack.references {
         assert!(system.contains(&reference.text), "{} is sent", reference.id);
     }
-    let opening: Value = serde_json::from_str(&message(sent, "user")).expect("opening");
-    assert_eq!(opening["request"], INTENT);
+    // The private plan's opening: the request itself, byte for byte.
+    assert_eq!(message(sent, "user"), INTENT);
     let provenance = &document["provenance"];
     assert_eq!(provenance["cognition"], "explicitProvider");
     assert_eq!(provenance["strategy"], "native");
     let receipt = &provenance["authoring"];
     assert_eq!(receipt["model"], SEAT);
-    assert_eq!(receipt["calls"], 1);
-    assert_eq!(receipt["input_tokens"], 1000);
-    assert_eq!(receipt["output_tokens"], 200);
+    assert_eq!(receipt["calls"], calls);
+    // Each completion reports 1000 in and 200 out: the receipt sums what was sent.
+    assert_eq!(receipt["input_tokens"], 1000 * calls);
+    assert_eq!(receipt["output_tokens"], 200 * calls);
     assert_eq!(
         receipt["context"][0]["instruction_sha256"],
         sha256_hex(system.as_bytes()),
@@ -553,7 +613,10 @@ fn assert_first_round(foundry: &Foundry, world: &TestWorld, sent: &Value, docume
     assert_eq!(receipt["backend"]["kind"], "direct_api");
     assert_eq!(receipt["backend"]["provider"], "vllm");
     assert_eq!(receipt["backend"]["requested_model"], SEAT);
-    assert_eq!(receipt["backend"]["authority"]["http_requests"]["sent"], 1);
+    assert_eq!(
+        receipt["backend"]["authority"]["http_requests"]["sent"],
+        calls
+    );
     assert_eq!(
         receipt["backend"]["cost_basis"],
         "unpriced; billing_unverified"
@@ -595,17 +658,12 @@ async fn a_native_round_reads_the_pinned_pack_under_the_operators_seat_and_its_a
  {
     let world = TestWorld::new();
     let foundry = Foundry::create(&world.root.path().join("knowledge"));
-    let seat = Seat::start(vec![Reply::Text(native_answer(&candidate(
-        "mock/echo",
-        false,
-    )))]);
+    let seat = Seat::start(question_round());
     let authoring = NativeAuthoring::new(SEAT, seat.providers())
         .with_knowledge_release(&foundry.snapshot, foundry.identity())
         .with_max_tokens(4096)
-        // 3 + repairs (nv1b): the candidate, its repair and the judge's two whole-request
-        // questions.
-        .with_max_calls(4)
-        .with_repairs(1);
+        // The plan, the sketch, its fill and the judgment; repairs stay the default preference.
+        .with_max_calls(4);
     let (server, backend) = start_native(&world, compile_limits(), authoring).await;
     let health = server
         .request("GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
@@ -634,8 +692,9 @@ async fn a_native_round_reads_the_pinned_pack_under_the_operators_seat_and_its_a
             .any(|q| q["key"] == "model"),
         "the candidate asks for its run model: {document:#}"
     );
-    assert_eq!(seat.calls(), 1);
-    assert_first_round(&foundry, &world, &seat.bodies()[0], &document);
+    // The plan, the sketch and its fill: a question round, its judgment not yet due.
+    assert_eq!(seat.calls(), 3);
+    assert_first_round(&foundry, &world, (&seat.bodies()[0], 3), &document);
 
     // The answer round: the kept plan, this round's answers, zero calls — the same plan the
     // paid round produced, now baked and held: a deterministicOnly round permits no judge
@@ -670,7 +729,7 @@ async fn a_native_round_reads_the_pinned_pack_under_the_operators_seat_and_its_a
         .request(&compile_request(&replay(&token, &answers)))
         .await;
     assert_eq!(again.body, second.body);
-    assert_eq!(seat.calls(), 1, "the answer rounds called no one");
+    assert_eq!(seat.calls(), 3, "the answer rounds called no one");
 
     // Review material only: no job, run, trace, file or registry entry.
     let after = tree(world.root.path());

@@ -61,7 +61,7 @@ impl Bounds {
         use nika_onboard::compile::authority::{Authority, Door, Typed};
         Authority::resolve(
             self.max_calls,
-            nika_onboard::compile::NativeMode::Only,
+            nika_cli_host::compile::config::DEFAULT_STRATEGY,
             Typed::new(false).with_repairs(self.repairs_explicit.then_some(self.repairs)),
             Door::new(
                 self.grant,

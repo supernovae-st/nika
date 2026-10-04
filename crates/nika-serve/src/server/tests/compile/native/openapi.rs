@@ -128,16 +128,17 @@ async fn a_default_server_serves_the_committed_contract_and_refuses_generation_t
 #[tokio::test(flavor = "multi_thread")]
 async fn a_native_server_publishes_generation_two_and_its_live_payloads_validate() {
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Text(native_answer(&candidate(
-        "mock/echo",
-        false,
-    )))]);
+    // A kept question round for the creation, then the whole-source answer the revision in
+    // words still takes (the EDIT door, unchanged here).
+    let mut script = question_round();
+    script.push(Reply::Text(native_answer(&candidate(RUN_MODEL, true))));
+    let seat = Seat::start(script);
     let (server, _backend) = start_native(&world, compile_limits(), operator(&seat)).await;
     let (_, document) = served(&server).await;
     assert_eq!(document, openapi::live(true));
     parity_cases_validate(&server, &document).await;
     let (request, answer) = (schema_at(&document, REQUEST), schema_at(&document, ANSWER));
-    // A fresh round: one logical call, generation 2, a kept round's token.
+    // A fresh round: the plan, the sketch and its fill, generation 2, a kept round's token.
     let first = exchange(&server, &request, &answer, &fresh(&json!({}))).await;
     assert_eq!(first.json()["compile_version"], 2);
     for (field, invalid) in [
@@ -205,8 +206,8 @@ async fn a_native_server_publishes_generation_two_and_its_live_payloads_validate
     assert_eq!(skeleton.json()["compile_version"], 1);
     assert_eq!(
         seat.calls(),
-        2,
-        "the fresh round and the revision, nothing else"
+        5,
+        "the fresh round's three, the revision and its judgment, nothing else"
     );
     server.stop().await.expect("clean stop");
 }
@@ -371,9 +372,19 @@ fn the_published_ceilings_are_the_ones_a_seat_is_validated_against() {
     let at = || NativeAuthoring::new(SEAT, ProvidersConfig::new());
     let repairs = u32::try_from(max("repairs")).expect("u32");
     let tokens = u32::try_from(max("max_tokens")).expect("u32");
+    // The published repair ceiling, honored only with the grant the shared law states for it
+    // under the seat's strategy (a creation's worst case: 92 for five), and never above it.
+    let needed = nika_onboard::compile::authority::worst_case(
+        nika_onboard::compile::NativeMode::Escalate,
+        1,
+        repairs,
+        false,
+    );
+    assert_eq!((repairs, needed), (5, 92));
     assert!(
-        seated(at().with_max_calls(repairs + 3).with_repairs(repairs))
-            && !seated(at().with_max_calls(repairs + 4).with_repairs(repairs + 1))
+        seated(at().with_max_calls(needed).with_repairs(repairs))
+            && !seated(at().with_max_calls(needed - 1).with_repairs(repairs))
+            && !seated(at().with_max_calls(needed).with_repairs(repairs + 1))
     );
     assert!(seated(at().with_max_tokens(tokens)) && !seated(at().with_max_tokens(tokens + 1)));
     let call = max("call_timeout_ms");

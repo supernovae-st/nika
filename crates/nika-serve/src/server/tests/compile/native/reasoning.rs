@@ -36,9 +36,7 @@ fn first_call(document: &Value) -> Value {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_named_level_rides_the_round_and_an_unqualified_route_sends_nothing() {
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Text(native_answer(&candidate(
-        RUN_MODEL, false,
-    )))]);
+    let seat = Seat::start(vec![Reply::Text(plan_answer(DRAFT, &[]))]);
     let control = NativeAuthoring::new(PRO, deepseek(&seat)).with_repairs(0);
     let (server, _) = start_native(&world, compile_limits(), control).await;
     let response = server.request(&compile_request(&fresh(&json!({})))).await;

@@ -221,7 +221,7 @@ async fn author(
     bounds: Bounds,
     stop: &Stop,
 ) -> Result<CompileOutcome, Refusal> {
-    // The shared producer: the seat's strategy `only` and its reasoning effort (R4 B16).
+    // The shared producer: the seat's default strategy and its reasoning effort (R4 B16).
     let policy = seat
         .authoring
         .policy(&seat.model, bounds.max_tokens, bounds.call_timeout);

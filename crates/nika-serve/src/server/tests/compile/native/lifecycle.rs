@@ -5,6 +5,7 @@
 //! started after its deadline never reaches the seat, a round its caller gave up on never starts
 //! later, a stopping server cancels and joins its rounds before it returns, and one logical call
 //! the transport resends after a 503 is one call in the receipt and two requests on the wire.
+//! The rounds author under the shared default strategy: the private plan, then the sketch door.
 
 use super::super::super::super::test_support::CaptureAction;
 use super::refusals::{admitted_again, one_slot, operator, wait_entered};
@@ -102,10 +103,12 @@ async fn a_round_its_caller_gave_up_on_never_starts_later() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_stopping_server_cancels_and_joins_its_native_rounds_before_it_returns() {
-    let broken = native_answer("nika: broken\ntasks: {}\n");
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Parked(broken.clone()), Reply::Text(broken)]);
-    // One repair allowed: an un-cancelled round would call again once released.
+    let seat = Seat::start(vec![
+        Reply::Parked(plan_answer(DRAFT, &[OPEN])),
+        Reply::Text(sketch_answer()),
+    ]);
+    // A plan that leaves a part open: an un-cancelled round would send its sketch once released.
     let limits = compile_limits();
     let slots = limits.max_compile_requests();
     let (server, _backend, state) =
@@ -133,38 +136,36 @@ async fn a_stopping_server_cancels_and_joins_its_native_rounds_before_it_returns
     assert_eq!(kept(&state), (0, 0), "no round kept, no place held");
     seat.release.send(()).expect("the parked call is alive");
     tokio::time::sleep(Duration::from_millis(500)).await;
-    assert_eq!(seat.calls(), 1, "no repair call after the server stopped");
+    assert_eq!(seat.calls(), 1, "no further call after the server stopped");
     drop(caller);
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_authorized_503_resend_is_counted_as_a_second_physical_request() {
     let world = TestWorld::new();
-    let seat = Seat::start(vec![
-        Reply::Busy,
-        Reply::Text(native_answer(&candidate(RUN_MODEL, false))),
-        Reply::Text(JUDGE_APPROVES.to_owned()),
-    ]);
+    let mut script = vec![Reply::Busy];
+    script.extend(question_round());
+    script.push(Reply::Text(JUDGE_APPROVES.to_owned()));
+    let seat = Seat::start(script);
+    // The plan (sent twice), the sketch, its fill and the judgment: five physical requests, the
+    // grant stated for this round alone.
     let (server, _backend) =
-        start_native(&world, compile_limits(), operator(&seat).with_repairs(0)).await;
-    let response = server.request(&compile_request(&fresh(&json!({})))).await;
+        start_native(&world, compile_limits(), operator(&seat).with_max_calls(5)).await;
+    let answered = json!({"answers": {"model": RUN_MODEL}});
+    let response = server.request(&compile_request(&fresh(&answered))).await;
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
     assert_eq!(document["status"], "ready", "{document:#}");
-    // The candidate and its judgment (native step 1): two journaled calls.
-    assert_eq!(document["provenance"]["authoring"]["calls"], 2);
+    // The plan, the sketch, its fill and their judgment: four journaled calls.
+    assert_eq!(document["provenance"]["authoring"]["calls"], 4);
     assert_eq!(
         seat.bodies().len(),
-        3,
+        5,
         "the explicit grant covers the resend and the judgment"
     );
-    assert_eq!(
-        document["provenance"]["authoring"]["backend"]["authority"]["http_requests"]["sent"],
-        3
-    );
-    assert_eq!(
-        document["provenance"]["authoring"]["backend"]["authority"]["invocations"]["sent"],
-        2
-    );
+    let account = &document["provenance"]["authoring"]["backend"]["authority"];
+    assert_eq!(account["http_requests"]["sent"], 5);
+    assert_eq!(account["invocations"]["sent"], 4);
+    assert_eq!(account["max_calls"], 5);
     server.stop().await.expect("clean stop");
 }

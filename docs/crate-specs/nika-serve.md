@@ -166,7 +166,7 @@ keeps its parser, core call, slot and request deadline, byte for byte.
 
 | concern | contract |
 |---|---|
-| operator seat | ONE direct provider model (a harness seat, an unknown provider or a missing key refuses startup) · strategy fixed `only`, one sample, no decision seat · bounds: output tokens per call 1..=32768 (default 8192), call timeout ≤ 600 s (120), request deadline ≤ 3600 s (300), repairs 0..=5 (3) · optional Foundry snapshot opened, verified and pinned (manifest and rows sha256) at attach through the shared `nika_cli_host::compile::{config, knowledge}` · replay store 1..=1024 rounds (32) for ≤ 24 h (30 min) · all validated in `BoundServer::attach` before bind (`ServerError::NativeAuthoring`) |
+| operator seat | ONE direct provider model (a harness seat, an unknown provider or a missing key refuses startup) · the shared default strategy `escalate`, one sample, no decision seat · bounds: output tokens per call 1..=32768 (default 8192), call timeout ≤ 600 s (120), request deadline ≤ 3600 s (300), repairs 0..=5 (3) · optional Foundry snapshot opened, verified and pinned (manifest and rows sha256) at attach through the shared `nika_cli_host::compile::{config, knowledge}` · replay store 1..=1024 rounds (32) for ≤ 24 h (30 min) · all validated in `BoundServer::attach` before bind (`ServerError::NativeAuthoring`) |
 | fresh request | `{compile_version: 2, cognition: "explicitProvider", mode: "create", intent, workflow_id?, answers?, limits?}` or `mode: "edit"` with `source` and `change` (a `change.text` requires `original_intent`; `set_constant` refuses it; `workflow_id` is create-only) · `limits: {max_calls?, repairs?, max_tokens?, call_timeout_ms?, deadline_ms?}` may only narrow the operator's bounds (above → `422 compile_limit`, never clamped) · `answers["intent.clarification"]` → `422 compile_new_intent_required` |
 | replay request | the same input repeated byte for byte with `cognition: "deterministicOnly"` and `replay_token` (64 lowercase hex); no `limits` · zero provider calls |
 | shape policy | the generation-1 policy plus: a literal that repeats an object key at any depth (or nests 128 or more arrays/objects deep, the JSON parser's recursion ceiling) → `422 malformed_compile_request`; caller-named model, endpoint, credential, path, snapshot, strategy or plan fields are unknown fields |
@@ -178,6 +178,22 @@ keeps its parser, core call, slot and request deadline, byte for byte.
 | replay store | in memory, per bound server: a restart or another instance knows no token (`409 compile_replay_unavailable`) · the exact input tuple is compared (`409 compile_replay_input_changed`) · expiry on the monotonic clock, never renewed · ≤ 2 MiB per round (larger: no token, the answer unchanged) · 256-bit `getrandom` tokens, never reflected in a refusal |
 | disclosure | a document carrying a withheld value is refused whole: `500 compile_disclosure_refused` · withheld: the key the seat's provider RESOLVES (`ResolvedProvider::key` — a typed `ProvidersConfig` key or the environment's, by the configuration's own precedence), plus every `NativeAuthoring::with_withheld` value · every nonempty value counts, however short, raw or JSON-escaped |
 | effects | none beyond the seat's calls: no job, run, approval, trace, schedule, file, registry entry or permission; `POST /v1/jobs` judges any candidate again |
+
+Normal CREATE proposes Plan or Sketch semantics and the compiler emits the
+source. The default grant of one request can return an incomplete preview or
+a question; it does not authorize the extra request needed for judgment.
+Native Sketch question rounds can be kept and replayed without a new call.
+Cold Plan question rounds currently carry no replay token, so answering them
+through a new fresh round spends again. Nonconstant EDIT still uses the
+historical source response and is conservatively charged under the creation
+formula; this does not establish semantic revision.
+
+Explicit repair settings use the semantic strategy's full configured bound.
+For example, one repair requires an operator grant of 32 requests; a former
+grant of four now refuses at attach. A caller repair limit that exceeds the
+operator grant returns `422 compile_limit` before any call. These configured
+worst-case bounds are distinct from requests actually sent; the default
+one-request grant remains one.
 
 Limits: the store is not a deduplication of paid work — a first answer lost in
 transit leaves no token and a new fresh round spends again. Any additional
