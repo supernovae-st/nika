@@ -117,27 +117,56 @@ fn an_authoring_level_is_its_exact_word_and_nothing_else() {
     }
 }
 
+/// A saved workflow a revision starts from: the native door's remaining route (a creation under
+/// `only` is retired and sends nothing).
+const BASE: &str = "nika: greeting\npermits:\n  tools: [\"nika:write\"]\n  fs:\n    write: [\"./out/result.txt\"]\ntasks:\n  save:\n    invoke:\n      tool: \"nika:write\"\n      args:\n        path: \"./out/result.txt\"\n        content: \"hello\"\n";
+
 #[tokio::test]
 async fn every_authoring_call_asks_the_configured_level_under_the_policy_cap() {
     let asked_max = (Some(4096), Some(ReasoningEffort::Max));
     let recorded = json!({"configured": "max", "transmitted": {"thinking": "enabled", "effort": "max"},
         "served": "unknown", "reasoning_tokens": 60, "response_model": "deepseek-v4-pro"});
-    let cases: [(NativeMode, String, &[&str]); 3] = [
+    let create = || CompileRequest::create(INTENT);
+    let revise = || {
+        CompileRequest::edit(BASE, "Write bonjour instead of hello.")
+            .with_original_intent("Write the text hello to ./out/result.txt.")
+    };
+    // Each seat a request reaches: the private plan and its repair, the plan escalating to the
+    // sketch door, the sketch door itself, and the native door a revision keeps.
+    let cases: [(NativeMode, CompileRequest, String, &[&str]); 4] = [
         (
             NativeMode::Off,
+            create(),
             plan("consulte les clients"),
             &["plan", "repair"],
         ),
-        (NativeMode::Only, "no workflow".to_owned(), &["native"]),
-        (NativeMode::Sketch, "no sketch".to_owned(), &["sketch"]),
+        (
+            NativeMode::Escalate,
+            create(),
+            "no plan".to_owned(),
+            &["plan", "sketch"],
+        ),
+        (
+            NativeMode::Sketch,
+            create(),
+            "no sketch".to_owned(),
+            &["sketch"],
+        ),
+        (
+            NativeMode::Only,
+            revise(),
+            "no workflow".to_owned(),
+            &["native"],
+        ),
     ];
-    for (native, text, roles) in cases {
+    for (native, request, text, roles) in cases {
         let provider = Capture::new(text, max_wire());
         let reasoning = policy()
             .with_native(native)
             .with_reasoning(AuthoringReasoning::Max);
-        let request = CompileRequest::create(INTENT).with_authoring_policy(reasoning);
+        let request = request.with_authoring_policy(reasoning);
         let out = compile_with_provider(&request, &provider).await.unwrap();
+        assert!(!provider.asked().is_empty(), "{native:?}: a seat was asked");
         let asked = provider.asked();
         assert!(
             asked.iter().all(|a| *a == asked_max),

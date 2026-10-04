@@ -22,6 +22,10 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
+/// The native output conventions, kept beside this file to bound its size.
+#[path = "semantic_verification/native_routes.rs"]
+mod native_routes;
+
 /// An injected seat that answers its calls in order and keeps the last message each call sent
 /// (a double: it scripts a provider, and optionally the admission layer's call ceiling or a
 /// provider failure).
@@ -849,14 +853,33 @@ async fn the_judge_and_the_repair_read_one_grounded_reference() {
         })
         .collect();
     assert!(grounded.len() >= 2, "{journal:#?}");
-    for entry in grounded {
-        assert_eq!(entry["references"], reference["references"], "{entry:#}");
-    }
+    journaled_grounding(journal, &grounded, &pieces);
     let repaired = first_attempt.last().unwrap();
     assert_eq!(
         repaired["instruction_sha256"],
         json!(digest(&seat.system(2)))
     );
+}
+
+/// Each judge call carries exactly the grounded reference `pieces`. The repair is a plan call:
+/// it carries the same grounded reference first, then the very plan context the plan call read
+/// (one shared door composes both), and nothing else.
+fn journaled_grounding(journal: &[Value], grounded: &[&Value], pieces: &[Value]) {
+    let planned = journal.iter().find(|e| e["call"] == json!("plan")).unwrap();
+    let plan_context = planned["references"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    assert!(!plan_context.is_empty(), "{planned:#}");
+    assert!(planned["semantic_context"].is_object(), "{planned:#}");
+    for entry in grounded {
+        let mut expected = pieces.to_vec();
+        if entry["call"] == json!("repair") {
+            expected.extend(plan_context.iter().cloned());
+            assert_eq!(entry["semantic_context"], planned["semantic_context"]);
+        }
+        assert_eq!(entry["references"], json!(expected), "{entry:#}");
+    }
 }
 
 /// A part the judge finds missing is repaired from with the state the judge read (R4 A11): the
@@ -980,57 +1003,6 @@ async fn a_located_part_reaches_the_repair_whole() {
     assert_eq!(authored(&out), ["plan", "transform", "repair", "transform"]);
     let repair = seat.said(2);
     assert!(repair.contains(&format!("\n- {}\n", SUM.1)), "{repair}");
-}
-
-/// The engine's output conventions state the written-total law the compiler emits (R4 A11,
-/// E36: a judge held « write the sum to ./out/result.json » against the object the compiler
-/// writes). Measured on emitted candidates: a total over every row goes to a structured file as
-/// the compute's object and to a prose file as its value alone; an explicitly requested object is
-/// that object, and an explicitly requested bare number is never silently wrapped (the
-/// deterministic compile leaves it unread). The conventions say so, a requested shape
-/// overriding, with no other wrapper, key or field.
-#[test]
-fn the_output_conventions_state_the_written_total_law() {
-    let observed = json!({"observed": [{"path": "./data/input.csv", "state": "observed", "complete": false, "kind": "csv", "columns": ["id", "item", "status", "qty"]}]});
-    let compile = |text: String| {
-        nika_compile::compile(&CompileRequest::create(text).with_knowledge(observed.clone()))
-            .unwrap()
-    };
-    let written = |write: &str| {
-        let out = compile(format!("read ./data/input.csv, the total of qty, {write}"));
-        assert_eq!(out.status, CompileStatus::Ready, "{write}: {out:#?}");
-        let doc: Value = serde_yaml_bw::from_str(out.candidate.as_deref().unwrap()).unwrap();
-        doc["tasks"]["write_output"]["with"]["content"]
-            .as_str()
-            .unwrap()
-            .to_owned()
-    };
-    let object = "${{ tasks.compute.output }}";
-    assert_eq!(written("write it to ./out/result.json"), object);
-    assert_eq!(
-        written("write it to ./out/result.md"),
-        "${{ tasks.compute.output.total }}"
-    );
-    let requested = "write it as an object with a total field to ./out/result.json";
-    assert_eq!(written(requested), object);
-    let bare = compile(
-        "read ./data/input.csv, the total of qty, write only the number to ./out/result.json"
-            .to_owned(),
-    );
-    assert_ne!(bare.status, CompileStatus::Ready, "{bare:#?}");
-    let conventions = include_str!("../assets/native_output_conventions.md");
-    for statement in [
-        "A total over every row is written as the engine's compute returns it",
-        "A total the engine types (a named total)",
-        "to a structured file (json, csv, yaml, toml), the object with one field per named total",
-        "to a prose file (md, txt or any other destination), the value alone when it is the only total",
-        "several totals keep the object",
-        "A shape the request names overrides both",
-        "Add no other wrapper, key or field",
-    ] {
-        assert!(conventions.contains(statement), "{statement}");
-    }
-    assert!(!conventions.contains("add no wrapper, key or field the request did not ask for"));
 }
 
 /// A computation the engine does not type is written as the value the jq program a seat
