@@ -721,5 +721,67 @@ async fn the_forensic_record_binds_rehearsal_to_the_final_bytes_and_proves_no_sa
     );
 }
 
+fn sketched_open() -> Author {
+    let graph = json!({"name": "greeting", "tasks": [{"id": "save", "verb": "invoke",
+        "tool": "nika:write", "purpose": "save the greeting", "writes": [TARGET]}],
+        "questions": [{"key": "const.greeting", "label": "What greeting?", "answer_type": "text",
+                       "why": "the human chooses it"}],
+        "gaps": [], "notes": "graph"});
+    let fills = json!({"fills": [{"task": "save", "field": "args.content",
+        "value": "${{ const.greeting }}"}], "notes": "fills"});
+    Author::new(vec![graph.to_string(), fills.to_string()])
+}
+
+fn open_request() -> CompileRequest {
+    CompileRequest::create("Write the greeting I choose to ./out/result.txt.")
+        .with_authoring_policy(sketch_request(0).authoring.unwrap())
+}
+
+#[tokio::test]
+async fn a_semantic_open_question_starts_no_rehearsal_and_its_answer_replays_afresh() {
+    let author = sketched_open();
+    let host = Host::new(Mode::ByDirectories);
+    let req = open_request();
+    let waiting = compiled(&req, &author, &host).await;
+    assert_eq!(waiting.status, CompileStatus::Incomplete, "{waiting:#?}");
+    assert!(host.candidates.lock().unwrap().is_empty());
+    assert!(
+        waiting.questions.iter().any(|q| q.key == "const.greeting"),
+        "{waiting:#?}"
+    );
+    // The creation round keeps its replayable record and spends no rehearsal admission.
+    assert!(waiting.provenance.plan.is_some(), "{waiting:#?}");
+    assert!(reports(&waiting).is_empty(), "{waiting:#?}");
+    assert!(
+        !(waiting.diagnostics.iter()).any(|d| d.target == "rehearsal"),
+        "{waiting:#?}"
+    );
+    assert_eq!(author.authored.load(Ordering::SeqCst), 2);
+    let mut answered = req.with_plan(waiting.provenance.plan.unwrap());
+    answered
+        .answers
+        .insert("const.greeting".into(), "\"hello\"".into());
+    let finished = compiled(&answered, &author, &host).await;
+    assert_eq!(finished.status, CompileStatus::Ready, "{finished:#?}");
+    assert_eq!(
+        author.authored.load(Ordering::SeqCst),
+        2,
+        "replay does not regenerate the sketch or its fills"
+    );
+    let candidates = host.candidates.lock().unwrap();
+    assert_eq!(candidates.len(), 1, "the answered candidate runs afresh");
+    assert_eq!(Some(&candidates[0]), finished.candidate.as_ref());
+    // The answer round rehearses the bound bytes once, under the original budget.
+    assert_eq!(reports(&finished).len(), 1, "{finished:#?}");
+    assert_eq!(
+        reports(&finished)[0]["candidate_sha256"],
+        crate::cognition::knowledge::sha256(&candidates[0])
+    );
+    assert_eq!(
+        finished.provenance.decision.as_ref().unwrap()["rehearsal"]["usage"]["attempts"],
+        1
+    );
+}
+
 #[path = "tests/answered_paths.rs"]
 mod answered_paths;

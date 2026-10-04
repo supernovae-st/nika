@@ -23,6 +23,9 @@ use crate::{CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind};
 pub(super) enum Evidence {
     /// No rehearsal host was offered: the door judges as before, claiming nothing more.
     Unoffered,
+    /// The candidate still waits on its questions: nothing bound to rehearse yet. It keeps its
+    /// questions and its record; the answered candidate faces the room when it is complete.
+    Open,
     /// Every supported obligation was shown on a completed run.
     Holds,
     /// The evidence does not settle the request: recorded with its reason, never a pass.
@@ -46,6 +49,11 @@ pub(super) async fn examined(
 ) -> (Evidence, Value) {
     if !rehearsals.offered() {
         return (Evidence::Unoffered, Value::Null);
+    }
+    // A run of unbound bytes is evidence of nothing, and refusing it would clear the questions
+    // the human must answer: no run, no admission spent, until the candidate is complete.
+    if out.status != CompileStatus::Ready {
+        return (Evidence::Open, Value::Null);
     }
     let candidate = super::super::knowledge::sha256(out.candidate.as_deref().unwrap_or_default());
     let noted = |outcome: &str, behaviour: Value| {

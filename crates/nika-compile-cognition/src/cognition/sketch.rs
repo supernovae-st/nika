@@ -1010,7 +1010,7 @@ async fn examine<P: ProviderInferDyn>(
             Step::Done(done)
         }
         Evidence::Defect(defect) => Step::Reopen(done, vec![defect]),
-        Evidence::Unoffered | Evidence::Holds | Evidence::Unknown => {
+        Evidence::Unoffered | Evidence::Open | Evidence::Holds | Evidence::Unknown => {
             let verdict =
                 super::verify::native_verdict(intent, reading, policy, provider, request, done);
             match verdict.await {
