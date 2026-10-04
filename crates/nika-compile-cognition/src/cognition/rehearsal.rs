@@ -211,9 +211,86 @@ fn effective_paths(
             extend_paths(&mut targets, paths.writes());
         } else if out.provenance.strategy == Some(crate::Strategy::Native) {
             return Err("The native candidate has no current answer record.".to_owned());
+        } else if let Some(record) = (out.provenance.plan.as_ref())
+            .filter(|record| record["strategy"] == "cold" && !request.answers.is_empty())
+        {
+            let candidate = out.candidate.as_deref().unwrap_or_default();
+            let (reads, writes) =
+                cold_answered_paths(record, request, candidate).ok_or_else(|| {
+                    "The current answers do not rebuild these candidate bytes and their paths."
+                        .to_owned()
+                })?;
+            extend_paths(&mut inputs, &reads);
+            extend_paths(&mut targets, &writes);
         }
     }
     Ok((inputs, targets))
+}
+
+/// The answers a COLD plan's candidate uses as file paths, by role (reads, writes). The
+/// deterministic compiler must rebuild exactly these clean-checked bytes from the plan and the
+/// answers (the barrier holds the final outcome Ready; a clause this round's judge settled
+/// leaves the rebuild pending, never other bytes). An answer is a path only where the inferred
+/// permits move with it (the same rebuild with that answer replaced reads or writes elsewhere),
+/// in each role it moves. A saved path list, a constant merely present and a content answer that
+/// equals a path grant nothing; an empty, glob, absolute or escaping path refuses.
+fn cold_answered_paths(
+    record: &Value,
+    request: &CompileRequest,
+    candidate: &str,
+) -> Option<(Vec<String>, Vec<String>)> {
+    let rebuild = |request: CompileRequest| {
+        let out = nika_compile::compile(&request.with_plan(record.clone())).ok()?;
+        let clean = (out.check_preview.as_ref()).is_some_and(|p| p.report.is_clean());
+        let source = out
+            .candidate
+            .filter(|_| out.status != CompileStatus::Refused && clean)?;
+        let fs = nika_check::infer_permits(&nika_compile::parse(&source).ok()?)
+            .permits
+            .fs;
+        Some((source, fs.map(|fs| (fs.read, fs.write)).unwrap_or_default()))
+    };
+    let (source, (reads, writes)) = rebuild(request.clone())?;
+    if source != candidate {
+        return None;
+    }
+    let (mut read, mut write) = (Vec::new(), Vec::new());
+    for (key, answer) in &request.answers {
+        if !key.starts_with("const.") || serde_json::from_str::<String>(answer).is_err() {
+            continue;
+        }
+        // An answer the probe cannot replace (a rebuild that no longer settles) binds no path.
+        let probe = json!("./nika-rehearsal-answer-probe.txt").to_string();
+        let Some((_, (moved_reads, moved_writes))) = rebuild(request.clone().answer(key, probe))
+        else {
+            continue;
+        };
+        for (paths, moved, side) in [
+            (&reads, moved_reads, &mut read),
+            (&writes, moved_writes, &mut write),
+        ] {
+            let bound: Vec<String> = (paths.iter())
+                .filter(|path| !moved.contains(path))
+                .cloned()
+                .collect();
+            // Bound as a path the survey cannot name (an absolute one): refused, never dropped.
+            if bound.is_empty() && moved.iter().any(|path| !paths.contains(path)) {
+                return None;
+            }
+            side.extend(bound);
+        }
+    }
+    let unsafe_path = |path: &String| {
+        path.is_empty()
+            || path.contains(['*', '?', '['])
+            || std::path::Path::new(path).components().any(|c| {
+                !matches!(
+                    c,
+                    std::path::Component::Normal(_) | std::path::Component::CurDir
+                )
+            })
+    };
+    (!read.iter().chain(&write).any(unsafe_path)).then_some((read, write))
 }
 
 fn extend_paths(paths: &mut Vec<String>, added: &[String]) {
