@@ -28,7 +28,8 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use common::{
-    CHANGE, Foundry, INTENT, LoopbackSeat, SEAT_MODEL, candidate, message, native_answer, sha256,
+    CHANGE, Foundry, INTENT, LoopbackSeat, SEAT_MODEL, candidate, message, native_answer,
+    plan_answer, sha256,
 };
 use nika_cli_host::compile::knowledge::Snapshot;
 use nika_onboard::compile::revise_intent;
@@ -171,7 +172,7 @@ fn assert_first_round(world: &World, body: &Value, details: &str, port: u16) {
     assert_presented(&first, &pack);
     assert!(first.contains("S03-BLOCK-MARKER") && first.contains("S03-PATTERN-MARKER"));
     assert!(
-        details.contains(&format!("native · instruction sha256 {}", sha256(&first))),
+        details.contains(&format!("plan · instruction sha256 {}", sha256(&first))),
         "{details}"
     );
     let pack_sha = pack.identity["door"]["pack_sha256"].as_str().unwrap();
@@ -179,9 +180,10 @@ fn assert_first_round(world: &World, body: &Value, details: &str, port: u16) {
         details.contains(&format!("pack sha256 {pack_sha}")),
         "{details}"
     );
-    // The proposal came from the answer round, which replayed the native record: it carries the
-    // knowledge of the round that authored the candidate, presented the pack to no call, and its
-    // own receipt is its one call, the judge the seat is permitted as (native step 2).
+    // The proposal came from the answer round, which replayed the private plan's record: it
+    // carries the knowledge of the round that authored the candidate, presented the pack to no
+    // call, and made none itself: the compiler assembled every clause from the plan, so no
+    // judgment was pending (the semantic route's deterministic replay).
     assert!(
         details.contains(
             "presented to the seat in 1 call of the round that authored this candidate (this answer round replayed it and presented the pack to no call)"
@@ -189,17 +191,17 @@ fn assert_first_round(world: &World, body: &Value, details: &str, port: u16) {
         "{details}"
     );
     assert!(
-        details.contains(&format!("authoring backend: {SEAT_MODEL} · 1 call · "))
-            && details.contains("verify: judged (authoring_provider)")
-            && !details.contains("zero calls"),
-        "the answer round's own receipt is its judge's call: {details}"
+        details.contains("authoring backend: none (no model call: the deterministic reading)")
+            && details.contains("decision: route replayed plan")
+            && !details.contains("verify: judged"),
+        "the answer round's own receipt is the plan's replay, with no call: {details}"
     );
     assert!(
         details.contains("knowledge: knowledge-s03 · declared digest none · manifest "),
         "{details}"
     );
     assert!(
-        details.contains("authoring strategy: only (host)"),
+        details.contains("authoring strategy: escalate (host)"),
         "{details}"
     );
     for reference in &pack.references {
@@ -214,8 +216,11 @@ fn assert_first_round(world: &World, body: &Value, details: &str, port: u16) {
             "{details}"
         );
     }
-    let opening: Value = serde_json::from_str(&message(body, "user")).unwrap();
-    assert_eq!(opening["request"], INTENT);
+    assert_eq!(
+        message(body, "user"),
+        INTENT,
+        "the plan reads the request alone"
+    );
 }
 
 /// The revision: the change read beside the request the proposal answered, the pack composed
@@ -270,17 +275,11 @@ fn assert_revision(world: &World, body: &Value, details: &str, port: u16) {
 fn the_public_turn_presents_the_pinned_pack_and_the_receipt_names_the_bytes_the_seat_received() {
     let world = world();
     let seat = LoopbackSeat::start(vec![
-        native_answer(&candidate("mock/echo", false)),
-        JUDGE_APPROVES.to_owned(),
+        plan_answer(),
         native_answer(&candidate(SEAT_MODEL, true)),
         JUDGE_APPROVES.to_owned(),
     ]);
-    let report = run_child(
-        &world,
-        "route",
-        &seat,
-        &[("NIKA_AUTHORING_STRATEGY", "only")],
-    );
+    let report = run_child(&world, "route", &seat, &[]);
     seat.shutdown();
     let bodies = seat.bodies();
     let kinds: Vec<&str> = report["steps"]
@@ -294,13 +293,13 @@ fn the_public_turn_presents_the_pinned_pack_and_the_receipt_names_the_bytes_the_
         ["question", "proposal", "proposal"],
         "the model question, the proposal, the revised proposal: {report:#}"
     );
-    // Four calls: the native question round, the judge of the answer round that finishes it
-    // (native step 2: the round replays, its one call the judge the seat is permitted as), the
-    // native revision, then the judgment of the READY revision (native step 1). `only` opens the
-    // native door at once; no label call reached the seat (the door's classifier is the host's).
-    assert_eq!(bodies.len(), 4, "{bodies:#?}");
+    // Three calls: the private plan's question round (semantic CREATE; the compiler asks the
+    // model), the source revision (EDIT), then the judgment of the READY revision (native step
+    // 1). The answer round replays the plan with no call (the compiler assembled every clause).
+    // No label call reached the seat (the door's classifier is the host's).
+    assert_eq!(bodies.len(), 3, "{bodies:#?}");
     let judges: Vec<bool> = bodies.iter().map(judged).collect();
-    assert_eq!(judges, [false, true, false, true], "{bodies:#?}");
+    assert_eq!(judges, [false, false, true], "{bodies:#?}");
     for body in &bodies {
         assert_eq!(
             body["model"], "s03-seat",
@@ -319,7 +318,7 @@ fn the_public_turn_presents_the_pinned_pack_and_the_receipt_names_the_bytes_the_
     );
     assert_revision(
         &world,
-        &bodies[2],
+        &bodies[1],
         report["details_second"].as_str().unwrap(),
         seat.port,
     );
@@ -356,31 +355,28 @@ fn the_public_turn_presents_the_pinned_pack_and_the_receipt_names_the_bytes_the_
 #[test]
 fn the_default_strategy_escalates_and_only_the_native_door_reads_the_pack() {
     let world = world();
-    // With a pinned pack attached, the default escalation (the CLI's) gives the first open
-    // generation the native card and the selected references at once: there is no preliminary
-    // private-plan call, which could not read the pack. The native door is the pack's only
-    // reader and the only authoring call; the answer round's one call is its judge (step 2).
-    let seat = LoopbackSeat::start(vec![
-        native_answer(&candidate("mock/echo", false)),
-        JUDGE_APPROVES.to_owned(),
-    ]);
+    // With a pinned pack attached, the default escalation (the CLI's) is semantic CREATE: its
+    // first call, the private plan, reads the selected references with the request, and it is
+    // the only call (the plan carries the request; no sketch, no source schema); the answer
+    // round replays it with none.
+    let seat = LoopbackSeat::start(vec![plan_answer()]);
     let report = run_child(&world, "escalate", &seat, &[]);
     seat.shutdown();
     let bodies = seat.bodies();
     assert_eq!(
         bodies.len(),
-        2,
-        "one native call, no private plan, then the answer round's judge: {bodies:#?}"
+        1,
+        "one private-plan call; the answer round calls no one: {bodies:#?}"
     );
-    assert!(!judged(&bodies[0]) && judged(&bodies[1]), "{bodies:#?}");
+    assert!(!judged(&bodies[0]), "{bodies:#?}");
+    let properties = &bodies[0]["response_format"]["json_schema"]["schema"]["properties"];
     assert!(
-        bodies[0]["response_format"]["json_schema"]["schema"]["properties"]["candidate"]
-            .is_object(),
-        "the one call is the native door's: {:#}",
+        properties["steps"].is_object() && properties["candidate"].is_null(),
+        "the one authoring call is the private plan, never a source schema: {:#}",
         bodies[0]["response_format"]
     );
-    let native = message(&bodies[0], "system");
-    assert_presented(&native, &expected_pack(&world.foundry, INTENT));
+    let plan = message(&bodies[0], "system");
+    assert_presented(&plan, &expected_pack(&world.foundry, INTENT));
     let details = report["details_first"].as_str().unwrap();
     assert!(
         details.contains("authoring strategy: escalate (host)"),
@@ -391,7 +387,7 @@ fn the_default_strategy_escalates_and_only_the_native_door_reads_the_pack() {
         "{details}"
     );
     assert!(
-        details.contains(&format!("native · instruction sha256 {}", sha256(&native))),
+        details.contains(&format!("plan · instruction sha256 {}", sha256(&plan))),
         "{details}"
     );
 }
@@ -399,25 +395,18 @@ fn the_default_strategy_escalates_and_only_the_native_door_reads_the_pack() {
 #[test]
 fn a_snapshot_that_goes_stale_under_the_session_refuses_the_revision_and_the_proposal_waits() {
     let world = world();
-    let seat = LoopbackSeat::start(vec![
-        native_answer(&candidate("mock/echo", false)),
-        JUDGE_APPROVES.to_owned(),
-    ]);
-    let report = run_child(
-        &world,
-        "stale",
-        &seat,
-        &[("NIKA_AUTHORING_STRATEGY", "only")],
-    );
+    let seat = LoopbackSeat::start(vec![plan_answer()]);
+    let report = run_child(&world, "stale", &seat, &[]);
     seat.shutdown();
     let bodies = seat.bodies();
-    // The question round, then its answer round's judge (native step 2), before the revision.
+    // The plan's question round alone (its answer round replays with no call), before the
+    // revision.
     assert_eq!(
         bodies.len(),
-        2,
+        1,
         "the refused revision sent nothing to the seat: {bodies:#?}"
     );
-    assert!(!judged(&bodies[0]) && judged(&bodies[1]), "{bodies:#?}");
+    assert!(!judged(&bodies[0]), "{bodies:#?}");
     let steps = report["steps"].as_array().unwrap();
     let last = steps.last().unwrap();
     assert_eq!(last["kind"], "refusal", "{report:#}");

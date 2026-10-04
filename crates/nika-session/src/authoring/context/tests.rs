@@ -217,7 +217,7 @@ fn every_seated_authoring_and_repair_call_sends_the_named_effort() {
 fn the_native_door_sends_the_named_effort_with_the_request_and_its_observation() {
     let context = host(
         &AuthoringSettings::none()
-            .with_strategy("only")
+            .with_strategy("sketch")
             .with_reasoning("max"),
     );
     let (out, bodies) = dispatched(&context, QUALIFIED, &AuthoringRound::new(REQUEST));
@@ -236,7 +236,7 @@ fn the_native_door_sends_the_named_effort_with_the_request_and_its_observation()
 fn a_later_round_sends_its_answers_and_the_named_effort() {
     let context = host(
         &AuthoringSettings::none()
-            .with_strategy("only")
+            .with_strategy("sketch")
             .with_reasoning("max"),
     );
     // The first words named no file; the answered clarification replaces the request.
@@ -310,13 +310,14 @@ fn flash_low_rides_every_authoring_and_repair_call_with_the_same_caps() {
     );
 }
 
-/// CALIBRATION-01 · on the exact Flash ID, the native door and the round that answers its question
-/// ask `low` with the request and the project observed for it.
+/// CALIBRATION-01 · on the exact Flash ID, the sketch door (the explicit semantic door that
+/// authors the structure) and the round that answers its question ask `low` with the request and
+/// the project observed for it.
 #[test]
 fn flash_low_rides_the_native_door_and_the_next_round_with_their_context() {
     let context = host(
         &AuthoringSettings::none()
-            .with_strategy("only")
+            .with_strategy("sketch")
             .with_reasoning("low"),
     );
     let (out, bodies) = dispatched(&context, FLASH, &AuthoringRound::new(REQUEST));
@@ -383,8 +384,9 @@ fn wire_message<'a>(body: &'a Value, role: &str) -> &'a str {
         .expect("text message")
 }
 
-/// The receipt identifies the native instruction; classification calls do not read the pack.
-fn native_body<'a>(out: &CompileOutcome, bodies: &'a [Value]) -> &'a Value {
+/// The receipt identifies the private plan's instruction (the call the semantic route opens
+/// with); classification calls do not read the pack.
+fn plan_body<'a>(out: &CompileOutcome, bodies: &'a [Value]) -> &'a Value {
     let call = out
         .provenance
         .authoring
@@ -392,8 +394,8 @@ fn native_body<'a>(out: &CompileOutcome, bodies: &'a [Value]) -> &'a Value {
         .expect("authoring receipt")
         .context
         .iter()
-        .find(|call| call["call"] == "native")
-        .expect("a native authoring call");
+        .find(|call| call["call"] == "plan")
+        .expect("a plan authoring call");
     let digest = call["instruction_sha256"]
         .as_str()
         .expect("instruction digest");
@@ -402,16 +404,17 @@ fn native_body<'a>(out: &CompileOutcome, bodies: &'a [Value]) -> &'a Value {
         .find(|body| {
             nika_event::source_id::sha256_hex(wire_message(body, "system").as_bytes()) == digest
         })
-        .expect("the local server received that native instruction")
+        .expect("the local server received that plan instruction")
 }
 
 fn knowledge_record(out: &CompileOutcome) -> &Value {
     &out.provenance.decision.as_ref().expect("stamped")["session"]["authoring"]["knowledge"]
 }
 
-/// This provider's JSON-object route appends the answer schema to the original user JSON.
-/// Validate both frames, including the schema's receipt, rather than ignoring trailing text.
-fn assert_native_request(out: &CompileOutcome, body: &Value, intent: &str) {
+/// This provider's JSON-object route appends the answer schema to the plan's user words (the
+/// request alone). Validate both frames, including the schema's receipt, rather than ignoring
+/// trailing text.
+fn assert_plan_request(out: &CompileOutcome, body: &Value, intent: &str) {
     let separator = concat!(
         "\n\nReply with ONLY a JSON value that satisfies this JSON Schema, no prose, no code ",
         "fences. Every property that lists an enum takes exactly one of the listed values, ",
@@ -421,11 +424,7 @@ fn assert_native_request(out: &CompileOutcome, body: &Value, intent: &str) {
     let (opening, schema_text) = wire_message(body, "user")
         .split_once(separator)
         .expect("the JSON-object provider's complete schema instruction");
-    let request: Value = serde_json::from_str(opening).expect("opening JSON");
-    assert_eq!(
-        request["request"], intent,
-        "the original intention is retained"
-    );
+    assert_eq!(opening, intent, "the original intention is retained, alone");
     let schema: Value = serde_json::from_str(schema_text).expect("complete schema JSON");
     assert!(schema.is_object());
     assert_eq!(body["response_format"]["type"], "json_object");
@@ -436,16 +435,17 @@ fn assert_native_request(out: &CompileOutcome, body: &Value, intent: &str) {
         .expect("authoring receipt")
         .context
         .iter()
-        .find(|call| call["call"] == "native")
-        .expect("native call");
+        .find(|call| call["call"] == "plan")
+        .expect("plan call");
     assert_eq!(
         call["schema_sha256"],
         nika_event::source_id::sha256_hex(schema_text.as_bytes())
     );
 }
 
-/// A default session presents the recalled material in its native request. The off control
-/// sends the same intention without those references. A canned answer proves delivery only.
+/// A default session presents the recalled material in the instruction of its private plan,
+/// the semantic call that opens the round. The off control sends the same intention without those
+/// references. A canned answer proves delivery only.
 #[test]
 fn a_default_session_presents_recalled_references_in_the_native_instruction() {
     let intent = format!(
@@ -480,7 +480,7 @@ fn a_default_session_presents_recalled_references_in_the_native_instruction() {
     assert!(record["identity"].get("dir").is_none());
     assert_eq!(record["presented"], true);
     assert_eq!(record["pack_sha256"], pack.identity["door"]["pack_sha256"]);
-    let body = native_body(&out, &bodies);
+    let body = plan_body(&out, &bodies);
     let system = wire_message(body, "system");
     let digest = nika_event::source_id::sha256_hex(system.as_bytes());
     assert!(
@@ -488,7 +488,7 @@ fn a_default_session_presents_recalled_references_in_the_native_instruction() {
             .as_array()
             .expect("calls")
             .iter()
-            .any(|call| { call["call"] == "native" && call["instruction_sha256"] == digest })
+            .any(|call| { call["call"] == "plan" && call["instruction_sha256"] == digest })
     );
     let off = host(&AuthoringSettings::none().with_knowledge_off());
     let (unread, unread_bodies) = dispatched(&off, QUALIFIED, &round);
@@ -497,11 +497,11 @@ fn a_default_session_presents_recalled_references_in_the_native_instruction() {
         knowledge_record(&unread).is_null(),
         "knowledge off attaches nothing"
     );
-    let off_body = native_body(&unread, &unread_bodies);
+    let off_body = plan_body(&unread, &unread_bodies);
     for reference in expected {
         assert!(
             system.contains(&reference.text),
-            "native instruction carries {}",
+            "the plan's instruction carries {}",
             reference.id
         );
         assert!(!wire_message(off_body, "system").contains(&reference.text));
@@ -519,8 +519,8 @@ fn a_default_session_presents_recalled_references_in_the_native_instruction() {
                 })
         );
     }
-    assert_native_request(&out, body, &intent);
-    assert_native_request(&unread, off_body, &intent);
+    assert_plan_request(&out, body, &intent);
+    assert_plan_request(&unread, off_body, &intent);
 }
 
 #[test]

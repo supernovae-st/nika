@@ -8,34 +8,17 @@
 use super::*;
 use crate::runtime::inference::OBSERVED_PREFIX;
 
-/// DIALOG-11's request: the native seat asks the destination (the fixture shape
-/// of `question_identity`, kept local to these mechanics).
+/// DIALOG-11's request: the private plan reads the stated source and writes to the destination
+/// the request leaves open, which the compiler asks (`const.output_path`); the plan shape of
+/// `question_identity`, kept local to these mechanics.
 const DESTINATION: &str = "Copie entree.txt vers une destination à préciser.";
-const DESTINATION_DRAFT: &str = r#"nika: copy-to-chosen-file
-const:
-  destination_path: ""
-permits:
-  fs:
-    read: ["./entree.txt"]
-    write: [""]
-  tools: ["nika:read", "nika:write"]
-tasks:
-  read_source:
-    invoke:
-      tool: "nika:read"
-      args: { path: "./entree.txt" }
-  write_destination:
-    with: { text: "${{ tasks.read_source.output }}" }
-    invoke:
-      tool: "nika:write"
-      args: { path: "${{ const.destination_path }}", content: "${{ with.text }}" }
-"#;
 
-fn asks_destination() -> String {
-    json!({"candidate": DESTINATION_DRAFT, "questions": [{"key": "const.destination_path",
-        "label": "Destination file path", "answer_type": "text",
-        "why": "The request leaves the destination to be specified."}],
-        "gaps": [], "notes": "the destination is asked"})
+fn plans_destination() -> String {
+    json!({"steps":[{"op":"read","detail":"entree.txt","evidence":"Copie entree.txt"}],
+        "effects":[{"verb":"write","target":"une destination à préciser","policy":"automatic",
+            "evidence":"vers une destination à préciser"}],
+        "obligations":[],"constraints":[],"unknowns":[],"regions":[],
+        "approval_bypass":{"present":false}})
     .to_string()
 }
 
@@ -149,15 +132,17 @@ fn explicit_zero_and_an_insufficient_ceiling_never_fall_back_to_observation() {
 
 #[test]
 fn every_dispatch_site_rides_the_one_no_budget_observation() {
-    let peer = Peer::start(vec![
-        (200, response("NEW_WORK")),
-        (200, response("Hello")),
-        (200, response("ANSWER")),
-        (200, response(&native())),
-        (200, response(JUDGE_APPROVES)),
-        (200, response(&native())),
-        (200, response(JUDGE_APPROVES)),
-    ]);
+    let peer = Peer::start(
+        vec![
+            (200, response("NEW_WORK")),
+            (200, response("Hello")),
+            (200, response("ANSWER")),
+        ]
+        .into_iter()
+        .chain(authored(response))
+        .chain(authored(response))
+        .collect(),
+    );
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
     let mut s = open(dir.path());
@@ -170,18 +155,19 @@ fn every_dispatch_site_rides_the_one_no_budget_observation() {
     // A revision rides the same bracket (S102 left this site unrecorded).
     s.compile_request(&round.request(), WORK).expect("revision");
     let r = s.money.observed.snapshot().unwrap();
-    // Two of the seven are the judge's (native step 1): the round's and the revision's.
-    assert_eq!(r.attempts.len(), 7);
+    // Three routed calls, then two semantic CREATEs (plan, sketch, fills and the judge's):
+    // the round's and the revision's.
+    assert_eq!(r.attempts.len(), 3 + 2 * CREATE_CALLS);
     assert!(
         r.attempts.iter().all(|a| a.sent && a.estimated.is_some()),
         "{r:?}"
     );
-    assert_eq!(peer.bodies().len(), 7);
+    assert_eq!(peer.bodies().len(), 3 + 2 * CREATE_CALLS);
     assert!(s.inference_receipt().unwrap().is_none());
     let kept = crate::SessionState::load(dir.path()).unwrap().unwrap();
     assert_eq!(kept.inference_observations.len(), 1);
     let attempts = kept.inference_observations[0]["attempts"].as_array();
-    assert_eq!(attempts.map(Vec::len), Some(7));
+    assert_eq!(attempts.map(Vec::len), Some(3 + 2 * CREATE_CALLS));
 }
 
 #[test]
@@ -189,7 +175,7 @@ fn a_continuation_stays_on_its_frozen_observation_until_new_work() {
     let mut contradicted = response("archive/copie.txt");
     contradicted["model"] = json!("s108-another-served-model");
     let peer = Peer::start(vec![
-        (200, response(&asks_destination())),
+        (200, response(&plans_destination())),
         (200, contradicted),
         (200, response("Hello")),
     ]);
@@ -199,7 +185,7 @@ fn a_continuation_stays_on_its_frozen_observation_until_new_work() {
     s.with_classifier(Box::new(Answers));
     let out = s.turn(DESTINATION);
     assert!(
-        matches!(&out, TurnOutcome::Question { key, .. } if key == "const.destination_path"),
+        matches!(&out, TurnOutcome::Question { key, .. } if key == "const.output_path"),
         "{out:?}"
     );
     // The answer said in words is read on the same observation; contradicted, it freezes.

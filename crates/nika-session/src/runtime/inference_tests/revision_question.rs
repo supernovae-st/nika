@@ -2,10 +2,12 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! A revision that asks: the change names the old destination beside the new one, so the
 //! compiler proves the substitution structural but leaves the old path's disposition to the
-//! human (`gap.1`). The question is answered through the Session's authoring round — the same
-//! EDIT (exact base, change, original request) replayed from its recorded plan, its one call the
-//! judge the seat is permitted as when the round finishes (native step 2) — into the revised
-//! proposal; a cancel restores the proposal it revised, exactly. While the
+//! human (`gap.1`). The original proposal comes from semantic CREATE (plan, sketch, fills, then
+//! the judge); its revision is a source EDIT. The question is answered through the Session's
+//! authoring round — the same EDIT (exact base, change, original request) replayed from its
+//! recorded plan, its one call the judge the seat is permitted as when the round finishes
+//! (native step 2) — into the revised proposal; a cancel restores the proposal it revised,
+//! exactly. While the
 //! question waits no consent reaches either proposal. Loopback seat only; nothing runs.
 use super::*;
 use crate::turn::RoutingMethod;
@@ -14,24 +16,32 @@ use nika_onboard::compile::{CompileRequest, revise_intent};
 /// The human's change at the consent prompt: it names the old destination it replaces.
 const CHANGE: &str = "Change the destination from ./sortie.txt to ./revised.txt";
 
-/// The seat's revision: the base with the destination replaced, the old path declared a gap.
+/// The seat's revision (a source EDIT): the semantic copy with the destination replaced, the
+/// old path declared a gap.
 fn revised() -> String {
-    let mut reply: Value =
-        serde_json::from_str(&native().replace("./sortie.txt", "./revised.txt")).expect("reply");
-    reply["gaps"] = json!(["./sortie.txt is superseded by the requested ./revised.txt"]);
-    reply.to_string()
+    revised_copy(
+        "./revised.txt",
+        &json!(["./sortie.txt is superseded by the requested ./revised.txt"]),
+    )
 }
 
-/// The loopback seat: the original candidate, the judge's approval of it (native step 1), the
-/// seat's revision, then the judge's approval of the answer round that finishes it (native step
-/// 2: the seat permitted as that round's judge). Any further request would be counted.
+/// A semantic CREATE of the copy into `destination` (plan, sketch, fills), then its judgment.
+fn created(destination: &str) -> Vec<(u16, Value)> {
+    let mut script: Vec<_> = (semantic_copy(destination).iter())
+        .map(|t| (200, response(t)))
+        .collect();
+    script.push((200, response(JUDGE_APPROVES)));
+    script
+}
+
+/// The loopback seat: the original semantic CREATE and the judge's approval of it (native step
+/// 1), the seat's revision, then the judge's approval of the answer round that finishes it
+/// (native step 2: the seat permitted as that round's judge). Any further request would be
+/// counted.
 fn seat(revision: &str) -> Peer {
-    Peer::start(vec![
-        (200, response(&native())),
-        (200, response(JUDGE_APPROVES)),
-        (200, response(revision)),
-        (200, response(JUDGE_APPROVES)),
-    ])
+    let mut script = authored(response);
+    script.extend([(200, response(revision)), (200, response(JUDGE_APPROVES))]);
+    Peer::start(script)
 }
 
 /// Whether a request the seat received is the judge's closed choice (faithful · unfaithful).
@@ -140,8 +150,8 @@ fn a_revision_question_is_answered_into_the_revised_proposal_saved_only() {
     let (mut s, was) = asked(dir.path(), None);
     assert_eq!(
         peer.bodies().len(),
-        3,
-        "one call authored, one judged, one revised"
+        CREATE_CALLS + 1,
+        "the semantic CREATE authored and judged, one revised"
     );
     let before = files(dir.path());
     // The question owns the next line; the proposal it revises waits aside, never consentable.
@@ -176,15 +186,16 @@ fn a_revision_question_is_answered_into_the_revised_proposal_saved_only() {
     let bodies = peer.bodies();
     assert_eq!(
         bodies.len(),
-        4,
+        CREATE_CALLS + 2,
         "an answer replays: its one call is the round's judge"
     );
-    assert!(judged(&bodies[3]) && !judged(&bodies[2]), "{:#}", bodies[3]);
+    let (revision, judge) = (&bodies[CREATE_CALLS], &bodies[CREATE_CALLS + 1]);
+    assert!(judged(judge) && !judged(revision), "{judge:#}");
     assert!(s.pending_question().is_none());
     let revision = s.pending.clone().expect("the revised proposal waits");
     let bytes = bytes_of(&revision);
     assert!(bytes.contains("./revised.txt"), "{bytes}");
-    assert!(!bytes.contains("./sortie.txt"), "{bytes}");
+    assert!(!bytes.contains("sortie.txt"), "{bytes}");
     // Save only: the old identity is stale, the revised bytes land, nothing runs.
     assert!(matches!(
         s.consent_to(&was.id, "yes"),
@@ -199,7 +210,7 @@ fn a_revision_question_is_answered_into_the_revised_proposal_saved_only() {
     assert_eq!(saved.expect("saved"), bytes);
     assert!(!dir.path().join("revised.txt").exists());
     assert!(!dir.path().join("sortie.txt").exists());
-    assert_eq!(peer.bodies().len(), 4);
+    assert_eq!(peer.bodies().len(), CREATE_CALLS + 2);
 }
 
 #[test]
@@ -228,7 +239,7 @@ fn a_cancelled_revision_question_restores_the_proposal_it_revised() {
     let saved = std::fs::read_to_string(dir.path().join(was.set.changes[0].path()));
     assert_eq!(saved.expect("saved"), bytes_of(&was.set));
     assert!(!dir.path().join("sortie.txt").exists());
-    assert_eq!(peer.bodies().len(), 3);
+    assert_eq!(peer.bodies().len(), CREATE_CALLS + 1);
 }
 
 /// A `yes` at the question is its answer, never a consent: the revised proposal is proposed
@@ -272,7 +283,7 @@ fn a_waiting_revision_keeps_the_proposal_it_revises_as_the_draft() {
     assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
     let again = resumed.pending.clone().expect("proposed again");
     assert_eq!(bytes_of(&again), bytes_of(&was.set));
-    assert_eq!(peer.bodies().len(), 3);
+    assert_eq!(peer.bodies().len(), CREATE_CALLS + 1);
 }
 
 /// Each disposition is its own question of the same EDIT (`gap.1`, then `gap.2`), and a change
@@ -303,7 +314,7 @@ fn every_disposition_and_a_change_at_the_question_stay_in_the_revision() {
     assert!(bytes.contains("./revised.txt"), "{bytes}");
     assert_eq!(
         peer.bodies().len(),
-        4,
+        CREATE_CALLS + 2,
         "answers replay: nothing read afresh, the finishing round's judge alone"
     );
 }
@@ -335,7 +346,7 @@ fn a_saved_workflows_revision_question_is_answered_through_its_edit() {
     assert!(bytes.contains("./revised.txt"), "{bytes}");
     let now = std::fs::read_to_string(dir.path().join(&saved)).expect("still saved");
     assert_eq!(now, base, "nothing written before a consent");
-    assert_eq!(peer.bodies().len(), 4);
+    assert_eq!(peer.bodies().len(), CREATE_CALLS + 2);
 }
 
 /// A refused spending line at the question expires what waits, the set-aside proposal with it:
@@ -357,7 +368,7 @@ fn a_refused_budget_at_the_question_expires_the_proposal_it_set_aside() {
     let mut resumed = open(dir.path());
     resumed.enable_history(home.path()).expect("history");
     assert_eq!(resumed.restored_draft_id(), None, "no draft outlives it");
-    assert_eq!(peer.bodies().len(), 3);
+    assert_eq!(peer.bodies().len(), CREATE_CALLS + 1);
 }
 
 // ── A saved workflow's revision keeps its target, its route and its money ─────────────────────
@@ -377,6 +388,8 @@ const OTHER_WORK: &str =
     "Je veux que copie.txt contienne exactement les octets présents dans entree.txt.";
 /// A line the classifier cannot tell.
 const AMBIGUOUS: &str = "Et pour le fichier de sortie, plutôt la version de la semaine.";
+/// A second correction, said at the consent prompt of saved A's waiting update.
+const FURTHER: &str = "Change the destination from ./revised.txt to ./final.txt";
 /// Work the deterministic reader cannot settle alone and the classifier cannot tell.
 const UNDECIDED_WORK: &str = "Corrige le workflow enregistré : écris dans ./archive.txt au lieu de ./sortie.txt, garde tout le reste.";
 
@@ -388,7 +401,7 @@ impl Revisions {
     fn decide(context: &TurnContext, raw: &str) -> TurnDecision {
         let act = match (context.phase, raw.trim()) {
             (SessionPhase::QuestionPending, _) => TurnAct::Answer,
-            (_, line) if line == CORRECTION || line == CHANGE => TurnAct::Modify,
+            (_, line) if line == CORRECTION || line == CHANGE || line == FURTHER => TurnAct::Modify,
             (_, line) if line == OTHER_WORK || line == WORK => TurnAct::NewWork,
             _ => TurnAct::Unknown,
         };
@@ -518,7 +531,7 @@ fn a_saved_workflows_revision_is_saved_in_place_and_runs_nothing() {
         nika_files(dir.path())
     );
     assert!(!dir.path().join("revised.txt").exists() && !dir.path().join("sortie.txt").exists());
-    assert_eq!(peer.bodies().len(), 4);
+    assert_eq!(peer.bodies().len(), CREATE_CALLS + 2);
 }
 
 /// F-D1 (question): the answered EDIT proposes the update of the saved file over its base.
@@ -536,7 +549,7 @@ fn a_saved_workflows_answered_revision_updates_the_same_file() {
     let out = s.turn("drop");
     assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
     assert_updates(&s, &saved, &base);
-    assert_eq!(peer.bodies().len(), 4);
+    assert_eq!(peer.bodies().len(), CREATE_CALLS + 2);
 }
 
 /// F-D2: a base that moves while the revision's question waits is refused at the proposal —
@@ -631,13 +644,7 @@ fn a_correction_after_save_and_run_is_routed_as_the_saved_files_revision() {
 /// F-R2: distinct new work said while A is saved keeps its own fresh destination (a CREATE).
 #[test]
 fn new_work_beside_a_saved_workflow_stays_a_fresh_creation() {
-    let other = native().replace("./sortie.txt", "./copie.txt");
-    let peer = Peer::start(vec![
-        (200, response(&native())),
-        (200, response(JUDGE_APPROVES)),
-        (200, response(&other)),
-        (200, response(JUDGE_APPROVES)),
-    ]);
+    let peer = Peer::start([created("sortie.txt"), created("copie.txt")].concat());
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().expect("root");
     let (mut s, saved, base) = saved_a(dir.path(), WORK);
@@ -786,12 +793,7 @@ fn an_absent_classifier_beside_a_saved_workflow_changes_nothing() {
 /// label after it keeps everything (no admission card borrowed from that refusal, no request).
 #[test]
 fn a_refusal_left_by_an_earlier_turn_is_not_a_refused_label() {
-    let other = native().replace("./sortie.txt", "./copie.txt");
-    let peer = Peer::start(vec![
-        (200, response(&native())),
-        (200, response(JUDGE_APPROVES)),
-        (200, response(&other)),
-    ]);
+    let peer = Peer::start([created("sortie.txt"), created("copie.txt")].concat());
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().expect("root");
     let (mut s, saved, base) = saved_a(dir.path(), WORK);
@@ -853,13 +855,7 @@ fn a_revision_without_an_amount_keeps_the_saved_workflows_ceiling() {
 /// F-M1 (control): new work said beside the saved workflow keeps its own default.
 #[test]
 fn new_work_without_an_amount_keeps_its_own_default() {
-    let other = native().replace("./sortie.txt", "./copie.txt");
-    let peer = Peer::start(vec![
-        (200, response(&native())),
-        (200, response(JUDGE_APPROVES)),
-        (200, response(&other)),
-        (200, response(JUDGE_APPROVES)),
-    ]);
+    let peer = Peer::start([created("sortie.txt"), created("copie.txt")].concat());
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().expect("root");
     let (mut s, _, _) = saved_a(dir.path(), &format!("{WORK} budget 5 USD."));
@@ -881,8 +877,11 @@ fn a_ceiling_saved_with_other_bytes_refuses_the_revision_before_any_call() {
     std::fs::write(dir.path().join(&saved), &moved).expect("hand edit");
     let calls = peer.bodies().len();
     let out = s.revise_saved(&saved, CHANGE);
+    // The refusal speaks of this revision, never of running.
     assert!(
-        matches!(&out, TurnOutcome::Refusal(r) if r.text.contains("monetary decision")),
+        matches!(&out, TurnOutcome::Refusal(r) if r.text.contains("monetary decision")
+            && r.text.contains("this revision cannot inherit its ceiling")
+            && !r.text.contains("running")),
         "{out:?}"
     );
     assert_eq!(peer.bodies().len(), calls, "nothing sent");
@@ -891,6 +890,14 @@ fn a_ceiling_saved_with_other_bytes_refuses_the_revision_before_any_call() {
         std::fs::read_to_string(dir.path().join(&saved)).expect("A"),
         moved
     );
+    // The Run law keeps its own words over the same moved bytes: review before running.
+    let run = s.turn("run it");
+    assert!(
+        matches!(&run, TurnOutcome::Refusal(r)
+            if r.text.contains("prepare and review the revision before running")),
+        "{run:?}"
+    );
+    assert_eq!(peer.bodies().len(), calls, "nothing sent");
 }
 
 /// F-M1: the saved ceiling binds a resolved identity, not a name: the same path now resolving
@@ -985,5 +992,150 @@ fn a_kept_revision_round_over_a_changed_base_is_refused() {
         1,
         "{:?}",
         nika_files(dir.path())
+    );
+}
+
+/// The seat's answer to [`FURTHER`] (a source EDIT over A's waiting update): the copy written
+/// to `./final.txt`, every path the request still names and no task reaches declared a gap.
+fn finalized() -> String {
+    revised_copy(
+        "./final.txt",
+        &json!([
+            "sortie.txt, ./sortie.txt and ./revised.txt are superseded by the requested ./final.txt"
+        ]),
+    )
+}
+
+/// A session over saved A whose revision through its question is proposed (an update of A),
+/// then corrected again at its consent prompt by [`FURTHER`], whose disposition is asked.
+fn corrected_update(s: &mut SessionRuntime, saved: &Path, base: &str) -> TurnOutcome {
+    let out = revised_through_question(s, saved);
+    assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
+    assert_updates(s, saved, base);
+    let out = s.consent(FURTHER);
+    assert!(
+        matches!(&out, TurnOutcome::Question { key, .. } if key == "gap.1"),
+        "{out:?}"
+    );
+    out
+}
+
+/// F-P2-1: a correction of the waiting proposal that updates saved A (a second MODIFY said at its
+/// consent prompt) revises that proposal and keeps A's file and the witness of A's saved bytes,
+/// through its question: exactly one `UpdateWorkflow` at A (never a twin), one `.nika` after its
+/// own consent, and nothing runs.
+#[test]
+fn a_correction_of_a_saved_files_update_keeps_its_file_and_witness() {
+    let mut script = authored(response);
+    script.extend([
+        (200, response(&revised())),
+        (200, response(JUDGE_APPROVES)),
+        (200, response(&finalized())),
+        (200, response(JUDGE_APPROVES)),
+    ]);
+    let peer = Peer::start(script);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().expect("root");
+    let (mut s, saved, base) = saved_a(dir.path(), WORK);
+    corrected_update(&mut s, &saved, &base);
+    let out = s.turn("drop");
+    assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
+    // The user-visible proof: an update of A over A's saved bytes, never a fresh twin.
+    assert_updates(&s, &saved, &base);
+    let set = s.pending.clone().expect("the corrected update waits");
+    assert_eq!(set.changes.len(), 1, "{:?}", set.changes);
+    let bytes = bytes_of(&set);
+    assert!(
+        bytes.contains("./final.txt") && !bytes.contains("revised.txt"),
+        "{bytes}"
+    );
+    let only = vec![saved.display().to_string()];
+    assert_eq!(
+        nika_files(dir.path()),
+        only,
+        "nothing written before its consent"
+    );
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join(&saved)).expect("A"),
+        base
+    );
+    let out = s.consent("yes");
+    assert!(
+        matches!(&out, TurnOutcome::Facts(t) if t.contains("applied")),
+        "{out:?}"
+    );
+    assert_eq!(nika_files(dir.path()), only, "one file, never a twin");
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join(&saved)).expect("A"),
+        bytes
+    );
+    for output in ["sortie.txt", "revised.txt", "final.txt"] {
+        assert!(!dir.path().join(output).exists(), "nothing ran: {output}");
+    }
+    assert_eq!(peer.bodies().len(), CREATE_CALLS + 4);
+}
+
+/// F-P2-1 (restore seam): the kept round of a correction of saved A's update, its question
+/// waiting, reopened in a new session over the same history and continued by `/restore`. The
+/// update it revises is proposed again and set aside; the restored round takes A's file and the
+/// witness of A's saved bytes from it, and asks its question again with no call. Its answer is
+/// held (no judge is permitted to the replay): the set-aside update of A waits again, A's file
+/// untouched. This observes the restoration seam only; it claims no durable native continuation
+/// to a proposal.
+#[test]
+fn a_restored_correction_of_a_saved_files_update_keeps_its_file_and_witness() {
+    let mut script = authored(response);
+    script.extend([
+        (200, response(&revised())),
+        (200, response(JUDGE_APPROVES)),
+        (200, response(&finalized())),
+        (200, response(JUDGE_APPROVES)),
+    ]);
+    let peer = Peer::start(script);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().expect("root");
+    let home = tempfile::tempdir().expect("home");
+    let (mut s, saved, base) = saved_a_kept(dir.path(), Some(home.path()), WORK);
+    corrected_update(&mut s, &saved, &base);
+    let target = Some((saved.clone(), Witness::of(base.as_bytes())));
+    assert_eq!(s.authoring.as_ref().and_then(|r| r.target.clone()), target);
+    // A recorded turn at the question keeps the round (the direct call above records none).
+    let _ = s.turn("why");
+    drop(s);
+    let mut resumed = open(dir.path());
+    resumed.enable_history(home.path()).expect("history");
+    resumed.with_classifier(Box::new(Revisions));
+    let out = resumed.restore_kept();
+    assert!(
+        matches!(&out, TurnOutcome::Question { key, .. } if key == "gap.1"),
+        "{out:?}"
+    );
+    assert_eq!(
+        resumed.authoring.as_ref().and_then(|r| r.target.clone()),
+        target,
+        "the restored round revises A over A's saved bytes"
+    );
+    assert_eq!(
+        peer.bodies().len(),
+        CREATE_CALLS + 3,
+        "the replay calls no one"
+    );
+    let out = resumed.turn("drop");
+    assert!(
+        matches!(&out, TurnOutcome::Held { preview, .. }
+            if preview.contains("only a judge this round can permit")),
+        "{out:?}"
+    );
+    assert_eq!(peer.bodies().len(), CREATE_CALLS + 3, "no judge is asked");
+    assert_updates(&resumed, &saved, &base);
+    let update: Value = serde_json::from_str(&revised()).expect("reply");
+    assert_eq!(
+        bytes_of(resumed.pending.as_ref().expect("the update waits again")),
+        update["candidate"].as_str().expect("the update's bytes"),
+    );
+    assert_eq!(nika_files(dir.path()), vec![saved.display().to_string()]);
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join(&saved)).expect("A"),
+        base
     );
 }

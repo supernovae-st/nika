@@ -518,7 +518,10 @@ impl SessionRuntime {
             Ok(Ok(None)) => return Ok(()),
             Ok(Ok(Some(kept))) => kept,
             Ok(Err(why)) => {
-                let why = format!("{why} · nothing was sent · or state this revision's ceiling");
+                let (head, _) = why.split_once(" — ").unwrap_or((why, ""));
+                let why = format!(
+                    "{head} — this revision cannot inherit its ceiling · nothing was sent · or state this revision's ceiling"
+                );
                 return Err(self.refuse_money(change, &why));
             }
             Err(_) => {

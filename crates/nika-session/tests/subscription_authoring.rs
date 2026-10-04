@@ -54,16 +54,16 @@ fn events(answer: &str, tool: bool) -> String {
         + "\n"
 }
 fn install_fixture(dir: &Path, scenario: &str) {
-    let answer = common::native_answer(&common::candidate("mock/echo", false));
+    let answer = common::plan_answer();
     let answer = if scenario == "suffix" {
         format!("{answer} trailing {{\"second\":true}}")
     } else {
         answer
     };
     let second = common::native_answer(&common::candidate("openai/gpt-4.1-mini", true));
-    // The second call is the judge of the answer round that finishes the native record (native
-    // step 2, the seat permitted as its judge); the fourth is the judgment of the READY revision
-    // (native step 1). Both are answered explicitly.
+    // The first call is the private plan (semantic CREATE; its answer round replays with no
+    // call: the compiler assembled every clause); the second is the source revision (EDIT); the
+    // third is the judgment of the READY revision (native step 1), answered explicitly.
     for (name, text) in [
         ("one", answer),
         ("two", second),
@@ -88,7 +88,7 @@ if [ -f {observed}/count ]; then n=$(/bin/cat {observed}/count); fi
 printf '%s' "$((n+1))" > {observed}/count
 printf '%s\n' "$@" > {observed}/argv-$n
 /bin/cat > {observed}/prompt-$n
-if [ "$n" = 0 ] || [ {bad} = yes ]; then /bin/cat {one}; elif [ "$n" = 1 ] || [ "$n" = 3 ]; then /bin/cat {three}; else /bin/cat {two}; fi
+if [ "$n" = 0 ] || [ {bad} = yes ]; then /bin/cat {one}; elif [ "$n" = 2 ]; then /bin/cat {three}; else /bin/cat {two}; fi
 "#,
         observed = shell(&observed),
         one = shell(&dir.join("one")),
@@ -132,7 +132,6 @@ fn run(scenario: &str) -> Value {
         )
         .env("HOME", dir.path().join("home"))
         .env("NIKA_KEYCHAIN", "off")
-        .env("NIKA_AUTHORING_STRATEGY", "only")
         .env(
             "SUBSCRIPTION_TEST_KNOWLEDGE_IDENTITY",
             json!({
@@ -353,12 +352,12 @@ fn child() {
 fn subscription_authors_then_answers_and_revises_through_the_same_native_compiler() {
     let out = run("route");
     assert_eq!(
-        out["calls"], 4,
-        "question round, its answer round's judge, revision, judgment: {out:#}"
+        out["calls"], 3,
+        "the plan's question round, revision, judgment: {out:#}"
     );
     let judged = |n: usize| out["prompts"][n].as_str().unwrap().contains("unfaithful");
     assert!(
-        !judged(0) && judged(1) && !judged(2) && judged(3),
+        !judged(0) && !judged(1) && judged(2),
         "{:#}",
         out["prompts"]
     );
@@ -434,18 +433,23 @@ fn replay_retains_subscription_receipt_without_optional_knowledge() {
             .all(|argv| { !argv.as_str().unwrap().contains("S03-PATTERN-MARKER") })
     );
     assert_eq!(
-        out["calls"], 4,
-        "question round, its answer round's judge, revision, judgment: {out:#}"
+        out["calls"], 3,
+        "the plan's question round, revision, judgment: {out:#}"
     );
-    // The answer round's receipt is its own now: its one call is the judge the subscription
-    // seat is permitted as (native step 2), never a receipt carried as if nothing was sent.
+    // The answer round replays the plan with no call (the compiler assembled every clause): its
+    // receipt is the authoring round's, carried and said so, with the replay's zero calls.
     for text in [
         out["details_answer"].as_str().unwrap(),
         out["meaning_answer"]["text"].as_str().unwrap(),
     ] {
         assert!(text.contains("subscription claude-code"), "{text}");
         assert!(text.contains(" · 1 compiler calls · "), "{text}");
-        assert!(!text.contains("made zero calls"), "{text}");
+        assert!(
+            text.contains(
+                "receipt carried from the authoring round; this clarification replay made zero calls"
+            ),
+            "{text}"
+        );
         assert!(text.contains("subscription invoice unknown"), "{text}");
     }
     assert_eq!(out["old_consent_rejected"], true);

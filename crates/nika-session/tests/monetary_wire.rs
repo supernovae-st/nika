@@ -17,7 +17,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-use common::{LoopbackSeat, message, native_answer};
+use common::{LoopbackSeat, message, semantic_copy};
 use nika_session::reasoner::ProviderReasoner;
 use nika_session::turn::{
     RoutingMethod, SessionPhase, TurnAct, TurnClassifier, TurnContext, TurnDecision,
@@ -160,21 +160,12 @@ fn amendment_protocol(input: &str, scenario: &str, native: bool) {
     std::fs::create_dir_all(&root).expect("root");
     std::fs::create_dir_all(&home).expect("home");
     std::fs::write(root.join("entree.txt"), "A\n").expect("input");
-    let fixture: serde_json::Value =
-        serde_json::from_str(include_str!("fixtures/compile/copy-fr.json"))
-            .expect("candidate fixture");
-    let candidate = fixture["candidate"]
-        .as_str()
-        .expect("candidate")
-        .replace("./notes/brief.md", "./entree.txt")
-        .replace("./out/copie.md", "./sortie.txt");
-    // On the default strategy: COLD's plan request (a native-shaped answer is no plan, so the
-    // door escalates), the native request (READY), then its judgment (native step 1).
-    let seat = LoopbackSeat::start(vec![
-        native_answer(&candidate),
-        native_answer(&candidate),
-        JUDGE_APPROVES.to_owned(),
-    ]);
+    // On the default strategy, semantic CREATE: the private plan (it names the exact-byte copy as
+    // what it cannot carry, so the door escalates), the sketch, its fills (READY), then its
+    // judgment (native step 1).
+    let mut script = semantic_copy();
+    script.push(JUDGE_APPROVES.to_owned());
+    let seat = LoopbackSeat::start(script);
     child_run(&root, &home, &seat, scenario);
     seat.shutdown();
     let bodies = seat.bodies();
@@ -185,8 +176,8 @@ fn amendment_protocol(input: &str, scenario: &str, native: bool) {
         );
         assert_eq!(
             bodies.len(),
-            3,
-            "COLD, native, judgment; the monetary revision calls no one: {bodies:#?}"
+            4,
+            "plan, sketch, fills, judgment; the monetary revision calls no one: {bodies:#?}"
         );
         assert!(
             bodies

@@ -74,7 +74,7 @@ fn admission_card(s: &mut SessionRuntime) -> String {
 
 #[test]
 fn s49_fresh_work_is_kept_before_provider_admission_fails() {
-    let peer = Peer::start(vec![(200, response(&native()))]);
+    let peer = Peer::start(authored(response));
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
     let mut s = open(dir.path());
@@ -90,7 +90,7 @@ fn s49_fresh_work_is_kept_before_provider_admission_fails() {
 
 #[test]
 fn s49_failed_new_work_replaces_saved_goal_without_reusing_its_consent() {
-    let peer = Peer::start(vec![(200, response(&native()))]);
+    let peer = Peer::start(authored(response));
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
     notes(dir.path());

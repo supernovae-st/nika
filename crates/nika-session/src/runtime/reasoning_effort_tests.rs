@@ -22,8 +22,8 @@ use super::*;
 use crate::DataLocus;
 use crate::authoring::AuthoringContext;
 use crate::reasoner::{ProviderReasoner, ReasonError, Reply, test_transport};
-use crate::runtime::inference_tests::JUDGE_APPROVES;
 use crate::runtime::inference_tests::wire::{Peer, response};
+use crate::runtime::inference_tests::{CREATE_CALLS, authored};
 use crate::turn::{
     ConservativeFallback, ReasonerClassifier, RoutingMethod, SessionPhase, TurnAct, TurnClassifier,
     TurnContext, TurnDecision,
@@ -273,20 +273,20 @@ fn flash_low_rides_every_routed_label_and_turn_with_the_same_ceilings_and_words(
     );
 }
 
-/// CALIBRATION-01 · the authoring call and its current judgment on the exact Flash ID, through the
-/// Session's own turn: each asks `low`, the ceilings, the number of calls and the allowance's
+/// CALIBRATION-01 · the semantic authoring calls and their current judgment on the exact Flash ID,
+/// through the Session's own turn: each asks `low`, the ceilings, the number of calls and the allowance's
 /// attempts are those of the same turn naming none, and `/details` says configured `low`, the keys
 /// read back from the bytes sent, and the effort served unknown.
 #[test]
 fn flash_low_rides_the_authoring_and_judgment_calls_with_the_same_caps_and_accounting() {
     let mut seen = Vec::new();
     for word in [Some("low"), None] {
-        let peer = Peer::start(vec![(200, flash(&native())), (200, flash(JUDGE_APPROVES))]);
+        let peer = Peer::start(authored(flash));
         let _transport = test_transport::install(&peer.url);
         let dir = tempfile::tempdir().expect("root");
         std::fs::write(dir.path().join("entree.txt"), "A\n").expect("input");
         let mut s = open_on(dir.path(), &Arc::new(AtomicUsize::new(0)), FLASH);
-        let settings = AuthoringSettings::none().with_strategy("only");
+        let settings = AuthoringSettings::none();
         let settings = match word {
             Some(word) => settings.with_reasoning(word),
             None => settings,
@@ -298,7 +298,11 @@ fn flash_low_rides_the_authoring_and_judgment_calls_with_the_same_caps_and_accou
         let out = s.turn(&format!("{WORK} budget 2 USD."));
         assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
         let bodies = peer.bodies();
-        assert_eq!(bodies.len(), 2, "one authoring call, then the judgment's");
+        assert_eq!(
+            bodies.len(),
+            CREATE_CALLS,
+            "the plan, sketch and fill calls, then the judgment's"
+        );
         let details = s.details();
         if word.is_some() {
             bodies.iter().for_each(asks_flash_low);
@@ -313,7 +317,7 @@ fn flash_low_rides_the_authoring_and_judgment_calls_with_the_same_caps_and_accou
             );
             assert!(!details.contains("reasoning effort"), "{details}");
         }
-        // The calls the reading recorded, by role: one authoring call, then one `judge_request`.
+        // The calls the reading recorded, by role: the semantic CREATE, then one `judge_request`.
         let outcome = s.last_outcome.as_ref().expect("the reading");
         let calls: Vec<(String, Value)> = (outcome.provenance.authoring.as_ref())
             .map(|receipt| {
@@ -328,7 +332,11 @@ fn flash_low_rides_the_authoring_and_judgment_calls_with_the_same_caps_and_accou
             })
             .unwrap_or_default();
         let roles: Vec<&str> = calls.iter().map(|(call, _)| call.as_str()).collect();
-        assert_eq!(roles, ["native", "judge_request"], "{calls:?}");
+        assert_eq!(
+            roles,
+            ["plan", "sketch", "fill", "judge_request"],
+            "{calls:?}"
+        );
         for (call, reasoning) in &calls {
             if word.is_some() {
                 assert_eq!(reasoning["configured"], "low", "{call}");
@@ -427,32 +435,15 @@ fn a_path_that_cannot_carry_the_level_refuses_it_before_any_byte_or_call() {
 const WORK: &str =
     "Je veux que sortie.txt contienne exactement les octets présents dans entree.txt.";
 
-/// The native candidate the loopback answers: the copy fixture on this project's paths.
-fn native() -> String {
-    let fixture: Value =
-        serde_json::from_str(include_str!("../../tests/fixtures/compile/copy-fr.json"))
-            .expect("fixture");
-    let candidate = fixture["candidate"]
-        .as_str()
-        .expect("candidate")
-        .replace("./notes/brief.md", "./entree.txt")
-        .replace("./out/copie.md", "./sortie.txt");
-    serde_json::json!({"candidate": candidate, "questions": [], "gaps": [], "notes": "copy"})
-        .to_string()
-}
-
 #[test]
 fn details_says_the_named_effort_as_the_receipt_recorded_it_and_nothing_without_one() {
     for word in [Some("max"), None] {
-        let peer = Peer::start(vec![
-            (200, response(&native())),
-            (200, response(JUDGE_APPROVES)),
-        ]);
+        let peer = Peer::start(authored(response));
         let _transport = test_transport::install(&peer.url);
         let dir = tempfile::tempdir().expect("root");
         std::fs::write(dir.path().join("entree.txt"), "A\n").expect("input");
         let mut s = open(dir.path(), &Arc::new(AtomicUsize::new(0)));
-        let settings = AuthoringSettings::none().with_strategy("only");
+        let settings = AuthoringSettings::none();
         let settings = match word {
             Some(word) => settings.with_reasoning(word),
             None => settings,
@@ -464,7 +455,11 @@ fn details_says_the_named_effort_as_the_receipt_recorded_it_and_nothing_without_
         let out = s.turn(&format!("{WORK} budget 2 USD."));
         assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
         let bodies = peer.bodies();
-        assert_eq!(bodies.len(), 2, "one native call, then the judge's");
+        assert_eq!(
+            bodies.len(),
+            CREATE_CALLS,
+            "the plan, sketch and fill calls, then the judge's"
+        );
         let details = s.details();
         if word.is_some() {
             asks_max(&bodies[0]);

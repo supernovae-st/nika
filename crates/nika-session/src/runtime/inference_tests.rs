@@ -46,6 +46,51 @@ fn native() -> String {
     json!({"candidate":candidate,"questions":[],"gaps":[],"notes":"copy the exact bytes"})
         .to_string()
 }
+/// A fresh CREATE of `WORK` as the semantic doors answer it (`semantic_copy` to `sortie.txt`).
+pub(crate) fn semantic_create() -> [String; 3] {
+    semantic_copy("sortie.txt")
+}
+/// A fresh CREATE of the exact-byte copy of `entree.txt` into `destination`, as the semantic
+/// doors answer it, in call order: the private plan names the copy as the part it cannot carry
+/// (so the request escalates to the sketch door), the sketch reads the stated source and writes
+/// the stated destination under the name the copy fixture carries, and the fills add nothing
+/// (the edge carries the bytes). The compiler writes the source; no reply is whole source.
+pub(super) fn semantic_copy(destination: &str) -> [String; 3] {
+    let plan = json!({"steps":[],"effects":[],"obligations":[],"constraints":[],
+        "unknowns":[format!("{destination} contienne exactement les octets présents dans entree.txt")],
+        "regions":[],"approval_bypass":{"present":false}});
+    let task = |id: &str, tool: &str, extra: Value| {
+        let mut task = json!({"id":id,"verb":"invoke","tool":tool,"purpose":id});
+        task.as_object_mut()
+            .expect("task")
+            .extend(extra.as_object().expect("extra").clone());
+        task
+    };
+    let sketch = json!({"name":"compiled-workflow","tasks":[
+        task("read_source", "nika:read", json!({"reads":["entree.txt"]})),
+        task("write_output", "nika:write",
+            json!({"writes":[destination],"with":[{"name":"content","from":"read_source"}]})),
+    ],"outputs":[],"questions":[],"gaps":[],"notes":"copy the exact bytes"});
+    let fills = json!({"fills":[],"notes":"the edge carries the bytes"});
+    [plan.to_string(), sketch.to_string(), fills.to_string()]
+}
+/// A source EDIT's reply over the semantic copy (`semantic_copy`): the same program writing
+/// `destination` instead, with the `gaps` the seat declares. An EDIT stays a source reply.
+pub(super) fn revised_copy(destination: &str, gaps: &Value) -> String {
+    let source = format!(
+        "nika: compiled-workflow\npermits:\n  fs:\n    read:\n    - entree.txt\n    write:\n    - {destination}\n  tools:\n  - nika:read\n  - nika:write\ntasks:\n  read_source:\n    invoke:\n      args:\n        path: entree.txt\n      tool: nika:read\n  write_output:\n    invoke:\n      args:\n        content: ${{{{ with.content }}}}\n        path: {destination}\n      tool: nika:write\n    with:\n      content: ${{{{ tasks.read_source.output }}}}\n"
+    );
+    json!({"candidate": source, "questions": [], "gaps": gaps, "notes": "copy the exact bytes"})
+        .to_string()
+}
+/// The calls one approved semantic CREATE of `WORK` sends: plan, sketch, fills, judge.
+pub(crate) const CREATE_CALLS: usize = 4;
+/// `semantic_create` then the approving judge, each reply wrapped by `reply`.
+pub(crate) fn authored(reply: fn(&str) -> Value) -> Vec<(u16, Value)> {
+    let mut script: Vec<_> = semantic_create().iter().map(|t| (200, reply(t))).collect();
+    script.push((200, reply(JUDGE_APPROVES)));
+    script
+}
 /// The verifier's closed choice, approved (native step 1, R4 A11): the explicit answer a test
 /// scripts at the judge's position, after a native candidate READY in its authoring round. The
 /// judge's call is a real request, counted and journaled like any other.
@@ -77,8 +122,9 @@ fn open(root: &Path) -> SessionRuntime {
             label: "DeepSeek".into(),
         })
     }));
+    // No settings file is read: the shared default strategy (escalate, semantic CREATE).
     s.set_authoring_context(crate::authoring::AuthoringContext::from_settings(
-        &nika_cli_host::compile::config::AuthoringSettings::none().with_strategy("only"),
+        &nika_cli_host::compile::config::AuthoringSettings::none(),
         &nika_cli_host::compile::config::AuthoringSettings::none(),
     ));
     s
@@ -87,10 +133,7 @@ fn open(root: &Path) -> SessionRuntime {
 fn positive_authoring_amendment_and_save_share_one_account() {
     // This wording enters authoring directly. Classifier/conversation/compiler
     // aggregation is exercised separately below through those real consumers.
-    let peer = Peer::start(vec![
-        (200, response(&native())),
-        (200, response(JUDGE_APPROVES)),
-    ]);
+    let peer = Peer::start(authored(response));
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().expect("root");
     let mut s = open(dir.path());
@@ -100,7 +143,11 @@ fn positive_authoring_amendment_and_save_share_one_account() {
         panic!("positive authoring: {out:?}");
     };
     let before = s.inference_receipt().expect("receipt").expect("account");
-    assert_eq!(before.attempts.len(), 2, "the native call and the judge's");
+    assert_eq!(
+        before.attempts.len(),
+        CREATE_CALLS,
+        "the plan, sketch and fill calls and the judge's"
+    );
     assert!(before.estimated.nano_usd > 0);
     assert_eq!(before.billed, None);
     assert_eq!(s.monetary_decision().expect("money").original_intent, input);
@@ -125,7 +172,7 @@ fn positive_authoring_amendment_and_save_share_one_account() {
         panic!("amend: {out:?}");
     };
     assert_ne!(old, id);
-    assert_eq!(peer.bodies().len(), 2);
+    assert_eq!(peer.bodies().len(), CREATE_CALLS);
     assert_eq!(
         s.inference_receipt().unwrap().unwrap().estimated,
         before.estimated
@@ -135,16 +182,16 @@ fn positive_authoring_amendment_and_save_share_one_account() {
     assert!(
         matches!(s.turn("run it"),TurnOutcome::RunRequested{ref run,..} if run.max_cost_usd.to_bits() == 3.0_f64.to_bits())
     );
-    assert_eq!(peer.bodies().len(), 2);
+    assert_eq!(peer.bodies().len(), CREATE_CALLS);
 }
 #[test]
 fn fresh_classifier_conversation_and_compiler_do_not_reset_exposure() {
-    let peer = Peer::start(vec![
-        (200, response("NEW_WORK")),
-        (200, response("Hello")),
-        (200, response(&native())),
-        (200, response(JUDGE_APPROVES)),
-    ]);
+    let peer = Peer::start(
+        vec![(200, response("NEW_WORK")), (200, response("Hello"))]
+            .into_iter()
+            .chain(authored(response))
+            .collect(),
+    );
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
     let mut s = open(dir.path());
@@ -157,10 +204,10 @@ fn fresh_classifier_conversation_and_compiler_do_not_reset_exposure() {
     let r = s.inference_receipt().unwrap().unwrap();
     assert_eq!(
         r.attempts.len(),
-        4,
-        "classifier, conversation, native, judge"
+        2 + CREATE_CALLS,
+        "classifier, conversation, plan, sketch, fill, judge"
     );
-    assert_eq!(peer.bodies().len(), 4);
+    assert_eq!(peer.bodies().len(), 2 + CREATE_CALLS);
     assert_eq!(peer.bodies()[0]["max_tokens"], 4096);
     assert_eq!(peer.bodies()[1]["max_tokens"], 8192);
     s.admit_money("budget 2 USD", true, false).unwrap();
@@ -175,7 +222,7 @@ fn fresh_classifier_conversation_and_compiler_do_not_reset_exposure() {
         .amend(r.estimated)
         .unwrap();
     assert!(s.reason_with_money("another", false).is_err());
-    assert_eq!(peer.bodies().len(), 4);
+    assert_eq!(peer.bodies().len(), 2 + CREATE_CALLS);
 }
 #[test]
 fn zero_invalid_and_unknown_charge_remain_guarded_across_questions() {
