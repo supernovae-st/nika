@@ -398,6 +398,28 @@ impl SessionRuntime {
         )))
     }
 
+    /// After a settled successful run of `workflow`, its bytes `ran_sha256`, that completed the
+    /// writes `written`: the saved proof of that file and those bytes advances over them
+    /// ([`Witness::advanced`]). An error keeps the previous proof for the next run to judge.
+    pub(super) fn advance_rehearsal(
+        &mut self,
+        workflow: &Path,
+        ran_sha256: &str,
+        written: &[String],
+    ) -> Result<(), String> {
+        let Some((path, Ok(witness))) = &self.rehearsals.saved else {
+            return Err("no rehearsal proves a saved workflow".to_owned());
+        };
+        if !same_file(&self.snapshot.root, path, workflow)
+            || ran_sha256 != witness.candidate_sha256()
+        {
+            return Err("the run is not of the rehearsed workflow's bytes".to_owned());
+        }
+        let next = witness.advanced(&self.snapshot.root, written)?;
+        self.rehearsals.saved = Some((path.clone(), Ok(next)));
+        Ok(())
+    }
+
     /// A change said at a rehearsed proposal: the proposal waits as it was, with its own proof.
     /// None when no rehearsal proves it: the caller keeps its set.
     pub(super) fn rehearsed_change(&mut self, set: &ProjectChangeSet) -> Option<TurnOutcome> {

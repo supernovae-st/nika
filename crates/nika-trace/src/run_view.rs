@@ -70,6 +70,11 @@ pub(crate) struct TaskFact {
     pub(crate) state: TaskState,
     /// The failure's detail, when it failed.
     pub(crate) detail: Option<String>,
+    /// The note of the `task_started` frame that opened it, as that frame said it.
+    pub(crate) started: Option<String>,
+    /// What a `task_completed` frame whose outcome class is `success` returned, when its
+    /// `output` is a JSON string (a `nika:write` returns the path it wrote).
+    pub(crate) output: Option<String>,
 }
 
 /// One permit decision the run recorded (`permit_checked`).
@@ -185,6 +190,14 @@ fn first_gate(frame: &Value) -> Option<Pause> {
 
 fn text(map: &BTreeMap<String, Value>, key: &str) -> Option<String> {
     map.get(key).and_then(Value::as_str).map(str::to_owned)
+}
+
+/// A completed frame's returned string: its `output` field holds the value as JSON, and only an
+/// `outcome` whose class is `success` returned it.
+fn completed_output(f: &BTreeMap<String, Value>) -> Option<String> {
+    let outcome: Value = serde_json::from_str(&text(f, "outcome")?).ok()?;
+    (outcome["class"] == "success").then_some(())?;
+    serde_json::from_str::<String>(&text(f, "output")?).ok()
 }
 
 fn count(map: &BTreeMap<String, Value>, key: &str) -> Option<u64> {
@@ -356,6 +369,9 @@ impl RunFacts {
         let note = text(f, "note");
         let duration = count(f, "duration_ms");
         let detail = text(f, "detail");
+        let output = (kind == "task_completed")
+            .then(|| completed_output(f))
+            .flatten();
         let task = self.task_mut(&id);
         if let Some(note) = note
             && kind != "task_cache_hit"
@@ -367,6 +383,12 @@ impl RunFacts {
         }
         if detail.is_some() {
             task.detail = detail;
+        }
+        if output.is_some() {
+            task.output = output;
+        }
+        if kind == "task_started" {
+            task.started = text(f, "note");
         }
         task.state = match kind {
             "task_started" => TaskState::Running,
@@ -414,6 +436,33 @@ impl RunFacts {
             .iter()
             .filter(|p| p.plane == "fs" && p.decision == "allow")
             .filter_map(|p| p.gate.strip_prefix(&prefix).map(str::to_owned))
+            .collect();
+        paths.dedup();
+        paths
+    }
+
+    /// The paths this run completed writing: an `invoke · nika:write` task that a start frame
+    /// opened and a successful completion settled `Ok` (never recovered, replayed from a cache
+    /// or skipped), whose returned path the same task's allowed `permits.fs.write` decision
+    /// names, compared without a leading `./`.
+    /// A path, not its bytes: what it holds now is the caller's to read again.
+    #[must_use]
+    pub fn completed_writes(&self) -> Vec<String> {
+        let bare = |path: &str| path.strip_prefix("./").unwrap_or(path).to_owned();
+        let granted = |task: &str, path: &str| {
+            self.permits.iter().any(|p| {
+                p.task == task
+                    && p.plane == "fs"
+                    && p.decision == "allow"
+                    && p.gate.strip_prefix("permits.fs.write ").map(bare) == Some(bare(path))
+            })
+        };
+        let mut paths: Vec<String> = (self.tasks.iter())
+            .filter(|t| {
+                t.started.as_deref() == Some("invoke · nika:write") && t.state == TaskState::Ok
+            })
+            .filter_map(|t| t.output.as_deref().filter(|out| granted(&t.id, out)))
+            .map(str::to_owned)
             .collect();
         paths.dedup();
         paths
@@ -991,6 +1040,10 @@ pub use kept::KeptRun;
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod identity_tests;
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod completed_write_tests;
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]

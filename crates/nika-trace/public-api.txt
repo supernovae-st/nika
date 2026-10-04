@@ -1002,6 +1002,7 @@ pub type nika_trace::run_view::KeptRun::NoneType = T
 pub fn nika_trace::run_view::KeptRun::null_value() -> T
 #[non_exhaustive] pub struct nika_trace::run_view::RunFacts
 impl nika_trace::run_view::RunFacts
+pub fn nika_trace::run_view::RunFacts::completed_writes(&self) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_trace::run_view::RunFacts::executions(&self) -> &[nika_types::id::ExecutionId]
 pub fn nika_trace::run_view::RunFacts::gate(&self, workflow: &std::path::Path, message: &str, mode: &str, gated: &[alloc::string::String]) -> alloc::string::String
 pub fn nika_trace::run_view::RunFacts::of(trace: &std::path::Path, raw: &str) -> core::option::Option<Self>

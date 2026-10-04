@@ -8,7 +8,7 @@
   `escalate` with repairs, and a typed `only` is never told to buy more requests. An answered
   endpoint grants its host only when a fetch url or notify target reads it whole. This shared
   route does not yet cover the CLI, Session and Serve entries' own mode handling.
-- **The sketch door keeps what a graph states through its fills and its replay.** A `nika:jq`
+  **The sketch door keeps what a graph states through its fills and its replay.** A `nika:jq`
   task bound to several edges now reads them all, as one input object keyed by their names (it
   read only the first, and a join could be READY over a table it never received); a semantic
   record compiled under an observed world stays closed, and its answer round replays under the

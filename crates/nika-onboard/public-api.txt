@@ -527,6 +527,7 @@ impl<T> typenum::type_operators::Same for nika_onboard::compile::copy::Qualified
 pub type nika_onboard::compile::copy::Qualified::Output = T
 #[non_exhaustive] pub struct nika_onboard::compile::copy::Witness
 impl nika_onboard::compile::copy::Witness
+pub fn nika_onboard::compile::copy::Witness::advanced(&self, root: &std::path::Path, written: &[alloc::string::String]) -> core::result::Result<Self, alloc::string::String>
 pub fn nika_onboard::compile::copy::Witness::candidate_sha256(&self) -> &str
 pub fn nika_onboard::compile::copy::Witness::drift(&self, root: &std::path::Path, saved: core::option::Option<&std::path::Path>) -> core::option::Option<alloc::string::String>
 pub fn nika_onboard::compile::copy::Witness::world(&self) -> &[(alloc::string::String, nika_onboard::compile::copy::Seen)]

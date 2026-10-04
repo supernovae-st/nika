@@ -41,15 +41,73 @@ pub enum Seen {
 pub struct Witness {
     candidate_sha256: String,
     world: Vec<(String, Seen)>,
+    /// The world paths the request writes and never reads: the only ones a run may advance.
+    destinations: Vec<String>,
 }
 
 impl Witness {
-    /// The witness of `candidate_sha256` over `world`.
+    /// The witness of `candidate_sha256` over `world`, no path of it a destination.
     pub(super) fn new(candidate_sha256: String, world: Vec<(String, Seen)>) -> Self {
         Self {
             candidate_sha256,
             world,
+            destinations: Vec::new(),
         }
+    }
+
+    /// This witness with `targets` as its destinations: each a world path, never one the request
+    /// also reads (`sources`).
+    pub(super) fn writing(mut self, targets: &[String], sources: &[String]) -> Self {
+        self.destinations = targets
+            .iter()
+            .filter(|target| !sources.iter().any(|source| same_path(source, target)))
+            .filter(|target| self.world.iter().any(|(path, _)| same_path(path, target)))
+            .cloned()
+            .collect();
+        self
+    }
+
+    /// This witness after a settled successful run of its own candidate whose completed writes
+    /// were `written`: each of those paths, which must all be destinations, is observed again and
+    /// bound to the file it holds now. Sources and every other path stay bound as they were, so a
+    /// source edit, a foreign write after this observation, or anything else is still drift.
+    ///
+    /// The observation follows the run's settlement: a write by another process between the
+    /// run's end and this read is bound as if the run had made it. That window is the time the
+    /// host takes to report the settled run, and nothing here narrows it further.
+    ///
+    /// # Errors
+    /// Refuses when nothing was written, a written path is a source or no destination of this
+    /// witness, or a destination now holds no regular file within the copy bound; the caller then
+    /// keeps this witness unchanged.
+    pub fn advanced(&self, root: &Path, written: &[String]) -> Result<Self, String> {
+        if written.is_empty() {
+            return Err("the run completed no write".to_owned());
+        }
+        if let Some(path) = written
+            .iter()
+            .find(|path| !self.destinations.iter().any(|it| same_path(it, path)))
+        {
+            return Err(format!("`{path}` is no destination the rehearsal bound"));
+        }
+        let now = match on_worker(|| observe(root, written)) {
+            Some(Ok(now)) => now,
+            Some(Err(why)) => return Err(format!("the project cannot be observed again: {why}")),
+            None => return Err("the project cannot be observed again".to_owned()),
+        };
+        let mut next = self.clone();
+        for (path, seen) in written.iter().zip(now) {
+            let digest = match seen {
+                Ok(Seen::File(digest)) => digest,
+                Ok(Seen::Absent) => return Err(format!("`{path}` is absent after the run")),
+                Err(why) => return Err(format!("`{path}` cannot be observed: it {why}")),
+            };
+            let Some(entry) = next.world.iter_mut().find(|(at, _)| same_path(at, path)) else {
+                return Err(format!("`{path}` is no path of the rehearsed world"));
+            };
+            entry.1 = Seen::File(digest);
+        }
+        Ok(next)
     }
 
     /// The sha256 of the selected candidate's bytes (lowercase hex).
@@ -187,6 +245,11 @@ pub(super) fn relative(path: &str) -> Option<PathBuf> {
         }
     }
     (!parts.is_empty()).then(|| parts.iter().collect())
+}
+
+/// Whether two request paths name the same path inside the project.
+fn same_path(left: &str, right: &str) -> bool {
+    relative(left).is_some_and(|at| relative(right) == Some(at))
 }
 
 /// Run the future `make` gives to completion on a thread and an executor of its own, never

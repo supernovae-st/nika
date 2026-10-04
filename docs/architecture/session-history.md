@@ -45,6 +45,18 @@ job through an idempotent submission key. It therefore does not recover a run
 by guessing from the latest trace, nor promise automatic resume or exactly-once
 external effects. `observe_run` remains a host-supplied observation.
 
+A saved workflow that was rehearsed runs only over the world it was rehearsed on.
+When this session observes its own run of exactly those bytes settle as
+succeeded, each destination of the rehearsal that the run completed writing (a
+`nika:write` that settled, the same task's write permit and its output naming
+the path) is read again and bound to what it holds now. That lets the next
+explicit Run replace its own output. A source is never advanced. A permit
+without a completed write, a failed, paused or cancelled run, another
+workflow's bytes or a missing trace advance nothing. The write and that re-read
+are not atomic: a foreign write landing between them is bound as the run's
+own. Any change after the re-read, and any change to a source, still withdraws
+the rehearsal before the next Run.
+
 `observe_run_leg` additionally keeps the observed execution, source hash and
 receipt head/length in an optional versioned `last_run` value. Session owns its
 persistence; `nika_trace::run_view::KeptRun` is only an observation, with no

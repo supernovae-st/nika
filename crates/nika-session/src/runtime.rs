@@ -1137,6 +1137,14 @@ impl SessionRuntime {
         // The trace's own frames, when the door left one this session can
         // read: the views below say what they prove, the line stays the fact.
         let facts = trace.and_then(|t| crate::run_view::RunFacts::read(&under(&root, t)));
+        // This session's own settled run moves its rehearsed proof past what it completed
+        // writing; anything else, a refused advance included, keeps the rehearsed world.
+        if let (0, Some(f), Some(workflow)) = (exit, &facts, self.last_workflow.clone())
+            && f.terminal() == Some("succeeded")
+            && let Some(sha) = f.workflow_sha256()
+        {
+            let _ = self.advance_rehearsal(&workflow, sha, &f.completed_writes());
+        }
         let line = self.observation_line(exit, trace, facts.is_none());
         self.last_trace = trace.map(Path::to_path_buf);
         if exit == 4
