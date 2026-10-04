@@ -608,8 +608,8 @@ fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request
         serde_json::json!({"candidate": "not a workflow", "questions": [], "gaps": [], "notes": ""})
             .to_string();
     for (typed, needed) in [
-        (vec!["--authoring-repairs", "3"], "--authoring-max-calls 62"),
-        (vec!["--authoring-samples", "2"], "--authoring-max-calls 19"),
+        (vec!["--authoring-repairs", "3"], "--authoring-max-calls 66"),
+        (vec!["--authoring-samples", "2"], "--authoring-max-calls 16"),
         (
             vec!["--authoring-strategy", "off", "--authoring-repairs", "3"],
             "--authoring-max-calls 56",
