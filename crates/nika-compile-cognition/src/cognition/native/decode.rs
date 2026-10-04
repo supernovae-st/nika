@@ -43,7 +43,7 @@ pub(in crate::cognition) fn decode<T: Shaped>(
     match read(response, what, round, talk, out) {
         Decoded::Answer(answer, text) => Some((answer, text)),
         Decoded::Invalid(_, error) => {
-            invalid(out, what, &error);
+            invalid(out, what, &shown(&error));
             None
         }
         Decoded::Stop => None,
@@ -77,12 +77,12 @@ pub(super) fn native(
         || first_json_object(&text).is_none()
         || round >= policy.repairs.min(5)
     {
-        invalid(out, "native", &error);
+        invalid(out, "native", &shown(&error));
         return Err(Round::Stop);
     }
     let digest = knowledge::sha256(&text);
     if talk.last_decode.as_ref() == Some(&digest) {
-        invalid(out, "native", &error);
+        invalid(out, "native", &shown(&error));
         return Err(Round::Stalled);
     }
     talk.last_decode = Some(digest);
@@ -174,7 +174,7 @@ fn read<T: Shaped>(
         }
         Err(error) => {
             talk.rounds.push(json!({"round":round,
-                "answer":format!("not a {what} answer: {error}"),
+                "answer":format!("not a {what} answer: {}", shown(&error)),
                 "failure_class":failure_class(&error),
                 "response_sha256":knowledge::sha256(&text),
                 "decode_error":{"category":format!("{:?}",error.classify()),"line":error.line(),"column":error.column()},
@@ -209,6 +209,20 @@ fn beside<T>(
         "usage_reported":response.usage_reported}));
     invalid(out, what, &format_args!("{class}: {why}"));
     Decoded::Stop
+}
+
+/// What a public record says of a decode error: a JSON syntax error as serde words it (it quotes
+/// no answer text), an answer outside its schema by class and position only — the key or value
+/// the seat wrote is never repeated. The seat's own repair still reads the whole error.
+fn shown(error: &serde_json::Error) -> String {
+    match error.classify() {
+        serde_json::error::Category::Data => format!(
+            "the answer schema, line {}, column {}",
+            error.line(),
+            error.column()
+        ),
+        _ => error.to_string(),
+    }
 }
 
 /// The class of an answer the decoder could not read: its JSON, or its answer schema.

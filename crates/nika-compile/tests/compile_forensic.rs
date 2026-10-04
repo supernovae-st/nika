@@ -178,6 +178,14 @@ fn foundry() -> AuthoringKnowledge {
     }
 }
 
+/// The attached reference as a call's journal names it when its messages carried it: by id
+/// and kind, its text by length and digest, never the text.
+fn presented() -> Value {
+    let reference = &foundry().references[0];
+    json!([{"id": reference.id, "kind": reference.kind, "bytes": reference.text.len(),
+            "sha256": sha(&reference.text)}])
+}
+
 fn route(out: &CompileOutcome) -> Vec<String> {
     out.provenance.decision.as_ref().unwrap()["route"]
         .as_array()
@@ -193,18 +201,34 @@ const HOT_INTENT: &str = "Read ./notes/brief.md, summarize it in three bullets, 
 
 // ── Witnesses of current routing at the pinned base ───────────────────────────
 
+/// Formerly `witness_foundry_escalation_requests_candidate_source_and_the_plan_never_reads_it`
+/// (an attached Foundry under `escalate` asked the model for complete source, and the plan
+/// never read the reference). Semantic CREATE asks for the private plan instead, and the plan
+/// call carries the attached reference.
 #[tokio::test]
-async fn witness_foundry_escalation_requests_candidate_source_and_the_plan_never_reads_it() {
-    let provider = Script::texts(&[native_answer()]);
+async fn witness_foundry_escalation_requests_a_plan_that_reads_the_attached_foundry() {
+    let provider = Script::texts(&[common::plan().to_string()]);
     let request = CompileRequest::create(INTENT)
         .with_authoring_policy(policy(NativeMode::Escalate, 0))
         .with_authoring_knowledge(foundry());
     let out = compile_with_provider(&request, &provider).await.unwrap();
-    // The first and only generative call asks for complete source, never for a plan.
+    // The first generative call asks for the private plan, and no call asks for source.
     assert!(provider.calls() >= 1, "{out:#?}");
-    assert_eq!(provider.schemas()[0], source_schema());
-    assert!(route(&out).contains(&"native: informed generation".to_owned()));
-    assert_eq!(out.provenance.strategy, Some(Strategy::Native));
+    assert_eq!(provider.schemas()[0], plan_schema());
+    assert!(provider.schemas().iter().all(|s| *s != source_schema()));
+    assert!(
+        route(&out).contains(&"cold: 1 sample(s)".to_owned()),
+        "{:?}",
+        route(&out)
+    );
+    assert!(!route(&out).contains(&"native: informed generation".to_owned()));
+    assert_eq!(out.provenance.strategy, Some(Strategy::Cold));
+    assert!(
+        provider.seen.lock().unwrap()[0]
+            .system
+            .contains("pattern:customer-reply"),
+        "the plan call carries the attached reference"
+    );
     // The same open request without attached knowledge opens with the plan, whose messages
     // carry only the instructions and the request: no attached reference reaches it.
     let plain = Script::texts(&[common::plan().to_string()]);
@@ -457,8 +481,11 @@ async fn fills_outside_the_declared_holes_are_refused_before_emission() {
 
 // ── The forensic record ────────────────────────────────────────────────────────
 
+/// Formerly `a_cold_repair_keeps_both_exact_proposals_and_never_presents_the_attached_foundry`:
+/// the plan door now presents the admitted Foundry on each of its calls.
 #[tokio::test]
-async fn a_cold_repair_keeps_both_exact_proposals_and_never_presents_the_attached_foundry() {
+async fn a_cold_repair_keeps_both_exact_proposals_and_presents_the_attached_foundry_on_both_calls()
+{
     // The first proposal cites evidence the request never wrote; the one repair call fixes it.
     let mut unanchored = common::plan();
     unanchored["steps"][0]["evidence"] = json!("consulte les clients fidèles");
@@ -483,7 +510,16 @@ async fn a_cold_repair_keeps_both_exact_proposals_and_never_presents_the_attache
         assert_eq!(calls[k]["proposed"]["sha256"], sha(reply), "{k}");
         let exact: Value = serde_json::from_str(reply).unwrap();
         assert_eq!(calls[k]["proposed"]["object"], exact, "{k}");
-        assert_eq!(calls[k]["references"], json!([]), "{k}");
+        // Each call names what its messages carried: the attached reference once, by digest,
+        // beside the embedded compiler context; the same on the plan and on its repair.
+        let carried = calls[k]["references"].as_array().unwrap();
+        let attached: Vec<&Value> = carried
+            .iter()
+            .filter(|r| r["id"] == "pattern:customer-reply")
+            .collect();
+        assert_eq!(json!(attached), presented(), "{k}");
+        assert!(carried.iter().all(|r| r.get("text").is_none()), "{k}");
+        assert_eq!(calls[k]["references"], calls[0]["references"], "{k}");
     }
     let summary = forensic(&out);
     assert_eq!(summary["version"], 1);
@@ -499,13 +535,18 @@ async fn a_cold_repair_keeps_both_exact_proposals_and_never_presents_the_attache
         summary["doors_tried"]["hot"]["rejected"].is_string(),
         "{summary:#}"
     );
-    // The attached reference was never carried by any call of this door.
-    assert_eq!(summary["foundry"]["prepared"], json!([]));
-    assert_eq!(summary["foundry"]["presented"], json!([]));
-    assert_eq!(
-        summary["foundry"]["attached_not_presented"],
-        json!(["pattern:customer-reply"])
-    );
+    // The attached reference was carried by both calls of this door, beside the embedded
+    // compiler context: what was prepared and presented is exactly what the calls journaled.
+    let journaled: Vec<&Value> = calls[0]["references"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| &r["id"])
+        .collect();
+    assert!(journaled.contains(&&json!("pattern:customer-reply")));
+    assert_eq!(summary["foundry"]["prepared"], json!(journaled));
+    assert_eq!(summary["foundry"]["presented"], json!(journaled));
+    assert_eq!(summary["foundry"]["attached_not_presented"], json!([]));
     assert_eq!(
         summary["intent"]["original_sha256"],
         nika_compile::intent_sha256(INTENT)
@@ -586,54 +627,71 @@ async fn failed_and_unmetered_calls_stay_in_the_journal_with_unknown_usage() {
     assert_eq!(summary["calls"]["generative"]["output_tokens"], Value::Null);
 }
 
+/// Formerly `source_direct_generation_records_what_it_was_shown_and_invents_no_plan` (the
+/// source-direct door under `escalate` with an attached Foundry). Semantic CREATE asks the plan:
+/// the record names what each plan call was shown, keeps the exact plan, and asks for no source.
 #[tokio::test]
-async fn source_direct_generation_records_what_it_was_shown_and_invents_no_plan() {
-    let provider = Script::texts(&[native_answer()]);
+async fn escalate_with_foundry_records_what_the_plan_was_shown_and_writes_no_source() {
+    let provider = Script::texts(&[common::plan().to_string()]);
     let request = CompileRequest::create(INTENT)
         .with_authoring_policy(policy(NativeMode::Escalate, 1))
         .with_authoring_knowledge(foundry());
     let out = compile_with_provider(&request, &provider).await.unwrap();
     let calls = context(&out);
     assert_eq!(calls.len(), provider.calls());
-    let sent = out.provenance.decision.as_ref().unwrap()["native"]["references"].clone();
+    // The plan call's own stamp names the reference its system message carried.
+    let sent = calls[0]["references"].clone();
     assert!(
         sent.as_array()
             .unwrap()
             .iter()
-            .any(|r| r["id"] == "pattern:customer-reply")
+            .any(|r| r["id"] == "pattern:customer-reply"),
+        "{calls:#?}"
     );
     for call in calls
         .iter()
-        .filter(|c| c["call"].as_str().unwrap().starts_with("native"))
+        .filter(|c| ["plan", "repair"].contains(&c["call"].as_str().unwrap()))
     {
-        // Each source call names the references its system message carried.
+        // Each plan call names the references its system message carried, and its exact plan.
         assert_eq!(call["references"], sent, "{call:#}");
-        assert!(
-            call.get("proposed").is_none(),
-            "no plan is read from source"
-        );
+        assert_eq!(call["proposed"]["decoded"], true, "{call:#}");
+        assert_eq!(call["proposed"]["object"], common::plan(), "{call:#}");
     }
+    assert!(
+        provider.schemas().iter().all(|s| *s != source_schema()),
+        "no source is ever asked"
+    );
     // The canary reached the seat and is digested, never copied, into the record.
     assert!(provider.seen.lock().unwrap()[0].system.contains(SECRET));
     assert!(!outcome_document(&out).to_string().contains(SECRET));
     let summary = forensic(&out);
-    assert_eq!(summary["door"]["name"], "native_source", "{summary:#}");
+    assert_eq!(summary["door"]["name"], "cold_plan", "{summary:#}");
     assert_eq!(
         summary["door"]["reason"],
-        "escalate_with_attached_foundry_references"
+        "hot_rejected_and_warm_not_settling"
     );
-    assert_eq!(summary["proposal"]["kind"], "source");
-    assert_eq!(summary["proposal"]["state"], "NOT_CAPTURED");
-    assert_eq!(summary["doors_tried"]["cold_plan"], "not_tried");
-    assert_eq!(summary["universe"]["state"], "not_applicable");
-    assert_eq!(summary["foundry"]["attached_not_presented"], json!([]));
+    assert_eq!(summary["proposal"]["kind"], "plan");
+    assert_eq!(summary["proposal"]["state"], "captured");
     assert_eq!(
-        summary["attempts"].as_array().unwrap().len(),
-        native_rounds(&out).len()
+        summary["doors_tried"]["cold_plan"],
+        json!({"called": "cold: 1 sample(s)"})
     );
+    assert_eq!(summary["universe"]["state"], "recorded");
+    assert_eq!(summary["foundry"]["attached_not_presented"], json!([]));
+    // Every attempt the record names is a native round: the plan route has none.
+    assert_eq!(summary["attempts"], json!([]), "{summary:#}");
+    assert!(native_rounds(&out).is_empty());
     let owner = summary["door"]["source_owner"].as_str().unwrap();
     let kept = out.candidate.is_some() || out.provenance.plan.is_some();
-    assert_eq!(owner, if kept { "model" } else { "none" }, "{summary:#}");
+    assert_eq!(
+        owner,
+        if kept {
+            "deterministic_assembler"
+        } else {
+            "none"
+        },
+        "{summary:#}"
+    );
 }
 
 #[tokio::test]
@@ -741,7 +799,7 @@ async fn references_are_presented_only_by_an_answered_call() {
         let out = compile_with_provider(&request, &provider).await.unwrap();
         let calls = context(&out);
         assert_eq!(calls.len(), 1, "{delivery}: {calls:#?}");
-        assert_eq!(calls[0]["call"], "native");
+        assert_eq!(calls[0]["call"], "plan");
         assert_eq!(calls[0]["response"], Value::Null);
         let summary = forensic(&out);
         let foundry = &summary["foundry"];
@@ -768,7 +826,7 @@ async fn references_are_presented_only_by_an_answered_call() {
         assert_eq!(summary["calls"]["generative"]["failed"], 1);
     }
     // An answered call is the only confirmation the references reached a model.
-    let answered = Script::texts(&[native_answer()]);
+    let answered = Script::texts(&[common::plan().to_string()]);
     let out = compile_with_provider(&request, &answered).await.unwrap();
     let summary = forensic(&out);
     assert!(
@@ -874,6 +932,157 @@ async fn keys_outside_the_closed_fill_and_sketch_shapes_are_refused_unechoed() {
     assert!(rounds[0]["diagnostics"].to_string().contains("tasks[1]"));
     assert_eq!(rounds[0]["proposed_sketch"]["withheld"], true);
     assert!(!outcome_document(&out).to_string().contains(SECRET));
+}
+
+/// A refused sketch's free text — its notes, its gaps, the keys of the questions it asked —
+/// never reaches the public document: the journal keeps them by digest and count beside the
+/// exact reply's digest, and the repair still runs within its budget.
+#[tokio::test]
+async fn a_refused_sketch_keeps_its_free_text_and_question_keys_off_the_public_document() {
+    let refused = json!({"name": "draft", "tasks": [], "questions": [{
+        "key": "const.q_echo_sentinel", "label": "QLABEL-ECHO-SENTINEL", "answer_type": "text",
+        "why": "QWHY-ECHO-SENTINEL"}], "gaps": ["GAP-ECHO-SENTINEL"], "notes": "ECHO-NOTES-SENTINEL"})
+    .to_string();
+    let replies = [
+        refused.clone(),
+        recap_sketch().to_string(),
+        json!({"fills": valid_fills(), "notes": "fills"}).to_string(),
+    ];
+    let provider = Script::texts(&replies);
+    let request =
+        CompileRequest::create(SKETCH_INTENT).with_authoring_policy(policy(NativeMode::Sketch, 1));
+    let out = compile_with_provider(&request, &provider).await.unwrap();
+    let document = outcome_document(&out).to_string();
+    for sentinel in [
+        "ECHO-NOTES-SENTINEL",
+        "GAP-ECHO-SENTINEL",
+        "q_echo_sentinel",
+        "QLABEL-ECHO-SENTINEL",
+        "QWHY-ECHO-SENTINEL",
+    ] {
+        assert!(!document.contains(sentinel), "{sentinel}: {document}");
+    }
+    let calls = context(&out);
+    assert_eq!(calls.len(), provider.calls());
+    // The seat answered every sentinel: the journal binds that exact reply by its digest.
+    assert_eq!(calls[0]["response"]["sha256"], sha(&refused));
+    assert_eq!(calls[1]["call"], "sketch-repair");
+    let rounds = native_rounds(&out);
+    assert!(!rounds[0]["diagnostics"].as_array().unwrap().is_empty());
+    let notes = &rounds[0]["notes"];
+    assert_eq!(notes["withheld"], true, "{notes}");
+    assert_eq!(notes["sha256"], sha("ECHO-NOTES-SENTINEL"));
+    assert_eq!(notes["bytes"], "ECHO-NOTES-SENTINEL".len());
+    // A refused round's gaps and question keys: by digest, with how many the seat gave.
+    let listed = |field: &str, values: Value| {
+        let kept = &rounds[0][field];
+        assert_eq!(kept["withheld"], true, "{field}: {kept}");
+        assert_eq!(kept["sha256"], sha(&values.to_string()), "{field}");
+        assert_eq!(
+            kept["shape"],
+            json!({"type": "array", "items": 1}),
+            "{field}"
+        );
+    };
+    listed("gaps", json!(["GAP-ECHO-SENTINEL"]));
+    listed("questions", json!(["const.q_echo_sentinel"]));
+}
+
+/// An answer outside the sketch's closed shape — a key it does not know, a value of another
+/// type — is refused by its class and position: the key and the value the seat wrote never
+/// reach the public document, the reply stays bound by digest, and no call is added.
+#[tokio::test]
+async fn an_answer_outside_the_sketch_schema_is_refused_by_class_and_position_unechoed() {
+    for (reply, sentinel) in [
+        (
+            json!({"echo_unknown_key_canary": 1}).to_string(),
+            "echo_unknown_key_canary",
+        ),
+        (
+            json!({"name": "d", "tasks": "ECHO-VALUE-SENTINEL"}).to_string(),
+            "ECHO-VALUE-SENTINEL",
+        ),
+    ] {
+        let provider = Script::texts(std::slice::from_ref(&reply));
+        let request = CompileRequest::create(SKETCH_INTENT)
+            .with_authoring_policy(policy(NativeMode::Sketch, 1));
+        let out = compile_with_provider(&request, &provider).await.unwrap();
+        let document = outcome_document(&out).to_string();
+        assert!(!document.contains(sentinel), "{sentinel}: {document}");
+        assert_eq!(provider.calls(), 1, "{reply}");
+        assert_eq!(context(&out)[0]["response"]["sha256"], sha(&reply));
+        let round = &native_rounds(&out)[0];
+        assert_eq!(round["failure_class"], "ANSWER_SCHEMA", "{round}");
+        assert_eq!(round["response_sha256"], sha(&reply));
+        assert_eq!(round["decode_error"]["category"], "Data");
+        assert_eq!(round["decode_error"]["line"], 1);
+        let column = round["decode_error"]["column"].as_u64().unwrap();
+        let reason = format!("the answer schema, line 1, column {column}");
+        assert_eq!(
+            round["answer"],
+            format!("not a sketch answer: {reason}"),
+            "{round}"
+        );
+        let said = out
+            .diagnostics
+            .iter()
+            .find(|d| d.target == "authoring_native" && d.message.contains("not a sketch answer ("))
+            .expect("the refusal is stated");
+        assert!(said.message.contains(&reason), "{}", said.message);
+    }
+}
+
+/// What the laws admit stays public: an accepted sketch's typed question reaches the outcome and
+/// its round by key, a refused sketch keeps its fixed law diagnostic, and the journal still binds
+/// every reply by digest with the provider's own count.
+#[tokio::test]
+async fn a_typed_question_and_a_fixed_law_diagnostic_stay_public() {
+    let mut asking = recap_sketch();
+    asking["questions"] = json!([{"key": "const.audience", "label": "Pour quel public ?",
+        "answer_type": "text", "why": "La demande ne le dit pas."}]);
+    let mut fills = valid_fills();
+    fills[1]["value"] = json!(
+        "Résume ces tickets pour ${{ const.audience }} sans rien inventer: ${{ with.tickets }}"
+    );
+    let replies = [
+        asking.to_string(),
+        json!({"fills": fills, "notes": "fills"}).to_string(),
+    ];
+    let provider = Script::texts(&replies);
+    let request =
+        CompileRequest::create(SKETCH_INTENT).with_authoring_policy(policy(NativeMode::Sketch, 0));
+    let out = compile_with_provider(&request, &provider).await.unwrap();
+    let asked: Vec<&str> = out.questions.iter().map(|q| q.key.as_str()).collect();
+    assert!(asked.contains(&"const.audience"), "{out:#?}");
+    let rounds = native_rounds(&out);
+    assert_eq!(
+        rounds[0]["questions"],
+        json!(["const.audience"]),
+        "{:#}",
+        rounds[0]
+    );
+    let calls = context(&out);
+    let receipt = out.provenance.authoring.as_ref().unwrap();
+    assert_eq!(receipt.calls as usize, provider.calls());
+    for (call, reply) in calls.iter().zip(&replies) {
+        assert_eq!(call["response"]["sha256"], sha(reply));
+        assert_eq!(call["response"]["bytes"], reply.len());
+    }
+    // A refused sketch keeps the law's own words: the path it reads is named as unstated.
+    let mut unstated = recap_sketch();
+    unstated["tasks"][0]["reads"] = json!(["./data/tickets.json"]);
+    let provider = Script::texts(&[unstated.to_string()]);
+    let request =
+        CompileRequest::create(SKETCH_INTENT).with_authoring_policy(policy(NativeMode::Sketch, 0));
+    let out = compile_with_provider(&request, &provider).await.unwrap();
+    let rounds = native_rounds(&out);
+    assert!(
+        rounds[0]["diagnostics"]
+            .to_string()
+            .contains("./data/tickets.json`, which the request never states"),
+        "{:#}",
+        rounds[0]
+    );
 }
 
 // ── A plan composition handed to the sketch door is named as such; its early stops stay none ──

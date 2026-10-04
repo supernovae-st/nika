@@ -343,7 +343,7 @@ fn refused_round(
         "phase": "fill",
         "fills": filling.fills.len(),
         "proposed_fills": proposed_fills(sketch, &filling.fills, false),
-        "notes": filling.notes,
+        "notes": super::receipt::withheld(&filling.notes, &[], "fill notes"),
         "diagnostics": diagnostics_record(diagnostics),
     })
 }
@@ -440,6 +440,43 @@ fn repair(talk: &mut Talk, text: String, diagnostics: Vec<Diagnostic>, tail: &st
     true
 }
 
+/// One sketch round as the journal keeps it. The graph the laws accepted, as parsed; a refused
+/// one by digest, shape and reason. The seat's free text stays out of the record: its notes by
+/// digest on every round, and a refused round's question keys and gaps too (an accepted round's
+/// passed the laws).
+fn sketch_round(
+    round: u32,
+    record: &Value,
+    parsed: Option<&Sketch>,
+    answer: &SketchAnswer,
+    diagnostics: &[Diagnostic],
+) -> Value {
+    let proposed = match parsed {
+        Some(sketch) if diagnostics.is_empty() => consumed_sketch(sketch, record),
+        _ => super::receipt::withheld(&record.to_string(), &["name", "tasks"], "refused sketch"),
+    };
+    let refused = parsed.is_none() || !diagnostics.is_empty();
+    let listed = |values: Value, what: &str| {
+        if refused {
+            super::receipt::withheld(&values.to_string(), &[], what)
+        } else {
+            values
+        }
+    };
+    let keys: Vec<&str> = answer.questions.iter().map(|q| q.key.as_str()).collect();
+    json!({
+        "round": round,
+        "phase": "sketch",
+        "sketch_sha256": super::knowledge::sha256(&record.to_string()),
+        "proposed_sketch": proposed,
+        "tasks": parsed.map_or(0, |s| s.tasks.len()),
+        "questions": listed(json!(keys), "refused sketch question keys"),
+        "gaps": listed(json!(answer.gaps), "refused sketch gaps"),
+        "notes": super::receipt::withheld(&answer.notes, &[], "sketch notes"),
+        "diagnostics": diagnostics_record(diagnostics),
+    })
+}
+
 /// Phase 1 · the sketch, judged structurally, repaired within the budget. Returns the rounds
 /// spent and the accepted sketch with the answer that carried it.
 async fn propose<P: ProviderInferDyn>(
@@ -504,24 +541,13 @@ async fn propose<P: ProviderInferDyn>(
                 None,
             ),
         };
-        // The graph the laws accepted, as parsed; a refused one by digest, shape and reason.
-        let proposed = match &parsed {
-            Some(sketch) if diagnostics.is_empty() => consumed_sketch(sketch, &record),
-            _ => {
-                super::receipt::withheld(&record.to_string(), &["name", "tasks"], "refused sketch")
-            }
-        };
-        talk.rounds.push(json!({
-            "round": round,
-            "phase": "sketch",
-            "sketch_sha256": super::knowledge::sha256(&record.to_string()),
-            "proposed_sketch": proposed,
-            "tasks": parsed.as_ref().map_or(0, |s| s.tasks.len()),
-            "questions": answer.questions.iter().map(|q| q.key.clone()).collect::<Vec<_>>(),
-            "gaps": answer.gaps.clone(),
-            "notes": answer.notes.clone(),
-            "diagnostics": diagnostics_record(&diagnostics),
-        }));
+        talk.rounds.push(sketch_round(
+            round,
+            &record,
+            parsed.as_ref(),
+            &answer,
+            &diagnostics,
+        ));
         round += 1;
         if let Some(parsed) = parsed
             && diagnostics.is_empty()
@@ -625,7 +651,7 @@ async fn fill<P: ProviderInferDyn>(
             "candidate_sha256": super::knowledge::sha256(&candidate),
             "fills": fills.len(),
             "proposed_fills": proposed_fills(sketch, &filling.fills, true),
-            "notes": filling.notes.clone(),
+            "notes": super::receipt::withheld(&filling.notes, &[], "fill notes"),
             "diagnostics": diagnostics_record(&diagnostics),
         }));
         round += 1;

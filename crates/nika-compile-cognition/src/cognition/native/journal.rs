@@ -25,15 +25,22 @@ pub(super) fn cold_report(out: &CompileOutcome) -> Value {
 }
 
 /// One judged round: the candidate by digest and in full, what the seat asked and left out, the
-/// judge's diagnostics, and both texts of a dual answer apart from the judged source.
+/// judge's diagnostics, and both texts of a dual answer apart from the judged source. The seat's
+/// notes are kept by digest, and so are a refused round's gaps (an accepted round's are its own).
 pub(super) fn judged(round: u32, answer: &Answer, diagnostics: &[Diagnostic]) -> Value {
+    let withheld = crate::cognition::receipt::withheld;
+    let gaps = json!(answer.gaps);
     let mut entry = json!({
         "round": round,
         "candidate_sha256": knowledge::sha256(&answer.candidate),
         "candidate": answer.candidate,
         "questions": answer.questions.iter().map(|q| q.key.clone()).collect::<Vec<_>>(),
-        "gaps": answer.gaps.clone(),
-        "notes": answer.notes.clone(),
+        "gaps": if diagnostics.is_empty() {
+            gaps
+        } else {
+            withheld(&gaps.to_string(), &[], "refused native gaps")
+        },
+        "notes": withheld(&answer.notes, &[], "native notes"),
         "diagnostics": diagnostics.iter().map(|d| json!({"kind": d.kind, "message": d.message})).collect::<Vec<_>>(),
     });
     if let Some(dual) = &answer.dual {
