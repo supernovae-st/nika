@@ -21,9 +21,9 @@
 
 use super::bindings::{self, Bindings, Need, RuleBinding, Source};
 use super::laws::{
-    FOLD_DOCUMENTS, FOLD_DRAFTS, FOLD_FIELDS, INFER_TIMEOUT, LINES, SELECT_BY_FIELD, SELECT_BY_KEY,
-    SOURCE_COLUMNS, SOURCE_COLUMNS_UNION, SUMMARY, ZIP, anchor_law, bullet_layout, category_schema,
-    draft_law, draft_schema, extract_schema, guarded_lookup, guarded_parse, per_item_extract_law,
+    FOLD_DRAFTS, FOLD_FIELDS, INFER_TIMEOUT, LINES, SELECT_BY_FIELD, SELECT_BY_KEY, SOURCE_COLUMNS,
+    SOURCE_COLUMNS_UNION, SUMMARY, ZIP, anchor_law, bullet_layout, category_schema, draft_law,
+    draft_schema, extract_schema, guarded_lookup, guarded_parse, per_item_extract_law,
     per_item_law, per_item_translation_law, translation, translation_law, with_decimal,
 };
 use super::ledger::{DutyKind, Judgment, Ledger};
@@ -855,6 +855,14 @@ fn emit_fan_out(d: &mut Doc, plan: &Plan, b: &Bindings, source: &Source) {
         return;
     }
     let input = json!({"texts": "${{ with.texts }}", "paths": paths_ref});
+    // Whether a step reads the whole corpus rather than one item at a time.
+    let corpus_read = plan.steps.iter().any(|s| match s.op {
+        Op::Draft => !b.draft_per_item(),
+        Op::Extract => !b.extract_per_item(),
+        Op::Classify | Op::Validate | Op::Explore | Op::Compute => true,
+        // A retrieval (read · fetch · lookup · search) reads no corpus.
+        _ => false,
+    });
     if !b.per_item.is_empty() {
         let zip = if b.draft_per_item() {
             "draft_items"
@@ -869,27 +877,12 @@ fn emit_fan_out(d: &mut Doc, plan: &Plan, b: &Bindings, source: &Source) {
             false,
         );
         d.items = Some(zip.to_owned());
-        // The folded document exists only when a step reads the whole corpus rather
-        // than one item at a time.
-        let corpus_read = plan.steps.iter().any(|s| match s.op {
-            Op::Draft => !b.draft_per_item(),
-            Op::Extract => !b.extract_per_item(),
-            Op::Classify | Op::Validate | Op::Explore | Op::Compute => true,
-            // A retrieval (read · fetch · lookup · search) reads no corpus.
-            _ => false,
-        });
+        // Per item, the folded document exists only when a step reads the whole corpus.
         if !corpus_read {
             return;
         }
     }
-    d.tool(
-        "documents",
-        "nika:jq",
-        json!({"input": input, "expression": FOLD_DOCUMENTS}),
-        Some(fold_with),
-        false,
-    );
-    d.fact("document", "${{ tasks.documents.output }}", Kind::Corpus);
+    read::emit_fold(d, corpus_read, input, fold_with);
 }
 
 /// The pattern a search runs: the answered search text (`const.search_term`) when the

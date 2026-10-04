@@ -117,6 +117,10 @@ pub(super) const ZIP: &str =
 /// The fold of a fan-out: one document with a heading per file, in item order.
 pub(super) const FOLD_DOCUMENTS: &str = ". as $r | [range(0; $r.texts | length) as $i | \"## \\($r.paths[$i])\\n\\n\\($r.texts[$i])\"] | join(\"\\n\\n\")";
 
+/// The fold of a fan-out no step reads: the sources' own bytes one after the other, in item
+/// order, nothing added between or around them.
+pub(super) const FOLD_TEXTS: &str = ".texts | join(\"\")";
+
 /// The deterministic count and totals of a computed result: `{count, totals}` where the
 /// totals sum every numeric column of an array of objects (identifier columns excluded),
 /// rounded to two decimals. A language step that must state how many rows were kept and
