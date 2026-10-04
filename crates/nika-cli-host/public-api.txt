@@ -468,6 +468,68 @@ impl<T> typenum::type_operators::Same for nika_cli_host::compile::typesafe::Type
 pub type nika_cli_host::compile::typesafe::TypesafeSeat::Output = T
 pub const nika_cli_host::compile::typesafe::TIMEOUT: core::time::Duration
 pub type nika_cli_host::compile::typesafe::ExchangeFuture<'a> = core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<nika_cli_host::compile::typesafe::Exchange, nika_cli_host::compile::typesafe::ExchangeError>> + core::marker::Send + 'a)>>
+#[non_exhaustive] pub enum nika_cli_host::compile::CaptureState
+pub nika_cli_host::compile::CaptureState::Armed
+pub nika_cli_host::compile::CaptureState::Off
+pub nika_cli_host::compile::CaptureState::Open
+pub nika_cli_host::compile::CaptureState::Saved
+pub nika_cli_host::compile::CaptureState::Unavailable
+pub nika_cli_host::compile::CaptureState::Withheld
+pub nika_cli_host::compile::CaptureState::WriteFailed
+impl core::clone::Clone for nika_cli_host::compile::CaptureState
+pub fn nika_cli_host::compile::CaptureState::clone(&self) -> nika_cli_host::compile::CaptureState
+impl core::cmp::Eq for nika_cli_host::compile::CaptureState
+impl core::cmp::PartialEq for nika_cli_host::compile::CaptureState
+pub fn nika_cli_host::compile::CaptureState::eq(&self, other: &nika_cli_host::compile::CaptureState) -> bool
+impl core::default::Default for nika_cli_host::compile::CaptureState
+pub fn nika_cli_host::compile::CaptureState::default() -> nika_cli_host::compile::CaptureState
+impl core::fmt::Debug for nika_cli_host::compile::CaptureState
+pub fn nika_cli_host::compile::CaptureState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli_host::compile::CaptureState
+impl core::marker::StructuralPartialEq for nika_cli_host::compile::CaptureState
+impl<D> owo_colors::OwoColorize for nika_cli_host::compile::CaptureState
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::compile::CaptureState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureState::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::compile::CaptureState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureState::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::compile::CaptureState where U: core::convert::From<T>
+pub fn nika_cli_host::compile::CaptureState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::compile::CaptureState where U: core::convert::Into<T>
+pub type nika_cli_host::compile::CaptureState::Error = core::convert::Infallible
+pub fn nika_cli_host::compile::CaptureState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::compile::CaptureState where U: core::convert::TryFrom<T>
+pub type nika_cli_host::compile::CaptureState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::compile::CaptureState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::compile::CaptureState where T: core::clone::Clone
+pub type nika_cli_host::compile::CaptureState::Owned = T
+pub fn nika_cli_host::compile::CaptureState::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::compile::CaptureState::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::compile::CaptureState where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::compile::CaptureState where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::compile::CaptureState where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureState::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::compile::CaptureState where T: core::clone::Clone
+pub unsafe fn nika_cli_host::compile::CaptureState::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::compile::CaptureState
+pub fn nika_cli_host::compile::CaptureState::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::compile::CaptureState where T: core::clone::Clone
+pub fn nika_cli_host::compile::CaptureState::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::compile::CaptureState where T: 'static
+pub fn nika_cli_host::compile::CaptureState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli_host::compile::CaptureState where T: core::marker::Copy
+pub fn nika_cli_host::compile::CaptureState::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::compile::CaptureState where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureState::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::compile::CaptureState::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::compile::CaptureState
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::compile::CaptureState
+impl<T> typenum::type_operators::Same for nika_cli_host::compile::CaptureState
+pub type nika_cli_host::compile::CaptureState::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli_host::compile::CaptureState where T: core::default::Default
+pub type nika_cli_host::compile::CaptureState::NoneType = T
+pub fn nika_cli_host::compile::CaptureState::null_value() -> T
 #[non_exhaustive] pub struct nika_cli_host::compile::AuthoringAuthority
 pub nika_cli_host::compile::AuthoringAuthority::authoring_max_calls: core::option::Option<u32>
 impl nika_cli_host::compile::AuthoringAuthority
@@ -525,6 +587,277 @@ pub type nika_cli_host::compile::AuthoringAuthority::Output = T
 impl<T> zvariant::optional::NoneValue for nika_cli_host::compile::AuthoringAuthority where T: core::default::Default
 pub type nika_cli_host::compile::AuthoringAuthority::NoneType = T
 pub fn nika_cli_host::compile::AuthoringAuthority::null_value() -> T
+pub struct nika_cli_host::compile::Capture(_)
+impl nika_cli_host::compile::Capture
+pub fn nika_cli_host::compile::Capture::finish(&self, outcome: core::option::Option<&nika_compile::types::CompileOutcome>)
+pub fn nika_cli_host::compile::Capture::sink(&self) -> nika_compile_cognition::cognition::receipt::observe::Sink
+pub fn nika_cli_host::compile::Capture::start(directory: core::option::Option<&nika_fs::owned_dir::OwnedDir>, policy: nika_cli_host::compile::CapturePolicy, report: nika_cli_host::compile::CaptureReport, requested_model: core::option::Option<&str>, max_tokens: u32, timeout_ms: u64) -> Self
+impl nika_cli_host::compile::Capture
+pub async fn nika_cli_host::compile::Capture::observe<F: core::future::future::Future>(capture: core::option::Option<&Self>, work: F) -> <F as core::future::future::Future>::Output
+impl core::ops::drop::Drop for nika_cli_host::compile::Capture
+pub fn nika_cli_host::compile::Capture::drop(&mut self)
+impl<D> owo_colors::OwoColorize for nika_cli_host::compile::Capture
+impl<T, U> core::convert::Into<U> for nika_cli_host::compile::Capture where U: core::convert::From<T>
+pub fn nika_cli_host::compile::Capture::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::compile::Capture where U: core::convert::Into<T>
+pub type nika_cli_host::compile::Capture::Error = core::convert::Infallible
+pub fn nika_cli_host::compile::Capture::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::compile::Capture where U: core::convert::TryFrom<T>
+pub type nika_cli_host::compile::Capture::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::compile::Capture::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli_host::compile::Capture where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::compile::Capture::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::compile::Capture where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::Capture::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::compile::Capture where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::Capture::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli_host::compile::Capture
+pub fn nika_cli_host::compile::Capture::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli_host::compile::Capture where T: 'static
+pub fn nika_cli_host::compile::Capture::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::compile::Capture where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::Capture::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::compile::Capture::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::compile::Capture
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::compile::Capture
+impl<T> typenum::type_operators::Same for nika_cli_host::compile::Capture
+pub type nika_cli_host::compile::Capture::Output = T
+pub struct nika_cli_host::compile::CaptureContext
+impl nika_cli_host::compile::CaptureContext
+pub fn nika_cli_host::compile::CaptureContext::directory(root: &nika_fs::owned_dir::OwnedDir, components: &[&str]) -> core::option::Option<nika_fs::owned_dir::OwnedDir>
+pub fn nika_cli_host::compile::CaptureContext::fresh(&self) -> Self
+pub fn nika_cli_host::compile::CaptureContext::new(directory: core::option::Option<nika_fs::owned_dir::OwnedDir>, policy: nika_cli_host::compile::CapturePolicy, report: nika_cli_host::compile::CaptureReport) -> Self
+pub fn nika_cli_host::compile::CaptureContext::start(&self, request: &nika_compile::types::CompileRequest) -> core::option::Option<nika_cli_host::compile::Capture>
+pub fn nika_cli_host::compile::CaptureContext::with_withheld(self, value: &str) -> Self
+impl core::clone::Clone for nika_cli_host::compile::CaptureContext
+pub fn nika_cli_host::compile::CaptureContext::clone(&self) -> nika_cli_host::compile::CaptureContext
+impl<D> owo_colors::OwoColorize for nika_cli_host::compile::CaptureContext
+impl<T, U> core::convert::Into<U> for nika_cli_host::compile::CaptureContext where U: core::convert::From<T>
+pub fn nika_cli_host::compile::CaptureContext::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::compile::CaptureContext where U: core::convert::Into<T>
+pub type nika_cli_host::compile::CaptureContext::Error = core::convert::Infallible
+pub fn nika_cli_host::compile::CaptureContext::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::compile::CaptureContext where U: core::convert::TryFrom<T>
+pub type nika_cli_host::compile::CaptureContext::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::compile::CaptureContext::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::compile::CaptureContext where T: core::clone::Clone
+pub type nika_cli_host::compile::CaptureContext::Owned = T
+pub fn nika_cli_host::compile::CaptureContext::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::compile::CaptureContext::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::compile::CaptureContext where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureContext::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::compile::CaptureContext where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureContext::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::compile::CaptureContext where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureContext::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::compile::CaptureContext where T: core::clone::Clone
+pub unsafe fn nika_cli_host::compile::CaptureContext::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::compile::CaptureContext
+pub fn nika_cli_host::compile::CaptureContext::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::compile::CaptureContext where T: core::clone::Clone
+pub fn nika_cli_host::compile::CaptureContext::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::compile::CaptureContext where T: 'static
+pub fn nika_cli_host::compile::CaptureContext::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::compile::CaptureContext where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureContext::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::compile::CaptureContext::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::compile::CaptureContext
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::compile::CaptureContext
+impl<T> typenum::type_operators::Same for nika_cli_host::compile::CaptureContext
+pub type nika_cli_host::compile::CaptureContext::Output = T
+#[non_exhaustive] pub struct nika_cli_host::compile::CaptureFlags
+pub nika_cli_host::compile::CaptureFlags::enabled: bool
+impl nika_cli_host::compile::CaptureFlags
+pub const fn nika_cli_host::compile::CaptureFlags::new() -> Self
+pub fn nika_cli_host::compile::CaptureFlags::status(&self) -> nika_cli_host::compile::CaptureStatus
+impl clap_builder::derive::Args for nika_cli_host::compile::CaptureFlags
+pub fn nika_cli_host::compile::CaptureFlags::augment_args<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli_host::compile::CaptureFlags::augment_args_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli_host::compile::CaptureFlags::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for nika_cli_host::compile::CaptureFlags
+pub fn nika_cli_host::compile::CaptureFlags::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli_host::compile::CaptureFlags::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli_host::compile::CaptureFlags::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_cli_host::compile::CaptureFlags::update_from_arg_matches_mut(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::default::Default for nika_cli_host::compile::CaptureFlags
+pub fn nika_cli_host::compile::CaptureFlags::default() -> nika_cli_host::compile::CaptureFlags
+impl core::fmt::Debug for nika_cli_host::compile::CaptureFlags
+pub fn nika_cli_host::compile::CaptureFlags::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_cli_host::compile::CaptureFlags
+impl<T, U> core::convert::Into<U> for nika_cli_host::compile::CaptureFlags where U: core::convert::From<T>
+pub fn nika_cli_host::compile::CaptureFlags::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::compile::CaptureFlags where U: core::convert::Into<T>
+pub type nika_cli_host::compile::CaptureFlags::Error = core::convert::Infallible
+pub fn nika_cli_host::compile::CaptureFlags::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::compile::CaptureFlags where U: core::convert::TryFrom<T>
+pub type nika_cli_host::compile::CaptureFlags::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::compile::CaptureFlags::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli_host::compile::CaptureFlags where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureFlags::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::compile::CaptureFlags where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureFlags::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::compile::CaptureFlags where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureFlags::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli_host::compile::CaptureFlags
+pub fn nika_cli_host::compile::CaptureFlags::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli_host::compile::CaptureFlags where T: 'static
+pub fn nika_cli_host::compile::CaptureFlags::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::compile::CaptureFlags where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureFlags::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::compile::CaptureFlags::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::compile::CaptureFlags
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::compile::CaptureFlags
+impl<T> typenum::type_operators::Same for nika_cli_host::compile::CaptureFlags
+pub type nika_cli_host::compile::CaptureFlags::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli_host::compile::CaptureFlags where T: core::default::Default
+pub type nika_cli_host::compile::CaptureFlags::NoneType = T
+pub fn nika_cli_host::compile::CaptureFlags::null_value() -> T
+pub struct nika_cli_host::compile::CapturePolicy
+impl nika_cli_host::compile::CapturePolicy
+pub fn nika_cli_host::compile::CapturePolicy::admitted(values: alloc::vec::Vec<alloc::string::String>, context: nika_cli_host::compile::TextAdmission) -> Self
+pub fn nika_cli_host::compile::CapturePolicy::with_withheld(self, value: &str) -> Self
+impl core::clone::Clone for nika_cli_host::compile::CapturePolicy
+pub fn nika_cli_host::compile::CapturePolicy::clone(&self) -> nika_cli_host::compile::CapturePolicy
+impl<D> owo_colors::OwoColorize for nika_cli_host::compile::CapturePolicy
+impl<T, U> core::convert::Into<U> for nika_cli_host::compile::CapturePolicy where U: core::convert::From<T>
+pub fn nika_cli_host::compile::CapturePolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::compile::CapturePolicy where U: core::convert::Into<T>
+pub type nika_cli_host::compile::CapturePolicy::Error = core::convert::Infallible
+pub fn nika_cli_host::compile::CapturePolicy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::compile::CapturePolicy where U: core::convert::TryFrom<T>
+pub type nika_cli_host::compile::CapturePolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::compile::CapturePolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::compile::CapturePolicy where T: core::clone::Clone
+pub type nika_cli_host::compile::CapturePolicy::Owned = T
+pub fn nika_cli_host::compile::CapturePolicy::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::compile::CapturePolicy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::compile::CapturePolicy where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::compile::CapturePolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::compile::CapturePolicy where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CapturePolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::compile::CapturePolicy where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CapturePolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::compile::CapturePolicy where T: core::clone::Clone
+pub unsafe fn nika_cli_host::compile::CapturePolicy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::compile::CapturePolicy
+pub fn nika_cli_host::compile::CapturePolicy::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::compile::CapturePolicy where T: core::clone::Clone
+pub fn nika_cli_host::compile::CapturePolicy::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::compile::CapturePolicy where T: 'static
+pub fn nika_cli_host::compile::CapturePolicy::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::compile::CapturePolicy where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CapturePolicy::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::compile::CapturePolicy::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::compile::CapturePolicy
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::compile::CapturePolicy
+impl<T> typenum::type_operators::Same for nika_cli_host::compile::CapturePolicy
+pub type nika_cli_host::compile::CapturePolicy::Output = T
+pub struct nika_cli_host::compile::CaptureReport
+impl nika_cli_host::compile::CaptureReport
+pub fn nika_cli_host::compile::CaptureReport::status(&self) -> nika_cli_host::compile::CaptureStatus
+pub fn nika_cli_host::compile::CaptureReport::with_listener(listener: nika_cli_host::compile::CaptureListener) -> Self
+impl core::clone::Clone for nika_cli_host::compile::CaptureReport
+pub fn nika_cli_host::compile::CaptureReport::clone(&self) -> nika_cli_host::compile::CaptureReport
+impl core::default::Default for nika_cli_host::compile::CaptureReport
+pub fn nika_cli_host::compile::CaptureReport::default() -> nika_cli_host::compile::CaptureReport
+impl core::fmt::Debug for nika_cli_host::compile::CaptureReport
+pub fn nika_cli_host::compile::CaptureReport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_cli_host::compile::CaptureReport
+impl<T, U> core::convert::Into<U> for nika_cli_host::compile::CaptureReport where U: core::convert::From<T>
+pub fn nika_cli_host::compile::CaptureReport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::compile::CaptureReport where U: core::convert::Into<T>
+pub type nika_cli_host::compile::CaptureReport::Error = core::convert::Infallible
+pub fn nika_cli_host::compile::CaptureReport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::compile::CaptureReport where U: core::convert::TryFrom<T>
+pub type nika_cli_host::compile::CaptureReport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::compile::CaptureReport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::compile::CaptureReport where T: core::clone::Clone
+pub type nika_cli_host::compile::CaptureReport::Owned = T
+pub fn nika_cli_host::compile::CaptureReport::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::compile::CaptureReport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::compile::CaptureReport where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureReport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::compile::CaptureReport where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureReport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::compile::CaptureReport where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureReport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::compile::CaptureReport where T: core::clone::Clone
+pub unsafe fn nika_cli_host::compile::CaptureReport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::compile::CaptureReport
+pub fn nika_cli_host::compile::CaptureReport::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::compile::CaptureReport where T: core::clone::Clone
+pub fn nika_cli_host::compile::CaptureReport::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::compile::CaptureReport where T: 'static
+pub fn nika_cli_host::compile::CaptureReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::compile::CaptureReport where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureReport::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::compile::CaptureReport::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::compile::CaptureReport
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::compile::CaptureReport
+impl<T> typenum::type_operators::Same for nika_cli_host::compile::CaptureReport
+pub type nika_cli_host::compile::CaptureReport::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli_host::compile::CaptureReport where T: core::default::Default
+pub type nika_cli_host::compile::CaptureReport::NoneType = T
+pub fn nika_cli_host::compile::CaptureReport::null_value() -> T
+#[non_exhaustive] pub struct nika_cli_host::compile::CaptureStatus
+pub nika_cli_host::compile::CaptureStatus::close_saved: bool
+pub nika_cli_host::compile::CaptureStatus::finished: bool
+pub nika_cli_host::compile::CaptureStatus::identity: core::option::Option<[u64; 2]>
+pub nika_cli_host::compile::CaptureStatus::omitted: u64
+pub nika_cli_host::compile::CaptureStatus::outcome_metadata_saved: u64
+pub nika_cli_host::compile::CaptureStatus::outcome_returned: bool
+pub nika_cli_host::compile::CaptureStatus::received: u64
+pub nika_cli_host::compile::CaptureStatus::saved: u64
+pub nika_cli_host::compile::CaptureStatus::state: nika_cli_host::compile::CaptureState
+pub nika_cli_host::compile::CaptureStatus::withheld: u64
+impl nika_cli_host::compile::CaptureStatus
+pub fn nika_cli_host::compile::CaptureStatus::summary(&self) -> alloc::string::String
+impl core::clone::Clone for nika_cli_host::compile::CaptureStatus
+pub fn nika_cli_host::compile::CaptureStatus::clone(&self) -> nika_cli_host::compile::CaptureStatus
+impl core::default::Default for nika_cli_host::compile::CaptureStatus
+pub fn nika_cli_host::compile::CaptureStatus::default() -> nika_cli_host::compile::CaptureStatus
+impl core::fmt::Debug for nika_cli_host::compile::CaptureStatus
+pub fn nika_cli_host::compile::CaptureStatus::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli_host::compile::CaptureStatus
+impl<D> owo_colors::OwoColorize for nika_cli_host::compile::CaptureStatus
+impl<T, U> core::convert::Into<U> for nika_cli_host::compile::CaptureStatus where U: core::convert::From<T>
+pub fn nika_cli_host::compile::CaptureStatus::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::compile::CaptureStatus where U: core::convert::Into<T>
+pub type nika_cli_host::compile::CaptureStatus::Error = core::convert::Infallible
+pub fn nika_cli_host::compile::CaptureStatus::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::compile::CaptureStatus where U: core::convert::TryFrom<T>
+pub type nika_cli_host::compile::CaptureStatus::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::compile::CaptureStatus::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::compile::CaptureStatus where T: core::clone::Clone
+pub type nika_cli_host::compile::CaptureStatus::Owned = T
+pub fn nika_cli_host::compile::CaptureStatus::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::compile::CaptureStatus::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::compile::CaptureStatus where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureStatus::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::compile::CaptureStatus where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureStatus::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::compile::CaptureStatus where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureStatus::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::compile::CaptureStatus where T: core::clone::Clone
+pub unsafe fn nika_cli_host::compile::CaptureStatus::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::compile::CaptureStatus
+pub fn nika_cli_host::compile::CaptureStatus::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::compile::CaptureStatus where T: core::clone::Clone
+pub fn nika_cli_host::compile::CaptureStatus::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::compile::CaptureStatus where T: 'static
+pub fn nika_cli_host::compile::CaptureStatus::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli_host::compile::CaptureStatus where T: core::marker::Copy
+pub fn nika_cli_host::compile::CaptureStatus::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::compile::CaptureStatus where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::CaptureStatus::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::compile::CaptureStatus::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::compile::CaptureStatus
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::compile::CaptureStatus
+impl<T> typenum::type_operators::Same for nika_cli_host::compile::CaptureStatus
+pub type nika_cli_host::compile::CaptureStatus::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli_host::compile::CaptureStatus where T: core::default::Default
+pub type nika_cli_host::compile::CaptureStatus::NoneType = T
+pub fn nika_cli_host::compile::CaptureStatus::null_value() -> T
 pub struct nika_cli_host::compile::CompileArgs
 pub nika_cli_host::compile::CompileArgs::answers: alloc::vec::Vec<alloc::string::String>
 pub nika_cli_host::compile::CompileArgs::authoring_max_tokens: core::option::Option<u32>
@@ -589,6 +922,7 @@ pub type nika_cli_host::compile::CompileArgs::Output = T
 #[non_exhaustive] pub struct nika_cli_host::compile::CompileCommand
 pub nika_cli_host::compile::CompileCommand::args: nika_cli_host::compile::CompileArgs
 pub nika_cli_host::compile::CompileCommand::authority: nika_cli_host::compile::AuthoringAuthority
+pub nika_cli_host::compile::CompileCommand::capture: nika_cli_host::compile::CaptureFlags
 impl nika_cli_host::compile::CompileCommand
 pub const fn nika_cli_host::compile::CompileCommand::new(args: nika_cli_host::compile::CompileArgs, authority: nika_cli_host::compile::AuthoringAuthority) -> Self
 pub fn nika_cli_host::compile::CompileCommand::run(&self) -> nika_cli_host::output::VerbOutput
@@ -694,122 +1028,18 @@ pub fn nika_cli_host::serve_args::NativeAuthoringArgs::null_value() -> T
 pub fn nika_cli_host::compile::authoring_http() -> core::result::Result<impl nika_kernel_core::io::http::HttpPostDyn, nika_kernel_core::io::http::HttpError>
 pub fn nika_cli_host::compile::run(args: &nika_cli_host::compile::CompileArgs) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli_host::compile::run_with(args: &nika_cli_host::compile::CompileArgs, authority: &nika_cli_host::compile::AuthoringAuthority) -> nika_cli_host::output::VerbOutput
+pub type nika_cli_host::compile::CaptureListener = alloc::sync::Arc<(dyn core::ops::function::Fn(nika_cli_host::compile::CaptureStatus) + core::marker::Send + core::marker::Sync)>
+pub type nika_cli_host::compile::TextAdmission = alloc::sync::Arc<(dyn core::ops::function::Fn(&str) -> bool + core::marker::Send + core::marker::Sync)>
 pub mod nika_cli_host::doctor
-pub enum nika_cli_host::doctor::Level
-pub nika_cli_host::doctor::Level::Fail
-pub nika_cli_host::doctor::Level::Ok
-pub nika_cli_host::doctor::Level::Warn
-impl core::clone::Clone for nika_cli_host::doctor::Level
-pub fn nika_cli_host::doctor::Level::clone(&self) -> nika_cli_host::doctor::Level
-impl core::cmp::Eq for nika_cli_host::doctor::Level
-impl core::cmp::PartialEq for nika_cli_host::doctor::Level
-pub fn nika_cli_host::doctor::Level::eq(&self, other: &nika_cli_host::doctor::Level) -> bool
-impl core::fmt::Debug for nika_cli_host::doctor::Level
-pub fn nika_cli_host::doctor::Level::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Copy for nika_cli_host::doctor::Level
-impl core::marker::StructuralPartialEq for nika_cli_host::doctor::Level
-impl serde_core::ser::Serialize for nika_cli_host::doctor::Level
-pub fn nika_cli_host::doctor::Level::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<D> owo_colors::OwoColorize for nika_cli_host::doctor::Level
-impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::doctor::Level where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::doctor::Level::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::doctor::Level where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::doctor::Level::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_cli_host::doctor::Level where U: core::convert::From<T>
-pub fn nika_cli_host::doctor::Level::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_cli_host::doctor::Level where U: core::convert::Into<T>
-pub type nika_cli_host::doctor::Level::Error = core::convert::Infallible
-pub fn nika_cli_host::doctor::Level::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_cli_host::doctor::Level where U: core::convert::TryFrom<T>
-pub type nika_cli_host::doctor::Level::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_cli_host::doctor::Level::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_cli_host::doctor::Level where T: core::clone::Clone
-pub type nika_cli_host::doctor::Level::Owned = T
-pub fn nika_cli_host::doctor::Level::clone_into(&self, target: &mut T)
-pub fn nika_cli_host::doctor::Level::to_owned(&self) -> T
-impl<T> core::any::Any for nika_cli_host::doctor::Level where T: 'static + ?core::marker::Sized
-pub fn nika_cli_host::doctor::Level::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_cli_host::doctor::Level where T: ?core::marker::Sized
-pub fn nika_cli_host::doctor::Level::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_cli_host::doctor::Level where T: ?core::marker::Sized
-pub fn nika_cli_host::doctor::Level::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_cli_host::doctor::Level where T: core::clone::Clone
-pub unsafe fn nika_cli_host::doctor::Level::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_cli_host::doctor::Level
-pub fn nika_cli_host::doctor::Level::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_cli_host::doctor::Level where T: core::clone::Clone
-pub fn nika_cli_host::doctor::Level::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_cli_host::doctor::Level where T: 'static
-pub fn nika_cli_host::doctor::Level::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> outref::AsOut<T> for nika_cli_host::doctor::Level where T: core::marker::Copy
-pub fn nika_cli_host::doctor::Level::as_out(&mut self) -> outref::Out<'_, T>
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::doctor::Level where T: ?core::marker::Sized
-pub fn nika_cli_host::doctor::Level::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli_host::doctor::Level::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_cli_host::doctor::Level
-impl<T> tracing::instrument::WithSubscriber for nika_cli_host::doctor::Level
-impl<T> typenum::type_operators::Same for nika_cli_host::doctor::Level
-pub type nika_cli_host::doctor::Level::Output = T
-pub struct nika_cli_host::doctor::Finding
-pub nika_cli_host::doctor::Finding::detail: alloc::string::String
-pub nika_cli_host::doctor::Finding::fix: core::option::Option<alloc::string::String>
-pub nika_cli_host::doctor::Finding::label: alloc::string::String
-pub nika_cli_host::doctor::Finding::level: nika_cli_host::doctor::Level
-impl core::clone::Clone for nika_cli_host::doctor::Finding
-pub fn nika_cli_host::doctor::Finding::clone(&self) -> nika_cli_host::doctor::Finding
-impl core::cmp::Eq for nika_cli_host::doctor::Finding
-impl core::cmp::PartialEq for nika_cli_host::doctor::Finding
-pub fn nika_cli_host::doctor::Finding::eq(&self, other: &nika_cli_host::doctor::Finding) -> bool
-impl core::fmt::Debug for nika_cli_host::doctor::Finding
-pub fn nika_cli_host::doctor::Finding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_cli_host::doctor::Finding
-impl serde_core::ser::Serialize for nika_cli_host::doctor::Finding
-pub fn nika_cli_host::doctor::Finding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<D> owo_colors::OwoColorize for nika_cli_host::doctor::Finding
-impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::doctor::Finding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::doctor::Finding::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::doctor::Finding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli_host::doctor::Finding::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_cli_host::doctor::Finding where U: core::convert::From<T>
-pub fn nika_cli_host::doctor::Finding::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_cli_host::doctor::Finding where U: core::convert::Into<T>
-pub type nika_cli_host::doctor::Finding::Error = core::convert::Infallible
-pub fn nika_cli_host::doctor::Finding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_cli_host::doctor::Finding where U: core::convert::TryFrom<T>
-pub type nika_cli_host::doctor::Finding::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_cli_host::doctor::Finding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_cli_host::doctor::Finding where T: core::clone::Clone
-pub type nika_cli_host::doctor::Finding::Owned = T
-pub fn nika_cli_host::doctor::Finding::clone_into(&self, target: &mut T)
-pub fn nika_cli_host::doctor::Finding::to_owned(&self) -> T
-impl<T> core::any::Any for nika_cli_host::doctor::Finding where T: 'static + ?core::marker::Sized
-pub fn nika_cli_host::doctor::Finding::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_cli_host::doctor::Finding where T: ?core::marker::Sized
-pub fn nika_cli_host::doctor::Finding::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_cli_host::doctor::Finding where T: ?core::marker::Sized
-pub fn nika_cli_host::doctor::Finding::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_cli_host::doctor::Finding where T: core::clone::Clone
-pub unsafe fn nika_cli_host::doctor::Finding::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_cli_host::doctor::Finding
-pub fn nika_cli_host::doctor::Finding::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_cli_host::doctor::Finding where T: core::clone::Clone
-pub fn nika_cli_host::doctor::Finding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_cli_host::doctor::Finding where T: 'static
-pub fn nika_cli_host::doctor::Finding::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::doctor::Finding where T: ?core::marker::Sized
-pub fn nika_cli_host::doctor::Finding::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli_host::doctor::Finding::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_cli_host::doctor::Finding
-impl<T> tracing::instrument::WithSubscriber for nika_cli_host::doctor::Finding
-impl<T> typenum::type_operators::Same for nika_cli_host::doctor::Finding
-pub type nika_cli_host::doctor::Finding::Output = T
-pub fn nika_cli_host::doctor::diagnose(probe: &nika_cli_host::probe::Probe) -> alloc::vec::Vec<nika_cli_host::doctor::Finding>
-pub fn nika_cli_host::doctor::exit_code(findings: &[nika_cli_host::doctor::Finding]) -> u8
+pub use nika_cli_host::doctor::Finding
+pub use nika_cli_host::doctor::Level
+pub fn nika_cli_host::doctor::diagnose(probe: &nika_cli_host::probe::Probe) -> alloc::vec::Vec<nika_display::front_door::doctor::Finding>
+pub fn nika_cli_host::doctor::exit_code(findings: &[nika_display::front_door::doctor::Finding]) -> u8
 pub fn nika_cli_host::doctor::redact_userinfo(url: &str) -> alloc::string::String
-pub fn nika_cli_host::doctor::render(findings: &[nika_cli_host::doctor::Finding], verbose: bool, theme: nika_display::theme::Theme) -> alloc::string::String
-pub fn nika_cli_host::doctor::render_json(findings: &[nika_cli_host::doctor::Finding], state: nika_cli_host::probe::AdoptionState, receipts: &[nika_cli_host::probe::HostCapabilityReceipt], census: &nika_providers::census::AccessCensus) -> alloc::string::String
+pub fn nika_cli_host::doctor::render(findings: &[nika_display::front_door::doctor::Finding], verbose: bool, theme: nika_display::theme::Theme) -> alloc::string::String
+pub fn nika_cli_host::doctor::render_json(findings: &[nika_display::front_door::doctor::Finding], state: nika_cli_host::probe::AdoptionState, receipts: &[nika_cli_host::probe::HostCapabilityReceipt], census: &nika_providers::census::AccessCensus) -> alloc::string::String
 pub fn nika_cli_host::doctor::run(ping: bool, json: bool, verbose: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
-pub fn nika_cli_host::doctor::run_with(ping: bool, json: bool, verbose: bool, theme: nika_display::theme::Theme, extra: alloc::vec::Vec<nika_cli_host::doctor::Finding>) -> nika_cli_host::output::VerbOutput
+pub fn nika_cli_host::doctor::run_with(ping: bool, json: bool, verbose: bool, theme: nika_display::theme::Theme, extra: alloc::vec::Vec<nika_display::front_door::doctor::Finding>) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli_host::door
 pub enum nika_cli_host::door::DoorId
 pub nika_cli_host::door::DoorId::Create
@@ -1718,141 +1948,19 @@ pub fn nika_cli_host::explain::Door::null_value() -> T
 pub fn nika_cli_host::explain::run(wire: &str, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli_host::explain::run_for(wire: &str, theme: nika_display::theme::Theme, door: nika_cli_host::explain::Door) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli_host::fix_ladder
-pub struct nika_cli_host::fix_ladder::Refusal
-pub nika_cli_host::fix_ladder::Refusal::attempted: alloc::vec::Vec<alloc::string::String>
-pub nika_cli_host::fix_ladder::Refusal::reason: alloc::string::String
-impl core::clone::Clone for nika_cli_host::fix_ladder::Refusal
-pub fn nika_cli_host::fix_ladder::Refusal::clone(&self) -> nika_cli_host::fix_ladder::Refusal
-impl core::fmt::Debug for nika_cli_host::fix_ladder::Refusal
-pub fn nika_cli_host::fix_ladder::Refusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<D> owo_colors::OwoColorize for nika_cli_host::fix_ladder::Refusal
-impl<T, U> core::convert::Into<U> for nika_cli_host::fix_ladder::Refusal where U: core::convert::From<T>
-pub fn nika_cli_host::fix_ladder::Refusal::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_cli_host::fix_ladder::Refusal where U: core::convert::Into<T>
-pub type nika_cli_host::fix_ladder::Refusal::Error = core::convert::Infallible
-pub fn nika_cli_host::fix_ladder::Refusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_cli_host::fix_ladder::Refusal where U: core::convert::TryFrom<T>
-pub type nika_cli_host::fix_ladder::Refusal::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_cli_host::fix_ladder::Refusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_cli_host::fix_ladder::Refusal where T: core::clone::Clone
-pub type nika_cli_host::fix_ladder::Refusal::Owned = T
-pub fn nika_cli_host::fix_ladder::Refusal::clone_into(&self, target: &mut T)
-pub fn nika_cli_host::fix_ladder::Refusal::to_owned(&self) -> T
-impl<T> core::any::Any for nika_cli_host::fix_ladder::Refusal where T: 'static + ?core::marker::Sized
-pub fn nika_cli_host::fix_ladder::Refusal::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_cli_host::fix_ladder::Refusal where T: ?core::marker::Sized
-pub fn nika_cli_host::fix_ladder::Refusal::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_cli_host::fix_ladder::Refusal where T: ?core::marker::Sized
-pub fn nika_cli_host::fix_ladder::Refusal::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_cli_host::fix_ladder::Refusal where T: core::clone::Clone
-pub unsafe fn nika_cli_host::fix_ladder::Refusal::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_cli_host::fix_ladder::Refusal
-pub fn nika_cli_host::fix_ladder::Refusal::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_cli_host::fix_ladder::Refusal where T: core::clone::Clone
-pub fn nika_cli_host::fix_ladder::Refusal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_cli_host::fix_ladder::Refusal where T: 'static
-pub fn nika_cli_host::fix_ladder::Refusal::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::fix_ladder::Refusal where T: ?core::marker::Sized
-pub fn nika_cli_host::fix_ladder::Refusal::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli_host::fix_ladder::Refusal::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_cli_host::fix_ladder::Refusal
-impl<T> tracing::instrument::WithSubscriber for nika_cli_host::fix_ladder::Refusal
-impl<T> typenum::type_operators::Same for nika_cli_host::fix_ladder::Refusal
-pub type nika_cli_host::fix_ladder::Refusal::Output = T
-pub struct nika_cli_host::fix_ladder::Repair
-pub nika_cli_host::fix_ladder::Repair::applied: bool
-pub nika_cli_host::fix_ladder::Repair::kind: &'static str
-pub nika_cli_host::fix_ladder::Repair::new: alloc::string::String
-pub nika_cli_host::fix_ladder::Repair::old: alloc::string::String
-impl nika_cli_host::fix_ladder::Repair
-pub fn nika_cli_host::fix_ladder::Repair::applied(old: &str, new: &str, kind: &'static str) -> Self
-impl core::clone::Clone for nika_cli_host::fix_ladder::Repair
-pub fn nika_cli_host::fix_ladder::Repair::clone(&self) -> nika_cli_host::fix_ladder::Repair
-impl core::fmt::Debug for nika_cli_host::fix_ladder::Repair
-pub fn nika_cli_host::fix_ladder::Repair::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<D> owo_colors::OwoColorize for nika_cli_host::fix_ladder::Repair
-impl<T, U> core::convert::Into<U> for nika_cli_host::fix_ladder::Repair where U: core::convert::From<T>
-pub fn nika_cli_host::fix_ladder::Repair::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_cli_host::fix_ladder::Repair where U: core::convert::Into<T>
-pub type nika_cli_host::fix_ladder::Repair::Error = core::convert::Infallible
-pub fn nika_cli_host::fix_ladder::Repair::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_cli_host::fix_ladder::Repair where U: core::convert::TryFrom<T>
-pub type nika_cli_host::fix_ladder::Repair::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_cli_host::fix_ladder::Repair::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_cli_host::fix_ladder::Repair where T: core::clone::Clone
-pub type nika_cli_host::fix_ladder::Repair::Owned = T
-pub fn nika_cli_host::fix_ladder::Repair::clone_into(&self, target: &mut T)
-pub fn nika_cli_host::fix_ladder::Repair::to_owned(&self) -> T
-impl<T> core::any::Any for nika_cli_host::fix_ladder::Repair where T: 'static + ?core::marker::Sized
-pub fn nika_cli_host::fix_ladder::Repair::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_cli_host::fix_ladder::Repair where T: ?core::marker::Sized
-pub fn nika_cli_host::fix_ladder::Repair::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_cli_host::fix_ladder::Repair where T: ?core::marker::Sized
-pub fn nika_cli_host::fix_ladder::Repair::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_cli_host::fix_ladder::Repair where T: core::clone::Clone
-pub unsafe fn nika_cli_host::fix_ladder::Repair::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_cli_host::fix_ladder::Repair
-pub fn nika_cli_host::fix_ladder::Repair::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_cli_host::fix_ladder::Repair where T: core::clone::Clone
-pub fn nika_cli_host::fix_ladder::Repair::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_cli_host::fix_ladder::Repair where T: 'static
-pub fn nika_cli_host::fix_ladder::Repair::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::fix_ladder::Repair where T: ?core::marker::Sized
-pub fn nika_cli_host::fix_ladder::Repair::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli_host::fix_ladder::Repair::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_cli_host::fix_ladder::Repair
-impl<T> tracing::instrument::WithSubscriber for nika_cli_host::fix_ladder::Repair
-impl<T> typenum::type_operators::Same for nika_cli_host::fix_ladder::Repair
-pub type nika_cli_host::fix_ladder::Repair::Output = T
-pub struct nika_cli_host::fix_ladder::StopNotes(pub alloc::vec::Vec<alloc::string::String>)
-impl core::clone::Clone for nika_cli_host::fix_ladder::StopNotes
-pub fn nika_cli_host::fix_ladder::StopNotes::clone(&self) -> nika_cli_host::fix_ladder::StopNotes
-impl core::fmt::Debug for nika_cli_host::fix_ladder::StopNotes
-pub fn nika_cli_host::fix_ladder::StopNotes::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<D> owo_colors::OwoColorize for nika_cli_host::fix_ladder::StopNotes
-impl<T, U> core::convert::Into<U> for nika_cli_host::fix_ladder::StopNotes where U: core::convert::From<T>
-pub fn nika_cli_host::fix_ladder::StopNotes::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_cli_host::fix_ladder::StopNotes where U: core::convert::Into<T>
-pub type nika_cli_host::fix_ladder::StopNotes::Error = core::convert::Infallible
-pub fn nika_cli_host::fix_ladder::StopNotes::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_cli_host::fix_ladder::StopNotes where U: core::convert::TryFrom<T>
-pub type nika_cli_host::fix_ladder::StopNotes::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_cli_host::fix_ladder::StopNotes::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_cli_host::fix_ladder::StopNotes where T: core::clone::Clone
-pub type nika_cli_host::fix_ladder::StopNotes::Owned = T
-pub fn nika_cli_host::fix_ladder::StopNotes::clone_into(&self, target: &mut T)
-pub fn nika_cli_host::fix_ladder::StopNotes::to_owned(&self) -> T
-impl<T> core::any::Any for nika_cli_host::fix_ladder::StopNotes where T: 'static + ?core::marker::Sized
-pub fn nika_cli_host::fix_ladder::StopNotes::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_cli_host::fix_ladder::StopNotes where T: ?core::marker::Sized
-pub fn nika_cli_host::fix_ladder::StopNotes::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_cli_host::fix_ladder::StopNotes where T: ?core::marker::Sized
-pub fn nika_cli_host::fix_ladder::StopNotes::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_cli_host::fix_ladder::StopNotes where T: core::clone::Clone
-pub unsafe fn nika_cli_host::fix_ladder::StopNotes::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_cli_host::fix_ladder::StopNotes
-pub fn nika_cli_host::fix_ladder::StopNotes::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_cli_host::fix_ladder::StopNotes where T: core::clone::Clone
-pub fn nika_cli_host::fix_ladder::StopNotes::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_cli_host::fix_ladder::StopNotes where T: 'static
-pub fn nika_cli_host::fix_ladder::StopNotes::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::fix_ladder::StopNotes where T: ?core::marker::Sized
-pub fn nika_cli_host::fix_ladder::StopNotes::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli_host::fix_ladder::StopNotes::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_cli_host::fix_ladder::StopNotes
-impl<T> tracing::instrument::WithSubscriber for nika_cli_host::fix_ladder::StopNotes
-impl<T> typenum::type_operators::Same for nika_cli_host::fix_ladder::StopNotes
-pub type nika_cli_host::fix_ladder::StopNotes::Output = T
+pub use nika_cli_host::fix_ladder::Refusal
+pub use nika_cli_host::fix_ladder::Repair
+pub use nika_cli_host::fix_ladder::StopNotes
+pub use nika_cli_host::fix_ladder::render_refusals
+pub use nika_cli_host::fix_ladder::render_stops
+pub use nika_cli_host::fix_ladder::summary
 pub const nika_cli_host::fix_ladder::MAX_ROUNDS: usize
-pub fn nika_cli_host::fix_ladder::apply_dead_form_arm(err: &nika_schema::error::SchemaError, source: &mut alloc::string::String, repairs: &mut alloc::vec::Vec<nika_cli_host::fix_ladder::Repair>, stop_notes: &mut nika_cli_host::fix_ladder::StopNotes) -> core::option::Option<bool>
-pub fn nika_cli_host::fix_ladder::apply_prepass(source: &mut alloc::string::String, repairs: &mut alloc::vec::Vec<nika_cli_host::fix_ladder::Repair>, stop_notes: &mut nika_cli_host::fix_ladder::StopNotes)
+pub fn nika_cli_host::fix_ladder::apply_dead_form_arm(err: &nika_schema::error::SchemaError, source: &mut alloc::string::String, repairs: &mut alloc::vec::Vec<nika_display::repair_render::Repair>, stop_notes: &mut nika_display::repair_render::StopNotes) -> core::option::Option<bool>
+pub fn nika_cli_host::fix_ladder::apply_prepass(source: &mut alloc::string::String, repairs: &mut alloc::vec::Vec<nika_display::repair_render::Repair>, stop_notes: &mut nika_display::repair_render::StopNotes)
 pub fn nika_cli_host::fix_ladder::collect_typed_renames(report: &nika_check::CheckReport) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String, &'static str)>
-pub fn nika_cli_host::fix_ladder::judge_round(before: &str, after: &str, attempted: alloc::vec::Vec<alloc::string::String>) -> core::option::Option<nika_cli_host::fix_ladder::Refusal>
-pub fn nika_cli_host::fix_ladder::render_refusals(refusals: &[nika_cli_host::fix_ladder::Refusal], theme: nika_display::theme::Theme) -> alloc::string::String
-pub fn nika_cli_host::fix_ladder::render_stops(stop_notes: &nika_cli_host::fix_ladder::StopNotes, theme: nika_display::theme::Theme) -> alloc::string::String
-pub fn nika_cli_host::fix_ladder::splice(source: &mut alloc::string::String, old: &str, new: &str, kind: &'static str, repairs: &mut alloc::vec::Vec<nika_cli_host::fix_ladder::Repair>) -> bool
-pub fn nika_cli_host::fix_ladder::summary(repairs: &[nika_cli_host::fix_ladder::Repair], applied: usize, theme: nika_display::theme::Theme) -> alloc::string::String
-pub fn nika_cli_host::fix_ladder::try_w2_hoist(report: &nika_check::CheckReport, source: &mut alloc::string::String, repairs: &mut alloc::vec::Vec<nika_cli_host::fix_ladder::Repair>, stop_notes: &mut nika_cli_host::fix_ladder::StopNotes) -> core::option::Option<bool>
+pub fn nika_cli_host::fix_ladder::judge_round(before: &str, after: &str, attempted: alloc::vec::Vec<alloc::string::String>) -> core::option::Option<nika_display::repair_render::Refusal>
+pub fn nika_cli_host::fix_ladder::splice(source: &mut alloc::string::String, old: &str, new: &str, kind: &'static str, repairs: &mut alloc::vec::Vec<nika_display::repair_render::Repair>) -> bool
+pub fn nika_cli_host::fix_ladder::try_w2_hoist(report: &nika_check::CheckReport, source: &mut alloc::string::String, repairs: &mut alloc::vec::Vec<nika_display::repair_render::Repair>, stop_notes: &mut nika_display::repair_render::StopNotes) -> core::option::Option<bool>
 pub mod nika_cli_host::harness
 pub fn nika_cli_host::harness::access_probes_with_harness() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
 pub fn nika_cli_host::harness::harness_provider_rows() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
@@ -4054,7 +4162,7 @@ pub mod nika_cli_host::var_inputs
 pub use nika_cli_host::var_inputs::ValidatedInputs
 pub use nika_cli_host::var_inputs::parse_var_overrides
 pub mod nika_cli_host::welcome
-pub const nika_cli_host::welcome::SAMPLE: &str
+pub use nika_cli_host::welcome::SAMPLE
 pub fn nika_cli_host::welcome::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli_host::welcome::taught_start_commands() -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_cli_host::wire

@@ -187,6 +187,7 @@ pub fn nika_compile::observation::records(rows: &[serde_json::value::Value]) -> 
 pub mod nika_compile::surface
 pub mod nika_compile::surface::admitted
 pub fn nika_compile::surface::admitted::read(request: &nika_compile::CompileRequest) -> core::result::Result<core::option::Option<(nika_compile::CompileRequest, serde_json::value::Value)>, alloc::string::String>
+pub fn nika_compile::surface::admitted::reading(request: &nika_compile::CompileRequest) -> core::result::Result<(nika_compile::CompileRequest, core::option::Option<serde_json::value::Value>), alloc::string::String>
 pub fn nika_compile::surface::admitted::record(request: &nika_compile::CompileRequest, money: serde_json::value::Value, out: &mut nika_compile::CompileOutcome)
 pub fn nika_compile::surface::admitted::refused(why: &str) -> nika_compile::CompileOutcome
 pub fn nika_compile::surface::admitted::replacement(request: &nika_compile::CompileRequest, text: &str) -> core::result::Result<core::option::Option<(alloc::string::String, serde_json::value::Value)>, alloc::string::String>
@@ -348,6 +349,9 @@ impl<T> typenum::type_operators::Same for nika_compile::surface::pending_transfo
 pub type nika_compile::surface::pending_transform::PendingTransform::Output = T
 pub fn nika_compile::surface::pending_transform::invalid(out: &mut nika_compile::CompileOutcome, why: &str)
 pub fn nika_compile::surface::pending_transform::present(record: &serde_json::value::Value) -> bool
+pub mod nika_compile::surface::semantic
+pub fn nika_compile::surface::semantic::caller(request: &nika_compile::CompileRequest) -> core::result::Result<serde_json::value::Value, alloc::boxed::Box<nika_compile::CompileOutcome>>
+pub fn nika_compile::surface::semantic::request_basis(intent: &str, request: &nika_compile::CompileRequest) -> serde_json::value::Value
 pub mod nika_compile::surface::support
 #[non_exhaustive] pub struct nika_compile::surface::support::Plan
 impl core::clone::Clone for nika_compile::surface::support::Plan
@@ -2210,6 +2214,7 @@ pub const nika_compile::COMPILE_WIRE_VERSION: u32
 pub fn nika_compile::basis(decision: core::option::Option<&serde_json::value::Value>, fresh: core::option::Option<&serde_json::value::Value>, intent: &str) -> nika_compile::Basis
 pub fn nika_compile::basis_for(request: &nika_compile::CompileRequest, decision: core::option::Option<&serde_json::value::Value>, fresh: core::option::Option<&serde_json::value::Value>) -> nika_compile::Basis
 pub fn nika_compile::compile(request: &nika_compile::CompileRequest) -> core::result::Result<nika_compile::CompileOutcome, nika_compile::CompileError>
+pub fn nika_compile::compile_judged(request: &nika_compile::CompileRequest, judgments: &[nika_compile::surface::Judgment]) -> core::result::Result<nika_compile::CompileOutcome, nika_compile::CompileError>
 pub fn nika_compile::finding(out: &mut nika_compile::CompileOutcome, kind: nika_compile::DiagnosticKind, target: &str, message: impl core::convert::Into<alloc::string::String>)
 pub fn nika_compile::finish(source: alloc::string::String, out: &mut nika_compile::CompileOutcome)
 pub fn nika_compile::initial() -> nika_compile::CompileOutcome

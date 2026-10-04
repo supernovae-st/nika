@@ -2265,11 +2265,11 @@ pub fn nika_session::reasoner::ScriptedReasoner::reason_label_with_admission(&mu
 pub fn nika_session::reasoner::ScriptedReasoner::reason_with_admission(&mut self, _prompt: &str, _account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_session::reasoner::Reply, nika_session::reasoner::ReasonError>
 pub fn nika_session::reasoner::ScriptedReasoner::supports_admission(&self) -> bool
 pub mod nika_session::review
+pub use nika_session::review::plan_lines
+pub use nika_session::review::plan_lines_in_order
 pub const nika_session::review::WORKFLOWS_DIR: &str
 pub fn nika_session::review::destination(root: &std::path::Path, candidate: &str) -> core::option::Option<std::path::PathBuf>
 pub fn nika_session::review::gate_tasks(candidate: &str) -> alloc::vec::Vec<alloc::string::String>
-pub fn nika_session::review::plan_lines(candidate: &str) -> alloc::vec::Vec<alloc::string::String>
-pub fn nika_session::review::plan_lines_in_order(candidate: &str, waves: &[alloc::vec::Vec<usize>]) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_session::review::propose(root: &std::path::Path, goal: &str, out: &nika_compile::types::CompileOutcome) -> core::result::Result<nika_session::change::ProjectChangeSet, nika_session::change::ChangeError>
 pub fn nika_session::review::render(set: &nika_session::change::ProjectChangeSet, out: &nika_compile::types::CompileOutcome, bytes: &str) -> alloc::string::String
 pub fn nika_session::review::workflow_id(candidate: &str) -> alloc::string::String

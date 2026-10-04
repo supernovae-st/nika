@@ -2,7 +2,11 @@ pub mod nika_display
 pub mod nika_display::check_render
 pub mod nika_display::check_render::review
 pub fn nika_display::check_render::review::effect_rows(report: &nika_check::CheckReport) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_display::check_render::review::external_effects(candidate: &str, boundary: core::option::Option<&nika_check::effective::EffectivePermits>) -> alloc::string::String
 pub fn nika_display::check_render::review::finding_rows(report: &nika_check::CheckReport) -> (alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<alloc::string::String>)
+pub fn nika_display::check_render::review::plan_lines(candidate: &str) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_display::check_render::review::plan_lines_in_order(candidate: &str, waves: &[alloc::vec::Vec<usize>]) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_display::check_render::review::task_face(task: &nika_schema::raw::task::RawTask, default_model: core::option::Option<&str>) -> alloc::string::String
 pub enum nika_display::check_render::RepairTarget
 pub nika_display::check_render::RepairTarget::NonRegularSource
 pub nika_display::check_render::RepairTarget::RegistryArtifact
@@ -483,6 +487,536 @@ pub fn nika_display::format::file_url(host: &str, abs_path: &str) -> alloc::stri
 pub fn nika_display::format::fmt_cost_usd(usd: f64) -> alloc::string::String
 pub fn nika_display::format::links_enabled(choice: nika_display::format::LinkChoice, tty: bool, term_dumb: bool) -> bool
 pub fn nika_display::format::osc8(url: &str, text: &str, id: core::option::Option<&str>) -> alloc::string::String
+pub mod nika_display::front_door
+pub mod nika_display::front_door::doctor
+pub enum nika_display::front_door::doctor::Level
+pub nika_display::front_door::doctor::Level::Fail
+pub nika_display::front_door::doctor::Level::Ok
+pub nika_display::front_door::doctor::Level::Warn
+impl core::clone::Clone for nika_display::front_door::doctor::Level
+pub fn nika_display::front_door::doctor::Level::clone(&self) -> nika_display::front_door::doctor::Level
+impl core::cmp::Eq for nika_display::front_door::doctor::Level
+impl core::cmp::PartialEq for nika_display::front_door::doctor::Level
+pub fn nika_display::front_door::doctor::Level::eq(&self, other: &nika_display::front_door::doctor::Level) -> bool
+impl core::fmt::Debug for nika_display::front_door::doctor::Level
+pub fn nika_display::front_door::doctor::Level::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_display::front_door::doctor::Level
+impl core::marker::StructuralPartialEq for nika_display::front_door::doctor::Level
+impl serde_core::ser::Serialize for nika_display::front_door::doctor::Level
+pub fn nika_display::front_door::doctor::Level::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_display::front_door::doctor::Level
+impl<Q, K> equivalent::Equivalent<K> for nika_display::front_door::doctor::Level where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::front_door::doctor::Level::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::front_door::doctor::Level where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::front_door::doctor::Level::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::front_door::doctor::Level where U: core::convert::From<T>
+pub fn nika_display::front_door::doctor::Level::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::front_door::doctor::Level where U: core::convert::Into<T>
+pub type nika_display::front_door::doctor::Level::Error = core::convert::Infallible
+pub fn nika_display::front_door::doctor::Level::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::front_door::doctor::Level where U: core::convert::TryFrom<T>
+pub type nika_display::front_door::doctor::Level::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::front_door::doctor::Level::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::front_door::doctor::Level where T: core::clone::Clone
+pub type nika_display::front_door::doctor::Level::Owned = T
+pub fn nika_display::front_door::doctor::Level::clone_into(&self, target: &mut T)
+pub fn nika_display::front_door::doctor::Level::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::front_door::doctor::Level where T: 'static + ?core::marker::Sized
+pub fn nika_display::front_door::doctor::Level::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::front_door::doctor::Level where T: ?core::marker::Sized
+pub fn nika_display::front_door::doctor::Level::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::front_door::doctor::Level where T: ?core::marker::Sized
+pub fn nika_display::front_door::doctor::Level::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::front_door::doctor::Level where T: core::clone::Clone
+pub unsafe fn nika_display::front_door::doctor::Level::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::front_door::doctor::Level
+pub fn nika_display::front_door::doctor::Level::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::front_door::doctor::Level where T: core::clone::Clone
+pub fn nika_display::front_door::doctor::Level::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::front_door::doctor::Level where T: 'static
+pub fn nika_display::front_door::doctor::Level::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_display::front_door::doctor::Level where T: core::marker::Copy
+pub fn nika_display::front_door::doctor::Level::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::front_door::doctor::Level where T: ?core::marker::Sized
+pub fn nika_display::front_door::doctor::Level::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::front_door::doctor::Level::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::front_door::doctor::Level
+impl<T> tracing::instrument::WithSubscriber for nika_display::front_door::doctor::Level
+impl<T> typenum::type_operators::Same for nika_display::front_door::doctor::Level
+pub type nika_display::front_door::doctor::Level::Output = T
+pub struct nika_display::front_door::doctor::Finding
+pub nika_display::front_door::doctor::Finding::detail: alloc::string::String
+pub nika_display::front_door::doctor::Finding::fix: core::option::Option<alloc::string::String>
+pub nika_display::front_door::doctor::Finding::label: alloc::string::String
+pub nika_display::front_door::doctor::Finding::level: nika_display::front_door::doctor::Level
+impl core::clone::Clone for nika_display::front_door::doctor::Finding
+pub fn nika_display::front_door::doctor::Finding::clone(&self) -> nika_display::front_door::doctor::Finding
+impl core::cmp::Eq for nika_display::front_door::doctor::Finding
+impl core::cmp::PartialEq for nika_display::front_door::doctor::Finding
+pub fn nika_display::front_door::doctor::Finding::eq(&self, other: &nika_display::front_door::doctor::Finding) -> bool
+impl core::fmt::Debug for nika_display::front_door::doctor::Finding
+pub fn nika_display::front_door::doctor::Finding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_display::front_door::doctor::Finding
+impl serde_core::ser::Serialize for nika_display::front_door::doctor::Finding
+pub fn nika_display::front_door::doctor::Finding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_display::front_door::doctor::Finding
+impl<Q, K> equivalent::Equivalent<K> for nika_display::front_door::doctor::Finding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::front_door::doctor::Finding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::front_door::doctor::Finding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::front_door::doctor::Finding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::front_door::doctor::Finding where U: core::convert::From<T>
+pub fn nika_display::front_door::doctor::Finding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::front_door::doctor::Finding where U: core::convert::Into<T>
+pub type nika_display::front_door::doctor::Finding::Error = core::convert::Infallible
+pub fn nika_display::front_door::doctor::Finding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::front_door::doctor::Finding where U: core::convert::TryFrom<T>
+pub type nika_display::front_door::doctor::Finding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::front_door::doctor::Finding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::front_door::doctor::Finding where T: core::clone::Clone
+pub type nika_display::front_door::doctor::Finding::Owned = T
+pub fn nika_display::front_door::doctor::Finding::clone_into(&self, target: &mut T)
+pub fn nika_display::front_door::doctor::Finding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::front_door::doctor::Finding where T: 'static + ?core::marker::Sized
+pub fn nika_display::front_door::doctor::Finding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::front_door::doctor::Finding where T: ?core::marker::Sized
+pub fn nika_display::front_door::doctor::Finding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::front_door::doctor::Finding where T: ?core::marker::Sized
+pub fn nika_display::front_door::doctor::Finding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::front_door::doctor::Finding where T: core::clone::Clone
+pub unsafe fn nika_display::front_door::doctor::Finding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::front_door::doctor::Finding
+pub fn nika_display::front_door::doctor::Finding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::front_door::doctor::Finding where T: core::clone::Clone
+pub fn nika_display::front_door::doctor::Finding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::front_door::doctor::Finding where T: 'static
+pub fn nika_display::front_door::doctor::Finding::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::front_door::doctor::Finding where T: ?core::marker::Sized
+pub fn nika_display::front_door::doctor::Finding::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::front_door::doctor::Finding::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::front_door::doctor::Finding
+impl<T> tracing::instrument::WithSubscriber for nika_display::front_door::doctor::Finding
+impl<T> typenum::type_operators::Same for nika_display::front_door::doctor::Finding
+pub type nika_display::front_door::doctor::Finding::Output = T
+pub struct nika_display::front_door::doctor::PreparedRow<'a>
+pub nika_display::front_door::doctor::PreparedRow::detail: alloc::string::String
+pub nika_display::front_door::doctor::PreparedRow::finding: &'a nika_display::front_door::doctor::Finding
+pub nika_display::front_door::doctor::PreparedRow::fix: core::option::Option<alloc::string::String>
+impl<D> owo_colors::OwoColorize for nika_display::front_door::doctor::PreparedRow<'a>
+impl<T, U> core::convert::Into<U> for nika_display::front_door::doctor::PreparedRow<'a> where U: core::convert::From<T>
+pub fn nika_display::front_door::doctor::PreparedRow<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::front_door::doctor::PreparedRow<'a> where U: core::convert::Into<T>
+pub type nika_display::front_door::doctor::PreparedRow<'a>::Error = core::convert::Infallible
+pub fn nika_display::front_door::doctor::PreparedRow<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::front_door::doctor::PreparedRow<'a> where U: core::convert::TryFrom<T>
+pub type nika_display::front_door::doctor::PreparedRow<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::front_door::doctor::PreparedRow<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_display::front_door::doctor::PreparedRow<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_display::front_door::doctor::PreparedRow<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::front_door::doctor::PreparedRow<'a> where T: ?core::marker::Sized
+pub fn nika_display::front_door::doctor::PreparedRow<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::front_door::doctor::PreparedRow<'a> where T: ?core::marker::Sized
+pub fn nika_display::front_door::doctor::PreparedRow<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_display::front_door::doctor::PreparedRow<'a>
+pub fn nika_display::front_door::doctor::PreparedRow<'a>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_display::front_door::doctor::PreparedRow<'a> where T: 'static
+pub fn nika_display::front_door::doctor::PreparedRow<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::front_door::doctor::PreparedRow<'a> where T: ?core::marker::Sized
+pub fn nika_display::front_door::doctor::PreparedRow<'a>::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::front_door::doctor::PreparedRow<'a>::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::front_door::doctor::PreparedRow<'a>
+impl<T> tracing::instrument::WithSubscriber for nika_display::front_door::doctor::PreparedRow<'a>
+impl<T> typenum::type_operators::Same for nika_display::front_door::doctor::PreparedRow<'a>
+pub type nika_display::front_door::doctor::PreparedRow<'a>::Output = T
+pub const nika_display::front_door::doctor::LABEL_COL: usize
+pub fn nika_display::front_door::doctor::render(findings: &[nika_display::front_door::doctor::Finding], rows: &[nika_display::front_door::doctor::PreparedRow<'_>], advisory: (usize, usize, bool), theme: nika_display::theme::Theme) -> alloc::string::String
+pub fn nika_display::front_door::doctor::render_json(findings: &[nika_display::front_door::doctor::Finding], adoption_state: &str, receipts: serde_json::value::Value, access: serde_json::value::Value) -> alloc::string::String
+pub struct nika_display::front_door::AcpRuntime
+pub nika_display::front_door::AcpRuntime::authenticated: bool
+pub nika_display::front_door::AcpRuntime::detected: bool
+pub nika_display::front_door::AcpRuntime::id: alloc::string::String
+impl core::clone::Clone for nika_display::front_door::AcpRuntime
+pub fn nika_display::front_door::AcpRuntime::clone(&self) -> nika_display::front_door::AcpRuntime
+impl core::cmp::Eq for nika_display::front_door::AcpRuntime
+impl core::cmp::PartialEq for nika_display::front_door::AcpRuntime
+pub fn nika_display::front_door::AcpRuntime::eq(&self, other: &nika_display::front_door::AcpRuntime) -> bool
+impl core::fmt::Debug for nika_display::front_door::AcpRuntime
+pub fn nika_display::front_door::AcpRuntime::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_display::front_door::AcpRuntime
+impl serde_core::ser::Serialize for nika_display::front_door::AcpRuntime
+pub fn nika_display::front_door::AcpRuntime::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_display::front_door::AcpRuntime
+impl<Q, K> equivalent::Equivalent<K> for nika_display::front_door::AcpRuntime where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::front_door::AcpRuntime::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::front_door::AcpRuntime where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::front_door::AcpRuntime::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::front_door::AcpRuntime where U: core::convert::From<T>
+pub fn nika_display::front_door::AcpRuntime::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::front_door::AcpRuntime where U: core::convert::Into<T>
+pub type nika_display::front_door::AcpRuntime::Error = core::convert::Infallible
+pub fn nika_display::front_door::AcpRuntime::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::front_door::AcpRuntime where U: core::convert::TryFrom<T>
+pub type nika_display::front_door::AcpRuntime::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::front_door::AcpRuntime::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::front_door::AcpRuntime where T: core::clone::Clone
+pub type nika_display::front_door::AcpRuntime::Owned = T
+pub fn nika_display::front_door::AcpRuntime::clone_into(&self, target: &mut T)
+pub fn nika_display::front_door::AcpRuntime::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::front_door::AcpRuntime where T: 'static + ?core::marker::Sized
+pub fn nika_display::front_door::AcpRuntime::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::front_door::AcpRuntime where T: ?core::marker::Sized
+pub fn nika_display::front_door::AcpRuntime::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::front_door::AcpRuntime where T: ?core::marker::Sized
+pub fn nika_display::front_door::AcpRuntime::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::front_door::AcpRuntime where T: core::clone::Clone
+pub unsafe fn nika_display::front_door::AcpRuntime::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::front_door::AcpRuntime
+pub fn nika_display::front_door::AcpRuntime::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::front_door::AcpRuntime where T: core::clone::Clone
+pub fn nika_display::front_door::AcpRuntime::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::front_door::AcpRuntime where T: 'static
+pub fn nika_display::front_door::AcpRuntime::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::front_door::AcpRuntime where T: ?core::marker::Sized
+pub fn nika_display::front_door::AcpRuntime::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::front_door::AcpRuntime::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::front_door::AcpRuntime
+impl<T> tracing::instrument::WithSubscriber for nika_display::front_door::AcpRuntime
+impl<T> typenum::type_operators::Same for nika_display::front_door::AcpRuntime
+pub type nika_display::front_door::AcpRuntime::Output = T
+pub struct nika_display::front_door::ContextView
+pub nika_display::front_door::ContextView::chat_only: bool
+pub nika_display::front_door::ContextView::expanded_from: core::option::Option<alloc::string::String>
+pub nika_display::front_door::ContextView::root: alloc::string::String
+impl nika_display::front_door::ContextView
+pub fn nika_display::front_door::ContextView::legacy() -> Self
+impl core::clone::Clone for nika_display::front_door::ContextView
+pub fn nika_display::front_door::ContextView::clone(&self) -> nika_display::front_door::ContextView
+impl core::cmp::Eq for nika_display::front_door::ContextView
+impl core::cmp::PartialEq for nika_display::front_door::ContextView
+pub fn nika_display::front_door::ContextView::eq(&self, other: &nika_display::front_door::ContextView) -> bool
+impl core::fmt::Debug for nika_display::front_door::ContextView
+pub fn nika_display::front_door::ContextView::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_display::front_door::ContextView
+impl<D> owo_colors::OwoColorize for nika_display::front_door::ContextView
+impl<Q, K> equivalent::Equivalent<K> for nika_display::front_door::ContextView where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::front_door::ContextView::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::front_door::ContextView where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::front_door::ContextView::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::front_door::ContextView where U: core::convert::From<T>
+pub fn nika_display::front_door::ContextView::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::front_door::ContextView where U: core::convert::Into<T>
+pub type nika_display::front_door::ContextView::Error = core::convert::Infallible
+pub fn nika_display::front_door::ContextView::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::front_door::ContextView where U: core::convert::TryFrom<T>
+pub type nika_display::front_door::ContextView::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::front_door::ContextView::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::front_door::ContextView where T: core::clone::Clone
+pub type nika_display::front_door::ContextView::Owned = T
+pub fn nika_display::front_door::ContextView::clone_into(&self, target: &mut T)
+pub fn nika_display::front_door::ContextView::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::front_door::ContextView where T: 'static + ?core::marker::Sized
+pub fn nika_display::front_door::ContextView::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::front_door::ContextView where T: ?core::marker::Sized
+pub fn nika_display::front_door::ContextView::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::front_door::ContextView where T: ?core::marker::Sized
+pub fn nika_display::front_door::ContextView::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::front_door::ContextView where T: core::clone::Clone
+pub unsafe fn nika_display::front_door::ContextView::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::front_door::ContextView
+pub fn nika_display::front_door::ContextView::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::front_door::ContextView where T: core::clone::Clone
+pub fn nika_display::front_door::ContextView::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::front_door::ContextView where T: 'static
+pub fn nika_display::front_door::ContextView::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::front_door::ContextView where T: ?core::marker::Sized
+pub fn nika_display::front_door::ContextView::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::front_door::ContextView::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::front_door::ContextView
+impl<T> tracing::instrument::WithSubscriber for nika_display::front_door::ContextView
+impl<T> typenum::type_operators::Same for nika_display::front_door::ContextView
+pub type nika_display::front_door::ContextView::Output = T
+pub struct nika_display::front_door::EngineCounts
+pub nika_display::front_door::EngineCounts::builtins: usize
+pub nika_display::front_door::EngineCounts::clouds: usize
+pub nika_display::front_door::EngineCounts::examples: usize
+pub nika_display::front_door::EngineCounts::locals: usize
+pub nika_display::front_door::EngineCounts::templates: usize
+impl core::clone::Clone for nika_display::front_door::EngineCounts
+pub fn nika_display::front_door::EngineCounts::clone(&self) -> nika_display::front_door::EngineCounts
+impl core::cmp::Eq for nika_display::front_door::EngineCounts
+impl core::cmp::PartialEq for nika_display::front_door::EngineCounts
+pub fn nika_display::front_door::EngineCounts::eq(&self, other: &nika_display::front_door::EngineCounts) -> bool
+impl core::fmt::Debug for nika_display::front_door::EngineCounts
+pub fn nika_display::front_door::EngineCounts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_display::front_door::EngineCounts
+impl core::marker::StructuralPartialEq for nika_display::front_door::EngineCounts
+impl<D> owo_colors::OwoColorize for nika_display::front_door::EngineCounts
+impl<Q, K> equivalent::Equivalent<K> for nika_display::front_door::EngineCounts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::front_door::EngineCounts::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::front_door::EngineCounts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::front_door::EngineCounts::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::front_door::EngineCounts where U: core::convert::From<T>
+pub fn nika_display::front_door::EngineCounts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::front_door::EngineCounts where U: core::convert::Into<T>
+pub type nika_display::front_door::EngineCounts::Error = core::convert::Infallible
+pub fn nika_display::front_door::EngineCounts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::front_door::EngineCounts where U: core::convert::TryFrom<T>
+pub type nika_display::front_door::EngineCounts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::front_door::EngineCounts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::front_door::EngineCounts where T: core::clone::Clone
+pub type nika_display::front_door::EngineCounts::Owned = T
+pub fn nika_display::front_door::EngineCounts::clone_into(&self, target: &mut T)
+pub fn nika_display::front_door::EngineCounts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::front_door::EngineCounts where T: 'static + ?core::marker::Sized
+pub fn nika_display::front_door::EngineCounts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::front_door::EngineCounts where T: ?core::marker::Sized
+pub fn nika_display::front_door::EngineCounts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::front_door::EngineCounts where T: ?core::marker::Sized
+pub fn nika_display::front_door::EngineCounts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::front_door::EngineCounts where T: core::clone::Clone
+pub unsafe fn nika_display::front_door::EngineCounts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::front_door::EngineCounts
+pub fn nika_display::front_door::EngineCounts::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::front_door::EngineCounts where T: core::clone::Clone
+pub fn nika_display::front_door::EngineCounts::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::front_door::EngineCounts where T: 'static
+pub fn nika_display::front_door::EngineCounts::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_display::front_door::EngineCounts where T: core::marker::Copy
+pub fn nika_display::front_door::EngineCounts::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::front_door::EngineCounts where T: ?core::marker::Sized
+pub fn nika_display::front_door::EngineCounts::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::front_door::EngineCounts::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::front_door::EngineCounts
+impl<T> tracing::instrument::WithSubscriber for nika_display::front_door::EngineCounts
+impl<T> typenum::type_operators::Same for nika_display::front_door::EngineCounts
+pub type nika_display::front_door::EngineCounts::Output = T
+pub struct nika_display::front_door::Glance
+pub nika_display::front_door::Glance::agents_md: bool
+pub nika_display::front_door::Glance::complete: bool
+pub nika_display::front_door::Glance::git: bool
+pub nika_display::front_door::Glance::workflows: usize
+impl core::clone::Clone for nika_display::front_door::Glance
+pub fn nika_display::front_door::Glance::clone(&self) -> nika_display::front_door::Glance
+impl core::cmp::Eq for nika_display::front_door::Glance
+impl core::cmp::PartialEq for nika_display::front_door::Glance
+pub fn nika_display::front_door::Glance::eq(&self, other: &nika_display::front_door::Glance) -> bool
+impl core::fmt::Debug for nika_display::front_door::Glance
+pub fn nika_display::front_door::Glance::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_display::front_door::Glance
+impl core::marker::StructuralPartialEq for nika_display::front_door::Glance
+impl<D> owo_colors::OwoColorize for nika_display::front_door::Glance
+impl<Q, K> equivalent::Equivalent<K> for nika_display::front_door::Glance where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::front_door::Glance::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::front_door::Glance where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::front_door::Glance::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::front_door::Glance where U: core::convert::From<T>
+pub fn nika_display::front_door::Glance::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::front_door::Glance where U: core::convert::Into<T>
+pub type nika_display::front_door::Glance::Error = core::convert::Infallible
+pub fn nika_display::front_door::Glance::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::front_door::Glance where U: core::convert::TryFrom<T>
+pub type nika_display::front_door::Glance::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::front_door::Glance::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::front_door::Glance where T: core::clone::Clone
+pub type nika_display::front_door::Glance::Owned = T
+pub fn nika_display::front_door::Glance::clone_into(&self, target: &mut T)
+pub fn nika_display::front_door::Glance::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::front_door::Glance where T: 'static + ?core::marker::Sized
+pub fn nika_display::front_door::Glance::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::front_door::Glance where T: ?core::marker::Sized
+pub fn nika_display::front_door::Glance::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::front_door::Glance where T: ?core::marker::Sized
+pub fn nika_display::front_door::Glance::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::front_door::Glance where T: core::clone::Clone
+pub unsafe fn nika_display::front_door::Glance::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::front_door::Glance
+pub fn nika_display::front_door::Glance::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::front_door::Glance where T: core::clone::Clone
+pub fn nika_display::front_door::Glance::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::front_door::Glance where T: 'static
+pub fn nika_display::front_door::Glance::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_display::front_door::Glance where T: core::marker::Copy
+pub fn nika_display::front_door::Glance::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::front_door::Glance where T: ?core::marker::Sized
+pub fn nika_display::front_door::Glance::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::front_door::Glance::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::front_door::Glance
+impl<T> tracing::instrument::WithSubscriber for nika_display::front_door::Glance
+impl<T> typenum::type_operators::Same for nika_display::front_door::Glance
+pub type nika_display::front_door::Glance::Output = T
+pub struct nika_display::front_door::InferenceChoice
+pub nika_display::front_door::InferenceChoice::acp_runtimes: alloc::vec::Vec<nika_display::front_door::AcpRuntime>
+pub nika_display::front_door::InferenceChoice::arrow: alloc::string::String
+pub nika_display::front_door::InferenceChoice::chosen_access: core::option::Option<alloc::string::String>
+pub nika_display::front_door::InferenceChoice::chosen_model: alloc::string::String
+pub nika_display::front_door::InferenceChoice::keys_present: alloc::vec::Vec<alloc::string::String>
+pub nika_display::front_door::InferenceChoice::local_download_gb: alloc::string::String
+pub nika_display::front_door::InferenceChoice::local_pull: alloc::string::String
+pub nika_display::front_door::InferenceChoice::local_tier: alloc::string::String
+pub nika_display::front_door::InferenceChoice::ram_gb: core::option::Option<u32>
+pub nika_display::front_door::InferenceChoice::rungs: alloc::vec::Vec<nika_display::front_door::Rung>
+pub nika_display::front_door::InferenceChoice::slogan: alloc::string::String
+impl nika_display::front_door::InferenceChoice
+pub fn nika_display::front_door::InferenceChoice::render_human_next(&self, theme: nika_display::theme::Theme, next: &str) -> alloc::string::String
+pub fn nika_display::front_door::InferenceChoice::welcome_json(&self, next: &str) -> serde_json::value::Value
+impl core::clone::Clone for nika_display::front_door::InferenceChoice
+pub fn nika_display::front_door::InferenceChoice::clone(&self) -> nika_display::front_door::InferenceChoice
+impl core::cmp::PartialEq for nika_display::front_door::InferenceChoice
+pub fn nika_display::front_door::InferenceChoice::eq(&self, other: &nika_display::front_door::InferenceChoice) -> bool
+impl core::fmt::Debug for nika_display::front_door::InferenceChoice
+pub fn nika_display::front_door::InferenceChoice::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_display::front_door::InferenceChoice
+impl serde_core::ser::Serialize for nika_display::front_door::InferenceChoice
+pub fn nika_display::front_door::InferenceChoice::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_display::front_door::InferenceChoice
+impl<T, U> core::convert::Into<U> for nika_display::front_door::InferenceChoice where U: core::convert::From<T>
+pub fn nika_display::front_door::InferenceChoice::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::front_door::InferenceChoice where U: core::convert::Into<T>
+pub type nika_display::front_door::InferenceChoice::Error = core::convert::Infallible
+pub fn nika_display::front_door::InferenceChoice::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::front_door::InferenceChoice where U: core::convert::TryFrom<T>
+pub type nika_display::front_door::InferenceChoice::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::front_door::InferenceChoice::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::front_door::InferenceChoice where T: core::clone::Clone
+pub type nika_display::front_door::InferenceChoice::Owned = T
+pub fn nika_display::front_door::InferenceChoice::clone_into(&self, target: &mut T)
+pub fn nika_display::front_door::InferenceChoice::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::front_door::InferenceChoice where T: 'static + ?core::marker::Sized
+pub fn nika_display::front_door::InferenceChoice::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::front_door::InferenceChoice where T: ?core::marker::Sized
+pub fn nika_display::front_door::InferenceChoice::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::front_door::InferenceChoice where T: ?core::marker::Sized
+pub fn nika_display::front_door::InferenceChoice::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::front_door::InferenceChoice where T: core::clone::Clone
+pub unsafe fn nika_display::front_door::InferenceChoice::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::front_door::InferenceChoice
+pub fn nika_display::front_door::InferenceChoice::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::front_door::InferenceChoice where T: core::clone::Clone
+pub fn nika_display::front_door::InferenceChoice::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::front_door::InferenceChoice where T: 'static
+pub fn nika_display::front_door::InferenceChoice::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::front_door::InferenceChoice where T: ?core::marker::Sized
+pub fn nika_display::front_door::InferenceChoice::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::front_door::InferenceChoice::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::front_door::InferenceChoice
+impl<T> tracing::instrument::WithSubscriber for nika_display::front_door::InferenceChoice
+impl<T> typenum::type_operators::Same for nika_display::front_door::InferenceChoice
+pub type nika_display::front_door::InferenceChoice::Output = T
+pub struct nika_display::front_door::MachineView
+pub nika_display::front_door::MachineView::clients: alloc::vec::Vec<(alloc::string::String, bool)>
+pub nika_display::front_door::MachineView::drifted_kits: alloc::vec::Vec<alloc::string::String>
+pub nika_display::front_door::MachineView::endpoints: alloc::vec::Vec<(alloc::string::String, alloc::string::String, alloc::string::String)>
+pub nika_display::front_door::MachineView::local_providers: usize
+pub nika_display::front_door::MachineView::model_count: usize
+pub nika_display::front_door::MachineView::model_size: alloc::string::String
+pub nika_display::front_door::MachineView::state_cta: &'static str
+pub nika_display::front_door::MachineView::state_metric: alloc::string::String
+pub nika_display::front_door::MachineView::version: alloc::string::String
+pub nika_display::front_door::MachineView::wire_hint: core::option::Option<alloc::string::String>
+pub nika_display::front_door::MachineView::wired_facet: alloc::string::String
+impl core::clone::Clone for nika_display::front_door::MachineView
+pub fn nika_display::front_door::MachineView::clone(&self) -> nika_display::front_door::MachineView
+impl core::cmp::Eq for nika_display::front_door::MachineView
+impl core::cmp::PartialEq for nika_display::front_door::MachineView
+pub fn nika_display::front_door::MachineView::eq(&self, other: &nika_display::front_door::MachineView) -> bool
+impl core::fmt::Debug for nika_display::front_door::MachineView
+pub fn nika_display::front_door::MachineView::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_display::front_door::MachineView
+impl<D> owo_colors::OwoColorize for nika_display::front_door::MachineView
+impl<Q, K> equivalent::Equivalent<K> for nika_display::front_door::MachineView where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::front_door::MachineView::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::front_door::MachineView where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::front_door::MachineView::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::front_door::MachineView where U: core::convert::From<T>
+pub fn nika_display::front_door::MachineView::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::front_door::MachineView where U: core::convert::Into<T>
+pub type nika_display::front_door::MachineView::Error = core::convert::Infallible
+pub fn nika_display::front_door::MachineView::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::front_door::MachineView where U: core::convert::TryFrom<T>
+pub type nika_display::front_door::MachineView::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::front_door::MachineView::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::front_door::MachineView where T: core::clone::Clone
+pub type nika_display::front_door::MachineView::Owned = T
+pub fn nika_display::front_door::MachineView::clone_into(&self, target: &mut T)
+pub fn nika_display::front_door::MachineView::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::front_door::MachineView where T: 'static + ?core::marker::Sized
+pub fn nika_display::front_door::MachineView::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::front_door::MachineView where T: ?core::marker::Sized
+pub fn nika_display::front_door::MachineView::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::front_door::MachineView where T: ?core::marker::Sized
+pub fn nika_display::front_door::MachineView::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::front_door::MachineView where T: core::clone::Clone
+pub unsafe fn nika_display::front_door::MachineView::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::front_door::MachineView
+pub fn nika_display::front_door::MachineView::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::front_door::MachineView where T: core::clone::Clone
+pub fn nika_display::front_door::MachineView::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::front_door::MachineView where T: 'static
+pub fn nika_display::front_door::MachineView::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::front_door::MachineView where T: ?core::marker::Sized
+pub fn nika_display::front_door::MachineView::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::front_door::MachineView::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::front_door::MachineView
+impl<T> tracing::instrument::WithSubscriber for nika_display::front_door::MachineView
+impl<T> typenum::type_operators::Same for nika_display::front_door::MachineView
+pub type nika_display::front_door::MachineView::Output = T
+pub struct nika_display::front_door::Rung
+pub nika_display::front_door::Rung::available: bool
+pub nika_display::front_door::Rung::id: alloc::string::String
+pub nika_display::front_door::Rung::name: alloc::string::String
+pub nika_display::front_door::Rung::ready: bool
+pub nika_display::front_door::Rung::reason: alloc::string::String
+impl core::clone::Clone for nika_display::front_door::Rung
+pub fn nika_display::front_door::Rung::clone(&self) -> nika_display::front_door::Rung
+impl core::cmp::Eq for nika_display::front_door::Rung
+impl core::cmp::PartialEq for nika_display::front_door::Rung
+pub fn nika_display::front_door::Rung::eq(&self, other: &nika_display::front_door::Rung) -> bool
+impl core::fmt::Debug for nika_display::front_door::Rung
+pub fn nika_display::front_door::Rung::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_display::front_door::Rung
+impl serde_core::ser::Serialize for nika_display::front_door::Rung
+pub fn nika_display::front_door::Rung::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_display::front_door::Rung
+impl<Q, K> equivalent::Equivalent<K> for nika_display::front_door::Rung where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::front_door::Rung::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::front_door::Rung where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::front_door::Rung::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::front_door::Rung where U: core::convert::From<T>
+pub fn nika_display::front_door::Rung::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::front_door::Rung where U: core::convert::Into<T>
+pub type nika_display::front_door::Rung::Error = core::convert::Infallible
+pub fn nika_display::front_door::Rung::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::front_door::Rung where U: core::convert::TryFrom<T>
+pub type nika_display::front_door::Rung::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::front_door::Rung::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::front_door::Rung where T: core::clone::Clone
+pub type nika_display::front_door::Rung::Owned = T
+pub fn nika_display::front_door::Rung::clone_into(&self, target: &mut T)
+pub fn nika_display::front_door::Rung::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::front_door::Rung where T: 'static + ?core::marker::Sized
+pub fn nika_display::front_door::Rung::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::front_door::Rung where T: ?core::marker::Sized
+pub fn nika_display::front_door::Rung::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::front_door::Rung where T: ?core::marker::Sized
+pub fn nika_display::front_door::Rung::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::front_door::Rung where T: core::clone::Clone
+pub unsafe fn nika_display::front_door::Rung::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::front_door::Rung
+pub fn nika_display::front_door::Rung::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::front_door::Rung where T: core::clone::Clone
+pub fn nika_display::front_door::Rung::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::front_door::Rung where T: 'static
+pub fn nika_display::front_door::Rung::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::front_door::Rung where T: ?core::marker::Sized
+pub fn nika_display::front_door::Rung::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::front_door::Rung::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::front_door::Rung
+impl<T> tracing::instrument::WithSubscriber for nika_display::front_door::Rung
+impl<T> typenum::type_operators::Same for nika_display::front_door::Rung
+pub type nika_display::front_door::Rung::Output = T
+pub const nika_display::front_door::SAMPLE: &str
+pub fn nika_display::front_door::render_chat_only_json(version: &str, machine: serde_json::value::Value, counts: nika_display::front_door::EngineCounts, experience: serde_json::value::Value, next: &str) -> serde_json::value::Value
+pub fn nika_display::front_door::render_json(version: &str, machine: serde_json::value::Value, glance: nika_display::front_door::Glance, counts: nika_display::front_door::EngineCounts, experience: serde_json::value::Value, next: &str) -> serde_json::value::Value
+pub fn nika_display::front_door::render_with_context(probe: &nika_display::front_door::MachineView, glance: nika_display::front_door::Glance, counts: nika_display::front_door::EngineCounts, ctx: &nika_display::front_door::ContextView, theme: nika_display::theme::Theme) -> alloc::string::String
 pub mod nika_display::fruit
 pub struct nika_display::fruit::WroteFile
 pub nika_display::fruit::WroteFile::path: alloc::string::String
@@ -555,10 +1089,140 @@ pub fn nika_display::render::stream_header(view: &nika_display::state::RunView, 
 pub fn nika_display::render::stream_settled_line(view: &nika_display::state::RunView, task: &str, theme: &nika_display::theme::Theme, outputs: bool) -> core::option::Option<alloc::string::String>
 pub fn nika_display::render::stream_summary(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme, notes: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_display::render::verdict_frame(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme) -> alloc::vec::Vec<alloc::string::String>
+pub mod nika_display::repair_render
+pub struct nika_display::repair_render::Refusal
+pub nika_display::repair_render::Refusal::attempted: alloc::vec::Vec<alloc::string::String>
+pub nika_display::repair_render::Refusal::reason: alloc::string::String
+impl core::clone::Clone for nika_display::repair_render::Refusal
+pub fn nika_display::repair_render::Refusal::clone(&self) -> nika_display::repair_render::Refusal
+impl core::fmt::Debug for nika_display::repair_render::Refusal
+pub fn nika_display::repair_render::Refusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_display::repair_render::Refusal
+impl<T, U> core::convert::Into<U> for nika_display::repair_render::Refusal where U: core::convert::From<T>
+pub fn nika_display::repair_render::Refusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::repair_render::Refusal where U: core::convert::Into<T>
+pub type nika_display::repair_render::Refusal::Error = core::convert::Infallible
+pub fn nika_display::repair_render::Refusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::repair_render::Refusal where U: core::convert::TryFrom<T>
+pub type nika_display::repair_render::Refusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::repair_render::Refusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::repair_render::Refusal where T: core::clone::Clone
+pub type nika_display::repair_render::Refusal::Owned = T
+pub fn nika_display::repair_render::Refusal::clone_into(&self, target: &mut T)
+pub fn nika_display::repair_render::Refusal::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::repair_render::Refusal where T: 'static + ?core::marker::Sized
+pub fn nika_display::repair_render::Refusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::repair_render::Refusal where T: ?core::marker::Sized
+pub fn nika_display::repair_render::Refusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::repair_render::Refusal where T: ?core::marker::Sized
+pub fn nika_display::repair_render::Refusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::repair_render::Refusal where T: core::clone::Clone
+pub unsafe fn nika_display::repair_render::Refusal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::repair_render::Refusal
+pub fn nika_display::repair_render::Refusal::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::repair_render::Refusal where T: core::clone::Clone
+pub fn nika_display::repair_render::Refusal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::repair_render::Refusal where T: 'static
+pub fn nika_display::repair_render::Refusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::repair_render::Refusal where T: ?core::marker::Sized
+pub fn nika_display::repair_render::Refusal::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::repair_render::Refusal::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::repair_render::Refusal
+impl<T> tracing::instrument::WithSubscriber for nika_display::repair_render::Refusal
+impl<T> typenum::type_operators::Same for nika_display::repair_render::Refusal
+pub type nika_display::repair_render::Refusal::Output = T
+pub struct nika_display::repair_render::Repair
+pub nika_display::repair_render::Repair::applied: bool
+pub nika_display::repair_render::Repair::kind: &'static str
+pub nika_display::repair_render::Repair::new: alloc::string::String
+pub nika_display::repair_render::Repair::old: alloc::string::String
+impl nika_display::repair_render::Repair
+pub fn nika_display::repair_render::Repair::applied(old: &str, new: &str, kind: &'static str) -> Self
+impl core::clone::Clone for nika_display::repair_render::Repair
+pub fn nika_display::repair_render::Repair::clone(&self) -> nika_display::repair_render::Repair
+impl core::fmt::Debug for nika_display::repair_render::Repair
+pub fn nika_display::repair_render::Repair::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_display::repair_render::Repair
+impl<T, U> core::convert::Into<U> for nika_display::repair_render::Repair where U: core::convert::From<T>
+pub fn nika_display::repair_render::Repair::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::repair_render::Repair where U: core::convert::Into<T>
+pub type nika_display::repair_render::Repair::Error = core::convert::Infallible
+pub fn nika_display::repair_render::Repair::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::repair_render::Repair where U: core::convert::TryFrom<T>
+pub type nika_display::repair_render::Repair::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::repair_render::Repair::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::repair_render::Repair where T: core::clone::Clone
+pub type nika_display::repair_render::Repair::Owned = T
+pub fn nika_display::repair_render::Repair::clone_into(&self, target: &mut T)
+pub fn nika_display::repair_render::Repair::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::repair_render::Repair where T: 'static + ?core::marker::Sized
+pub fn nika_display::repair_render::Repair::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::repair_render::Repair where T: ?core::marker::Sized
+pub fn nika_display::repair_render::Repair::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::repair_render::Repair where T: ?core::marker::Sized
+pub fn nika_display::repair_render::Repair::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::repair_render::Repair where T: core::clone::Clone
+pub unsafe fn nika_display::repair_render::Repair::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::repair_render::Repair
+pub fn nika_display::repair_render::Repair::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::repair_render::Repair where T: core::clone::Clone
+pub fn nika_display::repair_render::Repair::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::repair_render::Repair where T: 'static
+pub fn nika_display::repair_render::Repair::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::repair_render::Repair where T: ?core::marker::Sized
+pub fn nika_display::repair_render::Repair::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::repair_render::Repair::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::repair_render::Repair
+impl<T> tracing::instrument::WithSubscriber for nika_display::repair_render::Repair
+impl<T> typenum::type_operators::Same for nika_display::repair_render::Repair
+pub type nika_display::repair_render::Repair::Output = T
+pub struct nika_display::repair_render::StopNotes(pub alloc::vec::Vec<alloc::string::String>)
+impl core::clone::Clone for nika_display::repair_render::StopNotes
+pub fn nika_display::repair_render::StopNotes::clone(&self) -> nika_display::repair_render::StopNotes
+impl core::fmt::Debug for nika_display::repair_render::StopNotes
+pub fn nika_display::repair_render::StopNotes::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_display::repair_render::StopNotes
+impl<T, U> core::convert::Into<U> for nika_display::repair_render::StopNotes where U: core::convert::From<T>
+pub fn nika_display::repair_render::StopNotes::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::repair_render::StopNotes where U: core::convert::Into<T>
+pub type nika_display::repair_render::StopNotes::Error = core::convert::Infallible
+pub fn nika_display::repair_render::StopNotes::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::repair_render::StopNotes where U: core::convert::TryFrom<T>
+pub type nika_display::repair_render::StopNotes::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::repair_render::StopNotes::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::repair_render::StopNotes where T: core::clone::Clone
+pub type nika_display::repair_render::StopNotes::Owned = T
+pub fn nika_display::repair_render::StopNotes::clone_into(&self, target: &mut T)
+pub fn nika_display::repair_render::StopNotes::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::repair_render::StopNotes where T: 'static + ?core::marker::Sized
+pub fn nika_display::repair_render::StopNotes::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::repair_render::StopNotes where T: ?core::marker::Sized
+pub fn nika_display::repair_render::StopNotes::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::repair_render::StopNotes where T: ?core::marker::Sized
+pub fn nika_display::repair_render::StopNotes::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::repair_render::StopNotes where T: core::clone::Clone
+pub unsafe fn nika_display::repair_render::StopNotes::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::repair_render::StopNotes
+pub fn nika_display::repair_render::StopNotes::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::repair_render::StopNotes where T: core::clone::Clone
+pub fn nika_display::repair_render::StopNotes::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::repair_render::StopNotes where T: 'static
+pub fn nika_display::repair_render::StopNotes::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::repair_render::StopNotes where T: ?core::marker::Sized
+pub fn nika_display::repair_render::StopNotes::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::repair_render::StopNotes::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::repair_render::StopNotes
+impl<T> tracing::instrument::WithSubscriber for nika_display::repair_render::StopNotes
+impl<T> typenum::type_operators::Same for nika_display::repair_render::StopNotes
+pub type nika_display::repair_render::StopNotes::Output = T
+pub fn nika_display::repair_render::render_refusals(refusals: &[nika_display::repair_render::Refusal], theme: nika_display::theme::Theme) -> alloc::string::String
+pub fn nika_display::repair_render::render_stops(stop_notes: &nika_display::repair_render::StopNotes, theme: nika_display::theme::Theme) -> alloc::string::String
+pub fn nika_display::repair_render::summary(repairs: &[nika_display::repair_render::Repair], applied: usize, theme: nika_display::theme::Theme) -> alloc::string::String
 pub mod nika_display::run_story
 pub use nika_display::run_story::Event
 pub use nika_display::run_story::EventKind
 pub use nika_display::run_story::ExecutionId
+pub use nika_display::run_story::OUTPUTS_KEPT
 pub use nika_display::run_story::RunSettlement
 pub use nika_display::run_story::RunState
 #[non_exhaustive] pub enum nika_display::run_story::ChildOutcome
@@ -672,6 +1336,8 @@ pub nika_display::run_story::Outputs::Absent
 pub nika_display::run_story::Outputs::Kept(serde_json::value::Value)
 pub nika_display::run_story::Outputs::TooLarge
 pub nika_display::run_story::Outputs::TooLarge::bytes: usize
+pub nika_display::run_story::Outputs::Unreadable
+pub nika_display::run_story::Outputs::Withheld
 impl core::clone::Clone for nika_display::run_story::Outputs
 pub fn nika_display::run_story::Outputs::clone(&self) -> nika_display::run_story::Outputs
 impl core::cmp::PartialEq for nika_display::run_story::Outputs
@@ -902,7 +1568,6 @@ impl<T> tracing::instrument::Instrument for nika_display::run_story::Settled
 impl<T> tracing::instrument::WithSubscriber for nika_display::run_story::Settled
 impl<T> typenum::type_operators::Same for nika_display::run_story::Settled
 pub type nika_display::run_story::Settled::Output = T
-pub const nika_display::run_story::OUTPUTS_KEPT: usize
 pub const nika_display::run_story::STORY_KEPT: usize
 pub trait nika_display::run_story::RunSink
 pub fn nika_display::run_story::RunSink::frame(&self, _frame: nika_display::run_story::RunFrame)
@@ -1061,6 +1726,7 @@ pub fn nika_display::state::RunView::plan(&self) -> core::option::Option<&[alloc
 pub fn nika_display::state::RunView::recovered_count(&self) -> usize
 pub fn nika_display::state::RunView::rows(&self) -> &[nika_display::state::TaskRow]
 pub fn nika_display::state::RunView::set_plan(&mut self, waves: alloc::vec::Vec<alloc::vec::Vec<alloc::string::String>>)
+pub fn nika_display::state::RunView::workflow_outputs(&self) -> core::option::Option<&nika_display::run_story::Outputs>
 impl nika_display::state::RunView
 pub fn nika_display::state::RunView::cleanup_task(&self, event: &nika_event::event::Event) -> core::option::Option<&str>
 pub fn nika_display::state::RunView::main_task_count(&self) -> usize

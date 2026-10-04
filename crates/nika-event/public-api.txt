@@ -1444,6 +1444,10 @@ impl<T> nika_error::traits::AsAny for nika_event::settlement::TerminalDiagnostic
 pub fn nika_event::settlement::TerminalDiagnostic::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_event::settlement::TerminalDiagnostic
 pub type nika_event::settlement::TerminalDiagnostic::Output = T
+pub const nika_event::settlement::OUTPUTS_BYTES_FIELD: &str
+pub const nika_event::settlement::OUTPUTS_FIELD: &str
+pub const nika_event::settlement::OUTPUTS_KEPT: usize
+pub const nika_event::settlement::OUTPUTS_WITHHELD_FIELD: &str
 pub mod nika_event::source_id
 pub fn nika_event::source_id::lf_normal_form(source: &str) -> alloc::borrow::Cow<'_, str>
 pub fn nika_event::source_id::sha256_hex(bytes: &[u8]) -> alloc::string::String

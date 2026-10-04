@@ -221,6 +221,9 @@ pub mod nika_runtime_laws::resume_fields::fields
 pub const nika_runtime_laws::resume_fields::fields::DEF_HASH: &str
 pub const nika_runtime_laws::resume_fields::fields::INPUT_HASH: &str
 pub const nika_runtime_laws::resume_fields::fields::OUTPUT: &str
+pub mod nika_runtime_laws::retry
+pub fn nika_runtime_laws::retry::delay_ms(cfg: &nika_vocab::retry::RetryConfig, attempt: u32, rand_unit: f64) -> u64
+pub fn nika_runtime_laws::retry::rand_unit(seed: u64, task_id: &str, attempt: u32) -> f64
 pub mod nika_runtime_laws::sandbox_select
 pub use nika_runtime_laws::sandbox_select::SandboxPolicy
 pub use nika_runtime_laws::sandbox_select::SandboxPolicyParseError
@@ -371,6 +374,7 @@ impl<T> nika_error::traits::AsAny for nika_runtime_laws::secret::RedactingSink<'
 pub fn nika_runtime_laws::secret::RedactingSink<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_runtime_laws::secret::RedactingSink<'a>
 pub type nika_runtime_laws::secret::RedactingSink<'a>::Output = T
+pub fn nika_runtime_laws::secret::output_fields(outputs: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> alloc::vec::Vec<(&'static str, nika_types::resource::Value)>
 pub fn nika_runtime_laws::secret::scrub_outputs(outputs: &mut alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, resolved: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>)
 pub mod nika_runtime_laws::stamp
 pub use nika_runtime_laws::stamp::<<nika_event::stamp::*>>

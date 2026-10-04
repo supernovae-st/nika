@@ -247,6 +247,8 @@ pub fn nika_fs::OwnedDir::remove(&self, name: &str) -> core::io::error::Result<(
 pub fn nika_fs::OwnedDir::try_clone(&self) -> core::io::error::Result<Self>
 pub fn nika_fs::OwnedDir::write_atomic(&self, name: &str, body: &str) -> core::io::error::Result<()>
 pub fn nika_fs::OwnedDir::write_once(&self, name: &str, body: &str) -> core::io::error::Result<()>
+impl nika_fs::OwnedDir
+pub fn nika_fs::OwnedDir::reserve_private_log(&self, name: &str, file_bytes: u64, container_bytes: u64, closing_bytes: u64, entry_limit: usize) -> core::io::error::Result<nika_fs::ReservedLog>
 impl core::fmt::Debug for nika_fs::OwnedDir
 pub fn nika_fs::OwnedDir::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_fs::OwnedDir
@@ -294,6 +296,29 @@ impl<T> core::convert::From<T> for nika_fs::Reservation
 pub fn nika_fs::Reservation::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_fs::Reservation where T: 'static
 pub fn nika_fs::Reservation::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_fs::ReservedLog
+impl nika_fs::ReservedLog
+pub fn nika_fs::ReservedLog::append_encoded(&mut self, encode: impl core::ops::function::FnOnce(&mut dyn core::io::write::Write) -> core::io::error::Result<()>) -> core::io::error::Result<core::option::Option<usize>>
+pub fn nika_fs::ReservedLog::finish_encoded(&mut self, encode: impl core::ops::function::FnOnce(&mut dyn core::io::write::Write) -> core::io::error::Result<()>) -> core::io::error::Result<core::option::Option<usize>>
+impl<D> owo_colors::OwoColorize for nika_fs::ReservedLog
+impl<T, U> core::convert::Into<U> for nika_fs::ReservedLog where U: core::convert::From<T>
+pub fn nika_fs::ReservedLog::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fs::ReservedLog where U: core::convert::Into<T>
+pub type nika_fs::ReservedLog::Error = core::convert::Infallible
+pub fn nika_fs::ReservedLog::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fs::ReservedLog where U: core::convert::TryFrom<T>
+pub type nika_fs::ReservedLog::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fs::ReservedLog::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_fs::ReservedLog where T: 'static + ?core::marker::Sized
+pub fn nika_fs::ReservedLog::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fs::ReservedLog where T: ?core::marker::Sized
+pub fn nika_fs::ReservedLog::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fs::ReservedLog where T: ?core::marker::Sized
+pub fn nika_fs::ReservedLog::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_fs::ReservedLog
+pub fn nika_fs::ReservedLog::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_fs::ReservedLog where T: 'static
+pub fn nika_fs::ReservedLog::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_fs::RoomLimits
 pub nika_fs::RoomLimits::bytes: u64
 pub nika_fs::RoomLimits::files: u64
@@ -354,6 +379,7 @@ pub async fn nika_fs::RootedFs::read_to_string(&self, path: &std::path::Path) ->
 impl nika_kernel_core::io::fs::FsWriteDyn for nika_fs::RootedFs
 pub async fn nika_fs::RootedFs::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_fs::RootedFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::RootedFs::remove_regular_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_fs::RootedFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_fs::RootedFs::write_new(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 impl<D> owo_colors::OwoColorize for nika_fs::RootedFs
@@ -390,6 +416,7 @@ pub async fn nika_fs::RootedFs::read_to_string(&self, path: &std::path::Path) ->
 impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsWrite for nika_fs::RootedFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsWriteDyn
 pub async fn nika_fs::RootedFs::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_fs::RootedFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub fn nika_fs::RootedFs::remove_regular_file(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub async fn nika_fs::RootedFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub fn nika_fs::RootedFs::write_new(&self, path: &std::path::Path, contents: &[u8]) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub struct nika_fs::TokioFs
@@ -414,6 +441,7 @@ pub async fn nika_fs::TokioFs::read_to_string(&self, path: &std::path::Path) -> 
 impl nika_kernel_core::io::fs::FsWriteDyn for nika_fs::TokioFs
 pub async fn nika_fs::TokioFs::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_fs::TokioFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub async fn nika_fs::TokioFs::remove_regular_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_fs::TokioFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_fs::TokioFs::write_new(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 impl<D> owo_colors::OwoColorize for nika_fs::TokioFs
@@ -456,6 +484,7 @@ pub async fn nika_fs::TokioFs::read_to_string(&self, path: &std::path::Path) -> 
 impl<TraitVariantBlanketType> nika_kernel_core::io::fs::FsWrite for nika_fs::TokioFs where TraitVariantBlanketType: nika_kernel_core::io::fs::FsWriteDyn
 pub async fn nika_fs::TokioFs::create_dir_all(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub async fn nika_fs::TokioFs::remove_file(&self, path: &std::path::Path) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
+pub fn nika_fs::TokioFs::remove_regular_file(&self, path: &std::path::Path) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub async fn nika_fs::TokioFs::write(&self, path: &std::path::Path, contents: &[u8]) -> core::result::Result<(), nika_kernel_core::io::fs::FsError>
 pub fn nika_fs::TokioFs::write_new(&self, path: &std::path::Path, contents: &[u8]) -> impl core::future::future::Future<Output = core::result::Result<(), nika_kernel_core::io::fs::FsError>> + core::marker::Send
 pub fn nika_fs::open_owned(path: &std::path::Path) -> core::io::error::Result<core::option::Option<std::fs::File>>

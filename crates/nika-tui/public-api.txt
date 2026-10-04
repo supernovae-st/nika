@@ -801,6 +801,7 @@ impl core::fmt::Debug for nika_tui::model::Script
 pub fn nika_tui::model::Script::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_tui::model::Script
 impl nika_tui::model::Conversation for nika_tui::model::Script
+pub fn nika_tui::model::Script::adopt(&mut self, _execution: &nika_types::id::ExecutionId, _proven: &nika_tui::session::acquire::Proven) -> bool
 pub fn nika_tui::model::Script::busy_label(&self, _line: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_tui::model::Script::cancel_pending(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Script::candidate(&self) -> core::option::Option<nika_tui::workspace::candidate::Proposed>
@@ -974,6 +975,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_tui::model::UiState
 impl<T> typenum::type_operators::Same for nika_tui::model::UiState
 pub type nika_tui::model::UiState::Output = T
 pub trait nika_tui::model::Conversation: core::marker::Send
+pub fn nika_tui::model::Conversation::adopt(&mut self, _execution: &nika_types::id::ExecutionId, _proven: &nika_tui::session::acquire::Proven) -> bool
 pub fn nika_tui::model::Conversation::busy_label(&self, _line: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_tui::model::Conversation::cancel_pending(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Conversation::candidate(&self) -> core::option::Option<nika_tui::workspace::candidate::Proposed>
@@ -991,6 +993,7 @@ pub fn nika_tui::model::Conversation::submit(&mut self, line: &str) -> nika_tui:
 pub fn nika_tui::model::Conversation::submit_observed(&mut self, line: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>, seen: &nika_tui::session::feed::Seen) -> nika_tui::model::Turn
 pub fn nika_tui::model::Conversation::submit_with(&mut self, line: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>) -> nika_tui::model::Turn
 impl nika_tui::model::Conversation for nika_tui::model::Script
+pub fn nika_tui::model::Script::adopt(&mut self, _execution: &nika_types::id::ExecutionId, _proven: &nika_tui::session::acquire::Proven) -> bool
 pub fn nika_tui::model::Script::busy_label(&self, _line: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_tui::model::Script::cancel_pending(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Script::candidate(&self) -> core::option::Option<nika_tui::workspace::candidate::Proposed>
@@ -1008,6 +1011,7 @@ pub fn nika_tui::model::Script::submit(&mut self, line: &str) -> nika_tui::model
 pub fn nika_tui::model::Script::submit_observed(&mut self, line: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>, seen: &nika_tui::session::feed::Seen) -> nika_tui::model::Turn
 pub fn nika_tui::model::Script::submit_with(&mut self, line: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>) -> nika_tui::model::Turn
 impl nika_tui::model::Conversation for nika_tui::session::Live
+pub fn nika_tui::session::Live::adopt(&mut self, execution: &nika_types::id::ExecutionId, proven: &nika_tui::session::acquire::Proven) -> bool
 pub fn nika_tui::session::Live::busy_label(&self, line: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_tui::session::Live::cancel_pending(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::session::Live::candidate(&self) -> core::option::Option<nika_tui::workspace::candidate::Proposed>
@@ -1407,6 +1411,7 @@ pub fn nika_tui::session::Live::with_run_tapped_observed(self, runner: nika_tui:
 impl core::fmt::Debug for nika_tui::session::Live
 pub fn nika_tui::session::Live::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl nika_tui::model::Conversation for nika_tui::session::Live
+pub fn nika_tui::session::Live::adopt(&mut self, execution: &nika_types::id::ExecutionId, proven: &nika_tui::session::acquire::Proven) -> bool
 pub fn nika_tui::session::Live::busy_label(&self, line: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_tui::session::Live::cancel_pending(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::session::Live::candidate(&self) -> core::option::Option<nika_tui::workspace::candidate::Proposed>
