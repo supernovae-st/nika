@@ -505,7 +505,7 @@ async fn choose_create<P: ProviderInferDyn>(
     {
         out.provenance.cognition = AuthoringCognition::ExplicitDecision;
         let mut records = Vec::new();
-        let mut settled_all = true;
+        let (mut settled_all, mut refused) = (true, false);
         for (index, ambiguity) in reading.ambiguous.iter().enumerate() {
             let options = ambiguity
                 .options
@@ -530,16 +530,20 @@ async fn choose_create<P: ProviderInferDyn>(
                 (_, Err(error)) | (Err(error), _) => super::decide::record(&question, Err(error)),
             });
             match admitted {
-                Ok(choice) if choice != NONE_OPTION => {
-                    if let Some(op) = Op::parse(&choice) {
-                        reading.plan.push_step(Step::new(
-                            op,
-                            ambiguity.clause.clone(),
-                            ambiguity.detail.clone(),
-                            Vec::new(),
-                        ));
+                Ok(choice) if choice != NONE_OPTION => match Op::parse(&choice) {
+                    Some(op)
+                        if refused_search(op, ambiguity, &mut reading.unresolved, &mut out) =>
+                    {
+                        (settled_all, refused) = (false, true);
                     }
-                }
+                    Some(op) => reading.plan.push_step(Step::new(
+                        op,
+                        ambiguity.clause.clone(),
+                        ambiguity.detail.clone(),
+                        Vec::new(),
+                    )),
+                    None => {}
+                },
                 Ok(_) => {
                     settled_all = false;
                     reading.unresolved.push(ambiguity.clause.clone());
@@ -557,7 +561,14 @@ async fn choose_create<P: ProviderInferDyn>(
             record_route(&mut out, &route);
             return verify::judged_warm(intent, &reading.plan, seat, assembly_request, out).await;
         }
-        route.push("warm: none".to_owned());
+        route.push(
+            if refused {
+                "warm: refused"
+            } else {
+                "warm: none"
+            }
+            .to_owned(),
+        );
         reading.ambiguous.clear();
     }
     author_create(
@@ -570,6 +581,39 @@ async fn choose_create<P: ProviderInferDyn>(
         out,
     )
     .await
+}
+
+/// A seat's `search` cannot apply an identifier its clause names in one structured file: no
+/// stated term binds the search and its grep matches substrings (`W-5` in `W-50`), while a
+/// `lookup` selects that one record. The compiler, never the seat, refuses that settlement:
+/// the seat's answer stays on record, the clause stays unresolved under the compiler's name.
+fn refused_search(
+    op: Op,
+    ambiguity: &lexicon::Ambiguity,
+    unresolved: &mut Vec<String>,
+    out: &mut CompileOutcome,
+) -> bool {
+    let detail = &ambiguity.detail;
+    let literals = crate::paths::literals(detail);
+    let [crate::paths::PathShape::File(path)] = literals.as_slice() else {
+        return false;
+    };
+    let Some(id) = crate::shape::identifier(detail).filter(|_| op == Op::Search) else {
+        return false;
+    };
+    if crate::paths::Structured::of(path).is_none() {
+        return false;
+    }
+    unresolved.push(ambiguity.clause.clone());
+    super::finding(
+        out,
+        DiagnosticKind::Unknown,
+        "retrieval_choice",
+        format!(
+            "The decision seat chose `search` for « {detail} », but a search cannot select the record `{id}` of `{path}` exactly; the clause stays unresolved."
+        ),
+    );
+    true
 }
 
 async fn author_create<P: ProviderInferDyn>(
@@ -1283,5 +1327,7 @@ async fn sampled<P: ProviderInferDyn>(
     Ok(out)
 }
 
+#[cfg(test)]
+mod retrieval_choice_tests;
 #[cfg(test)]
 mod tests;
