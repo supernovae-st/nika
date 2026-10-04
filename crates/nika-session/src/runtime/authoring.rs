@@ -28,7 +28,9 @@ use crate::authoring::{
     AuthoringContext, AuthoringError, AuthoringRound, AuthoringSeat, Reading, compile_in,
     is_cancel, is_greeting, reasons,
 };
-use crate::change::{RunRequest, check_on_disk};
+use crate::change::{
+    ChangeError, ProjectChange, ProjectChangeSet, RunRequest, Witness, check_on_disk,
+};
 use crate::outcome::{ProposalId, Refusal, RefusalClass};
 use crate::review;
 use crate::turn::{RouteRecord, RoutingMethod, SessionPhase, TurnAct, TurnDecision};
@@ -139,6 +141,7 @@ impl SessionRuntime {
         let reading = as_written(Reading::of(out), &round, &context, intent);
         // Only work owns the automation goal. Keep this round before any
         // seat/admission failure; an earlier conversation is not its request.
+        let earlier = self.intent.goal.clone();
         if !matches!(reading, Reading::NotWork(_)) {
             self.intent.goal = Some(round.effective_intent());
         }
@@ -185,9 +188,9 @@ impl SessionRuntime {
                 {
                     self.refused_unsettled(out)
                 }
-                AuthoringSeat::Provider { .. } | AuthoringSeat::Harness { .. } => {
-                    self.compile_under_seat(round)
-                }
+                AuthoringSeat::Provider { .. } | AuthoringSeat::Harness { .. } => self
+                    .beside_saved(intent, earlier)
+                    .unwrap_or_else(|| self.compile_under_seat(round)),
                 // No usable intelligence is chosen: ask here, in context,
                 // and resume this request under the resulting choice.
                 AuthoringSeat::Unavailable { .. } | AuthoringSeat::Deterministic { .. }
@@ -214,6 +217,32 @@ impl SessionRuntime {
         let text = incomplete_words(&out, Some(&self.cognition_blocked()));
         self.last_outcome = Some(out);
         TurnOutcome::Refusal(Refusal::new(RefusalClass::NotAllowed, text))
+    }
+
+    /// Work the reader could not settle, said while a workflow is saved: before any authoring
+    /// call the bounded classifier decides the act. A change revises that file through its EDIT
+    /// (its original is the request the file answered, `earlier`), new work stays a creation
+    /// (`None`), and a line it cannot tell changes nothing — whether the label was judged unknown,
+    /// failed or had no classifier. No word of the line is matched here.
+    fn beside_saved(&mut self, intent: &str, earlier: Option<String>) -> Option<TurnOutcome> {
+        let saved = self.last_workflow.clone()?;
+        let before = self.inference_receipt().ok().flatten();
+        let decision = self.classify(SessionPhase::Idle, intent);
+        // Only the shared account refusing the label before any send keeps today's truthful
+        // admission card: the authoring reservation it would make is refused the same way.
+        let refused =
+            decision.method == RoutingMethod::Failed && self.label_refused(before.as_ref());
+        if decision.act == TurnAct::NewWork || refused {
+            return None;
+        }
+        self.intent.goal = earlier;
+        Some(match decision.act {
+            TurnAct::Modify | TurnAct::Mixed => self.revise_saved(&saved, intent),
+            _ => TurnOutcome::Facts(Self::unknown_route_text(
+                SessionPhase::Idle,
+                decision.method,
+            )),
+        })
     }
 
     /// The same Compile, under the seat the human permitted, for work the
@@ -372,6 +401,15 @@ impl SessionRuntime {
         // answered (the whole meaning, never the change alone), and its
         // knowledge is composed for that same request from the pinned snapshot.
         let mut round = AuthoringRound::new(goal.clone());
+        // The proposal updates this file over exactly the bytes read here (a later selection
+        // never retargets it), and refuses if they move before it is proposed.
+        let path = saved.strip_prefix(&root).unwrap_or(saved).to_path_buf();
+        let witness = Witness::of(base.as_bytes());
+        // Before any cognition: the file's own ceiling, or this revision's stated one.
+        if let Err(refused) = self.bind_revision_money(&path, change.trim(), &witness) {
+            return refused;
+        }
+        round.target = Some((path, witness));
         round.edit = Some((base, change.trim().to_owned(), original));
         // The line's own admitted directives, as the law reads the change the EDIT holds (B15).
         round.money = change_money(change.trim(), !self.money.admitted.is_empty());
@@ -459,6 +497,9 @@ impl SessionRuntime {
         // must never replace these inputs through a fresh Create request.
         let mut round = AuthoringRound::new(goal.clone());
         round.edit = Some((base, change.trim().to_owned(), Some(set.goal.clone())));
+        // A proposal that updates a saved file keeps that file and its witness; a fresh
+        // creation keeps its own fresh destination.
+        round.target = updated_target(&set);
         let request = round.request();
         let revised = revise_intent(&request).unwrap_or_else(|| goal.clone());
         let out = match compile(self, &request, &revised) {
@@ -698,7 +739,12 @@ impl SessionRuntime {
             }
         };
         let out = qualified.as_ref().map_or(out, |q| &q.outcome);
-        match review::propose(&self.snapshot.root, &round.intent, out) {
+        let root = &self.snapshot.root;
+        let proposed = match &round.target {
+            Some((path, base)) => review::propose_over(root, &round.intent, path, base, out),
+            None => review::propose(root, &round.intent, out),
+        };
+        match proposed {
             Ok(set) => {
                 let bytes = self.draft_preview(&set);
                 let id = ProposalId::of(&bytes);
@@ -719,6 +765,15 @@ impl SessionRuntime {
                 self.bind_proposal_money(&id);
                 self.pending = Some(set);
                 TurnOutcome::Proposal { id, preview }
+            }
+            // The saved file moved since the revision read it: nothing proposed, nothing written.
+            Err(ChangeError::Stale(path)) if round.target.is_some() => {
+                TurnOutcome::Refusal(Refusal::new(
+                    RefusalClass::StaleRevision,
+                    format!(
+                        "`{path}` changed since this revision read it — nothing was proposed or written · say the change again to revise the file as it is now"
+                    ),
+                ))
             }
             Err(e) => TurnOutcome::Refusal(Refusal::from_change(&e)),
         }
@@ -1394,4 +1449,13 @@ pub(super) fn run_prefix(input: &str) -> Option<String> {
         .split(|c: char| c.is_whitespace() || c == ',' || c == ':')
         .next()?;
     is_run_verb(first).then_some(lower)
+}
+
+/// The saved file a proposal updates and the witness it was proposed over; `None` for a
+/// proposal that creates its file (a fresh creation keeps its own fresh destination).
+pub(super) fn updated_target(set: &ProjectChangeSet) -> Option<(PathBuf, Witness)> {
+    set.changes.iter().find_map(|change| match change {
+        ProjectChange::UpdateWorkflow { path, before, .. } => Some((path.clone(), before.clone())),
+        _ => None,
+    })
 }

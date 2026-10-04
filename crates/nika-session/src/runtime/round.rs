@@ -74,18 +74,11 @@ impl SessionRuntime {
             .authoring_receipt(round.authoring_receipt.as_ref())
             .revises(revises.as_deref());
         if let Some((base, change, original)) = &round.edit {
-            // A saved workflow's revision names its file; a proposal's revision names none (its
-            // base is the proposal kept beside it).
-            let path = self
-                .last_workflow
-                .as_ref()
+            // A saved workflow's revision names the file it read its base from (never a later
+            // selection); a proposal's revision names none (its base is the proposal beside it).
+            let path = (round.target.as_ref())
                 .filter(|_| revises.is_none())
-                .map(|p| {
-                    p.strip_prefix(&self.snapshot.root)
-                        .unwrap_or(p)
-                        .display()
-                        .to_string()
-                });
+                .map(|(path, _)| path.display().to_string());
             capture = capture.edit(path.as_deref(), base, change, original.as_deref());
         }
         capture.finish()
@@ -285,7 +278,12 @@ impl SessionRuntime {
         if let Err(refusal) = self.admit_money(words, false, true) {
             return refusal;
         }
-        let round = rebuilt(&record, &self.money.admitted);
+        let mut round = rebuilt(&record, &self.money.admitted);
+        // A proposal's revision updates the file that proposal updates, if it updates one.
+        if round.target.is_none() {
+            round.target =
+                (self.revising.as_ref()).and_then(|(set, _)| super::authoring::updated_target(set));
+        }
         // The recorded plan against its recorded observation: no seat, no fresh observation.
         match compile_deterministic(&round.request()) {
             Ok(out) => {
@@ -357,6 +355,15 @@ fn rebuilt(record: &RoundRecord, admitted: &[std::ops::Range<usize>]) -> Authori
         None => admitted.to_vec(),
     };
     round.edit = record.edit.as_ref().map(KeptEdit::texts);
+    // A saved file's revision continues onto that file over the base it kept (`base_holds`
+    // proved it still holds those bytes); the proposal still refuses if they move again.
+    round.target = (record.edit.as_ref()).and_then(|edit| {
+        let path = edit.path.as_ref()?;
+        Some((
+            std::path::PathBuf::from(&path.text),
+            Witness::of(edit.base.text.as_bytes()),
+        ))
+    });
     round
 }
 

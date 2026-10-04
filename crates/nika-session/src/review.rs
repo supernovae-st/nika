@@ -10,7 +10,8 @@
 //! preview rows). No model describes a workflow here. The candidate the
 //! human accepts is the exact bytes the consent lands ([`crate::change`]):
 //! a fresh file at a destination this module chooses, never a replacement
-//! of a file the human did not name.
+//! of a file the human did not name. A revision of a saved workflow is the
+//! one replacement: that file, over the exact bytes the revision compiled.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -18,7 +19,6 @@ use std::path::{Path, PathBuf};
 pub(crate) use display_review::task_face;
 #[doc(inline)]
 pub use display_review::{plan_lines, plan_lines_in_order};
-use nika_check::EffectivePermits;
 use nika_display::check_render::review as display_review;
 use nika_onboard::compile::{
     CompileOutcome, DiagnosticKind, TriggerKind, TriggerRequirement, TriggerStatus,
@@ -26,7 +26,7 @@ use nika_onboard::compile::{
 use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
 use nika_schema::{FileId, ParseMode};
 
-use crate::change::{ChangeError, ProjectChangeSet};
+use crate::change::{ChangeError, ProjectChange, ProjectChangeSet, Witness};
 
 /// The directory a project keeps its workflows under, when it keeps one.
 pub const WORKFLOWS_DIR: &str = "workflows";
@@ -74,58 +74,6 @@ pub fn destination(root: &Path, candidate: &str) -> Option<PathBuf> {
 /// a dangling one absent; a candidate never lands on a link of any kind).
 fn taken(root: &Path, rel: &Path) -> bool {
     std::fs::symlink_metadata(root.join(rel)).is_ok()
-}
-
-/// What the workflow reaches outside the project: the network hosts and
-/// programs the bytes DECLARE (the boundary the human accepts, default-deny)
-/// joined with the check's inferred floor. The floor alone would print
-/// « none » for a loopback webhook: the inference leaves a loopback host
-/// out by design (the SSRF floor) while the candidate names it. A face the
-/// check could not pin is said so, never folded into « none ».
-fn external_effects(candidate: &str, boundary: Option<&EffectivePermits>) -> String {
-    let declared = parse(candidate).and_then(|wf| wf.permits.map(|p| p.value));
-    let mut hosts: Vec<String> = declared
-        .as_ref()
-        .and_then(|p| p.net.as_ref())
-        .map(|net| net.http.clone())
-        .unwrap_or_default();
-    let mut exec = declared.as_ref().and_then(|p| p.exec.clone());
-    let mut unpinned = Vec::new();
-    if let Some(boundary) = boundary {
-        if let Some(net) = &boundary.needed.net {
-            for host in &net.http {
-                if !hosts.contains(host) {
-                    hosts.push(host.clone());
-                }
-            }
-        }
-        if exec.is_none() {
-            exec.clone_from(&boundary.needed.exec);
-        }
-        if boundary.partial.net && hosts.is_empty() {
-            unpinned.push("a network host the check could not pin");
-        }
-        if boundary.partial.exec && exec.is_none() {
-            unpinned.push("a program the check could not pin");
-        }
-    }
-    let mut external = Vec::new();
-    if !hosts.is_empty() {
-        external.push(format!("network · {}", hosts.join(" · ")));
-    }
-    match exec {
-        Some(nika_cap::ExecPermit::Any) => external.push("runs any program".to_owned()),
-        Some(nika_cap::ExecPermit::Programs(p)) if !p.is_empty() => {
-            external.push(format!("runs · {}", p.join(" · ")));
-        }
-        _ => {}
-    }
-    external.extend(unpinned.into_iter().map(str::to_owned));
-    if external.is_empty() {
-        "none".to_owned()
-    } else {
-        external.join(" · ")
-    }
 }
 
 /// The tasks that pause for a human answer (`nika:prompt`), by id.
@@ -178,6 +126,30 @@ pub fn propose(
     )
 }
 
+/// The set a saved workflow's revision lands: the candidate's exact bytes over that file,
+/// witnessed now and refused unless the file still holds the base the revision compiled —
+/// never a fresh destination beside it, never an update over bytes the compiler did not read.
+///
+/// # Errors
+/// The candidate is absent, the path cannot be witnessed, or the file no longer holds `base`.
+pub(crate) fn propose_over(
+    root: &Path,
+    goal: &str,
+    path: &Path,
+    base: &Witness,
+    out: &CompileOutcome,
+) -> Result<ProjectChangeSet, ChangeError> {
+    let Some(candidate) = out.candidate.as_deref() else {
+        return Err(ChangeError::Unnamed("(no candidate)".to_owned()));
+    };
+    let shown = path.display().to_string();
+    let set = ProjectChangeSet::workflow_at(root, goal, &shown, candidate.to_owned())?;
+    match set.changes.first() {
+        Some(ProjectChange::UpdateWorkflow { before, .. }) if before == base => Ok(set),
+        _ => Err(ChangeError::Stale(shown)),
+    }
+}
+
 /// The review's line on execution: nothing has run. A proposal whose copy was rehearsed in a
 /// room replaces it with what that rehearsal did, never on the originals (`runtime/rehearsed.rs`).
 pub(crate) const NOTHING_RAN: &str = "Nothing has run yet · `yes` saves these exact bytes and checks them · running is its own line (« run it »)\n";
@@ -215,7 +187,7 @@ pub fn render(set: &ProjectChangeSet, out: &CompileOutcome, bytes: &str) -> Stri
     let _ = writeln!(
         text,
         "  external effects · {}",
-        external_effects(candidate, out.requested_boundary.as_ref())
+        display_review::external_effects(candidate, out.requested_boundary.as_ref())
     );
     let gates = gate_tasks(candidate);
     let _ = writeln!(

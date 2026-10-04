@@ -294,6 +294,9 @@ pub struct AuthoringRound {
     /// A revision's EDIT — the exact base, the human's change, the request the base answered:
     /// every request of the round is that EDIT, never a fresh CREATE.
     pub(crate) edit: Option<(String, String, Option<String>)>,
+    /// The saved file a revision replaces and the witness of the base the round compiled: its
+    /// proposal updates exactly those bytes there, never a fresh destination beside them.
+    pub(crate) target: Option<(std::path::PathBuf, crate::change::Witness)>,
     /// The monetary directives of `intent` the money gate admitted (R4 A6): every request of the
     /// round tells the compiler they are the Session's ceiling, never business clauses.
     pub(crate) money: Vec<std::ops::Range<usize>>,
@@ -313,6 +316,7 @@ impl AuthoringRound {
             knowledge: None,
             authoring_receipt: None,
             edit: None,
+            target: None,
             money: Vec::new(),
         }
     }

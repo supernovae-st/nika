@@ -298,3 +298,63 @@ mod plan_oracle {
         assert_eq!(cases, want);
     }
 }
+
+/// The review's « external effects » line, byte for byte: every expected string below was
+/// captured by running the pre-move Session renderer on these same candidates and boundaries
+/// (each boundary is the check's own `permits` of a real workflow), never by the code under test.
+mod effects_oracle {
+    use super::*;
+
+    const NET: &str = "nika: n\npermits:\n  net:\n    http: [api.example.com, \"127.0.0.1\"]\n  tools: [\"nika:fetch\"]\ntasks:\n  get:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n";
+    const PROGRAMS: &str = "nika: e\npermits:\n  exec: [jq, git]\ntasks:\n  run:\n    exec:\n      command: [\"jq\", \".\"]\n";
+    const ANY: &str =
+        "nika: a\npermits:\n  exec: true\ntasks:\n  run:\n    exec:\n      command: [\"ls\"]\n";
+    const SHELL: &str =
+        "nika: s\npermits: {}\ntasks:\n  run:\n    exec:\n      shell: \"ls | wc -l\"\n";
+    const COMPUTED: &str = "nika: c\ninputs:\n  u: { type: string, required: true }\npermits:\n  tools: [\"nika:fetch\"]\ntasks:\n  get:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"${{ inputs.u }}\" }\n";
+    const QUIET: &str = "nika: q\npermits:\n  fs:\n    read: [\"./a.txt\"]\n  tools: [\"nika:read\"]\ntasks:\n  read:\n    invoke:\n      tool: \"nika:read\"\n      args: { path: \"./a.txt\" }\n";
+    const MALFORMED: &str = "nika: [\n";
+
+    /// `(case, candidate, the workflow whose check boundary rides along)`.
+    pub(super) const CASES: [(&str, &str, Option<&str>); 13] = [
+        ("net/none", NET, None),
+        ("net/own", NET, Some(NET)),
+        ("programs/own", PROGRAMS, Some(PROGRAMS)),
+        ("any/own", ANY, Some(ANY)),
+        ("shell/own", SHELL, Some(SHELL)),
+        ("shell/none", SHELL, None),
+        ("computed/own", COMPUTED, Some(COMPUTED)),
+        ("quiet/own", QUIET, Some(QUIET)),
+        ("quiet/none", QUIET, None),
+        ("quiet/programs", QUIET, Some(PROGRAMS)),
+        ("net/computed", NET, Some(COMPUTED)),
+        ("malformed/net", MALFORMED, Some(NET)),
+        ("malformed/none", MALFORMED, None),
+    ];
+
+    /// `(case, line)` captured from the pre-move Session renderer; never recomputed here.
+    const EXPECTED: [(&str, &str); 13] = [
+        ("net/none", "network · api.example.com · 127.0.0.1"),
+        ("net/own", "network · api.example.com · 127.0.0.1"),
+        ("programs/own", "runs · jq · git"),
+        ("any/own", "runs any program"),
+        ("shell/own", "runs any program"),
+        ("shell/none", "none"),
+        ("computed/own", "a network host the check could not pin"),
+        ("quiet/own", "none"),
+        ("quiet/none", "none"),
+        ("quiet/programs", "runs · jq"),
+        ("net/computed", "network · api.example.com · 127.0.0.1"),
+        ("malformed/net", "network · api.example.com"),
+        ("malformed/none", "none"),
+    ];
+
+    #[test]
+    fn the_external_effects_line_keeps_the_pre_move_bytes() {
+        for ((name, candidate, bound), (want_name, want)) in CASES.iter().zip(EXPECTED) {
+            assert_eq!(*name, want_name);
+            let bound = bound.map(|yaml| report(yaml).permits);
+            assert_eq!(external_effects(candidate, bound.as_ref()), want, "{name}");
+        }
+    }
+}

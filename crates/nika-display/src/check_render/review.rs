@@ -80,6 +80,64 @@ fn builtin_face(tool: &str) -> String {
     .to_owned()
 }
 
+/// What the workflow reaches outside the project: the network hosts and
+/// programs the bytes DECLARE (the boundary the human accepts, default-deny)
+/// joined with the check's inferred floor. The floor alone would print
+/// « none » for a loopback webhook: the inference leaves a loopback host
+/// out by design (the SSRF floor) while the candidate names it. A face the
+/// check could not pin is said so, never folded into « none ».
+#[must_use]
+pub fn external_effects(
+    candidate: &str,
+    boundary: Option<&nika_check::EffectivePermits>,
+) -> String {
+    let declared = nika_schema::parse(candidate, FileId::new(0), ParseMode::Strict)
+        .ok()
+        .and_then(|wf| wf.permits.map(|p| p.value));
+    let mut hosts: Vec<String> = declared
+        .as_ref()
+        .and_then(|p| p.net.as_ref())
+        .map(|net| net.http.clone())
+        .unwrap_or_default();
+    let mut exec = declared.as_ref().and_then(|p| p.exec.clone());
+    let mut unpinned = Vec::new();
+    if let Some(boundary) = boundary {
+        if let Some(net) = &boundary.needed.net {
+            for host in &net.http {
+                if !hosts.contains(host) {
+                    hosts.push(host.clone());
+                }
+            }
+        }
+        if exec.is_none() {
+            exec.clone_from(&boundary.needed.exec);
+        }
+        if boundary.partial.net && hosts.is_empty() {
+            unpinned.push("a network host the check could not pin");
+        }
+        if boundary.partial.exec && exec.is_none() {
+            unpinned.push("a program the check could not pin");
+        }
+    }
+    let mut external = Vec::new();
+    if !hosts.is_empty() {
+        external.push(format!("network · {}", hosts.join(" · ")));
+    }
+    match exec {
+        Some(nika_cap::ExecPermit::Any) => external.push("runs any program".to_owned()),
+        Some(nika_cap::ExecPermit::Programs(p)) if !p.is_empty() => {
+            external.push(format!("runs · {}", p.join(" · ")));
+        }
+        _ => {}
+    }
+    external.extend(unpinned.into_iter().map(str::to_owned));
+    if external.is_empty() {
+        "none".to_owned()
+    } else {
+        external.join(" · ")
+    }
+}
+
 /// The candidate's tasks in order — one line each: the id, the verb, the
 /// tool or model it names, whether it runs per item. From the parser,
 /// never from prose.

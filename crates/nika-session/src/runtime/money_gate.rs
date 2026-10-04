@@ -496,6 +496,56 @@ impl SessionRuntime {
         self.money.current = Some(decision);
     }
 
+    /// A saved workflow's revision stating no amount keeps that workflow's ceiling: the one live
+    /// binding to the resolved file AND the exact base the revision compiled. A binding to other
+    /// bytes, or more than one, refuses (never a default in its place); with none (a restart, a
+    /// file never linked) the change's own admitted law stands. No account is replaced or
+    /// refilled and no Run authority is restored.
+    pub(super) fn bind_revision_money(
+        &mut self,
+        saved: &std::path::Path,
+        change: &str,
+        base: &Witness,
+    ) -> Result<(), TurnOutcome> {
+        if self
+            .read_money(change, true)
+            .is_ok_and(|(parsed, _)| parsed.amount.is_some())
+        {
+            return Ok(());
+        }
+        let resolved = self.snapshot.root.join(saved).canonicalize();
+        let kept = match resolved.map(|resolved| self.live_binding(saved, &resolved, Some(base))) {
+            Ok(Ok(None)) => return Ok(()),
+            Ok(Ok(Some(kept))) => kept,
+            Ok(Err(why)) => {
+                let why = format!("{why} · nothing was sent · or state this revision's ceiling");
+                return Err(self.refuse_money(change, &why));
+            }
+            Err(_) => {
+                let why =
+                    "the revised workflow's identity could not be resolved — nothing was sent";
+                return Err(self.refuse_money(change, why));
+            }
+        };
+        let mut decision = self.inference_observation(kept);
+        decision.proposal = None;
+        self.money.current = Some(decision.clone());
+        self.money.draft = Some(decision);
+        Ok(())
+    }
+
+    /// Whether the shared account refused a label since `before`, before any send: a new refusal
+    /// and no new priced or unknown attempt. An unreadable snapshot proves nothing (fail closed).
+    pub(super) fn label_refused(&self, before: Option<&nika_providers::InferenceReceipt>) -> bool {
+        let (Some(before), Ok(Some(after))) = (before, self.inference_receipt()) else {
+            return false;
+        };
+        after.refusal.is_some()
+            && after.refusal != before.refusal
+            && after.attempts.len() == before.attempts.len()
+            && after.unknown_attempts.len() == before.unknown_attempts.len()
+    }
+
     /// Run refusals change the Run observation, never the shared Session account.
     pub(super) fn refuse_run_money(&mut self, input: &str, reason: &str) -> TurnOutcome {
         self.money.current = Some(self.inference_observation(self.rejected_money(input, reason)));
@@ -536,32 +586,14 @@ impl SessionRuntime {
                 "the workflow identity could not be resolved — review it before running",
             ));
         };
-        let matches = |path: &std::path::Path| {
-            path == workflow
-                || self
-                    .snapshot
-                    .root
-                    .join(path)
-                    .canonicalize()
-                    .is_ok_and(|p| p == resolved)
-        };
-        let mut saved = self
-            .money
-            .saved
-            .iter()
-            .filter(|saved| matches(&saved.path) || saved.resolved.as_ref() == Some(&resolved));
-        if let Some(saved_money) = saved.next() {
-            if saved.next().is_some() {
-                return Err(self.refuse_run_money(input, "multiple saved monetary decisions resolve to this workflow — prepare and review one unambiguous revision"));
+        let now = std::fs::read(&target).ok().map(|bytes| Witness::of(&bytes));
+        match self.live_binding(workflow, &resolved, now.as_ref()) {
+            Ok(Some(decision)) => {
+                self.money.current = Some(self.inference_observation(decision));
+                return Ok(());
             }
-            let unchanged = saved_money.resolved.as_ref() == Some(&resolved)
-                && std::fs::read(&target)
-                    .is_ok_and(|bytes| Witness::of(&bytes) == saved_money.witness);
-            if !unchanged {
-                return Err(self.refuse_run_money(input, "the prepared workflow changed since its monetary decision — prepare and review the revision before running"));
-            }
-            self.money.current = Some(self.inference_observation(saved_money.decision.clone()));
-            return Ok(());
+            Err(why) => return Err(self.refuse_run_money(input, why)),
+            Ok(None) => {}
         }
         // The existing journal proves that Save occurred, but its v1 schema does not record
         // spending constraints. After reopening, absence of an in-memory binding therefore cannot
@@ -573,7 +605,7 @@ impl SessionRuntime {
         };
         if records
             .iter()
-            .any(|record| record.written.iter().any(|path| matches(path)))
+            .any(|record| (record.written.iter()).any(|path| self.names(path, workflow, &resolved)))
         {
             return Err(self.refuse_run_money(input, "the saved spending constraint cannot be proved in this session — provide an explicit Run ceiling or prepare and review the workflow again; no default was substituted"));
         }
@@ -582,6 +614,45 @@ impl SessionRuntime {
         self.money.current =
             Some(self.inference_observation(self.money_decision(input, &ParsedMoney::default())));
         Ok(())
+    }
+
+    /// Whether `path` names `workflow`: the same text, or a file resolving to `resolved`.
+    fn names(
+        &self,
+        path: &std::path::Path,
+        workflow: &std::path::Path,
+        resolved: &PathBuf,
+    ) -> bool {
+        path == workflow
+            || (self.snapshot.root.join(path).canonicalize()).is_ok_and(|p| p == *resolved)
+    }
+
+    /// The one live monetary binding of `workflow` (Run and revision share this law): `Ok(None)`
+    /// when none names it; refused when several do, or when the one that does was made for
+    /// another resolved identity or for other bytes than `witness` (none: unreadable).
+    fn live_binding(
+        &self,
+        workflow: &std::path::Path,
+        resolved: &PathBuf,
+        witness: Option<&Witness>,
+    ) -> Result<Option<MonetaryDecision>, &'static str> {
+        let mut saved = (self.money.saved.iter()).filter(|saved| {
+            self.names(&saved.path, workflow, resolved) || saved.resolved.as_ref() == Some(resolved)
+        });
+        let Some(kept) = saved.next() else {
+            return Ok(None);
+        };
+        if saved.next().is_some() {
+            return Err(
+                "multiple saved monetary decisions resolve to this workflow — prepare and review one unambiguous revision",
+            );
+        }
+        if kept.resolved.as_ref() != Some(resolved) || witness != Some(&kept.witness) {
+            return Err(
+                "the prepared workflow changed since its monetary decision — prepare and review the revision before running",
+            );
+        }
+        Ok(Some(kept.decision.clone()))
     }
 
     fn inference_observation(&self, mut decision: MonetaryDecision) -> MonetaryDecision {
