@@ -311,7 +311,7 @@ fn a_later_ceiling_keeps_the_observation_and_never_claims_to_cover_it() {
             && status.contains(
                 "no-budget observation (outside any allowance or cap): 1 priced call(s) sent"
             ),
-        "{status}"
+        "the later allowance must retain the earlier no-budget observation"
     );
     assert_eq!(peer.bodies().len(), 2);
 }

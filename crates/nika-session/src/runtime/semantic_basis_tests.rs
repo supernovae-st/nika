@@ -148,7 +148,7 @@ fn an_unchanged_project_saves_the_exact_semantic_candidate_without_any_run() {
         text.contains(
             "sources judged again before writing: 2 recorded fact(s) of `inventory.json` hold"
         ) && text.contains("nothing has run"),
-        "{text}"
+        "save must report the rejudged source facts and that nothing ran"
     );
     let workflow = p.saved().expect("the workflow is saved");
     assert_eq!(workflow.lines().count(), 35, "{workflow}");
@@ -177,8 +177,7 @@ fn a_removed_key_or_a_deleted_source_withdraws_and_rows_added_still_save() {
             .contains("the sources this proposal was built on changed")
             && refusal.text.contains("`stock`")
             && refusal.text.contains("nothing was written"),
-        "{}",
-        refusal.text
+        "withdrawal must identify the changed source key and that nothing was written"
     );
     assert!(p.saved().is_none());
     p.nothing_ran();

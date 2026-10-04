@@ -1288,7 +1288,10 @@ fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() 
     let TurnOutcome::GateAsk { id: gate, question } = first.observe_run(4, Some(&trace)) else {
         panic!("a pause with a gate asks");
     };
-    assert!(question.contains("Ship it?"), "{question}");
+    assert!(
+        question.contains("Ship it?"),
+        "the pending gate must retain its recorded question"
+    );
     let state = crate::state::SessionState::load(root.path())
         .expect("readable")
         .expect("written at the observation");

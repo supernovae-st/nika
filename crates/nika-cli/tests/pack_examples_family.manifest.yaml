@@ -72,6 +72,7 @@ entries:
   - { slug: localization-factory, expect: { rc: 0 } }
   - { slug: og-images, expect: { rc: 0 } }
   - { slug: price-watch, expect: { rc: 0 } }
+  - { slug: remove-owned-file, expect: { rc: 0 } }
   - { slug: seo-content-brief, expect: { rc: 0 } }
   - { slug: snippets/hello, expect: { rc: 0 } }
   - { slug: snippets/hello-ai, expect: { rc: 0 } }

@@ -637,6 +637,9 @@ fn session(world: &World, home: &Path, seat: &LoopbackSeat) -> LoggedSession {
     session.expect("nika ›").unwrap();
     session.send_line("/intelligence").unwrap();
     session.expect("No AI in this conversation").unwrap();
+    // The choice is a question: what was typed before its prompt is drawn is discarded, so the
+    // answer goes only once that prompt is on screen.
+    session.expect("\n› ").unwrap();
     session.send_line("3 ollama/llama3.2").unwrap();
     session.expect("authoring · ollama/llama3.2").unwrap();
     session.expect("nika ›").unwrap();

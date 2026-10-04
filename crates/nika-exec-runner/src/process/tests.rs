@@ -342,7 +342,8 @@ async fn an_output_past_its_cap_ends_the_process_and_is_never_kept() -> Result<(
 
 #[tokio::test]
 async fn a_group_escape_holding_an_output_is_abandoned_never_claimed_clean() -> Result<(), String> {
-    let program = std::path::Path::new(SH);
+    // This fixture requires job control, which non-interactive /bin/sh need not support.
+    let program = std::path::Path::new("/bin/bash");
     // Job control gives the background job a process group of its own: the group kill cannot
     // reach it, it keeps stdout open, and it ends on its own after one second (well past this
     // collection's grace, well within the others': a process another test forks at the same

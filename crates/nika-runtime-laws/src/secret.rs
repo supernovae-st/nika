@@ -1034,10 +1034,9 @@ mod outputs_record_tests {
                     vec![(OUTPUTS_FIELD, FieldValue::String(json.clone()))],
                 );
                 let out = through(secrets, event);
-                assert_eq!(
-                    out,
-                    [(OUTPUTS_WITHHELD_FIELD.to_owned(), FieldValue::Bool(true))],
-                    "{secrets:?} {json}"
+                assert!(
+                    out == [(OUTPUTS_WITHHELD_FIELD.to_owned(), FieldValue::Bool(true))],
+                    "a secret-bearing output must be withheld as one whole map"
                 );
             }
         }

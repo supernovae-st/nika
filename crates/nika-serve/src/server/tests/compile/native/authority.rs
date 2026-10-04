@@ -182,7 +182,10 @@ async fn explicit_authority_repairs_and_a_caller_can_narrow_but_never_widen_it()
         // What the configuration could ask for is not what was granted, nor what was sent.
         assert_eq!(account["configured"]["worst_case"], configured);
         let granted = if ready { 32 } else { 1 };
-        assert_eq!(account["max_calls"], granted, "{account:#}");
+        assert!(
+            account["max_calls"] == granted,
+            "authority max_calls must match the granted bound"
+        );
         server.stop().await.expect("clean stop");
     }
 }
@@ -392,13 +395,22 @@ async fn the_policy_and_its_account_resolve_one_strategy() {
         let response = server.request(&compile_request(&fresh(&json!({})))).await;
         assert_eq!(response.status, 200, "{}", response.body);
         let account = authority(&response.json());
-        assert_eq!(account["configured"]["strategy"], "escalate", "{account:#}");
-        assert_eq!(
-            account["configured"]["worst_case"], worst_case,
-            "{account:#}"
+        assert!(
+            account["configured"]["strategy"] == "escalate",
+            "authority strategy must be escalate"
         );
-        assert_eq!(account["max_calls"], max_calls, "{account:#}");
-        assert_eq!(account["http_requests"]["sent"], 1, "{account:#}");
+        assert!(
+            account["configured"]["worst_case"] == worst_case,
+            "configured worst case must follow the repair preference"
+        );
+        assert!(
+            account["max_calls"] == max_calls,
+            "authority max_calls must match the configured grant"
+        );
+        assert!(
+            account["http_requests"]["sent"] == 1,
+            "the authority receipt must count one sent request"
+        );
         assert_eq!(seat.calls(), 1);
         server.stop().await.expect("clean stop");
     }

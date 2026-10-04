@@ -185,8 +185,14 @@ async fn a_looked_up_identifier_keeps_its_exact_selection() {
     let answered = compile(&request).expect("answer round");
     assert_eq!(answered.status, CompileStatus::Ready, "{answered:#?}");
     let candidate = answered.candidate.expect("candidate");
-    assert!(candidate.contains("W-5"), "{candidate}");
-    assert!(!candidate.contains("inputs.item"), "{candidate}");
+    assert!(
+        candidate.contains("W-5"),
+        "the candidate must retain the exact selected identifier"
+    );
+    assert!(
+        !candidate.contains("inputs.item"),
+        "the candidate must not replace the selected identifier with a runtime input"
+    );
 }
 
 /// What these laws leave alone: a whole-file read with no record named, a text source whose

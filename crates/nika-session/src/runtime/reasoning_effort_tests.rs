@@ -742,6 +742,6 @@ fn the_decision_seat_is_a_separate_backend_the_named_level_never_reaches() {
     let status = s.status();
     assert!(
         status.contains(" · reasoning effort max asked of every LLM call; the TypeSafe decision seat is a separate backend: no effort is sent to it"),
-        "{status}"
+        "status must distinguish LLM reasoning effort from the decision seat"
     );
 }

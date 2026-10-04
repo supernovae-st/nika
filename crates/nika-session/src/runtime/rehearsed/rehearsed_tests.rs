@@ -812,7 +812,10 @@ fn a_refused_advance_keeps_the_previous_proof() {
     );
     assert!(s.advance_rehearsal(Path::new(LANDED), &sha, &[]).is_err());
     let why = refused(s.turn(RUN));
-    assert!(why.text.contains("appeared"), "{}", why.text);
+    assert!(
+        why.text.contains("appeared"),
+        "the refused advance must report the output that appeared"
+    );
     assert!(
         s.advance_rehearsal(Path::new(LANDED), &sha, &target)
             .is_err()

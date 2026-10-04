@@ -1248,8 +1248,14 @@ mod tests {
             } else {
                 Value::Null
             };
-            assert_eq!(doc["permits"]["net"]["http"], expected, "{source}");
-            assert_eq!(doc["permits"]["tools"], json!(["nika:notify"]), "{source}");
+            assert!(
+                doc["permits"]["net"]["http"] == expected,
+                "the answered host must match the expected HTTP grant"
+            );
+            assert!(
+                doc["permits"]["tools"] == json!(["nika:notify"]),
+                "answering the host must preserve the tool grant"
+            );
         }
     }
 }
