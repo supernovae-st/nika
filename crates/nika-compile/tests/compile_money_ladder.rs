@@ -248,11 +248,23 @@ async fn a_skeleton_name_beside_its_ceiling_is_read_as_written_and_opens_no_seat
                     .with_hot_policy(hot)
             };
             let control = Provider::new(plan());
-            compile_with_provider(&seated("hello budget 0 USD"), &control)
+            let unbound = compile_with_provider(&seated("hello budget 0 USD"), &control)
                 .await
                 .unwrap();
             let seen = control.calls.load(Ordering::SeqCst);
-            assert!(seen > 0, "control {hot:?} {native:?}");
+            if native == NativeMode::Only {
+                // Source-only creation is retired: with no money the same bytes refuse with
+                // the migration and reach no seat; the money witness below keeps its own cause.
+                assert_eq!(seen, 0, "control {hot:?} {native:?}");
+                assert!(
+                    (unbound.diagnostics.iter())
+                        .any(|d| d.target == "authoring_policy"
+                            && d.message.contains("native: only")),
+                    "control {hot:?} {native:?}: {unbound:#?}"
+                );
+            } else {
+                assert!(seen > 0, "control {hot:?} {native:?}");
+            }
             for text in [
                 "hello budget 0 USD",
                 "01-hello budget 0 USD",

@@ -82,7 +82,7 @@ fn fills_answer(fills: &Value) -> String {
 }
 
 fn expression() -> Value {
-    json!({"task": "keep", "field": "expression", "value": "fromjson | map(select(.active == true))"})
+    json!({"task": "keep", "field": "expression", "value": ".rows | fromjson | map(select(.active == true))"})
 }
 
 async fn compile(intent: &str, replies: Vec<String>) -> (CompileOutcome, u32) {
@@ -171,8 +171,13 @@ async fn minimal_valid_fills_emit_the_graph_owned_source_destination_and_binding
     let tasks = &doc["tasks"];
     assert_eq!(tasks["read_a"]["invoke"]["args"]["path"], "./a.json");
     assert_eq!(tasks["read_b"]["invoke"]["args"]["path"], "./b.json");
-    assert_eq!(tasks["keep"]["invoke"]["args"]["input"], "${{ with.rows }}");
+    // A task bound to two edges exposes both inputs by name.
+    assert_eq!(
+        tasks["keep"]["invoke"]["args"]["input"],
+        json!({"rows": "${{ with.rows }}", "other": "${{ with.other }}"})
+    );
     assert_eq!(tasks["keep"]["with"]["rows"], "${{ tasks.read_a.output }}");
+    assert_eq!(tasks["keep"]["with"]["other"], "${{ tasks.read_b.output }}");
     assert_eq!(tasks["save"]["invoke"]["args"]["path"], "./a-out.json");
     assert_eq!(
         tasks["save"]["invoke"]["args"]["content"],

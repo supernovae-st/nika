@@ -559,9 +559,10 @@ contradicted write is never emitted. A structured destination, an unquoted objec
 literals or a transformation of one keeps its question.
 
 With attached authoring references, Escalate tries complete HOT and finite WARM judgments
-first, then gives the first open generation the native language card, original request,
-answers, observed world and selected references. It avoids a preliminary private-plan
-call that cannot consume that context. Native repair progress compares both candidate
+first, then gives the private Plan the admitted context, request, answers and observed world.
+When no Plan candidate remains, it may continue through Sketch within the same request
+authority and reduced repair allowance. Fresh CREATE never falls back to model-written
+source; `only` refuses it without a call. Native repair progress compares both candidate
 identity and diagnostics; changed candidates may use the remaining bounded attempts.
 A technical failure retains the request and round candidates instead of requesting a
 replacement intent. An optional initial output limit can increase after a reported
@@ -695,8 +696,9 @@ original, money or initial answers differ, that gains a clarification it never h
 replacement is a new basis), or that carries no caller basis is refused. Then the closed keys,
 versions and bound answers are checked (A0 ⊆ Ak ⊆ Ac, string maps only), `basis.read` is
 recomputed from the current request with only its initial answers, the graph is judged by
-`structural_laws`, the fills by `fills_from_json`/`complete_document` (the pure decode is
-`nika_compile_fidelity::sketch::replayed`), and the bytes the core lowers must match
+`structural_laws_observed` using the current caller observation, the fills by
+`fills_from_json`/`complete_document` (the pure decode is
+`nika_compile_fidelity::sketch::replayed_observed`), and the bytes the core lowers must match
 `assembly_sha256`. The
 old final is always rebuilt under its bound answers and must match its identity; a new answer
 must answer a question that candidate asks and produces a new `final` binding, while the basis
@@ -739,3 +741,16 @@ the door is re-read from the replacement. When judgments are supplied, the route
 raw caller is checked by each entry that receives the raw request (the cognition entry,
 `compile_judged`, and the authoring door's own validation of its record); no check runs on the
 normalized request of the money recursion.
+
+## Answered endpoints and closed semantic replay
+
+An answered endpoint contributes its host only when a fetch URL or notify target reads the
+whole answered constant. When the HTTP permit list is absent, the core creates that list
+and re-emits the document only after checking its literal projection. A substring, another
+argument or an unused answer creates no such authority. This compile-time boundary does
+not authorize a Run.
+
+A plan carrying `semantic_record` stays in that closed format: the observation decorator
+adds no `observed_world`, `reasked` or `verified_transform` keys. Replay receives the current
+caller's observation separately and revalidates the graph and emitted bytes against it.
+Older non-semantic plans retain their existing observation recovery.

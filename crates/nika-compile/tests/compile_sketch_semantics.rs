@@ -672,10 +672,12 @@ async fn a_composition_the_merge_refuses_stays_refused() {
         "{}",
         route(&out)
     );
+    // The refused plan round escalates like any plan without a candidate (no longer to source):
+    // the sketch door opens as the escalation, never as the composition the merge refused.
     assert!(
-        !roles(&out).iter().any(|r| r.starts_with("sketch")),
-        "{:?}",
-        roles(&out)
+        route(&out).contains("native: sketch after the plan"),
+        "{}",
+        route(&out)
     );
     assert_eq!(&roles(&out)[..2], ["plan", "repair"], "{:?}", roles(&out));
     assert!(calls >= 2);
@@ -1080,4 +1082,39 @@ async fn a_refusing_judgment_keeps_its_verdict_and_calls_and_no_mutant_is_ready(
             out.diagnostics
         );
     }
+}
+
+// ── A program bound to several edges reads them all; its input stays the sketch's ─────────────
+
+#[tokio::test]
+async fn a_fill_never_replaces_the_input_a_program_reads_from_its_edges() {
+    // The composed graph, with the alpha write fed by a program over both reads.
+    let mut graph = tasks();
+    graph.insert(
+        2,
+        task(
+            "join",
+            "nika:jq",
+            &json!({"with": [{"name": "alpha", "from": "read_alpha"}, {"name": "beta", "from": "read_beta"}]}),
+        ),
+    );
+    graph[4]["with"] = json!([{"name": "text", "from": "join"}]);
+    let hostile = json!({"fills": [
+        {"task": "approve", "field": "args.message", "value": "Écrire les deux copies ?"},
+        {"task": "join", "field": "args", "value": {"input": "${{ with.alpha }}"}},
+        {"task": "join", "field": "expression", "value": ".alpha + .beta"}
+    ], "notes": "fills"});
+    let (out, calls) = compile(
+        NativeMode::Sketch,
+        0,
+        vec![sketch_answer(&graph, Some(outputs())), hostile.to_string()],
+    )
+    .await;
+    assert_eq!(calls, 2, "the sketch and its one fill round: {out:#?}");
+    assert!(out.candidate.is_none(), "{out:#?}");
+    let fill = native(&out)["rounds"][1]["diagnostics"].to_string();
+    assert!(
+        fill.contains("`join.args` is owned by the sketch"),
+        "{fill}"
+    );
 }

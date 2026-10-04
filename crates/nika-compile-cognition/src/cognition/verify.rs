@@ -779,11 +779,15 @@ async fn repair<P: ProviderInferDyn>(
         told.join("\n"),
         serde_json::to_string_pretty(&judged).unwrap_or_default()
     );
-    // The opening's messages, its instructions followed by the reference.
+    // The opening's messages: its instructions and the context the opening read, then the
+    // reference over the candidate. The candidate's grounding and the state stay as they were;
+    // the call's journal entry names the receipts of both, the grounding's first.
     let reference = grounding(candidate);
+    let context = knowledge::plan_context(intent, reading, request);
     let system = format!(
-        "{}\n\n{REPAIR_REFERENCE}\n\n{}",
+        "{}\n\n{}\n\n{REPAIR_REFERENCE}\n\n{}",
         super::INSTRUCTIONS,
+        context.text,
         reference.text
     );
     let messages = vec![
@@ -793,7 +797,8 @@ async fn repair<P: ProviderInferDyn>(
     ];
     let before = journal(pre).len();
     let called = super::call(policy, provider, "repair", messages, pre).await;
-    stamp(pre, before, &reference.record["references"]);
+    let grounded = reference.record["references"].as_array();
+    knowledge::stamp_plan(pre, before, &context, grounded.map_or(&[], Vec::as_slice));
     let (proposal, _) = called?;
     let mut scratch = crate::initial();
     // A repair proposal is judged as a plan only; a composition is not repaired here.

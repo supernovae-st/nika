@@ -105,10 +105,10 @@ fn judge_sketch(
     intent: &str,
     reading: &Reading,
     sketch: &Sketch,
-    allowed: &[String],
-    clarified: &[String],
+    (allowed, clarified): (&[String], &[String]),
+    observed: Option<&Value>,
 ) -> Vec<Diagnostic> {
-    let mut out: Vec<Diagnostic> = ir::structural_laws(sketch, intent, allowed)
+    let mut out: Vec<Diagnostic> = ir::structural_laws_observed(sketch, intent, allowed, observed)
         .into_iter()
         .map(|message| Diagnostic {
             kind: "sketch",
@@ -120,13 +120,14 @@ fn judge_sketch(
     }
     if out.is_empty() {
         let doc = ir::document(sketch, &[]);
-        fidelity::laws(
+        fidelity::laws_observed(
             intent,
             &reading.plan,
             &doc,
             allowed,
             &[],
             clarified,
+            observed,
             &mut out,
         );
     }
@@ -204,7 +205,7 @@ fn holes_message(sketch: &Sketch) -> String {
         );
     }
     text.push_str(
-        "Fill each hole once, with its value; fill every hole not marked optional; an `args` object never names an argument the sketch states for its task (the path or glob it reaches, its edge input or bound content, its channel); a content template reads every edge its task is bound to; a builtin's file argument is one of the paths its own task states in reads or writes. Answer one JSON object {\"fills\": [{\"task\", \"field\", \"value\"}], \"notes\"}.",
+        "Fill each hole once, with its value; fill every hole not marked optional; an `args` object never names an argument the sketch states for its task (the path or glob it reaches, its edge input or bound content, its channel); a program bound to several edges reads them as one input object keyed by their names (`.<name>` for each edge); a content template reads every edge its task is bound to; a builtin's file argument is one of the paths its own task states in reads or writes. Answer one JSON object {\"fills\": [{\"task\", \"field\", \"value\"}], \"notes\"}.",
     );
     text
 }
@@ -472,10 +473,29 @@ async fn propose<P: ProviderInferDyn>(
         };
         let record = graph(&answer);
         let (diagnostics, parsed) = match Sketch::from_json(&record) {
-            Ok(parsed) => (
-                judge_sketch(intent, reading, &parsed, &talk.allowed, &talk.clarified),
-                Some(parsed),
-            ),
+            Ok(parsed) => {
+                let mut judged = judge_sketch(
+                    intent,
+                    reading,
+                    &parsed,
+                    (&talk.allowed, &talk.clarified),
+                    talk.observed.as_ref(),
+                );
+                // A question the request or the observed world already settles is refused before
+                // the graph is fixed, so this repair can withdraw it (no fill can).
+                let questions = &answer.questions;
+                if judged.is_empty()
+                    && let Err(refused) = super::native::admitted_questions(
+                        intent,
+                        "",
+                        questions,
+                        talk.observed.as_ref(),
+                    )
+                {
+                    judged.push(refused);
+                }
+                (judged, Some(parsed))
+            }
             Err(message) => (
                 vec![Diagnostic {
                     kind: "sketch",
@@ -629,13 +649,24 @@ async fn fill<P: ProviderInferDyn>(
 
 /// The route step of a COLD round whose plan could not keep the request's branches apart.
 pub(super) const COMPOSITION: &str = "native: sketch for branches the plan cannot keep apart";
+/// The route step of an escalating COLD round that ended without a candidate, or handed the human
+/// a machine's problem.
+pub(super) const ESCALATED: &str = "native: sketch after the plan";
 
-/// The sketch door for a composition the private plan cannot carry, after a COLD round paid for
-/// its plan: the same request, answers, reading floor and receipt. Within the bound the policy
-/// already grants: the sketch door takes one request more than the native door, so its repair
-/// allowance is one less (none left is a budget finding, no request). A policy with no native
-/// door names the composition and assembles nothing. Never source generation.
-#[allow(clippy::too_many_arguments)] // the sketch door's own inputs, plus the composition
+/// Why a COLD round hands its request to the sketch door.
+pub(super) enum Escalation {
+    /// Branches the private plan cannot keep apart.
+    Composition(Composition),
+    /// An escalating policy's plan round ended without a candidate, or with a machine's problem.
+    Plan,
+}
+
+/// The sketch door after a COLD round paid for its plan: the same request, answers, reading
+/// floor and receipt. Within the bound the policy already grants: the sketch door takes one
+/// request more than the native door that bound once counted (the sketch, then its fills), so
+/// its repair allowance is one less (none left is a budget finding, no request). A policy with
+/// no native door names why and assembles nothing. Never source generation.
+#[allow(clippy::too_many_arguments)] // the sketch door's own inputs, plus why it opens
 pub(super) async fn compose<P: ProviderInferDyn>(
     intent: &str,
     reading: &Reading,
@@ -644,25 +675,32 @@ pub(super) async fn compose<P: ProviderInferDyn>(
     request: &CompileRequest,
     mut route: Vec<String>,
     mut out: CompileOutcome,
-    composition: &Composition,
+    why: &Escalation,
 ) -> Result<CompileOutcome, CompileError> {
-    let kinds: Vec<String> = composition
-        .occurrences
-        .iter()
-        .map(|(op, _)| format!("`{}`", op.word()))
-        .collect();
-    let what = format!(
-        "The request composes {} independent branches ({}) that the private plan cannot keep apart",
-        kinds.len(),
-        kinds.join(", ")
-    );
+    let (what, step) = match why {
+        Escalation::Composition(composition) => {
+            let kinds: Vec<String> = (composition.occurrences.iter())
+                .map(|(op, _)| format!("`{}`", op.word()))
+                .collect();
+            let what = format!(
+                "The request composes {} independent branches ({}) that the private plan cannot keep apart",
+                kinds.len(),
+                kinds.join(", ")
+            );
+            (what, COMPOSITION)
+        }
+        Escalation::Plan => (
+            "The private plan ended without a candidate the request can stand on".to_owned(),
+            ESCALATED,
+        ),
+    };
     let refusal = if policy.native == NativeMode::Off {
         Some(format!(
             "{what}, and this authoring policy permits no sketch door (native: off). No candidate was assembled."
         ))
     } else if policy.repairs.min(5).checked_sub(1).is_none() {
         Some(format!(
-            "{what}; the sketch door needs one request more than the native door this policy bounds, and its repair allowance (0) leaves none. No request was sent and no candidate was assembled."
+            "{what}; the sketch door needs one request more than the single candidate this policy bounds, and its repair allowance (0) leaves none. No request was sent and no candidate was assembled."
         ))
     } else {
         None
@@ -674,11 +712,15 @@ pub(super) async fn compose<P: ProviderInferDyn>(
             "authoring_plan",
             message,
         );
-        route.push("cold: composition needs the sketch door".to_owned());
+        let needs = match why {
+            Escalation::Composition(_) => "cold: composition needs the sketch door",
+            Escalation::Plan => "cold: escalation needs the sketch door",
+        };
+        route.push(needs.to_owned());
         super::record_route(&mut out, &route);
         return Ok(out);
     }
-    route.push(COMPOSITION.to_owned());
+    route.push(step.to_owned());
     let bounded = policy
         .clone()
         .with_repairs(policy.repairs.min(5).saturating_sub(1));
@@ -710,6 +752,12 @@ fn semantic_record(
         })
         .collect();
     let sha = super::knowledge::sha256;
+    // The trigger in the request's own words (the reader's phrase is normalized): its occurrence
+    // in the effective request; none found, no record.
+    let trigger = match settled["trigger"].as_str() {
+        Some(phrase) => json!(occurrence(basis["effective"].as_str()?, phrase)?),
+        None => Value::Null,
+    };
     let mut record = json!({
         "semantic_record": 1,
         "lowering": 1,
@@ -718,7 +766,7 @@ fn semantic_record(
         "sketch": stated,
         "fills": fills,
         "settlement": {"questions": questions, "gaps": settled["gaps"].as_array()?,
-                       "trigger": settled["trigger"]},
+                       "trigger": trigger},
         "assembly_sha256": sha(assembled),
         "source": assembled,
         "source_is": "pre_answer_assembly",
@@ -726,6 +774,18 @@ fn semantic_record(
     record["basis"] = json!({});
     record["basis"]["read"] = basis;
     Some(record)
+}
+
+/// The words of `text` a lowercase `phrase` was read from: the first occurrence, cut at `text`'s
+/// own character boundaries, whose lowercase is the phrase.
+fn occurrence<'a>(text: &'a str, phrase: &str) -> Option<&'a str> {
+    let most = phrase.chars().count();
+    text.char_indices().find_map(|(start, _)| {
+        let rest = &text[start..];
+        (rest.char_indices().take(most))
+            .map(|(at, c)| &rest[..at + c.len_utf8()])
+            .find(|words| words.to_lowercase() == phrase)
+    })
 }
 
 /// At the compile's entry, once the door returned: the caller basis read before any money was
@@ -887,5 +947,164 @@ mod tests {
             assert_eq!(value["additionalProperties"], false, "{value}");
             assert!(value["required"].is_array(), "{value}");
         }
+    }
+
+    /// Run a jq program over `input` with the core, std and json definitions (the language the
+    /// builtin runs, without the run-start clock no program here reads): its one output.
+    fn jq(program: &str, input: &serde_json::Value) -> Result<serde_json::Value, String> {
+        use jaq_core::load::{Arena, File, Loader};
+        use jaq_core::{Compiler, Ctx, Vars, data::JustLut};
+        use jaq_json::{Val, read};
+        let defs = jaq_core::defs()
+            .chain(jaq_std::defs())
+            .chain(jaq_json::defs());
+        let funs = jaq_core::funs()
+            .chain(jaq_std::funs())
+            .chain(jaq_json::funs());
+        let arena = Arena::default();
+        let modules = Loader::new(defs)
+            .load(
+                &arena,
+                File {
+                    code: program,
+                    path: (),
+                },
+            )
+            .map_err(|_| "parse".to_owned())?;
+        let filter = Compiler::default()
+            .with_funs(funs)
+            .compile(modules)
+            .map_err(|_| "compile".to_owned())?;
+        let bytes = serde_json::to_vec(input).map_err(|e| e.to_string())?;
+        let val = read::parse_single(&bytes).map_err(|e| e.to_string())?;
+        let ctx = Ctx::<JustLut<Val>>::new(&filter.lut, Vars::new([]));
+        let mut outputs = filter.id.run((ctx, val));
+        let first = outputs.next().ok_or("no output")?;
+        let first = first.map_err(|_| "the program fails on its input".to_owned())?;
+        serde_json::from_str(&first.to_string()).map_err(|e| e.to_string())
+    }
+
+    /// A program bound to two tables reads both (the input object of its edge names, each its
+    /// exact binding), in any edge order, and computes the totals the tables state; the former
+    /// first-edge input computes another answer. One edge keeps its whole-value input; none,
+    /// no input.
+    #[test]
+    fn a_program_bound_to_two_tables_reads_both_and_computes_the_stated_totals() {
+        use nika_compile_fidelity::sketch::{Sketch, document, fills_from_json};
+        let orders = json!([
+            {"customer_id": "a", "amount_cents": "100"},
+            {"customer_id": "b", "amount_cents": "50"},
+            {"customer_id": "a", "amount_cents": "25"}
+        ]);
+        let customers = json!([
+            {"customer_id": "a", "region": "north"},
+            {"customer_id": "b", "region": "south"}
+        ]);
+        let tables = json!({"read_orders": orders, "read_customers": customers});
+        // The independent oracle: each region's total over the joined rows.
+        let mut expected = std::collections::BTreeMap::new();
+        for row in orders.as_array().unwrap() {
+            let region = customers
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|c| c["customer_id"] == row["customer_id"])
+                .unwrap()["region"]
+                .clone();
+            let cents: i64 = row["amount_cents"].as_str().unwrap().parse().unwrap();
+            *expected
+                .entry(region.as_str().unwrap().to_owned())
+                .or_insert(0) += cents;
+        }
+        let program = "(.customers | map({key: .customer_id, value: .region}) | from_entries) as $region | .orders | group_by($region[.customer_id]) | map({region: $region[.[0].customer_id], total_cents: (map(.amount_cents | tonumber) | add)})";
+        let fills = fills_from_json(&json!({"fills": [
+            {"task": "totals", "field": "expression", "value": program}
+        ]}))
+        .unwrap();
+        let emitted = |edges: &[(&str, &str)]| {
+            let with: Vec<_> = edges
+                .iter()
+                .map(|(n, f)| json!({"name": n, "from": f}))
+                .collect();
+            let sketch = Sketch::from_json(&json!({"name": "regional-totals", "tasks": [
+                {"id": "read_orders", "verb": "invoke", "tool": "nika:read", "reads": ["./orders.json"], "purpose": "orders"},
+                {"id": "read_customers", "verb": "invoke", "tool": "nika:read", "reads": ["./customers.json"], "purpose": "customers"},
+                {"id": "totals", "verb": "invoke", "tool": "nika:jq", "with": with, "purpose": "join and sum"}
+            ]}))
+            .unwrap();
+            document(&sketch, &fills)["tasks"]["totals"].clone()
+        };
+        // The value a template reads at run: its edge's source table.
+        let resolve = |task: &serde_json::Value, template: &str| {
+            let name = template
+                .trim_start_matches("${{ with.")
+                .trim_end_matches(" }}");
+            let source = task["with"][name].as_str().unwrap();
+            let id = source
+                .trim_start_matches("${{ tasks.")
+                .trim_end_matches(".output }}");
+            tables[id].clone()
+        };
+        let totals = |task: &serde_json::Value| -> std::collections::BTreeMap<String, i64> {
+            let input = &task["invoke"]["args"]["input"];
+            let bound: serde_json::Map<String, serde_json::Value> =
+                (input.as_object().unwrap().iter())
+                    .map(|(k, v)| (k.clone(), resolve(task, v.as_str().unwrap())))
+                    .collect();
+            let out = jq(program, &serde_json::Value::Object(bound)).unwrap();
+            (out.as_array().unwrap().iter())
+                .map(|r| {
+                    (
+                        r["region"].as_str().unwrap().to_owned(),
+                        r["total_cents"].as_i64().unwrap(),
+                    )
+                })
+                .collect()
+        };
+        let two = [("orders", "read_orders"), ("customers", "read_customers")];
+        for edges in [two, [two[1], two[0]]] {
+            let task = emitted(&edges);
+            assert_eq!(
+                task["invoke"]["args"]["input"],
+                json!({"orders": "${{ with.orders }}", "customers": "${{ with.customers }}"}),
+                "{task:#}"
+            );
+            assert_eq!(task["with"]["orders"], "${{ tasks.read_orders.output }}");
+            assert_eq!(
+                task["with"]["customers"],
+                "${{ tasks.read_customers.output }}"
+            );
+            assert_eq!(totals(&task), expected, "{task:#}");
+        }
+        // The former first-edge input: the orders alone, and the program cannot find its regions.
+        assert!(
+            jq(program, &orders).is_err(),
+            "the orders alone carry no regions"
+        );
+        let one = emitted(&[two[0]]);
+        assert_eq!(
+            one["invoke"]["args"]["input"], "${{ with.orders }}",
+            "{one:#}"
+        );
+        let none = emitted(&[]);
+        assert!(none["invoke"]["args"].get("input").is_none(), "{none:#}");
+    }
+
+    /// The trigger's words are cut from the request at its own character boundaries: a
+    /// character whose lowercase is longer (`İ`) before the phrase, a mixed case, the phrase
+    /// absent.
+    #[test]
+    fn the_trigger_occurrence_is_the_requests_own_words() {
+        let text = "İstanbul : Chaque Lundi matin, copie ./notes.md";
+        assert_eq!(
+            super::occurrence(text, "chaque lundi matin"),
+            Some("Chaque Lundi matin")
+        );
+        assert_eq!(
+            super::occurrence("İİ chaque jour", "chaque jour"),
+            Some("chaque jour")
+        );
+        assert_eq!(super::occurrence(text, "chaque vendredi"), None);
+        assert_eq!(super::occurrence("", "chaque jour"), None);
     }
 }

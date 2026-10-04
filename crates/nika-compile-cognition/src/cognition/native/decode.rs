@@ -373,7 +373,10 @@ tasks:
         (out, calls)
     }
 
-    /// The door over one request; the calls, and the last message of each call.
+    /// The door over one request; the calls, and the last message of each call. Fresh CREATE no
+    /// longer reaches the source door, so this source codec is entered privately, over the same
+    /// reading the creation door built (observed columns and the backstop included), then
+    /// finished as that door finishes (no rehearsal host).
     async fn author_with(
         texts: &[String],
         request: &CompileRequest,
@@ -385,9 +388,31 @@ tasks:
             calls: AtomicU32::new(0),
             seen: std::sync::Mutex::new(Vec::new()),
         };
-        let out = Box::pin(crate::compile_with_provider(request, &seat))
-            .await
-            .unwrap();
+        let crate::types::Input::Create(words) = &request.input else {
+            panic!("the source codec is exercised on a creation");
+        };
+        let intent = crate::lexicon::fold_apostrophes(words);
+        let mut reading = crate::lexicon::read(&intent);
+        if let Some(columns) =
+            nika_compile::surface::observed::for_intent(request.knowledge.as_ref(), &intent)
+        {
+            reading.columns = columns;
+        }
+        crate::cognition::backstop(&intent, &mut reading.plan);
+        let mut rehearsals = crate::cognition::rehearsal::Rehearsals::new(None);
+        let mut out = Box::pin(super::super::author(
+            &intent,
+            &reading,
+            request.authoring.as_ref().unwrap(),
+            &seat,
+            request,
+            Vec::new(),
+            crate::initial(),
+            &mut rehearsals,
+        ))
+        .await
+        .unwrap();
+        rehearsals.finish(request, &mut out).await;
         let seen = seat.seen.lock().unwrap().clone();
         (out, seat.calls.load(Ordering::SeqCst), seen)
     }

@@ -129,7 +129,9 @@ async fn a_native_answer_round_reconstructs_the_destination_before_rehearsal() {
     let author = Author::new(vec![wire]);
     let host = Host::new(Mode::ByDirectories);
     let req = CompileRequest::create(CHOSEN).with_authoring_policy(request(0).authoring.unwrap());
-    let waiting = compiled(&req, &author, &host).await;
+    // The waiting round is a historical source record (the source door, entered privately); its
+    // answer round replays it through the public entry.
+    let waiting = source_door(&req, &author, &host).await;
     assert_eq!(waiting.status, CompileStatus::Incomplete, "{waiting:#?}");
     assert!(host.candidates.lock().unwrap().is_empty());
     let answered = req

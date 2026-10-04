@@ -252,6 +252,53 @@ async fn compiled(request: &CompileRequest, author: &Author, host: &Host) -> Com
     .unwrap()
 }
 
+/// The source door's own rehearsal-repair law, entered privately: fresh CREATE no longer reaches
+/// it, while its repair loop still serves revisions. The same reading, host, final barrier and
+/// forensic record as the creation entry, without a route label of its own.
+async fn source_door(request: &CompileRequest, author: &Author, host: &Host) -> CompileOutcome {
+    let crate::types::Input::Create(words) = &request.input else {
+        panic!("the source door is exercised on a creation");
+    };
+    let intent = crate::lexicon::fold_apostrophes(words);
+    let mut reading = crate::lexicon::read(&intent);
+    crate::cognition::backstop(&intent, &mut reading.plan);
+    let mut rehearsals = Rehearsals::new(Some(host));
+    let mut out = Box::pin(crate::cognition::native::author(
+        &intent,
+        &reading,
+        request.authoring.as_ref().unwrap(),
+        author,
+        request,
+        Vec::new(),
+        crate::initial(),
+        &mut rehearsals,
+    ))
+    .await
+    .unwrap();
+    rehearsals.finish(request, &mut out).await;
+    crate::cognition::forensic::record(request, true, &mut out);
+    out
+}
+
+/// The same greeting through the sketch door: one write the compiler emits from the graph and its
+/// typed content fill.
+fn sketch_request(repairs: u32) -> CompileRequest {
+    CompileRequest::create(INTENT).with_authoring_policy(
+        AuthoringPolicy::new("mock/author", 4096, Duration::from_secs(2))
+            .with_native(NativeMode::Sketch)
+            .with_repairs(repairs),
+    )
+}
+
+fn sketched() -> Author {
+    let graph = json!({"name": "greeting", "tasks": [{"id": "save", "verb": "invoke",
+        "tool": "nika:write", "purpose": "save the greeting", "writes": [TARGET]}],
+        "questions": [], "gaps": [], "notes": "graph"});
+    let fills = json!({"fills": [{"task": "save", "field": "args.content", "value": "hello"}],
+        "notes": "fills"});
+    Author::new(vec![graph.to_string(), fills.to_string()])
+}
+
 fn reports(out: &CompileOutcome) -> &[Value] {
     out.provenance.decision.as_ref().unwrap()["rehearsal"]["reports"]
         .as_array()
@@ -262,7 +309,7 @@ fn reports(out: &CompileOutcome) -> &[Value] {
 async fn native_run_failure_repairs_within_the_original_budget() {
     let author = Author::new(vec![answer(&source(false)), answer(&source(true))]);
     let host = Host::new(Mode::ByDirectories);
-    let out = compiled(&request(1), &author, &host).await;
+    let out = source_door(&request(1), &author, &host).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(author.authored.load(Ordering::SeqCst), 2);
     assert_eq!(
@@ -284,7 +331,7 @@ async fn native_run_failure_repairs_within_the_original_budget() {
 #[tokio::test]
 async fn failed_rehearsal_with_no_repair_budget_never_becomes_ready() {
     let author = Author::new(vec![answer(&source(false))]);
-    let out = compiled(&request(0), &author, &Host::new(Mode::ByDirectories)).await;
+    let out = source_door(&request(0), &author, &Host::new(Mode::ByDirectories)).await;
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(author.authored.load(Ordering::SeqCst), 1);
     assert_eq!(reports(&out).len(), 1);
@@ -292,16 +339,16 @@ async fn failed_rehearsal_with_no_repair_budget_never_becomes_ready() {
 
 #[tokio::test]
 async fn a_missing_output_is_not_a_completed_success() {
-    let author = Author::new(vec![answer(&source(true))]);
-    let out = compiled(&request(0), &author, &Host::new(Mode::Missing)).await;
+    let author = sketched();
+    let out = compiled(&sketch_request(0), &author, &Host::new(Mode::Missing)).await;
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(reports(&out)[0]["outcome"]["kind"], "missing");
 }
 
 #[tokio::test]
 async fn a_safe_not_run_is_explicit_and_does_not_invent_outputs() {
-    let author = Author::new(vec![answer(&source(true))]);
-    let out = compiled(&request(0), &author, &Host::new(Mode::NotRun)).await;
+    let author = sketched();
+    let out = compiled(&sketch_request(0), &author, &Host::new(Mode::NotRun)).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(reports(&out)[0]["outcome"]["kind"], "not_run");
     assert_eq!(reports(&out)[0]["attempt"], "never_attempted");
@@ -315,10 +362,11 @@ async fn a_safe_not_run_is_explicit_and_does_not_invent_outputs() {
 #[tokio::test]
 async fn invalid_harness_or_engine_failure_never_buys_an_author_repair() {
     for mode in [Mode::WrongDigest, Mode::DirtyRoom, Mode::Engine] {
-        let author = Author::new(vec![answer(&source(true)), answer(&source(true))]);
-        let out = compiled(&request(3), &author, &Host::new(mode)).await;
+        let author = sketched();
+        let out = compiled(&sketch_request(3), &author, &Host::new(mode)).await;
         assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
-        assert_eq!(author.authored.load(Ordering::SeqCst), 1);
+        // The sketch and its fills, and no authoring after the host's fault.
+        assert_eq!(author.authored.load(Ordering::SeqCst), 2);
         assert_eq!(reports(&out)[0]["decision"]["kind"], "stop");
     }
 }
@@ -326,7 +374,7 @@ async fn invalid_harness_or_engine_failure_never_buys_an_author_repair() {
 #[tokio::test]
 async fn a_stopped_rehearsal_with_no_repair_budget_is_not_ready_and_counts_its_attempt() {
     let author = Author::new(vec![answer(&source(true))]);
-    let out = compiled(&request(0), &author, &Host::new(Mode::StopAtBound)).await;
+    let out = source_door(&request(0), &author, &Host::new(Mode::StopAtBound)).await;
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(author.authored.load(Ordering::SeqCst), 1);
     assert_eq!(reports(&out).len(), 1);
@@ -344,7 +392,7 @@ async fn a_stopped_rehearsal_with_no_repair_budget_is_not_ready_and_counts_its_a
 async fn a_time_bound_repairs_within_the_original_budget_and_keeps_both_attempts() {
     let author = Author::new(vec![answer(&source(false)), answer(&source(true))]);
     let host = Host::new(Mode::TimeBoundByDirectories);
-    let out = compiled(&request(1), &author, &host).await;
+    let out = source_door(&request(1), &author, &host).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(author.authored.load(Ordering::SeqCst), 2);
     assert_eq!(host.candidates.lock().unwrap().len(), 2);
@@ -377,9 +425,9 @@ async fn a_time_bound_repairs_within_the_original_budget_and_keeps_both_attempts
 
 #[tokio::test]
 async fn absent_host_keeps_the_existing_entry_source_only() {
-    let author = Author::new(vec![answer(&source(false))]);
+    let author = sketched();
     let out = compile_with_cognition(
-        &request(0),
+        &sketch_request(0),
         crate::Cognition {
             provider: Some(&author),
             seat: None,
@@ -477,7 +525,7 @@ async fn answers_are_baked_before_the_host_sees_the_candidate() {
         .with_authoring_policy(request(0).authoring.unwrap());
     req.answers
         .insert("const.greeting".into(), "\"hello\"".into());
-    let out = compiled(&req, &author, &host).await;
+    let out = source_door(&req, &author, &host).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let candidates = host.candidates.lock().unwrap();
     assert_eq!(candidates.len(), 1);
@@ -519,7 +567,7 @@ async fn repeating_the_same_failed_candidate_stops_without_spending_every_repair
         answer(&source(true)),
     ]);
     let host = Host::new(Mode::ByDirectories);
-    let out = compiled(&request(3), &author, &host).await;
+    let out = source_door(&request(3), &author, &host).await;
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(author.authored.load(Ordering::SeqCst), 2);
     assert_eq!(host.candidates.lock().unwrap().len(), 2);
@@ -558,7 +606,7 @@ async fn an_open_question_starts_no_rehearsal_and_its_answer_replays_afresh() {
     let host = Host::new(Mode::ByDirectories);
     let req = CompileRequest::create("Write the greeting I choose to ./out/result.txt.")
         .with_authoring_policy(request(0).authoring.unwrap());
-    let waiting = compiled(&req, &author, &host).await;
+    let waiting = source_door(&req, &author, &host).await;
     assert_eq!(waiting.status, CompileStatus::Incomplete, "{waiting:#?}");
     assert!(host.candidates.lock().unwrap().is_empty());
     assert!(
@@ -598,7 +646,7 @@ fn forensic(out: &CompileOutcome) -> Value {
 #[tokio::test]
 async fn the_forensic_record_binds_rehearsal_to_the_final_bytes_and_proves_no_satisfaction() {
     let author = Author::new(vec![answer(&source(false)), answer(&source(true))]);
-    let out = compiled(&request(1), &author, &Host::new(Mode::ByDirectories)).await;
+    let out = source_door(&request(1), &author, &Host::new(Mode::ByDirectories)).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let summary = forensic(&out);
     let evidence = &summary["evidence"];
@@ -631,20 +679,41 @@ async fn the_forensic_record_binds_rehearsal_to_the_final_bytes_and_proves_no_sa
         out.provenance.authoring.as_ref().unwrap().calls
     );
     assert_eq!(calls["usage"], "complete");
+    // The private source door carries no creation route label of its own.
     assert_eq!(summary["door"]["name"], "native_source");
-    assert_eq!(summary["door"]["reason"], "policy_native_only_before_hot");
     assert_eq!(summary["door"]["source_owner"], "model");
+    // The sketch door's final bytes are bound the same way, and the compiler wrote them.
+    let out = compiled(
+        &sketch_request(0),
+        &sketched(),
+        &Host::new(Mode::ByDirectories),
+    )
+    .await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let summary = forensic(&out);
+    let final_sha = crate::cognition::knowledge::sha256(out.candidate.as_deref().unwrap());
+    assert_eq!(summary["evidence"]["candidate_sha256"], final_sha);
+    assert_eq!(summary["evidence"]["rehearsal"]["bound_to_candidate"], true);
+    assert_eq!(summary["evidence"]["satisfaction"], "UNKNOWN");
+    assert_eq!(summary["door"]["reason"], "policy_sketch_before_hot");
+    assert_eq!(
+        summary["door"]["source_owner"],
+        "compiler_from_model_sketch_and_fills"
+    );
     // READY over a run the host never attempted: visible as such, never as an observation.
-    let author = Author::new(vec![answer(&source(true))]);
-    let out = compiled(&request(0), &author, &Host::new(Mode::NotRun)).await;
+    let out = compiled(&sketch_request(0), &sketched(), &Host::new(Mode::NotRun)).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let evidence = forensic(&out)["evidence"].clone();
     assert_eq!(evidence["rehearsal"]["state"], "not_run", "{evidence:#}");
     assert_eq!(evidence["rehearsal"]["outcome"], "not_run");
     assert_eq!(evidence["satisfaction"], "UNKNOWN");
     // A report for other bytes is not evidence about this candidate.
-    let author = Author::new(vec![answer(&source(true))]);
-    let out = compiled(&request(0), &author, &Host::new(Mode::WrongDigest)).await;
+    let out = compiled(
+        &sketch_request(0),
+        &sketched(),
+        &Host::new(Mode::WrongDigest),
+    )
+    .await;
     let evidence = forensic(&out)["evidence"].clone();
     assert_eq!(
         evidence["rehearsal"]["bound_to_candidate"], false,

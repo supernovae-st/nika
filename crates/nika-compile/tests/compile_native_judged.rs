@@ -36,43 +36,20 @@ fn policy(native: NativeMode) -> AuthoringPolicy {
         .with_repairs(1)
 }
 
-/// A native candidate for [`INTENT`] whose ranking runs `order` over the amounts.
-fn candidate(order: &str) -> String {
-    format!(
-        r#"nika: top-two
-model: mock/echo
-const:
-  source_path: ./data/sales.csv
-  output_path: ./out/top.json
-permits:
-  tools: ["nika:read", "nika:convert", "nika:jq", "nika:write"]
-  fs:
-    read: ["./data/sales.csv"]
-    write: ["./out/top.json"]
-tasks:
-  read_source:
-    invoke:
-      tool: "nika:read"
-      args: {{ path: "${{{{ const.source_path }}}}" }}
-  parse_source:
-    with: {{ document: "${{{{ tasks.read_source.output }}}}" }}
-    invoke:
-      tool: "nika:convert"
-      args: {{ input: "${{{{ with.document }}}}", from: csv, to: json }}
-  compute:
-    with: {{ records: "${{{{ tasks.parse_source.output }}}}" }}
-    invoke:
-      tool: "nika:jq"
-      args:
-        input: {{ records: "${{{{ with.records }}}}" }}
-        expression: '.records | {order} | .[:2]'
-  write_output:
-    with: {{ content: "${{{{ tasks.compute.output }}}}" }}
-    invoke:
-      tool: "nika:write"
-      args: {{ path: "${{{{ const.output_path }}}}", content: "${{{{ with.content }}}}", overwrite: true, create_dirs: true }}
-"#
-    )
+/// The sketch door's graph for [`INTENT`] and its fills: the ranking runs `order`.
+fn ranked(order: &str) -> Vec<String> {
+    let edge = |name: &str, from: &str| json!([{"name": name, "from": from}]);
+    let graph = json!({"name": "top-two", "tasks": [
+        {"id": "read_source", "verb": "invoke", "tool": "nika:read", "reads": ["./data/sales.csv"], "purpose": "the sales"},
+        {"id": "parse_source", "verb": "invoke", "tool": "nika:convert", "with": edge("document", "read_source"), "purpose": "parse"},
+        {"id": "compute", "verb": "invoke", "tool": "nika:jq", "with": edge("records", "parse_source"), "purpose": "rank and keep two"},
+        {"id": "write_output", "verb": "invoke", "tool": "nika:write", "writes": ["./out/top.json"], "with": edge("content", "compute"), "purpose": "the top two"}
+    ], "questions": [], "gaps": [], "notes": "read, parse, rank, write"});
+    let fills = json!({"fills": [
+        {"task": "parse_source", "field": "args", "value": {"from": "csv", "to": "json"}},
+        {"task": "compute", "field": "expression", "value": format!("{order} | .[:2]")}
+    ], "notes": "two holes"});
+    vec![graph.to_string(), fills.to_string()]
 }
 
 fn answer(candidate: &str) -> String {
@@ -135,19 +112,18 @@ fn assert_judged_ready(out: &CompileOutcome, approvals: u32) {
 async fn a_native_candidate_that_keeps_the_wrong_rows_is_never_ready() {
     // The static laws admit it (a valid program over the stated paths and count); the judge
     // finds the order unfaithful and places it.
-    let provider = Rotating::new(vec![
-        answer(&candidate(LOWEST_FIRST)),
-        json!({"choice": "unfaithful"}).to_string(),
-        json!({"choice": "part-1"}).to_string(),
-    ]);
-    let request = CompileRequest::create(INTENT).with_authoring_policy(policy(NativeMode::Only));
+    let mut replies = ranked(LOWEST_FIRST);
+    replies.push(json!({"choice": "unfaithful"}).to_string());
+    replies.push(json!({"choice": "part-1"}).to_string());
+    let provider = Rotating::new(replies);
+    let request = CompileRequest::create(INTENT).with_authoring_policy(policy(NativeMode::Sketch));
     let out = compile_with_provider(&request, &provider).await.unwrap();
     assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
     assert!(out.candidate.is_none(), "{out:#?}");
     // Withdrawn with its record: no answer round replays the refused candidate.
     assert!(out.provenance.plan.is_none(), "{out:#?}");
-    // The native call, then the whole-request judge and its locate question: journaled calls.
-    assert_eq!(provider.calls.load(Ordering::SeqCst), 3, "{out:#?}");
+    // The sketch and its fills, then the whole-request judge and its locate question.
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 4, "{out:#?}");
     assert_eq!(judge_calls(&out), ["judge_request", "judge_locate"]);
     let told = format!("{:?}", out.diagnostics);
     assert!(told.contains("semantic_verification"), "{told}");
@@ -160,44 +136,43 @@ async fn a_native_candidate_that_keeps_the_wrong_rows_is_never_ready() {
 
 #[tokio::test]
 async fn a_faithful_native_candidate_is_ready_once_judged() {
-    let provider = Rotating::new(vec![answer(&candidate(HIGHEST_FIRST))]);
+    let provider = Rotating::new(ranked(HIGHEST_FIRST));
     let judged = Judged::approving(&provider);
-    let request = CompileRequest::create(INTENT).with_authoring_policy(policy(NativeMode::Only));
+    let request = CompileRequest::create(INTENT).with_authoring_policy(policy(NativeMode::Sketch));
     let out = compile_with_provider(&request, &judged).await.unwrap();
     assert_judged_ready(&out, judged.judged.load(Ordering::SeqCst));
-    // The provider itself answered only the native call.
-    assert_eq!(provider.calls.load(Ordering::SeqCst), 1, "{out:#?}");
+    // The provider itself answered only the sketch and its fills.
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 2, "{out:#?}");
     assert!(out.provenance.plan.is_some(), "{out:#?}");
 }
 
 #[tokio::test]
 async fn a_judge_that_cannot_settle_leaves_the_native_request_incomplete() {
     // The judge's answer is not one of its choices: nothing is settled, nothing is READY.
-    let provider = Rotating::new(vec![
-        answer(&candidate(HIGHEST_FIRST)),
-        "I think it looks fine".to_owned(),
-    ]);
-    let request = CompileRequest::create(INTENT).with_authoring_policy(policy(NativeMode::Only));
+    let mut replies = ranked(HIGHEST_FIRST);
+    replies.push("I think it looks fine".to_owned());
+    let provider = Rotating::new(replies);
+    let request = CompileRequest::create(INTENT).with_authoring_policy(policy(NativeMode::Sketch));
     let out = compile_with_provider(&request, &provider).await.unwrap();
     assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
     assert!(out.candidate.is_none(), "{out:#?}");
     assert!(out.provenance.plan.is_none(), "{out:#?}");
-    assert_eq!(provider.calls.load(Ordering::SeqCst), 2, "{out:#?}");
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 3, "{out:#?}");
     let told = format!("{:?}", out.diagnostics);
     assert!(told.contains("could not settle"), "{told}");
     assert!(route(&out).contains("verify: not ready"), "{out:#?}");
 }
 
-/// The authoring provider behind the authority a door grants when its caller names none: one
-/// request. Every later request is refused locally, before any transport, as the admission
-/// layer refuses it.
-struct OneRequest(Rotating);
+/// The authoring provider behind an authority that grants exactly the semantic generation (the
+/// sketch and its fills): every later request is refused locally, before any transport, as the
+/// admission layer refuses it.
+struct Generation(Rotating);
 
-impl ProviderInferDyn for OneRequest {
+impl ProviderInferDyn for Generation {
     async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
-        if self.0.calls.load(Ordering::SeqCst) >= 1 {
+        if self.0.calls.load(Ordering::SeqCst) >= 2 {
             return Err(ProviderError::AdmissionDenied {
-                reason: "the authoring call ceiling of 1 calls is reached".to_owned(),
+                reason: "the authoring call ceiling of 2 calls is reached".to_owned(),
             });
         }
         self.0.infer(request).await
@@ -206,14 +181,14 @@ impl ProviderInferDyn for OneRequest {
 
 #[tokio::test]
 async fn a_judge_the_call_ceiling_refuses_leaves_the_native_request_incomplete() {
-    // The native candidate spends the one request; the judge's is refused, never sent.
-    let provider = OneRequest(Rotating::new(vec![answer(&candidate(HIGHEST_FIRST))]));
-    let request = CompileRequest::create(INTENT).with_authoring_policy(policy(NativeMode::Only));
+    // The sketch and its fills spend the granted requests; the judge's is refused, never sent.
+    let provider = Generation(Rotating::new(ranked(HIGHEST_FIRST)));
+    let request = CompileRequest::create(INTENT).with_authoring_policy(policy(NativeMode::Sketch));
     let out = compile_with_provider(&request, &provider).await.unwrap();
     assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
     assert!(out.candidate.is_none(), "{out:#?}");
     assert!(out.provenance.plan.is_none(), "{out:#?}");
-    assert_eq!(provider.0.calls.load(Ordering::SeqCst), 1, "{out:#?}");
+    assert_eq!(provider.0.calls.load(Ordering::SeqCst), 2, "{out:#?}");
     assert_eq!(judge_calls(&out), ["judge_request"]);
     let receipt = out.provenance.authoring.as_ref().unwrap();
     let refused = receipt
@@ -346,21 +321,18 @@ outputs:
     )
 }
 
-/// CASE A's authoring round: the one native call, only the `model` question open, no candidate,
-/// nothing judged (the round is not READY), and the record its answer round replays.
-async fn case_a_record(total_over: &str) -> Value {
-    let provider = Rotating::new(vec![answer(&case_a(total_over))]);
-    let request = CompileRequest::create(CASE_A).with_authoring_policy(policy(NativeMode::Only));
-    let out = compile_with_provider(&request, &provider).await.unwrap();
-    let keys: Vec<&str> = out.questions.iter().map(|q| q.key.as_str()).collect();
-    assert_eq!(keys, ["model"], "{out:#?}");
-    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
-    assert!(out.candidate.is_none(), "{out:#?}");
-    assert_eq!(provider.calls.load(Ordering::SeqCst), 1, "{out:#?}");
-    assert!(judge_calls(&out).is_empty(), "{out:#?}");
-    let record = out.provenance.plan.clone().unwrap();
-    assert_eq!(record["strategy"], "native", "{record:#}");
-    record
+/// CASE A's HISTORICAL native record (R): the source a seat once wrote, recorded for CASE A's
+/// authoring round, which asked only the run model. Fresh CREATE no longer writes such records; a
+/// valid one still replays, judged in its own answer round.
+fn case_a_record(total_over: &str) -> Value {
+    json!({
+        "strategy": "native",
+        "intent_sha256": nika_compile::intent_sha256(CASE_A),
+        "source": case_a(total_over),
+        "questions": [],
+        "gaps": [],
+        "trigger": null,
+    })
 }
 
 /// CASE A's answer round: the kept record and the run model.
@@ -374,7 +346,7 @@ fn case_a_answered(record: Value) -> CompileRequest {
 async fn case_a_answer_round_without_a_judge_is_never_ready() {
     // No law reads the seat's program and this round permits no judge: the whole request stays
     // pending on the finished bytes, kept as the preview, and nothing is READY. No call is made.
-    let record = case_a_record(PAID_ROWS).await;
+    let record = case_a_record(PAID_ROWS);
     let out = compile(&case_a_answered(record)).unwrap();
     assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
     let preview = out.candidate.as_deref().unwrap();
@@ -393,7 +365,7 @@ async fn case_a_answer_round_without_a_judge_is_never_ready() {
 #[tokio::test]
 async fn case_a_answer_round_is_ready_once_its_judge_finds_it_faithful() {
     // The round permits its authoring seat: one judge call, journaled and counted, no native call.
-    let record = case_a_record(PAID_ROWS).await;
+    let record = case_a_record(PAID_ROWS);
     let seat = Rotating::new(vec![answer(&case_a(PAID_ROWS))]);
     let judged = Judged::approving(&seat);
     let request = case_a_answered(record).with_authoring_policy(policy(NativeMode::Only));
@@ -413,7 +385,7 @@ async fn case_a_answer_round_is_ready_once_its_judge_finds_it_faithful() {
 async fn an_unfaithful_case_a_candidate_stays_incomplete_in_its_answer_round() {
     // The seat's total sums every payment, paid or not. The laws admit the program; the round's
     // judge finds it unfaithful and places it.
-    let record = case_a_record(EVERY_ROW).await;
+    let record = case_a_record(EVERY_ROW);
     let seat = Rotating::new(vec![
         json!({"choice": "unfaithful"}).to_string(),
         json!({"choice": "part-2"}).to_string(),

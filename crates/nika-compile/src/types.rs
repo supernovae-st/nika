@@ -449,8 +449,8 @@ impl Strategy {
     }
 }
 
-/// When the native strategy (a seat-written candidate judged by the parser, the Check and the
-/// fidelity laws) is engaged for a free intent.
+/// When a seat's semantic door (the sketch and its fills; the compiler writes the source) joins
+/// the private plan for a free intent; a revision may still be written by the native seat.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum NativeMode {
@@ -459,10 +459,10 @@ pub enum NativeMode {
     #[default]
     Off,
     /// After the private plan ends without a candidate, fails the fidelity laws or hands
-    /// the human a machine's problem (a rewrite, a jq expression, a glob).
+    /// the human a machine's problem (a rewrite, a jq expression, a glob): the sketch door.
     Escalate,
-    /// Straight to the native candidate, before the deterministic door and without the
-    /// private plan (the ablation, and the arena's treatment D).
+    /// Retired for a creation: no request is sent and the outcome names `escalate` or `sketch`;
+    /// a revision and the replay of a recorded source keep the native door.
     Only,
     /// Straight to the sketch door: the seat proposes structure (tasks, edges, gates, the
     /// stated paths and hosts), judged before a word is written; then fills the typed holes;

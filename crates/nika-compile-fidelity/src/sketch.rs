@@ -351,6 +351,22 @@ impl Sketch {
 /// literal stated. Each refusal names the task and the fix; an empty list admits the sketch.
 #[must_use]
 pub fn structural_laws(sketch: &Sketch, intent: &str, allowed: &[String]) -> Vec<String> {
+    structural_laws_observed(sketch, intent, allowed, None)
+}
+
+/// The same laws with the caller's observation of the stated files: a READ may also reach the
+/// one file the observation places under a bare name the request states (the fidelity law's
+/// placement), never a write or a host.
+#[must_use]
+pub fn structural_laws_observed(
+    sketch: &Sketch,
+    intent: &str,
+    allowed: &[String],
+    observed: Option<&Value>,
+) -> Vec<String> {
+    let placed: Vec<String> = (crate::hot::stated_sources(intent).iter())
+        .filter_map(|name| crate::fidelity::placed(observed, name))
+        .collect();
     let mut out = Vec::new();
     let mut seen: Vec<&str> = Vec::new();
     let intent = fold(intent);
@@ -421,13 +437,15 @@ pub fn structural_laws(sketch: &Sketch, intent: &str, allowed: &[String]) -> Vec
             )),
             _ => {}
         }
-        for (what, literals) in [
-            ("path", &task.reads),
-            ("path", &task.writes),
-            ("host", &task.hosts),
+        for (what, literals, observable) in [
+            ("path", &task.reads, true),
+            ("path", &task.writes, false),
+            ("host", &task.hosts, false),
         ] {
             for literal in literals {
-                if !stated(literal) {
+                let bare = literal.strip_prefix("./").unwrap_or(literal);
+                let realized = stated(literal) || (observable && placed.iter().any(|p| p == bare));
+                if !realized {
                     out.push(format!(
                         "`{id}` reaches the {what} `{literal}`, which the request never states: only a stated literal or an answered value enters a sketch"
                     ));
@@ -1021,17 +1039,23 @@ fn placeholders(fills: &[Fill]) -> Map<String, Value> {
 }
 
 /// The arguments a builtin takes from the sketch itself: the stated path it reads or writes,
-/// the input it reads by its first edge, the webhook channel, the article mode.
+/// the input it reads by its first edge (a program bound to several reads the object of their
+/// names), the webhook channel, the article mode.
 fn default_args(task: &SketchTask, tool: &str) -> Map<String, Value> {
-    let first_edge = task
-        .with
-        .first()
-        .map(|e| json!(format!("${{{{ with.{} }}}}", e.name)));
+    let output_name = |name: &str| json!(format!("${{{{ with.{name} }}}}"));
+    let first_edge = task.with.first().map(|e| output_name(&e.name));
     let path = |list: &[String]| list.first().map(|p| json!(p));
     let (key, value) = match tool {
         "nika:read" | "nika:grep" => ("path", path(&task.reads)),
         "nika:glob" => ("pattern", path(&task.reads)),
         "nika:write" | "nika:edit" => ("path", path(&task.writes)),
+        "nika:jq" if task.with.len() > 1 => {
+            let edges = task
+                .with
+                .iter()
+                .map(|e| (e.name.clone(), output_name(&e.name)));
+            ("input", Some(Value::Object(edges.collect())))
+        }
         "nika:jq" | "nika:convert" | "nika:validate" => ("input", first_edge.clone()),
         "nika:notify" => ("channel", Some(json!("webhook"))),
         "nika:fetch" => ("mode", Some(json!("article"))),
@@ -1050,7 +1074,7 @@ fn default_args(task: &SketchTask, tool: &str) -> Map<String, Value> {
 }
 
 mod record;
-pub use record::{bound_answers, contract_projection, read_basis, replayed};
+pub use record::{bound_answers, contract_projection, read_basis, replayed, replayed_observed};
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]

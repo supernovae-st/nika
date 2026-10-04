@@ -383,3 +383,182 @@ fn the_knowledge_lines_read_each_branch_as_the_session_read_it() {
         assert_eq!(text, words, "{name}");
     }
 }
+
+/// The private Plan door's seat for the tests below: every call answered with `reply` (any
+/// text: a malformed or empty return is still a return), or failed when `reply` is `None`.
+struct PlanSeat {
+    reply: Option<&'static str>,
+}
+
+impl nika_kernel::ai::provider::ProviderInferDyn for PlanSeat {
+    async fn infer(
+        &self,
+        _request: nika_kernel::ai::provider::InferRequest,
+    ) -> Result<nika_kernel::ai::provider::InferResponse, nika_kernel::ai::provider::ProviderError>
+    {
+        use nika_kernel::ai::provider::{
+            ContentBlock, InferResponse, ProviderError, StopReason, TokenUsage,
+        };
+        let Some(text) = self.reply else {
+            return Err(ProviderError::Other {
+                reason: "unavailable".to_owned(),
+            });
+        };
+        Ok(InferResponse::new(
+            vec![ContentBlock::Text {
+                text: text.to_owned(),
+            }],
+            TokenUsage::new(1, 1),
+            StopReason::EndTurn,
+        ))
+    }
+}
+
+const PLAN_INTENT: &str = fixture::INTENT;
+
+/// A pinned release on disk, the pack it composes for the request as the session composes it
+/// (reopened under the pin), the world a host attached, and a real compile through the private
+/// Plan door (`NativeMode::Off`, an explicit provider) with both attached.
+async fn planned(
+    reply: Option<&'static str>,
+) -> (KnowledgePin, AuthoringKnowledge, Value, CompileOutcome) {
+    use crate::compile::{AuthoringPolicy, NativeMode, compile_with_provider};
+    let dir = tempfile::tempdir().expect("a release");
+    let root = dir.path().join("release");
+    Payload::minimal().write(&root).expect("written");
+    let identity = Payload::minimal()
+        .identity()
+        .expect("the fixture's identity");
+    let pin = KnowledgePin::open(root, None, Some(identity)).expect("pinned");
+    let pack = (pin.reopen().expect("admitted"))
+        .pack(PLAN_INTENT, None)
+        .expect("composed");
+    assert!(
+        !pack.references.is_empty(),
+        "the release recalls references"
+    );
+    let world = json!({"observed": [{"path": "./tickets.json", "state": "present", "kind": "json",
+        "columns": ["id", "body"]}]});
+    let policy = AuthoringPolicy::new("mock/authoring", 1024, std::time::Duration::from_secs(2))
+        .with_native(NativeMode::Off);
+    let request = CompileRequest::create(PLAN_INTENT)
+        .with_authoring_policy(policy)
+        .with_authoring_knowledge(pack.clone())
+        .with_knowledge(world.clone());
+    let out = compile_with_provider(&request, &PlanSeat { reply })
+        .await
+        .expect("compiles");
+    (pin, pack, world, out)
+}
+
+fn plan_calls(out: &mut CompileOutcome) -> Vec<&mut Value> {
+    (out.provenance
+        .authoring
+        .as_mut()
+        .expect("journaled")
+        .context
+        .iter_mut())
+    .filter(|call| call["call"] == "plan" || call["call"] == "repair")
+    .collect()
+}
+
+/// The Plan door's attested return of this very pack is what Onboard records as
+/// presented, and the world it was prepared over is observed as presented; the call is named.
+/// A malformed or empty return is a return: it never means a candidate.
+#[tokio::test]
+#[cfg(unix)] // the disk form is defined for Unix descriptors only
+async fn a_returned_plan_call_carrying_this_pack_is_recorded_as_presented() {
+    for reply in ["not json at all", ""] {
+        let (pin, pack, world, out) = planned(Some(reply)).await;
+        let record = composed_record(&pin, &pack, &out);
+        assert_eq!(record["presented"], true, "{reply:?}: {record:#}");
+        assert!(record.get("why").is_none_or(Value::is_null), "{record:#}");
+        let calls = record["calls"].as_array().expect("calls");
+        assert!(calls.iter().any(|c| c["call"] == "plan"), "{record:#}");
+        let observed = observed_in(out, Some(&world));
+        let decision = observed.provenance.decision.expect("decision");
+        assert_eq!(decision["session"]["observed"]["presented"], true);
+    }
+}
+
+/// Negatives: every mutation of the receipt that removes the attestation of this pack,
+/// this world or the return leaves the pack not presented, in words that never claim delivery.
+#[tokio::test]
+#[cfg(unix)] // the disk form is defined for Unix descriptors only
+async fn a_plan_call_without_an_attested_return_of_this_pack_presents_nothing() {
+    type Mutation = fn(&mut Value);
+    let (pin, pack, world, base) = planned(Some("{}")).await;
+    let cases: [(&str, Mutation, &str); 7] = [
+        (
+            "marker removed",
+            |c| drop(c.as_object_mut().map(|m| m.remove("semantic_context"))),
+            "native door",
+        ),
+        (
+            "pack digest changed",
+            |c| c["semantic_context"]["pack_sha256"] = json!("0".repeat(64)),
+            "expected context is not attested",
+        ),
+        (
+            "references dropped",
+            |c| c["references"] = json!([]),
+            "expected context is not attested",
+        ),
+        (
+            "result stripped",
+            |c| drop(c.as_object_mut().map(|m| m.remove("result"))),
+            "return is not attested",
+        ),
+        (
+            "result contradictory",
+            |c| c["result"]["failure_kind"] = json!("timeout"),
+            "return is not attested",
+        ),
+        (
+            "admission refused",
+            |c| c["result"] = json!({"failure_kind": "admission_refused"}),
+            "admission refused, no response observed",
+        ),
+        (
+            "timeout",
+            |c| c["result"] = json!({"failure_kind": "timeout"}),
+            "delivery and cost unknown",
+        ),
+    ];
+    for (name, mutate, why) in cases {
+        let mut out = base.clone();
+        for call in plan_calls(&mut out) {
+            mutate(call);
+        }
+        let record = composed_record(&pin, &pack, &out);
+        assert_eq!(record["presented"], false, "{name}: {record:#}");
+        let said = record["why"].as_str().unwrap_or_default();
+        assert!(said.contains(why), "{name}: {said}");
+        assert!(
+            record["calls"].as_array().is_none_or(Vec::is_empty),
+            "{name}: {record:#}"
+        );
+    }
+    // A world other than the one the call was prepared over is not observed as presented.
+    let mut other = world.clone();
+    other["observed"][0]["path"] = json!("./other.json");
+    let decision = observed_in(base, Some(&other))
+        .provenance
+        .decision
+        .expect("decision");
+    assert_eq!(decision["session"]["observed"]["presented"], false);
+    // A real provider failure: the context was prepared, no response observed.
+    let (pin, pack, world, failed) = planned(None).await;
+    let record = composed_record(&pin, &pack, &failed);
+    assert_eq!(record["presented"], false, "{record:#}");
+    let said = record["why"].as_str().unwrap_or_default();
+    assert!(
+        said.contains("no response observed, delivery and cost unknown"),
+        "{said}"
+    );
+    let decision = observed_in(failed, Some(&world))
+        .provenance
+        .decision
+        .expect("decision");
+    assert_eq!(decision["session"]["observed"]["presented"], false);
+}

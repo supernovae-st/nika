@@ -329,7 +329,6 @@ async fn compile_inner<P: ProviderInferDyn>(
         &assembly_request,
         cognition,
         out,
-        rehearsals,
     ))
     .await
 }
@@ -340,7 +339,6 @@ async fn resolve_create<P: ProviderInferDyn>(
     assembly_request: &CompileRequest,
     cognition: Cognition<'_, P>,
     mut out: CompileOutcome,
-    rehearsals: &mut rehearsal::Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     // An answer round replays the plan its previous round produced: no reading, no seat,
     // no proposal, the same candidate.
@@ -391,16 +389,7 @@ async fn resolve_create<P: ProviderInferDyn>(
         reading.columns = columns;
     }
     backstop(intent, &mut reading.plan);
-    route_create(
-        intent,
-        request,
-        assembly_request,
-        cognition,
-        reading,
-        out,
-        rehearsals,
-    )
-    .await
+    route_create(intent, request, assembly_request, cognition, reading, out).await
 }
 
 async fn route_create<P: ProviderInferDyn>(
@@ -410,7 +399,6 @@ async fn route_create<P: ProviderInferDyn>(
     cognition: Cognition<'_, P>,
     reading: Reading,
     mut out: CompileOutcome,
-    rehearsals: &mut rehearsal::Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     // An effect the request's own words both ask for and prohibit stays the human's (R4 S0):
     // no seat reads it to choose a side, whatever the strategy. The outcome is the deterministic
@@ -426,13 +414,29 @@ async fn route_create<P: ProviderInferDyn>(
         return super::compile(&read_as);
     }
     let mut route = Vec::new();
+    // Source-only CREATE is retired: whatever seat is offered, a fresh request under `only` sends
+    // nothing and names the semantic doors. The reader's own floor refusal keeps its cause.
+    if (request.authoring.as_ref()).is_some_and(|policy| policy.native == NativeMode::Only) {
+        if !native::floor_refuses(&reading, &mut out) {
+            super::finding(
+                &mut out,
+                DiagnosticKind::Refused,
+                "authoring_policy",
+                ONLY_RETIRED,
+            );
+            out.status = crate::CompileStatus::Refused;
+        }
+        route.push(forensic::ONLY_RETIRED.to_owned());
+        record_route(&mut out, &route);
+        return Ok(out);
+    }
     // The deterministic door judges the reading with its stated rules promoted: a rule
     // carries its own constraint, and the words inside it are its literals. The reading
     // itself keeps its constraints: they are the policy floor a seat's proposal inherits.
-    // The ablation and the arena's treatment D: straight to the native candidate, before the
-    // deterministic door and without the private plan, under the same bounds as COLD.
+    // The sketch policy goes straight to the sketch door, before the deterministic door and
+    // without the private plan, under the same bounds as COLD.
     if let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider)
-        && matches!(policy.native, NativeMode::Only | NativeMode::Sketch)
+        && policy.native == NativeMode::Sketch
     {
         if !policy_bounded(policy, intent) {
             super::finding(
@@ -443,22 +447,9 @@ async fn route_create<P: ProviderInferDyn>(
             );
             return Ok(out);
         }
-        if policy.native == NativeMode::Sketch {
-            route.push(forensic::NATIVE_SKETCH.to_owned());
-            // Boxed: the seat doors are rare and large; they must not grow every compile future.
-            return Box::pin(sketch::author(
-                intent,
-                &reading,
-                policy,
-                provider,
-                assembly_request,
-                route,
-                out,
-            ))
-            .await;
-        }
-        route.push(forensic::NATIVE_ONLY.to_owned());
-        return Box::pin(native::author(
+        route.push(forensic::NATIVE_SKETCH.to_owned());
+        // Boxed: the seat doors are rare and large; they must not grow every compile future.
+        return Box::pin(sketch::author(
             intent,
             &reading,
             policy,
@@ -466,7 +457,6 @@ async fn route_create<P: ProviderInferDyn>(
             assembly_request,
             route,
             out,
-            rehearsals,
         ))
         .await;
     }
@@ -488,7 +478,6 @@ async fn route_create<P: ProviderInferDyn>(
         reading,
         route,
         out,
-        rehearsals,
     )
     .await
 }
@@ -501,7 +490,6 @@ async fn choose_create<P: ProviderInferDyn>(
     mut reading: Reading,
     mut route: Vec<String>,
     mut out: CompileOutcome,
-    rehearsals: &mut rehearsal::Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     // WARM on lexical ambiguity: every clause is known; a few carry a finite set of readings
     // and the rest of the reading is strictly explicit.
@@ -580,7 +568,6 @@ async fn choose_create<P: ProviderInferDyn>(
         reading,
         route,
         out,
-        rehearsals,
     )
     .await
 }
@@ -593,7 +580,6 @@ async fn author_create<P: ProviderInferDyn>(
     reading: Reading,
     mut route: Vec<String>,
     mut out: CompileOutcome,
-    rehearsals: &mut rehearsal::Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     // COLD: explicitly authorized generative proposals, constrained by the deterministic facts.
     if let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider) {
@@ -606,27 +592,8 @@ async fn author_create<P: ProviderInferDyn>(
             );
             return Ok(out);
         }
-        // HOT and finite WARM judgments keep their place. Open generation starts with
-        // the attached knowledge instead of first paying for a plan that cannot read it.
-        if policy.native == NativeMode::Escalate
-            && request
-                .authoring_knowledge
-                .as_ref()
-                .is_some_and(|pack| !pack.references.is_empty())
-        {
-            route.push(forensic::NATIVE_INFORMED.to_owned());
-            return Box::pin(native::author(
-                intent,
-                &reading,
-                policy,
-                provider,
-                assembly_request,
-                route,
-                out,
-                rehearsals,
-            ))
-            .await;
-        }
+        // HOT and finite WARM judgments keep their place. The attached knowledge is context the
+        // plan reads (`knowledge::plan_context`), never a route of its own.
         route.push(format!("cold: {} sample(s)", policy.samples.clamp(1, 5)));
         let mut found: Option<Composition> = None;
         let cold = sampled(
@@ -650,7 +617,6 @@ async fn author_create<P: ProviderInferDyn>(
             route,
             cold,
             found,
-            rehearsals,
         ))
         .await;
     }
@@ -662,9 +628,9 @@ async fn author_create<P: ProviderInferDyn>(
 
 /// What follows a COLD round: a pending transform waits for its answer; branches the plan could not
 /// keep apart go to the sketch door that represents them, with the same request, answers, floor
-/// and receipt, never to source generation; under Escalate, a round that ends without a candidate
-/// or hands the human a machine's problem escalates to a native candidate (the private plan is
-/// not the language's ceiling); otherwise the round's own outcome.
+/// and receipt; under Escalate, a round that ends without a candidate or hands the human a
+/// machine's problem escalates to the same sketch door (the private plan is not the language's
+/// ceiling), never to source generation; otherwise the round's own outcome.
 #[allow(clippy::too_many_arguments)] // the cold round's inputs, its outcome and its composition
 async fn after_cold<P: ProviderInferDyn>(
     intent: &str,
@@ -672,10 +638,9 @@ async fn after_cold<P: ProviderInferDyn>(
     policy: &AuthoringPolicy,
     provider: &P,
     assembly_request: &CompileRequest,
-    mut route: Vec<String>,
+    route: Vec<String>,
     cold: CompileOutcome,
     found: Option<Composition>,
-    rehearsals: &mut rehearsal::Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     let pending = cold
         .provenance
@@ -685,39 +650,24 @@ async fn after_cold<P: ProviderInferDyn>(
     if pending {
         return Ok(cold);
     }
-    if let Some(composition) = found
-        && cold.candidate.is_none()
-        && cold.questions.is_empty()
-    {
-        let request = assembly_request;
-        return sketch::compose(
-            intent,
-            reading,
-            policy,
-            provider,
-            request,
-            route,
-            cold,
-            &composition,
-        )
-        .await;
-    }
-    if policy.native == NativeMode::Escalate && native::escalates(&cold) {
-        route.push(forensic::NATIVE_ESCALATED.to_owned());
-        return Box::pin(native::author(
-            intent,
-            reading,
-            policy,
-            provider,
-            assembly_request,
-            route,
-            cold,
-            rehearsals,
-        ))
-        .await;
-    }
-    Ok(cold)
+    let why = match found {
+        Some(composition) if cold.candidate.is_none() && cold.questions.is_empty() => {
+            sketch::Escalation::Composition(composition)
+        }
+        _ if policy.native == NativeMode::Escalate && native::escalates(&cold) => {
+            sketch::Escalation::Plan
+        }
+        _ => return Ok(cold),
+    };
+    let request = assembly_request;
+    Box::pin(sketch::compose(
+        intent, reading, policy, provider, request, route, cold, &why,
+    ))
+    .await
 }
+
+/// Why a fresh CREATE under `only` sends no request.
+const ONLY_RETIRED: &str = "Source-only authoring (native: only) is retired for a new workflow: no model writes whole source. Use native: escalate (the default: the private plan, then the sketch door when the plan cannot carry the request) or native: sketch (the structure, then its typed fills); the compiler writes the source. No request was sent and no candidate was assembled.";
 
 const POLICY_BOUNDS: &str = "Authoring requires an explicit model, 1..32768 output tokens, a timeout up to 600 seconds, and an intent no larger than 32768 bytes.";
 
@@ -967,10 +917,11 @@ fn settle_judged(
     Ok(out)
 }
 
-/// The messages of the opening authoring call: the instructions, then the request.
-fn opening(intent: &str) -> Vec<Message> {
+/// The messages of the opening authoring call: the instructions followed by the context the
+/// compiler was given ([`knowledge::plan_context`]), then the request alone as the user's words.
+fn opening(intent: &str, context: &knowledge::PlanContext) -> Vec<Message> {
     vec![
-        Message::text(Role::System, INSTRUCTIONS),
+        Message::text(Role::System, format!("{INSTRUCTIONS}\n\n{}", context.text)),
         Message::text(Role::User, intent),
     ]
 }
@@ -989,14 +940,21 @@ fn counterexample(defect: &proposal::Unanchored) -> String {
 /// own answer and the verifier's counterexample go back as the conversation, and the
 /// repaired proposal is judged by the same merge as any other: a repair changes letters,
 /// never what the seat may propose. A repair the provider fails leaves the original
-/// proposal to the merge, which refuses it as before; the failure stays recorded.
+/// proposal to the merge, which refuses it as before; the failure stays recorded. Both calls
+/// carry the same opening, its context and its stamp: the repair adds only the answer and the
+/// counterexample.
 async fn propose<P: ProviderInferDyn>(
     intent: &str,
     policy: &AuthoringPolicy,
     provider: &P,
+    context: &knowledge::PlanContext,
     out: &mut CompileOutcome,
 ) -> Option<Proposal> {
-    let (proposal, text) = call(policy, provider, "plan", opening(intent), out).await?;
+    let opened = opening(intent, context);
+    let before = receipt::journaled(out);
+    let called = call(policy, provider, "plan", opened.clone(), out).await;
+    knowledge::stamp_plan(out, before, context, &[]);
+    let (proposal, text) = called?;
     let Some(defect) = proposal::unanchored(intent, &proposal) else {
         return Some(proposal);
     };
@@ -1011,10 +969,13 @@ async fn propose<P: ProviderInferDyn>(
             proposal::excerpt_head(&defect.evidence)
         ),
     );
-    let mut messages = opening(intent);
+    let mut messages = opened;
     messages.push(Message::text(Role::Assistant, text));
     messages.push(Message::text(Role::User, counterexample(&defect)));
-    match call(policy, provider, "repair", messages, out).await {
+    let before = receipt::journaled(out);
+    let called = call(policy, provider, "repair", messages, out).await;
+    knowledge::stamp_plan(out, before, context, &[]);
+    match called {
         Some((repaired, _)) => Some(repaired),
         None => Some(proposal),
     }
@@ -1074,9 +1035,11 @@ async fn sampled<P: ProviderInferDyn>(
     let mut output_tokens: Option<u64> = None;
     let mut elapsed_ms = 0;
     let mut context: Vec<Value> = Vec::new();
+    // One context for every sample: the same request, reading and attachments.
+    let prepared = knowledge::plan_context(intent, reading, request);
     for index in 0..policy.samples.clamp(1, 5) as usize {
         let mut scratch = super::initial();
-        let proposal = propose(intent, policy, provider, &mut scratch).await;
+        let proposal = propose(intent, policy, provider, &prepared, &mut scratch).await;
         let merged = proposal.map(|p| merged(intent, p, reading, &mut scratch));
         let needs_sketch = matches!(merged, Some(Merged::NeedsSketch(_)));
         let plan = match merged {
@@ -1321,172 +1284,4 @@ async fn sampled<P: ProviderInferDyn>(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{Objects, UNCLOSED_RETRIES, answer_objects, first_json_object};
-    use nika_kernel::ai::provider::{ContentBlock, InferResponse, StopReason, TokenUsage};
-
-    const A: &str = r#"{"steps": [], "note": "a {brace} and a \" quote in a string"}"#;
-    const B: &str = r#"{"steps": [{"op": "read"}]}"#;
-    const EXAMPLE: &str = r#"{"status": "paid"}"#;
-
-    /// The answer's own type, for these tests: an object that carries `steps`.
-    fn is_plan(object: &str) -> bool {
-        serde_json::from_str::<serde_json::Value>(object).is_ok_and(|v| v.get("steps").is_some())
-    }
-
-    fn read(text: &str) -> Option<&str> {
-        match answer_objects(text, is_plan) {
-            Objects::One { answer, .. } => Some(answer),
-            _ => None,
-        }
-    }
-
-    #[test]
-    fn one_answer_is_read_through_prose_repetitions_templates_and_examples() {
-        for text in [
-            A.to_owned(),
-            format!("Sure!\n```json\n{A}\n```"),
-            // The same answer twice, bare or in prose, is one answer.
-            format!("{A}\n{A}"),
-            format!("Draft {A} final {A}"),
-            // Template braces, an empty object and a closing prose brace are not answers.
-            format!("{A}\nIt reads ${{{{ with.content }}}}, keeps permits: {{}}, ends {{name}}"),
-            format!("It uses ${{{{ with.content }}}} before the answer:\n{A}"),
-            // An example that cannot be an answer never kills the one answer.
-            format!("For example {EXAMPLE}, then {A}"),
-            format!("{A} then {{ an unclosed prose brace"),
-        ] {
-            assert_eq!(read(&text), Some(A), "{text}");
-        }
-        let beside_example = format!("E.g. {EXAMPLE}: {A}");
-        let Objects::One { unread, .. } = answer_objects(&beside_example, is_plan) else {
-            panic!("one answer beside an example");
-        };
-        assert_eq!(unread, [EXAMPLE], "kept by digest, never read");
-        assert_eq!(
-            first_json_object(&format!("Sure!\n```json\n{A}\n```")),
-            Some(A)
-        );
-    }
-
-    #[test]
-    fn two_answers_or_one_beside_a_cut_object_are_never_resolved_by_reading_the_first() {
-        for text in [
-            format!("Draft {A} final {B}"),
-            format!("{A}\n{B}"),
-            format!("```json\n{B}\n```\n```json\n{A}\n```"),
-            format!("{A} then {{ an unclosed brace, then {B}"),
-        ] {
-            assert!(
-                matches!(answer_objects(&text, is_plan), Objects::Two(ref objects) if objects.len() == 2),
-                "{text}"
-            );
-        }
-        for text in [
-            // A competitor that opens like an object and never closes, after or before.
-            format!("Draft:\n{A}\nFinal:\n{{\"steps\": [{{\"op\": \"write\""),
-            format!("Draft:\n{{ \"steps\": [\nFinal:\n{A}"),
-            // Past the retry bound, the rest of the text is not judged: never one answer.
-            format!("{A}{}", " {".repeat(UNCLOSED_RETRIES + 1)),
-        ] {
-            assert!(
-                matches!(answer_objects(&text, is_plan), Objects::Undecided(ref objects) if objects == &[A]),
-                "{text}"
-            );
-        }
-        assert_eq!(
-            read(&format!("{A}{}", " {".repeat(UNCLOSED_RETRIES))),
-            Some(A)
-        );
-        // Without a complete object, the text keeps its syntax path.
-        assert!(matches!(
-            answer_objects("{\"steps\": !}", is_plan),
-            Objects::None
-        ));
-        assert!(matches!(
-            answer_objects("no object", is_plan),
-            Objects::None
-        ));
-    }
-
-    #[test]
-    fn a_cold_plan_is_read_beside_an_example_and_never_beside_another_plan() {
-        let plan = r#"{"steps":[],"effects":[],"obligations":[],"constraints":[],"unknowns":[]}"#;
-        let other = r#"{"steps":[{"op":"draft","detail":"x","evidence":"x"}],"effects":[],"obligations":[],"constraints":[],"unknowns":[]}"#;
-        let response = |text: String| {
-            InferResponse::new(
-                vec![ContentBlock::Text { text }],
-                TokenUsage::new(1, 1),
-                StopReason::EndTurn,
-            )
-        };
-        let mut out = crate::initial();
-        let two = response(format!("Plan A:\n{plan}\nPlan B:\n{other}"));
-        assert!(super::proposal::decode(&two, &mut out).is_none());
-        assert!(
-            out.diagnostics
-                .iter()
-                .any(|d| d.message.contains("two plans")),
-            "{out:#?}"
-        );
-        let mut out = crate::initial();
-        let one = response(format!("Plan:\n{plan}\nFor example {EXAMPLE}."));
-        assert!(super::proposal::decode(&one, &mut out).is_some());
-    }
-
-    /// An outcome whose receipt holds one call, as `call_with_schema` leaves it.
-    fn called() -> crate::CompileOutcome {
-        let mut out = crate::initial();
-        let mut receipt = crate::AuthoringReceipt::new("mock/authoring".to_owned());
-        receipt.context.push(serde_json::json!({"call": "plan"}));
-        out.provenance.authoring = Some(receipt);
-        out
-    }
-
-    #[test]
-    fn a_competitor_with_a_defect_is_still_a_competitor_and_its_digest_is_kept() {
-        use super::proposal::Proposal;
-        let plan = r#"{"steps":[],"effects":[],"obligations":[],"constraints":[],"unknowns":[]}"#;
-        // An unknown key or a null field keeps it from decoding, never from competing.
-        for rival in [
-            r#"{"steps":[{"op":"draft","detail":"x","evidence":"x"}],"confidence":0.9}"#,
-            r#"{"steps":null,"effects":[]}"#,
-        ] {
-            assert!(
-                super::answer_shaped::<Proposal>(rival, &["steps"]),
-                "{rival}"
-            );
-            let text = format!("Draft:\n{plan}\nFinal:\n{rival}");
-            assert!(
-                matches!(answer_objects(&text, |o| super::answer_shaped::<Proposal>(o, &["steps"])), Objects::Two(ref o) if o == &[plan, rival]),
-                "{text}"
-            );
-            let mut out = called();
-            let response = InferResponse::new(
-                vec![ContentBlock::Text { text }],
-                TokenUsage::new(1, 1),
-                StopReason::EndTurn,
-            );
-            assert!(super::proposal::decode(&response, &mut out).is_none());
-            let call = &out.provenance.authoring.as_ref().unwrap().context[0];
-            assert_eq!(call["competing_objects"], super::digests(&[plan, rival]));
-        }
-        // An object that carries none of a plan's keys and does not decode is an example.
-        assert!(!super::answer_shaped::<Proposal>(EXAMPLE, &["steps"]));
-    }
-
-    #[test]
-    fn the_syntax_path_judges_the_broken_answer_never_a_template() {
-        let broken = r#"{"steps": !}"#;
-        for text in [
-            format!("It uses ${{{{ with.content }}}}, then {broken}"),
-            format!("{{name}} {broken} {{{{ x }}}}"),
-            broken.to_owned(),
-        ] {
-            assert_eq!(super::syntax_target(&text), Some(broken), "{text}");
-        }
-        for text in ["{{ a }} {name}", "{\"steps\": [", "no object"] {
-            assert_eq!(super::syntax_target(text), None, "{text}");
-        }
-    }
-}
+mod tests;

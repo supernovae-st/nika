@@ -220,23 +220,34 @@ async fn unproven_silent_omissions_and_creation_gaps_do_not_waive_paths() {
         .unwrap();
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(out.candidate.is_none(), "{out:#?}");
-    // A creation opens every stated path; a gap waives none.
-    let created = Rotating::new(vec![answer(
-        &without_the_write(),
-        &["`a.txt` cannot be written."],
-    )]);
+    // A creation opens every stated path; a gap waives none. Fresh CREATE is semantic: the
+    // sketch reads the source, writes nothing and reports the write as a gap.
+    let sketch = json!({"name": "copie-entree", "tasks": [
+        {"id": "read_source", "verb": "invoke", "tool": "nika:read", "reads": ["entree.txt"], "purpose": "the source"}
+    ], "questions": [], "gaps": ["`a.txt` cannot be written."], "notes": "no write"});
+    let created = Rotating::new(vec![
+        sketch.to_string(),
+        json!({"fills": [], "notes": "none"}).to_string(),
+    ]);
+    let policy = AuthoringPolicy::new("mock/authoring", 4096, Duration::from_secs(2))
+        .with_native(NativeMode::Sketch)
+        .with_repairs(0);
     let out = compile_with_provider(
-        &CompileRequest::create(ORIGINAL).with_authoring_policy(policy()),
+        &CompileRequest::create(ORIGINAL).with_authoring_policy(policy),
         &created,
     )
     .await
     .unwrap();
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(out.candidate.is_none(), "{out:#?}");
+    let judged = rounds(&out);
+    assert!(!judged.is_empty(), "{out:#?}");
     assert!(
-        rounds(&out)
-            .iter()
-            .all(|r| r["diagnostics"].to_string().contains("UNREALIZED PATH")),
-        "{out:#?}"
+        judged.iter().any(|r| {
+            let said = r["diagnostics"].to_string();
+            said.contains("UNREALIZED PATH") && said.contains("a.txt")
+        }),
+        "the owed write is named: {out:#?}"
     );
 }
 

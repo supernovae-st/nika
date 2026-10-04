@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 
 use serde_json::{Value, json};
 
-use super::{Sketch, complete_document, fills_from_json, structural_laws};
+use super::{Sketch, complete_document, fills_from_json, structural_laws_observed};
 use crate::behavior::{Contract, Presence, Requirement, contract_of_request};
 
 /// The record's format and lowering versions this compiler replays.
@@ -90,6 +90,21 @@ fn well_formed(record: &Value) -> bool {
 /// lowering, a graph or fills the laws refuse, questions that are not exactly the open
 /// placeholders. Never a record value or key name.
 pub fn replayed(record: &Value, intent: &str, allowed: &[String]) -> Result<Value, &'static str> {
+    replayed_observed(record, intent, allowed, None)
+}
+
+/// The same reconstruction under the replaying request's own observation of the stated files
+/// (never one a record carries): a read may reach the one file it places under a stated bare
+/// name, as the sketch laws admit it.
+///
+/// # Errors
+/// As [`replayed`].
+pub fn replayed_observed(
+    record: &Value,
+    intent: &str,
+    allowed: &[String],
+    observed: Option<&Value>,
+) -> Result<Value, &'static str> {
     if !well_formed(record) {
         return Err("it is not a closed record of this format");
     }
@@ -99,7 +114,7 @@ pub fn replayed(record: &Value, intent: &str, allowed: &[String]) -> Result<Valu
     let sketch = Sketch::from_json(&record["sketch"]).map_err(|_| "its graph is refused")?;
     let fills = fills_from_json(&json!({"fills": record["fills"]}));
     let document = (fills.ok())
-        .filter(|_| structural_laws(&sketch, intent, allowed).is_empty())
+        .filter(|_| structural_laws_observed(&sketch, intent, allowed, observed).is_empty())
         .and_then(|fills| complete_document(&sketch, &fills).ok())
         .ok_or("its graph or fills are refused by the laws")?;
     let settlement = &record["settlement"];
@@ -114,7 +129,20 @@ pub fn replayed(record: &Value, intent: &str, allowed: &[String]) -> Result<Valu
         None => json!(format!("the clause the record names as gap {}", n + 1)),
     })
     .collect();
-    let trigger = verbatim(&settlement["trigger"], intent);
+    let trigger = match &settlement["trigger"] {
+        Value::Null
+            if nika_compile_reader::lexicon::read(intent)
+                .plan
+                .trigger
+                .is_some() =>
+        {
+            return Err("its trigger omits the cadence the request states");
+        }
+        Value::Null => None,
+        stated => {
+            Some(verbatim(stated, intent).ok_or("its trigger is not the request's own words")?)
+        }
+    };
     Ok(json!({"document": document, "questions": questions, "gaps": gaps, "trigger": trigger}))
 }
 

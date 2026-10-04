@@ -240,7 +240,7 @@ release's `SNAPSHOT_SHA256` — and of the rows, admitted through the strict doo
 beside it) and the pure records a session stamps on a compile outcome: what it
 observed (`observed_in`: paths, states, kinds and column counts, never the
 names, and `world_sha256`, the identity of the whole observation attached), composed (`composed_record`: the pinned identity, the pack digest, each
-reference's bytes and sha256, whether the native door presented it and which
+reference's bytes and sha256, whether a native or Plan call presented it and which
 calls carried it), carried (`carried_record`), presented (`presented_knowledge`)
 and the stamp beside the compiler's own record (`stamp`). It descended from
 `nika-session` on 2026-09-28 (C7 · D1); `nika_session::authoring::KnowledgePin`
@@ -621,3 +621,13 @@ host retains admission, privacy policy and any eventual capture lifecycle.
 
 Live numbers come from the projector — `scripts/crate-metrics.sh
 nika-onboard` (no hardcoded LOC anchor in this spec; nothing to drift).
+
+## Plan context presentation evidence
+
+`KnowledgePin::composed_record` recognizes presentation by a Plan call only when its journal
+entry carries this pack's digest and every reference receipt and attests a return
+(`result.stop_reason` is a string, with no `failure_kind`). `observed_in` checks the
+corresponding world digest. Refused, failed or unreturned prepared calls are not presented;
+those facts establish neither delivery nor cost. Receipts without the marker retain their
+previous wording. The native digest-based presentation path remains. This attribution
+proves neither a model's use of a reference nor a downstream Foundry benefit.

@@ -28,6 +28,8 @@ mod ask;
 mod bounds;
 mod decode;
 mod journal;
+#[cfg(test)]
+mod response_recovery_tests;
 mod revision;
 pub(super) use answer::{Answer, Question};
 pub(super) use decode::{Shaped, decode};
@@ -686,25 +688,7 @@ const EXHAUSTED: &str = "No candidate passed the checks within the repair budget
 
 pub(super) fn system_message(references: &[Reference], callables: &[Reference]) -> String {
     let mut text = format!("{}\n\n{}", knowledge::card(), knowledge::CONVENTIONS);
-    text.push_str("\n\n# Callable contracts (the stdlib page, cut)\n");
-    for callable in callables {
-        text.push_str(&callable.text);
-        text.push_str("\n\n");
-    }
-    text.push_str("\n# References recalled for this request (priors, never prisons)\n");
-    for reference in references {
-        text.push_str("## ");
-        text.push_str(&reference.id);
-        text.push('\n');
-        if reference.kind == "skeleton" {
-            text.push_str("```yaml\n");
-            text.push_str(&reference.text);
-            text.push_str("\n```\n\n");
-        } else {
-            text.push_str(&reference.text);
-            text.push_str("\n\n");
-        }
-    }
+    text.push_str(&knowledge::rendered(references, callables));
     text
 }
 
@@ -879,7 +863,7 @@ fn open_column(intent: &str, slug: &str, observed: Option<&Value>) -> Option<Vec
 /// most eight; never a machine's construct; never a name the observed world states. A column
 /// the request leaves open is admitted with its observed alternatives (`open_column`), the
 /// only answers the compiler takes.
-fn admitted_questions(
+pub(super) fn admitted_questions(
     intent: &str,
     candidate: &str,
     questions: &[Question],

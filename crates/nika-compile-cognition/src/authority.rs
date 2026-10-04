@@ -24,15 +24,16 @@ use crate::NativeMode;
 /// The worst-case authoring requests a configuration can make, the verifier's included (R4 A11,
 /// nv1b), so the review a caller signs bounds every request a compile sends. With `s` samples and
 /// `r` repairs clamped to [`SAMPLES`] and [`REPAIRS`]:
-/// - the native door (and an edit's native revision): the candidate and its repairs, then the
-///   whole-request judgment and its locate question (`verify::WHOLE_QUESTIONS`, 2): `3 + r`;
+/// - an edit's native revision: the candidate and its repairs, then the whole-request judgment
+///   and its locate question (`verify::WHOLE_QUESTIONS`, 2): `3 + r`;
 /// - the sketch door: the sketch, its fills and their repairs, then the same judgment: `4 + r`;
 /// - COLD: each sample and its one evidence repair (`2s`), then `1 + r` verification attempts,
 ///   each asking at most `verify::CLAUSE_QUESTIONS` (8) clause questions, the whole-request
 ///   judgment (2) and one transform synthesis of at most `transform::MAX_CALLS` (2) questions;
 ///   each of the `r` verify repairs is one call, and the transform repairs share one allowance of
 ///   `r`: `2s + 12 (1 + r) + 2r = 2s + 14r + 12`;
-/// - escalate: COLD, then the native door.
+/// - escalate: COLD, then the sketch door with one repair less (`3 + r`; none when `r` is 0);
+/// - only: no request for a creation, which this core no longer authors as whole source.
 #[must_use]
 pub fn worst_case(strategy: NativeMode, samples: u32, repairs: u32, edit: bool) -> u32 {
     let samples = samples.clamp(*SAMPLES.start(), *SAMPLES.end());
@@ -40,6 +41,7 @@ pub fn worst_case(strategy: NativeMode, samples: u32, repairs: u32, edit: bool) 
     let count = |questions: usize| u32::try_from(questions).unwrap_or(u32::MAX);
     let judged = count(crate::cognition::WHOLE_QUESTIONS);
     let native = 1 + repairs + judged;
+    let sketch = |repairs: u32| repairs + 2 + judged;
     let attempt = count(crate::cognition::CLAUSE_QUESTIONS)
         + judged
         + count(crate::cognition::TRANSFORM_QUESTIONS);
@@ -48,9 +50,9 @@ pub fn worst_case(strategy: NativeMode, samples: u32, repairs: u32, edit: bool) 
         NativeMode::Off if edit => 0,
         NativeMode::Off => cold,
         _ if edit => native,
-        NativeMode::Only => native,
-        NativeMode::Sketch => repairs + 2 + judged,
-        _ => cold + native,
+        NativeMode::Only => 0,
+        NativeMode::Sketch => sketch(repairs),
+        _ => cold + repairs.checked_sub(1).map_or(0, sketch),
     }
 }
 
@@ -65,14 +67,14 @@ pub fn usage_complete(context: &[Value]) -> bool {
     })
 }
 
-/// The requests a typed strategy needs at least before its READY can be judged (nv1b): the native
-/// candidate, or the plan, then its judgment (2); the sketch, its fills, then their judgment (3).
-/// A strategy no typed minimum names needs one.
+/// The requests a typed strategy needs at least before its READY can be judged (nv1b): the plan,
+/// then its judgment (2); the sketch, its fills, then their judgment (3). A strategy no typed
+/// minimum names needs one; `only` creates nothing, so no grant of more requests can help it.
 #[must_use]
 pub const fn least_requests(strategy: NativeMode) -> u32 {
     match strategy {
         NativeMode::Sketch => 3,
-        NativeMode::Only | NativeMode::Escalate => 2,
+        NativeMode::Escalate => 2,
         _ => 1,
     }
 }
@@ -268,11 +270,11 @@ impl Authority {
                 strategy,
             });
         }
-        // A typed strategy is honored in full or refused here: a READY is judged, so the native
-        // candidate, the plan or the sketch and its fills are not enough alone (nv1b).
+        // A typed strategy is honored in full or refused here: a READY is judged, so the plan or
+        // the sketch and its fills are not enough alone (nv1b). A creation under `only` is refused
+        // by the core with its migration, never by a grant it could buy.
         let steps = match strategy {
             _ if edit || !typed.strategy => None,
-            NativeMode::Only => Some("the candidate, then its judgment"),
             NativeMode::Escalate => Some("the plan, then its judgment"),
             NativeMode::Sketch => Some("the sketch, its fills, then their judgment"),
             _ => None,
@@ -526,21 +528,25 @@ mod tests {
 
     #[test]
     fn the_worst_case_follows_the_resolved_strategy() {
-        // Every request a configuration can send, the verifier's included (nv1b): the native
-        // candidate and its repairs, then its whole-request judgment and locate question (3 + r);
-        // the sketch, its fills and repairs, then the same judgment (4 + r); COLD's samples and
-        // their evidence repairs (2s), then 1 + r verification attempts of at most 8 clause
-        // questions, the whole-request judgment and one synthesis of at most 2 transforms each,
-        // with its r verify repairs and r transform repairs (2s + 14r + 12). Before the verifier
-        // was counted, the same default work was bounded at 2 + 1 + 3.
+        // Every request a configuration can send, the verifier's included (nv1b): an edit's
+        // native candidate and its repairs, then its whole-request judgment and locate question
+        // (3 + r); the sketch, its fills and repairs, then the same judgment (4 + r); COLD's
+        // samples and their evidence repairs (2s), then 1 + r verification attempts of at most 8
+        // clause questions, the whole-request judgment and one synthesis of at most 2 transforms
+        // each, with its r verify repairs and r transform repairs (2s + 14r + 12); escalate adds
+        // the sketch door with one repair less (3 + r, none at r = 0). A creation under `only`
+        // sends nothing. Before the verifier was counted, the default work was bounded at 2 + 1 + 3.
         assert_eq!(worst_case(NativeMode::Escalate, 1, 3, false), 62);
-        assert_eq!(worst_case(NativeMode::Only, 1, 0, false), 3);
-        assert_eq!(worst_case(NativeMode::Only, 1, 3, false), 6);
+        assert_eq!(worst_case(NativeMode::Escalate, 1, 0, false), 14);
+        assert_eq!(worst_case(NativeMode::Escalate, 1, 1, false), 28 + 4);
+        assert_eq!(worst_case(NativeMode::Only, 1, 0, false), 0);
+        assert_eq!(worst_case(NativeMode::Only, 1, 3, false), 0);
         assert_eq!(worst_case(NativeMode::Sketch, 1, 0, false), 4);
         assert_eq!(worst_case(NativeMode::Sketch, 1, 3, false), 7);
         assert_eq!(worst_case(NativeMode::Off, 1, 0, false), 14);
         assert_eq!(worst_case(NativeMode::Off, 3, 5, false), 88);
         assert_eq!(worst_case(NativeMode::Escalate, 1, 3, true), 6);
+        assert_eq!(worst_case(NativeMode::Only, 1, 3, true), 6);
         assert_eq!(worst_case(NativeMode::Off, 1, 3, true), 0);
         // Clamped as the policy clamps: five samples, five repairs.
         assert_eq!(worst_case(NativeMode::Escalate, 9, 9, false), 100);
@@ -595,15 +601,19 @@ mod tests {
         let none = nothing.with_strategy().with_repairs(Some(0));
         assert!(resolve(Some(2), Only, none).is_ok());
         assert!(resolve(None, Escalate, nothing.with_repairs(Some(0))).is_ok());
-        // Samples: twenty-one under escalate for three of them.
+        // Samples: eighteen under escalate for three of them (no repair typed: the sketch door
+        // after the plan has none left, so it sends nothing).
         let samples = nothing.with_samples(Some(3));
-        let refused = resolve(None, Escalate, samples).expect_err("twenty-one");
-        assert!(matches!(refused, Refusal::Multiplicity { needed: 21, .. }));
-        assert!(resolve(Some(21), Escalate, samples).is_ok());
+        let refused = resolve(None, Escalate, samples).expect_err("eighteen");
+        assert!(matches!(refused, Refusal::Multiplicity { needed: 18, .. }));
+        assert!(resolve(Some(18), Escalate, samples).is_ok());
         // A typed strategy is honored in full or refused: a judged READY takes two requests at
-        // least, three for the sketch; the default runs in one.
+        // least, three for the sketch; the default runs in one. A typed `only` creates nothing,
+        // so no grant is named to it: the core refuses the creation with its migration.
+        let only = resolve(Some(1), Only, nothing.with_strategy()).expect("no grant to buy");
+        assert_eq!(only.configured["worst_case"], 0);
+        assert_eq!(least_requests(Only), 1);
         for (strategy, steps, least) in [
-            (Only, "the candidate, then its judgment", 2),
             (Escalate, "the plan, then its judgment", 2),
             (Sketch, "the sketch, its fills, then their judgment", 3),
         ] {

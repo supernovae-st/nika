@@ -342,6 +342,10 @@ fn owned(request: &CompileRequest, key: &str, field: &str, path: &str, stated: &
 /// Keep field questions closed on a zero-call answer round, including library callers. The plan
 /// is re-anchored to this round's observation, with every key asked again after a source change.
 pub fn record(request: &CompileRequest, out: &mut CompileOutcome) {
+    // A semantic record is closed (its basis binds the world it was read under): undecorated.
+    if (out.provenance.plan.as_ref()).is_some_and(|plan| plan.get("semantic_record").is_some()) {
+        return;
+    }
     if let (Some(world), Some(plan)) = (world(request), out.provenance.plan.as_mut()) {
         plan["observed_world"] = world.clone();
     }

@@ -699,11 +699,17 @@ fn bake(source: &mut String, question: &Value, literal: &str, out: &mut CompileO
         let edited = crate::edit_source::emit(source.as_str(), &before, &after, slug)?;
         // An answered endpoint also grants its host: the boundary is the compiler's to
         // complete from the answer, never the seat's to guess.
-        if !grant_host(&mut after, &value) {
+        let before = crate::edit::literal_projection(&edited)?;
+        if !grant_host(&mut after, slug, &value) {
             return Some(edited);
         }
-        let before = crate::edit::literal_projection(&edited)?;
-        crate::edit_source::emit_at(&edited, &before, &after, &["permits", "net", "http"])
+        // A stated list is rewritten in place; an absent one has no slot, so the document is
+        // re-emitted whole under the literal-projection proof (its presentation may normalize).
+        if before.pointer("/permits/net/http").is_some() {
+            crate::edit_source::emit_at(&edited, &before, &after, &["permits", "net", "http"])
+        } else {
+            crate::edit::emit_preserving(&edited, &before, &after).ok()?
+        }
     });
     if let Some(edited) = baked {
         *source = edited;
@@ -725,15 +731,35 @@ fn bake(source: &mut String, question: &Value, literal: &str, out: &mut CompileO
     }
 }
 
-/// Add the host of an answered URL to `permits.net.http` when that list exists and lacks it.
-fn grant_host(after: &mut Value, value: &Value) -> bool {
-    let Some(host) = value.as_str().and_then(host_of) else {
+/// Add the host of an answered URL to `permits.net.http` when a `nika:fetch` url or a
+/// `nika:notify` target reads exactly that answer (`${{ const.<slug> }}`): an absent list and its
+/// absent parents are created, an empty or stated one is extended; an answer no such argument
+/// reads, a wildcard, another scheme or an ancestor of another type grants nothing.
+fn grant_host(after: &mut Value, slug: &str, value: &Value) -> bool {
+    let Some(host) = value
+        .as_str()
+        .and_then(host_of)
+        .filter(|h| !h.contains('*'))
+    else {
         return false;
     };
-    let Some(list) = after
-        .pointer_mut("/permits/net/http")
-        .and_then(Value::as_array_mut)
-    else {
+    let whole = format!("${{{{ const.{slug} }}}}");
+    let reads = |task: &Value| match task["invoke"]["tool"].as_str() {
+        Some("nika:fetch") => task["invoke"]["args"]["url"] == whole.as_str(),
+        Some("nika:notify") => task["invoke"]["args"]["target"] == whole.as_str(),
+        _ => false,
+    };
+    if !after["tasks"]
+        .as_object()
+        .is_some_and(|tasks| tasks.values().any(reads))
+    {
+        return false;
+    }
+    let list = member(after, "permits", json!({}))
+        .and_then(|permits| member(permits, "net", json!({})))
+        .and_then(|net| member(net, "http", json!([])))
+        .and_then(Value::as_array_mut);
+    let Some(list) = list else {
         return false;
     };
     if list.iter().any(|h| h.as_str() == Some(host)) {
@@ -789,6 +815,11 @@ fn grant_answered_paths(
         }
     }
     paths
+}
+
+/// The member `key` of an object, created as `empty` when absent; none when `value` is no object.
+fn member<'a>(value: &'a mut Value, key: &str, empty: Value) -> Option<&'a mut Value> {
+    Some(value.as_object_mut()?.entry(key).or_insert(empty))
 }
 
 /// The host of an `http(s)://` URL, without its port: the form `permits.net.http` lists (the
@@ -1068,7 +1099,9 @@ pub(crate) fn rebuilt(
         return Err("it was recorded for another request, answers, world or reading");
     }
     let allowed = nika_compile_fidelity::fidelity::allowed_values(&basis.answers);
-    let mut view = nika_compile_fidelity::sketch::replayed(record, intent, &allowed)?;
+    let world = request.knowledge.as_ref();
+    let mut view =
+        nika_compile_fidelity::sketch::replayed_observed(record, intent, &allowed, world)?;
     let source = serde_yaml_bw::to_string(&view["document"])
         .map_err(|_| "its document is not representable")?;
     if record["assembly_sha256"] != json!(super::surface::sha256(&source)) {
@@ -1095,20 +1128,128 @@ mod tests {
         assert_eq!(host_of("http://127.0.0.1:8793/hook"), Some("127.0.0.1"));
         assert_eq!(host_of("http://[::1]:8080/x"), Some("[::1]"));
         assert_eq!(host_of("./out/report.md"), None);
-        let mut doc = json!({"permits": {"net": {"http": []}}});
-        assert!(grant_host(
-            &mut doc,
-            &json!("https://hooks.example.invalid/recap")
-        ));
-        assert!(!grant_host(
-            &mut doc,
-            &json!("https://hooks.example.invalid/again")
-        ));
+        let notify = json!({"send": {"invoke": {"tool": "nika:notify",
+            "args": {"target": "${{ const.endpoint }}"}}}});
+        let fetch = json!({"get": {"invoke": {"tool": "nika:fetch",
+            "args": {"url": "${{ const.endpoint }}"}}}});
+        let recap = json!("https://hooks.example.invalid/recap");
+        let empty = json!({"net": {"http": []}});
+        // A notify target or a fetch url read whole grants into the stated list or into one created
+        // with its absent parents; a host already listed stays, once.
+        for permits in [
+            empty.clone(),
+            json!({}),
+            json!({"fs": {}}),
+            json!({"net": {}}),
+        ] {
+            for tasks in [&notify, &fetch] {
+                let mut doc = json!({"permits": permits.clone(), "tasks": tasks});
+                assert!(grant_host(&mut doc, "endpoint", &recap), "{doc}");
+                let again = json!("https://hooks.example.invalid/again");
+                assert!(!grant_host(&mut doc, "endpoint", &again));
+                assert_eq!(
+                    doc["permits"]["net"]["http"],
+                    json!(["hooks.example.invalid"])
+                );
+            }
+        }
+        let mut bare = json!({"tasks": notify});
+        assert!(grant_host(&mut bare, "endpoint", &recap));
         assert_eq!(
-            doc["permits"]["net"]["http"],
+            bare["permits"]["net"]["http"],
             json!(["hooks.example.invalid"])
         );
-        let mut none = json!({"permits": {}});
-        assert!(!grant_host(&mut none, &json!("https://x.invalid/")));
+        let mut kept =
+            json!({"permits": {"net": {"http": ["api.example.invalid"]}}, "tasks": notify});
+        assert!(grant_host(&mut kept, "endpoint", &recap));
+        let both = json!(["api.example.invalid", "hooks.example.invalid"]);
+        assert_eq!(kept["permits"]["net"]["http"], both);
+        // Nothing reads the answer whole as a net argument: nothing is granted or created.
+        let partial = json!({"get": {"invoke": {"tool": "nika:fetch",
+            "args": {"url": "${{ const.endpoint }}/contacts"}}}});
+        let other = json!({"send": {"invoke": {"tool": "nika:notify",
+            "args": {"target": "${{ const.other }}"}}}});
+        let message = json!({"send": {"invoke": {"tool": "nika:notify",
+            "args": {"target": "https://fixed.invalid/", "message": "${{ const.endpoint }}"}}}});
+        for tasks in [json!({}), partial, other, message] {
+            for permits in [empty.clone(), json!({})] {
+                let mut doc = json!({"permits": permits.clone(), "tasks": tasks});
+                assert!(!grant_host(&mut doc, "endpoint", &recap), "{doc}");
+                assert_eq!(doc["permits"], permits, "{doc}");
+            }
+        }
+        // A wildcard host or another scheme grants nothing.
+        for answer in [
+            "https://*.example.invalid/x",
+            "ftp://hooks.example.invalid/x",
+        ] {
+            let mut doc = json!({"permits": {}, "tasks": notify});
+            assert!(
+                !grant_host(&mut doc, "endpoint", &json!(answer)),
+                "{answer}"
+            );
+            assert_eq!(doc["permits"], json!({}), "{answer}");
+        }
+        // An ancestor of another type fails closed: no panic, no grant, nothing replaced.
+        for permits in [
+            json!("x"),
+            json!({"net": []}),
+            json!({"net": "y"}),
+            json!({"net": {"http": {}}}),
+            json!({"net": {"http": "z"}}),
+        ] {
+            let mut doc = json!({"permits": permits.clone(), "tasks": notify});
+            assert!(!grant_host(&mut doc, "endpoint", &recap), "{permits}");
+            assert_eq!(doc["permits"], permits, "{permits}");
+        }
+    }
+
+    /// The bake applies the answer and grants its host into a stated list (rewritten in place) or
+    /// into an absent one (the document re-emitted under the literal-projection proof), block or
+    /// flow; an answer no net argument reads grants nothing.
+    #[test]
+    fn the_bake_grants_an_answered_host_into_a_stated_or_absent_list() {
+        let question = json!({"key": "const.endpoint", "label": "Where?", "answer_type": "text"});
+        let answer = "\"https://hooks.example.invalid/recap\"";
+        let send = |target: &str| {
+            format!(
+                "tasks:\n  send:\n    invoke:\n      tool: nika:notify\n      args: {{target: \"{target}\", message: hi}}\n"
+            )
+        };
+        let head = "nika: x\nconst:\n  endpoint: ''\n";
+        let whole = send("${{ const.endpoint }}");
+        let partial = send("${{ const.endpoint }}/x");
+        for (permits, tasks, granted) in [
+            (
+                "permits:\n  tools:\n  - nika:notify\n  net:\n    http: []\n",
+                &whole,
+                true,
+            ),
+            (
+                "permits: {tools: [\"nika:notify\"], net: {http: []}}\n",
+                &whole,
+                true,
+            ),
+            ("permits:\n  tools:\n  - nika:notify\n", &whole, true),
+            ("permits: {tools: [\"nika:notify\"]}\n", &whole, true),
+            ("permits:\n  tools:\n  - nika:notify\n", &partial, false),
+        ] {
+            let mut source = format!("{head}{permits}{tasks}");
+            let mut out = crate::surface::initial();
+            assert!(bake(&mut source, &question, answer, &mut out), "{out:#?}");
+            let doc: Value = serde_yaml_bw::from_str(&source).unwrap();
+            assert_eq!(
+                doc["const"]["endpoint"],
+                "https://hooks.example.invalid/recap"
+            );
+            assert_eq!(doc["tasks"]["send"]["invoke"]["args"]["message"], "hi");
+            let expected = if granted {
+                json!(["hooks.example.invalid"])
+            } else {
+                Value::Null
+            };
+            assert_eq!(doc["permits"]["net"]["http"], expected, "{source}");
+            assert_eq!(doc["permits"]["tools"], json!(["nika:notify"]), "{source}");
+        }
     }
 }

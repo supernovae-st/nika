@@ -116,9 +116,10 @@ needs keeps its default.
   unreadable or outside rows, two observed files of that name, another name (`orders_old.csv`,
   `Orders.csv`), or no task opening it. A destination occurrence keeps its own law. The law
   reads only the rows it is given (the knowledge the host's observer builds, `nika-cli-host`
-  `compile/observe.rs`), never the disk. The native door passes its observation. The sketch
-  door's structural law admits only stated paths, and the deterministic door reads the stated
-  literal, so neither ever reads an observed path, and both keep `laws`.
+  `compile/observe.rs`), never the disk. Native and Sketch pass their current observation.
+  `structural_laws_observed` also admits a Sketch read placed by this unique bare-name
+  witness; writes and hosts never gain observed authority, and `allowed` is unchanged.
+  The deterministic door still reads the stated literal and keeps `laws`.
 - Added after the move, Laws 24 and 25 (`fidelity/record_scope` and `fidelity/instants`,
   private, run by `laws_observed` only: without the host's observation they judge nothing).
   They read a `nika:jq` expression, parsed and never run, with `jaq-core` at the workspace pin
@@ -307,3 +308,18 @@ states, `behavior/provenance` what a sentence of the closed language proves, `be
 the relation, `behavior/verdicts` the judgment, `behavior/selection` the choice among candidates,
 `behavior/{numbers, values, formats}` exact numbers, value comparison and the canonical
 readings, `behavior/accounting` the round and turn budget).
+
+## Observed Sketch replay and exact graph inputs
+
+`structural_laws` and `replayed` retain their no-observation behavior. Their observed
+siblings, `structural_laws_observed` and `replayed_observed`, consume only the current
+caller's observation. Only read paths can use a unique positive witness for a stated bare
+name; missing or ambiguous observations, write destinations and hosts gain no permission.
+
+A `nika:jq` task with two or more input edges receives an object keyed by every edge name,
+with each value bound to its corresponding `with` input. Zero and one edge keep their
+existing forms; fills cannot replace the graph-owned `input`. A semantic record's trigger
+must be a verbatim occurrence of the effective request, found on that text's own character
+boundaries. Replay refuses a different non-null trigger or an omitted trigger when the
+reader finds a cadence. Older records violating these laws may refuse replay; their stored
+source is never used as a fallback.

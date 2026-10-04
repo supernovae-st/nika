@@ -8,10 +8,12 @@
 //! answers the replay bakes — while a column the request names stays stated, never asked.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use nika_compile::{
-    AuthoringPolicy, CompileRequest, CompileStatus, DiagnosticKind, NativeMode, QuestionType,
-    compile,
+    AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind, NativeMode,
+    QuestionType,
 };
-use nika_compile_cognition::compile_with_provider;
+use nika_compile_cognition::{
+    Cognition, NoProvider, compile_with_cognition, compile_with_provider,
+};
 use serde_json::{Value, json};
 use std::time::Duration;
 
@@ -26,75 +28,48 @@ fn world() -> Value {
 
 fn policy() -> AuthoringPolicy {
     AuthoringPolicy::new("mock/authoring", 4096, Duration::from_secs(2))
-        .with_native(NativeMode::Only)
+        .with_native(NativeMode::Sketch)
         .with_repairs(1)
 }
 
-/// The campaign's candidate with its column as a placeholder the human answers, or written.
-fn candidate(column: &str) -> String {
-    format!(
-        r#"nika: sum-column-to-total
-const:
-  source_path: ventes.csv
-  output_path: total.txt
-  sum_column: "{column}"
-permits:
-  tools: ["nika:read", "nika:convert", "nika:jq", "nika:write"]
-  fs:
-    read: ["ventes.csv"]
-    write: ["total.txt"]
-tasks:
-  read_source:
-    invoke:
-      tool: "nika:read"
-      args:
-        path: "${{{{ const.source_path }}}}"
-  parse_source:
-    with:
-      document: "${{{{ tasks.read_source.output }}}}"
-    invoke:
-      tool: "nika:convert"
-      args:
-        input: "${{{{ with.document }}}}"
-        from: csv
-        to: json
-  compute_total:
-    with:
-      records: "${{{{ tasks.parse_source.output }}}}"
-    invoke:
-      tool: "nika:jq"
-      args:
-        input:
-          records: "${{{{ with.records }}}}"
-          column: "${{{{ const.sum_column }}}}"
-        expression: '.column as $c | ([.records[][$c] | tonumber] | add // 0) as $total | ($total | tostring) + "\n"'
-  write_total:
-    with:
-      content: "${{{{ tasks.compute_total.output }}}}"
-    invoke:
-      tool: "nika:write"
-      args:
-        path: "${{{{ const.output_path }}}}"
-        content: "${{{{ with.content }}}}"
-        overwrite: true
-        create_dirs: true
-outputs:
-  total: "${{{{ tasks.compute_total.output }}}}"
-"#
-    )
+/// The campaign's request as the sketch door's graph: read, parse, sum one column, write; the
+/// column is the program's `column` (a placeholder the human answers, or written).
+fn sketch(questions: &Value, column: &str) -> Vec<String> {
+    let edge = |name: &str, from: &str| json!([{"name": name, "from": from}]);
+    let graph = json!({"name": "sum-column-to-total", "tasks": [
+        {"id": "read_source", "verb": "invoke", "tool": "nika:read", "reads": ["ventes.csv"], "purpose": "the sales"},
+        {"id": "parse_source", "verb": "invoke", "tool": "nika:convert", "with": edge("document", "read_source"), "purpose": "parse"},
+        {"id": "compute_total", "verb": "invoke", "tool": "nika:jq", "with": edge("records", "parse_source"), "purpose": "sum the column"},
+        {"id": "write_total", "verb": "invoke", "tool": "nika:write", "writes": ["total.txt"], "with": edge("content", "compute_total"), "purpose": "the total"}
+    ], "outputs": [{"name": "total", "from": "compute_total"}], "questions": questions, "gaps": [],
+       "notes": "the column"});
+    let fills = json!({"fills": [
+        {"task": "parse_source", "field": "args", "value": {"from": "csv", "to": "json"}},
+        {"task": "compute_total", "field": "expression",
+         "value": format!("([.[][\"{column}\"] | tonumber] | add // 0) as $total | ($total | tostring) + \"\\n\"")}
+    ], "notes": "two holes"});
+    vec![graph.to_string(), fills.to_string()]
 }
 
-fn asking() -> String {
-    json!({"candidate": candidate(""), "questions": [{"key": "const.sum_column", "label": "Quelle colonne additionner ?", "answer_type": "text", "why": "La demande ne dit pas quelle colonne."}], "gaps": [], "notes": "the column is the human's"}).to_string()
+/// A keyless answer round of a semantic record: the cognition entry with no seat.
+async fn replayed(request: &CompileRequest) -> CompileOutcome {
+    compile_with_cognition(request, Cognition::<NoProvider>::default())
+        .await
+        .unwrap()
 }
 
-fn writing(column: &str) -> String {
-    json!({"candidate": candidate(column), "questions": [], "gaps": [], "notes": "the column is stated"}).to_string()
+fn asking() -> Vec<String> {
+    let question = json!([{"key": "const.sum_column", "label": "Quelle colonne additionner ?", "answer_type": "text", "why": "La demande ne dit pas quelle colonne."}]);
+    sketch(&question, "${{ const.sum_column }}")
+}
+
+fn writing(column: &str) -> Vec<String> {
+    sketch(&json!([]), column)
 }
 
 #[tokio::test]
 async fn an_open_column_is_asked_among_the_observed_columns_and_only_they_are_answers() {
-    let provider = Rotating::new(vec![asking()]);
+    let provider = Rotating::new(asking());
     let request = CompileRequest::create(OPEN)
         .with_knowledge(world())
         .with_authoring_policy(policy());
@@ -123,17 +98,19 @@ async fn an_open_column_is_asked_among_the_observed_columns_and_only_they_are_an
     );
     let record = out.provenance.plan.clone().unwrap();
     assert_eq!(
-        record["questions"][0]["answer_type"], "choice",
+        record["settlement"]["questions"][0]["answer_type"], "choice",
         "{record:#}"
     );
     // The answer round replays the record: an offered key is baked, then
     // held for the round's judge (R4 A11, step 2): this keyless round permits none.
-    let answered = compile(
+    let answered = replayed(
         &CompileRequest::create(OPEN)
+            .with_knowledge(world())
+            .with_authoring_policy(policy())
             .with_plan(record.clone())
             .answer("const.sum_column", r#""montant""#),
     )
-    .unwrap();
+    .await;
     assert!(held_for_its_judge(&answered, OPEN), "{answered:#?}");
     assert!(
         answered
@@ -144,12 +121,14 @@ async fn an_open_column_is_asked_among_the_observed_columns_and_only_they_are_an
         "{answered:#?}"
     );
     // Anything else is a finding, and the choice stays asked.
-    let wrong = compile(
+    let wrong = replayed(
         &CompileRequest::create(OPEN)
+            .with_knowledge(world())
+            .with_authoring_policy(policy())
             .with_plan(record)
             .answer("const.sum_column", r#""total""#),
     )
-    .unwrap();
+    .await;
     assert_ne!(wrong.status, CompileStatus::Ready, "{wrong:#?}");
     assert!(keys(&wrong).contains(&"const.sum_column"), "{wrong:#?}");
     assert!(
@@ -165,12 +144,18 @@ async fn an_open_column_is_asked_among_the_observed_columns_and_only_they_are_an
 
 #[tokio::test]
 async fn a_column_the_request_names_is_stated_and_never_asked() {
-    // Round 0 asks for the column the request names: refused; round 1 writes it: READY.
-    let provider = Rotating::new(vec![asking(), writing("montant")]);
-    let request =
-        CompileRequest::create("Additionne la colonne montant de ventes.csv dans total.txt.")
-            .with_knowledge(world())
-            .with_authoring_policy(policy());
+    // Round 0 sketches a question for the column the request names: refused before the graph is
+    // fixed; the sketch repair writes it; its fills follow: READY, the column never asked.
+    let named = "Additionne la colonne montant de ventes.csv dans total.txt.";
+    let replies = vec![
+        asking()[0].clone(),
+        writing("montant")[0].clone(),
+        writing("montant")[1].clone(),
+    ];
+    let provider = Rotating::new(replies);
+    let request = CompileRequest::create(named)
+        .with_knowledge(world())
+        .with_authoring_policy(policy());
     // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
     let out = compile_with_provider(&request, &Judged::approving(&provider))
         .await
@@ -183,5 +168,81 @@ async fn a_column_the_request_names_is_stated_and_never_asked() {
             .contains("the observed world states them"),
         "{rounds:#}"
     );
+    let phases: Vec<&str> = (rounds.as_array().unwrap().iter())
+        .map(|r| r["phase"].as_str().unwrap())
+        .collect();
+    assert_eq!(phases, ["sketch", "sketch", "fill"], "{rounds:#}");
+    let receipt = out.provenance.authoring.as_ref().unwrap();
+    let roles: Vec<&str> = (receipt.context.iter())
+        .map(|c| c["call"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        roles,
+        ["sketch", "sketch-repair", "fill", "judge_request"],
+        "{receipt:#?}"
+    );
     assert!(!keys(&out).contains(&"const.sum_column"), "{out:#?}");
+    assert!(
+        out.candidate.as_deref().unwrap().contains("montant"),
+        "{out:#?}"
+    );
+    // With no repair allowed, the refused question ends the round: no fill, never asked.
+    let provider = Rotating::new(asking());
+    let request = CompileRequest::create(named)
+        .with_knowledge(world())
+        .with_authoring_policy(policy().with_repairs(0));
+    let out = compile_with_provider(&request, &provider).await.unwrap();
+    assert_eq!(
+        provider.calls.load(std::sync::atomic::Ordering::SeqCst),
+        1,
+        "{out:#?}"
+    );
+    assert!(out.candidate.is_none(), "{out:#?}");
+    assert!(!keys(&out).contains(&"const.sum_column"), "{out:#?}");
+}
+
+/// The semantic record stays closed: compiled under an observed world, it carries no copy of it,
+/// and its answer round needs the same world from the caller. An absent or another world, or a
+/// record a decoration reopened, refuses with nothing emitted and no model asked.
+#[tokio::test]
+async fn a_semantic_record_stays_closed_and_replays_only_under_its_own_world() {
+    let provider = Rotating::new(asking());
+    let request = CompileRequest::create(OPEN)
+        .with_knowledge(world())
+        .with_authoring_policy(policy());
+    let out = compile_with_provider(&request, &provider).await.unwrap();
+    let record = out.provenance.plan.clone().unwrap();
+    assert!(record.get("semantic_record").is_some(), "{record:#}");
+    for key in ["observed_world", "reasked", "verified_transform"] {
+        assert!(
+            record.get(key).is_none(),
+            "{key} decorates a closed record: {record:#}"
+        );
+    }
+    let mut other = world();
+    other["observed"][0]["columns"] = json!(["montant", "autre", "remise"]);
+    let mut reopened = record.clone();
+    reopened["observed_world"] = world();
+    let cases = [
+        ("no world", None, record.clone()),
+        ("another world", Some(other), record.clone()),
+        ("a reopened record", Some(world()), reopened),
+    ];
+    for (case, knowledge, plan) in cases {
+        let mut replay = CompileRequest::create(OPEN)
+            .with_authoring_policy(policy())
+            .with_plan(plan)
+            .answer("const.sum_column", r#""montant""#);
+        if let Some(knowledge) = knowledge {
+            replay = replay.with_knowledge(knowledge);
+        }
+        let out = replayed(&replay).await;
+        assert!(out.candidate.is_none(), "{case}: {out:#?}");
+        assert!(
+            out.diagnostics
+                .iter()
+                .any(|d| d.target == "recorded_plan" && d.message.contains("cannot be replayed")),
+            "{case}: {out:#?}"
+        );
+    }
 }

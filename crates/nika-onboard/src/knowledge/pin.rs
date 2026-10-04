@@ -272,11 +272,16 @@ pub fn short(digest: &str) -> String {
 /// that identity.
 #[must_use]
 pub fn observed_in(mut out: CompileOutcome, world: Option<&Value>) -> CompileOutcome {
+    let identity = world.map(world_sha256);
+    // A native call reads the world; a Plan call presented it when it was prepared over this
+    // very world and its return is attested.
     let presented = out.provenance.authoring.as_ref().is_some_and(|receipt| {
-        receipt
-            .context
-            .iter()
-            .any(|call| call["call"].as_str().is_some_and(reads_knowledge))
+        receipt.context.iter().any(|call| {
+            call["call"].as_str().is_some_and(reads_knowledge)
+                || (identity.is_some()
+                    && call["semantic_context"]["world_sha256"].as_str() == identity.as_deref()
+                    && returned(call))
+        })
     });
     let (Some(world), Some(record)) = (world, out.provenance.decision.as_mut()) else {
         return out;
@@ -304,6 +309,44 @@ pub(crate) fn world_sha256(world: &Value) -> String {
     sha256_hex(world.to_string().as_bytes())
 }
 
+/// Whether a call's journal entry attests that a response came back: a `result` object with a
+/// `stop_reason` string and no `failure_kind`, as the compiler's receipt writes for a returned
+/// response (a malformed, empty or capped one included). An absent or contradictory result
+/// attests nothing. A return is never proof that a model used the context, nor of a candidate.
+fn returned(call: &Value) -> bool {
+    let result = &call["result"];
+    result.is_object() && result["stop_reason"].is_string() && result.get("failure_kind").is_none()
+}
+
+/// Why the Plan calls that were prepared with this pack attest no presentation: the context was
+/// prepared and the call refused, failed or attests no return, or no call carries this pack's
+/// identity and references. `None` when no call was prepared with any semantic context (the
+/// existing record's words stand).
+fn plan_why(marked: &[&Value], expected: impl Fn(&Value) -> bool) -> Option<String> {
+    if marked.is_empty() {
+        return None;
+    }
+    let Some(call) = marked.iter().find(|call| expected(call)) else {
+        return Some("the expected context is not attested by this receipt".to_owned());
+    };
+    Some(
+        match call["result"]["failure_kind"].as_str() {
+            // A stop reason beside a failure, or one that is not a string: contradictory.
+            _ if !call["result"]["stop_reason"].is_null() => {
+                "the return is not attested by this receipt; delivery and cost unknown"
+            }
+            Some("admission_refused") => {
+                "context prepared; admission refused, no response observed"
+            }
+            Some("provider_error" | "timeout") => {
+                "context prepared; no response observed, delivery and cost unknown"
+            }
+            _ => "the return is not attested by this receipt; delivery and cost unknown",
+        }
+        .to_owned(),
+    )
+}
+
 /// The session's record of the pack it attached to one call: the pinned
 /// identity, the builder, the pack's digest, every reference (kind · id ·
 /// bytes · sha256), whether the compiler's native door presented it to the
@@ -320,37 +363,53 @@ pub fn composed_record(
         .pointer("/door/pack_sha256")
         .and_then(Value::as_str)
         .map_or_else(|| pack_sha256(pack), str::to_owned);
-    let presented = out
+    let native = out
         .provenance
         .decision
         .as_ref()
         .and_then(|d| d.pointer("/native/knowledge/identity/door/pack_sha256"))
         .and_then(Value::as_str)
         == Some(digest.as_str());
-    let calls: Vec<Value> = out
+    let context = out
         .provenance
         .authoring
         .as_ref()
-        .filter(|_| presented)
-        .map(|receipt| {
-            receipt
-                .context
-                .iter()
-                .filter(|call| {
-                    call.get("call")
-                        .and_then(Value::as_str)
-                        .is_some_and(reads_knowledge)
-                })
-                .map(|call| json!({"call": call["call"], "instruction_sha256": call["instruction_sha256"]}))
-                .collect()
+        .map_or(&[][..], |receipt| receipt.context.as_slice());
+    // The Plan calls prepared with a semantic context, and which of them carried this pack:
+    // its door digest and every reference's receipt on that very call, never the round's.
+    let marked: Vec<&Value> = context
+        .iter()
+        .filter(|call| call.get("semantic_context").is_some())
+        .collect();
+    let expected = |call: &Value| {
+        let refs = call["references"].as_array().map_or(&[][..], Vec::as_slice);
+        call["semantic_context"]["pack_sha256"].as_str() == Some(digest.as_str())
+            && pack.references.iter().all(|r| {
+                let sha = sha256_hex(r.text.as_bytes());
+                refs.iter()
+                    .any(|row| row["id"] == r.id && row["sha256"] == sha)
+            })
+    };
+    let plan: Vec<&Value> = (marked.iter().copied())
+        .filter(|call| expected(call) && returned(call))
+        .collect();
+    let presented = native || !plan.is_empty();
+    let row = |call: &Value| json!({"call": call["call"], "instruction_sha256": call["instruction_sha256"]});
+    let mut calls: Vec<Value> = if native {
+        let reads = |call: &&Value| call["call"].as_str().is_some_and(reads_knowledge);
+        context.iter().filter(reads).map(row).collect()
+    } else {
+        Vec::new()
+    };
+    calls.extend(plan.iter().map(|call| row(call)));
+    let why = (!presented).then(|| {
+        plan_why(&marked, expected).unwrap_or_else(|| match out.provenance.strategy {
+            Some(strategy) if strategy != Strategy::Native => format!(
+                "the request settled on the {} path; only the native door reads knowledge",
+                strategy.word()
+            ),
+            _ => "the native door did not present the pack to the seat".to_owned(),
         })
-        .unwrap_or_default();
-    let why = (!presented).then(|| match out.provenance.strategy {
-        Some(strategy) if strategy != Strategy::Native => format!(
-            "the request settled on the {} path; only the native door reads knowledge",
-            strategy.word()
-        ),
-        _ => "the native door did not present the pack to the seat".to_owned(),
     });
     // What authored with the pack — the round's receipt in brief — kept with the record, so a
     // candidate an answer round replays (presenting no pack) still names its model, host and usage.

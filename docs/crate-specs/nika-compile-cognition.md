@@ -290,13 +290,15 @@ request for a faithful verdict, two for an unfaithful one) or gets INCOMPLETE.
 The authority's worst case (`authority::worst_case`, R4 A11, nv1b) counts every request a
 configuration can send, the verifier's included, so the review a caller signs bounds them all.
 With `s` samples and `r` repairs:
-- the native door and an edit's native revision: `3 + r`, the candidate and its repairs, then the
+- an edit's native revision: `3 + r`, the candidate and its repairs, then the
   whole-request judgment and its locate question;
 - the sketch door: `4 + r`;
 - COLD: `2s + 14r + 12`, each sample and its evidence repair, then `1 + r` verification attempts,
   each asking at most 8 clause questions, the whole-request judgment and one transform synthesis of
   at most 2 questions, with its `r` verify repairs and a transform repair allowance of `r`;
-- escalate: COLD, then the native door.
+- escalate: COLD, then the sketch door with one repair less: `3 + r` when `r >= 1`,
+  no sketch request when `r = 0`;
+- a creation under `only`: zero requests; the core refuses the retired source-authoring route.
 The bound is computed from the caps where they live: `verify::CLAUSE_QUESTIONS`,
 `verify::WHOLE_QUESTIONS` and `transform::MAX_CALLS`. One verification attempt asks at most
 `verify::CLAUSE_QUESTIONS` = 8 clause questions. The value was measured keyless on 2026-09-29: at
@@ -306,9 +308,10 @@ the largest. Past the cap the clause and every later one are never asked: they s
 nothing is READY on them, and the finding names the cap. Typed repairs under `off` are the
 verifier's and count, never ignored. A typed strategy is honored in full or refused, needing
 `authority::least_requests`:
-- `only` or `escalate`: two requests (the candidate or the plan, then its judgment);
+- `escalate`: two requests (the plan, then its judgment);
 - `sketch`: three (the sketch, its fills, then their judgment).
-The refusal names that number.
+The refusal names that number. A fresh creation under `only` is refused by the core
+with a migration to the semantic doors; no larger grant can enable it.
 
 Every verifier question and the COLD repair carry one compiler-owned reference, apart from the
 untrusted state (`verify::grounding`, R4 A11, E36): the engine's output conventions whole, the
@@ -399,12 +402,14 @@ refused call included), `served: unknown` (the provider's internal effort is not
 here), `reasoning_tokens` (null when unreported) and `response_model`. The read-back is the
 adapter's own observation of its serialized request, not an independent network capture.
 
-The COLD plan and its evidence-citation repair send `opening(intent)` (the instructions
-and the request text). The semantic verifier's repair also carries the bound observed world,
-answers, original request and candidate in its untrusted state, and the compiler-owned
-reference in its system message, as described above. The native opening carries the observed
-world, answers, knowledge references and an edit's original request. Reasoning effort alone
-does not add context to any of these calls; the COLD plan's context gap remains open.
+The COLD plan, its evidence-citation repair and the semantic verifier's repair carry the
+admitted pack's references and callable descriptions, embedded recall, the reader's floor,
+observed world and answers as untrusted context after the compiler's instructions. The
+request remains the user's message and the merge anchors evidence on that request. The
+verifier's repair also carries the original request and candidate. Each prepared Plan call
+records its references and `semantic_context` pack/world digests; preparation is not proof
+of delivery, reading, trust or benefit. The native opening keeps its corresponding context
+and an edit's original request. Reasoning effort alone adds none of this context.
 
 ### Response identity evidence
 
@@ -487,10 +492,10 @@ rule sequences and every other unpaired proposal keep exactly their prior merge 
 not thereby claimed sound. The pairing is lexical over stated paths, not semantic. When no sample yields a candidate and one
 carried such a composition, the existing sketch door continues with the same intent, answers,
 reading floor and receipt (the paid plan calls stay first), never source generation. Under
-`native: off` the composition is named and nothing is sent. The sketch door takes one request
-more than the native door the Escalate bound counts, so it runs with one repair less (checked);
-with no repair allowance the budget is named and no request is sent. The advertised bound
-(`authority::worst_case`) is unchanged. The forensic summary names this door `sketch` with the
+`native: off` the composition is named and nothing is sent. Escalate continues through the
+sketch door with one repair less (checked); with no repair allowance the budget is named
+and no sketch request is sent. `authority::worst_case` counts this semantic continuation,
+including its fills and judgment. The forensic summary names this door `sketch` with the
 reason `plan_composition_requires_sketch` (from its route step); a composition stopped before any
 sketch request (native off, no repair allowance) keeps the plan round's own record, door `none`
 with `cold_plan_without_candidate`, and the finding that names the stop. Remaining limits: the
@@ -555,3 +560,11 @@ Provider model text and an unknown stop's detail still require host admission.
 public constructor, `Debug` or serialization. `NoResponse` is not evidence of
 zero spend, and a dropped scope promises no closing observation. These additions
 do not persist raw answers or implement the private writer and host adapters.
+
+## Semantic CREATE and resolved questions
+
+Fresh Escalate proposes Plan and, when no candidate remains, Sketch; Rust assembles the
+ordinary workflow. Whole-source authoring remains an EDIT and historical-replay path,
+not a fallback for CREATE. After a Sketch passes structural laws, the existing admitted-question
+check removes questions already resolved by the request or observation before fills are
+requested. The full check after filling remains. This adds no repair grant or second compiler.

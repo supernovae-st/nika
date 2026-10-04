@@ -21,14 +21,10 @@ use crate::{CompileOutcome, CompileRequest, CompileStatus, Strategy};
 /// The generation of this summary. Only a change of a field's meaning bumps it.
 const VERSION: u32 = 1;
 
-/// The route step of the policy that sends CREATE straight to the native source door.
-pub(super) const NATIVE_ONLY: &str = "native: only";
+/// The route step of a fresh CREATE refused because source-only authoring is retired.
+pub(super) const ONLY_RETIRED: &str = "native: only is retired for creation";
 /// The route step of the policy that sends CREATE straight to the sketch door.
 pub(super) const NATIVE_SKETCH: &str = "native: sketch";
-/// The route step of an escalating policy whose request carries attached Foundry references.
-pub(super) const NATIVE_INFORMED: &str = "native: informed generation";
-/// The route step of a plan round that escalated to the native source door.
-pub(super) const NATIVE_ESCALATED: &str = "native: escalated";
 /// The route step of a revision the constant door could not settle.
 pub(super) const EDIT_NATIVE: &str =
     "edit: the constant door could not settle the change; the seat revises the base";
@@ -122,11 +118,15 @@ fn door(
 ) -> Value {
     let has = |step: &str| route.iter().any(|s| s == step);
     // The sketch door's own route steps name it before any record (a floor refusal has none):
-    // the policy door before HOT, or a COLD round's composition the plan could not keep apart.
-    // A composition stopped before any sketch call (native off, no repair allowance) has neither
-    // step and stays the plan round's own record.
+    // the policy door before HOT, or a COLD round's composition or escalation. One stopped before
+    // any sketch call (native off, no repair allowance) has no such step and stays the plan
+    // round's own record.
     let composition = has(super::sketch::COMPOSITION);
-    let sketch = decision["native"].get("sketch").is_some() || has(NATIVE_SKETCH) || composition;
+    let escalated = has(super::sketch::ESCALATED);
+    let sketch = decision["native"].get("sketch").is_some()
+        || has(NATIVE_SKETCH)
+        || composition
+        || escalated;
     let (name, reason) = match out.provenance.strategy {
         _ if request.plan.is_some() => ("replay", "answer_round_replays_a_recorded_plan"),
         Some(Strategy::Skeleton) => ("skeleton", "exact_skeleton_name"),
@@ -141,17 +141,14 @@ fn door(
                 "policy_sketch_before_hot"
             } else if composition {
                 "plan_composition_requires_sketch"
-            } else if has(NATIVE_ONLY) {
-                "policy_native_only_before_hot"
-            } else if has(NATIVE_INFORMED) {
-                "escalate_with_attached_foundry_references"
-            } else if has(NATIVE_ESCALATED) {
-                "plan_round_escalated"
+            } else if escalated {
+                "plan_round_escalated_to_sketch"
             } else {
                 "UNKNOWN"
             };
             (if sketch { "sketch" } else { "native_source" }, reason)
         }
+        _ if has(ONLY_RETIRED) => ("none", "native_only_retired_for_creation"),
         _ if route.iter().any(|s| s == "needs cognition") => ("none", "needs_cognition"),
         _ if route.iter().any(|s| s.starts_with("cold: ")) => {
             ("none", "cold_plan_without_candidate")
