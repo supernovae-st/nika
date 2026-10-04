@@ -11,7 +11,9 @@
 //! reader read everything: a clause the compiler did not read is not here,
 //! and the footer says so. A missing ledger renders « unavailable », never
 //! an invented coverage; an entry the view cannot read is disclosed, never
-//! counted as done.
+//! counted as done. A semantic record keeps no realization ledger: its view
+//! is the request as the compiler read it, and its gaps, never a clause's
+//! carrier (its program was judged against the whole request).
 //!
 //! Owned here, beside the ledger it projects (moved from `nika-session`
 //! 2026-09-28, whose `nika_session::meaning` re-exports this module). Pure:
@@ -179,12 +181,91 @@ fn carrier_verb(clause: &Clause, candidate: Option<&str>) -> Option<&'static str
 }
 
 /// The Meaning view of a compile outcome: one line per clause, its
-/// disposition and assurance, then the honest footer. `None` when the
-/// outcome carries no ledger.
+/// disposition and assurance, then the honest footer. A semantic record,
+/// which keeps no realization ledger, is shown as the compiler read the
+/// request ([`render_reading`]). `None` when the outcome carries neither.
 #[must_use]
 pub fn render(out: &CompileOutcome) -> Option<String> {
-    let ledger = out.provenance.decision.as_ref()?.get("ledger")?;
-    Some(render_ledger(ledger, out.candidate.as_deref()))
+    match out
+        .provenance
+        .decision
+        .as_ref()
+        .and_then(|d| d.get("ledger"))
+    {
+        Some(ledger) => Some(render_ledger(ledger, out.candidate.as_deref())),
+        None => (out.provenance.plan.as_ref())
+            .filter(|plan| plan.get("semantic_record").is_some())
+            .map(|record| render_reading(record, out.status == super::CompileStatus::Ready)),
+    }
+}
+
+/// The Meaning view of a semantic record: the clauses the compiler read
+/// from the request (its `basis.read.ledger`), each said as read and never
+/// as carried, since a READY semantic program is judged against the whole
+/// request rather than clause by clause (`ready`: whether it is); the
+/// clauses the record names as gaps, in the request's own words when they
+/// are; an entry the view cannot read disclosed, never counted.
+fn render_reading(record: &Value, ready: bool) -> String {
+    let mut text = "Meaning · your request as the compiler read it".to_owned();
+    let read = &record["basis"]["read"];
+    let Some(duties) = read["ledger"].as_array() else {
+        text.push_str("\n  ! the compiler's reading could not be read (it is not a list of duties) — no clause is shown, none is counted");
+        text.push_str(FOOTER);
+        return text;
+    };
+    let mut unread = 0usize;
+    for duty in duties {
+        let word = |key: &str| duty[key].as_str().filter(|w| !w.is_empty());
+        let shown = match (word("evidence"), word("kind")) {
+            (Some(evidence), _) => format!("« {evidence} »"),
+            (None, Some(kind)) => format!("({kind})"),
+            (None, None) => {
+                unread += 1;
+                continue;
+            }
+        };
+        let _ = write!(
+            text,
+            "\n  · {shown}\n      read · not claimed by any one task"
+        );
+    }
+    let effective = read["effective"].as_str().unwrap_or_default();
+    let gaps = record["settlement"]["gaps"]
+        .as_array()
+        .map_or(&[][..], Vec::as_slice);
+    for (n, gap) in gaps.iter().enumerate() {
+        let words = gap.as_str().map(str::trim);
+        let shown = match words.filter(|w| !w.is_empty() && effective.contains(w)) {
+            Some(words) => format!("« {words} »"),
+            None => format!("(the clause the record names as gap {})", n + 1),
+        };
+        let _ = write!(
+            text,
+            "\n  {} {shown}\n      {} · not carried",
+            Disposition::Gap.glyph(),
+            Disposition::Gap.word()
+        );
+    }
+    if unread > 0 {
+        let _ = write!(
+            text,
+            "\n  ! {unread} reading entr{} could not be read — not shown, never counted",
+            if unread == 1 { "y" } else { "ies" }
+        );
+    }
+    let judged = if ready {
+        "the program was judged against the whole request, not clause by clause"
+    } else {
+        "the program is not judged yet"
+    };
+    let _ = write!(
+        text,
+        "\n  {} clause(s) the compiler read · {} it could not realize · {judged}",
+        duties.len() - unread,
+        gaps.len()
+    );
+    text.push_str(FOOTER);
+    text
 }
 
 /// How many of a ledger's entries the view cannot read (an unknown, missing
@@ -685,5 +766,72 @@ mod tests {
             view.contains("✓ (effect)") && view.contains("(`t`)"),
             "{view}"
         );
+    }
+
+    /// A semantic record keeps no realization ledger: its view is the
+    /// request as the compiler read it — never a carried, represented or
+    /// waiting clause — with its gaps in the request's words only, an
+    /// unreadable reading entry disclosed, and the whole-request judgement
+    /// said only of a READY program. A deterministic ledger keeps its view.
+    #[test]
+    fn a_semantic_record_is_shown_as_read_and_judged_whole_never_carried() {
+        use crate::compile::{CompileRequest, CompileStatus, compile};
+        let effective = "from inventory.json keep the items whose stock is under 8, sorted by sku";
+        let mut out = compile(&CompileRequest::create("chain")).expect("compiles");
+        out.provenance.decision = Some(serde_json::json!({}));
+        out.provenance.plan = Some(serde_json::json!({"semantic_record": 1,
+            "basis": {"read": {"effective": effective, "ledger": [
+                {"kind": "filter", "evidence": "keep the items whose stock is under 8",
+                 "state": "unresolved", "realized_by": null, "note": null},
+                {"kind": "order", "evidence": "sorted by sku", "state": "needs_human",
+                 "realized_by": null, "note": null},
+                {"state": "unresolved"}]}},
+            "settlement": {"gaps": ["sorted by sku", "invented words of the seat"]}}));
+        out.status = CompileStatus::Ready;
+        let view = render(&out).expect("a semantic view");
+        assert!(
+            clauses(&out).is_none(),
+            "the typed clauses stay the ledger's"
+        );
+        for shown in [
+            "· « keep the items whose stock is under 8 »\n      read · not claimed by any one task",
+            "· « sorted by sku »\n      read",
+            "! « sorted by sku »\n      not expressible · not carried",
+            "! (the clause the record names as gap 2)",
+            "! 1 reading entry could not be read",
+            "2 clause(s) the compiler read · 2 it could not realize · the program was judged against the whole request, not clause by clause",
+        ] {
+            assert!(view.contains(shown), "{shown}\n{view}");
+        }
+        for never in [
+            "represented",
+            "needs your answer",
+            "waits for your answer",
+            "invented words",
+            "✓",
+            "?",
+        ] {
+            assert!(!view.contains(never), "{never}\n{view}");
+        }
+        out.status = CompileStatus::Incomplete;
+        assert!(
+            render(&out)
+                .expect("view")
+                .contains("the program is not judged yet")
+        );
+        // Not a list of duties: disclosed, nothing shown or counted.
+        out.provenance.plan = Some(serde_json::json!({"semantic_record": 1,
+            "basis": {"read": {"ledger": "none"}}}));
+        assert!(
+            render(&out)
+                .expect("view")
+                .contains("could not be read (it is not a list of duties)")
+        );
+        // No semantic record and no ledger: no view; a ledger keeps its own.
+        out.provenance.plan = None;
+        assert!(render(&out).is_none());
+        out.provenance.plan = Some(serde_json::json!({"semantic_record": 1}));
+        out.provenance.decision = Some(serde_json::json!({"ledger": []}));
+        assert!(render(&out).expect("view").contains("recorded no clause"));
     }
 }

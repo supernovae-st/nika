@@ -562,3 +562,22 @@ async fn a_plan_call_without_an_attested_return_of_this_pack_presents_nothing() 
         .expect("decision");
     assert_eq!(decision["session"]["observed"]["presented"], false);
 }
+
+/// A semantic record is closed and keeps no observation: for it alone the session's record
+/// discloses the exact observation attached, beside its identity; any other outcome keeps only
+/// the names-free summary and the identity.
+#[test]
+fn only_a_semantic_outcome_discloses_the_exact_observation_it_read() {
+    let world = json!({"observed": [{"path": "inventory.json", "state": "observed",
+        "kind": "json", "columns": ["sku", "stock"]}]});
+    let mut semantic = outcome();
+    semantic.provenance.plan = Some(json!({"semantic_record": 1}));
+    let out = observed_in(semantic, Some(&world));
+    let record = &out.provenance.decision.expect("decision")["session"]["observed"];
+    assert_eq!(record["world"], world);
+    assert_eq!(record["world_sha256"], json!(world_sha256(&world)));
+    let out = observed_in(outcome(), Some(&world));
+    let record = &out.provenance.decision.expect("decision")["session"]["observed"];
+    assert!(record.get("world").is_none(), "{record}");
+    assert!(!record.to_string().contains("stock"), "{record}");
+}

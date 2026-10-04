@@ -1362,6 +1362,9 @@ mod restore_tests;
 mod route_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
+mod semantic_basis_tests;
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
 mod tests;
 
 #[cfg(test)]

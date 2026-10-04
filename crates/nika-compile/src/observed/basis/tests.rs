@@ -679,3 +679,49 @@ fn protected_parent_keeps_assertions_bound_to_the_only_source() {
         Basis::Unjudged(_)
     ));
 }
+
+/// A semantic candidate's literal reads, recorded at its compile by the compiler's own
+/// `observed::record` over the observation its round read, are judged by this same law: rows
+/// added hold, a removed key or a deleted source moves the basis, no fresh observation leaves it
+/// unjudged, and a candidate whose reads are not recognized records no basis (never `Holds`).
+#[test]
+fn a_semantic_candidates_literal_reads_are_its_judged_basis() {
+    let source = "./data/inventory.jsonl";
+    let intent = "read ./data/inventory.jsonl, keep the items whose stock is under 8";
+    let rows = "{\"sku\":\"B\",\"stock\":3}\n{\"sku\":\"A\",\"stock\":9}\n";
+    let request = CompileRequest::create(intent).with_knowledge(observed(&[(source, rows)]));
+    let recorded = |jq: &str| {
+        let mut out = crate::initial();
+        out.candidate = Some("nika: inventory\n".to_owned());
+        out.provenance.plan = Some(json!({"semantic_record": 1,
+            "sketch": {"tasks": [{"id": "read", "verb": "invoke", "tool": "nika:read",
+                                  "reads": [source]}]},
+            "fills": [{"task": "pick", "field": "expression", "value": jq}]}));
+        crate::observed::record(&request, &mut out);
+        assert!(
+            out.provenance
+                .plan
+                .as_ref()
+                .is_some_and(|p| p.get("observed_world").is_none())
+        );
+        out.provenance.decision
+    };
+    let decision = recorded("fromjson | map(select(.stock < 8)) | sort_by(.sku)");
+    let judged = |world: Option<&Value>| basis_for(&request, decision.as_ref(), world);
+    let now = |text: &str| observed(&[(source, text)]);
+    assert_eq!(judged(Some(&now(rows))), Basis::Holds(2));
+    let more = format!("{{\"sku\":\"C\",\"stock\":1}}\n{rows}");
+    assert_eq!(judged(Some(&now(&more))), Basis::Holds(2));
+    let renamed = "{\"sku\":\"B\",\"qty\":3}\n{\"sku\":\"A\",\"qty\":9}\n";
+    assert_eq!(
+        moved(judged(Some(&now(renamed)))),
+        [format!(
+            "`stock` is no longer in the sampled records of `{source}`"
+        )]
+    );
+    let gone = json!({"observed": [{"path": source, "state": "absent"}], "kinds": {}});
+    assert!(matches!(judged(Some(&gone)), Basis::Moved(_)));
+    assert!(matches!(judged(None), Basis::Unjudged(_)));
+    let computed = recorded("fromjson | map(.[$k])");
+    assert!(computed.is_none_or(|d| d.get("grounding").is_none()));
+}

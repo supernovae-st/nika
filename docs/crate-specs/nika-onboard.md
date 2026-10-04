@@ -124,7 +124,8 @@ candidate's bytes, parsed by the one strict `nika_schema` law: strict mode, one
 anonymous file, and bytes it refuses carry no verb), the rendered view and a
 revision's delta. It is pure (an outcome or a ledger in, words out), never
 certifies coverage (a clause the compiler did not read is not listed, and the
-view says so) and renders « unavailable » without a ledger — words that name
+view says so). With neither a ledger nor a semantic record it renders
+« unavailable » — words that name
 no host's protocol (`UNAVAILABLE`; a host adds its own way on). A ledger that is
 not a list, or an entry of an unknown or missing state, is never guessed and
 never silently dropped: the view says it could not read it and counts none of
@@ -133,6 +134,13 @@ over unread entries says they were not compared. It moved here from
 `nika-session` on 2026-09-28; `nika_session::meaning` re-exports it unchanged.
 Its tests and their three recorded outcomes live beside it
 (`src/compile/meaning/`).
+
+For a closed semantic record, `render` instead projects the reading ledger at
+`basis.read.ledger`: clauses are shown as read, without inventing a carrying task,
+a represented clause or a pending question. Gaps remain explicit; unreadable
+entries are disclosed. A Ready outcome states that the program was judged
+against the whole request, without assigning that judgment to each clause.
+`clauses` and the existing delta API retain their realization-ledger contract.
 
 ## The hallucination guard (read by Session)
 
@@ -238,8 +246,8 @@ recovers by a zero-call replay (C10).
 (`KnowledgePin`: the declared version, the sha256 of the manifest bytes — the
 release's `SNAPSHOT_SHA256` — and of the rows, admitted through the strict door
 beside it) and the pure records a session stamps on a compile outcome: what it
-observed (`observed_in`: paths, states, kinds and column counts, never the
-names, and `world_sha256`, the identity of the whole observation attached), composed (`composed_record`: the pinned identity, the pack digest, each
+observed (`observed_in`: paths, states, kinds, column counts and
+`world_sha256`, the identity of the whole observation attached), composed (`composed_record`: the pinned identity, the pack digest, each
 reference's bytes and sha256, whether a native or Plan call presented it and which
 calls carried it), carried (`carried_record`), presented (`presented_knowledge`)
 and the stamp beside the compiler's own record (`stamp`). It descended from
@@ -317,6 +325,17 @@ record's rows are a names-free summary for display, never an identity). A round 
 keeps none; an attached observation the outcome did not record, or a record naming no
 identity (an older one), gives `None`, and a host keeps no basis rather than read another
 observation for it (C10).
+
+A semantic outcome keeps the bounded observation under
+`decision.session.observed.world`, since its closed plan has no `observed_world`.
+This intentionally discloses the observer's schema and sampled values in the
+semantic provenance, as the deterministic route already does in its plan; it
+is not a provider response capture. `compiled` recovers this world only when
+its digest equals both the host's attached identity and
+`plan.basis.read.world_sha256`. A missing world or any changed identity returns
+`None`; an injected `observed_world` does not provide a semantic fallback. The
+summary rows alone never reconstruct a request. No consent, money or execution
+authority is recreated by this recovery.
 
 ## Compile foundation
 

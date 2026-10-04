@@ -322,7 +322,8 @@ is not a complete schema. A missing field asks a closed clarification rather tha
 silently selecting another key or returning an empty result.
 
 Every source key a typed rule reads over one file is grounded by one law
-(`observed/grounding.rs`, R4 S1) on creation and replay alike, and the decision
+(`nika_compile_fidelity::grounding`, through the private `observed/grounding.rs`
+facade, R4 S1) on creation and replay alike, and the decision
 records exactly what it decided (`decision.grounding`: rule, key, source, revision,
 grade, whether every sampled record holds it, what binds it, admissibility, an open
 obligation). Grades: `declared` (a CSV/TSV header names the column), `observed_complete`
@@ -629,6 +630,16 @@ this shape check does not prove the truth of a recorded discriminator. Not cover
 spellings a text equality matched (`decision.spellings`, a bounded sample law), and anything a
 fresh observation cannot see (the unread tail, values that only appear at run): the use-time
 guards and number policies of the lowered program stay the last check.
+
+For a semantic Sketch outcome with a candidate and no grounding record of its
+own, `observed::record` records the literal reads recognized by
+`nika_compile_fidelity::grounding::semantic::facts`. The closed semantic plan
+stays undecorated. The existing basis law grades these facts again against the
+fresh observation: removing a recorded key or source withdraws the proposal;
+adding or reordering rows need not move its recorded basis. Missing fresh
+observation remains unjudged. Computed-only or otherwise unrecognized reads
+produce no recorded basis, never a claim that all reads hold. This bounded
+slice does not prove complete jq coverage or business correctness.
 
 ## Door cognition, knowledge and reproducibility
 

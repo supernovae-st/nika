@@ -742,3 +742,43 @@ fn a_same_shape_world_is_never_taken_for_the_one_the_host_attached() {
     assert!(observed.remove("world_sha256").is_some());
     assert!(compiled(request, &legacy).is_none());
 }
+
+/// A semantic record keeps no observation of its own: its request is rebuilt from the one the
+/// host's record discloses only when the attached identity, that observation and the identity
+/// the record was read under are all the same; a changed or missing one rebuilds nothing.
+#[test]
+fn a_semantic_record_rebuilds_its_request_only_under_three_exact_identities() {
+    fn observed(out: &mut CompileOutcome) -> &mut Value {
+        &mut out.provenance.decision.as_mut().expect("a decision record")["session"]["observed"]
+    }
+    let intent = "read ./inventory.json, keep the items whose stock is under 8";
+    let world = json!({"observed": [{"path": "./inventory.json", "state": "observed",
+        "complete": false, "kind": "json", "columns": ["sku", "stock"]}]});
+    let identity = crate::knowledge::pin::world_sha256(&world);
+    let request = CompileRequest::create(intent);
+    let mut out = compile(&request.clone().with_knowledge(world.clone())).expect("compiles");
+    out.provenance.plan = Some(json!({"semantic_record": 1,
+        "basis": {"read": {"world_sha256": identity}}}));
+    let stamped = crate::knowledge::pin::observed_in(out, Some(&world));
+    let kept = compiled(request.clone(), &stamped).expect("the attached world is kept");
+    assert_eq!(kept.knowledge.as_ref(), Some(&world));
+    // Read under another world.
+    let mut other = stamped.clone();
+    other.provenance.plan.as_mut().expect("a plan")["basis"]["read"]["world_sha256"] =
+        json!("0".repeat(64));
+    assert!(compiled(request.clone(), &other).is_none());
+    // A disclosed world of the same shape, or none at all.
+    let mut same_shape = stamped.clone();
+    observed(&mut same_shape)["world"]["observed"][0]["columns"] = json!(["sku", "qty"]);
+    assert!(compiled(request.clone(), &same_shape).is_none());
+    let mut missing = stamped.clone();
+    let record = observed(&mut missing).as_object_mut().expect("an object");
+    assert!(record.remove("world").is_some());
+    assert!(compiled(request.clone(), &missing).is_none());
+    // A semantic record never falls back to an `observed_world` it does not keep.
+    let mut decorated = stamped;
+    decorated.provenance.plan.as_mut().expect("a plan")["observed_world"] = world;
+    let record = observed(&mut decorated).as_object_mut().expect("an object");
+    assert!(record.remove("world").is_some());
+    assert!(compiled(request, &decorated).is_none());
+}

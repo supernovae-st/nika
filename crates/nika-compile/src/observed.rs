@@ -342,8 +342,21 @@ fn owned(request: &CompileRequest, key: &str, field: &str, path: &str, stated: &
 /// Keep field questions closed on a zero-call answer round, including library callers. The plan
 /// is re-anchored to this round's observation, with every key asked again after a source change.
 pub fn record(request: &CompileRequest, out: &mut CompileOutcome) {
-    // A semantic record is closed (its basis binds the world it was read under): undecorated.
-    if (out.provenance.plan.as_ref()).is_some_and(|plan| plan.get("semantic_record").is_some()) {
+    // A semantic record is closed (its basis binds the world it was read under): undecorated. Its
+    // candidate's literal reads of observed keys are its recorded source facts (F4), when the
+    // decision records none of its own.
+    if let Some(plan) =
+        (out.provenance.plan.as_ref()).filter(|p| p.get("semantic_record").is_some())
+    {
+        let facts = nika_compile_fidelity::grounding::semantic::facts(plan, world(request));
+        if !facts.is_empty() && out.candidate.is_some() {
+            let decision = out.provenance.decision.get_or_insert_with(|| json!({}));
+            if let Some(map) = decision.as_object_mut()
+                && !map.contains_key("grounding")
+            {
+                map.insert("grounding".to_owned(), Value::Array(facts));
+            }
+        }
         return;
     }
     if let (Some(world), Some(plan)) = (world(request), out.provenance.plan.as_mut()) {

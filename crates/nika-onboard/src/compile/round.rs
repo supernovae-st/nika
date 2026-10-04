@@ -779,6 +779,10 @@ pub fn change_money(change: &str, admitted: bool) -> Vec<std::ops::Range<usize>>
 /// round given none keeps none, whatever an earlier round left in its plan; `None` when an
 /// attached observation was not recorded, or its record names no identity (an older record):
 /// that round's request cannot be rebuilt, and a host keeps no basis rather than read another.
+/// A semantic record keeps no observation of its own: its request is rebuilt from the one the
+/// host's record discloses (`decision.session.observed.world`) only when that observation is the
+/// one the host attached and the one the record was read under (its `basis.read.world_sha256`),
+/// all three identities exact; anything else rebuilds nothing.
 #[must_use]
 pub fn compiled(request: CompileRequest, out: &CompileOutcome) -> Option<CompileRequest> {
     let record = out
@@ -789,8 +793,15 @@ pub fn compiled(request: CompileRequest, out: &CompileOutcome) -> Option<Compile
     let Some(attached) = record.filter(|record| record["attached"] == true) else {
         return Some(request);
     };
-    let world = out.provenance.plan.as_ref()?.get("observed_world")?;
-    (attached["world_sha256"].as_str()? == crate::knowledge::pin::world_sha256(world))
+    let plan = out.provenance.plan.as_ref()?;
+    let identity = attached["world_sha256"].as_str()?;
+    let world = if plan.get("semantic_record").is_some() {
+        (plan["basis"]["read"]["world_sha256"].as_str() == Some(identity))
+            .then(|| attached.get("world"))??
+    } else {
+        plan.get("observed_world")?
+    };
+    (identity == crate::knowledge::pin::world_sha256(world))
         .then(|| request.with_knowledge(world.clone()))
 }
 

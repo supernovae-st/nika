@@ -269,7 +269,10 @@ pub fn short(digest: &str) -> String {
 /// (`decision.session.observed`): each named path, its state, its kind and how many columns or
 /// keys it holds (the names themselves ride the request, not the receipt), and the identity of
 /// the whole observation it attached (`world_sha256`): the rows are a summary for display, never
-/// that identity.
+/// that identity. For a semantic outcome only, whose closed record keeps no observation, the
+/// record also discloses that exact observation (`world`: the bounded observer's schema and
+/// sampled values, never a provider response), the one [`crate::compile::round::compiled`]
+/// rebuilds its request from.
 #[must_use]
 pub fn observed_in(mut out: CompileOutcome, world: Option<&Value>) -> CompileOutcome {
     let identity = world.map(world_sha256);
@@ -301,6 +304,12 @@ pub fn observed_in(mut out: CompileOutcome, world: Option<&Value>) -> CompileOut
         .collect();
     record["session"]["observed"] = json!({ "attached": true, "presented": presented,
         "under": "project root", "rows": rows, "world_sha256": world_sha256(world) });
+    // A semantic record is closed and keeps no `observed_world` of its own: the exact observation
+    // the round read is kept here instead (the same bounded observer value a deterministic
+    // outcome publishes in its plan), so the request that compiled the bytes can be rebuilt.
+    if (out.provenance.plan.as_ref()).is_some_and(|plan| plan.get("semantic_record").is_some()) {
+        record["session"]["observed"]["world"] = world.clone();
+    }
     out
 }
 

@@ -66,6 +66,28 @@ re-exported by core or reader. In the composed ADR-140 boundary, core reads `fid
 and cognition reads `fidelity`, `sketch` and `candidate`. The reader cannot re-export
 the new member without introducing a production dependency cycle.
 
+## Grounding observed source facts
+
+`grounding` owns the pure observation law shared with `nika-compile`: `Grade`,
+`Seen`, `Entry`, row matching, grading, revision identity and literal comparison.
+It descends from the compiler's private grounding module; stale-answer and
+request-witness handling remain in the compiler facade. Existing typed-rule
+admission and recorded shapes use the same law.
+
+`grounding::semantic::facts` records a bounded slice of a semantic Sketch
+candidate's dependencies. It recognizes literal root key segments and object
+shorthand in jq expression fills, outside strings and comments; code in a string
+interpolation is inspected. A recognized key is recorded for each declared read
+source that the observation places unambiguously and shows that key. The record
+uses `bound_by: semantic_reads`, the observed grade and sampled presence.
+
+This is partial source coverage, not a jq dataflow proof. Computed accesses,
+unobserved keys, ambiguous paths and unrecognized reads contribute no fact.
+An empty result establishes no freshness. Conservative extra facts can withdraw
+a proposal after a source change; no recorded set establishes that every read,
+value, behavior or unread row has been checked. The host still judges each
+recorded dependency again before Save through the compiler's existing basis law.
+
 ## 2. The boundary, measured
 
 | direction | edges at the split (production code) |
