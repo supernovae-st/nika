@@ -1008,7 +1008,7 @@ fn stale_base(out: &mut CompileOutcome, why: &str) {
         DiagnosticKind::Refused,
         "recorded_plan",
         format!(
-            "The semantic record does not bind this base: {why}. The base is kept as it is, nothing was emitted and no model was asked; revise a base with the record it was saved with."
+            "The semantic record does not bind this base: {why}. The base is kept as it is, nothing was emitted and no authoring model was asked; revise a base with the record it was saved with."
         ),
     );
 }
@@ -1119,7 +1119,8 @@ pub(crate) fn rebuilt(
 }
 
 /// The view a semantic record emits for the EDIT base it is paired with (R4 F): the record
-/// replays under its own effective words and final answers over this request's observation, and
+/// replays under its own effective words and final answers over its bound historical observation,
+/// with the current sources unchanged and current structural laws rechecked, and
 /// its emitted bytes must be exactly the base's and the record's final candidate. The words a
 /// caller restates are never trusted for the original request: the record's own are. Otherwise
 /// why the pairing is stale or tampered. No call, nothing emitted.
@@ -1129,20 +1130,18 @@ pub(crate) fn base_view(
     request: &CompileRequest,
 ) -> Result<(Value, std::collections::BTreeMap<String, String>), &'static str> {
     let sha = |text: &str| json!(super::surface::sha256(text));
-    if record["final"]["candidate_sha256"] != sha(base) {
-        return Err("the base is not the candidate its record emitted");
-    }
-    let closed = "it is not a closed record of this format";
-    let intent = record["basis"]["read"]["effective"]
-        .as_str()
-        .ok_or(closed)?;
-    let answers: Option<std::collections::BTreeMap<String, String>> =
-        (record["final"]["answers"].as_object().into_iter().flatten())
-            .map(|(key, value)| Some((key.clone(), value.as_str()?.to_owned())))
-            .collect();
+    let (intent, answers) =
+        nika_compile_fidelity::sketch::bound_base(record, base, request.knowledge.as_ref())?;
     let mut words = CompileRequest::create(intent);
-    words.answers = answers.ok_or(closed)?;
-    words.knowledge.clone_from(&request.knowledge);
+    words.answers = answers;
+    let world = nika_compile_fidelity::observed::basis::for_base(
+        request.knowledge.as_ref(),
+        intent,
+        &record["sketch"],
+        &record["basis"],
+    )
+    .ok_or("its recorded world cannot be reconstructed with the current sources")?;
+    words.knowledge = (!world.is_null()).then_some(world);
     let (view, bound) = rebuilt(intent, record, &words)?;
     words.answers.clone_from(&bound);
     let mut emitted = super::initial();

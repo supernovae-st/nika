@@ -2666,7 +2666,9 @@ pub fn nika_compile_fidelity::literal::inexact_integer(json: &str) -> core::opti
 pub fn nika_compile_fidelity::literal::literal_at<'a>(doc: &'a mut serde_json::value::Value, path: &str) -> core::option::Option<&'a mut serde_json::value::Value>
 pub mod nika_compile_fidelity::observed
 pub mod nika_compile_fidelity::observed::basis
+pub fn nika_compile_fidelity::observed::basis::for_base(world: core::option::Option<&serde_json::value::Value>, words: &str, graph: &serde_json::value::Value, basis: &serde_json::value::Value) -> core::option::Option<serde_json::value::Value>
 pub fn nika_compile_fidelity::observed::basis::identity(world: core::option::Option<&serde_json::value::Value>, paths: &[alloc::string::String]) -> alloc::string::String
+pub fn nika_compile_fidelity::observed::basis::keep(world: core::option::Option<&serde_json::value::Value>) -> serde_json::value::Value
 pub fn nika_compile_fidelity::observed::basis::number_text(text: &str) -> bool
 pub fn nika_compile_fidelity::observed::basis::of_request(world: core::option::Option<&serde_json::value::Value>, words: &str) -> alloc::string::String
 pub const nika_compile_fidelity::observed::MAX_DEPTH: usize
@@ -3290,6 +3292,7 @@ pub fn nika_compile_fidelity::sketch::SketchTask::as_any(&self) -> &(dyn core::a
 impl<T> typenum::type_operators::Same for nika_compile_fidelity::sketch::SketchTask
 pub type nika_compile_fidelity::sketch::SketchTask::Output = T
 pub fn nika_compile_fidelity::sketch::bound_answers(record: &serde_json::value::Value, current: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> core::result::Result<(alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>), &'static str>
+pub fn nika_compile_fidelity::sketch::bound_base<'a>(record: &'a serde_json::value::Value, base: &str, world: core::option::Option<&serde_json::value::Value>) -> core::result::Result<(&'a str, alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>), &'static str>
 pub fn nika_compile_fidelity::sketch::complete_document(sketch: &nika_compile_fidelity::sketch::Sketch, fills: &[nika_compile_fidelity::sketch::Fill]) -> core::result::Result<serde_json::value::Value, alloc::vec::Vec<alloc::string::String>>
 pub fn nika_compile_fidelity::sketch::contract_projection(contract: &nika_compile_fidelity::behavior::Contract) -> serde_json::value::Value
 pub fn nika_compile_fidelity::sketch::document(sketch: &nika_compile_fidelity::sketch::Sketch, fills: &[nika_compile_fidelity::sketch::Fill]) -> serde_json::value::Value

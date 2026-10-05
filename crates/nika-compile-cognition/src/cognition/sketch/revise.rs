@@ -211,7 +211,14 @@ fn bind(
         return;
     };
     let basis = nika_compile::surface::semantic::request_basis(contract.resolved, revising);
-    out.provenance.plan = semantic_record(basis, graph_of, fills, &settled, out);
+    out.provenance.plan = semantic_record(
+        basis,
+        graph_of,
+        fills,
+        &settled,
+        out,
+        revising.knowledge.as_ref(),
+    );
     let Some(next) = out.provenance.plan.as_mut() else {
         withhold_record(out);
         return;

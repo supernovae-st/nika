@@ -155,8 +155,15 @@ fn fills(status: &str) -> Value {
 /// graph leaves the approval message open (`const.approval_message`); its answer round replays
 /// the record with zero calls and bakes the answer into a real constant.
 async fn base() -> (CompileOutcome, String, Value) {
+    base_observed(None).await
+}
+
+async fn base_observed(world: Option<Value>) -> (CompileOutcome, String, Value) {
     let seat = Semantic::new(vec![graph("paid"), fills("paid")]);
-    let request = CompileRequest::create(INTENT).with_authoring_policy(policy(1));
+    let mut request = CompileRequest::create(INTENT).with_authoring_policy(policy(1));
+    if let Some(world) = world {
+        request = request.with_knowledge(world);
+    }
     let asked = compile_with_provider(&request, &seat).await.unwrap();
     assert!(
         asked
@@ -796,4 +803,80 @@ async fn a_destination_change_of_a_semantic_base_is_proven_on_its_bound_bytes() 
         next["semantic_base_sha256"],
         nika_compile::surface::sha256(&record.to_string())
     );
+}
+
+/// A host observation before and after a successful write. No I/O or provider is used here.
+fn written_world(version: u8) -> Value {
+    let mut world = json!({"observed": [
+        {"path": "./data/orders.json", "state": "observed", "kind": "json", "complete": true,
+         "columns": ["status", "total"], "common_columns": ["status", "total"], "peek_sha256": "source"},
+        {"path": "./out/paid.json", "state": "absent", "complete": false},
+        {"path": "./out/count.txt", "state": "absent", "complete": false}],
+        "kinds": {"./data/orders.json": {"sampled": 2, "keys": {"status": {"text": 2}, "total": {"number": 2}}}}});
+    if version > 0 {
+        world["observed"][1] = json!({"path": "./out/paid.json", "state": "observed", "kind": "json",
+            "columns": ["status", "total"], "complete": true, "peek_sha256": format!("output-{version}")});
+        // The host stops observing an existing unsupported .txt; old absence is still recoverable.
+        world["observed"].as_array_mut().unwrap().pop();
+    }
+    world
+}
+
+#[tokio::test]
+async fn a_written_destination_survives_migration_reopen_and_a_second_semantic_edit() {
+    let (_, bytes, mut legacy) = base_observed(Some(written_world(0))).await;
+    legacy["basis"].as_object_mut().unwrap().remove("world");
+    let seat = Semantic::new(vec![revised(link(PAID, SHIPPED)), fills("shipped")]);
+    let request = revise(&bytes, &legacy, 1).with_knowledge(written_world(1));
+    let b = compile_with_provider(&request, &seat).await.unwrap();
+    assert_eq!(b.status, CompileStatus::Ready, "migration: {b:#?}");
+    assert_eq!(doc(&b), expected(&serde_yaml_bw::from_str(&bytes).unwrap()));
+    let b_record = b.provenance.plan.as_ref().unwrap();
+    assert!(b_record["basis"]["world"]["value"]["observed"].is_array());
+    // The exact opaque record survives close/reopen serialization, with no process-only cache.
+    let reopened: Value = serde_json::from_str(&serde_json::to_string(b_record).unwrap()).unwrap();
+    let next = CompileRequest::edit(b.candidate.as_deref().unwrap(), DELIVERED_CHANGE)
+        .with_original_intent(INTENT)
+        .with_plan(reopened.clone())
+        .with_knowledge(written_world(2))
+        .with_authoring_policy(policy(1));
+    let seat = Semantic::new(vec![revised(link(SHIPPED, DELIVERED)), fills("delivered")]);
+    let c = compile_with_provider(&next, &seat).await.unwrap();
+    assert_eq!(c.status, CompileStatus::Ready, "second EDIT: {c:#?}");
+    let mut want = doc(&b);
+    want["tasks"]["keep"]["invoke"]["args"]["expression"] =
+        json!("fromjson | map(select(.total > 10)) | map(select(.status == \"delivered\"))");
+    assert_eq!(doc(&c), want, "only the requested filter changes");
+    assert_eq!(
+        next.knowledge,
+        Some(written_world(2)),
+        "current world is never replaced"
+    );
+    // The same recovery cannot hide a changed input, tampered record, or changed base bytes.
+    for fault in ["source", "history", "bytes"] {
+        let mut bad = next.clone();
+        match fault {
+            "source" => {
+                bad.knowledge.as_mut().unwrap()["observed"][0]["peek_sha256"] = json!("changed");
+            }
+            "history" => {
+                bad.plan.as_mut().unwrap()["basis"]["world"]["value"]["observed"][0]["state"] =
+                    json!("forged");
+            }
+            _ => {
+                bad = CompileRequest::edit(
+                    format!("{}# changed\n", b.candidate.as_deref().unwrap()),
+                    DELIVERED_CHANGE,
+                )
+                .with_original_intent(INTENT)
+                .with_plan(reopened.clone())
+                .with_knowledge(written_world(2))
+                .with_authoring_policy(policy(1));
+            }
+        }
+        let none = Semantic::new(vec![]);
+        let out = compile_with_provider(&bad, &none).await.unwrap();
+        assert_eq!(none.calls(), 0, "{fault}: {out:#?}");
+        assert_ne!(out.status, CompileStatus::Ready, "{fault}: {out:#?}");
+    }
 }

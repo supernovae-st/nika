@@ -1081,7 +1081,8 @@ mod record;
 pub mod revision;
 pub use admission::{judge_sketch, reach_laws, validated};
 pub use record::{
-    bound_answers, contract_projection, read_basis, replayed, replayed_observed, same_caller,
+    bound_answers, bound_base, contract_projection, read_basis, replayed, replayed_observed,
+    same_caller,
 };
 
 #[cfg(test)]

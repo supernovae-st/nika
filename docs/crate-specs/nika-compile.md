@@ -689,7 +689,8 @@ compile's entry before any money is blanked) and `basis.read` (computed by
 `surface::semantic::request_basis` before any proposal: the effective words the door reads,
 its initial answers, the observed world's identity, every `Reading.seen` occurrence in order
 with repeats, the reader's floor, the obligation ledger and an explicit partial projection of
-`contract_of_request` whose unsupported portion stays named); the accepted graph
+`contract_of_request` whose unsupported portion stays named); optional `basis.world`, the
+complete historical host observation with its exact digest; the accepted graph
 (`{name, tasks, outputs?}`) and fills exactly as decoded at their producer; the settlement fields
 a native settlement reads (questions through a key allowlist, gaps, trigger); the pre-answer
 assembly identity; and `final` (the cumulative bound answers and the final candidate identity).
@@ -765,3 +766,31 @@ A plan carrying `semantic_record` stays in that closed format: the observation d
 adds no `observed_world`, `reasked` or `verified_transform` keys. Replay receives the current
 caller's observation separately and revalidates the graph and emitted bytes against it.
 Older non-semantic plans retain their existing observation recovery.
+
+
+### EDIT after Run: historical world, current sources
+
+New semantic records also keep `basis.world`: the complete bounded host observation and its
+exact digest (`{value, sha256}`), including sources a graph places below a stated bare name.
+Its request projection must still match the existing `basis.read.world_sha256`. An EDIT reassembles its base under that exact historical
+projection, checks its digest, assembly and final candidate bytes, and requires the current
+observation of every stated or graph-declared read source to remain identical. The graph's
+structural laws are checked against the current observation as well. A write-only destination
+may therefore have been created or overwritten by Run without invalidating its saved program.
+The record survives journal serialization; no in-process cache supplies historical evidence.
+The EDIT request keeps its full current world for revision, judgments, rehearsal and Save.
+This reconstruction grants neither a write nor a Run and does not change money admission.
+
+Records lacking `basis.world` remain readable. When their current world no longer matches, only
+literal write-only destinations may be reconstructed as previously absent, and only when
+that single projection reproduces the stored world digest exactly. Changed sources, dynamic
+reads, a read/write overlap or an unrecoverable earlier destination remain refused; neither
+the digest nor the base is rewritten. CREATE answer replay still requires its current basis.
+After this bounded migration, a new revision carries the durable projection and can itself
+be revised after another Run, including after close/reopen.
+
+A dynamic/glob graph read whose coverage this identity projection cannot establish requires
+the complete world to remain unchanged; no unimplemented pattern matching is assumed.
+The existing durable owner withholds whole plans above 128 KiB, keeps at most 16 records
+within a 256 KiB table, and never truncates a world. Session keeps its 1 MiB journal-record
+limit. An oversized plan therefore has no durable program record; no continuation is claimed.

@@ -90,7 +90,12 @@ fn well_formed(record: &Value) -> bool {
         && closed(last, "answers candidate_sha256")
         && answer_map(&last["answers"])
         && (last.get("candidate_sha256")).is_some_and(|c| c.is_null() || c.is_string())
-        && closed(basis, "read caller")
+        && closed(basis, "read caller world")
+        && basis.get("world").is_none_or(|world| {
+            closed(world, "sha256 value")
+                && world["sha256"].is_string()
+                && world.get("value").is_some()
+        })
         && answer_map(&basis["read"]["answers"])
         && basis["caller"].is_object()
 }
@@ -110,9 +115,10 @@ pub fn replayed(record: &Value, intent: &str, allowed: &[String]) -> Result<Valu
     replayed_observed(record, intent, allowed, None)
 }
 
-/// The same reconstruction under the replaying request's own observation of the stated files
-/// (never one a record carries): a read may reach the one file it places under a stated bare
-/// name, as the sketch laws admit it.
+/// The same reconstruction under the caller-projected observation of the stated files: a
+/// read may reach the one file it places under a stated bare name. Base reconstruction can
+/// receive a digest-checked historical observation whose read sources still match; the caller
+/// checks current structural laws separately before reconstructing historical bytes.
 ///
 /// # Errors
 /// As [`replayed`].
@@ -216,6 +222,31 @@ fn answers(value: &Value) -> Option<Answers> {
     (value.as_object()?.iter())
         .map(|(k, v)| Some((k.clone(), v.as_str()?.to_owned())))
         .collect()
+}
+
+/// The original words and final answers of the record paired with these exact base bytes,
+/// whose structural laws hold in the current world. This grants nothing: the caller must still
+/// reconstruct the historical assembly and final bytes and judge the requested revision.
+///
+/// # Errors
+/// A different candidate digest, missing/mistyped words or answers, or refused current laws.
+pub fn bound_base<'a>(
+    record: &'a Value,
+    base: &str,
+    world: Option<&Value>,
+) -> Result<(&'a str, BTreeMap<String, String>), &'static str> {
+    use sha2::{Digest, Sha256};
+    if record["final"]["candidate_sha256"] != format!("{:x}", Sha256::digest(base.as_bytes())) {
+        return Err("the base is not the candidate its record emitted");
+    }
+    let closed = "it is not a closed record of this format";
+    let words = record["basis"]["read"]["effective"]
+        .as_str()
+        .ok_or(closed)?;
+    let answers = answers(&record["final"]["answers"]).ok_or(closed)?;
+    let allowed = crate::fidelity::allowed_values(&answers);
+    replayed_observed(record, words, &allowed, world)?;
+    Ok((words, answers))
 }
 
 /// The answers a record binds, held to A0 ⊆ Ak ⊆ Ac: its initial answers (`basis.read`, A0)

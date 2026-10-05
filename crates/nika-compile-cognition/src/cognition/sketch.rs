@@ -615,6 +615,7 @@ fn semantic_record(
     fills: &[Value],
     settled: &Value,
     out: &CompileOutcome,
+    world: Option<&Value>,
 ) -> Option<Value> {
     let assembled = settled["source"].as_str()?;
     let questions: Vec<Value> = (settled["questions"].as_array()?.iter())
@@ -647,6 +648,7 @@ fn semantic_record(
     });
     record["basis"] = json!({});
     record["basis"]["read"] = basis;
+    record["basis"]["world"] = nika_compile_fidelity::observed::basis::keep(world);
     Some(record)
 }
 
@@ -944,7 +946,14 @@ fn settle(
     if let (Some((_, fills)), Some((_, stated))) = (accepted, sketched)
         && let Some(settled) = done.provenance.plan.take()
     {
-        done.provenance.plan = semantic_record(basis, &graph(stated), fills, &settled, done);
+        done.provenance.plan = semantic_record(
+            basis,
+            &graph(stated),
+            fills,
+            &settled,
+            done,
+            request.knowledge.as_ref(),
+        );
         if done.provenance.plan.is_none() {
             withhold_record(done);
         }
@@ -969,6 +978,7 @@ mod tests {
             &[],
             &settled,
             &out,
+            None,
         );
         assert!(record.is_none(), "no source: no record built from defaults");
         out.provenance.plan = Some(json!({"strategy": "native"}));

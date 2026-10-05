@@ -287,4 +287,46 @@ mod tests {
         }
         assert!(last_saved(raw.as_ref()).is_none());
     }
+
+    #[test]
+    fn historical_world_is_kept_whole_within_existing_program_record_bounds() {
+        let source = "exact program";
+        let mut raw = None;
+        let mut small = record(source, "read input and write output");
+        small["basis"]["world"] = crate::observed::basis::keep(Some(&json!({
+            "observed": [{"path": "./in.json", "state": "observed", "columns": ["amount"]}],
+        })));
+        remember(
+            &mut raw,
+            Place::Proposal("p"),
+            source,
+            Some(&small),
+            &str::to_owned,
+        );
+        saved(&mut raw, "a.nika", source, "p", &str::to_owned);
+        let text = raw.as_ref().map(Value::to_string).unwrap_or_default();
+        assert!(text.len() <= LIMIT);
+        let reopened = serde_json::from_str(&text).ok();
+        assert_eq!(
+            plan(reopened.as_ref(), Place::Saved("a.nika"), source),
+            Some(small.clone())
+        );
+        let before = raw.clone();
+        let mut large = small;
+        large["basis"]["world"] = crate::observed::basis::keep(Some(&json!({
+            "observed": [{"path": "./in.json", "value": "x".repeat(LIMIT / 2)}],
+        })));
+        remember(
+            &mut raw,
+            Place::Proposal("large"),
+            source,
+            Some(&large),
+            &str::to_owned,
+        );
+        assert_eq!(
+            raw, before,
+            "the whole oversized plan is withheld; history is never truncated"
+        );
+        assert!(plan(raw.as_ref(), Place::Proposal("large"), source).is_none());
+    }
 }
