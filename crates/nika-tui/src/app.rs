@@ -64,6 +64,7 @@ mod pointer;
 use crate::workspace::{conversation, project};
 
 mod acquire;
+mod opening;
 mod welcome;
 
 /// How the shell runs.
@@ -245,7 +246,7 @@ pub fn run<C: Conversation + 'static>(conversation: C, options: Options) -> io::
 ///
 /// # Errors
 ///
-/// A draw failed.
+/// The conversation refused to open, or a draw failed.
 pub fn run_on<C: Conversation + 'static>(
     taken: Taken,
     conversation: C,
@@ -551,6 +552,10 @@ impl<C: Conversation + 'static> Shell<C> {
     fn drive(&mut self, mut broker: Broker) -> io::Result<Exit> {
         self.commands = self.conversation()?.commands();
         let opening = self.conversation()?.open();
+        if let Some(refusal) = opening::refusal(&opening) {
+            broker.stop();
+            return Err(refusal);
+        }
         self.apply_all(opening)?;
         self.draw()?;
         loop {

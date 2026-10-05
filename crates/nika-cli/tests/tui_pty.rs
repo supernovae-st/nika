@@ -893,3 +893,63 @@ fn ascii_keeps_the_renderer_in_its_twins_and_plain_keeps_the_loop() {
         "--ascii wrote {strays:?}, which no word of the Session carries: {ascii:?}"
     );
 }
+
+/// A second workspace cannot claim the first session's history. Its refusal
+/// remains on the normal terminal after restoration and leaves the holder usable.
+#[test]
+fn a_locked_history_refusal_survives_fullscreen_exit_and_preserves_its_owner() {
+    let (project, home) = rig("locked-history");
+    let (mut owner, owner_tee) = spawn_sized(project.path(), home.path(), 120, 40);
+    answer_until(&mut owner, &owner_tee, 40, "nika ›");
+    owner.send("/hel").expect("type without submitting");
+    let (mut refused, tee) = spawn_sized_with(
+        project.path(),
+        home.path(),
+        120,
+        40,
+        &[("NIKA_TUI", "workspace")],
+    );
+    answer_until(
+        &mut refused,
+        &tee,
+        40,
+        "cannot exclusively open conversation history",
+    );
+    refused
+        .expect(Eof)
+        .expect("refusal needs no keypress to close");
+    assert_ne!(
+        exit_code(&mut refused),
+        0,
+        "an opening refusal is a failed exit"
+    );
+    // One diagnostic may span several PTY reads; logging adds a wrapper per read.
+    let text = tee
+        .text()
+        .lines()
+        .filter_map(|line| {
+            line.strip_prefix("read: \"")
+                .and_then(|s| s.strip_suffix('"'))
+        })
+        .collect::<String>()
+        .replace("\\u{1b}", "\x1b");
+    let restored = text
+        .rfind("\x1b[?1049l")
+        .expect("alternate screen restored");
+    let diagnostic = text
+        .rfind("nika: session could not open:")
+        .unwrap_or_else(|| panic!("visible refusal: {text:?}"));
+    assert!(
+        restored < diagnostic,
+        "refusal is printed after restoration: {text:?}"
+    );
+    assert!(tee.saw("\x1b[?2004l") && tee.saw("\x1b[?25h"));
+    // Complete the draft typed before the rejected sibling opened.
+    owner.send("p\r").expect("holder still has its draft");
+    answer_until(&mut owner, &owner_tee, 40, "/intelligence");
+    owner
+        .send("/quit\r")
+        .expect("close the original owner normally");
+    owner.expect(Eof).expect("owner closes");
+    assert_eq!(exit_code(&mut owner), 0);
+}

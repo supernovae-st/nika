@@ -338,3 +338,14 @@ blank-line default: the question's key alone cannot establish one. Before a
 proposal response is interpreted, its busy label remains neutral (`reviewing
 your reply`); cancellation, inspection and revision are not announced as Save.
 Only the existing observed progress reports describe the work actually begun.
+
+## Opening refusal and terminal restoration
+
+A conversation that refuses and quits while opening (for example, another
+instance owns the history lease) is an error, not a normal user quit. The shell
+stops its input broker and returns that refusal through the existing error path.
+The terminal owner restores all modes before the CLI prints the diagnostic on
+stderr and returns its environment-error exit code. The message therefore stays
+visible after a fullscreen launch closes. This path never steals a lease, clears
+history, submits a draft or signals the existing instance. An ordinary refusal
+inside an open conversation remains a card; a normal user quit remains successful.
