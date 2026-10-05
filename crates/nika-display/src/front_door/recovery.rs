@@ -96,7 +96,7 @@ pub const fn conversation_note(
 ) -> Option<&'static str> {
     if new_uncertainty {
         Some(
-            "[An earlier operation has an uncertain result. Nothing was replayed; inspect effects and receipts before proposing a retry.]",
+            "[An earlier operation has an uncertain result or API charge. Nothing was replayed; inspect effects and receipts before proposing a retry.]",
         )
     } else if expired_authority {
         Some("[The earlier proposal or gate expired. Fresh validation and consent are required.]")

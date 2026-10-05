@@ -29,7 +29,11 @@ enum Recorded {
     /// Handed to the transport, not answered: its charge is unknown.
     Sent(InferenceCall),
     /// Answered, with its evidence (which may itself leave the charge unknown).
-    Returned(InferenceCall),
+    Returned {
+        call: InferenceCall,
+        /// The wire returned a usable response, independently of its price or usage coverage.
+        usable: bool,
+    },
     /// The wire refused before anything crossed the transport.
     Withdrawn,
 }
@@ -103,6 +107,21 @@ impl DispatchJournal {
             .any(|r| matches!(r, Recorded::Sent(_)))
     }
 
+    /// Requests without a usable wire response. Missing prices alone do not make a response
+    /// unresolved; failed and unanswered requests retain their conservative uncertainty.
+    pub(crate) fn unresolved_responses(&self) -> usize {
+        self.lock()
+            .recorded
+            .iter()
+            .filter(|r| {
+                matches!(
+                    r,
+                    Recorded::Sent(_) | Recorded::Returned { usable: false, .. }
+                )
+            })
+            .count()
+    }
+
     /// A poisoned lock still holds a plain record: recover it, never lose it.
     fn lock(&self) -> MutexGuard<'_, Requests> {
         match self.0.lock() {
@@ -117,7 +136,7 @@ impl DispatchJournal {
             .recorded
             .iter()
             .filter_map(|recorded| match recorded {
-                Recorded::Sent(call) | Recorded::Returned(call) => Some(call.clone()),
+                Recorded::Sent(call) | Recorded::Returned { call, .. } => Some(call.clone()),
                 Recorded::PreSend | Recorded::Withdrawn => None,
             })
             .collect()
@@ -167,14 +186,20 @@ impl Entry {
     /// The wire returned: keep the request's evidence, or withdraw it when it
     /// never crossed the transport. A sent request that returned no evidence
     /// stays sent: its charge is unknown.
-    pub(crate) fn settle(self, call: Option<&InferenceCall>) {
+    /// `usable` comes from the wire result, never inferred from price, usage or model metadata.
+    pub(crate) fn settle(self, call: Option<&InferenceCall>, usable: bool) {
         let mut requests = self.journal.lock();
         if requests.current == Some(self.index) {
             requests.current = None;
         }
         if let Some(slot) = requests.recorded.get_mut(self.index) {
             match (call, &*slot) {
-                (Some(call), _) => *slot = Recorded::Returned(call.clone()),
+                (Some(call), _) => {
+                    *slot = Recorded::Returned {
+                        call: call.clone(),
+                        usable,
+                    }
+                }
                 (None, Recorded::PreSend) => *slot = Recorded::Withdrawn,
                 (None, _) => {}
             }

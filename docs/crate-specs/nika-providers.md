@@ -750,6 +750,10 @@ requests that crossed transport are retained on success, failure and cancellatio
 records use `route_identity::durable_calls`, preserve missing values and have no allowance.
 The `nika/preparation-cost-observation@1` record is evidence only and is never deserialized as
 execution or monetary authority. Legacy account and Run review schemas are unchanged.
+A usable wire response without a price remains an unknown charge, not an incomplete
+operation. The private dispatch journal keeps response success independently of cost coverage;
+failed or unanswered responses remain uncertain. No response-state inference uses model names,
+tariffs or token fields, and the existing durable cost schema is unchanged.
 
 ### Interactive preparation cancellation
 

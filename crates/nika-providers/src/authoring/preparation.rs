@@ -152,8 +152,10 @@ impl PreparationCosts {
             .filter(|o| o["state"] == "Uncertain" || !o.is_object())
             .count()
     }
-    /// Live accounts, historical and companion observations, and the current API journal.
-    /// Every unreadable account remains uncertain; no count grants authority or restricts design.
+    /// Live accounts, historical and companion observations, and unresolved API responses.
+    /// A returned preparation response with no price remains in `unknown_calls` and
+    /// `uncertain_requests`, but does not imply an unfinished operation. Every unreadable
+    /// account remains uncertain; no count grants authority or restricts design.
     #[must_use]
     pub fn uncertain_exposure(
         account: Option<&crate::InferenceAdmission>,
@@ -176,7 +178,7 @@ impl PreparationCosts {
                 .iter()
                 .filter(|o| o["state"] == "Uncertain")
                 .count()
-            + preparation.map_or(0, Self::uncertain_requests)
+            + preparation.map_or(0, |costs| costs.journal.unresolved_responses())
     }
     /// Historical and live scopes are summarized once each, without recreating any account.
     #[must_use]

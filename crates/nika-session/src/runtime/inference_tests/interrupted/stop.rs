@@ -56,8 +56,16 @@ fn stop_returns_the_conversation_with_history_and_no_new_proposal() {
         assert_eq!(again.bodies().len(), 1);
         assert_eq!(
             session.uncertain_charges(),
-            2,
-            "unknown prices remain observations, no gate"
+            1,
+            "only the unanswered request remains an unresolved operation"
+        );
+        assert!(session.cost_observations().iter().any(|o| o["schema"]
+            == "nika/preparation-cost-observation@1"
+            && o["unknown_calls"] == 2));
+        assert_eq!(
+            last_history_event(home.path())["effect"],
+            "no_uncertainty_reported",
+            "the later returned response adds no new operational uncertainty"
         );
         drop(session);
         let mut restored = open_unpriced(root.path());

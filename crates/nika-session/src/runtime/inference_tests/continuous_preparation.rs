@@ -317,3 +317,63 @@ fn continuous_deterministic_seat_keeps_its_explicit_decision_boundary() {
         })
         .unwrap();
 }
+
+#[test]
+fn returned_unpriced_preparation_reopens_without_an_incomplete_operation_notice() {
+    for usage_present in [true, false] {
+        let mut body = unpriced_response("Hello");
+        if !usage_present {
+            body.as_object_mut().unwrap().remove("usage");
+        }
+        let peer = Peer::start(vec![(200, body)]);
+        let _transport = test_transport::install(&peer.url);
+        let dir = tempfile::tempdir().unwrap();
+        let home = tempfile::tempdir().unwrap();
+        let mut first = open_unknown(dir.path());
+        first.enable_continuous_preparation();
+        first.enable_history(home.path()).unwrap();
+        assert!(matches!(first.turn("hello"), TurnOutcome::Reply(_)));
+        assert_eq!(peer.bodies().len(), 1);
+        assert_eq!(first.uncertain_charges(), 0, "the response returned");
+        let observations = first.cost_observations();
+        let evidence = observations
+            .iter()
+            .find(|o| o["schema"] == "nika/preparation-cost-observation@1")
+            .unwrap();
+        assert_eq!(evidence["unknown_calls"], 1);
+        assert_eq!(evidence["billing"], "unknown");
+        assert_eq!(evidence["state"], "Closed");
+        assert!(evidence["calls"][0]["estimated_usd"].is_null());
+        let journal = std::fs::read_dir(home.path().join(".nika/sessions"))
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path()
+            .join("events.ndjson");
+        let text = std::fs::read_to_string(&journal).unwrap();
+        let completed: Value = serde_json::from_str(text.lines().last().unwrap()).unwrap();
+        assert_eq!(completed["event"]["effect"], "no_uncertainty_reported");
+        drop(first);
+
+        let mut resumed = open_unknown(dir.path());
+        resumed.enable_continuous_preparation();
+        let notice = resumed.enable_history(home.path()).unwrap().unwrap();
+        assert!(!notice.contains("historical unresolved operation"));
+        assert!(resumed.restore_state().is_some());
+        assert!(resumed.cost_observations().contains(evidence));
+        assert!(resumed.inference_line().contains("1 unpriced requests"));
+        assert!(
+            !resumed
+                .kept_turns()
+                .iter()
+                .any(|(_, text)| text.contains("uncertain result"))
+        );
+        assert!(
+            resumed.inference_receipt().unwrap().is_none(),
+            "no account restored"
+        );
+        assert_eq!(peer.bodies().len(), 1, "reopen sends no request");
+        assert!(!dir.path().join("sortie.txt").exists());
+    }
+}

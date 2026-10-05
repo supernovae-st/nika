@@ -29,6 +29,9 @@ An unfinished operation or a run request without an observation produces an
 uncertainty notice on reopen and an explicit note in the next model context.
 An I/O refusal while applying a proposal also retains its possible partial
 effect. Recovery never calls a model, applies a file, or starts a workflow.
+A successfully returned preparation response with an unknown price retains its billing
+observation without implying an unfinished operation. Unanswered or failed responses remain
+conservative uncertainty; older unknown-effect records still disclose a result or API charge.
 The notice remains anchored where that uncertainty was first recovered; reopening alone
 never appends it as a new latest failure. The replay separately tracks unreported effect
 uncertainty and an already reported unobserved Run, without adding serialized fields.

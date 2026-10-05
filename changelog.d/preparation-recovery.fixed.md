@@ -1,0 +1,1 @@
+Successfully returned API preparation responses with an unknown price no longer produce a misleading incomplete-operation notice on reopen. Unknown charges remain visible, and unanswered or failed calls retain their uncertainty.

@@ -23,7 +23,7 @@ fn continuous_observation_has_no_old_seven_ten_or_sixty_four_request_gate() {
         for _ in 0..70 {
             let entry = crate::dispatch_journal::open().expect("scoped");
             crate::dispatch_journal::sent(Some(&call()));
-            entry.settle(Some(&call()));
+            entry.settle(Some(&call()), true);
         }
     }));
     assert!(poll(future.as_mut()).is_ready());
@@ -31,6 +31,22 @@ fn continuous_observation_has_no_old_seven_ten_or_sixty_four_request_gate() {
     assert_eq!(observation["calls"].as_array().expect("calls").len(), 70);
     assert_eq!(observation["unknown_calls"], 70);
     assert_eq!(observation["state"], "Closed");
+    assert_eq!(
+        costs.uncertain_requests(),
+        70,
+        "unknown charges remain counted"
+    );
+    assert_eq!(
+        PreparationCosts::uncertain_exposure(
+            None,
+            &crate::InferenceAdmission::unbudgeted(),
+            &[],
+            &[],
+            Some(&costs),
+        ),
+        0,
+        "returned unpriced responses are not incomplete operations"
+    );
     assert_eq!(observation["authority"], "observation_only");
     assert!(!observation.to_string().contains("private?q=secret"));
     assert!(PreparationCosts::summary(&[observation]).contains("70 unpriced requests"));
@@ -66,7 +82,7 @@ fn pre_send_withdrawal_never_becomes_a_paid_call() {
     let mut future = pin!(PreparationCosts::capture(async {
         crate::dispatch_journal::open()
             .expect("scoped")
-            .settle(None);
+            .settle(None, false);
     }));
     assert!(poll(future.as_mut()).is_ready());
     assert!(costs.observation().is_none());
@@ -86,6 +102,17 @@ fn each_cancelled_request_adds_uncertainty_in_the_same_preparation_scope() {
             assert!(poll(future.as_mut()).is_pending());
         }
         assert_eq!(costs.uncertain_requests(), expected);
+        assert_eq!(
+            PreparationCosts::uncertain_exposure(
+                None,
+                &crate::InferenceAdmission::unbudgeted(),
+                &[],
+                &[],
+                Some(&costs),
+            ),
+            expected,
+            "each unanswered request still contributes a new durable uncertainty"
+        );
         assert_eq!(costs.observation().unwrap()["state"], "Uncertain");
     }
 }
@@ -130,3 +157,29 @@ fn retained_numeric_holds_and_both_jev_versions_stay_visible_without_a_gate() {
 }
 
 mod stop;
+
+#[test]
+fn a_returned_failure_keeps_uncertainty_even_when_its_call_evidence_is_recorded() {
+    let costs = PreparationCosts::default();
+    let _scope = costs.enter();
+    let mut future = pin!(PreparationCosts::capture(async {
+        let entry = crate::dispatch_journal::open().expect("scoped");
+        crate::dispatch_journal::sent(Some(&call()));
+        entry.settle(Some(&call()), false);
+    }));
+    assert!(poll(future.as_mut()).is_ready());
+    let observation = costs.observation().expect("observed");
+    assert_eq!(observation["unknown_calls"], 1);
+    assert_eq!(costs.uncertain_requests(), 1);
+    assert_eq!(
+        PreparationCosts::uncertain_exposure(
+            None,
+            &crate::InferenceAdmission::unbudgeted(),
+            &[],
+            &[],
+            Some(&costs),
+        ),
+        1,
+        "a failed response does not establish a usable result or zero billing"
+    );
+}

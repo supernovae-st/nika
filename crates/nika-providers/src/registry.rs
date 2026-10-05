@@ -430,7 +430,7 @@ where
             ))
             .await;
             if let Some(entry) = entry {
-                entry.settle(call.as_ref());
+                entry.settle(call.as_ref(), result.is_ok());
             }
             report.record(call);
             report.attempts = u32::from(sent);
@@ -451,7 +451,7 @@ where
             let entry = crate::dispatch_journal::open();
             let result = Box::pin(self.infer_once(request.clone(), &mut route, &mut call)).await;
             if let Some(entry) = entry {
-                entry.settle(call.as_ref());
+                entry.settle(call.as_ref(), result.is_ok());
             }
             report.record(call);
             let err = match result {
