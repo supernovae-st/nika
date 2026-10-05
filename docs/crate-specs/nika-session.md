@@ -134,7 +134,10 @@ native Compiler messages through `nika-harness::authoring::HarnessAuthoring`,
 which implements the kernel completion seam over the existing infer-grade
 transport. Session does not call the CLI compile adapter or select an API as a
 fallback. Supported adapters retain their explicitly selected adapter and model;
-an absent model retains the harness default. Unsupported model namespaces or
+an absent model retains the harness default. With multiple answer-capable apps
+present, `1` keeps the choice and any pending request open until the human names
+`1 <app>` or `1 <app>/<model>`; presence order and sign-in evidence never choose
+between them. A single app retains the short `1` choice. Unsupported model namespaces or
 unavailable/unsupported harness capabilities refuse visibly. No intelligence
 continues to compile deterministic requests without calling a model.
 

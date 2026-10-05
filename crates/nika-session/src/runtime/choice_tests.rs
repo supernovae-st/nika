@@ -99,6 +99,66 @@ fn an_unchosen_session_asks_in_context_and_resumes_the_waiting_line() {
     assert!(matches!(s.turn(SMALL_TALK), TurnOutcome::Reply(_)));
 }
 
+/// The app category keeps both the pending request and the old choice until an app is named.
+#[test]
+fn an_ambiguous_app_choice_waits_without_saving_or_resuming() {
+    let dir = tree();
+    let home = tempfile::tempdir().expect("home");
+    let census = IntelligenceCensus {
+        seats: ["copilot", "claude-code"]
+            .map(|id| crate::intelligence::SeatSeen {
+                id: id.to_owned(),
+                product_present: true,
+                configured: id == "claude-code",
+                answers_here: true,
+            })
+            .to_vec(),
+        api_keys: vec![],
+        locals: vec![],
+    };
+    let selections = Arc::new(AtomicUsize::new(0));
+    let selected = Arc::clone(&selections);
+    let factory: ReasonerFactory = Box::new(move |resolved| {
+        if matches!(resolved.kind, IntelligenceKind::None) {
+            return Box::new(NoReasoner);
+        }
+        assert_eq!(
+            resolved.kind,
+            IntelligenceKind::Harness {
+                seat: "claude-code".into()
+            }
+        );
+        assert_eq!(resolved.model.as_deref(), Some("claude-code/opus[1m]"));
+        selected.fetch_add(1, Ordering::SeqCst);
+        Box::new(ScriptedReasoner::new(vec!["seated".to_owned()]))
+    });
+    let mut s = SessionRuntime::open_unchosen(dir.path(), census, Some(home.path()), factory);
+    assert!(matches!(s.turn(SMALL_TALK), TurnOutcome::Ask(_)));
+    assert!(matches!(s.choose("1"), TurnOutcome::Refusal(ref r)
+        if r.text.contains("1 <app>") && r.text.contains("claude-code")));
+    assert!(s.pending_choice() && !s.intelligence_chosen());
+    assert_eq!(s.interrupted.as_deref(), Some(SMALL_TALK));
+    assert_eq!(selections.load(Ordering::SeqCst), 0);
+    assert!(UserIntelligencePreference::load(home.path()).is_none());
+    let TurnOutcome::Resumed { outcome, .. } = s.choose("1 claude-code/opus[1m]") else {
+        panic!("explicit app resumes the pending request");
+    };
+    assert!(matches!(*outcome, TurnOutcome::Reply(ref t) if t.contains("seated")));
+    assert_eq!(selections.load(Ordering::SeqCst), 1);
+    let kept = UserIntelligencePreference::load(home.path()).expect("named choice kept");
+    assert!(matches!(s.turn("/intelligence"), TurnOutcome::Ask(_)));
+    assert!(matches!(s.choose("1"), TurnOutcome::Refusal(_)));
+    assert_eq!(
+        UserIntelligencePreference::load(home.path()),
+        Some(kept.clone())
+    );
+    assert!(s.pending_choice());
+    assert!(matches!(s.choose("cancel"), TurnOutcome::Facts(_)));
+    assert!(!s.pending_choice());
+    assert_eq!(UserIntelligencePreference::load(home.path()), Some(kept));
+    assert_eq!(selections.load(Ordering::SeqCst), 1);
+}
+
 /// Choosing « no AI » in context resumes the line too: the honest refusal
 /// that names the facts, never a silent drop.
 #[test]

@@ -328,7 +328,7 @@ impl IntelligenceCensus {
             model('3', self.locals.first().map(String::as_str)),
         );
         format!(
-            "  1  Use an AI app I already have (your signed-in agent account)\n     {apps}{subscription_model}\n     Workflow authoring uses the app connection; support is checked before calling.\n     Agent execution uses ACP: run <file>.nika --access=<app>\n  2  Use an API (metered · your own key)\n     {keys}{api_model}\n  3  Run locally (private · on this machine)\n     {locals}{local_model}\n  4  No AI in this conversation\n     Nika still answers from its own catalog: your workflows · checks · examples · builtins\n"
+            "  1  Use an AI app I already have (type 1 <app>; sign-in required)\n     {apps}{subscription_model}\n     Workflow authoring uses the app connection; support is checked before calling.\n     Agent execution uses ACP: run <file>.nika --access=<app>\n  2  Use an API (metered · your own key)\n     {keys}{api_model}\n  3  Run locally (private · on this machine)\n     {locals}{local_model}\n  4  No AI in this conversation\n     Nika still answers from its own catalog: your workflows · checks · examples · builtins\n"
         )
     }
 
@@ -394,21 +394,22 @@ impl IntelligenceCensus {
 
     /// Keep the app and its complete model name, with the transport's own validation.
     fn choose_app(&self, name: Option<&str>) -> Result<UserIntelligencePreference, String> {
-        let (seat, model) = match name {
-            Some(name) => split_seat(name),
-            None => (
-                self.seats.iter().find(|s| s.usable()).map(|s| s.id.clone())
-                    .ok_or_else(|| {
-                        let unable = self.seats_unable_here();
-                        if unable.is_empty() {
-                            "no AI app found on this machine — install a supported app or pick 2, 3 or 4".to_owned()
-                        } else {
-                            format!("{} installed, but Nika cannot get an answer through {} yet — {}",
-                                unable.join(" · "), if unable.len() == 1 { "it" } else { "them" }, self.ways_on())
-                        }
-                    })?,
-                None,
-            ),
+        let apps: Vec<_> = self.seats.iter().filter(|s| s.usable()).collect();
+        let (seat, model) = match (name, apps.as_slice()) {
+            (Some(name), _) => split_seat(name),
+            (None, [seat]) => (seat.id.clone(), None),
+            (None, []) => {
+                return Err(format!(
+                    "no AI app can answer here — choose 2, 3 or 4\n{}",
+                    self.options_screen()
+                ));
+            }
+            (None, _) => {
+                return Err(format!(
+                    "{}\nChoose an app explicitly: `1 <app>` or `1 <app>/<model>` from the names above; cancel keeps the current choice.",
+                    self.options_screen()
+                ));
+            }
         };
         if seat.contains('/') {
             return Err("name an app and a nonempty model: `1 <app>/<model>`".to_owned());
@@ -708,6 +709,57 @@ mod tests {
         }
     }
 
+    /// Presence never chooses between accounts, even when only one has sign-in evidence.
+    #[test]
+    fn multiple_apps_require_a_named_choice_in_either_order() {
+        let mut c = census();
+        c.seats = ["copilot", "grok-build", "claude-code"]
+            .map(|id| SeatSeen {
+                id: id.to_owned(),
+                product_present: true,
+                configured: id == "claude-code",
+                answers_here: true,
+            })
+            .to_vec();
+        for _ in 0..2 {
+            let why = c.choose("1").expect_err("an app name is still needed");
+            for expected in ["1 <app>", "copilot", "grok-build", "claude-code", "cancel"] {
+                assert!(why.contains(expected), "{why}");
+            }
+            let chosen = c
+                .choose("1 claude-code/opus[1m]")
+                .expect("explicit app/model");
+            assert_eq!(chosen.model.as_deref(), Some("claude-code/opus[1m]"));
+            assert!(ResolvedSessionIntelligence::resolve(&chosen, &c).ready);
+            let unavailable = c.choose("1 copilot").expect("explicit choice is retained");
+            let resolved = ResolvedSessionIntelligence::resolve(&unavailable, &c);
+            assert!(!resolved.ready);
+            assert!(
+                resolved
+                    .why
+                    .as_deref()
+                    .expect("reason")
+                    .contains("not signed in")
+            );
+            assert_eq!(
+                resolved.kind, unavailable.kind,
+                "no substitution with Claude"
+            );
+            c.seats.reverse();
+        }
+        assert!(
+            c.options_screen()
+                .contains("type 1 <app>; sign-in required")
+        );
+        c.seats.retain(|s| s.id == "claude-code");
+        assert_eq!(
+            c.choose("1").expect("only app").kind,
+            IntelligenceKind::Harness {
+                seat: "claude-code".to_owned(),
+            }
+        );
+    }
+
     /// A seat that is here and signed in but cannot answer (no infer-grade
     /// attestation) is shown as such, never offered as the app, refused
     /// when named, and a kept choice on it is not ready — each time with
@@ -770,7 +822,8 @@ mod tests {
         c.seats.retain(|s| s.id != "codex");
         let refused = c.choose("1").expect_err("no app answers");
         assert!(
-            refused.contains("gemini-cli installed, but Nika cannot get an answer through it yet")
+            refused.contains("no AI app can answer here")
+                && refused.contains("seen but not usable here yet: gemini-cli")
                 && refused.contains("mistral"),
             "{refused}"
         );
