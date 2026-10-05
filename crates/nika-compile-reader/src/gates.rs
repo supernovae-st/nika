@@ -6,6 +6,7 @@
 //! writing` land as the same runtime gate without one phrase per wording.
 
 /// Words that mean approval when they close a gate phrase.
+use super::paths::{self, PathShape};
 use super::plan::{EffectVerb, Plan};
 
 const APPROVAL_NOUNS: &[&str] = &[
@@ -570,10 +571,65 @@ pub fn bypass_stated(lower: &str) -> bool {
         })
 }
 
+/// Whether the request's own words name a refund, outside the data a typed element of the
+/// plan already owns. A bound `./` file or glob is a local name
+/// (`./out/refund-tickets.json` asks nothing), and the literal a typed rule compares
+/// is a value (`refunded` in « whose status is refunded »), where the rule's excerpt states it
+/// once. Absolute paths (possibly endpoints), directories, unowned or repeated literals and
+/// excerpts absent from the request remain guarded.
+fn names_refund(text: &str, plan: &Plan) -> bool {
+    let mut text = text.to_owned();
+    for rule in &plan.rules {
+        let excerpt = rule.text().to_lowercase();
+        if excerpt.trim().is_empty() {
+            continue;
+        }
+        let Some(from) = text.find(excerpt.as_str()) else {
+            continue;
+        };
+        for (_, literal) in rule.text_equalities() {
+            let literal = literal.to_lowercase();
+            if let [at] = whole_word(&excerpt, &literal).as_slice() {
+                let start = from + at;
+                text.replace_range(start..start + literal.len(), &" ".repeat(literal.len()));
+            }
+        }
+    }
+    for binding in plan
+        .bindings
+        .iter()
+        .filter(|b| b.role == "path" && b.literal.starts_with("./"))
+    {
+        if matches!(
+            paths::token(&binding.literal),
+            Some(PathShape::File(_) | PathShape::Glob(_))
+        ) {
+            text = text.replace(&binding.literal.to_lowercase(), " ");
+        }
+    }
+    text.contains("refund") || text.contains("rembours")
+}
+
+/// Where `word` stands whole in `text`: no letter or digit runs into it on either side.
+fn whole_word(text: &str, word: &str) -> Vec<usize> {
+    if word.is_empty() {
+        return Vec::new();
+    }
+    text.match_indices(word)
+        .filter(|(at, _)| {
+            let before = text[..*at].chars().next_back();
+            let after = text[at + word.len()..].chars().next();
+            !before.is_some_and(char::is_alphanumeric) && !after.is_some_and(char::is_alphanumeric)
+        })
+        .map(|(at, _)| at)
+        .collect()
+}
+
 /// A conservative EN/FR authority backstop applied to EVERY strategy. It cannot prove
 /// arbitrary-language intent preservation (the proposal's own bypass field covers other
 /// languages); it refuses the recognized bypasses and keeps recognized money movement from
-/// being assembled without a human gate.
+/// being assembled without a human gate. A refund word only inside data the plan owns (a
+/// bound `./` file path, a typed rule's compared value) names no refund (`names_refund`).
 pub fn backstop(intent: &str, plan: &mut Plan) {
     let text = crate::lexicon::unquoted(&intent.to_lowercase());
     if bypass_stated(&text) {
@@ -582,8 +638,7 @@ pub fn backstop(intent: &str, plan: &mut Plan) {
                 .to_owned(),
         );
     }
-    let refund_words = text.contains("refund") || text.contains("rembours");
-    if refund_words && !plan.effects.iter().any(|e| e.verb == EffectVerb::Refund) {
+    if names_refund(&text, plan) && !plan.effects.iter().any(|e| e.verb == EffectVerb::Refund) {
         plan.unknowns.push(
             "The request mentions a refund that no recognized effect carries; a refund is never dropped silently."
                 .to_owned(),
@@ -744,5 +799,131 @@ mod tests {
         assert!(approval_bound("publie rien sans ma validation"));
         assert!(!approval_bound("copy more than 10 consecutive words"));
         assert!(!approval_bound("write before noon"));
+    }
+
+    /// A tag filter whose output is named after the tag: `refund` is a ticket tag and a word of
+    /// the output's name, never a money movement.
+    const TAG_FILTER: &str = "Look in ./tickets.json and keep only the tickets labelled `refund` that were opened in September 2026. Save ./out/refund-tickets.json as an object with `count` (how many tickets) and `ids` (their ids, sorted).";
+
+    const REFUND_GUARD: &str = "The request mentions a refund";
+
+    fn refund_guarded(plan: &Plan) -> bool {
+        plan.unknowns.iter().any(|u| u.starts_with(REFUND_GUARD))
+    }
+
+    /// A plan owning only the given path bindings and, when given, the typed rule of `rule`.
+    fn owned(paths: &[&str], rule: Option<&str>) -> Plan {
+        let mut plan = Plan::default();
+        plan.bindings = (paths.iter())
+            .map(|p| crate::plan::Binding::new("path", *p))
+            .collect();
+        plan.rules = (rule.into_iter())
+            .map(|r| crate::rules::synthesize(r, &[]).expect("a typed rule"))
+            .collect();
+        plan
+    }
+
+    fn guarded(intent: &str, mut plan: Plan) -> bool {
+        backstop(intent, &mut plan);
+        refund_guarded(&plan)
+    }
+
+    #[test]
+    fn a_refund_named_only_as_data_owes_no_refund() {
+        // The reader's own plan of the request: no money effect, no refund unknown.
+        let mut plan = crate::lexicon::read(TAG_FILTER).plan;
+        backstop(TAG_FILTER, &mut plan);
+        assert!(
+            !plan.effects.iter().any(|e| e.verb.moves_money()),
+            "{plan:?}"
+        );
+        assert!(!refund_guarded(&plan), "{:?}", plan.unknowns);
+        // The masking alone: a bound file and a quoted tag are data.
+        let paths = ["./tickets.json", "./out/refund-tickets.json"];
+        assert!(!guarded(TAG_FILTER, owned(&paths, None)));
+        let quoted = "Read ./tickets.json and keep only the tickets tagged \"refund\"";
+        assert!(!guarded(quoted, owned(&["./tickets.json"], None)));
+        // A typed rule's compared value is data: `refunded` is a status, not a request.
+        let intent = "Read ./orders.json, keep only the orders whose status is refunded, and write them to ./out/refunded-orders.json";
+        let rule = "keep only the orders whose status is refunded";
+        let plan = owned(&["./orders.json", "./out/refunded-orders.json"], Some(rule));
+        assert!(!guarded(intent, plan));
+    }
+
+    #[test]
+    fn a_requested_refund_is_carried_or_named_whatever_data_surrounds_it() {
+        // Through the reader: either a refund effect carries the request or the guard names it.
+        for intent in [
+            "Read ./refunds.csv and refund the customer's last order, then save the receipt to ./out/refund-receipt.md",
+            "Rembourse la dernière commande du client et écris le reçu dans ./out/remboursement.md",
+            "Read ./orders.json, keep only the orders whose status is refunded, then refund the remaining customers",
+        ] {
+            let mut plan = crate::lexicon::read(intent).plan;
+            backstop(intent, &mut plan);
+            let carried = plan.effects.iter().any(|e| e.verb == EffectVerb::Refund);
+            assert!(carried || refund_guarded(&plan), "{intent}: {plan:?}");
+        }
+        // With no refund effect, the data the plan owns never hides the asked refund.
+        let rule = "keep only the orders whose status is refunded";
+        for (intent, plan) in [
+            (
+                "refund the customer's last order and save the receipt to ./out/refund-receipt.md",
+                owned(&["./out/refund-receipt.md"], None),
+            ),
+            (
+                "Read ./refunds.csv and refund each customer it lists",
+                owned(&["./refunds.csv"], None),
+            ),
+            (
+                "Read ./orders.json, keep only the orders whose status is refunded, then refund them",
+                owned(&["./orders.json"], Some(rule)),
+            ),
+        ] {
+            assert!(guarded(intent, plan), "{intent}");
+        }
+    }
+
+    #[test]
+    fn a_refund_word_no_typed_element_owns_keeps_the_guard() {
+        // Fail closed: an unquoted tag no typed rule reads, a directory and an unbound file
+        // name stay words; quoting the value is the stated way to make it data.
+        for (intent, plan) in [
+            (
+                "Read ./tickets.json and keep only the tickets tagged refund",
+                owned(&["./tickets.json"], None),
+            ),
+            (
+                "Summarize every file under ./refunds/ into ./out/summary.md",
+                owned(&["./refunds/", "./out/summary.md"], None),
+            ),
+            (
+                "Save the tickets as ./out/refund-tickets.json",
+                owned(&[], None),
+            ),
+        ] {
+            assert!(guarded(intent, plan), "{intent}");
+        }
+    }
+
+    #[test]
+    fn a_path_binding_cannot_hide_a_refund_endpoint_or_a_later_refund() {
+        // A lexical path binding does not prove that an absolute path is a local file.
+        for (intent, path) in [
+            ("POST /api/refund.json for order 123", "/api/refund.json"),
+            (
+                "Appelle /api/remboursement.json pour la commande 123",
+                "/api/remboursement.json",
+            ),
+            (
+                "Save ./out/refund-tickets.json, then refund the customer",
+                "./out/refund-tickets.json",
+            ),
+            (
+                "Écris ./out/remboursement.json, puis rembourse le client",
+                "./out/remboursement.json",
+            ),
+        ] {
+            assert!(guarded(intent, owned(&[path], None)), "{intent}");
+        }
     }
 }
