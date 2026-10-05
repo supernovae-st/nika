@@ -12,6 +12,8 @@
 //! the judge read it, so a superseded clause is no obligation any more, an added one is, and
 //! every other one is read as before; an added effect or gate is refused before any fill. The
 //! obligation delta must hold (`sketch::revision::delta`), or nothing is READY and why is named.
+//! A READY revision the judge refuses is filled again from the part it names, its graph kept,
+//! within the same round count (`filled`).
 //! The base record is never rewritten: the revision's own semantic record binds the revised bytes
 //! under the resolved words, the next revision's original; the delta is recorded apart
 //! (`decision.revision`). A change to the graph's structure is not revised here, and a base no
@@ -27,8 +29,10 @@
 
 use super::{
     Answer, Question, SKETCH, SketchAnswer, Talk, cold, conclude, fill, floor_refuses, graph,
-    native, prelude, repair, semantic_record, system_message, withhold_record,
+    judge_defects, native, next_round, prelude, reopen, repair, semantic_record, system_message,
+    withhold_record, within,
 };
+use crate::cognition::verify;
 use crate::cognition::{AuthoringPolicy, CompileOutcome, CompileRequest, DiagnosticKind, Strategy};
 use crate::decide::DecisionSeat;
 use crate::fidelity::Diagnostic;
@@ -449,9 +453,13 @@ async fn revise<P: ProviderInferDyn>(
     .await)
 }
 
-/// The fills of the base graph against the resolved request (`contract.resolved`), once, from
-/// the round the links left; the revised record bound and judged by the laws ([`bind`]), then a
-/// READY result judged against that request.
+/// The fills of the base graph against the resolved request (`contract.resolved`), from the
+/// round the links left; the revised record bound and judged by the laws ([`bind`]), then a READY
+/// result judged against that request. A part the judge finds missing reopens the fills from that
+/// defect, the graph kept, within the door's one round count, as a creation's candidate reopens
+/// its sketch; a defect already answered is no progress. Every reopening fills, binds and judges
+/// new bytes, so no verdict or delta of a replaced candidate stands for them; what ends not READY
+/// names the repairs made.
 async fn filled<P: ProviderInferDyn>(
     (revising, base, pair): (&CompileRequest, &Value, &(Sketch, SketchAnswer)),
     (policy, provider, decision): (&AuthoringPolicy, &P, Option<&dyn DecisionSeat>),
@@ -460,7 +468,7 @@ async fn filled<P: ProviderInferDyn>(
     mut out: CompileOutcome,
 ) -> CompileOutcome {
     let Journal {
-        round,
+        mut round,
         mut talk,
         sent,
         shown,
@@ -468,31 +476,62 @@ async fn filled<P: ProviderInferDyn>(
     } = journal;
     let resolved = contract.resolved;
     let reading = lexicon::read(resolved);
-    let accepted = fill(
-        &mut talk, resolved, &reading, policy, provider, &mut out, pair, round,
-    )
-    .await;
-    let answer = accepted.as_ref().map(|(answer, _)| answer);
-    native::record(&mut out, revising, &cold, &talk, &sent, answer, shown);
-    conclude(resolved, &reading, revising, answer, &talk, cold, &mut out);
-    out.provenance.strategy = Some(Strategy::Native);
-    if let Some((_, fills)) = &accepted {
-        bind(&mut out, base, revising, &graph(&pair.1), fills, contract);
+    let (last, mut repairs) = (policy.repairs.map(|r| r.saturating_add(1)), 0);
+    loop {
+        let accepted = fill(
+            &mut talk, resolved, &reading, policy, provider, &mut out, pair, round,
+        )
+        .await;
+        let mut done = out.clone();
+        let answer = accepted.as_ref().map(|(answer, _)| answer);
+        native::record(&mut done, revising, &cold, &talk, &sent, answer, shown);
+        conclude(
+            resolved,
+            &reading,
+            revising,
+            answer,
+            &talk,
+            cold.clone(),
+            &mut done,
+        );
+        done.provenance.strategy = Some(Strategy::Native);
+        if let Some((_, fills)) = &accepted {
+            bind(&mut done, base, revising, &graph(&pair.1), fills, contract);
+        }
+        if done.status != crate::CompileStatus::Ready {
+            return done;
+        }
+        let seats = (provider, decision);
+        let judged =
+            verify::native_verdict(resolved, &reading, policy, seats, revising, done, repairs);
+        let (mut judged, verdict) = match judged.await {
+            Ok(judged) => return judged,
+            Err(judged) => *judged,
+        };
+        // No delta of refused bytes survives them, whether the fills reopen or the revision ends.
+        if let Some(record) = (judged.provenance.decision.as_mut()).and_then(Value::as_object_mut) {
+            record.remove("revision");
+        }
+        // A defect reopens the fills while a round is left; an unsettled verdict never does.
+        let next = next_round(&talk);
+        let open = !verdict.defects.is_empty() && within(last, next);
+        if !(open && reopen(&mut talk, judge_defects(&verdict.defects), JUDGED_AGAIN)) {
+            if open {
+                verify::route(&mut judged, "native: no progress");
+            }
+            return verify::withdrawn(judged, &verdict, repairs);
+        }
+        repairs += 1;
+        talk.route.push(format!("verify: repair {repairs}"));
+        // The judge's calls and verdicts join the door's one journal.
+        (out.provenance.authoring).clone_from(&judged.provenance.authoring);
+        (out.provenance.decision).clone_from(&judged.provenance.decision);
+        round = next;
     }
-    if out.status != crate::CompileStatus::Ready {
-        return out;
-    }
-    let judge = super::super::verify::judged_native;
-    judge(
-        resolved,
-        &reading,
-        policy,
-        (provider, decision),
-        revising,
-        out,
-    )
-    .await
 }
+
+/// What a fill reopened from the judge's defect is asked, before its holes are listed again.
+const JUDGED_AGAIN: &str = "\nThe workflow these fills made was refused by the judge above. The graph stays as accepted: fill its holes again so that the workflow does what the whole revised request asks.";
 
 /// A revision the preservation or delta laws refuse: nothing READY, no record, each law named.
 fn refuse(out: &mut CompileOutcome, why: &[String]) {

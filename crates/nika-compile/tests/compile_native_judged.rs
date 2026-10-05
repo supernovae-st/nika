@@ -7,7 +7,8 @@
 //! judgment. The same whole-request judge COLD uses now reads the candidate's actual final bytes
 //! (the request as compiled and as first stated, its answers, the grounded reference) through
 //! the journaled authoring call, under the same caps: a candidate the judge finds unfaithful, or
-//! cannot settle, is never READY, and its record is withdrawn so no answer round replays it.
+//! cannot settle, is never READY. A proven defect withdraws its record; an unsettled judgment
+//! retains the record so an explicit retry can judge the same bytes without another author call.
 //!
 //! The answer round of a native record (R4 A11, step 2) finishes bytes no round judged: CASE A's
 //! authoring round asks only the run model, and its answer round baked the model in and was READY
@@ -17,7 +18,8 @@
 //! journaled call, and only a faithful verdict is READY.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use nika_compile::{
-    AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, NativeMode, compile,
+    AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind, NativeMode,
+    compile,
 };
 use nika_compile_cognition::compile_with_provider;
 use nika_kernel::ai::provider::{InferRequest, InferResponse, ProviderError, ProviderInferDyn};
@@ -146,6 +148,41 @@ async fn a_faithful_native_candidate_is_ready_once_judged() {
     assert!(out.provenance.plan.is_some(), "{out:#?}");
 }
 
+/// An undecided judge offers nothing, but keeps the exact replay basis for a later judgment.
+fn retained_unjudged(out: &CompileOutcome) -> Value {
+    assert_eq!(out.status, CompileStatus::Incomplete);
+    assert!(out.candidate.is_none());
+    assert!(out.check_preview.is_none());
+    assert!(out.requested_boundary.is_none());
+    assert!(out.questions.is_empty());
+    let record = out.provenance.plan.clone().expect("unjudged plan retained");
+    assert_eq!(record["semantic_record"], json!(1));
+    assert!(out.diagnostics.iter().any(|finding| {
+        finding.kind == DiagnosticKind::Applied && finding.target == "verify_resume"
+    }));
+    assert!(route(out).contains("verify: unjudged, record kept"));
+    record
+}
+
+/// A new, explicitly available judge settles only the retained bytes, not a new generation.
+async fn retry_judgment<P: ProviderInferDyn>(request: CompileRequest, record: Value, author: &P) {
+    let judge = Judged::approving(author);
+    let resumed = compile_with_provider(&request.with_plan(record.clone()), &judge)
+        .await
+        .expect("explicit judgment retry completes");
+    assert_eq!(resumed.status, CompileStatus::Ready);
+    assert_eq!(judge.judged.load(Ordering::SeqCst), 1);
+    assert_eq!(judge_calls(&resumed), ["judge_request"]);
+    assert_eq!(resumed.provenance.authoring.as_ref().unwrap().calls, 1);
+    assert_eq!(
+        record["final"]["candidate_sha256"],
+        json!(nika_compile::surface::sha256(
+            resumed.candidate.as_deref().expect("judged candidate")
+        )),
+        "the retried judge authorizes only the retained candidate bytes"
+    );
+}
+
 #[tokio::test]
 async fn a_judge_that_cannot_settle_leaves_the_native_request_incomplete() {
     // The judge's answer is not one of its choices: nothing is settled, nothing is READY.
@@ -156,11 +193,17 @@ async fn a_judge_that_cannot_settle_leaves_the_native_request_incomplete() {
     let out = compile_with_provider(&request, &provider).await.unwrap();
     assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
     assert!(out.candidate.is_none(), "{out:#?}");
-    assert!(out.provenance.plan.is_none(), "{out:#?}");
+    let record = retained_unjudged(&out);
     assert_eq!(provider.calls.load(Ordering::SeqCst), 3, "{out:#?}");
     let told = format!("{:?}", out.diagnostics);
     assert!(told.contains("could not settle"), "{told}");
     assert!(route(&out).contains("verify: not ready"), "{out:#?}");
+    retry_judgment(request, record, &provider).await;
+    assert_eq!(
+        provider.calls.load(Ordering::SeqCst),
+        3,
+        "no new author call"
+    );
 }
 
 /// The authoring provider behind an authority that grants exactly the semantic generation (the
@@ -187,7 +230,7 @@ async fn a_judge_the_call_ceiling_refuses_leaves_the_native_request_incomplete()
     let out = compile_with_provider(&request, &provider).await.unwrap();
     assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
     assert!(out.candidate.is_none(), "{out:#?}");
-    assert!(out.provenance.plan.is_none(), "{out:#?}");
+    let record = retained_unjudged(&out);
     assert_eq!(provider.0.calls.load(Ordering::SeqCst), 2, "{out:#?}");
     assert_eq!(judge_calls(&out), ["judge_request"]);
     let receipt = out.provenance.authoring.as_ref().unwrap();
@@ -203,6 +246,13 @@ async fn a_judge_the_call_ceiling_refuses_leaves_the_native_request_incomplete()
     );
     let told = format!("{:?}", out.diagnostics);
     assert!(told.contains("could not settle"), "{told}");
+    // The first round keeps its admission refusal; a separately available judge may retry.
+    retry_judgment(request, record, &provider).await;
+    assert_eq!(
+        provider.0.calls.load(Ordering::SeqCst),
+        2,
+        "no new author call"
+    );
 }
 
 const TICKETS: &str =

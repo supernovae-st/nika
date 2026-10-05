@@ -215,6 +215,7 @@ pub(super) fn cold(out: &mut CompileOutcome) -> Cold {
 
 /// What the cold round left when the native door opened: its report for the record, its
 /// questions and diagnostics, kept in case the door never judges a candidate.
+#[derive(Clone)]
 pub(super) struct Cold {
     pub(super) report: Value,
     pub(super) questions: Vec<CompileQuestion>,

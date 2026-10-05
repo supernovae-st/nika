@@ -443,8 +443,8 @@ async fn fill<P: ProviderInferDyn>(
     // The fill keeps the round after the sketch's last.
     let last_round = policy.repairs.map(|repairs| repairs.saturating_add(1));
     talk.last = None;
-    talk.messages
-        .push(Message::text(Role::User, holes_message(sketch)));
+    // Joined to a reopening's own user turn (a revision's judged defect), never a second one.
+    recover::say(talk, holes_message(sketch));
     let mut round = first_round;
     while within(last_round, round) {
         let role = if round == first_round {
@@ -878,6 +878,7 @@ async fn examine<P: ProviderInferDyn>(
                 (provider, decision),
                 request,
                 done,
+                0,
             );
             match verdict.await {
                 Ok(judged) => Step::Done(judged),
@@ -887,7 +888,7 @@ async fn examine<P: ProviderInferDyn>(
                     if verdict.defects.is_empty() {
                         Step::Done(super::verify::preserve_unjudged(judged, &verdict))
                     } else if !within(last, next) {
-                        Step::Withdrawn(super::verify::withdrawn(judged, &verdict), defects)
+                        Step::Withdrawn(super::verify::withdrawn(judged, &verdict, 0), defects)
                     } else {
                         Step::Reopen(judged, defects)
                     }

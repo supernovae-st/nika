@@ -39,6 +39,11 @@ struct Semantic {
     /// The admission layer's call ceiling, as `semantic_verification`'s `Scripted::ceiling`:
     /// every call from this index is refused locally, counted as attempted, never answered.
     refused_from: usize,
+    /// The whole-request verdicts to answer, in order (`faithful` once spent); a part is located
+    /// as `another_part`, the whole request.
+    verdicts: Mutex<Vec<&'static str>>,
+    /// The state of every whole-request question, as the judge read it.
+    states: Mutex<Vec<Value>>,
 }
 
 impl Semantic {
@@ -51,6 +56,14 @@ impl Semantic {
             asked: Mutex::new(Vec::new()),
             sent: Mutex::new(Vec::new()),
             refused_from: usize::MAX,
+            verdicts: Mutex::new(Vec::new()),
+            states: Mutex::new(Vec::new()),
+        }
+    }
+    fn judging(answers: Vec<Value>, verdicts: Vec<&'static str>, ceiling: usize) -> Self {
+        Self {
+            verdicts: Mutex::new(verdicts),
+            ..Self::ceiling(answers, ceiling)
         }
     }
     fn ceiling(answers: Vec<Value>, ceiling: usize) -> Self {
@@ -96,8 +109,29 @@ impl ProviderInferDyn for Semantic {
             });
         }
         let text = match props["choice"]["enum"].as_array() {
-            // A judge's closed choice: approve.
-            Some(keys) if keys.iter().any(|k| k == "faithful") => r#"{"choice":"faithful"}"#.into(),
+            // A judge's closed choice: the scripted verdict, else approve.
+            Some(keys) if keys.iter().any(|k| k == "faithful") => {
+                let said = (request.messages.last()).and_then(|m| match m.content.first() {
+                    Some(ContentBlock::Text { text }) => text.strip_prefix("STATE:\n"),
+                    _ => None,
+                });
+                let state = said.and_then(|s| s.split("\n\nOPTIONS:").next());
+                let state = state.and_then(|s| serde_json::from_str(s).ok());
+                self.states
+                    .lock()
+                    .unwrap()
+                    .push(state.unwrap_or(Value::Null));
+                let mut verdicts = self.verdicts.lock().unwrap();
+                let verdict = if verdicts.is_empty() {
+                    "faithful"
+                } else {
+                    verdicts.remove(0)
+                };
+                json!({"choice": verdict}).to_string()
+            }
+            Some(keys) if keys.iter().any(|k| k == "another_part") => {
+                r#"{"choice":"another_part"}"#.into()
+            }
             Some(keys) if keys.iter().any(|k| k == "carried") => r#"{"choice":"carried"}"#.into(),
             _ => self.answers.get(at).cloned().unwrap_or_default(),
         };
@@ -1043,6 +1077,152 @@ async fn invalid_links_that_stay_invalid_end_incomplete_with_no_fill() {
             let named =
                 (out.diagnostics.iter()).any(|d| d.target == "revision" && d.message.contains(law));
             assert!(named, "{case}: {law}: {out:#?}");
+        }
+    }
+}
+
+/// The fill of `fills("shipped")` with the kept rule's two filters in the other order: the same
+/// literals the laws admit, other bytes.
+fn reordered() -> Value {
+    let mut answer = fills("shipped");
+    answer["fills"][0]["value"] =
+        json!("fromjson | map(select(.status == \"shipped\")) | map(select(.total > 10))");
+    answer
+}
+
+/// The seat's answers of a revision whose first READY candidate the judge refuses: the links, a
+/// first fill, the judge's two questions (answered by the double), the refill, the judge again.
+fn refused_then(first: Value, refill: Value) -> Vec<Value> {
+    let judged = || [json!(null), json!(null)];
+    let mut answers = vec![revised(link(PAID, SHIPPED)), first];
+    answers.extend(judged());
+    answers.push(refill);
+    answers.extend(judged());
+    answers
+}
+
+/// A READY revision the judge refuses is filled again from the part it names, in the same talk
+/// with its graph kept and within the door's one round count: the repaired bytes are bound and
+/// judged afresh, never under the refused candidate's verdict or delta. Every judgment reads the
+/// request the revision resolves and the change as stated, never the superseded original words.
+#[tokio::test]
+async fn a_judged_defect_refills_the_revision_and_only_the_repaired_bytes_are_ready() {
+    let (_, bytes, record) = base().await;
+    let answers = refused_then(reordered(), fills("shipped"));
+    let seat = Semantic::judging(answers, vec!["unfaithful"], usize::MAX);
+    let out = compile_with_provider(&revise(&bytes, &record, 1), &seat)
+        .await
+        .unwrap();
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let base_doc: Value = serde_yaml_bw::from_str(&bytes).unwrap();
+    assert_eq!(doc(&out), expected(&base_doc), "the repaired fill is kept");
+    let calls = ["revision", "fill", "judge_request", "judge_locate"];
+    let want: Vec<&str> = calls.into_iter().chain(["fill", "judge_request"]).collect();
+    assert_eq!(roles(&out), want, "{out:#?}");
+    // The refill continues the talk: the judge's defect and the holes in one user turn.
+    let refill = seat.sent.lock().unwrap()[4].clone();
+    let turn = refill.as_array().unwrap().last().unwrap().to_string();
+    for needle in [
+        "does not carry",
+        "refused by the judge",
+        "Fill exactly these holes",
+    ] {
+        assert!(turn.contains(needle), "{needle}: {turn}");
+    }
+    // Each judgment read its own candidate's bytes and the revised request, the earlier request
+    // kept apart as history beside the change, and was told which one it judges.
+    let states = seat.states.lock().unwrap().clone();
+    let candidate = out.candidate.as_deref().unwrap();
+    assert_eq!(states.len(), 2, "{states:#?}");
+    assert_ne!(states[0]["candidate_nika"], candidate, "{states:#?}");
+    assert_eq!(states[1]["candidate_nika"], candidate, "{states:#?}");
+    for state in &states {
+        assert!(state["original_request"].is_null(), "{state:#}");
+        assert_eq!(state["revision"]["change"], CHANGE, "{state:#}");
+        assert_eq!(state["revision"]["base_request"], INTENT, "{state:#}");
+        let asked = state["request"].as_str().unwrap();
+        assert!(
+            asked.contains(SHIPPED) && !asked.contains(PAID),
+            "{state:#}"
+        );
+        assert!(
+            asked.contains(TOTAL),
+            "an unchanged clause is still asked: {state:#}"
+        );
+    }
+    let judged = seat.sent.lock().unwrap()[2].to_string();
+    assert!(judged.contains("REVISES an earlier workflow"), "{judged}");
+    // The record binds the repaired bytes; both verifications stay in the decision, numbered.
+    let next = out.provenance.plan.as_ref().expect("revised record");
+    let bound = nika_compile::surface::sha256(candidate);
+    assert_eq!(next["final"]["candidate_sha256"], bound, "{next:#}");
+    let decision = out.provenance.decision.as_ref().unwrap();
+    let attempts: Vec<(u64, usize)> = (decision["semantic_verification"].as_array().unwrap())
+        .iter()
+        .map(|a| {
+            (
+                a["attempt"].as_u64().unwrap(),
+                a["defects"].as_array().unwrap().len(),
+            )
+        })
+        .collect();
+    assert_eq!(attempts, [(0, 1), (1, 0)], "{decision:#}");
+    assert_eq!(decision["revision"]["superseded"][0]["evidence"], PAID);
+    let route = decision["route"].to_string();
+    assert!(route.contains("verify: repair 1"), "{route}");
+}
+
+/// A judged defect the refill does not settle ends the revision, never in a loop: the same part
+/// named again is no progress under no repair count, a refused refill call ends the talk, and a
+/// spent count withdraws the refused bytes. Nothing is READY, no candidate, record or delta of a
+/// refused candidate is kept (the host keeps its saved base), and the finding names the repairs
+/// actually made.
+#[tokio::test]
+async fn a_judged_defect_that_does_not_settle_ends_with_its_repairs_named() {
+    let (_, bytes, record) = base().await;
+    let unbounded = policy(1).with_unbounded_repairs();
+    let cases = [
+        (
+            "no progress",
+            Some(unbounded),
+            2,
+            usize::MAX,
+            7,
+            Some("1 repair(s)"),
+        ),
+        ("refused refill", None, 1, 4, 5, None),
+        (
+            "spent",
+            Some(policy(0)),
+            1,
+            usize::MAX,
+            4,
+            Some("0 repair(s)"),
+        ),
+    ];
+    for (case, under, refusals, ceiling, calls, repairs) in cases {
+        let answers = refused_then(fills("shipped"), reordered());
+        let seat = Semantic::judging(answers, vec!["unfaithful"; refusals], ceiling);
+        let mut request = revise(&bytes, &record, 1);
+        if let Some(policy) = under {
+            request = request.with_authoring_policy(policy);
+        }
+        let out = compile_with_provider(&request, &seat).await.unwrap();
+        assert_eq!(seat.calls(), calls, "{case}: {out:#?}");
+        assert_ne!(out.status, CompileStatus::Ready, "{case}: {out:#?}");
+        assert!(
+            out.candidate.is_none() && out.provenance.plan.is_none(),
+            "{case}: {out:#?}"
+        );
+        let decision = out.provenance.decision.as_ref().unwrap();
+        assert!(decision.get("revision").is_none(), "{case}: {decision:#}");
+        let route = decision["route"].to_string();
+        let stalled = route.contains("native: no progress");
+        assert_eq!(stalled, case == "no progress", "{case}: {route}");
+        if let Some(repairs) = repairs {
+            let named = (out.diagnostics.iter())
+                .any(|d| d.target == "semantic_verification" && d.message.contains(repairs));
+            assert!(named, "{case}: {repairs}: {out:#?}");
         }
     }
 }

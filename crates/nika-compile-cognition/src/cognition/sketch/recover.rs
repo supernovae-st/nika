@@ -216,7 +216,7 @@ fn kept(mut out: CompileOutcome, history: &[CompileDiagnostic]) -> CompileOutcom
 }
 
 /// One more user turn, joined to the last one when the talk already ends on the user's side.
-fn say(talk: &mut Talk, text: String) {
+pub(super) fn say(talk: &mut Talk, text: String) {
     match talk.messages.last_mut() {
         Some(last) if matches!(last.role, Role::User) => {
             last.content.push(ContentBlock::Text { text });
