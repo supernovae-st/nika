@@ -1423,3 +1423,46 @@ fn saving_a_new_proposal_clears_the_previous_run_status() {
         assert!(!dir.path().join("out/copy.md").exists());
     }
 }
+
+/// A deadline is not a USD allowance or a request for a smaller goal. Use the real reading,
+/// then preserve the compiler's measured limit, unchanged goal and consent-free recovery replay.
+#[test]
+fn an_authoring_timeout_keeps_its_limit_without_an_allowance_or_goal_rewrite() {
+    use nika_onboard::compile::{AuthoringReceipt, CompileRequest, DiagnosticKind, compile};
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    s.intent.goal = Some(COPY.to_owned());
+    let reason = "An authorized authoring call timed out after its 180s limit. No retry occurred.";
+    let mut out = compile(&CompileRequest::create(UNSETTLED)).expect("outcome");
+    out.candidate = None;
+    out.questions.clear();
+    let mut diagnostic = out.diagnostics.first().expect("unsettled finding").clone();
+    diagnostic.kind = DiagnosticKind::Unknown;
+    diagnostic.target = "authoring_provider".to_owned();
+    diagnostic.message = reason.to_owned();
+    out.diagnostics = vec![diagnostic];
+    let mut receipt = AuthoringReceipt::new("ollama/qwen3.5:4b");
+    receipt.calls = 1;
+    receipt.context =
+        vec![serde_json::json!({"call": "plan", "result": {"failure_kind": "timeout"}})];
+    out.provenance.authoring = Some(receipt);
+    let reading = crate::authoring::Reading::of(out);
+    assert!(matches!(
+        &reading,
+        crate::authoring::Reading::BudgetExhausted(_)
+    ));
+    let round = crate::authoring::AuthoringRound::new(COPY);
+    let TurnOutcome::Facts(card) = s.settle(round, reading) else {
+        panic!("a timeout returns the recovery facts");
+    };
+    assert!(card.contains("The authoring model did not answer within the call's time limit"));
+    assert!(card.contains(reason), "{card}");
+    assert!(card.contains("/intelligence"));
+    assert!(!card.contains("narrowing the request"));
+    assert!(!card.contains("authoring budget"));
+    assert_eq!(s.intent.goal.as_deref(), Some(COPY));
+    assert!(s.pending_proposal().is_none());
+    assert!(!dir.path().join(COPY_DEST).exists());
+    assert!(!dir.path().join("out/copy.md").exists());
+    assert!(matches!(s.turn("what happened?"), TurnOutcome::Facts(ref again) if again == &card));
+}

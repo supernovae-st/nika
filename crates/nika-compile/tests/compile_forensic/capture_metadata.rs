@@ -611,16 +611,35 @@ async fn no_response_zero_text_and_empty_text_are_three_different_answers() {
 
 #[tokio::test]
 async fn a_timeout_is_observed_as_no_response() {
-    let provider = Canned::new(vec![Answer::Hang]);
-    let (seen, sink) = recorder();
-    let request = sketch_request(Duration::from_millis(30));
-    observe_authoring(sink, Box::pin(compile_with_provider(&request, &provider)))
-        .await
-        .unwrap();
-    let seen = seen.lock().unwrap().clone();
-    assert_eq!(seen.len(), 1, "{seen:?}");
-    assert_eq!(seen[0].failure, Some(Failure::Timeout));
-    assert_eq!(seen[0].usage_reported, None);
+    for model in ["mock/authoring", "ollama/qwen3.5:4b"] {
+        let provider = Canned::new(vec![Answer::Hang]);
+        let (seen, sink) = recorder();
+        let mut request = sketch_request(Duration::from_millis(30));
+        request.authoring.as_mut().unwrap().model = model.to_owned();
+        let out = observe_authoring(sink, Box::pin(compile_with_provider(&request, &provider)))
+            .await
+            .unwrap();
+        let seen = seen.lock().unwrap().clone();
+        assert_eq!(seen.len(), 1, "{seen:?}");
+        assert_eq!(seen[0].failure, Some(Failure::Timeout));
+        assert_eq!(seen[0].usage_reported, None);
+        let receipt = out.provenance.authoring.as_ref().unwrap();
+        let last = receipt.context.last().unwrap();
+        assert_eq!(last["result"]["failure_kind"], "timeout");
+        assert_eq!(last["timeout_ms"], 30);
+        let reason = out
+            .diagnostics
+            .iter()
+            .find(|d| d.target == "authoring_provider")
+            .unwrap();
+        assert!(reason.message.contains("timed out after its 0.03s limit"));
+        assert!(reason.message.contains("No retry occurred"));
+        assert_eq!(
+            reason.message.contains("allocated context"),
+            model.starts_with("ollama/")
+        );
+        assert!(out.candidate.is_none());
+    }
 }
 
 #[tokio::test]

@@ -440,11 +440,19 @@ pub(super) async fn call_with_schema<P: ProviderInferDyn>(
             return None;
         }
         Err(_) => {
+            let local_hint = if policy.model.starts_with("ollama/") {
+                " Check the local model's allocated context before retrying; waiting longer does not prevent server-side input truncation."
+            } else {
+                ""
+            };
             crate::finding(
                 out,
                 DiagnosticKind::Unknown,
                 "authoring_provider",
-                "An authorized authoring call timed out. No retry occurred.",
+                format!(
+                    "An authorized authoring call timed out after its {}s limit. No retry occurred.{local_hint}",
+                    policy.timeout.as_secs_f64()
+                ),
             );
             return None;
         }

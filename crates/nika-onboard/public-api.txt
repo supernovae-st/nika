@@ -775,6 +775,7 @@ impl<T> typenum::type_operators::Same for nika_onboard::compile::reading::Readin
 pub type nika_onboard::compile::reading::Reading::Output = T
 pub const nika_onboard::compile::reading::CLARIFICATION_KEY: &str
 pub fn nika_onboard::compile::reading::asks_for_syntax(question: &nika_compile::types::CompileQuestion) -> bool
+pub fn nika_onboard::compile::reading::authoring_budget_headline(receipt: core::option::Option<&nika_compile::types::AuthoringReceipt>) -> &'static str
 pub fn nika_onboard::compile::reading::clarified(answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> core::option::Option<alloc::string::String>
 pub fn nika_onboard::compile::reading::clause_of(label: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_onboard::compile::reading::clauses_understood(out: &nika_compile::types::CompileOutcome) -> core::option::Option<usize>

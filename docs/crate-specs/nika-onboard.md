@@ -188,6 +188,15 @@ literal a human line is at one question's shape. It descended from
 `#[non_exhaustive]`: the session refuses a reading it does not know yet, never
 proposes it. Pure: nothing here calls, reads or decides for a host.
 
+`authoring_budget_headline` distinguishes a measured call deadline from a generic
+budget outcome. It names a time limit only when the last authoring call records
+`result.failure_kind = timeout`; missing evidence or any later result retains
+the budget headline, even if a diagnostic quotes an earlier timeout. Session
+keeps the compiler's actual reason beside this headline. The deadline diagnostic
+names its effective seconds; for Ollama it also suggests checking allocated
+context. This changes presentation only: no added retry, allowance, deadline or
+claim that the local server retained the complete input.
+
 What a host says of the compiler's own grammar lives here too (C10 · D-H):
 `human_reasons` keeps the reasons a human can act on (machine sentences
 dropped, duplicates folded, the fidelity grammar's closed forms said plainly, a

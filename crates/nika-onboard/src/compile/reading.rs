@@ -520,5 +520,16 @@ pub fn reasoning_words(call: &Value) -> Option<String> {
     ))
 }
 
+/// The budget headline: a deadline only when the last call records a timeout, otherwise generic.
+#[must_use]
+pub fn authoring_budget_headline(receipt: Option<&AuthoringReceipt>) -> &'static str {
+    match receipt.and_then(|a| a.context.last()) {
+        Some(call) if call["result"]["failure_kind"] == "timeout" => {
+            "The authoring model did not answer within the call's time limit"
+        }
+        _ => "I couldn't finish a workflow I trust within the authoring budget",
+    }
+}
+
 #[cfg(test)]
 mod tests;

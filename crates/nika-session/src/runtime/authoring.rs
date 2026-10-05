@@ -673,9 +673,7 @@ impl SessionRuntime {
                 // EDIT is never restated as a fresh request.
                 if asks_for_syntax(question) {
                     let clause = clause_of(&question.label);
-                    let carried = clause
-                        .as_deref()
-                        .is_some_and(|c| round.intent.contains(c));
+                    let carried = clause.as_deref().is_some_and(|c| round.intent.contains(c));
                     if round.restatements > 0 || !carried || round.edit.is_some() {
                         self.intent.unresolved.clear();
                         let text = syntax_incomplete(clause.as_deref());
@@ -717,10 +715,12 @@ impl SessionRuntime {
             // A turn the session could not finish: the recovery card (what
             // is kept · what did not happen · the ways on), never a bare
             // « failed ». The round is not kept: the human says it again.
-            Reading::BudgetExhausted(_) => self.recovery(
+            Reading::BudgetExhausted(out) => self.recovery(
                 None,
-                "I couldn't finish a workflow I trust within the authoring budget",
-                "the budget ran out before a candidate I could stand behind; narrowing the request helps",
+                nika_onboard::compile::reading::authoring_budget_headline(
+                    out.provenance.authoring.as_ref(),
+                ),
+                &reasons(&out).join(" · "),
             ),
             Reading::ProviderFailed(out) => self.recovery(
                 Some(RefusalClass::IntelligenceRefused),

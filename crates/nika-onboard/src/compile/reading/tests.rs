@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::compile::{CompileRequest, compile};
+use serde_json::json;
 
 fn read(intent: &str) -> Reading {
     Reading::of(compile(&CompileRequest::create(intent)).expect("compiles"))
@@ -390,4 +391,101 @@ fn a_receipt_with_no_call_says_nothing_was_sent() {
         receipt_words(&receipt, "run"),
         "\n  authoring backend: deepseek/deepseek-v4-pro · 0 calls · 3 ms\n  nothing was sent to: deepseek · host api.deepseek.com\n  cost: the compiler meters tokens, not money · run"
     );
+}
+
+const TIME_HEAD: &str = "The authoring model did not answer within the call's time limit";
+
+fn outcome(target: &str, message: &str, context: Vec<Value>) -> CompileOutcome {
+    let mut out = compile(&CompileRequest::create(
+        "Read ./a.md and do something clever with it, then write ./b.md",
+    ))
+    .expect("outcome");
+    out.status = CompileStatus::Incomplete;
+    out.candidate = None;
+    out.questions.clear();
+    let mut diagnostic = out.diagnostics.first().expect("unsettled finding").clone();
+    diagnostic.kind = DiagnosticKind::Unknown;
+    diagnostic.target = target.to_owned();
+    diagnostic.message = message.to_owned();
+    out.diagnostics = vec![diagnostic];
+    let mut receipt = AuthoringReceipt::new("ollama/qwen3.5:4b".to_owned());
+    receipt.calls = u32::try_from(context.len()).expect("small fixture");
+    receipt.context = context;
+    out.provenance.authoring = Some(receipt);
+    out
+}
+
+fn call(result: &Value) -> Value {
+    json!({"call": "plan", "result": result})
+}
+
+/// The legacy reader recognizes provider prose, which can quote a past timeout during a
+/// present monetary/admission refusal. That phrase alone must not assert a current deadline.
+#[test]
+fn timeout_words_without_a_last_timeout_record_keep_the_budget_headline() {
+    let reason = "the previous call timed out; this request was refused before any byte left";
+    for context in [
+        vec![],
+        vec![call(&json!({"failure_kind": "admission_refused"}))],
+        vec![call(&json!({"failure_kind": "provider_error"}))],
+        vec![call(&json!({"stop_reason": "MaxTokens"}))],
+        vec![
+            call(&json!({"failure_kind": "timeout"})),
+            call(&json!({"failure_kind": "admission_refused"})),
+        ],
+        vec![
+            call(&json!({"failure_kind": "timeout"})),
+            json!({"call": "repair"}),
+        ],
+    ] {
+        let reading = Reading::of(outcome("authoring_provider", reason, context));
+        assert!(matches!(&reading, Reading::BudgetExhausted(_)));
+        assert_eq!(
+            authoring_budget_headline(reading.outcome().provenance.authoring.as_ref()),
+            "I couldn't finish a workflow I trust within the authoring budget"
+        );
+        assert_eq!(reasons(reading.outcome()), [reason]);
+    }
+    let mut absent = outcome("authoring_provider", reason, vec![]);
+    absent.provenance.authoring = None;
+    assert!(!authoring_budget_headline(absent.provenance.authoring.as_ref()).contains(TIME_HEAD));
+}
+
+/// Ordinary output, request, money and repair limits do not enter the timeout branch.
+/// These are their existing structured fates; no limit, retry or classifier is changed.
+#[test]
+fn non_time_authoring_limits_are_not_relabelled_as_deadlines() {
+    for (target, reason, result) in [
+        (
+            "authoring_provider",
+            "The seat stopped at its output cap before the plan was complete",
+            json!({"stop_reason": "MaxTokens"}),
+        ),
+        (
+            "authoring_provider",
+            "the authoring authority is spent (1 of 1 sent): this request was refused before any byte left; authorize more with --authoring-max-calls",
+            json!({"failure_kind": "admission_refused"}),
+        ),
+        (
+            "authoring_provider",
+            "the authorized monetary allowance cannot cover this request",
+            json!({"failure_kind": "admission_refused"}),
+        ),
+        (
+            "authoring_plan",
+            "No candidate settled within the permitted repair rounds",
+            json!({"stop_reason": "EndTurn"}),
+        ),
+    ] {
+        let reading = Reading::of(outcome(target, reason, vec![call(&result)]));
+        assert!(
+            !matches!(&reading, Reading::BudgetExhausted(_)),
+            "{reading:?}"
+        );
+        assert!(
+            !authoring_budget_headline(reading.outcome().provenance.authoring.as_ref())
+                .contains(TIME_HEAD)
+        );
+        assert_eq!(reasons(reading.outcome()), [reason]);
+    }
 }
