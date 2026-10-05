@@ -1192,7 +1192,8 @@ fn a_finished_run_reads_as_a_result_and_proof_reads_its_trace() {
         "{proof}"
     );
     assert!(
-        s.status_line().starts_with("Done · the run succeeded"),
+        s.status_line()
+            .starts_with("Last Run · Done · the run succeeded"),
         "{}",
         s.status_line()
     );

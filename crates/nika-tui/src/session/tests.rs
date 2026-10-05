@@ -1093,3 +1093,5 @@ fn a_turn_stop_cancels_its_preparation_and_never_a_run() {
     assert_eq!(fresh(), Stopping::Requested);
     assert!(!room.0.join("reply.json").exists(), "nothing ran");
 }
+
+mod last_turn;

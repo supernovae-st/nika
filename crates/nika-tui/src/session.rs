@@ -402,6 +402,7 @@ impl Live {
     fn map(&mut self, outcome: TurnOutcome) -> (Vec<Beat>, Option<Handoff>) {
         let mut beats = Vec::new();
         let mut handoff = None;
+        let reply = footer::reply_label(&outcome);
         match outcome {
             TurnOutcome::Quit => return (vec![Beat::Quit], None),
             TurnOutcome::Reply(text)
@@ -484,7 +485,7 @@ impl Live {
             _ => {}
         }
         if handoff.is_none() {
-            beats.extend(self.footer());
+            beats.extend(self.reply_footer(reply));
             beats.push(Beat::Wait(self.waiting()));
         }
         (beats, handoff)
@@ -1255,6 +1256,7 @@ fn seat(runtime: &SessionRuntime) -> Option<String> {
 pub mod acquire;
 mod candidate;
 pub mod feed;
+mod footer;
 pub(crate) mod legs;
 mod look;
 

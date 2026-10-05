@@ -863,7 +863,7 @@ fn a_declined_run_is_typed_not_run_and_130_is_an_interruption() {
     let _ = s.observe_run(130, None);
     assert!(
         s.status_line()
-            .starts_with("Stopped · the run was interrupted"),
+            .starts_with("Last Run · Stopped · the run was interrupted"),
         "{}",
         s.status_line()
     );

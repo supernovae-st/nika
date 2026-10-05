@@ -13,7 +13,7 @@ pub fn proposal<P: AsRef<Path>>(paths: impl Iterator<Item = P>) -> String {
         files.join(" · ")
     )
 }
-/// The last run's exit, without inventing one when the host has none.
+/// The last run's exit, explicitly scoped so a later preparation cannot inherit its verdict.
 #[must_use]
 pub fn run(exit: u8, workflow: Option<&Path>) -> String {
     let word = match exit {
@@ -26,8 +26,8 @@ pub fn run(exit: u8, workflow: Option<&Path>) -> String {
         _ => "Done · an unknown code",
     };
     workflow.map_or_else(
-        || word.to_owned(),
-        |w| format!("{word} · `{}`", w.display()),
+        || format!("Last Run · {word}"),
+        |w| format!("Last Run · {word} · `{}`", w.display()),
     )
 }
 
