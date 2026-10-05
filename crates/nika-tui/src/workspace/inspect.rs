@@ -30,7 +30,6 @@ use nika_tui_view::{Canvas, Face, Finding, Verdict, Workflow};
 use ratatui::text::{Line, Span};
 
 use super::text::{fit_head, marks};
-use crate::visual::icon::Icon;
 use crate::visual::role;
 
 /// What every audited look says it left out.
@@ -322,10 +321,31 @@ pub(crate) fn title_row(
             }
         })
         .collect();
-    let glyph = Icon::Workflow.glyph(ascii);
-    let head = format!("{glyph} {name}{sep}{}", tabs.join(" "));
-    Line::from(Span::styled(
-        fit_head(&head, usize::from(width), cut),
-        role::style(Role::Strong, color),
-    ))
+    let tab_width: usize = tabs.iter().map(String::len).sum::<usize>() + tabs.len() - 1;
+    if usize::from(width) < tab_width {
+        return Line::styled(
+            fit_head(&format!("[{}]", face.label()), usize::from(width), cut),
+            role::style(Role::Accent, color),
+        );
+    }
+    let room = usize::from(width).saturating_sub(tab_width + sep.chars().count());
+    let mut spans = Vec::new();
+    for (index, (tab, item)) in tabs.into_iter().zip(Face::ALL).enumerate() {
+        if index > 0 {
+            spans.push(Span::raw(" "));
+        }
+        let style = if item == face {
+            role::style(Role::Accent, color).patch(role::style(Role::Strong, color))
+        } else {
+            role::style(Role::Dim, color)
+        };
+        spans.push(Span::styled(tab, style));
+    }
+    if room > 0 {
+        spans.push(Span::styled(
+            format!("{sep}{}", fit_head(name, room, cut)),
+            role::style(Role::Dim, color),
+        ));
+    }
+    Line::from(spans)
 }

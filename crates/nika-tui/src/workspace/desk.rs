@@ -69,9 +69,9 @@ pub(crate) enum Route {
     Compose,
     /// Leave the workspace for inline, the draft intact.
     Leave,
-    /// Scroll the conversation's transcript one block back.
+    /// Scroll the conversation's transcript one page back.
     Older,
-    /// Scroll the conversation's transcript one block forward.
+    /// Scroll the conversation's transcript one page forward.
     Newer,
     /// The focus, a selection, a scroll or the object in view changed.
     Repaint,
@@ -230,7 +230,7 @@ impl Desk {
     }
 
     /// Whether a run is pinned: the leg the shell observes, else the view's.
-    fn pins(&self) -> bool {
+    pub(crate) fn pins(&self) -> bool {
         self.live.is_some() || self.view.as_ref().is_some_and(|v| v.pinned.is_some())
     }
 
@@ -459,9 +459,9 @@ impl Desk {
         }
         let showing = self.opened == Some(Target::Candidate);
         let left = self.candidate.take();
-        if next.is_some() {
+        if let Some(candidate) = &next {
             if !showing {
-                self.face = Face::Source;
+                self.face = candidate.initial_face();
             }
             self.opened = Some(Target::Candidate);
             self.look = None;
@@ -811,17 +811,20 @@ mod tests {
     #[test]
     fn esc_climbs_the_ladder_one_region_at_a_time() {
         let mut desk = demo();
-        assert_eq!(desk.route(key(KeyCode::F(6)), WIDE), Route::Repaint);
+        assert_eq!(
+            desk.route(KeyEvent::new(KeyCode::F(6), KeyModifiers::SHIFT), WIDE),
+            Route::Repaint
+        );
         assert_eq!(desk.focus.region, Region::Aside);
         assert_eq!(desk.route(key(KeyCode::Char('x')), WIDE), Route::Nothing);
         assert_eq!(desk.route(key(KeyCode::Esc), WIDE), Route::Repaint);
         assert_eq!(desk.focus.region, Region::Conversation);
         assert_eq!(desk.route(key(KeyCode::Esc), WIDE), Route::Leave);
-        // At 80 columns the aside is folded, yet reachable: F6 reaches it
+        // At 80 columns the aside is folded, yet reachable: Shift+F6 reaches it
         // (drawn over the object), then the object.
-        desk.route(key(KeyCode::F(6)), SMALL);
+        desk.route(KeyEvent::new(KeyCode::F(6), KeyModifiers::SHIFT), SMALL);
         assert_eq!(desk.focus.region, Region::Aside);
-        desk.route(key(KeyCode::F(6)), SMALL);
+        desk.route(KeyEvent::new(KeyCode::F(6), KeyModifiers::SHIFT), SMALL);
         assert_eq!(desk.focus.region, Region::Object);
         assert_eq!(desk.route(key(KeyCode::PageUp), SMALL), Route::Nothing);
     }
@@ -832,7 +835,7 @@ mod tests {
     fn the_aside_opens_a_workflow_without_attaching_it() {
         let mut desk = demo();
         assert!(desk.welcoming());
-        desk.route(key(KeyCode::F(6)), WIDE);
+        desk.route(KeyEvent::new(KeyCode::F(6), KeyModifiers::SHIFT), WIDE);
         desk.route(key(KeyCode::Down), WIDE);
         desk.route(key(KeyCode::Down), WIDE);
         assert_eq!(
@@ -876,7 +879,7 @@ mod tests {
             "waiting",
         );
         desk.view = desk.view.take().map(|view| view.pinning(run));
-        desk.route(key(KeyCode::F(6)), WIDE);
+        desk.route(KeyEvent::new(KeyCode::F(6), KeyModifiers::SHIFT), WIDE);
         desk.route(key(KeyCode::End), WIDE);
         assert_eq!(desk.route(key(KeyCode::Enter), WIDE), Route::Repaint);
         assert_eq!(desk.opened, Some(Target::Run("#1".to_owned())));
@@ -901,7 +904,7 @@ mod tests {
     #[test]
     fn the_files_projection_opens_nothing() {
         let mut desk = demo();
-        desk.route(key(KeyCode::F(6)), WIDE);
+        desk.route(KeyEvent::new(KeyCode::F(6), KeyModifiers::SHIFT), WIDE);
         assert_eq!(desk.route(key(KeyCode::Right), WIDE), Route::Repaint);
         assert_eq!(desk.focus.tab, Tab::Files);
         assert!(desk.screen(false).aside.entries.is_empty());
@@ -914,7 +917,7 @@ mod tests {
     #[test]
     fn below_the_minimum_the_focus_view_keys_apply_and_the_focus_is_kept() {
         let mut desk = demo();
-        desk.route(key(KeyCode::F(6)), WIDE);
+        desk.route(KeyEvent::new(KeyCode::F(6), KeyModifiers::SHIFT), WIDE);
         assert_eq!(desk.focus.region, Region::Aside);
         assert_eq!(desk.extent(TINY), None);
         assert_eq!(desk.route(key(KeyCode::F(6)), TINY), Route::Compose);
@@ -1002,7 +1005,7 @@ mod tests {
     #[test]
     fn opening_another_workflow_drops_the_previous_look() {
         let mut desk = demo();
-        desk.route(key(KeyCode::F(6)), WIDE);
+        desk.route(KeyEvent::new(KeyCode::F(6), KeyModifiers::SHIFT), WIDE);
         desk.route(key(KeyCode::Down), WIDE);
         assert_eq!(desk.route(key(KeyCode::Enter), WIDE), Route::Inspect);
         desk.took("release.nika", Some(refused("release.nika", "abc")));
@@ -1065,13 +1068,13 @@ mod tests {
     #[test]
     fn opening_from_a_folded_aside_shows_the_object() {
         let mut desk = demo();
-        desk.route(key(KeyCode::F(6)), SMALL);
+        desk.route(KeyEvent::new(KeyCode::F(6), KeyModifiers::SHIFT), SMALL);
         assert_eq!(desk.focus.region, Region::Aside);
         desk.route(key(KeyCode::Down), SMALL);
         assert_eq!(desk.route(key(KeyCode::Enter), SMALL), Route::Inspect);
         assert_eq!(desk.focus.region, Region::Object);
         let mut wide = demo();
-        wide.route(key(KeyCode::F(6)), WIDE);
+        wide.route(KeyEvent::new(KeyCode::F(6), KeyModifiers::SHIFT), WIDE);
         wide.route(key(KeyCode::Down), WIDE);
         wide.route(key(KeyCode::Enter), WIDE);
         assert_eq!(

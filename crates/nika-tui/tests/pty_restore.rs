@@ -307,7 +307,7 @@ fn a_pasted_yes_is_data_and_the_focus_switch_keeps_the_draft() {
     expect_or_dump(
         &mut session,
         &tee,
-        "workspace · F6 moves the keys",
+        "workspace · F6 panel",
         "the workspace status line",
     );
     session.send("\x1b").expect("Esc · back inline");

@@ -10,10 +10,9 @@
 //! - `nika_session::review::plan_lines_in_order(source, waves)` and
 //!   `gate_tasks(source)` read the source with the engine's own parser:
 //!   pure, offline, one parse per call (the caller keeps the result);
-//! - `nika_display::dag_art::wire_graph` and `nika_display::wires::render`
-//!   draw a caller-supplied graph projection (`dag_art::project` output)
-//!   over the check's waves: pure, offline, at most 78 columns; when a
-//!   drawing would lie, the waves are listed instead;
+//! - `crate::graph_cards` draws the supplied graph projection over the
+//!   check's waves. The existing wire renderer validates simple connectors;
+//!   other shapes retain cards with their exact named dependencies;
 //! - the check face shows the layers the check computed
 //!   (`nika_display::check_render::VerdictLayers` and its own
 //!   `run_ready`), or VALID alone for a proposal judged on its source, and
@@ -23,14 +22,14 @@
 //!   the environment for ACCESS READY, never their values, never the
 //!   network.
 //!
-//! The verb hues are syntax in the source face. The plan and the graph are
-//! static, so their verb glyphs keep the surrounding ink: a hue there would
-//! read as activity nobody observed.
+//! Verb hues identify syntax in Source and task types on graph cards.
+//! Static cards show a definition, never an invented execution status;
+//! observed status is a separate row supplied by the live owner.
 
 use std::collections::BTreeMap;
 
 use nika_display::check_render::VerdictLayers;
-use nika_display::dag_art::{GraphDoc, wire_graph};
+use nika_display::dag_art::GraphDoc;
 use nika_display::theme::{Role, Theme};
 use ratatui::text::Span;
 
@@ -300,81 +299,8 @@ fn plan(sheet: &mut Sheet, input: &Workflow<'_>) {
     sheet.facts.push(order.to_owned());
 }
 
-/// Whether `c` may belong to a task id.
-fn id_char(c: char) -> bool {
-    c.is_ascii_alphanumeric() || matches!(c, '_' | '-')
-}
-
-/// The id-shaped word starting at byte `from` of `line`.
-fn word_at(line: &str, from: usize) -> &str {
-    let rest = &line[from..];
-    &rest[..rest.find(|c: char| !id_char(c)).unwrap_or(rest.len())]
-}
-
-/// One line of a drawing restyled: a node (its glyph and its id) and a
-/// known id in the default ink, the rails and the words around them dim.
-fn restyle(line: &str, ids: &BTreeMap<&str, &str>, canvas: Canvas) -> Vec<Span<'static>> {
-    let theme = Theme::new(false, canvas.ascii, false);
-    let mut out = Vec::new();
-    let mut chrome = String::new();
-    let mut at = 0;
-    let flush = |chrome: &mut String, out: &mut Vec<Span<'static>>| {
-        if !chrome.is_empty() {
-            out.push(paint(std::mem::take(chrome), Role::Dim, canvas.color));
-        }
-    };
-    while let Some(c) = line[at..].chars().next() {
-        let after = at + c.len_utf8();
-        if line[after..].starts_with(' ') {
-            let word = word_at(line, after + 1);
-            let glyph = |verb: &&str| theme.verb_glyph_bare(Some(*verb)).starts_with(c);
-            if !word.is_empty() && ids.get(word).is_some_and(glyph) {
-                flush(&mut chrome, &mut out);
-                out.push(plain(format!("{c} {word}")));
-                at = after + 1 + word.len();
-                continue;
-            }
-        }
-        let starts_word = line[..at].chars().next_back().is_none_or(|b| !id_char(b));
-        let word = word_at(line, at);
-        if starts_word && !word.is_empty() && ids.contains_key(word) {
-            flush(&mut chrome, &mut out);
-            out.push(plain(word.to_owned()));
-            at += word.len();
-            continue;
-        }
-        chrome.push(c);
-        at = after;
-    }
-    flush(&mut chrome, &mut out);
-    out
-}
-
-/// The waves listed, one row each, when a drawing would lie.
-fn listing(doc: &GraphDoc, waves: &[Vec<usize>], canvas: Canvas) -> Vec<String> {
-    let theme = Theme::new(false, canvas.ascii, false);
-    let dot = cells::sep(canvas.ascii);
-    let mut cursor = 0;
-    waves
-        .iter()
-        .enumerate()
-        .map(|(i, wave)| {
-            let nodes = doc
-                .nodes
-                .get(cursor..cursor + wave.len())
-                .unwrap_or_default();
-            cursor += wave.len();
-            let names: Vec<String> = nodes
-                .iter()
-                .map(|n| format!("{} {}", theme.verb_glyph_bare(Some(n.verb)), n.id))
-                .collect();
-            format!("  wave {}{dot}{}", i + 1, names.join(dot))
-        })
-        .collect()
-}
-
-/// The graph face: the engine's drawing of the caller's projection,
-/// restyled, or the waves listed, or why there is neither.
+/// The graph face: shared cards over the caller's checked projection,
+/// or the reason no graph is available.
 fn graph(sheet: &mut Sheet, input: &Workflow<'_>) {
     let canvas = sheet.body.canvas();
     let quiet = |sheet: &mut Sheet, why: &str, role: Role| {
@@ -390,47 +316,13 @@ fn graph(sheet: &mut Sheet, input: &Workflow<'_>) {
         quiet(sheet, why, Role::Dim);
         return;
     };
-    if waves.is_empty() {
-        quiet(
-            sheet,
-            "no graph: the check found no valid run order",
-            Role::Warn,
-        );
-        return;
-    }
-    if waves.iter().map(Vec::len).sum::<usize>() > doc.nodes.len() {
-        quiet(
-            sheet,
-            "no graph: the projection and the waves disagree",
-            Role::Warn,
-        );
-        return;
-    }
-    let theme = Theme::new(false, canvas.ascii, false);
-    let drawn = nika_display::wires::render(&wire_graph(doc, waves), theme);
-    let lines: Vec<String> = match &drawn {
-        Some(art) => art.lines().map(str::to_owned).collect(),
-        None => listing(doc, waves, canvas),
-    };
-    let ids: BTreeMap<&str, &str> = doc.nodes.iter().map(|n| (n.id.as_str(), n.verb)).collect();
-    let limit = canvas.limits.line_bytes;
-    for line in &lines {
-        let cut = line.len() > limit;
-        let line = &line[..cells::floor_boundary(line, limit)];
-        if !sheet.body.push(restyle(line, &ids, canvas), cut) {
+    let rendered = crate::graph_cards(doc, waves, canvas, &|_| None);
+    sheet.facts.extend(rendered.facts);
+    sheet.notes.extend(rendered.notes);
+    for line in rendered.lines {
+        if !sheet.body.push(line.spans, false) {
             break;
         }
-    }
-    let counted = [
-        cells::count(doc.nodes.len(), "task"),
-        cells::count(doc.edges.len(), "edge"),
-        cells::count(waves.len(), "wave"),
-    ];
-    sheet.facts.push(counted.join(cells::sep(canvas.ascii)));
-    if drawn.is_none() {
-        sheet
-            .facts
-            .push("listed by wave: a drawing here would cross, skip or crowd its wires".to_owned());
     }
 }
 

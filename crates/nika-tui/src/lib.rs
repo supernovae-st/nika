@@ -55,6 +55,7 @@ pub mod composer;
 pub mod events;
 pub mod model;
 pub mod render;
+mod scroll;
 pub mod session;
 pub mod terminal;
 pub mod visual;

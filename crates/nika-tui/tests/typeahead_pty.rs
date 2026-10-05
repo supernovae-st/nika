@@ -29,6 +29,8 @@ use expectrl::session::{OsSession, Session};
 use expectrl::stream::log::LogStream;
 use expectrl::{Eof, Expect};
 
+mod qa_support;
+
 type LoggedSession = Session<UnixProcess, LogStream<PtyStream, Tee>>;
 
 /// A log sink that keeps every byte the process wrote, for the dumps.
@@ -231,45 +233,39 @@ fn yes_typed_while_a_run_reaches_its_gate_never_answers_it() {
 /// presses `Enter` once the question is on screen.
 #[test]
 fn words_typed_while_nika_works_show_at_once_and_enter_waits() {
-    let (mut session, tee) = spawn();
-    session.send("digest my notes\r").expect("an intent");
-    std::thread::sleep(Duration::from_millis(150));
-    session
-        .send("\x1b[200~livedraft\x1b[201~")
-        .expect("a paste while Nika works");
-    expect_or_dump(
-        &mut session,
-        &tee,
-        "livedraft",
-        "the draft shows while the turn runs",
+    // Read the composed terminal screen: a diff may keep the middle letters
+    // of "sends" from the previous hint and write only its changed cells.
+    use qa_support::{APPLY, FREE, PROPOSAL, REPLY, Term, assert_restored, exit_code};
+    let mut term = Term::proto_with(&["--demo-pace", PACE_MS], 80, 24, &[("NO_COLOR", "1")]);
+    term.wait_prompt(FREE);
+    term.send("digest my notes\r");
+    term.wait_text("the demo holds this turn");
+    term.send("\x1b[200~livedraft\x1b[201~");
+    term.wait_text("livedraft");
+    term.send("\r");
+    term.wait_text("Nika is working · Enter sends when it is your turn");
+    term.wait_prompt(REPLY);
+    term.wait_text(NOTICE);
+    term.wait_text("an empty line takes the default");
+    assert!(
+        term.screen.contains("livedraft"),
+        "the draft remains in the composer\n{}",
+        term.dump()
     );
-    session.send("\r").expect("Enter while Nika works");
-    expect_or_dump(
-        &mut session,
-        &tee,
-        "sends",
-        "the hint row says Enter sends when it is the human turn",
+    term.settle(WATCH);
+    assert!(
+        !term.screen.seen(PROPOSAL),
+        "Enter during work must not answer the question\n{}",
+        term.dump()
     );
-    expect_or_dump(&mut session, &tee, NOTICE, "the turn ended on the question");
-    expect_or_dump(&mut session, &tee, "reply", "the question's prompt");
-    // The busy hint left with the turn: the question's own hint is back. Its
-    // « default » shares a cell with the free hint before it, which the
-    // renderer never writes again: the needle is a word that one never held.
-    expect_or_dump(&mut session, &tee, "an empty", "the question's hint row");
-    never(
-        &mut session,
-        &tee,
-        "/show",
-        "an Enter pressed while Nika worked answered the question",
-    );
-    session.send("\r").expect("the human's own Enter");
-    expect_or_dump(
-        &mut session,
-        &tee,
-        "/show",
-        "the draft, sent by the human, answered the question",
-    );
-    leave(&mut session);
+    term.send("\r");
+    term.wait_prompt(APPLY);
+    term.wait_text(PROPOSAL);
+    term.send("\x03");
+    term.wait_text("Ctrl+C again leaves");
+    term.send("\x03");
+    assert_eq!(exit_code(term.finish()), Some(130));
+    assert_restored(&term);
 }
 
 /// In the focus view the page keys scroll the transcript while Nika works,

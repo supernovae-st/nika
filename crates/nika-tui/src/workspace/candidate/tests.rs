@@ -132,3 +132,28 @@ fn changes_whose_bytes_are_not_shown_are_counted() {
     );
     assert_ne!(candidate, fold("preview A", false, None));
 }
+
+#[test]
+fn the_first_preview_uses_only_an_observed_graph_and_keeps_the_faces_visible() {
+    let candidate = fold("audited preview", false, None);
+    assert_eq!(candidate.initial_face(), Face::Graph);
+    for face in Face::ALL {
+        let (title, _) = candidate.face_lines(face, 37, false, true);
+        let text = title.to_string();
+        for tab in Face::ALL {
+            assert!(text.contains(tab.label()), "{text}");
+        }
+        assert!(text.contains(&format!("[{}]", face.label())), "{text}");
+        assert!(title.width() <= 37);
+    }
+    for width in [0, 1, 8, 20] {
+        let (title, _) = candidate.face_lines(Face::Graph, width, true, false);
+        assert!(title.width() <= usize::from(width));
+    }
+    let unseen = Proposed::new(
+        ProposalId::of("not audited"),
+        false,
+        Inspected::unjudged("draft.nika", "witness".to_owned(), "nika: draft".to_owned()),
+    );
+    assert_eq!(unseen.initial_face(), Face::Source);
+}

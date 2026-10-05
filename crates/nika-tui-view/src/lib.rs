@@ -20,7 +20,7 @@
 //! - the workflow in view ([`workflow()`] with a [`Face`]): its source with
 //!   verb-aware highlighting, its plan in run order
 //!   (`nika_session::review::plan_lines_in_order`), its graph
-//!   (`nika_display::dag_art::ascii_art`, escape-free, restyled here) and
+//!   (shared [`graph_cards`], over the supplied canonical projection) and
 //!   its check, the layers and every finding with its code, from typed
 //!   facts their owner computed and handed over as a [`Workflow`] (the
 //!   view never audits, judges or reads a permit);
@@ -45,6 +45,7 @@ mod cells;
 mod classify;
 mod data;
 mod diff;
+mod graph_cards;
 mod json;
 mod markdown;
 mod mask;
@@ -65,6 +66,7 @@ mod faces_tests;
 mod protected_tests;
 
 pub use classify::{Format, classify, for_builtin};
+pub use graph_cards::graph_cards;
 pub use workflow::{Face, Finding, Verdict, Workflow, workflow};
 
 /// Whether the object is where its record says, as the caller observed it.

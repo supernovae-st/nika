@@ -18,7 +18,7 @@
 //! are not a file and are never read again from disk. Nothing here reads a
 //! file or a clock, and drawing calls nothing here: the shell renders a face
 //! before the frame. Opening the candidate grants nothing: the `yes` typed
-//! under `apply? ›` is the only consent, and it answers this identity or none.
+//! under `Save? ›` is the only consent, and it answers this identity or none.
 
 use nika_display::theme::Role;
 use nika_session::ProposalId;
@@ -126,6 +126,15 @@ impl Proposed {
     /// The look of its pending bytes (kept when the next fold has the same).
     pub(crate) fn look(&self) -> &Inspected {
         &self.look
+    }
+
+    /// First preview: the observed graph when available, otherwise the exact source.
+    pub(crate) fn initial_face(&self) -> Face {
+        if self.look.graph().is_some() {
+            Face::Graph
+        } else {
+            Face::Source
+        }
     }
 
     /// How the aside and the conversation panel name it.

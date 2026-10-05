@@ -30,7 +30,7 @@ use nika_display::run_story::{
     ChildRun, Event, EventKind, Evidence, ExecutionId, RunFrame, RunState, Settled, started_on,
 };
 use nika_display::state::{RunView, TaskRow, TaskState};
-use nika_display::theme::{Role, Theme};
+use nika_display::theme::Role;
 use ratatui::text::{Line, Span};
 
 use super::inspect::Inspected;
@@ -608,27 +608,29 @@ impl LiveRun {
         let Some((doc, waves)) = self.look.as_ref().and_then(Inspected::graph) else {
             return Vec::new();
         };
-        let theme = Theme::new(false, ascii, false);
-        let chip = |id: &str, _verb: &str| {
-            let (glyph, _) = state::cell(self.task(id).unwrap_or(TaskState::Pending), ascii);
-            (format!("{glyph:<2}"), id.to_owned())
+        let observed = |id: &str| {
+            let row = self.row(id)?;
+            let (glyph, tone) = state::cell(row.state, ascii);
+            let words = match row.state {
+                TaskState::Pending => "scheduled",
+                TaskState::Running => "running",
+                TaskState::Ok if row.cached => "cache hit (resume)",
+                TaskState::Ok if row.recovered => "succeeded after recovery",
+                TaskState::Ok => "succeeded",
+                TaskState::Failed => "failed",
+                TaskState::Retrying => "retrying",
+                TaskState::Skipped => "skipped",
+                TaskState::Cancelled => "cancelled",
+                TaskState::Paused => "paused",
+            };
+            Some((format!("{glyph} {words}"), tone))
         };
-        let wires = nika_display::dag_art::wire_graph(doc, waves);
-        let Some(art) = nika_display::wires::render_with(&wires, theme, &chip, None) else {
-            return vec![Line::from(Span::styled(
-                "the graph does not draw truthfully at this shape: the tasks are listed below",
-                role::style(Role::Dim, color),
-            ))];
-        };
-        let (_, cut) = marks(ascii);
-        art.lines()
-            .map(|l| {
-                Line::from(Span::styled(
-                    fit_head(l, cells, cut),
-                    role::style(Role::Strong, color),
-                ))
-            })
-            .collect()
+        let width = u16::try_from(cells).unwrap_or(u16::MAX);
+        let canvas = nika_tui_view::Canvas::new(width, ascii, color);
+        let rendered = nika_tui_view::graph_cards(doc, waves, canvas, &observed);
+        let mut lines = rendered.head(canvas);
+        lines.extend(rendered.lines);
+        lines
     }
 }
 

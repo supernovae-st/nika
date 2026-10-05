@@ -210,24 +210,23 @@ fn the_plan_reads_in_run_order_by_wave_with_its_gate() {
 }
 
 #[test]
-fn a_static_plan_and_graph_keep_the_verbs_in_the_surrounding_ink() {
-    for face in [Face::Plan, Face::Graph] {
-        let rendered = shown(face, "diamond.nika", DIAMOND, Canvas::new(80, false, true));
-        for line in &rendered.lines {
-            for span in &line.spans {
-                assert!(
-                    !matches!(
-                        span.style.fg,
-                        Some(
-                            Color::LightBlue
-                                | Color::LightYellow
-                                | Color::LightCyan
-                                | Color::LightMagenta
-                        )
-                    ),
-                    "{face:?}: a verb hue on a static face: {span:?}"
-                );
-            }
+fn a_static_plan_keeps_the_verbs_in_the_surrounding_ink() {
+    let face = Face::Plan;
+    let rendered = shown(face, "diamond.nika", DIAMOND, Canvas::new(80, false, true));
+    for line in &rendered.lines {
+        for span in &line.spans {
+            assert!(
+                !matches!(
+                    span.style.fg,
+                    Some(
+                        Color::LightBlue
+                            | Color::LightYellow
+                            | Color::LightCyan
+                            | Color::LightMagenta
+                    )
+                ),
+                "{face:?}: a verb hue on a static face: {span:?}"
+            );
         }
     }
 }
@@ -259,9 +258,14 @@ fn the_graph_draws_a_diamond_and_lists_what_it_cannot_draw_truthfully() {
         Canvas::new(80, true, false),
     );
     let listed = texts(&clean);
-    assert_eq!(listed[0], "  wave 1 - @ read_notes");
     assert!(
-        clean.facts.iter().any(|f| f.starts_with("listed by wave")),
+        listed
+            .iter()
+            .any(|line| line.contains("read_notes -> save")),
+        "{listed:?}"
+    );
+    assert!(
+        clean.facts.iter().any(|f| f.starts_with("cards by wave")),
         "{:?}",
         clean.facts
     );
@@ -537,4 +541,260 @@ fn the_source_face_shows_every_byte_it_is_given_within_its_bounds() {
     for (row, original) in lines.iter().zip(CLEAN.lines()) {
         assert!(row.ends_with(original), "{row} != {original}");
     }
+}
+
+#[test]
+fn graph_cards_share_definition_and_observed_states_without_inventing_activity() {
+    let owner = Owner::new(DIAMOND);
+    let canvas = Canvas::new(62, false, true);
+    let definition = crate::graph_cards(&owner.doc, &owner.audit.report.waves, canvas, &|_| None);
+    let text = texts(&definition).join("\n");
+    assert!(text.contains("definition"));
+    assert!(text.contains("nika:read"));
+    assert!(!text.contains("running") && !text.contains("pending"));
+    assert!(
+        definition
+            .lines
+            .iter()
+            .flat_map(|line| &line.spans)
+            .any(|span| span.style.fg == Some(Color::LightCyan))
+    );
+    assert!(
+        !definition
+            .lines
+            .iter()
+            .flat_map(|line| &line.spans)
+            .any(|span| span.style.fg == Some(Color::Green))
+    );
+    let observed = crate::graph_cards(&owner.doc, &owner.audit.report.waves, canvas, &|id| {
+        (id == "source").then(|| {
+            (
+                "done (observed)".to_owned(),
+                nika_display::theme::Role::Good,
+            )
+        })
+    });
+    let text = texts(&observed).join("\n");
+    assert_eq!(text.matches("done (observed)").count(), 1);
+    assert_eq!(text.matches("definition").count(), 3);
+    assert!(
+        observed
+            .lines
+            .iter()
+            .flat_map(|line| &line.spans)
+            .any(|span| span.style.fg == Some(Color::Green))
+    );
+    assert!(
+        observed
+            .lines
+            .iter()
+            .flat_map(|line| &line.spans)
+            .any(|span| span.style.bg.is_some())
+    );
+}
+
+#[test]
+fn graph_cards_show_the_exact_diamond_edges_and_parallel_cards() {
+    let owner = Owner::new(DIAMOND);
+    let rendered = crate::graph_cards(
+        &owner.doc,
+        &owner.audit.report.waves,
+        Canvas::new(62, true, false),
+        &|_| None,
+    );
+    let rows = texts(&rendered);
+    let text = rows.join("\n");
+    for edge in [
+        "source -> left - value",
+        "source -> right - value",
+        "left -> join - value",
+        "right -> join - value",
+    ] {
+        assert_eq!(text.matches(edge).count(), 1, "{edge}: {text}");
+    }
+    assert!(!text.contains("left -> right"));
+    assert!(
+        rows.iter()
+            .any(|row| row.contains("left") && row.contains("right") && row.starts_with('|')),
+        "{text}"
+    );
+    assert!(
+        rows.iter()
+            .any(|row| row.starts_with('+') && row.contains("+  +")),
+        "{text}"
+    );
+}
+
+#[test]
+fn graph_cards_keep_skip_wave_dependencies_in_the_fallback() {
+    let owner = Owner::new(CLEAN);
+    let rendered = crate::graph_cards(
+        &owner.doc,
+        &owner.audit.report.waves,
+        Canvas::new(62, true, false),
+        &|_| None,
+    );
+    let text = texts(&rendered).join("\n");
+    assert!(
+        rendered
+            .facts
+            .iter()
+            .any(|fact| fact.starts_with("cards by wave"))
+    );
+    assert!(text.contains("read_notes -> save - value"), "{text}");
+    assert!(text.contains("approve -> save - value"), "{text}");
+    assert!(!text.contains("digest -> save"), "{text}");
+}
+
+#[test]
+fn graph_cards_keep_width_line_byte_and_no_color_bounds() {
+    let owner = Owner::new(DIAMOND);
+    for width in [0, 1, 12, 37, 62, 120] {
+        let canvas = Canvas::new(width, true, false);
+        let rendered = crate::graph_cards(&owner.doc, &owner.audit.report.waves, canvas, &|_| None);
+        for line in &rendered.lines {
+            let text: String = line
+                .spans
+                .iter()
+                .map(|span| span.content.as_ref())
+                .collect();
+            assert!(text.is_ascii());
+            assert!(cells::width(&text) <= usize::from(width), "{width}: {text}");
+            for span in &line.spans {
+                assert_eq!(span.style.fg, None);
+                assert_eq!(span.style.bg, None);
+            }
+        }
+    }
+    let canvas = Canvas::new(62, false, false).with_limits(crate::Limits::new(4096, 8, 6));
+    let rendered = crate::graph_cards(&owner.doc, &owner.audit.report.waves, canvas, &|_| None);
+    assert_eq!(rendered.lines.len(), 8);
+    assert!(
+        rendered
+            .notes
+            .iter()
+            .any(|note| matches!(note, crate::Note::LinesCut { .. }))
+    );
+    assert!(
+        rendered
+            .notes
+            .iter()
+            .any(|note| matches!(note, crate::Note::Fallback { .. }))
+    );
+    let tiny = crate::graph_cards(
+        &owner.doc,
+        &owner.audit.report.waves,
+        canvas.with_limits(crate::Limits::new(8, 8, 6)),
+        &|_| None,
+    );
+    assert!(texts(&tiny).join("\n").contains("byte bound"));
+}
+
+#[test]
+fn graph_cards_refuse_inconsistent_projection_without_calling_observations() {
+    let mut owner = Owner::new(DIAMOND);
+    let observations = std::cell::Cell::new(0usize);
+    let no_observation = |_: &str| -> Option<(String, nika_display::theme::Role)> {
+        observations.set(observations.get() + 1);
+        None
+    };
+    owner.doc.edges[0].from = "missing".to_owned();
+    let rendered = crate::graph_cards(
+        &owner.doc,
+        &owner.audit.report.waves,
+        Canvas::new(62, true, false),
+        &no_observation,
+    );
+    assert!(texts(&rendered).join("\n").contains("missing node"));
+    let owner = Owner::new(DIAMOND);
+    for waves in [
+        vec![],
+        vec![vec![]],
+        vec![vec![0, 0, 1, 2]],
+        vec![vec![0, 1, 2, 3, 4]],
+    ] {
+        let rendered = crate::graph_cards(
+            &owner.doc,
+            &waves,
+            Canvas::new(62, true, false),
+            &no_observation,
+        );
+        assert!(texts(&rendered).join("\n").contains("no graph"));
+    }
+    assert_eq!(
+        observations.get(),
+        0,
+        "an invalid graph must not request observations"
+    );
+}
+
+#[test]
+fn graph_card_observation_text_cannot_inject_terminal_controls() {
+    let owner = Owner::new(DIAMOND);
+    let rendered = crate::graph_cards(
+        &owner.doc,
+        &owner.audit.report.waves,
+        Canvas::new(62, false, true),
+        &|_| {
+            Some((
+                "\x1b[31mnot an escape".to_owned(),
+                nika_display::theme::Role::Warn,
+            ))
+        },
+    );
+    assert!(!texts(&rendered).join("\n").contains('\x1b'));
+    assert!(
+        rendered
+            .notes
+            .iter()
+            .any(|note| matches!(note, crate::Note::Controls { count: 4 }))
+    );
+}
+
+#[test]
+fn graph_cards_preserve_interleaved_cleanup_indices_and_report_exact_boundary_cuts() {
+    let source = "nika: cleanup-cards\npermits: { exec: [\"true\"] }\ntasks:\n  first:\n    exec: { command: [\"true\"] }\n  tidy:\n    after: { first: unwind }\n    exec: { command: [\"true\"] }\n  last:\n    after: { first: success }\n    exec: { command: [\"true\"] }\n";
+    let owner = Owner::new(source);
+    assert_eq!(owner.audit.report.waves, vec![vec![0], vec![2]]);
+    let rendered = crate::graph_cards(
+        &owner.doc,
+        &owner.audit.report.waves,
+        Canvas::new(62, true, false),
+        &|_| None,
+    );
+    let text = texts(&rendered).join("\n");
+    assert!(text.contains("outside task waves"), "{text}");
+    assert!(text.contains("tidy") && text.contains("last"), "{text}");
+    assert!(text.contains("first -> tidy - finally"), "{text}");
+    let source = "nika: cleanup-bound\npermits: { exec: [\"true\"] }\ntasks:\n  first:\n    exec: { command: [\"true\"] }\n  tidy:\n    after: { first: unwind }\n    exec: { command: [\"true\"] }\n";
+    let owner = Owner::new(source);
+    let canvas = Canvas::new(62, true, false).with_limits(crate::Limits::new(4096, 6, 4096));
+    let rendered = crate::graph_cards(&owner.doc, &owner.audit.report.waves, canvas, &|_| None);
+    assert_eq!(rendered.lines.len(), 6);
+    assert!(
+        rendered
+            .notes
+            .iter()
+            .any(|note| matches!(note, crate::Note::LinesCut { shown: 6 }))
+    );
+}
+
+#[test]
+fn graph_cards_keep_recovery_edges_inside_the_first_wave() {
+    let source = "nika: recovery-cards\npermits: { exec: [\"true\"] }\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  c:\n    exec: { command: [\"true\"] }\n    on_error:\n      recover: \"${{ tasks.a.output }}\"\n";
+    let owner = Owner::new(source);
+    assert_eq!(owner.audit.report.waves.len(), 1);
+    let rendered = crate::graph_cards(
+        &owner.doc,
+        &owner.audit.report.waves,
+        Canvas::new(62, true, false),
+        &|_| None,
+    );
+    assert!(texts(&rendered).join("\n").contains("a -> c - recovery"));
+    assert!(
+        rendered
+            .facts
+            .iter()
+            .any(|fact| fact.starts_with("cards by wave"))
+    );
 }

@@ -35,6 +35,23 @@ pub fn style(role: Role, color: bool) -> Style {
     }
 }
 
+/// Neutral workspace surfaces from the product palette. Semantic hues still
+/// come from [`style`]; without colour the terminal supplies both foreground
+/// and background.
+pub(crate) fn surface(color: bool, raised: bool) -> Style {
+    if color {
+        Style::default()
+            .fg(Color::Rgb(224, 233, 247))
+            .bg(if raised {
+                Color::Rgb(23, 33, 53)
+            } else {
+                Color::Rgb(12, 17, 28)
+            })
+    } else {
+        Style::default()
+    }
+}
+
 /// The style of a verb chip: the verb's bright slot for the locked four, dim
 /// for any other word, never a guessed identity.
 #[must_use]

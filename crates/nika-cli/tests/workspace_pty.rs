@@ -48,6 +48,9 @@ const WAIT: Duration = Duration::from_secs(30);
 const SETTLE: Duration = Duration::from_millis(400);
 
 const F6: &str = "\x1b[17~";
+const SHIFT_F6: &str = "\x1b[17;2~";
+const END: &str = "\x1b[F";
+const PAGE_UP: &str = "\x1b[5~";
 const DOWN: &str = "\x1b[B";
 const UP: &str = "\x1b[A";
 const RIGHT: &str = "\x1b[C";
@@ -434,16 +437,16 @@ fn wait_workspace(term: &mut Term) {
 
 /// Open the aside entry `downs` rows below this conversation (wide layout).
 fn open_entry(term: &mut Term, downs: usize) {
-    term.keys(F6);
+    term.keys(SHIFT_F6);
     for _ in 0..downs {
         term.keys(DOWN);
     }
     term.keys("\r");
 }
 
-/// F6 from the aside to the object region.
+/// Shift+F6 wraps from the aside to the object region.
 fn to_object(term: &mut Term) {
-    term.keys(F6);
+    term.keys(SHIFT_F6);
 }
 
 /// 1 · Bare `nika` opens the workspace directly: no key is sent before the
@@ -506,8 +509,21 @@ fn every_face_of_the_selected_workflow_reads_the_same_bytes() {
         s.contains("[graph]") && s.contains("4 edges")
     });
     let graph = term.text();
-    assert!(graph.contains("◆ fetch ─┬─▶ ◆ left"), "{graph}");
-    assert!(graph.contains("╰─▶ ◆ right ─╯"), "{graph}");
+    for edge in [
+        "fetch → left · value",
+        "fetch → right · value",
+        "left → join · value",
+        "right → join · value",
+    ] {
+        assert!(graph.contains(edge), "{edge}\n{graph}");
+    }
+    assert!(
+        graph
+            .lines()
+            .any(|line| line.contains("◆ left") && line.contains("◆ right")),
+        "the parallel tasks share a row\n{graph}"
+    );
+    assert!(!graph.contains("left → right"), "{graph}");
     assert!(graph.contains(&diamond));
     term.keys(RIGHT);
     term.wait_until("the diamond's check", |s| {
@@ -518,14 +534,13 @@ fn every_face_of_the_selected_workflow_reads_the_same_bytes() {
     assert!(check.contains("RUN READY    unknown"), "{check}");
     assert!(!check.contains("nothing known blocks a run"), "{check}");
     assert!(check.contains(&diamond));
-    // The second workflow: F6 to the composer, F6 to the aside, one row down.
-    term.keys(F6);
+    // The second workflow: F6 from the object to the aside, one row down.
     term.keys(F6);
     term.keys(DOWN);
     term.keys("\r");
     let single = short_witness(SINGLE.as_bytes());
     term.wait_until("the single workflow", |s| {
-        s.contains("single · [source]") && s.contains("message: only")
+        s.contains("[source] plan graph check · single") && s.contains("message: only")
     });
     let shown = term.text();
     assert!(shown.contains(&single), "{shown}");
@@ -604,10 +619,19 @@ fn the_workspace_follows_every_size_and_comes_back() {
         s.contains("[graph]") && s.contains("◆ join")
     });
     term.resize(80, 24);
+    // Wait for the resized frame before End uses its object viewport.
+    term.wait_until("the stacked frame at 80x24", |s| {
+        s.lines()[12].contains("this conversation")
+    });
+    term.keys(END);
     term.wait_until("the graph at 80x24", |s| {
         s.contains("[graph]") && s.contains("◆ join") && s.contains("this conversation")
     });
     term.resize(60, 18);
+    term.wait_until("the stacked frame at 60x18", |s| {
+        s.lines()[9].contains("this conversation")
+    });
+    term.keys(END);
     term.wait_until("the graph at 60x18", |s| {
         s.contains("[graph]") && s.contains("◆ join")
     });
@@ -629,14 +653,13 @@ fn the_workspace_follows_every_size_and_comes_back() {
     term.resize(80, 24);
     term.wait_text("[graph]");
     term.keys(F6);
-    term.keys(F6);
     term.wait_until("the aside over the object", |s| {
         s.contains("single.nika") && !s.contains("[graph]")
     });
     term.keys(DOWN);
     term.keys("\r");
     term.wait_until("single opened at 80x24", |s| {
-        s.contains("single · [source]")
+        s.contains("[source] plan graph check · single")
     });
     term.keys(ESC);
     term.leave();
@@ -683,6 +706,28 @@ fn assert_renderer_ascii(shown: &str) {
     }
 }
 
+/// The right preview at 120 columns (21 navigation + 37 conversation).
+/// Count display cells: Unicode in the conversation must not shift the slice.
+fn right_preview(screen: &vt::Screen) -> Vec<String> {
+    assert_eq!(screen.size().0, 120);
+    screen
+        .lines()
+        .into_iter()
+        .map(|line| {
+            let mut cells = 0;
+            line.chars()
+                .skip_while(|c| {
+                    if cells >= 58 {
+                        return false;
+                    }
+                    cells += unicode_width::UnicodeWidthChar::width(*c).unwrap_or(0);
+                    true
+                })
+                .collect()
+        })
+        .collect()
+}
+
 /// 6 · Words typed before the first frame land in the draft and are never
 /// sent; a region holding the keys reads them instead of the composer; `Esc`
 /// gives the keys back; `Ctrl+L` repaints with the draft intact.
@@ -697,7 +742,7 @@ fn typed_ahead_words_stay_in_the_draft_and_the_keys_follow_the_focus() {
             .iter()
             .any(|l| l.contains("nika ›") && l.contains("hello"))
     });
-    term.keys(F6);
+    term.keys(SHIFT_F6);
     term.keys("xyz");
     term.keys(ESC);
     term.keys("\x0c");
@@ -791,7 +836,7 @@ fn opening_a_viewer_sends_nothing_and_grants_nothing() {
     term.keys("r");
     term.wait_text("[source]");
     let shown = term.text();
-    for said in ["proposes", "saved", "apply?", "run it", "observed"] {
+    for said in ["proposes", "saved", "Save?", "run it", "observed"] {
         assert!(!shown.contains(said), "{said}\n{shown}");
     }
     assert!(shown.contains("Draft ○ · Saved ○ · Checked ○"), "{shown}");
@@ -810,7 +855,7 @@ fn save_is_never_run_in_the_workspace() {
     let mut term = rig.spawn("11-save", 120, 36);
     wait_workspace(&mut term);
     term.send("Lis ./notes/brief.md et écris-le dans ./out/copie.md\r");
-    term.wait_until("the proposal", |s| s.contains("apply?"));
+    term.wait_until("the proposal", |s| s.contains("Save?"));
     term.send("oui\r");
     let landed = rig.path("compiled-workflow.nika");
     term.wait_until("the exact bytes saved", |s| {
@@ -876,7 +921,7 @@ fn the_candidate_is_inspected_and_revised_before_a_separate_save() {
     wait_workspace(&mut term);
     term.send("Read ./notes/brief.md and write it to ./out/copy.md\r");
     term.wait_until("the candidate in view", |s| {
-        s.contains("apply?") && s.contains("what a yes answers")
+        s.contains("Save?") && s.contains("what a yes answers")
     });
     let shown = term.text();
     let a = shown_identity(&shown).expect("an identity is shown");
@@ -885,14 +930,17 @@ fn the_candidate_is_inspected_and_revised_before_a_separate_save() {
         "creates compiled-workflow.nika",
         "when it runs",
         "rehearsal",
-        "[source]",
+        "[graph]",
     ] {
         assert!(shown.contains(said), "{said}\n{}", term.dump());
     }
     assert_eq!(rig.tree(), before, "a proposal writes nothing");
-    // Its faces, read in the object region; none of them is a consent.
+    // The observed graph opens first. Read Source, then all the other faces;
+    // none of these navigation keys is a consent.
     term.keys(F6);
-    term.keys(F6);
+    term.keys(LEFT);
+    term.keys(LEFT);
+    term.wait_text("[source]");
     for face in ["[plan]", "[graph]", "[check]"] {
         term.keys(RIGHT);
         term.wait_text(face);
@@ -1012,6 +1060,35 @@ fn run_label(screen: &str) -> Option<String> {
     })
 }
 
+/// Visit the reopened conversation's history, then return to its latest row.
+fn visit_reopened_history(term: &mut Term, label: &str) {
+    // History may span several cards: prove both markers are reachable,
+    // without requiring them to occupy the same page or stay pinned forever.
+    let (mut saw_history, mut saw_run) = (false, false);
+    for page in 0..=8 {
+        saw_history |= term.screen.contains("earlier in this conversation");
+        saw_run |= term.screen.contains("(run)");
+        assert!(
+            term.text().contains(label),
+            "scrolling history keeps the same run\n{}",
+            term.dump()
+        );
+        term.shot(&format!("reopened conversation page {page}"));
+        if saw_history && saw_run {
+            break;
+        }
+        if page < 8 {
+            term.keys(PAGE_UP);
+        }
+    }
+    assert!(
+        saw_history && saw_run,
+        "the history marker and its run must be accessible within eight pages\n{}",
+        term.dump()
+    );
+    term.keys(END);
+}
+
 const LEFT: &str = "\x1b[D";
 
 /// 14 · What a run left, then the same run after a reopen: its outputs as
@@ -1031,7 +1108,6 @@ fn a_run_result_its_file_and_proof_are_found_again_after_a_reopen() {
     term.send("run copy.nika\r");
     term.wait_until("the settlement", |s| s.contains("settled · succeeded"));
     let label = run_label(&term.text()).expect("the run names its execution");
-    term.keys(F6);
     term.keys(F6);
     term.keys(RIGHT);
     term.wait_until("the outputs the settlement carried", |s| {
@@ -1056,15 +1132,12 @@ fn a_run_result_its_file_and_proof_are_found_again_after_a_reopen() {
     let (kept, files) = (journal_bytes(&rig), rig.tree());
     let mut again = rig.spawn("14-reopen", 120, 40);
     wait_workspace(&mut again);
-    again.wait_until("the earlier conversation, as history", |s| {
-        s.contains("earlier in this conversation") && s.contains("(run)")
-    });
+    visit_reopened_history(&mut again, &label);
     // One line of a wrapped notice: a needle never spans a wrap.
     again.wait_text("last run, observed in an earlier");
     again.wait_until("the same run, as evidence", |s| {
         s.contains(&label) && s.contains("earlier session")
     });
-    again.keys(F6);
     again.keys(F6);
     // Before any Proof: the run's tasks, one task, its outputs and its file,
     // from the journal it left (captured once, the same bytes the Proof reads).
@@ -1196,7 +1269,7 @@ fn the_shell_stays_live_while_a_run_proof_is_verified() {
         .find(|path| path.extension().is_some_and(|e| e == "ndjson"))
         .expect("the run's journal");
     heavy_journal(&journal);
-    term.send(&format!("{F6}{F6}{RIGHT}{RIGHT}{RIGHT}{F6}zz"));
+    term.send(&format!("{F6}{RIGHT}{RIGHT}{RIGHT}{SHIFT_F6}zz"));
     term.wait_until("words typed while the proof is read", |s| {
         s.contains("zz") && s.contains("reading what the run left") && !s.contains("verdict ·")
     });
@@ -1238,7 +1311,6 @@ fn a_task_of_the_run_is_picked_read_and_left() {
     term.wait_until("the settlement", |s| s.contains("settled · failed"));
     let tree = rig.tree();
     term.keys(F6);
-    term.keys(F6);
     term.wait_until("the task list, the first task picked", |s| {
         s.contains("tasks · ↑↓ pick · Enter details") && s.contains("› ✔ greet")
     });
@@ -1276,7 +1348,6 @@ fn a_task_of_the_run_is_picked_read_and_left() {
     ascii.send("run pick.nika\r");
     ascii.wait_until("the settlement", |s| s.contains("settled - failed"));
     ascii.keys(F6);
-    ascii.keys(F6);
     ascii.wait_until("the ASCII list", |s| {
         s.contains("tasks - Up/Down pick - Enter details") && s.contains("* ok greet")
     });
@@ -1288,9 +1359,7 @@ fn a_task_of_the_run_is_picked_read_and_left() {
     });
     // The object region's own rows (the conversation keeps the run story's
     // words as the Session wrote them).
-    let object: Vec<String> = (ascii.text().lines())
-        .filter_map(|line| line.split('|').nth(1).map(str::to_owned))
-        .collect();
+    let object = right_preview(&ascii.screen);
     assert!(
         object.iter().any(|row| row.contains("task look")),
         "{}",
@@ -1358,7 +1427,6 @@ fn a_child_run_is_opened_from_its_task_and_left_for_the_parent() {
     term.wait_until("the parent settled", |s| s.contains("settled · succeeded"));
     let (tree, written) = (rig.tree(), journals(&rig));
     term.keys(F6);
-    term.keys(F6);
     term.wait_text("› ✔ call");
     term.keys("\r");
     term.wait_until("the task names its child", |s| {
@@ -1397,7 +1465,6 @@ fn a_child_run_is_opened_from_its_task_and_left_for_the_parent() {
     ascii.send("run parent.nika\r");
     ascii.wait_until("the parent settled", |s| s.contains("settled - succeeded"));
     ascii.keys(F6);
-    ascii.keys(F6);
     ascii.wait_text("* ok call");
     ascii.keys("\r");
     ascii.wait_text("Enter: open its journal");
@@ -1405,9 +1472,7 @@ fn a_child_run_is_opened_from_its_task_and_left_for_the_parent() {
     ascii.wait_until("the ASCII child", |s| {
         s.contains("child ./child.nika") && s.contains("verdict -")
     });
-    let object: Vec<String> = (ascii.text().lines())
-        .filter_map(|line| line.split('|').nth(1).map(str::to_owned))
-        .collect();
+    let object = right_preview(&ascii.screen);
     assert_renderer_ascii(&object.join("\n"));
     let raw = String::from_utf8_lossy(&ascii.raw).into_owned();
     for hue in ["\x1b[38;5;", "\x1b[38;2;", "\x1b[48;5;", "\x1b[48;2;"] {

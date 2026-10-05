@@ -747,4 +747,5 @@ pub type nika_tui_view::Workflow<'a>::Output = T
 pub fn nika_tui_view::artifact(content: nika_tui_view::Content<'_>, meta: &nika_tui_view::Meta, canvas: nika_tui_view::Canvas) -> nika_tui_view::Rendered
 pub fn nika_tui_view::classify(head: &[u8], meta: &nika_tui_view::Meta) -> nika_tui_view::Format
 pub fn nika_tui_view::for_builtin(name: &str) -> core::option::Option<nika_tui_view::Format>
+pub fn nika_tui_view::graph_cards(doc: &nika_graph::GraphDoc, waves: &[alloc::vec::Vec<usize>], canvas: nika_tui_view::Canvas, observed: &dyn core::ops::function::Fn(&str) -> core::option::Option<(alloc::string::String, nika_display::theme::Role)>) -> nika_tui_view::Rendered
 pub fn nika_tui_view::workflow(face: nika_tui_view::Face, input: &nika_tui_view::Workflow<'_>, canvas: nika_tui_view::Canvas) -> nika_tui_view::Rendered

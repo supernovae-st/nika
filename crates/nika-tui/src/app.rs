@@ -431,9 +431,9 @@ enum Busy {
     Edit,
     /// A bare `Enter`: nothing is sent while Nika works.
     Hold,
-    /// Scroll the transcript one block back (a full screen).
+    /// Scroll the transcript one page back (a full screen).
     Older,
-    /// Scroll the transcript one block forward (a full screen).
+    /// Scroll the transcript one page forward (a full screen).
     Newer,
     /// Anything else: it waits for the turn.
     Later,
@@ -608,6 +608,9 @@ impl<C: Conversation + 'static> Shell<C> {
     }
 
     fn on_key(&mut self, key: KeyEvent, broker: &mut Broker) -> io::Result<Step> {
+        if crate::scroll::end(&mut self.state, &self.desk, key) {
+            return Ok(Step::Stay);
+        }
         let decision = decide(&self.state, &mut self.desk, key);
         if decision == KeyDecision::Interrupt {
             return self.interrupt();
@@ -622,12 +625,11 @@ impl<C: Conversation + 'static> Shell<C> {
             KeyDecision::Present(to) => return Ok(Step::Switch(to)),
             KeyDecision::Route(Route::Leave) => return Ok(Step::Switch(Presentation::Inline)),
             KeyDecision::Route(Route::Older) => {
-                let max = self.state.transcript.len().saturating_sub(1);
-                self.state.focus_scroll = (self.state.focus_scroll + 1).min(max);
+                crate::scroll::page(&mut self.state, &self.desk, &self.composer, true);
                 return Ok(Step::Stay);
             }
             KeyDecision::Route(Route::Newer) => {
-                self.state.focus_scroll = self.state.focus_scroll.saturating_sub(1);
+                crate::scroll::page(&mut self.state, &self.desk, &self.composer, false);
                 return Ok(Step::Stay);
             }
             KeyDecision::Route(Route::Inspect) => {
@@ -1157,6 +1159,9 @@ impl<C: Conversation + 'static> Shell<C> {
                 return Heard::Nothing;
             }
         };
+        if crate::scroll::end(&mut self.state, &self.desk, key) {
+            return Heard::Redraw;
+        }
         match busy_key(&self.state, &mut self.desk, key) {
             Busy::Edit => {
                 self.state.completion = None;
@@ -1174,12 +1179,11 @@ impl<C: Conversation + 'static> Shell<C> {
                 Heard::Redraw
             }
             Busy::Older => {
-                let max = self.state.transcript.len().saturating_sub(1);
-                self.state.focus_scroll = (self.state.focus_scroll + 1).min(max);
+                crate::scroll::page(&mut self.state, &self.desk, &self.composer, true);
                 Heard::Redraw
             }
             Busy::Newer => {
-                self.state.focus_scroll = self.state.focus_scroll.saturating_sub(1);
+                crate::scroll::page(&mut self.state, &self.desk, &self.composer, false);
                 Heard::Redraw
             }
             Busy::Later => {

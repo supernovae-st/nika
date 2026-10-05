@@ -6,7 +6,7 @@
 //! A [`Beat`] is one typed thing the session did in a turn: it said a block
 //! (a reply, a proposal preview, a run line, a result), it now waits for a
 //! particular kind of line (the prompt names which: `nika ›` · `reply ›` ·
-//! `apply? ›` · `answer ›`), or it is busy under a seat. The shapes mirror
+//! `Save? ›` · `answer ›`), or it is busy under a seat. The shapes mirror
 //! `nika_session::runtime::TurnOutcome` one to one so the adapter of the next
 //! wave is a match, never a parse. The UX-1 fixture ([`Script`]) emits the
 //! same beats from a canned conversation so both presentations are judged
@@ -124,14 +124,14 @@ pub enum Waiting {
 }
 
 impl Waiting {
-    /// The prompt the plain loop prints for the same state.
+    /// The prompt naming the same waiting state as the plain loop.
     #[must_use]
     pub fn prompt(&self) -> &'static str {
         match self {
             Self::Free => "nika › ",
             Self::Choosing => "› ",
             Self::Question { .. } => "reply › ",
-            Self::Proposal => "apply? › ",
+            Self::Proposal => "Save? › ",
             Self::Gate => "answer › ",
         }
     }
@@ -142,15 +142,13 @@ impl Waiting {
     #[must_use]
     pub fn hint(&self) -> &'static str {
         match self {
-            Self::Free => {
-                "describe work · /help · Ctrl+T switches the view · Ctrl+C twice to leave"
-            }
+            Self::Free => "describe work · /help · Run: run <file>.nika",
             Self::Choosing => "type a number · `cancel` continues without a choice",
             Self::Question { key } if key == "unknown_cost" || key == "run_cost" => {
                 "yes approves once · no or Ctrl+C cancels · details shows the full evidence"
             }
             Self::Question { .. } => "answer the question · an empty line takes the default",
-            Self::Proposal => "yes applies these exact bytes · no keeps the file untouched · /show",
+            Self::Proposal => "yes + Enter: Save · no: cancel · /show: inspect",
             Self::Gate => "approve or refuse · nothing else answers a gate",
         }
     }
@@ -213,7 +211,7 @@ pub struct UiState {
     /// The ASCII glyph column (the theme's decision: `--ascii`, CI logs, a
     /// legacy console): the renderer's own glyphs take their twins.
     pub ascii: bool,
-    /// Scroll offset of the focus transcript, in blocks from the end.
+    /// Scroll offset of the full-screen transcript, in rendered rows from the end.
     pub focus_scroll: usize,
     /// Terminal size as last reported.
     pub size: (u16, u16),
@@ -585,7 +583,7 @@ mod tests {
     #[test]
     fn the_prompt_names_what_waits_and_never_crosses() {
         assert_eq!(Waiting::Free.prompt(), "nika › ");
-        assert_eq!(Waiting::Proposal.prompt(), "apply? › ");
+        assert_eq!(Waiting::Proposal.prompt(), "Save? › ");
         assert_eq!(Waiting::Gate.prompt(), "answer › ");
         assert_eq!(
             Waiting::Question {

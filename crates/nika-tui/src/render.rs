@@ -113,7 +113,8 @@ pub fn live_rows(state: &UiState, composer: &Composer, width: u16, height: u16) 
     let prompt = u16::try_from(state.waiting.prompt().chars().count()).unwrap_or(8);
     let composer_rows = composer.rows(width.saturating_sub(prompt).max(8));
     let rail = u16::from(!state.rail.is_empty());
-    let rows = rail + 1 + composer_rows + 1;
+    let hint = wrapped_rows(&[hint_line(state)], width).min(3);
+    let rows = rail + 1 + composer_rows + hint;
     rows.clamp(3, height.saturating_div(2).max(3))
 }
 
@@ -160,12 +161,17 @@ fn status_line(state: &UiState) -> Line<'static> {
             Span::styled(marker, accent),
             Span::styled(label.clone(), dim),
         ])
+    } else if state.waiting == Waiting::Proposal {
+        Line::styled(
+            own("Save these changes · Run separately", state.ascii),
+            role::style(Role::Warn, state.color).add_modifier(Modifier::BOLD),
+        )
     } else {
         // Where the automation stands, then the presentation's own note.
         let mode = match state.presentation {
             Presentation::Inline => "",
             Presentation::Focus => "focus · Esc returns inline · PgUp/PgDn scroll",
-            Presentation::Workspace => "workspace · F6 moves the keys · Esc returns inline",
+            Presentation::Workspace => "workspace · F6 panel · Esc back",
         };
         let mode = own(mode, state.ascii);
         let sep = own(" · ", state.ascii);
@@ -186,10 +192,11 @@ fn hint_line(state: &UiState) -> Line<'static> {
             .unwrap_or_else(|| state.waiting.hint()),
         state.ascii,
     );
-    Line::from(Span::styled(
-        text,
-        Style::default().add_modifier(Modifier::DIM),
-    ))
+    let tone = match state.waiting {
+        Waiting::Proposal | Waiting::Gate => Role::Warn,
+        _ => Role::Accent,
+    };
+    Line::from(Span::styled(text, role::style(tone, state.color)))
 }
 
 /// Draw the live area (status · prompt + composer · hint) into `area`: the
@@ -199,11 +206,14 @@ pub(crate) fn render_live(frame: &mut Frame<'_>, state: &UiState, composer: &Com
     // sentences; one 80-column row cannot hold them side by side) and
     // yields it on a terminal too short for four rows.
     let rail_rows = u16::from(!state.rail.is_empty() && area.height >= 4);
+    let hint_rows = wrapped_rows(&[hint_line(state)], area.width)
+        .min(3)
+        .min(area.height.saturating_sub(rail_rows + 2).max(1));
     let [rail, status, input, hint] = Layout::vertical([
         Constraint::Length(rail_rows),
         Constraint::Length(1),
         Constraint::Min(1),
-        Constraint::Length(1),
+        Constraint::Length(hint_rows),
     ])
     .areas(area);
     if rail_rows > 0 {
@@ -217,7 +227,7 @@ pub(crate) fn render_live(frame: &mut Frame<'_>, state: &UiState, composer: &Com
     let marker_style = match state.waiting {
         Waiting::Gate | Waiting::Proposal if state.color => role::style(Role::Warn, true),
         _ if state.busy.is_some() => accent(state.color),
-        _ => role::style(Role::Strong, state.color),
+        _ => accent(state.color).add_modifier(Modifier::BOLD),
     };
     frame.render_widget(
         Paragraph::new(Line::from(Span::styled(
@@ -227,7 +237,10 @@ pub(crate) fn render_live(frame: &mut Frame<'_>, state: &UiState, composer: &Com
         marker,
     );
     composer.render(editor, frame.buffer_mut());
-    frame.render_widget(Paragraph::new(hint_line(state)), hint);
+    frame.render_widget(
+        Paragraph::new(hint_line(state)).wrap(Wrap { trim: false }),
+        hint,
+    );
 }
 
 /// The inline presentation: the frame IS the live area (the transcript is
@@ -240,14 +253,19 @@ pub fn draw_inline(frame: &mut Frame<'_>, state: &UiState, composer: &Composer) 
 /// The transcript in `area`, scrolled so its end (less the focus scroll) is
 /// the last row: the focus presentation and the workspace panel share it.
 pub(crate) fn render_transcript(frame: &mut Frame<'_>, state: &UiState, area: Rect) {
+    if state.presentation == Presentation::Workspace {
+        crate::workspace::cards::render(frame, state, area);
+        return;
+    }
     let mut lines: Vec<Line<'static>> = Vec::new();
-    let shown = state.transcript.len().saturating_sub(state.focus_scroll);
-    for block in state.transcript.iter().take(shown) {
+    for block in &state.transcript {
         lines.extend(block_lines(block, state.color, state.ascii));
         lines.push(Line::default());
     }
     let total = wrapped_rows(&lines, area.width);
-    let skip = total.saturating_sub(area.height);
+    let skip = total
+        .saturating_sub(area.height)
+        .saturating_sub(u16::try_from(state.focus_scroll).unwrap_or(u16::MAX));
     frame.render_widget(
         Paragraph::new(lines)
             .wrap(Wrap { trim: false })
@@ -441,6 +459,42 @@ mod tests {
                 .any(|r| r.contains("focus · Esc returns inline")),
             "{rows:#?}"
         );
+    }
+
+    #[test]
+    fn save_and_its_answer_stay_visible_in_the_narrow_conversation() {
+        for color in [false, true] {
+            let mut state = UiState::new(Presentation::Workspace, color, (35, 8));
+            state.waiting = Waiting::Proposal;
+            let composer = Composer::new();
+            let height = live_rows(&state, &composer, 35, 20);
+            let mut terminal = Terminal::new(TestBackend::new(35, height)).expect("test terminal");
+            terminal
+                .draw(|frame| render_live(frame, &state, &composer, frame.area()))
+                .expect("draw");
+            let buffer = terminal.backend().buffer();
+            let text = (0..height)
+                .map(|y| row(buffer, y))
+                .collect::<Vec<_>>()
+                .join(" ");
+            for words in [
+                "Save?",
+                "yes + Enter: Save",
+                "no: cancel",
+                "/show: inspect",
+                "Run separately",
+            ] {
+                assert!(text.contains(words), "{words}: {text}");
+            }
+            assert_eq!(
+                buffer[(0, 0)].fg,
+                if color {
+                    ratatui::style::Color::Yellow
+                } else {
+                    ratatui::style::Color::Reset
+                }
+            );
+        }
     }
 
     #[test]

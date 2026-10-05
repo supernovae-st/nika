@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The object in view: the centre of the workspace. An opened workflow shows
+//! The object in view: the preview on the right of the workspace. An opened workflow shows
 //! one face of the look its Session took (its source, its plan, its graph or
 //! its check), as the viewers rendered it before the frame
 //! ([`super::inspect::Inspected::face_lines`]). Any
 //! other object is named by its kind's icon and its name with the lines it is
 //! given, cut at the edge, never wrapped into a shape the object does not
-//! have. With nothing open it welcomes: the butterfly, the largest rendition
-//! that fits whole above the Session's first words.
+//! have. With nothing open it welcomes with a compact butterfly above the
+//! Session's first words; the conversation keeps the prominent region.
 
 use std::time::Duration;
 
@@ -19,12 +19,12 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Widget};
 use unicode_width::UnicodeWidthStr;
 
-use super::text::{fit_head, marks};
+use super::text::{fit_head, marks, wrap};
 use crate::visual::icon::Icon;
 use crate::visual::logomark::Size;
 use crate::visual::role;
 
-/// What the centre shows, as the Session projects it.
+/// What the preview shows, as the Session projects it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Object {
@@ -76,7 +76,7 @@ const GAP: u16 = 1;
 pub fn welcome_mark(width: u16, height: u16, words: usize) -> Option<Size> {
     let words = u16::try_from(words).unwrap_or(u16::MAX);
     let rows = height.saturating_sub(words.saturating_add(if words > 0 { GAP } else { 0 }));
-    Size::largest_within(width.saturating_sub(2), rows)
+    Size::largest_within(width.saturating_sub(2).min(Size::Compact.columns()), rows)
 }
 
 /// The lines of the region, `width` × `height` cells.
@@ -125,6 +125,10 @@ pub fn length(object: &Object) -> usize {
 /// The welcome: the mark (when one fits) then the words, the block centred.
 fn welcome(words: &[String], width: u16, height: u16, paint: Paint) -> Vec<Line<'static>> {
     let (_, cut) = marks(paint.ascii);
+    let words: Vec<String> = words
+        .iter()
+        .flat_map(|word| wrap(word, usize::from(width), cut))
+        .collect();
     let mark = welcome_mark(width, height, words.len())
         .map(|size| size.at(paint.elapsed, paint.reduced_motion))
         .unwrap_or_default();
@@ -132,7 +136,10 @@ fn welcome(words: &[String], width: u16, height: u16, paint: Paint) -> Vec<Line<
     let used = mark.len() + gap + words.len();
     let top = usize::from(height).saturating_sub(used) / 2;
     let mut out = vec![Line::default(); top];
-    out.extend(mark.into_iter().map(|row| Line::from(row.to_owned())));
+    out.extend(
+        mark.into_iter()
+            .map(|row| Line::styled(row.to_owned(), role::style(Role::Accent, paint.color))),
+    );
     out.extend(std::iter::repeat_n(Line::default(), gap));
     // The words are what the human reads: the default foreground, no role.
     out.extend(
@@ -215,12 +222,12 @@ mod tests {
     }
 
     #[test]
-    fn the_welcome_takes_the_largest_mark_that_leaves_room_for_the_words() {
+    fn the_welcome_stays_compact_and_leaves_room_for_the_words() {
         // 80x24 stacked: the object keeps 11 rows; the composer comes first.
         assert_eq!(welcome_mark(80, 11, 1), Some(Size::Compact));
-        // 120x40: 62 columns by 38 rows hold the largest mark.
-        assert_eq!(welcome_mark(62, 38, 1), Some(Size::Board));
-        assert_eq!(welcome_mark(40, 20, 2), Some(Size::Launch));
+        // Extra preview space belongs to the content, never a larger brand mark.
+        assert_eq!(welcome_mark(37, 38, 1), Some(Size::Compact));
+        assert_eq!(welcome_mark(40, 20, 2), Some(Size::Compact));
         assert_eq!(welcome_mark(13, 9, 1), None);
         let rows = text(&lines(&hello(), 80, 11, paint(false)));
         assert_eq!(rows.len(), 10, "mark 8, gap 1, words 1: {rows:?}");
@@ -255,7 +262,8 @@ mod tests {
     #[test]
     fn a_region_too_small_for_any_mark_keeps_the_words() {
         let rows = text(&lines(&hello(), 30, 3, paint(true)));
-        assert_eq!(rows, ["", "Describe the work you want ..."]);
+        assert_eq!(rows.join(" "), "Describe the work you want to automate.");
+        assert!(rows.iter().all(|row| row.width() <= 30));
     }
 
     #[test]

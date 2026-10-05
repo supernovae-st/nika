@@ -5,7 +5,7 @@
 //!
 //! The screen answers four questions without opening a panel: where am I
 //! (the header names the host, the active project and its location), what am I
-//! looking at (the object in the centre: a workflow, a file, a run, a proof),
+//! looking at (the preview on the right: a workflow, a file, a run, a proof),
 //! which conversation do I write to (its thread and composer, side by side
 //! with the object on a wide terminal, below it on a narrow one) and which run
 //! asks for my attention (the pinned activity row). The project aside lists
@@ -22,6 +22,7 @@
 
 pub mod aside;
 pub mod candidate;
+pub(crate) mod cards;
 pub mod conversation;
 pub(crate) mod desk;
 pub mod focus;

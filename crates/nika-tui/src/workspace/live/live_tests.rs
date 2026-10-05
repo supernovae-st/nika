@@ -535,3 +535,35 @@ fn a_kept_leg_s_outputs_say_what_its_journal_recorded() {
         );
     }
 }
+
+#[test]
+fn graph_cards_do_not_turn_an_unobserved_task_into_a_scheduled_task() {
+    let mut run = LiveRun::asked("two.nika".to_owned(), false, true, Some(look()));
+    run.apply(start(EXEC, SOURCE));
+    let graph = run
+        .graph(62, false, true)
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(graph.contains("definition"), "{graph}");
+    assert!(!graph.contains("scheduled"), "{graph}");
+    run.apply(task(EXEC, 2, "task_scheduled", "first"));
+    let graph = run
+        .graph(62, false, true)
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(graph.contains("scheduled"), "{graph}");
+    assert!(
+        graph.contains("definition"),
+        "unobserved second task: {graph}"
+    );
+    let mut changed = LiveRun::asked("two.nika".to_owned(), false, true, Some(look()));
+    changed.apply(start(EXEC, "other bytes"));
+    assert!(
+        !text(&changed).contains("definition"),
+        "unbound cards must not be painted"
+    );
+}

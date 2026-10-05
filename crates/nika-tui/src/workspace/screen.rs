@@ -35,7 +35,7 @@ pub struct Screen {
     pub place: Place,
     /// What the active project holds (the aside).
     pub aside: Aside,
-    /// What the centre shows.
+    /// What the preview on the right shows.
     pub object: Object,
     /// The conversation the composer writes to.
     pub thread: Thread,
@@ -97,6 +97,13 @@ pub fn draw(
         return false;
     };
     let (ascii, color) = (paint.ascii, paint.color);
+    let area = frame.area();
+    frame
+        .buffer_mut()
+        .set_style(area, role::surface(color, false));
+    frame
+        .buffer_mut()
+        .set_style(geometry.header, role::surface(color, true));
     header::render(
         &screen.place,
         geometry.header,
@@ -106,6 +113,9 @@ pub fn draw(
     );
     let selected = (focus.region == Region::Aside).then_some(focus.selected);
     if let Some(area) = geometry.aside {
+        frame
+            .buffer_mut()
+            .set_style(area, role::surface(color, true));
         let [list, edge] =
             Layout::horizontal([Constraint::Min(1), Constraint::Length(1)]).areas(area);
         let rows = aside::lines_selecting(
@@ -117,7 +127,13 @@ pub fn draw(
             selected,
         );
         frame.render_widget(Paragraph::new(rows), list);
-        rule_column(edge, ascii, color, frame.buffer_mut());
+        rule_column(
+            edge,
+            ascii,
+            color,
+            focus.region == Region::Aside,
+            frame.buffer_mut(),
+        );
     } else if selected.is_some() {
         // The width folds the aside: while it holds the keys it stands over
         // the object, which returns as soon as the keys leave it.
@@ -141,7 +157,26 @@ pub fn draw(
             focus.scroll,
         );
     }
-    panel(frame, screen, &geometry, paint, state, composer);
+    if focus.region == Region::Object {
+        frame.buffer_mut().set_style(
+            Rect::new(
+                geometry.object.x,
+                geometry.object.y,
+                geometry.object.width,
+                1,
+            ),
+            ratatui::style::Style::default().add_modifier(ratatui::style::Modifier::UNDERLINED),
+        );
+    }
+    panel(
+        frame,
+        screen,
+        &geometry,
+        paint,
+        state,
+        composer,
+        focus.region,
+    );
     if let (Some(run), Some(area)) = (&screen.pinned, geometry.pinned) {
         let row = pinned::line(run, area.width, ascii, color);
         frame.render_widget(Paragraph::new(row), area);
@@ -159,29 +194,35 @@ fn panel(
     paint: Paint,
     state: &UiState,
     composer: &Composer,
+    focused: Region,
 ) {
     let (ascii, color) = (paint.ascii, paint.color);
-    let mut area = geometry.conversation;
+    let area = geometry.conversation;
     if !geometry.stacked {
-        // The rule, then one blank column so no word touches it.
-        let [edge, _, rest] = Layout::horizontal([
-            Constraint::Length(1),
+        // A left inset and the rule at the right edge, beside the preview.
+        let [_, _, edge] = Layout::horizontal([
             Constraint::Length(1),
             Constraint::Min(1),
+            Constraint::Length(1),
         ])
         .areas(area);
-        rule_column(edge, ascii, color, frame.buffer_mut());
-        area = rest;
+        rule_column(
+            edge,
+            ascii,
+            color,
+            focused != Region::Aside,
+            frame.buffer_mut(),
+        );
     }
-    let live = live_rows(state, composer, area.width, area.height.saturating_sub(2));
-    let [title, transcript, context, bottom] = Layout::vertical([
-        Constraint::Length(1),
-        Constraint::Min(0),
-        Constraint::Length(1),
-        Constraint::Length(live),
-    ])
-    .areas(area);
+    let [title, transcript, context, bottom] = panel_areas(geometry, state, composer);
     let heading = conversation::title(&screen.thread, title.width, ascii, color, geometry.stacked);
+    let heading = if focused == Region::Conversation {
+        heading.style(
+            ratatui::style::Style::default().add_modifier(ratatui::style::Modifier::UNDERLINED),
+        )
+    } else {
+        heading
+    };
     frame.render_widget(Paragraph::new(heading), title);
     render_transcript(frame, state, transcript);
     let with = conversation::context(&screen.thread, context.width, ascii, color);
@@ -189,10 +230,29 @@ fn panel(
     render_live(frame, state, composer, bottom);
 }
 
+/// The exact conversation rectangles, shared by painting and scroll bounds.
+pub(crate) fn panel_areas(geometry: &Geometry, state: &UiState, composer: &Composer) -> [Rect; 4] {
+    let area = if geometry.stacked {
+        geometry.conversation
+    } else {
+        geometry
+            .conversation
+            .inner(ratatui::layout::Margin::new(1, 0))
+    };
+    let live = live_rows(state, composer, area.width, area.height.saturating_sub(2));
+    Layout::vertical([
+        Constraint::Length(1),
+        Constraint::Min(0),
+        Constraint::Length(1),
+        Constraint::Length(live),
+    ])
+    .areas(area)
+}
+
 /// A dim vertical rule filling the one-column `area`.
-fn rule_column(area: Rect, ascii: bool, color: bool, buf: &mut Buffer) {
+fn rule_column(area: Rect, ascii: bool, color: bool, active: bool, buf: &mut Buffer) {
     let glyph = if ascii { "|" } else { "│" };
-    let style = role::style(Role::Dim, color);
+    let style = role::style(if active { Role::Accent } else { Role::Dim }, color);
     for y in area.top()..area.bottom() {
         buf.set_line(area.x, y, &Line::styled(glyph, style), area.width);
     }
@@ -271,9 +331,10 @@ mod tests {
         paint: Paint,
         focus: &Focus,
     ) -> (bool, Vec<String>, ratatui::buffer::Buffer) {
-        let mut state = UiState::new(Presentation::Focus, false, (width, height));
+        let mut state = UiState::new(Presentation::Workspace, false, (width, height));
         // One glyph column for the whole frame: the caller sets both from its theme.
         state.ascii = paint.ascii;
+        state.color = paint.color;
         let mut script = Script::demo();
         for beat in script.open() {
             state.apply(beat);
@@ -335,14 +396,51 @@ mod tests {
     }
 
     #[test]
+    fn a_short_pinned_workspace_keeps_the_question_visible() {
+        let (_, rows) = draw_at(&screen(welcome()), 60, 16, paint(false));
+        assert!(
+            rows.iter()
+                .any(|row| row.contains("Which file holds the notes")),
+            "{rows:#?}"
+        );
+        assert!(rows.iter().any(|row| row.contains("reply")), "{rows:#?}");
+    }
+
+    #[test]
+    fn the_conversation_is_between_the_project_and_the_larger_preview() {
+        let view = screen(Object::Shown {
+            icon: Icon::Workflow,
+            name: "release.nika".to_owned(),
+            lines: vec!["preview content".to_owned()],
+        });
+        let (_, rows, buffer) = draw_focused(
+            &view,
+            120,
+            40,
+            Paint {
+                color: true,
+                ..paint(false)
+            },
+            &Focus::composing(),
+        );
+        let middle: String = rows[2].chars().skip(21).take(37).collect();
+        let right: String = rows[2].chars().skip(58).collect();
+        assert!(middle.contains("release checklist"), "{middle}");
+        assert!(right.contains("release.nika"), "{right}");
+        assert_eq!(buffer[(22, 2)].fg, ratatui::style::Color::Cyan);
+        let (_, _, plain) = draw_focused(&view, 120, 40, paint(false), &Focus::composing());
+        assert_eq!(plain[(22, 2)].fg, ratatui::style::Color::Reset);
+    }
+
+    #[test]
     fn the_welcome_mark_leaves_the_composer_its_rows() {
         let screen = screen(welcome());
-        for ((width, height), size) in [((80, 24), Size::Compact), ((120, 40), Size::Board)] {
+        for ((width, height), size) in [((80, 24), Size::Compact), ((120, 40), Size::Compact)] {
             let (_, rows) = draw_at(&screen, width, height, paint(false));
             let mark = size.lines();
             let middle = mark[mark.len() / 2].trim();
             let at = find(&rows, middle).expect("mark drawn");
-            let words = find(&rows, "Describe the work you want to automate.").expect("words");
+            let words = find(&rows, "Describe the work you want to").expect("words");
             assert!(at < words, "{width}x{height}");
             let composer = find(&rows, "Message to studio").expect("composer");
             assert!(words < composer || width >= 100, "{width}x{height}");
@@ -408,7 +506,7 @@ mod tests {
         assert!(room.aside_shown && room.aside_entries == 3 && room.object_lines == 60);
         let mut focus = Focus::composing();
         let press = |code| KeyEvent::new(code, KeyModifiers::NONE);
-        focus.handle(press(KeyCode::F(6)), room);
+        focus.handle(KeyEvent::new(KeyCode::F(6), KeyModifiers::SHIFT), room);
         focus.handle(press(KeyCode::Down), room);
         let (_, rows, buffer) = draw_focused(&screen, 120, 40, paint(false), &focus);
         // The aside holds the first 20 columns at 120 (its rule is the 21st).
@@ -436,8 +534,8 @@ mod tests {
             .expect("open row");
         let (ox, oy) = (x, u16::try_from(opened).expect("y"));
         assert!(!buffer[(ox, oy)].modifier.contains(Modifier::REVERSED));
-        // The object scrolls when it has the keys; its title row stays.
-        focus.handle(press(KeyCode::F(6)), room);
+        // Backwards from the aside wraps to the preview; its title row stays.
+        focus.handle(KeyEvent::new(KeyCode::F(6), KeyModifiers::SHIFT), room);
         focus.handle(press(KeyCode::PageDown), room);
         let (_, rows, _) = draw_focused(&screen, 120, 40, paint(false), &focus);
         assert!(find(&rows, "⑂ release.nika").is_some());

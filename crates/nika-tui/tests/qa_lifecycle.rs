@@ -158,7 +158,7 @@ fn every_effect_ends_in_silence() {
     }
     // Ctrl+T from inline opens the workspace when the terminal holds it.
     term.send("\x14");
-    term.wait_text("workspace · F6 moves the keys");
+    term.wait_text("workspace · F6 panel");
     quiet(&mut term, "the switch to the workspace", window);
     term.send("\x1b");
     term.wait_until("back inline", |screen| !screen.on_alt());
