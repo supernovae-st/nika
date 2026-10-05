@@ -20,11 +20,10 @@
 //! The links are judged before any fill by every law that reads no program
 //! (`sketch::revision::linked` and the replacement spans of `resolved`). Links that break one are
 //! the seat's to state again, in the same talk, beside the same base, original request and clause
-//! lists, within the door's one round count ([`linked`]); a change no fill carries, a repeated
+//! lists, within the door's one round count (`linked`); a change no fill carries, a repeated
 //! refusal or a spent allowance is refused with every law named, and nothing is filled.
 //!
 //! [`historical`]: crate::cognition::sketch::revise::historical
-//! [`linked`]: crate::cognition::sketch::revise::linked
 
 use super::{
     Answer, Question, SKETCH, SketchAnswer, Talk, cold, conclude, fill, floor_refuses, graph,
