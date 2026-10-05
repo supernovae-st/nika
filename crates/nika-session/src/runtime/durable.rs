@@ -243,6 +243,14 @@ impl SessionRuntime {
                 .any(|d| d.starts_with(DISPATCH_PREFIX))
             && let Ok(project) = self.snapshot.root.canonicalize()
         {
+            if let Ok(report) = nika_providers::admission::CompletedCostReport::read(
+                &self.unknown_cost.observations,
+            ) && report.matches_checkpoint(raw, project.as_os_str().as_encoded_bytes())
+            {
+                self.unknown_cost.completed_restored = true;
+                notice.push_str("\ncompleted unknown-cost observations retained; a fresh one-time cost review is required; no account or consent restored");
+                return;
+            }
             match nika_providers::InferenceAdmission::from_checkpoint(
                 raw,
                 project.as_os_str().as_encoded_bytes(),
@@ -280,6 +288,7 @@ impl SessionRuntime {
                 ));
             }
         };
+        self.unknown_cost.completed_restored = false;
         self.unknown_cost.observations = state.inference_observations;
         // A no-budget observation had no allowance to reconfirm: it stays
         // exposure, never a restriction. Any other observation restricts.
@@ -683,18 +692,18 @@ impl SessionRuntime {
     }
 
     fn account_checkpoint(&self) -> Option<serde_json::Value> {
-        let account = self.money.account.as_ref()?;
-        let result = self
-            .snapshot
-            .root
-            .canonicalize()
-            .map_err(|e| e.to_string())
-            .and_then(|root| {
-                account
-                    .checkpoint(root.as_os_str().as_encoded_bytes())
-                    .map_err(|e| e.to_string())
-            });
-        Some(result.unwrap_or_else(serde_json::Value::String))
+        match self.snapshot.root.canonicalize() {
+            Ok(root) => nika_providers::admission::accounting_checkpoint(
+                self.money.account.as_ref(),
+                &self.cost_observations(),
+                root.as_os_str().as_encoded_bytes(),
+            ),
+            Err(e) => self
+                .money
+                .account
+                .as_ref()
+                .map(|_| serde_json::Value::String(e.to_string())),
+        }
     }
 
     fn saved_conversation(&self) -> Saved {

@@ -708,3 +708,25 @@ qualified native settlement. No endpoint/model fallback is attempted. An HTTP
 failure retains its typed sanitized status; server-controlled error prose is
 not echoed. Native guards require server support (source reference: Ollama
 v0.24.0); adapter tests do not establish a live model or hardware qualification.
+
+### Completed unknown-cost reports after reopening
+
+`CompletedCostReport` reads only complete CLOSED unknown-cost observations in the
+owner's durable `nika/inference-cost-observation@2` form. It checks scope identity,
+request bounds, response model, completed attempts and aggregate consistency. It
+retains every original observation and its unknown invoice; it cannot restore an
+account, reconcile a charge, amend a ceiling or authorize transport.
+
+`nika/completed-cost-report@1` binds the unchanged observations' digest to the
+canonical project. The host requires concordant exclusive history with no interrupted
+operation before using that witness. Compatibility with the old numeric codec's exact
+"only a complete strict numeric account can be checkpointed" refusal is accepted only
+after the same complete report validation. Other errors, versions and corrupt records
+refuse. This is report compatibility, not a recovered numeric checkpoint.
+
+`CostReview::after_completed` displays the retained exposure beside a fresh one-time
+review. Its host binds the full durable record to the candidate before confirmation.
+Mixed histories (including decision-seat or no-budget observations) are deliberately
+refused by this reader: another owner's state and invoice are never silently ignored.
+Pure accounting checkpoint/diagnostic projections stay in Providers; the host retains
+I/O, exclusive ownership and all admission decisions.

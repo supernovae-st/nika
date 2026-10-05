@@ -6,7 +6,7 @@ use super::SessionRuntime;
 use crate::authoring::{AuthoringError, AuthoringRound, AuthoringSeat};
 use crate::money::{InferenceEnforcement, MonetaryDecision};
 use crate::reasoner::{ReasonError, Reply};
-use nika_providers::admission::allowance;
+use nika_providers::admission::{CompletedCostReport, allowance};
 use nika_providers::{InferenceAdmission, InferenceReceipt};
 use nika_types::cost::Cost;
 
@@ -71,32 +71,17 @@ impl SessionRuntime {
                 self.unknown_cost.observations.len(),
                 self.interrupted_note()
             ),
-            Ok(None) => self
-                .money
-                .admission_note
-                .clone()
-                .or_else(|| {
-                    self.money
-                        .inference_guard
-                        .as_ref()
-                        .and_then(|d| d.refusal.as_ref())
-                        .map(|reason| {
-                            format!("earlier Session monetary admission refused: {reason}")
-                        })
-                })
-                .unwrap_or_else(|| {
-                    if self
-                        .money
-                        .inference_guard
-                        .as_ref()
-                        .is_some_and(|d| d.effective_usd == Some(0.0))
-                    {
-                        "catalog allowance is zero; no paid inference admitted; billed cost unknown"
-                    } else {
-                        "no qualified catalog admission account; billed cost unknown"
-                    }
-                    .into()
-                }),
+            Ok(None) => nika_providers::admission::unadmitted_summary(
+                self.money.admission_note.as_deref(),
+                self.money
+                    .inference_guard
+                    .as_ref()
+                    .and_then(|d| d.refusal.as_deref()),
+                self.money
+                    .inference_guard
+                    .as_ref()
+                    .is_some_and(|d| d.effective_usd == Some(0.0)),
+            ),
             Err(e) => format!("catalog admission unavailable: {e}; no paid call admitted"),
         };
         let observed = self
@@ -112,6 +97,7 @@ impl SessionRuntime {
         let legacy = nika_providers::admission::LegacyCostReport::summary_of(
             &self.unknown_cost.observations,
         )
+        .or_else(|| CompletedCostReport::summary_of(&self.unknown_cost.observations))
         .map(|line| format!(" · {line}"))
         .unwrap_or_default();
         let scope = if self.subscription() {
@@ -437,14 +423,13 @@ fn priced_route(model: &str) -> bool {
 }
 
 fn observed_marker(model: &str, decision: Option<&str>) -> String {
-    let decision = decision.map_or_else(String::new, |seat| {
-        format!(
-            " · the operator-selected decision seat {seat} may also have been called (cost unknown)"
-        )
-    });
     format!(
-        "{OBSERVED_PREFIX}{model}{decision} · no Session budget: observed, no allowance or cap · recorded {} before transport; no settlement followed, so its request(s) may have been sent and billed · usage and cost unknown",
-        crate::intelligence::now_rfc3339()
+        "{OBSERVED_PREFIX}{}",
+        nika_providers::admission::unbudgeted_dispatch_note(
+            model,
+            decision,
+            &crate::intelligence::now_rfc3339()
+        )
     )
 }
 

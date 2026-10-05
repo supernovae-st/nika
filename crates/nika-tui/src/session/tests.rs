@@ -983,3 +983,111 @@ fn a_proposal_reply_label_does_not_predict_save_or_model_work() {
             .any(|f| f.path().extension().is_some_and(|ext| ext == "nika"))
     );
 }
+
+/// A reopened project: the workflow saved, no check and no run observed in
+/// this session, and the successful run an earlier session kept.
+fn reopened() -> (Lifecycle, String, Option<Result<KeptRun, String>>) {
+    let mut facts = LifecycleFacts::new();
+    facts.saved = true;
+    let kept = KeptRun::new().ended(Some(Path::new("reorder.nika")), 0, None);
+    (
+        Lifecycle::from_facts(&facts),
+        "Saved · no current Run result · `reorder.nika`".to_owned(),
+        Some(Ok(kept)),
+    )
+}
+
+/// The rail and status rows of the inline live area drawn at `width`, and
+/// the rows that live area takes.
+fn footer_rows(beats: [Beat; 2], width: u16) -> ([String; 2], u16) {
+    use ratatui::{Terminal, backend::TestBackend};
+    let mut state =
+        crate::model::UiState::new(crate::model::Presentation::Inline, false, (width, 12));
+    for beat in beats {
+        state.apply(beat);
+    }
+    let composer = crate::composer::Composer::new();
+    let rows = crate::render::live_rows(&state, &composer, width, 12);
+    let mut terminal = Terminal::new(TestBackend::new(width, 6)).expect("test terminal");
+    terminal
+        .draw(|frame| crate::render::draw_inline(frame, &state, &composer))
+        .expect("draw");
+    let buffer = terminal.backend().buffer();
+    let row = |y: u16| {
+        (0..width)
+            .map(|x| buffer[(x, y)].symbol().to_owned())
+            .collect::<String>()
+            .trim_end()
+            .to_owned()
+    };
+    ([row(0), row(1)], rows)
+}
+
+/// Reopened, the footer tells the success an earlier session kept from what
+/// this session observed: Checked and Run stay ○, the earlier stage is named
+/// beside Run, and the status row opens with it, so a 40-column row still
+/// reads it whole; the Session's words follow unchanged and no row is added.
+#[test]
+fn a_reopened_footer_tells_an_earlier_success_from_this_session() {
+    let (lifecycle, status, kept) = reopened();
+    let plain = [Beat::Rail(lifecycle.rail()), Beat::Status(status.clone())];
+    let told = footer_beats(lifecycle, status.clone(), kept.as_ref(), true);
+    let rail = "Draft ✓ · Saved ✓ · Checked ○ · Active ○ · Run ○ (earlier ✓)";
+    assert_eq!(told[0], Beat::Rail(rail.to_owned()));
+    let note = "last run ✓ exit 0 in an earlier session";
+    assert_eq!(told[1], Beat::Status(format!("{note} · {status}")));
+    let (wide, wide_rows) = footer_rows(told.clone(), 75);
+    assert_eq!(wide[0], rail);
+    assert!(
+        wide[1].starts_with(&format!("{note} · Saved · no current Run result")),
+        "{wide:?}"
+    );
+    let (narrow, narrow_rows) = footer_rows(told, 40);
+    assert_eq!(narrow, ["Draft ✓ · Saved ✓ · Checked ○ · Active ○", note]);
+    assert_eq!(wide_rows, footer_rows(plain.clone(), 75).1);
+    assert_eq!(narrow_rows, footer_rows(plain, 40).1);
+}
+
+/// The earlier run is told only while this session observed no run and only
+/// a choice waits; an exit other than 0 keeps its own stage and another
+/// workflow is named; an unreadable or exit-less record adds nothing.
+#[test]
+fn the_earlier_run_gives_way_to_a_run_or_a_question_here() {
+    let (lifecycle, status, kept) = reopened();
+    let unchanged = [Beat::Rail(lifecycle.rail()), Beat::Status(status.clone())];
+    let waits = footer_beats(lifecycle, status.clone(), kept.as_ref(), false);
+    assert_eq!(waits, unchanged);
+    let mut ran = LifecycleFacts::new();
+    ran.saved = true;
+    ran.run = RunFact::Exit(1);
+    let ran = Lifecycle::from_facts(&ran);
+    let done = "Done · the run failed · `reorder.nika`".to_owned();
+    assert_eq!(
+        footer_beats(ran, done.clone(), kept.as_ref(), true),
+        [Beat::Rail(ran.rail()), Beat::Status(done)]
+    );
+    let records = [
+        None,
+        Some(Err("unreadable".to_owned())),
+        Some(Ok(KeptRun::new())),
+    ];
+    for record in records {
+        let told = footer_beats(lifecycle, status.clone(), record.as_ref(), true);
+        assert_eq!(told, unchanged, "{record:?}");
+    }
+    let failed = KeptRun::new().ended(Some(Path::new("other.nika")), 1, None);
+    let told = footer_beats(lifecycle, status.clone(), Some(&Ok(failed)), true);
+    assert_eq!(
+        told[0],
+        Beat::Rail(format!("{} (earlier ×)", lifecycle.rail()))
+    );
+    assert_eq!(
+        told[1],
+        Beat::Status(format!(
+            "last run of `other.nika` × exit 1 in an earlier session · {status}"
+        ))
+    );
+    let alone = footer_beats(lifecycle, String::new(), kept.as_ref(), true);
+    let note = "last run of `reorder.nika` ✓ exit 0 in an earlier session";
+    assert_eq!(alone[1], Beat::Status(note.to_owned()));
+}

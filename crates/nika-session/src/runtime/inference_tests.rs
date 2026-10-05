@@ -33,6 +33,7 @@ mod revision_question;
 mod run_scope;
 mod scopes;
 mod unknown_cost;
+mod unknown_reopen;
 pub(crate) mod wire;
 use wire::{Peer, response};
 const MODEL: &str = "deepseek/deepseek-v4-pro";

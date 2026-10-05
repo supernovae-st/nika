@@ -315,8 +315,15 @@ fn child() {
         } else {
             "claude-code"
         };
-        resolved.kind = IntelligenceKind::Harness { seat: seat.into() };
-        resolved.model = Some("anthropic/mechanical-requested".into());
+        resolved.kind = IntelligenceKind::Harness {
+            seat: seat.into(),
+            transport: nika_types::access::HarnessTransport::Native,
+        };
+        resolved.model = Some(if seat == "codex" {
+            "openai/mechanical-requested".into()
+        } else {
+            "anthropic/mechanical-requested".into()
+        });
         resolved.locus = DataLocus::Remote {
             product: seat.into(),
         };
@@ -515,6 +522,7 @@ fn codex_refuses_before_any_call_until_native_tools_can_be_disabled() {
         out["steps"][0]["text"]
             .as_str()
             .unwrap()
-            .contains("pre-execution tool disabling")
+            .contains("pre-execution tool disabling"),
+        "{out:#}"
     );
 }

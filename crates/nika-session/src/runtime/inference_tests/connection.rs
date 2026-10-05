@@ -9,13 +9,16 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-struct Subscription(Arc<AtomicUsize>);
+struct Subscription(Arc<AtomicUsize>, nika_types::access::HarnessTransport);
 impl SessionReasoner for Subscription {
     fn name(&self) -> String {
         "claude-code fixture".into()
     }
     fn authoring_harness(&self) -> Option<String> {
         Some("claude-code".into())
+    }
+    fn harness_transport(&self) -> nika_types::access::HarnessTransport {
+        self.1
     }
     fn reason(&mut self, _: &str) -> Result<Reply, ReasonError> {
         self.0.fetch_add(1, Ordering::SeqCst);
@@ -51,7 +54,9 @@ fn connected(root: &Path, home: &Path, calls: &Arc<AtomicUsize>) -> SessionRunti
         &pref,
         Some(home),
         Box::new(move |resolved| match resolved.kind {
-            IntelligenceKind::Harness { .. } => Box::new(Subscription(Arc::clone(&calls))),
+            IntelligenceKind::Harness { transport, .. } => {
+                Box::new(Subscription(Arc::clone(&calls), transport))
+            }
             _ => Box::new(ProviderReasoner {
                 model: MODEL.into(),
                 label: "DeepSeek".into(),
@@ -95,6 +100,14 @@ fn same_costs(before: &Value, after: &Value) {
 
 #[test]
 fn explicit_subscription_choice_keeps_api_account_across_reload_and_return() {
+    subscription_account_cycle("1 claude-code/claude-fable-5-1");
+}
+#[test]
+#[cfg(unix)]
+fn explicit_acp_choice_keeps_api_account_across_reload_and_return() {
+    subscription_account_cycle("1 acp:claude-code/claude-fable-5-1");
+}
+fn subscription_account_cycle(choice: &str) {
     let peer = Peer::start(vec![(200, response("first")), (200, response("next"))]);
     let _transport = test_transport::install(&peer.url);
     let root = tempfile::tempdir().unwrap();
@@ -107,7 +120,7 @@ fn explicit_subscription_choice_keeps_api_account_across_reload_and_return() {
     ));
     let before = account(root.path());
     assert!(before["identity"].is_string());
-    let notice = choose(&mut session, "1 claude-code/claude-fable-5-1");
+    let notice = choose(&mut session, choice);
     assert!(notice.contains("invoice unknown") && notice.contains("allowance is suspended"));
     assert_eq!(
         session.inference_receipt().unwrap().unwrap().state,
@@ -184,6 +197,14 @@ fn explicit_subscription_choice_keeps_api_account_across_reload_and_return() {
 
 #[test]
 fn subscription_ceiling_refusal_survives_reload_until_explicit_reselection() {
+    subscription_reselection_cycle("1 claude-code/claude-fable-5-1");
+}
+#[test]
+#[cfg(unix)]
+fn acp_ceiling_refusal_survives_reload_until_explicit_reselection() {
+    subscription_reselection_cycle("1 acp:claude-code/claude-fable-5-1");
+}
+fn subscription_reselection_cycle(choice: &str) {
     let peer = Peer::start(vec![(200, response("first"))]);
     let _transport = test_transport::install(&peer.url);
     let root = tempfile::tempdir().unwrap();
@@ -195,7 +216,7 @@ fn subscription_ceiling_refusal_survives_reload_until_explicit_reselection() {
         TurnOutcome::Reply(_)
     ));
     let before = account(root.path());
-    choose(&mut session, "1 claude-code/claude-fable-5-1");
+    choose(&mut session, choice);
     assert!(matches!(
         session.turn("What can you tell me about stars, budget 0 USD?"),
         TurnOutcome::Refusal(_)
@@ -211,7 +232,7 @@ fn subscription_ceiling_refusal_survives_reload_until_explicit_reselection() {
     assert_eq!(calls.load(Ordering::SeqCst), 0);
     assert_eq!(peer.bodies().len(), 1);
     same_costs(&before, &account(root.path()));
-    choose(&mut resumed, "1 claude-code/claude-fable-5-1");
+    choose(&mut resumed, choice);
     assert!(matches!(
         resumed.turn("What can you tell me about stars?"),
         TurnOutcome::Reply(_)

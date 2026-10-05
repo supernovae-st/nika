@@ -99,18 +99,20 @@ fn an_unchosen_session_asks_in_context_and_resumes_the_waiting_line() {
     assert!(matches!(s.turn(SMALL_TALK), TurnOutcome::Reply(_)));
 }
 
-/// The app category keeps both the pending request and the old choice until an app is named.
+/// The app category keeps both the pending request and the old choice until an app is named:
+/// `1` alone is asked again as a question (never an execution failure), while an app named
+/// explicitly that cannot answer here is still refused.
 #[test]
 fn an_ambiguous_app_choice_waits_without_saving_or_resuming() {
     let dir = tree();
     let home = tempfile::tempdir().expect("home");
     let census = IntelligenceCensus {
-        seats: ["copilot", "claude-code"]
+        seats: ["copilot", "claude-code", "gemini-cli"]
             .map(|id| crate::intelligence::SeatSeen {
                 id: id.to_owned(),
                 product_present: true,
-                configured: id == "claude-code",
-                answers_here: true,
+                configured: id != "copilot",
+                answers_here: id != "gemini-cli",
             })
             .to_vec(),
         api_keys: vec![],
@@ -125,7 +127,8 @@ fn an_ambiguous_app_choice_waits_without_saving_or_resuming() {
         assert_eq!(
             resolved.kind,
             IntelligenceKind::Harness {
-                seat: "claude-code".into()
+                seat: "claude-code".into(),
+                transport: nika_types::access::HarnessTransport::Native,
             }
         );
         assert_eq!(resolved.model.as_deref(), Some("claude-code/opus[1m]"));
@@ -134,9 +137,30 @@ fn an_ambiguous_app_choice_waits_without_saving_or_resuming() {
     });
     let mut s = SessionRuntime::open_unchosen(dir.path(), census, Some(home.path()), factory);
     assert!(matches!(s.turn(SMALL_TALK), TurnOutcome::Ask(_)));
-    assert!(matches!(s.choose("1"), TurnOutcome::Refusal(ref r)
-        if r.text.contains("1 <app>") && r.text.contains("claude-code")));
-    assert!(s.pending_choice() && !s.intelligence_chosen());
+    let unchosen = s.status();
+    for typed in ["1", " 1 "] {
+        let TurnOutcome::Ask(question) = s.choose(typed) else {
+            panic!("`{typed}` alone asks which app instead of refusing");
+        };
+        assert!(
+            question.starts_with("Which app should answer?")
+                && question.contains("1 <app>")
+                && question.contains("claude-code (sign-in seen) · copilot (no sign-in seen)"),
+            "{question}"
+        );
+        assert!(s.pending_choice() && !s.intelligence_chosen());
+        assert_eq!(s.interrupted.as_deref(), Some(SMALL_TALK));
+        assert_eq!(s.status(), unchosen, "intelligence and model untouched");
+    }
+    let TurnOutcome::Refusal(refused) = s.choose("1 gemini-cli") else {
+        panic!("an app named explicitly that cannot answer here is refused");
+    };
+    assert_eq!(refused.class, RefusalClass::IntelligenceRefused);
+    assert!(
+        refused.text.contains("cannot get an answer through it"),
+        "{}",
+        refused.text
+    );
     assert_eq!(s.interrupted.as_deref(), Some(SMALL_TALK));
     assert_eq!(selections.load(Ordering::SeqCst), 0);
     assert!(UserIntelligencePreference::load(home.path()).is_none());
@@ -147,7 +171,9 @@ fn an_ambiguous_app_choice_waits_without_saving_or_resuming() {
     assert_eq!(selections.load(Ordering::SeqCst), 1);
     let kept = UserIntelligencePreference::load(home.path()).expect("named choice kept");
     assert!(matches!(s.turn("/intelligence"), TurnOutcome::Ask(_)));
-    assert!(matches!(s.choose("1"), TurnOutcome::Refusal(_)));
+    let seated = s.status();
+    assert!(matches!(s.choose("1"), TurnOutcome::Ask(_)));
+    assert_eq!(s.status(), seated, "the kept app and model stand");
     assert_eq!(
         UserIntelligencePreference::load(home.path()),
         Some(kept.clone())
@@ -385,6 +411,7 @@ fn a_kept_choice_that_cannot_answer_asks_in_context_and_resumes_the_line() {
     let pref = UserIntelligencePreference::new(
         IntelligenceKind::Harness {
             seat: "gemini-cli".to_owned(),
+            transport: nika_types::access::HarnessTransport::Native,
         },
         None,
     );
@@ -458,6 +485,7 @@ fn unsettled_work_under_a_kept_unusable_choice_asks_in_context() {
     let pref = UserIntelligencePreference::new(
         IntelligenceKind::Harness {
             seat: "gemini-cli".to_owned(),
+            transport: nika_types::access::HarnessTransport::Native,
         },
         None,
     );
@@ -637,7 +665,8 @@ fn the_intelligence_can_be_rechosen_in_session() {
     assert_eq!(
         back.kind,
         IntelligenceKind::Harness {
-            seat: "codex".to_owned()
+            seat: "codex".to_owned(),
+            transport: nika_types::access::HarnessTransport::Native,
         }
     );
 }
@@ -651,6 +680,7 @@ fn an_unserved_choice_refuses_with_its_fix() {
     let unserved = ResolvedSessionIntelligence {
         kind: IntelligenceKind::Harness {
             seat: "claude-code".to_owned(),
+            transport: nika_types::access::HarnessTransport::Native,
         },
         model: None,
         locus: DataLocus::Remote {

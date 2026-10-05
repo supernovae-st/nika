@@ -67,7 +67,8 @@ pub struct SessionState {
     /// Cost observations only; never restores an account, review or consent.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub inference_observations: Vec<serde_json::Value>,
-    /// Complete numeric ledger, read closed only under concordant exclusive history.
+    /// Numeric ledger (restored closed), or completed cost report (no account); each is
+    /// versioned and read only under concordant exclusive history.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub inference_checkpoint: Option<serde_json::Value>,
 }

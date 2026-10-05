@@ -8,11 +8,15 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 mod amount;
 mod checkpoint;
+mod completed;
+pub use completed::CompletedCostReport;
 mod legacy;
 pub use legacy::LegacyCostReport;
 mod summary;
 pub use amount::allowance;
-pub use summary::unbudgeted_summary;
+pub use summary::{
+    accounting_checkpoint, unadmitted_summary, unbudgeted_dispatch_note, unbudgeted_summary,
+};
 mod declared;
 mod observation;
 mod review;

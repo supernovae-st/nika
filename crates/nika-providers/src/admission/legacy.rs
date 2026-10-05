@@ -18,6 +18,11 @@ pub struct LegacyCostReport {
     later_unknown: u64,
 }
 impl LegacyCostReport {
+    pub(super) fn into_display(self) -> (String, String) {
+        let summary = self.summary();
+        (self.digest, summary)
+    }
+
     /// Read the deliberately narrow legacy form: one strict, uncertain numeric observation,
     /// followed only by closed unknown-cost invocations. Active, malformed, other schemas and
     /// newly uncertain scopes refuse. No endpoint, output bound or missing receipt is inferred.

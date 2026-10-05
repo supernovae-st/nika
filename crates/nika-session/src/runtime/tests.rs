@@ -91,6 +91,7 @@ fn ready_with(dir: &Path, replies: Vec<&str>) -> SessionRuntime {
     let seated = ResolvedSessionIntelligence {
         kind: IntelligenceKind::Harness {
             seat: "codex".to_owned(),
+            transport: nika_types::access::HarnessTransport::Native,
         },
         model: None,
         locus: DataLocus::Remote {
@@ -1387,9 +1388,11 @@ fn the_recovery_card_never_denies_what_a_model_may_have_received() {
     s.seat = crate::authoring::AuthoringSeat::Harness {
         seat: "codex".to_owned(),
         model: None,
+        transport: nika_types::access::HarnessTransport::Native,
     };
     s.intelligence.kind = IntelligenceKind::Harness {
         seat: "codex".to_owned(),
+        transport: nika_types::access::HarnessTransport::Native,
     };
     let harness = card(&mut s);
     assert!(

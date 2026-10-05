@@ -129,3 +129,12 @@ pure renderer used by Session previews; it opens nothing and grants no permit.
 withheld or unreadable states. A new start clears the earlier map. A failed
 run remains failed even when its terminal carries resolved values. The fold
 never reconstructs outputs from a current workflow or from task homonyms.
+
+## Data-location presentation
+
+`front_door::DataLocus` is a passive projection of the host's resolved data
+location and its explanatory line. It performs no lookup, persistence or
+admission. Session retains the provider/census resolution and re-exports the
+same `DataLocus` name, so existing presentation consumers retain their path.
+Subscription completion transport vocabulary lives separately in
+`nika-types::access::HarnessTransport`; neither projection grants Run access.

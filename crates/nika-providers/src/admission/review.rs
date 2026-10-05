@@ -267,7 +267,7 @@ pub struct CostReview {
     candidate: String,
     invocation: String,
     route: CostRoute,
-    prior_report: Option<super::LegacyCostReport>,
+    prior_report: Option<(String, String)>,
     evidence: CostHostEvidence,
     defaults: [Option<Cost>; 2],
     max_requests: u32,
@@ -370,7 +370,15 @@ impl CostReview {
     /// This never restores a numeric account or settles an earlier charge.
     #[must_use]
     pub fn after_legacy(mut self, report: super::LegacyCostReport) -> Self {
-        self.prior_report = Some(report);
+        self.prior_report = Some(report.into_display());
+        self
+    }
+
+    /// Show completed prior scopes without reusing their authority or reconciling their price.
+    /// The host binds the report/project witness and observes them again before confirmation.
+    #[must_use]
+    pub fn after_completed(mut self, report: super::CompletedCostReport) -> Self {
+        self.prior_report = Some(report.into_display());
         self
     }
 
@@ -505,7 +513,7 @@ impl CostReview {
             multiplicity.push_str(&line);
         }
         let prior = self.prior_report.as_ref().map_or_else(String::new, |report| {
-            format!("{}\nThis choice authorizes only the NEW invocation described below; no ceiling covers the earlier unknown charge. A stated budget is not this authorization.\n", report.summary())
+            format!("{}\nThis choice authorizes only the NEW invocation described below; no ceiling covers the earlier unknown charge. A stated budget is not this authorization.\n", report.1)
         });
         format!(
             "{prior}USD cost is unknown; a charge is possible on {}/{}.\nAt most {} requests; each at most {} output tokens and {} seconds (at most {} seconds of model wait). Any schema re-asks consume this same request bound. No automatic transport retry.{multiplicity}\nOverrides only the shown defaults (invocation: {}; project: {}); no hard cap is overridden.\nContinue once? yes / no",
@@ -528,7 +536,7 @@ impl CostReview {
             .prior_report
             .as_ref()
             .map_or_else(String::new, |report| {
-                format!(" · prior report {}", report.digest())
+                format!(" · prior report {}", report.0)
             });
         format!(
             "candidate {} · invocation {} · origin {} · host {}{prior}",

@@ -5,7 +5,7 @@
 use super::{Refusal, RefusalClass, SessionRuntime, TurnOutcome};
 use crate::authoring::AUTHORING_REPAIRS;
 use nika_onboard::compile::authority::{recovery_requests, worst_case};
-use nika_providers::admission::LegacyCostReport;
+use nika_providers::admission::{CompletedCostReport, LegacyCostReport};
 use nika_runtime::cost_choice::{CostHostEvidence, CostReview, CostRoute, monetary_default};
 use std::io::Read as _;
 
@@ -17,6 +17,7 @@ pub(super) struct UnknownCostState {
     pub in_consent: bool,
     sequence: u64,
     pub observations: Vec<serde_json::Value>,
+    pub completed_restored: bool,
 }
 struct PendingCost {
     review: CostReview,
@@ -79,13 +80,24 @@ impl SessionRuntime {
         }
         LegacyCostReport::read(&self.unknown_cost.observations).ok()
     }
+    pub(super) fn completed_report(&self) -> Option<CompletedCostReport> {
+        if !self.unknown_cost.completed_restored
+            || !self.money.reconfirm
+            || self.money.account.is_some()
+        {
+            return None;
+        }
+        CompletedCostReport::read(&self.unknown_cost.observations).ok()
+    }
     pub(super) fn unreviewed_unknown_route(&self) -> bool {
         !self.unknown_cost.active
             && matches!(self.intelligence.kind, crate::IntelligenceKind::Api { .. })
             && self
                 .selected_cost_route()
                 .map_or(!self.legacy_native_price(), |r| {
-                    r.needs_unknown_choice() || self.legacy_report().is_some()
+                    r.needs_unknown_choice()
+                        || self.legacy_report().is_some()
+                        || self.completed_report().is_some()
                 })
     }
     fn legacy_native_price(&self) -> bool {
@@ -117,11 +129,19 @@ impl SessionRuntime {
             self.authoring
         )
         .into_bytes();
-        if self.legacy_report().is_some() {
+        let completed = self.completed_report();
+        if self.legacy_report().is_some() || completed.is_some() {
             let state = crate::SessionState::load(&self.snapshot.root)
                 .map_err(|e| e.to_string())?
                 .ok_or("legacy record disappeared")?;
-            if state.inference_checkpoint.is_some()
+            let checkpoint_ok = completed.map_or(state.inference_checkpoint.is_none(), |report| {
+                self.snapshot.root.canonicalize().ok().is_some_and(|root| {
+                    state.inference_checkpoint.as_ref().is_some_and(|raw| {
+                        report.matches_checkpoint(raw, root.as_os_str().as_encoded_bytes())
+                    })
+                })
+            });
+            if !checkpoint_ok
                 || state.pending.is_some()
                 || state.inference_observations != self.cost_observations()
                 || state
@@ -253,7 +273,7 @@ impl SessionRuntime {
             Err(why) => return Err(cost_refusal(why)),
         };
         let legacy = self.legacy_report();
-        if !route.needs_unknown_choice() && legacy.is_none() {
+        if !route.needs_unknown_choice() && legacy.is_none() && self.completed_report().is_none() {
             return Ok(());
         }
         Err(self
@@ -267,7 +287,7 @@ impl SessionRuntime {
     ) -> Result<TurnOutcome, TurnOutcome> {
         let result = (|| {
             let legacy = self.legacy_report();
-            if self.money.reconfirm && legacy.is_none() {
+            if self.money.reconfirm && legacy.is_none() && self.completed_report().is_none() {
                 return Err(self.restored_refusal());
             }
             if self.money.gate.is_some() {
@@ -323,6 +343,10 @@ impl SessionRuntime {
             .with_recovery_requests(reserved, 1 + worst + reserved);
             let review = match legacy {
                 Some(report) => review.after_legacy(report),
+                None => review,
+            };
+            let review = match self.completed_report() {
+                Some(report) => review.after_completed(report),
                 None => review,
             };
             let question = review.question();

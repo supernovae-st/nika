@@ -248,8 +248,19 @@ impl UiState {
     pub fn apply(&mut self, beat: Beat) {
         match beat {
             Beat::Say(block) => {
-                self.activity = None;
                 self.busy = None;
+                // A run's own task lines repeat the steps its live card observed: the card
+                // gives way (unless already in scrollback), so each step reads once, after
+                // the run's check and announcement. Any other block only settles the card.
+                if block.kind == Kind::Run {
+                    if let Some(card) = self.activity.take()
+                        && card.index >= self.committed_inline
+                    {
+                        self.transcript.remove(card.index);
+                    }
+                } else if let Some(card) = self.activity.as_mut() {
+                    card.live = false;
+                }
                 self.transcript.push(block);
             }
             Beat::Wait(waiting) => {
@@ -270,6 +281,10 @@ impl UiState {
         if self.presentation != Presentation::Workspace || label.trim().is_empty() {
             return;
         }
+        // A settled card stays as it was; a later update opens a new one below.
+        if self.activity.as_ref().is_some_and(|card| !card.live) {
+            self.activity = None;
+        }
         let activity = self.activity.get_or_insert_with(|| {
             let index = self.transcript.len();
             self.transcript.push(Committed::new(Kind::Report, ""));
@@ -277,6 +292,7 @@ impl UiState {
                 index,
                 lines: Vec::new(),
                 omitted: 0,
+                live: true,
             }
         });
         if activity.lines.last().is_some_and(|last| last == label) {
@@ -315,6 +331,8 @@ struct Activity {
     index: usize,
     lines: Vec<String>,
     omitted: usize,
+    /// Still receiving this turn's updates (no block said since it opened).
+    live: bool,
 }
 
 /// A canned conversation: every submitted line advances one turn and yields
@@ -716,6 +734,94 @@ mod tests {
         assert!(state.transcript[0].text.is_ascii());
         state.observe_activity("using private/été·beta");
         assert!(state.transcript[0].text.ends_with("using private/été·beta"));
+    }
+
+    /// A run's steps read once and in order: its check, its announcement, then its own task
+    /// lines. The card that showed them live gives way instead of repeating them above.
+    #[test]
+    fn a_run_block_replaces_its_observed_card_so_steps_read_once_in_order() {
+        let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
+        state.apply(Beat::Say(Committed::new(Kind::Human, "run reorder.nika")));
+        for label in [
+            "▶ read_stock",
+            "✔ read_stock · 2 ms · 1/2",
+            "✔ write_order · 1 ms · 2/2",
+        ] {
+            state.observe_activity(label);
+        }
+        assert_eq!(
+            state.transcript.len(),
+            2,
+            "progress shows while the run works"
+        );
+        let story = "running · reorder\n  ✔ read_stock · 2 ms\n  ✔ write_order · 1 ms\nsucceeded · 2/2 tasks";
+        for beat in [
+            Beat::Say(Committed::new(
+                Kind::Report,
+                "check · `reorder.nika` · clean ✔",
+            )),
+            Beat::Say(Committed::new(
+                Kind::Report,
+                "running `reorder.nika` once · ceiling $0.00",
+            )),
+            Beat::Say(Committed::new(Kind::Run, story)),
+            Beat::Say(Committed::new(Kind::Result, "Done · ./order.json (24 B)")),
+            Beat::Wait(Waiting::Free),
+        ] {
+            state.apply(beat);
+        }
+        let kinds: Vec<Kind> = state.transcript.iter().map(|block| block.kind).collect();
+        assert_eq!(
+            kinds,
+            [
+                Kind::Human,
+                Kind::Report,
+                Kind::Report,
+                Kind::Run,
+                Kind::Result
+            ]
+        );
+        assert!(state.transcript[1].text.starts_with("check"));
+        assert_eq!(state.transcript[3].text, story);
+        let seen: usize = (state.transcript.iter())
+            .map(|block| block.text.matches("write_order").count())
+            .sum();
+        assert_eq!(seen, 1, "each step reads once");
+        state.observe_activity("reading the request");
+        assert_eq!(state.transcript.len(), 6);
+        assert!(state.transcript[5].text.starts_with("Activity"));
+    }
+
+    /// A card already handed to the terminal's scrollback is never unprinted, and a card of a
+    /// turn that said no run (or of an earlier turn) stays where it was, settled.
+    #[test]
+    fn a_printed_or_unrelated_activity_card_stays_where_it_was() {
+        let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
+        state.observe_activity("✔ write_order · 1 ms · 2/2");
+        state.committed_inline = state.transcript.len();
+        state.apply(Beat::Say(Committed::new(
+            Kind::Run,
+            "succeeded · 2/2 tasks",
+        )));
+        assert_eq!(state.transcript.len(), 2);
+        assert!(state.transcript[0].text.starts_with("Activity"));
+        let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
+        state.observe_activity("reading the request");
+        let first = state.transcript[0].clone();
+        state.apply(Beat::Say(Committed::new(
+            Kind::Proposal,
+            "proposed workflow",
+        )));
+        state.observe_activity("checking the proposal");
+        state.apply(Beat::Wait(Waiting::Proposal));
+        let cards = state.transcript.clone();
+        state.apply(Beat::Say(Committed::new(
+            Kind::Run,
+            "succeeded · 2/2 tasks",
+        )));
+        assert_eq!(state.transcript[0], first);
+        assert_eq!(state.transcript[..3], cards[..]);
+        assert_eq!(state.transcript.len(), 4);
     }
 
     #[test]

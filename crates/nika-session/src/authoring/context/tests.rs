@@ -532,6 +532,7 @@ fn a_subscription_seat_refuses_a_named_effort_before_any_call() {
     let seat = AuthoringSeat::Harness {
         seat: "no-such-harness".to_owned(),
         model: None,
+        transport: nika_types::access::HarnessTransport::Native,
     };
     let context = host(&AuthoringSettings::none().with_reasoning("max"));
     let refused = compile_in(&seat, &context, &CompileRequest::create(REQUEST), REQUEST);

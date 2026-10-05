@@ -128,6 +128,32 @@ It has no model or firer and does not qualify live scheduled execution.
 
 ## Subscription authoring
 
+An explicit `1 acp:claude-code/<model>` choice uses ACP for conversation,
+classification and native Compiler authoring. The persisted harness transport
+is `acp`; older preferences without that field retain `native`. The selected
+transport must match the reasoner's authoring capability. No native or API
+fallback is permitted. Workflow execution access remains a separate Run choice.
+
+The initial ACP completion profile admits only the maintained
+`@agentclientprotocol/claude-agent-acp` 0.81.1 identity on the active connection,
+before `session/new`. Its audited options disable built-in tools, external MCP
+configuration and filesystem settings, allow one SDK turn and disable transcript
+persistence. The session uses a fresh scratch directory. Tool, permission,
+non-text output and incomplete stop reasons refuse the answer; EOF, timeout or
+cancellation never become a completed candidate. This is adapter-specific
+capability admission, not a generic claim about ACP read-only modes. Codex
+keeps its existing authoring refusal until pre-execution tool disabling is
+attested. The whole answer reaches Compiler validation; no JSON prefix is extracted.
+
+ACP uses the same bounded Compiler call/repair policy and the same subscription
+monetary guards. The existing `harness_infer` receipt class carries an explicit
+`transport: acp`, preserving clarification replay. Configured/accepted session
+models are recorded separately from a responding model, which remains unknown.
+Token usage and the subscription invoice remain unknown; no zero-priced API
+allowance is created and no retained API account is erased. The requested token
+ceiling is recorded without claiming that ACP enforces it.
+
+
 The selected reasoner declares its subscription authoring capability separately
 from a provider model or catalog-backed admission. A supported harness sends
 native Compiler messages through `nika-harness::authoring::HarnessAuthoring`,
@@ -137,7 +163,11 @@ fallback. Supported adapters retain their explicitly selected adapter and model;
 an absent model retains the harness default. With multiple answer-capable apps
 present, `1` keeps the choice and any pending request open until the human names
 `1 <app>` or `1 <app>/<model>`; presence order and sign-in evidence never choose
-between them. A single app retains the short `1` choice. Unsupported model namespaces or
+between them. `1` alone still chooses the app when exactly one can answer; only
+when several can, or none can, is it asked again as a question (which app, or
+route 2, 3 or 4) that keeps the pending request, never an execution refusal. An
+app named explicitly that cannot answer is still refused. The apps line labels each app `sign-in seen` or `no sign-in seen`: a
+home-file witness proves presence, not a live login. Unsupported model namespaces or
 unavailable/unsupported harness capabilities refuse visibly. No intelligence
 continues to compile deterministic requests without calling a model.
 
@@ -804,3 +834,22 @@ The compiler decision's route/seat/ledger/knowledge wording is the pure
 `nika_onboard::compile::reading::decision_words` projection beside the existing
 receipt wording. Session still owns when to display it and keeps every existing
 consent, accounting and dispatch boundary; diagnostics trigger no automatic retry.
+
+### Reopening a completed unknown-cost invocation
+
+For completed unknown-cost API scopes, Session may retain a
+`nika/completed-cost-report@1` witness in both durable stores. With the same exclusive
+history and concordance checks as numeric restoration, it enables only a new cost
+review. It restores no account, allowance or consent; monetary reconfirmation remains
+set. The review names the unchanged earlier exposure, and confirmation binds the full
+project record, observations, exact input and selected route. A stale record refuses
+before transport. Each later request or reopening needs a fresh explicit review, and
+only that invocation receives the existing bounded unknown-cost account.
+
+The old exact numeric-codec refusal string is compatible only when every observation
+is a complete CLOSED unknown-cost scope and both stores agree. Unknown/incomplete
+attempts, zero, gates, interrupted boundaries, arbitrary errors, missing history and
+mixed observation families remain refused. In particular this path does not interpret
+Jev's decision-seat records or discard no-budget observations. Qualification of the
+API-only TUI journey is separate from any decision-seat continuation. Save and Run
+remain separate human acts; previous observations are neither reset nor duplicated.

@@ -35,7 +35,7 @@ use acquire::{ChildRead, Fetched, Proven};
 use feed::{Feed, Seen};
 use legs::{Leg, Legs};
 use nika_display::run_story::{ChildRun, ExecutionId};
-use nika_session::KeptRun;
+use nika_session::{KeptRun, Lifecycle, LifecycleFacts, RunFact, Stage};
 
 /// A fresh Run may suspend at a child-owned cost question. Only the run's
 /// story reaches the sender: no frame is typed, so the workspace cannot follow
@@ -332,10 +332,25 @@ impl Live {
             legs.kept(run);
         }
         self.kept = kept;
-        beats.push(Beat::Rail(runtime.lifecycle().rail()));
-        beats.push(Beat::Status(runtime.status_line()));
+        beats.extend(self.footer());
         beats.push(Beat::Wait(self.waiting()));
         beats
+    }
+
+    /// The rail and the status row, told apart from the run an earlier
+    /// session kept ([`footer_beats`]); nothing while no runtime is open.
+    fn footer(&self) -> Vec<Beat> {
+        let Some(runtime) = self.runtime.as_ref() else {
+            return Vec::new();
+        };
+        let quiet = matches!(self.waiting(), Waiting::Free | Waiting::Choosing);
+        footer_beats(
+            runtime.lifecycle(),
+            runtime.status_line(),
+            self.kept.as_ref(),
+            quiet,
+        )
+        .into()
     }
 
     /// What the runtime waits for, by the same reading as the plain loop.
@@ -454,10 +469,7 @@ impl Live {
             _ => {}
         }
         if handoff.is_none() {
-            if let Some(runtime) = self.runtime.as_ref() {
-                beats.push(Beat::Rail(runtime.lifecycle().rail()));
-                beats.push(Beat::Status(runtime.status_line()));
-            }
+            beats.extend(self.footer());
             beats.push(Beat::Wait(self.waiting()));
         }
         (beats, handoff)
@@ -636,6 +648,49 @@ fn kept_line(kept: Option<&Result<KeptRun, String>>) -> Option<String> {
             "the last run's record is unreadable ({why}) · kept unchanged · nothing replays"
         ),
     })
+}
+
+/// The rail and the status row of this session, told apart from the last run
+/// an earlier session kept. While no run or gate is observed here and nothing
+/// but a choice waits, the rail's Run field adds that run's stage (« Run ○
+/// (earlier ✓) ») and the status row opens with it (« last run ✓ exit 0 in an
+/// earlier session · Saved · no current Run result · … »), first so that a
+/// narrow row keeps it. Checked and Run stay this session's facts and the
+/// Session's words follow unchanged; a kept run without an exit adds nothing.
+fn footer_beats(
+    lifecycle: Lifecycle,
+    status: String,
+    kept: Option<&Result<KeptRun, String>>,
+    quiet: bool,
+) -> [Beat; 2] {
+    let rail = lifecycle.rail();
+    let earlier = match kept {
+        Some(Ok(run)) if quiet && lifecycle.run == Stage::Pending => {
+            run.exit.map(|exit| (run.workflow.as_deref(), exit))
+        }
+        _ => None,
+    };
+    let Some((workflow, exit)) = earlier else {
+        return [Beat::Rail(rail), Beat::Status(status)];
+    };
+    let mut facts = LifecycleFacts::new();
+    facts.run = RunFact::Exit(exit);
+    let glyph = Lifecycle::from_facts(&facts).run.glyph();
+    // The status names the saved workflow; another one is named here.
+    let of = workflow
+        .filter(|w| !status.contains(&format!("`{w}`")))
+        .map(|w| format!(" of `{w}`"))
+        .unwrap_or_default();
+    let note = format!("last run{of} {glyph} exit {exit} in an earlier session");
+    let status = if status.is_empty() {
+        note
+    } else {
+        format!("{note} · {status}")
+    };
+    [
+        Beat::Rail(format!("{rail} (earlier {glyph})")),
+        Beat::Status(status),
+    ]
 }
 
 /// A consent line while no candidate is on screen.
@@ -1117,7 +1172,9 @@ fn seat(runtime: &SessionRuntime) -> Option<String> {
     let chosen = &runtime.intelligence;
     let base = match (&chosen.kind, &chosen.locus) {
         (IntelligenceKind::None, _) => return Some("none, the engine facts answer".to_owned()),
-        (IntelligenceKind::Harness { seat }, _) => format!("{seat}, through your account"),
+        (IntelligenceKind::Harness { seat, transport }, _) => {
+            format!("{seat} {transport}, through your account")
+        }
         (IntelligenceKind::Api { provider }, DataLocus::Gateway { host, .. }) => {
             format!("{provider} API through {host}, metered")
         }

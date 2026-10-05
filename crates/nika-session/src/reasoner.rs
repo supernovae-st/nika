@@ -82,6 +82,11 @@ pub trait SessionReasoner: Send {
         None
     }
 
+    /// The connection granted by this reasoner; wrappers preserve an explicit ACP choice.
+    fn harness_transport(&self) -> nika_types::access::HarnessTransport {
+        nika_types::access::HarnessTransport::Native
+    }
+
     /// Whether this implementation opts into the shared admission seam.
     /// Custom and subscription implementations remain default-refusing.
     fn supports_admission(&self) -> bool {
@@ -200,7 +205,7 @@ impl SessionReasoner for NoReasoner {
 /// A harness seat (an AI app the human already has) — the SAME
 /// infer-grade adapter `nika run` dispatches an `infer:` through.
 #[cfg(feature = "access-harness")]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HarnessReasoner {
     /// The seat id.
     pub seat: String,
@@ -212,9 +217,19 @@ impl HarnessReasoner {
     /// clarification as well as authoring; the original struct stays compatible.
     #[must_use]
     pub fn with_model(self, model: Option<String>) -> impl SessionReasoner {
+        self.with_transport(model, nika_types::access::HarnessTransport::Native)
+    }
+    /// Select the connection explicitly for every conversational and authoring call.
+    #[must_use]
+    pub fn with_transport(
+        self,
+        model: Option<String>,
+        transport: nika_types::access::HarnessTransport,
+    ) -> impl SessionReasoner {
         SelectedHarnessReasoner {
             harness: self,
             model,
+            transport,
         }
     }
 }
@@ -223,6 +238,7 @@ impl HarnessReasoner {
 struct SelectedHarnessReasoner {
     harness: HarnessReasoner,
     model: Option<String>,
+    transport: nika_types::access::HarnessTransport,
 }
 
 #[cfg(feature = "access-harness")]
@@ -233,21 +249,20 @@ impl SessionReasoner for SelectedHarnessReasoner {
     fn authoring_harness(&self) -> Option<String> {
         self.harness.authoring_harness()
     }
+    fn harness_transport(&self) -> nika_types::access::HarnessTransport {
+        self.transport
+    }
     fn reason(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
-        let model =
-            nika_harness::authoring::model_argument(&self.harness.seat, self.model.as_deref())
-                .map_err(ReasonError::Seat)?;
-        let seat = nika_harness::meet_infer_grade(
+        let (text, usage_observed) = block_on(nika_harness::authoring::reason(
             &self.harness.seat,
-            nika_harness::StructuredOutputGrade::Text,
-        )
-        .map_err(|e| ReasonError::Seat(e.to_string()))?;
-        let request = nika_harness::HarnessInferRequest::new(prompt, model);
-        let outcome = block_on(async { seat.run(request).await })?
-            .map_err(|e| ReasonError::Seat(e.to_string()))?;
+            self.model.as_deref(),
+            self.transport,
+            prompt,
+        ))?
+        .map_err(ReasonError::Seat)?;
         Ok(Reply {
-            text: outcome.output,
-            usage_observed: outcome.usage_observed,
+            text,
+            usage_observed,
         })
     }
 }
@@ -262,16 +277,7 @@ impl SessionReasoner for HarnessReasoner {
     }
 
     fn reason(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
-        let seat =
-            nika_harness::meet_infer_grade(&self.seat, nika_harness::StructuredOutputGrade::Text)
-                .map_err(|e| ReasonError::Seat(e.to_string()))?;
-        let request = nika_harness::HarnessInferRequest::new(prompt, "session");
-        let outcome = block_on(async { seat.run(request).await })?
-            .map_err(|e| ReasonError::Seat(e.to_string()))?;
-        Ok(Reply {
-            text: outcome.output,
-            usage_observed: outcome.usage_observed,
-        })
+        self.clone().with_model(None).reason(prompt)
     }
 }
 

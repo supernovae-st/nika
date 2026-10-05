@@ -140,6 +140,8 @@ pub enum AuthoringSeat {
         seat: String,
         /// Caller selection, or the harness default when absent.
         model: Option<String>,
+        /// The exact selected completion connection, never a fallback.
+        transport: nika_types::access::HarnessTransport,
     },
     /// A selected capability that this host/build cannot honor.
     Unavailable {
@@ -157,7 +159,7 @@ impl AuthoringSeat {
         reasoner: &dyn SessionReasoner,
         intelligence: &ResolvedSessionIntelligence,
     ) -> Self {
-        if let IntelligenceKind::Harness { seat } = &intelligence.kind {
+        if let IntelligenceKind::Harness { seat, transport } = &intelligence.kind {
             if !intelligence.ready {
                 return Self::Unavailable {
                     why: intelligence
@@ -167,22 +169,27 @@ impl AuthoringSeat {
                 };
             }
             #[cfg(feature = "access-harness")]
-            if let Err(why) =
-                nika_harness::authoring::HarnessAuthoring::meet(seat, intelligence.model.as_deref())
-            {
+            if let Err(why) = nika_harness::authoring::HarnessAuthoring::meet_with_transport(
+                seat,
+                intelligence.model.as_deref(),
+                *transport,
+            ) {
                 return Self::Unavailable { why };
             }
             #[cfg(not(feature = "access-harness"))]
             return Self::Unavailable {
                 why: format!(
-                    "subscription authoring `{seat}` requires access-harness in this build"
+                    "subscription {transport} authoring `{seat}` requires access-harness in this build"
                 ),
             };
             #[cfg(feature = "access-harness")]
-            return if reasoner.authoring_harness().as_deref() == Some(seat.as_str()) {
+            return if reasoner.authoring_harness().as_deref() == Some(seat.as_str())
+                && reasoner.harness_transport() == *transport
+            {
                 Self::Harness {
                     seat: seat.clone(),
                     model: intelligence.model.clone(),
+                    transport: *transport,
                 }
             } else {
                 Self::Unavailable {
@@ -221,8 +228,12 @@ impl AuthoringSeat {
             Self::Provider { model } => {
                 format!("authoring · {model} (bounded calls per fresh intent)")
             }
-            Self::Harness { seat, model } => format!(
-                "authoring · {seat} subscription · {} · cost unknown",
+            Self::Harness {
+                seat,
+                model,
+                transport,
+            } => format!(
+                "authoring · {seat} {transport} subscription · {} · cost unknown",
                 model.as_deref().unwrap_or("harness default")
             ),
             Self::Unavailable { why } => format!("authoring unavailable · {why}"),
@@ -643,7 +654,7 @@ fn compile_attached(
         }
         AuthoringSeat::Unavailable { why } => return Err(AuthoringError::Seat(why.clone())),
         AuthoringSeat::Provider { model } => model.clone(),
-        AuthoringSeat::Harness { seat, model } => {
+        AuthoringSeat::Harness { seat, model, .. } => {
             if admission.is_some() {
                 return Err(AuthoringError::Seat(
                     "a subscription is not a billed-provider admission account".into(),
@@ -678,9 +689,11 @@ fn compile_attached(
         request = request.with_authoring_knowledge(pack.clone());
     }
     let mut out = match seat {
-        AuthoringSeat::Harness { seat, model } => {
-            harness::compile(seat, model.as_deref(), &request, host)?
-        }
+        AuthoringSeat::Harness {
+            seat,
+            model,
+            transport,
+        } => harness::compile(seat, model.as_deref(), *transport, &request, host)?,
         _ => seated(&model, &request, admission, context.decision(), host)?,
     };
     let knowledge = match (attach, &pack, context.knowledge()) {
@@ -850,6 +863,7 @@ mod tests {
             &NoReasoner,
             &resolved(IntelligenceKind::Harness {
                 seat: "codex".to_owned(),
+                transport: nika_types::access::HarnessTransport::Native,
             }),
         );
         match harness {

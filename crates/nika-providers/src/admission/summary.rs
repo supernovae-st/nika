@@ -119,3 +119,58 @@ pub fn unbudgeted_summary(observed: &[&Value], interrupted: usize) -> Option<Str
         "no-budget observation (outside any allowance or cap): {sent} priced call(s) sent · catalog estimate {estimate} of complete usage · {unsettled} without usable settlement · invoice unknown{interrupted}"
     ))
 }
+
+/// The host's diagnostic when no callable account exists. Names no new authority.
+#[must_use]
+pub fn unadmitted_summary(note: Option<&str>, refusal: Option<&str>, zero: bool) -> String {
+    note.map(str::to_owned)
+        .or_else(|| {
+            refusal.map(|reason| format!("earlier Session monetary admission refused: {reason}"))
+        })
+        .unwrap_or_else(|| {
+            if zero {
+                "catalog allowance is zero; no paid inference admitted; billed cost unknown"
+            } else {
+                "no qualified catalog admission account; billed cost unknown"
+            }
+            .into()
+        })
+}
+
+/// Diagnostic text for a host's durable no-budget dispatch marker, at the host's actual time.
+/// The host owns the marker and its persistence; this text never grants an allowance.
+#[must_use]
+pub fn unbudgeted_dispatch_note(model: &str, decision: Option<&str>, recorded_at: &str) -> String {
+    let decision = decision.map_or_else(String::new, |seat| {
+        format!(
+            " · the operator-selected decision seat {seat} may also have been called (cost unknown)"
+        )
+    });
+    format!(
+        "{model}{decision} · no Session budget: observed, no allowance or cap · recorded {recorded_at} before transport; no settlement followed, so its request(s) may have been sent and billed · usage and cost unknown"
+    )
+}
+
+/// The versioned complete numeric checkpoint or completed-scope report for this project.
+/// A codec refusal is retained as diagnostic data, never converted into an empty account.
+#[must_use]
+pub fn accounting_checkpoint(
+    account: Option<&InferenceAdmission>,
+    observations: &[Value],
+    project: &[u8],
+) -> Option<Value> {
+    let numeric = || {
+        account.map(|a| {
+            a.checkpoint(project)
+                .unwrap_or_else(|e| Value::String(e.to_string()))
+        })
+    };
+    if account.is_some_and(|a| {
+        !a.snapshot()
+            .is_ok_and(|r| r.state == super::AdmissionState::Closed && r.unknown_cost.is_some())
+    }) {
+        return numeric();
+    }
+    super::CompletedCostReport::read(observations)
+        .map_or_else(|_| numeric(), |report| Some(report.checkpoint(project)))
+}

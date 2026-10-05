@@ -24,6 +24,9 @@ pub enum IntelligenceKind {
     Harness {
         /// The seat id (`codex` · `claude-code` · …).
         seat: String,
+        /// Explicit connection; old preference files retain native behavior.
+        #[serde(default)]
+        transport: nika_types::access::HarnessTransport,
     },
     /// A metered API (`openai` · `mistral` · …).
     Api {
@@ -99,26 +102,9 @@ pub(crate) fn now_rfc3339() -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
         .unwrap_or(0);
-    // A civil date from the epoch (proleptic Gregorian · UTC) — enough for
-    // a stamp a human reads; the engine's clocks live elsewhere.
-    let days = secs / 86_400;
-    let (hour, minute, second) = ((secs % 86_400) / 3600, (secs % 3600) / 60, secs % 60);
-    let (year, month, day) = civil_from_days(days);
-    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
-}
-
-fn civil_from_days(days: u64) -> (u64, u64, u64) {
-    // Howard Hinnant's algorithm, unsigned form.
-    let z = days + 719_468;
-    let era = z / 146_097;
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = doy - (153 * mp + 2) / 5 + 1;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 };
-    (if m <= 2 { y + 1 } else { y }, m, d)
+    nika_types::timestamp::Timestamp::from_unix_ms(secs.saturating_mul(1000))
+        .to_string()
+        .replace(".000Z", "Z")
 }
 
 /// One seat this machine holds, as the census saw it.
@@ -284,16 +270,15 @@ impl IntelligenceCensus {
     /// the first screen a contextual ask shows under its own reason.
     #[must_use]
     pub fn options_screen(&self) -> String {
-        let seats: Vec<&str> = self
-            .seats
-            .iter()
-            .filter(|s| s.usable())
-            .map(|s| s.id.as_str())
-            .collect();
+        // Sign-in evidence (« seen »: a home file proves presence only) leads; it never chooses.
+        const SIGN_IN: [&str; 2] = ["no sign-in seen", "sign-in seen"];
+        let mut seats: Vec<&SeatSeen> = self.seats.iter().filter(|s| s.usable()).collect();
+        seats.sort_by_key(|s| !s.configured);
         let mut apps = if seats.is_empty() {
             "none found on this machine".to_owned()
         } else {
-            seats.join(" · ")
+            let sign = |s: &&SeatSeen| format!("{} ({})", s.id, SIGN_IN[usize::from(s.configured)]);
+            seats.iter().map(sign).collect::<Vec<_>>().join(" · ")
         };
         // An app that is here but cannot answer is named as such — a
         // connection seen is never offered as an intelligence.
@@ -323,12 +308,12 @@ impl IntelligenceCensus {
             })
         };
         let (subscription_model, api_model, local_model) = (
-            model('1', seats.first().copied()),
+            model('1', seats.first().map(|s| s.id.as_str())),
             model('2', self.api_keys.first().map(String::as_str)),
             model('3', self.locals.first().map(String::as_str)),
         );
         format!(
-            "  1  Use an AI app I already have (type 1 <app>; sign-in required)\n     {apps}{subscription_model}\n     Workflow authoring uses the app connection; support is checked before calling.\n     Agent execution uses ACP: run <file>.nika --access=<app>\n  2  Use an API (metered · your own key)\n     {keys}{api_model}\n  3  Run locally (private · on this machine)\n     {locals}{local_model}\n  4  No AI in this conversation\n     Nika still answers from its own catalog: your workflows · checks · examples · builtins\n"
+            "  1  Use an AI app I already have (type 1 <app>; sign-in required)\n     {apps}{subscription_model}\n     Preparation: native app, or explicitly `1 acp:claude-code/<model>` for ACP. ACP support is verified before calling; no fallback.\n     Agent execution uses ACP: run <file>.nika --access=<app>\n  2  Use an API (metered · your own key)\n     {keys}{api_model}\n  3  Run locally (private · on this machine)\n     {locals}{local_model}\n  4  No AI in this conversation\n     Nika still answers from its own catalog: your workflows · checks · examples · builtins\n"
         )
     }
 
@@ -394,6 +379,16 @@ impl IntelligenceCensus {
 
     /// Keep the app and its complete model name, with the transport's own validation.
     fn choose_app(&self, name: Option<&str>) -> Result<UserIntelligencePreference, String> {
+        let transport = if name.is_some_and(|n| n.starts_with("acp:")) {
+            nika_types::access::HarnessTransport::Acp
+        } else {
+            nika_types::access::HarnessTransport::Native
+        };
+        #[cfg(not(feature = "access-harness"))]
+        if transport == nika_types::access::HarnessTransport::Acp {
+            return Err("ACP authoring requires access-harness in this build".into());
+        }
+        let name = name.map(|n| n.strip_prefix("acp:").unwrap_or(n));
         let apps: Vec<_> = self.seats.iter().filter(|s| s.usable()).collect();
         let (seat, model) = match (name, apps.as_slice()) {
             (Some(name), _) => split_seat(name),
@@ -406,7 +401,7 @@ impl IntelligenceCensus {
             }
             (None, _) => {
                 return Err(format!(
-                    "{}\nChoose an app explicitly: `1 <app>` or `1 <app>/<model>` from the names above; cancel keeps the current choice.",
+                    "Which app should answer? Type `1 <app>` or `1 <app>/<model>` with a name below; `cancel` keeps the current choice.\n{}",
                     self.options_screen()
                 ));
             }
@@ -425,10 +420,10 @@ impl IntelligenceCensus {
             ));
         }
         #[cfg(feature = "access-harness")]
-        nika_harness::authoring::model_argument(&seat, model.as_deref())
+        nika_harness::authoring::validate_selection(&seat, model.as_deref(), transport)
             .map_err(|why| format!("{why} — use `1 {seat}/<model>` or choose another app"))?;
         Ok(UserIntelligencePreference::new(
-            IntelligenceKind::Harness { seat },
+            IntelligenceKind::Harness { seat, transport },
             model,
         ))
     }
@@ -465,55 +460,7 @@ fn split_seat(name: &str) -> (String, Option<String>) {
     }
 }
 
-/// Where the project context goes when the human reasons over it.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum DataLocus {
-    /// Through an AI app's account (their servers).
-    Remote {
-        /// The product.
-        product: String,
-    },
-    /// Through a metered API (the provider's servers).
-    Metered {
-        /// The provider.
-        provider: String,
-    },
-    /// Through an OpenAI-compatible gateway: the provider id names the
-    /// wire, the host names where the bytes go.
-    Gateway {
-        /// The provider id the wire speaks.
-        provider: String,
-        /// The host the base URL override points at.
-        host: String,
-    },
-    /// Stays on this machine.
-    Local,
-    /// Nothing leaves: no model reasons.
-    None,
-}
-
-impl DataLocus {
-    /// The plain-language consequence the human reads before the first turn.
-    #[must_use]
-    pub fn line(&self) -> String {
-        match self {
-            Self::Remote { product } => format!(
-                "{product} · uses your existing account · project context you ask Nika to reason over may be sent through {product}"
-            ),
-            Self::Metered { provider } => format!(
-                "{provider} API · metered · project context you ask Nika to reason over is sent to {provider}"
-            ),
-            Self::Gateway { provider, host } => format!(
-                "{provider}-compatible gateway · {host} · metered · project context you ask Nika to reason over is sent to {host}, not to {provider}"
-            ),
-            Self::Local => "local · private · project context stays on this machine".to_owned(),
-            Self::None => {
-                "no conversational AI · nothing leaves this machine · the facts stay".to_owned()
-            }
-        }
-    }
-}
+pub use nika_display::front_door::DataLocus;
 
 /// The locus of a metered provider: its own API, or the gateway its base
 /// URL is overridden to — the human is told where the bytes go.
@@ -566,7 +513,7 @@ impl ResolvedSessionIntelligence {
     #[must_use]
     pub fn resolve(pref: &UserIntelligencePreference, census: &IntelligenceCensus) -> Self {
         let (locus, ready, why) = match &pref.kind {
-            IntelligenceKind::Harness { seat } => {
+            IntelligenceKind::Harness { seat, transport } => {
                 let why = match census.seats.iter().find(|s| &s.id == seat) {
                     Some(s) if s.product_present && s.configured && s.answers_here => None,
                     Some(s) if s.product_present && !s.answers_here => Some(format!(
@@ -581,13 +528,23 @@ impl ResolvedSessionIntelligence {
                         "`{seat}` is not installed on this machine — install it, or `/intelligence` to choose another path (`nika doctor` lists the seats)"
                     )),
                 };
+                #[cfg(not(feature = "access-harness"))]
+                let why = why.or_else(|| {
+                    Some(format!(
+                        "subscription {transport} requires access-harness in this build"
+                    ))
+                });
                 #[cfg(feature = "access-harness")]
                 let why = why.or_else(|| {
-                    nika_harness::authoring::model_argument(seat, pref.model.as_deref())
-                        .err()
-                        .map(|why| {
-                            format!("{why} — `/intelligence` then `1 {seat}/<model>` chooses again")
-                        })
+                    nika_harness::authoring::validate_selection(
+                        seat,
+                        pref.model.as_deref(),
+                        *transport,
+                    )
+                    .err()
+                    .map(|why| {
+                        format!("{why} — `/intelligence` then `1 {seat}/<model>` chooses again")
+                    })
                 });
                 (
                     DataLocus::Remote {
@@ -730,7 +687,10 @@ mod tests {
                 .choose("1 claude-code/opus[1m]")
                 .expect("explicit app/model");
             assert_eq!(chosen.model.as_deref(), Some("claude-code/opus[1m]"));
-            assert!(ResolvedSessionIntelligence::resolve(&chosen, &c).ready);
+            assert_eq!(
+                ResolvedSessionIntelligence::resolve(&chosen, &c).ready,
+                cfg!(feature = "access-harness")
+            );
             let unavailable = c.choose("1 copilot").expect("explicit choice is retained");
             let resolved = ResolvedSessionIntelligence::resolve(&unavailable, &c);
             assert!(!resolved.ready);
@@ -747,15 +707,22 @@ mod tests {
             );
             c.seats.reverse();
         }
+        let options = c.options_screen();
+        assert!(options.contains("type 1 <app>; sign-in required"));
+        // Evidence is labelled as seen (a home file is presence only), seen first, and taught.
         assert!(
-            c.options_screen()
-                .contains("type 1 <app>; sign-in required")
+            options.contains(
+                "claude-code (sign-in seen) · copilot (no sign-in seen) · grok-build (no sign-in seen)"
+            ) && options.contains("or name its model: 1 claude-code/<model>")
+                && !options.contains("(signed in)"),
+            "{options}"
         );
         c.seats.retain(|s| s.id == "claude-code");
         assert_eq!(
             c.choose("1").expect("only app").kind,
             IntelligenceKind::Harness {
                 seat: "claude-code".to_owned(),
+                transport: nika_types::access::HarnessTransport::Native,
             }
         );
     }
@@ -787,7 +754,8 @@ mod tests {
         assert_eq!(
             c.choose("1").expect("the app that answers").kind,
             IntelligenceKind::Harness {
-                seat: "codex".to_owned()
+                seat: "codex".to_owned(),
+                transport: nika_types::access::HarnessTransport::Native,
             }
         );
         let refused = c.choose("1 gemini-cli").expect_err("named, refused");
@@ -805,6 +773,7 @@ mod tests {
         let kept = UserIntelligencePreference::new(
             IntelligenceKind::Harness {
                 seat: "gemini-cli".to_owned(),
+                transport: nika_types::access::HarnessTransport::Native,
             },
             None,
         );
@@ -847,6 +816,7 @@ mod tests {
         let pref = UserIntelligencePreference::new(
             IntelligenceKind::Harness {
                 seat: "claude-code".to_owned(),
+                transport: nika_types::access::HarnessTransport::Native,
             },
             Some("claude-code/claude-fable-5-1".to_owned()),
         );
@@ -878,6 +848,7 @@ mod tests {
         let absent = UserIntelligencePreference::new(
             IntelligenceKind::Harness {
                 seat: "claude-code".to_owned(),
+                transport: nika_types::access::HarnessTransport::Native,
             },
             None,
         );
@@ -907,11 +878,12 @@ mod tests {
         let served = UserIntelligencePreference::new(
             IntelligenceKind::Harness {
                 seat: "codex".to_owned(),
+                transport: nika_types::access::HarnessTransport::Native,
             },
             None,
         );
         let r = ResolvedSessionIntelligence::resolve(&served, &c);
-        assert!(r.ready);
+        assert_eq!(r.ready, cfg!(feature = "access-harness"));
         assert!(
             r.locus.line().contains("may be sent through codex"),
             "{}",
@@ -985,12 +957,17 @@ mod tests {
         assert_eq!(
             pref.kind,
             IntelligenceKind::Harness {
-                seat: "claude-code".into()
+                seat: "claude-code".into(),
+                transport: nika_types::access::HarnessTransport::Native,
             }
         );
         assert_eq!(pref.model.as_deref(), Some("claude-code/claude-fable-5-1"));
         let resolved = ResolvedSessionIntelligence::resolve(&pref, &c);
-        assert!(resolved.ready, "{resolved:?}");
+        assert_eq!(
+            resolved.ready,
+            cfg!(feature = "access-harness"),
+            "{resolved:?}"
+        );
         assert_eq!(resolved.model, pref.model);
         assert!(c.options_screen().contains("1 claude-code/<model>"));
         assert!(
@@ -1036,6 +1013,7 @@ mod tests {
             let pref = UserIntelligencePreference::new(
                 IntelligenceKind::Harness {
                     seat: "claude-code".into(),
+                    transport: nika_types::access::HarnessTransport::Native,
                 },
                 Some(model.into()),
             );
@@ -1053,6 +1031,7 @@ mod tests {
         let alias = UserIntelligencePreference::new(
             IntelligenceKind::Harness {
                 seat: "claude-code".into(),
+                transport: nika_types::access::HarnessTransport::Native,
             },
             Some("anthropic/chosen".into()),
         );
@@ -1072,6 +1051,43 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "access-harness"))]
+    #[test]
+    fn restored_subscription_transports_require_the_compiled_capability() {
+        use nika_types::access::HarnessTransport;
+        let mut c = census();
+        c.seats[1].product_present = true;
+        c.seats[1].configured = true;
+        c.seats[1].answers_here = true;
+        for transport in [HarnessTransport::Native, HarnessTransport::Acp] {
+            let pref = UserIntelligencePreference::new(
+                IntelligenceKind::Harness {
+                    seat: "claude-code".into(),
+                    transport,
+                },
+                Some("claude-code/opus[1m]".into()),
+            );
+            let encoded = serde_json::to_string(&pref).expect("preference");
+            let restored = serde_json::from_str(&encoded).expect("reload");
+            let resolved = ResolvedSessionIntelligence::resolve(&restored, &c);
+            assert!(!resolved.ready, "{resolved:?}");
+            assert_eq!(resolved.kind, pref.kind);
+            assert_eq!(resolved.model, pref.model);
+            let why = resolved.why.as_deref().expect("build refusal");
+            assert!(
+                why.contains("requires access-harness") && why.contains(&transport.to_string())
+            );
+            assert!(matches!(
+                crate::authoring::AuthoringSeat::from_reasoner(
+                    &crate::reasoner::NoReasoner,
+                    &resolved
+                ),
+                crate::authoring::AuthoringSeat::Unavailable { .. }
+            ));
+        }
+        assert!(c.choose("1 acp:claude-code/opus[1m]").is_err());
+    }
+
     /// The first screen speaks human words in the atelier order and never
     /// a class name; a pick resolves to the choice or its fix.
     #[test]
@@ -1084,18 +1100,23 @@ mod tests {
         let four = screen.find("4  No AI in this conversation").expect("4");
         assert!(one < two && two < three && three < four);
         assert!(screen.contains("Agent execution uses ACP"));
-        assert!(screen.contains("Workflow authoring uses the app connection"));
+        assert!(
+            screen.contains("Preparation: native app, or explicitly `1 acp:claude-code/<model>`")
+        );
         for banned in ["AccessClass", "harness", "billing"] {
             assert!(!screen.contains(banned), "{banned} on the first screen");
         }
         assert!(
-            screen.contains("codex") && !screen.contains("claude-code"),
+            screen.contains("codex (sign-in seen)")
+                && !screen.contains("claude-code (sign-in seen)")
+                && !screen.contains("claude-code (no sign-in seen)"),
             "only installed apps are offered"
         );
         assert_eq!(
             c.choose("1").expect("codex").kind,
             IntelligenceKind::Harness {
-                seat: "codex".to_owned()
+                seat: "codex".to_owned(),
+                transport: nika_types::access::HarnessTransport::Native,
             }
         );
         assert_eq!(
@@ -1111,5 +1132,99 @@ mod tests {
         );
         assert_eq!(c.choose("4").expect("none").kind, IntelligenceKind::None);
         assert!(c.choose("9").is_err());
+    }
+}
+
+#[cfg(all(test, feature = "access-harness", unix))]
+#[allow(clippy::expect_used)]
+mod acp_choice_tests {
+    use super::*;
+    use nika_types::access::HarnessTransport;
+    #[test]
+    fn legacy_preferences_keep_native_and_acp_is_explicit_after_reload() {
+        let legacy: UserIntelligencePreference = serde_json::from_value(serde_json::json!({
+            "kind":{"kind":"harness","seat":"claude-code"}, "model":"claude-code/opus[1m]", "chosen_at":"2026-10-05T00:00:00Z"
+        })).expect("legacy preference");
+        assert!(matches!(
+            legacy.kind,
+            IntelligenceKind::Harness {
+                transport: HarnessTransport::Native,
+                ..
+            }
+        ));
+        let census = IntelligenceCensus {
+            seats: vec![SeatSeen {
+                id: "claude-code".into(),
+                product_present: true,
+                configured: true,
+                answers_here: true,
+            }],
+            api_keys: vec![],
+            locals: vec![],
+        };
+        let pref = census
+            .choose("1 acp:claude-code/claude-opus-5-5[1m]")
+            .expect("explicit ACP preference");
+        let home = tempfile::tempdir().expect("preference home");
+        pref.save(home.path()).expect("save preference");
+        assert_eq!(
+            UserIntelligencePreference::load(home.path()).expect("load preference"),
+            pref
+        );
+        assert!(matches!(
+            pref.kind,
+            IntelligenceKind::Harness {
+                transport: HarnessTransport::Acp,
+                ..
+            }
+        ));
+        assert_eq!(
+            pref.model.as_deref(),
+            Some("claude-code/claude-opus-5-5[1m]")
+        );
+        assert!(
+            census
+                .options_screen()
+                .contains("1 acp:claude-code/<model>")
+        );
+        assert!(census.choose("1 acp:codex/gpt-6-sol").is_err());
+        assert!(census.choose("1 acp:claude-code/openai/gpt-6-sol").is_err());
+    }
+    #[cfg(feature = "access-harness")]
+    #[test]
+    fn authoring_requires_the_same_explicit_transport_as_the_reasoner() {
+        use crate::authoring::AuthoringSeat;
+        use crate::reasoner::HarnessReasoner;
+        let census = IntelligenceCensus {
+            seats: vec![SeatSeen {
+                id: "claude-code".into(),
+                product_present: true,
+                configured: true,
+                answers_here: true,
+            }],
+            api_keys: vec![],
+            locals: vec![],
+        };
+        let pref = census.choose("1 acp:claude-code").expect("ACP choice");
+        let selected = ResolvedSessionIntelligence::resolve(&pref, &census);
+        let native = HarnessReasoner {
+            seat: "claude-code".into(),
+        }
+        .with_model(None);
+        assert!(matches!(
+            AuthoringSeat::from_reasoner(&native, &selected),
+            AuthoringSeat::Unavailable { .. }
+        ));
+        let acp = HarnessReasoner {
+            seat: "claude-code".into(),
+        }
+        .with_transport(None, HarnessTransport::Acp);
+        assert!(matches!(
+            AuthoringSeat::from_reasoner(&acp, &selected),
+            AuthoringSeat::Harness {
+                transport: HarnessTransport::Acp,
+                ..
+            }
+        ));
     }
 }

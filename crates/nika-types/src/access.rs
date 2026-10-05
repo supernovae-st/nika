@@ -15,6 +15,29 @@ use core::fmt;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
+/// Explicit completion transport for a selected subscription app.
+/// This does not select or grant an execution access for workflow tasks.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+#[non_exhaustive]
+pub enum HarnessTransport {
+    /// Existing infer-grade CLI path; legacy preferences keep this choice.
+    #[default]
+    Native,
+    /// ACP with an adapter-specific, pre-execution empty-tools contract.
+    Acp,
+}
+
+impl fmt::Display for HarnessTransport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Native => "native",
+            Self::Acp => "ACP",
+        })
+    }
+}
+
 /// HOW the engine reaches the model a task named — the access path's
 /// class. Orthogonal to the provider (the `model:` prefix): a request
 /// for `openai/<name>` may travel over an API key, a local

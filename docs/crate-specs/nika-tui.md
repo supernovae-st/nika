@@ -77,6 +77,9 @@ The workspace keeps a bounded activity card from the progress updates actually
 reported by Session. Consecutive repeats collapse; the latest twelve updates
 remain with an explicit omission count. This is a presentation projection, not
 an invented completion percentage or a replacement for the canonical receipts.
+When a run's own task lines are said, the card that showed them live gives way
+(unless the inline view already printed it), so each step reads once, after the
+run's check and announcement; any other block leaves the card in place, settled.
 Run, result, questions and the brand use the existing semantic color roles.
 
 ### The workspace screen (native entry and parent workflow inspection)
@@ -140,6 +143,12 @@ adds no child usage to the parent's measurements. Live child frames, a produced
 child execution identity and a failed-child summary remain outside this slice.
 
 Reopening repaints retained turns as history and exposes the last observed run.
+Until this session observes a run or a gate, and while only a choice waits, the
+footer tells that kept run apart from this session's facts: the rail's Run field
+adds its stage (`Run ○ (earlier ✓)`) and the status row opens with it
+(`last run ✓ exit 0 in an earlier session`, then the Session's own words), first
+so a narrow row keeps it. Checked and Run stay this session's facts; nothing is
+replayed, and a record without an exit adds nothing.
 Opening Run, Outputs or Files first captures and verifies its journal once.
 Only a bound, verified reading accepted by the Desk and adopted by the host
 lends its task rows, terminal outputs, reported write names and child relations.

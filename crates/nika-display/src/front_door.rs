@@ -11,6 +11,8 @@ use std::fmt::Write as _;
 use crate::theme::{Role, Theme};
 
 mod choice;
+mod locus;
+pub use locus::DataLocus;
 /// Pure doctor report presentation over host-prepared cells.
 pub mod doctor;
 pub use choice::{AcpRuntime, InferenceChoice, Rung};

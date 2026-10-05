@@ -133,7 +133,8 @@ and passes current observation and monetary admission. Equal program bytes at
 different paths cannot overwrite each other's meaning; retaining a new proposal
 does not alter the record for the last accepted Save.
 
-The optional `Saved.inference_checkpoint` is separate complete numeric accounting,
+The optional `Saved.inference_checkpoint` carries separate complete numeric accounting or
+a completed unknown-cost report witness,
 not program evidence or renewed permission. The same versioned checkpoint must
 match the project record and its cost observation under the exclusive history
 lease. No interrupted operation or dispatch marker may remain. The providers
@@ -142,3 +143,11 @@ charges, active/held exposure and attempt identities. Another call requires fres
 explicit TOTAL Session admission through the canonical amendment. Older records
 without this checkpoint, mismatched copies and unknown formats cannot infer a
 new allowance. Old consent, proposals and Run permissions remain expired.
+
+A `nika/completed-cost-report@1` witness retains only a project-bound digest of complete
+CLOSED unknown-cost observations, never an admission account. Under the same exclusive,
+concordant, uninterrupted boundary, it allows Session to offer another fresh one-time
+cost review while retaining every old observation and monetary restriction. The exact
+legacy numeric-codec refusal is readable only under that strict report validation.
+Mixed observation families and incomplete scopes remain refused. Neither restoration
+nor a fresh budget statement accepts the next unknown-cost invocation.

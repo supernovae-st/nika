@@ -9,11 +9,13 @@ use super::{AuthoringError, CompileOutcome, CompileRequest};
 pub(super) fn compile(
     adapter: &str,
     model: Option<&str>,
+    transport: nika_types::access::HarnessTransport,
     request: &CompileRequest,
     host: Option<&dyn nika_onboard::compile::rehearse::Rehearse>,
 ) -> Result<CompileOutcome, AuthoringError> {
-    let harness = nika_harness::authoring::HarnessAuthoring::meet(adapter, model)
-        .map_err(AuthoringError::Seat)?;
+    let harness =
+        nika_harness::authoring::HarnessAuthoring::meet_with_transport(adapter, model, transport)
+            .map_err(AuthoringError::Seat)?;
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -38,6 +40,7 @@ pub(super) fn compile(
 pub(super) fn compile(
     adapter: &str,
     _: Option<&str>,
+    _: nika_types::access::HarnessTransport,
     _: &CompileRequest,
     _: Option<&dyn nika_onboard::compile::rehearse::Rehearse>,
 ) -> Result<CompileOutcome, AuthoringError> {

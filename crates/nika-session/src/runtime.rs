@@ -686,8 +686,9 @@ impl SessionRuntime {
         }
         let pref = match census.choose(answer) {
             Ok(pref) => pref,
-            // The screen stays on the table with the line it holds: the
-            // next line is still a choice (a typo never loses a request).
+            // `1` alone names no app, so nothing was refused: it is asked again. A refusal
+            // keeps the screen and its line too (a typo never loses a request).
+            Err(why) if answer.trim() == "1" => return TurnOutcome::Ask(why),
             Err(why) => {
                 return TurnOutcome::Refusal(Refusal::new(
                     RefusalClass::IntelligenceRefused,

@@ -4,6 +4,11 @@
 //! Tool-free subscription completion behind the kernel provider seam.
 //! No Compiler dependency, provider fallback, prompt-side file access or JSON
 //! prefix extraction: the owning Compiler validates the entire returned answer.
+pub(crate) mod acp;
+mod connection;
+pub use connection::{reason, validate_selection};
+
+use nika_types::access::HarnessTransport;
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -20,11 +25,17 @@ use crate::{HarnessInferRequest, InferGradeSeat, StructuredOutputGrade, meet_inf
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct HarnessAuthoring {
-    seat: InferGradeSeat,
+    seat: Connection,
     adapter: String,
     requested_model: Option<String>,
     wire_model: String,
     observed: Mutex<Vec<Value>>,
+}
+
+#[derive(Debug)]
+enum Connection {
+    Native(InferGradeSeat),
+    Acp(crate::SpawnedHarness),
 }
 
 impl HarnessAuthoring {
@@ -34,16 +45,36 @@ impl HarnessAuthoring {
     /// # Errors
     /// Unsupported capability, mismatched model namespace or invalid model.
     pub fn meet(adapter: &str, model: Option<&str>) -> Result<Self, String> {
-        // A read-only sandbox and rejection of tool events after return do
-        // not prevent native shell/tool execution. Do not start authoring
-        // until this adapter has an attested pre-execution no-tools mode.
-        if adapter == "codex" {
-            return Err("subscription authoring `codex` is unavailable: pre-execution tool disabling is not attested; read-only scratch and post-return tool-event rejection are insufficient; no provider fallback".into());
-        }
-        let seat = meet_infer_grade(adapter, StructuredOutputGrade::JsonSchema)
-            .map_err(|e| e.to_string())?;
+        Self::meet_with_transport(adapter, model, HarnessTransport::Native)
+    }
+
+    /// Select a completion transport explicitly; unsupported pairs refuse without fallback.
+    /// # Errors
+    /// The selected adapter cannot enforce this connection's authoring contract.
+    pub fn meet_with_transport(
+        adapter: &str,
+        model: Option<&str>,
+        transport: HarnessTransport,
+    ) -> Result<Self, String> {
+        let wire_model = validate_selection(adapter, model, transport)?;
+        let seat = if transport == HarnessTransport::Acp {
+            Connection::Acp(
+                crate::seat_from_id(adapter)?
+                    .ok_or_else(|| "ACP adapter is unavailable".to_owned())?
+                    .for_authoring(),
+            )
+        } else {
+            // A read-only sandbox and rejection of tool events after return do
+            // not prevent native shell/tool execution. Do not start authoring
+            // until this adapter has an attested pre-execution no-tools mode.
+            if adapter == "codex" {
+                return Err("subscription authoring `codex` is unavailable: pre-execution tool disabling is not attested; read-only scratch and post-return tool-event rejection are insufficient; no provider fallback".into());
+            }
+            let seat = meet_infer_grade(adapter, StructuredOutputGrade::JsonSchema)
+                .map_err(|e| e.to_string())?;
+            Connection::Native(seat)
+        };
         let requested_model = model.map(str::to_owned);
-        let wire_model = model_argument(adapter, model)?;
         Ok(Self {
             seat,
             adapter: adapter.to_owned(),
@@ -58,6 +89,14 @@ impl HarnessAuthoring {
     /// An unreadable observation ledger is not represented as zero calls.
     pub fn descriptor(&self) -> Result<Value, String> {
         let observed = self.observed.lock().map_err(|e| e.to_string())?.clone();
+        if matches!(self.seat, Connection::Acp(_)) {
+            return Ok(acp::descriptor(
+                &self.adapter,
+                self.requested_model.as_deref(),
+                &self.wire_model,
+                &observed,
+            ));
+        }
         Ok(json!({"kind": "harness_infer", "adapter": self.adapter,
             "requested_model": self.requested_model, "forwarded_model": self.wire_model,
             "observed": observed, "cost_basis": "subscription-backed/unknown",
@@ -84,7 +123,7 @@ impl HarnessAuthoring {
     #[cfg(test)]
     pub(crate) fn with_test_seat(adapter: &str, seat: InferGradeSeat) -> Self {
         Self {
-            seat,
+            seat: Connection::Native(seat),
             adapter: adapter.to_owned(),
             requested_model: None,
             wire_model: "session".into(),
@@ -181,7 +220,16 @@ impl ProviderInferDyn for HarnessAuthoring {
             json!({"status": "invoking", "requested_model": self.requested_model,
             "max_tokens_requested": request.max_tokens, "timeout_ms": timeout.as_millis()}),
         )?;
-        let call = tokio::time::timeout(timeout, self.seat.run(native));
+        let call = tokio::time::timeout(timeout, async {
+            match &self.seat {
+                Connection::Native(seat) => seat.run(native).await.map(|out| {
+                    let metadata = json!({"status":"returned", "observed_model":out.observed_model,
+                        "usage_observed":out.usage_observed, "attested_version":out.attested_version});
+                    (out.output, metadata)
+                }).map_err(|e| e.to_string()),
+                Connection::Acp(seat) => acp::run(seat, native, self.requested_model.as_deref()).await,
+            }
+        });
         let result = if let Some(cancel) = request.cancel {
             tokio::select! {
                 biased;
@@ -203,21 +251,20 @@ impl ProviderInferDyn for HarnessAuthoring {
             return Err(refused("harness authoring timed out; no answer accepted"));
         };
         match result {
-            Ok(out) => {
-                self.record(json!({"status": "returned", "observed_model": out.observed_model,
-                    "usage_observed": out.usage_observed, "attested_version": out.attested_version}))?;
+            Ok((text, metadata)) => {
+                self.record(metadata)?;
                 // The transport intentionally does not expose numeric usage. A
                 // protocol usage marker is not a zero-token or zero-cost bill.
                 Ok(InferResponse::new(
-                    vec![ContentBlock::Text { text: out.output }],
+                    vec![ContentBlock::Text { text }],
                     TokenUsage::new(0, 0),
                     StopReason::EndTurn,
                 )
                 .with_usage_reported(false))
             }
             Err(error) => {
-                self.record(json!({"status": "failed", "reason": error.to_string()}))?;
-                Err(refused(error.to_string()))
+                self.record(json!({"status": "failed", "reason": error}))?;
+                Err(refused(error))
             }
         }
     }
