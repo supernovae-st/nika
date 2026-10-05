@@ -7,7 +7,7 @@
 /// Closed conversational acts; these never classify an open workflow request.
 pub mod conversation;
 /// Explicit Run flags, read without choosing an execution path.
-pub mod run_options;
+pub use nika_compile::run_words as run_options;
 
 use crate::intent::RoutingOutcome;
 

@@ -2472,6 +2472,9 @@ pub fn nika_compile_fidelity::binding::unbound(plan: &nika_compile_reader::plan:
 pub mod nika_compile_fidelity::candidate
 pub fn nika_compile_fidelity::candidate::delta(base: &serde_json::value::Value, revised: &serde_json::value::Value) -> serde_json::value::Value
 pub fn nika_compile_fidelity::candidate::plan_of_document(doc: &serde_json::value::Value) -> nika_compile_reader::plan::Plan
+pub mod nika_compile_fidelity::decimal
+pub const nika_compile_fidelity::decimal::ARITHMETIC: &str
+pub const nika_compile_fidelity::decimal::ORDER: &str
 pub mod nika_compile_fidelity::fidelity
 pub struct nika_compile_fidelity::fidelity::Diagnostic
 pub nika_compile_fidelity::fidelity::Diagnostic::kind: &'static str
@@ -2999,6 +3002,7 @@ pub fn nika_compile_fidelity::sketch::revision::accounted(change_ledger: &serde_
 pub fn nika_compile_fidelity::sketch::revision::additions(change_ledger: &serde_json::value::Value, stated: &serde_json::value::Value) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<alloc::string::String>>
 pub fn nika_compile_fidelity::sketch::revision::clauses(ledger: &serde_json::value::Value) -> alloc::vec::Vec<serde_json::value::Value>
 pub fn nika_compile_fidelity::sketch::revision::delta(original: &str, original_ledger: &serde_json::value::Value, change: &str, change_ledger: &serde_json::value::Value, resolved: &str, stated: &serde_json::value::Value, changed: &[alloc::string::String]) -> core::result::Result<serde_json::value::Value, alloc::vec::Vec<alloc::string::String>>
+pub fn nika_compile_fidelity::sketch::revision::linked(original: &str, original_ledger: &serde_json::value::Value, change: &str, change_ledger: &serde_json::value::Value, stated: &serde_json::value::Value) -> core::result::Result<(), alloc::vec::Vec<alloc::string::String>>
 pub fn nika_compile_fidelity::sketch::revision::links_schema() -> serde_json::value::Value
 pub fn nika_compile_fidelity::sketch::revision::preserved(base: &serde_json::value::Value, revised: &serde_json::value::Value) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<alloc::string::String>>
 pub fn nika_compile_fidelity::sketch::revision::resolved(original: &str, links: &serde_json::value::Value, added: &[alloc::string::String]) -> core::result::Result<alloc::string::String, alloc::vec::Vec<alloc::string::String>>

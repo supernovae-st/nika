@@ -27,8 +27,8 @@ impl SessionRuntime {
         self.save_proposal_money(&set, id);
         let evidence = self.evidence_applied(&set, id, applied);
         // A rehearsed copy's proof moves to the workflow it was saved as (`rehearsed.rs`).
-        let first = set.workflows().into_iter().next();
-        let rehearsed = self.land_rehearsal(id, first.as_deref());
+        let landed_workflow = set.workflows().into_iter().next();
+        let rehearsed = self.land_rehearsal(id, landed_workflow.as_deref());
         self.decided = Some(id.clone());
         let written: Vec<String> = applied
             .written
@@ -40,35 +40,12 @@ impl SessionRuntime {
         if let Some(basis) = basis {
             let _ = write!(report, "\n  {basis}");
         }
-        let mut all_clean = true;
-        for wf in set.workflows() {
-            let audit = check_on_disk(&set.root, &wf);
-            all_clean &= audit.clean;
-            let _ = write!(
-                report,
-                "\n  check · `{}` · {}",
-                wf.display(),
-                if audit.clean {
-                    "clean ✔"
-                } else {
-                    "findings ✖"
-                }
-            );
-            for f in &audit.findings {
-                let _ = write!(report, "\n    · {f}");
-            }
-            if let Some(line) =
-                crate::change::compact_hints(&audit.hints, &wf.display().to_string())
-            {
-                let _ = write!(report, "\n    · {line}");
-            }
-        }
+        let all_clean = checked(&set, &mut report);
         self.snapshot = ProjectSnapshot::observe(&self.snapshot.cwd);
         self.remember("(consent)", &report);
         // The workflow just accepted is the one « run it » names next —
         // an explicit line, never this consent — and the schedule its
         // request asked for is what « activate » declares.
-        let landed_workflow = set.workflows().into_iter().next();
         if let Some(first) = landed_workflow.clone() {
             // Run evidence belongs to the previous saved bytes. A new Save is not a Run,
             // including when it replaces the workflow at the same path.
@@ -129,4 +106,29 @@ impl SessionRuntime {
             None => TurnOutcome::Facts(report),
         }
     }
+}
+
+fn checked(set: &ProjectChangeSet, report: &mut String) -> bool {
+    let mut all_clean = true;
+    for wf in set.workflows() {
+        let audit = check_on_disk(&set.root, &wf);
+        all_clean &= audit.clean;
+        let _ = write!(
+            report,
+            "\n  check · `{}` · {}",
+            wf.display(),
+            if audit.clean {
+                "clean ✔"
+            } else {
+                "findings ✖"
+            }
+        );
+        for f in &audit.findings {
+            let _ = write!(report, "\n    · {f}");
+        }
+        if let Some(line) = crate::change::compact_hints(&audit.hints, &wf.display().to_string()) {
+            let _ = write!(report, "\n    · {line}");
+        }
+    }
+    all_clean
 }

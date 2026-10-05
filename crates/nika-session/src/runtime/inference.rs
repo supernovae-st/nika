@@ -34,6 +34,7 @@ pub(super) fn gate_money_marker(gate: &crate::GateId) -> String {
 
 pub(super) fn is_money_marker(decision: &str) -> bool {
     decision == RECONFIRM
+        || decision == super::connection_money::SUBSCRIPTION_HOLD
         || decision.starts_with(GATE_MONEY_PREFIX)
         || decision.starts_with(DISPATCH_PREFIX)
         || decision.starts_with(OBSERVED_PREFIX)
@@ -113,9 +114,12 @@ impl SessionRuntime {
         )
         .map(|line| format!(" · {line}"))
         .unwrap_or_default();
-        let account = format!(
-            "Session inference (separate from proposal/Run): {account}{observed}{unread}{decision}{legacy}"
-        );
+        let scope = if self.subscription() {
+            "Subscription invoice unknown; retained API accounting (not its admission)"
+        } else {
+            "Session inference (separate from proposal/Run)"
+        };
+        let account = format!("{scope}: {account}{observed}{unread}{decision}{legacy}");
         if self.money.gate.is_some() {
             format!(
                 "confirm-gate monetary amendment held; no paid inference admitted; paused Run unchanged; answer yes or no separately\n{account}"
@@ -126,7 +130,7 @@ impl SessionRuntime {
     }
     pub(super) fn configure_admission(&mut self, decision: &mut MonetaryDecision) {
         // A gate amendment changes neither the paused run nor its authority.
-        if self.money.gate.is_some() {
+        if self.money.gate.is_some() || self.subscription() {
             return;
         }
         let Some(amount) = decision.effective_usd else {
@@ -298,6 +302,13 @@ impl SessionRuntime {
         model: Option<&str>,
         decision: Option<&str>,
     ) -> Result<(Option<InferenceAdmission>, bool), String> {
+        if self.subscription() && model.is_none() {
+            return if self.money_blocks_cognition() {
+                Err(self.cognition_blocked())
+            } else {
+                Ok((None, false))
+            };
+        }
         if let Some(account) = &self.money.account {
             if self.unknown_cost.active {
                 return Ok((Some(account.clone()), false));
@@ -388,6 +399,9 @@ impl SessionRuntime {
     }
     /// The restart refusal: what stays unknown, what was not done, the way on.
     pub(super) fn restored_refusal(&self) -> String {
+        if self.subscription() && !self.subscription_open() {
+            return super::connection_money::SUBSCRIPTION_HOLD.into();
+        }
         if self.money.account.is_some() {
             return format!(
                 "{} · confirm a fresh TOTAL Session ceiling in its own sentence, e.g. Budget: 10 USD. (total, not additional); settled expenses and reservations are retained",

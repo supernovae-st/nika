@@ -395,3 +395,13 @@ bytes and checks them. This pure document update grants no live execution author
 `sketch::record::same_caller` compares the core-projected caller facts and initial
 answers without granting authority; a new clarification or changed money remains
 a new basis, never a replay of the stored caller.
+
+## Exact decimal laws emitted by the assembler
+
+`decimal::{ORDER, ARITHMETIC}` holds the unchanged jq law sources for exact decimal
+ordering, rank cuts, source transport, sums, averages and stated rounding. These
+are pure text beside the computation laws in this same unit: no runtime or I/O
+is introduced. `nika-compile` keeps assembly and reuses the constants at its
+existing local names. Rust and both embedded jq sources count toward this
+member's 15k limit; the existing numeric precision integration tests remain the
+behavioral qualification.

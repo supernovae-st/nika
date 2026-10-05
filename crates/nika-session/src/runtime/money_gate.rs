@@ -206,6 +206,7 @@ impl SessionRuntime {
 
     pub(super) fn refuse_money(&mut self, input: &str, reason: &str) -> TurnOutcome {
         self.retain_money_guard();
+        self.hold_subscription();
         if let Some(a) = &self.money.account {
             let _ = a.close("Session monetary request refused");
         }
@@ -355,10 +356,14 @@ impl SessionRuntime {
                 return Err(self.refuse_money(input, &reason));
             }
         };
+        if self.subscription() && parsed.amount.is_some() {
+            self.hold_subscription();
+        }
         // The Session restriction cannot replace an independent gate observation.
         // Gate parsing above still holds cognition, but does not consume this flag.
         // A round admitted under it (a stated ceiling or a zero-call replay) answers under it.
         if self.money.reconfirm
+            && !self.subscription_open()
             && !self.unknown_cost.active
             && parsed.amount.is_none()
             && !(replay || (continuation && self.money.stated_under_reconfirm))
@@ -422,6 +427,15 @@ impl SessionRuntime {
     /// Called at every cognition seam. Deterministic reading stays available;
     /// the selected intelligence is never substituted by a monetary decision.
     pub(super) fn money_blocks_cognition(&self) -> bool {
+        if self.subscription_open() {
+            return self.money.gate.is_some()
+                || self.snapshot.ceiling == Some(0.0)
+                || self
+                    .intent
+                    .decisions
+                    .iter()
+                    .any(|d| d.starts_with(super::inference::GATE_MONEY_PREFIX));
+        }
         if self.unreviewed_unknown_route() {
             return true;
         }
@@ -664,7 +678,7 @@ impl SessionRuntime {
             InferenceEnforcement::CallsBlocked
         } else if self.unknown_cost.active {
             InferenceEnforcement::ExplicitUnknown
-        } else if self.money.account.is_some() {
+        } else if self.money.account.is_some() && !self.subscription() {
             InferenceEnforcement::CatalogAdmission
         } else {
             InferenceEnforcement::NotMetered

@@ -17,6 +17,10 @@
 //! link or an addition, or a link without a program change, is refused. Every other base duty
 //! is kept.
 //!
+//! [`linked`]: the laws of [`delta`] that read no program (each link, no clause linked twice,
+//! the change's accounting), decidable before any fill, so a seat's invalid links are named
+//! while no fill is spent; [`delta`] still applies them to the revision it records.
+//!
 //! [`additions`]: every clause of the change is either the `by` of one link or stated in `adds`;
 //! one that is neither is refused, so an unlinked replacement never passes as an addition (a
 //! concatenation is not a supersession). A stated addition is consumed like a supersession:
@@ -135,26 +139,7 @@ pub fn delta(
     let (base, asked) = (duties(original_ledger), duties(change_ledger));
     let links = stated["supersedes"].as_array().cloned().unwrap_or_default();
     let adds = stated_adds(stated);
-    let mut why = Vec::new();
-    let (mut replaced, mut by_clauses, mut superseded) = (Vec::new(), Vec::new(), Vec::new());
-    for link in &links {
-        let (Some(old), Some(new)) = (link["replaces"].as_str(), link["by"].as_str()) else {
-            why.push("a link names no original clause or no change clause".to_owned());
-            continue;
-        };
-        why.extend(link_laws(original, &base, change, &asked, old, new));
-        if replaced.contains(&old) || by_clauses.contains(&new) {
-            why.push(format!("« {old} » or « {new} » is linked twice"));
-        }
-        replaced.push(old);
-        by_clauses.push(new);
-        let of: Vec<Value> = base
-            .iter()
-            .filter(|d| d["evidence"] == old)
-            .cloned()
-            .collect();
-        superseded.push(json!({"evidence": old, "duties": of}));
-    }
+    let (mut why, replaced, superseded) = judged_links(original, &base, change, &asked, &links);
     if changed.is_empty() && !links.is_empty() {
         why.push("a superseded clause is stated but the program does not change".to_owned());
     } else if !changed.is_empty() && links.is_empty() && adds.is_empty() {
@@ -163,12 +148,7 @@ pub fn delta(
     if let Err(unstated) = additions(change_ledger, stated) {
         why.extend(unstated);
     }
-    let mut seen = Vec::new();
-    why.retain(|reason| {
-        let first = !seen.contains(reason);
-        seen.push(reason.clone());
-        first
-    });
+    once(&mut why);
     let added: Vec<Value> = (asked.iter())
         .filter(|d| adds.iter().any(|clause| d["evidence"] == *clause))
         .cloned()
@@ -184,6 +164,75 @@ pub fn delta(
         json!({"original": original, "change": change, "resolved": resolved, "links": links,
         "adds": adds, "superseded": superseded, "added": added, "kept": kept}),
     )
+}
+
+/// The laws of [`delta`] that `stated` is held to before any program exists, so a refusal can
+/// be named while no fill is spent: each link by the link laws, no clause linked twice, and the
+/// change's accounting ([`accounted`]). The laws that read the program (`changed`) stay
+/// [`delta`]'s, the kind of an addition [`additions`]', the replacement spans [`resolved`]'s;
+/// [`delta`] still applies every one of them to the revision it records.
+///
+/// # Errors
+/// Each link or accounting law `stated` breaks, once.
+pub fn linked(
+    original: &str,
+    original_ledger: &Value,
+    change: &str,
+    change_ledger: &Value,
+    stated: &Value,
+) -> Result<(), Vec<String>> {
+    let duties = |ledger: &Value| ledger.as_array().cloned().unwrap_or_default();
+    let (base, asked) = (duties(original_ledger), duties(change_ledger));
+    let links = stated["supersedes"].as_array().cloned().unwrap_or_default();
+    let (mut why, _, _) = judged_links(original, &base, change, &asked, &links);
+    if let Err(unstated) = accounted(change_ledger, stated) {
+        why.extend(unstated);
+    }
+    once(&mut why);
+    if why.is_empty() { Ok(()) } else { Err(why) }
+}
+
+/// Each of `links` judged by the link laws against the original duties (`base`) and the
+/// change's (`asked`), and no clause linked twice: the reasons, the original clauses the links
+/// replace, and each one's superseded duties (`{"evidence", "duties"}`).
+fn judged_links<'a>(
+    original: &str,
+    base: &[Value],
+    change: &str,
+    asked: &[Value],
+    links: &'a [Value],
+) -> (Vec<String>, Vec<&'a str>, Vec<Value>) {
+    let mut why = Vec::new();
+    let (mut replaced, mut by_clauses, mut superseded) = (Vec::new(), Vec::new(), Vec::new());
+    for link in links {
+        let (Some(old), Some(new)) = (link["replaces"].as_str(), link["by"].as_str()) else {
+            why.push("a link names no original clause or no change clause".to_owned());
+            continue;
+        };
+        why.extend(link_laws(original, base, change, asked, old, new));
+        if replaced.contains(&old) || by_clauses.contains(&new) {
+            why.push(format!("« {old} » or « {new} » is linked twice"));
+        }
+        replaced.push(old);
+        by_clauses.push(new);
+        let of: Vec<Value> = base
+            .iter()
+            .filter(|d| d["evidence"] == old)
+            .cloned()
+            .collect();
+        superseded.push(json!({"evidence": old, "duties": of}));
+    }
+    (why, replaced, superseded)
+}
+
+/// Each reason once, in the order first stated.
+fn once(why: &mut Vec<String>) {
+    let mut seen = Vec::new();
+    why.retain(|reason| {
+        let first = !seen.contains(reason);
+        seen.push(reason.clone());
+        first
+    });
 }
 
 /// The request a revision is read, filled and judged as (the contract it consumes): `original`
@@ -724,5 +773,87 @@ mod tests {
             why[0].contains("the gate `approve` changes its words"),
             "{why:?}"
         );
+    }
+
+    /// The laws decidable before any program exists ([`linked`]) refuse exactly as [`delta`]
+    /// does for the same links, and decide nothing that reads the program.
+    #[test]
+    fn the_link_laws_are_decided_before_any_program_exists() {
+        const PAID: &str = "Keep the orders whose status is paid";
+        let before = |original: &str, ledger: &Value, said: &Value| {
+            linked(original, ledger, CHANGE, &change_ledger(), said)
+        };
+        let after = |original: &str, ledger: &Value, said: &Value| {
+            let changed = ["keep".to_owned()];
+            delta(
+                original,
+                ledger,
+                CHANGE,
+                &change_ledger(),
+                "",
+                said,
+                &changed,
+            )
+        };
+        let held = stated(&link(PAID, NEW), &[]);
+        assert_eq!(before(ORIGINAL, &original_ledger(), &held), Ok(()));
+        // A link with no program change is the program's law to refuse, never this one's.
+        let unchanged = delta(
+            ORIGINAL,
+            &original_ledger(),
+            CHANGE,
+            &change_ledger(),
+            "",
+            &held,
+            &[],
+        );
+        assert!(unchanged.unwrap_err()[0].contains("does not change"));
+        let effect = json!([duty(
+            "write them to ./out/paid.json",
+            "effect",
+            "unresolved"
+        )]);
+        let cases = [
+            (
+                ORIGINAL,
+                original_ledger(),
+                link("Keep the paid orders", NEW),
+                "not a clause of the original request",
+            ),
+            (
+                ORIGINAL,
+                original_ledger(),
+                link("Never delete any file", NEW),
+                "a prohibition",
+            ),
+            (
+                ORIGINAL,
+                original_ledger(),
+                link(PAID, "ship them"),
+                "not a clause the change states",
+            ),
+            (
+                ORIGINAL,
+                original_ledger(),
+                json!([]),
+                "neither supersedes a clause with it nor adds it",
+            ),
+            (
+                "write them to ./out/paid.json",
+                effect,
+                link("write them to ./out/paid.json", NEW),
+                "structure carries",
+            ),
+        ];
+        for (original, ledger, links, needle) in cases {
+            let said = stated(&links, &[]);
+            let why = before(original, &ledger, &said).unwrap_err();
+            assert!(why.iter().any(|w| w.contains(needle)), "{needle}: {why:?}");
+            let recorded = after(original, &ledger, &said).unwrap_err();
+            assert!(
+                why.iter().all(|w| recorded.contains(w)),
+                "{needle}: {why:?} is not {recorded:?}"
+            );
+        }
     }
 }

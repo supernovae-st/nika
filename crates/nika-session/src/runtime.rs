@@ -30,6 +30,7 @@ mod answer;
 mod aside;
 mod authoring;
 mod candidate;
+mod connection_money;
 pub use candidate::Candidate;
 mod decision;
 mod details;
@@ -708,9 +709,10 @@ impl SessionRuntime {
         self.chosen = true;
         self.pending_choice = false;
         let notice = format!(
-            "{} · {kept}\n  {}",
+            "{} · {kept}\n  {}{}",
             self.intelligence_line(),
-            self.seat.line()
+            self.seat.line(),
+            self.connection_money()
         );
         // The line that waited resumes exactly as typed, under the choice.
         match self.interrupted.take() {

@@ -17,11 +17,14 @@ use crate::reasoner::{ProviderReasoner, test_transport};
 use crate::turn::{SessionPhase, TurnAct, TurnClassifier, TurnContext, TurnDecision};
 use nika_providers::AdmissionState;
 use serde_json::{Value, json};
+#[cfg(feature = "access-harness")]
+mod connection;
 mod decision_seat;
 mod interrupted;
 mod legacy;
 mod no_budget;
 mod observed_project;
+mod question_budget;
 mod question_identity;
 mod read_only;
 mod recovery;

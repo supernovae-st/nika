@@ -255,7 +255,7 @@ one site that makes a `RuleBinding::Synthesized`, whether the compile is fresh o
 recorded plan.
 
 For such a rule, the reader emits exact comparisons, rank keys and rank cuts (R4 A8, reader
-spec). `laws::with_decimal` puts `laws/order.jq` in front of any compute that calls these laws;
+spec). `laws::with_decimal` puts `nika_compile_fidelity::decimal::ORDER` in front of any compute that calls these laws;
 a rule that reads no number carries none.
 
 The plan record keeps the reader's unbound reading, byte for byte. A plan recorded before R4 A8
@@ -275,7 +275,7 @@ changed values in silence, with exit 0, in every candidate that decoded JSON:
 - a >u64 identifier (`123456789012345678901234567890`) became `1.2345678901234568e29`;
 - a fine decimal (`1.000000000000000001`) became `1.0`.
 
-The decode is now guarded (`laws::guarded_parse`, the `dguard` law of `laws/order.jq`). Every
+The decode is now guarded (`laws::guarded_parse`, the `dguard` law of `nika_compile_fidelity::decimal::ORDER`). Every
 number the next task may read or write keeps its exact value through the transport, or the run
 stops at `parse_source` before any effect, naming:
 - the number's path;
@@ -309,7 +309,7 @@ Other sources:
   This is a known limit, owned by the builtin.
 
 The laws are jq that the one runtime runs.
-- `laws/order.jq` is readable source, counted with this crate: Rust and jq together stay
+- `nika_compile_fidelity::decimal::ORDER` is readable source in `nika-compile-fidelity/src/decimal/order.jq`, counted with that member: Rust and jq together stay
   within the crate budget.
 - It carries no regular expression.
 - It defines nothing global: each guarded expression carries it in front.
@@ -774,7 +774,10 @@ New semantic records also keep `basis.world`: the complete bounded host observat
 exact digest (`{value, sha256}`), including sources a graph places below a stated bare name.
 Its request projection must still match the existing `basis.read.world_sha256`. An EDIT reassembles its base under that exact historical
 projection, checks its digest, assembly and final candidate bytes, and requires the current
-observation of every stated or graph-declared read source to remain identical. The graph's
+observation of every graph-declared read source and stated path outside its bound
+`nika:write` destinations to remain identical. Repeating a write-only destination in a revision
+("keep the same file") does not make its previous contents an input. A destination the graph
+also reads remains a source; dynamic paths still require an unchanged complete observation. The graph's
 structural laws are checked against the current observation as well. A write-only destination
 may therefore have been created or overwritten by Run without invalidating its saved program.
 The record survives journal serialization; no in-process cache supplies historical evidence.
@@ -794,3 +797,19 @@ the complete world to remain unchanged; no unimplemented pattern matching is ass
 The existing durable owner withholds whole plans above 128 KiB, keeps at most 16 records
 within a 256 KiB table, and never truncates a world. Session keeps its 1 MiB journal-record
 limit. An oversized plan therefore has no durable program record; no continuation is claimed.
+
+### Shared explicit Run words
+
+`run_words` reads explicit access/cost options, the closed Run verb vocabulary,
+plain Run lines and inline inputs, and projects the question for a missing Run
+input. These pure functions moved unchanged from
+Onboard's `routing::run_options` and Session, beside the existing lexical `money`
+reader shared by Prepare and Run. `nika_onboard::routing::run_options` remains a
+compatible re-export. The actual access resolver, Session's budget and consent,
+workflow checks and execution stay with their existing owners; recognition grants
+no authority and performs no I/O.
+
+The exact decimal jq laws are owned by the unit's `nika-compile-fidelity::decimal`
+module. The assembler reuses its `ORDER` and `ARITHMETIC` text verbatim; assembly,
+transport guards and numerical behavior do not change. Both embedded jq sources
+remain included in the owning member's production size counter.

@@ -11,7 +11,8 @@ use crate::turn::{
     RouteRecord, RoutingMethod, SessionPhase, TurnAct, TurnClassifier, TurnContext, TurnDecision,
 };
 
-use super::SessionRuntime;
+use super::{SessionRuntime, authoring::DETERMINISTIC};
+use crate::authoring::{AuthoringContext, AuthoringRound, Reading, compile_in};
 
 impl SessionRuntime {
     /// Inject the bounded classifier a door holds (a decision seat, the
@@ -297,5 +298,47 @@ impl SessionRuntime {
         let shown = crate::guard::KnownWorld::correct(&reply.text, &findings);
         self.remember(raw, &shown);
         Some(shown)
+    }
+}
+
+/// The question's last words outside admitted directives, after the compiler validated their
+/// exact spans. This is classification only: no money is parsed, admitted or rewritten here.
+pub(super) fn question_outside_money(intent: &str, money: &[std::ops::Range<usize>]) -> bool {
+    if money.is_empty() {
+        return intent.trim_end().ends_with('?');
+    }
+    intent
+        .char_indices()
+        .rev()
+        .find(|(at, c)| {
+            !money.iter().any(|span| span.contains(at))
+                && !c.is_whitespace()
+                && !matches!(*c, '.' | ',' | ';' | '!')
+        })
+        .is_some_and(|(_, c)| c == '?')
+}
+
+/// A line the reader does not settle once its admitted directives are blanked is routed as
+/// written (R4 A6): conversation stays conversation, unread work stays work.
+pub(super) fn as_written(
+    reading: Reading,
+    round: &AuthoringRound,
+    context: &AuthoringContext,
+    intent: &str,
+) -> Reading {
+    match reading {
+        // Only a reading already known not to be work can take the question fast path.
+        Reading::NotWork(out) if question_outside_money(intent, &round.money) => {
+            Reading::NotWork(out)
+        }
+        Reading::NotWork(out) | Reading::Unsettled(out) if !round.money.is_empty() => {
+            let mut written = round.clone();
+            written.money.clear();
+            match compile_in(&DETERMINISTIC, context, &written.request(), intent).map(Reading::of) {
+                Ok(Reading::NotWork(_)) => Reading::NotWork(out),
+                _ => Reading::Unsettled(out),
+            }
+        }
+        reading => reading,
     }
 }

@@ -293,7 +293,7 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   - A plain sort bound over observed numbers sorts by the key too.
   - An aggregate over a bound number (a sum, an average, a minimum, a maximum, with the
     rounding the request states) is lowered through the exact arithmetic laws
-    (`dsum_out`, `davg_out`, `dmin_out`, `dmax_out`, `laws/arithmetic.jq` in `nika-compile`):
+    (`dsum_out`, `davg_out`, `dmin_out`, `dmax_out`, `decimal/arithmetic.jq` in `nika-compile-fidelity`):
     the result is exact within a 1000-digit bound, an average with no finite expansion asks
     for a rounding, and a result no JSON number carries stops the run naming it. A count is
     unchanged.

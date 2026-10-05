@@ -181,9 +181,18 @@ Compiler token totals remain absent rather than zero. `/meaning` displays this
 subscription evidence without labelling it a direct API or catalog price.
 Clarification replay carries the originating subscription receipt even without
 a knowledge snapshot and explicitly states that replay made zero calls.
-Subscription authorization is not billed-provider admission. Existing explicit
-monetary refusals remain in force; this connection adds neither an account nor
-an exemption from those guards. A proposal still requires fresh review and
+Subscription authorization is not billed-provider admission. An explicit
+subscription selection suspends a retained API allowance without clearing its
+identity, settlements, reservations or uncertainty. Only that selected subscription
+uses its normal non-API door; its invoice remains unknown and no API fallback is
+admitted. A saved selection has the same separation after reopening. Returning
+to API requires a fresh total on the same complete account; historical uncertainty
+still cannot become a new numeric allowance. A USD ceiling stated while the
+subscription is selected blocks its cognition and is kept as a monetary restriction
+across reopening. Explicitly reselecting the subscription explains its unknown
+invoice and clears only this restriction, never API exposure. Invalid money,
+project zero and a pending gate still block cognition. This adds no subscription
+account or numeric price. A proposal still requires fresh review and
 consent, revisions expire the old identity, and authoring grants no Save or Run.
 
 Every authoring round observes the files its request names under the session's

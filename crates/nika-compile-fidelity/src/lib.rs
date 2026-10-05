@@ -34,6 +34,7 @@
 pub mod behavior;
 pub mod binding;
 pub mod candidate;
+pub mod decimal;
 pub mod fidelity;
 pub mod grounding;
 pub mod literal;

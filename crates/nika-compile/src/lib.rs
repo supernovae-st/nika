@@ -87,6 +87,8 @@ pub(crate) mod pattern;
 mod pending_transform;
 mod realize;
 mod retrieve;
+/// The shared lexical reading of explicit Run words, never execution authority.
+pub mod run_words;
 mod seat_cap;
 mod support;
 mod trigger;

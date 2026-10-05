@@ -1373,6 +1373,9 @@ fn the_recovery_card_never_denies_what_a_model_may_have_received() {
     s.seat = crate::authoring::AuthoringSeat::Provider {
         model: "mistral/mistral-small-latest".to_owned(),
     };
+    s.intelligence.kind = IntelligenceKind::Api {
+        provider: "mistral".to_owned(),
+    };
     let provider = card(&mut s);
     assert!(
         provider.contains("No workflow output was written or Run requested; the selected model (mistral/mistral-small-latest) may have received this turn's context")
@@ -1385,6 +1388,9 @@ fn the_recovery_card_never_denies_what_a_model_may_have_received() {
         seat: "codex".to_owned(),
         model: None,
     };
+    s.intelligence.kind = IntelligenceKind::Harness {
+        seat: "codex".to_owned(),
+    };
     let harness = card(&mut s);
     assert!(
         harness.contains("No workflow was written or Run requested; the selected subscription may have received compiler context; billed cost remains unknown.")
@@ -1392,6 +1398,7 @@ fn the_recovery_card_never_denies_what_a_model_may_have_received() {
         "{harness}"
     );
     s.seat = crate::authoring::AuthoringSeat::Deterministic { why: None };
+    s.intelligence.kind = IntelligenceKind::None;
     s.intelligence.locus = DataLocus::None;
     let none = card(&mut s);
     assert!(

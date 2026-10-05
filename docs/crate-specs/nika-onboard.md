@@ -678,3 +678,12 @@ it never substitutes receipt summary rows for the observation.
 can present a pinned knowledge pack; the verification judge remains excluded from
 that attribution. The receipt test checks actual phase/digest attribution and
 does not claim that a model used or benefited from the knowledge.
+
+### Explicit Run words
+
+`routing::run_options` re-exports `nika_compile::run_words`, including the pure readers `is_run_verb`, `run_prefix`,
+`run_line_is_plain` and `inline_vars`, and the `input_question` projection, formerly
+private Session helpers. Their
+closed English/French vocabulary, money parser and input extraction are unchanged.
+Session retains Run checks, budgets and execution consent; these lexical functions
+perform no I/O and grant no authority.

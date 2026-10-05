@@ -8,7 +8,8 @@
 //! gives the next line exactly one typed meaning — a `yes` never crosses
 //! from an authoring answer to a consent to a gate.
 
-use nika_onboard::routing::run_options;
+use nika_onboard::routing::run_options::{self, inline_vars, input_question, run_line_is_plain};
+pub(super) use nika_onboard::routing::run_options::{is_run_verb, run_prefix};
 
 use std::fmt::Write as _;
 use std::path::PathBuf;
@@ -141,7 +142,7 @@ impl SessionRuntime {
                 format!("recorded {n} requirement{}", if n == 1 { "" } else { "s" }),
             ));
         }
-        let reading = as_written(Reading::of(out), &round, &context, intent);
+        let reading = super::route::as_written(Reading::of(out), &round, &context, intent);
         // Only work owns the automation goal. Keep this round before any
         // seat/admission failure; an earlier conversation is not its request.
         let earlier = self.intent.goal.clone();
@@ -156,7 +157,7 @@ impl SessionRuntime {
             // revises the saved workflow, the rest is the conversation's
             // (the intelligence sees the line either way).
             Reading::NotWork(_) => {
-                if intent.trim().ends_with('?') {
+                if super::route::question_outside_money(intent, &round.money) {
                     return None;
                 }
                 let seat_reads = self.seat.has_model();
@@ -1240,34 +1241,6 @@ fn required_inputs_of(root: &std::path::Path, workflow: &std::path::Path) -> Vec
         .collect()
 }
 
-/// `name=value` pairs the human wrote on the run line itself.
-fn inline_vars(input: &str) -> Vec<String> {
-    input
-        .split_whitespace()
-        .filter(|token| {
-            token.split_once('=').is_some_and(|(k, v)| {
-                !k.is_empty()
-                    && !v.is_empty()
-                    && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
-            })
-        })
-        .map(|token| token.trim_matches(|c| c == ',' || c == ';').to_owned())
-        .collect()
-}
-
-/// The question for one declared input, in the product's words.
-fn input_question(workflow: &std::path::Path, name: &str, remaining: usize) -> String {
-    let more = if remaining > 1 {
-        format!(" ({} more after this one)", remaining - 1)
-    } else {
-        String::new()
-    };
-    format!(
-        "`{}` declares an input it needs before it runs: `{name}`{more}\n  reply on the next line with its value (`input.{name}`) · `cancel` drops the run",
-        workflow.display()
-    )
-}
-
 /// How a human answers a question, abandons it or asks why: the raw key stays out of the human's
 /// line (« why? » names it, with what the value is for); the prompt that follows (`reply ›`) says
 /// whose turn it is.
@@ -1411,80 +1384,6 @@ fn syntax_incomplete(clause: Option<&str>) -> String {
     format!(
         "I read this as work but cannot build {what} from your words yet: it would need a rule I can only write as code, and I never ask you for code.\n  · say the step differently — what to keep, what to compute, over which column, and where to write it\n  · or `cancel` and describe the work again\n  nothing was written"
     )
-}
-
-/// A line the reader does not settle once its admitted directives are blanked is routed as
-/// written (R4 A6): conversation stays conversation, unread work stays work.
-fn as_written(
-    reading: Reading,
-    round: &AuthoringRound,
-    context: &AuthoringContext,
-    intent: &str,
-) -> Reading {
-    match reading {
-        Reading::NotWork(out) | Reading::Unsettled(out) if !round.money.is_empty() => {
-            let mut written = round.clone();
-            written.money.clear();
-            match compile_in(&DETERMINISTIC, context, &written.request(), intent).map(Reading::of) {
-                Ok(Reading::NotWork(_)) => Reading::NotWork(out),
-                _ => Reading::Unsettled(out),
-            }
-        }
-        reading => reading,
-    }
-}
-
-/// The first word of an explicit run line (EN/FR). The French imperative
-/// with its object pronoun — « lance-le », « exécute-la », « relance-le » —
-/// is the same verb: it reaches the same run gate (check, money, the fresh
-/// Run decision), never a conversation and never a run by itself.
-pub(super) fn is_run_verb(first: &str) -> bool {
-    let first = first.trim_end_matches(['.', '!']);
-    let verb = match first.rsplit_once('-') {
-        Some((verb, "le" | "la" | "les" | "moi")) => verb,
-        _ => first,
-    };
-    matches!(
-        verb,
-        "run" | "execute" | "test" | "lance" | "exécute" | "teste" | "relance" | "run:"
-    )
-}
-
-/// Whether a run line is the closed grammar and nothing more: the verb,
-/// a workflow name, « it », a ceiling phrase, a few fillers. Anything
-/// else in the line is a meaning of its own (a change, a condition).
-fn run_line_is_plain(lower: &str) -> bool {
-    const FILLERS: &[&str] = &[
-        "it", "again", "the", "workflow", "once", "now", "this", "that", "le", "la", "ça",
-        "encore", "please", "stp", "svp", "with", "a", "ceiling", "of", "cap", "max", "cost",
-        "usd", "dollar", "dollars", "budget", "plafond", "de", "un", "une", "avec", "at", "à", "$",
-    ];
-    lower
-        .split(|c: char| c.is_whitespace() || c == ',' || c == ':')
-        .skip(1)
-        .map(|w| {
-            w.trim_matches(|c: char| matches!(c, '.' | ';' | '!' | '(' | ')' | '"' | '\'' | '`'))
-        })
-        .filter(|w| !w.is_empty())
-        .all(|w| {
-            FILLERS.contains(&w)
-                || std::path::Path::new(w)
-                    .extension()
-                    .is_some_and(|e| e.eq_ignore_ascii_case("nika"))
-                || w.starts_with("./")
-                || w.starts_with("--max-cost-usd")
-                || w.contains('=')
-                || super::money_parse::parse(w).is_ok_and(|money| money.money_only)
-                || w.trim_start_matches('$').parse::<f64>().is_ok()
-        })
-}
-
-pub(super) fn run_prefix(input: &str) -> Option<String> {
-    let lower = input.trim().to_lowercase();
-    let first = lower
-        .split(|c: char| c.is_whitespace() || c == ',' || c == ':')
-        .next()?;
-    is_run_verb(first).then_some(lower)
 }
 
 /// The saved file a proposal updates and the witness it was proposed over; `None` for a

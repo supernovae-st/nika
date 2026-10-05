@@ -2712,14 +2712,13 @@ pub mod nika_onboard::rehearsal
 pub fn nika_onboard::rehearsal::stage(slug: &str, room: &std::path::Path) -> core::io::error::Result<usize>
 pub fn nika_onboard::rehearsal::supplied_vars(slug: &str, operator: &[alloc::string::String]) -> impl core::iter::traits::iterator::Iterator<Item = alloc::string::String>
 pub mod nika_onboard::routing
+pub use nika_onboard::routing::run_options
 pub mod nika_onboard::routing::conversation
 pub fn nika_onboard::routing::conversation::is_cancel(line: &str) -> bool
 pub fn nika_onboard::routing::conversation::is_greeting(input: &str) -> bool
 pub fn nika_onboard::routing::conversation::is_meaning(line: &str) -> bool
 pub fn nika_onboard::routing::conversation::is_what_happened(line: &str) -> bool
 pub fn nika_onboard::routing::conversation::is_why(line: &str) -> bool
-pub mod nika_onboard::routing::run_options
-pub fn nika_onboard::routing::run_options::parse(input: &str) -> core::option::Option<(alloc::string::String, core::option::Option<alloc::string::String>)>
 pub enum nika_onboard::routing::RoutedEntry
 pub nika_onboard::routing::RoutedEntry::Clarify(alloc::vec::Vec<alloc::string::String>)
 pub nika_onboard::routing::RoutedEntry::Example(alloc::string::String)

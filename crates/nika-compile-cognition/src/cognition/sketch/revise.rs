@@ -15,17 +15,27 @@
 //! The base record is never rewritten: the revision's own semantic record binds the revised bytes
 //! under the resolved words, the next revision's original; the delta is recorded apart
 //! (`decision.revision`). A change to the graph's structure is not revised here, and a base no
-//! semantic record binds is kept as it is ([`self::historical`]).
+//! semantic record binds is kept as it is ([`historical`]).
+//!
+//! The links are judged before any fill by every law that reads no program
+//! (`sketch::revision::linked` and the replacement spans of `resolved`). Links that break one are
+//! the seat's to state again, in the same talk, beside the same base, original request and clause
+//! lists, within the door's one round count ([`linked`]); a change no fill carries, a repeated
+//! refusal or a spent allowance is refused with every law named, and nothing is filled.
+//!
+//! [`historical`]: crate::cognition::sketch::revise::historical
+//! [`linked`]: crate::cognition::sketch::revise::linked
 
 use super::{
     Answer, Question, SKETCH, SketchAnswer, Talk, cold, conclude, fill, floor_refuses, graph,
-    native, prelude, semantic_record, system_message, withhold_record,
+    native, prelude, repair, semantic_record, system_message, withhold_record,
 };
 use crate::cognition::{AuthoringPolicy, CompileOutcome, CompileRequest, DiagnosticKind, Strategy};
+use crate::fidelity::Diagnostic;
 use crate::sketch::{Sketch, revision};
 use crate::types::{EditChange, Input};
 use crate::{CompileError, lexicon};
-use nika_kernel::ai::provider::ProviderInferDyn;
+use nika_kernel::ai::provider::{Message, ProviderInferDyn, Role};
 use serde_json::{Value, json};
 
 /// The seat's first revision answer: the original clauses the change supersedes, each
@@ -65,6 +75,10 @@ pub(in crate::cognition) const SOURCE_ROUTE: &str =
 const REVISE_SOURCE: &str = "This is a REVISION of the base workflow below (`base_candidate`), which no semantic record binds. The compiler replaces ONE destination it writes, or adds ONE beside the existing ones, in place, and changes nothing else; you never write the workflow. Your only call: in `supersedes`, name the clause of the original request that states the destination the change replaces (copied exactly from `original_clauses`) and the clause of the change that states its new destination (copied exactly from `change_clauses`) — or no link when the change adds a destination; in `adds`, every other clause of the change (copied exactly from `change_clauses`), each adding or restating a duty without replacing any. Every change clause is in exactly one of the two. When the change adds a destination, `like` names the destination of `base_destinations` whose written content the new one receives. Name only what the request and the change state; when they leave it open, omit it and the human is asked.";
 
 const REVISE: &str = "This is a REVISION of the base program below (`base_graph`, `base_fills`). Its graph stays exactly as it is: the change only changes what its tasks do through their typed holes. Call 1: in `supersedes`, name each clause of the original request the change replaces (copied exactly from `original_clauses`) and the clause of the change that replaces it (copied exactly from `change_clauses`); in `adds`, name each clause of the change (copied exactly from `change_clauses`) that adds a duty beside the original ones and replaces none. Every change clause is in exactly one of the two; every other original clause stays. Call 2: fill the base graph's holes for the revised request.";
+
+/// The tail of a links repair: the base, the original request and both clause lists stay; only
+/// the links are stated again, under the laws the diagnostics name.
+const LINKS_AGAIN: &str = "\nState the links again: the base, the original request and both clause lists are unchanged. Answer the same {\"supersedes\", \"adds\", \"notes\"} object, every clause copied exactly from `original_clauses` or `change_clauses`. `supersedes` links only an original clause whose duty the change replaces; two links never name original clauses that overlap or nest (when one original clause contains another, link only the one whose duty the change replaces). A change clause that restates a duty the base already carries replaces nothing: it belongs in `adds`, never in a link. Every change clause is in exactly one of the two.";
 
 /// An EDIT of a base its semantic record binds, at the entry: the core first (the pair checked,
 /// the zero-call constant door, the record bound anew), then, only for a change in words the
@@ -115,43 +129,137 @@ fn base_pair(base: &Value) -> Option<(Sketch, SketchAnswer)> {
     Some((sketch, answer))
 }
 
-/// The request the links resolve, read; then, when the seat answered the links, the fills of the
-/// base graph against it. `Err` why a link does not resolve: no fill call is spent then.
-async fn resolve_and_fill<P: ProviderInferDyn>(
-    talk: &mut Talk,
-    out: &mut CompileOutcome,
-    linked: Option<&(Links, String)>,
-    (original, intent, change_ledger): (&str, &str, &Value),
+/// The seat's links judged before any fill, by the laws that read no program.
+enum Judged {
+    /// Every law holds: the request the revision consumes from here on.
+    Holds(String),
+    /// Links that break a law the seat repairs by stating them again.
+    Links(Vec<String>),
+    /// A change that adds what the program's structure carries: no restatement of its links can
+    /// hold, so it is refused as it is.
+    Change(Vec<String>),
+}
+
+/// The links `stated` judged before any fill. An addition the program's structure carries
+/// (`revision::additions`) is the change's own, refused as it is; a link or accounting law
+/// (`revision::linked`) or a replacement span (`revision::resolved`: a clause not stated once,
+/// two that overlap or nest) is the seat's to repair. When every law holds, the contract the
+/// revision consumes from here on: the original words with each linked clause replaced in place
+/// and every addition beside (`revision::resolved`), never the original beside the whole change.
+fn judged(
+    (original, change): (&str, &str),
+    (base, asked): (&Value, &Value),
     stated: &Value,
-    (policy, provider): (&AuthoringPolicy, &P),
-    pair: &(Sketch, SketchAnswer),
-) -> Result<(String, lexicon::Reading, Option<(Answer, Vec<Value>)>), Vec<String>> {
-    // The contract the revision consumes from here on: the original words with each linked
-    // clause replaced in place and every addition beside (`revision::resolved`), never the
-    // original beside the whole change.
-    let resolved = match linked {
-        Some(_) => {
-            let added = revision::additions(change_ledger, stated)?;
-            let read = revision::resolved(original, &stated["supersedes"], &added)?;
-            lexicon::fold_apostrophes(&read)
+) -> Judged {
+    if revision::accounted(asked, stated).is_ok()
+        && let Err(structural) = revision::additions(asked, stated)
+    {
+        return Judged::Change(structural);
+    }
+    let links = &stated["supersedes"];
+    let mut why =
+        (revision::linked(original, base, change, asked, stated).err()).unwrap_or_default();
+    // A span law reads no addition: an addition is appended, never replaced in place.
+    for reason in (revision::resolved(original, links, &[]).err().into_iter()).flatten() {
+        if !why.contains(&reason) {
+            why.push(reason);
         }
-        None => intent.to_owned(),
-    };
-    let reading = lexicon::read(&resolved);
-    let Some((links, text)) = linked else {
-        return Ok((resolved, reading, None));
-    };
-    // The seat's own notes are journaled by digest and shape only, never as text.
-    let notes = crate::cognition::receipt::withheld(&links.notes, &[], "revision notes");
-    talk.rounds.push(json!({"round": 0, "phase": "revision",
-        "supersedes": links.supersedes, "adds": links.adds, "notes": notes}));
-    let said = nika_kernel::ai::provider::Message::text(
-        nika_kernel::ai::provider::Role::Assistant,
-        text.clone(),
-    );
-    talk.messages.push(said);
-    let accepted = fill(talk, &resolved, &reading, policy, provider, out, pair, 1).await;
-    Ok((resolved, reading, accepted))
+    }
+    if !why.is_empty() {
+        return Judged::Links(why);
+    }
+    let read = revision::additions(asked, stated)
+        .and_then(|added| revision::resolved(original, links, &added));
+    match read {
+        Ok(read) => Judged::Holds(lexicon::fold_apostrophes(&read)),
+        Err(why) => Judged::Links(why),
+    }
+}
+
+/// What the links round settled.
+enum Linked {
+    /// The links hold: what they state, the request they resolve, the round the fills start at.
+    Held(Value, String, u32),
+    /// A destination edit, proven by the source laws ([`delegated`]), and the round it was stated.
+    Destination((Links, String), u32),
+    /// No answer to read (a failed call, a malformed text): nothing is filled.
+    Unanswered,
+    /// Links that still break a law, or a change no fill carries: why. Nothing is filled.
+    Refused(Vec<String>),
+}
+
+/// The seat's typed links, judged before any fill ([`judged`]) and repaired within the door's
+/// one round count from round 0 (the last round leaves the fills their turn): a repair names the
+/// laws the links break in the same talk, the base, the original request and both clause lists
+/// unchanged. A destination edit leaves for the source laws as soon as it is stated; a change no
+/// fill carries, a repeated refusal or a spent allowance is refused with why; a failed call or a
+/// malformed text ends the talk with no fill.
+async fn linked<P: ProviderInferDyn>(
+    talk: &mut Talk,
+    (request, original, change): (&CompileRequest, &str, &str),
+    ledgers: (&Value, &Value),
+    (policy, provider): (&AuthoringPolicy, &P),
+    out: &mut CompileOutcome,
+) -> Linked {
+    let last = policy.repairs.min(5);
+    let mut round = 0;
+    loop {
+        let role = if round == 0 {
+            "revision"
+        } else {
+            "revision-repair"
+        };
+        let schema = revision::links_schema();
+        let called = super::call::<Links, P>(talk, round, role, schema, policy, provider, out);
+        let Some((links, text)) = called.await else {
+            return Linked::Unanswered;
+        };
+        let stated = links.stated();
+        if destination_edit(request, original, ledgers, &stated) {
+            return Linked::Destination((links, text), round);
+        }
+        // The seat's own notes are journaled by digest and shape only, never as text.
+        let notes = crate::cognition::receipt::withheld(&links.notes, &[], "revision notes");
+        let why = match judged((original, change), ledgers, &stated) {
+            Judged::Holds(resolved) => {
+                talk.rounds.push(json!({"round": round, "phase": "revision",
+                    "supersedes": links.supersedes, "adds": links.adds, "notes": notes}));
+                talk.messages.push(Message::text(Role::Assistant, text));
+                return Linked::Held(stated, resolved, round + 1);
+            }
+            Judged::Change(why) => {
+                talk.rounds
+                    .push(refused_links(round, &stated, &notes, &why));
+                return Linked::Refused(why);
+            }
+            Judged::Links(why) => why,
+        };
+        talk.rounds
+            .push(refused_links(round, &stated, &notes, &why));
+        let diagnostics: Vec<Diagnostic> = (why.iter())
+            .map(|message| Diagnostic {
+                kind: "revision",
+                message: message.clone(),
+            })
+            .collect();
+        if round >= last || !repair(talk, text, diagnostics, LINKS_AGAIN) {
+            return Linked::Refused(why);
+        }
+        round += 1;
+    }
+}
+
+/// A refused links round as the journal keeps it: the links by digest and shape (the laws
+/// refused them), the notes withheld, each law named.
+fn refused_links(round: u32, stated: &Value, notes: &Value, why: &[String]) -> Value {
+    let keys = ["supersedes", "adds", "like"];
+    let proposed =
+        crate::cognition::receipt::withheld(&stated.to_string(), &keys, "refused revision links");
+    let diagnostics: Vec<Value> = (why.iter())
+        .map(|message| json!({"kind": "revision", "message": message}))
+        .collect();
+    json!({"round": round, "phase": "revision", "proposed_links": proposed, "notes": notes,
+        "diagnostics": diagnostics})
 }
 
 /// What a revision consumes and is judged against: the original words, the change, the resolved
@@ -249,8 +357,8 @@ fn bind(
 }
 
 /// Revise `request` (an EDIT in words whose `plan` is the base's semantic record) through the
-/// sketch door: the links, then the fills of the base graph against the resolved request, then
-/// the laws and the judge of that request.
+/// sketch door: the links, judged and repaired before any fill ([`linked`]), then the fills of
+/// the base graph against the resolved request, then the laws and the judge of that request.
 async fn revise<P: ProviderInferDyn>(
     request: &CompileRequest,
     policy: &AuthoringPolicy,
@@ -283,73 +391,97 @@ async fn revise<P: ProviderInferDyn>(
     let change_ledger =
         nika_compile::surface::semantic::request_basis(change, &words_only)["ledger"].clone();
     let base_ledger = base["basis"]["read"]["ledger"].clone();
-    let (mut talk, sent, shown) = opened(
-        base,
-        &intent,
-        &reading,
-        &revising,
-        (&base_ledger, &change_ledger),
-    );
-    let linked = super::call::<Links, P>(
-        &mut talk,
-        0,
-        "revision",
-        revision::links_schema(),
-        policy,
-        provider,
-        &mut out,
+    let ledgers = (&base_ledger, &change_ledger);
+    let (mut talk, sent, shown) = opened(base, &intent, &reading, &revising, ledgers);
+    let at = (request, original.as_str(), change.as_str());
+    let (stated, resolved, round) =
+        match linked(&mut talk, at, ledgers, (policy, provider), &mut out).await {
+            Linked::Held(stated, resolved, round) => (stated, resolved, round),
+            Linked::Destination(pair, round) => {
+                let at = (request, original.as_str(), base);
+                let journal = Journal {
+                    round,
+                    talk,
+                    sent,
+                    shown,
+                    cold,
+                };
+                return Ok(delegated(at, (policy, provider), journal, pair, out).await);
+            }
+            Linked::Unanswered => {
+                native::record(&mut out, &revising, &cold, &talk, &sent, None, shown);
+                conclude(&intent, &reading, &revising, None, &talk, cold, &mut out);
+                out.provenance.strategy = Some(Strategy::Native);
+                return Ok(out);
+            }
+            Linked::Refused(why) => {
+                native::record(&mut out, &revising, &cold, &talk, &sent, None, shown);
+                refuse(&mut out, &why);
+                out.provenance.strategy = Some(Strategy::Native);
+                return Ok(out);
+            }
+        };
+    let contract = Contract {
+        original: &original,
+        change,
+        resolved: &resolved,
+        base_ledger: &base_ledger,
+        change_ledger: &change_ledger,
+        stated: &stated,
+    };
+    let journal = Journal {
+        round,
+        talk,
+        sent,
+        shown,
+        cold,
+    };
+    let connection = (policy, provider);
+    Ok(filled(
+        (&revising, base, &pair),
+        connection,
+        journal,
+        &contract,
+        out,
+    )
+    .await)
+}
+
+/// The fills of the base graph against the resolved request (`contract.resolved`), once, from
+/// the round the links left; the revised record bound and judged by the laws ([`bind`]), then a
+/// READY result judged against that request.
+async fn filled<P: ProviderInferDyn>(
+    (revising, base, pair): (&CompileRequest, &Value, &(Sketch, SketchAnswer)),
+    (policy, provider): (&AuthoringPolicy, &P),
+    journal: Journal<'_>,
+    contract: &Contract<'_>,
+    mut out: CompileOutcome,
+) -> CompileOutcome {
+    let Journal {
+        round,
+        mut talk,
+        sent,
+        shown,
+        cold,
+    } = journal;
+    let resolved = contract.resolved;
+    let reading = lexicon::read(resolved);
+    let accepted = fill(
+        &mut talk, resolved, &reading, policy, provider, &mut out, pair, round,
     )
     .await;
-    let stated = json!(linked.as_ref().map(|(links, _)| links.stated()));
-    let ledgers = (&base_ledger, &change_ledger);
-    let linked = match linked {
-        Some(pair) if destination_edit(request, &original, ledgers, &stated) => {
-            let at = (request, original.as_str(), base);
-            let talked = (talk, sent, shown, cold);
-            return Ok(delegated(at, (policy, provider), talked, pair, out).await);
-        }
-        other => other,
-    };
-    let filled = resolve_and_fill(
-        &mut talk,
-        &mut out,
-        linked.as_ref(),
-        (&original, &intent, &change_ledger),
-        &stated,
-        (policy, provider),
-        &pair,
-    );
-    let (resolved, reading, accepted) = match filled.await {
-        Ok(filled) => filled,
-        Err(why) => {
-            native::record(&mut out, &revising, &cold, &talk, &sent, None, shown);
-            refuse(&mut out, &why);
-            out.provenance.strategy = Some(Strategy::Native);
-            return Ok(out);
-        }
-    };
     let answer = accepted.as_ref().map(|(answer, _)| answer);
-    native::record(&mut out, &revising, &cold, &talk, &sent, answer, shown);
-    conclude(
-        &resolved, &reading, &revising, answer, &talk, cold, &mut out,
-    );
+    native::record(&mut out, revising, &cold, &talk, &sent, answer, shown);
+    conclude(resolved, &reading, revising, answer, &talk, cold, &mut out);
     out.provenance.strategy = Some(Strategy::Native);
     if let Some((_, fills)) = &accepted {
-        let contract = Contract {
-            original: &original,
-            change,
-            resolved: &resolved,
-            base_ledger: &base_ledger,
-            change_ledger: &change_ledger,
-            stated: &stated,
-        };
-        bind(&mut out, base, &revising, &graph(&pair.1), fills, &contract);
+        bind(&mut out, base, revising, &graph(&pair.1), fills, contract);
     }
     if out.status != crate::CompileStatus::Ready {
-        return Ok(out);
+        return out;
     }
     let judge = super::super::verify::judged_native;
-    Ok(judge(&resolved, &reading, policy, provider, &revising, out).await)
+    judge(resolved, &reading, policy, provider, revising, out).await
 }
 
 /// A revision the preservation or delta laws refuse: nothing READY, no record, each law named.
@@ -456,6 +588,7 @@ pub(in crate::cognition) async fn source<P: ProviderInferDyn>(
         return Ok(out);
     };
     let journal = Journal {
+        round: 0,
         talk,
         sent,
         shown,
@@ -465,9 +598,11 @@ pub(in crate::cognition) async fn source<P: ProviderInferDyn>(
     Ok(source_settled(request, reading, (policy, provider), journal, linked, out).await)
 }
 
-/// What a revision's round journals: its talk, the references sent, the revision shown, the cold
-/// report it opened over.
+/// What a revision's round journals: the round its accepted answer was stated in (the links
+/// round, or the next one: the fills' first), its talk, the references sent, the revision shown,
+/// the cold report it opened over.
 struct Journal<'a> {
+    round: u32,
     talk: Talk,
     sent: Vec<Value>,
     shown: Option<(&'a str, &'a str)>,
@@ -492,16 +627,13 @@ async fn source_settled<P: ProviderInferDyn>(
         .collect();
     let notes = crate::cognition::receipt::withheld(&links.notes, &[], "revision notes");
     journal.talk.rounds.push(
-        json!({"round": 0, "phase": "revision", "supersedes": links.supersedes,
+        json!({"round": journal.round, "phase": "revision", "supersedes": links.supersedes,
         "adds": links.adds, "notes": notes, "diagnostics": refused}),
     );
     journal
         .talk
         .messages
-        .push(nika_kernel::ai::provider::Message::text(
-            nika_kernel::ai::provider::Role::Assistant,
-            text,
-        ));
+        .push(Message::text(Role::Assistant, text));
     let accepted = (done.provenance.plan.as_ref())
         .and_then(|record| record["source"].as_str())
         .map(|candidate| Answer {
@@ -515,6 +647,7 @@ async fn source_settled<P: ProviderInferDyn>(
         sent,
         shown,
         cold,
+        ..
     } = journal;
     native::record(
         &mut done,
@@ -603,16 +736,10 @@ fn destination_edit(
 async fn delegated<P: ProviderInferDyn>(
     (request, original, base): (&CompileRequest, &str, &Value),
     (policy, provider): (&AuthoringPolicy, &P),
-    (talk, sent, shown, cold): (Talk, Vec<Value>, Option<(&str, &str)>, native::Cold),
+    journal: Journal<'_>,
     pair: (Links, String),
     out: CompileOutcome,
 ) -> CompileOutcome {
-    let journal = Journal {
-        talk,
-        sent,
-        shown,
-        cold,
-    };
     let mut bound = request.clone().with_original_intent(original.to_owned());
     bound.plan = None;
     let intent = nika_compile::revise_intent(&bound).unwrap_or_default();

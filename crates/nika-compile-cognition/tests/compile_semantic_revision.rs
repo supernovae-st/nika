@@ -34,6 +34,8 @@ const CHANGE: &str = "Keep the orders whose status is shipped instead of paid.";
 struct Semantic {
     answers: Vec<String>,
     asked: Mutex<Vec<Value>>,
+    /// The messages of every attempt, in order, as sent.
+    sent: Mutex<Vec<Value>>,
     /// The admission layer's call ceiling, as `semantic_verification`'s `Scripted::ceiling`:
     /// every call from this index is refused locally, counted as attempted, never answered.
     refused_from: usize,
@@ -47,6 +49,7 @@ impl Semantic {
                 .map(|answer| answer.to_string())
                 .collect(),
             asked: Mutex::new(Vec::new()),
+            sent: Mutex::new(Vec::new()),
             refused_from: usize::MAX,
         }
     }
@@ -77,6 +80,8 @@ impl ProviderInferDyn for Semantic {
             props.get("candidate").is_none() && props.get("candidate_lines").is_none(),
             "a whole-source schema was requested: {schema}"
         );
+        let messages = serde_json::to_value(&request.messages).unwrap();
+        self.sent.lock().unwrap().push(messages);
         let at = {
             let mut asked = self.asked.lock().unwrap();
             asked.push(schema);
@@ -826,13 +831,24 @@ fn written_world(version: u8) -> Value {
 async fn a_written_destination_survives_migration_reopen_and_a_second_semantic_edit() {
     let (_, bytes, mut legacy) = base_observed(Some(written_world(0))).await;
     legacy["basis"].as_object_mut().unwrap().remove("world");
-    let seat = Semantic::new(vec![revised(link(PAID, SHIPPED)), fills("shipped")]);
-    let request = revise(&bytes, &legacy, 1).with_knowledge(written_world(1));
+    // The next original includes a destination restatement, as an interactive EDIT does.
+    let change = format!("{CHANGE} Garde le même fichier ./out/paid.json.");
+    let mut links = revised(link(PAID, SHIPPED));
+    links["adds"] = json!(["Garde le même fichier ./out/paid.json"]);
+    let seat = Semantic::new(vec![links, fills("shipped")]);
+    let request = CompileRequest::edit(&bytes, change)
+        .with_original_intent(INTENT)
+        .with_plan(legacy)
+        .with_knowledge(written_world(1))
+        .with_authoring_policy(policy(1));
     let b = compile_with_provider(&request, &seat).await.unwrap();
     assert_eq!(b.status, CompileStatus::Ready, "migration: {b:#?}");
     assert_eq!(doc(&b), expected(&serde_yaml_bw::from_str(&bytes).unwrap()));
     let b_record = b.provenance.plan.as_ref().unwrap();
     assert!(b_record["basis"]["world"]["value"]["observed"].is_array());
+    let words = b_record["basis"]["read"]["effective"].as_str().unwrap();
+    assert!(words.contains("Garde le même fichier ./out/paid.json"));
+    assert!(nika_compile_reader::hot::stated_sources(words).contains(&"./out/paid.json".into()));
     // The exact opaque record survives close/reopen serialization, with no process-only cache.
     let reopened: Value = serde_json::from_str(&serde_json::to_string(b_record).unwrap()).unwrap();
     let next = CompileRequest::edit(b.candidate.as_deref().unwrap(), DELIVERED_CHANGE)
@@ -878,5 +894,155 @@ async fn a_written_destination_survives_migration_reopen_and_a_second_semantic_e
         let out = compile_with_provider(&bad, &none).await.unwrap();
         assert_eq!(none.calls(), 0, "{fault}: {out:#?}");
         assert_ne!(out.status, CompileStatus::Ready, "{fault}: {out:#?}");
+    }
+}
+
+/// The authoring calls an outcome's receipt names, in order.
+fn roles(out: &CompileOutcome) -> Vec<String> {
+    (out.provenance.authoring.iter())
+        .flat_map(|receipt| receipt.context.iter())
+        .filter_map(|call| call["call"].as_str().map(str::to_owned))
+        .collect()
+}
+
+/// Two links of one original clause: their spans overlap in the original request (as a clause
+/// nested in another's does), and the clause is linked twice.
+fn overlapping() -> Value {
+    revised(json!([{"replaces": PAID, "by": SHIPPED}, {"replaces": PAID, "by": SHIPPED}]))
+}
+
+/// Whether any attempt the seat saw asked for fills.
+fn asked_fills(seat: &Semantic) -> bool {
+    (seat.asked.lock().unwrap().iter()).any(|schema| schema["properties"].get("fills").is_some())
+}
+
+/// Links that break a law decidable before any fill are refused with every law named, then
+/// stated again by the seat in the same talk, its opening (the base graph, the original request
+/// and both clause lists) unchanged; the valid answer is filled exactly once and READY.
+#[tokio::test]
+async fn invalid_links_are_repaired_before_any_fill_and_the_valid_answer_fills_once() {
+    let (_, bytes, record) = base().await;
+    let answers = vec![
+        overlapping(),
+        revised(link(PAID, SHIPPED)),
+        fills("shipped"),
+    ];
+    let seat = Semantic::new(answers);
+    let out = compile_with_provider(&revise(&bytes, &record, 1), &seat)
+        .await
+        .unwrap();
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let base_doc: Value = serde_yaml_bw::from_str(&bytes).unwrap();
+    assert_eq!(
+        doc(&out),
+        expected(&base_doc),
+        "only the changed rule moved"
+    );
+    let roles = roles(&out);
+    assert_eq!(
+        &roles[..3],
+        ["revision", "revision-repair", "fill"],
+        "{roles:?}"
+    );
+    let filled = roles.iter().filter(|role| role.starts_with("fill")).count();
+    assert_eq!(
+        filled, 1,
+        "one fill, never before the links hold: {roles:?}"
+    );
+    // The repair re-sends the same talk, then the refused answer and the laws it broke.
+    let messages = seat.sent.lock().unwrap().clone();
+    let (first, second) = (
+        messages[0].as_array().unwrap(),
+        messages[1].as_array().unwrap(),
+    );
+    assert_eq!(second.len(), first.len() + 2, "{second:#?}");
+    assert_eq!(
+        &second[..first.len()],
+        first.as_slice(),
+        "the opening is unchanged"
+    );
+    let repair = second.last().unwrap().to_string();
+    for needle in [
+        "overlap in the request it revises",
+        "is linked twice",
+        "State the links again",
+    ] {
+        assert!(repair.contains(needle), "{needle}: {repair}");
+    }
+    let decision = out.provenance.decision.as_ref().unwrap();
+    let delta = &decision["revision"];
+    assert_eq!(
+        delta["superseded"].as_array().map(Vec::len),
+        Some(1),
+        "{delta:#}"
+    );
+    assert_eq!(delta["superseded"][0]["evidence"], PAID);
+    assert_eq!(delta["original"], INTENT, "the original request is kept");
+    let journal = decision.to_string();
+    assert!(
+        journal.contains("refused revision links"),
+        "the refused round is journaled by digest: {journal}"
+    );
+}
+
+/// Links still invalid when the allowance is spent, restated without progress, or followed by an
+/// answer that is no links object end Incomplete: no fill is asked, no candidate or record is
+/// kept, and a refusal names its laws. No allowance asks once.
+#[tokio::test]
+async fn invalid_links_that_stay_invalid_end_incomplete_with_no_fill() {
+    let (_, bytes, record) = base().await;
+    let valid = || revised(link(PAID, SHIPPED));
+    let cases = [
+        (
+            "no allowance",
+            0,
+            vec![overlapping(), valid()],
+            1,
+            Some("overlap"),
+        ),
+        (
+            "spent",
+            1,
+            vec![
+                overlapping(),
+                revised(link(PAID, "ship everything")),
+                valid(),
+            ],
+            2,
+            Some("not a clause the change states"),
+        ),
+        (
+            "no progress",
+            2,
+            vec![overlapping(), overlapping(), valid()],
+            2,
+            Some("overlap"),
+        ),
+        (
+            "not a links object",
+            1,
+            vec![overlapping(), json!("no links"), valid()],
+            2,
+            None,
+        ),
+    ];
+    for (case, repairs, mut answers, calls, law) in cases {
+        answers.push(fills("shipped"));
+        let seat = Semantic::new(answers);
+        let out = compile_with_provider(&revise(&bytes, &record, repairs), &seat)
+            .await
+            .unwrap();
+        assert_eq!(seat.calls(), calls, "{case}: {out:#?}");
+        assert!(!asked_fills(&seat), "{case}: no fill is asked: {out:#?}");
+        assert_ne!(out.status, CompileStatus::Ready, "{case}: {out:#?}");
+        assert!(
+            out.candidate.is_none() && out.provenance.plan.is_none(),
+            "{case}: {out:#?}"
+        );
+        if let Some(law) = law {
+            let named =
+                (out.diagnostics.iter()).any(|d| d.target == "revision" && d.message.contains(law));
+            assert!(named, "{case}: {law}: {out:#?}");
+        }
     }
 }

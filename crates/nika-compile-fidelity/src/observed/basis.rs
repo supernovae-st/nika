@@ -49,6 +49,19 @@ pub fn for_base(world: Option<&Value>, words: &str, graph: &Value, basis: &Value
     let current = for_request(world, words);
     let sketch = crate::sketch::Sketch::from_json(graph).ok()?;
     let mut sources = nika_compile_reader::hot::stated_sources(words);
+    // A bare mention of a bound write destination is not an additional read ("keep the same
+    // file"). The graph fixes those roles; every graph read is added back, including a path
+    // also written. Opaque paths stay conservative rather than gaining a pattern matcher.
+    sources.retain(|path| {
+        path.contains(['*', '?', '[', '$'])
+            || !sketch.tasks.iter().any(|task| {
+                task.tool.as_deref() == Some("nika:write")
+                    && task
+                        .writes
+                        .iter()
+                        .any(|written| name(written) == name(path))
+            })
+    });
     sources.extend(sketch.tasks.iter().flat_map(|t| t.reads.clone()));
     let opaque_read = sources
         .iter()
@@ -356,5 +369,46 @@ mod historical_tests {
             for_base(Some(&moved), words, &graph, &basis).is_none(),
             "full history sees the graph source even before destination movement"
         );
+    }
+
+    #[test]
+    fn a_rementioned_write_destination_does_not_become_a_read_after_reopen() {
+        let words = "Read ./in.json and write it to ./out.json. Garde le même fichier out.json.";
+        assert!(nika_compile_reader::hot::stated_sources(words).contains(&"out.json".into()));
+        let (_, old) = worlds();
+        let kept = json!({"read": {"world_sha256": of_request(Some(&old), words)},
+            "world": keep(Some(&old))});
+        let reopened: Value = serde_json::from_str(&kept.to_string()).unwrap();
+        let mut now = old.clone();
+        now["observed"][1]["peek_sha256"] = json!("second-output");
+        now["kinds"]["./out.json"] = json!({"total": "number", "rows": 1});
+        assert_eq!(
+            for_base(Some(&now), words, &graph(), &reopened),
+            Some(old.clone())
+        );
+        let mut input_changed = now.clone();
+        input_changed["observed"][0]["peek_sha256"] = json!("changed-input");
+        assert!(for_base(Some(&input_changed), words, &graph(), &reopened).is_none());
+        let mut also_read = graph();
+        also_read["tasks"][0]["reads"] = json!(["./in.json", "out.json"]);
+        assert!(for_base(Some(&now), words, &also_read, &reopened).is_none());
+        also_read["tasks"][0]["reads"] = json!(["./in.json", "./*.json"]);
+        assert!(for_base(Some(&now), words, &also_read, &reopened).is_none());
+        let mut tampered = reopened;
+        tampered["world"]["value"]["observed"][0]["state"] = json!("forged");
+        assert!(for_base(Some(&now), words, &graph(), &tampered).is_none());
+    }
+
+    #[test]
+    fn a_stated_path_without_a_bound_write_remains_a_source() {
+        let words = "Read ./in.json and write it to ./out.json. Compare also extra.json.";
+        let (mut old, _) = worlds();
+        old["observed"].as_array_mut().unwrap().push(json!({
+            "path": "extra.json", "state": "observed", "peek_sha256": "extra"}));
+        let basis = json!({"read": {"world_sha256": of_request(Some(&old), words)},
+            "world": keep(Some(&old))});
+        let mut now = old;
+        now["observed"][2]["peek_sha256"] = json!("changed-extra");
+        assert!(for_base(Some(&now), words, &graph(), &basis).is_none());
     }
 }
