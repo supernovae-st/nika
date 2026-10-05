@@ -59,7 +59,7 @@ const PROVIDERS: [&str; 16] = [
 /// The choice screen's own words and hint (nika-session intelligence.rs,
 /// nika-tui model.rs `Waiting::Choosing`).
 const CHOICE: &str = "No AI in this conversation";
-const CHOICE_HINT: &str = "type a number";
+const CHOICE_HINT: &str = "1 account";
 const INTENT: &str = "digest my monday notes";
 
 /// `std::env::var` for the harness switch naming the binary (not a secret).
@@ -150,7 +150,10 @@ fn first_contact_at_80x24_asks_the_intelligence_and_calls_no_provider() {
     let mut term = first_contact(&room, &listener);
     term.send(&format!("{INTENT}\r"));
     term.wait_until("the intelligence choice", |screen| {
-        screen.seen(CHOICE) && screen.contains(CHOICE_HINT)
+        screen.seen(CHOICE)
+            && [CHOICE_HINT, "2 API", "3 local", "4 no AI", "cancel"]
+                .iter()
+                .all(|choice| screen.contains(choice))
     });
     term.send("4\r");
     term.wait_until("a question, a clarification or the free prompt", |screen| {

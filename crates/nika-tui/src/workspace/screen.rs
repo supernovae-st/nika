@@ -697,6 +697,54 @@ mod tests {
     }
 
     #[test]
+    fn intelligence_choices_remain_visible_below_a_long_scrolled_menu() {
+        use crate::model::{Beat, Committed, Kind, Waiting};
+        for (width, height) in [(60, 18), (80, 24), (120, 40)] {
+            for ascii in [true, false] {
+                let view = screen(welcome());
+                let mut state = UiState::new(Presentation::Workspace, false, (width, height));
+                state.ascii = ascii;
+                state.waiting = Waiting::Choosing;
+                let menu = nika_session::intelligence::IntelligenceCensus::empty().first_screen();
+                state.apply(Beat::Say(Committed::new(Kind::Reply, menu)));
+                let composer = Composer::new();
+                let mut terminal =
+                    Terminal::new(TestBackend::new(width, height)).expect("terminal");
+                terminal
+                    .draw(|frame| {
+                        assert!(draw(
+                            frame,
+                            &view,
+                            paint(ascii),
+                            &Focus::composing(),
+                            &state,
+                            &composer
+                        ));
+                    })
+                    .expect("draw");
+                let buffer = terminal.backend().buffer();
+                let rows: Vec<String> = (0..height)
+                    .map(|y| (0..width).map(|x| buffer[(x, y)].symbol()).collect())
+                    .collect();
+                let choices = rows
+                    .iter()
+                    .find(|row| {
+                        ["1 account", "2 API", "3 local", "4 no AI"]
+                            .iter()
+                            .all(|choice| row.contains(choice))
+                    })
+                    .expect("the fixed hint names all four choices together");
+                assert!(
+                    !choices.contains("Prepare:"),
+                    "the cue does not claim a model answered"
+                );
+                assert!(rows.iter().any(|row| row.contains("cancel")), "{rows:#?}");
+                assert_eq!(state.focus_scroll, 0, "no manual scroll needed");
+            }
+        }
+    }
+
+    #[test]
     fn the_keyboard_selects_in_the_aside_and_scrolls_the_object() {
         use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
         use ratatui::style::Modifier;

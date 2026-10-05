@@ -1125,7 +1125,15 @@ fn seat(runtime: &SessionRuntime) -> Option<String> {
         (IntelligenceKind::Local { provider }, _) => format!("{provider}, on this machine"),
         _ => "an intelligence this view cannot name".to_owned(),
     };
-    let model = chosen.model.as_deref().map_or_else(
+    // These are configured or resolved preparation facts, not a served-model receipt.
+    let selected_model = chosen
+        .model
+        .as_deref()
+        .or_else(|| match runtime.authoring_seat() {
+            nika_session::AuthoringSeat::Provider { model } => Some(model.as_str()),
+            _ => None,
+        });
+    let model = selected_model.map_or_else(
         || "model chosen by provider - ".to_owned(),
         |model| format!("{model} - "),
     );
@@ -1275,6 +1283,79 @@ mod project_view_tests {
                 model.is_ascii(),
                 "only model data may be Unicode"
             );
+        }
+    }
+
+    /// A resolved preparation model; painting must never ask this reasoner.
+    struct ResolvedModel(Option<String>);
+
+    impl nika_session::SessionReasoner for ResolvedModel {
+        fn name(&self) -> String {
+            "fixture connection".to_owned()
+        }
+
+        fn reason(&mut self, _: &str) -> Result<nika_session::Reply, nika_session::ReasonError> {
+            panic!("projecting a selection must not ask a model")
+        }
+
+        fn authoring_model(&self) -> Option<String> {
+            self.0.clone()
+        }
+    }
+
+    #[test]
+    fn preparation_names_the_resolved_default_without_claiming_a_response() {
+        use nika_session::intelligence::IntelligenceKind;
+        let room = Room::new("resolved-model");
+        for (local, configured, resolved, expected) in [
+            (
+                false,
+                None,
+                Some("deepseek/default"),
+                "deepseek/default - deepseek API, metered",
+            ),
+            (
+                true,
+                None,
+                Some("ollama/local"),
+                "ollama/local - ollama, on this machine",
+            ),
+            (
+                false,
+                Some("deepseek/selected"),
+                Some("deepseek/default"),
+                "deepseek/selected - deepseek API, metered",
+            ),
+            (
+                false,
+                None,
+                None,
+                "model chosen by provider - deepseek API, metered",
+            ),
+        ] {
+            let mut census = IntelligenceCensus::empty();
+            let kind = if local {
+                census.locals.push("ollama".into());
+                IntelligenceKind::Local {
+                    provider: "ollama".into(),
+                }
+            } else {
+                census.api_keys.push("deepseek".into());
+                IntelligenceKind::Api {
+                    provider: "deepseek".into(),
+                }
+            };
+            let preference = UserIntelligencePreference::new(kind, configured.map(str::to_owned));
+            let resolved = resolved.map(str::to_owned);
+            let runtime = SessionRuntime::open_with(
+                &room.0,
+                census,
+                &preference,
+                None,
+                Box::new(move |_| Box::new(ResolvedModel(resolved.clone()))),
+            );
+            assert_eq!(project_view(&runtime, None).seat.as_deref(), Some(expected));
+            assert_eq!(runtime.intelligence.model.as_deref(), configured);
         }
     }
 

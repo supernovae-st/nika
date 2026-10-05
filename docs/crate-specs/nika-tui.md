@@ -197,6 +197,10 @@ a stamped integrated build or a paid model route.
   message carries keeps priority on a narrow panel; the on-screen part is cut
   first, then dropped. The heading identifies the Session's selection as
   `Prepare:`; it does not attribute a local action or a reply to that model.
+  It names the explicitly configured model, or the authoring seat's resolved
+  provider model when no model was named; an unresolved default stays explicit.
+  During intelligence selection the fixed composer hint names all four numbered
+  routes (account, API, local, no AI), even when the menu is above the viewport.
   A selected model also receives wrapped heading space in short panels while
   the existing activity/composer area stays fixed. The header and scroll bounds
   use the same measurement; one transcript row remains. An unknown selection

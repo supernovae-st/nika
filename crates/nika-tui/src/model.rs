@@ -143,7 +143,7 @@ impl Waiting {
     pub fn hint(&self) -> &'static str {
         match self {
             Self::Free => "describe work · /help · Run: run <file>.nika",
-            Self::Choosing => "type a number · `cancel` continues without a choice",
+            Self::Choosing => "1 account · 2 API · 3 local · 4 no AI · cancel",
             Self::Question { key } if key == "unknown_cost" || key == "run_cost" => {
                 "yes approves once · no or Ctrl+C cancels · details shows the full evidence"
             }
