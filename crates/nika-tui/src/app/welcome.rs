@@ -2,9 +2,10 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The welcome's one-shot clock belongs to the shell, never to the renderer.
-//! Only the next distinct frame (and the end) wakes an idle shell; ordinary
-//! input uses the same broker and interrupts that wait. Hiding the welcome
-//! stops its wakeups without restarting the reveal when it returns.
+//! Only the next distinct frame wakes an idle shell: the last reveal frame is
+//! the final mark, so the reveal's end draws nothing new and wakes nothing.
+//! Ordinary input uses the same broker and interrupts that wait. Hiding the
+//! welcome stops its wakeups without restarting the reveal when it returns.
 
 use std::io;
 use std::sync::mpsc::RecvTimeoutError;
@@ -23,7 +24,8 @@ pub(super) struct Reveal {
 
 impl Reveal {
     /// Start on the first visible welcome, retain that origin for the shell's
-    /// life, and schedule at most the remaining reveal boundaries.
+    /// life, and schedule at most the remaining reveal boundaries (never the
+    /// end: the frame held from the last boundary is already the final mark).
     fn paint(&mut self, now: Instant, visible: bool, reduced: bool) -> Duration {
         if visible && self.began.is_none() {
             self.began = Some(now);
@@ -37,7 +39,6 @@ impl Reveal {
                     REVEAL_AT
                         .iter()
                         .copied()
-                        .chain(std::iter::once(REVEAL_ENDS))
                         .find(|at| *at > elapsed)
                         .map(|at| start + at)
                 })
@@ -102,8 +103,15 @@ mod tests {
         assert_eq!(reveal.wait(start), None);
         for (index, at) in REVEAL_AT.into_iter().enumerate() {
             assert_eq!(reveal.paint(start + at, true, false), at);
-            let next = REVEAL_AT.get(index + 1).copied().unwrap_or(REVEAL_ENDS);
-            assert_eq!(reveal.wait(start + at), Some(next - at));
+            let next = REVEAL_AT.get(index + 1).map(|next| *next - at);
+            assert_eq!(reveal.wait(start + at), next, "frame {index}");
+        }
+        // The last frame is the final mark at every size: the end wakes nothing.
+        for size in crate::visual::logomark::Size::ALL {
+            assert_eq!(
+                size.at(REVEAL_ENDS, false),
+                size.at(REVEAL_AT[REVEAL_AT.len() - 1], false)
+            );
         }
         assert_eq!(reveal.paint(start + REVEAL_ENDS, true, false), REVEAL_ENDS);
         assert_eq!(reveal.wait(start + REVEAL_ENDS), None);

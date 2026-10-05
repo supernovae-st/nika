@@ -228,8 +228,16 @@ fn suffix_tab_at(title: &Line<'_>, labels: &[String], column: u16, width: u16) -
 
 impl<C: Conversation + 'static> Shell<C> {
     /// Ratatui's clear preserves the cursor by querying the terminal even in
-    /// fullscreen mode. Park the sole reader so it cannot consume that reply.
+    /// fullscreen mode, and a terminal that never answers would end the
+    /// session. A full screen owns every cell: it is cleared and wholly
+    /// redrawn at the size the backend reports, with no query. The inline
+    /// viewport keeps the clear; the sole reader is parked so it cannot
+    /// consume that reply.
     pub(super) fn repaint(&mut self, broker: &super::Broker) -> std::io::Result<()> {
+        if self.state.presentation != Presentation::Inline {
+            let size = self.screen.size()?;
+            return self.screen.resize(Rect::new(0, 0, size.width, size.height));
+        }
         broker.pause();
         let cleared = self.screen.clear();
         broker.resume();

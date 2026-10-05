@@ -66,7 +66,7 @@ same kind of borrowing:
   five renditions (12×6 to 48×20) sampled from `media/brand/nika-logomark.svg`
   (a test pins its sha256, so a changed mark flags stale renditions), chosen
   whole by `Size::largest_within`, revealed once through five ordered-dither
-  frames between 0 and 1,400 ms and final at 1,800 ms, shown final at once under
+  frames between 0 and 1,400 ms, holding the final mark without another wake, shown final at once under
   reduced motion. It never loops and never stands for work in progress.
 
 Nothing in `visual` reads the clock, the environment or a file; the caller
