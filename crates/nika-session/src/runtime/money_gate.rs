@@ -359,6 +359,7 @@ impl SessionRuntime {
         // Gate parsing above still holds cognition, but does not consume this flag.
         // A round admitted under it (a stated ceiling or a zero-call replay) answers under it.
         if self.money.reconfirm
+            && !self.unknown_cost.active
             && parsed.amount.is_none()
             && !(replay || (continuation && self.money.stated_under_reconfirm))
         {
@@ -424,7 +425,7 @@ impl SessionRuntime {
         if self.unreviewed_unknown_route() {
             return true;
         }
-        if self.money.gate.is_some() || self.money.reconfirm {
+        if self.money.gate.is_some() || (self.money.reconfirm && !self.unknown_cost.active) {
             return true;
         }
         if let Some(a) = &self.money.account

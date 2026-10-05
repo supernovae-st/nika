@@ -3,6 +3,7 @@
 //! One-time unknown-cost decisions, before any cognition. Observations are durable;
 //! reviews and admission authority are deliberately not deserializable.
 use super::{Refusal, RefusalClass, SessionRuntime, TurnOutcome};
+use nika_providers::admission::LegacyCostReport;
 use nika_runtime::cost_choice::{CostHostEvidence, CostReview, CostRoute, monetary_default};
 use std::io::Read as _;
 
@@ -70,12 +71,20 @@ impl SessionRuntime {
         }
         observations
     }
+    fn legacy_report(&self) -> Option<LegacyCostReport> {
+        if !self.money.reconfirm || self.money.account.is_some() {
+            return None;
+        }
+        LegacyCostReport::read(&self.unknown_cost.observations).ok()
+    }
     pub(super) fn unreviewed_unknown_route(&self) -> bool {
         !self.unknown_cost.active
             && matches!(self.intelligence.kind, crate::IntelligenceKind::Api { .. })
             && self
                 .selected_cost_route()
-                .map_or(!self.legacy_native_price(), |r| r.needs_unknown_choice())
+                .map_or(!self.legacy_native_price(), |r| {
+                    r.needs_unknown_choice() || self.legacy_report().is_some()
+                })
     }
     fn legacy_native_price(&self) -> bool {
         self.reasoner.authoring_model().is_some_and(|model| {
@@ -106,6 +115,26 @@ impl SessionRuntime {
             self.authoring
         )
         .into_bytes();
+        if self.legacy_report().is_some() {
+            let state = crate::SessionState::load(&self.snapshot.root)
+                .map_err(|e| e.to_string())?
+                .ok_or("legacy record disappeared")?;
+            if state.inference_checkpoint.is_some()
+                || state.pending.is_some()
+                || state.inference_observations != self.cost_observations()
+                || state
+                    .decisions
+                    .iter()
+                    .chain(&self.intent.decisions)
+                    .any(|d| d.starts_with(super::inference::DISPATCH_PREFIX))
+            {
+                return Err(
+                    "legacy record diverged or an operation may still be active; no new invocation"
+                        .into(),
+                );
+            }
+            bytes.extend_from_slice(&serde_json::to_vec(&state).map_err(|e| e.to_string())?);
+        }
         bytes.extend_from_slice(format!("{:?}", self.authoring_context).as_bytes());
         let snapshot = crate::ProjectSnapshot::observe(&self.snapshot.root);
         if let Some(e) = snapshot.project_error {
@@ -213,7 +242,7 @@ impl SessionRuntime {
                 .map_or(local, |q| super::answer::owes_no_review(q, input))
         }) {
             // A line bound with no reading, or a question, owes no review; any other line waits for
-            // the chosen seat's one-time review, which a restored exposure refuses (F2).
+            // the chosen seat's one-time review; restored authority never answers it (F2).
             return Ok(());
         }
         let route = match self.selected_cost_route() {
@@ -221,7 +250,8 @@ impl SessionRuntime {
             Err(_) if self.legacy_native_price() => return Ok(()),
             Err(why) => return Err(cost_refusal(why)),
         };
-        if !route.needs_unknown_choice() {
+        let legacy = self.legacy_report();
+        if !route.needs_unknown_choice() && legacy.is_none() {
             return Ok(());
         }
         Err(self
@@ -234,7 +264,8 @@ impl SessionRuntime {
         route: CostRoute,
     ) -> Result<TurnOutcome, TurnOutcome> {
         let result = (|| {
-            if self.money.reconfirm {
+            let legacy = self.legacy_report();
+            if self.money.reconfirm && legacy.is_none() {
                 return Err(self.restored_refusal());
             }
             if self.money.gate.is_some() {
@@ -249,7 +280,13 @@ impl SessionRuntime {
                 }
             }
             let parsed = super::money_parse::directives(input)?.money;
-            if parsed.amount == Some(0.0) {
+            if parsed.amount == Some(0.0)
+                || self
+                    .money
+                    .inference_guard
+                    .as_ref()
+                    .is_some_and(|d| d.effective_usd == Some(0.0))
+            {
                 return Err(
                     "the explicit zero constraint forbids this call; no request was sent".into(),
                 );
@@ -278,6 +315,10 @@ impl SessionRuntime {
                 monetary_default(current.ceiling)?,
             )?
             .for_session();
+            let review = match legacy {
+                Some(report) => review.after_legacy(report),
+                None => review,
+            };
             let question = review.question();
             self.unknown_cost.pending = Some(PendingCost {
                 review,
@@ -361,6 +402,16 @@ impl SessionRuntime {
         self.unknown_cost.active = false;
         // Closing does not erase Uncertain or any possibly-billed attempt.
         let _ = account.close("one-time Session invocation ended; fresh review required");
+        if self.money.reconfirm {
+            match account.snapshot() {
+                Ok(receipt) => self
+                    .unknown_cost
+                    .observations
+                    .push(receipt.durable_observation()),
+                Err(error) => return cost_refusal(error.to_string()),
+            }
+            self.money.account = None;
+        }
         match self.save_cost_state() {
             Ok(()) => out,
             Err(error) => cost_refusal(format!(

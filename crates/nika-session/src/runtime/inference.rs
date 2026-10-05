@@ -108,8 +108,13 @@ impl SessionRuntime {
             0 => String::new(),
             n => format!(" · {n} cost observation(s) unreadable: never read as settled"),
         };
+        let legacy = nika_providers::admission::LegacyCostReport::summary_of(
+            &self.unknown_cost.observations,
+        )
+        .map(|line| format!(" · {line}"))
+        .unwrap_or_default();
         let account = format!(
-            "Session inference (separate from proposal/Run): {account}{observed}{unread}{decision}"
+            "Session inference (separate from proposal/Run): {account}{observed}{unread}{decision}{legacy}"
         );
         if self.money.gate.is_some() {
             format!(
@@ -168,15 +173,7 @@ impl SessionRuntime {
             .reasoner
             .authoring_model()
             .ok_or("selected intelligence has no qualified authoring model")?;
-        let (provider, name) = model
-            .split_once('/')
-            .ok_or("model must be provider-qualified")?;
-        let registry =
-            nika_providers::ProviderRegistry::without_http(crate::reasoner::provider_config());
-        let endpoint = registry
-            .effective_base_url(provider)
-            .ok_or("unknown provider endpoint")?;
-        InferenceAdmission::qualify(provider, name, endpoint).map_err(|e| e.to_string())?;
+        InferenceAdmission::qualify_selected(&model, crate::reasoner::provider_config())?;
         let limit = allowance(amount)?;
         if let Some(a) = &self.money.account {
             a.amend(limit).map_err(|e| e.to_string())?;
@@ -266,15 +263,8 @@ impl SessionRuntime {
             let receipt = a
                 .snapshot()
                 .map_err(|e| AuthoringError::Seat(e.to_string()))?;
-            if let Some(reason) = receipt.refusal {
-                let scope = if receipt.unbudgeted {
-                    "no-budget observation"
-                } else {
-                    "catalog admission"
-                };
-                return Err(AuthoringError::Seat(format!(
-                    "{scope}: {reason}; billed cost unknown"
-                )));
+            if let Some(reason) = receipt.dispatch_refusal() {
+                return Err(AuthoringError::Seat(reason));
             }
         }
         Ok(out)
@@ -282,35 +272,12 @@ impl SessionRuntime {
     /// The in-flight line for the live account; `None` without an account.
     pub(super) fn dispatch_marker(&self) -> Option<String> {
         let account = self.money.account.as_ref()?;
-        let (route, bound) = match account.snapshot() {
-            Ok(receipt) => match &receipt.unknown_cost {
-                Some(choice) => (
-                    format!(
-                        "{}/{} at {}",
-                        choice.provider(),
-                        choice.model(),
-                        choice.origin().unwrap_or_else(|| "unknown origin".into())
-                    ),
-                    serde_json::to_value(choice)
-                        .ok()
-                        .and_then(|v| v["max_requests"].as_u64())
-                        .map_or_else(
-                            || "its bounded requests".to_owned(),
-                            |n| format!("at most {n} request(s)"),
-                        ),
-                ),
-                None => (
-                    self.reasoner
-                        .authoring_model()
-                        .unwrap_or_else(|| "the selected route".to_owned()),
-                    format!("catalog allowance {}", receipt.limit),
-                ),
-            },
-            Err(e) => ("an unreadable account".to_owned(), e.to_string()),
-        };
         Some(format!(
-            "{DISPATCH_PREFIX}{route} · {bound} · recorded {} before transport; no settlement followed, so its request(s) may have been sent and billed · usage and cost unknown",
-            crate::intelligence::now_rfc3339()
+            "{DISPATCH_PREFIX}{}",
+            account.dispatch_note(
+                self.reasoner.authoring_model().as_deref(),
+                &crate::intelligence::now_rfc3339()
+            )
         ))
     }
     /// Before one dispatch on `model`: the account it rides, its in-flight line persisted first

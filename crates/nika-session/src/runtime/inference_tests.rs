@@ -19,6 +19,7 @@ use nika_providers::AdmissionState;
 use serde_json::{Value, json};
 mod decision_seat;
 mod interrupted;
+mod legacy;
 mod no_budget;
 mod observed_project;
 mod question_identity;

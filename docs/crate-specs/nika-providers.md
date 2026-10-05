@@ -660,3 +660,17 @@ total ceiling uses the existing `amend`; it does not reset expenses or held
 reservations. Active attempts (including zero-priced ones) stay uncertain, and
 unknown-cost/unbudgeted observations cannot be converted into numeric authority.
 Changed tariff identities fail closed rather than reprice old usage.
+
+### Legacy report beside a fresh cost review
+
+`LegacyCostReport` reads a narrow old durable observation plus completed reviewed scopes.
+It projects their unchanged evidence and digest; it cannot construct `AttemptReceipt`,
+restore a numeric account, settle an unknown charge or amend an uncertain account.
+`CostReview::after_legacy` adds that retained exposure to the existing bounded one-time
+question. The host must bind the record, project and request to the candidate and check
+that witness again before `confirm`. A reservation recorded by old code is presented as
+a quote whose final charge and historical wire bound are unproved, never as a guaranteed
+TOTAL ceiling. Closed reviewed scopes are observations; newly uncertain/active scopes
+refuse another review. The original exposure remains visible when later evidence refuses.
+The account's dispatch note and post-dispatch refusal are projections owned here; their
+host still owns recording the boundary before transport.

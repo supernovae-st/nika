@@ -345,13 +345,14 @@ to Run without pretending to meter authoring.
 
 Amendments change the total allowance without erasing settled or held exposure;
 questions, new factory instances, model changes and repairs never reset it.
-An uncertain account cannot reopen. After restart the previous aggregate cannot
-be proved: restored paid work requires an explicit new-scope reconfirmation and
-its previous invoice remains unknown. A ceiling stated after the restart (a
+An uncertain account cannot reopen. An old observation cannot prove the complete
+aggregate: its previous invoice remains unknown. A complete concordant checkpoint
+may restore a closed ledger as described below; the narrow legacy review below
+admits only a fresh unknown-cost invocation, never a recovered numeric allowance. A ceiling stated after the restart (a
 request's own directive, or a kept round's read again at `/restore`) belongs to
 that round: its answers state no money and keep it, never refused as the
-restored exposure, while Session inference stays blocked and new work stating
-no ceiling is still refused (C11). A bounded session never automatically
+restored exposure, while numeric Session inference stays blocked and new work stating
+no ceiling is still refused outside a fresh legacy cost review (C11). A bounded session never automatically
 changes the selected authoring model to a stronger one.
 
 Restoring a kept authoring round may replay its deterministic reading without
@@ -740,3 +741,27 @@ provider owner's `amend` conserves prior settlement, holds and request identity;
 a default (including zero) cannot reconfirm it. Run admission remains separate.
 The exact observation superseded by the restored ledger is removed from the
 historical display list to avoid counting those same attempts twice.
+
+### Fresh invocation after a readable legacy cost report
+
+A restored pre-checkpoint numeric report is not a reconstructed account. In the narrow
+legacy form (one readable, internally consistent uncertain numeric observation, followed
+only by completed explicitly reviewed scopes), the selected HTTPS API may offer the
+existing one-time unknown-cost review even when its current route has a catalog tariff.
+The report's old allowance, original attempts, known estimate and retained unknown-charge
+reservation remain unchanged and visible. The quote is not a final charge or proof of the
+historical request bound; no TOTAL dollar guarantee covers that earlier charge.
+
+A stated budget alone never authorizes this exception. Only an explicit answer to the
+shown unknown-cost question admits its new invocation under the existing request, output,
+timeout, route and host-policy bounds. Zero, malformed/contradictory evidence, a gate,
+an old in-flight marker, a present checkpoint or unreadable host cap still refuses. The
+review witness includes the current project record and observations as well as the exact
+input, project, source bytes and selected route; a changed record cannot confirm the old
+question. Reconfirmation remains a durable restriction outside the confirmed invocation.
+
+The bounded account closes after that invocation and its observation joins the same
+project report exactly once. A subsequent request, revision or reopening needs a fresh
+review. A newly uncertain scope blocks this exception; it is never absorbed into the old
+report. Save and Run still require their separate acts. This is not numeric-ledger
+migration, invoice reconciliation or authority restored from conversation history.

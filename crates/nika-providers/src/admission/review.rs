@@ -267,6 +267,7 @@ pub struct CostReview {
     candidate: String,
     invocation: String,
     route: CostRoute,
+    prior_report: Option<super::LegacyCostReport>,
     evidence: CostHostEvidence,
     defaults: [Option<Cost>; 2],
     max_requests: u32,
@@ -317,6 +318,7 @@ impl CostReview {
             candidate,
             invocation,
             route,
+            prior_report: None,
             evidence,
             defaults: [invocation_default, project_default],
             max_requests: 1,
@@ -344,6 +346,15 @@ impl CostReview {
         self.max_requests = SESSION_REVIEW_MAX_REQUESTS;
         self.max_output_tokens = SESSION_REVIEW_MAX_OUTPUT_TOKENS;
         self.request_timeout = SESSION_REVIEW_TIMEOUT;
+        self
+    }
+
+    /// Display retained legacy exposure beside this fresh invocation. The host must bind
+    /// the report and durable record to the candidate and re-observe both before confirming.
+    /// This never restores a numeric account or settles an earlier charge.
+    #[must_use]
+    pub fn after_legacy(mut self, report: super::LegacyCostReport) -> Self {
+        self.prior_report = Some(report);
         self
     }
 
@@ -477,8 +488,11 @@ impl CostReview {
             multiplicity.push('\n');
             multiplicity.push_str(&line);
         }
+        let prior = self.prior_report.as_ref().map_or_else(String::new, |report| {
+            format!("{}\nThis choice authorizes only the NEW invocation described below; no ceiling covers the earlier unknown charge. A stated budget is not this authorization.\n", report.summary())
+        });
         format!(
-            "USD cost is unknown; a charge is possible on {}/{}.\nAt most {} requests; each at most {} output tokens and {} seconds (at most {} seconds of model wait). Any schema re-asks consume this same request bound. No automatic transport retry.{multiplicity}\nOverrides only the shown defaults (invocation: {}; project: {}); no hard cap is overridden.\nContinue once? yes / no",
+            "{prior}USD cost is unknown; a charge is possible on {}/{}.\nAt most {} requests; each at most {} output tokens and {} seconds (at most {} seconds of model wait). Any schema re-asks consume this same request bound. No automatic transport retry.{multiplicity}\nOverrides only the shown defaults (invocation: {}; project: {}); no hard cap is overridden.\nContinue once? yes / no",
             self.route.provider,
             self.route.model,
             self.max_requests,
@@ -494,8 +508,14 @@ impl CostReview {
     /// public view (each layer's class, origin and cap), never a debug dump.
     #[must_use]
     pub fn details(&self) -> String {
+        let prior = self
+            .prior_report
+            .as_ref()
+            .map_or_else(String::new, |report| {
+                format!(" · prior report {}", report.digest())
+            });
         format!(
-            "candidate {} · invocation {} · origin {} · host {}",
+            "candidate {} · invocation {} · origin {} · host {}{prior}",
             self.candidate,
             self.invocation,
             self.route.origin(),

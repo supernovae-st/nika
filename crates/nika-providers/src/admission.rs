@@ -8,6 +8,8 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 mod amount;
 mod checkpoint;
+mod legacy;
+pub use legacy::LegacyCostReport;
 mod summary;
 pub use amount::allowance;
 pub use summary::unbudgeted_summary;
@@ -293,6 +295,21 @@ impl InferenceAdmission {
             attempts: s.attempts.clone(),
         })
     }
+    /// Qualify the selected provider/model at the registry's effective endpoint, without I/O.
+    /// # Errors
+    /// Missing provider namespace, endpoint or exact catalog admission tariff.
+    pub fn qualify_selected(model: &str, config: crate::ProvidersConfig) -> Result<(), String> {
+        let (provider, name) = model
+            .split_once('/')
+            .ok_or("model must be provider-qualified")?;
+        let registry = crate::ProviderRegistry::without_http(config);
+        let endpoint = registry
+            .effective_base_url(provider)
+            .ok_or("unknown provider endpoint")?;
+        Self::qualify(provider, name, endpoint).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     /// Qualify the ACTUAL selected endpoint and exact model; never a gateway
     /// alias or an unpriced local/subscription lane. No network is performed.
     /// # Errors
