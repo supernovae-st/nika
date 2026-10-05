@@ -260,8 +260,10 @@ fn restart_from_the_crash_image(root: &Path, home: &Path, peer: &HeldPeer) {
     let mut resumed = open_unpriced(root);
     let conversation = resumed.enable_history(home).unwrap().unwrap();
     assert!(
-        conversation.contains("interrupted operation: its result may be unknown"),
-        "{conversation}"
+        conversation.contains(
+            "historical unresolved operation: an earlier result or charge remains uncertain"
+        ),
+        "restore must name unresolved historical exposure"
     );
     let record = resumed.restore_state().unwrap();
     assert!(
@@ -455,8 +457,10 @@ fn restart_without_a_budget(root: &Path, home: &Path, peer: &HeldPeer) {
     let mut resumed = open(root);
     let conversation = resumed.enable_history(home).unwrap().unwrap();
     assert!(
-        conversation.contains("interrupted operation: its result may be unknown"),
-        "{conversation}"
+        conversation.contains(
+            "historical unresolved operation: an earlier result or charge remains uncertain"
+        ),
+        "restore must name unresolved historical exposure"
     );
     let record = resumed.restore_state().unwrap();
     assert!(

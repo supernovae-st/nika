@@ -1402,3 +1402,5 @@ fn restored_questions_expire_from_both_stores_without_rewriting_evidence() {
         );
     }
 }
+
+mod recovery_notice_tests;

@@ -29,6 +29,14 @@ An unfinished operation or a run request without an observation produces an
 uncertainty notice on reopen and an explicit note in the next model context.
 An I/O refusal while applying a proposal also retains its possible partial
 effect. Recovery never calls a model, applies a file, or starts a workflow.
+The notice remains anchored where that uncertainty was first recovered; reopening alone
+never appends it as a new latest failure. The replay separately tracks unreported effect
+uncertainty and an already reported unobserved Run, without adding serialized fields.
+A later successful operation does not reconcile an earlier effect or charge. The restore
+notice names that uncertainty as historical even after its dialogue note leaves the bounded
+recent window. A new interruption or newly reported unknown effect still receives a notice.
+The current constant outcome categories can distinguish another Run request awaiting its
+observation for this presentation only; no category grants execution or clears uncertainty.
 
 Previous proposals, gate answers and consumed identities do not regain
 authority. A person must request a fresh proposal, inspect it, and consent

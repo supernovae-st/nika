@@ -11,6 +11,7 @@ use std::io;
 use std::path::Path;
 use std::time::Duration;
 
+use nika_display::front_door::recovery;
 use nika_fs::OwnedDir;
 use serde::{Deserialize, Serialize};
 
@@ -146,6 +147,13 @@ impl Record {
     }
 }
 
+/// Presentation acknowledgements rebuilt from journal events, never accounting or authority.
+#[derive(Default)]
+struct Notices {
+    unreported_effect: bool,
+    run_notified: bool,
+}
+
 pub(super) struct History {
     dir: OwnedDir,
     _lease: File,
@@ -158,6 +166,7 @@ pub(super) struct History {
     pub run: RunState,
     pub authority: AuthorityState,
     pub uncertain: bool,
+    notices: Notices,
     pub restored: bool,
     pub monetary_seen: bool,
 }
@@ -199,6 +208,7 @@ impl History {
             run: RunState::Idle,
             authority: AuthorityState::None,
             uncertain: false,
+            notices: Notices::default(),
             restored: false,
             monetary_seen: false,
         };
@@ -212,8 +222,8 @@ impl History {
             history.accept_line(&line)?;
         }
         if history.restored {
-            // Expire pending authority and record uncertainty before any new
-            // operation. Recovery never calls a reasoner or a workflow.
+            // Replay marks reported uncertainty; pending authority still expires.
+            // Recovery never reconciles effects or calls a reasoner or a workflow.
             history.append(Event::Recovered)?;
         }
         Ok(history)
@@ -297,7 +307,7 @@ impl History {
                 run,
                 authority,
                 effect,
-                ..
+                outcome,
             } if self.started.is_some() => {
                 if state.recent.len() > super::RECENT_TURNS {
                     return Err(invalid(
@@ -305,6 +315,9 @@ impl History {
                     ));
                 }
                 self.state = *state;
+                self.notices.unreported_effect |= effect == EffectState::Unknown;
+                self.notices.run_notified &= run == self.run
+                    && !matches!(outcome.as_str(), "run_requested" | "resume_requested");
                 self.run = run;
                 self.authority = authority;
                 self.uncertain |= effect == EffectState::Unknown;
@@ -323,24 +336,16 @@ impl History {
     }
 
     fn recover(&mut self) {
+        let notify = self.notices.unreported_effect
+            || self.started.is_some()
+            || (self.run == RunState::AwaitingObservation && !self.notices.run_notified);
+        self.notices.unreported_effect = false;
+        self.notices.run_notified = self.run == RunState::AwaitingObservation;
         self.uncertain |= self.started.is_some() || self.run == RunState::AwaitingObservation;
         if let Some((Operation::Turn | Operation::Run, input)) = self.started.take() {
-            self.recovery_line(
-                input,
-                "[Interrupted turn: no completed reply was recorded.]",
-            );
+            self.recovery_line(input, recovery::INTERRUPTED_TURN);
         }
-        let note = if self.uncertain {
-            Some(
-                "[An earlier operation has an uncertain result. Nothing was replayed; inspect effects and receipts before proposing a retry.]",
-            )
-        } else if self.authority != AuthorityState::None {
-            Some(
-                "[The earlier proposal or gate expired. Fresh validation and consent are required.]",
-            )
-        } else {
-            None
-        };
+        let note = recovery::conversation_note(notify, self.authority != AuthorityState::None);
         if let Some(note) = note {
             self.recovery_line("(recovery)".to_owned(), note);
         }

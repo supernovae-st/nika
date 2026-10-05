@@ -2,6 +2,8 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Passive recovery prose over the host's selected facts. No judgments or authority live here.
 use std::fmt::Write as _;
+/// A host-recorded turn ended without a completed reply; this notice replays no operation.
+pub const INTERRUPTED_TURN: &str = "[Interrupted turn: no completed reply was recorded.]";
 /// The longest request line the card quotes before an ellipsis.
 const QUOTE_CHARS: usize = 140;
 /// A kept candidate is not a reviewable workflow and asks no invented question.
@@ -83,4 +85,22 @@ pub fn cannot_express(authoring_failed: bool, stopped: &[String]) -> String {
         "\n  what helps: say the outcome in one sentence (what to read · what to produce · where it goes), or split the work in two requests · `/meaning` shows what was understood"
     });
     text
+}
+
+/// A newly reported conversation uncertainty or expired authority, selected by the host.
+/// Historical uncertainty alone does not append a new turn; this prose settles no effect.
+#[must_use]
+pub const fn conversation_note(
+    new_uncertainty: bool,
+    expired_authority: bool,
+) -> Option<&'static str> {
+    if new_uncertainty {
+        Some(
+            "[An earlier operation has an uncertain result. Nothing was replayed; inspect effects and receipts before proposing a retry.]",
+        )
+    } else if expired_authority {
+        Some("[The earlier proposal or gate expired. Fresh validation and consent are required.]")
+    } else {
+        None
+    }
 }

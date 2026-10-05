@@ -92,7 +92,7 @@ impl SessionRuntime {
             let mut text = "conversation restored · previous proposals and gates require fresh validation".to_owned();
             text.push_str(&expired);
             if history.uncertain {
-                text.push_str("\ninterrupted operation: its result may be unknown; inspect effects and receipts before retrying · nothing was replayed");
+                text.push_str("\nhistorical unresolved operation: an earlier result or charge remains uncertain; later success does not reconcile it · inspect its effects and receipts before retrying it · nothing was replayed");
             }
             if let Some(restored) = &self.restored_draft {
                 text.push('\n');
