@@ -850,7 +850,8 @@ fn in_the_tui_a_wrong_count_is_repaired_before_it_is_proposed_and_the_run_writes
     );
     let mut s = tui_session(&world, home.path(), &seat);
     s.send(format!("{SESSION_INTENT}\r")).unwrap();
-    let proposal = until(&mut s, "apply?");
+    // The TUI asks consent at `Save? ›` (the plain loop keeps `apply? ›`).
+    let proposal = until(&mut s, "Save?");
     // Semantic: the disconnected graph was rehearsed and refused before any proposal.
     assert_eq!(
         seat.asked(),
@@ -912,6 +913,10 @@ fn in_the_tui_a_decoy_holding_the_filter_text_is_never_proposed_saved_or_run() {
     );
     assert!(!seen(&answer, "apply this?"), "{}", squash(&answer));
     assert!(
+        !seen(&answer, "Save?"),
+        "no TUI consent prompt for the decoy"
+    );
+    assert!(
         !world.project().join("paid-count.nika").exists(),
         "nothing saved"
     );
@@ -935,7 +940,7 @@ fn in_the_tui_an_unjudged_phrasing_shows_the_wrong_result_it_cannot_repair() {
     );
     let mut s = tui_session(&world, home.path(), &seat);
     s.send(format!("{UNJUDGED_INTENT}\r")).unwrap();
-    let proposal = until(&mut s, "apply?");
+    let proposal = until(&mut s, "Save?");
     s.send("no\r").unwrap();
     until(&mut s, "nika ›");
     s.send("/quit\r").unwrap();

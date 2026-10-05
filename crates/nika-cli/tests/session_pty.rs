@@ -233,7 +233,7 @@ fn bare_nika_opens_the_renderer_and_nika_tui_zero_keeps_the_plain_loop() {
     // The status row is the workspace's own: the banner may already have
     // scrolled out of a small transcript region.
     session
-        .expect("workspace · F6 moves the keys")
+        .expect("workspace · F6 panel")
         .expect("the workspace drawn");
     session.send("/quit\r").expect("quit in raw mode");
     session.expect(Eof).expect("closes");
