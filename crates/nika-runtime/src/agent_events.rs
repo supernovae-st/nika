@@ -48,6 +48,10 @@ impl BufferingObserver {
         &self,
         error: &mut nika_verb_agent::VerbAgentError,
     ) -> bool {
+        let image = |events: &[AgentEvent]| events.iter().any(AgentEvent::is_harness_image);
+        if self.events.lock().map_or(true, |events| image(&events)) {
+            return true; // an explicit retry code must not replay a reported image operation
+        }
         let nika_verb_agent::VerbAgentError::Inference { source, .. } = error else {
             return false;
         };
@@ -92,7 +96,7 @@ fn unobserved_mut(
 impl AgentObserver for BufferingObserver {
     fn on_event(&self, event: &AgentEvent) {
         if let Ok(mut events) = self.events.lock() {
-            events.push(event.clone());
+            AgentEvent::record_into(&mut events, event); // a storage answer settles in place
         }
     }
 }
@@ -127,6 +131,13 @@ pub(crate) fn stamp_attempts(events: Vec<AgentEvent>, marks: &[usize]) -> Vec<St
             }
         })
         .collect()
+}
+
+/// The task's received-image rows, each with its attempt/iteration provenance:
+/// the embedder's copy of what the `agent_image_observed` frames carry.
+pub(crate) fn image_rows(events: &[StampedAgentEvent]) -> Vec<serde_json::Value> {
+    let row = |e: &StampedAgentEvent| e.event.image_row(e.attempt, e.iteration);
+    events.iter().filter_map(row).collect()
 }
 
 /// Emit one task's buffered agent decisions onto the canonical stream
@@ -168,6 +179,10 @@ pub(crate) fn emit_agent_events(
 #[allow(clippy::type_complexity)] // one private call site · the tuple IS the contract
 fn fields_of(event: &AgentEvent) -> Option<(EventKind, Vec<(&'static str, FieldValue)>)> {
     match event {
+        AgentEvent::HarnessImageObserved { image } => Some((
+            EventKind::AgentImageObserved,
+            vec![("harness_image", s(&image.observation().to_string()))],
+        )),
         AgentEvent::ToolsSelected {
             turn,
             offered,
@@ -332,6 +347,58 @@ mod tests {
             panic!("the gate rides as a string");
         };
         assert_eq!(gate, "execute · git");
+    }
+
+    #[test]
+    fn a_store_answer_settles_its_receipt_and_a_missing_one_stays_unconfirmed() {
+        let mut image = nika_kernel::ai::harness::HarnessImage::new("image-1");
+        image.received_bytes = Some(8);
+        let observed = AgentEvent::HarnessImageObserved { image };
+        let stored = |stored| AgentEvent::HarnessImageStored {
+            tool_call_id: "image-1".into(),
+            stored,
+        };
+        let blob = nika_kernel::BlobMetadata::new("blake3:ab", "image/png", 8);
+        for (answer, storage) in [
+            (Some(stored(Ok(blob))), "stored"),
+            (Some(stored(Err("refused".into()))), "failed"),
+            (None, "unconfirmed"),
+        ] {
+            let buffer = BufferingObserver::new();
+            buffer.on_event(&observed);
+            if let Some(answer) = &answer {
+                buffer.on_event(answer);
+            }
+            assert_eq!(buffer.len(), 1, "one row per image");
+            let events = stamp_attempts(buffer.into_events(), &[]);
+            assert_eq!(image_rows(&events)[0]["image"]["storage"], storage);
+        }
+        let orphan = BufferingObserver::new();
+        orphan.on_event(&stored(Err("late".into())));
+        let events = stamp_attempts(orphan.into_events(), &[]);
+        assert!(
+            image_rows(&events).is_empty(),
+            "an answer never invents a receipt"
+        );
+    }
+
+    #[test]
+    fn reported_image_activity_forbids_replay_even_for_a_non_connection_error() {
+        let buffer = BufferingObserver::new();
+        buffer.on_event(&AgentEvent::HarnessImageActivity {
+            tool_call_id: "image-1".into(),
+        });
+        let mut error = nika_verb_agent::VerbAgentError::Inference {
+            source: nika_kernel::provider::ProviderError::Api {
+                status: 503,
+                message: "wire ended".into(),
+            },
+            spend: Box::default(),
+        };
+        assert!(
+            buffer.block_connection_replay(&mut error),
+            "explicit retry codes cannot erase observed activity"
+        );
     }
 
     /// A connection failure as the provider registry returns a dispatched call's error:

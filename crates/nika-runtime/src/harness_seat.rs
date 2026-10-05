@@ -39,18 +39,44 @@ impl<S, T, H, P, D, C> crate::Runtime<S, T, H, P, D, C> {
     /// Attach the selected backend.
     ///
     /// # Errors
-    /// Refuses when the process working directory cannot be read.
+    /// Refuses when the adapter cannot be seated or the admitted project
+    /// cannot be held as the received-image room.
     #[cfg(feature = "access-harness")]
     pub fn with_harness_backend(
-        mut self,
+        self,
         backend: std::sync::Arc<dyn nika_kernel::ai::harness::DynAgentBackend>,
         id: String,
     ) -> Result<Self, nika_kernel::HttpError> {
-        self.agent = self.agent.with_harness_seat(
-            nika_verb_agent::harness_path::HarnessSeat::from_backend(backend)
-                .map_err(nika_harness::seat_http_err)?,
-        );
-        self.harness_seat_id = Some(id);
+        let seat = nika_verb_agent::harness_path::HarnessSeat::from_backend(backend)
+            .map_err(nika_harness::seat_http_err)?;
+        let mut runtime = self.with_seat(Some(seat))?;
+        runtime.harness_seat_id = Some(id);
+        Ok(runtime)
+    }
+
+    /// Seat a harness with the admitted project held as its image room. A
+    /// refused anchor refuses the seat: there is no ambient store. Without a
+    /// project root no store is attached and a received image fails its task.
+    #[cfg(feature = "access-harness")]
+    pub(crate) fn with_seat(mut self, seat: Seat) -> Result<Self, nika_kernel::HttpError> {
+        let Some(seat) = seat else { return Ok(self) };
+        self.agent = self.agent.with_harness_seat(seat);
+        let Some(project_path) = &self.config.sandbox_root else {
+            return Ok(self);
+        };
+        let room = nika_runtime_laws::image_room::ImageRoom::open(project_path).map_err(|e| {
+            nika_harness::seat_http_err(format!("image room {}: {e}", project_path.display()))
+        })?;
+        let room = std::sync::Arc::new(room);
+        self.image_room = Some(std::sync::Arc::clone(&room));
+        self.agent = self.agent.with_harness_image_store(room);
+        Ok(self)
+    }
+
+    #[expect(clippy::unnecessary_wraps, reason = "the ON arm fails · shared shape")]
+    #[cfg(not(feature = "access-harness"))]
+    pub(crate) fn with_seat(self, seat: Seat) -> Result<Self, nika_kernel::HttpError> {
+        let Seat = seat;
         Ok(self)
     }
 }

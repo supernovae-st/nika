@@ -4362,6 +4362,7 @@ version = "0.122.0"
 dependencies = [
  "blake3",
  "bytes",
+ "nika-fs",
  "nika-kernel",
  "proptest",
  "tempfile",
@@ -4978,6 +4979,7 @@ dependencies = [
 name = "nika-harness"
 version = "0.122.0"
 dependencies = [
+ "base64 0.23.1",
  "futures-core",
  "miette",
  "nika-error",
@@ -4986,6 +4988,7 @@ dependencies = [
  "rustix 1.1.4",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "tempfile",
  "thiserror 2.0.20",
  "tokio",
@@ -5357,13 +5360,16 @@ dependencies = [
 name = "nika-runtime-laws"
 version = "0.122.0"
 dependencies = [
+ "bytes",
  "miette",
+ "nika-blob",
  "nika-cap",
  "nika-cel",
  "nika-check",
  "nika-dataflow",
  "nika-error",
  "nika-event",
+ "nika-fs",
  "nika-kernel",
  "nika-pack",
  "nika-sandbox-landlock",

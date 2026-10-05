@@ -17,6 +17,8 @@ use std::collections::BTreeMap;
 use nika_event::{Event, EventKind};
 use nika_types::resource::Value;
 
+mod harness_media;
+
 /// What the stream has said about one task so far.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskState {
@@ -270,6 +272,7 @@ pub struct RunView {
     index: BTreeMap<String, usize>,
     children: BTreeMap<String, crate::run_story::ChildRun>,
     workflow_outputs: Option<crate::run_story::Outputs>,
+    harness_media: BTreeMap<String, harness_media::Images>,
     blocked_by: BTreeMap<String, String>,
     cleanup: BTreeMap<String, Vec<cleanup::Attachment>>,
 }
@@ -317,6 +320,17 @@ impl RunView {
             }
             _ => {}
         }
+    }
+
+    /// Peer-reported image receipt of a task; output remains the original text.
+    #[must_use]
+    pub fn harness_media(&self, task: &str) -> Option<&str> {
+        self.harness_media
+            .get(task)
+            .map(|images| images.json.as_str())
+    }
+    fn keep_harness_media(&mut self, event: &Event) {
+        harness_media::apply(&mut self.harness_media, event);
     }
 
     /// Keep the child relation a task's settle names. Its start (a new
@@ -432,6 +446,7 @@ impl RunView {
         self.elapsed_ms = u64::try_from(ts.saturating_sub(first)).unwrap_or(0);
         self.relate(event);
         self.keep_outputs(event);
+        self.keep_harness_media(event);
 
         match event.kind {
             EventKind::WorkflowStarted => {
@@ -863,6 +878,7 @@ fn recovered_items(row: &TaskRow) -> usize {
 
 #[cfg(test)]
 mod tests {
+    mod media_tests;
 
     use super::*;
     use crate::demo;

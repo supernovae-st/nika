@@ -312,6 +312,9 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// `harness_seat` so the trace names the execution override beside
     /// the resolver's plan. `None` without a declaration.
     harness_seat_id: Option<String>,
+    /// The held project received harness images land in (one finite room per
+    /// operation); `run` joins any operation a dropped task left in flight.
+    image_room: Option<Arc<nika_runtime_laws::image_room::ImageRoom>>,
     cancel: Option<CancelCtx>,
     /// The FROZEN execution-access plan (One Door · wave 1): resolved
     /// once by the composer, consumed here — the admission belt, the
@@ -438,6 +441,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             access_probes: Vec::new(),
             boot_access_fields: Vec::new(),
             harness_seat_id: None,
+            image_room: None,
             cancel: None,
             access_plan: None,
             inspect: None,
@@ -994,6 +998,22 @@ where
         stamper: &mut dyn Stamper,
         sink: &mut dyn EventSink,
     ) -> Result<RunOutcome, RuntimeError> {
+        let outcome = self.run_admitted(wf, report, stamper, sink).await;
+        // The waves joined dropped image writes before any run terminal; this
+        // covers refusals and errors too. No room outlives its operation.
+        if let Some(room) = &self.image_room {
+            room.drain_dropped().await;
+        }
+        outcome
+    }
+
+    async fn run_admitted(
+        &self,
+        wf: &RawWorkflow,
+        report: &CheckReport,
+        stamper: &mut dyn Stamper,
+        sink: &mut dyn EventSink,
+    ) -> Result<RunOutcome, RuntimeError> {
         // A launch refusal precedes the prologue: zero events, zero spend.
         admit::gates(
             wf,
@@ -1171,6 +1191,11 @@ where
                 sink,
             )
             .await;
+        // Every run terminal (pause, abort, close) follows a wave: a received
+        // image write a timed-out task dropped is joined before it.
+        if let Some(room) = &self.image_room {
+            room.drain_dropped().await;
+        }
         *records = frozen;
         let (wave_records, paused) = streamed?;
         records.extend(wave_records);

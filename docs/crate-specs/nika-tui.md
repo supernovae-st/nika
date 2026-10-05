@@ -349,3 +349,17 @@ stderr and returns its environment-error exit code. The message therefore stays
 visible after a fullscreen launch closes. This path never steals a lease, clears
 history, submits a draft or signals the existing instance. An ordinary refusal
 inside an open conversation remains a card; a normal user quit remains successful.
+
+## Reported harness images
+
+The run fold counts every `agent_image_observed` frame of a task's current leg
+beside its unchanged text output and keeps at most four detail rows; the
+terminal's `harness_media_count` closes the sequence. A new attempt or cache
+hit clears the leg's media. Task details distinguish locally stored received
+bytes, bytes with unconfirmed storage, and reported-path-only observations,
+naming MIME, received size, the blob locator when present and the harness
+source; the peer's file remains unverified. When more frames exist than rows
+shown, the detail says `Showing N of TOTAL` and points to the trace; a count
+mismatch, a missing count or a malformed frame is reported as incomplete
+evidence, never as a complete result. Reading these details performs no file
+read, copy, fetch or image generation. Inline raster display is not implied.

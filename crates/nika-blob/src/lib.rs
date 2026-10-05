@@ -42,6 +42,9 @@
 //! (a blob written by an older/foreign writer) — it records, it never
 //! guesses (content sniffing is a higher-layer concern).
 
+mod filesystem;
+pub use filesystem::FsBlobStore;
+
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 

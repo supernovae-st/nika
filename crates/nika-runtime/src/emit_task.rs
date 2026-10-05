@@ -17,6 +17,12 @@ pub(crate) fn push_integrity_fields(
     fields: &mut Vec<(&'static str, FieldValue)>,
     record: &TaskRecord,
 ) {
+    // Each image already rode its own bounded `agent_image_observed` frame; the
+    // count closes that sequence. Output, outcome and expression fields are unchanged.
+    if !record.harness_media.is_empty() {
+        let count = i64::try_from(record.harness_media.len()).unwrap_or(i64::MAX);
+        fields.push(("harness_media_count", i(count)));
+    }
     if let nika_cap::Integrity::Untrusted { source } = &record.integrity {
         fields.push(("integrity", s(record.integrity.as_str())));
         fields.push(("integrity_source", s(source)));
@@ -197,4 +203,41 @@ pub(crate) fn emit_completed(
     // F-O1 · the additive integrity label (present only when untrusted).
     push_integrity_fields(&mut fields, record);
     emit(stamper, sink, EventKind::TaskCompleted, &fields)
+}
+
+#[cfg(test)]
+mod harness_media_tests {
+    use super::*;
+    #[test]
+    fn terminal_media_is_side_evidence_and_never_replaces_text_or_outcome() {
+        let mut record = TaskRecord::unran(
+            crate::record::TaskStatus::Success,
+            crate::record::TerminalCause::Normal,
+        );
+        record.output = serde_json::json!("original text");
+        record.attempts = Some(1);
+        let original = outcome_json(&record);
+        record.harness_media.push(serde_json::json!({"attempt":1,"image":{"schema":"nika/harness-image-observation@1","reported_saved_path":"/unverified.png","file_verified":false}}));
+        let mut fields = Vec::new();
+        push_integrity_fields(&mut fields, &record);
+        assert!(
+            fields
+                .iter()
+                .any(|(key, value)| *key == "harness_media_count" && *value == i(1))
+        );
+        assert!(
+            !fields.iter().any(|(key, _)| *key == "harness_media"),
+            "no aggregate rides the terminal; the per-image frames carry the rows"
+        );
+        assert_eq!(outcome_json(&record), original);
+        assert_eq!(
+            record.field("output"),
+            Some(serde_json::json!("original text"))
+        );
+        assert_eq!(
+            record.field("harness_media"),
+            None,
+            "the expression field set is unchanged"
+        );
+    }
 }

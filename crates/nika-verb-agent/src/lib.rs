@@ -200,6 +200,8 @@ pub struct AgentVerb<P, T, D> {
     // same dyn-seam rationale as the observer.
     #[cfg(feature = "access-harness")]
     harness: Option<harness_path::HarnessSeat>,
+    #[cfg(feature = "access-harness")]
+    harness_images: Option<Arc<dyn spill::SpillStoreDyn>>,
 }
 
 impl<P, T, D> std::fmt::Debug for AgentVerb<P, T, D> {
@@ -232,6 +234,8 @@ impl<P, T, D> AgentVerb<P, T, D> {
             spill: None,
             #[cfg(feature = "access-harness")]
             harness: None,
+            #[cfg(feature = "access-harness")]
+            harness_images: None,
         }
     }
 
@@ -249,6 +253,18 @@ impl<P, T, D> AgentVerb<P, T, D> {
     #[must_use]
     pub fn with_harness_seat(mut self, seat: harness_path::HarnessSeat) -> Self {
         self.harness = Some(seat);
+        self
+    }
+
+    /// Store received ACP image bytes through the existing blob owner. This does
+    /// not enable native tool-result spill or open a peer-reported saved path.
+    #[cfg(feature = "access-harness")]
+    #[must_use]
+    pub fn with_harness_image_store<S>(mut self, store: Arc<S>) -> Self
+    where
+        S: BlobStoreDyn + Sync + 'static,
+    {
+        self.harness_images = Some(store);
         self
     }
 
@@ -384,7 +400,13 @@ where
         if let Some(seat) = &self.harness
             && !input.native_only
         {
-            return harness_path::run_on_harness(seat, input, observer).await;
+            return harness_path::run_on_harness(
+                seat,
+                input,
+                observer,
+                self.harness_images.as_ref(),
+            )
+            .await;
         }
         // arm_run failures precede any billed call — no spend to decorate.
         let (whitelist, defs, model, budget) = self.arm_run(&input).await?;

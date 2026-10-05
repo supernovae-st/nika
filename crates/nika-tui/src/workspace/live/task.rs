@@ -279,6 +279,7 @@ impl LiveRun {
         };
         rows.push(measured(row, sep));
         rows.extend(said(row, sep));
+        rows.extend(harness_media(self.view.harness_media(id)));
         rows.extend(self.child_section(id, sep));
         let mut body = lines_of(&rows, cells, canvas.ascii, canvas.color);
         body.push(Line::default());
@@ -503,4 +504,136 @@ fn said(row: &TaskRow, sep: &str) -> Vec<(String, Role)> {
         ));
     }
     rows
+}
+
+/// Describe received evidence only; a peer path never becomes a clickable/readable file here.
+/// The fold keeps a sample: the exact total and any missing frame are always named.
+fn harness_media(raw: Option<&str>) -> Vec<(String, Role)> {
+    let Some(raw) = raw else {
+        return Vec::new();
+    };
+    let value = serde_json::from_str::<serde_json::Value>(raw).unwrap_or_default();
+    let (Some(items), Some(observed)) = (value["images"].as_array(), value["observed"].as_u64())
+    else {
+        return vec![(
+            "Image report unreadable; no file verified".into(),
+            Role::Warn,
+        )];
+    };
+    let mut rows: Vec<_> = items.iter().map(image_row).collect();
+    if observed > rows.len() as u64 {
+        let shown = rows.len();
+        rows.push((
+            format!("Showing {shown} of {observed} image observations; the rest are in the trace"),
+            Role::Dim,
+        ));
+    }
+    if value["complete"] != true {
+        let expected = value["expected"]
+            .as_u64()
+            .map_or("no count".into(), |n| n.to_string());
+        rows.push((
+            format!("Image evidence incomplete: observed {observed}, terminal reports {expected}"),
+            Role::Warn,
+        ));
+    }
+    rows
+}
+
+fn image_row(item: &serde_json::Value) -> (String, Role) {
+    let image = &item["image"];
+    let mime = image["mime_type"].as_str().unwrap_or("MIME unknown");
+    let received = match (
+        image["received_bytes"].as_u64(),
+        image["blob"]["hash"].as_str(),
+    ) {
+        (Some(size), Some(hash)) => format!("{size} bytes received · stored blob {hash}"),
+        (Some(size), None) if image["storage"] == "failed" => {
+            format!("{size} bytes received · storage failed")
+        }
+        (Some(size), None) => {
+            format!("{size} bytes received · storage unconfirmed (no store answer observed)")
+        }
+        (None, _) => "reported path only; no image data received".into(),
+    };
+    let path = image["reported_saved_path"]
+        .as_str()
+        .map_or(String::new(), |p| {
+            format!(" · reported path {}", p.escape_default())
+        });
+    let text = format!(
+        "Image reported · {mime} · harness source · {received}{path} · file not verified; \
+         permission evidence is separate"
+    );
+    (text, Role::Dim)
+}
+
+#[cfg(test)]
+mod media_detail_tests {
+    use super::*;
+
+    fn text(raw: &serde_json::Value) -> String {
+        let rows = harness_media(Some(&raw.to_string()));
+        rows.into_iter()
+            .map(|row| row.0)
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[test]
+    fn media_detail_distinguishes_bytes_from_a_path_and_never_claims_file_proof() {
+        for (data, blob, expected) in [
+            (
+                serde_json::json!(68),
+                serde_json::json!({"hash": "blake3:ab"}),
+                "stored blob",
+            ),
+            (
+                serde_json::json!(68),
+                serde_json::Value::Null,
+                "storage unconfirmed",
+            ),
+            (
+                serde_json::json!(68),
+                serde_json::json!("failed"),
+                "storage failed",
+            ),
+            (
+                serde_json::Value::Null,
+                serde_json::Value::Null,
+                "reported path only",
+            ),
+        ] {
+            let (blob, storage) = if blob == "failed" {
+                (serde_json::Value::Null, "failed")
+            } else {
+                (blob, "")
+            };
+            let image = serde_json::json!({"mime_type": "image/png", "received_bytes": data,
+                "blob": blob, "storage": storage, "reported_saved_path": "/unverified/file.png"});
+            let raw = serde_json::json!({"images": [{"image": image}], "observed": 1,
+                "expected": 1, "complete": true});
+            let text = text(&raw);
+            assert!(text.contains(expected), "{text}");
+            assert!(text.contains("file not verified"));
+            assert!(text.contains("image/png"));
+            assert!(text.contains("harness source"));
+            assert!(!text.contains("incomplete"));
+        }
+        assert!(harness_media(Some("broken"))[0].0.contains("unreadable"));
+        assert!(harness_media(Some("[]"))[0].0.contains("unreadable"));
+    }
+
+    #[test]
+    fn media_sample_names_its_total_and_never_hides_missing_frames() {
+        let row = serde_json::json!({"image": {"reported_saved_path": "/a.png"}});
+        let raw = serde_json::json!({"images": [row.clone(), row.clone(), row.clone(), row],
+            "observed": 255, "expected": 256, "complete": false});
+        let rendered = text(&raw);
+        assert!(rendered.contains("Showing 4 of 255"), "{rendered}");
+        assert!(rendered.contains("incomplete: observed 255, terminal reports 256"));
+        let raw = serde_json::json!({"images": [], "observed": 1, "expected": null,
+            "complete": false});
+        assert!(text(&raw).contains("terminal reports no count"));
+    }
 }

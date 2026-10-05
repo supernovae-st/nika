@@ -39,6 +39,12 @@ an unfamiliar inline status reaches readers as uninterpreted data, which spec
 
 ## 1. Purpose
 
+`RunView::harness_media` projects image observations as a bounded sample with
+the observed total, terminal count and completeness. Missing or malformed
+evidence stays incomplete; a new attempt clears the previous sample. This is
+a pure fold of trace events: it never opens reported paths or reads stored
+images. The [TUI](nika-tui.md) displays these facts in task details.
+
 `nika-display` is the **run-comprehension surface**: everything between a
 stream of real `nika_event::Event` values and the text a human reads.
 The fold is pure (`RunView::apply` is the only mutation path), the render

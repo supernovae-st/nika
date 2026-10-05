@@ -46,3 +46,39 @@ pub async fn nika_blob::DiskBlobStore::exists(&self, hash: &str) -> bool
 pub async fn nika_blob::DiskBlobStore::get(&self, hash: &str) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::blob::BlobError>
 pub async fn nika_blob::DiskBlobStore::put(&self, data: bytes::bytes::Bytes, mime_type: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>
 pub async fn nika_blob::DiskBlobStore::stat(&self, hash: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>
+#[non_exhaustive] pub struct nika_blob::FsBlobStore<F>
+impl<F> nika_blob::FsBlobStore<F>
+pub fn nika_blob::FsBlobStore<F>::new(fs: alloc::sync::Arc<F>, root: impl core::convert::Into<std::path::PathBuf>, max_size: u64) -> core::result::Result<Self, nika_kernel_core::io::blob::BlobError>
+impl<F: core::fmt::Debug> core::fmt::Debug for nika_blob::FsBlobStore<F>
+pub fn nika_blob::FsBlobStore<F>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<F: nika_kernel_core::io::fs::FsReadDyn + nika_kernel_core::io::fs::FsWriteDyn + nika_kernel_core::io::fs::FsMetaDyn> nika_kernel_core::io::blob::BlobStoreDyn for nika_blob::FsBlobStore<F>
+pub async fn nika_blob::FsBlobStore<F>::delete(&self, hash: &str) -> core::result::Result<(), nika_kernel_core::io::blob::BlobError>
+pub async fn nika_blob::FsBlobStore<F>::exists(&self, hash: &str) -> bool
+pub async fn nika_blob::FsBlobStore<F>::get(&self, hash: &str) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::blob::BlobError>
+pub async fn nika_blob::FsBlobStore<F>::put(&self, data: bytes::bytes::Bytes, mime_type: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>
+pub async fn nika_blob::FsBlobStore<F>::stat(&self, hash: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>
+impl<D> owo_colors::OwoColorize for nika_blob::FsBlobStore<F>
+impl<T, U> core::convert::Into<U> for nika_blob::FsBlobStore<F> where U: core::convert::From<T>
+pub fn nika_blob::FsBlobStore<F>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_blob::FsBlobStore<F> where U: core::convert::Into<T>
+pub type nika_blob::FsBlobStore<F>::Error = core::convert::Infallible
+pub fn nika_blob::FsBlobStore<F>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_blob::FsBlobStore<F> where U: core::convert::TryFrom<T>
+pub type nika_blob::FsBlobStore<F>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_blob::FsBlobStore<F>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_blob::FsBlobStore<F> where T: 'static + ?core::marker::Sized
+pub fn nika_blob::FsBlobStore<F>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_blob::FsBlobStore<F> where T: ?core::marker::Sized
+pub fn nika_blob::FsBlobStore<F>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_blob::FsBlobStore<F> where T: ?core::marker::Sized
+pub fn nika_blob::FsBlobStore<F>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_blob::FsBlobStore<F>
+pub fn nika_blob::FsBlobStore<F>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_blob::FsBlobStore<F> where T: 'static
+pub fn nika_blob::FsBlobStore<F>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<TraitVariantBlanketType> nika_kernel_core::io::blob::BlobStore for nika_blob::FsBlobStore<F> where TraitVariantBlanketType: nika_kernel_core::io::blob::BlobStoreDyn
+pub async fn nika_blob::FsBlobStore<F>::delete(&self, hash: &str) -> core::result::Result<(), nika_kernel_core::io::blob::BlobError>
+pub async fn nika_blob::FsBlobStore<F>::exists(&self, hash: &str) -> bool
+pub async fn nika_blob::FsBlobStore<F>::get(&self, hash: &str) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::blob::BlobError>
+pub async fn nika_blob::FsBlobStore<F>::put(&self, data: bytes::bytes::Bytes, mime_type: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>
+pub async fn nika_blob::FsBlobStore<F>::stat(&self, hash: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>

@@ -7,6 +7,7 @@
 //! threaded the lane through both arms); the bodies moved verbatim.
 
 use nika_error::traits::NikaErrorCode;
+use nika_kernel::ai::harness::ModelProvenance;
 use nika_types::access::{AccessPlan, AccessRefused};
 use nika_types::cost::UnpricedReason;
 use nika_verb_agent::{AgentOutput, AgentValue};
@@ -129,13 +130,14 @@ pub(super) fn harness_infer_success(
     out: HarnessInferOutput,
     access: Option<AccessPlan>,
 ) -> Dispatched {
-    let answered = out
+    // The harness's own report of its model, never a response attestation.
+    let reported = out
         .observed_model
         .as_deref()
-        .map_or_else(String::new, |model| format!(" · answered by {model}"));
+        .map_or_else(String::new, |model| format!(" · harness reported {model}"));
     Dispatched::ok_metered(
         format!(
-            "infer · seat {seat_id} · requested {}{answered}",
+            "infer · seat {seat_id} · requested {}{reported}",
             out.requested_model
         ),
         out.output,
@@ -184,9 +186,16 @@ pub(super) fn agent_success(out: AgentOutput, access: Option<AccessPlan>) -> Dis
     };
     // the loop's ABSORBED split (every turn summed, like the
     // `tokens` it rides beside). No response id: a loop has many.
-    let split = UsageSplit::of(&out.usage)
-        .with_calls(&out.inference_calls)
-        .carried();
+    // A harness reports its session model, with provenance: never served, never priced.
+    let mut split = UsageSplit::of(&out.usage).with_calls(&out.inference_calls);
+    split.model_reported = out.model_reported.clone().map(|m| {
+        (
+            m,
+            out.model_reported_source
+                .map_or("unspecified", ModelProvenance::as_str),
+        )
+    });
+    let split = split.carried();
     Dispatched::ok_metered(
         note,
         value,

@@ -14,12 +14,18 @@
 //! `cost_replay` expectations pin replayed/refused/unrecorded rendering. The
 //! expectation is READ from the fixture, never hand-written here — the golden
 //! swap that flips 001 from `finding` to `clean` flips this suite with it.
+//! `harness_media` also invokes the Spec's canonical runtime/trace reader once
+//! against this test's exact binary. An intact chain alone never discharges a
+//! media assertion; unknown assertion names refuse before native verification.
 //!
 //! The spec dir resolves from `$NIKA_SPEC_DIR` or the sibling checkout
 //! (`<engine>/../spec`) — the suite HARD-FAILS when missing (the
 //! conformance gate must never silently skip).
 
 use std::path::PathBuf;
+
+#[path = "trace_witness/canonical.rs"]
+mod canonical;
 
 fn spec_dir() -> PathBuf {
     if let Ok(dir) = std::env::var("NIKA_SPEC_DIR") {
@@ -37,6 +43,7 @@ fn runtime_trace_fixtures_hold_their_verify_verdict() {
         root.display()
     );
     let mut seen = 0_usize;
+    let mut media = Vec::new();
     let mut entries: Vec<_> = std::fs::read_dir(&root)
         .expect("readable fixture dir")
         .filter_map(Result::ok)
@@ -54,13 +61,16 @@ fn runtime_trace_fixtures_hold_their_verify_verdict() {
         let expected: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&expected_path).expect("expected json"))
                 .expect("valid expected-verify.json");
-        let verdict = expected["verdict"].as_str().expect("a verdict string");
-        let out = nika_cli::verbs::trace_verify::verify(&trace.to_string_lossy());
         let name = dir
             .file_name()
             .unwrap_or_default()
             .to_string_lossy()
             .to_string();
+        if canonical_needed(&expected).unwrap_or_else(|why| panic!("{name}: {why}")) {
+            media.push(name.clone());
+        }
+        let verdict = expected["verdict"].as_str().expect("a verdict string");
+        let out = nika_cli::verbs::trace_verify::verify(&trace.to_string_lossy());
         match verdict {
             "clean" => {
                 assert_eq!(out.code, 0, "{name}: clean verdict exits OK: {}", out.text);
@@ -117,10 +127,60 @@ fn runtime_trace_fixtures_hold_their_verify_verdict() {
             assert_item_projection(&trace, &name, items);
         }
     }
+    if !media.is_empty() {
+        canonical::assert_trace(&spec_dir(), &media);
+    }
     assert!(
         seen >= 9,
         "the spec runtime/trace corpus has >= 9 fixtures (saw {seen})"
     );
+}
+
+/// New claims are either explicitly delegated or refused, never covered by the chain alone.
+fn canonical_needed(expected: &serde_json::Value) -> Result<bool, String> {
+    let object = expected
+        .as_object()
+        .ok_or_else(|| "invalid trace expectation: an object is required".to_owned())?;
+    for key in object.keys() {
+        if !matches!(
+            key.as_str(),
+            "verdict" | "cost_replay" | "prologue" | "items" | "note" | "harness_media"
+        ) {
+            return Err(format!(
+                "UNSUPPORTED trace assertion `{key}`: no verdict was measured"
+            ));
+        }
+    }
+    Ok(object.contains_key("harness_media"))
+}
+
+#[test]
+fn media_claims_always_reach_the_canonical_reader_and_unknown_claims_refuse() {
+    use serde_json::json;
+    let supported = json!({"verdict": "clean", "cost_replay": "unrecorded",
+        "prologue": {"present": ["inputs"]}, "items": {"task": null}, "note": "fixture"});
+    assert_eq!(canonical_needed(&supported), Ok(false));
+    // Presence delegates even malformed or empty claims: Python must reject them, not skip them.
+    for media in [
+        json!(null),
+        json!(false),
+        json!({}),
+        json!({"task": {
+            "observations": [], "terminal_count": 0, "complete": true,
+            "model": {"model_reported": null, "model_reported_source": null, "model_served": null}
+        }}),
+    ] {
+        let mut expected = supported.clone();
+        expected["harness_media"] = media;
+        assert_eq!(canonical_needed(&expected), Ok(true));
+    }
+    let unknown = json!({"verdict": "clean", "future_receipts": {"complete": true}});
+    assert!(
+        canonical_needed(&unknown)
+            .expect_err("unknown assertion")
+            .contains("future_receipts")
+    );
+    assert!(canonical_needed(&json!([])).is_err());
 }
 
 fn assert_prologue_projection(expected: &serde_json::Value, trace: &std::path::Path, name: &str) {

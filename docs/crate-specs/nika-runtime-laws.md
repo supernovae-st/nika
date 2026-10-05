@@ -5,7 +5,7 @@
 | Status | **ADMITTED member** of the `nika-runtime` unit (ADR-127 · the size-cap member split · D-2026-07-09-N1: one architectural unit in two workspace members). Never a new unit. |
 | Layer | **L3 — runtime** (the same row as `nika-runtime`) · `publish = false` · one public surface re-exported by the operator crate at every historical path. |
 | Sub-tier | L3-laws — what a run obeys before and after it executes; nothing here dispatches a task or folds a definition. |
-| Design | Existing law modules: `errors` (the one-voice `RuntimeError`) · `contract` (the typed `outputs:` contract) · `compat_record` (the public record mirror) · `origins` (input origins) · `identity` (the engine identity + the build-support pins) · `integrity` (the record integrity law · `ValueTaint`) · `secret` (the secret resolver seam · the redacting sink · the payload field list) · `sandbox_select` (the sandbox verdict for a command) · `witness` · `stamp` (the event stamp seams) · `resume_fields` (the resume projection's payload field names) · `retry` (pure backoff arithmetic). |
+| Design | Existing law modules: `errors` (the one-voice `RuntimeError`) · `contract` (the typed `outputs:` contract) · `compat_record` (the public record mirror) · `origins` (input origins) · `identity` (the engine identity + the build-support pins) · `integrity` (the record integrity law · `ValueTaint`) · `secret` (the secret resolver seam · the redacting sink · the payload field list) · `sandbox_select` (the sandbox verdict for a command) · `witness` · `stamp` (the event stamp seams) · `resume_fields` (the resume projection's payload field names) · `retry` (pure backoff arithmetic) · `image_room` (received-image custody: the admitted project held by descriptor, one finite rooted room per store operation, dropped operations joined on demand). |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (Diamond caps) — the descent leaves `nika-runtime` at 13 234 lines (1 766 below the wall) and this member ≈ 1.8k. |
 | IMPL | live · `scripts/crate-metrics.sh nika-runtime-laws` |
 | Crate version | tracks workspace · License `AGPL-3.0-or-later` · Edition 2024 · Publish `false` |
@@ -29,6 +29,24 @@ The wave engine · dispatch · settle · recover · the pause and approval plane
 ## Boundaries (the seams the operator crate reaches)
 
 `TaskContract{of, lowered, check_fit}` · `decode_bytes` · `ValueTaint{of_task, bare, label}` · `task_integrity` · `scrub_outputs` · `RedactingSink` · `REDACTED` · `resolve_secrets` · `SandboxDecision` · `SandboxVerdict` · `select_command_sandbox` · `PermitWitness` · `PermitDecision` — `pub` here, `pub(crate) use` in `nika-runtime`.
+
+### Received-image custody
+
+`image_room::ImageRoom` is the `BlobStoreDyn` the runtime attaches to a seated
+harness. `open` holds the admitted root through `nika_fs::OwnedDir` (refusing a
+symlinked component) and writes nothing. Every operation clones that descriptor
+into a fresh `RootedFs` with its own finite `EffectLedger` (one image of at most
+`IMAGE_MAX_BYTES`, its sidecar and created directories), runs `FsBlobStore`
+below `.nika/blobs`, then seals and drains before answering: no sealed ledger
+outlives an operation, so a runtime runs any number of times. A dropped
+operation is sealed synchronously in its lease's `Drop`, and its join (a pinned
+future) is listed. A join always has exactly one owner: `drain_dropped` takes
+the listed joins, polls them without holding the lock across a wait, and hands
+the unfinished ones back if it is abandoned, so the next call resumes them
+(`pending_drains` counts what is listed). The runtime drains at the end of each
+wave and before `run` returns. It takes received bytes only, never a
+peer-reported path. It dispatches nothing and composes nothing: seating stays in
+`nika-runtime`. The edges are L3 → L1 (`nika-fs`, `nika-blob`).
 
 ### Native input capability
 

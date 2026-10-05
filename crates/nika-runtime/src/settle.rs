@@ -389,6 +389,7 @@ pub(crate) fn settle_ran(
     // Every attempt including the settling one (spec 13 §payload).
     let attempts = run.attempts();
     let mut record = fresh_ran_record(started_at, run.duration_ms, integrity);
+    record.harness_media = agent_events::image_rows(&run.agent_events);
     match run.result {
         task::RunResult::Success {
             value,
@@ -744,3 +745,6 @@ pub(crate) fn push_commit_fields(
         None => {}
     }
 }
+
+#[cfg(test)]
+mod media_tests;

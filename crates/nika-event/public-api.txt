@@ -280,6 +280,7 @@ pub type nika_event::kind::EventClass::Output = T
 #[non_exhaustive] pub enum nika_event::kind::EventKind
 pub nika_event::kind::EventKind::AgentBudgetCheckpoint
 pub nika_event::kind::EventKind::AgentComposeChecked
+pub nika_event::kind::EventKind::AgentImageObserved
 pub nika_event::kind::EventKind::AgentNudge
 pub nika_event::kind::EventKind::AgentStalled
 pub nika_event::kind::EventKind::AgentToolsSelected
@@ -512,6 +513,7 @@ pub type nika_event::error::EventError::Output = T
 #[non_exhaustive] pub enum nika_event::prelude::EventKind
 pub nika_event::prelude::EventKind::AgentBudgetCheckpoint
 pub nika_event::prelude::EventKind::AgentComposeChecked
+pub nika_event::prelude::EventKind::AgentImageObserved
 pub nika_event::prelude::EventKind::AgentNudge
 pub nika_event::prelude::EventKind::AgentStalled
 pub nika_event::prelude::EventKind::AgentToolsSelected
@@ -1650,6 +1652,7 @@ pub type nika_event::error::EventError::Output = T
 #[non_exhaustive] pub enum nika_event::EventKind
 pub nika_event::EventKind::AgentBudgetCheckpoint
 pub nika_event::EventKind::AgentComposeChecked
+pub nika_event::EventKind::AgentImageObserved
 pub nika_event::EventKind::AgentNudge
 pub nika_event::EventKind::AgentStalled
 pub nika_event::EventKind::AgentToolsSelected

@@ -27,6 +27,8 @@ impl<T> core::convert::From<T> for nika_harness::authoring::HarnessAuthoring
 pub fn nika_harness::authoring::HarnessAuthoring::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::authoring::HarnessAuthoring where T: 'static
 pub fn nika_harness::authoring::HarnessAuthoring::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::authoring::HarnessAuthoring
+pub type nika_harness::authoring::HarnessAuthoring::Output = T
 impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderInfer for nika_harness::authoring::HarnessAuthoring where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderInferDyn
 pub async fn nika_harness::authoring::HarnessAuthoring::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
 pub fn nika_harness::authoring::model_argument(adapter: &str, model: core::option::Option<&str>) -> core::result::Result<alloc::string::String, alloc::string::String>
@@ -79,6 +81,8 @@ impl<T> core::convert::From<T> for nika_harness::infer::InferGradeError
 pub fn nika_harness::infer::InferGradeError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::infer::InferGradeError where T: 'static
 pub fn nika_harness::infer::InferGradeError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::infer::InferGradeError
+pub type nika_harness::infer::InferGradeError::Output = T
 #[non_exhaustive] pub enum nika_harness::infer::StructuredOutputGrade
 pub nika_harness::infer::StructuredOutputGrade::Json
 pub nika_harness::infer::StructuredOutputGrade::JsonSchema
@@ -123,6 +127,8 @@ impl<T> core::convert::From<T> for nika_harness::infer::StructuredOutputGrade
 pub fn nika_harness::infer::StructuredOutputGrade::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::infer::StructuredOutputGrade where T: 'static
 pub fn nika_harness::infer::StructuredOutputGrade::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::infer::StructuredOutputGrade
+pub type nika_harness::infer::StructuredOutputGrade::Output = T
 #[non_exhaustive] pub struct nika_harness::infer::HarnessInferOutcome
 pub nika_harness::infer::HarnessInferOutcome::attested_version: (u32, u32)
 pub nika_harness::infer::HarnessInferOutcome::observed_model: core::option::Option<alloc::string::String>
@@ -162,6 +168,8 @@ impl<T> core::convert::From<T> for nika_harness::infer::HarnessInferOutcome
 pub fn nika_harness::infer::HarnessInferOutcome::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::infer::HarnessInferOutcome where T: 'static
 pub fn nika_harness::infer::HarnessInferOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::infer::HarnessInferOutcome
+pub type nika_harness::infer::HarnessInferOutcome::Output = T
 #[non_exhaustive] pub struct nika_harness::infer::HarnessInferRequest
 pub nika_harness::infer::HarnessInferRequest::prompt: alloc::string::String
 pub nika_harness::infer::HarnessInferRequest::requested_model: alloc::string::String
@@ -202,6 +210,8 @@ impl<T> core::convert::From<T> for nika_harness::infer::HarnessInferRequest
 pub fn nika_harness::infer::HarnessInferRequest::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::infer::HarnessInferRequest where T: 'static
 pub fn nika_harness::infer::HarnessInferRequest::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::infer::HarnessInferRequest
+pub type nika_harness::infer::HarnessInferRequest::Output = T
 #[non_exhaustive] pub struct nika_harness::infer::InferGradeAttestation
 pub nika_harness::infer::InferGradeAttestation::model_identity_observable: bool
 pub nika_harness::infer::InferGradeAttestation::no_implicit_tools: bool
@@ -242,6 +252,8 @@ impl<T> core::convert::From<T> for nika_harness::infer::InferGradeAttestation
 pub fn nika_harness::infer::InferGradeAttestation::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::infer::InferGradeAttestation where T: 'static
 pub fn nika_harness::infer::InferGradeAttestation::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::infer::InferGradeAttestation
+pub type nika_harness::infer::InferGradeAttestation::Output = T
 pub struct nika_harness::infer::InferGradeSeat
 impl nika_harness::infer::InferGradeSeat
 pub const fn nika_harness::infer::InferGradeSeat::attestation(&self) -> nika_harness::infer::InferGradeAttestation
@@ -275,6 +287,8 @@ impl<T> core::convert::From<T> for nika_harness::infer::InferGradeSeat
 pub fn nika_harness::infer::InferGradeSeat::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::infer::InferGradeSeat where T: 'static
 pub fn nika_harness::infer::InferGradeSeat::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::infer::InferGradeSeat
+pub type nika_harness::infer::InferGradeSeat::Output = T
 pub fn nika_harness::infer::meet_infer_grade(seat: &str, need: nika_harness::infer::StructuredOutputGrade) -> core::result::Result<nika_harness::infer::InferGradeSeat, nika_harness::infer::InferGradeError>
 pub mod nika_harness::probe
 #[non_exhaustive] pub struct nika_harness::probe::AdapterProbeRow
@@ -319,6 +333,8 @@ impl<T> core::convert::From<T> for nika_harness::probe::AdapterProbeRow
 pub fn nika_harness::probe::AdapterProbeRow::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::probe::AdapterProbeRow where T: 'static
 pub fn nika_harness::probe::AdapterProbeRow::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::probe::AdapterProbeRow
+pub type nika_harness::probe::AdapterProbeRow::Output = T
 #[non_exhaustive] pub struct nika_harness::probe::PresenceFact
 pub nika_harness::probe::PresenceFact::acp_present: bool
 pub nika_harness::probe::PresenceFact::configured: bool
@@ -358,6 +374,8 @@ impl<T> core::convert::From<T> for nika_harness::probe::PresenceFact
 pub fn nika_harness::probe::PresenceFact::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::probe::PresenceFact where T: 'static
 pub fn nika_harness::probe::PresenceFact::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::probe::PresenceFact
+pub type nika_harness::probe::PresenceFact::Output = T
 #[non_exhaustive] pub struct nika_harness::probe::VersionPin
 pub nika_harness::probe::VersionPin::max_major: u32
 pub nika_harness::probe::VersionPin::min: (u32, u32)
@@ -397,6 +415,8 @@ impl<T> core::convert::From<T> for nika_harness::probe::VersionPin
 pub fn nika_harness::probe::VersionPin::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::probe::VersionPin where T: 'static
 pub fn nika_harness::probe::VersionPin::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::probe::VersionPin
+pub type nika_harness::probe::VersionPin::Output = T
 pub fn nika_harness::probe::judge_version(adapter_id: &str, output: &str, pin: &nika_harness::probe::VersionPin) -> core::result::Result<(u32, u32), nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::probe::parse_version(line: &str) -> core::option::Option<(u32, u32)>
 pub fn nika_harness::probe::presence_facts(rows: alloc::vec::Vec<nika_harness::registry::AdapterRow>) -> alloc::vec::Vec<nika_harness::probe::PresenceFact>
@@ -442,6 +462,8 @@ impl<T> core::convert::From<T> for nika_harness::registry::AuthProbe
 pub fn nika_harness::registry::AuthProbe::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::registry::AuthProbe where T: 'static
 pub fn nika_harness::registry::AuthProbe::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::registry::AuthProbe
+pub type nika_harness::registry::AuthProbe::Output = T
 #[non_exhaustive] pub struct nika_harness::registry::AdapterRow
 pub nika_harness::registry::AdapterRow::adapter: nika_harness::spawn::HarnessAdapter
 pub nika_harness::registry::AdapterRow::auth: nika_harness::registry::AuthProbe
@@ -476,6 +498,8 @@ impl<T> core::convert::From<T> for nika_harness::registry::AdapterRow
 pub fn nika_harness::registry::AdapterRow::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::registry::AdapterRow where T: 'static
 pub fn nika_harness::registry::AdapterRow::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::registry::AdapterRow
+pub type nika_harness::registry::AdapterRow::Output = T
 pub const nika_harness::registry::DISABLE_ENV: &str
 pub fn nika_harness::registry::registry() -> core::result::Result<alloc::vec::Vec<nika_harness::registry::AdapterRow>, nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::registry::registry_with(env: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> core::result::Result<alloc::vec::Vec<nika_harness::registry::AdapterRow>, nika_kernel_ai::harness::HarnessError>
@@ -531,6 +555,8 @@ impl<T> core::convert::From<T> for nika_harness::spawn::HarnessAdapter
 pub fn nika_harness::spawn::HarnessAdapter::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::spawn::HarnessAdapter where T: 'static
 pub fn nika_harness::spawn::HarnessAdapter::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::spawn::HarnessAdapter
+pub type nika_harness::spawn::HarnessAdapter::Output = T
 pub struct nika_harness::spawn::SpawnedHarness
 impl nika_harness::spawn::SpawnedHarness
 pub fn nika_harness::spawn::SpawnedHarness::new(adapter: nika_harness::spawn::HarnessAdapter) -> Self
@@ -569,6 +595,8 @@ impl<T> core::convert::From<T> for nika_harness::spawn::SpawnedHarness
 pub fn nika_harness::spawn::SpawnedHarness::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::spawn::SpawnedHarness where T: 'static
 pub fn nika_harness::spawn::SpawnedHarness::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::spawn::SpawnedHarness
+pub type nika_harness::spawn::SpawnedHarness::Output = T
 impl<TraitVariantBlanketType> nika_kernel_ai::harness::AgentBackend for nika_harness::spawn::SpawnedHarness where TraitVariantBlanketType: nika_kernel_ai::harness::AgentBackendDyn
 pub async fn nika_harness::spawn::SpawnedHarness::run_agent(&self, request: nika_kernel_ai::harness::HarnessRequest) -> core::result::Result<core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_ai::harness::HarnessEvent, nika_kernel_ai::harness::HarnessError>> + core::marker::Send)>>, nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::spawn::compose_env(parent: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, passthrough: &[alloc::string::String]) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
@@ -619,6 +647,8 @@ impl<T> core::convert::From<T> for nika_harness::wire::Incoming
 pub fn nika_harness::wire::Incoming::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::wire::Incoming where T: 'static
 pub fn nika_harness::wire::Incoming::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::wire::Incoming
+pub type nika_harness::wire::Incoming::Output = T
 #[non_exhaustive] pub enum nika_harness::wire::WireError
 pub nika_harness::wire::WireError::Envelope
 pub nika_harness::wire::WireError::Envelope::why: alloc::string::String
@@ -652,6 +682,8 @@ impl<T> core::convert::From<T> for nika_harness::wire::WireError
 pub fn nika_harness::wire::WireError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::wire::WireError where T: 'static
 pub fn nika_harness::wire::WireError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::wire::WireError
+pub type nika_harness::wire::WireError::Output = T
 pub struct nika_harness::wire::CancelParams
 pub nika_harness::wire::CancelParams::session_id: alloc::string::String
 impl core::fmt::Debug for nika_harness::wire::CancelParams
@@ -677,6 +709,8 @@ impl<T> core::convert::From<T> for nika_harness::wire::CancelParams
 pub fn nika_harness::wire::CancelParams::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::wire::CancelParams where T: 'static
 pub fn nika_harness::wire::CancelParams::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::wire::CancelParams
+pub type nika_harness::wire::CancelParams::Output = T
 pub struct nika_harness::wire::InitializeParams
 pub nika_harness::wire::InitializeParams::client_capabilities: serde_json::value::Value
 pub nika_harness::wire::InitializeParams::protocol_version: u16
@@ -703,6 +737,8 @@ impl<T> core::convert::From<T> for nika_harness::wire::InitializeParams
 pub fn nika_harness::wire::InitializeParams::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::wire::InitializeParams where T: 'static
 pub fn nika_harness::wire::InitializeParams::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::wire::InitializeParams
+pub type nika_harness::wire::InitializeParams::Output = T
 pub struct nika_harness::wire::InitializeResult
 pub nika_harness::wire::InitializeResult::protocol_version: u16
 impl core::fmt::Debug for nika_harness::wire::InitializeResult
@@ -729,6 +765,8 @@ pub fn nika_harness::wire::InitializeResult::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::wire::InitializeResult where T: 'static
 pub fn nika_harness::wire::InitializeResult::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_harness::wire::InitializeResult where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_harness::wire::InitializeResult
+pub type nika_harness::wire::InitializeResult::Output = T
 pub struct nika_harness::wire::NewSessionParams
 pub nika_harness::wire::NewSessionParams::cwd: std::path::PathBuf
 pub nika_harness::wire::NewSessionParams::mcp_servers: alloc::vec::Vec<serde_json::value::Value>
@@ -755,6 +793,8 @@ impl<T> core::convert::From<T> for nika_harness::wire::NewSessionParams
 pub fn nika_harness::wire::NewSessionParams::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::wire::NewSessionParams where T: 'static
 pub fn nika_harness::wire::NewSessionParams::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::wire::NewSessionParams
+pub type nika_harness::wire::NewSessionParams::Output = T
 pub struct nika_harness::wire::NewSessionResult
 pub nika_harness::wire::NewSessionResult::config_options: core::option::Option<serde_json::value::Value>
 pub nika_harness::wire::NewSessionResult::models: core::option::Option<serde_json::value::Value>
@@ -784,6 +824,8 @@ pub fn nika_harness::wire::NewSessionResult::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::wire::NewSessionResult where T: 'static
 pub fn nika_harness::wire::NewSessionResult::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_harness::wire::NewSessionResult where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_harness::wire::NewSessionResult
+pub type nika_harness::wire::NewSessionResult::Output = T
 pub struct nika_harness::wire::PermissionOptionIn
 pub nika_harness::wire::PermissionOptionIn::kind: alloc::string::String
 pub nika_harness::wire::PermissionOptionIn::option_id: alloc::string::String
@@ -819,6 +861,8 @@ pub fn nika_harness::wire::PermissionOptionIn::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::wire::PermissionOptionIn where T: 'static
 pub fn nika_harness::wire::PermissionOptionIn::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_harness::wire::PermissionOptionIn where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_harness::wire::PermissionOptionIn
+pub type nika_harness::wire::PermissionOptionIn::Output = T
 pub struct nika_harness::wire::PermissionRequestIn
 pub nika_harness::wire::PermissionRequestIn::options: alloc::vec::Vec<nika_harness::wire::PermissionOptionIn>
 pub nika_harness::wire::PermissionRequestIn::session_id: alloc::string::String
@@ -847,6 +891,8 @@ pub fn nika_harness::wire::PermissionRequestIn::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::wire::PermissionRequestIn where T: 'static
 pub fn nika_harness::wire::PermissionRequestIn::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_harness::wire::PermissionRequestIn where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_harness::wire::PermissionRequestIn
+pub type nika_harness::wire::PermissionRequestIn::Output = T
 pub struct nika_harness::wire::PermissionResult
 pub nika_harness::wire::PermissionResult::outcome: serde_json::value::Value
 impl nika_harness::wire::PermissionResult
@@ -875,6 +921,8 @@ impl<T> core::convert::From<T> for nika_harness::wire::PermissionResult
 pub fn nika_harness::wire::PermissionResult::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::wire::PermissionResult where T: 'static
 pub fn nika_harness::wire::PermissionResult::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::wire::PermissionResult
+pub type nika_harness::wire::PermissionResult::Output = T
 pub struct nika_harness::wire::PromptParams
 pub nika_harness::wire::PromptParams::prompt: alloc::vec::Vec<nika_harness::wire::TextBlock>
 pub nika_harness::wire::PromptParams::session_id: alloc::string::String
@@ -901,6 +949,8 @@ impl<T> core::convert::From<T> for nika_harness::wire::PromptParams
 pub fn nika_harness::wire::PromptParams::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::wire::PromptParams where T: 'static
 pub fn nika_harness::wire::PromptParams::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::wire::PromptParams
+pub type nika_harness::wire::PromptParams::Output = T
 pub struct nika_harness::wire::PromptResult
 pub nika_harness::wire::PromptResult::stop_reason: alloc::string::String
 impl core::fmt::Debug for nika_harness::wire::PromptResult
@@ -927,6 +977,8 @@ pub fn nika_harness::wire::PromptResult::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::wire::PromptResult where T: 'static
 pub fn nika_harness::wire::PromptResult::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_harness::wire::PromptResult where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_harness::wire::PromptResult
+pub type nika_harness::wire::PromptResult::Output = T
 pub struct nika_harness::wire::SessionUpdateParams
 pub nika_harness::wire::SessionUpdateParams::session_id: alloc::string::String
 pub nika_harness::wire::SessionUpdateParams::update: serde_json::value::Value
@@ -954,6 +1006,8 @@ pub fn nika_harness::wire::SessionUpdateParams::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::wire::SessionUpdateParams where T: 'static
 pub fn nika_harness::wire::SessionUpdateParams::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_harness::wire::SessionUpdateParams where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_harness::wire::SessionUpdateParams
+pub type nika_harness::wire::SessionUpdateParams::Output = T
 pub struct nika_harness::wire::TextBlock
 pub nika_harness::wire::TextBlock::kind: &'static str
 pub nika_harness::wire::TextBlock::text: alloc::string::String
@@ -980,6 +1034,8 @@ impl<T> core::convert::From<T> for nika_harness::wire::TextBlock
 pub fn nika_harness::wire::TextBlock::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::wire::TextBlock where T: 'static
 pub fn nika_harness::wire::TextBlock::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::wire::TextBlock
+pub type nika_harness::wire::TextBlock::Output = T
 pub const nika_harness::wire::METHOD_INITIALIZE: &str
 pub const nika_harness::wire::METHOD_REQUEST_PERMISSION: &str
 pub const nika_harness::wire::METHOD_SESSION_CANCEL: &str
@@ -1035,6 +1091,8 @@ impl<T> core::convert::From<T> for nika_harness::registry::AuthProbe
 pub fn nika_harness::registry::AuthProbe::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::registry::AuthProbe where T: 'static
 pub fn nika_harness::registry::AuthProbe::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::registry::AuthProbe
+pub type nika_harness::registry::AuthProbe::Output = T
 #[non_exhaustive] pub enum nika_harness::InferGradeError
 pub nika_harness::InferGradeError::Execution
 pub nika_harness::InferGradeError::Execution::detail: alloc::string::String
@@ -1072,6 +1130,8 @@ impl<T> core::convert::From<T> for nika_harness::infer::InferGradeError
 pub fn nika_harness::infer::InferGradeError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::infer::InferGradeError where T: 'static
 pub fn nika_harness::infer::InferGradeError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::infer::InferGradeError
+pub type nika_harness::infer::InferGradeError::Output = T
 #[non_exhaustive] pub enum nika_harness::StructuredOutputGrade
 pub nika_harness::StructuredOutputGrade::Json
 pub nika_harness::StructuredOutputGrade::JsonSchema
@@ -1116,6 +1176,8 @@ impl<T> core::convert::From<T> for nika_harness::infer::StructuredOutputGrade
 pub fn nika_harness::infer::StructuredOutputGrade::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::infer::StructuredOutputGrade where T: 'static
 pub fn nika_harness::infer::StructuredOutputGrade::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::infer::StructuredOutputGrade
+pub type nika_harness::infer::StructuredOutputGrade::Output = T
 #[non_exhaustive] pub struct nika_harness::AdapterProbeRow
 pub nika_harness::AdapterProbeRow::authenticated: core::option::Option<bool>
 pub nika_harness::AdapterProbeRow::id: alloc::string::String
@@ -1158,6 +1220,8 @@ impl<T> core::convert::From<T> for nika_harness::probe::AdapterProbeRow
 pub fn nika_harness::probe::AdapterProbeRow::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::probe::AdapterProbeRow where T: 'static
 pub fn nika_harness::probe::AdapterProbeRow::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::probe::AdapterProbeRow
+pub type nika_harness::probe::AdapterProbeRow::Output = T
 #[non_exhaustive] pub struct nika_harness::AdapterRow
 pub nika_harness::AdapterRow::adapter: nika_harness::spawn::HarnessAdapter
 pub nika_harness::AdapterRow::auth: nika_harness::registry::AuthProbe
@@ -1192,6 +1256,8 @@ impl<T> core::convert::From<T> for nika_harness::registry::AdapterRow
 pub fn nika_harness::registry::AdapterRow::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::registry::AdapterRow where T: 'static
 pub fn nika_harness::registry::AdapterRow::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::registry::AdapterRow
+pub type nika_harness::registry::AdapterRow::Output = T
 #[non_exhaustive] pub struct nika_harness::HarnessAdapter
 pub nika_harness::HarnessAdapter::args: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::HarnessAdapter::command: alloc::string::String
@@ -1243,6 +1309,8 @@ impl<T> core::convert::From<T> for nika_harness::spawn::HarnessAdapter
 pub fn nika_harness::spawn::HarnessAdapter::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::spawn::HarnessAdapter where T: 'static
 pub fn nika_harness::spawn::HarnessAdapter::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::spawn::HarnessAdapter
+pub type nika_harness::spawn::HarnessAdapter::Output = T
 #[non_exhaustive] pub struct nika_harness::HarnessInferOutcome
 pub nika_harness::HarnessInferOutcome::attested_version: (u32, u32)
 pub nika_harness::HarnessInferOutcome::observed_model: core::option::Option<alloc::string::String>
@@ -1282,6 +1350,8 @@ impl<T> core::convert::From<T> for nika_harness::infer::HarnessInferOutcome
 pub fn nika_harness::infer::HarnessInferOutcome::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::infer::HarnessInferOutcome where T: 'static
 pub fn nika_harness::infer::HarnessInferOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::infer::HarnessInferOutcome
+pub type nika_harness::infer::HarnessInferOutcome::Output = T
 #[non_exhaustive] pub struct nika_harness::HarnessInferRequest
 pub nika_harness::HarnessInferRequest::prompt: alloc::string::String
 pub nika_harness::HarnessInferRequest::requested_model: alloc::string::String
@@ -1322,6 +1392,8 @@ impl<T> core::convert::From<T> for nika_harness::infer::HarnessInferRequest
 pub fn nika_harness::infer::HarnessInferRequest::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::infer::HarnessInferRequest where T: 'static
 pub fn nika_harness::infer::HarnessInferRequest::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::infer::HarnessInferRequest
+pub type nika_harness::infer::HarnessInferRequest::Output = T
 #[non_exhaustive] pub struct nika_harness::InferGradeAttestation
 pub nika_harness::InferGradeAttestation::model_identity_observable: bool
 pub nika_harness::InferGradeAttestation::no_implicit_tools: bool
@@ -1362,6 +1434,8 @@ impl<T> core::convert::From<T> for nika_harness::infer::InferGradeAttestation
 pub fn nika_harness::infer::InferGradeAttestation::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::infer::InferGradeAttestation where T: 'static
 pub fn nika_harness::infer::InferGradeAttestation::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::infer::InferGradeAttestation
+pub type nika_harness::infer::InferGradeAttestation::Output = T
 pub struct nika_harness::InferGradeSeat
 impl nika_harness::infer::InferGradeSeat
 pub const fn nika_harness::infer::InferGradeSeat::attestation(&self) -> nika_harness::infer::InferGradeAttestation
@@ -1395,6 +1469,8 @@ impl<T> core::convert::From<T> for nika_harness::infer::InferGradeSeat
 pub fn nika_harness::infer::InferGradeSeat::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::infer::InferGradeSeat where T: 'static
 pub fn nika_harness::infer::InferGradeSeat::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::infer::InferGradeSeat
+pub type nika_harness::infer::InferGradeSeat::Output = T
 #[non_exhaustive] pub struct nika_harness::PresenceFact
 pub nika_harness::PresenceFact::acp_present: bool
 pub nika_harness::PresenceFact::configured: bool
@@ -1434,6 +1510,8 @@ impl<T> core::convert::From<T> for nika_harness::probe::PresenceFact
 pub fn nika_harness::probe::PresenceFact::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::probe::PresenceFact where T: 'static
 pub fn nika_harness::probe::PresenceFact::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::probe::PresenceFact
+pub type nika_harness::probe::PresenceFact::Output = T
 pub struct nika_harness::SpawnedHarness
 impl nika_harness::spawn::SpawnedHarness
 pub fn nika_harness::spawn::SpawnedHarness::new(adapter: nika_harness::spawn::HarnessAdapter) -> Self
@@ -1472,6 +1550,8 @@ impl<T> core::convert::From<T> for nika_harness::spawn::SpawnedHarness
 pub fn nika_harness::spawn::SpawnedHarness::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::spawn::SpawnedHarness where T: 'static
 pub fn nika_harness::spawn::SpawnedHarness::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::spawn::SpawnedHarness
+pub type nika_harness::spawn::SpawnedHarness::Output = T
 impl<TraitVariantBlanketType> nika_kernel_ai::harness::AgentBackend for nika_harness::spawn::SpawnedHarness where TraitVariantBlanketType: nika_kernel_ai::harness::AgentBackendDyn
 pub async fn nika_harness::spawn::SpawnedHarness::run_agent(&self, request: nika_kernel_ai::harness::HarnessRequest) -> core::result::Result<core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_ai::harness::HarnessEvent, nika_kernel_ai::harness::HarnessError>> + core::marker::Send)>>, nika_kernel_ai::harness::HarnessError>
 #[non_exhaustive] pub struct nika_harness::VersionPin
@@ -1513,6 +1593,8 @@ impl<T> core::convert::From<T> for nika_harness::probe::VersionPin
 pub fn nika_harness::probe::VersionPin::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::probe::VersionPin where T: 'static
 pub fn nika_harness::probe::VersionPin::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_harness::probe::VersionPin
+pub type nika_harness::probe::VersionPin::Output = T
 pub const nika_harness::DISABLE_ENV: &str
 pub const nika_harness::IDLE_TIMEOUT_SECS: u64
 pub const nika_harness::MAX_LINE_BYTES: usize

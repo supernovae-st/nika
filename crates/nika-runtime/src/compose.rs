@@ -801,14 +801,11 @@ pub fn production_runtime_with_emitter(
         ExecVerb::new(Arc::new(TokioShell::with_sandbox(sandbox))),
         Arc::clone(&invoke),
         InferVerb::new(registry, default_model),
-        seated(
-            AgentVerb::new(
-                agent_provider,
-                invoke,
-                Arc::clone(&dispatcher),
-                default_model,
-            ),
-            harness_seat,
+        AgentVerb::new(
+            agent_provider,
+            invoke,
+            Arc::clone(&dispatcher),
+            default_model,
         ),
         seams.clock,
         runtime_config
@@ -825,7 +822,9 @@ pub fn production_runtime_with_emitter(
     // Resolve `secrets:` from env/file at run start (MINOR-B · the sanctioned
     // store boundary). A miss leaves the secret unbound → NIKA-1702 (fail-
     // closed); the IFC governs where a resolved value may flow.
-    .with_secret_resolver(Arc::new(EnvFileSecretResolver)))
+    .with_secret_resolver(Arc::new(EnvFileSecretResolver))
+    // The seat holds the admitted project as its received-image room (P3 B4.5).
+    .with_seat(harness_seat)?)
 }
 
 /// The builtin plane production and simulated compositions share: the real
@@ -858,17 +857,6 @@ fn waived_operator_note() {
          journal + trace); the declared boundary still gates fs/net at the \
          builtin and fetch seams"
     );
-}
-
-/// Seat the verb (P3 B4.5) — the feature split, in one place.
-fn seated<P, T, D>(v: AgentVerb<P, T, D>, s: crate::harness_seat::Seat) -> AgentVerb<P, T, D> {
-    #[cfg(feature = "access-harness")]
-    return v.seated(s);
-    #[cfg(not(feature = "access-harness"))]
-    {
-        let crate::harness_seat::Seat = s;
-        v
-    }
 }
 
 /// The fully-resolved SIMULATED runtime spelling (the `nika test` plane ·

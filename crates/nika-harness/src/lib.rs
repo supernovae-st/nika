@@ -24,6 +24,7 @@ pub mod authoring;
 pub mod client;
 pub mod declaration;
 pub mod infer;
+mod media;
 mod oneshot;
 pub mod probe;
 pub mod registry;

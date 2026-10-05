@@ -188,3 +188,56 @@ fn s80_retry_receipt_fold_retains_all_calls_without_second_debit() {
     assert_eq!(split.unknown_calls(), Some(1));
     assert_eq!(spend_for_calls(&split.inference_calls).0, Some(0.05));
 }
+
+#[test]
+fn a_harness_session_model_is_reported_with_provenance_never_served_or_priced() {
+    use nika_kernel::ai::harness::ModelProvenance;
+    for (source, spelled) in [
+        (Some(ModelProvenance::SessionConfig), "session_config"),
+        (
+            Some(ModelProvenance::ConfirmedSelection),
+            "confirmed_selection",
+        ),
+        (Some(ModelProvenance::AcceptedRequest), "accepted_request"),
+        (None, "unspecified"),
+    ] {
+        let mut out = nika_verb_agent::AgentOutput::new(
+            nika_verb_agent::AgentValue::Text("done".into()),
+            nika_kernel::runtime::agent::AgentStopReason::Completed,
+            1,
+            0,
+        );
+        out.model_reported = Some("gpt-selected".into());
+        out.model_reported_source = source;
+        let dispatched = super::super::verb_outcome::agent_success(out, None);
+        let Ok(ok) = dispatched.result else {
+            panic!("success");
+        };
+        assert_eq!(ok.cost_usd, None, "a subscription seat is never priced");
+        assert_eq!(
+            ok.cost_unpriced,
+            Some(nika_types::cost::UnpricedReason::SubscriptionQuota)
+        );
+        assert_eq!(
+            ok.cost_source, None,
+            "the reported name is not a pricing key"
+        );
+        let split = ok
+            .usage
+            .as_deref()
+            .expect("the reported identity carries the split");
+        assert_eq!(split.model_served, None, "ACP attests no response model");
+        let mut fields = Vec::new();
+        push_usage_fields(&mut fields, Some(split));
+        let field = |name: &str| {
+            fields
+                .iter()
+                .find(|(key, _)| *key == name)
+                .map(|(_, v)| v.clone())
+        };
+        assert_eq!(field("model_reported"), Some(crate::s("gpt-selected")));
+        assert_eq!(field("model_reported_source"), Some(crate::s(spelled)));
+        assert_eq!(field("model_served"), None);
+        assert_eq!(field("tokens_in"), None, "no invented zero meters");
+    }
+}

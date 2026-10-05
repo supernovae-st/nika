@@ -274,6 +274,36 @@ fn seated_infer_records_quota_without_any_numeric_meter_or_responder_claim() {
         ok.cost_unpriced,
         Some(nika_types::cost::UnpricedReason::SubscriptionQuota)
     );
+    // A harness's report of its model keeps the requested name and says it was
+    // reported: it never claims who answered, and no responder field or price.
+    let reported = super::verb_outcome::harness_infer_success(
+        "claude-code",
+        nika_verb_infer::HarnessInferOutput::new(
+            serde_json::Value::String("answer".to_owned()),
+            "anthropic/claude-sonnet-4-6",
+        )
+        .with_observed_model(Some("claude-fable-5-1".to_owned())),
+        None,
+    );
+    let note = &reported.note;
+    assert!(
+        note.contains("requested anthropic/claude-sonnet-4-6"),
+        "{note}"
+    );
+    assert!(note.contains("harness reported claude-fable-5-1"), "{note}");
+    assert!(
+        !note.contains("answered"),
+        "no response attestation: {note}"
+    );
+    let Ok(ok) = reported.result else {
+        panic!("the synthetic seated inference must succeed");
+    };
+    assert!(ok.usage.is_none(), "no model_served frame field");
+    assert_eq!((ok.cost_usd, ok.cost_source), (None, None));
+    assert_eq!(
+        ok.cost_unpriced,
+        Some(nika_types::cost::UnpricedReason::SubscriptionQuota)
+    );
 }
 
 /// #1025 — the exec jail derives `permits.fs` through `spec_of`: a

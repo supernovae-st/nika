@@ -113,6 +113,9 @@ pub enum EventKind {
     /// `budget` fields — the spend curve is observable while the loop
     /// runs, not just at its end).
     AgentBudgetCheckpoint,
+    /// One received harness image observation; bounded metadata, never inline bytes.
+    /// Task terminal `harness_media_count` closes the observation sequence.
+    AgentImageObserved,
     // ── additive cohort 2026-07-05 · ADR-099 durable-lite resume —
     //    the skip is VISIBLE, never silent. MINOR-bump additive per
     //    the header law. ──
@@ -238,6 +241,7 @@ impl EventKind {
             Self::AgentStalled => "agent_stalled",
             Self::AgentComposeChecked => "agent_compose_checked",
             Self::AgentBudgetCheckpoint => "agent_budget_checkpoint",
+            Self::AgentImageObserved => "agent_image_observed",
             Self::TaskCacheHit => "task_cache_hit",
             Self::WorkflowPaused => "workflow_paused",
             Self::RunSealed => "run_sealed",
@@ -329,7 +333,8 @@ impl EventKind {
             | Self::AgentNudge
             | Self::AgentStalled
             | Self::AgentComposeChecked
-            | Self::AgentBudgetCheckpoint => EventClass::Agent,
+            | Self::AgentBudgetCheckpoint
+            | Self::AgentImageObserved => EventClass::Agent,
         }
     }
 }
@@ -402,6 +407,7 @@ mod tests {
         EventKind::AgentStalled,
         EventKind::AgentComposeChecked,
         EventKind::AgentBudgetCheckpoint,
+        EventKind::AgentImageObserved,
         EventKind::TaskCacheHit,
         EventKind::WorkflowPaused,
         EventKind::RunSealed,
@@ -444,6 +450,7 @@ mod tests {
                 | EventKind::AgentStalled
                 | EventKind::AgentComposeChecked
                 | EventKind::AgentBudgetCheckpoint
+                | EventKind::AgentImageObserved
                 | EventKind::TaskCacheHit
                 | EventKind::WorkflowPaused
                 | EventKind::RunSealed
@@ -455,7 +462,7 @@ mod tests {
                 | EventKind::NotifyFailed => {}
             }
         }
-        assert_eq!(ALL.len(), 33, "extend ALL when a variant is added");
+        assert_eq!(ALL.len(), 34, "extend ALL when a variant is added");
     }
 
     /// FCI-003: the canonical wire slug has TWO independent encoders — the
@@ -558,6 +565,7 @@ mod tests {
             EventKind::AgentStalled,
             EventKind::AgentComposeChecked,
             EventKind::AgentBudgetCheckpoint,
+            EventKind::AgentImageObserved,
         ] {
             assert!(!k.is_terminal(), "{k:?} must not be terminal");
             assert!(!k.is_failure(), "{k:?} must not be a lifecycle failure");

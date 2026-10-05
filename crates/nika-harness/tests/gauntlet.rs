@@ -256,7 +256,7 @@ async fn g7_an_oversized_line_refuses_at_the_bound_never_an_oom() {
         "flood",
         &format!(
             "{HANDSHAKE}\n\
-             sys.stdout.write('{{\"jsonrpc\":\"2.0\",\"x\":\"' + 'A'*2000000 + '\"}}\\n')\n\
+             sys.stdout.write('{{\"jsonrpc\":\"2.0\",\"x\":\"' + 'A'*{MAX_LINE_BYTES}+'A' + '\"}}\\n')\n\
              sys.stdout.flush()\n"
         ),
     );
@@ -462,7 +462,7 @@ async fn g13_a_death_mid_ask_is_a_session_death_never_a_wedge() {
 /// lines, g7 had the flood with nothing in flight; their PRODUCT is
 /// the point (the same lesson g11 pinned for the accumulator). Fifty
 /// asks sit unanswered — their replies DROPPED, cancelled fail-closed
-/// — while one line over the 1 MiB bound rides in behind them. The
+/// — while one line over the transport bound rides in behind them. The
 /// bound must still kill the session with its own words, and the
 /// reply lane must never wedge the driver while the flood accumulates.
 #[tokio::test]
@@ -481,7 +481,7 @@ async fn g14_an_oversized_line_kills_the_session_even_with_fifty_asks_in_flight(
         "stormflood",
         &format!(
             "{HANDSHAKE}\n{asks}\n\
-             sys.stdout.write('{{\"jsonrpc\":\"2.0\",\"x\":\"' + 'A'*2000000 + '\"}}\\n')\n\
+             sys.stdout.write('{{\"jsonrpc\":\"2.0\",\"x\":\"' + 'A'*{MAX_LINE_BYTES}+'A' + '\"}}\\n')\n\
              sys.stdout.flush()\n"
         ),
     );

@@ -23,7 +23,7 @@ use std::task::{Context, Poll};
 use futures_core::Stream;
 use nika_kernel::ai::harness::{
     HarnessError, HarnessEvent, HarnessEventStream, HarnessOutcome, HarnessRequest,
-    PermissionDecision, PermissionReply,
+    ModelProvenance, PermissionDecision, PermissionReply,
 };
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
@@ -37,23 +37,12 @@ use crate::wire::{
 /// One incoming line may not exceed this (bounded reads · spec §4): a
 /// hostile or broken peer overflows into a refusal, never an OOM.
 ///
-/// **This is a TRANSPORT bound and it is not the forensics decode
-/// grain**, even though both are 1 MiB today. It guards one line off a
-/// live wire from a peer this process is talking to; `nika_dap`'s
-/// `bounded::MAX_ARTIFACT_BYTES` guards a stored artifact a verifier
-/// reads whole. Two readers, two threat models, two bounds that happen
-/// to agree on a number.
-///
-/// Do not "de-duplicate" them onto one constant. A grep finds three
-/// `1024 * 1024` in this tree and reads like a single value restated
-/// three times; it is not (measured 2026-08-13 · nika-spec
-/// `conformance/FINDINGS.md` F-4). Aliasing this to a forensics
-/// constant would couple a wire protocol to a decoder, so raising one
-/// bound would move the other for no stated reason — the coupling
-/// costs more than the repetition. The one real duplicate is
-/// `nika-registry-client`'s own artifact bound, which shares this
-/// crate's number *and* `nika-dap`'s meaning.
-pub const MAX_LINE_BYTES: usize = 1024 * 1024;
+/// This TRANSPORT bound is separate from the unchanged 1 MiB forensics grain.
+/// Codex ACP repeats a native image's base64 in content and rawOutput. Eighteen
+/// MiB allows two copies of the 8 MiB image budget plus protocol metadata. The
+/// verb stores decoded bytes in `BlobStore`; journal/trace lines keep only metadata.
+/// Never alias this bound to a forensic decoder's limit.
+pub const MAX_LINE_BYTES: usize = 18 * 1024 * 1024;
 
 /// How long the driver waits for the NEXT byte before calling the
 /// session dead. A size bound alone leaves the wedge the refuter
@@ -108,8 +97,11 @@ where
             idle,
             pending: Vec::new(),
             observed_model: None,
+            observed_source: None,
+            media: crate::media::MediaState::default(),
         };
         if let Err(e) = driver.run(request).await {
+            let e = driver.media.no_replay(e);
             // The stream may already be dropped — best-effort final word.
             let _ = driver.event_tx.send(Err(e)).await;
         }
@@ -140,6 +132,10 @@ struct Driver<R, W> {
     /// The model the session serves, as the agent itself stated it (the current value of its
     /// model option, or the one it accepted): the outcome's observed model.
     observed_model: Option<String>,
+    /// How `observed_model` was learned: a selection or a configuration, never a
+    /// response attestation (ACP prompt results name no model).
+    observed_source: Option<ModelProvenance>,
+    media: crate::media::MediaState,
 }
 
 impl<R, W> Driver<R, W>
@@ -219,6 +215,7 @@ where
                     })? {
                         Incoming::Response { id: ID_PROMPT, result } => {
                             let done: PromptResult = parse_payload(result, "session/prompt")?;
+                            self.media.check_stop(&done.stop_reason)?;
                             let outcome = self.close_turn(&done, request);
                             let _ = self
                                 .event_tx
@@ -267,6 +264,20 @@ where
         let update: SessionUpdateParams = parse_payload(params, "session/update")?;
         if update.session_id != session_id {
             return Ok(()); // another session's beat — observed, never ours
+        }
+        if let Some(tool_call_id) = self.media.starting(&update.update) {
+            let _ = self
+                .event_tx
+                .send(Ok(HarnessEvent::ImageActivityObserved { tool_call_id }))
+                .await;
+        }
+        if let Some(image) = self.media.observe(&update.update)? {
+            let _ = self
+                .event_tx
+                .send(Ok(HarnessEvent::ImageObserved {
+                    image: Box::new(image),
+                }))
+                .await;
         }
         if let Some(text) = wire::agent_chunk_text(&update.update) {
             self.output.push_str(&text);
@@ -330,7 +341,15 @@ where
         let _ = request;
         let _ = &done.stop_reason;
         outcome.observed_model = self.observed_model.take();
+        outcome.observed_model_source = self.observed_source.take();
+        outcome.images = self.media.images();
         outcome
+    }
+
+    /// Record the session model and how it was learned (never a response attestation).
+    fn observe(&mut self, model: Option<String>, source: ModelProvenance) {
+        self.observed_source = model.as_ref().map(|_| source);
+        self.observed_model = model;
     }
 
     /// Between `session/new` and the prompt: the model the workflow names must be one the agent
@@ -345,7 +364,8 @@ where
     ) -> Result<(), HarnessError> {
         let sid = session.session_id.clone();
         let model_option = seats::model_option(session.config_options.as_ref());
-        self.observed_model = seats::current_model(model_option, session.models.as_ref());
+        let current = seats::current_model(model_option, session.models.as_ref());
+        self.observe(current, ModelProvenance::SessionConfig);
         if let Some(wanted) = seats::wanted(request.requested_model.as_deref()) {
             if let Some((config_id, value)) = seats::offered_option(model_option, &wanted) {
                 self.send_request(
@@ -364,8 +384,9 @@ where
                 // ACP returns an object containing the complete configuration, not the
                 // array itself. Never recycle session/new's stale currentValue or promote
                 // the requested value into an observation when the peer did not confirm it.
-                self.observed_model =
+                let confirmed =
                     seats::current_model(seats::model_option(answered.get("configOptions")), None);
+                self.observe(confirmed, ModelProvenance::ConfirmedSelection);
                 if self.observed_model.as_deref() != value.as_str() || self.observed_model.is_none()
                 {
                     return Err(HarnessError::Refused {
@@ -387,7 +408,7 @@ where
                 let _: Value = self
                     .await_response(ID_SESSION_SEAT, "session/set_model")
                     .await?;
-                self.observed_model = Some(model_id);
+                self.observe(Some(model_id), ModelProvenance::AcceptedRequest);
             } else {
                 return Err(HarnessError::Refused {
                     reason: format!(
@@ -1025,10 +1046,11 @@ mod tests {
         );
         let (_, outcome) = collect(stream).await;
         agent.await.expect("scripted agent completes");
+        let o = outcome.expect("completed");
+        let seen = (o.observed_model.as_deref(), o.observed_model_source);
         assert_eq!(
-            outcome.expect("completed").observed_model.as_deref(),
-            Some("k3-256k"),
-            "the accepted model is the observed one"
+            seen,
+            (Some("k3-256k"), Some(ModelProvenance::ConfirmedSelection))
         );
     }
 
@@ -1099,10 +1121,9 @@ mod tests {
         );
         let (_, outcome) = collect(stream).await;
         agent.await.expect("scripted agent completes");
-        assert_eq!(
-            outcome.expect("completed").observed_model.as_deref(),
-            Some("k3")
-        );
+        let o = outcome.expect("completed");
+        let seen = (o.observed_model.as_deref(), o.observed_model_source);
+        assert_eq!(seen, (Some("k3"), Some(ModelProvenance::SessionConfig)));
     }
 
     #[tokio::test]
@@ -1147,10 +1168,9 @@ mod tests {
         );
         let (_, outcome) = collect(stream).await;
         agent.await.expect("scripted agent completes");
-        assert_eq!(
-            outcome.expect("completed").observed_model.as_deref(),
-            Some("opus")
-        );
+        let o = outcome.expect("completed"); // set_model echoes nothing: accepted, not attested
+        let seen = (o.observed_model.as_deref(), o.observed_model_source);
+        assert_eq!(seen, (Some("opus"), Some(ModelProvenance::AcceptedRequest)));
     }
 
     #[test]
@@ -1468,3 +1488,6 @@ mod wedge_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod media_bound_tests;

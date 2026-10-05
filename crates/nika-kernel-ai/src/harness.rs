@@ -135,6 +135,16 @@ pub enum HarnessEvent {
         /// The text delta.
         text: String,
     },
+    /// The peer reported image-generation activity; this does not grant permission.
+    ImageActivityObserved {
+        /// The peer-local operation id.
+        tool_call_id: String,
+    },
+    /// Image evidence received from a harness; never permission or a verified file.
+    ImageObserved {
+        /// The peer-reported payload and path.
+        image: Box<HarnessImage>,
+    },
     /// The harness asked to do something — the QUESTION verbatim plus
     /// the reply lane. The engine answers (permits bridge · B5); an
     /// unanswered drop reads as [`PermissionDecision::Deny`] fail-closed.
@@ -177,6 +187,11 @@ pub struct HarnessOutcome {
     /// The model identity the harness REPORTED, when observable —
     /// recorded beside `requested_model`, never reconciled silently.
     pub observed_model: Option<String>,
+    /// How `observed_model` was learned. `None` = unspecified, which is never
+    /// treated as a response attestation.
+    pub observed_model_source: Option<ModelProvenance>,
+    /// Images received during this turn; paths are peer claims, never opened here.
+    pub images: Vec<HarnessImage>,
 }
 
 impl HarnessOutcome {
@@ -187,6 +202,8 @@ impl HarnessOutcome {
             output: output.into(),
             usage: None,
             observed_model: None,
+            observed_model_source: None,
+            images: Vec::new(),
         }
     }
 
@@ -202,6 +219,99 @@ impl HarnessOutcome {
     pub fn with_observed_model(mut self, model: impl Into<String>) -> Self {
         self.observed_model = Some(model.into());
         self
+    }
+}
+
+/// Where a harness-reported model identity comes from. None of these is an
+/// attestation that a response was produced by that model.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ModelProvenance {
+    /// The session's current model option, as the harness stated it at creation.
+    SessionConfig,
+    /// The current value the harness returned after the client selected a model.
+    ConfirmedSelection,
+    /// A model id the harness accepted without echoing a current value.
+    AcceptedRequest,
+}
+
+impl ModelProvenance {
+    /// The stable wire spelling.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::SessionConfig => "session_config",
+            Self::ConfirmedSelection => "confirmed_selection",
+            Self::AcceptedRequest => "accepted_request",
+        }
+    }
+}
+
+/// One terminal image result reported by an external harness. No file authority is implied.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct HarnessImage {
+    /// Correlates only within this delegated session, never across runs.
+    pub tool_call_id: String,
+    /// MIME declared with received bytes; absent for a path-only observation.
+    pub mime_type: Option<String>,
+    /// Received decoded bytes, transient until the verb persists them to its injected store.
+    pub data: Option<bytes::Bytes>,
+    /// Size of the bytes actually received; absent for a path-only report.
+    pub received_bytes: Option<u64>,
+    /// Local CAS metadata, only after the received bytes were successfully stored.
+    pub stored_blob: Option<nika_kernel_core::io::blob::BlobMetadata>,
+    /// Why storing the received bytes failed, when the store answered with a refusal.
+    /// With bytes, no blob and no failure, the storage outcome is unconfirmed.
+    pub storage_failure: Option<String>,
+    /// SHA-256 of received decoded bytes; not a digest of the reported file.
+    pub sha256: Option<String>,
+    /// The peer's savedPath claim. No file was opened or verified by the client.
+    pub reported_saved_path: Option<String>,
+}
+impl HarnessImage {
+    /// Start an observation with no bytes, MIME or file claim.
+    #[must_use]
+    pub fn new(tool_call_id: impl Into<String>) -> Self {
+        Self {
+            tool_call_id: tool_call_id.into(),
+            mime_type: None,
+            data: None,
+            received_bytes: None,
+            stored_blob: None,
+            storage_failure: None,
+            sha256: None,
+            reported_saved_path: None,
+        }
+    }
+
+    /// What happened to the received bytes: `none` (path-only report), `stored`,
+    /// `failed`, or `unconfirmed` (received, but no store answer was observed —
+    /// pending, or the operation was cancelled; a blob may or may not exist).
+    #[must_use]
+    pub fn storage(&self) -> &'static str {
+        match (
+            self.received_bytes,
+            &self.stored_blob,
+            &self.storage_failure,
+        ) {
+            (None, _, _) => "none",
+            (Some(_), Some(_), _) => "stored",
+            (Some(_), None, Some(_)) => "failed",
+            (Some(_), None, None) => "unconfirmed",
+        }
+    }
+    /// Additive receipt evidence, separate from a task's text output and authority.
+    #[must_use]
+    pub fn observation(&self) -> serde_json::Value {
+        serde_json::json!({"schema": "nika/harness-image-observation@1",
+            "source": "harness_reported", "tool_call_id": self.tool_call_id,
+            "mime_type": self.mime_type, "received_bytes": self.received_bytes,
+            "blob": self.stored_blob.as_ref().map(|blob| serde_json::json!({
+                "hash": blob.hash, "mime_type": blob.mime_type, "size": blob.size})),
+            "storage": self.storage(), "storage_failure": self.storage_failure,
+            "received_sha256": self.sha256, "reported_saved_path": self.reported_saved_path,
+            "file_verified": false, "permission_evidence": "separate permit_checked frames"})
     }
 }
 
