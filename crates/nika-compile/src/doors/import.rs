@@ -9,7 +9,7 @@
 //! the facts leave the destination, the new path or the copied write open, the revision asks ONE
 //! bounded choice among the exact paths, never guesses; its answer round decides with zero calls.
 //! The base's digest is the import's provenance, an answer round replays only on that very base
-//! ([`rebound`]), and the next revision binds the revised bytes with the words they answer.
+//! (`rebound`), and the next revision binds the revised bytes with the words they answer.
 
 use nika_compile_fidelity::sketch::import::{
     self,
