@@ -4,7 +4,7 @@
   charges, and stops on completion, no progress, a refused or failed call, or
   the human's Stop. Explicit bounded callers retain their limits; workflow
   budgets and the separate Save/Run permissions are unchanged.
-- **Keep decision-service usage separate from the author.** An explicitly
+  **Keep decision-service usage separate from the author.** An explicitly
   selected Jev seat can assist the existing typed compiler decisions under
   API or subscription authoring without an implicit three-call cap. Each
   compile closes its consultation scope; unanswered sends and unknown invoices
