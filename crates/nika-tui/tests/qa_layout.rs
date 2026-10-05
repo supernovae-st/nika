@@ -156,7 +156,7 @@ fn without_colour_no_hue_is_painted_and_the_marks_remain() {
 }
 
 /// With colour the gate and its prompt wear the warning slot and the busy
-/// marker the accent: the theme's ANSI-16 slots, never a named hue.
+/// marker the accent from the workspace RGB product palette.
 #[test]
 fn with_colour_the_gate_wears_the_warning_slot() {
     let mut term = Term::proto(&["--color"], 80, 24);
@@ -164,11 +164,11 @@ fn with_colour_the_gate_wears_the_warning_slot() {
     term.walk(&JOURNEY[..4]);
     let hues = term.screen.hues();
     assert!(
-        hues.contains("38;5;3"),
+        hues.contains("38;2;242;193;125"),
         "no warning hue at the gate: {hues:?}"
     );
     assert!(
-        hues.contains("38;5;6"),
+        hues.contains("38;2;140;177;255"),
         "no accent on the busy marker: {hues:?}"
     );
     leave(&mut term);
@@ -188,7 +188,7 @@ fn a_forced_colour_under_no_color_is_the_colour_the_terminal_sees() {
     term.walk(&JOURNEY[..4]);
     let hues = term.screen.hues();
     assert!(
-        hues.contains("38;5;3"),
+        hues.contains("38;2;242;193;125"),
         "no warning hue at the gate: {hues:?}"
     );
     leave(&mut term);

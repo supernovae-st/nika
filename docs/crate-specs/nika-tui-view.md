@@ -74,8 +74,8 @@ default) and says what it cut.
   tests are the only callers of `nika_cli_host::oracle::audit_source`, as the owner's stand-in,
   once per fixture.
 - A viewer takes its colour from a semantic role, through the crate's private `role::style`:
-  a copy of the renderer's own mapping, pinned by its test to the slot the CLI theme paints
-  (`nika_display::theme::Theme::paint`), as the renderer's copy is. Cards add a dark surface
+  a copy of the renderer's product RGB mapping, with both members pinned to the same palette
+  values. The CLI retains its terminal-theme colours. Cards add a dark surface
   background only with colour enabled; NO_COLOR retains borders and words. This crate never
   depends on `nika-tui`.
 - The renderer paints a `Rendered` in the workspace object region, preparing it when

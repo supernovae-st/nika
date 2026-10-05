@@ -490,7 +490,7 @@ fn bare_nika_opens_the_workspace_on_the_real_project() {
 #[test]
 fn every_face_of_the_selected_workflow_reads_the_same_bytes() {
     let rig = Rig::new("faces");
-    let mut term = rig.spawn("02-faces", 120, 36);
+    let mut term = rig.spawn("02-faces", 160, 36);
     wait_workspace(&mut term);
     let diamond = short_witness(DIAMOND.as_bytes());
     open_entry(&mut term, 1);
@@ -557,7 +557,7 @@ fn every_face_of_the_selected_workflow_reads_the_same_bytes() {
 #[test]
 fn changed_and_invalid_bytes_need_a_new_look() {
     let rig = Rig::new("stale");
-    let mut term = rig.spawn("03-stale", 120, 36);
+    let mut term = rig.spawn("03-stale", 160, 36);
     wait_workspace(&mut term);
     open_entry(&mut term, 2);
     term.wait_until("the single workflow", |s| s.contains("message: only"));
@@ -706,7 +706,7 @@ fn assert_renderer_ascii(shown: &str) {
     }
 }
 
-/// The right preview at 120 columns (21 navigation + 37 conversation).
+/// The right preview at 120 columns (21 navigation + 47 conversation).
 /// Count display cells: Unicode in the conversation must not shift the slice.
 fn right_preview(screen: &vt::Screen) -> Vec<String> {
     assert_eq!(screen.size().0, 120);
@@ -717,7 +717,7 @@ fn right_preview(screen: &vt::Screen) -> Vec<String> {
             let mut cells = 0;
             line.chars()
                 .skip_while(|c| {
-                    if cells >= 58 {
+                    if cells >= 68 {
                         return false;
                     }
                     cells += unicode_width::UnicodeWidthChar::width(*c).unwrap_or(0);
@@ -726,6 +726,15 @@ fn right_preview(screen: &vt::Screen) -> Vec<String> {
                 .collect()
         })
         .collect()
+}
+
+/// Read wrapped preview prose without including the adjacent conversation.
+fn preview_text(screen: &vt::Screen) -> String {
+    right_preview(screen)
+        .join(" ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// 6 · Words typed before the first frame land in the draft and are never
@@ -925,6 +934,7 @@ fn the_candidate_is_inspected_and_revised_before_a_separate_save() {
     });
     let shown = term.text();
     let a = shown_identity(&shown).expect("an identity is shown");
+    let preview = preview_text(&term.screen);
     for said in [
         "not saved",
         "creates compiled-workflow.nika",
@@ -932,7 +942,7 @@ fn the_candidate_is_inspected_and_revised_before_a_separate_save() {
         "rehearsal",
         "[graph]",
     ] {
-        assert!(shown.contains(said), "{said}\n{}", term.dump());
+        assert!(preview.contains(said), "{said}\n{}", term.dump());
     }
     assert_eq!(rig.tree(), before, "a proposal writes nothing");
     // The observed graph opens first. Read Source, then all the other faces;
@@ -1147,7 +1157,8 @@ fn a_run_result_its_file_and_proof_are_found_again_after_a_reopen() {
     let witness = captured(&again.text()).expect("the captured journal's witness");
     again.keys("\r");
     again.wait_until("one task, as its journal recorded it", |s| {
-        s.contains("task read_source") && s.contains("as its journal recorded it")
+        let preview = preview_text(s);
+        preview.contains("task read_source") && preview.contains("as its journal recorded it")
     });
     again.keys(BACKSPACE);
     again.keys(RIGHT);

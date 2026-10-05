@@ -1054,7 +1054,7 @@ mod tests {
         let wide = desk.drawn.as_ref().map(|d| d.key.4);
         desk.prepare((60, 18), true, false);
         let narrow = desk.drawn.as_ref().map(|d| d.key.4);
-        assert_eq!((wide, narrow), (Some(82), Some(60)));
+        assert_eq!((wide, narrow), (Some(69), Some(60)));
         let Object::Workflow { title, body } = desk.screen(false).object else {
             panic!("the look is in view");
         };
@@ -1209,10 +1209,7 @@ mod tests {
         };
         let rows: Vec<String> = body.iter().map(ToString::to_string).collect();
         assert!(rows.iter().any(|r| r.contains("a resumed leg")), "{rows:?}");
-        assert!(
-            rows.iter().any(|r| r.contains("2 lost on the way")),
-            "{rows:?}"
-        );
+        assert!(rows.join(" ").contains("2 lost on the way"), "{rows:?}");
     }
 
     /// The turn's result arrives after the child already queued its last

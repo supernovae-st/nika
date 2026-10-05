@@ -64,6 +64,42 @@ fn accent(color: bool) -> Style {
     }
 }
 
+/// An activity mark only while the Session reports work. The existing
+/// frame drives both the orbit and its accent; no frame means reduced
+/// motion, and a stale frame without `busy` never animates an idle view.
+pub(crate) fn activity_marker(state: &UiState) -> Option<Span<'static>> {
+    state.busy.as_ref()?;
+    let (glyph, tone) = match state.spinner {
+        Some(frame) => {
+            let frame = usize::from(frame);
+            let glyph = if state.ascii {
+                ASCII_SPINNER[frame % ASCII_SPINNER.len()]
+            } else {
+                SPINNER[frame % SPINNER.len()]
+            };
+            let tones = [Role::Accent, Role::VerbInvoke, Role::VerbAgent];
+            (glyph, tones[(frame / 3) % tones.len()])
+        }
+        None => (if state.ascii { '*' } else { '●' }, Role::Accent),
+    };
+    let style = if state.color {
+        role::style(tone, true).add_modifier(Modifier::BOLD)
+    } else {
+        accent(false)
+    };
+    Some(Span::styled(format!("{glyph} "), style))
+}
+
+/// A working phase can name a model and the last completed phase. Reserve
+/// enough rows to read those words rather than clipping them to one line.
+fn status_rows(state: &UiState, width: u16) -> u16 {
+    if state.busy.is_some() {
+        wrapped_rows(&[status_line(state)], width).min(3)
+    } else {
+        1
+    }
+}
+
 /// The lines of one block, the glyph on its first line only.
 #[must_use]
 pub fn block_lines(block: &Committed, color: bool, ascii: bool) -> Vec<Line<'static>> {
@@ -114,7 +150,7 @@ pub fn live_rows(state: &UiState, composer: &Composer, width: u16, height: u16) 
     let composer_rows = composer.rows(width.saturating_sub(prompt).max(8));
     let rail = u16::from(!state.rail.is_empty());
     let hint = wrapped_rows(&[hint_line(state)], width).min(3);
-    let rows = rail + 1 + composer_rows + hint;
+    let rows = rail + status_rows(state, width) + composer_rows + hint;
     rows.clamp(3, height.saturating_div(2).max(3))
 }
 
@@ -142,25 +178,27 @@ fn status_line(state: &UiState) -> Line<'static> {
             accent,
         ));
     }
-    if let Some(label) = &state.busy {
-        // The marker turns while a turn runs; still (●) under reduced motion.
-        let still = if state.ascii { "* " } else { "● " };
-        let marker = state.spinner.map_or_else(
-            || still.to_owned(),
-            |f| {
-                let f = usize::from(f);
-                let frame = if state.ascii {
-                    ASCII_SPINNER[f % ASCII_SPINNER.len()]
-                } else {
-                    SPINNER[f % SPINNER.len()]
-                };
-                format!("{frame} ")
-            },
-        );
-        Line::from(vec![
-            Span::styled(marker, accent),
-            Span::styled(label.clone(), dim),
-        ])
+    if let Some(marker) = activity_marker(state) {
+        let label = state.busy.as_deref().unwrap_or_default();
+        let mut spans = vec![marker];
+        for (index, phase) in label.split(" · ").enumerate() {
+            if index > 0 {
+                spans.push(Span::styled(own(" · ", state.ascii), dim));
+            }
+            let tone = if phase.starts_with("✓ ") {
+                Role::Good
+            } else if phase.starts_with("● ") {
+                Role::Accent
+            } else {
+                Role::Strong
+            };
+            // These are the Session's exact phase words, merely styled.
+            spans.push(Span::styled(
+                phase.to_owned(),
+                role::style(tone, state.color),
+            ));
+        }
+        Line::from(spans)
     } else if state.waiting == Waiting::Proposal {
         Line::styled(
             own("Save these changes · Run separately", state.ascii),
@@ -209,9 +247,11 @@ pub(crate) fn render_live(frame: &mut Frame<'_>, state: &UiState, composer: &Com
     let hint_rows = wrapped_rows(&[hint_line(state)], area.width)
         .min(3)
         .min(area.height.saturating_sub(rail_rows + 2).max(1));
+    let status_rows = status_rows(state, area.width)
+        .min(area.height.saturating_sub(rail_rows + hint_rows + 1).max(1));
     let [rail, status, input, hint] = Layout::vertical([
         Constraint::Length(rail_rows),
-        Constraint::Length(1),
+        Constraint::Length(status_rows),
         Constraint::Min(1),
         Constraint::Length(hint_rows),
     ])
@@ -219,7 +259,10 @@ pub(crate) fn render_live(frame: &mut Frame<'_>, state: &UiState, composer: &Com
     if rail_rows > 0 {
         frame.render_widget(Paragraph::new(rail_line(state)), rail);
     }
-    frame.render_widget(Paragraph::new(status_line(state)), status);
+    frame.render_widget(
+        Paragraph::new(status_line(state)).wrap(Wrap { trim: false }),
+        status,
+    );
     let prompt = state.waiting.prompt();
     let prompt_width = u16::try_from(prompt.chars().count()).unwrap_or(8);
     let [marker, editor] =
@@ -489,7 +532,7 @@ mod tests {
             assert_eq!(
                 buffer[(0, 0)].fg,
                 if color {
-                    ratatui::style::Color::Yellow
+                    ratatui::style::Color::Rgb(242, 193, 125)
                 } else {
                     ratatui::style::Color::Reset
                 }
@@ -567,5 +610,66 @@ mod tests {
             .map(|s| s.content.as_ref())
             .collect();
         assert_eq!(still, "* thinking");
+    }
+    #[test]
+    fn activity_marker_uses_native_frames_and_never_animates_idle() {
+        let mut state = UiState::new(Presentation::Workspace, true, (120, 40));
+        state.spinner = Some(3);
+        assert!(activity_marker(&state).is_none());
+        state.busy = Some("authoring".to_owned());
+        let cyan = activity_marker(&state).expect("an observed busy turn");
+        assert_eq!(cyan.content, "⠸ ");
+        assert_eq!(
+            cyan.style.fg,
+            Some(ratatui::style::Color::Rgb(106, 216, 226))
+        );
+        state.spinner = Some(6);
+        let purple = activity_marker(&state).expect("busy frame");
+        assert_ne!(cyan.content, purple.content);
+        assert_ne!(cyan.style.fg, purple.style.fg);
+        state.spinner = None;
+        let still = activity_marker(&state).expect("reduced motion");
+        assert_eq!(still.content, "● ");
+        assert_eq!(activity_marker(&state), Some(still));
+        state.ascii = true;
+        state.color = false;
+        for frame in 0..10 {
+            state.spinner = Some(frame);
+            let mark = activity_marker(&state).expect("ASCII busy marker");
+            assert!(mark.content.is_ascii());
+            assert_eq!(mark.style.fg, None);
+            assert_eq!(mark.style.bg, None);
+        }
+        state.busy = None;
+        state.waiting = Waiting::Gate;
+        assert!(activity_marker(&state).is_none());
+    }
+
+    #[test]
+    fn busy_phases_wrap_and_keep_the_model_visible() {
+        let composer = Composer::new();
+        for width in [37, 44, 50] {
+            let mut state = UiState::new(Presentation::Workspace, true, (width, 30));
+            state.busy = Some(
+                "✓ recorded 5 requirements · ● authoring · deepseek/deepseek-v4-pro · 3s"
+                    .to_owned(),
+            );
+            state.spinner = Some(3);
+            let rows = live_rows(&state, &composer, width, 30);
+            assert!(status_rows(&state, width) > 1);
+            assert!(status_rows(&state, width) <= 3);
+            let mut terminal = Terminal::new(TestBackend::new(width, rows)).expect("test terminal");
+            terminal
+                .draw(|frame| render_live(frame, &state, &composer, frame.area()))
+                .expect("draw");
+            let buffer = terminal.backend().buffer();
+            let words = (0..rows)
+                .map(|y| row(buffer, y))
+                .collect::<Vec<_>>()
+                .join(" ");
+            for fact in ["authoring", "deepseek/deepseek-v4-pro", "nika ›"] {
+                assert!(words.contains(fact), "width {width}: {words}");
+            }
+        }
     }
 }

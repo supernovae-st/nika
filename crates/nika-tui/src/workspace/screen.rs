@@ -12,7 +12,7 @@ use nika_display::theme::Role;
 use ratatui::Frame;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::text::Line;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use super::aside::{self, Aside};
@@ -24,7 +24,7 @@ use super::object::{self, Object, Paint};
 use super::pinned::{self, Pinned};
 use crate::composer::Composer;
 use crate::model::UiState;
-use crate::render::{live_rows, render_live, render_transcript};
+use crate::render::{activity_marker, live_rows, render_live, render_transcript};
 use crate::visual::role;
 
 /// Everything one workspace frame shows, as the Session projects it.
@@ -199,7 +199,7 @@ fn panel(
     let (ascii, color) = (paint.ascii, paint.color);
     let area = geometry.conversation;
     if !geometry.stacked {
-        // A left inset and the rule at the right edge, beside the preview.
+        // The rule follows a free gutter at the right edge, beside the preview.
         let [_, _, edge] = Layout::horizontal([
             Constraint::Length(1),
             Constraint::Min(1),
@@ -215,7 +215,20 @@ fn panel(
         );
     }
     let [title, transcript, context, bottom] = panel_areas(geometry, state, composer);
-    let heading = conversation::title(&screen.thread, title.width, ascii, color, geometry.stacked);
+    let marker = activity_marker(state);
+    let prefix = marker.as_ref().map_or(0, |mark| {
+        u16::try_from(mark.width() + 1).unwrap_or(u16::MAX)
+    });
+    let mut heading = conversation::title(
+        &screen.thread,
+        title.width.saturating_sub(prefix),
+        ascii,
+        color,
+        geometry.stacked,
+    );
+    if let Some(marker) = marker {
+        heading.spans.splice(0..0, [marker, Span::raw(" ")]);
+    }
     let heading = if focused == Region::Conversation {
         heading.style(
             ratatui::style::Style::default().add_modifier(ratatui::style::Modifier::UNDERLINED),
@@ -235,9 +248,14 @@ pub(crate) fn panel_areas(geometry: &Geometry, state: &UiState, composer: &Compo
     let area = if geometry.stacked {
         geometry.conversation
     } else {
-        geometry
-            .conversation
-            .inner(ratatui::layout::Margin::new(1, 0))
+        // One left inset, then the content, a free gutter and the separator.
+        let region = geometry.conversation;
+        Rect::new(
+            region.x + 1,
+            region.y,
+            region.width.saturating_sub(3),
+            region.height,
+        )
     };
     let live = live_rows(state, composer, area.width, area.height.saturating_sub(2));
     Layout::vertical([
@@ -423,13 +441,61 @@ mod tests {
             },
             &Focus::composing(),
         );
-        let middle: String = rows[2].chars().skip(21).take(37).collect();
-        let right: String = rows[2].chars().skip(58).collect();
+        let middle: String = rows[2].chars().skip(21).take(47).collect();
+        let right: String = rows[2].chars().skip(68).collect();
         assert!(middle.contains("release checklist"), "{middle}");
         assert!(right.contains("release.nika"), "{right}");
-        assert_eq!(buffer[(22, 2)].fg, ratatui::style::Color::Cyan);
+        assert_eq!(
+            buffer[(22, 2)].fg,
+            role::style(Role::Accent, true)
+                .fg
+                .expect("accent foreground")
+        );
+        let geometry = Geometry::of(Rect::new(0, 0, 120, 40), true).expect("fits");
+        let conversation = geometry.conversation;
+        let gutter = geometry.object.x - 2;
+        assert!(
+            (conversation.y..conversation.bottom()).all(|y| buffer[(gutter, y)].symbol() == " ")
+        );
+        assert!(
+            (conversation.y..conversation.bottom())
+                .any(|y| buffer[(gutter - 1, y)].symbol() == "╯")
+        );
         let (_, _, plain) = draw_focused(&view, 120, 40, paint(false), &Focus::composing());
         assert_eq!(plain[(22, 2)].fg, ratatui::style::Color::Reset);
+    }
+
+    #[test]
+    fn a_busy_conversation_marks_its_title_and_returns_to_idle() {
+        let view = screen(welcome());
+        let mut state = UiState::new(Presentation::Workspace, true, (120, 40));
+        let composer = Composer::new();
+        let geometry = Geometry::of(Rect::new(0, 0, 120, 40), true).expect("fits");
+        let title = panel_areas(&geometry, &state, &composer)[0];
+        let mut terminal = Terminal::new(TestBackend::new(120, 40)).expect("terminal");
+        let paint = Paint {
+            color: true,
+            ..paint(false)
+        };
+        for working in [true, false] {
+            state.busy = working.then(|| "DeepSeek is working".to_owned());
+            state.spinner = working.then_some(1);
+            terminal
+                .draw(|frame| {
+                    draw(frame, &view, paint, &Focus::composing(), &state, &composer);
+                })
+                .expect("draw");
+            let buffer = terminal.backend().buffer();
+            let text: String = (title.x..title.right())
+                .map(|x| buffer[(x, title.y)].symbol())
+                .collect();
+            assert!(text.contains("release checklist"), "{text}");
+            if let Some(marker) = activity_marker(&state) {
+                assert!(text.starts_with(marker.content.as_ref()), "{text}");
+            } else {
+                assert!(text.starts_with("◌ "), "{text}");
+            }
+        }
     }
 
     #[test]

@@ -194,9 +194,9 @@ impl LiveRun {
         let (sep, cut) = marks(canvas.ascii);
         let cells = usize::from(canvas.width);
         let head = format!(
-            "{}{sep}child {}{sep}Backspace: back",
-            self.head(canvas.ascii),
-            view.relation.target
+            "Backspace: back{sep}child {}{sep}{}",
+            view.relation.target,
+            self.head(canvas.ascii)
         );
         let title = Line::from(Span::styled(
             fit_head(&head, cells, cut),

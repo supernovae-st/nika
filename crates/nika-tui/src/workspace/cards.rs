@@ -9,6 +9,9 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
 use ratatui::widgets::{Paragraph, Wrap};
+use unicode_width::UnicodeWidthStr;
+
+use super::text::fit_head;
 
 use crate::model::{Committed, Kind, UiState};
 use crate::render::{block_lines, wrapped_rows};
@@ -33,11 +36,10 @@ pub(crate) fn render(frame: &mut Frame<'_>, state: &UiState, area: Rect) {
     if area.is_empty() {
         return;
     }
-    if area.height < 6 || area.width < 4 {
+    let Some(width) = body_width(area) else {
         compact(frame, state, area);
         return;
-    }
-    let width = area.width.saturating_sub(3).max(1);
+    };
     let cards: Vec<_> = state
         .transcript
         .iter()
@@ -85,24 +87,29 @@ pub(crate) fn render(frame: &mut Frame<'_>, state: &UiState, area: Rect) {
 
 /// Total rendered rows, using the same widths and compact fallback as painting.
 pub(crate) fn height(state: &UiState, area: Rect) -> usize {
-    if area.height < 6 || area.width < 4 {
+    let Some(width) = body_width(area) else {
         let lines: Vec<_> = state
             .transcript
             .iter()
             .flat_map(|block| block_lines(block, state.color, state.ascii))
             .collect();
         return usize::from(wrapped_rows(&lines, area.width));
-    }
+    };
     state
         .transcript
         .iter()
         .map(|block| {
             usize::from(wrapped_rows(
                 &block_lines(block, state.color, state.ascii),
-                area.width.saturating_sub(3),
+                width,
             )) + 3
         })
         .sum()
+}
+
+/// The same two borders and two padding cells bound measurement and painting.
+fn body_width(area: Rect) -> Option<u16> {
+    (area.height >= 6 && area.width >= 6).then(|| area.width - 4)
 }
 
 /// In a short split, every row belongs to the question or answer, not chrome.
@@ -141,15 +148,16 @@ fn paint(
     );
     let (label, tone) = heading(block.kind);
     let style = role::style(tone, state.color);
-    let (top, edge, bottom, rule) = if state.ascii {
-        ("+-", "|", "+-", "-")
+    let (top, top_end, edge, bottom, bottom_end, rule, cut) = if state.ascii {
+        ("+-", "+", "|", "+", "+", "-", "...")
     } else {
-        ("╭─", "│", "╰─", "─")
+        ("╭─", "╮", "│", "╰", "╯", "─", "…")
     };
     if offset == 0 {
+        let label = fit_head(label, usize::from(area.width).saturating_sub(5), cut);
         let title = format!(
-            "{top} {label} {}",
-            rule.repeat(usize::from(area.width).saturating_sub(label.len() + 4))
+            "{top} {label} {}{top_end}",
+            rule.repeat(usize::from(area.width).saturating_sub(label.width() + 5))
         );
         frame.render_widget(
             Paragraph::new(Line::styled(title, style)),
@@ -162,7 +170,7 @@ fn paint(
         let body = Rect::new(
             area.x + 2,
             area.y + first - offset,
-            area.width.saturating_sub(3),
+            area.width.saturating_sub(4),
             last - first,
         );
         frame.render_widget(
@@ -173,12 +181,15 @@ fn paint(
         );
         for y in body.y..body.bottom() {
             frame.buffer_mut().set_string(area.x, y, edge, style);
+            frame
+                .buffer_mut()
+                .set_string(area.right() - 1, y, edge, style);
         }
     }
     let foot = rows.saturating_add(1);
     if foot >= offset && foot < offset.saturating_add(area.height) {
         let line = format!(
-            "{bottom}{}",
+            "{bottom}{}{bottom_end}",
             rule.repeat(usize::from(area.width).saturating_sub(2))
         );
         frame.render_widget(
@@ -194,6 +205,74 @@ mod tests {
     use super::*;
     use crate::model::Presentation;
     use ratatui::{Terminal, backend::TestBackend};
+
+    #[test]
+    fn complete_cards_keep_both_borders_and_padding_at_every_width() {
+        for ascii in [false, true] {
+            for width in [6, 12, 22, 44, 72] {
+                let mut state = UiState::new(Presentation::Workspace, true, (width, 8));
+                state.ascii = ascii;
+                state.transcript.push(Committed::new(Kind::Proposal, "ok"));
+                let mut terminal = Terminal::new(TestBackend::new(width, 8)).expect("terminal");
+                terminal
+                    .draw(|frame| render(frame, &state, frame.area()))
+                    .expect("draw");
+                let buffer = terminal.backend().buffer();
+                assert_eq!(
+                    buffer[(width - 1, 0)].symbol(),
+                    if ascii { "+" } else { "╮" }
+                );
+                assert_eq!(
+                    buffer[(width - 1, 1)].symbol(),
+                    if ascii { "|" } else { "│" }
+                );
+                assert_eq!(
+                    buffer[(width - 1, 2)].symbol(),
+                    if ascii { "+" } else { "╯" }
+                );
+                assert_eq!(buffer[(1, 1)].symbol(), " ");
+                assert_eq!(buffer[(width - 2, 1)].symbol(), " ");
+                assert_eq!(buffer[(2, 1)].symbol(), "o");
+                assert_eq!(buffer[(3, 1)].symbol(), "k");
+            }
+        }
+    }
+
+    #[test]
+    fn wrapped_card_rows_remain_reachable_with_both_borders() {
+        let area = Rect::new(0, 0, 20, 6);
+        let mut state = UiState::new(Presentation::Workspace, false, (20, 6));
+        state.transcript.push(Committed::new(
+            Kind::Reply,
+            "12345678901234567\n".repeat(8) + "last row",
+        ));
+        assert_eq!(
+            height(&state, area),
+            20,
+            "17 cells wrap into the 16-cell body"
+        );
+        let mut terminal = Terminal::new(TestBackend::new(20, 6)).expect("terminal");
+        let mut saw_first = false;
+        let mut saw_last = false;
+        for scroll in 0..=height(&state, area) - usize::from(area.height) {
+            state.focus_scroll = scroll;
+            terminal
+                .draw(|frame| render(frame, &state, area))
+                .expect("draw");
+            let buffer = terminal.backend().buffer();
+            let rows: Vec<String> = (0..6)
+                .map(|y| (0..20).map(|x| buffer[(x, y)].symbol()).collect())
+                .collect();
+            saw_first |= rows[0].contains("Nika");
+            saw_last |= rows.iter().any(|row| row.contains("last row"));
+            for y in 0..6 {
+                if buffer[(0, y)].symbol() == "│" {
+                    assert_eq!(buffer[(19, y)].symbol(), "│");
+                }
+            }
+        }
+        assert!(saw_first && saw_last, "both ends stay reachable");
+    }
 
     #[test]
     fn a_clipped_card_keeps_the_end_and_scrolling_reveals_the_previous_turn() {

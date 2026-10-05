@@ -219,10 +219,10 @@ fn a_static_plan_keeps_the_verbs_in_the_surrounding_ink() {
                 !matches!(
                     span.style.fg,
                     Some(
-                        Color::LightBlue
-                            | Color::LightYellow
-                            | Color::LightCyan
-                            | Color::LightMagenta
+                        Color::Rgb(140, 177, 255)
+                            | Color::Rgb(242, 193, 125)
+                            | Color::Rgb(106, 216, 226)
+                            | Color::Rgb(194, 163, 242)
                     )
                 ),
                 "{face:?}: a verb hue on a static face: {span:?}"
@@ -557,14 +557,14 @@ fn graph_cards_share_definition_and_observed_states_without_inventing_activity()
             .lines
             .iter()
             .flat_map(|line| &line.spans)
-            .any(|span| span.style.fg == Some(Color::LightCyan))
+            .any(|span| span.style.fg == Some(Color::Rgb(106, 216, 226)))
     );
     assert!(
         !definition
             .lines
             .iter()
             .flat_map(|line| &line.spans)
-            .any(|span| span.style.fg == Some(Color::Green))
+            .any(|span| span.style.fg == Some(Color::Rgb(123, 210, 167)))
     );
     let observed = crate::graph_cards(&owner.doc, &owner.audit.report.waves, canvas, &|id| {
         (id == "source").then(|| {
@@ -582,7 +582,7 @@ fn graph_cards_share_definition_and_observed_states_without_inventing_activity()
             .lines
             .iter()
             .flat_map(|line| &line.spans)
-            .any(|span| span.style.fg == Some(Color::Green))
+            .any(|span| span.style.fg == Some(Color::Rgb(123, 210, 167)))
     );
     assert!(
         observed

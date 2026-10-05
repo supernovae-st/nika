@@ -40,17 +40,17 @@ become typed beats, and the CLI door injects the runners. The
 
 ## 2. The semantic layer becomes enforceable here
 
-The known hole in the porting map (§4) closes in this crate, without a second
-palette: the roles are the engine's closed set, `nika_display::theme::Role`
-(the accent, the three verdicts, dim, strong and the four verb chips), and
-`visual::role::style` resolves each at paint time to the Ratatui colour of the
-same ANSI-16 slot the CLI frames paint (a test pins the ten slots to the
-theme's own SGR codes). Hues stay the user's terminal theme's; without colour
-no role carries a hue, and dim and strong remain weights. The renderer's block
-faces, status marker and prompt marker ask for a role, never a colour: the busy
-marker wears the accent (cyan), a gate or a proposal the warning slot, a
-refusal the failure slot. The studio's palette-extent gate and the board roles
-(`BarWork`, `BarIdle`, `BarCritical`) arrive with the board.
+The roles remain the engine's closed set, `nika_display::theme::Role`
+(the accent, the three verdicts, dim, strong and the four verb chips).
+`visual::role::style` resolves them to the workspace's RGB product palette:
+blue activity, green success, amber attention, red failure, and readable
+secondary text. The viewer member pins the same RGB values. The CLI retains
+its terminal-theme palette. Under `NO_COLOR` no role carries a hue; dim and
+strong remain weights. Roles and words still carry meaning without colour.
+The existing 100ms busy tick drives the native orbit and its blue/cyan/purple
+accent only while work is active. Reduced motion keeps a still marker; idle
+views do not animate. A working phase may occupy up to three wrapped rows so
+its model and completed phase remain visible without an invented percentage.
 
 The rest of the visual vocabulary (`visual`, task T-nika-tui-assets) is the
 same kind of borrowing:

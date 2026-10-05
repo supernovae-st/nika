@@ -20,7 +20,7 @@
 //! - the workflow in view ([`workflow()`] with a [`Face`]): its source with
 //!   verb-aware highlighting, its plan in run order
 //!   (`nika_session::review::plan_lines_in_order`), its graph
-//!   (shared [`graph_cards`], over the supplied canonical projection) and
+//!   (shared [`graph_cards()`], over the supplied canonical projection) and
 //!   its check, the layers and every finding with its code, from typed
 //!   facts their owner computed and handed over as a [`Workflow`] (the
 //!   view never audits, judges or reads a permit);
