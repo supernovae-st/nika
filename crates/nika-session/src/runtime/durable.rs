@@ -65,6 +65,10 @@ impl SessionRuntime {
             decisions: history.state.decisions.clone(),
             unresolved: history.state.unresolved.clone(),
         });
+        self.programs.clone_from(&history.state.programs);
+        self.last_workflow =
+            nika_onboard::compile::program_records::last_saved(self.programs.as_ref())
+                .map(PathBuf::from);
         self.recent.clone_from(&history.state.recent);
         self.kept_run.clone_from(&history.state.last_run);
         self.restored_draft = history.state.pending.clone().map(Restored::from_raw);
@@ -227,6 +231,35 @@ impl SessionRuntime {
         self.keep_state(outcome)
     }
 
+    fn restore_checkpoint(&mut self, checkpoint: Option<&serde_json::Value>, notice: &mut String) {
+        if let (Some(raw), HistoryMode::Active(history)) = (checkpoint, &self.history)
+            && self.money.account.is_none()
+            && !history.uncertain
+            && history.state.inference_checkpoint.as_ref() == Some(raw)
+            && !self
+                .intent
+                .decisions
+                .iter()
+                .any(|d| d.starts_with(DISPATCH_PREFIX))
+            && let Ok(project) = self.snapshot.root.canonicalize()
+        {
+            match nika_providers::InferenceAdmission::from_checkpoint(
+                raw,
+                project.as_os_str().as_encoded_bytes(),
+            ) {
+                Ok((account, observed)) if self.unknown_cost.observations.contains(&observed) => {
+                    self.unknown_cost.observations.retain(|o| o != &observed);
+                    self.money.account = Some(account);
+                    notice.push_str("\nnumeric inference ledger restored closed; confirm a new TOTAL Session ceiling; prior expenses and reservations remain");
+                }
+                Ok(_) => notice.push_str("\nledger refused: project cost observation differs"),
+                Err(error) => {
+                    let _ = write!(notice, "\nledger refused: {error}");
+                }
+            }
+        }
+    }
+
     /// The project's structured record, read at open (#1464) — after
     /// [`Self::enable_history`] when the door keeps one: the record wins
     /// over the transcript's ordinary goal/decisions/questions (the transcript
@@ -258,6 +291,8 @@ impl SessionRuntime {
         {
             self.money.reconfirm = true;
         }
+        let checkpoint = state.inference_checkpoint;
+        self.money.reconfirm |= checkpoint.is_some();
         let expired = self.restore_intent(IntentDraft {
             goal: state.goal,
             decisions: state.decisions,
@@ -268,6 +303,7 @@ impl SessionRuntime {
             state.updated_at
         );
         notice.push_str(&expired);
+        self.restore_checkpoint(checkpoint.as_ref(), &mut notice);
         for line in self
             .intent
             .decisions
@@ -492,6 +528,7 @@ impl SessionRuntime {
         let redact = |s: &String| crate::broker::redact(s).0;
         let mut state = SessionState::new(now_rfc3339());
         state.inference_observations = self.cost_observations();
+        state.inference_checkpoint = self.account_checkpoint();
         state.goal = self.intent.goal.as_ref().map(redact);
         state.decisions = self.saved_decisions();
         state.unresolved = self.intent.unresolved.iter().map(redact).collect();
@@ -607,6 +644,11 @@ impl SessionRuntime {
         } else {
             AuthorityState::None
         };
+        if self.money.account.is_some()
+            && let Err(error) = self.save_cost_state()
+        {
+            return self.history_failed(error);
+        }
         let evidence = outcome_kind(&outcome).to_owned();
         if let Err(error) =
             history.complete(self.saved_conversation(), run, authority, evidence, effect)
@@ -640,6 +682,21 @@ impl SessionRuntime {
         decisions
     }
 
+    fn account_checkpoint(&self) -> Option<serde_json::Value> {
+        let account = self.money.account.as_ref()?;
+        let result = self
+            .snapshot
+            .root
+            .canonicalize()
+            .map_err(|e| e.to_string())
+            .and_then(|root| {
+                account
+                    .checkpoint(root.as_os_str().as_encoded_bytes())
+                    .map_err(|e| e.to_string())
+            });
+        Some(result.unwrap_or_else(serde_json::Value::String))
+    }
+
     fn saved_conversation(&self) -> Saved {
         let redact = |s: &String| crate::broker::redact(s).0;
         Saved {
@@ -658,6 +715,8 @@ impl SessionRuntime {
                 .and_then(|set| draft::capture(&self.proposal_id(set), set))
                 .or_else(|| self.restored_draft.as_ref().map(|r| r.raw().clone())),
             round: self.round_to_keep(),
+            programs: self.programs.clone(),
+            inference_checkpoint: self.account_checkpoint(),
             last_run: self.kept_run.clone(),
         }
     }

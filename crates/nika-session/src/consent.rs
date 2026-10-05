@@ -166,6 +166,7 @@ mod tests {
                 workflow: PathBuf::from("brief.nika"),
                 vars: Vec::new(),
                 max_cost_usd: 0.05,
+                access_pin: None,
             }),
             repairs: Vec::new(),
             audits: Vec::new(),

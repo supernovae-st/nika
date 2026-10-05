@@ -25,11 +25,11 @@ pub(super) enum Result {
     Stop(String),
 }
 
-/// The same decision beside its structured, source-bound report.
+/// The decision on a checked report (its structured, source-bound report is journaled in
+/// `records`).
 #[derive(Clone, Debug)]
 pub(super) struct Verdict {
     pub result: Result,
-    pub record: Value,
 }
 
 /// A last accepted report from this invocation, never a persisted cache.
@@ -98,7 +98,6 @@ impl<'a> Rehearsals<'a> {
         if !self.offered() {
             return Verdict {
                 result: Result::Proceed,
-                record: Value::Null,
             };
         }
         let (inputs, targets) = match effective_paths(request, out) {
@@ -106,7 +105,6 @@ impl<'a> Rehearsals<'a> {
             Err(why) => {
                 return Verdict {
                     result: Result::Stop(why),
-                    record: Value::Null,
                 };
             }
         };
@@ -127,7 +125,6 @@ impl<'a> Rehearsals<'a> {
         let Some(host) = self.host else {
             return Verdict {
                 result: Result::Proceed,
-                record: Value::Null,
             };
         };
         let bound = host.bound();
@@ -140,11 +137,8 @@ impl<'a> Rehearsals<'a> {
         let entry = record::report(&report, bound, &run, &result);
         let spent_before = self.usage;
         self.usage = self.usage.plus(&run.usage);
-        self.records.push(entry.clone());
-        let verdict = Verdict {
-            result,
-            record: entry,
-        };
+        self.records.push(entry);
+        let verdict = Verdict { result };
         self.last = Some(Checked {
             candidate: candidate.to_owned(),
             inputs,
@@ -217,7 +211,6 @@ impl<'a> Rehearsals<'a> {
                 }
                 Err(why) => Verdict {
                     result: Result::Stop(why),
-                    record: Value::Null,
                 },
             };
             match verdict.result {

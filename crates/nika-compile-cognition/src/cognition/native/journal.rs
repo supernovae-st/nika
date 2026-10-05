@@ -5,7 +5,6 @@
 //! the record of the whole conversation and the line a human reads. Data, never authority.
 
 use super::{Answer, Cold, Talk, knowledge};
-use crate::fidelity::Diagnostic;
 use crate::{CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind};
 use serde_json::{Value, json};
 
@@ -22,35 +21,6 @@ pub(super) fn cold_report(out: &CompileOutcome) -> Value {
         "questions": out.questions.iter().map(|q| q.key.clone()).collect::<Vec<_>>(),
         "diagnostics": out.diagnostics.iter().filter(|d| d.kind != DiagnosticKind::Applied).map(|d| d.message.clone()).collect::<Vec<_>>(),
     })
-}
-
-/// One judged round: the candidate by digest and in full, what the seat asked and left out, the
-/// judge's diagnostics, and both texts of a dual answer apart from the judged source. The seat's
-/// notes are kept by digest, and so are a refused round's question keys and gaps (an accepted
-/// round's are its own).
-pub(super) fn judged(round: u32, answer: &Answer, diagnostics: &[Diagnostic]) -> Value {
-    let withheld = crate::cognition::receipt::withheld;
-    let listed = |values: Value, what: &str| {
-        if diagnostics.is_empty() {
-            values
-        } else {
-            withheld(&values.to_string(), &[], what)
-        }
-    };
-    let keys: Vec<&str> = answer.questions.iter().map(|q| q.key.as_str()).collect();
-    let mut entry = json!({
-        "round": round,
-        "candidate_sha256": knowledge::sha256(&answer.candidate),
-        "candidate": answer.candidate,
-        "questions": listed(json!(keys), "refused native question keys"),
-        "gaps": listed(json!(answer.gaps), "refused native gaps"),
-        "notes": withheld(&answer.notes, &[], "native notes"),
-        "diagnostics": diagnostics.iter().map(|d| json!({"kind": d.kind, "message": d.message})).collect::<Vec<_>>(),
-    });
-    if let Some(dual) = &answer.dual {
-        entry["transport"] = dual.record();
-    }
-    entry
 }
 
 /// The native record of a conversation: the identity, the knowledge pack, the references sent,

@@ -22,6 +22,7 @@ fn request(workflow: &str) -> RunRequest {
         workflow: PathBuf::from(workflow),
         vars: Vec::new(),
         max_cost_usd: 0.1,
+        access_pin: None,
     }
 }
 
@@ -198,4 +199,20 @@ fn durable_conversation_runs_a_real_effect_and_reopens_without_replaying_it() {
                 .expect("UTF-8")
         )
     );
+}
+
+#[test]
+fn the_plain_session_runner_refuses_an_explicit_bad_pin_without_a_fallback() {
+    let root = tempfile::tempdir().expect("project");
+    let _cwd = crate::cwd::enter(root.path()).expect("isolated cwd");
+    std::fs::write(root.path().join("pinned.nika"), ECHO).expect("workflow");
+    let mut run = request("pinned.nika");
+    run.access_pin = Some("not-a-real-access-pin".into());
+    let (code, trace) = run_once(root.path(), &run, theme());
+    assert_ne!(
+        code,
+        exit::OK,
+        "a pin never disappears into the available mock backend"
+    );
+    assert!(trace.is_none());
 }

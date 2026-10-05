@@ -25,9 +25,9 @@ const VERSION: u32 = 1;
 pub(super) const ONLY_RETIRED: &str = "native: only is retired for creation";
 /// The route step of the policy that sends CREATE straight to the sketch door.
 pub(super) const NATIVE_SKETCH: &str = "native: sketch";
-/// The route step of a revision the constant door could not settle.
-pub(super) const EDIT_NATIVE: &str =
-    "edit: the constant door could not settle the change; the seat revises the base";
+/// The route step of a change in words to a base no semantic record binds: kept as it is.
+pub(super) const EDIT_KEPT: &str =
+    "edit: no semantic record binds this base; it is kept as it is and no seat is asked";
 
 /// What this summary cannot observe at all in this version: named, never inferred.
 const NOT_CAPTURED: &[&str] = &[
@@ -128,6 +128,12 @@ fn door(
         || composition
         || escalated;
     let (name, reason) = match out.provenance.strategy {
+        // A revision names its own door before any record it binds is read as a replay.
+        _ if has(EDIT_KEPT) => ("none", "record_less_base_kept"),
+        _ if has(super::sketch::revise::ROUTE) => ("sketch", "nonconstant_revision"),
+        _ if has(super::sketch::revise::SOURCE_ROUTE) => {
+            ("source_revision", "record_less_source_revision")
+        }
         _ if request.plan.is_some() => ("replay", "answer_round_replays_a_recorded_plan"),
         Some(Strategy::Skeleton) => ("skeleton", "exact_skeleton_name"),
         Some(Strategy::Support) => ("support", "exact_support_grammar"),
@@ -135,9 +141,7 @@ fn door(
         Some(Strategy::Warm) => ("warm", "finite_ambiguity_settled_by_the_seat"),
         Some(Strategy::Cold) => ("cold_plan", "hot_rejected_and_warm_not_settling"),
         Some(Strategy::Native) => {
-            let reason = if has(EDIT_NATIVE) {
-                "nonconstant_revision"
-            } else if has(NATIVE_SKETCH) {
+            let reason = if has(NATIVE_SKETCH) {
                 "policy_sketch_before_hot"
             } else if composition {
                 "plan_composition_requires_sketch"
@@ -162,6 +166,7 @@ fn door(
         (false, _) | (_, "none") => "none",
         (_, "native_source") => "model",
         (_, "sketch") => "compiler_from_model_sketch_and_fills",
+        (_, "source_revision") => "compiler_substitution_of_the_base",
         // A sketch concludes under the native strategy word: its record cannot say whether a
         // model or the compiler wrote the replayed bytes.
         (_, "replay") => match request.plan.as_ref().and_then(|p| p["strategy"].as_str()) {

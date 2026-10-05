@@ -60,10 +60,12 @@ fn install_fixture(dir: &Path, scenario: &str) {
     } else {
         answer
     };
-    let second = common::native_answer(&common::candidate("openai/gpt-4.1-mini", true));
+    let second = json!({"supersedes": [], "adds": [common::CHANGE], "like": "./b.md",
+        "notes": "keep the first output and add a copy at the requested destination"})
+    .to_string();
     // The first call is the private plan (semantic CREATE; its answer round replays with no
-    // call: the compiler assembled every clause); the second is the source revision (EDIT); the
-    // third is the judgment of the READY revision (native step 1), answered explicitly.
+    // call: the compiler assembled every clause); the second names the typed addition and
+    // source destination (EDIT), never workflow YAML; the third judges the READY revision.
     for (name, text) in [
         ("one", answer),
         ("two", second),
@@ -265,6 +267,34 @@ fn step(out: TurnOutcome) -> Value {
         other => json!({"kind":"other","text":format!("{other:?}")}),
     }
 }
+fn assert_copied_write(base: &str, revised: &str) {
+    let parse = |source: &str| {
+        nika_schema::parse(
+            source,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("compiler emitted valid source")
+    };
+    let (base, revised) = (parse(base), parse(revised));
+    assert_eq!(
+        revised.tasks.len(),
+        base.tasks.len() + 1,
+        "one copied write"
+    );
+    assert_eq!(base.model.map(|m| m.value), revised.model.map(|m| m.value));
+    for task in base.tasks {
+        assert!(
+            revised
+                .tasks
+                .iter()
+                .any(|t| t.value.id.value == task.value.id.value),
+            "the original task {} remains",
+            task.value.id.value
+        );
+    }
+}
+
 #[test]
 #[ignore = "invoked by the isolated fixture parents only"]
 fn child() {
@@ -327,9 +357,22 @@ fn child() {
         let old = session.pending_proposal().unwrap_or_else(|| {
             panic!("first proposal absent: {steps:#?}; meaning={meaning_answer}")
         });
+        let base = session.candidate().expect("original candidate").set.changes[0]
+            .content()
+            .to_owned();
         steps.push(step(session.consent(common::CHANGE)));
         let fresh = session.pending_proposal().expect("revised proposal");
-        assert_ne!(old, fresh);
+        assert_ne!(
+            old, fresh,
+            "typed addition must produce a new review: {steps:#?}"
+        );
+        let revised = session.candidate().expect("revised candidate").set.changes[0].content();
+        assert_ne!(
+            base, revised,
+            "review identity follows a real program change"
+        );
+        assert!(!base.contains("./c.md") && revised.contains("./c.md"));
+        assert_copied_write(&base, revised);
         old_rejected = matches!(session.consent_to(&old, "yes"), TurnOutcome::Refusal(_));
         assert_eq!(session.pending_proposal(), Some(fresh));
     }

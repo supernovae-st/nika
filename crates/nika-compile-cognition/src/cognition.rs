@@ -112,7 +112,7 @@ pub async fn compile_with_provider<P: ProviderInferDyn>(
 async fn revise<P: ProviderInferDyn>(
     request: &CompileRequest,
     cognition: Cognition<'_, P>,
-    rehearsals: &mut rehearsal::Rehearsals<'_>,
+    _rehearsals: &mut rehearsal::Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     let deterministic = super::compile(request)?;
     let Input::Edit {
@@ -148,10 +148,19 @@ async fn revise<P: ProviderInferDyn>(
         .diagnostics
         .iter()
         .any(|d| d.target == "change_request");
+    // A new change to the bytes a source revision wrote: its record is no answer round of this
+    // change; it binds those bytes (the core checks it) and states the words they answer.
+    let next_turn = (request.plan.as_ref()).is_some_and(|record| {
+        !record["source_revision"].is_null()
+            && super::revise_intent(request).is_none_or(|folded| {
+                record["intent_sha256"].as_str()
+                    != Some(nika_compile::intent_sha256(&folded).as_str())
+            })
+    });
     let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider) else {
         return Ok(deterministic);
     };
-    if !unresolved || policy.native == NativeMode::Off {
+    if !(unresolved || next_turn) || policy.native == NativeMode::Off {
         return Ok(deterministic);
     }
     let Some(folded) = super::revise_intent(request) else {
@@ -177,17 +186,11 @@ async fn revise<P: ProviderInferDyn>(
         );
         return Ok(out);
     }
-    Box::pin(native::author(
-        &folded,
-        &reading,
-        policy,
-        provider,
-        request,
-        vec![forensic::EDIT_NATIVE.to_owned()],
-        out,
-        rehearsals,
-    ))
-    .await
+    // A change in words to a base no semantic record binds (a historical, native or manual
+    // source) is kept as it is, never revised from source (R4 F); a record-bound base is revised
+    // at the entry ([`semantic_replayed`]). One destination it writes may still be replaced in
+    // place (the source-anchored revision); anything else keeps the base with its limitation.
+    Box::pin(sketch::revise::source(request, policy, provider)).await
 }
 
 /// Compile with explicit cognition: a decision seat (WARM) and/or a generative provider (COLD).
@@ -274,7 +277,11 @@ async fn semantic_replayed<P: ProviderInferDyn>(
     cognition: Cognition<'_, P>,
 ) -> Result<CompileOutcome, CompileError> {
     let Input::Create(words) = &reading.input else {
-        return nika_compile::compile(raw);
+        // A revision of a base its record binds (R4 F): the core, then the semantic revision.
+        let seat = (reading.authoring.as_ref())
+            .filter(|p| super::revise_intent(reading).is_some_and(|w| policy_bounded(p, &w)))
+            .zip(cognition.provider);
+        return Box::pin(sketch::revise::edit(raw, reading, seat)).await;
     };
     let mut assembly = reading.clone();
     let clarified = (assembly.answers.remove("intent.clarification"))

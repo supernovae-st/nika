@@ -867,7 +867,10 @@ mod tests {
             "keep_leads",
             "keep keeps garde gardez garder conserve conservez conserver retain retains retiens retenez select selects take prends prenez ne n conserva mantieni manten behalte behalten",
         ),
-        ("only_words", "only que seulement just solo soltanto nur"),
+        (
+            "only_words",
+            "only que seulement just solo soltanto nur uniquement exactly exactement",
+        ),
         (
             "topn_fillers",
             "with having by avec au a aux con por per dal dalla del della mit plus most the value values valeur valeurs first d'abord en premier primero prima zuerst primeiro",

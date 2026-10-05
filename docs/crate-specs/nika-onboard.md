@@ -650,3 +650,22 @@ corresponding world digest. Refused, failed or unreturned prepared calls are not
 those facts establish neither delivery nor cost. Receipts without the marker retain their
 previous wording. The native digest-based presentation path remains. This attribution
 proves neither a model's use of a reference nor a downstream Foundry benefit.
+
+## Conversation grammar and retained program evidence
+
+`routing::conversation` owns the pure, closed whole-line recognizers for cancel,
+why, meaning, last-failure and greeting acts, extracted without changing their
+vocabulary from Session. They do not classify arbitrary workflow intent. Session
+continues to export its existing function paths.
+
+`compile::program_records` re-exports the pure bounded record codec from
+`nika_compile_fidelity::sketch::kept`. Session owns storage and the current
+admission; neither this facade nor a retained record restores authority. Program
+lookup binds the proposal or saved path as well as the exact program bytes.
+`round::compiled` verifies the host receipt against the complete attached observation
+and the semantic reading against its canonically scoped relevant-file identity;
+it never substitutes receipt summary rows for the observation.
+`KnowledgePin` counts `revision` and `revision-repair` among authoring calls that
+can present a pinned knowledge pack; the verification judge remains excluded from
+that attribution. The receipt test checks actual phase/digest attribution and
+does not claim that a model used or benefited from the knowledge.

@@ -16,10 +16,13 @@ use super::{
     lexicon::{self, Reading},
     plan::Plan,
 };
+use nika_compile_fidelity::{literal::answered::grant_host, sketch::same_caller};
 use serde_json::{Value, json};
 
 mod answered_paths;
 pub use answered_paths::{AnsweredPaths, native_answered_paths};
+/// The source-anchored revision of a base no semantic record binds: one destination in place.
+pub(crate) mod import;
 
 /// The strict admission contract, the legacy one, or none.
 pub(crate) fn admit_hot(
@@ -445,6 +448,11 @@ fn seat_record(
     judgments: &[super::ledger::Judgment],
     out: &mut CompileOutcome,
 ) -> bool {
+    // A revision's bounded question: its answer round decides on the very base it was asked on.
+    if record.get("source_question").is_some() {
+        import::answered(intent, record, request, judgments, out);
+        return true;
+    }
     if record.get("semantic_record").is_some() {
         semantic_refusal(
             out,
@@ -478,6 +486,18 @@ pub(crate) fn native_replay(
             DiagnosticKind::Unknown,
             "recorded_plan",
             "The recorded native candidate was written for another request; compile the intent again without it.",
+        );
+        return;
+    }
+    // A source revision replays only on the base it revised, its substitution made again.
+    if let Err(why) = import::rebound(record, request) {
+        super::finding(
+            out,
+            DiagnosticKind::Unknown,
+            "recorded_plan",
+            format!(
+                "The recorded revision does not bind this base: {why}. Revise the workflow again without it."
+            ),
         );
         return;
     }
@@ -731,44 +751,6 @@ fn bake(source: &mut String, question: &Value, literal: &str, out: &mut CompileO
     }
 }
 
-/// Add the host of an answered URL to `permits.net.http` when a `nika:fetch` url or a
-/// `nika:notify` target reads exactly that answer (`${{ const.<slug> }}`): an absent list and its
-/// absent parents are created, an empty or stated one is extended; an answer no such argument
-/// reads, a wildcard, another scheme or an ancestor of another type grants nothing.
-fn grant_host(after: &mut Value, slug: &str, value: &Value) -> bool {
-    let Some(host) = value
-        .as_str()
-        .and_then(host_of)
-        .filter(|h| !h.contains('*'))
-    else {
-        return false;
-    };
-    let whole = format!("${{{{ const.{slug} }}}}");
-    let reads = |task: &Value| match task["invoke"]["tool"].as_str() {
-        Some("nika:fetch") => task["invoke"]["args"]["url"] == whole.as_str(),
-        Some("nika:notify") => task["invoke"]["args"]["target"] == whole.as_str(),
-        _ => false,
-    };
-    if !after["tasks"]
-        .as_object()
-        .is_some_and(|tasks| tasks.values().any(reads))
-    {
-        return false;
-    }
-    let list = member(after, "permits", json!({}))
-        .and_then(|permits| member(permits, "net", json!({})))
-        .and_then(|net| member(net, "http", json!([])))
-        .and_then(Value::as_array_mut);
-    let Some(list) = list else {
-        return false;
-    };
-    if list.iter().any(|h| h.as_str() == Some(host)) {
-        return false;
-    }
-    list.push(Value::String(host.to_owned()));
-    true
-}
-
 /// Complete the read or write boundary a seat left as its empty placeholder (`[""]`, the
 /// one narrow shape the judge admits while a path is still asked) with the exact paths the
 /// answers introduced, as `grant_host` completes an answered endpoint. The paths are the
@@ -815,29 +797,6 @@ fn grant_answered_paths(
         }
     }
     paths
-}
-
-/// The member `key` of an object, created as `empty` when absent; none when `value` is no object.
-fn member<'a>(value: &'a mut Value, key: &str, empty: Value) -> Option<&'a mut Value> {
-    Some(value.as_object_mut()?.entry(key).or_insert(empty))
-}
-
-/// The host of an `http(s)://` URL, without its port: the form `permits.net.http` lists (the
-/// assembler grants `url.host_str()`; the loopback declassification compares exact hosts).
-fn host_of(url: &str) -> Option<&str> {
-    let rest = url
-        .strip_prefix("https://")
-        .or_else(|| url.strip_prefix("http://"))?;
-    let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
-    let authority = &rest[..end];
-    let host = if authority.starts_with('[') {
-        authority
-            .find(']')
-            .map_or(authority, |close| &authority[..=close])
-    } else {
-        authority.split(':').next().unwrap_or(authority)
-    };
-    (!host.is_empty()).then_some(host)
 }
 
 /// Ask one recorded business question, mandatory.
@@ -923,8 +882,10 @@ fn seat_model(source: &mut String, request: &CompileRequest, out: &mut CompileOu
 #[must_use]
 pub fn request_basis(intent: &str, request: &CompileRequest) -> Value {
     let mut basis = nika_compile_fidelity::sketch::read_basis(intent, &request.answers);
-    let world = request.knowledge.clone().unwrap_or(Value::Null).to_string();
-    basis["world_sha256"] = json!(super::surface::sha256(&world));
+    basis["world_sha256"] = json!(nika_compile_fidelity::observed::basis::of_request(
+        request.knowledge.as_ref(),
+        intent
+    ));
     basis["ledger"] = super::ledger::Ledger::extract_reading(&lexicon::read(intent)).to_json();
     basis
 }
@@ -948,12 +909,22 @@ fn caller_basis(request: &CompileRequest) -> Value {
 /// The refused outcome of a semantic record this caller cannot replay.
 pub fn caller(request: &CompileRequest) -> Result<Value, Box<CompileOutcome>> {
     let now = caller_basis(request);
-    let Some(stored) = (request.plan.as_ref())
-        .filter(|r| r.get("semantic_record").is_some())
-        .map(|r| &r["basis"]["caller"])
+    let Some(record) = (request.plan.as_ref()).filter(|r| r.get("semantic_record").is_some())
     else {
         return Ok(now);
     };
+    // A revision binds its record by the base the record emitted, never by restated words (F).
+    if let super::Input::Edit { source, .. } = &request.input {
+        return match base_view(record, source, request) {
+            Ok(_) => Ok(now),
+            Err(why) => {
+                let mut out = super::initial();
+                stale_base(&mut out, why);
+                Err(Box::new(out))
+            }
+        };
+    }
+    let stored = &record["basis"]["caller"];
     let same = same_caller(stored, &now, &request.answers);
     if same {
         return Ok(now);
@@ -964,26 +935,6 @@ pub fn caller(request: &CompileRequest) -> Result<Value, Box<CompileOutcome>> {
         "its caller's words, money or initial answers are not this request's",
     );
     Err(Box::new(out))
-}
-
-/// Whether `now`, this request's caller basis, is the one a record's `stored` caller basis
-/// states: the same words, original, money spans and operator money, each initial answer
-/// unchanged in `current`, and no clarification the record never had (a replacement is a new
-/// basis). An initial answer map that is not one of strings matches nothing.
-fn same_caller(
-    stored: &Value,
-    now: &Value,
-    current: &std::collections::BTreeMap<String, String>,
-) -> bool {
-    let initial = (stored["answers"].as_object()).filter(|map| map.values().all(Value::is_string));
-    ["input", "original_intent", "money", "stated_money"]
-        .iter()
-        .all(|key| stored[*key] == now[*key])
-        && initial.is_some_and(|initial| {
-            (initial.iter()).all(|(k, v)| current.get(k).map(String::as_str) == v.as_str())
-                && (initial.contains_key("intent.clarification")
-                    || !current.contains_key("intent.clarification"))
-        })
 }
 
 /// The answer round of a semantic record, reached only from a compile whose raw caller was
@@ -1008,6 +959,58 @@ pub(crate) fn semantic_round(
     let intent = lexicon::fold_apostrophes(clarified.as_deref().unwrap_or(words));
     semantic_replay(&intent, record, &assembly, judgments, out);
     true
+}
+
+/// A revision of a base its semantic record binds ([`caller`] checked the pair), in the core
+/// (R4 F): the zero-call constant door over the base. When it changed a constant the record's
+/// final answers hold, the record is bound anew to the edited bytes, kept only if it replays
+/// to them exactly; any other result keeps no record. A change in words the door does not
+/// settle stays for the semantic revision, the base untouched.
+pub(crate) fn semantic_edit(
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+) -> Result<(), super::CompileError> {
+    let (super::Input::Edit { source, change }, Some(record)) =
+        (&request.input, request.plan.as_ref())
+    else {
+        return Ok(());
+    };
+    let mut plain = request.clone();
+    plain.plan = None;
+    super::edit(source, change, &plain, out)?;
+    let (Some(edited), Some(constant)) = (out.candidate.clone(), super::edit::operation(change))
+    else {
+        return Ok(());
+    };
+    let key = format!("const.{}", constant.name);
+    let literal =
+        (constant.literal_json.map(str::to_owned)).or_else(|| request.answers.get(&key).cloned());
+    let mut rebound = record.clone();
+    let (Some(literal), true) = (literal, rebound["final"]["answers"].get(&key).is_some()) else {
+        return Ok(());
+    };
+    if edited == *source {
+        return Ok(());
+    }
+    rebound["final"]["answers"][&key] = json!(literal);
+    rebound["final"]["candidate_sha256"] = json!(super::surface::sha256(&edited));
+    if base_view(&rebound, &edited, request).is_ok() {
+        out.provenance.plan = Some(rebound);
+    }
+    Ok(())
+}
+
+/// A revision whose base and semantic record are not a pair: static, the base kept as it is.
+fn stale_base(out: &mut CompileOutcome, why: &str) {
+    out.status = super::CompileStatus::Refused;
+    super::finding(
+        out,
+        DiagnosticKind::Refused,
+        "recorded_plan",
+        format!(
+            "The semantic record does not bind this base: {why}. The base is kept as it is, nothing was emitted and no model was asked; revise a base with the record it was saved with."
+        ),
+    );
 }
 
 /// A semantic record's refusal: static, never a record value or key name repeated.
@@ -1115,94 +1118,43 @@ pub(crate) fn rebuilt(
     ))
 }
 
+/// The view a semantic record emits for the EDIT base it is paired with (R4 F): the record
+/// replays under its own effective words and final answers over this request's observation, and
+/// its emitted bytes must be exactly the base's and the record's final candidate. The words a
+/// caller restates are never trusted for the original request: the record's own are. Otherwise
+/// why the pairing is stale or tampered. No call, nothing emitted.
+pub(crate) fn base_view(
+    record: &Value,
+    base: &str,
+    request: &CompileRequest,
+) -> Result<(Value, std::collections::BTreeMap<String, String>), &'static str> {
+    let sha = |text: &str| json!(super::surface::sha256(text));
+    if record["final"]["candidate_sha256"] != sha(base) {
+        return Err("the base is not the candidate its record emitted");
+    }
+    let closed = "it is not a closed record of this format";
+    let intent = record["basis"]["read"]["effective"]
+        .as_str()
+        .ok_or(closed)?;
+    let answers: Option<std::collections::BTreeMap<String, String>> =
+        (record["final"]["answers"].as_object().into_iter().flatten())
+            .map(|(key, value)| Some((key.clone(), value.as_str()?.to_owned())))
+            .collect();
+    let mut words = CompileRequest::create(intent);
+    words.answers = answers.ok_or(closed)?;
+    words.knowledge.clone_from(&request.knowledge);
+    let (view, bound) = rebuilt(intent, record, &words)?;
+    words.answers.clone_from(&bound);
+    let mut emitted = super::initial();
+    apply_native(&view, &words, &mut emitted);
+    (emitted.candidate.as_deref().map(sha) == Some(sha(base)))
+        .then_some((view, bound))
+        .ok_or("its graph, fills and answers do not emit this base")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn an_answered_url_grants_its_host_without_its_port() {
-        assert_eq!(
-            host_of("https://hooks.example.invalid/recap"),
-            Some("hooks.example.invalid")
-        );
-        assert_eq!(host_of("http://127.0.0.1:8793/hook"), Some("127.0.0.1"));
-        assert_eq!(host_of("http://[::1]:8080/x"), Some("[::1]"));
-        assert_eq!(host_of("./out/report.md"), None);
-        let notify = json!({"send": {"invoke": {"tool": "nika:notify",
-            "args": {"target": "${{ const.endpoint }}"}}}});
-        let fetch = json!({"get": {"invoke": {"tool": "nika:fetch",
-            "args": {"url": "${{ const.endpoint }}"}}}});
-        let recap = json!("https://hooks.example.invalid/recap");
-        let empty = json!({"net": {"http": []}});
-        // A notify target or a fetch url read whole grants into the stated list or into one created
-        // with its absent parents; a host already listed stays, once.
-        for permits in [
-            empty.clone(),
-            json!({}),
-            json!({"fs": {}}),
-            json!({"net": {}}),
-        ] {
-            for tasks in [&notify, &fetch] {
-                let mut doc = json!({"permits": permits.clone(), "tasks": tasks});
-                assert!(grant_host(&mut doc, "endpoint", &recap), "{doc}");
-                let again = json!("https://hooks.example.invalid/again");
-                assert!(!grant_host(&mut doc, "endpoint", &again));
-                assert_eq!(
-                    doc["permits"]["net"]["http"],
-                    json!(["hooks.example.invalid"])
-                );
-            }
-        }
-        let mut bare = json!({"tasks": notify});
-        assert!(grant_host(&mut bare, "endpoint", &recap));
-        assert_eq!(
-            bare["permits"]["net"]["http"],
-            json!(["hooks.example.invalid"])
-        );
-        let mut kept =
-            json!({"permits": {"net": {"http": ["api.example.invalid"]}}, "tasks": notify});
-        assert!(grant_host(&mut kept, "endpoint", &recap));
-        let both = json!(["api.example.invalid", "hooks.example.invalid"]);
-        assert_eq!(kept["permits"]["net"]["http"], both);
-        // Nothing reads the answer whole as a net argument: nothing is granted or created.
-        let partial = json!({"get": {"invoke": {"tool": "nika:fetch",
-            "args": {"url": "${{ const.endpoint }}/contacts"}}}});
-        let other = json!({"send": {"invoke": {"tool": "nika:notify",
-            "args": {"target": "${{ const.other }}"}}}});
-        let message = json!({"send": {"invoke": {"tool": "nika:notify",
-            "args": {"target": "https://fixed.invalid/", "message": "${{ const.endpoint }}"}}}});
-        for tasks in [json!({}), partial, other, message] {
-            for permits in [empty.clone(), json!({})] {
-                let mut doc = json!({"permits": permits.clone(), "tasks": tasks});
-                assert!(!grant_host(&mut doc, "endpoint", &recap), "{doc}");
-                assert_eq!(doc["permits"], permits, "{doc}");
-            }
-        }
-        // A wildcard host or another scheme grants nothing.
-        for answer in [
-            "https://*.example.invalid/x",
-            "ftp://hooks.example.invalid/x",
-        ] {
-            let mut doc = json!({"permits": {}, "tasks": notify});
-            assert!(
-                !grant_host(&mut doc, "endpoint", &json!(answer)),
-                "{answer}"
-            );
-            assert_eq!(doc["permits"], json!({}), "{answer}");
-        }
-        // An ancestor of another type fails closed: no panic, no grant, nothing replaced.
-        for permits in [
-            json!("x"),
-            json!({"net": []}),
-            json!({"net": "y"}),
-            json!({"net": {"http": {}}}),
-            json!({"net": {"http": "z"}}),
-        ] {
-            let mut doc = json!({"permits": permits.clone(), "tasks": notify});
-            assert!(!grant_host(&mut doc, "endpoint", &recap), "{permits}");
-            assert_eq!(doc["permits"], permits, "{permits}");
-        }
-    }
 
     /// The bake applies the answer and grants its host into a stated list (rewritten in place) or
     /// into an absent one (the document re-emitted under the literal-projection proof), block or

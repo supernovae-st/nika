@@ -67,6 +67,9 @@ pub struct SessionState {
     /// Cost observations only; never restores an account, review or consent.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub inference_observations: Vec<serde_json::Value>,
+    /// Complete numeric ledger, read closed only under concordant exclusive history.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inference_checkpoint: Option<serde_json::Value>,
 }
 
 impl SessionState {
@@ -84,6 +87,7 @@ impl SessionState {
             unresolved: Vec::new(),
             pending: None,
             inference_observations: Vec::new(),
+            inference_checkpoint: None,
         }
     }
 
@@ -126,6 +130,9 @@ impl SessionState {
     pub fn save(&self, root: &Path) -> io::Result<()> {
         let dir = OwnedDir::open(root)?.create_below(&[NIKA_DIR])?;
         let text = serde_json::to_string_pretty(self)?;
+        if text.len() as u64 >= MAX_STATE_BYTES {
+            return Err(io::Error::other("the session record exceeds 1 MiB"));
+        }
         dir.write_atomic(STATE_FILE, &format!("{text}\n"))
     }
 }

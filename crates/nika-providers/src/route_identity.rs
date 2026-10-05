@@ -367,6 +367,13 @@ impl Withheld {
     }
 }
 
+/// Checkpoint metadata must remain exact: refuse instead of redacting identity.
+pub(crate) fn checkpoint_text_safe(endpoint: &str, text: &str) -> bool {
+    let mut private = Vec::new();
+    private_material(endpoint, &mut private);
+    !holds(text, &private)
+}
+
 /// The host-private parts of every endpoint a call names.
 fn call_material(call: &InferenceCall, private: &mut Vec<String>) {
     for endpoint in call

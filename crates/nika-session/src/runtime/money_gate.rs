@@ -450,7 +450,7 @@ impl SessionRuntime {
 
     /// Why no cognition reads a line now, in the account's own words.
     pub(super) fn cognition_blocked(&self) -> String {
-        let way = if self.money.reconfirm {
+        let way = if self.money.reconfirm && self.money.account.is_none() {
             format!(" · {}", super::inference::RESTORED_WAY)
         } else {
             String::new()

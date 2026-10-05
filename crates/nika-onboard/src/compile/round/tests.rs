@@ -744,24 +744,44 @@ fn a_same_shape_world_is_never_taken_for_the_one_the_host_attached() {
 }
 
 /// A semantic record keeps no observation of its own: its request is rebuilt from the one the
-/// host's record discloses only when the attached identity, that observation and the identity
-/// the record was read under are all the same; a changed or missing one rebuilds nothing.
+/// host's record discloses only when its full identity matches the host receipt and its scoped
+/// identity matches the reading. A changed relevant fact or missing identity rebuilds nothing.
 #[test]
-fn a_semantic_record_rebuilds_its_request_only_under_three_exact_identities() {
+fn a_semantic_record_requires_both_the_full_receipt_and_the_scoped_reading_identity() {
     fn observed(out: &mut CompileOutcome) -> &mut Value {
         &mut out.provenance.decision.as_mut().expect("a decision record")["session"]["observed"]
     }
     let intent = "read ./inventory.json, keep the items whose stock is under 8";
     let world = json!({"observed": [{"path": "./inventory.json", "state": "observed",
         "complete": false, "kind": "json", "columns": ["sku", "stock"]}]});
-    let identity = crate::knowledge::pin::world_sha256(&world);
+    let identity = nika_compile_fidelity::observed::basis::of_request(Some(&world), intent);
     let request = CompileRequest::create(intent);
     let mut out = compile(&request.clone().with_knowledge(world.clone())).expect("compiles");
     out.provenance.plan = Some(json!({"semantic_record": 1,
-        "basis": {"read": {"world_sha256": identity}}}));
+        "basis": {"read": {"world_sha256": identity, "effective": intent}}}));
     let stamped = crate::knowledge::pin::observed_in(out, Some(&world));
     let kept = compiled(request.clone(), &stamped).expect("the attached world is kept");
     assert_eq!(kept.knowledge.as_ref(), Some(&world));
+    // An extra destination is irrelevant to the original reading but belongs to the host's
+    // complete receipt. The rebuilt request retains that full observation, never a summary.
+    let mut expanded = world.clone();
+    expanded["observed"]
+        .as_array_mut()
+        .expect("rows")
+        .push(json!({"path": "./next.json", "state": "absent"}));
+    let restamped = crate::knowledge::pin::observed_in(stamped.clone(), Some(&expanded));
+    assert_eq!(
+        compiled(request.clone(), &restamped)
+            .expect("same reading")
+            .knowledge,
+        Some(expanded)
+    );
+    let mut unnamed = stamped.clone();
+    unnamed.provenance.plan.as_mut().expect("a plan")["basis"]["read"]
+        .as_object_mut()
+        .expect("reading")
+        .remove("effective");
+    assert!(compiled(request.clone(), &unnamed).is_none());
     // Read under another world.
     let mut other = stamped.clone();
     other.provenance.plan.as_mut().expect("a plan")["basis"]["read"]["world_sha256"] =

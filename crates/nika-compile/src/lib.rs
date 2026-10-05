@@ -108,6 +108,7 @@ use nika_schema::{FileId, ParseMode, raw::RawWorkflow};
 use serde_json::Value;
 use types::{EditChange, Input};
 
+pub use doors::import::{Substituted, source_revision, substitute};
 pub use doors::intent_sha256;
 pub use materialize::{MaterializeError, materialize_ready};
 pub use nika_compile_reader::hot::{fold, stated_destinations, stated_sources};
@@ -161,7 +162,11 @@ pub fn compile_judged(
         Err(why) => return Ok(admitted::refused(&why)),
     };
     let mut outcome = initial();
-    doors::semantic_round(&reading, judgments, &mut outcome);
+    if matches!(request.input, Input::Edit { .. }) {
+        doors::semantic_edit(&reading, &mut outcome)?;
+    } else {
+        doors::semantic_round(&reading, judgments, &mut outcome);
+    }
     if let Some(money) = money {
         admitted::record(request, money, &mut outcome);
     }

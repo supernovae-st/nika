@@ -6,7 +6,7 @@
 //! the document they state. A reconstruction only: no core type, no I/O, no lowering to bytes
 //! (the compile core serializes the document and binds its identity), never READY and never an
 //! authority. The request basis, the caller, the answers, the grants and the current judgment
-//! stay with the core and the cognition that read them; `intent` and `allowed` come from the
+//! are projected by the core and the cognition that read them; `intent` and `allowed` come from the
 //! caller's admission, never from the record.
 
 use std::collections::BTreeMap;
@@ -15,6 +15,23 @@ use serde_json::{Value, json};
 
 use super::{Sketch, complete_document, fills_from_json, structural_laws_observed};
 use crate::behavior::{Contract, Presence, Requirement, contract_of_request};
+
+/// Whether `now`, this request's caller basis, is the one a record's `stored` caller basis
+/// states: the same words, original, money spans and operator money, each initial answer
+/// unchanged in `current`, and no clarification the record never had (a replacement is a new
+/// basis). An initial answer map that is not one of strings matches nothing.
+#[must_use]
+pub fn same_caller(stored: &Value, now: &Value, current: &BTreeMap<String, String>) -> bool {
+    let initial = (stored["answers"].as_object()).filter(|map| map.values().all(Value::is_string));
+    ["input", "original_intent", "money", "stated_money"]
+        .iter()
+        .all(|key| stored[*key] == now[*key])
+        && initial.is_some_and(|initial| {
+            (initial.iter()).all(|(k, v)| current.get(k).map(String::as_str) == v.as_str())
+                && (initial.contains_key("intent.clarification")
+                    || !current.contains_key("intent.clarification"))
+        })
+}
 
 /// The record's format and lowering versions this compiler replays.
 const FORMAT: u64 = 1;
@@ -268,4 +285,31 @@ pub fn contract_projection(contract: &Contract) -> Value {
         })
         .collect();
     json!({"obligations": obligations, "sources": contract.sources})
+}
+
+#[cfg(test)]
+mod caller_tests {
+    use super::*;
+
+    #[test]
+    fn replay_keeps_initial_answers_and_refuses_a_new_clarification_or_budget() {
+        let stored = json!({"input": "copy", "original_intent": "old", "money": [1],
+            "stated_money": null, "answers": {"destination": "a.txt"}});
+        let mut current = BTreeMap::from([("destination".into(), "a.txt".into())]);
+        assert!(same_caller(&stored, &stored, &current));
+        current.insert("revision.path".into(), "b.txt".into());
+        assert!(same_caller(&stored, &stored, &current));
+        current.insert("intent.clarification".into(), "another request".into());
+        assert!(!same_caller(&stored, &stored, &current));
+        current.remove("intent.clarification");
+        current.insert("destination".into(), "changed.txt".into());
+        assert!(!same_caller(&stored, &stored, &current));
+        current.insert("destination".into(), "a.txt".into());
+        let mut more_money = stored.clone();
+        more_money["money"] = json!([2]);
+        assert!(!same_caller(&stored, &more_money, &current));
+        let mut invalid = stored.clone();
+        invalid["answers"]["destination"] = json!(42);
+        assert!(!same_caller(&invalid, &invalid, &current));
+    }
 }

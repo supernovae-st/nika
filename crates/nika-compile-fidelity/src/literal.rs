@@ -7,6 +7,9 @@
 //! where the answer laws, the slot and operation choice, emission, Check and grants stay;
 //! `inexact_integer` reads JSON already validated, it is not a parser.
 
+/// Pure projection of permits needed by exact answered endpoint literals.
+pub mod answered;
+
 use serde_json::Value;
 
 /// Literal answers cannot insert expression islands or author implicit references.

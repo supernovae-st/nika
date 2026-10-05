@@ -125,24 +125,32 @@ async fn changed_answers_cannot_start_a_host_on_the_old_candidate() {
 
 #[tokio::test]
 async fn a_native_answer_round_reconstructs_the_destination_before_rehearsal() {
-    let wire = json!({"candidate": chosen_write(), "questions": [{"key": "const.place", "label": "Destination file path", "answer_type": "text", "why": "The request leaves the file to the human."}], "gaps": [], "notes": ""}).to_string();
-    let author = Author::new(vec![wire]);
+    let author = Author::new(Vec::new());
     let host = Host::new(Mode::ByDirectories);
     let req = CompileRequest::create(CHOSEN).with_authoring_policy(request(0).authoring.unwrap());
-    // The waiting round is a historical source record (the source door, entered privately); its
-    // answer round replays it through the public entry.
-    let waiting = source_door(&req, &author, &host).await;
-    assert_eq!(waiting.status, CompileStatus::Incomplete, "{waiting:#?}");
-    assert!(host.candidates.lock().unwrap().is_empty());
+    // A historical native source record, as a retired source-door round saved it (an explicit
+    // fixture: no door is entered): its answer round replays it through the public entry.
+    let historical = json!({
+        "strategy": "native", "intent_sha256": crate::intent_sha256(&intent_of(&req)),
+        "source": chosen_write(),
+        "questions": [{"key": "const.place", "label": "Destination file path",
+            "answer_type": "text", "why": "The request leaves the file to the human."}],
+        "gaps": [], "trigger": null,
+    });
     let answered = req
-        .with_plan(waiting.provenance.plan.unwrap())
+        .with_plan(historical)
         .answer("const.place", json!(TARGET).to_string());
     let finished = compiled(&answered, &author, &host).await;
     assert_eq!(finished.status, CompileStatus::Ready, "{finished:#?}");
     assert_eq!(
+        finished.provenance.strategy,
+        Some(crate::Strategy::Native),
+        "the historical provenance stays visible"
+    );
+    assert_eq!(
         author.authored.load(Ordering::SeqCst),
-        1,
-        "no new authoring round"
+        0,
+        "a historical record replays with no author call"
     );
     assert_eq!(host.candidates.lock().unwrap().len(), 1);
     assert_eq!(

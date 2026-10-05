@@ -115,6 +115,8 @@ impl ProviderInferDyn for Seat {
 struct Room {
     shown: Mutex<Vec<String>>,
     stale: bool,
+    /// The first run reaches the room's time bound: stopped, nothing observed.
+    stop_first: bool,
 }
 
 fn observed_count(candidate: &str) -> usize {
@@ -146,6 +148,9 @@ impl Rehearse for Room {
                 shown.push(candidate.to_owned());
                 (self.stale && shown.len() > 1).then(|| shown[0].clone())
             };
+            if self.stop_first && self.shown.lock().unwrap().len() == 1 {
+                return stopped(candidate);
+            }
             let reported = stale.as_deref().unwrap_or(candidate);
             let count = if stale.is_some() {
                 expected_count()
@@ -188,6 +193,33 @@ impl Rehearse for Room {
     }
 }
 
+/// A run the room stopped at its time bound: no output, nothing written.
+fn stopped(candidate: &str) -> RehearsalReport {
+    let mut observed = Observation::none();
+    observed.bounds = Bounds::new(10_000, 1_048_576, 65_536);
+    observed.ledger = LedgerFacts::clean(Vec::new());
+    let input = Digest::of(ROWS.as_bytes());
+    observed.copies = vec![CopyReceipt::new(
+        INPUT,
+        input.clone(),
+        Some(input),
+        Held::Whole(ROWS.into()),
+    )];
+    observed.spent = Spent::new(ROWS.len() as u64, 0);
+    observed.finals = vec![FinalReceipt::new(RESULT, FinalState::Absent)];
+    RehearsalReport::new(
+        Rehearsal::NotRun {
+            reason: "stopped at the time bound".into(),
+        },
+        Attempt::Stopped { elapsed_ms: 10_000 },
+        EffectCounts::none(),
+        nika_compile::surface::sha256(candidate),
+    )
+    .with_admitted_digest("synthetic-admission")
+    .with_room(RoomEvidence::new(true, true))
+    .with_observation(observed)
+}
+
 fn request(repairs: u32) -> CompileRequest {
     CompileRequest::create(INTENT).with_authoring_policy(
         AuthoringPolicy::new("mock/author", 4096, Duration::from_secs(2))
@@ -205,6 +237,7 @@ async fn compiled(repairs: u32, fills_queue: Vec<String>) -> (CompileOutcome, Se
     let room = Room {
         shown: Mutex::new(Vec::new()),
         stale: false,
+        stop_first: false,
     };
     let out = compile_with(&request(repairs), &seat, &room).await;
     (out, seat, room)
@@ -280,7 +313,14 @@ fn room(stale: bool) -> Room {
     Room {
         shown: Mutex::new(Vec::new()),
         stale,
+        stop_first: false,
     }
+}
+
+/// The rehearsal's own journal: one report per run the room was asked for.
+fn reports(out: &CompileOutcome) -> Vec<Value> {
+    let rehearsal = &out.provenance.decision.as_ref().unwrap()["rehearsal"];
+    rehearsal["reports"].as_array().cloned().unwrap_or_default()
 }
 
 /// The repaired witness keeps one contract across its attempts, records both candidates, and
@@ -488,4 +528,74 @@ async fn an_unsupported_request_keeps_its_business_result_unknown() {
             .any(|entry| entry["outcome"] == "holds"),
         "UNKNOWN is never a pass"
     );
+}
+
+/// A run stopped at the room's time bound is a demonstrated failure the repair starts from: the
+/// repaired candidate is READY within the original allowance, and both attempts are kept.
+#[tokio::test]
+async fn a_time_bound_repairs_within_the_original_budget_and_keeps_both_attempts() {
+    let seat = seat(vec![sketch()], vec![fills(RAW_COUNT), fills(PAID_COUNT)]);
+    let room = Room {
+        shown: Mutex::new(Vec::new()),
+        stale: false,
+        stop_first: true,
+    };
+    // The allowance E's repair witnesses grant one reopening with (rounds, not reopenings).
+    let out = compile_with(&request(2), &seat, &room).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{:#?}", out.diagnostics);
+    let shown = room.shown.lock().unwrap().clone();
+    assert_eq!(shown.len(), 2, "the stopped run and the repaired one");
+    assert_eq!(out.candidate.as_deref(), Some(shown[1].as_str()));
+    let found = reports(&out);
+    assert_eq!(found.len(), 2, "{found:#?}");
+    assert_eq!(found[0]["attempt"], "stopped");
+    assert_eq!(found[0]["decision"]["code"], "rehearsal_time_bound");
+    assert_eq!(found[1]["attempt"], "completed");
+    assert_eq!(found[1]["outcome"]["kind"], "passed");
+    assert_eq!(
+        found[0]["candidate_sha256"],
+        nika_compile::surface::sha256(&shown[0])
+    );
+    let usage = &out.provenance.decision.as_ref().unwrap()["rehearsal"]["usage"];
+    assert_eq!(usage["attempts"], 2, "{usage}");
+    let receipt = out.provenance.authoring.as_ref().unwrap();
+    let repairs = (receipt.context.iter())
+        .filter(|call| call["call"] == "sketch-repair")
+        .count();
+    assert_eq!(
+        repairs, 1,
+        "one reopened sketch, within the original allowance"
+    );
+}
+
+/// The same failed candidate again is no progress: the talk stops there, with allowance left,
+/// and nothing is READY.
+#[tokio::test]
+async fn repeating_the_same_failed_candidate_stops_without_spending_every_repair() {
+    let (out, seat, room) = compiled(
+        3,
+        vec![fills(RAW_COUNT), fills(RAW_COUNT), fills(PAID_COUNT)],
+    )
+    .await;
+    assert_ne!(out.status, CompileStatus::Ready, "{:#?}", out.diagnostics);
+    assert!(out.candidate.is_none());
+    let shown = room.shown.lock().unwrap().clone();
+    assert_eq!(
+        shown.len(),
+        2,
+        "the failed candidate ran twice, nothing after"
+    );
+    assert_eq!(shown[0], shown[1]);
+    assert_eq!(
+        seat.calls.lock().unwrap().len(),
+        4,
+        "the sketch, its fills, one reopened sketch, its fills"
+    );
+    assert!(
+        !(seat.calls.lock().unwrap().iter()).any(|call| call.contains("select(.status")),
+        "the third answer was never asked for"
+    );
+    let found = evidence(&out);
+    assert_eq!(found.len(), 2, "{found:#?}");
+    assert!(found.iter().all(|entry| entry["outcome"] == "defect"));
 }

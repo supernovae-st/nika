@@ -25,6 +25,11 @@ pub use nika_session::authoring::DecisionSetup
 pub use nika_session::authoring::KnowledgePin
 pub use nika_session::authoring::MAX_DECISION_CALLS
 pub use nika_session::authoring::Reading
+pub use nika_session::authoring::is_cancel
+pub use nika_session::authoring::is_greeting
+pub use nika_session::authoring::is_meaning
+pub use nika_session::authoring::is_what_happened
+pub use nika_session::authoring::is_why
 pub use nika_session::authoring::literal_for
 pub use nika_session::authoring::reasons
 pub use nika_session::authoring::stronger_model
@@ -342,11 +347,6 @@ pub fn nika_session::authoring::compile_in_with_admission(seat: &nika_session::a
 pub fn nika_session::authoring::compile_through(seat: &nika_session::authoring::AuthoringSeat, request: &nika_compile::types::CompileRequest) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
 pub fn nika_session::authoring::gateway_host(provider: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_session::authoring::host_of(url: &str) -> alloc::string::String
-pub fn nika_session::authoring::is_cancel(line: &str) -> bool
-pub fn nika_session::authoring::is_greeting(input: &str) -> bool
-pub fn nika_session::authoring::is_meaning(line: &str) -> bool
-pub fn nika_session::authoring::is_what_happened(line: &str) -> bool
-pub fn nika_session::authoring::is_why(line: &str) -> bool
 pub fn nika_session::authoring::openai_base_overridden() -> bool
 pub fn nika_session::authoring::session_policy(model: &str, harness: bool, strategy: nika_compile::types::NativeMode) -> nika_compile::types::AuthoringPolicy
 pub mod nika_session::broker
@@ -782,6 +782,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_session::change::ProjectCha
 impl<T> typenum::type_operators::Same for nika_session::change::ProjectChangeSet
 pub type nika_session::change::ProjectChangeSet::Output = T
 pub struct nika_session::change::RunRequest
+pub nika_session::change::RunRequest::access_pin: core::option::Option<alloc::string::String>
 pub nika_session::change::RunRequest::max_cost_usd: f64
 pub nika_session::change::RunRequest::vars: alloc::vec::Vec<alloc::string::String>
 pub nika_session::change::RunRequest::workflow: std::path::PathBuf
@@ -2771,6 +2772,7 @@ pub type nika_session::state::Pending::Output = T
 #[non_exhaustive] pub struct nika_session::state::SessionState
 pub nika_session::state::SessionState::decisions: alloc::vec::Vec<alloc::string::String>
 pub nika_session::state::SessionState::goal: core::option::Option<alloc::string::String>
+pub nika_session::state::SessionState::inference_checkpoint: core::option::Option<serde_json::value::Value>
 pub nika_session::state::SessionState::inference_observations: alloc::vec::Vec<serde_json::value::Value>
 pub nika_session::state::SessionState::pending: core::option::Option<nika_session::state::Pending>
 pub nika_session::state::SessionState::unresolved: alloc::vec::Vec<alloc::string::String>
@@ -4671,6 +4673,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_session::intelligence::Reso
 impl<T> typenum::type_operators::Same for nika_session::intelligence::ResolvedSessionIntelligence
 pub type nika_session::intelligence::ResolvedSessionIntelligence::Output = T
 pub struct nika_session::RunRequest
+pub nika_session::RunRequest::access_pin: core::option::Option<alloc::string::String>
 pub nika_session::RunRequest::max_cost_usd: f64
 pub nika_session::RunRequest::vars: alloc::vec::Vec<alloc::string::String>
 pub nika_session::RunRequest::workflow: std::path::PathBuf
@@ -4914,6 +4917,7 @@ pub type nika_session::runtime::SessionRuntime::Output = T
 #[non_exhaustive] pub struct nika_session::SessionState
 pub nika_session::SessionState::decisions: alloc::vec::Vec<alloc::string::String>
 pub nika_session::SessionState::goal: core::option::Option<alloc::string::String>
+pub nika_session::SessionState::inference_checkpoint: core::option::Option<serde_json::value::Value>
 pub nika_session::SessionState::inference_observations: alloc::vec::Vec<serde_json::value::Value>
 pub nika_session::SessionState::pending: core::option::Option<nika_session::state::Pending>
 pub nika_session::SessionState::unresolved: alloc::vec::Vec<alloc::string::String>

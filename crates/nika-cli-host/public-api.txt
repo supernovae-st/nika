@@ -2139,6 +2139,7 @@ pub fn nika_cli_host::lane::drive_reviewed_child(exe: &std::path::Path, args: &[
 pub fn nika_cli_host::lane::drive_reviewed_child_observed(exe: &std::path::Path, args: &[alloc::string::String], root: &std::path::Path, sink: &dyn nika_display::run_story::RunSink, slot: &nika_cli_host::lane::ChildSlot) -> nika_cli_host::lane::RunProgress
 pub fn nika_cli_host::lane::resume_args(root: &std::path::Path, workflow: &std::path::Path, trace: &std::path::Path, answer: &str) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_cli_host::lane::run_args(root: &std::path::Path, workflow: &std::path::Path, ceiling: f64, vars: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_cli_host::lane::run_args_with_access(root: &std::path::Path, workflow: &std::path::Path, ceiling: f64, vars: &[alloc::string::String], pin: core::option::Option<&str>) -> alloc::vec::Vec<alloc::string::String>
 pub type nika_cli_host::lane::ChildSlot = alloc::sync::Arc<std::sync::poison::mutex::Mutex<core::option::Option<u32>>>
 pub mod nika_cli_host::lines
 pub struct nika_cli_host::lines::PerCallLines<F>

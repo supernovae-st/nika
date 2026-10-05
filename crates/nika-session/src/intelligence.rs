@@ -275,7 +275,7 @@ impl IntelligenceCensus {
     #[must_use]
     pub fn first_screen(&self) -> String {
         format!(
-            "Nika\nChoose which AI answers your questions here. You can change this later (`/intelligence`); the choice is kept at ~/.nika/session-intelligence.json.\n\n{}",
+            "Nika\nChoose a connection for this conversation: an agent account, API, local model, or no AI. Change it anytime with `/intelligence`.\n\n{}",
             self.options_screen()
         )
     }
@@ -301,7 +301,7 @@ impl IntelligenceCensus {
         if !unable.is_empty() {
             let _ = write!(
                 apps,
-                "\n     seen but not usable here yet: {} — Nika cannot get an answer through them; pick 2 or 3, or install Codex",
+                "\n     seen but not usable here yet: {} — Nika cannot get an answer through them; choose another listed app, 2 or 3",
                 unable.join(" · ")
             );
         }
@@ -317,22 +317,23 @@ impl IntelligenceCensus {
         };
         // A pick may name its model: taught with a provider this machine holds, the way
         // the line is typed (`2 deepseek/<model>`), never offered where nothing serves it.
-        let model = |pick: char, provider: Option<&String>| {
+        let model = |pick: char, provider: Option<&str>| {
             provider.map_or_else(String::new, |p| {
                 format!("\n     or name its model: {pick} {p}/<model>")
             })
         };
-        let (api_model, local_model) = (
-            model('2', self.api_keys.first()),
-            model('3', self.locals.first()),
+        let (subscription_model, api_model, local_model) = (
+            model('1', seats.first().copied()),
+            model('2', self.api_keys.first().map(String::as_str)),
+            model('3', self.locals.first().map(String::as_str)),
         );
         format!(
-            "  1  Use an AI app I already have (a coding assistant you are signed into)\n     {apps}\n  2  Use an API (metered · your own key)\n     {keys}{api_model}\n  3  Run locally (private · on this machine)\n     {locals}{local_model}\n  4  No AI in this conversation\n     Nika still answers from its own catalog: your workflows · checks · examples · builtins\n"
+            "  1  Use an AI app I already have (your signed-in agent account)\n     {apps}{subscription_model}\n     Workflow authoring uses the app connection; support is checked before calling.\n     Agent execution uses ACP: run <file>.nika --access=<app>\n  2  Use an API (metered · your own key)\n     {keys}{api_model}\n  3  Run locally (private · on this machine)\n     {locals}{local_model}\n  4  No AI in this conversation\n     Nika still answers from its own catalog: your workflows · checks · examples · builtins\n"
         )
     }
 
     /// Turn a first-screen answer (`1`..`4`, optionally with one name:
-    /// `1 codex` · `2 mistral` · `2 deepseek/deepseek-v4-pro` · `3 ollama`)
+    /// `1 claude-code/<model>` · `2 mistral` · `2 deepseek/deepseek-v4-pro`)
     /// into a choice — refused with its fix when this machine cannot serve
     /// it, and refused when it holds more than a pick and one name (a word
     /// is never silently dropped).
@@ -347,46 +348,12 @@ impl IntelligenceCensus {
         let name = words.next().map(str::to_owned);
         if words.next().is_some() || (pick == "4" && name.is_some()) {
             return Err(format!(
-                "`{}` is not a choice — answer a number alone, or 1, 2 or 3 followed by one name (`2 <provider>/<model>`)",
+                "`{}` is not a choice — answer a number alone, or 1, 2 or 3 followed by one name (`1 <app>/<model>` or `2 <provider>/<model>`)",
                 answer.trim()
             ));
         }
         match pick {
-            "1" => {
-                let seat = match name {
-                    // An app that is here but cannot answer is refused with
-                    // the ways on — never kept as a choice that fails later.
-                    Some(n) if self.seats.iter().any(|s| s.id == n && s.product_present && !s.answers_here) => {
-                        return Err(format!(
-                            "`{n}` is installed, but Nika cannot get an answer through it yet — {} · or install Codex (the one app proven to answer here)",
-                            self.ways_on()
-                        ));
-                    }
-                    Some(n) => n,
-                    None => self
-                        .seats
-                        .iter()
-                        .find(|s| s.usable())
-                        .map(|s| s.id.clone())
-                        .ok_or_else(|| {
-                            let unable = self.seats_unable_here();
-                            if unable.is_empty() {
-                                "no AI app found on this machine — install Codex (the one app proven to answer here) or pick 2, 3 or 4".to_owned()
-                            } else {
-                                format!(
-                                    "{} installed, but Nika cannot get an answer through {} yet — {} · or install Codex (the one app proven to answer here)",
-                                    unable.join(" · "),
-                                    if unable.len() == 1 { "it" } else { "them" },
-                                    self.ways_on()
-                                )
-                            }
-                        })?,
-                };
-                Ok(UserIntelligencePreference::new(
-                    IntelligenceKind::Harness { seat },
-                    None,
-                ))
-            }
+            "1" => self.choose_app(name.as_deref()),
             "2" => {
                 let (provider, model) = match name {
                     Some(n) => split_seat(&n),
@@ -425,13 +392,55 @@ impl IntelligenceCensus {
         }
     }
 
+    /// Keep the app and its complete model name, with the transport's own validation.
+    fn choose_app(&self, name: Option<&str>) -> Result<UserIntelligencePreference, String> {
+        let (seat, model) = match name {
+            Some(name) => split_seat(name),
+            None => (
+                self.seats.iter().find(|s| s.usable()).map(|s| s.id.clone())
+                    .ok_or_else(|| {
+                        let unable = self.seats_unable_here();
+                        if unable.is_empty() {
+                            "no AI app found on this machine — install a supported app or pick 2, 3 or 4".to_owned()
+                        } else {
+                            format!("{} installed, but Nika cannot get an answer through {} yet — {}",
+                                unable.join(" · "), if unable.len() == 1 { "it" } else { "them" }, self.ways_on())
+                        }
+                    })?,
+                None,
+            ),
+        };
+        if seat.contains('/') {
+            return Err("name an app and a nonempty model: `1 <app>/<model>`".to_owned());
+        }
+        if self
+            .seats
+            .iter()
+            .any(|s| s.id == seat && s.product_present && !s.answers_here)
+        {
+            return Err(format!(
+                "`{seat}` is installed, but Nika cannot get an answer through it yet — {}",
+                self.ways_on()
+            ));
+        }
+        #[cfg(feature = "access-harness")]
+        nika_harness::authoring::model_argument(&seat, model.as_deref())
+            .map_err(|why| format!("{why} — use `1 {seat}/<model>` or choose another app"))?;
+        Ok(UserIntelligencePreference::new(
+            IntelligenceKind::Harness { seat },
+            model,
+        ))
+    }
+
     /// The refusal of a line that is no pick; a model named alone is taught
     /// the numbered form that chooses it (`2 deepseek/deepseek-v4-pro`).
     fn not_a_choice(&self, other: &str) -> String {
         let Some((provider, _)) = other.split_once('/') else {
             return format!("`{other}` is not a choice — answer 1, 2, 3 or 4");
         };
-        let pick = if self.locals.iter().any(|local| local == provider) {
+        let pick = if self.seats.iter().any(|seat| seat.id == provider) {
+            "1"
+        } else if self.locals.iter().any(|local| local == provider) {
             "3"
         } else {
             "2"
@@ -442,7 +451,7 @@ impl IntelligenceCensus {
     }
 }
 
-/// A choice's name as the human typed it: `openai` names the provider;
+/// A choice's name as typed: `openai` names a provider, `claude-code` an app;
 /// `openai/gpt-oss-120b` names the provider AND the model (a gateway row,
 /// a cheaper seat), the model kept whole as `<provider>/<name>` — the form
 /// the catalog and the reasoner speak. An empty side is no model.
@@ -557,48 +566,35 @@ impl ResolvedSessionIntelligence {
     pub fn resolve(pref: &UserIntelligencePreference, census: &IntelligenceCensus) -> Self {
         let (locus, ready, why) = match &pref.kind {
             IntelligenceKind::Harness { seat } => {
-                let seen = census.seats.iter().find(|s| &s.id == seat);
-                match seen {
-                    Some(s) if s.product_present && s.configured && s.answers_here => (
-                        DataLocus::Remote {
-                            product: seat.clone(),
-                        },
-                        true,
-                        None,
-                    ),
-                    // Installed, even signed in — but Nika cannot get an
-                    // answer through it: a connection, not an intelligence.
-                    // Said in plain words, with the ways on this machine holds.
-                    Some(s) if s.product_present && !s.answers_here => (
-                        DataLocus::Remote {
-                            product: seat.clone(),
-                        },
-                        false,
-                        Some(format!(
-                            "`{seat}` is installed{}, but Nika cannot get an answer through it yet — {} · or install Codex (the one app proven to answer here)",
-                            if s.configured { " and signed in" } else { "" },
-                            census.ways_on()
-                        )),
-                    ),
-                    Some(s) if s.product_present => (
-                        DataLocus::Remote {
-                            product: seat.clone(),
-                        },
-                        false,
-                        Some(format!(
-                            "`{seat}` is installed but not signed in — sign in to {seat} itself, or `/intelligence` to choose another path"
-                        )),
-                    ),
-                    _ => (
-                        DataLocus::Remote {
-                            product: seat.clone(),
-                        },
-                        false,
-                        Some(format!(
-                            "`{seat}` is not installed on this machine — install it, or `/intelligence` to choose another path (`nika doctor` lists the seats)"
-                        )),
-                    ),
-                }
+                let why = match census.seats.iter().find(|s| &s.id == seat) {
+                    Some(s) if s.product_present && s.configured && s.answers_here => None,
+                    Some(s) if s.product_present && !s.answers_here => Some(format!(
+                        "`{seat}` is installed{}, but Nika cannot get an answer through it yet — {}",
+                        if s.configured { " and signed in" } else { "" },
+                        census.ways_on()
+                    )),
+                    Some(s) if s.product_present => Some(format!(
+                        "`{seat}` is installed but not signed in — sign in to {seat} itself, or `/intelligence` to choose another path"
+                    )),
+                    _ => Some(format!(
+                        "`{seat}` is not installed on this machine — install it, or `/intelligence` to choose another path (`nika doctor` lists the seats)"
+                    )),
+                };
+                #[cfg(feature = "access-harness")]
+                let why = why.or_else(|| {
+                    nika_harness::authoring::model_argument(seat, pref.model.as_deref())
+                        .err()
+                        .map(|why| {
+                            format!("{why} — `/intelligence` then `1 {seat}/<model>` chooses again")
+                        })
+                });
+                (
+                    DataLocus::Remote {
+                        product: seat.clone(),
+                    },
+                    why.is_none(),
+                    why,
+                )
             }
             IntelligenceKind::Api { provider } => {
                 if census.api_keys.iter().any(|k| k == provider) {
@@ -746,8 +742,13 @@ mod tests {
         assert!(
             refused.contains("cannot get an answer through it")
                 && refused.contains("2 (an API key is here for mistral)")
-                && refused.contains("install Codex"),
+                && !refused.contains("install Codex"),
             "{refused}"
+        );
+        assert!(
+            c.choose("1 gemini-cli/chosen")
+                .expect_err("unattested app")
+                .contains("cannot get an answer through it")
         );
         let kept = UserIntelligencePreference::new(
             IntelligenceKind::Harness {
@@ -792,13 +793,14 @@ mod tests {
         );
         let pref = UserIntelligencePreference::new(
             IntelligenceKind::Harness {
-                seat: "codex".to_owned(),
+                seat: "claude-code".to_owned(),
             },
-            None,
+            Some("claude-code/claude-fable-5-1".to_owned()),
         );
         pref.save(home.path()).expect("saved");
         let back = UserIntelligencePreference::load(home.path()).expect("loaded");
         assert_eq!(back.kind, pref.kind);
+        assert_eq!(back.model, pref.model);
         assert!(
             back.chosen_at.ends_with('Z') && back.chosen_at.len() == 20,
             "{}",
@@ -910,9 +912,110 @@ mod tests {
         }
         c.api_keys.clear();
         c.locals.clear();
+        c.seats.clear();
         assert!(
             !c.options_screen().contains("or name its model"),
             "no model is taught where nothing on this machine serves it"
+        );
+    }
+
+    #[test]
+    fn an_app_choice_keeps_the_explicit_model_and_teaches_its_form() {
+        let mut c = census();
+        c.seats.retain(|s| s.id == "claude-code");
+        c.seats[0].product_present = true;
+        c.seats[0].configured = true;
+        c.seats[0].answers_here = true;
+        let pref = c
+            .choose("1 claude-code/claude-fable-5-1")
+            .expect("app model");
+        assert_eq!(
+            pref.kind,
+            IntelligenceKind::Harness {
+                seat: "claude-code".into()
+            }
+        );
+        assert_eq!(pref.model.as_deref(), Some("claude-code/claude-fable-5-1"));
+        let resolved = ResolvedSessionIntelligence::resolve(&pref, &c);
+        assert!(resolved.ready, "{resolved:?}");
+        assert_eq!(resolved.model, pref.model);
+        assert!(c.options_screen().contains("1 claude-code/<model>"));
+        assert!(
+            c.choose("claude-code/claude-fable-5-1")
+                .expect_err("number needed")
+                .contains("`1 claude-code/claude-fable-5-1`")
+        );
+        assert!(c.choose("1 claude-code/").is_err());
+        assert!(c.choose("1 claude-code extra").is_err());
+        assert_eq!(c.choose("1 claude-code").expect("app default").model, None);
+        #[cfg(feature = "access-harness")]
+        {
+            let reasoner = crate::reasoner::HarnessReasoner {
+                seat: "claude-code".into(),
+            }
+            .with_model(resolved.model.clone());
+            let authoring = crate::authoring::AuthoringSeat::from_reasoner(&reasoner, &resolved);
+            assert!(
+                matches!(&authoring, crate::authoring::AuthoringSeat::Harness { model, .. }
+                if model == &pref.model)
+            );
+            assert!(authoring.line().contains("claude-code/claude-fable-5-1"));
+            assert_eq!(
+                nika_harness::authoring::model_argument("claude-code", resolved.model.as_deref())
+                    .expect("transport model"),
+                "claude-code/claude-fable-5-1"
+            );
+        }
+    }
+
+    #[cfg(feature = "access-harness")]
+    #[test]
+    fn an_app_model_with_the_wrong_namespace_is_refused_without_replacement() {
+        let mut c = census();
+        c.seats[1].product_present = true;
+        c.seats[1].configured = true;
+        c.seats[1].answers_here = true;
+        for model in [
+            "openai/chosen",
+            "claude-code/",
+            "claude-code/anthropic/chosen",
+        ] {
+            let pref = UserIntelligencePreference::new(
+                IntelligenceKind::Harness {
+                    seat: "claude-code".into(),
+                },
+                Some(model.into()),
+            );
+            let resolved = ResolvedSessionIntelligence::resolve(&pref, &c);
+            assert!(!resolved.ready, "{model}: {resolved:?}");
+            assert_eq!(resolved.kind, pref.kind);
+            assert_eq!(resolved.model, pref.model);
+            let why = resolved.why.as_deref().expect("refused");
+            assert!(
+                why.contains(model) && why.contains("/intelligence"),
+                "{why}"
+            );
+        }
+        assert!(c.choose("1 claude-code/anthropic/chosen").is_err());
+        let alias = UserIntelligencePreference::new(
+            IntelligenceKind::Harness {
+                seat: "claude-code".into(),
+            },
+            Some("anthropic/chosen".into()),
+        );
+        let resolved = ResolvedSessionIntelligence::resolve(&alias, &c);
+        assert!(resolved.ready);
+        assert_eq!(resolved.model, alias.model, "keep the requested spelling");
+        let pref = c.choose("1 codex/chosen").expect("conversation choice");
+        let resolved = ResolvedSessionIntelligence::resolve(&pref, &c);
+        let reasoner = crate::reasoner::HarnessReasoner {
+            seat: "codex".into(),
+        }
+        .with_model(resolved.model.clone());
+        let authoring = crate::authoring::AuthoringSeat::from_reasoner(&reasoner, &resolved);
+        assert!(
+            matches!(authoring, crate::authoring::AuthoringSeat::Unavailable { why }
+            if why.contains("pre-execution tool disabling is not attested"))
         );
     }
 
@@ -927,7 +1030,9 @@ mod tests {
         let three = screen.find("3  Run locally").expect("3");
         let four = screen.find("4  No AI in this conversation").expect("4");
         assert!(one < two && two < three && three < four);
-        for banned in ["AccessClass", "ACP", "harness", "billing"] {
+        assert!(screen.contains("Agent execution uses ACP"));
+        assert!(screen.contains("Workflow authoring uses the app connection"));
+        for banned in ["AccessClass", "harness", "billing"] {
             assert!(!screen.contains(banned), "{banned} on the first screen");
         }
         assert!(

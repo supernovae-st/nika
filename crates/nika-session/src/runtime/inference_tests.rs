@@ -74,15 +74,6 @@ pub(super) fn semantic_copy(destination: &str) -> [String; 3] {
     let fills = json!({"fills":[],"notes":"the edge carries the bytes"});
     [plan.to_string(), sketch.to_string(), fills.to_string()]
 }
-/// A source EDIT's reply over the semantic copy (`semantic_copy`): the same program writing
-/// `destination` instead, with the `gaps` the seat declares. An EDIT stays a source reply.
-pub(super) fn revised_copy(destination: &str, gaps: &Value) -> String {
-    let source = format!(
-        "nika: compiled-workflow\npermits:\n  fs:\n    read:\n    - entree.txt\n    write:\n    - {destination}\n  tools:\n  - nika:read\n  - nika:write\ntasks:\n  read_source:\n    invoke:\n      args:\n        path: entree.txt\n      tool: nika:read\n  write_output:\n    invoke:\n      args:\n        content: ${{{{ with.content }}}}\n        path: {destination}\n      tool: nika:write\n    with:\n      content: ${{{{ tasks.read_source.output }}}}\n"
-    );
-    json!({"candidate": source, "questions": [], "gaps": gaps, "notes": "copy the exact bytes"})
-        .to_string()
-}
 /// The calls one approved semantic CREATE of `WORK` sends: plan, sketch, fills, judge.
 pub(crate) const CREATE_CALLS: usize = 4;
 /// `semantic_create` then the approving judge, each reply wrapped by `reply`.

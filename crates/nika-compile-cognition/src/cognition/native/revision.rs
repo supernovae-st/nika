@@ -10,7 +10,6 @@
 use serde_json::Value;
 
 use crate::CompileRequest;
-use crate::fidelity::Diagnostic;
 use crate::types::{EditChange, Input};
 
 /// Words that state a change as a replacement (FR · EN, folded, whole words).
@@ -179,36 +178,6 @@ fn substitution(base: &str, words: &str, candidate: &str, path: &str) -> Option<
     (expected == revised).then_some(by)
 }
 
-/// Journal compiler-observed substitutions even when the model supplied no gap.
-/// An old path named by the change stays pending; literal equality cannot establish
-/// whether those words asked to retain it. This never rewrites the candidate.
-pub(super) fn record_path_changes(
-    intent: &str,
-    revision: Option<&(String, String)>,
-    candidate: &str,
-    gaps: &mut Vec<String>,
-) {
-    let Some((base, words)) = revision else {
-        return;
-    };
-    for path in stated(intent) {
-        if gaps.len() >= KEPT_GAPS {
-            break;
-        }
-        if gaps.iter().any(|gap| names(gap, &path)) {
-            continue;
-        }
-        if let Some(by) = substitution(base, words, candidate, &path) {
-            let qualifier = if names(words, &path) {
-                "compiler-observed substitution; this recalled path requires your decision"
-            } else {
-                "compiler-proven substitution under the revision rule"
-            };
-            gaps.push(format!("`{path}` becomes `{by}` ({qualifier})."));
-        }
-    }
-}
-
 /// A literal path already present in the base, including a retained source or
 /// secondary destination mentioned again in the change.
 fn contains_path(value: &Value, path: &str) -> bool {
@@ -218,88 +187,6 @@ fn contains_path(value: &Value, path: &str) -> bool {
         Value::Object(map) => map.values().any(|item| contains_path(item, path)),
         _ => false,
     }
-}
-
-/// A replacement that duplicates a known write to the new destination is a repair,
-/// not a faithful substitution. This bounded check compares literal paths and the
-/// same content producer; it makes no claim about arbitrary equivalent programs.
-pub(super) fn duplicate_write(
-    revision: Option<&(String, String)>,
-    candidate: &str,
-) -> Option<Diagnostic> {
-    let (base, words) = revision?;
-    if !says(words, REPLACING) || says(words, ADDING) {
-        return None;
-    }
-    let base = crate::edit::literal_projection(base)?;
-    let new: Vec<_> = stated(words)
-        .into_iter()
-        .filter(|path| !contains_path(&base, path))
-        .collect();
-    let [new]: [String; 1] = new.try_into().ok()?;
-    let candidate = crate::edit::literal_projection(candidate)?;
-    let writes = writes(&candidate);
-    let prior = writes_of_base(&base);
-    for (_, content) in writes.iter().filter(|(path, _)| same(path, &new)) {
-        if let Some((old, _)) = writes.iter().find(|(path, other)| {
-            !same(path, &new) && prior.iter().any(|p| same(p, path)) && other == content
-        }) {
-            return Some(Diagnostic {
-                kind: "revision",
-                message: format!(
-                    "REVISION DUPLICATES DESTINATION: the change states a replacement, but the same content is written to both `{old}` and `{new}`. Revise the existing destination and its permit; preserve the other computations and outputs. If both destinations are really needed, ask for that business decision instead of silently adding a write."
-                ),
-            });
-        }
-    }
-    None
-}
-
-fn writes_of_base(doc: &Value) -> Vec<String> {
-    writes(doc).into_iter().map(|(path, _)| path).collect()
-}
-
-/// Resolve only bare constants and task-local bindings, with a fixed depth bound.
-/// Task-output expressions stay as producer identities; no expression is evaluated.
-fn bound<'a>(doc: &'a Value, task: &'a Value, value: &'a Value) -> &'a Value {
-    let mut value = value;
-    for _ in 0..4 {
-        let Some(inner) = value
-            .as_str()
-            .and_then(|s| s.trim().strip_prefix("${{"))
-            .and_then(|s| s.strip_suffix("}}"))
-        else {
-            break;
-        };
-        let inner = inner.trim();
-        let next = inner
-            .strip_prefix("const.")
-            .and_then(|key| doc.get("const")?.get(key))
-            .or_else(|| {
-                inner
-                    .strip_prefix("with.")
-                    .and_then(|key| task.get("with")?.get(key))
-            });
-        let Some(next) = next else { break };
-        value = next;
-    }
-    value
-}
-
-fn writes(doc: &Value) -> Vec<(String, Value)> {
-    doc.get("tasks")
-        .and_then(Value::as_object)
-        .into_iter()
-        .flat_map(|tasks| tasks.values())
-        .filter_map(|task| {
-            if task.pointer("/invoke/tool")?.as_str()? != "nika:write" {
-                return None;
-            }
-            let path = bound(doc, task, task.pointer("/invoke/args/path")?).as_str()?;
-            let content = bound(doc, task, task.pointer("/invoke/args/content")?).clone();
-            Some((path.to_owned(), content))
-        })
-        .collect()
 }
 
 /// The paths a text states, as the path law reads them: its sources, then its destinations.

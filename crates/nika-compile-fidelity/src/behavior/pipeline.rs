@@ -172,10 +172,52 @@ impl Sort {
     }
 }
 
+/// One side of a computed column: a column of the same row, or a number the request states.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Term {
+    Column(String),
+    Number(Decimal),
+}
+
+/// The arithmetic of a computed column.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Arith {
+    Add,
+    Sub,
+}
+
+/// A column each kept row gains, computed from two terms of that row under the number law
+/// (`reorder_qty = 12 - stock`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Derived {
+    pub name: String,
+    pub left: Term,
+    pub arith: Arith,
+    pub right: Term,
+}
+
+impl Derived {
+    /// The column `name`, `left` then `arith` then `right`.
+    #[must_use]
+    pub fn new(name: impl Into<String>, left: Term, arith: Arith, right: Term) -> Self {
+        Self {
+            name: name.into(),
+            left,
+            arith,
+            right,
+        }
+    }
+}
+
 /// The stages a step applies after its filter, in this fixed order.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Stages {
+    /// Columns each kept row gains right after the filter, in the request's order.
+    pub derived: Vec<Derived>,
     /// Duplicates by these key columns removed right after the filter, the first kept whole.
     pub distinct_by: Vec<String>,
     pub group_by: Option<String>,
@@ -204,7 +246,9 @@ impl Stages {
     /// than read from the rows the step receives.
     #[must_use]
     pub fn produces(&self, name: &str) -> bool {
-        self.group_by.as_deref() == Some(name) || self.aggregates.iter().any(|a| a.name == name)
+        self.group_by.as_deref() == Some(name)
+            || self.aggregates.iter().any(|a| a.name == name)
+            || self.derived.iter().any(|d| d.name == name)
     }
 }
 
@@ -300,9 +344,24 @@ fn describe_filter(filter: &Filter) -> Option<String> {
     Some(format!("keep {}", tests.join(junction)))
 }
 
+fn describe_term(term: &Term) -> String {
+    match term {
+        Term::Column(column) => column.clone(),
+        Term::Number(number) => number.to_string(),
+    }
+}
+
 fn describe_step(step: &Step) -> String {
     let mut parts: Vec<String> = describe_filter(&step.filter).into_iter().collect();
     let stages = &step.stages;
+    for derived in &stages.derived {
+        let sign = match derived.arith {
+            Arith::Add => "+",
+            Arith::Sub => "-",
+        };
+        let (left, right) = (describe_term(&derived.left), describe_term(&derived.right));
+        parts.push(format!("{} = {left} {sign} {right}", derived.name));
+    }
     if !stages.distinct_by.is_empty() {
         parts.push(format!("one row per {}", stages.distinct_by.join(", ")));
     }

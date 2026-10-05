@@ -1,4 +1,5 @@
 pub mod nika_compile
+pub use nika_compile::Substituted
 pub use nika_compile::fold
 pub use nika_compile::stated_destinations
 pub use nika_compile::stated_sources
@@ -138,11 +139,13 @@ pub const nika_compile::money::INVALID: &str
 pub fn nika_compile::money::directives(request: &str) -> core::result::Result<nika_compile::money::Directives, &'static str>
 pub fn nika_compile::money::parse(input: &str) -> core::result::Result<nika_compile::money::ParsedMoney, &'static str>
 pub mod nika_compile::observation
+pub use nika_compile::observation::number_text
 #[non_exhaustive] pub struct nika_compile::observation::Sample
 pub nika_compile::observation::Sample::columns: alloc::vec::Vec<alloc::string::String>
 pub nika_compile::observation::Sample::common: core::option::Option<alloc::vec::Vec<alloc::string::String>>
 pub nika_compile::observation::Sample::delimiter: core::option::Option<char>
 pub nika_compile::observation::Sample::kinds: serde_json::value::Value
+pub nika_compile::observation::Sample::nested: serde_json::value::Value
 pub nika_compile::observation::Sample::values: alloc::vec::Vec<(alloc::string::String, serde_json::value::Value)>
 impl core::clone::Clone for nika_compile::observation::Sample
 pub fn nika_compile::observation::Sample::clone(&self) -> nika_compile::observation::Sample
@@ -182,7 +185,6 @@ impl<T> typenum::type_operators::Same for nika_compile::observation::Sample
 pub type nika_compile::observation::Sample::Output = T
 pub fn nika_compile::observation::csv(head: &str, tsv: bool) -> nika_compile::observation::Sample
 pub fn nika_compile::observation::jsonl(head: &str) -> alloc::vec::Vec<serde_json::value::Value>
-pub fn nika_compile::observation::number_text(text: &str) -> bool
 pub fn nika_compile::observation::records(rows: &[serde_json::value::Value]) -> nika_compile::observation::Sample
 pub mod nika_compile::surface
 pub mod nika_compile::surface::admitted
@@ -2227,3 +2229,5 @@ pub fn nika_compile::question(out: &mut nika_compile::CompileOutcome, key: &str,
 pub fn nika_compile::retrieve(query: &str, k: usize) -> alloc::vec::Vec<nika_compile::Hit>
 pub fn nika_compile::retrieve_by_ops(ops: &[&str], k: usize) -> alloc::vec::Vec<nika_compile::Hit>
 pub fn nika_compile::revise_intent(request: &nika_compile::CompileRequest) -> core::option::Option<alloc::string::String>
+pub fn nika_compile::source_revision(request: &nika_compile::CompileRequest, stated: &serde_json::value::Value) -> nika_compile::CompileOutcome
+pub fn nika_compile::substitute(base: &str, path: &str, by: &str) -> core::result::Result<nika_compile_fidelity::sketch::import::Substituted, alloc::string::String>

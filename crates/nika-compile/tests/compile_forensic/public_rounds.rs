@@ -1,58 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-//! The public round journal of the native door and of the sketch's fills, over the existing
-//! revision route: what the seat wrote freely (its notes; a refused round's question keys and
-//! gaps) is kept by digest, what the laws admitted stays readable, and a decode error outside
-//! the answer schema is stated by its class and position while the seat's own repair still reads
-//! the whole error. Scripted providers only; no network, no key.
+//! The public round journal of the sketch door, its graph and its fills: what the seat wrote
+//! freely (its notes; a refused round's question keys and gaps) is kept by digest, what the laws
+//! admitted stays readable, and a decode error is stated by its class and position. Scripted
+//! providers only; no network, no key.
+//!
+//! The retired native door's own rounds (a whole-source answer, its ask and its judged round)
+//! are gone with it; their journal laws hold on the sketch door: a refused round's notes, keys
+//! and gaps by digest in `a_refused_sketch_keeps_its_free_text_and_question_keys_off_the_public_document`,
+//! an answer outside the schema by class and position in
+//! `an_answer_outside_the_sketch_schema_is_refused_by_class_and_position_unechoed`, a revision's
+//! notes by digest in the semantic revision suite.
 //!
 //! Known public paths outside this boundary stay where they are and are not claimed here: the
-//! structural and admission diagnostics (which name what they refuse) and a refused native
-//! candidate, kept whole.
+//! structural and admission diagnostics, which name what they refuse.
 
 use super::*;
-
-/// A revision in words the constant door cannot settle: the native door revises the base.
-fn revision(repairs: u32) -> CompileRequest {
-    CompileRequest::edit(
-        REVISION_BASE,
-        "Finalement, résume le texte avant de l'écrire.",
-    )
-    .with_original_intent("Copie entree.txt dans a.txt.")
-    .with_authoring_policy(policy(NativeMode::Escalate, repairs))
-}
-
-/// A native answer with these fields over an empty answer.
-fn native(fields: &Value) -> String {
-    let mut answer = json!({"candidate": "", "candidate_lines": [], "questions": [], "gaps": [],
-        "notes": ""});
-    for (key, value) in fields.as_object().unwrap() {
-        answer[key] = value.clone();
-    }
-    answer.to_string()
-}
-
-fn question(key: &str) -> Value {
-    json!({"key": key, "label": "Quel ton garder ?", "answer_type": "text",
-        "why": "La demande ne le dit pas."})
-}
 
 /// The withheld form of a text the journal keeps by digest.
 fn assert_withheld(kept: &Value, text: &str, what: &str) {
     assert_eq!(kept["withheld"], true, "{what}: {kept}");
     assert_eq!(kept["sha256"], sha(text), "{what}");
     assert_eq!(kept["bytes"], text.len(), "{what}");
-}
-
-/// The withheld form of a list the journal keeps by digest, with how many items it held.
-fn assert_listed(kept: &Value, values: &Value, what: &str) {
-    assert_withheld(kept, &values.to_string(), what);
-    let items = values.as_array().unwrap().len();
-    assert_eq!(
-        kept["shape"],
-        json!({"type": "array", "items": items}),
-        "{what}"
-    );
 }
 
 fn assert_absent(out: &CompileOutcome, sentinels: &[&str]) {
@@ -62,156 +31,53 @@ fn assert_absent(out: &CompileOutcome, sentinels: &[&str]) {
     }
 }
 
-/// A refused ask (more than eight questions, a refusal that names none of them) keeps its notes,
-/// its question keys and its gaps by digest; no call is added.
+/// A genuine ask is answered by the human first: the accepted sketch's question and its gap stay
+/// in the outcome and in its round by key and clause; only its notes are kept by digest.
 #[tokio::test]
-async fn a_refused_native_ask_keeps_its_notes_keys_and_gaps_by_digest() {
-    let keys: Vec<String> = (0..9)
-        .map(|n| format!("const.ask_key_sentinel_{n}"))
-        .collect();
-    let reply = native(&json!({
-        "questions": keys.iter().map(|k| question(k)).collect::<Vec<_>>(),
-        "gaps": ["ASK-GAP-SENTINEL"], "notes": "ASK-NOTES-SENTINEL"}));
-    let provider = Script::texts(std::slice::from_ref(&reply));
-    let out = compile_with_provider(&revision(0), &provider)
-        .await
-        .unwrap();
-    assert_eq!(provider.calls(), 1);
-    assert_eq!(context(&out)[0]["response"]["sha256"], sha(&reply));
-    assert_absent(
-        &out,
-        &["ASK-NOTES-SENTINEL", "ASK-GAP-SENTINEL", "ask_key_sentinel"],
-    );
-    let rounds = native_rounds(&out);
-    let ask = &rounds[0];
-    assert!(
-        ask["diagnostics"]
-            .to_string()
-            .contains("at most eight questions"),
-        "{ask:#}"
-    );
-    assert_withheld(&ask["notes"], "ASK-NOTES-SENTINEL", "notes");
-    assert_listed(&ask["asked"], &json!(keys), "asked");
-    assert_listed(&ask["gaps"], &json!(["ASK-GAP-SENTINEL"]), "gaps");
-}
-
-/// A genuine ask is answered by the human first: its admitted question and its gap stay in the
-/// outcome and in its round by key and clause; only its notes are kept by digest.
-#[tokio::test]
-async fn an_admitted_native_ask_keeps_its_questions_and_gaps_readable() {
+async fn an_admitted_sketch_ask_keeps_its_questions_and_gaps_readable() {
     let clause = "la longueur du résumé";
-    let reply = native(
-        &json!({"questions": [question("const.tone")], "gaps": [clause],
-        "notes": "ACCEPTED-ASK-NOTES-SENTINEL"}),
+    let mut asking = recap_sketch();
+    asking["questions"] = json!([{"key": "const.audience", "label": "Pour quel public ?",
+        "answer_type": "text", "why": "La demande ne le dit pas."}]);
+    asking["gaps"] = json!([clause]);
+    asking["notes"] = json!("ACCEPTED-ASK-NOTES-SENTINEL");
+    let mut fills = valid_fills();
+    fills[1]["value"] = json!(
+        "Résume ces tickets pour ${{ const.audience }} sans rien inventer: ${{ with.tickets }}"
     );
-    let provider = Script::texts(std::slice::from_ref(&reply));
-    let out = compile_with_provider(&revision(0), &provider)
-        .await
-        .unwrap();
-    assert_eq!(provider.calls(), 1);
+    let provider = Script::texts(&[
+        asking.to_string(),
+        json!({"fills": fills, "notes": "fills"}).to_string(),
+    ]);
+    let request =
+        CompileRequest::create(SKETCH_INTENT).with_authoring_policy(policy(NativeMode::Sketch, 0));
+    let out = compile_with_provider(&request, &provider).await.unwrap();
+    assert_eq!(provider.calls(), 2);
     let asked: Vec<&str> = out.questions.iter().map(|q| q.key.as_str()).collect();
-    assert!(asked.contains(&"const.tone"), "{out:#?}");
-    assert!(asked.iter().any(|key| key.starts_with("gap.")), "{asked:?}");
-    let ask = &native_rounds(&out)[0];
-    assert_eq!(ask["diagnostics"], json!([]), "{ask:#}");
-    assert_eq!(ask["asked"], json!(["const.tone"]));
-    assert_eq!(ask["gaps"], json!([clause]));
-    assert_withheld(&ask["notes"], "ACCEPTED-ASK-NOTES-SENTINEL", "notes");
+    assert!(asked.contains(&"const.audience"), "{out:#?}");
+    let round = &native_rounds(&out)[0];
+    assert_eq!(round["diagnostics"], json!([]), "{round:#}");
+    assert_eq!(round["questions"], json!(["const.audience"]), "{round:#}");
+    assert_eq!(round["gaps"], json!([clause]), "{round:#}");
+    assert_withheld(&round["notes"], "ACCEPTED-ASK-NOTES-SENTINEL", "notes");
     assert_absent(&out, &["ACCEPTED-ASK-NOTES-SENTINEL"]);
 }
 
-/// A judged native round the laws refuse keeps the seat's notes, and its question keys and gaps,
-/// by digest; the refused candidate itself stays the known whole-candidate path.
+/// A sketch answer that is not JSON quotes no answer text: the round says what serde says, by
+/// class, and the sketch door buys no repair for it.
 #[tokio::test]
-async fn a_refused_judged_native_round_keeps_its_notes_keys_and_gaps_by_digest() {
-    let reply = native(&json!({"candidate": "nika: x\ntasks: {}\n",
-        "questions": [question("const.judged_key_sentinel")], "gaps": ["JUDGED-GAP-SENTINEL"],
-        "notes": "JUDGED-NOTES-SENTINEL"}));
-    let provider = Script::texts(std::slice::from_ref(&reply));
-    let out = compile_with_provider(&revision(0), &provider)
-        .await
-        .unwrap();
+async fn a_sketch_syntax_error_keeps_the_decoders_words_and_buys_no_repair() {
+    let broken = r#"{"tasks": !}"#.to_owned();
+    let provider = Script::texts(&[broken.clone(), recap_sketch().to_string()]);
+    let request =
+        CompileRequest::create(SKETCH_INTENT).with_authoring_policy(policy(NativeMode::Sketch, 1));
+    let out = compile_with_provider(&request, &provider).await.unwrap();
     assert_eq!(provider.calls(), 1);
-    let rounds = native_rounds(&out);
-    let judged = &rounds[0];
-    assert!(judged.get("candidate_sha256").is_some(), "{judged:#}");
-    assert!(
-        !judged["diagnostics"].as_array().unwrap().is_empty(),
-        "{judged:#}"
-    );
-    assert_withheld(&judged["notes"], "JUDGED-NOTES-SENTINEL", "notes");
-    assert_listed(&judged["gaps"], &json!(["JUDGED-GAP-SENTINEL"]), "gaps");
-    assert_listed(
-        &judged["questions"],
-        &json!(["const.judged_key_sentinel"]),
-        "questions",
-    );
-    assert_absent(&out, &["JUDGED-NOTES-SENTINEL", "JUDGED-GAP-SENTINEL"]);
-    // The key is gone from its round; the outcome names it only where a refusal or the whole
-    // refused candidate does (the known paths this witness does not claim).
-    let journal = json!(rounds).to_string();
-    let elsewhere = journal.matches("judged_key_sentinel").count();
-    let named: usize = judged["diagnostics"]
-        .to_string()
-        .matches("judged_key_sentinel")
-        .count();
-    assert_eq!(elsewhere, named, "only a diagnostic may name it: {journal}");
-}
-
-/// A native answer outside its schema is refused by class and position, the seat's key or value
-/// never repeated; a JSON syntax error keeps its words, and its repair still reads them.
-#[tokio::test]
-async fn a_native_answer_outside_its_schema_is_refused_by_class_and_position() {
-    for (reply, sentinel) in [
-        (
-            native(&json!({"candidate": "nika: x\ntasks: {}\n", "native_key_sentinel": 1})),
-            "native_key_sentinel",
-        ),
-        (
-            native(&json!({"questions": "NATIVE-VALUE-SENTINEL"})),
-            "NATIVE-VALUE-SENTINEL",
-        ),
-    ] {
-        let provider = Script::texts(std::slice::from_ref(&reply));
-        let out = compile_with_provider(&revision(1), &provider)
-            .await
-            .unwrap();
-        assert_absent(&out, &[sentinel]);
-        assert_eq!(
-            provider.calls(),
-            1,
-            "a schema error buys no repair: {reply}"
-        );
-        let round = &native_rounds(&out)[0];
-        assert_eq!(round["failure_class"], "ANSWER_SCHEMA", "{round}");
-        assert_eq!(round["response_sha256"], sha(&reply));
-        let column = round["decode_error"]["column"].as_u64().unwrap();
-        let reason = format!("the answer schema, line 1, column {column}");
-        assert_eq!(round["answer"], format!("not a native answer: {reason}"));
-        assert!(
-            out.diagnostics
-                .iter()
-                .any(|d| d.target == "authoring_native"
-                    && d.message
-                        .contains(&format!("not a native answer ({reason})"))),
-            "{:#?}",
-            out.diagnostics
-        );
-    }
-    // A syntax error quotes no answer text: the round says what serde says, and the paid repair
-    // sends those words back to the seat.
-    let broken = r#"{"candidate": !}"#.to_owned();
-    let provider = Script::texts(&[broken, native_answer()]);
-    let out = compile_with_provider(&revision(1), &provider)
-        .await
-        .unwrap();
-    assert_eq!(provider.calls(), 2);
     let round = &native_rounds(&out)[0];
     assert_eq!(round["failure_class"], "ANSWER_JSON_SYNTAX", "{round}");
+    assert_eq!(round["response_sha256"], sha(&broken));
     let said = round["answer"].as_str().unwrap();
     assert!(said.contains("expected value"), "{said}");
-    let repair = &provider.seen.lock().unwrap()[1].user;
-    assert!(repair.contains("expected value"), "{repair}");
 }
 
 /// A fill's notes are kept by digest, on an accepted fill round and on a refused one.

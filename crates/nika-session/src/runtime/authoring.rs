@@ -8,9 +8,12 @@
 //! gives the next line exactly one typed meaning — a `yes` never crosses
 //! from an authoring answer to a consent to a gate.
 
+use nika_onboard::routing::run_options;
+
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
+use nika_onboard::compile::program_records;
 use nika_onboard::compile::round::{change_money, compiled};
 use nika_onboard::compile::{CompileOutcome, CompileQuestion, CompileRequest, revise_intent};
 // The compiler's reasons in a human's words and its questions' own grammar live beside the
@@ -29,7 +32,7 @@ use crate::authoring::{
     is_cancel, is_greeting, reasons,
 };
 use crate::change::{
-    ChangeError, ProjectChange, ProjectChangeSet, RunRequest, Witness, check_on_disk,
+    ChangeError, ProjectChange, ProjectChangeSet, RunRequest, Witness, check_with_access,
 };
 use crate::outcome::{ProposalId, Refusal, RefusalClass};
 use crate::review;
@@ -388,7 +391,17 @@ impl SessionRuntime {
                 ),
             ));
         };
-        let original = self.intent.goal.clone();
+        let path = saved.strip_prefix(&root).unwrap_or(saved).to_path_buf();
+        let plan = program_records::plan(
+            self.programs.as_ref(),
+            program_records::Place::Saved(&path.to_string_lossy()),
+            &base,
+        );
+        let original = plan
+            .as_ref()
+            .and_then(program_records::original)
+            .map(str::to_owned)
+            .or_else(|| self.intent.goal.clone());
         let goal = original
             .clone()
             .unwrap_or_else(|| format!("the workflow `{}`", saved.display()));
@@ -403,13 +416,13 @@ impl SessionRuntime {
         let mut round = AuthoringRound::new(goal.clone());
         // The proposal updates this file over exactly the bytes read here (a later selection
         // never retargets it), and refuses if they move before it is proposed.
-        let path = saved.strip_prefix(&root).unwrap_or(saved).to_path_buf();
         let witness = Witness::of(base.as_bytes());
         // Before any cognition: the file's own ceiling, or this revision's stated one.
         if let Err(refused) = self.bind_revision_money(&path, change.trim(), &witness) {
             return refused;
         }
         round.target = Some((path, witness));
+        round.continuation = plan;
         round.edit = Some((base, change.trim().to_owned(), original));
         // The line's own admitted directives, as the law reads the change the EDIT holds (B15).
         round.money = change_money(change.trim(), !self.money.admitted.is_empty());
@@ -496,6 +509,11 @@ impl SessionRuntime {
         // Its bounded edit/repair loop owns the revision; a model paraphrase
         // must never replace these inputs through a fresh Create request.
         let mut round = AuthoringRound::new(goal.clone());
+        round.continuation = program_records::plan(
+            self.programs.as_ref(),
+            program_records::Place::Proposal(&self.proposal_id(&set).to_string()),
+            &base,
+        );
         round.edit = Some((base, change.trim().to_owned(), Some(set.goal.clone())));
         // A proposal that updates a saved file keeps that file and its witness; a fresh
         // creation keeps its own fresh destination.
@@ -975,8 +993,11 @@ impl SessionRuntime {
             && self.authoring.is_none()
             && self.run_inputs.is_none()
             && self.activation.is_none()
-            && run_prefix(input)
-                .is_some_and(|lower| ceiling_in(input).is_err() || run_line_is_plain(&lower))
+            && run_prefix(input).is_some_and(|_| {
+                ceiling_in(input).is_err()
+                    || run_options::parse(input)
+                        .is_none_or(|(line, _)| run_line_is_plain(&line.to_lowercase()))
+            })
     }
 
     /// An explicit run line — `run it` · `run brief.nika with a ceiling of
@@ -984,7 +1005,11 @@ impl SessionRuntime {
     /// last accepted, only when its check on disk is clean. `None` when
     /// the line is not a run line.
     pub(super) fn run_turn(&mut self, input: &str) -> Option<TurnOutcome> {
-        let lower = run_prefix(input)?;
+        run_prefix(input)?;
+        let Some((line, access_pin)) = run_options::parse(input) else {
+            return Some(self.refuse_run_money(input, "invalid or duplicate Run option — use --access <pin> and --max-cost-usd <amount> once each"));
+        };
+        let lower = line.to_lowercase();
         // A label from the conversational router cannot turn an invalid
         // amount (or an unqualified time/count) into permission to run.
         let ceiling = match ceiling_in(input) {
@@ -1006,7 +1031,7 @@ impl SessionRuntime {
         // change comes before any run.
         if !run_line_is_plain(&lower) {
             return match self.classify(SessionPhase::Idle, input).act {
-                TurnAct::RequestRun => Some(self.run_plain(input, ceiling)),
+                TurnAct::RequestRun => Some(self.run_plain(&line, ceiling, access_pin)),
                 TurnAct::Modify | TurnAct::Mixed => Some(TurnOutcome::Refusal(Refusal::new(
                     RefusalClass::WrongState,
                     "a run with a change in it — say the change first (in a sentence), review the new workflow, then « run it »",
@@ -1014,12 +1039,17 @@ impl SessionRuntime {
                 _ => None,
             };
         }
-        Some(self.run_plain(input, ceiling))
+        Some(self.run_plain(&line, ceiling, access_pin))
     }
 
     /// The closed run line: the verb, the file or the last accepted
     /// workflow, the ceiling.
-    fn run_plain(&mut self, input: &str, ceiling: Option<f64>) -> TurnOutcome {
+    fn run_plain(
+        &mut self,
+        input: &str,
+        ceiling: Option<f64>,
+        access_pin: Option<String>,
+    ) -> TurnOutcome {
         let root = self.snapshot.root.clone();
         let named = named_files(input)
             .into_iter()
@@ -1035,7 +1065,7 @@ impl SessionRuntime {
         if let Some(withdrawn) = self.rehearsed_at_run(&workflow) {
             return withdrawn;
         }
-        let audit = check_on_disk(&root, &workflow);
+        let audit = check_with_access(&root, &workflow, access_pin.as_deref());
         if !audit.clean {
             let mut text = format!(
                 "check · `{}` · findings ✖ — the run was not started",
@@ -1063,6 +1093,7 @@ impl SessionRuntime {
         let inputs = RunInputs {
             workflow: workflow.clone(),
             max_cost_usd,
+            access_pin,
             needed,
             given,
         };
@@ -1084,7 +1115,7 @@ impl SessionRuntime {
             };
         }
         inputs.needed.clear();
-        let report = if inputs.given.is_empty() {
+        let mut report = if inputs.given.is_empty() {
             format!("check · `{}` · clean ✔", inputs.workflow.display())
         } else {
             format!(
@@ -1093,12 +1124,16 @@ impl SessionRuntime {
                 inputs.given.join(" · ")
             )
         };
+        if let Some(pin) = &inputs.access_pin {
+            let _ = write!(report, " · access {pin} (explicit)");
+        }
         TurnOutcome::RunRequested {
             report,
             run: RunRequest {
                 workflow: inputs.workflow,
                 vars: inputs.given,
                 max_cost_usd: inputs.max_cost_usd,
+                access_pin: inputs.access_pin,
             },
         }
     }
@@ -1164,6 +1199,7 @@ impl SessionRuntime {
 pub(super) struct RunInputs {
     workflow: PathBuf,
     max_cost_usd: f64,
+    access_pin: Option<String>,
     needed: Vec<String>,
     given: Vec<String>,
 }

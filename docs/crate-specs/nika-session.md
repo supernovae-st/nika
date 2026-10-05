@@ -693,3 +693,50 @@ inputs are unchanged (C10 · Q8).
 `nika_display::check_render::review`, which also owns their task-face rendering.
 Session retains candidate identity, destination selection, consent, application
 and history; rendering candidate text does not approve or save it.
+
+## Semantic programs across revisions and reopen
+
+The proposal boundary retains the compiler's byte-bound semantic or source-revision
+record as evidence in the existing HOME conversation history (`Saved.programs`).
+Pending edits retrieve records by proposal identity and exact base bytes; saved-file
+edits require the saved relative path and those bytes. Equal bytes at distinct paths
+do not alias a request, and an unaccepted proposal cannot replace a saved record.
+The compiler reconstructs and judges the record under the current observation. A saved
+revision reads its original request from that record, not a later conversation goal.
+Records are bounded and redacted as a whole by `compile::program_records`; an
+unknown envelope is kept unchanged and grants nothing. A missing record keeps the
+compiler's explicit historical-source limitations. No second project store is added.
+
+An EDIT's base record is input to a fresh revision, not a replayed answer round:
+knowledge is composed again, current monetary admission applies, and the revision's
+settled record replaces the base as its continuation. History can restore the last
+file actually saved as a conversational selection, but no proposal, consent, Run
+permission or clean-check assertion. The separate concordant-checkpoint path below
+can restore numeric accounting closed; program evidence cannot. Save still targets the same
+file under its original byte witness. Hermetic loopback tests in
+`runtime/semantic_basis_tests.rs` exercise Save/reopen/revise and pending failure
+retention; these are protocol checks, not live provider qualification. The test also
+preserves the negative case where a reopened session has prior monetary exposure:
+a new allowance must not erase or replace that exposure. Retaining semantic evidence
+does not itself implement durable monetary-account resumption.
+
+The closed conversational acts (`is_cancel`, `is_why`, `is_meaning`,
+`is_what_happened`, `is_greeting`) are owned by
+`nika_onboard::routing::conversation` and re-exported under their existing Session
+paths. Their vocabulary and whole-line matching remain unchanged.
+
+### Resuming complete numeric accounting
+
+A new-format inference checkpoint is kept in both the project record and the
+completed conversation boundary. After `enable_history`, `restore_state` may
+restore its accounting CLOSED only when both values match, their project binding
+and exact cost observation validate, the exclusive history lease is held, and
+no interrupted operation or dispatch marker remains. Older observation-only
+records, corruption, missing/divergent copies and uncertain history still refuse
+paid continuation. The read never sends a request or renews a proposal or consent.
+
+Before another inference the human must restate a TOTAL Session ceiling. The
+provider owner's `amend` conserves prior settlement, holds and request identity;
+a default (including zero) cannot reconfirm it. Run admission remains separate.
+The exact observation superseded by the restored ledger is removed from the
+historical display list to avoid counting those same attempts twice.

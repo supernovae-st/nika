@@ -6,6 +6,11 @@ use nika_kernel::ai::provider::{InferResponse, ProviderError, TokenUsage, UsageC
 use nika_types::cost::Cost;
 use std::sync::{Arc, Mutex, MutexGuard};
 
+mod amount;
+mod checkpoint;
+mod summary;
+pub use amount::allowance;
+pub use summary::unbudgeted_summary;
 mod declared;
 mod observation;
 mod review;
@@ -58,6 +63,8 @@ pub struct AttemptReceipt {
     pub tariff: InferenceTariff,
     /// Reserved worst-case catalog cost.
     pub reserved: Cost,
+    /// Exact output bound admitted for this physical request.
+    pub max_output_tokens: u32,
     /// Whether the request crossed the transport boundary.
     pub sent: bool,
     /// Complete or partial observed meters; absent stays absent.
@@ -122,6 +129,7 @@ pub struct InferenceReceipt {
 }
 #[derive(Debug)]
 struct State {
+    identity: String,
     unknown: Option<UnknownCostChoice>,
     unknown_in_flight: u32,
     unknown_attempts: Vec<UnknownAttemptReceipt>,
@@ -181,6 +189,7 @@ impl InferenceAdmission {
     fn open(limit: Cost, unbudgeted: bool) -> Self {
         Self(
             Arc::new(Mutex::new(State {
+                identity: nika_types::id::CorrelationId::generate().to_string(),
                 unknown: None,
                 unknown_in_flight: 0,
                 unknown_attempts: Vec::new(),
@@ -250,6 +259,9 @@ impl InferenceAdmission {
     /// An unavailable lock fails closed.
     pub fn snapshot(&self) -> Result<InferenceReceipt, ProviderError> {
         let s = self.lock()?;
+        self.snapshot_locked(&s)
+    }
+    fn snapshot_locked(&self, s: &State) -> Result<InferenceReceipt, ProviderError> {
         Ok(InferenceReceipt {
             scoped_to_declared_free: self.observes_declared_free_only(),
             unknown_cost: s.unknown.clone(),
@@ -341,6 +353,7 @@ impl InferenceAdmission {
             endpoint: endpoint.to_owned(),
             tariff,
             reserved: quote,
+            max_output_tokens: output,
             sent: false,
             usage: None,
             estimated: None,

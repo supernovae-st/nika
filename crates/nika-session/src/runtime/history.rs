@@ -49,6 +49,11 @@ pub(super) struct Saved {
     /// otherwise. Absent from records that had none, whose bytes stay exactly as before.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub round: Option<serde_json::Value>,
+    /// Bounded, byte-bound program evidence; kept opaque across unknown versions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub programs: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inference_checkpoint: Option<serde_json::Value>,
     /// The last observed run (a `run_view::KeptRun` value), kept unchanged when unreadable;
     /// absent from records that had none. A present `null` is refused, never an absence.
     #[serde(default, deserialize_with = "present")]
@@ -107,7 +112,7 @@ enum Event {
         input: String,
     },
     Completed {
-        state: Saved,
+        state: Box<Saved>,
         run: RunState,
         authority: AuthorityState,
         effect: EffectState,
@@ -299,7 +304,7 @@ impl History {
                         "conversation projection exceeds its context window",
                     ));
                 }
-                self.state = state;
+                self.state = *state;
                 self.run = run;
                 self.authority = authority;
                 self.uncertain |= effect == EffectState::Unknown;
@@ -385,7 +390,7 @@ impl History {
         effect: EffectState,
     ) -> io::Result<()> {
         self.append(Event::Completed {
-            state,
+            state: Box::new(state),
             run,
             authority,
             outcome,

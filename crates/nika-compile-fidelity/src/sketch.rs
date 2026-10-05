@@ -1074,9 +1074,15 @@ fn default_args(task: &SketchTask, tool: &str) -> Map<String, Value> {
 }
 
 mod admission;
+pub mod import;
+/// Durable, byte-bound evidence of authored programs, without authority.
+pub mod kept;
 mod record;
+pub mod revision;
 pub use admission::{judge_sketch, reach_laws, validated};
-pub use record::{bound_answers, contract_projection, read_basis, replayed, replayed_observed};
+pub use record::{
+    bound_answers, contract_projection, read_basis, replayed, replayed_observed, same_caller,
+};
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]

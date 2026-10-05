@@ -242,8 +242,12 @@ async fn witness_foundry_escalation_requests_a_plan_that_reads_the_attached_foun
     assert!(!seen[0].system.contains("pattern:customer-reply"));
 }
 
+/// Formerly the witness that a nonconstant revision requested whole source even under sketch. A
+/// base no semantic record binds is read by ONE typed links call under every mode (choice A:
+/// a readable base writing a destination), never the source schema, and kept when the answer
+/// proves nothing.
 #[tokio::test]
-async fn witness_a_nonconstant_revision_requests_direct_source_even_under_sketch() {
+async fn witness_a_record_less_revision_never_requests_source_under_any_mode() {
     for mode in [NativeMode::Sketch, NativeMode::Escalate, NativeMode::Only] {
         let provider = Script::texts(&[native_answer()]);
         let request = CompileRequest::edit(
@@ -253,12 +257,13 @@ async fn witness_a_nonconstant_revision_requests_direct_source_even_under_sketch
         .with_original_intent("Copie entree.txt dans a.txt.")
         .with_authoring_policy(policy(mode, 0));
         let out = compile_with_provider(&request, &provider).await.unwrap();
-        assert!(provider.calls() >= 1, "{mode:?}: {out:#?}");
-        assert_eq!(provider.schemas()[0], source_schema(), "{mode:?}");
+        assert_eq!(provider.calls(), 1, "{mode:?}: {out:#?}");
+        assert_ne!(provider.schemas()[0], source_schema(), "{mode:?}");
+        assert!(out.candidate.is_none(), "{mode:?}: the host keeps its base");
         assert!(
             route(&out)
                 .iter()
-                .any(|step| step.starts_with("edit: the constant door could not settle")),
+                .any(|step| step.starts_with("edit: source-anchored revision")),
             "{mode:?}: {:?}",
             route(&out)
         );
@@ -769,8 +774,12 @@ async fn hot_names_the_elided_calls_and_a_seatless_compile_is_unchanged() {
     assert_eq!(out.questions, plain.questions);
 }
 
+/// A nonconstant revision of a base no semantic record binds is recorded with its base and its
+/// change, and as kept: no door wrote source, no proposal exists. (Formerly recorded as a
+/// direct-source revision; the bound semantic revision's record is proven in the semantic
+/// revision suite.)
 #[tokio::test]
-async fn a_nonconstant_revision_is_recorded_as_source_direct_with_its_base() {
+async fn a_record_less_revision_is_recorded_as_kept_with_its_base() {
     let provider = Script::texts(&[native_answer()]);
     let request = CompileRequest::edit(
         REVISION_BASE,
@@ -779,6 +788,9 @@ async fn a_nonconstant_revision_is_recorded_as_source_direct_with_its_base() {
     .with_original_intent("Copie entree.txt dans a.txt.")
     .with_authoring_policy(policy(NativeMode::Sketch, 0));
     let out = compile_with_provider(&request, &provider).await.unwrap();
+    // One typed reading call (choice A), its answer proving nothing: the base is kept.
+    assert_eq!(provider.calls(), 1);
+    assert!(out.candidate.is_none(), "{out:#?}");
     let summary = forensic(&out);
     assert_eq!(summary["intent"]["kind"], "edit", "{summary:#}");
     assert_eq!(summary["intent"]["base_sha256"], sha(REVISION_BASE));
@@ -787,8 +799,13 @@ async fn a_nonconstant_revision_is_recorded_as_source_direct_with_its_base() {
         summary["intent"]["original_intent_sha256"],
         nika_compile::intent_sha256("Copie entree.txt dans a.txt.")
     );
-    assert_eq!(summary["door"]["reason"], "nonconstant_revision");
-    assert_eq!(summary["proposal"]["state"], "NOT_CAPTURED");
+    assert_eq!(summary["door"]["name"], "source_revision");
+    assert_eq!(summary["door"]["reason"], "record_less_source_revision");
+    assert_eq!(summary["door"]["source_owner"], "none");
+    assert_eq!(
+        summary["proposal"]["state"], "NOT_CAPTURED",
+        "the seat answered, its answer was no revision: nothing proposed"
+    );
 }
 
 #[tokio::test]

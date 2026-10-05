@@ -345,3 +345,53 @@ must be a verbatim occurrence of the effective request, found on that text's own
 boundaries. Replay refuses a different non-null trigger or an omitted trigger when the
 reader finds a cadence. Older records violating these laws may refuse replay; their stored
 source is never used as a fallback.
+
+## Retained program evidence for semantic revision
+
+`sketch::kept` owns the pure envelope used by conversation hosts to retain
+compiler records by a proposal identity or saved relative path and exact final
+candidate bytes. Proposal and saved-file namespaces are distinct; Save invalidates
+the previous record for its path even when the replacement has no retainable plan. The envelope keeps at most
+sixteen recent records within 256 KiB; an individual serialized plan above
+128 KiB or changed by the host's redactor is withheld. Unknown or oversized
+envelopes stay unchanged and yield no usable record. Each entry binds both the
+final candidate digest and the complete plan digest. The optional last-saved
+project-relative path is a conversational selection only.
+
+This module performs no I/O, invokes no provider, and confers no admission,
+consent, freshness or fidelity judgment. A returned record must still pass
+Compile's complete reconstruction of the EDIT base and the current observation.
+The compiler's semantic record and its source-revision record retain their own
+formats; this envelope does not translate either into source-authoring authority.
+
+`observed::basis` binds a semantic reading to the current facts for the source and
+destination paths stated by that reading, including files below stated folders.
+Canonical ordering and `./` aliases do not change identity; extra destinations
+observed for a later EDIT do not change its base. Changed relevant facts or kinds
+still refuse replay. The full host observation retains its independent digest.
+Older records whose full-world digest differs from this canonical scoped identity
+may refuse replay; no stored source fallback or silent authority upgrade is added.
+
+A source revision whose change omitted the new path retains the human's decided
+`revision.path` beside that change clause in its resolved request. The original
+change and typed links remain unchanged in the record. A subsequent revision can
+therefore refer to the destination actually written, including after clarification;
+no missing path is guessed and no source formatting outside its proven slots changes.
+
+
+### Source revision records and answered endpoint projection
+
+`sketch::import::record` owns the pure source-revision record construction, original
+request binding, bounded question descriptions and exact replay checks. The core
+lends its literal parser and obligation-ledger projection; it retains public
+CompileRequest/CompileOutcome types, mandatory typed questions, Check, judgment
+and diagnostic orchestration. Record format, hashes, answers and scope stay unchanged.
+
+`literal::answered::grant_host` projects an exact answered HTTP(S) endpoint into
+the candidate's declared permit document only when a fetch URL or notify target
+reads that literal. The core still chooses and proves the answer, emits the changed
+bytes and checks them. This pure document update grants no live execution authority.
+
+`sketch::record::same_caller` compares the core-projected caller facts and initial
+answers without granting authority; a new clarification or changed money remains
+a new basis, never a replay of the stored caller.

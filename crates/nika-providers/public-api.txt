@@ -154,6 +154,7 @@ pub fn nika_providers::admission::TariffUnit::as_any(&self) -> &(dyn core::any::
 pub nika_providers::admission::AttemptReceipt::endpoint: alloc::string::String
 pub nika_providers::admission::AttemptReceipt::estimated: core::option::Option<nika_types::cost::Cost>
 pub nika_providers::admission::AttemptReceipt::id: usize
+pub nika_providers::admission::AttemptReceipt::max_output_tokens: u32
 pub nika_providers::admission::AttemptReceipt::model: alloc::string::String
 pub nika_providers::admission::AttemptReceipt::note: alloc::string::String
 pub nika_providers::admission::AttemptReceipt::reported_estimate: core::option::Option<nika_types::cost::Cost>
@@ -452,6 +453,9 @@ pub fn nika_providers::admission::InferenceAdmission::qualify(provider: &str, mo
 pub fn nika_providers::admission::InferenceAdmission::snapshot(&self) -> core::result::Result<nika_providers::admission::InferenceReceipt, nika_kernel_ai::provider::ProviderError>
 pub fn nika_providers::admission::InferenceAdmission::unbudgeted() -> Self
 impl nika_providers::admission::InferenceAdmission
+pub fn nika_providers::admission::InferenceAdmission::checkpoint(&self, project: &[u8]) -> core::result::Result<serde_json::value::Value, nika_kernel_ai::provider::ProviderError>
+pub fn nika_providers::admission::InferenceAdmission::from_checkpoint(value: &serde_json::value::Value, project: &[u8]) -> core::result::Result<(Self, serde_json::value::Value), nika_kernel_ai::provider::ProviderError>
+impl nika_providers::admission::InferenceAdmission
 pub fn nika_providers::admission::InferenceAdmission::for_scope(&self, candidate: &str, invocation: &str) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
 pub fn nika_providers::admission::InferenceAdmission::new_unknown(choice: nika_providers::admission::UnknownCostChoice, policy: nika_providers::admission::UnknownCostPolicy) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
 impl nika_providers::admission::InferenceAdmission
@@ -507,6 +511,8 @@ impl nika_providers::admission::InferenceReceipt
 pub fn nika_providers::admission::InferenceReceipt::durable_observation(&self) -> serde_json::value::Value
 impl nika_providers::admission::InferenceReceipt
 pub fn nika_providers::admission::InferenceReceipt::observation(&self) -> serde_json::value::Value
+impl nika_providers::admission::InferenceReceipt
+pub fn nika_providers::admission::InferenceReceipt::summary(&self) -> alloc::string::String
 impl core::clone::Clone for nika_providers::admission::InferenceReceipt
 pub fn nika_providers::admission::InferenceReceipt::clone(&self) -> nika_providers::admission::InferenceReceipt
 impl core::cmp::Eq for nika_providers::admission::InferenceReceipt
@@ -696,12 +702,14 @@ pub const nika_providers::admission::RUN_REVIEW_TIMEOUT: core::time::Duration
 pub const nika_providers::admission::SESSION_REVIEW_MAX_OUTPUT_TOKENS: u32
 pub const nika_providers::admission::SESSION_REVIEW_MAX_REQUESTS: u32
 pub const nika_providers::admission::SESSION_REVIEW_TIMEOUT: core::time::Duration
+pub fn nika_providers::admission::allowance(amount: f64) -> core::result::Result<nika_types::cost::Cost, alloc::string::String>
 pub fn nika_providers::admission::monetary_default(amount: core::option::Option<f64>) -> core::result::Result<core::option::Option<nika_types::cost::Cost>, alloc::string::String>
 pub fn nika_providers::admission::native_catalog_price_known(model: &str, config: nika_providers::registry::ProvidersConfig) -> bool
 pub fn nika_providers::admission::observation_consistent(observation: &serde_json::value::Value) -> core::result::Result<(nika_providers::admission::AdmissionState, bool), &'static str>
 pub fn nika_providers::admission::observation_readable(observation: &serde_json::value::Value) -> bool
 pub fn nika_providers::admission::observation_request_ids(observation: &serde_json::value::Value) -> alloc::vec::Vec<&str>
 pub fn nika_providers::admission::observation_route(observation: &serde_json::value::Value) -> serde_json::value::Value
+pub fn nika_providers::admission::unbudgeted_summary(observed: &[&serde_json::value::Value], interrupted: usize) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::admission::unknown_cost_route(model: &str, config: nika_providers::registry::ProvidersConfig) -> core::result::Result<core::option::Option<nika_providers::admission::CostRoute>, alloc::string::String>
 pub mod nika_providers::authoring
 pub fn nika_providers::authoring::authoring_backend<H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static>(registry: &nika_providers::registry::ProviderRegistry<H>, model: &str) -> serde_json::value::Value
@@ -2327,6 +2335,7 @@ pub fn nika_providers::resolve_access::AccessRefusal::as_any(&self) -> &(dyn cor
 pub nika_providers::AttemptReceipt::endpoint: alloc::string::String
 pub nika_providers::AttemptReceipt::estimated: core::option::Option<nika_types::cost::Cost>
 pub nika_providers::AttemptReceipt::id: usize
+pub nika_providers::AttemptReceipt::max_output_tokens: u32
 pub nika_providers::AttemptReceipt::model: alloc::string::String
 pub nika_providers::AttemptReceipt::note: alloc::string::String
 pub nika_providers::AttemptReceipt::reported_estimate: core::option::Option<nika_types::cost::Cost>
@@ -2461,6 +2470,9 @@ pub fn nika_providers::admission::InferenceAdmission::qualify(provider: &str, mo
 pub fn nika_providers::admission::InferenceAdmission::snapshot(&self) -> core::result::Result<nika_providers::admission::InferenceReceipt, nika_kernel_ai::provider::ProviderError>
 pub fn nika_providers::admission::InferenceAdmission::unbudgeted() -> Self
 impl nika_providers::admission::InferenceAdmission
+pub fn nika_providers::admission::InferenceAdmission::checkpoint(&self, project: &[u8]) -> core::result::Result<serde_json::value::Value, nika_kernel_ai::provider::ProviderError>
+pub fn nika_providers::admission::InferenceAdmission::from_checkpoint(value: &serde_json::value::Value, project: &[u8]) -> core::result::Result<(Self, serde_json::value::Value), nika_kernel_ai::provider::ProviderError>
+impl nika_providers::admission::InferenceAdmission
 pub fn nika_providers::admission::InferenceAdmission::for_scope(&self, candidate: &str, invocation: &str) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
 pub fn nika_providers::admission::InferenceAdmission::new_unknown(choice: nika_providers::admission::UnknownCostChoice, policy: nika_providers::admission::UnknownCostPolicy) -> core::result::Result<Self, nika_kernel_ai::provider::ProviderError>
 impl nika_providers::admission::InferenceAdmission
@@ -2516,6 +2528,8 @@ impl nika_providers::admission::InferenceReceipt
 pub fn nika_providers::admission::InferenceReceipt::durable_observation(&self) -> serde_json::value::Value
 impl nika_providers::admission::InferenceReceipt
 pub fn nika_providers::admission::InferenceReceipt::observation(&self) -> serde_json::value::Value
+impl nika_providers::admission::InferenceReceipt
+pub fn nika_providers::admission::InferenceReceipt::summary(&self) -> alloc::string::String
 impl core::clone::Clone for nika_providers::admission::InferenceReceipt
 pub fn nika_providers::admission::InferenceReceipt::clone(&self) -> nika_providers::admission::InferenceReceipt
 impl core::cmp::Eq for nika_providers::admission::InferenceReceipt

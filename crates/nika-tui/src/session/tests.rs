@@ -864,3 +864,76 @@ fn the_typed_review_goes_first_and_only_after_the_session_admits_the_run() {
         joined(&turn.beats)
     );
 }
+
+#[test]
+fn an_explicit_run_pin_reaches_the_typed_cost_gate_and_cannot_be_replaced_while_waiting() {
+    let room = Room::new("run-pin");
+    std::fs::write(room.0.join("one.nika"), "nika: pinned\ntasks:\n  log:\n    invoke: { tool: \"nika:log\", args: { message: test } }\n").expect("workflow");
+    let reviewed = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&reviewed);
+    let slot: ChildSlot = Arc::default();
+    let mut live = Live::new(
+        room.0.clone(),
+        IntelligenceCensus::empty(),
+        Some(UserIntelligencePreference::new(
+            IntelligenceKind::None,
+            None,
+        )),
+        None,
+        Box::new(|_| Box::new(ScriptedReasoner::new(Vec::new()))),
+        runners(),
+    )
+    .with_run_review_observed(Box::new(move |root, run, sink| {
+        counted.fetch_add(1, Ordering::SeqCst);
+        assert_eq!(run.access_pin.as_deref(), Some("mock"));
+        let args = vec![
+            "-c".into(),
+            "printf '%s\\n' \"$1\"; exec /bin/cat > reply.json".into(),
+            "fixture".into(),
+            FRAME.into(),
+        ];
+        nika_cli_host::lane::drive_reviewed_child_observed(
+            Path::new("/bin/sh"),
+            &args,
+            root,
+            sink,
+            &slot,
+        )
+    }));
+    let _ = live.open();
+    let refused = live.submit("run one.nika --access mock --access api");
+    assert_eq!(
+        reviewed.load(Ordering::SeqCst),
+        0,
+        "{}",
+        joined(&refused.beats)
+    );
+    let asked = live.submit("run one.nika --access mock --max-cost-usd 0.1");
+    assert_eq!(
+        reviewed.load(Ordering::SeqCst),
+        1,
+        "{}",
+        joined(&asked.beats)
+    );
+    assert!(joined(&asked.beats).contains("access mock (explicit)"));
+    assert!(live.fresh_input_required());
+    let _ = live.submit("run one.nika --access api");
+    assert_eq!(reviewed.load(Ordering::SeqCst), 1);
+    assert!(live.fresh_input_required());
+    assert!(
+        std::fs::read(room.0.join("reply.json"))
+            .unwrap_or_default()
+            .is_empty()
+    );
+    let text = joined(&live.submit("no").beats);
+    assert!(
+        text.contains("Run cost decision cancelled; nothing sent"),
+        "{text}"
+    );
+    assert!(
+        reply_of(&room).is_empty(),
+        "declining closes the child without authority"
+    );
+    assert_eq!(reviewed.load(Ordering::SeqCst), 1);
+    assert!(!live.fresh_input_required());
+}

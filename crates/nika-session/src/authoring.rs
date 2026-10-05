@@ -321,6 +321,19 @@ impl AuthoringRound {
         }
     }
 
+    fn base_record(&self) -> bool {
+        self.edit
+            .as_ref()
+            .zip(self.continuation.as_ref())
+            .is_some_and(|((base, _, _), plan)| {
+                nika_onboard::compile::program_records::binds(plan, base)
+            })
+    }
+
+    fn replays(&self) -> bool {
+        self.continuation.is_some() && !self.base_record()
+    }
+
     /// The intent the compiler reads for this round: a revision's original
     /// request and change, folded; an answered `intent.clarification` replaces
     /// the request (the compiler's own law), else the request as stated.
@@ -358,7 +371,7 @@ impl AuthoringRound {
         host: Option<&dyn Rehearse>,
     ) -> Result<CompileOutcome, AuthoringError> {
         let intent = self.effective_intent();
-        let attach = if self.continuation.is_some() {
+        let attach = if self.replays() {
             Attach::Carried(self.knowledge.as_ref(), &intent)
         } else {
             Attach::Compose(&intent)
@@ -366,9 +379,9 @@ impl AuthoringRound {
         let mut out = compile_attached(seat, context, &self.request(), attach, account, host)?;
         round::carry_receipt(
             &mut out,
-            self.continuation
-                .as_ref()
-                .and(self.authoring_receipt.as_ref()),
+            self.replays()
+                .then_some(self.authoring_receipt.as_ref())
+                .flatten(),
         );
         Ok(out)
     }
@@ -392,6 +405,10 @@ impl AuthoringRound {
     /// presented a pack, the mandatory questions in the compiler's order (a
     /// revision's clause dispositions too), its reasons.
     pub fn absorb(&mut self, out: &CompileOutcome) {
+        // A base's record is input to a new revision, not that revision's settled plan.
+        if self.base_record() && out.provenance.plan.is_some() {
+            self.continuation = None;
+        }
         if let Some(plan) = round::reanchored(self.continuation.as_ref(), out) {
             // The compiler re-anchored the plan to a changed source (R4 A6): the next answer
             // binds against the observation its question showed; no approval rides along.
@@ -496,7 +513,7 @@ impl AuthoringRound {
         account: &nika_providers::InferenceAdmission,
     ) -> Result<CompileOutcome, AuthoringError> {
         let intent = self.effective_intent();
-        let attach = if self.continuation.is_some() {
+        let attach = if self.replays() {
             Attach::Carried(self.knowledge.as_ref(), &intent)
         } else {
             Attach::Compose(&intent)
@@ -505,123 +522,10 @@ impl AuthoringRound {
     }
 }
 
-/// The few words that abandon an authoring round (a `no` is an ANSWER —
-/// « should each filename be a heading? » — never an abandonment).
-#[must_use]
-pub fn is_cancel(line: &str) -> bool {
-    matches!(
-        line.trim().to_lowercase().as_str(),
-        "cancel"
-            | "/cancel"
-            | "stop"
-            | "drop"
-            | "discard"
-            | "abandon"
-            | "annule"
-            | "annuler"
-            | "laisse tomber"
-            | "forget it"
-            | "never mind"
-    )
-}
-
-/// A closed line's words whatever the typography: spaces as one (a no-break
-/// space, or the narrow one French sets before `?`), the closing marks set
-/// aside, a typographic apostrophe as `'`, lower case. It adds no word.
-fn closed_words(line: &str, closing: &[char]) -> String {
-    line.split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .trim_end_matches(|c: char| c == ' ' || closing.contains(&c))
-        .replace(['\u{2018}', '\u{2019}'], "'")
-        .to_lowercase()
-}
-
-/// The few words that ask WHY beside what waits (a question, a gate) —
-/// answered from the machine's state, consuming nothing. A closed set of
-/// whole lines, punctuation aside.
-#[must_use]
-pub fn is_why(line: &str) -> bool {
-    let word = closed_words(line, &['?', '!', '.']);
-    matches!(
-        word.as_str(),
-        "why"
-            | "/why"
-            | "why this"
-            | "why this question"
-            | "why do you ask"
-            | "explain"
-            | "explain this"
-            | "pourquoi"
-            | "pourquoi cette question"
-            | "pourquoi ça"
-            | "explique"
-            | "c'est quoi"
-            | "c'est pour quoi"
-    )
-}
-
-/// The few words that ask what Nika understood of the request — the
-/// Meaning view from the compiler's ledger; beside a proposal it holds it.
-#[must_use]
-pub fn is_meaning(line: &str) -> bool {
-    let word = closed_words(line, &['?', '!', '.']);
-    matches!(
-        word.as_str(),
-        "/meaning"
-            | "meaning"
-            | "what did you understand"
-            | "what did you keep"
-            | "did you keep everything"
-            | "qu'as-tu compris"
-            | "qu'as-tu retenu"
-            | "tu as tout gardé"
-    )
-}
-
-/// The few words that ask what just went wrong — answered by the last
-/// recovery card, from memory, never by another call.
-#[must_use]
-pub fn is_what_happened(line: &str) -> bool {
-    let word = closed_words(line, &['?', '!', '.']);
-    matches!(
-        word.as_str(),
-        "what happened"
-            | "what just happened"
-            | "what went wrong"
-            | "what was that"
-            | "/last"
-            | "de quoi"
-            | "quoi"
-            | "hein"
-            | "comment ça"
-            | "qu'est-ce qui s'est passé"
-            | "qu'est-ce qui se passe"
-    )
-}
-
-/// A bare greeting or thanks — the conversation's, never the compiler's
-/// (whose exact-skeleton door would read a lone `hello` as the `hello`
-/// lesson). A closed set of whole lines, punctuation aside.
-#[must_use]
-pub fn is_greeting(input: &str) -> bool {
-    let word = closed_words(input, &['!', '.', '?', ',']);
-    matches!(
-        word.as_str(),
-        "hello"
-            | "hi"
-            | "hey"
-            | "yo"
-            | "bonjour"
-            | "salut"
-            | "coucou"
-            | "thanks"
-            | "thank you"
-            | "merci"
-            | "bye"
-            | "au revoir"
-    )
-}
+// The closed conversation grammar belongs to the shared routing surface.
+pub use nika_onboard::routing::conversation::{
+    is_cancel, is_greeting, is_meaning, is_what_happened, is_why,
+};
 
 /// Compile one request deterministically: exact skeletons, the support
 /// grammar, strictly explicit intents, and the replay of a recorded plan.

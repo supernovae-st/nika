@@ -641,3 +641,22 @@ MAX. Buffered responses carry `ReasoningWire` read from the actual serialized
 body immediately before HTTP dispatch; this says what was transmitted, never
 what internal effort the server served. Streaming shares the admission and
 serialization law but does not add a buffered-response evidence field.
+
+### Closed numeric admission checkpoints
+
+`InferenceAdmission::checkpoint` captures the complete numeric ledger under
+`nika/inference-admission-checkpoint@1`: stable account identity, hashed canonical
+project binding, exact hashed route/tariff provenance, per-attempt identity,
+output bound, usage and provider identities, settled/active/held amounts and the
+old total ceiling. Checked arithmetic and phase/observation consistency are
+required on read. Metadata containing private endpoint material refuses capture;
+it is never redacted into a different accounting identity. The bounded envelope
+detects accidental corruption; it is not authentication against its file owner.
+
+`from_checkpoint` returns accounting CLOSED or Uncertain, never Open, together
+with the exact historical observation it supersedes. The host must prove a
+complete concordant durable boundary under exclusive ownership. A new explicit
+total ceiling uses the existing `amend`; it does not reset expenses or held
+reservations. Active attempts (including zero-priced ones) stay uncertain, and
+unknown-cost/unbudgeted observations cannot be converted into numeric authority.
+Changed tariff identities fail closed rather than reprice old usage.

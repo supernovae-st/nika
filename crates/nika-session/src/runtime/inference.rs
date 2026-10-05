@@ -6,6 +6,7 @@ use super::SessionRuntime;
 use crate::authoring::{AuthoringError, AuthoringRound, AuthoringSeat};
 use crate::money::{InferenceEnforcement, MonetaryDecision};
 use crate::reasoner::{ReasonError, Reply};
+use nika_providers::admission::allowance;
 use nika_providers::{InferenceAdmission, InferenceReceipt};
 use nika_types::cost::Cost;
 
@@ -62,23 +63,7 @@ impl SessionRuntime {
     }
     pub(super) fn inference_line(&self) -> String {
         let account = match self.inference_receipt() {
-            Ok(Some(r)) if r.unknown_cost.is_some() => format!(
-                "explicit unknown cost · known USD subtotal {} · unknown calls {} · {:?} · invoice unknown · fresh review required for another invocation",
-                r.estimated, r.unknown_calls, r.state
-            ),
-            Ok(Some(r)) => {
-                let provenance = r.attempts.last().map_or_else(String::new, |a| {
-                    format!(
-                        " · {}/{} at {} · tariff {} ({})",
-                        a.tariff.provider, a.model, a.endpoint, a.tariff.source, a.tariff.as_of
-                    )
-                });
-                let refusal = r.refusal.map_or_else(String::new, |s| format!(" · {s}"));
-                format!(
-                    "catalog admission: allowance {} · estimated {} · reserved {} · charge-unknown {} · available {} · {:?} · billed cost unknown{provenance}{refusal}",
-                    r.limit, r.estimated, r.active, r.held_unknown, r.available, r.state
-                )
-            }
+            Ok(Some(r)) => r.summary(),
             Ok(None) if self.money.reconfirm => format!(
                 "{} · {} historical cost observation(s), without authority{}",
                 RESTORED_EXPOSURE,
@@ -142,6 +127,9 @@ impl SessionRuntime {
         let Some(amount) = decision.effective_usd else {
             return;
         };
+        if self.money.reconfirm && decision.explicit_amount.is_none() {
+            return;
+        }
         if amount == 0.0 {
             if let Some(a) = &self.money.account {
                 let _ = a.amend(Cost::zero());
@@ -167,8 +155,7 @@ impl SessionRuntime {
         }
     }
     fn configure_account(&mut self, amount: f64) -> Result<(), String> {
-        // A ceiling is not evidence of prior settled/held exposure. The durable
-        // records carry a restriction, not a restorable admission ledger.
+        // A fresh total amends only a complete ledger; old observations stay restrictions.
         if self.money.reconfirm && self.money.account.is_none() {
             return Err(RESTORED_EXPOSURE.into());
         }
@@ -424,46 +411,22 @@ impl SessionRuntime {
             .iter()
             .filter(|o| o["unbudgeted"] == true && !is_decision(o))
             .collect();
-        let sent: usize = observed
-            .iter()
-            .filter_map(|o| o["attempts"].as_array())
-            .map(|attempts| attempts.iter().filter(|a| a["sent"] == true).count())
-            .sum();
         let interrupted = self
             .intent
             .decisions
             .iter()
             .filter(|d| d.starts_with(OBSERVED_PREFIX))
             .count();
-        if sent == 0 && interrupted == 0 {
-            return None;
-        }
-        let estimate = observed
-            .iter()
-            .try_fold(0i128, |total, o| {
-                o["known_subtotal_nano_usd"]
-                    .as_str()?
-                    .parse::<i128>()
-                    .ok()?
-                    .checked_add(total)
-            })
-            .map_or_else(|| "unreadable".to_owned(), |n| Cost::new(n).to_string());
-        let unsettled: u64 = observed
-            .iter()
-            .filter_map(|o| o["unknown_calls"].as_u64())
-            .sum();
-        let interrupted = match interrupted {
-            0 => String::new(),
-            n => format!(
-                " · {n} no-budget dispatch(es) left without a recorded settlement may have been billed; usage and cost unknown"
-            ),
-        };
-        Some(format!(
-            "no-budget observation (outside any allowance or cap): {sent} priced call(s) sent · catalog estimate {estimate} of complete usage · {unsettled} without usable settlement · invoice unknown{interrupted}"
-        ))
+        nika_providers::admission::unbudgeted_summary(&observed, interrupted)
     }
     /// The restart refusal: what stays unknown, what was not done, the way on.
     pub(super) fn restored_refusal(&self) -> String {
+        if self.money.account.is_some() {
+            return format!(
+                "{} · confirm a fresh TOTAL Session ceiling; settled expenses and reservations are retained",
+                self.inference_line()
+            );
+        }
         format!(
             "{RESTORED_EXPOSURE}{} · {RESTORED_WAY}",
             self.interrupted_note()
@@ -541,37 +504,6 @@ fn decision_line(observations: &[serde_json::Value]) -> Option<String> {
         names.join(", "),
         count("chosen") + count("none") + count("outside_options")
     ))
-}
-
-/// Convert the already validated binary number downward without another
-/// monetary grammar or an upward-rounded floating multiplication.
-fn allowance(amount: f64) -> Result<Cost, String> {
-    if !amount.is_finite() || amount < 0.0 {
-        return Err("invalid catalog allowance".into());
-    }
-    let bits = amount.to_bits();
-    let raw_exp = i32::try_from((bits >> 52) & 0x7ff).map_err(|e| e.to_string())?;
-    let fraction = bits & ((1u64 << 52) - 1);
-    let mantissa = if raw_exp == 0 {
-        fraction
-    } else {
-        fraction | (1u64 << 52)
-    };
-    let exponent = if raw_exp == 0 { -1074 } else { raw_exp - 1075 };
-    let scaled = u128::from(mantissa) * 1_000_000_000;
-    let nanos = if exponent < 0 {
-        let shift = u32::try_from(-exponent).map_err(|e| e.to_string())?;
-        scaled.checked_shr(shift).unwrap_or(0)
-    } else {
-        let shift = u32::try_from(exponent).map_err(|e| e.to_string())?;
-        1u128
-            .checked_shl(shift)
-            .and_then(|n| scaled.checked_mul(n))
-            .ok_or("catalog allowance overflow")?
-    };
-    i128::try_from(nanos)
-        .map(Cost::new)
-        .map_err(|_| "catalog allowance overflow".into())
 }
 
 #[cfg(test)]

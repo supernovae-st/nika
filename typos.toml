@@ -34,7 +34,7 @@ extend-ignore-identifiers-re = [
 # Only those shapes are ignored; the same letters elsewhere stay checked.
 # French conversational fixtures: only this file name and exact preservation phrase.
 # Their component words remain checked everywhere else.
-extend-ignore-re = ["\\bcopie\\.txt\\b", "\\bgarde tout le reste\\b", "« [^»]* »", "\"highlihgts\"", "\"chek\"", "view: recods", "classe le problème", "datos del cliente", "\"columnas\"", "\"limite\"", "\"limite \"", "pas de seconde action", "größer als", "o / oder", "\"falso\"", "`falso`", "Copie entree", "Copie\\ \\./data/input\\.csv\\ vers\\ \\./out/copy\\.csv\\.\\ Le\\ budget\\ est\\ de\\ 2\\ dollars\\.", "la copie", "copie-2\\.md", "copie\\.csv", "pas maintenant", "\"quantite\"", "colonne quantite", "\"remplace\"", "remplace explicitement", "salaire_confidentiel", "aout\\.csv", "\"wdth\"", "[123]thr=", "\\\\u\\{7f\\}ect", "\"thre\""]
+extend-ignore-re = ["Remplace \\./sortie\\.txt par \\./revised\\.txt ou \\./reviewed\\.txt", "\\bcopie\\.txt\\b", "\\bgarde tout le reste\\b", "« [^»]* »", "\"highlihgts\"", "\"chek\"", "view: recods", "classe le problème", "datos del cliente", "\"columnas\"", "\"limite\"", "\"limite \"", "pas de seconde action", "größer als", "o / oder", "\"falso\"", "`falso`", "Copie entree", "Copie\\ \\./data/input\\.csv\\ vers\\ \\./out/copy\\.csv\\.\\ Le\\ budget\\ est\\ de\\ 2\\ dollars\\.", "la copie", "copie-2\\.md", "copie\\.csv", "pas maintenant", "\"quantite\"", "colonne quantite", "\"remplace\"", "remplace explicitement", "salaire_confidentiel", "aout\\.csv", "\"wdth\"", "[123]thr=", "\\\\u\\{7f\\}ect", "\"thre\""]
 
 [default.extend-words]
 # Speaches is a real project (speaches.ai · OpenAI-compat speech server), not a typo of "Speeches".

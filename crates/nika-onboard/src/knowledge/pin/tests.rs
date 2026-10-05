@@ -16,7 +16,7 @@ fn outcome() -> CompileOutcome {
 }
 
 #[test]
-fn only_the_native_doors_calls_read_knowledge() {
+fn only_the_authoring_doors_calls_read_knowledge() {
     for call in [
         "native",
         "native-repair",
@@ -24,12 +24,50 @@ fn only_the_native_doors_calls_read_knowledge() {
         "sketch-repair",
         "fill",
         "fill-repair",
+        "revision",
+        "revision-repair",
     ] {
         assert!(reads_knowledge(call), "{call}");
     }
-    for call in ["plan", "repair", "transform", "natives"] {
+    for call in ["plan", "repair", "transform", "natives", "revisions"] {
         assert!(!reads_knowledge(call), "{call}");
     }
+}
+
+/// A typed revision uses the same admitted pack as creation; its host receipt must name
+/// the actual revision call, not report zero calls or count the final judge as knowledge.
+#[test]
+fn a_revision_call_is_named_in_the_presented_pack_receipt() {
+    let pin = KnowledgePin::embedded(None).expect("pinned");
+    let pack = pin
+        .reopen()
+        .expect("admitted")
+        .pack(PLAN_INTENT, None)
+        .expect("composed");
+    let digest = pack.identity["door"]["pack_sha256"]
+        .as_str()
+        .map_or_else(|| pack_sha256(&pack), str::to_owned);
+    let mut out = outcome();
+    out.provenance.decision = Some(json!({"native": {"knowledge": {
+        "identity": {"door": {"pack_sha256": digest}}
+    }}}));
+    let mut receipt = crate::compile::AuthoringReceipt::new("mock/revision");
+    receipt.calls = 2;
+    receipt.context = vec![
+        json!({"call": "revision", "instruction_sha256": "revision-instruction"}),
+        json!({"call": "verify", "instruction_sha256": "judge-instruction"}),
+    ];
+    out.provenance.authoring = Some(receipt);
+    let record = composed_record(&pin, &pack, &out);
+    assert_eq!(record["presented"], true);
+    assert_eq!(
+        record["calls"],
+        json!([
+            {"call": "revision", "instruction_sha256": "revision-instruction"}
+        ])
+    );
+    assert_eq!(record["seat"]["model"], "mock/revision");
+    assert_eq!(record["seat"]["calls"], 2);
 }
 
 #[test]

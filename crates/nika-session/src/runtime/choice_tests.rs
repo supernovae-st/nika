@@ -544,7 +544,16 @@ fn the_intelligence_can_be_rechosen_in_session() {
     let TurnOutcome::Ask(screen) = s.turn("/intelligence") else {
         panic!("asks");
     };
-    assert!(screen.contains("Choose which AI"), "{screen}");
+    for words in [
+        "Choose a connection",
+        "agent account",
+        "API",
+        "local model",
+        "no AI",
+        "/intelligence",
+    ] {
+        assert!(screen.contains(words), "{screen}");
+    }
     assert!(
         matches!(s.choose("2"), TurnOutcome::Refusal(ref r) if r.text.contains("previous choice stands"))
     );

@@ -172,3 +172,27 @@ fn an_empty_or_partial_sample_does_not_claim_a_complete_schema() {
     assert_eq!(jsonl("{\"id\":1}\n{\"status\":").len(), 1);
     assert_eq!(records(&jsonl("\n")).common, Some(Vec::new()));
 }
+
+#[test]
+fn a_record_holding_collections_keeps_their_nested_key_paths_and_kinds_only() {
+    let doc = json!({"stock": [{"part": "P1", "on_hand": "3"}], "movements": [{"qty": 2}]});
+    let sample = records(std::slice::from_ref(&doc));
+    assert_eq!(sample.columns, ["movements", "stock"]);
+    assert_eq!(sample.nested["complete"], true);
+    // The number-text law reads nested texts as it reads a record's own.
+    assert_eq!(
+        sample.nested["paths"]["stock[].on_hand"],
+        json!({"number_text": 1})
+    );
+    assert_eq!(
+        sample.nested["paths"]["movements[].qty"],
+        json!({"number": 1})
+    );
+    assert!(
+        !sample.nested.to_string().contains("P1"),
+        "{}",
+        sample.nested
+    );
+    assert_eq!(records(&[json!({"id": 1})]).nested, serde_json::Value::Null);
+    assert_eq!(csv("a,b\n1,2\n", false).nested, serde_json::Value::Null);
+}

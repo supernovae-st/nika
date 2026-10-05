@@ -27,6 +27,8 @@ use nika_kernel::ai::provider::{Message, ProviderInferDyn, Role};
 use serde_json::{Value, json};
 
 mod evidence;
+/// The semantic revision of a base its record binds, beside the door it reuses.
+pub(super) mod revise;
 use super::rehearsal::Rehearsals;
 use evidence::Evidence;
 
@@ -507,8 +509,6 @@ async fn fill<P: ProviderInferDyn>(
                 candidate,
                 questions: answer.questions.clone(),
                 gaps: answer.gaps.clone(),
-                notes: answer.notes.clone(),
-                dual: None,
             };
             talk.messages.push(Message::text(Role::Assistant, text));
             return Some((answer, filling.fills));

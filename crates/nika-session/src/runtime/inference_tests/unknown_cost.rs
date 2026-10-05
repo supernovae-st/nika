@@ -297,11 +297,12 @@ fn revision_has_a_new_cost_question_and_cannot_apply_old_candidate_identity() {
 
 #[test]
 fn confirmed_revision_produces_new_candidate_and_new_save_review() {
-    // The source EDIT over the semantic copy, its superseded destination declared a gap.
-    let revised = revised_copy(
-        "./revised.txt",
-        &json!(["sortie.txt is superseded by the requested ./revised.txt"]),
-    );
+    // F01 names the clause replacement; the compiler writes and proves the changed bytes.
+    let revised = json!({"supersedes": [{
+        "replaces": WORK.trim_end_matches('.'),
+        "by": "Change the destination to ./revised.txt"
+    }], "adds": [], "notes": "only the destination changes"})
+    .to_string();
     let mut script = created();
     script.extend([
         (200, unpriced_response("MODIFY")),

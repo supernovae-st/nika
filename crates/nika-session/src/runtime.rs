@@ -241,6 +241,8 @@ pub struct SessionRuntime {
     restored_draft: Option<draft::Restored>,
     /// The authoring round kept when an earlier session closed: evidence, never authority.
     restored_round: Option<round::KeptRound>,
+    /// Program records kept in this project's conversation, never live authority.
+    programs: Option<serde_json::Value>,
     money: money_gate::MoneyState,
     unknown_cost: unknown_cost::UnknownCostState,
     pending_gate: Option<PendingGate>,
@@ -346,6 +348,7 @@ impl SessionRuntime {
             rehearsals: rehearsed::Rehearsals::default(),
             restored_draft: None,
             restored_round: None,
+            programs: None,
             money: money_gate::MoneyState::default(),
             unknown_cost: unknown_cost::UnknownCostState::default(),
             pending_gate: None,
@@ -1024,7 +1027,7 @@ impl SessionRuntime {
                 return TurnOutcome::Refusal(Refusal::new(class, text));
             }
         };
-        self.report_landed(set, &applied, id, basis.as_deref())
+        self.report_landed(set, &applied, &id, basis.as_deref())
     }
 
     /// The proposal waiting for a consent, when one is (its identity: the

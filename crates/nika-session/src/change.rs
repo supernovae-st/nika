@@ -144,6 +144,8 @@ pub struct RunRequest {
     pub vars: Vec<String>,
     /// The ceiling the run is announced with.
     pub max_cost_usd: f64,
+    /// The human's explicit execution access, never inferred from the authoring seat.
+    pub access_pin: Option<String>,
 }
 
 /// The engine's audit of one workflow's exact bytes: the preview's truth.
@@ -619,6 +621,10 @@ impl ProjectChangeSet {
 /// purpose: a proposal may create the child in the same set.
 #[must_use]
 pub fn check_on_disk(root: &Path, path: &Path) -> WorkflowAudit {
+    check_with_access(root, path, None)
+}
+
+pub(crate) fn check_with_access(root: &Path, path: &Path, pin: Option<&str>) -> WorkflowAudit {
     let on_disk = root.join(path);
     match std::fs::read_to_string(&on_disk) {
         Ok(source) => {
@@ -629,9 +635,19 @@ pub fn check_on_disk(root: &Path, path: &Path) -> WorkflowAudit {
                 &on_disk.display().to_string(),
                 Some(&mut read),
                 base.as_deref(),
-                AuditOptions::default(),
+                AuditOptions::new(None, pin),
             );
-            fold_audit(path, judged)
+            let blocked = judged
+                .as_ref()
+                .ok()
+                .filter(|a| pin.is_some() && !a.verdict.plan.is_admitted())
+                .map(|a| a.verdict.layers.blockers.clone());
+            let mut audit = fold_audit(path, judged);
+            if let Some(blocked) = blocked {
+                audit.clean = false;
+                audit.findings.extend(blocked);
+            }
+            audit
         }
         Err(e) => WorkflowAudit {
             path: path.to_path_buf(),

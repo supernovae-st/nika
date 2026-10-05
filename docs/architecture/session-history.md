@@ -112,3 +112,33 @@ the result and reopens without replaying the write or accepting old consent.
 These checks establish local conversation continuity on the tested platform.
 They do not qualify power-loss behavior, cloud replication, learned memory,
 cross-session retrieval, or transport parity.
+
+## Byte-bound program evidence
+
+The optional `Saved.programs` field adds bounded semantic and source-revision
+records to the existing HOME history, with no parallel project file. It is
+omitted when absent, so pre-existing record digests are unchanged. Older
+engines whose strict `Saved` schema does not recognize it refuse newer history;
+no downgrade/reset is attempted. Unknown envelope versions remain opaque and
+unchanged in engines that know the field.
+
+Records are keyed by proposal identity or saved relative path plus exact final
+program bytes, carry a whole-plan digest,
+and are withheld if redaction changes them. The pure codec lives in
+`nika_compile_fidelity::sketch::kept` and is exposed through Onboard. It limits
+the envelope to 256 KiB and sixteen records. Reopen restores evidence and the
+last Save's relative file selection, never consent, a live proposal,
+Run permission or past Check verdict. EDIT reconstructs the exact base again
+and passes current observation and monetary admission. Equal program bytes at
+different paths cannot overwrite each other's meaning; retaining a new proposal
+does not alter the record for the last accepted Save.
+
+The optional `Saved.inference_checkpoint` is separate complete numeric accounting,
+not program evidence or renewed permission. The same versioned checkpoint must
+match the project record and its cost observation under the exclusive history
+lease. No interrupted operation or dispatch marker may remain. The providers
+owner restores it CLOSED or Uncertain, preserving the old total ceiling, settled
+charges, active/held exposure and attempt identities. Another call requires fresh
+explicit TOTAL Session admission through the canonical amendment. Older records
+without this checkpoint, mismatched copies and unknown formats cannot infer a
+new allowance. Old consent, proposals and Run permissions remain expired.

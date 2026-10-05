@@ -328,7 +328,7 @@ fn run_once(
         RenderMode::Thread,
         false,
         None,
-        None,
+        run.access_pin.as_deref(),
         crate::verbs::run::inputs::InputBindings::Operator(&run.vars),
         None,
         false,
@@ -387,9 +387,13 @@ fn run_tapped(
 ) -> (u8, Option<std::path::PathBuf>, Vec<String>) {
     use nika_tui::session::Work;
     let args = match work {
-        Work::Run(run) => {
-            nika_cli_host::lane::run_args(root, &run.workflow, run.max_cost_usd, &run.vars)
-        }
+        Work::Run(run) => nika_cli_host::lane::run_args_with_access(
+            root,
+            &run.workflow,
+            run.max_cost_usd,
+            &run.vars,
+            run.access_pin.as_deref(),
+        ),
         Work::Resume {
             workflow,
             trace,
@@ -474,8 +478,13 @@ pub fn run_tui(theme: Theme, jq: Option<nika_onboard::compile::room::JqHelper>) 
             run_tapped(root, work, busy, &tapped)
         }))
         .with_run_review_observed(Box::new(move |root, run, busy| {
-            let args =
-                nika_cli_host::lane::run_args(root, &run.workflow, run.max_cost_usd, &run.vars);
+            let args = nika_cli_host::lane::run_args_with_access(
+                root,
+                &run.workflow,
+                run.max_cost_usd,
+                &run.vars,
+                run.access_pin.as_deref(),
+            );
             match std::env::current_exe() {
                 Ok(exe) => nika_cli_host::lane::drive_reviewed_child_observed(
                     &exe, &args, root, busy, &slot,

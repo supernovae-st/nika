@@ -744,3 +744,36 @@ fn a_text_comparison_reads_its_operand_as_text() {
         assert_eq!(clause.jq(&numbers), expected, "{clause:?}");
     }
 }
+
+#[test]
+fn only_and_exactly_lead_a_kept_filter_or_projection_in_french_and_english() {
+    let strict = "[.records[] | select((.stock | tonumber) < 8)]";
+    for text in [
+        "conserve uniquement les articles dont stock est strictement inférieur à 8",
+        "conserve les articles dont stock est strictement inférieur à 8",
+    ] {
+        assert_eq!(jq(text).as_deref(), Some(strict), "{text}");
+    }
+    let projection = synthesize("garde exactement les champs sku, stock et reorder_qty", &[])
+        .and_then(|rule| rule.output_columns());
+    assert_eq!(
+        projection,
+        Some(cols(&["sku", "stock", "reorder_qty"])),
+        "the projection keeps every named field"
+    );
+    let english = synthesize("keep exactly the fields sku and stock", &[])
+        .and_then(|rule| rule.output_columns());
+    assert_eq!(english, Some(cols(&["sku", "stock"])));
+}
+
+#[test]
+fn moins_names_a_difference_as_minus_does() {
+    use crate::aggregate::ArithOp;
+    assert_eq!(ArithOp::from_word("moins"), Some(ArithOp::Sub));
+    assert_eq!(ArithOp::from_word("minus"), Some(ArithOp::Sub));
+    assert_eq!(
+        ArithOp::from_word("fois"),
+        None,
+        "a product word stays unread"
+    );
+}

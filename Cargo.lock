@@ -5277,6 +5277,7 @@ dependencies = [
 name = "nika-providers"
 version = "0.122.0"
 dependencies = [
+ "blake3",
  "bytes",
  "futures-core",
  "jsonschema",

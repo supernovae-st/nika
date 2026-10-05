@@ -1,28 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-//! A revision that asks: the change names the old destination beside the new one, so the
-//! compiler proves the substitution structural but leaves the old path's disposition to the
-//! human (`gap.1`). The original proposal comes from semantic CREATE (plan, sketch, fills, then
-//! the judge); its revision is a source EDIT. The question is answered through the Session's
-//! authoring round — the same EDIT (exact base, change, original request) replayed from its
-//! recorded plan, its one call the judge the seat is permitted as when the round finishes
-//! (native step 2) — into the revised proposal; a cancel restores the proposal it revised,
-//! exactly. While the
-//! question waits no consent reaches either proposal. Loopback seat only; nothing runs.
+//! A revision that asks: the change offers two new destinations, so the compiler asks which
+//! path the human means (`revision.path`). CREATE still uses plan, sketch, fills and judge;
+//! EDIT answers typed clause links, never whole source. The answer replays the exact base and
+//! links through the compiler's source substitution, then asks only the permitted round's judge.
+//! Cancel restores the proposal it revised exactly. While a question waits no consent reaches
+//! either proposal. Loopback seat only; nothing runs.
 use super::*;
 use crate::turn::RoutingMethod;
 use nika_onboard::compile::{CompileRequest, revise_intent};
 
-/// The human's change at the consent prompt: it names the old destination it replaces.
-const CHANGE: &str = "Change the destination from ./sortie.txt to ./revised.txt";
+/// A real unresolved choice: either path is new, and no seat chooses between them.
+const CHANGE: &str = "Change the destination from ./sortie.txt to ./revised.txt or ./reviewed.txt";
+const TWO_OUTPUTS: &str = "Je veux que sortie.txt et secondaire.txt contiennent exactement les octets présents dans entree.txt.";
+const TWO_CHOICES: &str = "Change one destination to ./revised.txt or ./reviewed.txt";
 
-/// The seat's revision (a source EDIT): the semantic copy with the destination replaced, the
-/// old path declared a gap.
+/// The typed links copy the exact clauses; the compiler writes the revised bytes.
+fn links(original: &str, change: &str) -> String {
+    json!({"supersedes": [{"replaces": original.trim_end_matches('.'),
+        "by": change.trim_end_matches('.')}], "adds": [], "notes": "replace one destination"})
+    .to_string()
+}
+
 fn revised() -> String {
-    revised_copy(
-        "./revised.txt",
-        &json!(["./sortie.txt is superseded by the requested ./revised.txt"]),
-    )
+    links(WORK, CHANGE)
 }
 
 /// A semantic CREATE of the copy into `destination` (plan, sketch, fills), then its judgment.
@@ -34,10 +35,8 @@ fn created(destination: &str) -> Vec<(u16, Value)> {
     script
 }
 
-/// The loopback seat: the original semantic CREATE and the judge's approval of it (native step
-/// 1), the seat's revision, then the judge's approval of the answer round that finishes it
-/// (native step 2: the seat permitted as that round's judge). Any further request would be
-/// counted.
+/// The loopback seat: semantic CREATE and its judge, typed revision links, then the judge of
+/// the answered revision. Questions replay without another authoring call.
 fn seat(revision: &str) -> Peer {
     let mut script = authored(response);
     script.extend([(200, response(revision)), (200, response(JUDGE_APPROVES))]);
@@ -56,7 +55,7 @@ struct Acts;
 impl Acts {
     fn decide(context: &TurnContext, raw: &str) -> TurnDecision {
         let act = match context.phase {
-            _ if raw.trim() == CHANGE => TurnAct::Modify,
+            _ if matches!(raw.trim(), CHANGE | TWO_CHOICES | "./revised.txt") => TurnAct::Modify,
             SessionPhase::QuestionPending => TurnAct::Answer,
             SessionPhase::Idle => TurnAct::NewWork,
             _ => TurnAct::Unknown,
@@ -117,8 +116,11 @@ fn asked(dir: &Path, home: Option<&Path>) -> (SessionRuntime, Original) {
     let TurnOutcome::Question { key, question } = &out else {
         panic!("the revision asks its question: {out:?}");
     };
-    assert_eq!(key, "gap.1");
-    assert!(question.contains("./sortie.txt"), "{question}");
+    assert_eq!(key, "revision.path");
+    assert!(
+        question.contains("./revised.txt") && question.contains("./reviewed.txt"),
+        "{question}"
+    );
     (s, was)
 }
 
@@ -177,8 +179,8 @@ fn a_revision_question_is_answered_into_the_revised_proposal_saved_only() {
         TurnOutcome::Refusal(_)
     ));
     assert_eq!(files(dir.path()), before, "nothing written");
-    // The compiler's own disposition binds `gap.1`; the revision replays into its proposal.
-    let out = s.turn("drop");
+    // The chosen path binds the real revision question; the compiler writes the proposal.
+    let out = s.turn("./revised.txt");
     let TurnOutcome::Proposal { id, .. } = &out else {
         panic!("the revised proposal: {out:?}");
     };
@@ -194,7 +196,7 @@ fn a_revision_question_is_answered_into_the_revised_proposal_saved_only() {
     assert!(s.pending_question().is_none());
     let revision = s.pending.clone().expect("the revised proposal waits");
     let bytes = bytes_of(&revision);
-    assert!(bytes.contains("./revised.txt"), "{bytes}");
+    assert!(bytes.contains("revised.txt"), "{bytes}");
     assert!(!bytes.contains("sortie.txt"), "{bytes}");
     // Save only: the old identity is stale, the revised bytes land, nothing runs.
     assert!(matches!(
@@ -242,8 +244,8 @@ fn a_cancelled_revision_question_restores_the_proposal_it_revised() {
     assert_eq!(peer.bodies().len(), CREATE_CALLS + 1);
 }
 
-/// A `yes` at the question is its answer, never a consent: the revised proposal is proposed
-/// for review and the proposal it revised is never saved.
+/// A `yes` at a path choice is no offered path and no consent: the question stays open,
+/// with the original proposal still set aside and never silently saved.
 #[test]
 fn a_yes_at_the_revision_question_never_saves_the_old_proposal() {
     let peer = seat(&revised());
@@ -252,11 +254,24 @@ fn a_yes_at_the_revision_question_never_saves_the_old_proposal() {
     let (mut s, was) = asked(dir.path(), None);
     let before = files(dir.path());
     let out = s.turn("yes");
-    let TurnOutcome::Proposal { id, .. } = &out else {
-        panic!("the revised proposal, for review: {out:?}");
-    };
-    assert_ne!(*id, was.id);
-    assert_ne!(s.pending.as_ref(), Some(&was.set));
+    assert!(
+        matches!(&out, TurnOutcome::Question { key, .. } if key == "revision.path"),
+        "{out:?}"
+    );
+    assert_eq!(s.pending_proposal(), None);
+    assert_eq!(
+        &s.revising.as_ref().expect("base stays set aside").0,
+        &was.set
+    );
+    assert!(matches!(
+        s.consent_to(&was.id, "yes"),
+        TurnOutcome::Refusal(_)
+    ));
+    assert_eq!(
+        peer.bodies().len(),
+        CREATE_CALLS + 1,
+        "no judge or new authoring"
+    );
     assert_eq!(files(dir.path()), before, "nothing written");
     assert!(!dir.path().join(was.set.changes[0].path()).exists());
 }
@@ -286,32 +301,61 @@ fn a_waiting_revision_keeps_the_proposal_it_revises_as_the_draft() {
     assert_eq!(peer.bodies().len(), CREATE_CALLS + 1);
 }
 
-/// Each disposition is its own question of the same EDIT (`gap.1`, then `gap.2`), and a change
-/// said at a revision's question is its answer: never a fresh request read again (no call).
+/// Two unresolved choices are two questions of the same EDIT: which original destination,
+/// then which new path. Even a line the classifier would label MODIFY answers that question.
 #[test]
-fn every_disposition_and_a_change_at_the_question_stay_in_the_revision() {
-    let mut two: Value = serde_json::from_str(&revised()).expect("reply");
-    two["gaps"]
-        .as_array_mut()
-        .expect("gaps")
-        .push(json!("the copy keeps its exact bytes"));
-    let peer = seat(&two.to_string());
+fn every_destination_question_and_a_change_at_the_question_stay_in_the_revision() {
+    let [_, raw_graph, fills] = semantic_copy("sortie.txt");
+    let mut graph: Value = serde_json::from_str(&raw_graph).expect("graph");
+    let mut second = graph["tasks"][1].clone();
+    second["id"] = json!("write_second");
+    second["writes"] = json!(["secondaire.txt"]);
+    graph["tasks"].as_array_mut().expect("tasks").push(second);
+    let plan = json!({"steps": [], "effects": [], "obligations": [], "constraints": [],
+        "unknowns": [TWO_OUTPUTS.trim_end_matches('.')], "regions": [],
+        "approval_bypass": {"present": false}});
+    let replies = [
+        plan.to_string(),
+        graph.to_string(),
+        fills,
+        JUDGE_APPROVES.to_owned(),
+        links(TWO_OUTPUTS, TWO_CHOICES),
+        JUDGE_APPROVES.to_owned(),
+    ];
+    let peer = Peer::start(replies.iter().map(|r| (200, response(r))).collect());
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().expect("root");
-    let (mut s, was) = asked(dir.path(), None);
-    let out = s.turn("drop");
+    let mut s = session(dir.path(), None);
+    let TurnOutcome::Proposal { id: original, .. } = s.turn(TWO_OUTPUTS) else {
+        panic!("the two-output base must be proposed");
+    };
+    let out = s.consent(TWO_CHOICES);
     assert!(
-        matches!(&out, TurnOutcome::Question { key, .. } if key == "gap.2"),
+        matches!(&out, TurnOutcome::Question { key, .. } if key == "revision.destination"),
+        "{out:?}"
+    );
+    let out = s.turn("sortie.txt");
+    assert!(
+        matches!(&out, TurnOutcome::Question { key, .. } if key == "revision.path"),
         "{out:?}"
     );
     assert_eq!(s.pending_proposal(), None);
-    let out = s.turn(CHANGE);
+    assert_eq!(
+        peer.bodies().len(),
+        CREATE_CALLS + 1,
+        "the first answer only replays"
+    );
+    let out = s.turn("./revised.txt");
     let TurnOutcome::Proposal { id, .. } = &out else {
         panic!("the revised proposal: {out:?}");
     };
-    assert_ne!(*id, was.id);
+    assert_ne!(*id, original);
     let bytes = bytes_of(s.pending.as_ref().expect("revised"));
-    assert!(bytes.contains("./revised.txt"), "{bytes}");
+    assert!(
+        bytes.contains("revised.txt") && bytes.contains("secondaire.txt"),
+        "{bytes}"
+    );
+    assert!(!bytes.contains("sortie.txt"), "{bytes}");
     assert_eq!(
         peer.bodies().len(),
         CREATE_CALLS + 2,
@@ -333,17 +377,17 @@ fn a_saved_workflows_revision_question_is_answered_through_its_edit() {
     let base = std::fs::read_to_string(dir.path().join(&saved)).expect("base");
     let out = s.revise_saved(&saved, CHANGE);
     assert!(
-        matches!(&out, TurnOutcome::Question { key, .. } if key == "gap.1"),
+        matches!(&out, TurnOutcome::Question { key, .. } if key == "revision.path"),
         "{out:?}"
     );
     let request = s.authoring.as_ref().expect("the revision round").request();
     let edit = CompileRequest::edit(base.clone(), CHANGE);
     assert_eq!(format!("{:?}", request.input), format!("{:?}", edit.input));
     assert!(request.plan.is_some());
-    let out = s.turn("drop");
+    let out = s.turn("./revised.txt");
     assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
     let bytes = bytes_of(s.pending.as_ref().expect("revised"));
-    assert!(bytes.contains("./revised.txt"), "{bytes}");
+    assert!(bytes.contains("revised.txt"), "{bytes}");
     let now = std::fs::read_to_string(dir.path().join(&saved)).expect("still saved");
     assert_eq!(now, base, "nothing written before a consent");
     assert_eq!(peer.bodies().len(), CREATE_CALLS + 2);
@@ -382,14 +426,15 @@ use crate::change::{ProjectChange, Witness};
 use crate::money::MonetarySource;
 
 /// A correction of the saved workflow said in French, with no amount (synthetic DEV words).
-const CORRECTION: &str = "Corrige le workflow enregistré : écris dans ./revised.txt au lieu de ./sortie.txt, garde tout le reste.";
+const CORRECTION: &str = "Remplace ./sortie.txt par ./revised.txt ou ./reviewed.txt";
 /// A distinct new automation, said while the first one is saved (synthetic DEV words).
 const OTHER_WORK: &str =
     "Je veux que copie.txt contienne exactement les octets présents dans entree.txt.";
 /// A line the classifier cannot tell.
 const AMBIGUOUS: &str = "Et pour le fichier de sortie, plutôt la version de la semaine.";
 /// A second correction, said at the consent prompt of saved A's waiting update.
-const FURTHER: &str = "Change the destination from ./revised.txt to ./final.txt";
+const FURTHER: &str =
+    "Change the destination from ./revised.txt to ./final.txt or ./other-final.txt";
 /// Work the deterministic reader cannot settle alone and the classifier cannot tell.
 const UNDECIDED_WORK: &str = "Corrige le workflow enregistré : écris dans ./archive.txt au lieu de ./sortie.txt, garde tout le reste.";
 
@@ -454,14 +499,14 @@ fn saved_a_kept(
     (s, saved, base)
 }
 
-/// The saved file's revision asked through its EDIT and answered: its question, then `drop`.
+/// The saved file's revision asked through its EDIT and answered by the chosen path.
 fn revised_through_question(s: &mut SessionRuntime, saved: &Path) -> TurnOutcome {
     let out = s.revise_saved(saved, CHANGE);
     assert!(
-        matches!(&out, TurnOutcome::Question { key, .. } if key == "gap.1"),
+        matches!(&out, TurnOutcome::Question { key, .. } if key == "revision.path"),
         "{out:?}"
     );
-    s.turn("drop")
+    s.turn("./revised.txt")
 }
 
 /// The workflow files in the project root.
@@ -543,10 +588,10 @@ fn a_saved_workflows_answered_revision_updates_the_same_file() {
     let (mut s, saved, base) = saved_a(dir.path(), WORK);
     let out = s.revise_saved(&saved, CHANGE);
     assert!(
-        matches!(&out, TurnOutcome::Question { key, .. } if key == "gap.1"),
+        matches!(&out, TurnOutcome::Question { key, .. } if key == "revision.path"),
         "{out:?}"
     );
-    let out = s.turn("drop");
+    let out = s.turn("./revised.txt");
     assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
     assert_updates(&s, &saved, &base);
     assert_eq!(peer.bodies().len(), CREATE_CALLS + 2);
@@ -564,7 +609,7 @@ fn a_base_changed_during_the_revision_is_refused_never_proposed_beside_it() {
     assert!(matches!(&out, TurnOutcome::Question { .. }), "{out:?}");
     let moved = format!("{base}# edited by hand\n");
     std::fs::write(dir.path().join(&saved), &moved).expect("hostile edit");
-    let out = s.turn("drop");
+    let out = s.turn("./revised.txt");
     assert!(
         !matches!(out, TurnOutcome::Proposal { .. }),
         "a moved base is never proposed over: {out:?}"
@@ -613,7 +658,7 @@ fn a_base_changed_after_the_revision_proposal_refuses_its_consent() {
 /// classifier, routes MODIFY and revises the saved file through its EDIT — never a CREATE.
 #[test]
 fn a_correction_after_save_and_run_is_routed_as_the_saved_files_revision() {
-    let peer = seat(&revised());
+    let peer = seat(&links(WORK, CORRECTION));
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().expect("root");
     let (mut s, saved, base) = saved_a(dir.path(), WORK);
@@ -628,13 +673,13 @@ fn a_correction_after_save_and_run_is_routed_as_the_saved_files_revision() {
         "the classifier read the correction: {consulted:?} · {out:?}"
     );
     assert!(
-        matches!(&out, TurnOutcome::Question { key, .. } if key == "gap.1"),
+        matches!(&out, TurnOutcome::Question { key, .. } if key == "revision.path"),
         "{out:?}"
     );
-    let out = s.turn("drop");
+    let out = s.turn("./revised.txt");
     assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
     assert_updates(&s, &saved, &base);
-    let edit = peer.bodies()[2].to_string();
+    let edit = peer.bodies()[CREATE_CALLS].to_string();
     assert!(
         edit.contains("sortie.txt"),
         "the EDIT carries the base: {edit}"
@@ -935,7 +980,7 @@ fn an_invalid_amount_in_a_revision_refuses_before_any_call() {
     let dir = tempfile::tempdir().expect("root");
     let (mut s, saved, base) = saved_a(dir.path(), WORK);
     let calls = peer.bodies().len();
-    let out = s.turn(&format!("{CORRECTION} budget=NaN"));
+    let out = s.turn(&format!("{CORRECTION}. Budget NaN USD."));
     assert!(matches!(out, TurnOutcome::Refusal(_)), "{out:?}");
     assert_eq!(peer.bodies().len(), calls);
     assert_eq!(
@@ -995,15 +1040,9 @@ fn a_kept_revision_round_over_a_changed_base_is_refused() {
     );
 }
 
-/// The seat's answer to [`FURTHER`] (a source EDIT over A's waiting update): the copy written
-/// to `./final.txt`, every path the request still names and no task reaches declared a gap.
+/// The second typed revision links the first revision's resolved clause to the new choice.
 fn finalized() -> String {
-    revised_copy(
-        "./final.txt",
-        &json!([
-            "sortie.txt, ./sortie.txt and ./revised.txt are superseded by the requested ./final.txt"
-        ]),
-    )
+    links(CHANGE, FURTHER)
 }
 
 /// A session over saved A whose revision through its question is proposed (an update of A),
@@ -1014,7 +1053,7 @@ fn corrected_update(s: &mut SessionRuntime, saved: &Path, base: &str) -> TurnOut
     assert_updates(s, saved, base);
     let out = s.consent(FURTHER);
     assert!(
-        matches!(&out, TurnOutcome::Question { key, .. } if key == "gap.1"),
+        matches!(&out, TurnOutcome::Question { key, .. } if key == "revision.path"),
         "{out:?}"
     );
     out
@@ -1038,7 +1077,7 @@ fn a_correction_of_a_saved_files_update_keeps_its_file_and_witness() {
     let dir = tempfile::tempdir().expect("root");
     let (mut s, saved, base) = saved_a(dir.path(), WORK);
     corrected_update(&mut s, &saved, &base);
-    let out = s.turn("drop");
+    let out = s.turn("./final.txt");
     assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
     // The user-visible proof: an update of A over A's saved bytes, never a fresh twin.
     assert_updates(&s, &saved, &base);
@@ -1046,7 +1085,7 @@ fn a_correction_of_a_saved_files_update_keeps_its_file_and_witness() {
     assert_eq!(set.changes.len(), 1, "{:?}", set.changes);
     let bytes = bytes_of(&set);
     assert!(
-        bytes.contains("./final.txt") && !bytes.contains("revised.txt"),
+        bytes.contains("final.txt") && !bytes.contains("revised.txt"),
         "{bytes}"
     );
     let only = vec![saved.display().to_string()];
@@ -1097,6 +1136,7 @@ fn a_restored_correction_of_a_saved_files_update_keeps_its_file_and_witness() {
     let home = tempfile::tempdir().expect("home");
     let (mut s, saved, base) = saved_a_kept(dir.path(), Some(home.path()), WORK);
     corrected_update(&mut s, &saved, &base);
+    let waiting_update = bytes_of(&s.revising.as_ref().expect("the update is set aside").0);
     let target = Some((saved.clone(), Witness::of(base.as_bytes())));
     assert_eq!(s.authoring.as_ref().and_then(|r| r.target.clone()), target);
     // A recorded turn at the question keeps the round (the direct call above records none).
@@ -1107,7 +1147,7 @@ fn a_restored_correction_of_a_saved_files_update_keeps_its_file_and_witness() {
     resumed.with_classifier(Box::new(Revisions));
     let out = resumed.restore_kept();
     assert!(
-        matches!(&out, TurnOutcome::Question { key, .. } if key == "gap.1"),
+        matches!(&out, TurnOutcome::Question { key, .. } if key == "revision.path"),
         "{out:?}"
     );
     assert_eq!(
@@ -1120,7 +1160,7 @@ fn a_restored_correction_of_a_saved_files_update_keeps_its_file_and_witness() {
         CREATE_CALLS + 3,
         "the replay calls no one"
     );
-    let out = resumed.turn("drop");
+    let out = resumed.turn("./final.txt");
     assert!(
         matches!(&out, TurnOutcome::Held { preview, .. }
             if preview.contains("only a judge this round can permit")),
@@ -1128,10 +1168,9 @@ fn a_restored_correction_of_a_saved_files_update_keeps_its_file_and_witness() {
     );
     assert_eq!(peer.bodies().len(), CREATE_CALLS + 3, "no judge is asked");
     assert_updates(&resumed, &saved, &base);
-    let update: Value = serde_json::from_str(&revised()).expect("reply");
     assert_eq!(
         bytes_of(resumed.pending.as_ref().expect("the update waits again")),
-        update["candidate"].as_str().expect("the update's bytes"),
+        waiting_update,
     );
     assert_eq!(nika_files(dir.path()), vec![saved.display().to_string()]);
     assert_eq!(
