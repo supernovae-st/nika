@@ -114,6 +114,11 @@ const WHOLE: &str = "Compare the WHOLE user request with the candidate workflow'
 const LOCATE: &str = "The candidate does not carry the whole request. Choose the part of the request it misses or does differently.";
 /// What a whole-request question over a revision adds to its instructions ([`whole`]).
 const REVISED: &str = "This candidate REVISES an earlier workflow. `request` is the whole revised request it must carry: the earlier request with each clause the change replaces replaced in place, then the change's additions; every other earlier clause is still asked. `revision.change` is the change as the human stated it; `revision.base_request` is the earlier request, history only: a clause the change replaced is no longer asked. A clause asking to create or modify the workflow file itself is carried by this candidate being that workflow; every other clause is judged on what its bytes do.";
+/// What a whole-request question over any other candidate adds to its instructions ([`whole`]):
+/// a request to author this workflow (« create report.nika that … ») asks for this program, not
+/// for a step writing its own file. It attests no save, path or name: a stated name is judged on
+/// the bytes, and every write the program itself does (another `.nika` too) stays judged.
+const CREATED: &str = "This candidate is the workflow the request asks Nika to author. A clause asking to create this workflow asks for this program; it does not ask the program to write its own file. Saving that file is the host's step after review, outside these bytes: it is neither missing nor done here. A name the request gives this workflow is judged against the candidate's own `nika:` name. A workflow identity is not proof of a Save filename or path; do not infer a destination absent from the state. Every other clause is judged on what the bytes do, including every file the program itself writes (another `.nika` file among them).";
 
 /// The state every question and every repair carries: the request as compiled and as first
 /// stated, its answers, the observed world and the candidate's bytes. The first statement is
@@ -637,10 +642,11 @@ async fn whole<P: ProviderInferDyn>(
             "something the request asks is missing, extra or different",
         ),
     ];
-    // A revision's questions also say which request is asked and which is history.
+    // A revision's questions also say which request is asked and which is history; any other
+    // question says what a request to author this very workflow asks of its bytes.
     let told = |text: &str| match base.get("revision") {
         Some(_) => grounded(reference, &format!("{text} {REVISED}")),
-        None => grounded(reference, text),
+        None => grounded(reference, &format!("{text} {CREATED}")),
     };
     let question = ChoiceQuestion::new("verify-request", told(WHOLE), base.clone(), options);
     match ask(judge, &question, "judge_request", verdict, out)

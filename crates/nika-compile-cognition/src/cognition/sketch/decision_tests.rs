@@ -188,6 +188,37 @@ async fn a_typed_defect_repairs_with_the_author_and_keeps_both_judgments() {
     assert!(repair.contains(INTENT), "{repair}");
 }
 
+/// What every whole-request question of a create adds: a request to author this workflow
+/// (« create report.nika that … ») does not ask the program to write its own file; nothing says
+/// the file is saved; a stated name is judged on the bytes; the program's own writes stay judged.
+/// A revision's questions keep their own wording.
+const FILE_CLAUSE: &str = "it does not ask the program to write its own file";
+const NOT_SAVED: &str = "it is neither missing nor done here";
+const NAME: &str = "judged against the candidate's own `nika:` name";
+const SAVE_PATH: &str = "A workflow identity is not proof of a Save filename or path";
+const WRITES: &str =
+    "including every file the program itself writes (another `.nika` file among them)";
+
+#[tokio::test]
+async fn a_create_tells_every_whole_request_question_what_authoring_this_workflow_asks() {
+    let author = Author::new(answers().into_iter().chain(answers()));
+    let judge = Judge::new([Ok("unfaithful"), Ok("another_part"), Ok("faithful")]);
+    let request = CompileRequest::create(INTENT).with_authoring_policy(policy().with_repairs(4));
+    let out = compile(request, &author, &judge).await;
+    writes(&out, "./out/result.txt");
+    let asked = judge.questions();
+    let ids: Vec<&str> = asked.iter().map(|q| q.id.as_str()).collect();
+    assert_eq!(ids, ["verify-request", "verify-locate", "verify-request"]);
+    for question in &asked {
+        let told = &question.instructions;
+        for law in [FILE_CLAUSE, NOT_SAVED, NAME, SAVE_PATH, WRITES] {
+            assert!(told.contains(law), "{}: {law}: {told}", question.id);
+        }
+        assert!(!told.contains("REVISES"), "{}: {told}", question.id);
+        assert!(question.state.get("revision").is_none(), "{}", question.id);
+    }
+}
+
 #[tokio::test]
 async fn none_failure_and_unoffered_choice_cannot_authorize_or_fallback() {
     for answer in [Ok("none"), Err("unavailable"), Ok("invented")] {
@@ -287,6 +318,11 @@ async fn source_and_semantic_destination_edits_keep_the_selected_judge() {
                 .as_str()
                 .unwrap()
                 .contains("./out/other.txt")
+        );
+        let told = &judge.questions()[0].instructions;
+        assert!(
+            told.contains("REVISES") && !told.contains(FILE_CLAUSE) && !told.contains(SAVE_PATH),
+            "{told}"
         );
     }
 }
