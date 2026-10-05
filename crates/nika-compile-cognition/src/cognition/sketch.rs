@@ -818,7 +818,7 @@ pub(super) async fn author<P: ProviderInferDyn>(
                         first = next;
                         continue;
                     }
-                    evidence::refuse(&mut done, EVIDENCE_SPENT.to_owned());
+                    evidence::refuse(&mut done, refused_reason(within(last, next), &defects));
                     (done, defects)
                 }
             },
@@ -831,6 +831,25 @@ pub(super) async fn author<P: ProviderInferDyn>(
 
 const EVIDENCE_SPENT: &str =
     "The evidence refused this candidate and the repair allowance is spent: nothing is READY.";
+/// A reopening the round count still allowed, not opened because these findings are ones the
+/// seat was already asked to repair ([`progressed`]): an observed repeat, never a spent allowance.
+const EVIDENCE_REPEATED: &str = "The evidence refused this candidate with findings the seat had already been asked to repair, so Nika stopped reopening it: nothing is READY.";
+
+/// Why a refused candidate ends the door: past the round count (`more` false) the allowance is
+/// spent; within it, the findings repeated one the seat was already asked to repair, and they
+/// are named so the human and the next attempt read which part stopped it.
+fn refused_reason(more: bool, defects: &[Diagnostic]) -> String {
+    stop_reason(more, defects, (EVIDENCE_SPENT, EVIDENCE_REPEATED))
+}
+
+/// [`refused_reason`] under the caller's own wording (the sketch door's, a recovery's).
+fn stop_reason(more: bool, defects: &[Diagnostic], (spent, repeated): (&str, &str)) -> String {
+    if !more {
+        return spent.to_owned();
+    }
+    let named: Vec<&str> = defects.iter().map(|d| d.message.as_str()).collect();
+    format!("{repeated} Same findings: {}.", named.join("; "))
+}
 
 /// Where one settled candidate leads: the door's answer, a reopening from these defects, or a
 /// withdrawal past the last round from the defects the whole-request judgment demonstrated.

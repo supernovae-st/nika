@@ -463,6 +463,88 @@ async fn a_recovered_source_found_unfaithful_is_never_ready() {
     assert!(!claims_passed(&out), "{out:#?}");
 }
 
+/// The refusal a stopped door leaves, and whether any finding says an allowance was spent.
+fn stop(out: &CompileOutcome, lead: &str) -> (String, bool) {
+    let told = (out.diagnostics.iter()).find(|d| d.message.starts_with(lead));
+    let spent = (out.diagnostics.iter()).any(|d| d.message.contains(" spent: "));
+    (told.map(|d| d.message.clone()).unwrap_or_default(), spent)
+}
+
+/// A recovered source the judge refuses with the finding the seat was already asked to repair
+/// stops the recovery while the operator's count still allows rounds: the refusal states that
+/// observed repeat and names the finding, never that the recovery rounds are spent. The third
+/// round the count allows is never asked.
+#[tokio::test]
+async fn a_recovery_judged_twice_on_the_same_part_states_the_repeat_not_spent() {
+    let expected = greeting().await;
+    let [graph, fills] = greeting_answers();
+    let replies = [graph, fills, source(&expected), source(&expected)];
+    let seat = Scripted::new(replies).judging(["unfaithful"; 3]);
+    let out = authored(&seat, policy(3)).await;
+    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(out.candidate.is_none(), "{out:#?}");
+    assert_eq!(seat.calls(), 4, "two recovery rounds of three: {out:#?}");
+    let tail = ["source-recovery-repair", "judge_request", "judge_locate"];
+    assert_eq!(roles(&out)[roles(&out).len() - 3..], tail, "{out:#?}");
+    let lead = "The evidence refused the recovered source with findings the seat had already";
+    let (told, spent) = stop(&out, lead);
+    assert!(!spent, "a round was left: {out:#?}");
+    assert!(told.contains("Nika stopped the recovery"), "{told}");
+    assert!(
+        told.contains("Same findings: ") && told.contains(INTENT),
+        "{told}"
+    );
+}
+
+/// With no repair count, a second sketch judged on the same finding stops reopening and
+/// says so. The continuous door then tries one whole source: the same finding stops that too.
+/// The repeat is of findings, despite the second graph differing; neither stop spends a limit.
+#[tokio::test]
+async fn a_sketch_judged_twice_on_the_same_part_states_the_repeat_not_spent() {
+    let expected = greeting().await;
+    let [graph, fills] = greeting_answers();
+    let again = graph.replace("save the greeting", "save the greeting text");
+    let replies = [graph, fills.clone(), again, fills, source(&expected)];
+    let seat = Scripted::new(replies).judging(["unfaithful"; 3]);
+    let continuous = crate::AuthoringPolicy::new(MODEL, 4096, Duration::from_secs(2))
+        .with_native(NativeMode::Sketch);
+    assert_eq!((continuous.repairs, continuous.source_recovery), (None, 0));
+    let out = authored(&seat, continuous).await;
+    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(out.candidate.is_none(), "{out:#?}");
+    assert_eq!(seat.calls(), 5, "two sketches, one recovery: {out:#?}");
+    assert_eq!(
+        roles(&out),
+        [
+            "sketch",
+            "fill",
+            "judge_request",
+            "judge_locate",
+            "sketch-repair",
+            "fill",
+            "judge_request",
+            "judge_locate",
+            "source-recovery",
+            "judge_request",
+            "judge_locate",
+        ],
+        "{out:#?}"
+    );
+    let lead = "The evidence refused this candidate with findings the seat had already";
+    let (told, spent) = stop(&out, lead);
+    assert!(!spent, "no repair count was selected: {out:#?}");
+    assert!(told.contains("Nika stopped reopening it"), "{told}");
+    assert!(
+        told.contains("Same findings: ") && told.contains(INTENT),
+        "{told}"
+    );
+    let lead = "The evidence refused the recovered source with findings the seat had already";
+    let (told, _) = stop(&out, lead);
+    assert!(told.contains("Nika stopped the recovery"), "{told}");
+    assert!(told.contains(INTENT), "{told}");
+    assert!(!claims_passed(&out), "{out:#?}");
+}
+
 /// A spent authority refuses the recovery request: the notice says the recovery opened, never
 /// that a source passed.
 #[tokio::test]

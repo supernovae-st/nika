@@ -10,6 +10,7 @@
 //! doors' stall is no final barrier: the recovery opens with no round count of its own.
 
 use super::native::{self, Answer, Question, Shaped, Talk, judge};
+use super::stop_reason;
 use super::{AuthoringPolicy, CompileOutcome, CompileRequest, DiagnosticKind, Filled};
 use super::{Rehearsals, Step, diagnostics_record, evidence, examine, next_round, reopen, repair};
 use crate::{CompileDiagnostic, decide::DecisionSeat, fidelity::Diagnostic, lexicon::Reading};
@@ -45,6 +46,7 @@ const STALLED: &str = "Source recovery opened: the structured doors made no furt
 const OPENED: &str = "Source recovery (explicit operator policy) opened: the structured doors ended without an accepted candidate, and a whole-source request to the same seat was attempted under the same authority. Only a READY outcome states that a recovered source passed every check.";
 const PASSED: &str = "The recovered source is seat-written: it passed the strict parser, the pure Check, the fidelity laws, the rehearsal when one was offered and the whole-request judgment. It carries no semantic record, so a later revision in words is kept or source-anchored, never semantic.";
 const SPENT: &str = "The evidence refused the recovered source and the recovery rounds are spent: nothing is READY.";
+const REPEATED: &str = "The evidence refused the recovered source with findings the seat had already been asked to repair, so Nika stopped the recovery: nothing is READY.";
 
 /// The structured conclusion, or its recovery; `defects`: the evidence no reopening carried.
 pub(super) async fn after<P: ProviderInferDyn>(
@@ -119,8 +121,8 @@ pub(super) async fn after<P: ProviderInferDyn>(
         match examine(door, seats, talk, settled, limits, allowance).await {
             Step::Done(out) | Step::Withdrawn(out, _) => return kept(out, &history),
             Step::Reopen(mut out, defects) => {
-                if !more || !reopen(talk, defects, AGAIN) {
-                    evidence::refuse(&mut out, SPENT.to_owned());
+                if !more || !reopen(talk, defects.clone(), AGAIN) {
+                    evidence::refuse(&mut out, stop_reason(more, &defects, (SPENT, REPEATED)));
                     return kept(out, &history);
                 }
                 done.provenance.authoring = out.provenance.authoring;
