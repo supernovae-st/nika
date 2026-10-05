@@ -62,6 +62,7 @@ expect() {
   local dir="$WORK/case-$cases"
   scaffold "$dir"
   printf '%s\n' "$lib" >"$dir/crates/fixture/src/lib.rs"
+  mkdir -p "$(dirname "$dir/crates/fixture/src/$probe_name")"
   printf '%s\n' "$probe" >"$dir/crates/fixture/src/$probe_name"
   git -C "$dir" init -q
   git -C "$dir" add -A
@@ -91,6 +92,14 @@ expect GREEN "a #[cfg(test)]-declared module file is not production" \
 # empty test-only list must drop nothing).
 expect RED "the same file declared as a production module is a bypass" \
   'mod probe;' probe.rs "$PROBE_BYPASS"
+
+# The source inventory excludes tests/ before it builds its test-module list.
+# The vector's filesystem walk must not reintroduce a nested fixture, while
+# the same call in a production support module remains a violation.
+expect GREEN "a nested tests/ fixture stays outside production scope" \
+  $'#[cfg(test)]\n#[path = "tests/probe.rs"]\nmod probe;' tests/probe.rs "$PROBE_BYPASS"
+expect RED "a nested production module remains in scope" \
+  $'#[path = "support/probe.rs"]\nmod probe;' support/probe.rs "$PROBE_BYPASS"
 
 # An attribute or a comment between `#[cfg(test)]` and the declaration keeps
 # the pairing (the library's rule); an unrelated line breaks it.
