@@ -276,3 +276,11 @@ stdlib	NIKA-SEC-012	check-reject	conformance/tests/stdlib/builtins/067-remove-fi
 stdlib	(positive)	positive-check	conformance/tests/stdlib/builtins/068-remove-file-template-separator-deferred/input.yaml
 stdlib	(positive)	positive-check	conformance/tests/stdlib/builtins/069-remove-file-template-dot-deferred/input.yaml
 stdlib	(positive)	positive-check	conformance/tests/stdlib/builtins/070-remove-file-typed-const-write-contained/input.yaml
+verbs	(harness-image-observation)	journal-evidence	conformance/tests/runtime/trace/017-image-path-report
+verbs	(harness-image-observation)	journal-evidence	conformance/tests/runtime/trace/018-image-storage-unconfirmed
+verbs	(harness-image-observation)	journal-evidence	conformance/tests/runtime/trace/019-image-stored-receipt
+verbs	(harness-image-observation)	journal-evidence	conformance/tests/runtime/trace/020-image-storage-failed
+verbs	(harness-image-observation)	journal-evidence	conformance/tests/runtime/trace/021-image-count-absent
+verbs	(harness-image-observation)	journal-evidence	conformance/tests/runtime/trace/022-image-count-mismatch
+verbs	(harness-image-observation)	journal-evidence	conformance/tests/runtime/trace/023-image-malformed-frame
+verbs	(harness-image-observation)	journal-evidence	conformance/tests/runtime/trace/024-image-stored-without-blob
