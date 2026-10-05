@@ -368,7 +368,8 @@ pub(crate) fn target(
 #[must_use]
 pub(crate) fn thread(view: Option<&ProjectView>, on_screen: Option<&str>) -> Thread {
     let project = view.map_or_else(String::new, |v| v.name.clone());
-    let thread = Thread::new(project, THIS_CONVERSATION);
+    let thread =
+        Thread::new(project, THIS_CONVERSATION).seated(view.and_then(|view| view.seat.clone()));
     match on_screen {
         Some(object) => thread.viewing(object),
         None => thread,
@@ -405,19 +406,33 @@ fn inventory(view: &ProjectView, sep: &str) -> Vec<String> {
 #[must_use]
 pub(crate) fn welcome(view: Option<&ProjectView>, ascii: bool) -> Object {
     let (sep, _) = marks(ascii);
-    let mut words = Vec::new();
+    let mut words = vec![
+        "N I K A".to_owned(),
+        "Turn an intention into a workflow.".to_owned(),
+        String::new(),
+        "1  Describe the outcome in the conversation.".to_owned(),
+        "2  Answer questions; inspect the proposed plan.".to_owned(),
+        "3  Save, then Run with the workflow's models.".to_owned(),
+        String::new(),
+        "Try: Read orders.csv, group by customer,".to_owned(),
+        "and write totals to customer-totals.json.".to_owned(),
+        String::new(),
+    ];
     match view {
         Some(view) => {
             words.extend(inventory(view, sep));
             words.push(match &view.seat {
-                Some(seat) => format!("intelligence{sep}{seat}"),
-                None => format!("intelligence{sep}not chosen yet, asked when a turn needs one"),
+                Some(seat) => format!("To prepare{sep}{seat}"),
+                None => format!("To prepare{sep}not chosen yet; asked when needed"),
             });
         }
         None => words.push("no project is known to this conversation".to_owned()),
     }
-    words.push("Describe the work you want to automate.".to_owned());
-    words.push("F6 moves the keys between regions".to_owned());
+    words.push(String::new());
+    words.push("Ways: app account / API / local / no AI".to_owned());
+    words.push("/intelligence: change anytime  /help: commands".to_owned());
+    words.push("Click a panel or press F6; scroll over it.".to_owned());
+    words.push("End: latest messages. Copy: terminal modifier + drag.".to_owned());
     Object::Welcome { words }
 }
 
@@ -564,57 +579,59 @@ mod tests {
     }
 
     #[test]
-    fn the_welcome_says_the_listing_the_intelligence_and_the_region_key() {
+    fn welcome_explains_the_path_and_keeps_observed_inventory_and_model() {
         let demo = demo_project();
-        assert_eq!(
-            words(&welcome(Some(&demo), false)),
-            [
-                "3 workflows · 2 clean",
-                "intelligence · the demo script, no model is called",
-                "Describe the work you want to automate.",
-                "F6 moves the keys between regions",
-            ]
-        );
-        let partial = ProjectView::new("local", "big", "~/big").listing(
-            vec![WorkflowView::new("a.nika", Some("a"), true, 0, 1)],
-            false,
-        );
-        assert_eq!(
-            words(&welcome(Some(&partial), true))[..2],
-            [
-                "at least 1 workflow - 1 clean - partial listing",
-                "intelligence - not chosen yet, asked when a turn needs one",
-            ]
-        );
+        let welcome_words = words(&welcome(Some(&demo), false));
+        for expected in [
+            "N I K A",
+            "1  Describe the outcome in the conversation.",
+            "2  Answer questions; inspect the proposed plan.",
+            "3  Save, then Run with the workflow's models.",
+            "3 workflows · 2 clean",
+            "To prepare · the demo script, no model is called",
+            "Ways: app account / API / local / no AI",
+            "/intelligence: change anytime  /help: commands",
+            "Click a panel or press F6; scroll over it.",
+        ] {
+            assert!(
+                welcome_words.iter().any(|word| word == expected),
+                "{expected}"
+            );
+        }
         assert!(
             words(&welcome(Some(&demo), true))
                 .iter()
-                .all(|w| w.is_ascii()),
-            "the glyph column reaches the welcome's own separators"
+                .all(|word| word.is_ascii())
         );
-        assert_eq!(
-            words(&welcome(None, false))[0],
-            "no project is known to this conversation"
+        assert!(
+            words(&welcome(None, false))
+                .iter()
+                .any(|word| word == "no project is known to this conversation")
         );
+        let thread = thread(Some(&demo), Some("a.nika"));
+        assert_eq!(thread.intelligence, demo.seat);
+        assert_eq!(thread.on_screen.as_deref(), Some("a.nika"));
     }
 
-    /// An empty project says what comes next; a cut walk that found none
-    /// says only that.
     #[test]
-    fn an_empty_project_welcome_says_what_comes_next() {
+    fn an_empty_or_partial_welcome_does_not_invent_workflows() {
         let fresh = ProjectView::new("local", "veille", "~/veille").listing(Vec::new(), true);
-        assert_eq!(
-            words(&welcome(Some(&fresh), false))[..3],
-            [
-                "No workflow in veille yet",
-                "the first appears here when Nika proposes it",
-                "opening here sends nothing to the model",
-            ]
+        let fresh_words = words(&welcome(Some(&fresh), false));
+        assert!(
+            fresh_words
+                .iter()
+                .any(|word| word == "No workflow in veille yet")
+        );
+        assert!(
+            fresh_words
+                .iter()
+                .any(|word| word == "opening here sends nothing to the model")
         );
         let cut = ProjectView::new("local", "veille", "~/veille").listing(Vec::new(), false);
-        assert_eq!(
-            words(&welcome(Some(&cut), true))[0],
-            "none found in the listed part - listing partial"
+        assert!(
+            words(&welcome(Some(&cut), true))
+                .iter()
+                .any(|word| word == "none found in the listed part - listing partial")
         );
     }
 

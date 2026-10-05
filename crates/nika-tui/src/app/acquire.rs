@@ -102,6 +102,10 @@ impl<C: Conversation + 'static> Shell<C> {
                 match self.hear(event, &mut armed) {
                     Heard::Leave(exit) => return Ok(Some(exit)),
                     Heard::Redraw => shown = u64::MAX,
+                    Heard::Repaint => {
+                        self.repaint(broker)?;
+                        shown = u64::MAX;
+                    }
                     Heard::Nothing => {}
                 }
             }

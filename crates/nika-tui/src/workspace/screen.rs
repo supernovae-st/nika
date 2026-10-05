@@ -118,13 +118,14 @@ pub fn draw(
             .set_style(area, role::surface(color, true));
         let [list, edge] =
             Layout::horizontal([Constraint::Min(1), Constraint::Length(1)]).areas(area);
-        let rows = aside::lines_selecting(
+        let rows = aside::lines_anchored(
             &screen.aside,
             list.width,
             list.height,
             ascii,
             color,
             selected,
+            focus.selected,
         );
         frame.render_widget(Paragraph::new(rows), list);
         rule_column(
@@ -138,13 +139,14 @@ pub fn draw(
         // The width folds the aside: while it holds the keys it stands over
         // the object, which returns as soon as the keys leave it.
         let area = geometry.object;
-        let rows = aside::lines_selecting(
+        let rows = aside::lines_anchored(
             &screen.aside,
             area.width,
             area.height,
             ascii,
             color,
             selected,
+            focus.selected,
         );
         frame.render_widget(Paragraph::new(rows), area);
     }
@@ -236,7 +238,22 @@ fn panel(
     } else {
         heading
     };
-    frame.render_widget(Paragraph::new(heading), title);
+    let mut title_lines = vec![heading];
+    if title.height > 1 {
+        let seat = screen
+            .thread
+            .intelligence
+            .as_deref()
+            .unwrap_or("not selected - /intelligence to choose; asked when needed");
+        title_lines.push(Line::from(vec![
+            Span::styled("AI  ", role::style(Role::VerbAgent, color)),
+            Span::styled(seat.to_owned(), role::style(Role::Dim, color)),
+        ]));
+    }
+    frame.render_widget(
+        Paragraph::new(title_lines).wrap(ratatui::widgets::Wrap { trim: false }),
+        title,
+    );
     render_transcript(frame, state, transcript);
     let with = conversation::context(&screen.thread, context.width, ascii, color);
     frame.render_widget(Paragraph::new(with), context);
@@ -257,9 +274,15 @@ pub(crate) fn panel_areas(geometry: &Geometry, state: &UiState, composer: &Compo
             region.height,
         )
     };
-    let live = live_rows(state, composer, area.width, area.height.saturating_sub(2));
+    let heading = if area.height >= 12 { 3 } else { 1 };
+    let live = live_rows(
+        state,
+        composer,
+        area.width,
+        area.height.saturating_sub(heading + 1),
+    );
     Layout::vertical([
-        Constraint::Length(1),
+        Constraint::Length(heading),
         Constraint::Min(0),
         Constraint::Length(1),
         Constraint::Length(live),
@@ -501,7 +524,7 @@ mod tests {
     #[test]
     fn the_welcome_mark_leaves_the_composer_its_rows() {
         let screen = screen(welcome());
-        for ((width, height), size) in [((80, 24), Size::Compact), ((120, 40), Size::Compact)] {
+        for ((width, height), size) in [((80, 24), Size::Compact), ((120, 40), Size::Board)] {
             let (_, rows) = draw_at(&screen, width, height, paint(false));
             let mark = size.lines();
             let middle = mark[mark.len() / 2].trim();
@@ -554,6 +577,22 @@ mod tests {
             assert!(rows[y].is_ascii(), "row {y}: {}", rows[y]);
         }
         assert!(rows[2].contains('|'), "the aside edge: {}", rows[2]);
+    }
+
+    #[test]
+    fn the_selected_model_stays_visible_in_ascii_chrome() {
+        let mut view = screen(welcome());
+        view.thread.intelligence = Some("deepseek/chosen - deepseek API, metered".into());
+        let (_, rows) = draw_at(&view, 120, 40, paint(true));
+        let model = find(&rows, "AI  deepseek/chosen").expect("selected model is visible");
+        assert!(rows[model].is_ascii(), "{}", rows[model]);
+        assert!(rows[model + 1].is_ascii(), "{}", rows[model + 1]);
+        view.thread.intelligence = Some("private/été·beta - app account".into());
+        let (_, rows) = draw_at(&view, 120, 40, paint(true));
+        assert!(
+            rows.iter().any(|row| row.contains("private/été·beta")),
+            "model bytes stay intact"
+        );
     }
 
     #[test]

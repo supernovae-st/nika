@@ -217,6 +217,7 @@ pub struct UiState {
     pub size: (u16, u16),
     /// The session asked to close.
     pub quit: bool,
+    activity: Option<Activity>,
 }
 
 impl UiState {
@@ -239,6 +240,7 @@ impl UiState {
             focus_scroll: 0,
             size,
             quit: false,
+            activity: None,
         }
     }
 
@@ -246,10 +248,12 @@ impl UiState {
     pub fn apply(&mut self, beat: Beat) {
         match beat {
             Beat::Say(block) => {
+                self.activity = None;
                 self.busy = None;
                 self.transcript.push(block);
             }
             Beat::Wait(waiting) => {
+                self.activity = None;
                 self.busy = None;
                 self.waiting = waiting;
             }
@@ -260,6 +264,43 @@ impl UiState {
         }
     }
 
+    /// Retain the progress the Session actually reported, in one compact card.
+    /// The workspace retains steps; inline and focus keep their transcript behavior.
+    pub(crate) fn observe_activity(&mut self, label: &str) {
+        if self.presentation != Presentation::Workspace || label.trim().is_empty() {
+            return;
+        }
+        let activity = self.activity.get_or_insert_with(|| {
+            let index = self.transcript.len();
+            self.transcript.push(Committed::new(Kind::Report, ""));
+            Activity {
+                index,
+                lines: Vec::new(),
+                omitted: 0,
+            }
+        });
+        if activity.lines.last().is_some_and(|last| last == label) {
+            return;
+        }
+        activity.lines.push(label.to_owned());
+        if activity.lines.len() > 12 {
+            activity.lines.remove(0);
+            activity.omitted += 1;
+        }
+        let separator = if self.ascii { "-" } else { "·" };
+        let prefix = if activity.omitted == 0 {
+            format!("Activity {separator} observed steps")
+        } else {
+            format!(
+                "Activity {separator} {} earlier updates omitted",
+                activity.omitted
+            )
+        };
+        if let Some(block) = self.transcript.get_mut(activity.index) {
+            block.text = format!("{prefix}\n{}", activity.lines.join("\n"));
+        }
+    }
+
     /// The blocks the inline view has not yet handed to the terminal.
     #[must_use]
     pub fn uncommitted(&self) -> &[Committed] {
@@ -267,6 +308,13 @@ impl UiState {
             .get(self.committed_inline..)
             .unwrap_or_default()
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Activity {
+    index: usize,
+    lines: Vec<String>,
+    omitted: usize,
 }
 
 /// A canned conversation: every submitted line advances one turn and yields
@@ -615,6 +663,56 @@ mod tests {
             .hint(),
             "answer the question · an empty line takes the default"
         );
+    }
+
+    #[test]
+    fn observed_activity_is_bounded_deduplicated_and_stops_at_a_reply() {
+        let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
+        state.observe_activity("reading the request");
+        state.observe_activity("reading the request");
+        assert_eq!(state.transcript.len(), 1);
+        assert_eq!(
+            state.transcript[0]
+                .text
+                .matches("reading the request")
+                .count(),
+            1
+        );
+        for n in 0..15 {
+            state.observe_activity(&format!("repair {n}"));
+        }
+        assert_eq!(state.transcript.len(), 1);
+        assert!(
+            state.transcript[0]
+                .text
+                .contains("4 earlier updates omitted")
+        );
+        assert!(state.transcript[0].text.ends_with("repair 14"));
+        assert_eq!(state.transcript[0].text.lines().count(), 13);
+        let finished = state.transcript[0].clone();
+        state.apply(Beat::Say(Committed::new(Kind::Question, "Which source?")));
+        state.observe_activity("reading the answer");
+        assert_eq!(state.transcript.len(), 3);
+        assert_eq!(state.transcript[0], finished);
+        for presentation in [Presentation::Inline, Presentation::Focus] {
+            let mut state = UiState::new(presentation, false, (80, 24));
+            state.observe_activity("reading");
+            assert!(state.transcript.is_empty());
+        }
+    }
+
+    #[test]
+    fn activity_chrome_is_ascii_without_rewriting_observed_content() {
+        let mut state = UiState::new(Presentation::Workspace, false, (80, 24));
+        state.ascii = true;
+        state.observe_activity("reading the request");
+        assert!(state.transcript[0].text.is_ascii());
+        for n in 0..13 {
+            state.observe_activity(&format!("step {n}"));
+        }
+        assert!(state.transcript[0].text.is_ascii());
+        state.observe_activity("using private/été·beta");
+        assert!(state.transcript[0].text.ends_with("using private/été·beta"));
     }
 
     #[test]

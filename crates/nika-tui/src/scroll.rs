@@ -29,6 +29,34 @@ fn area(state: &UiState, desk: &Desk, composer: &Composer) -> Rect {
 
 /// Move a page, with one shared row, clamped to the actually rendered content.
 pub(crate) fn page(state: &mut UiState, desk: &Desk, composer: &Composer, older: bool) {
+    let viewport = area(state, desk, composer);
+    rows(
+        state,
+        desk,
+        composer,
+        older,
+        usize::from(viewport.height.saturating_sub(1)).max(1),
+    );
+}
+
+/// Move a bounded number of rendered rows without changing keyboard focus.
+pub(crate) fn rows(
+    state: &mut UiState,
+    desk: &Desk,
+    composer: &Composer,
+    older: bool,
+    step: usize,
+) {
+    let maximum = maximum(state, desk, composer);
+    let current = state.focus_scroll.min(maximum);
+    state.focus_scroll = if older {
+        current.saturating_add(step).min(maximum)
+    } else {
+        current.saturating_sub(step)
+    };
+}
+
+fn maximum(state: &UiState, desk: &Desk, composer: &Composer) -> usize {
     let area = area(state, desk, composer);
     let rows = if state.presentation == Presentation::Workspace {
         cards::height(state, area)
@@ -44,14 +72,28 @@ pub(crate) fn page(state: &mut UiState, desk: &Desk, composer: &Composer, older:
             .collect();
         usize::from(wrapped_rows(&lines, area.width))
     };
-    let maximum = rows.saturating_sub(usize::from(area.height));
-    let step = usize::from(area.height.saturating_sub(1)).max(1);
-    let current = state.focus_scroll.min(maximum);
-    state.focus_scroll = if older {
-        current.saturating_add(step).min(maximum)
-    } else {
-        current.saturating_sub(step)
-    };
+    rows.saturating_sub(usize::from(area.height))
+}
+
+/// Keep the current reading position when observed activity or a turn adds
+/// content. The latest-row view still follows new content automatically.
+pub(crate) fn preserve_reading(
+    state: &mut UiState,
+    desk: &Desk,
+    composer: &Composer,
+    update: impl FnOnce(&mut UiState),
+) {
+    let before = (state.focus_scroll > 0).then(|| maximum(state, desk, composer));
+    update(state);
+    if let Some(before) = before {
+        let after = maximum(state, desk, composer);
+        state.focus_scroll = if after >= before {
+            state.focus_scroll.saturating_add(after - before)
+        } else {
+            state.focus_scroll.saturating_sub(before - after)
+        }
+        .min(after);
+    }
 }
 
 /// End returns a scrolled transcript to its latest row; otherwise the composer
@@ -81,6 +123,42 @@ mod tests {
     use super::*;
     use crate::model::{Committed, Kind};
     use ratatui::{Terminal, backend::TestBackend};
+
+    #[test]
+    fn observed_activity_and_final_blocks_keep_a_scrolled_reading_position() {
+        for presentation in [Presentation::Workspace, Presentation::Focus] {
+            let mut state = UiState::new(presentation, false, (120, 40));
+            state.transcript.push(Committed::new(
+                Kind::Reply,
+                (0..100)
+                    .map(|n| format!("history {n:03}"))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            ));
+            let desk = Desk::new();
+            let composer = Composer::new();
+            rows(&mut state, &desk, &composer, true, 30);
+            let top = maximum(&state, &desk, &composer) - state.focus_scroll;
+            for n in 0..20 {
+                preserve_reading(&mut state, &desk, &composer, |state| {
+                    state.observe_activity(&format!("observed step {n}"));
+                });
+                assert_eq!(maximum(&state, &desk, &composer) - state.focus_scroll, top);
+            }
+            preserve_reading(&mut state, &desk, &composer, |state| {
+                state.apply(crate::model::Beat::Say(Committed::new(
+                    Kind::Reply,
+                    "the actual result",
+                )));
+            });
+            assert_eq!(maximum(&state, &desk, &composer) - state.focus_scroll, top);
+            state.focus_scroll = 0;
+            preserve_reading(&mut state, &desk, &composer, |state| {
+                state.observe_activity("a new update");
+            });
+            assert_eq!(state.focus_scroll, 0);
+        }
+    }
 
     #[test]
     fn pages_reach_the_beginning_middle_and_end_of_one_long_question() {

@@ -1125,12 +1125,12 @@ fn seat(runtime: &SessionRuntime) -> Option<String> {
         (IntelligenceKind::Local { provider }, _) => format!("{provider}, on this machine"),
         _ => "an intelligence this view cannot name".to_owned(),
     };
-    let model = chosen
-        .model
-        .as_deref()
-        .map_or_else(String::new, |model| format!(", model {model}"));
+    let model = chosen.model.as_deref().map_or_else(
+        || "model chosen by provider - ".to_owned(),
+        |model| format!("{model} - "),
+    );
     let ready = if chosen.ready { "" } else { ", not ready here" };
-    Some(format!("{base}{model}{ready}"))
+    Some(format!("{model}{base}{ready}"))
 }
 
 pub mod acquire;
@@ -1242,6 +1242,40 @@ mod project_view_tests {
         );
         assert_eq!(view.seat, None, "no intelligence chosen, none named");
         assert!(view.pinned.is_none(), "no typed run identity is lent");
+    }
+
+    #[test]
+    fn the_selected_model_keeps_its_bytes_and_uses_ascii_chrome() {
+        use nika_session::intelligence::IntelligenceKind;
+        let room = Room::new("model-chrome");
+        for model in ["deepseek/selected-model", "deepseek/private-été·beta"] {
+            let mut census = IntelligenceCensus::empty();
+            census.api_keys.push("deepseek".into());
+            let preference = UserIntelligencePreference::new(
+                IntelligenceKind::Api {
+                    provider: "deepseek".into(),
+                },
+                Some(model.into()),
+            );
+            let runtime = SessionRuntime::open_with(
+                &room.0,
+                census,
+                &preference,
+                None,
+                Box::new(|_| Box::new(ScriptedReasoner::new(Vec::new()))),
+            );
+            assert!(
+                runtime.intelligence_chosen(),
+                "explicit preference is selected"
+            );
+            let seat = project_view(&runtime, None).seat.expect("selection");
+            assert_eq!(seat, format!("{model} - deepseek API, metered"));
+            assert_eq!(
+                seat.is_ascii(),
+                model.is_ascii(),
+                "only model data may be Unicode"
+            );
+        }
     }
 
     #[test]

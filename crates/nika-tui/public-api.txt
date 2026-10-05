@@ -358,6 +358,7 @@ pub nika_tui::events::UiEvent::Closed
 pub nika_tui::events::UiEvent::FocusGained
 pub nika_tui::events::UiEvent::FocusLost
 pub nika_tui::events::UiEvent::Key(crossterm::event::KeyEvent)
+pub nika_tui::events::UiEvent::Mouse(crossterm::event::MouseEvent)
 pub nika_tui::events::UiEvent::Paste(alloc::string::String)
 pub nika_tui::events::UiEvent::Resize(u16, u16)
 pub nika_tui::events::UiEvent::Signal(nika_tui::events::Signal)
@@ -2042,12 +2043,14 @@ pub type nika_tui::workspace::candidate::Proposed::Output = T
 pub mod nika_tui::workspace::conversation
 #[non_exhaustive] pub struct nika_tui::workspace::conversation::Thread
 pub nika_tui::workspace::conversation::Thread::attached: alloc::vec::Vec<alloc::string::String>
+pub nika_tui::workspace::conversation::Thread::intelligence: core::option::Option<alloc::string::String>
 pub nika_tui::workspace::conversation::Thread::name: alloc::string::String
 pub nika_tui::workspace::conversation::Thread::on_screen: core::option::Option<alloc::string::String>
 pub nika_tui::workspace::conversation::Thread::project: alloc::string::String
 impl nika_tui::workspace::conversation::Thread
 pub fn nika_tui::workspace::conversation::Thread::attaching(self, reference: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_tui::workspace::conversation::Thread::new(project: impl core::convert::Into<alloc::string::String>, name: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_tui::workspace::conversation::Thread::seated(self, intelligence: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_tui::workspace::conversation::Thread::viewing(self, object: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_tui::workspace::conversation::Thread
 pub fn nika_tui::workspace::conversation::Thread::clone(&self) -> nika_tui::workspace::conversation::Thread

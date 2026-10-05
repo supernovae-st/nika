@@ -32,7 +32,7 @@ use std::time::Duration;
 
 use std::sync::mpsc;
 
-use crossterm::event::{Event, KeyEvent, KeyEventKind};
+use crossterm::event::{Event, KeyEvent, KeyEventKind, MouseEvent};
 
 /// How long one `poll` may hold the input reader.
 pub const POLL_SLICE: Duration = Duration::from_millis(50);
@@ -50,6 +50,8 @@ const DRAIN_POLL: Duration = Duration::from_millis(1);
 pub enum UiEvent {
     /// A key press.
     Key(KeyEvent),
+    /// A pointer event, routed only by the full-screen shell.
+    Mouse(MouseEvent),
     /// A bracketed paste: data, never keys.
     Paste(String),
     /// The terminal was resized to (columns, rows).
@@ -128,6 +130,15 @@ impl Broker {
     /// The next event, blocking; `None` once every sender is gone.
     pub fn recv(&mut self) -> Option<UiEvent> {
         self.rx.recv().ok()
+    }
+
+    /// Wait for input until the next welcome frame is due. Uses the same
+    /// reader and channel as the blocking path; input cancels the wait.
+    pub(crate) fn recv_timeout(
+        &mut self,
+        timeout: Duration,
+    ) -> Result<UiEvent, mpsc::RecvTimeoutError> {
+        self.rx.recv_timeout(timeout)
     }
 
     /// The next event if one is already waiting; never blocks. The shell
@@ -241,7 +252,8 @@ fn read_loop(
 fn decode(event: Event) -> Option<UiEvent> {
     Some(match event {
         Event::Key(key) if key.kind == KeyEventKind::Press => UiEvent::Key(key),
-        Event::Key(_) | Event::Mouse(_) => return None,
+        Event::Key(_) => return None,
+        Event::Mouse(mouse) => UiEvent::Mouse(mouse),
         Event::Paste(text) => UiEvent::Paste(text),
         Event::Resize(cols, rows) => UiEvent::Resize(cols, rows),
         Event::FocusGained => UiEvent::FocusGained,
@@ -303,6 +315,23 @@ async fn watch_signals(tx: mpsc::Sender<UiEvent>) {
 mod tests {
     use super::*;
     use tokio::signal::unix::SignalKind;
+
+    #[test]
+    fn mouse_events_cross_the_same_broker_without_becoming_keys() {
+        use crossterm::event::{KeyModifiers, MouseButton, MouseEventKind};
+        for kind in [
+            MouseEventKind::Down(MouseButton::Left),
+            MouseEventKind::ScrollUp,
+        ] {
+            let mouse = MouseEvent {
+                kind,
+                column: 12,
+                row: 8,
+                modifiers: KeyModifiers::NONE,
+            };
+            assert_eq!(decode(Event::Mouse(mouse)), Some(UiEvent::Mouse(mouse)));
+        }
+    }
 
     /// A hangup (the terminal closed, the pane killed) leaves like a
     /// terminate, the terminal restored first; an interrupt stays one; any

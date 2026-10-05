@@ -191,6 +191,10 @@ fn assert_restored(tail: &str, focus: bool) {
     assert!(tail.contains(CURSOR_SHOW), "cursor left hidden:\n{tail:?}");
     if focus {
         assert!(
+            tail.contains("\x1b[?1006l"),
+            "mouse capture left on: {tail:?}"
+        );
+        assert!(
             tail.contains(ALT_OFF),
             "alternate screen left on:\n{tail:?}"
         );
@@ -258,25 +262,36 @@ fn two_control_c_while_idle_leave_and_restore() {
 
 #[test]
 fn a_panic_inside_the_loop_restores_before_the_message() {
-    let (mut session, tee) = spawn(&["--panic-after", "1"]);
-    session.send("boom\r").expect("send");
-    expect_or_dump(
-        &mut session,
-        &tee,
-        "panic requested after 1 line(s)",
-        "the panic message reaches the terminal",
-    );
-    let status = wait(&mut session);
-    assert!(matches!(status, WaitStatus::Exited(_, 101)), "{status:?}");
-    let text = written(&tee);
-    let message = text.rfind("panic requested").expect("message");
-    let before = &text[..message];
-    let paste_off = before.rfind(PASTE_OFF);
-    let cursor = before.rfind(CURSOR_SHOW);
-    assert!(
-        paste_off.is_some() && cursor.is_some(),
-        "the hook restores BEFORE the panic prints (paste_off {paste_off:?} · cursor {cursor:?} · message {message})"
-    );
+    for args in [
+        &["--panic-after", "1"][..],
+        &["--focus", "--panic-after", "1"][..],
+    ] {
+        let (mut session, tee) = spawn(args);
+        session.send("boom\r").expect("send");
+        expect_or_dump(
+            &mut session,
+            &tee,
+            "panic requested after 1 line(s)",
+            "the panic message reaches the terminal",
+        );
+        let status = wait(&mut session);
+        assert!(matches!(status, WaitStatus::Exited(_, 101)), "{status:?}");
+        let text = written(&tee);
+        let message = text.rfind("panic requested").expect("message");
+        let before = &text[..message];
+        if args.contains(&"--focus") {
+            assert!(
+                before.contains("\x1b[?1006l"),
+                "panic left mouse capture enabled: {before:?}"
+            );
+        }
+        let paste_off = before.rfind(PASTE_OFF);
+        let cursor = before.rfind(CURSOR_SHOW);
+        assert!(
+            paste_off.is_some() && cursor.is_some(),
+            "the hook restores BEFORE the panic prints (paste_off {paste_off:?} · cursor {cursor:?} · message {message})"
+        );
+    }
 }
 
 #[test]

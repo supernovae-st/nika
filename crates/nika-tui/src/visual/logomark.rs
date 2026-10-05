@@ -10,9 +10,9 @@
 //! chosen whole (a mark is never cut mid-line), and the layout decides where
 //! it may stand: the workflow and the composer come first.
 //!
-//! The reveal is a 4×4 ordered dither in five frames (at 0, 140, 280, 420 and
-//! 600 ms), each keeping every cell the previous one showed; the last frame is
-//! the exact mark, held from 600 ms and final at [`REVEAL_ENDS`]. It never
+//! The reveal is a 4×4 ordered dither in five frames (at 0, 300, 650, 1,000 and
+//! 1,400 ms), each keeping every cell the previous one showed; the last frame is
+//! the exact mark, held from 1,400 ms and final at [`REVEAL_ENDS`]. It never
 //! loops, never stands for work in progress (a run's motion is its verb's, in
 //! the theme seam), and under reduced motion the final frame is drawn at once.
 
@@ -28,14 +28,14 @@ pub const SOURCE_SHA256: &str = "fe2240ff2d8a6f76bf6d68883697c29092ed2586c28083e
 /// When each reveal frame is first drawn; the last one is the exact mark.
 pub const REVEAL_AT: [Duration; 5] = [
     Duration::from_millis(0),
-    Duration::from_millis(140),
-    Duration::from_millis(280),
-    Duration::from_millis(420),
-    Duration::from_millis(600),
+    Duration::from_millis(300),
+    Duration::from_millis(650),
+    Duration::from_millis(1000),
+    Duration::from_millis(1400),
 ];
 
 /// When a reveal is over: nothing about the mark changes after it.
-pub const REVEAL_ENDS: Duration = Duration::from_millis(760);
+pub const REVEAL_ENDS: Duration = Duration::from_millis(1800);
 
 /// One rendition of the mark, named by where it may stand.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -207,14 +207,14 @@ mod tests {
         let size = Size::Launch;
         let ms = Duration::from_millis;
         assert_eq!(size.at(ms(0), false), size.frame(0));
-        assert_eq!(size.at(ms(139), false), size.frame(0));
-        assert_eq!(size.at(ms(140), false), size.frame(1));
-        assert_eq!(size.at(ms(599), false), size.frame(3));
-        assert_eq!(size.at(ms(600), false), size.lines());
+        assert_eq!(size.at(ms(299), false), size.frame(0));
+        assert_eq!(size.at(ms(300), false), size.frame(1));
+        assert_eq!(size.at(ms(1399), false), size.frame(3));
+        assert_eq!(size.at(ms(1400), false), size.lines());
         assert_eq!(size.at(ms(5_000), false), size.lines());
         assert_eq!(size.at(ms(0), true), size.lines());
         assert!(revealing(ms(0), false));
-        assert!(revealing(ms(759), false));
+        assert!(revealing(ms(1799), false));
         assert!(!revealing(REVEAL_ENDS, false));
         assert!(!revealing(ms(0), true));
     }

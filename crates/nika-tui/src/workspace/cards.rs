@@ -24,10 +24,11 @@ fn heading(kind: Kind) -> (&'static str, Role) {
         Kind::Proposal => ("Review before saving", Role::Warn),
         Kind::Gate => ("Approval needed", Role::Warn),
         Kind::Refusal => ("Could not continue", Role::Bad),
-        Kind::Run => ("Run", Role::Accent),
-        Kind::Result => ("Result", Role::Accent),
+        Kind::Run => ("Run", Role::VerbInvoke),
+        Kind::Result => ("Result", Role::Good),
         Kind::Report => ("Report", Role::Accent),
-        Kind::Banner | Kind::Notice | Kind::Reply => ("Nika", Role::Accent),
+        Kind::Banner => ("Nika", Role::VerbAgent),
+        Kind::Notice | Kind::Reply => ("Nika", Role::Accent),
     }
 }
 

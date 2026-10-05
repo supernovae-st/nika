@@ -66,12 +66,18 @@ same kind of borrowing:
   five renditions (12×6 to 48×20) sampled from `media/brand/nika-logomark.svg`
   (a test pins its sha256, so a changed mark flags stale renditions), chosen
   whole by `Size::largest_within`, revealed once through five ordered-dither
-  frames between 0 and 600 ms and final at 760 ms, shown final at once under
+  frames between 0 and 1,400 ms and final at 1,800 ms, shown final at once under
   reduced motion. It never loops and never stands for work in progress.
 
 Nothing in `visual` reads the clock, the environment or a file; the caller
 passes the elapsed time, the colour and ASCII choices and reduced motion. Where
 the layout places the mark and the icons is UI-LAYOUT's work.
+
+The workspace keeps a bounded activity card from the progress updates actually
+reported by Session. Consecutive repeats collapse; the latest twelve updates
+remain with an explicit omission count. This is a presentation projection, not
+an invented completion percentage or a replacement for the canonical receipts.
+Run, result, questions and the brand use the existing semantic color roles.
 
 ### The workspace screen (native entry and parent workflow inspection)
 
@@ -176,18 +182,22 @@ a stamped integrated build or a paid model route.
 - `visual::state` re-reads the theme's task-state column (glyph and role, both
   glyph columns) as data for Ratatui; a test pins every state to what
   `nika_display::theme::Theme::glyph` paints.
-- `workspace::object` paints the centre. An open object is named by its kind's
+- `workspace::object` paints the preview on the right. An open object is named by its kind's
   icon and its name, and its given lines are cut at the edge, never wrapped
   (workflow faces use `nika-tui-view`; observed run faces use `workspace::live`). With nothing open it welcomes: the largest
-  butterfly that fits whole above the Session's first words (16×8 in the 80×24
-  object rows, 48×20 from 120×40), revealed once from the caller's clock, final
-  at once under reduced motion.
+  butterfly that fits whole above the onboarding words, up to 48×20 when both
+  the mark and the instructions fit. The instructions explain describing an
+  outcome, answering questions, reviewing, saving and then running; they give
+  a concrete example and navigation keys. The mark reveals once from the
+  caller's clock and appears final at once under reduced motion.
 - `workspace::conversation` names who the next message goes to: the title row
   gives the thread and its project, the composer's placeholder the full
   recipient (`Message to studio / release checklist`), and the context row
   keeps apart what is only on screen and what is attached. What the next
   message carries keeps priority on a narrow panel; the on-screen part is cut
-  first, then dropped.
+  first, then dropped. With at least twelve panel rows, two heading rows keep
+  the Session's chosen model and access visible while any object is inspected.
+  An unknown selection stays explicit; the renderer makes no provider call.
 - `workspace::screen::draw` composes one frame from a `Screen` (place, aside,
   object, thread, pinned run): the transcript, status, composer and hint are
   painted by the same functions as the focus presentation. Beside the object
@@ -206,6 +216,15 @@ a stamped integrated build or a paid model route.
   its detail; Enter there opens a recorded child relation, and Backspace
   returns one level. `screen::extent` gives the key handler what the regions
   hold at the current size.
+- Full-screen mouse capture belongs to the same terminal Owner as raw mode,
+  paste and the alternate screen, and is restored on inline, exit and panic.
+  The broker forwards pointer events. The wheel scrolls the actual pane under
+  the pointer without taking keyboard focus; a click focuses that pane or
+  opens its listed object/tab through the existing Desk route. It never submits
+  text or answers consent. Shift-drag remains terminal selection where the
+  terminal supports it; the complete keyboard route remains available.
+  Observed activity and finished replies preserve a scrolled reading position;
+  offset zero follows new content and End returns to the latest messages.
 - The ASCII glyph column is the theme's decision (`--ascii`, CI logs, a legacy
   console), passed by the CLI door as `app::Options::ascii` and held in
   `UiState::ascii`: bare `nika --ascii` keeps the renderer, `--plain` and

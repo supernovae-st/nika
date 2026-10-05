@@ -57,12 +57,14 @@ use crate::model::{
 };
 use crate::render;
 use crate::terminal::{self, Owner, Screen};
-use crate::visual::logomark;
 use crate::workspace::desk::{self, Desk, Route};
 use crate::workspace::object::Paint;
+
+mod pointer;
 use crate::workspace::{conversation, project};
 
 mod acquire;
+mod welcome;
 
 /// How the shell runs.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -82,7 +84,7 @@ pub struct Options {
     pub term: Option<String>,
     /// Reduced motion (the caller's reading of `NIKA_REDUCED_MOTION`): the
     /// busy row changes only when the turn says something new — no
-    /// seconds tick, no bell.
+    /// seconds tick, no bell; the welcome mark is final at once.
     pub reduced_motion: bool,
     /// The terminal's title while the door is open (`nika · <project>`);
     /// `None` leaves the title alone.
@@ -160,6 +162,8 @@ struct Shell<C: Conversation> {
     /// The composer's placeholder in effect: the workspace names the
     /// recipient there; the other presentations show none.
     placeholder: String,
+    /// One reveal per shell, never an idle animation.
+    welcome: welcome::Reveal,
 }
 
 /// What one key press decides, before anything is done about it.
@@ -264,6 +268,7 @@ pub fn run_on<C: Conversation + 'static>(
         typed_live: false,
         desk: Desk::new(),
         placeholder: String::new(),
+        welcome: welcome::Reveal::default(),
     };
     if let Some(title) = shell.options.title.as_deref() {
         // The previous title rides the terminal's stack; the restore pops it.
@@ -373,6 +378,8 @@ fn defuse(event: UiEvent) -> Defused {
     let key = match event {
         UiEvent::Key(key) => key,
         UiEvent::Paste(text) => return Defused::Text(text),
+        // Pointer coordinates from the previous frame never act on a fresh review.
+        UiEvent::Mouse(_) => return Defused::Drop,
         other => return Defused::Keep(other),
     };
     let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
@@ -419,6 +426,8 @@ enum Heard {
     Leave(Exit),
     /// The draft, the hint or the scroll changed: draw.
     Redraw,
+    /// The terminal may have discarded cells, even if its size returned.
+    Repaint,
     /// Nothing to draw now.
     Nothing,
 }
@@ -545,12 +554,16 @@ impl<C: Conversation + 'static> Shell<C> {
         self.apply_all(opening)?;
         self.draw()?;
         loop {
-            let Some(event) = self.deferred.pop_front().or_else(|| broker.recv()) else {
+            let Some(event) = self.next_event(&mut broker)? else {
                 broker.stop();
                 return Ok(Exit::Closed);
             };
             let step = match event {
                 UiEvent::Key(key) => self.on_key(key, &mut broker)?,
+                UiEvent::Mouse(mouse) => {
+                    self.on_mouse(mouse);
+                    Step::Stay
+                }
                 UiEvent::Paste(text) => {
                     self.composer.paste(&text);
                     Step::Stay
@@ -564,7 +577,11 @@ impl<C: Conversation + 'static> Shell<C> {
                     let resized = self.screen.autoresize();
                     broker.resume();
                     resized?;
-                    Step::Stay
+                    if self.state.presentation == Presentation::Inline {
+                        Step::Stay
+                    } else {
+                        Step::Repaint
+                    }
                 }
                 UiEvent::FocusGained | UiEvent::FocusLost => Step::Stay,
                 UiEvent::Signal(Signal::Terminate) => Step::Leave(Exit::Terminated),
@@ -590,7 +607,7 @@ impl<C: Conversation + 'static> Shell<C> {
                     self.apply_all(beats)?;
                 }
                 // The next draw writes every cell again.
-                Step::Repaint => self.screen.clear()?,
+                Step::Repaint => self.repaint(&broker)?,
                 Step::Stay => {}
             }
             // The last blocks are drawn before the door closes: a result the
@@ -901,7 +918,9 @@ impl<C: Conversation + 'static> Shell<C> {
         }
         for beat in beats {
             let busy = matches!(beat, Beat::Busy(_));
-            self.state.apply(beat);
+            crate::scroll::preserve_reading(&mut self.state, &self.desk, &self.composer, |state| {
+                state.apply(beat);
+            });
             if busy {
                 // A busy label is a state, not a block: draw it now so the
                 // human sees work is active before the next beat lands.
@@ -1026,6 +1045,12 @@ impl<C: Conversation + 'static> Shell<C> {
         let mut shown = u64::MAX;
         loop {
             if let Ok(label) = rx.recv_timeout(BUSY_POLL) {
+                crate::scroll::preserve_reading(
+                    &mut self.state,
+                    &self.desk,
+                    &self.composer,
+                    |state| state.observe_activity(&label),
+                );
                 // A finished phase (the session's ✓ line) stays beside the
                 // next current one; a current one replaces the previous.
                 if label.starts_with("✓ ") {
@@ -1064,6 +1089,10 @@ impl<C: Conversation + 'static> Shell<C> {
                 match self.hear(event, &mut armed) {
                     Heard::Leave(exit) => return Ok(TurnEnd::Left(exit)),
                     Heard::Redraw => shown = u64::MAX,
+                    Heard::Repaint => {
+                        self.repaint(broker)?;
+                        shown = u64::MAX;
+                    }
                     Heard::Nothing => {}
                 }
             }
@@ -1121,84 +1150,6 @@ impl<C: Conversation + 'static> Shell<C> {
         None
     }
 
-    /// One event heard while a turn runs. An interruption acts now (the
-    /// exit to leave with, once armed). The composer stays usable: words,
-    /// pastes and edits land in the draft as they are typed, a bare `Enter`
-    /// sends nothing and the hint row says when it will, and in a full
-    /// screen the page keys scroll the transcript. Every other event waits
-    /// for the turn. Once the turn ends on a decision, the typeahead law
-    /// keeps the draft unsent ([`Self::set_aside_typeahead`]).
-    fn hear(&mut self, event: UiEvent, armed: &mut bool) -> Heard {
-        let key = match event {
-            UiEvent::Signal(Signal::Terminate) => return Heard::Leave(Exit::Terminated),
-            UiEvent::Closed => return Heard::Leave(Exit::Closed),
-            UiEvent::Signal(Signal::Interrupt) => {
-                return Self::arm(armed).map_or(Heard::Nothing, Heard::Leave);
-            }
-            UiEvent::Key(key) if is_ctrl_c(&key) => {
-                return Self::arm(armed).map_or(Heard::Nothing, Heard::Leave);
-            }
-            UiEvent::Paste(text) => {
-                self.state.completion = None;
-                self.composer.paste(&text);
-                self.typed_live = true;
-                return Heard::Redraw;
-            }
-            UiEvent::Key(key) => key,
-            UiEvent::Resize(cols, rows) if self.state.presentation != Presentation::Inline => {
-                // A full screen reads its size without asking the terminal:
-                // the frames drawn while the turn runs, and the keys the
-                // workspace routes meanwhile, follow the new size at once.
-                // The resize is still replayed once the turn ends.
-                self.state.size = (cols, rows);
-                self.deferred.push_back(event);
-                return Heard::Redraw;
-            }
-            other => {
-                self.deferred.push_back(other);
-                return Heard::Nothing;
-            }
-        };
-        if crate::scroll::end(&mut self.state, &self.desk, key) {
-            return Heard::Redraw;
-        }
-        match busy_key(&self.state, &mut self.desk, key) {
-            Busy::Edit => {
-                self.state.completion = None;
-                self.typed_live = true;
-                if self.composer.handle(key) == ComposerAction::Complete
-                    && let crate::composer::Completion::Several(list) =
-                        self.composer.complete(&self.commands)
-                {
-                    self.state.completion = Some(list.join("  "));
-                }
-                Heard::Redraw
-            }
-            Busy::Hold => {
-                self.state.completion = Some(ENTER_WAITS.to_owned());
-                Heard::Redraw
-            }
-            Busy::Older => {
-                crate::scroll::page(&mut self.state, &self.desk, &self.composer, true);
-                Heard::Redraw
-            }
-            Busy::Newer => {
-                crate::scroll::page(&mut self.state, &self.desk, &self.composer, false);
-                Heard::Redraw
-            }
-            Busy::Later => {
-                self.deferred.push_back(UiEvent::Key(key));
-                Heard::Nothing
-            }
-            Busy::Leave => {
-                self.state.completion = Some(LEAVE_WAITS.to_owned());
-                self.deferred.push_back(UiEvent::Key(key));
-                Heard::Redraw
-            }
-            Busy::Region => Heard::Redraw,
-        }
-    }
-
     fn arm(armed: &mut bool) -> Option<Exit> {
         if *armed {
             return Some(Exit::Interrupted);
@@ -1225,9 +1176,10 @@ impl<C: Conversation + 'static> Shell<C> {
             let (ascii, color) = (self.state.ascii, self.state.color);
             self.desk.prepare(self.state.size, ascii, color);
         }
+        let paint = self.welcome_paint();
         let (state, composer, desk) = (&self.state, &self.composer, &self.desk);
         self.screen
-            .draw(|frame| draw_frame(frame, state, composer, desk))?;
+            .draw(|frame| draw_frame(frame, state, composer, desk, paint))?;
         Ok(())
     }
 }
@@ -1244,19 +1196,18 @@ fn spinner_frame(elapsed: std::time::Duration) -> u8 {
 
 /// Draw one frame of the presentation in effect. Below the workspace's
 /// minimum the focus view stands in, whole, until the size allows the
-/// workspace again. The welcome's butterfly is drawn final at once: no cue
-/// plays in this presentation.
-fn draw_frame(frame: &mut Frame<'_>, state: &UiState, composer: &Composer, desk: &Desk) {
+/// workspace again. The shell supplies the welcome clock; painting reads none.
+fn draw_frame(
+    frame: &mut Frame<'_>,
+    state: &UiState,
+    composer: &Composer,
+    desk: &Desk,
+    paint: Paint,
+) {
     match state.presentation {
         Presentation::Inline => render::draw_inline(frame, state, composer),
         Presentation::Focus => render::draw_focus(frame, state, composer),
         Presentation::Workspace => {
-            let paint = Paint {
-                ascii: state.ascii,
-                color: state.color,
-                elapsed: logomark::REVEAL_ENDS,
-                reduced_motion: true,
-            };
             if !desk::draw(frame, desk, paint, state, composer) {
                 render::draw_focus(frame, state, composer);
             }

@@ -108,6 +108,31 @@ impl Focus {
         }
     }
 
+    /// Scroll the preview in rows without taking its keyboard focus or
+    /// interpreting a run's task-navigation keys.
+    pub(crate) fn scroll_rows(&mut self, older: bool, step: usize, extent: Extent) {
+        let last = extent
+            .object_lines
+            .saturating_sub(usize::from(extent.object_rows));
+        let before = self.scroll.min(last);
+        self.scroll = if older {
+            before.saturating_sub(step)
+        } else {
+            before.saturating_add(step).min(last)
+        };
+    }
+
+    /// Move the listing's anchor while preserving the region holding the draft.
+    pub(crate) fn scroll_aside(&mut self, older: bool, step: usize, entries: usize) {
+        let last = entries.saturating_sub(1);
+        let before = self.selected.min(last);
+        self.selected = if older {
+            before.saturating_sub(step)
+        } else {
+            before.saturating_add(step).min(last)
+        };
+    }
+
     /// The next region (or the previous one when `back`), skipping a folded aside.
     fn cycle(&self, back: bool, aside_shown: bool) -> Region {
         let order: &[Region] = if aside_shown {
