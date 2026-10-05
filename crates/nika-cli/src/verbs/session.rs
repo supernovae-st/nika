@@ -725,7 +725,7 @@ mod tests {
         assert_eq!(code, exit::OK);
         let text = String::from_utf8(output).expect("utf8");
         assert!(
-            text.contains("Choose which AI answers"),
+            text.contains("Choose a connection for this conversation"),
             "asks again: {text}"
         );
         assert!(text.contains("kept"), "the new choice is kept: {text}");

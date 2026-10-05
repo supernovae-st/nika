@@ -125,13 +125,34 @@ async fn a_default_server_serves_the_committed_contract_and_refuses_generation_t
     server.stop().await.expect("clean stop");
 }
 
+/// A source revision is READY only after its distinct judge; both writes and the base model stay.
+fn assert_judged_revision(revised: &Value, seat: &Seat) {
+    assert_eq!(revised["status"], "ready", "{revised:#}");
+    assert_eq!(revised["provenance"]["authoring"]["calls"], 2);
+    assert!(
+        revised["provenance"]["decision"]["semantic_verification"]
+            .as_array()
+            .is_some_and(|judgments| !judgments.is_empty()),
+        "{revised:#}"
+    );
+    let source = revised["candidate"].as_str().expect("a judged revision");
+    assert!(source.contains("./b.md") && source.contains("./c.md") && source.contains(RUN_MODEL));
+    assert_eq!(
+        seat.calls(),
+        5,
+        "the source revision and its judge both reached the seat"
+    );
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_native_server_publishes_generation_two_and_its_live_payloads_validate() {
     let world = TestWorld::new();
-    // A kept question round for the creation, then the whole-source answer the revision in
-    // words still takes (the EDIT door, unchanged here).
+    // A kept question round for creation, then typed revision links and their own judge.
     let mut script = question_round();
-    script.push(Reply::Text(native_answer(&candidate(RUN_MODEL, true))));
+    script.extend([
+        Reply::Text(copy_revision_answer()),
+        Reply::Text(JUDGE_APPROVES.to_owned()),
+    ]);
     let seat = Seat::start(script);
     let (server, _backend) = start_native(&world, compile_limits(), operator(&seat)).await;
     let (_, document) = served(&server).await;
@@ -141,6 +162,11 @@ async fn a_native_server_publishes_generation_two_and_its_live_payloads_validate
     // A fresh round: the plan, the sketch and its fill, generation 2, a kept round's token.
     let first = exchange(&server, &request, &answer, &fresh(&json!({}))).await;
     assert_eq!(first.json()["compile_version"], 2);
+    assert_eq!(
+        seat.calls(),
+        3,
+        "plan, sketch and fill; model question still open"
+    );
     for (field, invalid) in [
         ("/provenance/authoring/backend/host", json!(false)),
         (
@@ -179,6 +205,7 @@ async fn a_native_server_publishes_generation_two_and_its_live_payloads_validate
     let answers = json!({"answers": {"model": RUN_MODEL}});
     let replayed = exchange(&server, &request, &answer, &replay(&token, &answers)).await;
     assert_eq!(replayed.json()["compile_version"], 1);
+    assert_eq!(seat.calls(), 3, "the deterministic replay calls no seat");
     // Generation-1 replay keeps decision evidence and its public type. Without
     // this schema field generated SDK types erase an actually observed record.
     let replay_doc = replayed.json();
@@ -192,10 +219,12 @@ async fn a_native_server_publishes_generation_two_and_its_live_payloads_validate
     // A revision in words, and a generation-2 skeleton that needs no call.
     let revision = json!({
         "compile_version": 2, "mode": "edit", "cognition": "explicitProvider",
-        "source": candidate(RUN_MODEL, false), "change": {"text": "also keep a copy in ./c.md"},
+        "source": candidate(RUN_MODEL, false), "change": {"text": CHANGE},
         "original_intent": INTENT, "limits": {"repairs": 0, "max_tokens": 1024},
     });
-    exchange(&server, &request, &answer, &revision.to_string()).await;
+    let revised = exchange(&server, &request, &answer, &revision.to_string()).await;
+    let revised = revised.json();
+    assert_judged_revision(&revised, &seat);
     let skeleton = exchange(
         &server,
         &request,

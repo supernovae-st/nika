@@ -221,11 +221,38 @@ pub(super) fn candidate(model: &str, copy: bool) -> String {
     )
 }
 
-/// The native answer the seat returns for a candidate: the whole-source form a revision in words
-/// still answers (the EDIT door); a creation is never authored from it.
+/// A legacy whole-source reply retained for refused or interrupted rounds. Successful
+/// creation and source revision use typed answers, never this form.
 pub(super) fn native_answer(candidate: &str) -> String {
     json!({"candidate": candidate, "questions": [], "gaps": [], "notes": "read, transform, write"})
         .to_string()
+}
+
+/// A source revision states an addition and the exact base write it copies; the compiler
+/// owns the resulting source. The separate judge answer is scripted at its own call.
+fn copy_revision_answer() -> String {
+    json!({"supersedes": [], "adds": [CHANGE], "like": "./b.md", "notes": "copy the result"})
+        .to_string()
+}
+
+/// The revision seat reads the exact base and both requests, not a changed run model.
+fn assert_revision_opening(
+    received: &Value,
+    document: &Value,
+    base: &str,
+    original: &str,
+    change: &str,
+) {
+    assert_eq!(
+        document["provenance"]["decision"]["native"]["revision"]["base_sha256"],
+        sha256_hex(base.as_bytes())
+    );
+    let opening: Value = serde_json::from_str(&message(received, "user")).expect("opening");
+    let revised = revise_intent(&CompileRequest::edit(base, change).with_original_intent(original))
+        .expect("a revision in words");
+    assert_eq!(opening["request"], revised.as_str(), "the whole meaning");
+    assert_eq!(opening["change"], change);
+    assert_eq!(opening["base_candidate"], base);
 }
 
 /// The words of [`INTENT`] its draft step cites.
@@ -747,11 +774,13 @@ async fn a_native_round_reads_the_pinned_pack_under_the_operators_seat_and_its_a
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_revision_in_words_reads_its_base_beside_the_original_intent_and_replays_exactly() {
+    // Leave the new destination open, rather than changing the base's already chosen model.
+    const ORIGINAL: &str = "Read ./a.md and do something clever with it. Write ./b.md.";
+    const CHANGE_PATH: &str = "Change the destination file.";
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Text(native_answer(&candidate(
-        "mock/echo",
-        true,
-    )))]);
+    let links = json!({"supersedes": [{"replaces": "Write ./b.md",
+        "by": "Change the destination file"}], "adds": [], "notes": "ask the new path"});
+    let seat = Seat::start(vec![Reply::Text(links.to_string())]);
     let authoring = NativeAuthoring::new(SEAT, seat.providers()).with_repairs(0);
     let (server, _backend) = start_native(&world, compile_limits(), authoring).await;
     let base = candidate(RUN_MODEL, false);
@@ -761,8 +790,8 @@ async fn a_revision_in_words_reads_its_base_beside_the_original_intent_and_repla
             "mode": "edit",
             "cognition": cognition,
             "source": base,
-            "change": {"text": CHANGE},
-            "original_intent": INTENT,
+            "change": {"text": CHANGE_PATH},
+            "original_intent": ORIGINAL,
         });
         merge(&mut body, fields);
         body.to_string()
@@ -775,20 +804,15 @@ async fn a_revision_in_words_reads_its_base_beside_the_original_intent_and_repla
     let token = token_of(&first);
     let document = first.json();
     assert_eq!(document["compile_version"], 2);
-    assert_eq!(
-        document["provenance"]["decision"]["native"]["revision"]["base_sha256"],
-        sha256_hex(base.as_bytes())
-    );
-    let received = &seat.bodies()[0];
-    let opening: Value = serde_json::from_str(&message(received, "user")).expect("opening");
-    let revised =
-        revise_intent(&CompileRequest::edit(base.as_str(), CHANGE).with_original_intent(INTENT))
-            .expect("a revision in words");
-    assert_eq!(opening["request"], revised.as_str(), "the whole meaning");
-    assert_eq!(opening["change"], CHANGE);
-    assert_eq!(opening["base_candidate"], base.as_str());
+    assert_eq!(document["status"], "incomplete", "{document:#}");
+    assert!(document["candidate"].is_null(), "{document:#}");
+    let questions = document["questions"].as_array().expect("questions");
+    assert_eq!(questions.len(), 1, "{questions:#?}");
+    assert_eq!(questions[0]["key"], "revision.path");
+    assert_revision_opening(&seat.bodies()[0], &document, &base, ORIGINAL, CHANGE_PATH);
+    assert_eq!(seat.calls(), 1, "only the typed links are requested");
 
-    let answers = json!({"answers": {"model": RUN_MODEL}});
+    let answers = json!({"answers": {"revision.path": "./c.md"}});
     let token_field = json!({"replay_token": token});
     let mut replay_fields = answers.clone();
     merge(&mut replay_fields, &token_field);
@@ -802,13 +826,23 @@ async fn a_revision_in_words_reads_its_base_beside_the_original_intent_and_repla
     assert_eq!(replayed["status"], "incomplete", "{replayed:#}");
     assert_held(&replayed);
     let candidate_text = replayed["candidate"].as_str().expect("candidate");
-    assert!(candidate_text.contains("./c.md") && candidate_text.contains(RUN_MODEL));
+    assert_eq!(candidate_text, base.replace("./b.md", "./c.md"));
+    assert!(
+        candidate_text.contains(RUN_MODEL),
+        "the base model is unchanged"
+    );
+    let again = server
+        .request(&compile_request(&edit("deterministicOnly", &replay_fields)))
+        .await;
+    assert_eq!(again.status, 200, "{}", again.body);
+    assert_eq!(again.body, second.body, "exact replay, no new round");
+    assert_eq!(seat.calls(), 1, "both answer rounds are zero-call replays");
 
     // A replay repeats its round's input exactly: another base byte, another original intent,
     // another change — each a conflict, never a substitute round.
     for changed in [
         json!({"source": format!("{base}# one more byte\n")}),
-        json!({"original_intent": format!("{INTENT} today")}),
+        json!({"original_intent": format!("{ORIGINAL} today")}),
         json!({"change": {"text": "also keep a copy in ./d.md"}}),
     ] {
         let mut fields = replay_fields.clone();
