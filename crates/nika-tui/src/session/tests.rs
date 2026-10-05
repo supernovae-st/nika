@@ -937,3 +937,49 @@ fn an_explicit_run_pin_reaches_the_typed_cost_gate_and_cannot_be_replaced_while_
     assert_eq!(reviewed.load(Ordering::SeqCst), 1);
     assert!(!live.fresh_input_required());
 }
+
+#[test]
+fn a_proposal_reply_label_does_not_predict_save_or_model_work() {
+    let room = Room::new("proposal-label");
+    std::fs::write(room.0.join("a.md"), "the exact source").expect("source");
+    let mut census = IntelligenceCensus::empty();
+    census.locals.push("ollama".into());
+    let mut live = Live::new(
+        room.0.clone(),
+        census,
+        Some(UserIntelligencePreference::new(
+            IntelligenceKind::Local {
+                provider: "ollama".into(),
+            },
+            None,
+        )),
+        None,
+        Box::new(|_| Box::new(ScriptedReasoner::new(Vec::new()))),
+        runners(),
+    );
+    let _ = live.open();
+    let proposed = live.submit("Read ./a.md and write it to ./b.md");
+    assert_eq!(
+        waits(&proposed.beats),
+        Some(Waiting::Proposal),
+        "{}",
+        joined(&proposed.beats)
+    );
+    for line in ["no", "/show", "write it to ./c.md instead", "yes"] {
+        assert_eq!(
+            live.busy_label(line).as_deref(),
+            Some("reviewing your reply")
+        );
+        assert!(!room.0.join("b.md").exists());
+    }
+    assert_eq!(live.busy_label(""), None);
+    let declined = live.submit("no");
+    assert_eq!(waits(&declined.beats), Some(Waiting::Free));
+    assert!(!room.0.join("b.md").exists());
+    assert!(
+        !std::fs::read_dir(&room.0)
+            .expect("files")
+            .flatten()
+            .any(|f| f.path().extension().is_some_and(|ext| ext == "nika"))
+    );
+}

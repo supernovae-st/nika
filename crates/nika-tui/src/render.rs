@@ -572,7 +572,7 @@ mod tests {
         }
         assert!(find("focus - Esc returns inline").is_some(), "{rows:#?}");
         assert!(
-            find("answer the question - an empty line").is_some(),
+            find("answer the question above - cancel to stop").is_some(),
             "{rows:#?}"
         );
         // The Session's own words are never rewritten by the glyph column.

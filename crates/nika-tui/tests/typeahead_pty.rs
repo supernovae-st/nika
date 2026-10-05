@@ -246,7 +246,7 @@ fn words_typed_while_nika_works_show_at_once_and_enter_waits() {
     term.wait_text("Nika is working · Enter sends when it is your turn");
     term.wait_prompt(REPLY);
     term.wait_text(NOTICE);
-    term.wait_text("an empty line takes the default");
+    term.wait_text("answer the question above");
     assert!(
         term.screen.contains("livedraft"),
         "the draft remains in the composer\n{}",

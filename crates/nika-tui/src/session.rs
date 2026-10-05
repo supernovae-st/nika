@@ -726,7 +726,7 @@ impl Conversation for Live {
             if line.trim().is_empty() {
                 return None;
             }
-            "landing the exact bytes and checking them"
+            "reviewing your reply"
         } else if runtime.waiting_gate().is_some() {
             "answering the gate"
         } else if line.trim_start().starts_with('/') {

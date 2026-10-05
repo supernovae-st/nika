@@ -195,9 +195,12 @@ a stamped integrated build or a paid model route.
   recipient (`Message to studio / release checklist`), and the context row
   keeps apart what is only on screen and what is attached. What the next
   message carries keeps priority on a narrow panel; the on-screen part is cut
-  first, then dropped. With at least twelve panel rows, two heading rows keep
-  the Session's chosen model and access visible while any object is inspected.
-  An unknown selection stays explicit; the renderer makes no provider call.
+  first, then dropped. The heading identifies the Session's selection as
+  `Prepare:`; it does not attribute a local action or a reply to that model.
+  A selected model also receives wrapped heading space in short panels while
+  the existing activity/composer area stays fixed. The header and scroll bounds
+  use the same measurement; one transcript row remains. An unknown selection
+  stays explicit; the renderer makes no provider call.
 - `workspace::screen::draw` composes one frame from a `Screen` (place, aside,
   object, thread, pinned run): the transcript, status, composer and hint are
   painted by the same functions as the focus presentation. Beside the object
@@ -329,3 +332,9 @@ Session's own answer path (nothing sent), and `details` reads
 decision that never approves a Save or a Run; the Run question approves one Run
 that no authoring or Save approval does. Both first screens close on
 `yes / no / details`, and the hint row names the same choices in words.
+
+Other question hints ask for an answer or cancellation without promising a
+blank-line default: the question's key alone cannot establish one. Before a
+proposal response is interpreted, its busy label remains neutral (`reviewing
+your reply`); cancellation, inspection and revision are not announced as Save.
+Only the existing observed progress reports describe the work actually begun.

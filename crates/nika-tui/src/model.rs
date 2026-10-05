@@ -147,7 +147,7 @@ impl Waiting {
             Self::Question { key } if key == "unknown_cost" || key == "run_cost" => {
                 "yes approves once · no or Ctrl+C cancels · details shows the full evidence"
             }
-            Self::Question { .. } => "answer the question · an empty line takes the default",
+            Self::Question { .. } => "answer the question above · cancel to stop",
             Self::Proposal => "yes + Enter: Save · no: cancel · /show: inspect",
             Self::Gate => "approve or refuse · nothing else answers a gate",
         }
@@ -656,13 +656,16 @@ mod tests {
                 assert!(hint.contains(choice), "{key}: {hint}");
             }
         }
-        assert_eq!(
-            Waiting::Question {
-                key: "model".to_owned()
-            }
-            .hint(),
-            "answer the question · an empty line takes the default"
-        );
+        // The key alone does not prove that an actual default was offered.
+        for key in ["model", "revision.new_path", "", "required_input"] {
+            assert_eq!(
+                Waiting::Question {
+                    key: key.to_owned()
+                }
+                .hint(),
+                "answer the question above · cancel to stop"
+            );
+        }
     }
 
     #[test]

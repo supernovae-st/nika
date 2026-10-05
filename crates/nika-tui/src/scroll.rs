@@ -15,7 +15,8 @@ fn area(state: &UiState, desk: &Desk, composer: &Composer) -> Rect {
     if state.presentation == Presentation::Workspace
         && let Some(geometry) = Geometry::of(area, desk.pins())
     {
-        return screen::panel_areas(&geometry, state, composer)[1];
+        let intelligence = desk.view.as_ref().and_then(|view| view.seat.as_deref());
+        return screen::panel_areas(&geometry, state, composer, intelligence)[1];
     }
     let live = live_rows(state, composer, area.width, area.height);
     let [transcript, _, _] = Layout::vertical([
@@ -218,6 +219,187 @@ mod tests {
                 ),
                 "End is now the composer's key"
             );
+        }
+    }
+    /// Full workspace rendering and the scroll owner consume the SAME selected model.
+    /// The wheel's row primitive is tested here; actual SGR routing stays in `mouse_pty`.
+    fn selected_frame(
+        terminal: &mut Terminal<TestBackend>,
+        state: &UiState,
+        desk: &Desk,
+        composer: &Composer,
+    ) -> (String, String) {
+        let paint = crate::workspace::object::Paint {
+            ascii: state.ascii,
+            color: false,
+            elapsed: std::time::Duration::ZERO,
+            reduced_motion: true,
+        };
+        terminal
+            .draw(|frame| {
+                assert!(crate::workspace::desk::draw(
+                    frame, desk, paint, state, composer
+                ));
+            })
+            .expect("workspace frame");
+        let buffer = terminal.backend().buffer();
+        let text = |rect: Rect| {
+            (rect.y..rect.bottom())
+                .map(|y| {
+                    (rect.x..rect.right())
+                        .map(|x| buffer[(x, y)].symbol())
+                        .collect::<String>()
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        };
+        (
+            text(area(state, desk, composer)),
+            text(Rect::new(0, 0, state.size.0, state.size.1)),
+        )
+    }
+
+    const MODEL: &str = "claude-code/claude-fable-5-1[1m]";
+    const DRAFT: &str = "draft stays unsent";
+
+    fn selected_workspace(size: (u16, u16), ascii: bool) -> (UiState, Desk, Composer) {
+        use crate::model::Waiting;
+        use crate::workspace::{
+            pinned::Pinned,
+            project::{ProjectView, Target, WorkflowView},
+        };
+        let mut state = UiState::new(Presentation::Workspace, false, size);
+        state.ascii = ascii;
+        state.waiting = Waiting::Question {
+            key: "required_input".into(),
+        };
+        state.transcript.push(Committed::new(
+            Kind::Reply,
+            (0..10)
+                .map(|n| format!("earlier line {n:03}"))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        ));
+        state.transcript.push(Committed::new(
+            Kind::Question,
+            (0..60)
+                .map(|n| format!("question line {n:03}"))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        ));
+        let mut desk = Desk::new();
+        desk.view = Some(
+            ProjectView::new("local", "studio", "./studio")
+                .listing(
+                    vec![WorkflowView::new(
+                        "release.nika",
+                        Some("release"),
+                        true,
+                        0,
+                        1,
+                    )],
+                    true,
+                )
+                .seated(format!("{MODEL} - selected for preparation"))
+                .pinning(Pinned::new(
+                    "studio",
+                    "release.nika",
+                    "#043",
+                    nika_display::state::TaskState::Paused,
+                    "waiting for approval",
+                )),
+        );
+        desk.opened = Some(Target::Workflow("release.nika".into()));
+        let mut composer = Composer::new();
+        composer.paste(DRAFT);
+        (state, desk, composer)
+    }
+
+    #[test]
+    fn selected_header_and_preview_share_scroll_geometry_and_keep_the_draft() {
+        use crate::model::Waiting;
+        use crate::workspace::desk::Route;
+        for size in [(60, 16), (80, 24), (120, 40)] {
+            for ascii in [false, true] {
+                let (mut state, mut desk, composer) = selected_workspace(size, ascii);
+                let geometry =
+                    Geometry::of(Rect::new(0, 0, size.0, size.1), desk.pins()).expect("geometry");
+                let screen = desk.screen(ascii);
+                let measured = screen::panel_areas(
+                    &geometry,
+                    &state,
+                    &composer,
+                    screen.thread.intelligence.as_deref(),
+                );
+                assert_eq!(area(&state, &desk, &composer), measured[1]);
+                assert!(measured[1].height >= 1);
+                if size.0 < 100 {
+                    assert_ne!(
+                        measured[1],
+                        screen::panel_areas(&geometry, &state, &composer, None)[1],
+                        "this case must exercise the extra selected-header rows"
+                    );
+                }
+                let mut terminal =
+                    Terminal::new(TestBackend::new(size.0, size.1)).expect("terminal");
+                let (latest, full) = selected_frame(&mut terminal, &state, &desk, &composer);
+                for visible in ["Prepare:", MODEL, "release.nika", DRAFT] {
+                    assert!(full.contains(visible), "{size:?} {visible}: {full}");
+                }
+                assert!(latest.contains("question line 059"), "{size:?}: {latest}");
+                let mut saw_middle = latest.contains("question line 030");
+                for _ in 0..100 {
+                    assert_eq!(
+                        desk.route(KeyEvent::new(KeyCode::PageUp, KeyModifiers::NONE), size),
+                        Route::Older
+                    );
+                    page(&mut state, &desk, &composer, true);
+                    let (shown, _) = selected_frame(&mut terminal, &state, &desk, &composer);
+                    saw_middle |= shown.contains("question line 030");
+                    if shown.contains("question line 000") {
+                        break;
+                    }
+                }
+                let (first, _) = selected_frame(&mut terminal, &state, &desk, &composer);
+                assert!(first.contains("question line 000"), "{size:?}: {first}");
+                assert!(saw_middle, "PageUp skipped the middle at {size:?}");
+                let top = maximum(&state, &desk, &composer) - state.focus_scroll;
+                preserve_reading(&mut state, &desk, &composer, |state| {
+                    state.busy = Some("checking the fixture locally".into());
+                    state.observe_activity("checked fixture source");
+                });
+                assert_eq!(maximum(&state, &desk, &composer) - state.focus_scroll, top);
+                let (held, full) = selected_frame(&mut terminal, &state, &desk, &composer);
+                assert!(held.contains("question line 000"), "{size:?}: {held}");
+                assert!(full.contains(DRAFT));
+                assert!(end(
+                    &mut state,
+                    &desk,
+                    KeyEvent::new(KeyCode::End, KeyModifiers::NONE)
+                ));
+                let (at_end, _) = selected_frame(&mut terminal, &state, &desk, &composer);
+                assert!(
+                    at_end.contains("checked fixture source"),
+                    "{size:?}: {at_end}"
+                );
+                let focus = desk.focus.region;
+                rows(&mut state, &desk, &composer, true, 3);
+                let (wheel_up, _) = selected_frame(&mut terminal, &state, &desk, &composer);
+                assert_ne!(wheel_up, at_end, "wheel rows did not move at {size:?}");
+                rows(&mut state, &desk, &composer, false, 3);
+                assert_eq!(
+                    selected_frame(&mut terminal, &state, &desk, &composer).0,
+                    at_end
+                );
+                assert_eq!(desk.focus.region, focus);
+                assert_eq!(composer.text(), DRAFT);
+                assert!(matches!(state.waiting, Waiting::Question { .. }));
+                assert!(!end(
+                    &mut state,
+                    &desk,
+                    KeyEvent::new(KeyCode::End, KeyModifiers::NONE)
+                ));
+            }
         }
     }
 }
