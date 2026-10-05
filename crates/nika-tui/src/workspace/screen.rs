@@ -697,6 +697,54 @@ mod tests {
     }
 
     #[test]
+    fn a_compact_preview_keeps_the_composer_under_a_wrapped_verifier_line() {
+        // A selection the session projects: author, connection and a selected
+        // decision seat. It wraps in the title; the live area and the draft keep their rows.
+        let line = "deepseek/deepseek-chat - deepseek API, metered; verifier: typesafe/jev-1.13.0 (selected)";
+        for (width, height) in [(60, 18), (80, 24)] {
+            let mut view = screen(welcome());
+            view.thread.intelligence = Some(line.into());
+            let mut state = UiState::new(Presentation::Workspace, false, (width, height));
+            state.ascii = true;
+            let mut composer = Composer::new();
+            composer.paste("draft stays here");
+            let geometry = Geometry::of(Rect::new(0, 0, width, height), true).expect("fits");
+            let selected = panel_areas(&geometry, &state, &composer, Some(line));
+            let before = panel_areas(&geometry, &state, &composer, None);
+            assert_eq!(
+                selected[3], before[3],
+                "{width}x{height}: the live area keeps its rows"
+            );
+            assert!(
+                selected[1].height >= 1,
+                "{width}x{height}: a transcript row remains"
+            );
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).expect("terminal");
+            terminal
+                .draw(|frame| {
+                    let focus = Focus::composing();
+                    assert!(draw(frame, &view, paint(true), &focus, &state, &composer));
+                })
+                .expect("draw");
+            let buffer = terminal.backend().buffer();
+            let rows: Vec<String> = (0..height)
+                .map(|y| (0..width).map(|x| buffer[(x, y)].symbol()).collect())
+                .collect();
+            for visible in [
+                "Prepare:",
+                "verifier:",
+                "typesafe/jev-1.13.0",
+                "draft stays here",
+            ] {
+                assert!(
+                    rows.iter().any(|row| row.contains(visible)),
+                    "{width}x{height} {visible}: {rows:#?}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn intelligence_choices_remain_visible_below_a_long_scrolled_menu() {
         use crate::model::{Beat, Committed, Kind, Waiting};
         for (width, height) in [(60, 18), (80, 24), (120, 40)] {

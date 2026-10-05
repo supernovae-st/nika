@@ -1179,7 +1179,7 @@ fn project_view(runtime: &SessionRuntime, home: Option<&Path>) -> ProjectView {
         .with_git(snapshot.git_root.is_some())
         .governed(governing(snapshot, home))
         .listing(workflows, complete);
-    match seat(runtime) {
+    match selection::seat(runtime) {
         Some(seat) => view.seated(seat),
         None => view,
     }
@@ -1216,49 +1216,13 @@ fn governing(snapshot: &ProjectSnapshot, home: Option<&Path>) -> Manifest {
     }
 }
 
-/// The intelligence the session reasons with, in words (the model when one
-/// is named, and a choice this machine cannot serve now says so); `None`
-/// while none was chosen.
-fn seat(runtime: &SessionRuntime) -> Option<String> {
-    use nika_session::intelligence::{DataLocus, IntelligenceKind};
-    if !runtime.intelligence_chosen() {
-        return None;
-    }
-    let chosen = &runtime.intelligence;
-    let base = match (&chosen.kind, &chosen.locus) {
-        (IntelligenceKind::None, _) => return Some("none, the engine facts answer".to_owned()),
-        (IntelligenceKind::Harness { seat, transport }, _) => {
-            format!("{seat} {transport}, through your account")
-        }
-        (IntelligenceKind::Api { provider }, DataLocus::Gateway { host, .. }) => {
-            format!("{provider} API through {host}, metered")
-        }
-        (IntelligenceKind::Api { provider }, _) => format!("{provider} API, metered"),
-        (IntelligenceKind::Local { provider }, _) => format!("{provider}, on this machine"),
-        _ => "an intelligence this view cannot name".to_owned(),
-    };
-    // These are configured or resolved preparation facts, not a served-model receipt.
-    let selected_model = chosen
-        .model
-        .as_deref()
-        .or_else(|| match runtime.authoring_seat() {
-            nika_session::AuthoringSeat::Provider { model } => Some(model.as_str()),
-            _ => None,
-        });
-    let model = selected_model.map_or_else(
-        || "model chosen by provider - ".to_owned(),
-        |model| format!("{model} - "),
-    );
-    let ready = if chosen.ready { "" } else { ", not ready here" };
-    Some(format!("{model}{base}{ready}"))
-}
-
 pub mod acquire;
 mod candidate;
 pub mod feed;
 mod footer;
 pub(crate) mod legs;
 mod look;
+mod selection;
 
 /// The one audit fold of a look, for the workspace's own tests.
 #[cfg(test)]
@@ -1378,13 +1342,14 @@ mod project_view_tests {
                 },
                 Some(model.into()),
             );
-            let runtime = SessionRuntime::open_with(
+            let mut runtime = SessionRuntime::open_with(
                 &room.0,
                 census,
                 &preference,
                 None,
                 Box::new(|_| Box::new(ScriptedReasoner::new(Vec::new()))),
             );
+            runtime.set_authoring_context(nika_session::authoring::AuthoringContext::default());
             assert!(
                 runtime.intelligence_chosen(),
                 "explicit preference is selected"
@@ -1425,19 +1390,19 @@ mod project_view_tests {
                 false,
                 None,
                 Some("deepseek/default"),
-                "deepseek/default - deepseek API, metered",
+                "deepseek/default - deepseek API, metered; verifier: same model",
             ),
             (
                 true,
                 None,
                 Some("ollama/local"),
-                "ollama/local - ollama, on this machine",
+                "ollama/local - ollama, on this machine; verifier: same model",
             ),
             (
                 false,
                 Some("deepseek/selected"),
                 Some("deepseek/default"),
-                "deepseek/selected - deepseek API, metered",
+                "deepseek/selected - deepseek API, metered; verifier: same model",
             ),
             (
                 false,
@@ -1460,13 +1425,15 @@ mod project_view_tests {
             };
             let preference = UserIntelligencePreference::new(kind, configured.map(str::to_owned));
             let resolved = resolved.map(str::to_owned);
-            let runtime = SessionRuntime::open_with(
+            let mut runtime = SessionRuntime::open_with(
                 &room.0,
                 census,
                 &preference,
                 None,
                 Box::new(move |_| Box::new(ResolvedModel(resolved.clone()))),
             );
+            // No operator decision seat: the author judges its own candidate.
+            runtime.set_authoring_context(nika_session::authoring::AuthoringContext::default());
             assert_eq!(project_view(&runtime, None).seat.as_deref(), Some(expected));
             assert_eq!(runtime.intelligence.model.as_deref(), configured);
         }
