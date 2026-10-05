@@ -531,5 +531,38 @@ pub fn authoring_budget_headline(receipt: Option<&AuthoringReceipt>) -> &'static
     }
 }
 
+/// The compiler decision's route, seat, ledger and knowledge provenance, as recorded.
+/// Pure projection shared by hosts; no inference or execution claim is added.
+pub fn decision_words(decision: &Value, text: &mut String) {
+    // The compiler records its route as the list of doors it tried.
+    let route = match decision.get("route") {
+        Some(Value::String(route)) => route.clone(),
+        Some(Value::Array(steps)) => steps
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>()
+            .join(" → "),
+        _ => "none recorded".to_owned(),
+    };
+    let _ = write!(text, "\n  decision: route {route}");
+    if let Some(seat) = decision.pointer("/seat/model").and_then(Value::as_str) {
+        let _ = write!(text, " · seat {seat}");
+    }
+    let ledger = decision
+        .get("ledger")
+        .and_then(Value::as_array)
+        .map_or(0, Vec::len);
+    if ledger > 0 {
+        let _ = write!(
+            text,
+            " · ledger {ledger} clause{}",
+            if ledger == 1 { "" } else { "s" }
+        );
+    }
+    if let Some(record) = decision.pointer("/session/authoring") {
+        crate::knowledge::pin::knowledge_lines(record, text);
+    }
+}
+
 #[cfg(test)]
 mod tests;

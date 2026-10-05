@@ -779,6 +779,7 @@ pub fn nika_onboard::compile::reading::authoring_budget_headline(receipt: core::
 pub fn nika_onboard::compile::reading::clarified(answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> core::option::Option<alloc::string::String>
 pub fn nika_onboard::compile::reading::clause_of(label: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_onboard::compile::reading::clauses_understood(out: &nika_compile::types::CompileOutcome) -> core::option::Option<usize>
+pub fn nika_onboard::compile::reading::decision_words(decision: &serde_json::value::Value, text: &mut alloc::string::String)
 pub fn nika_onboard::compile::reading::human_reasons(reasons: alloc::vec::Vec<alloc::string::String>) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_onboard::compile::reading::incomplete_words(out: &nika_compile::types::CompileOutcome, why: core::option::Option<&str>) -> alloc::string::String
 pub fn nika_onboard::compile::reading::literal_for(question: &nika_compile::types::CompileQuestion, line: &str) -> alloc::string::String

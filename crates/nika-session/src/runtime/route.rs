@@ -165,7 +165,7 @@ impl SessionRuntime {
                 "no intelligence is available to read what it means (`/intelligence` chooses one)"
             }
             RoutingMethod::Failed => {
-                "the intelligence could not read it (its answer failed or came back blank) — say it again, or in other words"
+                "routing could not obtain a usable label — `/details` shows the recorded failure; check it before trying again"
             }
             _ => "I could not tell what it means",
         };

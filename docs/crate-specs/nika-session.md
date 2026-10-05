@@ -782,3 +782,21 @@ project report exactly once. A subsequent request, revision or reopening needs a
 review. A newly uncertain scope blocks this exception; it is never absorbed into the old
 report. Save and Run still require their separate acts. This is not numeric-ledger
 migration, invoice reconciliation or authority restored from conversation history.
+
+## Routing diagnostics without a compiled workflow
+
+`/details` exposes the current session's recorded routes even when no compiler
+outcome exists yet. A Failed route means that no usable label was obtained;
+it does not establish that a model was called, returned blank, or was billed.
+The visible route retains phase, act, method and the input hash. Private failure
+notes remain internal: the display projects only closed engine-authored guidance
+for missing intelligence, local admission refusal, AI-app/provider failure or a
+runtime failure. Only the exact native timeout form emitted by the harness is
+named as a timeout; quoted client stderr cannot establish that category. The
+routing diagnostic displays no raw stderr, prompt, endpoint, credential or
+private failure text.
+
+The compiler decision's route/seat/ledger/knowledge wording is the pure
+`nika_onboard::compile::reading::decision_words` projection beside the existing
+receipt wording. Session still owns when to display it and keeps every existing
+consent, accounting and dispatch boundary; diagnostics trigger no automatic retry.

@@ -489,3 +489,23 @@ fn non_time_authoring_limits_are_not_relabelled_as_deadlines() {
         assert_eq!(reasons(reading.outcome()), [reason]);
     }
 }
+
+#[test]
+fn decision_words_preserve_routes_seat_ledger_and_absence_as_recorded() {
+    for (decision, expected) in [
+        (json!({}), "\n  decision: route none recorded"),
+        (json!({"route":"HOT"}), "\n  decision: route HOT"),
+        (
+            json!({"route":["HOT", null, "COLD"],"seat":{"model":"fixture/model"},"ledger":[{},{}]}),
+            "\n  decision: route HOT → COLD · seat fixture/model · ledger 2 clauses",
+        ),
+        (
+            json!({"route":false,"ledger":[{}]}),
+            "\n  decision: route none recorded · ledger 1 clause",
+        ),
+    ] {
+        let mut text = String::new();
+        decision_words(&decision, &mut text);
+        assert_eq!(text, expected);
+    }
+}

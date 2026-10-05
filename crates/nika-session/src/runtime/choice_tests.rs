@@ -628,3 +628,84 @@ fn an_unserved_choice_refuses_with_its_fix() {
         "work compiles without the seat"
     );
 }
+
+/// A failed label before compilation must remain inspectable without exposing the seat's stderr.
+#[test]
+fn details_shows_a_failed_route_without_a_workflow_and_withholds_private_error_text() {
+    struct PrivateFailure;
+    impl crate::reasoner::SessionReasoner for PrivateFailure {
+        fn name(&self) -> String {
+            "fixture".into()
+        }
+        fn reason(
+            &mut self,
+            _: &str,
+        ) -> Result<crate::reasoner::Reply, crate::reasoner::ReasonError> {
+            Err(crate::reasoner::ReasonError::Seat("infer-grade seat `claude-code` failed: claude exited 69 · sk-private-token prompt-secret".into()))
+        }
+    }
+    let dir = tree();
+    let mut session = SessionRuntime::open(
+        dir.path(),
+        ready(IntelligenceKind::None, DataLocus::None),
+        Box::new(NoReasoner),
+    );
+    session.with_classifier(Box::new(crate::turn::ReasonerClassifier::new(Box::new(
+        PrivateFailure,
+    ))));
+    let decision = session.classify(crate::turn::SessionPhase::Idle, "my private input");
+    assert_eq!(decision.method, crate::turn::RoutingMethod::Failed);
+    assert!(session.last_outcome.is_none());
+    let TurnOutcome::Facts(details) = session.turn("/details") else {
+        panic!("local details");
+    };
+    assert!(details.contains("no workflow was read in this session yet"));
+    assert!(details.contains("routes: 1") && details.contains("Failed"));
+    assert!(details.contains("starts and is signed in"));
+    for private in ["sk-", "prompt-secret", "my private input", "exited 69"] {
+        assert!(!details.contains(private), "{details}");
+    }
+    assert!(!dir.path().join(COPY_DEST).exists());
+    assert_eq!(
+        session.routes().len(),
+        1,
+        "details must not call the classifier"
+    );
+}
+
+/// A local refusal can be Failed without making even the classifier call.
+#[test]
+fn failed_before_call_is_inspectable_without_claiming_a_blank_model_answer() {
+    struct CountingClassifier(Arc<AtomicUsize>);
+    impl crate::turn::TurnClassifier for CountingClassifier {
+        fn classify(&mut self, _: &crate::turn::TurnContext, _: &str) -> crate::turn::TurnDecision {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            crate::turn::TurnDecision::new(
+                crate::turn::TurnAct::Discuss,
+                crate::turn::RoutingMethod::Model,
+            )
+        }
+    }
+    let dir = tree();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut session = SessionRuntime::open(
+        dir.path(),
+        ready(IntelligenceKind::None, DataLocus::None),
+        Box::new(NoReasoner),
+    );
+    session.with_classifier(Box::new(CountingClassifier(Arc::clone(&calls))));
+    session.set_authoring_context(crate::authoring::AuthoringContext::from_settings(
+        &nika_cli_host::compile::config::AuthoringSettings::none().with_reasoning("max"),
+        &nika_cli_host::compile::config::AuthoringSettings::none(),
+    ));
+    let decision = session.classify(crate::turn::SessionPhase::Idle, "change the destination");
+    assert_eq!(decision.method, crate::turn::RoutingMethod::Failed);
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let hint = SessionRuntime::unknown_route_text(crate::turn::SessionPhase::Idle, decision.method);
+    assert!(hint.contains("/details") && !hint.contains("blank"));
+    let details = session.details();
+    assert!(details.contains("Failed") && details.contains("refused or failed"));
+    assert!(!details.contains("answer failed") && !details.contains("model was asked"));
+    assert!(session.last_outcome.is_none());
+    assert!(!dir.path().join(COPY_DEST).exists());
+}
