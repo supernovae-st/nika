@@ -101,7 +101,6 @@ fn a_ctrl_c_heard_while_the_turn_runs_still_leaves_once_it_ends() {
 }
 
 #[test]
-#[ignore = "gap: keys typed during a busy turn are not drawn until the turn ends (app.rs run_turn defers every key) · J2/J3 need a live composer during activity · app.rs input handling and the conversation-switching contract"]
 fn keys_typed_during_a_busy_turn_show_at_once() {
     let release = Release::new("live");
     let mut term = busy("slow-free", &release);
@@ -207,7 +206,6 @@ fn a_resize_during_a_busy_turn_reaches_the_workspace_regions_at_once() {
 /// The transcript scrolls while a turn runs: `PgUp` in focus moves the view
 /// at once, not after the turn.
 #[test]
-#[ignore = "gap: PgUp during a busy turn is deferred until the turn ends (app.rs run_turn defers every key) · J2 scroll during activity · app.rs input handling"]
 fn scrolling_during_a_busy_turn_moves_the_view_at_once() {
     let release = Release::new("scroll");
     let mut term = child::spawn("slow-free:200:focus", Some(release.path()), 100, 32);
