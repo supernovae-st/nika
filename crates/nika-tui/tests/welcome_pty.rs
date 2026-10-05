@@ -85,6 +85,43 @@ fn logo_is(screen: &Screen, index: usize) -> bool {
     })
 }
 
+/// Whether `raw` stops where a frame ends. The renderer ends every frame on
+/// its cursor: hidden (`?25l`), or shown (`?25h`) then placed (`CSI r;c H`).
+/// A stream that stops anywhere else stopped inside a frame.
+fn ends_a_frame(raw: &[u8]) -> bool {
+    if raw.ends_with(b"\x1b[?25l") {
+        return true;
+    }
+    let Some(head) = raw.strip_suffix(b"H") else {
+        return false;
+    };
+    let digits = head
+        .iter()
+        .rev()
+        .take_while(|byte| byte.is_ascii_digit() || **byte == b';')
+        .count();
+    head[..head.len() - digits].ends_with(b"\x1b[?25h\x1b[")
+}
+
+/// Pump until the frame that drew the wordmark is whole. The shell writes a
+/// frame through a line-buffered stdout in pieces and a PTY hands each
+/// piece over as it comes, so the wordmark can be read before the rows
+/// after it; those rows belong to the first paint, not to a new one.
+fn first_frame_whole(term: &mut Term) {
+    term.wait_text("N I K A");
+    let deadline = Instant::now() + qa_support::WAIT;
+    while !ends_a_frame(term.bytes_since(0)) {
+        assert!(
+            Instant::now() < deadline,
+            "the first frame never ended\n{}",
+            term.dump()
+        );
+        if term.pump() == 0 {
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+}
+
 fn leave(term: &mut Term) {
     term.send("\x03");
     term.wait_text("Ctrl+C again leaves");
@@ -142,16 +179,19 @@ fn typing_and_interruptions_cancel_the_animation_wait() {
 #[test]
 fn reduced_motion_draws_the_final_mark_at_once_and_stays_silent() {
     let mut term = welcome(true);
-    term.wait_text("N I K A");
+    first_frame_whole(&mut term);
     assert!(
         logo_is(&term.screen, 4),
         "first paint was not final\n{}",
         term.dump()
     );
+    let mark = term.mark();
     assert_eq!(
         term.settle(Duration::from_millis(2100)),
         0,
-        "reduced motion scheduled a paint"
+        "reduced motion scheduled a paint: {:?}\n{}",
+        term.raw_since(mark),
+        term.dump()
     );
     assert!(logo_is(&term.screen, 4));
     leave(&mut term);

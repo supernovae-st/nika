@@ -1015,9 +1015,11 @@ impl<C: Conversation + 'static> Shell<C> {
     /// count in the row, and an interruption is HEARD while the turn runs.
     /// A call to a seat cannot be recalled: one `Ctrl+C` warns (« again
     /// leaves now »), a second one or `SIGTERM` leaves at once with the
-    /// terminal restored, the call left to die with the process. The
-    /// composer stays usable meanwhile ([`Self::hear`]). A panic in the turn
-    /// resumes here (the panic hook has restored the terminal).
+    /// terminal restored, the call left to die with the process; a turn
+    /// that ends between the two presses keeps the warning
+    /// ([`Self::end_turn`]). The composer stays usable meanwhile
+    /// ([`Self::hear`]). A panic in the turn resumes here (the panic hook
+    /// has restored the terminal).
     fn run_turn(&mut self, line: &str, broker: &mut Broker) -> io::Result<TurnEnd> {
         let (tx, rx) = mpsc::channel::<String>();
         let (done_tx, done_rx) = mpsc::channel::<(C, Turn)>();
@@ -1064,17 +1066,10 @@ impl<C: Conversation + 'static> Shell<C> {
                 shown = u64::MAX;
             }
             match done_rx.try_recv() {
-                Ok((mut conversation, mut turn)) => {
+                Ok((conversation, turn)) => {
                     // The last frames before the result, then what was lost.
                     self.desk.close_turn(&seen_rx, &gap);
-                    if conversation.fresh_input_required()
-                        && let Some(exit) =
-                            self.fresh_end(&mut conversation, &mut turn, broker, armed)
-                    {
-                        return Ok(TurnEnd::Left(exit));
-                    }
-                    self.conversation = Some(conversation);
-                    return Ok(TurnEnd::Done(turn));
+                    return Ok(self.end_turn(conversation, turn, broker, armed));
                 }
                 Err(mpsc::TryRecvError::Disconnected) => {
                     return match worker.join() {
@@ -1148,6 +1143,29 @@ impl<C: Conversation + 'static> Shell<C> {
             turn.beats = conversation.cancel_pending();
         }
         None
+    }
+
+    /// The turn's result is back. A fresh spending question reads what was
+    /// typed meanwhile ([`Self::fresh_end`]). Any other end keeps a press
+    /// heard while the turn ran: the busy row said « Ctrl+C again leaves
+    /// now », so the idle row says a second press leaves and it does (any
+    /// other key disarms, as at an idle prompt).
+    fn end_turn(
+        &mut self,
+        mut conversation: C,
+        mut turn: Turn,
+        broker: &mut Broker,
+        armed: bool,
+    ) -> TurnEnd {
+        if conversation.fresh_input_required() {
+            if let Some(exit) = self.fresh_end(&mut conversation, &mut turn, broker, armed) {
+                return TurnEnd::Left(exit);
+            }
+        } else if armed {
+            self.state.interrupt_armed = true;
+        }
+        self.conversation = Some(conversation);
+        TurnEnd::Done(turn)
     }
 
     fn arm(armed: &mut bool) -> Option<Exit> {

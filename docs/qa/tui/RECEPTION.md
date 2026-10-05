@@ -107,6 +107,7 @@ One conversation per process exists at the base, and every key typed during a tu
 | J2.10 | Wide and combining glyphs | `qa_input::wide_and_combining_glyphs_go_through_whole` | CJK, an emoji and a combining accent are drawn and sent whole | now: pass |
 | J2.11 | A word wider than the composer | `qa_input::a_word_wider_than_the_composer_stays_visible` | a 108-character word wraps and stays visible, the cursor with it | **now: fails (P1)**: the composer uses `WrapMode::Word`, whose words wider than the viewport are not split; `WordOrGlyph` falls back to graphemes |
 | J2.12 | History recall | `composer.rs` unit tests | `Up`/`Down` recall only at the buffer's edges, the draft kept | now: pass (unit) |
+| J2.13 | One `Ctrl+C` during a turn, the second after it ends | `qa_busy::a_ctrl_c_heard_while_the_turn_runs_still_leaves_once_it_ends` | the busy row's « Ctrl+C again leaves now » holds: the idle row says a second press leaves, and it leaves with 130 | pass on 2026-10-05, local candidate based on `f4693e561` with the fix; `qa_busy` 10 passed / 2 ignored, `typeahead_pty` 5 passed, `welcome_pty` 4 passed |
 
 ## J3 · Preparing B while A runs; inspecting parent, child, fanout, retry, agent
 

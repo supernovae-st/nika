@@ -170,11 +170,12 @@ fn status_line(state: &UiState) -> Line<'static> {
     let dim = role::style(Role::Dim, state.color);
     let accent = accent(state.color);
     if state.interrupt_armed {
+        // What the next press does, never « interrupted »: the shell arms
+        // only when nothing was interrupted (an interrupted turn and a
+        // cancelled decision say so in their own words), so this row may sit
+        // under a turn that just succeeded.
         return Line::from(Span::styled(
-            own(
-                "interrupted · Ctrl+C again leaves · any key stays",
-                state.ascii,
-            ),
+            own("Ctrl+C again leaves · any key stays", state.ascii),
             accent,
         ));
     }
@@ -424,6 +425,25 @@ mod tests {
             .expect("draw");
         let still = row(terminal.backend().buffer(), 0);
         assert!(still.starts_with("● working"), "{still:?}");
+    }
+
+    /// The armed row says what a second press does and claims no
+    /// interruption, in both glyph columns.
+    #[test]
+    fn the_armed_row_says_what_a_second_press_does_and_claims_no_interruption() {
+        let mut state = UiState::new(Presentation::Inline, false, (60, 5));
+        state.interrupt_armed = true;
+        let composer = Composer::new();
+        let mut terminal = Terminal::new(TestBackend::new(60, 5)).expect("test terminal");
+        for ascii in [false, true] {
+            state.ascii = ascii;
+            terminal
+                .draw(|frame| draw_inline(frame, &state, &composer))
+                .expect("draw");
+            let armed = row(terminal.backend().buffer(), 0);
+            let sep = if ascii { " - " } else { " · " };
+            assert_eq!(armed, format!("Ctrl+C again leaves{sep}any key stays"));
+        }
     }
 
     #[test]

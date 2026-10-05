@@ -74,6 +74,32 @@ fn keys_typed_during_a_busy_turn_are_kept_for_after_it() {
     leave(&mut term);
 }
 
+/// One `Ctrl+C` while the turn runs warns « Ctrl+C again leaves now »; a
+/// turn that ends before the second press does not take that back: the
+/// idle row says a second press leaves, and it leaves with 130.
+#[test]
+fn a_ctrl_c_heard_while_the_turn_runs_still_leaves_once_it_ends() {
+    let release = Release::new("armed");
+    let mut term = busy("slow-free", &release);
+    term.send("\x03");
+    term.wait_text("Ctrl+C again leaves now");
+    release.open();
+    // « any key stays » is the idle prompt's armed row: the busy row warns
+    // in its own words, so this row shows only once the turn has ended.
+    term.wait_until("the turn's end, the warning kept", |screen| {
+        screen.seen(DONE) && screen.contains("any key stays")
+    });
+    term.send("\x03");
+    let status = term.finish();
+    assert_eq!(exit_code(status), Some(130), "{status:?}\n{}", term.dump());
+    assert!(
+        !term.screen.seen(SECOND),
+        "a second turn ran\n{}",
+        term.dump()
+    );
+    assert_restored(&term);
+}
+
 #[test]
 #[ignore = "gap: keys typed during a busy turn are not drawn until the turn ends (app.rs run_turn defers every key) · J2/J3 need a live composer during activity · app.rs input handling and the conversation-switching contract"]
 fn keys_typed_during_a_busy_turn_show_at_once() {
