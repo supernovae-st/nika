@@ -273,6 +273,16 @@ async fn author(
         backend["observed_models"] = serde_json::json!(gate.provider.observed());
         backend["unreported_models"] = serde_json::json!(gate.provider.unreported());
         backend["authority"] = authority.record(&invocations, Some(&requests));
+        // The server's default repair preference is finite even when it was not typed.
+        let configured = &mut backend["authority"]["configured"];
+        configured["repairs"] = bounds.repairs.into();
+        configured["worst_case"] = nika_onboard::compile::authority::worst_case(
+            nika_cli_host::compile::config::DEFAULT_STRATEGY,
+            1,
+            bounds.repairs,
+            false,
+        )
+        .into();
         receipt.backend = Some(backend);
     }
     Ok(outcome)

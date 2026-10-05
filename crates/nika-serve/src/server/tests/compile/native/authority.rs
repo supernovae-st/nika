@@ -202,6 +202,13 @@ async fn a_default_round_sends_one_plan_and_keeps_its_candidate_a_preview() {
     ]);
     let operator = NativeAuthoring::new(SEAT, seat.providers());
     let (server, _) = start_native(&world, compile_limits(), operator).await;
+    let refused = server
+        .request(&compile_request(&fresh(&json!({
+            "limits": {"max_calls": 2}
+        }))))
+        .await;
+    assert_eq!(refused.status, 422, "{}", refused.body);
+    assert_eq!(seat.calls(), 0, "the caller cannot widen the default grant");
     let response = server.request(&compile_request(&fresh(&answered()))).await;
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
@@ -225,6 +232,7 @@ async fn a_default_round_sends_one_plan_and_keeps_its_candidate_a_preview() {
     let account = authority(&document);
     assert_eq!(account["source"], "default: one request");
     assert_eq!(account["max_calls"], 1);
+    assert_eq!(account["configured"]["repairs"], 3);
     assert_eq!(account["http_requests"]["sent"], 1);
     assert_eq!(account["invocations"], json!({"sent": 1, "refused": 1}));
     assert!(

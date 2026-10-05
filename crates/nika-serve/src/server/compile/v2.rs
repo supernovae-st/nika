@@ -58,13 +58,18 @@ impl Bounds {
         nika_onboard::compile::authority::Authority,
         nika_onboard::compile::authority::Refusal,
     > {
-        use nika_onboard::compile::authority::{Authority, Door, Typed};
+        use nika_onboard::compile::authority::{Authority, DEFAULT_MAX_CALLS, Door, Typed};
+        // Serve keeps a one-request default; an absent core bound is intentionally unlimited.
         Authority::resolve(
-            self.max_calls,
+            Some(self.max_calls.unwrap_or(DEFAULT_MAX_CALLS)),
             nika_cli_host::compile::config::DEFAULT_STRATEGY,
             Typed::new(false).with_repairs(self.repairs_explicit.then_some(self.repairs)),
             Door::new(
-                self.grant,
+                if self.max_calls.is_some() {
+                    self.grant
+                } else {
+                    "default: one request"
+                },
                 "the operator must authorize sufficient max_calls; a request may only narrow its ceiling",
             ),
         )
