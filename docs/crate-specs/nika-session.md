@@ -742,6 +742,14 @@ a default (including zero) cannot reconfirm it. Run admission remains separate.
 The exact observation superseded by the restored ledger is removed from the
 historical display list to avoid counting those same attempts twice.
 
+A turn without a recognized fresh ceiling keeps this restored account closed.
+Session records a fixed monetary-refusal reason on the account; the human
+diagnostic stays separate, so a private route in that diagnostic cannot make
+the otherwise complete numeric checkpoint unwritable. Dropping and reopening
+after this refusal preserves the same prior costs and request identity. It
+still requires a fresh total, for example `Budget: 10 USD.` as its own sentence;
+no amount is inferred from an ambiguous phrase and uncertain costs stay unknown.
+
 ### Fresh invocation after a readable legacy cost report
 
 A restored pre-checkpoint numeric report is not a reconstructed account. In the narrow

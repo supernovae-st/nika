@@ -207,7 +207,7 @@ impl SessionRuntime {
     pub(super) fn refuse_money(&mut self, input: &str, reason: &str) -> TurnOutcome {
         self.retain_money_guard();
         if let Some(a) = &self.money.account {
-            let _ = a.close(reason);
+            let _ = a.close("Session monetary request refused");
         }
         let mut decision = self.rejected_money(input, reason);
         if let Some(previous) = self

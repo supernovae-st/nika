@@ -212,3 +212,78 @@ fn a_project_zero_default_cannot_reopen_a_restored_empty_account() {
     );
     assert!(s.money_blocks_cognition());
 }
+
+#[test]
+fn refusing_a_fresh_ceiling_survives_another_drop_and_reopen() {
+    let peer = Peer::start(vec![(200, response("first")), (200, response("next"))]);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let path = dir.path().join(".nika/session-state.json");
+    let mut first = open(dir.path());
+    first.enable_history(home.path()).unwrap();
+    let out = first.turn("What can you tell me about stars, budget 2 USD?");
+    assert!(matches!(out, TurnOutcome::Reply(_)), "{out:?}");
+    let old = first.inference_receipt().unwrap().unwrap();
+    let raw: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    let identity = raw["inference_checkpoint"]["account"]["identity"].clone();
+    assert!(identity.is_string());
+    drop(first);
+
+    for input in [
+        "What can you tell me about stars?",
+        "What can you tell me about stars? Budget total de cette conversation : $10, pas $10 supplémentaires.",
+    ] {
+        let mut resumed = open(dir.path());
+        resumed.enable_history(home.path()).unwrap();
+        assert!(resumed.restore_state().unwrap().contains("Budget: 10 USD."));
+        assert!(matches!(resumed.turn(input), TurnOutcome::Refusal(_)));
+        assert!(resumed.restored_refusal().contains("Budget: 10 USD."));
+        assert_eq!(peer.bodies().len(), 1, "a refusal sends nothing");
+        let kept = resumed.inference_receipt().unwrap().unwrap();
+        assert_eq!(kept.state, AdmissionState::Closed);
+        assert_eq!(kept.limit, old.limit);
+        assert_eq!(kept.estimated, old.estimated);
+        assert_eq!(kept.active, old.active);
+        assert_eq!(kept.held_unknown, old.held_unknown);
+        assert_eq!(kept.attempts, old.attempts);
+        assert_eq!(
+            kept.refusal.as_deref(),
+            Some("Session monetary request refused")
+        );
+        let raw: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        let checkpoint = &raw["inference_checkpoint"];
+        assert!(checkpoint.is_object(), "the account stays restorable");
+        assert_eq!(checkpoint["account"]["identity"], identity);
+        assert!(!checkpoint.to_string().contains("/v1/chat/completions"));
+        assert!(
+            raw["inference_observations"]
+                .as_array()
+                .unwrap()
+                .contains(&checkpoint["account"]["observation"])
+        );
+        drop(resumed);
+    }
+
+    let mut final_session = open(dir.path());
+    final_session.enable_history(home.path()).unwrap();
+    assert!(final_session.restore_state().is_some());
+    assert_eq!(peer.bodies().len(), 1);
+    assert_eq!(
+        final_session.inference_receipt().unwrap().unwrap().state,
+        AdmissionState::Closed
+    );
+    let out = final_session.turn("What can you tell me about stars, budget 3 USD?");
+    assert!(matches!(out, TurnOutcome::Reply(_)), "{out:?}");
+    let now = final_session.inference_receipt().unwrap().unwrap();
+    assert_eq!(now.limit.nano_usd, 3_000_000_000);
+    assert_eq!(now.estimated.nano_usd, old.estimated.nano_usd * 2);
+    assert_eq!(now.attempts.len(), 2);
+    assert_eq!(now.attempts[0], old.attempts[0]);
+    assert_eq!(now.attempts[1].id, 1);
+    assert_eq!(now.billed, None);
+    assert_eq!(peer.bodies().len(), 2);
+    let raw: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    assert_eq!(raw["inference_checkpoint"]["account"]["identity"], identity);
+    assert!(!dir.path().join("sortie.txt").exists());
+}

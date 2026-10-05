@@ -250,7 +250,7 @@ impl SessionRuntime {
                 Ok((account, observed)) if self.unknown_cost.observations.contains(&observed) => {
                     self.unknown_cost.observations.retain(|o| o != &observed);
                     self.money.account = Some(account);
-                    notice.push_str("\nnumeric inference ledger restored closed; confirm a new TOTAL Session ceiling; prior expenses and reservations remain");
+                    notice.push_str("\nnumeric inference ledger restored closed; confirm a new TOTAL Session ceiling in its own sentence, e.g. Budget: 10 USD. (total, not additional); prior expenses and reservations remain");
                 }
                 Ok(_) => notice.push_str("\nledger refused: project cost observation differs"),
                 Err(error) => {

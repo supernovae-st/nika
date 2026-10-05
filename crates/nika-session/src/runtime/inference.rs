@@ -390,7 +390,7 @@ impl SessionRuntime {
     pub(super) fn restored_refusal(&self) -> String {
         if self.money.account.is_some() {
             return format!(
-                "{} · confirm a fresh TOTAL Session ceiling; settled expenses and reservations are retained",
+                "{} · confirm a fresh TOTAL Session ceiling in its own sentence, e.g. Budget: 10 USD. (total, not additional); settled expenses and reservations are retained",
                 self.inference_line()
             );
         }
