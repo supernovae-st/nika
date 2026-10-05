@@ -395,8 +395,10 @@ where
     /// Between `session/new` and the prompt: the model the workflow names must be one the agent
     /// offers (a pin is a pin: an unoffered model refuses before any prompt), set through the
     /// v1 config option when the agent advertises one, through the legacy `session/set_model`
-    /// when it advertises a `models` list; the current model is observed either way. A
-    /// requested mode (`read-only`) picks an advertised plan / read-only mode, best effort.
+    /// when it advertises a `models` list; the current model is observed either way.
+    /// Model ids and display names must match a live offer; a family match must not
+    /// discard an explicit variant. A requested mode (`read-only`) picks an advertised
+    /// plan / read-only mode, best effort.
     async fn seat_session(
         &mut self,
         session: &wire::NewSessionResult,
@@ -1019,13 +1021,14 @@ mod tests {
     }
 
     #[test]
-    fn a_requested_model_meets_an_offered_alias_by_its_family_word_never_a_substring() {
+    fn a_requested_model_must_name_an_offered_id_or_display_name() {
         let models = serde_json::json!({"currentModelId":"fable","availableModels":[
             {"modelId":"default","name":"Default (recommended)"},{"modelId":"sonnet","name":"Sonnet"},
             {"modelId":"haiku","name":"Haiku"},{"modelId":"fable","name":"fable"}]});
         assert_eq!(
-            seats::offered_model(Some(&models), "claude-sonnet-4-5").as_deref(),
-            Some("sonnet")
+            seats::offered_model(Some(&models), "claude-sonnet-4-5"),
+            None,
+            "an unoffered provider model must not silently become a family alias"
         );
         assert_eq!(
             seats::offered_model(Some(&models), "Sonnet").as_deref(),
@@ -1041,8 +1044,8 @@ mod tests {
         );
         assert_eq!(
             seats::offered_option(Some(&option), "xai-grok-4.7").map(|(_, v)| v),
-            Some(Value::String("grok-4.7".to_owned())),
-            "the family word may itself carry a dot"
+            None,
+            "a model's extra prefix is not an advertised choice"
         );
     }
 
@@ -1336,3 +1339,6 @@ mod wedge_tests {
 
 #[cfg(test)]
 mod media_bound_tests;
+
+#[cfg(test)]
+mod model_selection_tests;

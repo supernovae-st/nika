@@ -32,53 +32,29 @@ fn same(a: &str, b: &str) -> bool {
     a.trim().eq_ignore_ascii_case(b.trim())
 }
 
-/// Whether an offered alias stands as a whole segment of the requested name — bounded by
-/// the name's edges or its separators (`sonnet` in `claude-sonnet-4-5`, `grok-4.7` in
-/// `xai-grok-4.7`), never a substring (`son` matches nothing) and never a bare number.
-fn family_word(offered: &str, wanted: &str) -> bool {
-    let offered = offered.trim();
-    if offered.is_empty() || !offered.chars().any(|c| c.is_ascii_alphabetic()) {
-        return false;
-    }
-    let haystack = wanted.to_ascii_lowercase();
-    let needle = offered.to_ascii_lowercase();
-    let boundary = |c: Option<char>| c.is_none_or(|c| !c.is_ascii_alphanumeric());
-    let mut from = 0;
-    while let Some(at) = haystack[from..].find(&needle) {
-        let start = from + at;
-        let end = start + needle.len();
-        if boundary(haystack[..start].chars().next_back())
-            && boundary(haystack[end..].chars().next())
-        {
-            return true;
-        }
-        from = end;
-    }
-    false
-}
-
-/// The choice that names the wanted model: exactly (value or name) first, then by its
-/// family word.
+/// Match only a value or display name the live peer offered. Model identifiers
+/// are opaque: a family substring cannot authorize dropping a requested suffix.
+/// Exact config choices remain preferred by the caller; otherwise an exact
+/// legacy choice can carry the complete request through `session/set_model`.
 fn choose<'a>(
     choices: impl Iterator<Item = &'a Value> + Clone,
     value_key: &str,
     wanted: &str,
 ) -> Option<&'a Value> {
-    let exact = choices.clone().find(|c| {
-        c.get(value_key)
-            .and_then(Value::as_str)
-            .is_some_and(|v| same(v, wanted))
-            || c.get("name")
-                .and_then(Value::as_str)
-                .is_some_and(|n| same(n, wanted))
-    });
-    exact.or_else(|| {
-        choices.into_iter().find(|c| {
+    choices
+        .clone()
+        .find(|c| {
             c.get(value_key)
                 .and_then(Value::as_str)
-                .is_some_and(|v| family_word(v, wanted))
+                .is_some_and(|v| same(v, wanted))
         })
-    })
+        .or_else(|| {
+            choices.into_iter().find(|c| {
+                c.get("name")
+                    .and_then(Value::as_str)
+                    .is_some_and(|name| same(name, wanted))
+            })
+        })
 }
 
 /// The (config id, value) that names the wanted model among the option's choices, by value
