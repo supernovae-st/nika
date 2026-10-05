@@ -205,9 +205,7 @@ impl AuthoringSeat {
             Self::Deterministic { .. } => {
                 "authoring · deterministic (exact intents only)".to_owned()
             }
-            Self::Provider { model } => {
-                format!("authoring · {model} (bounded calls per fresh intent)")
-            }
+            Self::Provider { model } => format!("authoring · {model}"),
             Self::Harness {
                 seat,
                 model,
