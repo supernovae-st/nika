@@ -293,18 +293,27 @@ A native revision's answer round (`revise`) takes the same door. A judgment is n
 record, so a transport whose native answer rounds made no call now permits a judge in them (one
 request for a faithful verdict, two for an unfaithful one) or gets INCOMPLETE.
 
-The authority's worst case (`authority::worst_case`, R4 A11, nv1b) counts every request a
-configuration can send, the verifier's included, so the review a caller signs bounds them all.
-With `s` samples and `r` repairs:
+The authority's worst case (`authority::worst_case`, R4 A11, nv1b) counts the author requests
+a finite configuration can ask for, the author-provider verifier's included, so a caller can
+compare it with an explicit request allowance. With `s` samples clamped to `SAMPLES` and
+an explicit repair count `r`:
+
 - an edit's native revision: `3 + r`, the candidate and its repairs, then the
   whole-request judgment and its locate question;
-- the sketch door: `4 + r`;
+- the sketch door: `2 + r + 2(1 + r) = 4 + 3r`, with each new candidate judged afresh;
 - COLD: `2s + 14r + 12`, each sample and its evidence repair, then `1 + r` verification attempts,
   each asking at most 8 clause questions, the whole-request judgment and one transform synthesis of
   at most 2 questions, with its `r` verify repairs and a transform repair allowance of `r`;
-- escalate: COLD, then the sketch door with one repair less: `3 + r` when `r >= 1`,
+- escalate: COLD, then the sketch door with one repair less: `3r + 1` when `r >= 1`,
   no sketch request when `r = 0`;
 - a creation under `only`: zero requests; the core refuses the retired source-authoring route.
+
+Arithmetic saturates at `u32::MAX`. `authority::worst_case_of` returns no finite count when
+repairs are unbounded and can add requests; paths unaffected by repairs retain their fixed
+count. An absent request bound still counts calls, without inventing a numeric limit or a
+monetary ceiling. A separately selected decision seat retains its own consultation and cost
+observations; these author-call formulas do not price or count that service's requests.
+
 The bound is computed from the caps where they live: `verify::CLAUSE_QUESTIONS`,
 `verify::WHOLE_QUESTIONS` and `transform::MAX_CALLS`. One verification attempt asks at most
 `verify::CLAUSE_QUESTIONS` = 8 clause questions. The value was measured keyless on 2026-09-29: at
@@ -319,7 +328,7 @@ verifier's and count, never ignored. A typed strategy is honored in full or refu
 The refusal names that number. A fresh creation under `only` is refused by the core
 with a migration to the semantic doors; no larger grant can enable it.
 
-Source recovery (`AuthoringPolicy::source_recovery`, 0..=3, default 0) is an explicit operator
+Source recovery (`AuthoringPolicy::source_recovery`, any count, default 0) is an explicit operator
 policy beside that retirement, never a default and never `only`: when the sketch door ends a
 CREATE INCOMPLETE with no candidate and no open question (its structured rounds spent, no
 progress, an answer that is not the sketch wire's, the evidence's defect with no round left, or
@@ -616,3 +625,18 @@ ordinary workflow. Whole-source authoring remains an EDIT and historical-replay 
 not a fallback for CREATE. After a Sketch passes structural laws, the existing admitted-question
 check removes questions already resolved by the request or observation before fills are
 requested. The full check after filling remains. This adds no repair grant or second compiler.
+
+The selected decision seat also reaches the sketch whole-request verifier, its source
+recovery, and semantic or source-anchored revisions. Generation and repair remain with
+the author. The existing `verify-request` choice (`faithful`, `unfaithful`, `none`)
+and, after `unfaithful`, `verify-locate` name the defect consumed by the existing repair
+loop. An absent decision seat retains the journaled author-provider judge. An explicitly
+selected seat that fails, abstains or returns an unoffered option never falls back to it:
+the candidate stays incomplete. Deterministic refusals still ask no seat.
+
+Each consultation stays in `decision.semantic_verification`: selected judge identity/kind,
+compiler-owned reference, question IDs and offered choices, returned choice or failure,
+attempted/returned/consumed counts and reported usage. Questions read the final candidate bytes. A repair or source recovery
+retains prior verification attempts. Unknown usage stays incomplete, never a zero-cost
+claim; the host decision observation owns its separate settlement. These are typed semantic
+judgments, never permission to Save or Run and never Foundry retrieval decisions.

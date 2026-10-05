@@ -87,7 +87,7 @@ pub(crate) fn descriptor(
         "numeric_usage_reported":false, "tools_exposed":"none; audited empty tools and strict empty MCP",
         "context_exposed":"compiler messages only; fresh isolated scratch; wrapped ACP prompt",
         "token_ceiling":"requested by Compiler; ACP does not enforce token cap",
-        "bounds":"one prompt per call; SDK maxTurns 1; at most 600 seconds; 512 KiB answer",
+        "bounds":"one prompt per call; SDK maxTurns 1; the call's own deadline; 512 KiB answer",
         "schema":"schema included in request; whole returned text judged by Compiler",
         "served_model":null, "adapter_version":VERSION})
 }

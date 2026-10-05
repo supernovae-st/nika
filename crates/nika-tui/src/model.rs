@@ -12,6 +12,8 @@
 //! same beats from a canned conversation so both presentations are judged
 //! on identical input.
 
+use nika_display::activity_card::{ActivityCard, Ending, Update};
+
 /// Where the session is drawn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
@@ -78,6 +80,9 @@ pub enum Kind {
     Refusal,
     /// A notice of the shell itself (interrupted, mode switched).
     Notice,
+    /// The workspace's one card of what the Session reported while a turn
+    /// worked: kept up to date while the turn runs, settled when it ends.
+    Activity,
 }
 
 /// One finished block: it may span several lines.
@@ -173,6 +178,9 @@ pub enum Beat {
     /// · Checked ✓ · Active ○ · Run ○ »): the lifecycle rail on the row
     /// above the status, replaced at every turn — declared is never active.
     Rail(String),
+    /// The Session stopped the turn's preparation at the human's request, in
+    /// its own words: the activity card says so, and no proposal came of it.
+    Cancelled(String),
     /// The session closed the door.
     Quit,
 }
@@ -253,20 +261,31 @@ impl UiState {
                 // gives way (unless already in scrollback), so each step reads once, after
                 // the run's check and announcement. Any other block only settles the card.
                 if block.kind == Kind::Run {
-                    if let Some(card) = self.activity.take()
-                        && card.index >= self.committed_inline
-                    {
-                        self.transcript.remove(card.index);
+                    if let Some(mut card) = self.activity.take() {
+                        if card.index >= self.committed_inline {
+                            self.transcript.remove(card.index);
+                        } else {
+                            card.card.settle(Ending::Completed, None);
+                            card.paint(&mut self.transcript, self.ascii);
+                        }
                     }
-                } else if let Some(card) = self.activity.as_mut() {
-                    card.live = false;
+                } else if block.kind == Kind::Refusal {
+                    self.settle_card(Ending::Failed, None);
+                } else {
+                    self.settle_card(Ending::Completed, None);
                 }
                 self.transcript.push(block);
             }
             Beat::Wait(waiting) => {
+                self.settle_card(Ending::Completed, None);
                 self.activity = None;
                 self.busy = None;
                 self.waiting = waiting;
+            }
+            Beat::Cancelled(note) => {
+                self.busy = None;
+                self.settle_card(Ending::Stopped, None);
+                self.transcript.push(Committed::new(Kind::Notice, note));
             }
             Beat::Busy(label) => self.busy = Some(label),
             Beat::Status(line) => self.status = line,
@@ -275,45 +294,54 @@ impl UiState {
         }
     }
 
-    /// Retain the progress the Session actually reported, in one compact card.
-    /// The workspace retains steps; inline and focus keep their transcript behavior.
+    /// A line said while the turn works (a run's story), kept as a step.
     pub(crate) fn observe_activity(&mut self, label: &str) {
-        if self.presentation != Presentation::Workspace || label.trim().is_empty() {
+        if !label.trim().is_empty() {
+            self.observe(Update::Step(label));
+        }
+    }
+
+    /// Retain what the Session reported, typed, in one compact card
+    /// ([`ActivityCard`]). The workspace keeps the card; inline and focus keep
+    /// their transcript behavior.
+    pub(crate) fn observe(&mut self, update: Update<'_>) {
+        if self.presentation != Presentation::Workspace {
             return;
         }
         // A settled card stays as it was; a later update opens a new one below.
-        if self.activity.as_ref().is_some_and(|card| !card.live) {
+        if self
+            .activity
+            .as_ref()
+            .is_some_and(|card| !card.card.is_live())
+        {
             self.activity = None;
         }
         let activity = self.activity.get_or_insert_with(|| {
             let index = self.transcript.len();
-            self.transcript.push(Committed::new(Kind::Report, ""));
+            self.transcript.push(Committed::new(Kind::Activity, ""));
             Activity {
                 index,
-                lines: Vec::new(),
-                omitted: 0,
-                live: true,
+                card: ActivityCard::new(),
             }
         });
-        if activity.lines.last().is_some_and(|last| last == label) {
-            return;
+        if activity.card.observe(update) {
+            activity.paint(&mut self.transcript, self.ascii);
         }
-        activity.lines.push(label.to_owned());
-        if activity.lines.len() > 12 {
-            activity.lines.remove(0);
-            activity.omitted += 1;
-        }
-        let separator = if self.ascii { "-" } else { "·" };
-        let prefix = if activity.omitted == 0 {
-            format!("Activity {separator} observed steps")
-        } else {
-            format!(
-                "Activity {separator} {} earlier updates omitted",
-                activity.omitted
-            )
-        };
-        if let Some(block) = self.transcript.get_mut(activity.index) {
-            block.text = format!("{prefix}\n{}", activity.lines.join("\n"));
+    }
+
+    /// The turn that fed the live card ended after `took` (the shell's own
+    /// clock, from the line sent to the answer back): the card settles and
+    /// says so. A stop or a refusal the turn's beats tell later still names
+    /// how it ended ([`ActivityCard::settle`]).
+    pub(crate) fn settle_activity(&mut self, took: std::time::Duration) {
+        self.settle_card(Ending::Completed, Some(took));
+    }
+
+    fn settle_card(&mut self, ending: Ending, took: Option<std::time::Duration>) {
+        if let Some(card) = self.activity.as_mut()
+            && card.card.settle(ending, took)
+        {
+            card.paint(&mut self.transcript, self.ascii);
         }
     }
 
@@ -326,13 +354,20 @@ impl UiState {
     }
 }
 
+/// The live card in the transcript: where its block is, and what it folded.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Activity {
     index: usize,
-    lines: Vec<String>,
-    omitted: usize,
-    /// Still receiving this turn's updates (no block said since it opened).
-    live: bool,
+    card: ActivityCard,
+}
+
+impl Activity {
+    /// Write the card's words into its block.
+    fn paint(&self, transcript: &mut [Committed], ascii: bool) {
+        if let Some(block) = transcript.get_mut(self.index) {
+            block.text = self.card.lines(ascii).join("\n");
+        }
+    }
 }
 
 /// A canned conversation: every submitted line advances one turn and yields
@@ -471,6 +506,22 @@ pub struct Turn {
     pub handoff: Option<Handoff>,
 }
 
+/// What one stop request found ([`Conversation::stopper`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Stopping {
+    /// The turn's preparation was asked to stop: the Session admits no
+    /// further call for it and answers the turn itself (stopped, or what it
+    /// had already settled).
+    Requested,
+    /// A Run is under way: it keeps its own doors and is never stopped here.
+    RunUnderway,
+}
+
+/// The shell's hold on one turn's preparation: armed before the turn moves
+/// to its worker, called from the shell's thread while the turn runs.
+pub type Stopper = Box<dyn Fn() -> Stopping + Send>;
+
 /// Whatever answers the composer: the live session runtime, or a fixture.
 /// `Send`: the shell computes a turn on a worker thread so the terminal
 /// stays live (the busy state changes while a seat is called).
@@ -481,6 +532,19 @@ pub trait Conversation: Send {
     }
     /// Invalidate an unsubmitted decision on interruption, without running it.
     fn cancel_pending(&mut self) -> Vec<Beat> {
+        Vec::new()
+    }
+    /// Arm a stop for the turn about to start, BEFORE the conversation moves
+    /// to the worker thread. The default arms none: `Ctrl+C` then warns and
+    /// leaves, as it always did. Stopping a preparation never stops a Run.
+    fn stopper(&mut self) -> Option<Stopper> {
+        None
+    }
+    /// The human stopped this turn's preparation and the turn ended anyway:
+    /// what the stopped preparation left pending is withdrawn, so no obsolete
+    /// result stays actionable. It answers nothing: no Save, Run, gate or cost
+    /// decision is answered or declined. The default withdraws nothing.
+    fn withdraw_stopped(&mut self) -> Vec<Beat> {
         Vec::new()
     }
     /// The beats of the opening (banner, restored state, first prompt).
@@ -710,8 +774,14 @@ mod tests {
         );
         assert!(state.transcript[0].text.ends_with("repair 14"));
         assert_eq!(state.transcript[0].text.lines().count(), 13);
-        let finished = state.transcript[0].clone();
         state.apply(Beat::Say(Committed::new(Kind::Question, "Which source?")));
+        let finished = state.transcript[0].clone();
+        assert!(
+            finished
+                .text
+                .starts_with("Settled · 4 earlier updates omitted")
+        );
+        assert!(finished.text.ends_with("repair 14"));
         state.observe_activity("reading the answer");
         assert_eq!(state.transcript.len(), 3);
         assert_eq!(state.transcript[0], finished);
@@ -789,7 +859,8 @@ mod tests {
         assert_eq!(seen, 1, "each step reads once");
         state.observe_activity("reading the request");
         assert_eq!(state.transcript.len(), 6);
-        assert!(state.transcript[5].text.starts_with("Activity"));
+        assert_eq!(state.transcript[5].kind, Kind::Activity);
+        assert!(state.transcript[5].text.starts_with("Working"));
     }
 
     /// A card already handed to the terminal's scrollback is never unprinted, and a card of a
@@ -804,14 +875,18 @@ mod tests {
             "succeeded · 2/2 tasks",
         )));
         assert_eq!(state.transcript.len(), 2);
-        assert!(state.transcript[0].text.starts_with("Activity"));
+        assert_eq!(
+            state.transcript[0].text, "Settled\n✔ write_order · 1 ms · 2/2",
+            "a printed card is kept, settled, never left saying work is under way"
+        );
         let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
         state.observe_activity("reading the request");
-        let first = state.transcript[0].clone();
         state.apply(Beat::Say(Committed::new(
             Kind::Proposal,
             "proposed workflow",
         )));
+        let first = state.transcript[0].clone();
+        assert_eq!(first.text, "Settled\nreading the request");
         state.observe_activity("checking the proposal");
         state.apply(Beat::Wait(Waiting::Proposal));
         let cards = state.transcript.clone();
@@ -822,6 +897,72 @@ mod tests {
         assert_eq!(state.transcript[0], first);
         assert_eq!(state.transcript[..3], cards[..]);
         assert_eq!(state.transcript.len(), 4);
+    }
+
+    /// The typed reports fill one card the turn keeps; the turn's end settles it with the
+    /// shell's time, a stop the Session confirmed says so, and a later turn opens its own.
+    /// A string line (a run's story) is a step, never read for a phase.
+    #[test]
+    fn typed_reports_fill_one_card_that_settles_or_says_it_was_stopped() {
+        use nika_display::activity::{CallState, Phase};
+        use std::time::Duration;
+        let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
+        state.observe(Update::phase(Phase::Authoring, "authoring", false));
+        let at = Duration::from_secs(3);
+        let started = CallState::Started;
+        state.observe(Update::call(1, "fill", "m", Phase::Authoring, started, at));
+        assert_eq!(state.transcript.len(), 1);
+        assert_eq!(state.transcript[0].kind, Kind::Activity);
+        assert_eq!(
+            state.transcript[0].text,
+            "Generating · 1 author call · conversation routing and decision-service calls not counted\n● Generating · authoring\n● call 1 · write a step · requested m · running"
+        );
+        state.observe_activity("✓ looks like a phase");
+        assert!(
+            state.transcript[0]
+                .text
+                .ends_with("✓ looks like a phase\n● call 1 · write a step · requested m · running"),
+            "a string is a step: {}",
+            state.transcript[0].text
+        );
+        state.settle_activity(Duration::from_secs(42));
+        assert!(
+            state.transcript[0]
+                .text
+                .starts_with("Settled · took 42 s · 1 author call · ")
+        );
+        state.apply(Beat::Cancelled("Stopped · nothing was proposed".to_owned()));
+        assert!(
+            state.transcript[0]
+                .text
+                .starts_with("Stopped by you · took 42 s · 1 author call · ")
+        );
+        assert_eq!(state.transcript[1].kind, Kind::Notice);
+        state.apply(Beat::Wait(Waiting::Free));
+        state.observe(Update::phase(
+            Phase::Understanding,
+            "reading your line",
+            false,
+        ));
+        assert_eq!(state.transcript.len(), 3, "a later turn opens its own card");
+        state.apply(Beat::Wait(Waiting::Proposal));
+        assert_eq!(
+            state.transcript[2].text,
+            "Settled\n● Understanding · reading your line"
+        );
+        // A turn that ends on a refusal did not complete, and says so.
+        state.observe(Update::phase(Phase::Checking, "checking", false));
+        state.settle_activity(Duration::from_secs(5));
+        state.apply(Beat::Say(Committed::new(Kind::Refusal, "not allowed")));
+        assert!(
+            state.transcript[3]
+                .text
+                .starts_with("Not completed · took 5 s\n")
+        );
+        let mut inline = UiState::new(Presentation::Inline, false, (80, 24));
+        inline.observe(Update::phase(Phase::Checking, "checking", false));
+        inline.apply(Beat::Cancelled("stopped".to_owned()));
+        assert_eq!(inline.transcript.len(), 1, "inline keeps only the notice");
     }
 
     #[test]

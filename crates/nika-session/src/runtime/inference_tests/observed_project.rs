@@ -202,7 +202,7 @@ fn the_session_budget_and_its_review_are_one_bound() {
     assert_eq!(policy.initial_max_tokens, Some(AUTHORING_INITIAL_TOKENS));
     const { assert!(AUTHORING_INITIAL_TOKENS < AUTHORING_MAX_TOKENS) };
     assert_eq!(policy.timeout, AUTHORING_TIMEOUT);
-    assert_eq!(policy.repairs, AUTHORING_REPAIRS);
+    assert_eq!(policy.repair_limit(), Some(AUTHORING_REPAIRS));
     assert_eq!(
         session_policy(MODEL, true, NativeMode::Escalate).timeout,
         std::time::Duration::from_secs(300),

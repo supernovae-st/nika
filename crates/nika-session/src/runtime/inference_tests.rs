@@ -19,6 +19,7 @@ use nika_providers::AdmissionState;
 use serde_json::{Value, json};
 #[cfg(feature = "access-harness")]
 mod connection;
+mod continuous_preparation;
 mod decision_seat;
 mod interrupted;
 mod legacy;
@@ -32,6 +33,7 @@ mod restart;
 mod revision_question;
 mod run_scope;
 mod scopes;
+mod unjudged;
 mod unknown_cost;
 mod unknown_reopen;
 pub(crate) mod wire;

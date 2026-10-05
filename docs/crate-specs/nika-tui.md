@@ -376,3 +376,7 @@ shown, the detail says `Showing N of TOTAL` and points to the trace; a count
 mismatch, a missing count or a malformed frame is reported as incomplete
 evidence, never as a complete result. Reading these details performs no file
 read, copy, fetch or image generation. Inline raster display is not implied.
+
+### Turn worker stack
+
+The shell's `nika-tui-turn` worker explicitly reserves 8 MiB of stack for the complete synchronous Session entry point and the nested Compiler/provider future it polls. The UI input owner stays separate. This addresses ordinary nested authoring frames overflowing the smaller platform worker stack; it does not add a preparation limit, alter Stop semantics, grant authority, or change the provider. The hermetic regression exercises the same worker constructor with more than 3 MiB live and checks return of its owned conversation across consecutive turns. A real ACP replay remains a separate integration check.

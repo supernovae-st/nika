@@ -137,6 +137,45 @@ async fn a_metered_positive_ceiling_is_never_read_to_the_seat_as_work() {
     );
 }
 
+/// An interactive host that meters and shows its preparation itself: the admitted zero is the
+/// workflow Run's ceiling, recorded and never read as work, and the seats still prepare. Without
+/// the flag the legacy law holds, and a door that meters no seat keeps its own.
+#[tokio::test]
+async fn an_observed_preparation_keeps_its_seats_under_a_zero_run_ceiling() {
+    let request = format!("{INTENT} Budget: 0 USD.");
+    let provider = Recording::default();
+    let observed = admitted(&request).with_observed_preparation();
+    let out = compile_with_provider(&observed, &provider).await.unwrap();
+    let asked = provider.asked.lock().unwrap().clone();
+    assert!(!asked.is_empty(), "the seat prepares: {out:#?}");
+    assert!(
+        asked.iter().all(|a| !a.contains("Budget: 0 USD")),
+        "{asked:#?}"
+    );
+    let says = |out: &nika_compile::CompileOutcome, words: &str| {
+        (out.diagnostics.iter()).any(|d| d.target == "authoring_money" && d.message.contains(words))
+    };
+    assert!(says(&out, "bounds the workflow's Run"), "{out:#?}");
+    assert!(!says(&out, "no seat was consulted"), "{out:#?}");
+    let decision = out.provenance.decision.as_ref().unwrap();
+    assert_eq!(
+        decision["money"]["directives"][0]["text"], "Budget: 0 USD",
+        "{decision:#}"
+    );
+    // The legacy law: the same request without the flag sends nothing.
+    let provider = Recording::default();
+    let out = compile_with_provider(&admitted(&request), &provider)
+        .await
+        .unwrap();
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 0, "{out:#?}");
+    assert!(says(&out, "no seat was consulted"), "{out:#?}");
+    // A door that meters no seat keeps its law, observed or not.
+    let provider = Recording::default();
+    let unmetered = stated(&request).with_observed_preparation();
+    let out = compile_with_provider(&unmetered, &provider).await.unwrap();
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 0, "{out:#?}");
+}
+
 /// The request as a door that meters no seat sends it: its operator's money stated in words.
 fn stated(request: &str) -> CompileRequest {
     CompileRequest::create(request)

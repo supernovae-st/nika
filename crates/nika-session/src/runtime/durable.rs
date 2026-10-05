@@ -16,6 +16,7 @@ use super::inference::{
 };
 use super::round::KeptRound;
 use crate::run_view::KeptRun;
+use nika_providers::authoring::preparation::PreparationCosts;
 use nika_trace::lineage::{Standing, lineage_of};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -26,6 +27,15 @@ use crate::consent::{CONSENTS_FILE, ConsentDecision, ConsentRecord};
 use crate::intelligence::now_rfc3339;
 use crate::outcome::ProposalId;
 use crate::state::{Pending, STATE_FILE, SessionState};
+
+/// Preparation evidence before one turn; never an execution or monetary authority snapshot.
+#[derive(Default)]
+pub(super) struct PreparationBefore {
+    goal: Option<String>,
+    reading: Option<nika_onboard::compile::CompileOutcome>,
+    proposal: Option<crate::ProposalId>,
+    question: Option<crate::authoring::AuthoringRound>,
+}
 
 impl SessionRuntime {
     /// Enable private, project-bound conversation history below `home/.nika`.
@@ -248,7 +258,9 @@ impl SessionRuntime {
             ) && report.matches_checkpoint(raw, project.as_os_str().as_encoded_bytes())
             {
                 self.unknown_cost.completed_restored = true;
-                notice.push_str("\ncompleted unknown-cost observations retained; a fresh one-time cost review is required; no account or consent restored");
+                notice.push_str(if self.money.preparation.is_some() {
+                    "\nprior costs retained, including unknown charges; preparation can continue; Run is separate"
+                } else { "\ncompleted unknown-cost observations retained; a fresh one-time cost review is required; no account or consent restored" });
                 return;
             }
             match nika_providers::InferenceAdmission::from_checkpoint(
@@ -258,7 +270,9 @@ impl SessionRuntime {
                 Ok((account, observed)) if self.unknown_cost.observations.contains(&observed) => {
                     self.unknown_cost.observations.retain(|o| o != &observed);
                     self.money.account = Some(account);
-                    notice.push_str("\nnumeric inference ledger restored closed; confirm a new TOTAL Session ceiling in its own sentence, e.g. Budget: 10 USD. (total, not additional); prior expenses and reservations remain");
+                    notice.push_str(if self.money.preparation.is_some() {
+                        "\nprior expenses and reservations retained; preparation can continue; Run is separate"
+                    } else { "\nnumeric inference ledger restored closed; confirm a new TOTAL Session ceiling in its own sentence, e.g. Budget: 10 USD. (total, not additional); prior expenses and reservations remain" });
                 }
                 Ok(_) => notice.push_str("\nledger refused: project cost observation differs"),
                 Err(error) => {
@@ -587,19 +601,101 @@ impl SessionRuntime {
         }
     }
 
+    pub(super) fn preparation_snapshot(&self) -> PreparationBefore {
+        PreparationBefore {
+            goal: self.intent.goal.clone(),
+            reading: self.last_outcome.clone(),
+            proposal: self.pending.as_ref().map(|set| self.proposal_id(set)),
+            question: self.authoring.clone(),
+        }
+    }
+
+    /// Withdraw only the new preparation before host presentation; retain earlier waiting work.
+    /// Gates, Run, monetary observations and the durable human intent are unchanged.
+    pub fn withdraw_cancelled_preparation(&mut self) -> Option<String> {
+        if !self
+            .money
+            .preparation
+            .as_ref()
+            .is_some_and(PreparationCosts::was_stopped)
+        {
+            return None;
+        }
+        let proposal = self.pending.as_ref().map(|set| self.proposal_id(set));
+        let changed_proposal = proposal.is_some() && proposal != self.preparation_before.proposal;
+        let changed_question =
+            self.authoring.is_some() && self.authoring != self.preparation_before.question;
+        if !changed_proposal && !changed_question {
+            return None;
+        }
+        if changed_proposal {
+            self.pending = None;
+        }
+        if changed_question {
+            self.authoring = None;
+            self.intent.unresolved.clear();
+        }
+        self.last_outcome
+            .clone_from(&self.preparation_before.reading);
+        let text = crate::authoring::AuthoringError::Cancelled.to_string();
+        let outcome = self.recorded(Operation::Turn, "(preparation stopped)", |_| {
+            TurnOutcome::Cancelled(text)
+        });
+        match outcome {
+            TurnOutcome::Cancelled(text) => Some(text),
+            _ => Some("preparation stopped; the conversation record could not be updated".into()),
+        }
+    }
+
+    fn accept_preparation(
+        &mut self,
+        operation: Operation,
+        previous: PreparationBefore,
+        outcome: TurnOutcome,
+    ) -> TurnOutcome {
+        if matches!(
+            operation,
+            Operation::Run | Operation::Gate | Operation::Observation
+        ) || matches!(
+            outcome,
+            TurnOutcome::RunRequested { .. } | TurnOutcome::ResumeRequested { .. }
+        ) || (!matches!(outcome, TurnOutcome::Cancelled(_)) && !PreparationCosts::interrupted())
+        {
+            return outcome;
+        }
+        if self.pending.as_ref().map(|set| self.proposal_id(set)) != previous.proposal {
+            self.pending = None;
+        }
+        if previous.goal.is_some() {
+            self.intent.goal = previous.goal;
+        }
+        self.last_outcome = previous.reading;
+        if self.authoring != previous.question {
+            self.authoring = None;
+            self.intent.unresolved.clear();
+        }
+        self.keep_revising(TurnOutcome::Cancelled(
+            crate::authoring::AuthoringError::Cancelled.to_string(),
+        ))
+    }
+
     pub(super) fn recorded(
         &mut self,
         operation: Operation,
         input: &str,
         perform: impl FnOnce(&mut Self) -> TurnOutcome,
     ) -> TurnOutcome {
+        let _cost_scope = self.money.preparation.as_ref().map(PreparationCosts::enter);
+        let _activity_scope = self.progress.enter();
+        let previous = self.preparation_snapshot();
         let mut history = match std::mem::replace(
             &mut self.history,
             HistoryMode::Blocked("the previous operation did not complete".to_owned()),
         ) {
             HistoryMode::Ephemeral => {
                 self.history = HistoryMode::Ephemeral;
-                return perform(self);
+                let outcome = perform(self);
+                return self.accept_preparation(operation, previous, outcome);
             }
             HistoryMode::Blocked(message) => {
                 self.history = HistoryMode::Blocked(message.clone());
@@ -612,6 +708,7 @@ impl SessionRuntime {
         }
         let charged_before = self.uncertain_charges();
         let outcome = perform(self);
+        let outcome = self.accept_preparation(operation, previous, outcome);
         // A new proposal replaces a draft kept from an earlier session.
         if self.pending.is_some() {
             self.restored_draft = None;
@@ -751,6 +848,7 @@ fn outcome_kind(outcome: &TurnOutcome) -> &'static str {
     match outcome {
         TurnOutcome::Reply(_) => "reply",
         TurnOutcome::Facts(_) => "facts",
+        TurnOutcome::Cancelled(_) => "cancelled",
         TurnOutcome::Help(_) => "help",
         TurnOutcome::Quit => "quit",
         TurnOutcome::Refusal(_) => "refusal",
@@ -774,6 +872,7 @@ fn with_note(outcome: TurnOutcome, note: &str) -> TurnOutcome {
     match outcome {
         TurnOutcome::Reply(text) => TurnOutcome::Reply(text + &line),
         TurnOutcome::Facts(text) => TurnOutcome::Facts(text + &line),
+        TurnOutcome::Cancelled(text) => TurnOutcome::Cancelled(text + &line),
         TurnOutcome::Help(text) => TurnOutcome::Help(text + &line),
         TurnOutcome::Ask(text) => TurnOutcome::Ask(text + &line),
         TurnOutcome::Aside(text) => TurnOutcome::Aside(text + &line),

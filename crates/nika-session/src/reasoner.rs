@@ -13,19 +13,27 @@ mod label_tests;
 #[cfg(test)]
 pub(crate) mod test_transport;
 #[cfg(test)]
-pub(crate) type ProviderHttp = test_transport::Client;
+pub(crate) type ProviderHttp = Wire<test_transport::Client>;
 #[cfg(not(test))]
-pub(crate) type ProviderHttp = nika_http::ReqwestHttp;
+pub(crate) type ProviderHttp = Wire<nika_http::ReqwestHttp>;
 
 use std::collections::VecDeque;
 use std::sync::Arc;
 
 use nika_onboard::compile::AuthoringReasoning;
+use nika_providers::authoring::{
+    policy::{completion_bounds, label_ceiling},
+    preparation::PreparationCosts,
+    requests::{Envelope, Wire},
+};
 
 /// Why a reasoner could not answer.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum ReasonError {
+    /// The operator stopped preparation; the conversation and costs remain available.
+    #[error("preparation stopped; conversation kept; any sent request may still be billed")]
+    Cancelled,
     /// No conversational intelligence was chosen.
     #[error("no conversational intelligence — the facts stay (`/intelligence` chooses a path)")]
     NoIntelligence,
@@ -308,7 +316,12 @@ impl SessionReasoner for ProviderReasoner {
         prompt: &str,
         account: &nika_providers::InferenceAdmission,
     ) -> Result<Reply, ReasonError> {
-        self.infer(prompt, Some(self.label_ceiling()), Some(account), None)
+        self.infer(
+            prompt,
+            Some(label_ceiling(&self.model)),
+            Some(account),
+            None,
+        )
     }
 
     fn name(&self) -> String {
@@ -324,7 +337,7 @@ impl SessionReasoner for ProviderReasoner {
     }
 
     fn reason_label(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
-        self.infer(prompt, Some(self.label_ceiling()), None, None)
+        self.infer(prompt, Some(label_ceiling(&self.model)), None, None)
     }
 
     /// The same call, the same ceiling, asking the level (R4 B16): the effort never moves a cap.
@@ -336,7 +349,7 @@ impl SessionReasoner for ProviderReasoner {
         effort: AuthoringReasoning,
     ) -> Result<Reply, ReasonError> {
         let ceiling = if label {
-            Some(self.label_ceiling())
+            Some(label_ceiling(&self.model))
         } else {
             account.map(|_| 8192)
         };
@@ -344,28 +357,7 @@ impl SessionReasoner for ProviderReasoner {
     }
 }
 
-/// Ordinary labels retain their existing finite ceiling.
-const LABEL_CEILING_TOKENS: u32 = 1024;
-/// Catalog-known reasoning shares output tokens with the visible label.
-/// This finite first-call ceiling matches the compiler's reasoning draft
-/// floor; it does not guarantee an answer and never triggers a larger retry.
-const REASONING_LABEL_CEILING_TOKENS: u32 = 4096;
-
 impl ProviderReasoner {
-    /// Select the label default only; caller-supplied infer limits stay intact.
-    fn label_ceiling(&self) -> u32 {
-        let reasoning = self.model.split_once('/').is_some_and(|(provider, model)| {
-            // The mock catalog row claims every capability for fixtures.
-            !provider.eq_ignore_ascii_case("mock")
-                && nika_catalog::model_capabilities(provider, model).reasoning
-        });
-        if reasoning {
-            REASONING_LABEL_CEILING_TOKENS
-        } else {
-            LABEL_CEILING_TOKENS
-        }
-    }
-
     /// The one-shot infer verb over the provider registry; a label call
     /// carries its ceiling and a zero temperature, and any call the explicit effort it asks.
     fn infer(
@@ -398,6 +390,11 @@ impl ProviderReasoner {
             input.temperature = Some(0.0);
         }
         input.reasoning_effort = reasoning_effort;
+        if PreparationCosts::active() {
+            let limits = completion_bounds(&self.model, false, provider_config());
+            input.max_tokens = Some(limits.initial_tokens);
+            input.timeout = Some(limits.timeout);
+        }
         let out = block_on(async { verb.run(input).await })?
             .map_err(|e| ReasonError::Provider(e.to_string()))?;
         Ok(Reply {
@@ -437,12 +434,12 @@ pub(crate) fn provider_config() -> nika_providers::ProvidersConfig {
 pub(crate) fn provider_http_for(bounded: bool) -> Result<ProviderHttp, String> {
     let mut config = nika_http::HttpConfig::default();
     config.ssrf = nika_http::SsrfMode::Disabled;
-    config.retry_protocol_nacks = !bounded;
+    config.retry_protocol_nacks = !bounded && !PreparationCosts::active();
     config.timeout = PROVIDER_TRANSPORT_CEILING;
     let http = nika_http::ReqwestHttp::with_config(config).map_err(|e| e.to_string())?;
     #[cfg(test)]
     let http = test_transport::Client::new(http);
-    Ok(http)
+    Ok(Wire::new(http, Arc::new(Envelope::uncapped(""))))
 }
 
 /// The text of an infer output — the text as is, a structured answer as JSON.
@@ -455,12 +452,14 @@ fn infer_text(value: &nika_verb_infer::InferValue) -> String {
 }
 
 /// Block on one future from the session's synchronous loop.
-fn block_on<F: std::future::Future>(fut: F) -> Result<F::Output, ReasonError> {
+pub(crate) fn block_on<F: std::future::Future>(fut: F) -> Result<F::Output, ReasonError> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .map_err(|e| ReasonError::Runtime(e.to_string()))?;
-    Ok(runtime.block_on(fut))
+    runtime
+        .block_on(PreparationCosts::while_active(fut))
+        .ok_or(ReasonError::Cancelled)
 }
 
 #[cfg(test)]

@@ -65,7 +65,10 @@ use crate::workspace::{conversation, project};
 
 mod acquire;
 mod opening;
+mod progress;
+mod stop;
 mod welcome;
+mod worker;
 
 /// How the shell runs.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -165,6 +168,8 @@ struct Shell<C: Conversation> {
     placeholder: String,
     /// One reveal per shell, never an idle animation.
     welcome: welcome::Reveal,
+    /// The running turn's stop and the correction queued during it.
+    hold: stop::Hold,
 }
 
 /// What one key press decides, before anything is done about it.
@@ -270,6 +275,7 @@ pub fn run_on<C: Conversation + 'static>(
         desk: Desk::new(),
         placeholder: String::new(),
         welcome: welcome::Reveal::default(),
+        hold: stop::Hold::default(),
     };
     if let Some(title) = shell.options.title.as_deref() {
         // The previous title rides the terminal's stack; the restore pops it.
@@ -705,9 +711,9 @@ impl<C: Conversation + 'static> Shell<C> {
         Ok(Step::Stay)
     }
 
-    /// The human sent a line: echo it, let the conversation answer, and
-    /// report the handoff it asks for, if any.
-    fn submit(&mut self, line: &str, broker: &mut Broker) -> io::Result<Submitted> {
+    /// One line sent: echo it, let the conversation answer, and report the
+    /// handoff it asks for, if any ([`Self::submit`] sends what it queued).
+    fn submit_one(&mut self, line: &str, broker: &mut Broker) -> io::Result<Submitted> {
         self.submitted += 1;
         let echo = format!("{}{}", self.state.waiting.prompt(), line.trim_end());
         self.state
@@ -732,11 +738,17 @@ impl<C: Conversation + 'static> Shell<C> {
             self.draw()?;
         }
         let started = std::time::Instant::now();
-        let turn = match self.run_turn(line, broker)? {
+        let mut turn = match self.run_turn(line, broker)? {
             TurnEnd::Done(turn) => turn,
             TurnEnd::Left(exit) => return Ok(Submitted::Left(exit)),
         };
         self.state.busy = None;
+        self.state.settle_activity(started.elapsed());
+        // A stop that raced the result: what the stopped preparation left is withdrawn first.
+        let (stopped, queued) = (self.hold.stopping(), self.hold.release());
+        if stopped {
+            turn.beats.extend(self.conversation()?.withdraw_stopped());
+        }
         // The turn is over: a hint about it (« Enter sends when it is your
         // turn ») goes with it, and a transcript scrolled back while Nika
         // worked returns to its end, where the answer is.
@@ -771,6 +783,7 @@ impl<C: Conversation + 'static> Shell<C> {
         if self.options.exit_after == Some(self.submitted) {
             self.state.quit = true;
         }
+        self.next_correction(queued, fresh, turn.handoff.is_some())?;
         Ok(Submitted::Handoff(turn.handoff))
     }
 
@@ -1034,16 +1047,15 @@ impl<C: Conversation + 'static> Shell<C> {
         let gap = std::sync::Arc::new(crate::session::feed::Gap::default());
         let seen = crate::session::feed::Seen::new(seen_tx, std::sync::Arc::clone(&gap));
         let mut conversation = self.conversation.take().ok_or_else(conversation_left)?;
+        self.hold.arm(conversation.stopper());
         let line = line.to_owned();
         // The shell keeps one sender: the busy channel never disconnects,
         // so each wait below is one poll slice, never a spin.
         let _pace = tx.clone();
-        let worker = std::thread::Builder::new()
-            .name("nika-tui-turn".to_owned())
-            .spawn(move || {
-                let turn = conversation.submit_observed(&line, &tx, &seen);
-                let _ = done_tx.send((conversation, turn));
-            })?;
+        let worker = worker::turn().spawn(move || {
+            let turn = conversation.submit_observed(&line, &tx, &seen);
+            let _ = done_tx.send((conversation, turn));
+        })?;
         self.typed_live = false;
         let started = std::time::Instant::now();
         let mut base = self.state.busy.clone();
@@ -1067,13 +1079,16 @@ impl<C: Conversation + 'static> Shell<C> {
                 }
                 shown = u64::MAX;
             }
-            if self.desk.observe(seen_rx.try_iter()) {
+            if self.drain(&seen_rx, started, &mut base, &mut last_done) {
                 shown = u64::MAX;
             }
             match done_rx.try_recv() {
                 Ok((conversation, turn)) => {
                     // The last frames before the result, then what was lost.
+                    self.drain(&seen_rx, started, &mut base, &mut last_done);
                     self.desk.close_turn(&seen_rx, &gap);
+                    // A press that stopped the preparation is spent with it.
+                    let armed = armed && !self.hold.stopping();
                     return Ok(self.end_turn(conversation, turn, broker, armed));
                 }
                 Err(mpsc::TryRecvError::Disconnected) => {

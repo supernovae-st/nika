@@ -194,12 +194,15 @@ after return, which does not prove pre-execution tool disabling. It may be
 admitted when that capability is attested; neither deterministic success nor
 an API is substituted. Supported one-shot adapters pass an explicit empty tool
 list. The transport retains its binary/version
-attestation, isolated scratch, tool restrictions and child cleanup. A call has
-a finite deadline capped at 600 seconds; Session defaults to 300 seconds for a
-subscription authoring call. Explicit thinking budgets are unsupported and
-refused; the native CLI does not enforce Compiler's requested token ceiling,
-which is recorded without claiming enforcement. Compiler's own bounded call
-and repair policy still applies. Cancellation or timeout accepts no answer.
+attestation, isolated scratch, tool restrictions and child cleanup. A call requires
+a positive finite deadline. The legacy bounded Session policy uses 300 seconds
+for subscription authoring; continuous preparation currently uses 600 seconds
+per call, not as a transport-wide maximum. Explicit thinking budgets are
+unsupported and refused; the native CLI does not enforce Compiler's requested
+token ceiling, which is recorded without claiming enforcement. Explicit request
+and repair limits still apply where selected; continuous preparation has no
+implicit count. Cancellation or timeout accepts no answer and does not prove
+that a sent request was unbilled.
 
 The Compiler's existing deterministic first step remains available even when
 the chosen harness cannot author. A settled deterministic request makes no
@@ -512,21 +515,28 @@ opens. Session and CLI compilation share the same TypeSafe adapter. Only finite
 compiler choices consult it; deterministic work makes no call, and NONE remains a
 valid outcome. The compiler validates the answer against its offered options.
 
-Each seated compile allows at most three decision calls, one attempt and a 20-second
-deadline each. This is compiler routing, not Foundry selection or execution authority.
-The seat is admitted only with an open unbudgeted API observation account; numeric
-allowances, zero, closed and unknown-cost scopes refuse the unpriced service visibly.
-Billing units are kept separately from tokens. Persisted observations identify sent,
-answered, refused and uncertain attempts, and keep unknown cost outside the priced
-DeepSeek subtotal. The pre-dispatch durable marker names the selected seat so an
-interruption cannot erase possible exposure. Model selection and credentials are
-operator configuration, not instructions taken from the workflow or retrieved context.
+Each finite choice makes one attempt with a 20-second deadline and no transport
+retry. Interactive preparation has no implicit three-call ceiling. The selected
+service accompanies API, native subscription and ACP authoring through the same
+compiler capability. It can read ambiguous clauses, rank feasible plans and judge semantic
+fidelity, including locating a defect for the author to repair. It never selects Foundry
+knowledge or grants execution authority. A caller that explicitly supplies a monetary account keeps
+its existing admission rules; an unpriced decision never consumes that allowance.
+Billing units remain separate from tokens, with cost and invoice unknown.
 
-The selected decision adapter and bounded journal are shared from
-`nika-cli-host::compile::typesafe::session`; `authoring::DecisionSetup` preserves
-its public path. Session retains its monetary admission decision and durable
-observation persistence. This is an ownership move within existing surface
-members, with no new provider, crate, retry or permission.
+`nika/session-decision-seat@2` retains every attempt and closes the scope when its
+compile ends. `scope_ended: true` means no further consultation of that scope, not
+that a price or successful workflow was proved. An unresolved send remains
+Uncertain even on cancellation. Old @1 records stay unchanged and visible. A new
+scope never reconciles an earlier uncertain charge, and reading observations
+never dispatches. The pre-dispatch durable marker remains the host's responsibility;
+an unavailable in-memory journal refuses before the decision transport starts.
+
+The adapter and journal remain in `nika-cli-host::compile::typesafe::session`;
+`authoring::DecisionSetup` preserves its public path. Session owns persistence and
+the selected author/decision composition. No new provider, permission, retry or
+execution path is introduced. The obsolete `MAX_DECISION_CALLS` constant is removed;
+explicit limits of workflow execution and the CLI Compile callers are unchanged.
 
 ## Project context and preparation bounds
 
@@ -536,13 +546,22 @@ headers, keys and categorical values into the full original request, answers
 and revision context. The receipt separates attachment from presentation in a
 model call; a deterministic result or replay does not claim a presentation.
 
-The initial native output limit is 16384 tokens, with a 32768 hard ceiling and
-180 seconds per API call. Three repair rounds cover reported truncation and
-candidate diagnostics; they do not retry an uncertain transport. A fresh
-unknown-cost review covers at most seven provider requests: classification,
-two COLD steps, then the native candidate and its three repairs. Numeric
-allowances still reserve the actual worst-case call and never widen themselves.
-Execution keeps its separate review and permissions.
+The legacy bounded Session surface starts native output at 16384 tokens, with
+a 32768 ceiling, 180 seconds per API call and three repair rounds. Its
+`CostReview::for_session` compatibility review allows at most seven requests;
+this is an enforced allowance, not the continuous compiler's theoretical worst
+case, and it may stop preparation before completion. Reported truncation may
+spend a repair to widen output; an uncertain transport is not retried. Numeric
+allowances never widen themselves.
+
+The interactive CLI and TUI instead enable continuous preparation. Its selected
+route supplies the technical output ceiling and per-call deadline; no implicit
+request-count, repair-count or monetary review gates preparation. A stated
+workflow budget remains part of the separate Save/Run review and execution.
+Historical accounts, reservations and unknown charges remain observations,
+never new credit. Missing usage or prices stay unknown, and a configured model
+name is not evidence of the identity actually served. Explicit limits retained
+by bounded callers and workflow execution are unchanged.
 
 ## Configuration read when a door opens
 
@@ -556,7 +575,7 @@ a workflow, a reply or retrieved context.
 | `~/.nika/session-intelligence.json` | The kept choice (kind · model · time); a corrupt file reads as never chosen |
 | `NIKA_AUTHORING_STRATEGY` · `NIKA_KNOWLEDGE` · `NIKA_KNOWLEDGE_EXCLUDE` | The shared authoring configuration: a trusted named release or the embedded default is admitted and pinned when the context opens. Knowledge off attaches nothing; strategy off with no source is unread. `NIKA_KNOWLEDGE_PACK` is refused: a pack was composed for one request |
 | `NIKA_AUTHORING_REASONING` | The explicit reasoning effort every seated authoring call asks (`low` · `high` · `max`), through the same parser; a host's typed word outranks it |
-| `NIKA_AUTHORING_SOURCE_RECOVERY` | The operator's explicit source recovery rounds (`0`..=`3`, default none) after the sketch door's exhaustion on a creation, through the same parser: refused under `off` or `only` or for any other word (the context's refusal, never a silent zero). The policy carries them on the same seat; a fresh unknown-cost review reserves `recovery_requests` in the same account and states the allowance (7 + reserved) beside the theoretical worst case (the classifier, `worst_case` at the Session policy, the recovery) (`CostReview::with_recovery_requests`); the context's identity bytes name them only when named. `/details` shows the route step `native: source recovery after structured exhaustion` |
+| `NIKA_AUTHORING_SOURCE_RECOVERY` | The operator’s explicit finite source recovery rounds, as a nonnegative integer (`0` or unset: none). Positive rounds are refused under `off` or `only`; invalid words refuse rather than silently becoming zero. These rounds use the same selected seat after structured exhaustion. Interactive preparation observes their costs without an extra monetary confirmation; explicitly bounded callers retain their chosen allowance and count. `/details` names the recovery route. |
 | `NIKA_SESSION_DECISION_MODEL` with `TYPESAFE_API_KEY` | The optional decision seat (`typesafe/<jev>` only) |
 | `NIKA_TUI` | `0` · `off` · `false` · `no` · `plain` keep bare `nika` on the plain loop |
 
@@ -853,3 +872,50 @@ mixed observation families remain refused. In particular this path does not inte
 Jev's decision-seat records or discard no-budget observations. Qualification of the
 API-only TUI journey is separate from any decision-seat continuation. Save and Run
 remain separate human acts; previous observations are neither reset nor duplicated.
+
+### Continuous interactive preparation
+
+The plain interactive CLI and fullscreen TUI activate `enable_continuous_preparation` before
+opening history. Preparation has no implicit request-count, repair-count or monetary gate.
+The selected connection remains explicit; no API fallback is granted. Historical accounts,
+reservations and unknown charges remain evidence and never become fresh credit. Monetary
+directives in a proposed workflow still belong to its separate Save/Run review and execution.
+Callers using the existing bounded Session surface without this opt-in retain its old policy.
+
+Preparation observes physical API requests through the provider dispatch journal, including
+failed and cancelled requests, and persists its privacy-projected records. Missing prices or
+usage remain unknown; subscription and decision-service invoices are not fabricated. The
+configured direct DeepSeek route starts at 131072 output tokens and may widen to the pinned
+393216 technical limit; the existing transport timeout is 600 seconds per call. Other routes
+use their own qualified limits, never DeepSeek's because of a similar model name.
+
+### Interactive preparation stop and activity
+
+The host obtains `begin_preparation_turn()` before moving the conversation into a worker.
+Its fresh `CancelCtx` applies only to preparation; Run keeps its own cancellation and effects.
+The driver drops an API/subscription compile future when Stop is observed, retains the Session
+and cost journals, and accepts no result from that cancelled future. A sent remote request may
+still be billed. A new turn uses a new token without resetting historical exposure.
+`on_activity(ActivityHook)` carries the producer's typed `Activity`; `on_progress` remains a
+compatible text projection. This does not infer a model actually served from a configured name.
+
+A host calls `withdraw_cancelled_preparation` immediately after a stopped worker returns and
+before displaying or accepting its proposal. It withdraws only a new proposal or changed
+preparation round from that turn; the proposal/question that already waited, gates and Run
+authority are preserved. Stop wins at the proposal boundary and again at the host handoff.
+`TurnOutcome::Cancelled` keeps the Session available for the next human instruction.
+Each activity may carry a `CallMark` with the compiler ordinal, role, requested model and
+Started/Finished/Cancelled state. Finished means returned, not semantically accepted or billed.
+
+### Unjudged candidate continuation
+
+An INCOMPLETE result carrying the compiler's Applied `verify_resume` finding is kept as an authoring round, never as a Save proposal or Run permission. `continue` or `retry` replays its exact semantic record and asks the judge without regenerating the author candidate. A new correction discards that candidate and enters the existing request-restatement path. The round's answers, obligations and provenance remain durable under the existing exact-digest record. Reopening makes no model call; `/restore` arms this questionless round without proposing it, and an explicit continuation asks the judge. An altered or withheld record still refuses. Ordinary clarification rounds retain their existing replay protocol.
+
+After a stopped creation with no saved workflow or live round, the retained goal remains
+context for a classified correction. The existing turn classifier sees the earlier goal:
+Modify/Mixed restates its exact words followed by the exact correction, explicitly giving
+the correction precedence only over what it changes. NewWork is an independent CREATE;
+an unknown route preserves the goal and starts no authoring call. No cancelled candidate,
+Save consent or Run authority is restored. The combined request remains the goal even if
+its authoring fails, and the existing history restores it without asking a model. Compiler
+validation and fidelity still decide whether the resulting candidate answers that request.

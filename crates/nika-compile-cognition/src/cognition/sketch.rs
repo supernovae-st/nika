@@ -20,12 +20,15 @@ use super::proposal::Composition;
 use super::{
     AuthoringPolicy, CompileOutcome, CompileRequest, DiagnosticKind, NativeMode, Strategy,
 };
+use crate::decide::DecisionSeat;
 use crate::fidelity::Diagnostic;
 use crate::sketch::{self as ir, Sketch, judge_sketch, reach_laws, validated};
 use crate::{CompileError, lexicon::Reading};
 use nika_kernel::ai::provider::{Message, ProviderInferDyn, Role};
 use serde_json::{Value, json};
 
+#[cfg(test)]
+mod decision_tests;
 mod evidence;
 /// The whole-source recovery an explicit policy allows after the structured rounds.
 mod recover;
@@ -279,8 +282,7 @@ fn diagnostics_record(diagnostics: &[Diagnostic]) -> Vec<Value> {
 /// Whether a repair round opens: the assistant's text and the repair message join the talk
 /// and the diagnostics are remembered; a repeated refusal is no progress and ends the talk.
 fn repair(talk: &mut Talk, text: String, diagnostics: Vec<Diagnostic>, tail: &str) -> bool {
-    if talk.last.as_ref() == Some(&diagnostics) {
-        talk.route.push("native: no progress".to_owned());
+    if !progressed(talk, &diagnostics) {
         return false;
     }
     talk.messages.push(Message::text(Role::Assistant, text));
@@ -340,9 +342,8 @@ async fn propose<P: ProviderInferDyn>(
     (provider, first): (&P, u32),
     out: &mut CompileOutcome,
 ) -> (u32, Option<(Sketch, SketchAnswer)>) {
-    let budget = policy.repairs.min(5);
     let mut round = first;
-    while round <= budget {
+    while within(policy.repairs, round) {
         let role = if round == 0 {
             "sketch"
         } else {
@@ -439,12 +440,13 @@ async fn fill<P: ProviderInferDyn>(
     first_round: u32,
 ) -> Option<(Answer, Vec<Value>)> {
     let (sketch, answer) = accepted;
-    let last_round = policy.repairs.min(5) + 1;
+    // The fill keeps the round after the sketch's last.
+    let last_round = policy.repairs.map(|repairs| repairs.saturating_add(1));
     talk.last = None;
     talk.messages
         .push(Message::text(Role::User, holes_message(sketch)));
     let mut round = first_round;
-    while round <= last_round {
+    while within(last_round, round) {
         let role = if round == first_round {
             "fill"
         } else {
@@ -549,7 +551,7 @@ pub(super) async fn compose<P: ProviderInferDyn>(
     intent: &str,
     reading: &Reading,
     policy: &AuthoringPolicy,
-    seats: (&P, &mut Rehearsals<'_>),
+    seats: (&P, Option<&dyn DecisionSeat>, &mut Rehearsals<'_>),
     request: &CompileRequest,
     mut route: Vec<String>,
     mut out: CompileOutcome,
@@ -576,7 +578,7 @@ pub(super) async fn compose<P: ProviderInferDyn>(
         Some(format!(
             "{what}, and this authoring policy permits no sketch door (native: off). No candidate was assembled."
         ))
-    } else if policy.repairs.min(5).checked_sub(1).is_none() {
+    } else if policy.repairs == Some(0) {
         Some(format!(
             "{what}; the sketch door needs one request more than the single candidate this policy bounds, and its repair allowance (0) leaves none. No request was sent and no candidate was assembled."
         ))
@@ -599,10 +601,15 @@ pub(super) async fn compose<P: ProviderInferDyn>(
         return Ok(out);
     }
     route.push(step.to_owned());
-    let bounded = policy
-        .clone()
-        .with_repairs(policy.repairs.min(5).saturating_sub(1));
+    // One repair less under a typed limit (the sketch takes the request it would have had).
+    let mut bounded = policy.clone();
+    bounded.repairs = policy.repairs.map(|repairs| repairs.saturating_sub(1));
     author(intent, reading, &bounded, seats, request, route, out).await
+}
+
+/// Whether `round` is within the rounds a limit allows (`None`: no count).
+fn within(last: Option<u32>, round: u32) -> bool {
+    last.is_none_or(|last| round <= last)
 }
 
 /// The question fields a native settlement reads (`apply_native`, `bake`, `ask`).
@@ -726,7 +733,7 @@ pub(super) async fn author<P: ProviderInferDyn>(
     intent: &str,
     reading: &Reading,
     policy: &AuthoringPolicy,
-    (provider, rehearsals): (&P, &mut Rehearsals<'_>),
+    (provider, decision, rehearsals): (&P, Option<&dyn DecisionSeat>, &mut Rehearsals<'_>),
     request: &CompileRequest,
     mut route: Vec<String>,
     mut out: CompileOutcome,
@@ -761,9 +768,10 @@ pub(super) async fn author<P: ProviderInferDyn>(
         request,
     );
     talk.presented = json!(sent);
+    talk.remember_under(policy);
     // One round count spans the sketch, its fills and every reopening (the last round leaves the
-    // fill its turn).
-    let last = policy.repairs.min(5);
+    // fill its turn), and one rehearsal per candidate they can produce (no count: as many).
+    let (last, attempts) = (policy.repairs, policy.repairs.map(|r| r.saturating_add(2)));
     let mut first = 0;
     loop {
         let (spent, sketched) = propose(
@@ -796,16 +804,17 @@ pub(super) async fn author<P: ProviderInferDyn>(
         );
         // Every exhaustion (no accepted pair, spent evidence, a withdrawal) meets one recovery.
         let door = (intent, reading, policy, request);
-        let (next, seats) = (next_round(&talk), (provider, &mut *rehearsals));
+        let (next, seats) = (next_round(&talk), (provider, decision, &mut *rehearsals));
         let ended = match accepted {
             None => (done, Vec::new()),
-            Some(_) => match examine(door, seats, &mut talk, done, (next, last), last + 2).await {
+            Some(_) => match examine(door, seats, &mut talk, done, (next, last), attempts).await {
                 Step::Done(answer) => return Ok(answer),
                 Step::Withdrawn(done, defects) => (done, defects),
                 Step::Reopen(mut done, defects) => {
-                    if next <= last && reopen(&mut talk, defects.clone(), SKETCH_AGAIN) {
+                    if within(last, next) && reopen(&mut talk, defects.clone(), SKETCH_AGAIN) {
                         // The judge's calls, when it was asked, belong to the door's one journal.
                         (out.provenance.authoring).clone_from(&done.provenance.authoring);
+                        (out.provenance.decision).clone_from(&done.provenance.decision);
                         first = next;
                         continue;
                     }
@@ -814,7 +823,7 @@ pub(super) async fn author<P: ProviderInferDyn>(
                 }
             },
         };
-        let seats = (provider, &mut *rehearsals);
+        let seats = (provider, decision, &mut *rehearsals);
         let recovered = recover::after(door, seats, &mut talk, (&opened, &sent), ended);
         return Ok(Box::pin(recovered).await);
     }
@@ -833,15 +842,15 @@ enum Step {
 
 /// One settled candidate faces its evidence (journalled in the attempt's record and the talk),
 /// then, when nothing there refuses it, the whole-request judgment. Round `next` is the one a
-/// reopening would spend; past `last` a refusal withdraws the candidate. The room admits
-/// `attempts` rehearsals in all: one per candidate the door's rounds can produce.
+/// reopening would spend; past `last` (`None`: no count) a refusal withdraws the candidate. The
+/// room admits `attempts` rehearsals in all (`None`: one per candidate produced).
 async fn examine<P: ProviderInferDyn>(
     (intent, reading, policy, request): (&str, &Reading, &AuthoringPolicy, &CompileRequest),
-    (provider, rehearsals): (&P, &mut Rehearsals<'_>),
+    (provider, decision, rehearsals): (&P, Option<&dyn DecisionSeat>, &mut Rehearsals<'_>),
     talk: &mut Talk,
     mut done: CompileOutcome,
-    (next, last): (u32, u32),
-    attempts: u32,
+    (next, last): (u32, Option<u32>),
+    attempts: Option<u32>,
 ) -> Step {
     let (found, record) = evidence::examined(rehearsals, request, intent, &done, attempts).await;
     if !record.is_null() {
@@ -862,16 +871,22 @@ async fn examine<P: ProviderInferDyn>(
         }
         Evidence::Defect(defect) => Step::Reopen(done, vec![defect]),
         Evidence::Unoffered | Evidence::Open | Evidence::Holds | Evidence::Unknown => {
-            let verdict =
-                super::verify::native_verdict(intent, reading, policy, provider, request, done);
+            let verdict = super::verify::native_verdict(
+                intent,
+                reading,
+                policy,
+                (provider, decision),
+                request,
+                done,
+            );
             match verdict.await {
                 Ok(judged) => Step::Done(judged),
                 Err(judged) => {
                     let (judged, verdict) = *judged;
                     let defects = judge_defects(&verdict.defects);
                     if verdict.defects.is_empty() {
-                        Step::Done(super::verify::withdrawn(judged, &verdict))
-                    } else if next > last {
+                        Step::Done(super::verify::preserve_unjudged(judged, &verdict))
+                    } else if !within(last, next) {
                         Step::Withdrawn(super::verify::withdrawn(judged, &verdict), defects)
                     } else {
                         Step::Reopen(judged, defects)
@@ -906,8 +921,7 @@ fn judge_defects(defects: &[String]) -> Vec<Diagnostic> {
 /// Reopen from evidence: the diagnostics go back with the `tail` instruction (the whole sketch
 /// again, its holes filled after it; or a recovery's whole source); a repeat is no progress.
 fn reopen(talk: &mut Talk, diagnostics: Vec<Diagnostic>, tail: &str) -> bool {
-    if talk.last.as_ref() == Some(&diagnostics) {
-        talk.route.push("native: no progress".to_owned());
+    if !progressed(talk, &diagnostics) {
         return false;
     }
     talk.messages.push(Message::text(
@@ -915,6 +929,20 @@ fn reopen(talk: &mut Talk, diagnostics: Vec<Diagnostic>, tail: &str) -> bool {
         format!("{}{tail}", repair_message(&diagnostics, &talk.repairs)),
     ));
     talk.last = Some(diagnostics);
+    true
+}
+
+/// Whether these findings are new to the talk: the last ones again (or, under no repair count,
+/// any set it already answered) is no progress, routed so; a new set is remembered.
+fn progressed(talk: &mut Talk, diagnostics: &[Diagnostic]) -> bool {
+    let met = |sets: &Vec<Vec<Diagnostic>>| sets.iter().any(|set| set.as_slice() == diagnostics);
+    if talk.last.as_deref() == Some(diagnostics) || talk.answered.as_ref().is_some_and(met) {
+        talk.route.push("native: no progress".to_owned());
+        return false;
+    }
+    if let Some(sets) = talk.answered.as_mut() {
+        sets.push(diagnostics.to_vec());
+    }
     true
 }
 

@@ -4748,6 +4748,7 @@ dependencies = [
  "nika-compile-reader",
  "nika-kernel",
  "nika-pack",
+ "nika-providers",
  "serde",
  "serde_json",
  "serde_yaml_bw",
@@ -5292,6 +5293,7 @@ dependencies = [
  "proptest",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "tokio",
  "url",
 ]

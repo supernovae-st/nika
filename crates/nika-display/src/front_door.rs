@@ -12,6 +12,8 @@ use crate::theme::{Role, Theme};
 
 mod choice;
 mod locus;
+/// Passive recovery and kept-candidate notices.
+pub mod recovery;
 pub use locus::DataLocus;
 /// Pure doctor report presentation over host-prepared cells.
 pub mod doctor;
@@ -550,3 +552,31 @@ pub fn render_chat_only_json(
 
 #[cfg(test)]
 mod tests;
+
+/// The help card — the few survivors, and the law that everything meaningful is reachable in words.
+pub const SESSION_HELP: &str = "text                 describe work to build (« read ./notes, draft a summary, write ./out/summary.md ») · Nika compiles it,
+                     asks what it cannot invent, shows the workflow, and writes it only when you say yes · consent is never a run
+run …                run the workflow you accepted, or one you name (« run brief.nika with a ceiling of 0.05 ») · a paused run asks you
+activate             declare the schedule your request asked for in nika.yaml (Nika asks the time zone, the missed policy, the ceiling) · declared is not active: a firer must run
+text                 ask, in words · these answer from the engine, no AI asked: your workflows · a file's verdict (« is X valid »)
+                     · the builtins · the providers · an example or template for a job · a code (« explain NIKA-… »)
+                     · what Nika calls a node, step, trigger, secret, action · the rest goes to your chosen intelligence, in words
+/intelligence        the AI this session reasons with · asks the first screen again, the next line is your answer
+/status              where you are: the project root, the intelligence and where your context goes, the authoring seat
+/why                 beside a question or a gate: what the answer is for, what it lets happen · nothing is consumed
+/meaning             what Nika kept of your request, clause by clause, from the compiler's own ledger · a proposal still waits
+/proof               after a run: what its trace records (chain · seal · boundary · task hashes) and what it does not prove · judged by `nika trace verify`, never a second walker
+/details             how the last workflow was built: the authoring backend and model, calls, tokens and time, the strategy, the decision seat, the engine and spec identity · advanced, on demand
+/show                while a proposal waits: print its exact bytes (the review shows the boundary)
+/help                this card
+/quit                close the session
+Name a workflow file in your question to let the session read it (only files under the root are ever read).";
+
+/// Kept-round presentation with no validation or replay authority.
+pub mod round;
+
+/// Lifecycle wording from facts selected by the host.
+pub mod status;
+
+/// Passive wording of compiler findings.
+pub mod reasons;

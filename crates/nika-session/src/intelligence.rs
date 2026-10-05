@@ -158,7 +158,7 @@ pub struct IntelligenceCensus {
     /// The API providers whose key is PRESENT in the environment (names
     /// only · the value is never read here).
     pub api_keys: Vec<String>,
-    /// The local engines configured on this machine.
+    /// Configured local routes, including catalog defaults; no reachability is established.
     pub locals: Vec<String>,
 }
 
@@ -245,7 +245,7 @@ impl IntelligenceCensus {
         }
         if !self.locals.is_empty() {
             ways.push(format!(
-                "3 (a local engine is reachable: {})",
+                "3 (configured local routes, not probed: {})",
                 self.locals.join(" · ")
             ));
         }
@@ -296,9 +296,9 @@ impl IntelligenceCensus {
             annotated_keys(&self.api_keys, &crate::authoring::gateway_host)
         };
         let locals = if self.locals.is_empty() {
-            "none reachable".to_owned()
+            "no configured local route (not probed)".to_owned()
         } else {
-            self.locals.join(" · ")
+            format!("configured (not probed): {}", self.locals.join(" · "))
         };
         // A pick may name its model: taught with a provider this machine holds, the way
         // the line is typed (`2 deepseek/<model>`), never offered where nothing serves it.
@@ -359,7 +359,7 @@ impl IntelligenceCensus {
                     Some(n) => split_seat(&n),
                     None => (
                         self.locals.first().cloned().ok_or_else(|| {
-                            "no local engine reachable — start one (ollama · lmstudio · llamacpp · localai · vllm) or pick 1, 2 or 4".to_owned()
+                            "no local route in this configuration — name a configured engine and model, or pick 1, 2 or 4".to_owned()
                         })?,
                         None,
                     ),
@@ -575,7 +575,7 @@ impl ResolvedSessionIntelligence {
                         DataLocus::Local,
                         false,
                         Some(format!(
-                            "`{provider}` is not reachable on this machine — start it, or `/intelligence` to choose another path"
+                            "`{provider}` is not in this local configuration — check the provider configuration, or `/intelligence` to choose another path"
                         )),
                     )
                 }
@@ -643,6 +643,34 @@ mod tests {
         );
         assert_eq!(local.model.as_deref(), Some("ollama/llama3.3"));
         assert_eq!(split_seat("openai/"), ("openai/".to_owned(), None));
+    }
+
+    #[test]
+    fn configured_local_routes_never_claim_a_reachability_probe() {
+        let mut c = census();
+        c.locals = vec!["ollama".to_owned(), "lmstudio".to_owned()];
+        let screen = c.options_screen();
+        assert!(screen.contains("configured (not probed): ollama · lmstudio"));
+        assert!(!screen.contains("reachable"));
+        let ways = c.ways_on();
+        assert!(ways.contains("configured local routes, not probed"));
+        assert!(!ways.contains("reachable"));
+        let selected = c.choose("3 ollama/fixture").expect("explicit selection");
+        assert_eq!(selected.model.as_deref(), Some("ollama/fixture"));
+        assert!(ResolvedSessionIntelligence::resolve(&selected, &c).ready);
+        c.locals.clear();
+        assert!(
+            c.options_screen()
+                .contains("no configured local route (not probed)")
+        );
+        let absent = c.choose("3").expect_err("configuration absent");
+        assert!(absent.contains("no local route in this configuration"));
+        assert!(!absent.contains("reachable"));
+        let absent = ResolvedSessionIntelligence::resolve(&selected, &c);
+        assert!(!absent.ready);
+        let why = absent.why.expect("configuration refusal");
+        assert!(why.contains("not in this local configuration"));
+        assert!(!why.contains("reachable"));
     }
 
     fn census() -> IntelligenceCensus {
@@ -1128,7 +1156,7 @@ mod tests {
         assert!(
             c.choose("3")
                 .expect_err("no local")
-                .contains("no local engine")
+                .contains("no local route in this configuration")
         );
         assert_eq!(c.choose("4").expect("none").kind, IntelligenceKind::None);
         assert!(c.choose("9").is_err());

@@ -31,6 +31,10 @@ pub struct CompileRequest {
     /// The operator states money in the words the compiler reads, on a door that meters no
     /// seat (R4 B15) — see [`Self::with_stated_money`].
     pub stated_money: bool,
+    /// The host meters and shows this preparation's authoring and decision calls itself: an
+    /// admitted ceiling bounds the workflow's Run, never the preparation — see
+    /// [`Self::with_observed_preparation`].
+    pub observed_preparation: bool,
 }
 
 /// One reference a knowledge snapshot recalled for the seat: its kind (`pattern` · `block` ·
@@ -167,6 +171,16 @@ impl CompileRequest {
         self.stated_money = true;
         self
     }
+    /// The host meters and shows every authoring and decision call of this preparation itself
+    /// (an interactive door with its own journal): a monetary ceiling the caller admitted is the
+    /// workflow Run's — recorded, read by no seat as work, enforced where the workflow runs —
+    /// and no longer closes the seats that prepare it. Without it an admitted zero opens no
+    /// seat; a door that meters no seat ([`Self::with_stated_money`]) keeps its own law.
+    #[must_use]
+    pub fn with_observed_preparation(mut self) -> Self {
+        self.observed_preparation = true;
+        self
+    }
     /// The same request with `text` as its complete input: a clarification or any replacement
     /// the caller answered. The monetary spans it admitted index the bytes it read, so they stay
     /// only when `text` is those very bytes; a replacement never inherits them, whatever its own
@@ -196,6 +210,7 @@ impl CompileRequest {
             original_intent: None,
             money: Vec::new(),
             stated_money: false,
+            observed_preparation: false,
         }
     }
 
@@ -221,6 +236,7 @@ impl CompileRequest {
             original_intent: None,
             money: Vec::new(),
             stated_money: false,
+            observed_preparation: false,
         }
     }
 
@@ -257,6 +273,7 @@ impl CompileRequest {
             original_intent: None,
             money: Vec::new(),
             stated_money: false,
+            observed_preparation: false,
         }
     }
 
@@ -550,35 +567,40 @@ impl AuthoringReasoning {
 pub struct AuthoringPolicy {
     pub model: String,
     pub max_tokens: u32,
-    /// Optional first native output limit, within `max_tokens`. A reported truncation
-    /// can raise it using the existing repair count, never beyond the hard ceiling.
+    /// Optional first output limit of each authoring call, within `max_tokens`. A reported
+    /// truncation below the hard ceiling asks the same call once more at `max_tokens`
+    /// (one more request, journaled and charged to the same authority), never beyond it.
     pub initial_max_tokens: Option<u32>,
     pub timeout: std::time::Duration,
     pub samples: u32,
     pub native: NativeMode,
-    pub repairs: u32,
+    /// The repair rounds a candidate may buy: `Some(n)`, a limit the caller selected, run as
+    /// typed; `None` (the default), no count: the rounds end on success, on no progress (a set
+    /// of findings already answered), on a refused or failed call (the request authority, the
+    /// provider) or when the caller stops the compile.
+    pub repairs: Option<u32>,
     /// The explicit reasoning effort every authoring and decision call asks for (R4 B16).
     pub reasoning: Option<AuthoringReasoning>,
-    /// Source recovery rounds an operator explicitly configured (0..=3, default 0: none).
+    /// Source recovery rounds an operator explicitly configured (default 0: none), as typed.
     pub source_recovery: u32,
 }
 impl AuthoringPolicy {
     /// After the sketch door spends its repairs on a CREATE without an accepted candidate, let
-    /// the same seat write the whole source up to `rounds` times (0..=3), each answer judged as
-    /// any candidate and charged to the same request authority. Never a default.
+    /// the same seat write the whole source up to `rounds` times, as typed, each answer judged
+    /// as any candidate and charged to the same request authority. Never a default.
     #[must_use]
     pub fn with_source_recovery(mut self, rounds: u32) -> Self {
-        self.source_recovery = rounds.min(3);
+        self.source_recovery = rounds;
         self
     }
-    /// The source recovery rounds an operator's word names under `strategy` (none named: 0): a
-    /// count in `0..=3`, and rounds only where the sketch door opens (`escalate`, `sketch`).
+    /// The source recovery rounds an operator's word names under `strategy` (none named: 0): any
+    /// count, as typed, and rounds only where the sketch door opens (`escalate`, `sketch`).
     ///
     /// # Errors
-    /// The word itself, when it is no count in range or names rounds under `off` or `only`.
+    /// The word itself, when it is no count or names rounds under `off` or `only`.
     pub fn recovery_rounds(word: Option<&str>, strategy: NativeMode) -> Result<u32, String> {
         let Some(word) = word else { return Ok(0) };
-        let rounds = word.trim().parse::<u32>().ok().filter(|n| *n <= 3);
+        let rounds = word.trim().parse::<u32>().ok();
         let opens = !matches!(strategy, NativeMode::Off | NativeMode::Only);
         rounds
             .filter(|n| *n == 0 || opens)
@@ -598,18 +620,31 @@ impl AuthoringPolicy {
         self.native = native;
         self
     }
-    /// Start native generation below the hard output limit; a completed truncation may
-    /// use a repair to increase it. Zero or a value above `max_tokens` is refused.
+    /// Start each authoring call below the hard output limit; a reported truncation asks the
+    /// same call once more at `max_tokens`. Zero or a value above `max_tokens` is refused.
     #[must_use]
     pub fn with_initial_max_tokens(mut self, initial: u32) -> Self {
         self.initial_max_tokens = Some(initial);
         self
     }
-    /// How many repair rounds a native candidate may buy (0..=5, default 3): one call each.
+    /// A caller-selected limit on the repair rounds a candidate may buy, run as typed: one
+    /// call each. Without it the policy states no count ([`Self::with_unbounded_repairs`]).
     #[must_use]
     pub fn with_repairs(mut self, repairs: u32) -> Self {
-        self.repairs = repairs.min(5);
+        self.repairs = Some(repairs);
         self
+    }
+    /// No count bounds the repair rounds (the default): they end on success, on no progress,
+    /// on a refused or failed call, or when the caller stops the compile.
+    #[must_use]
+    pub fn with_unbounded_repairs(mut self) -> Self {
+        self.repairs = None;
+        self
+    }
+    /// The repair limit the caller selected, `None` when it selected none.
+    #[must_use]
+    pub const fn repair_limit(&self) -> Option<u32> {
+        self.repairs
     }
     /// Ask for `samples` independent proposals (1..=5) and keep the one the others agree
     /// with most; disagreement is recorded, never voted away. Each sample is one call.
@@ -629,7 +664,7 @@ impl AuthoringPolicy {
             timeout,
             samples: 1,
             native: NativeMode::default(),
-            repairs: 3,
+            repairs: None,
             reasoning: None,
             source_recovery: 0,
         }

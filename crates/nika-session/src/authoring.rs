@@ -32,7 +32,6 @@ use std::collections::BTreeMap;
 #[path = "authoring/money_restatement_tests.rs"]
 mod money_restatement_tests;
 use std::sync::Arc;
-use std::time::Duration;
 
 use nika_onboard::compile::{
     AuthoringPolicy, AuthoringReceipt, Cognition, CompileError, CompileOutcome, CompileQuestion,
@@ -40,10 +39,8 @@ use nika_onboard::compile::{
 };
 // The records a compile outcome carries live beside the snapshot door (C7 · D1).
 use nika_onboard::compile::rehearse::Rehearse;
-use nika_onboard::knowledge::pin::{
-    carried_record, composed_record, observed_in, stamp, stamp_seat,
-};
-use nika_providers::authoring::configured_gateway_host;
+use nika_onboard::knowledge::pin::{carried_record, composed_record, observed_in, stamp};
+use nika_providers::authoring::{configured_gateway_host, preparation::PreparationCosts};
 use serde_json::Value;
 
 use crate::intelligence::{IntelligenceKind, ResolvedSessionIntelligence};
@@ -53,7 +50,7 @@ mod context;
 pub(crate) mod decision;
 mod harness;
 pub use context::{AuthoringContext, AuthoringContextError};
-pub use decision::{DECISION_ENV, DECISION_SCHEMA, DecisionSetup, MAX_DECISION_CALLS};
+pub use decision::{DECISION_ENV, DECISION_SCHEMA, DecisionSetup};
 // What an outcome means and the literal a line is live beside the compile unit (C7).
 use nika_onboard::compile::reading::{CLARIFICATION_KEY, clarified};
 pub use nika_onboard::compile::reading::{Reading, literal_for, reasons};
@@ -82,39 +79,22 @@ pub fn gateway_host(provider: &str) -> Option<String> {
 }
 
 pub use nika_providers::authoring::host_of;
-/// The hard output ceiling of one Session authoring call (the compiler's own maximum: a
-/// reasoning seat spends part of it on its reasoning, and a complete candidate needs the rest).
-pub const AUTHORING_MAX_TOKENS: u32 = 32_768;
-/// The first native generation's output limit: a REPORTED truncation spends one of the native
-/// repairs to widen it, up to [`AUTHORING_MAX_TOKENS`] — never a transport retry.
-pub const AUTHORING_INITIAL_TOKENS: u32 = 16_384;
-/// Wall time one Session authoring call may take.
-pub const AUTHORING_TIMEOUT: Duration = Duration::from_secs(180);
-/// The native repair rounds one Session authoring may buy (one call each).
-pub const AUTHORING_REPAIRS: u32 = 3;
-/// The most provider calls one seated Session compile may make under the escalate strategy:
-/// the COLD plan and its one evidence repair (2), then the native candidate (1) and its repairs.
-/// The turn's classification is one more call outside the compile; a fresh unknown-cost review
-/// admits exactly those (`SESSION_REVIEW_MAX_REQUESTS`).
-pub const AUTHORING_CALLS_PER_COMPILE: u32 = 2 + 1 + AUTHORING_REPAIRS;
+pub use nika_providers::authoring::policy::{
+    AUTHORING_CALLS_PER_COMPILE, AUTHORING_INITIAL_TOKENS, AUTHORING_MAX_TOKENS, AUTHORING_REPAIRS,
+    AUTHORING_TIMEOUT,
+};
 
-/// The one policy a Session seat authors under: the hard ceiling, the first native limit, the
-/// deadline (a subscription harness keeps its own longer one), the native repairs and the
-/// session's strategy.
+/// Continuous preparation uses the selected route's technical limits; no internal repair count.
+/// The effective provider configuration is the same one used by the transport.
 #[must_use]
 pub fn session_policy(model: &str, harness: bool, strategy: NativeMode) -> AuthoringPolicy {
-    AuthoringPolicy::new(
+    nika_onboard::compile::seat::preparation_policy(
         model,
-        AUTHORING_MAX_TOKENS,
-        if harness {
-            Duration::from_secs(300)
-        } else {
-            AUTHORING_TIMEOUT
-        },
+        harness,
+        strategy,
+        crate::reasoner::provider_config(),
+        PreparationCosts::active(),
     )
-    .with_initial_max_tokens(AUTHORING_INITIAL_TOKENS)
-    .with_repairs(AUTHORING_REPAIRS)
-    .with_native(strategy)
 }
 
 /// The cognition the compiler may use for this session's authoring —
@@ -246,6 +226,9 @@ impl AuthoringSeat {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum AuthoringError {
+    /// Stop discarded the in-flight preparation result; no new proposal was accepted.
+    #[error("preparation stopped; conversation kept; any sent request may still be billed")]
+    Cancelled,
     /// The compiler's own machinery failure (a corrupt skeleton · representation).
     #[error("the compiler could not represent the candidate: {0}")]
     Compiler(#[from] CompileError),
@@ -676,6 +659,9 @@ fn compile_attached(
     let harness = matches!(seat, AuthoringSeat::Harness { .. });
     let policy =
         session_policy(&model, harness, context.strategy()).with_source_recovery(context.recovery);
+    if PreparationCosts::active() {
+        request = request.with_observed_preparation();
+    }
     // Every authoring and repair call asks the named effort; the caps stay the policy's (R4 B16).
     request = request.with_authoring_policy(match context.reasoning() {
         Some(level) => policy.with_reasoning(level),
@@ -693,7 +679,16 @@ fn compile_attached(
             seat,
             model,
             transport,
-        } => harness::compile(seat, model.as_deref(), *transport, &request, host)?,
+        } => harness::compile(
+            seat,
+            model.as_deref(),
+            *transport,
+            &request,
+            context
+                .decision()
+                .map(|s| s.consult(decision::admit(admission))),
+            host,
+        )?,
         _ => seated(&model, &request, admission, context.decision(), host)?,
     };
     let knowledge = match (attach, &pack, context.knowledge()) {
@@ -722,7 +717,7 @@ fn seated(
 ) -> Result<CompileOutcome, AuthoringError> {
     // The operator-selected decision seat for this ONE compile: consulted by the compiler only
     // for a finite ambiguity (WARM), charged only on the no-budget observation; a need met under
-    // a numeric allowance is refused and recorded, never claimed as used.
+    // A supplied monetary account keeps its strict law; interactive observations stay separate.
     let consulted = selected.map(|setup| setup.consult(decision::admit(admission)));
     // The provider plane's client (SSRF off · the transport ceiling), as
     // the conversation's reasoner and the engine's run path use.
@@ -736,13 +731,9 @@ fn seated(
     let provider = registry
         .resolve(model)
         .map_err(|e| AuthoringError::Seat(e.to_string()))?;
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .map_err(|e| AuthoringError::Runtime(e.to_string()))?;
     // The compile future carries a whole `CompileOutcome`: boxed so this
     // frame stays small (clippy::large_futures), as the CLI host does.
-    let mut out = runtime.block_on(Box::pin(compile_with_cognition_rehearsed(
+    let mut out = complete(Box::pin(compile_with_cognition_rehearsed(
         request,
         Cognition {
             provider: Some(&provider),
@@ -751,22 +742,8 @@ fn seated(
                 .map(|seat| seat as &dyn nika_onboard::compile::decide::DecisionSeat),
         },
         host,
-    )))?;
-    // What the seat was asked, sent, answered or refused, beside the compiler's own record of
-    // the same questions. A separate backend: a named level is never sent to it nor claimed (B19).
-    if let Some(mut receipt) = consulted.as_ref().and_then(decision::SessionSeat::receipt) {
-        if let Some(level) = request
-            .authoring
-            .as_ref()
-            .and_then(|policy| policy.reasoning)
-        {
-            receipt["reasoning_effort"] = Value::from(format!(
-                "not applicable · the named level `{}` rides the LLM calls only; the TypeSafe request carries no effort",
-                level.word()
-            ));
-        }
-        stamp_seat(&mut out, receipt);
-    }
+    )))??;
+    decision::finish(&mut out, request, consulted);
     // The receipt names its backend as the CLI's does, with the host the
     // calls really went to (an overridden base URL is a gateway: said).
     if let Some(receipt) = out.provenance.authoring.as_mut() {
@@ -775,6 +752,16 @@ fn seated(
             .get_or_insert_with(|| nika_cli_host::compile::authoring_backend(&registry, model));
     }
     Ok(out)
+}
+
+// Both subscription and API compilation use the Session's one async driver and Stop boundary.
+fn complete<F: std::future::Future>(future: F) -> Result<F::Output, AuthoringError> {
+    crate::reasoner::block_on(nika_onboard::activity::observe(future)).map_err(
+        |error| match error {
+            crate::reasoner::ReasonError::Cancelled => AuthoringError::Cancelled,
+            other => AuthoringError::Runtime(other.to_string()),
+        },
+    )
 }
 
 #[cfg(test)]

@@ -6,7 +6,7 @@
 //! harness through ACP (`<harness>/<model>`); `--decision-model` seats one bounded-choice
 //! capability (WARM): `typesafe/<jev>` through System One, any other `provider/name` through
 //! a closed JSON-schema enum.
-use super::{authoring_http, config};
+use super::{authoring_http_with_deadline, config};
 use nika_kernel::ai::provider::ProviderInferDyn;
 use nika_kernel::http::HttpPostDyn;
 use nika_onboard::compile::authority::{Authority, Envelope, Seat, Wire, usage_complete};
@@ -24,24 +24,44 @@ fn names_a_harness(args: &super::CompileArgs) -> bool {
     })
 }
 
-/// The per-call bounds every call keeps (the shared producer's: the operator's caps, else the
-/// defaults) and the request with its authoring policy when a seat is named: the strategy and
+/// The per-call bounds every call keeps (the operator's, else the provider-owned route
+/// capacity) and the request with its authoring policy when a seat is named: the strategy and
 /// reasoning effort the configuration resolved (the flags over the environment), with the
 /// operator's samples and repairs.
 fn with_policy(
     request: &CompileRequest,
     args: &super::CompileArgs,
     config: &config::AuthoringConfig,
+    providers: nika_providers::ProvidersConfig,
 ) -> Result<(CompileRequest, (u32, Duration)), String> {
-    let timeout = args.authoring_timeout.map(Duration::from_secs);
-    let bounds = config::call_bounds(args.authoring_max_tokens, timeout, names_a_harness(args))?;
+    let model = args
+        .authoring_model
+        .as_deref()
+        .or(args.decision_model.as_deref())
+        .unwrap_or("");
+    let route = nika_providers::authoring::policy::completion_bounds(
+        model,
+        names_a_harness(args),
+        providers,
+    );
+    let bounds = (
+        args.authoring_max_tokens.unwrap_or(route.max_tokens),
+        args.authoring_timeout
+            .map_or(route.timeout, Duration::from_secs),
+    );
+    config::check_call_bounds(bounds.0, bounds.1)?;
     let Some(model) = args.authoring_model.as_deref() else {
         return Ok((request.clone(), bounds));
     };
     let policy = config
         .policy(model, bounds.0, bounds.1)?
-        .with_samples(args.authoring_samples.unwrap_or(1))
-        .with_repairs(args.authoring_repairs.unwrap_or(config::DEFAULT_REPAIRS));
+        .with_initial_max_tokens(route.initial_tokens.min(bounds.0))
+        .with_samples(args.authoring_samples.unwrap_or(1));
+    // A typed repair limit runs as typed; none typed keeps the policy's own default: no count.
+    let policy = match args.authoring_repairs {
+        Some(repairs) => policy.with_repairs(repairs),
+        None => policy,
+    };
     Ok((request.clone().with_authoring_policy(policy), bounds))
 }
 
@@ -86,8 +106,7 @@ fn decision_seat_note(model: &str) -> &'static str {
 }
 
 /// Compile under the seats the flags name. The caps are every door's (the operator's, else the
-/// defaults: a reasoning seat spends its cap on its reasoning, so the default is the policy's
-/// ceiling, never a thrifty guess; a harness waits 300 s), and never move with the effort; the
+/// selected route's technical capacity and deadline), and never move with the effort; the
 /// decision call asks the same effort under the declared authoring cap (R4 B16).
 pub(super) fn compile(
     request: &CompileRequest,
@@ -96,19 +115,20 @@ pub(super) fn compile(
     authority: &Authority,
     capture_flags: &super::CaptureFlags,
 ) -> Result<CompileOutcome, String> {
-    let (request, (max_tokens, timeout)) = with_policy(request, args, config)?;
+    let providers = nika_runtime::compose::config_from_env();
+    let (request, (max_tokens, timeout)) = with_policy(request, args, config, providers.clone())?;
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .map_err(|e| e.to_string())?;
     runtime.block_on(async {
-        let registry = provider_registry()?;
+        let registry = provider_registry(providers.clone())?;
         let invocations = authority.envelope();
         let requests = authority.envelope();
         let harness = harness_seat(args)?.map(|seat| Seat::new(seat, invocations.clone()));
         let (provider, backend) = match args.authoring_model.as_deref() {
             Some(model) if harness.is_none() => {
-                let registry = authoring_registry(requests.clone())?;
+                let registry = authoring_registry(requests.clone(), providers.clone(), timeout)?;
                 let backend = super::authoring_backend(&registry, model);
                 let seat = registry.resolve(model).map_err(|e| e.to_string())?;
                 (Some(Seat::new(seat, invocations.clone())), Some(backend))
@@ -163,11 +183,14 @@ pub(super) fn compile(
         let wire = harness.is_none().then_some(requests.as_ref());
         let mut account = authority.record(&invocations, wire);
         // An explicit source recovery draws on this same allowance (`max_calls`): the theoretical
-        // worst case is stated with and without its requests, the allowance never raised.
+        // worst case is stated with and without its requests (null when none is finite), the
+        // allowance never raised.
         if config.source_recovery > 0 {
             let extra = nika_onboard::compile::authority::recovery_requests(config.source_recovery);
             let configured = &mut account["configured"];
-            let bound = configured["worst_case"].as_u64().unwrap_or(0) + u64::from(extra);
+            let bound = configured["worst_case"]
+                .as_u64()
+                .map(|w| w + u64::from(extra));
             configured["worst_case_with_recovery"] = bound.into();
             configured["recovery_requests"] = extra.into();
             configured["source_recovery"] = config.source_recovery.into();
@@ -222,15 +245,18 @@ async fn seated<H: ProviderInferDyn, P: ProviderInferDyn>(
     }
 }
 
-/// The registry of the authoring seat: the shared authoring transport, under the authority's
-/// wire counter (the decision seat keeps its own authority and client).
+/// The registry of the authoring seat: the shared authoring transport at the call's own
+/// `deadline`, under the authority's wire counter (the decision seat keeps its own authority and
+/// client).
 fn authoring_registry(
     requests: Arc<Envelope>,
+    providers: nika_providers::ProvidersConfig,
+    deadline: Duration,
 ) -> Result<nika_providers::ProviderRegistry<Wire<impl HttpPostDyn>>, String> {
-    let http = authoring_http().map_err(|e| e.to_string())?;
+    let http = authoring_http_with_deadline(deadline).map_err(|e| e.to_string())?;
     Ok(nika_providers::ProviderRegistry::new(
         Arc::new(Wire::new(http, requests)),
-        nika_runtime::compose::config_from_env(),
+        providers,
     ))
 }
 
@@ -241,11 +267,13 @@ fn authoring_registry(
 /// `--authoring-timeout` asked, and refused a loopback seat outright. Reached only AFTER the
 /// explicit opt-in; it does not probe a keychain, select a provider, or resolve business
 /// credentials.
-fn provider_registry() -> Result<nika_providers::ProviderRegistry<nika_http::ReqwestHttp>, String> {
+fn provider_registry(
+    providers: nika_providers::ProvidersConfig,
+) -> Result<nika_providers::ProviderRegistry<nika_http::ReqwestHttp>, String> {
     let http = nika_runtime::compose::provider_http().map_err(|e| e.to_string())?;
     Ok(nika_providers::ProviderRegistry::new(
         Arc::new(http),
-        nika_runtime::compose::config_from_env(),
+        providers,
     ))
 }
 
@@ -291,8 +319,124 @@ fn typesafe_seat(
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
-    use super::decision_seat_note;
+    use super::*;
+    use clap::Parser as _;
+    use nika_providers::ProvidersConfig;
+
+    #[derive(clap::Parser)]
+    struct Door {
+        #[command(flatten)]
+        args: super::super::CompileArgs,
+    }
+
+    fn request(argv: &[&str], providers: ProvidersConfig) -> Result<CompileRequest, String> {
+        let door = Door::try_parse_from(
+            ["compile", "create a report"]
+                .into_iter()
+                .chain(argv.iter().copied()),
+        )
+        .unwrap();
+        let settings = config::AuthoringSettings::none();
+        let config = config::resolve(&settings, &settings).unwrap();
+        super::with_policy(
+            &CompileRequest::create("create a report"),
+            &door.args,
+            &config,
+            providers,
+        )
+        .map(|(request, _)| request)
+    }
+
+    #[test]
+    fn defaults_follow_the_exact_route_and_do_not_bound_repairs() {
+        let args = ["--authoring-model", "deepseek/deepseek-v4-pro"];
+        let direct = request(&args, ProvidersConfig::new())
+            .unwrap()
+            .authoring
+            .unwrap();
+        assert_eq!(
+            (direct.max_tokens, direct.initial_max_tokens),
+            (393_216, Some(131_072))
+        );
+        assert_eq!(direct.timeout, Duration::from_secs(600));
+        assert_eq!(direct.repairs, None);
+        let gateway = request(
+            &args,
+            ProvidersConfig::new()
+                .with_base_url("deepseek", "https://gateway.invalid/v1/chat/completions"),
+        )
+        .unwrap()
+        .authoring
+        .unwrap();
+        assert_eq!(
+            (gateway.max_tokens, gateway.initial_max_tokens),
+            (32_768, Some(16_384))
+        );
+        let scaleway = request(
+            &["--authoring-model", "openai/gpt-oss-120b"],
+            ProvidersConfig::new()
+                .with_base_url("openai", "https://api.scaleway.ai/v1/chat/completions"),
+        )
+        .unwrap()
+        .authoring
+        .unwrap();
+        assert_eq!(scaleway.max_tokens, 32_768);
+    }
+
+    #[test]
+    fn explicit_large_output_and_repairs_are_kept_not_clamped() {
+        let args = [
+            "--authoring-model",
+            "deepseek/deepseek-v4-pro",
+            "--authoring-max-tokens",
+            "65536",
+            "--authoring-repairs",
+            "9",
+            "--authoring-timeout",
+            "42",
+        ];
+        let policy = request(&args, ProvidersConfig::new())
+            .unwrap()
+            .authoring
+            .unwrap();
+        assert_eq!(
+            (policy.max_tokens, policy.initial_max_tokens),
+            (65_536, Some(65_536))
+        );
+        assert_eq!(policy.timeout, Duration::from_secs(42));
+        assert_eq!(policy.repairs, Some(9));
+        assert!(
+            request(
+                &[
+                    "--authoring-model",
+                    "mock/echo",
+                    "--authoring-max-tokens",
+                    "0"
+                ],
+                ProvidersConfig::new()
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn clap_accepts_the_full_repair_type_and_harness_defaults_are_route_owned() {
+        let request = request(
+            &[
+                "--authoring-model",
+                "codex/default",
+                "--authoring-repairs",
+                "4294967295",
+            ],
+            ProvidersConfig::new(),
+        )
+        .unwrap();
+        let policy = request.authoring.unwrap();
+        assert_eq!(policy.repairs, Some(u32::MAX));
+        assert_eq!(policy.timeout, Duration::from_secs(600));
+    }
 
     #[test]
     fn the_receipt_names_the_client_of_the_seated_decision_model() {

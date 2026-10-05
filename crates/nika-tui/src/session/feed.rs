@@ -13,6 +13,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Sender, SyncSender};
 use std::sync::{Arc, Mutex};
 
+use nika_display::activity::Activity;
 use nika_display::run_story::{RunFrame, RunSink};
 
 use super::legs::Legs;
@@ -41,6 +42,9 @@ pub enum Observed {
     },
     /// One typed frame of the run's stream.
     Frame(RunFrame),
+    /// One typed activity the Session reported while the turn works: the
+    /// shell's activity card and busy row read it; no run leg does.
+    Activity(Activity),
 }
 
 /// What could not reach the shell during one turn, counted beside the queue.
@@ -137,6 +141,17 @@ impl Feed {
     /// The busy row's sender: what a story-only runner is told.
     pub(crate) fn busy(&self) -> &Sender<String> {
         &self.busy
+    }
+
+    /// One typed activity of the Session: to the shell's queue when it lent
+    /// one, typed; otherwise its line to the busy row, as before.
+    pub(crate) fn activity(&self, activity: &Activity) {
+        match &self.seen {
+            Some(seen) => seen.tell(Observed::Activity(activity.clone())),
+            None => {
+                let _ = self.busy.send(activity.line());
+            }
+        }
     }
 }
 

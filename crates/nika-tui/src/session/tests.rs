@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-//! The live conversation over the actual Session runtime: its one-time
-//! unknown-cost choice is a fresh spending question, and a retained Run review
-//! keeps its contract. Hermetic mechanics only: the stub route never answers
-//! and no socket opens, so no model, billing or UX is qualified here.
+//! The live conversation over the actual Session runtime: preparation is
+//! continuous (no cost question; cost is observed, unknown stays unknown),
+//! and a retained Run review keeps its own fresh cost question and contract.
+//! Hermetic mechanics only: the stub route never answers and no socket opens,
+//! so no model, billing or UX is qualified here.
 #![allow(clippy::expect_used, clippy::panic)]
 use super::*;
 use nika_cli_host::lane::{ChildSlot, drive_reviewed_child};
@@ -38,9 +39,9 @@ impl Drop for Room {
     }
 }
 
-/// The selected unpriced route: it opts into admission, so the Session asks
-/// its cost question, but carries no admission seam of its own. It counts
-/// every unmetered call, which must never happen.
+/// The selected unpriced route. Continuous preparation calls it with no cost
+/// question; it refuses every call and counts each one, so a test can tell a
+/// turn that reached it from one answered locally.
 struct Route(Arc<AtomicUsize>);
 
 impl SessionReasoner for Route {
@@ -159,106 +160,73 @@ fn waits(beats: &[Beat]) -> Option<Waiting> {
     })
 }
 
+/// Continuous preparation asks no cost question: an unpriced route is reached
+/// once for the line, nothing waits for a spending answer, the next line is not
+/// fresh-only, and what is said keeps the Run's own budget apart.
 #[test]
-fn the_session_cost_question_is_fresh_and_its_details_answer_nothing() {
-    let room = Room::new("details");
-    let unmetered = Arc::new(AtomicUsize::new(0));
-    let mut live = session_live(&room, &unmetered);
+fn continuous_preparation_asks_no_cost_question_and_keeps_run_apart() {
+    let room = Room::new("continuous");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut live = session_live(&room, &calls);
     assert!(!live.fresh_input_required());
-    let asked = live.submit("hello").beats;
-    let first = question(&asked);
+    let beats = live.submit("hello").beats;
     assert!(
-        first.starts_with("Fresh authoring cost decision · this request only;"),
-        "{first}"
+        said(&beats).iter().all(|(kind, _)| *kind != Kind::Question),
+        "{beats:?}"
     );
-    for fact in [
-        "USD cost is unknown",
-        "At most 7 requests",
-        "32768 output tokens",
-        "180 seconds",
-        "no hard cap is overridden",
-    ] {
-        assert!(first.contains(fact), "{fact}: {first}");
-    }
-    assert!(
-        first.ends_with("\nContinue once? yes / no / details"),
-        "{first}"
-    );
-    assert_eq!(first.matches("Continue once?").count(), 1, "{first}");
-    assert!(!first.contains("candidate"), "{first}");
+    assert_eq!(waits(&beats), Some(Waiting::Free));
+    assert!(!live.fresh_input_required());
     assert_eq!(
-        waits(&asked),
-        Some(Waiting::Question {
-            key: "unknown_cost".to_owned()
-        })
+        calls.load(Ordering::SeqCst),
+        1,
+        "reached once, without a gate"
     );
-    assert!(live.fresh_input_required());
+    let text = joined(&beats);
+    assert!(!text.contains("Continue once?"), "{text}");
+    assert!(text.contains("Run has its own budget"), "{text}");
     assert_eq!(
-        live.busy_label("yes").as_deref(),
-        Some("answering the fresh authoring cost question")
+        live.busy_label("hello again").as_deref(),
+        Some("working through your words")
     );
-    let details = question(&live.submit("details").beats);
-    for evidence in [
-        "candidate ",
-        "invocation session:",
-        "origin https://",
-        "host ",
-    ] {
-        assert!(details.contains(evidence), "{evidence}: {details}");
-    }
-    assert!(
-        !details.contains("endpoint "),
-        "the route is named by origin: {details}"
-    );
-    assert_eq!(
-        question(&live.submit(" DETAILS ").beats),
-        details,
-        "the same review, unchanged"
-    );
-    assert!(live.fresh_input_required(), "reading the details answered");
-    assert_eq!(unmetered.load(Ordering::SeqCst), 0);
 }
 
+/// With no decision waiting, an interruption after a preparation cancels
+/// nothing and sends nothing.
 #[test]
-fn an_interruption_cancels_the_session_choice_and_sends_nothing() {
+fn an_interruption_after_a_preparation_cancels_nothing_and_sends_nothing() {
     let room = Room::new("cancel");
-    let unmetered = Arc::new(AtomicUsize::new(0));
-    let mut live = session_live(&room, &unmetered);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut live = session_live(&room, &calls);
     let _ = live.submit("hello");
-    assert!(live.fresh_input_required());
-    let cancelled = live.cancel_pending();
-    let text = joined(&cancelled);
-    assert!(text.contains("cancelled; nothing sent"), "{text}");
-    assert_eq!(waits(&cancelled), Some(Waiting::Free));
-    assert!(!live.fresh_input_required());
     assert!(
         live.cancel_pending().is_empty(),
-        "a second interruption finds nothing to cancel"
+        "nothing waits: nothing to cancel"
     );
-    let late = joined(&live.submit("yes").beats);
-    assert!(late.contains("nothing waits for a yes or a no"), "{late}");
     assert!(!live.fresh_input_required());
-    assert_eq!(unmetered.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "the interruption sent nothing"
+    );
 }
 
+/// With nothing waiting, a bare yes (in either language) answers nothing and
+/// never reaches the route: no hidden approval survives a preparation.
 #[test]
-fn only_a_fresh_yes_after_the_question_reaches_the_admission_seam_once() {
+fn a_bare_yes_after_a_preparation_answers_nothing_and_calls_nothing() {
     let room = Room::new("yes");
-    let unmetered = Arc::new(AtomicUsize::new(0));
-    let mut live = session_live(&room, &unmetered);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut live = session_live(&room, &calls);
     let _ = live.submit("hello");
-    // This route has no seam of its own: the Session's default seam refuses
-    // the one admitted call, so reaching it is the evidence of the approval.
-    let answered = joined(&live.submit("yes").beats);
-    assert!(answered.contains("no catalog admission seam"), "{answered}");
-    assert!(!live.fresh_input_required());
-    let again = joined(&live.submit("yes").beats);
-    assert!(again.contains("nothing waits for a yes or a no"), "{again}");
-    assert_eq!(
-        unmetered.load(Ordering::SeqCst),
-        0,
-        "an approval never falls back to an unmetered call"
-    );
+    for line in ["yes", "oui"] {
+        let late = joined(&live.submit(line).beats);
+        assert!(
+            late.contains("nothing waits for a yes or a no"),
+            "{line}: {late}"
+        );
+        assert!(!live.fresh_input_required());
+    }
+    assert_eq!(calls.load(Ordering::SeqCst), 1, "a yes is never sent");
 }
 
 #[test]
@@ -479,32 +447,35 @@ fn a_declined_run_review_is_not_run_and_nothing_carries() {
     );
 }
 
-/// The Session's own one-time choice reads the same grammar: an unknown line
-/// is asked again (never cancelled), `/help` is local, `oui` approves once,
-/// and the unknown-cost route is never called unmetered.
+/// After a preparation, `/help` is answered locally and calls nothing, while a
+/// new line of work is prepared again at once: no question stands between the
+/// human and the next attempt. An ambiguous line asks its routing label and reply.
 #[test]
-fn the_session_choice_asks_an_unknown_line_again_and_keeps_help_local() {
-    let room = Room::new("choice-unknown");
-    let unmetered = Arc::new(AtomicUsize::new(0));
-    let mut live = session_live(&room, &unmetered);
+fn help_stays_local_and_a_new_line_is_prepared_again_without_a_question() {
+    let room = Room::new("again");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut live = session_live(&room, &calls);
     let _ = live.submit("hello");
-    let again = question(&live.submit("peut-être").beats);
-    assert!(
-        again.contains("« peut-être » is not a yes or a no · nothing was sent"),
-        "{again}"
-    );
-    assert!(
-        again.ends_with("\nContinue once? yes / no / details"),
-        "{again}"
-    );
-    assert!(live.fresh_input_required());
     let help = joined(&live.submit("/help").beats);
     assert!(help.contains("/details"), "{help}");
-    assert!(live.fresh_input_required(), "/help cancelled the review");
-    let answered = joined(&live.submit("oui").beats);
-    assert!(answered.contains("no catalog admission seam"), "{answered}");
+    assert_eq!(calls.load(Ordering::SeqCst), 1, "/help reached the route");
+    let again = live.submit("peut-être").beats;
+    assert!(
+        said(&again).iter().all(|(kind, _)| *kind != Kind::Question),
+        "{again:?}"
+    );
+    assert!(joined(&again).contains("« peut-être »"), "{again:?}");
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        3,
+        "the greeting asked a reply; the new line asks its label and reply"
+    );
+    assert_eq!(
+        live.runtime.as_ref().expect("open runtime").routes().len(),
+        1,
+        "only the ambiguous line needed one routing decision"
+    );
     assert!(!live.fresh_input_required());
-    assert_eq!(unmetered.load(Ordering::SeqCst), 0);
 }
 
 /// The transcript an actual beginner produces at a Run review: a worried
@@ -601,20 +572,28 @@ fn yes_qualified_lines_never_approve_a_run_review() {
     }
 }
 
-/// Slash commands while the Session's own cost choice waits answer locally
-/// and keep it waiting; nothing reaches the unknown-cost route.
+/// Read-only slash commands after a preparation answer from the Session's own
+/// facts: each says something, none is a spending question, and none reaches
+/// the route.
 #[test]
-fn slash_commands_keep_the_session_choice_waiting() {
-    let room = Room::new("choice-slash");
-    let unmetered = Arc::new(AtomicUsize::new(0));
-    let mut live = session_live(&room, &unmetered);
+fn slash_commands_after_a_preparation_answer_locally() {
+    let room = Room::new("slash");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut live = session_live(&room, &calls);
     let _ = live.submit("hello");
     for line in ["/help", "/status", "/details", "/why"] {
         let said = joined(&live.submit(line).beats);
         assert!(!said.is_empty(), "{line}: nothing said");
-        assert!(live.fresh_input_required(), "{line} ended the choice");
+        assert!(
+            !live.fresh_input_required(),
+            "{line} opened a spending question"
+        );
     }
-    assert_eq!(unmetered.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "a slash command reached the route"
+    );
 }
 
 /// A declined review has no effect: no reply, no trace, and the status line
@@ -1090,4 +1069,27 @@ fn the_earlier_run_gives_way_to_a_run_or_a_question_here() {
     let alone = footer_beats(lifecycle, String::new(), kept.as_ref(), true);
     let note = "last run of `reorder.nika` ✓ exit 0 in an earlier session";
     assert_eq!(alone[1], Beat::Status(note.to_owned()));
+}
+
+/// Each turn arms its own stop from the Session's preparation token. It
+/// cancels that preparation, never a Run the same turn handed to its runner,
+/// and a Run of an earlier turn does not reach a later turn's stop. Arming
+/// calls no model and sends nothing.
+#[test]
+fn a_turn_stop_cancels_its_preparation_and_never_a_run() {
+    let room = Room::new("stopper");
+    let mut live = run_live(&room);
+    let stop = live.stopper().expect("an open runtime arms a stop");
+    assert_eq!(stop(), Stopping::Requested);
+    let stop = live.stopper().expect("each turn arms its own");
+    live.run_started.store(true, Ordering::Release);
+    assert_eq!(stop(), Stopping::RunUnderway);
+    assert_eq!(
+        stop(),
+        Stopping::RunUnderway,
+        "asked again, still not stopped"
+    );
+    let fresh = live.stopper().expect("a later turn");
+    assert_eq!(fresh(), Stopping::Requested);
+    assert!(!room.0.join("reply.json").exists(), "nothing ran");
 }

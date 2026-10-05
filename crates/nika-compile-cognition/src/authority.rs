@@ -2,8 +2,8 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The authority over a seat's requests. A repair count is not an authority (pack 94): the door
-//! that seats a model also states how many requests it may be sent, and these counters hold
-//! that number. [`Seat`] counts the invocations of any seat; [`Wire`] counts the physical
+//! may state an explicit request bound, and these counters enforce it. Without one they still
+//! count every request. [`Seat`] counts the invocations of any seat; [`Wire`] counts the physical
 //! requests of a direct API seat where its bytes leave, so a transport retry or a
 //! structured-output fallback inside one invocation is a request too. A seat whose own requests
 //! cannot be observed (an agent harness) is bounded by its invocations alone. A request past the
@@ -12,18 +12,21 @@
 //! of this core can ask for, and [`Authority`] resolves a door's bound against what its caller
 //! typed, before any request. The counters bound requests, never dollars.
 
-use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use nika_kernel::ai::provider::{InferRequest, InferResponse, ProviderError, ProviderInferDyn};
-use nika_kernel::http::{HttpError, HttpPostDyn, HttpRequest, HttpResponse, HttpStreamResponse};
 use serde_json::{Value, json};
 
 use crate::NativeMode;
 
-/// The worst-case authoring requests a configuration can make, the verifier's included (R4 A11,
-/// nv1b), so the review a caller signs bounds every request a compile sends. With `s` samples and
-/// `r` repairs clamped to [`SAMPLES`] and [`REPAIRS`]:
+/// The physical request counters a seat runs under, owned by the provider layer: [`Envelope`]
+/// holds a bound (or none) and counts, [`Seat`] counts a seat's invocations, [`Wire`] a direct
+/// API seat's requests. This authority resolves which bound they hold.
+pub use nika_providers::authoring::requests::{Envelope, Seat, Wire};
+
+/// The worst-case author requests a configuration can make, the author-provider verifier's
+/// included (R4 A11, nv1b), for comparison with an explicit allowance. A separately selected
+/// decision seat keeps its own request observations. With `s` samples
+/// clamped to [`SAMPLES`] and `r` repairs as the policy holds them:
 /// - an edit's native revision: the candidate and its repairs, then the whole-request judgment
 ///   and its locate question (`verify::WHOLE_QUESTIONS`, 2): `3 + r`;
 /// - the sketch door: the sketch, its fills and `r` repairs (a fill, or the graph reproposed),
@@ -33,36 +36,61 @@ use crate::NativeMode;
 ///   judgment (2) and one transform synthesis of at most `transform::MAX_CALLS` (2) questions;
 ///   each of the `r` verify repairs is one call, and the transform repairs share one allowance of
 ///   `r`: `2s + 12 (1 + r) + 2r = 2s + 14r + 12`;
-/// - escalate: COLD, then the sketch door with one repair less (`3 + r`; none when `r` is 0);
+/// - escalate: COLD, then the sketch door with one repair less (`3r + 1`; none when `r` is 0);
 /// - only: no request for a creation, which this core no longer authors as whole source.
+///
+/// Arithmetic saturates rather than overflows. With no repair count, the worst case is not
+/// finite where repairs can add requests; otherwise it stays fixed ([`worst_case_of`]).
 #[must_use]
 pub fn worst_case(strategy: NativeMode, samples: u32, repairs: u32, edit: bool) -> u32 {
     let samples = samples.clamp(*SAMPLES.start(), *SAMPLES.end());
-    let repairs = repairs.clamp(*REPAIRS.start(), *REPAIRS.end());
     let count = |questions: usize| u32::try_from(questions).unwrap_or(u32::MAX);
     let judged = count(crate::cognition::WHOLE_QUESTIONS);
-    let native = 1 + repairs + judged;
-    let sketch = |repairs: u32| repairs + 2 + judged * (1 + repairs);
+    let rounds = |repairs: u32| repairs.saturating_add(1);
+    let native = rounds(repairs).saturating_add(judged);
+    let sketch = |repairs: u32| {
+        (repairs.saturating_add(2)).saturating_add(judged.saturating_mul(rounds(repairs)))
+    };
     let attempt = count(crate::cognition::CLAUSE_QUESTIONS)
-        + judged
-        + count(crate::cognition::TRANSFORM_QUESTIONS);
-    let cold = 2 * samples + (1 + repairs) * attempt + 2 * repairs;
+        .saturating_add(judged)
+        .saturating_add(count(crate::cognition::TRANSFORM_QUESTIONS));
+    let cold = (samples.saturating_mul(2))
+        .saturating_add(rounds(repairs).saturating_mul(attempt))
+        .saturating_add(repairs.saturating_mul(2));
     match strategy {
         NativeMode::Off if edit => 0,
         NativeMode::Off => cold,
         _ if edit => native,
         NativeMode::Only => 0,
         NativeMode::Sketch => sketch(repairs),
-        _ => cold + repairs.checked_sub(1).map_or(0, sketch),
+        _ => cold.saturating_add(repairs.checked_sub(1).map_or(0, sketch)),
+    }
+}
+
+/// The worst case of a policy's own repair limit: [`worst_case`] under a typed limit; under no
+/// count (`None`), `None` wherever a repair buys a request (no finite worst case exists), else
+/// the count no repair changes.
+#[must_use]
+pub fn worst_case_of(
+    strategy: NativeMode,
+    samples: u32,
+    repairs: Option<u32>,
+    edit: bool,
+) -> Option<u32> {
+    match repairs {
+        Some(repairs) => Some(worst_case(strategy, samples, repairs, edit)),
+        None if worst_case(strategy, 1, 1, edit) > worst_case(strategy, 1, 0, edit) => None,
+        None => Some(worst_case(strategy, samples, 0, edit)),
     }
 }
 
 /// The requests an explicit source recovery adds to [`worst_case`] for a creation: the source and
 /// the whole-request judgment per round (`1 + 2`), drawn from the same authority, never beside it.
+/// The rounds count as typed.
 #[must_use]
 pub fn recovery_requests(rounds: u32) -> u32 {
     let judged = u32::try_from(crate::cognition::WHOLE_QUESTIONS).unwrap_or(u32::MAX);
-    rounds.min(3).saturating_mul(judged.saturating_add(1))
+    rounds.saturating_mul(judged.saturating_add(1))
 }
 
 /// Whether a receipt's usage totals are complete, read from its calls' own results: each call
@@ -88,14 +116,18 @@ pub const fn least_requests(strategy: NativeMode) -> u32 {
     }
 }
 
-/// The requests an authority grants when its door names none: exactly one.
+/// The single request a door that wants one by default grants explicitly (`Some(1)`). The core
+/// itself grants no default bound: an authority whose door names none counts its requests and
+/// refuses none.
 pub const DEFAULT_MAX_CALLS: u32 = 1;
 
 /// The COLD samples the core runs; a typed count outside is refused, never clamped into another.
 pub const SAMPLES: std::ops::RangeInclusive<u32> = 1..=5;
 
-/// The native repairs the core runs; a typed count outside is refused, never clamped.
-pub const REPAIRS: std::ops::RangeInclusive<u32> = 0..=5;
+/// The native repairs the core runs: every typed count, as typed (the core clamps none; a policy
+/// may also state no count). A typed count is refused only when the authority cannot honor it
+/// ([`Refusal::Multiplicity`]).
+pub const REPAIRS: std::ops::RangeInclusive<u32> = 0..=u32::MAX;
 
 /// How a door names its authority to its caller: the spelling of the grant of more requests
 /// (`--authoring-max-calls` at the CLI), and what a request refused past it is told.
@@ -231,28 +263,29 @@ fn out_of_range(
         })
 }
 
-/// The authority one compile runs under, resolved before any request: its finite bound, whether
-/// the caller named it, and what the configuration could ask for.
+/// The authority one compile runs under, resolved before any request: its bound (none when the
+/// door names none), whether the caller named it, and what the configuration could ask for.
 #[derive(Debug)]
 pub struct Authority {
-    max: u32,
+    max: Option<u32>,
     explicit: bool,
     configured: Value,
     door: Door,
 }
 
 impl Authority {
-    /// The authority `max_calls` grants ([`DEFAULT_MAX_CALLS`] when absent) under the resolved
-    /// strategy, or the refusal of a typed multiplicity it cannot honor (never a silent
-    /// reduction). Defaults run within the authority, and the receipt states where they stopped.
+    /// The authority `max_calls` grants (no bound when absent: every request counted, none
+    /// refused) under the resolved strategy, or the refusal of a typed multiplicity a typed bound
+    /// cannot honor (never a silent reduction). Defaults run within the authority, and the
+    /// receipt states where they stopped.
     /// A typed value the strategy cannot apply (repairs under `off`, samples where no plan is
     /// sampled, a strategy's kind in an edit, which revises natively) changes no request: it is
     /// recorded as ignored, never refused.
     ///
     /// # Errors
-    /// [`Refusal::Range`] for typed samples or repairs outside [`SAMPLES`] or [`REPAIRS`], or a
-    /// grant of zero requests; [`Refusal::Multiplicity`] when typed repairs or samples raise the
-    /// worst case above the defaults' and above the bound; [`Refusal::Strategy`] for a typed
+    /// [`Refusal::Range`] for typed samples outside [`SAMPLES`] or a grant of zero requests;
+    /// [`Refusal::Multiplicity`] when typed repairs or samples raise the
+    /// worst case above the defaults' and above a typed bound; [`Refusal::Strategy`] for a typed
     /// escalate or sketch granted one request, outside an edit.
     pub fn resolve(
         max_calls: Option<u32>,
@@ -269,13 +302,13 @@ impl Authority {
         if let Some(refusal) = out_of_range(max_calls, samples, repairs) {
             return Err(refusal);
         }
-        let max = max_calls.unwrap_or(DEFAULT_MAX_CALLS);
+        let max = max_calls;
         let baseline = worst_case(strategy, 1, 0, edit);
         let needed = worst_case(strategy, samples.unwrap_or(1), repairs.unwrap_or(0), edit);
-        if needed > baseline && needed > max {
+        if let Some(authorized) = max.filter(|max| needed > baseline && needed > *max) {
             return Err(Refusal::Multiplicity {
                 needed,
-                authorized: max,
+                authorized,
                 strategy,
             });
         }
@@ -288,7 +321,8 @@ impl Authority {
             NativeMode::Sketch => Some("the sketch, its fills, then their judgment"),
             _ => None,
         };
-        if let Some(steps) = steps.filter(|_| max < least_requests(strategy)) {
+        let short = max.is_some_and(|max| max < least_requests(strategy));
+        if let Some(steps) = steps.filter(|_| short) {
             return Err(Refusal::Strategy { strategy, steps });
         }
         let ignored: Vec<&str> = [
@@ -308,7 +342,9 @@ impl Authority {
         .into_iter()
         .filter_map(|(value, ignored)| ignored.then_some(value))
         .collect();
-        let (samples, repairs) = (samples.unwrap_or(1), repairs.unwrap_or(3));
+        // Untyped repairs are the core's own default: no count (null), so no finite worst case
+        // wherever a repair buys a request (null).
+        let samples = samples.unwrap_or(1);
         Ok(Self {
             max,
             explicit: max_calls.is_some(),
@@ -316,23 +352,26 @@ impl Authority {
                 "strategy": strategy.word(),
                 "samples": samples,
                 "repairs": repairs,
-                "worst_case": worst_case(strategy, samples, repairs, edit),
+                "worst_case": worst_case_of(strategy, samples, repairs, edit),
                 "ignored": ignored,
             }),
             door,
         })
     }
 
-    /// The requests granted.
+    /// The requests granted, `None` when the door named no bound.
     #[must_use]
-    pub const fn max_calls(&self) -> u32 {
+    pub const fn max_calls(&self) -> Option<u32> {
         self.max
     }
 
-    /// One counter under this authority's bound.
+    /// One counter under this authority's bound (uncapped when it names none).
     #[must_use]
     pub fn envelope(&self) -> Arc<Envelope> {
-        Arc::new(Envelope::new(self.max, self.door.remedy))
+        Arc::new(match self.max {
+            Some(max) => Envelope::new(max, self.door.remedy),
+            None => Envelope::uncapped(self.door.remedy),
+        })
     }
 
     /// The receipt's account: the bound and its source, the invocations sent and refused, the
@@ -342,7 +381,7 @@ impl Authority {
     pub fn record(&self, invocations: &Envelope, requests: Option<&Envelope>) -> Value {
         json!({
             "max_calls": self.max,
-            "source": if self.explicit { self.door.grant } else { "default: one request" },
+            "source": if self.explicit { self.door.grant } else { "default: no request bound" },
             "invocations": invocations.account(),
             "http_requests": requests.map_or_else(
                 || json!({"sent": null, "refused": null, "unknown": "an ACP harness makes its own requests"}),
@@ -357,181 +396,9 @@ impl Authority {
     }
 }
 
-/// One counter of an authority: at most `max` sent, every attempt past it refused and counted.
-#[derive(Debug)]
-pub struct Envelope {
-    max: u32,
-    remedy: &'static str,
-    sent: AtomicU32,
-    refused: AtomicU32,
-}
-
-impl Envelope {
-    /// A counter of at most `max` requests; `remedy` tells the refused caller how to authorize
-    /// more at its own door.
-    #[must_use]
-    pub const fn new(max: u32, remedy: &'static str) -> Self {
-        Self {
-            max,
-            remedy,
-            sent: AtomicU32::new(0),
-            refused: AtomicU32::new(0),
-        }
-    }
-
-    /// Takes one send, or records one refusal: atomic, so concurrent attempts never pass `max`.
-    fn admit(&self) -> bool {
-        let taken = self
-            .sent
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |sent| {
-                (sent < self.max).then_some(sent + 1)
-            })
-            .is_ok();
-        if !taken {
-            self.refused.fetch_add(1, Ordering::SeqCst);
-        }
-        taken
-    }
-
-    fn refusal(&self) -> String {
-        format!(
-            "the authoring authority is spent ({} of {} sent): this request was refused before any byte left; {}",
-            self.sent.load(Ordering::SeqCst),
-            self.max,
-            self.remedy
-        )
-    }
-
-    /// What was sent and refused, as a receipt states it.
-    #[must_use]
-    pub fn account(&self) -> Value {
-        json!({
-            "sent": self.sent.load(Ordering::SeqCst),
-            "refused": self.refused.load(Ordering::SeqCst),
-        })
-    }
-}
-
-/// A direct API seat's transport: one wire attempt per POST, no redirect followed (a followed
-/// redirect is another request carrying the same prompt, uncounted), and no POST past the
-/// authority.
-pub struct Wire<H> {
-    inner: H,
-    requests: Arc<Envelope>,
-}
-
-impl<H> Wire<H> {
-    /// The transport `inner`, its POSTs counted by `requests`.
-    #[must_use]
-    pub const fn new(inner: H, requests: Arc<Envelope>) -> Self {
-        Self { inner, requests }
-    }
-}
-
-impl<H: HttpPostDyn + Send + Sync> HttpPostDyn for Wire<H> {
-    fn supports_single_attempt(&self) -> bool {
-        self.inner.supports_single_attempt()
-    }
-
-    async fn post(&self, mut request: HttpRequest) -> Result<HttpResponse, HttpError> {
-        if !self.requests.admit() {
-            return Err(HttpError::Other {
-                reason: self.requests.refusal(),
-            });
-        }
-        request.follow_redirects = false;
-        self.inner.post(request).await
-    }
-
-    async fn send_streaming(
-        &self,
-        mut request: HttpRequest,
-    ) -> Result<HttpStreamResponse, HttpError> {
-        if !self.requests.admit() {
-            return Err(HttpError::Other {
-                reason: self.requests.refusal(),
-            });
-        }
-        request.follow_redirects = false;
-        self.inner.send_streaming(request).await
-    }
-}
-
-/// A seat under the authority: its invocations counted and refused past it, and the model
-/// identities its responses report, kept apart from the model the operator requested; a
-/// response that reports no nonblank identity is counted, its identity unknown.
-pub struct Seat<P> {
-    inner: P,
-    invocations: Arc<Envelope>,
-    observed: Mutex<Vec<String>>,
-    unreported: AtomicU32,
-}
-
-impl<P> Seat<P> {
-    /// The seat `inner`, its invocations counted by `invocations`.
-    #[must_use]
-    pub const fn new(inner: P, invocations: Arc<Envelope>) -> Self {
-        Self {
-            inner,
-            invocations,
-            observed: Mutex::new(Vec::new()),
-            unreported: AtomicU32::new(0),
-        }
-    }
-
-    /// The responses whose model identity is unknown (absent or blank), never assumed to be the
-    /// model requested.
-    #[must_use]
-    pub fn unreported(&self) -> u32 {
-        self.unreported.load(Ordering::SeqCst)
-    }
-
-    /// The seat itself.
-    #[must_use]
-    pub const fn inner(&self) -> &P {
-        &self.inner
-    }
-
-    /// The model identities the responses reported, each once, in order.
-    #[must_use]
-    pub fn observed(&self) -> Vec<String> {
-        self.observed
-            .lock()
-            .map(|models| models.clone())
-            .unwrap_or_default()
-    }
-}
-
-impl<P: ProviderInferDyn + Send + Sync> ProviderInferDyn for Seat<P> {
-    async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
-        // A local refusal before any request: typed as one, so the core knows nothing was used.
-        if !self.invocations.admit() {
-            return Err(ProviderError::AdmissionDenied {
-                reason: self.invocations.refusal(),
-            });
-        }
-        let response = self.inner.infer(request).await?;
-        match (
-            response.gen_ai.response_model.as_ref(),
-            self.observed.lock(),
-        ) {
-            (Some(model), Ok(mut observed)) if !model.trim().is_empty() => {
-                if !observed.contains(model) {
-                    observed.push(model.clone());
-                }
-            }
-            _ => {
-                self.unreported.fetch_add(1, Ordering::SeqCst);
-            }
-        }
-        Ok(response)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nika_kernel::ai::provider::{ContentBlock, StopReason, TokenUsage};
 
     const REMEDY: &str = "authorize more with --authoring-max-calls";
 
@@ -558,13 +425,14 @@ mod tests {
         assert_eq!(worst_case(NativeMode::Escalate, 1, 3, true), 6);
         assert_eq!(worst_case(NativeMode::Only, 1, 3, true), 6);
         assert_eq!(worst_case(NativeMode::Off, 1, 3, true), 0);
-        // Clamped as the policy clamps: five samples, five repairs.
-        assert_eq!(worst_case(NativeMode::Escalate, 9, 9, false), 92 + 16);
+        // Samples clamped as the policy clamps them (five); repairs counted as typed (nine):
+        // COLD 2·5 + 10·12 + 2·9, then the sketch door with eight repairs, 8 + 2 + 2·9.
+        assert_eq!(worst_case(NativeMode::Escalate, 9, 9, false), 148 + 28);
         // An explicit source recovery: the source and its whole-request judgment per round,
-        // none without the policy, clamped to its three rounds.
+        // none without the policy, every typed round counted.
         assert_eq!(super::recovery_requests(0), 0);
         assert_eq!(super::recovery_requests(1), 1 + 2);
-        assert_eq!(super::recovery_requests(9), 3 * (1 + 2));
+        assert_eq!(super::recovery_requests(9), 9 * (1 + 2));
     }
 
     /// Totals are complete only when every call's usage is known (E10 P3-e): a local refusal
@@ -594,16 +462,21 @@ mod tests {
     }
 
     #[test]
-    fn a_typed_multiplicity_is_refused_only_when_the_authority_cannot_honor_it() {
+    fn a_typed_multiplicity_is_refused_only_when_a_typed_bound_cannot_honor_it() {
         use NativeMode::{Escalate, Only, Sketch};
         let nothing = Typed::new(false);
-        // No grant: one request, and the defaults run within it.
-        let default = resolve(None, Escalate, nothing).expect("one request");
-        assert_eq!(default.max_calls(), 1);
-        assert_eq!(default.configured["worst_case"], 66);
-        // Typed repairs under escalate can need sixty-six: refused, naming what they need.
+        // No grant: no request bound, and the core's own default (no repair count) runs under
+        // it, with no finite worst case.
+        let default = resolve(None, Escalate, nothing).expect("no bound");
+        assert_eq!(default.max_calls(), None);
+        assert_eq!(default.configured["repairs"], Value::Null);
+        assert_eq!(default.configured["worst_case"], Value::Null);
+        // Typed repairs are honored as typed: no bound refuses them.
         let repairs = nothing.with_repairs(Some(3));
-        let refused = resolve(None, Escalate, repairs).expect_err("sixty-six");
+        let honored = resolve(None, Escalate, repairs).expect("no bound to exceed");
+        assert_eq!(honored.configured["worst_case"], 66);
+        // A typed bound they can exceed refuses them, naming what they need.
+        let refused = resolve(Some(1), Escalate, repairs).expect_err("sixty-six");
         let needed = Refusal::Multiplicity {
             needed: 66,
             authorized: 1,
@@ -615,16 +488,17 @@ mod tests {
         // strategy needs its judgment, below).
         let none = nothing.with_strategy().with_repairs(Some(0));
         assert!(resolve(Some(2), Only, none).is_ok());
-        assert!(resolve(None, Escalate, nothing.with_repairs(Some(0))).is_ok());
+        assert!(resolve(Some(1), Escalate, nothing.with_repairs(Some(0))).is_ok());
         // Samples: eighteen under escalate for three of them (no repair typed: the sketch door
         // after the plan has none left, so it sends nothing).
         let samples = nothing.with_samples(Some(3));
-        let refused = resolve(None, Escalate, samples).expect_err("eighteen");
+        let refused = resolve(Some(1), Escalate, samples).expect_err("eighteen");
         assert!(matches!(refused, Refusal::Multiplicity { needed: 18, .. }));
         assert!(resolve(Some(18), Escalate, samples).is_ok());
-        // A typed strategy is honored in full or refused: a judged READY takes two requests at
-        // least, three for the sketch; the default runs in one. A typed `only` creates nothing,
-        // so no grant is named to it: the core refuses the creation with its migration.
+        assert!(resolve(None, Escalate, samples).is_ok());
+        // A typed strategy is honored in full or refused by a typed bound: a judged READY takes
+        // two requests at least, three for the sketch. A typed `only` creates nothing, so no
+        // grant is named to it: the core refuses the creation with its migration.
         let only = resolve(Some(1), Only, nothing.with_strategy()).expect("no grant to buy");
         assert_eq!(only.configured["worst_case"], 0);
         assert_eq!(least_requests(Only), 1);
@@ -637,10 +511,14 @@ mod tests {
             let refused = resolve(Some(least - 1), strategy, named).expect_err("too few");
             assert_eq!(refused, Refusal::Strategy { strategy, steps });
             assert!(resolve(Some(least), strategy, named).is_ok());
+            assert!(
+                resolve(None, strategy, named).is_ok(),
+                "no bound: {strategy:?}"
+            );
             assert!(resolve(None, strategy, nothing).is_ok());
         }
         // An edit revises natively: a typed escalate needs one request there.
-        assert!(resolve(None, Escalate, Typed::new(true).with_strategy()).is_ok());
+        assert!(resolve(Some(1), Escalate, Typed::new(true).with_strategy()).is_ok());
     }
 
     #[test]
@@ -655,18 +533,20 @@ mod tests {
             json!({"sent": null, "refused": null, "unknown": unknown})
         );
         assert_eq!(record["source"], "--authoring-max-calls");
+        assert_eq!(record["max_calls"], 2);
         assert_eq!(record["invocations"], json!({"sent": 0, "refused": 0}));
-        let default = resolve(None, NativeMode::Escalate, Typed::new(false)).expect("one");
+        let default = resolve(None, NativeMode::Escalate, Typed::new(false)).expect("no bound");
         let wire = default.envelope();
         let record = default.record(&default.envelope(), Some(&wire));
-        assert_eq!(record["source"], "default: one request");
+        assert_eq!(record["source"], "default: no request bound");
+        assert_eq!(record["max_calls"], Value::Null);
         assert_eq!(
             record["http_requests"],
             json!({"sent": 0, "refused": 0, "unknown": null})
         );
         assert_eq!(
             record["configured"],
-            json!({"strategy": "escalate", "samples": 1, "repairs": 3, "worst_case": 66, "ignored": []})
+            json!({"strategy": "escalate", "samples": 1, "repairs": null, "worst_case": null, "ignored": []})
         );
     }
 
@@ -690,25 +570,65 @@ mod tests {
             escalate(Some(9), zero_samples).err(),
             Some(range("samples", 0, 1, Some(5)))
         );
+        // Repairs are honored as typed, any count: refused only by a typed bound that cannot
+        // honor them, naming what they need.
         let six = nothing.with_repairs(Some(6));
+        let needed = worst_case(NativeMode::Escalate, 1, 6, false);
         assert_eq!(
             escalate(Some(9), six).err(),
-            Some(range("repairs", 6, 0, Some(5)))
+            Some(Refusal::Multiplicity {
+                needed,
+                authorized: 9,
+                strategy: NativeMode::Escalate,
+            })
         );
+        assert!(escalate(Some(needed), six).is_ok());
+        assert!(escalate(None, nothing.with_repairs(Some(1000))).is_ok());
         // A grant of no request is refused before any request, never raised to one.
         assert_eq!(
             escalate(Some(0), nothing).err(),
             Some(range("max_calls", 0, 1, None))
         );
-        // The core's policy clamps to these same ranges: a count inside them runs as typed.
-        for count in 0..=7 {
-            let policy =
-                crate::AuthoringPolicy::new("mock/m", 1, std::time::Duration::from_secs(1))
-                    .with_samples(count)
-                    .with_repairs(count);
+        // The core's policy clamps samples to their range; a repair limit runs as typed, and the
+        // policy's own default states no count.
+        let policy = || crate::AuthoringPolicy::new("mock/m", 1, std::time::Duration::from_secs(1));
+        assert_eq!(policy().repairs, None);
+        assert_eq!(
+            policy().with_repairs(4).with_unbounded_repairs().repairs,
+            None
+        );
+        for count in [0, 1, 5, 6, 7, 64] {
+            let policy = policy().with_samples(count).with_repairs(count);
             assert_eq!(SAMPLES.contains(&count), policy.samples == count, "{count}");
-            assert_eq!(REPAIRS.contains(&count), policy.repairs == count, "{count}");
+            assert!(REPAIRS.contains(&count), "{count}");
+            assert_eq!(policy.repair_limit(), Some(count), "{count}");
         }
+    }
+
+    #[test]
+    fn a_policy_with_no_repair_count_has_no_finite_worst_case() {
+        use NativeMode::{Escalate, Off, Only, Sketch};
+        for strategy in [Escalate, Off, Only, Sketch] {
+            for edit in [false, true] {
+                let typed = worst_case(strategy, 5, 64, edit);
+                assert_eq!(worst_case_of(strategy, 5, Some(64), edit), Some(typed));
+                let open = worst_case_of(strategy, 5, None, edit);
+                // Where a repair buys a request, no finite worst case exists; elsewhere none is
+                // bought, so the count is the one no repair changes.
+                if worst_case(strategy, 1, 1, edit) > worst_case(strategy, 1, 0, edit) {
+                    assert_eq!(open, None, "{strategy:?} {edit}");
+                } else {
+                    assert_eq!(open, Some(typed), "{strategy:?} {edit}");
+                }
+            }
+        }
+        // The counts a typed limit needs are unchanged; an absurd typed count saturates rather
+        // than overflow.
+        assert_eq!(worst_case(Escalate, 1, 3, false), 66);
+        assert_eq!(worst_case(Off, 1, 3, false), 56);
+        assert_eq!(worst_case(Escalate, 1, u32::MAX, false), u32::MAX);
+        assert_eq!(recovery_requests(2), 6);
+        assert_eq!(recovery_requests(4), 12, "recovery rounds count as typed");
     }
 
     #[test]
@@ -720,7 +640,7 @@ mod tests {
         // syntheses and the transform repair allowance are counted, so typed repairs are honored
         // in full or refused, never ignored.
         let typed = nothing.with_strategy().with_repairs(Some(3));
-        let refused = resolve(None, Off, typed).expect_err("fifty-six");
+        let refused = resolve(Some(1), Off, typed).expect_err("fifty-six");
         assert!(matches!(refused, Refusal::Multiplicity { needed: 56, .. }));
         let off = resolve(Some(56), Off, typed).expect("off with its verifier repairs");
         assert_eq!(ignored(&off), json!([]));
@@ -735,209 +655,8 @@ mod tests {
         let revision = resolve(None, Sketch, edit).expect("one request");
         assert_eq!(ignored(&revision), json!(["strategy", "samples"]));
         // A value the strategy applies is never ignored, and is honored in full or refused.
-        assert!(resolve(None, Off, nothing.with_samples(Some(2))).is_err());
+        assert!(resolve(Some(1), Off, nothing.with_samples(Some(2))).is_err());
         let repaired = resolve(Some(66), Escalate, nothing.with_repairs(Some(3))).expect("66");
         assert_eq!(ignored(&repaired), json!([]));
-    }
-
-    /// A transport that counts what reached it.
-    struct Counting(AtomicU32);
-
-    impl HttpPostDyn for Counting {
-        fn supports_single_attempt(&self) -> bool {
-            true
-        }
-        async fn post(&self, request: HttpRequest) -> Result<HttpResponse, HttpError> {
-            self.0.fetch_add(1, Ordering::SeqCst);
-            Ok(HttpResponse::new(
-                200,
-                std::collections::BTreeMap::default(),
-                Vec::new().into(),
-                request.url,
-            ))
-        }
-        async fn send_streaming(&self, _: HttpRequest) -> Result<HttpStreamResponse, HttpError> {
-            self.0.fetch_add(1, Ordering::SeqCst);
-            Err(HttpError::Other {
-                reason: "no stream here".to_owned(),
-            })
-        }
-    }
-
-    #[tokio::test]
-    async fn the_wire_refuses_past_the_authority_before_the_transport_sees_it() {
-        let requests = Arc::new(Envelope::new(2, REMEDY));
-        let wire = Wire::new(Counting(AtomicU32::new(0)), Arc::clone(&requests));
-        assert!(
-            wire.post(HttpRequest::post("https://a.test/v1"))
-                .await
-                .is_ok()
-        );
-        assert!(
-            wire.send_streaming(HttpRequest::post("https://a.test/v1"))
-                .await
-                .is_err()
-        );
-        let refused = wire.post(HttpRequest::post("https://a.test/v1")).await;
-        let expected = "the authoring authority is spent (2 of 2 sent): this request was refused \
-                        before any byte left; authorize more with --authoring-max-calls";
-        assert!(matches!(refused, Err(HttpError::Other { ref reason }) if reason == expected));
-        assert_eq!(
-            wire.inner.0.load(Ordering::SeqCst),
-            2,
-            "the third never left"
-        );
-        assert_eq!(requests.account(), json!({"sent": 2, "refused": 1}));
-        assert!(wire.supports_single_attempt());
-    }
-
-    /// A transport that keeps whether each request it received would follow a redirect.
-    struct Recording(Mutex<Vec<bool>>);
-
-    impl HttpPostDyn for Recording {
-        async fn post(&self, request: HttpRequest) -> Result<HttpResponse, HttpError> {
-            self.0.lock().expect("log").push(request.follow_redirects);
-            Ok(HttpResponse::new(
-                307,
-                std::collections::BTreeMap::default(),
-                Vec::new().into(),
-                request.url,
-            ))
-        }
-        async fn send_streaming(
-            &self,
-            request: HttpRequest,
-        ) -> Result<HttpStreamResponse, HttpError> {
-            self.0.lock().expect("log").push(request.follow_redirects);
-            Err(HttpError::Other {
-                reason: "no stream here".to_owned(),
-            })
-        }
-    }
-
-    #[tokio::test]
-    async fn the_wire_never_follows_a_redirect() {
-        let requests = Arc::new(Envelope::new(3, REMEDY));
-        let wire = Wire::new(Recording(Mutex::new(Vec::new())), Arc::clone(&requests));
-        // A request asks to follow redirects by default; what reaches the transport never does.
-        let request = HttpRequest::post("https://a.test/v1");
-        assert!(request.follow_redirects);
-        let answered = wire.post(request).await.expect("the 307 is the answer");
-        assert_eq!(answered.status, 307);
-        let _ = wire
-            .send_streaming(HttpRequest::post("https://a.test/v1"))
-            .await;
-        assert_eq!(*wire.inner.0.lock().expect("log"), [false, false]);
-        assert_eq!(requests.account(), json!({"sent": 2, "refused": 0}));
-    }
-
-    struct ReportedModel(Option<&'static str>);
-
-    impl ProviderInferDyn for ReportedModel {
-        async fn infer(&self, _: InferRequest) -> Result<InferResponse, ProviderError> {
-            let mut response =
-                InferResponse::new(Vec::new(), TokenUsage::new(1, 1), StopReason::EndTurn);
-            response.gen_ai.response_model = self.0.map(str::to_owned);
-            Ok(response)
-        }
-    }
-
-    #[tokio::test]
-    async fn a_blank_reported_model_is_unknown_not_an_observed_identity() {
-        for reported in [None, Some(""), Some(" "), Some("\t\n")] {
-            let seat = Seat::new(ReportedModel(reported), Arc::new(Envelope::new(1, REMEDY)));
-            let response = seat
-                .infer(InferRequest::new("requested-model", Vec::new()))
-                .await
-                .expect("provider answer");
-            assert_eq!(
-                response.gen_ai.response_model.as_deref(),
-                reported,
-                "the provider response remains unchanged"
-            );
-            assert!(
-                seat.observed().is_empty(),
-                "blank is not model evidence: {reported:?}"
-            );
-            assert_eq!(seat.unreported(), 1);
-        }
-        let seat = Seat::new(
-            ReportedModel(Some("actually-served")),
-            Arc::new(Envelope::new(2, REMEDY)),
-        );
-        for _ in 0..2 {
-            seat.infer(InferRequest::new("requested-model", Vec::new()))
-                .await
-                .expect("provider answer");
-        }
-        assert_eq!(seat.observed(), ["actually-served"]);
-        assert_eq!(seat.unreported(), 0);
-    }
-
-    /// A seat that answers with one reported identity and counts its invocations.
-    struct Answering(AtomicU32);
-
-    impl ProviderInferDyn for Answering {
-        async fn infer(&self, _: InferRequest) -> Result<InferResponse, ProviderError> {
-            self.0.fetch_add(1, Ordering::SeqCst);
-            let mut response = InferResponse::new(
-                vec![ContentBlock::Text { text: "{}".into() }],
-                TokenUsage::new(1, 1),
-                StopReason::EndTurn,
-            );
-            response.gen_ai.response_model = Some("served-model".to_owned());
-            Ok(response)
-        }
-    }
-
-    #[tokio::test]
-    async fn a_seat_past_the_authority_is_refused_and_its_observed_identity_kept() {
-        let invocations = Arc::new(Envelope::new(2, REMEDY));
-        let seat = Seat::new(Answering(AtomicU32::new(0)), Arc::clone(&invocations));
-        let request = || InferRequest::new("vllm/requested", Vec::new());
-        // Five concurrent invocations under a ceiling of two: two reach the seat, three refused.
-        let joined = tokio::join!(
-            seat.infer(request()),
-            seat.infer(request()),
-            seat.infer(request()),
-            seat.infer(request()),
-            seat.infer(request()),
-        );
-        let results = [joined.0, joined.1, joined.2, joined.3, joined.4];
-        let answered = results.iter().filter(|result| result.is_ok()).count();
-        assert_eq!((answered, seat.inner().0.load(Ordering::SeqCst)), (2, 2));
-        // Each refusal is a local admission refusal, never a provider's answer.
-        assert!(
-            results
-                .iter()
-                .filter_map(|result| result.as_ref().err())
-                .all(|error| matches!(error, ProviderError::AdmissionDenied { .. }))
-        );
-        assert_eq!(invocations.account(), json!({"sent": 2, "refused": 3}));
-        assert_eq!(seat.observed(), ["served-model"]);
-        assert_eq!(seat.unreported(), 0);
-    }
-
-    /// A seat whose responses report no model identity.
-    struct Unnamed;
-
-    impl ProviderInferDyn for Unnamed {
-        async fn infer(&self, _: InferRequest) -> Result<InferResponse, ProviderError> {
-            Ok(InferResponse::new(
-                vec![ContentBlock::Text { text: "{}".into() }],
-                TokenUsage::new(1, 1),
-                StopReason::EndTurn,
-            ))
-        }
-    }
-
-    #[tokio::test]
-    async fn a_response_without_a_model_is_counted_unknown_never_the_requested_one() {
-        let seat = Seat::new(Unnamed, Arc::new(Envelope::new(2, REMEDY)));
-        let request = || InferRequest::new("vllm/requested", Vec::new());
-        assert!(seat.infer(request()).await.is_ok());
-        assert!(seat.infer(request()).await.is_ok());
-        assert!(seat.observed().is_empty());
-        assert_eq!(seat.unreported(), 2);
     }
 }

@@ -174,3 +174,132 @@ pub fn accounting_checkpoint(
     super::CompletedCostReport::read(observations)
         .map_or_else(|_| numeric(), |report| Some(report.checkpoint(project)))
 }
+
+/// The decision seat's line: what it was asked, sent and refused; its cost unknown, never zero.
+#[must_use]
+pub fn decision_summary(observations: &[serde_json::Value], schema: &str) -> Option<String> {
+    let seats: Vec<&serde_json::Value> = observations
+        .iter()
+        .filter(|o| is_decision_observation(o, schema))
+        .collect();
+    if seats.is_empty() {
+        return None;
+    }
+    let attempts: Vec<&serde_json::Value> = seats
+        .iter()
+        .filter_map(|o| o["attempts"].as_array())
+        .flatten()
+        .collect();
+    let count = |outcome: &str| attempts.iter().filter(|a| a["outcome"] == outcome).count();
+    let sent = attempts.iter().filter(|a| a["sent"] == true).count();
+    let unresolved = count("in_flight") + count("transport_error");
+    let refused = count("refused") + count("capped");
+    let mut names: Vec<&str> = seats.iter().filter_map(|o| o["seat"].as_str()).collect();
+    names.dedup();
+    let usage: u64 = attempts
+        .iter()
+        .filter_map(|a| a["usage"]["input_tokens"].as_u64())
+        .chain(
+            attempts
+                .iter()
+                .filter_map(|a| a["usage"]["output_tokens"].as_u64()),
+        )
+        .sum();
+    Some(format!(
+        "decision seat {} (operator-selected, outside any allowance or cap): {sent} call(s) sent · {} answered · {unresolved} without a response · {refused} need(s) refused before sending · {usage} token(s) reported · cost unknown (no catalog tariff), never zero; not in the no-budget subtotal · invoice unknown",
+        names.join(", "),
+        count("chosen") + count("none") + count("outside_options")
+    ))
+}
+
+/// Exact historical and current decision-seat observation schemas, never an admission judgment.
+#[must_use]
+pub fn is_decision_observation(observation: &Value, current: &str) -> bool {
+    observation["schema"] == current || observation["schema"] == "nika/session-decision-seat@1"
+}
+
+/// No-budget observations filtered by their exact provenance; companion decisions stay separate.
+#[must_use]
+pub fn unbudgeted_observation_summary(
+    observations: &[Value],
+    decision_schema: &str,
+    interrupted: usize,
+) -> Option<String> {
+    let observed: Vec<_> = observations
+        .iter()
+        .filter(|o| o["unbudgeted"] == true && !is_decision_observation(o, decision_schema))
+        .collect();
+    unbudgeted_summary(&observed, interrupted)
+}
+
+/// Compose the existing informational projections without changing any admission or observation.
+#[must_use]
+pub fn observation_details(costs: &[Value], history: &[Value], decision_schema: &str) -> String {
+    let decision = decision_summary(costs, decision_schema)
+        .map_or_else(String::new, |line| format!(" · {line}"));
+    let unread = match costs.iter().filter(|o| !o.is_object()).count() {
+        0 => String::new(),
+        n => format!(" · {n} cost observation(s) unreadable: never read as settled"),
+    };
+    let legacy = super::LegacyCostReport::summary_of(history)
+        .or_else(|| super::CompletedCostReport::summary_of(history))
+        .map(|line| format!(" · {line}"))
+        .unwrap_or_default();
+    format!("{unread}{decision}{legacy}")
+}
+
+/// Presentation of a host's retained account facts; this never admits a request.
+#[must_use]
+pub fn account_status(
+    receipt: Result<Option<InferenceReceipt>, String>,
+    reconfirm: bool,
+    historical: usize,
+    interrupted: &str,
+    note: Option<&str>,
+    refusal: Option<&str>,
+    zero: bool,
+) -> String {
+    match receipt {
+        Ok(Some(receipt)) => receipt.summary(),
+        Ok(None) if reconfirm => format!(
+            "restored inference exposure is unknown; no new catalog allowance can be inferred; billed cost unknown · {historical} historical cost observation(s), without authority{interrupted}"
+        ),
+        Ok(None) => unadmitted_summary(note, refusal, zero),
+        Err(error) => format!("catalog admission unavailable: {error}; no paid call admitted"),
+    }
+}
+/// Human-facing scope over supplied facts; subscription selection does not restore API admission.
+#[must_use]
+pub fn inference_summary(
+    account: &str,
+    observed: Option<&str>,
+    details: &str,
+    subscription: bool,
+    gate: bool,
+) -> String {
+    let scope = if subscription {
+        "Subscription invoice unknown; retained API accounting (not its admission)"
+    } else {
+        "Session inference (separate from proposal/Run)"
+    };
+    let observed = observed.map_or_else(String::new, |line| format!(" · {line}"));
+    let account = format!("{scope}: {account}{observed}{details}");
+    if gate {
+        format!(
+            "confirm-gate monetary amendment held; no paid inference admitted; paused Run unchanged; answer yes or no separately\n{account}"
+        )
+    } else {
+        account
+    }
+}
+/// The host's unsettled-dispatch count remains unknown, never a synthetic zero price.
+#[must_use]
+pub fn interrupted_note(count: usize) -> String {
+    if count == 0 {
+        String::new()
+    } else {
+        format!(
+            " · {count} paid dispatch(es) left without a recorded settlement may have been billed; usage and cost unknown"
+        )
+    }
+}

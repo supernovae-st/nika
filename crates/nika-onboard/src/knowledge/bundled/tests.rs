@@ -24,11 +24,11 @@ fn issued() -> TrustedIdentity {
 }
 
 #[test]
-fn the_table_is_the_issued_payload_and_the_build_trusts_the_issued_identity() {
+fn the_r3_table_is_preserved_and_the_new_default_is_distinct() {
     assert_eq!(FILES.len(), ISSUED_FILES);
     let bytes: usize = FILES.iter().map(|(_, bytes)| bytes.len()).sum();
     assert_eq!(bytes, ISSUED_BYTES);
-    assert_eq!(identity().expect("the build's identity"), issued());
+    assert_ne!(identity().expect("the new default identity"), issued());
 }
 
 #[test]
@@ -192,3 +192,5 @@ fn another_identity_or_a_moved_byte_is_refused_typed_never_another_source() {
         RefusalCode::PinMismatch
     );
 }
+
+mod current_tests;

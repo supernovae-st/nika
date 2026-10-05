@@ -264,6 +264,8 @@ impl Desk {
                         leg.apply(frame);
                     }
                 }
+                // The shell's card reads the Session's activity; no run leg does.
+                Observed::Activity(_) => {}
             }
         }
         any

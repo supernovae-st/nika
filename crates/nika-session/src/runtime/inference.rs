@@ -6,7 +6,8 @@ use super::SessionRuntime;
 use crate::authoring::{AuthoringError, AuthoringRound, AuthoringSeat};
 use crate::money::{InferenceEnforcement, MonetaryDecision};
 use crate::reasoner::{ReasonError, Reply};
-use nika_providers::admission::{CompletedCostReport, allowance};
+use nika_providers::admission::allowance;
+use nika_providers::authoring::preparation::PreparationCosts;
 use nika_providers::{InferenceAdmission, InferenceReceipt};
 use nika_types::cost::Cost;
 
@@ -44,6 +45,21 @@ pub(super) const RECONFIRM: &str =
     "monetary constraint recorded; restart requires explicit ceiling reconfirmation";
 
 impl SessionRuntime {
+    /// Interactive preparation observes costs without a monetary gate; Run keeps its own policy.
+    /// Existing accounts and uncertain exposure remain unchanged and are never reused as credit.
+    pub fn enable_continuous_preparation(&mut self) {
+        self.money.preparation.get_or_insert_with(Default::default);
+    }
+    /// Get a fresh Stop token before moving this conversation to its preparation worker.
+    /// The completed worker returns this Session and its journal; Run is outside this token.
+    pub fn begin_preparation_turn(&mut self) -> nika_types::cancel::CancelCtx {
+        self.preparation_before = self.preparation_snapshot();
+        self.money
+            .preparation
+            .get_or_insert_with(Default::default)
+            .begin_turn()
+    }
+
     pub(super) fn retain_money_guard(&mut self) {
         if !self.intent.decisions.iter().any(|s| s == RECONFIRM) {
             self.intent.decisions.push(RECONFIRM.into());
@@ -63,56 +79,36 @@ impl SessionRuntime {
             .transpose()
     }
     pub(super) fn inference_line(&self) -> String {
-        let account = match self.inference_receipt() {
-            Ok(Some(r)) => r.summary(),
-            Ok(None) if self.money.reconfirm => format!(
-                "{} · {} historical cost observation(s), without authority{}",
-                RESTORED_EXPOSURE,
-                self.unknown_cost.observations.len(),
-                self.interrupted_note()
-            ),
-            Ok(None) => nika_providers::admission::unadmitted_summary(
-                self.money.admission_note.as_deref(),
-                self.money
-                    .inference_guard
-                    .as_ref()
-                    .and_then(|d| d.refusal.as_deref()),
-                self.money
-                    .inference_guard
-                    .as_ref()
-                    .is_some_and(|d| d.effective_usd == Some(0.0)),
-            ),
-            Err(e) => format!("catalog admission unavailable: {e}; no paid call admitted"),
-        };
-        let observed = self
-            .observed_line()
-            .map_or_else(String::new, |line| format!(" · {line}"));
-        let costs = self.cost_observations();
-        let decision = decision_line(&costs).map_or_else(String::new, |line| format!(" · {line}"));
-        // A durable observation no reader can read is named, never read as settled (E35).
-        let unread = match costs.iter().filter(|o| !o.is_object()).count() {
-            0 => String::new(),
-            n => format!(" · {n} cost observation(s) unreadable: never read as settled"),
-        };
-        let legacy = nika_providers::admission::LegacyCostReport::summary_of(
-            &self.unknown_cost.observations,
-        )
-        .or_else(|| CompletedCostReport::summary_of(&self.unknown_cost.observations))
-        .map(|line| format!(" · {line}"))
-        .unwrap_or_default();
-        let scope = if self.subscription() {
-            "Subscription invoice unknown; retained API accounting (not its admission)"
-        } else {
-            "Session inference (separate from proposal/Run)"
-        };
-        let account = format!("{scope}: {account}{observed}{unread}{decision}{legacy}");
-        if self.money.gate.is_some() {
-            format!(
-                "confirm-gate monetary amendment held; no paid inference admitted; paused Run unchanged; answer yes or no separately\n{account}"
-            )
-        } else {
-            account
+        if self.money.preparation.is_some() {
+            return PreparationCosts::summary(&self.cost_observations());
         }
+        let account = nika_providers::admission::account_status(
+            self.inference_receipt().map_err(|error| error.to_string()),
+            self.money.reconfirm,
+            self.unknown_cost.observations.len(),
+            &self.interrupted_note(),
+            self.money.admission_note.as_deref(),
+            self.money
+                .inference_guard
+                .as_ref()
+                .and_then(|d| d.refusal.as_deref()),
+            self.money
+                .inference_guard
+                .as_ref()
+                .is_some_and(|d| d.effective_usd == Some(0.0)),
+        );
+        let details = nika_providers::admission::observation_details(
+            &self.cost_observations(),
+            &self.unknown_cost.observations,
+            crate::authoring::DECISION_SCHEMA,
+        );
+        nika_providers::admission::inference_summary(
+            &account,
+            self.observed_line().as_deref(),
+            &details,
+            self.subscription(),
+            self.money.gate.is_some(),
+        )
     }
     pub(super) fn configure_admission(&mut self, decision: &mut MonetaryDecision) {
         // A gate amendment changes neither the paused run nor its authority.
@@ -232,6 +228,9 @@ impl SessionRuntime {
         seat: &AuthoringSeat,
         compile: impl FnOnce(Option<&InferenceAdmission>) -> Result<T, AuthoringError>,
     ) -> Result<T, AuthoringError> {
+        if PreparationCosts::stopped() {
+            return Err(AuthoringError::Cancelled);
+        }
         let model = match seat {
             AuthoringSeat::Provider { model } => Some(model.as_str()),
             _ => None,
@@ -247,6 +246,11 @@ impl SessionRuntime {
             .enter_dispatch_naming(model, decision)
             .map_err(|e| AuthoringError::Seat(format!("{UNRECORDED}: {e}")))?;
         let out = compile(account.as_ref());
+        let out = if PreparationCosts::stopped() {
+            Err(AuthoringError::Cancelled)
+        } else {
+            out
+        };
         self.leave_paid_dispatch(entered);
         let out = out?;
         if let Some(a) = &account {
@@ -288,6 +292,13 @@ impl SessionRuntime {
         model: Option<&str>,
         decision: Option<&str>,
     ) -> Result<(Option<InferenceAdmission>, bool), String> {
+        if self.money.preparation.is_some() {
+            self.save_boundary(Some(observed_marker(
+                model.unwrap_or("selected subscription"),
+                decision,
+            )))?;
+            return Ok((None, true));
+        }
         if self.subscription() && model.is_none() {
             return if self.money_blocks_cognition() {
                 Err(self.cognition_blocked())
@@ -327,26 +338,16 @@ impl SessionRuntime {
     /// the live ones and those kept as history. Moving an account into the
     /// history keeps the count; an unreadable account counts as uncertain.
     pub(super) fn uncertain_charges(&self) -> usize {
-        let live = |account: &InferenceAdmission| {
-            usize::from(account.snapshot().map_or(true, |receipt| {
-                receipt.state == nika_providers::AdmissionState::Uncertain
-            }))
-        };
-        let kept = self
-            .unknown_cost
-            .observations
-            .iter()
-            .filter(|o| o["state"] == "Uncertain" || !o.is_object())
-            .count();
-        // A decision-seat request left without a response may have been billed as well.
-        let decisions = self.authoring_context.decision().map_or(0, |setup| {
-            setup
-                .observations()
-                .iter()
-                .filter(|o| o["state"] == "Uncertain")
-                .count()
-        });
-        self.money.account.as_ref().map_or(0, live) + live(&self.money.observed) + kept + decisions
+        PreparationCosts::uncertain_exposure(
+            self.money.account.as_ref(),
+            &self.money.observed,
+            &self.unknown_cost.observations,
+            &self
+                .authoring_context
+                .decision()
+                .map_or_else(Vec::new, crate::authoring::DecisionSetup::observations),
+            self.money.preparation.as_ref(),
+        )
     }
     /// New work starts on a clean no-budget account; a continuation (an answer, a revision at
     /// consent, a repair) stays on the one its work began with. An account frozen by a possibly
@@ -370,18 +371,17 @@ impl SessionRuntime {
     }
     /// Priced calls made without a Session budget: observed, never admitted.
     fn observed_line(&self) -> Option<String> {
-        let observations = self.cost_observations();
-        let observed: Vec<_> = observations
-            .iter()
-            .filter(|o| o["unbudgeted"] == true && !is_decision(o))
-            .collect();
         let interrupted = self
             .intent
             .decisions
             .iter()
             .filter(|d| d.starts_with(OBSERVED_PREFIX))
             .count();
-        nika_providers::admission::unbudgeted_summary(&observed, interrupted)
+        nika_providers::admission::unbudgeted_observation_summary(
+            &self.cost_observations(),
+            crate::authoring::DECISION_SCHEMA,
+            interrupted,
+        )
     }
     /// The restart refusal: what stays unknown, what was not done, the way on.
     pub(super) fn restored_refusal(&self) -> String {
@@ -400,18 +400,13 @@ impl SessionRuntime {
         )
     }
     fn interrupted_note(&self) -> String {
-        match self
-            .intent
-            .decisions
-            .iter()
-            .filter(|d| d.starts_with(DISPATCH_PREFIX))
-            .count()
-        {
-            0 => String::new(),
-            n => format!(
-                " · {n} paid dispatch(es) left without a recorded settlement may have been billed; usage and cost unknown"
-            ),
-        }
+        nika_providers::admission::interrupted_note(
+            self.intent
+                .decisions
+                .iter()
+                .filter(|d| d.starts_with(DISPATCH_PREFIX))
+                .count(),
+        )
     }
 }
 
@@ -433,49 +428,13 @@ fn observed_marker(model: &str, decision: Option<&str>) -> String {
     )
 }
 
-/// Whether one persisted observation is the operator-selected decision seat's (never part of
-/// the no-budget priced subtotal: its cost is unknown).
-fn is_decision(observation: &serde_json::Value) -> bool {
-    observation["schema"] == crate::authoring::DECISION_SCHEMA
-}
-
-/// The decision seat's line: what it was asked, sent and refused; its cost unknown, never zero.
-fn decision_line(observations: &[serde_json::Value]) -> Option<String> {
-    let seats: Vec<&serde_json::Value> = observations.iter().filter(|o| is_decision(o)).collect();
-    if seats.is_empty() {
-        return None;
-    }
-    let attempts: Vec<&serde_json::Value> = seats
-        .iter()
-        .filter_map(|o| o["attempts"].as_array())
-        .flatten()
-        .collect();
-    let count = |outcome: &str| attempts.iter().filter(|a| a["outcome"] == outcome).count();
-    let sent = attempts.iter().filter(|a| a["sent"] == true).count();
-    let unresolved = count("in_flight") + count("transport_error");
-    let refused = count("refused") + count("capped");
-    let mut names: Vec<&str> = seats.iter().filter_map(|o| o["seat"].as_str()).collect();
-    names.dedup();
-    let usage: u64 = attempts
-        .iter()
-        .filter_map(|a| a["usage"]["input_tokens"].as_u64())
-        .chain(
-            attempts
-                .iter()
-                .filter_map(|a| a["usage"]["output_tokens"].as_u64()),
-        )
-        .sum();
-    Some(format!(
-        "decision seat {} (operator-selected, outside any allowance or cap): {sent} call(s) sent · {} answered · {unresolved} without a response · {refused} need(s) refused before sending · {usage} token(s) reported · cost unknown (no catalog tariff), never zero; not in the no-budget subtotal · invoice unknown",
-        names.join(", "),
-        count("chosen") + count("none") + count("outside_options")
-    ))
-}
-
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod tests {
-    use super::{allowance, decision_line, observed_marker};
+    use super::{allowance, observed_marker};
+    fn decision_line(observations: &[serde_json::Value]) -> Option<String> {
+        nika_providers::admission::decision_summary(observations, crate::authoring::DECISION_SCHEMA)
+    }
     use serde_json::json;
 
     #[test]

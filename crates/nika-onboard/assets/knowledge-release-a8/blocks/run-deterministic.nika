@@ -1,0 +1,8 @@
+nika: p06-run-deterministic
+run: { entropy: none, clock: virtual }
+permits: {}
+tasks:
+  compute:
+    invoke: { tool: "nika:jq", args: { input: { a: 1, b: 2 }, expression: ".a + .b" } }
+outputs:
+  sum: ${{ tasks.compute.output }}

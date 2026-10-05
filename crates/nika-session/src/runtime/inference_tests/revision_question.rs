@@ -1178,3 +1178,5 @@ fn a_restored_correction_of_a_saved_files_update_keeps_its_file_and_witness() {
         base
     );
 }
+
+mod stop;

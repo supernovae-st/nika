@@ -109,7 +109,7 @@ impl HarnessAuthoring {
             "context_exposed": "compiler messages only; isolated transport scratch",
             "effort": "harness default; explicit thinking budget unsupported",
             "token_ceiling": "requested by Compiler; native CLI does not enforce a token cap",
-            "bounds": "one turn per call; at most 600 seconds; transport output byte ceiling"}))
+            "bounds": "one turn per call; the call's own deadline; transport output byte ceiling"}))
     }
 
     fn record(&self, value: Value) -> Result<(), ProviderError> {
@@ -202,10 +202,8 @@ impl ProviderInferDyn for HarnessAuthoring {
             ));
         }
         let timeout = request.timeout.unwrap_or(Duration::from_secs(300));
-        if timeout.is_zero() || timeout > Duration::from_secs(600) {
-            return Err(refused(
-                "harness authoring deadline must be positive and at most 600 seconds",
-            ));
+        if timeout.is_zero() {
+            return Err(refused("harness authoring deadline must be positive"));
         }
         let (system, prompt) = fold(&request.messages)?;
         let schema = match &request.response_format {

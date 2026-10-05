@@ -82,6 +82,27 @@ impl DispatchJournal {
         output
     }
 
+    /// Keep every physical request while this future runs, including successful completion.
+    /// The caller retains this journal across a dropped future; no admission is inferred.
+    pub async fn capture<F: Future>(&self, dispatch: F) -> F::Output {
+        JOURNAL.scope(self.clone(), dispatch).await
+    }
+
+    /// Every sent request so far, preserving incomplete usage after cancellation.
+    #[must_use]
+    pub fn snapshot(&self) -> Vec<InferenceCall> {
+        self.crossed()
+    }
+
+    /// A request crossed transport without a recorded response. Its charge stays uncertain.
+    #[must_use]
+    pub fn unfinished(&self) -> bool {
+        self.lock()
+            .recorded
+            .iter()
+            .any(|r| matches!(r, Recorded::Sent(_)))
+    }
+
     /// A poisoned lock still holds a plain record: recover it, never lose it.
     fn lock(&self) -> MutexGuard<'_, Requests> {
         match self.0.lock() {

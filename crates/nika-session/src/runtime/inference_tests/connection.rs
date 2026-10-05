@@ -294,3 +294,44 @@ fn subscription_reselection_does_not_release_project_zero_or_a_lost_gate_hold() 
         assert_eq!(calls.load(Ordering::SeqCst), 0);
     }
 }
+
+#[test]
+fn continuous_subscription_choice_does_not_ask_for_a_legacy_total_ceiling() {
+    continuous_subscription_notice("1 claude-code/claude-fable-5-1");
+}
+
+#[test]
+#[cfg(unix)]
+fn continuous_acp_choice_does_not_ask_for_a_legacy_total_ceiling() {
+    continuous_subscription_notice("1 acp:claude-code/claude-fable-5-1");
+}
+
+fn continuous_subscription_notice(choice: &str) {
+    let root = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut session = connected(root.path(), home.path(), &calls);
+    let retained = nika_providers::InferenceAdmission::new(nika_types::cost::Cost::zero()).unwrap();
+    retained.close("retained historical account").unwrap();
+    let before = retained.snapshot().unwrap().observation();
+    session.money.account = Some(retained.clone());
+    session.money.reconfirm = true;
+    session.enable_continuous_preparation();
+    let notice = choose(&mut session, choice);
+    assert!(notice.contains("preparation continues without a Session cost ceiling"));
+    assert!(notice.contains("invoice unknown"));
+    assert!(notice.contains("historical charges are kept"));
+    assert!(notice.contains("Run is reviewed separately"));
+    assert!(!notice.contains("fresh TOTAL"));
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        0,
+        "choosing makes no model call"
+    );
+    same_costs(&before, &retained.snapshot().unwrap().observation());
+    assert_eq!(retained.snapshot().unwrap().state, AdmissionState::Closed);
+    assert!(
+        session.money.reconfirm,
+        "the historical flag is not cleared"
+    );
+}

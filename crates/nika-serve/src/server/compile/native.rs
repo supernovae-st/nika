@@ -389,7 +389,7 @@ fn contains(haystack: &[u8], needle: &[u8]) -> bool {
 fn bounds(config: &NativeAuthoring) -> Result<Bounds, NativeAuthoringError> {
     let bounds = config.bounds;
     let refuse = |why| Err(NativeAuthoringError::Bound(why));
-    config::check_call_bounds(bounds.max_tokens, bounds.call_timeout)
+    config::check_legacy_call_bounds(bounds.max_tokens, bounds.call_timeout)
         .map_err(NativeAuthoringError::Bound)?;
     if bounds.deadline.is_zero() || bounds.deadline > MAX_DEADLINE {
         return refuse("the authoring deadline per request must be above zero and at most 3600 s");

@@ -27,6 +27,6 @@ impl SessionRuntime {
             let _ = account.close("API admission suspended for subscription authoring");
             self.money.reconfirm = true;
         }
-        "\n  subscription authoring: invoice unknown; no API fallback; any retained API allowance is suspended, with its expenses preserved; using that allowance again requires a fresh TOTAL ceiling"
+        nika_display::model_scope::subscription_status(self.money.preparation.is_some())
     }
 }

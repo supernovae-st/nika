@@ -38,14 +38,15 @@ pub(super) enum Evidence {
 }
 
 /// The evidence of `out`'s candidate: one rehearsal of its exact bytes over the request's own
-/// paths, admitted first against `attempts` rehearsals in all, then the behavioural judgment of
-/// that run. Returns the evidence and the record the journal keeps of it.
+/// paths, admitted first against `attempts` rehearsals in all (`None`: no count, each run
+/// still under its own bounds), then the behavioural judgment of that run. Returns the evidence
+/// and the record the journal keeps of it.
 pub(super) async fn examined(
     rehearsals: &mut Rehearsals<'_>,
     request: &CompileRequest,
     intent: &str,
     out: &CompileOutcome,
-    attempts: u32,
+    attempts: Option<u32>,
 ) -> (Evidence, Value) {
     if !rehearsals.offered() {
         return (Evidence::Unoffered, Value::Null);
@@ -60,7 +61,7 @@ pub(super) async fn examined(
         json!({"phase": "evidence", "candidate_sha256": candidate, "outcome": outcome,
             "behaviour": behaviour})
     };
-    if !rehearsals.admits(attempts) {
+    if let Some(attempts) = attempts.filter(|attempts| !rehearsals.admits(*attempts)) {
         let why = format!(
             "The rehearsal budget of this compile ({attempts} run(s)) is spent; no further run was asked."
         );

@@ -21,9 +21,7 @@ use nika_onboard::compile::{CompileOutcome, CompileQuestion, CompileRequest, rev
 // reading they refine (C10).
 pub(crate) use nika_onboard::compile::reading::human_reasons;
 pub(super) use nika_onboard::compile::reading::{asks_for_syntax, clause_of};
-use nika_onboard::compile::reading::{
-    clauses_understood, incomplete_words, question_words, syntax_question,
-};
+use nika_onboard::compile::reading::{clauses_understood, incomplete_words, syntax_prompt};
 use nika_onboard::compile::seat::{priced_words, unpriced_cloud, unpriced_warning};
 
 use super::{SessionRuntime, TurnOutcome, ceiling_in, named_files};
@@ -177,10 +175,7 @@ impl SessionRuntime {
                             None
                         }
                     }
-                    TurnAct::Modify | TurnAct::Mixed => {
-                        let saved = self.last_workflow.clone()?;
-                        Some(self.revise_saved(&saved, intent))
-                    }
+                    TurnAct::Modify | TurnAct::Mixed => self.revise_current(intent),
                     _ => None,
                 }
             }
@@ -193,7 +188,7 @@ impl SessionRuntime {
                     self.refused_unsettled(out)
                 }
                 AuthoringSeat::Provider { .. } | AuthoringSeat::Harness { .. } => self
-                    .beside_saved(intent, earlier)
+                    .beside_goal(intent, earlier)
                     .unwrap_or_else(|| self.compile_under_seat(round)),
                 // No usable intelligence is chosen: ask here, in context,
                 // and resume this request under the resulting choice.
@@ -223,13 +218,13 @@ impl SessionRuntime {
         TurnOutcome::Refusal(Refusal::new(RefusalClass::NotAllowed, text))
     }
 
-    /// Work the reader could not settle, said while a workflow is saved: before any authoring
-    /// call the bounded classifier decides the act. A change revises that file through its EDIT
-    /// (its original is the request the file answered, `earlier`), new work stays a creation
-    /// (`None`), and a line it cannot tell changes nothing — whether the label was judged unknown,
-    /// failed or had no classifier. No word of the line is matched here.
-    fn beside_saved(&mut self, intent: &str, earlier: Option<String>) -> Option<TurnOutcome> {
-        let saved = self.last_workflow.clone()?;
+    /// A saved file or unfinished goal gives a change its context. The classifier sees that
+    /// earlier request, never this line substituted for it; `NEW_WORK` inherits none of it.
+    fn beside_goal(&mut self, intent: &str, earlier: Option<String>) -> Option<TurnOutcome> {
+        if self.last_workflow.is_none() && earlier.is_none() {
+            return None;
+        }
+        let current = std::mem::replace(&mut self.intent.goal, earlier);
         let before = self.inference_receipt().ok().flatten();
         let decision = self.classify(SessionPhase::Idle, intent);
         // Only the shared account refusing the label before any send keeps today's truthful
@@ -237,16 +232,29 @@ impl SessionRuntime {
         let refused =
             decision.method == RoutingMethod::Failed && self.label_refused(before.as_ref());
         if decision.act == TurnAct::NewWork || refused {
+            self.intent.goal = current;
             return None;
         }
-        self.intent.goal = earlier;
-        Some(match decision.act {
-            TurnAct::Modify | TurnAct::Mixed => self.revise_saved(&saved, intent),
-            _ => TurnOutcome::Facts(Self::unknown_route_text(
+        match decision.act {
+            TurnAct::Modify | TurnAct::Mixed => self.revise_current(intent),
+            _ => Some(TurnOutcome::Facts(Self::unknown_route_text(
                 SessionPhase::Idle,
                 decision.method,
-            )),
-        })
+            ))),
+        }
+    }
+
+    /// No source exists after an interrupted creation: restate its request, never invent an
+    /// EDIT base, replay an interrupted plan or restore permission to save or run.
+    fn revise_current(&mut self, change: &str) -> Option<TurnOutcome> {
+        if let Some(saved) = self.last_workflow.clone() {
+            return Some(self.revise_saved(&saved, change));
+        }
+        let original = self.intent.goal.as_ref()?;
+        let intent = format!(
+            "Original request:\n{original}\nCorrection (takes precedence over the original where it changes it; keep the other requirements):\n{change}"
+        );
+        Some(self.restate_request(intent, change))
     }
 
     /// The same Compile, under the seat the human permitted, for work the
@@ -260,6 +268,9 @@ impl SessionRuntime {
         self.authoring_context = self.project_context();
         self.activity(&Activity::now(Phase::Authoring, self.authoring_note()));
         match self.compile_round(&round, &self.seat.clone()) {
+            Ok(out) if nika_onboard::compile::round::awaiting_judge(&out) => {
+                self.keep_unjudged(round, out)
+            }
             Ok(out) => match Reading::of(out) {
                 // The seat could not settle it: Nika keeps working — once
                 // more with the provider's stronger model (the product law:
@@ -272,6 +283,9 @@ impl SessionRuntime {
                             "still working · a stronger model reads it",
                         ));
                         return match self.compile_round(&round, &stronger) {
+                            Ok(again) if nika_onboard::compile::round::awaiting_judge(&again) => {
+                                self.keep_unjudged(round, again)
+                            }
                             Ok(again) => match Reading::of(again) {
                                 Reading::Unsettled(again) | Reading::NotWork(again) => {
                                     self.cannot_express(again)
@@ -308,21 +322,26 @@ impl SessionRuntime {
     /// compiler's reasons), what helps — never a request for syntax, never
     /// « rephrase with implementation details ».
     fn cannot_express(&mut self, out: CompileOutcome) -> TurnOutcome {
-        let text = held_words(&out, &self.seat).unwrap_or_else(|| cannot_express_text(&out));
+        let text =
+            held_words(&out, self.seat.has_model()).unwrap_or_else(|| cannot_express_text(&out));
         self.last_outcome = Some(out);
         TurnOutcome::Facts(text)
     }
 
     /// What the reader could not settle, or a native finish held for its round's judge.
     fn unsettled_words(&self, out: &CompileOutcome) -> String {
-        held_words(out, &self.seat).unwrap_or_else(|| incomplete_words(out, None))
+        held_words(out, self.seat.has_model()).unwrap_or_else(|| incomplete_words(out, None))
     }
 
     /// A change, a mixed line or new work said at a question: the request
     /// is read again with the human's own words (the round is dropped, the
     /// plan read a different request). Never a paraphrase.
     pub(super) fn restate_round(&mut self, round: &AuthoringRound, line: &str) -> TurnOutcome {
-        let intent = format!("{}. {}", round.intent, line.trim());
+        self.restate_request(format!("{}. {}", round.intent, line.trim()), line)
+    }
+
+    /// Compile the host's exact reconstructed request; all money spans bind to these bytes.
+    fn restate_request(&mut self, intent: String, line: &str) -> TurnOutcome {
         // Its directives, the request's own and the added ones, are spans of this very string (C11).
         let money = match self.built_money(&intent, line) {
             Ok(money) => money,
@@ -331,6 +350,7 @@ impl SessionRuntime {
         self.remember(line, "(the request read again with these words)");
         let mut again = AuthoringRound::new(intent);
         again.money = money;
+        self.intent.goal = Some(again.effective_intent());
         match self.compile_request(&again.request(), &again.intent) {
             Ok(out) => {
                 let reading = Reading::of(out);
@@ -542,6 +562,10 @@ impl SessionRuntime {
         change: &str,
         out: CompileOutcome,
     ) -> TurnOutcome {
+        if nika_onboard::compile::round::awaiting_judge(&out) {
+            self.revising = Some((set, previous));
+            return self.keep_unjudged(round, out);
+        }
         match Reading::of(out) {
             Reading::Ready(out) => {
                 self.remember(change, "(revised the proposal)");
@@ -623,6 +647,7 @@ impl SessionRuntime {
     /// anything is sent — never authored without the knowledge it names.
     pub(super) fn machinery(&mut self, error: &AuthoringError) -> TurnOutcome {
         match error {
+            AuthoringError::Cancelled => TurnOutcome::Cancelled(error.to_string()),
             AuthoringError::Seat(_) => self.recovery(
                 Some(RefusalClass::IntelligenceRefused),
                 "I couldn't use the authoring seat for this part",
@@ -645,7 +670,14 @@ impl SessionRuntime {
 
     /// What a reading becomes for the human: a proposal, a question, an
     /// honest incomplete, a refusal.
-    pub(super) fn settle(&mut self, mut round: AuthoringRound, reading: Reading) -> TurnOutcome {
+    pub(super) fn settle(&mut self, round: AuthoringRound, reading: Reading) -> TurnOutcome {
+        if nika_onboard::compile::round::awaiting_judge(reading.outcome()) {
+            return self.keep_unjudged(round, reading.outcome().clone());
+        }
+        self.settle_reading(round, reading)
+    }
+
+    fn settle_reading(&mut self, mut round: AuthoringRound, reading: Reading) -> TurnOutcome {
         // The compiler's reading is what `/meaning` shows, clause by clause.
         self.last_outcome = Some(reading.outcome().clone());
         // A revision left unsettled may still ask its clauses' dispositions (`absorb`).
@@ -682,7 +714,7 @@ impl SessionRuntime {
                         return TurnOutcome::Facts(text);
                     }
                     let clause = clause.as_deref().unwrap_or_default();
-                    let text = format!("{}{REPLY_HINT}", syntax_question(clause));
+                    let text = syntax_prompt(clause);
                     self.intent.unresolved = vec![text.clone()];
                     self.remember(&round.intent, &text);
                     self.questions.ask();
@@ -774,6 +806,9 @@ impl SessionRuntime {
                     self.bind_rehearsal(&id, qualified.as_ref(), round, out, &mut preview)
                 {
                     return refused;
+                }
+                if nika_providers::authoring::preparation::PreparationCosts::stopped() {
+                    return self.machinery(&AuthoringError::Cancelled);
                 }
                 self.authoring = None;
                 self.intent.unresolved.clear();
@@ -1241,80 +1276,19 @@ fn required_inputs_of(root: &std::path::Path, workflow: &std::path::Path) -> Vec
         .collect()
 }
 
-/// How a human answers a question, abandons it or asks why: the raw key stays out of the human's
-/// line (« why? » names it, with what the value is for); the prompt that follows (`reply ›`) says
-/// whose turn it is.
-const REPLY_HINT: &str = "\n  reply on the next line · `cancel` drops this · `why?` explains";
+pub(super) use nika_onboard::compile::reading::{question_text, revision_way, syntax_incomplete};
 
-/// The question as the human reads it ([`question_words`]), then how to answer or abandon it.
-pub(super) fn question_text(question: &CompileQuestion, reasons: &[String]) -> String {
-    format!("{}{REPLY_HINT}", question_words(question, reasons))
-}
-
-/// The card when nothing could be built, in the reading's own truth: a
-/// seat's draft the compiler's fidelity check refused is an AUTHORING
-/// failure (another attempt may hold every part), never a language gap;
-/// the deterministic reader's unsupported clause is a gap in what Nika
-/// can express. Neither is the human's ambiguity (mandate: a compiler gap
-/// is never presented as user ambiguity, nor an authoring failure as a gap).
-/// The way on after a revision that could not settle: an authoring failure (a seat tried and
-/// failed on Nika's side) keeps the base and the change — the same words try again; a reading
-/// the compiler could not settle asks for the change in other words. Never « describe the whole
-/// automation again »: the base and the original request are kept.
-pub(super) fn revision_way(out: &CompileOutcome) -> &'static str {
-    if matches!(
-        out.provenance.cognition,
-        nika_onboard::compile::AuthoringCognition::ExplicitProvider
-    ) {
-        "an authoring step failed on Nika's side: your change is kept — send it again unchanged for another attempt, or `/intelligence` for another model"
-    } else {
-        "say the change another way"
-    }
-}
-
-/// A native finish held for its round's judge (R4 A11 step 2), in words: the seat's program kept
-/// as the preview while the whole request stays open (`decision.pending.open`), waiting for a
-/// judge its round can permit — never an authoring failure nor a gap in the language.
-fn held_words(out: &CompileOutcome, seat: &AuthoringSeat) -> Option<String> {
-    let open = (out.provenance.decision.as_ref()).and_then(|d| d.pointer("/pending/open"));
-    open.and_then(serde_json::Value::as_array)
-        .filter(|open| !open.is_empty() && out.candidate.is_some())?;
-    let why = if seat.has_model() {
-        "no judgment made in this round settled it; nothing was written.\n  state the request again for another attempt, or `/intelligence` for another model"
-    } else {
-        "this session has no authoring model to judge it; nothing was written.\n  `/intelligence` chooses one, then state the request again"
-    };
-    Some(format!(
-        "The workflow is built but not proposed: the seat wrote this program, and only a judge this round can permit settles it against your whole request — {why} · `/meaning` shows what was understood"
-    ))
-}
+use nika_onboard::compile::reading::held_words;
 
 pub(super) fn cannot_express_text(out: &CompileOutcome) -> String {
     let authoring_failed = matches!(
         out.provenance.cognition,
         nika_onboard::compile::AuthoringCognition::ExplicitProvider
     );
-    let mut text = if authoring_failed {
-        "Nika could not finish building this automation — an authoring step failed on Nika's side (below), not because of how you asked; nothing was written.".to_owned()
-    } else {
-        "Nika cannot express this automation yet — nothing was written.".to_owned()
-    };
-    let stopped = human_reasons(reasons(out));
-    if !stopped.is_empty() {
-        text.push_str("\n  what stopped it:");
-        for reason in stopped {
-            text.push_str("\n    · ");
-            text.push_str(&reason);
-        }
-    }
-    // An internal failure never asks the human to rewrite or split what they asked: the
-    // request stays the goal, and the same words make another attempt.
-    text.push_str(if authoring_failed {
-        "\n  your request is kept as the goal: send it again unchanged for another attempt, or `/intelligence` for another model · `/meaning` shows what was understood"
-    } else {
-        "\n  what helps: say the outcome in one sentence (what to read · what to produce · where it goes), or split the work in two requests · `/meaning` shows what was understood"
-    });
-    text
+    nika_cli_host::display::front_door::recovery::cannot_express(
+        authoring_failed,
+        &human_reasons(reasons(out)),
+    )
 }
 
 /// Is `line` the seat the human already chose (`<provider>/<model>`,
@@ -1375,15 +1349,6 @@ impl SessionRuntime {
             AuthoringSeat::Deterministic { .. } => "authoring".to_owned(),
         }
     }
-}
-
-/// The honest incomplete when the rule stays code after the human's words
-/// (or the clause is not in the request as quoted): the way on, no syntax.
-fn syntax_incomplete(clause: Option<&str>) -> String {
-    let what = clause.map_or("this step".to_owned(), |c| format!("« {c} »"));
-    format!(
-        "I read this as work but cannot build {what} from your words yet: it would need a rule I can only write as code, and I never ask you for code.\n  · say the step differently — what to keep, what to compute, over which column, and where to write it\n  · or `cancel` and describe the work again\n  nothing was written"
-    )
 }
 
 /// The saved file a proposal updates and the witness it was proposed over; `None` for a

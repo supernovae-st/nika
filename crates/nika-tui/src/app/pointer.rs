@@ -13,8 +13,8 @@ use ratatui::text::Line;
 use unicode_width::UnicodeWidthStr;
 
 use super::{
-    Busy, Composer, ComposerAction, Conversation, Desk, ENTER_WAITS, Exit, Heard, LEAVE_WAITS,
-    Presentation, Route, Shell, Signal, UiEvent, UiState, busy_key, is_ctrl_c,
+    Busy, Composer, ComposerAction, Conversation, Desk, Exit, Heard, LEAVE_WAITS, Presentation,
+    Route, Shell, Signal, UiEvent, UiState, busy_key, is_ctrl_c,
 };
 use crate::workspace::{
     aside, focus::Region, geometry::Geometry, live::RunFace, object::Object, project::Target,
@@ -266,10 +266,10 @@ impl<C: Conversation + 'static> Shell<C> {
             UiEvent::Signal(Signal::Terminate) => return Heard::Leave(Exit::Terminated),
             UiEvent::Closed => return Heard::Leave(Exit::Closed),
             UiEvent::Signal(Signal::Interrupt) => {
-                return Self::arm(armed).map_or(Heard::Nothing, Heard::Leave);
+                return self.stop_or_arm(armed).map_or(Heard::Nothing, Heard::Leave);
             }
             UiEvent::Key(key) if is_ctrl_c(&key) => {
-                return Self::arm(armed).map_or(Heard::Nothing, Heard::Leave);
+                return self.stop_or_arm(armed).map_or(Heard::Nothing, Heard::Leave);
             }
             UiEvent::Paste(text) => {
                 self.state.completion = None;
@@ -314,7 +314,7 @@ impl<C: Conversation + 'static> Shell<C> {
                 Heard::Redraw
             }
             Busy::Hold => {
-                self.state.completion = Some(ENTER_WAITS.to_owned());
+                self.queue_correction();
                 Heard::Redraw
             }
             Busy::Older => {

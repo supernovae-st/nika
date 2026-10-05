@@ -24,10 +24,12 @@
 //! runtime's own `choose` law, and the line that waited resumes after it.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 
 use nika_cli_host::lane::{PendingRun, RunProgress};
+use nika_display::activity::Activity;
 use nika_display::run_story::RunSink;
 use nika_session::RunRequest;
 
@@ -47,7 +49,9 @@ pub type RunReviewedObserved = Box<dyn Fn(&Path, &RunRequest, &dyn RunSink) -> R
 use nika_session::intelligence::{IntelligenceCensus, UserIntelligencePreference};
 use nika_session::runtime::{ReasonerFactory, SessionRuntime, TurnOutcome};
 
-use crate::model::{Beat, Committed, Conversation, Handoff, Kind, Turn, Waiting};
+use crate::model::{
+    Beat, Committed, Conversation, Handoff, Kind, Stopper, Stopping, Turn, Waiting,
+};
 use crate::workspace::candidate::Proposed;
 use crate::workspace::header::Manifest;
 use crate::workspace::inspect::Inspected;
@@ -161,6 +165,9 @@ pub struct Live {
     /// The program the host named to run `nika:jq` in the observed room, given to every
     /// runtime this Live opens.
     jq: Option<nika_session::JqHelper>,
+    /// Set once the current turn hands a Run to its runner: the turn's stop
+    /// then answers that a Run is under way and cancels nothing.
+    run_started: Arc<AtomicBool>,
 }
 
 impl std::fmt::Debug for Live {
@@ -203,6 +210,7 @@ impl Live {
             legs: Arc::default(),
             kept: None,
             jq: None,
+            run_started: Arc::default(),
         };
         live.open_runtime(kept);
         live
@@ -281,19 +289,21 @@ impl Live {
                 factory,
             ),
         };
+        runtime.enable_continuous_preparation();
         if let Some(helper) = &self.jq {
             runtime.with_jq_helper(helper.clone());
         }
         // The plain loop prints progress lines to stdout; here the viewport
-        // owns stdout: a progress line becomes the busy label the shell
-        // draws while the turn runs (`submit_with` arms the sink), and is
-        // dropped between turns.
+        // owns stdout: each typed activity reaches the shell's card and busy
+        // row while the turn runs (`submit_observed` arms the sink), and is
+        // dropped between turns. The typed hook replaces the line hook here,
+        // so no activity is told twice.
         let slot = Arc::clone(&self.busy);
-        runtime.on_progress(Box::new(move |line| {
+        runtime.on_activity(Arc::new(move |activity: &Activity| {
             if let Ok(guard) = slot.lock()
                 && let Some(feed) = guard.as_ref()
             {
-                feed.said(line.to_owned());
+                feed.activity(activity);
             }
         }));
         self.runtime = Some(runtime);
@@ -419,6 +429,7 @@ impl Live {
                 beats.push(Beat::Say(Committed::new(Kind::Proposal, preview)));
             }
             TurnOutcome::RunRequested { report, run } => {
+                self.run_started.store(true, Ordering::Release);
                 beats.push(Beat::Say(Committed::new(Kind::Report, report)));
                 let label = format!(
                     "running `{}` once · ceiling ${:.2}",
@@ -450,6 +461,7 @@ impl Live {
                 trace,
                 answer,
             } => {
+                self.run_started.store(true, Ordering::Release);
                 let label = format!("resuming `{}` with your answer", workflow.display());
                 beats.push(Beat::Say(Committed::new(Kind::Report, label.clone())));
                 let work = Work::Resume {
@@ -466,6 +478,9 @@ impl Live {
             TurnOutcome::Refusal(why) => {
                 beats.push(Beat::Say(Committed::new(Kind::Refusal, why.to_string())));
             }
+            // The preparation stopped at the human's request: the Session's
+            // own words; no proposal came of it and nothing waits for consent.
+            TurnOutcome::Cancelled(note) => beats.push(Beat::Cancelled(note)),
             _ => {}
         }
         if handoff.is_none() {
@@ -764,6 +779,45 @@ impl Conversation for Live {
     fn cancel_pending(&mut self) -> Vec<Beat> {
         let beats = self.cancelled();
         self.fold_candidate();
+        beats
+    }
+
+    /// A fresh preparation token for the turn about to start (the Session's
+    /// `begin_preparation_turn`). A turn answering the retained Run review
+    /// arms none, and once this turn hands a Run to its runner the stop
+    /// cancels nothing: a Run keeps its own doors.
+    fn stopper(&mut self) -> Option<Stopper> {
+        if self.pending_run.is_some() {
+            return None;
+        }
+        let preparation = self.runtime.as_mut()?.begin_preparation_turn();
+        let run = Arc::new(AtomicBool::new(false));
+        self.run_started = Arc::clone(&run);
+        Some(Box::new(move || {
+            if run.load(Ordering::Acquire) {
+                Stopping::RunUnderway
+            } else {
+                preparation.cancel();
+                Stopping::Requested
+            }
+        }))
+    }
+
+    /// A stop that raced the turn's result: the Session withdraws what its
+    /// cancelled preparation left pending (never a gate, a Run or a cost
+    /// decision, and no consent is recorded) and says so in its own words.
+    fn withdraw_stopped(&mut self) -> Vec<Beat> {
+        let Some(note) =
+            (self.runtime.as_mut()).and_then(SessionRuntime::withdraw_cancelled_preparation)
+        else {
+            return Vec::new();
+        };
+        self.fold_candidate();
+        // The same beat as a stop the turn itself answered: the card reads
+        // « Stopped by you », never « Settled », above a withdrawn result.
+        let mut beats = vec![Beat::Cancelled(note)];
+        beats.extend(self.footer());
+        beats.push(Beat::Wait(self.waiting()));
         beats
     }
 

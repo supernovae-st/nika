@@ -27,6 +27,7 @@ fn heading(kind: Kind) -> (&'static str, Role) {
         Kind::Run => ("Run", Role::VerbInvoke),
         Kind::Result => ("Result", Role::Good),
         Kind::Report => ("Report", Role::Accent),
+        Kind::Activity => ("Activity", Role::Accent),
         Kind::Banner => ("Nika", Role::VerbAgent),
         Kind::Notice | Kind::Reply => ("Nika", Role::Accent),
     }

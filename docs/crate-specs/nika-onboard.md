@@ -68,7 +68,7 @@ release also refuses with its typed cause; it is not treated as absent.
 `AuthoringSettings::source_recovery` (a host's field, else
 `NIKA_AUTHORING_SOURCE_RECOVERY`) names the operator's explicit source recovery
 rounds; `resolve` admits them through the compiler's closed parser
-(`AuthoringPolicy::recovery_rounds`: a count in `0..=3`, and rounds only under
+(`AuthoringPolicy::recovery_rounds`: a non-negative `u32` count, and rounds only under
 `escalate` or `sketch`, whose sketch door can be exhausted), else
 `ConfigError::SourceRecovery` names the word. `AuthoringConfig::policy` carries the
 count to the one policy every door builds, so the CLI and the Session (and its TUI) read the
@@ -700,3 +700,27 @@ private Session helpers. Their
 closed English/French vocabulary, money parser and input extraction are unchanged.
 Session retains Run checks, budgets and execution consent; these lexical functions
 perform no I/O and grant no authority.
+
+## Completion settings and creation
+
+`check_call_bounds` accepts a positive output count and a positive transport deadline.
+It imposes no global model output cap and no deadline ceiling (the route's own).
+CLI creation selects defaults through Providers' effective-route completion policy;
+explicit completion and repair counts remain typed values. Without a repair count,
+the compiler keeps its continuous preparation behavior. `call_bounds` and
+`check_legacy_call_bounds` retain the historical bounded-door contract for explicit
+server configuration: 8192 default output tokens, 32768 maximum, and the existing
+timeouts. Serve calls that compatibility check; its operator grants and Run limits
+are unchanged.
+
+`activity` reexports the shared Display presentation unchanged. Session and Compiler remain
+the producers of actual phases; no phase is inferred from an output string.
+
+The compile-reading owner also keeps the pure question, revision and syntax-gap prose used by
+Session. `compile::seat::preparation_policy` derives policy from the supplied route configuration
+and explicit continuous/bounded mode; it performs no I/O or intelligence selection. The activity
+bridge maps Compiler call events to Display's typed marks, keeping requested identity explicit.
+
+### Kept candidates awaiting judgment
+
+`compile::round::awaiting_judge` projects only the compiler's typed Applied `verify_resume` finding on an INCOMPLETE, candidate-less outcome carrying a settled plan. A questionless durable round may be continued when its plan is preserved exactly; the host must not treat restoring that evidence as a successful judgment. The compiler remains the only owner of semantic-record validation and the final verdict. `RoundWords` and `as_typed` retain their public paths through reexports of pure Display presentation; record parsing, hashes, bounds and replay remain here.

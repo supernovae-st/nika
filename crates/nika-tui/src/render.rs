@@ -31,7 +31,7 @@ fn face(kind: Kind, color: bool, ascii: bool) -> (&'static str, Style) {
     match kind {
         Kind::Banner | Kind::Notice => ("", dim),
         Kind::Human => (pick("› ", "> "), strong),
-        Kind::Reply | Kind::Proposal | Kind::Report => ("", Style::default()),
+        Kind::Reply | Kind::Proposal | Kind::Report | Kind::Activity => ("", Style::default()),
         Kind::Question => ("? ", Style::default()),
         Kind::Run => ("  ", Style::default()),
         Kind::Gate => (pick("⏸ ", "|| "), role::style(Role::Warn, color)),
@@ -100,6 +100,22 @@ fn status_rows(state: &UiState, width: u16) -> u16 {
     }
 }
 
+/// The role of one line of an activity card: its heading, then each row by
+/// the Session's glyph (the busy row's reading); a run's step keeps `None`.
+fn activity_role(index: usize, text: &str) -> Option<Role> {
+    if index == 0 {
+        Some(Role::Strong)
+    } else if text.starts_with("✓ ") {
+        Some(Role::Good)
+    } else if text.starts_with("↻ ") {
+        Some(Role::Warn)
+    } else if text.starts_with("● ") {
+        Some(Role::Accent)
+    } else {
+        None
+    }
+}
+
 /// The lines of one block, the glyph on its first line only.
 #[must_use]
 pub fn block_lines(block: &Committed, color: bool, ascii: bool) -> Vec<Line<'static>> {
@@ -115,9 +131,13 @@ pub fn block_lines(block: &Committed, color: bool, ascii: bool) -> Vec<Line<'sta
             } else {
                 indent.clone()
             };
+            let tone = (block.kind == Kind::Activity)
+                .then(|| activity_role(i, text))
+                .flatten()
+                .map_or(style, |tone| role::style(tone, color));
             Line::from(vec![
                 Span::styled(head, style),
-                Span::styled(text.to_owned(), style),
+                Span::styled(text.to_owned(), tone),
             ])
         })
         .collect()
@@ -190,6 +210,8 @@ fn status_line(state: &UiState) -> Line<'static> {
                 Role::Good
             } else if phase.starts_with("● ") {
                 Role::Accent
+            } else if phase.starts_with("↻ ") {
+                Role::Warn
             } else {
                 Role::Strong
             };
@@ -198,6 +220,9 @@ fn status_line(state: &UiState) -> Line<'static> {
                 phase.to_owned(),
                 role::style(tone, state.color),
             ));
+        }
+        if let Some(cue) = earlier_cue(state) {
+            spans.push(Span::styled(cue, dim));
         }
         Line::from(spans)
     } else if state.waiting == Waiting::Proposal {
@@ -219,20 +244,32 @@ fn status_line(state: &UiState) -> Line<'static> {
             (false, true) => state.status.clone(),
             (false, false) => format!("{}{sep}{mode}", state.status),
         };
-        Line::from(Span::styled(text, dim))
+        let cue = earlier_cue(state).unwrap_or_default();
+        Line::from(Span::styled(format!("{text}{cue}"), dim))
     }
 }
 
+/// While the full-screen transcript is scrolled back, new activity keeps the
+/// reading place; the row says so and names the key back to the latest.
+fn earlier_cue(state: &UiState) -> Option<String> {
+    (state.focus_scroll > 0 && state.presentation != Presentation::Inline)
+        .then(|| own(" · reading earlier messages · End: latest", state.ascii))
+}
+
+/// Preparation has Stop and queued corrections; a Run keeps its separate controls.
+/// The action's resulting notice still replaces this hint when the human acts.
+const WORKING_HINT: &str =
+    "Preparing: Ctrl+C requests Stop; correction + Enter. Run: typing waits.";
+
 fn hint_line(state: &UiState) -> Line<'static> {
-    let text = own(
-        state
-            .completion
-            .as_deref()
-            .unwrap_or_else(|| state.waiting.hint()),
-        state.ascii,
-    );
+    let idle = if state.busy.is_some() {
+        WORKING_HINT
+    } else {
+        state.waiting.hint()
+    };
+    let text = own(state.completion.as_deref().unwrap_or(idle), state.ascii);
     let tone = match state.waiting {
-        Waiting::Proposal | Waiting::Gate => Role::Warn,
+        Waiting::Proposal | Waiting::Gate if state.busy.is_none() => Role::Warn,
         _ => Role::Accent,
     };
     Line::from(Span::styled(text, role::style(tone, state.color)))
@@ -425,6 +462,37 @@ mod tests {
             .expect("draw");
         let still = row(terminal.backend().buffer(), 0);
         assert!(still.starts_with("● working"), "{still:?}");
+    }
+
+    #[test]
+    fn the_busy_hint_names_preparation_controls_and_keeps_run_distinct() {
+        for width in [44, 60, 80] {
+            for ascii in [false, true] {
+                let mut state = UiState::new(Presentation::Inline, false, (width, 8));
+                state.ascii = ascii;
+                state.busy = Some("preparing your workflow".into());
+                let mut terminal = Terminal::new(TestBackend::new(width, 8)).expect("terminal");
+                terminal
+                    .draw(|frame| draw_inline(frame, &state, &Composer::new()))
+                    .expect("draw");
+                let shown = (0..8)
+                    .map(|y| row(terminal.backend().buffer(), y))
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                let shown = shown.split_whitespace().collect::<Vec<_>>().join(" ");
+                for instruction in [
+                    "Preparing: Ctrl+C requests Stop",
+                    "correction + Enter",
+                    "Run: typing waits",
+                ] {
+                    assert!(shown.contains(instruction), "{width}: {shown}");
+                }
+                assert!(!shown.contains("Ctrl+C twice leaves"));
+                if ascii {
+                    assert!(shown.is_ascii());
+                }
+            }
+        }
     }
 
     /// The armed row says what a second press does and claims no
@@ -691,5 +759,115 @@ mod tests {
                 assert!(words.contains(fact), "width {width}: {words}");
             }
         }
+    }
+
+    /// An activity card's rows wear the tone of the Session's glyph, as the busy row
+    /// does; a run's step and the words themselves are untouched, and no hue without colour.
+    #[test]
+    fn activity_rows_wear_their_glyph_tone_and_keep_their_words() {
+        let block = Committed::new(
+            Kind::Activity,
+            "Repairing\n✓ recorded 6 requirements\n● authoring · m\n↻ a stronger model reads it\n✔ a · 3 ms · 1/2",
+        );
+        let lines = block_lines(&block, true, false);
+        let tone = |i: usize| lines[i].spans[1].style;
+        assert_eq!(tone(0), role::style(Role::Strong, true));
+        assert_eq!(tone(1), role::style(Role::Good, true));
+        assert_eq!(tone(2), role::style(Role::Accent, true));
+        assert_eq!(tone(3), role::style(Role::Warn, true));
+        assert_eq!(
+            tone(4),
+            Style::default(),
+            "a run's step keeps its block style"
+        );
+        let words: Vec<String> = (lines.iter())
+            .map(|line| line.spans.iter().map(|s| s.content.as_ref()).collect())
+            .collect();
+        assert_eq!(words.join("\n"), block.text);
+        for line in block_lines(&block, false, false) {
+            assert!(line.spans.iter().all(|s| s.style.fg.is_none()), "{line:?}");
+        }
+        // Another kind is never toned by its words.
+        let report = Committed::new(Kind::Report, "✓ looks like a phase");
+        assert_eq!(
+            block_lines(&report, true, false)[0].spans[1].style,
+            Style::default()
+        );
+        let mut state = UiState::new(Presentation::Workspace, true, (80, 4));
+        state.apply(Beat::Busy("↻ a stronger model reads it".to_owned()));
+        let busy = status_line(&state);
+        assert_eq!(busy.spans[1].style, role::style(Role::Warn, true));
+    }
+
+    /// While a turn works, the hint says what typing and Ctrl+C do then, in words; the
+    /// hint of what waits returns with the turn's end. A completion still wins.
+    #[test]
+    fn the_hint_says_what_keys_do_while_a_turn_works() {
+        let mut state = UiState::new(Presentation::Inline, true, (80, 5));
+        state.waiting = Waiting::Proposal;
+        let text = |state: &UiState| -> String {
+            hint_line(state)
+                .spans
+                .iter()
+                .map(|s| s.content.as_ref())
+                .collect()
+        };
+        assert!(text(&state).starts_with("yes + Enter: Save"));
+        state.apply(Beat::Busy("reviewing your reply".to_owned()));
+        let working = text(&state);
+        for words in [
+            "Preparing: Ctrl+C requests Stop",
+            "correction + Enter",
+            "Run: typing waits",
+        ] {
+            assert!(working.contains(words), "{working}");
+        }
+        assert!(!working.contains("Save"), "{working}");
+        assert_eq!(
+            hint_line(&state).spans[0].style,
+            role::style(Role::Accent, true),
+            "no consent tone while nothing can be consented to"
+        );
+        assert!(working.chars().count() <= 80, "one row at 80 columns");
+        state.ascii = true;
+        assert!(text(&state).is_ascii());
+        state.completion = Some(ENTER.to_owned());
+        assert_eq!(text(&state), ENTER);
+        state.completion = None;
+        state.apply(Beat::Wait(Waiting::Proposal));
+        assert!(text(&state).starts_with("yes + Enter: Save"));
+    }
+
+    const ENTER: &str = "Nika is working - Enter sends when it is your turn";
+
+    /// A scrolled-back transcript is said on the status row (busy or idle) with the key
+    /// back to the latest; at the latest row, and inline (the terminal scrolls), nothing.
+    #[test]
+    fn a_scrolled_back_transcript_names_the_way_back_to_the_latest() {
+        let words = |state: &UiState| -> String {
+            status_line(state)
+                .spans
+                .iter()
+                .map(|s| s.content.as_ref())
+                .collect()
+        };
+        for presentation in [Presentation::Focus, Presentation::Workspace] {
+            let mut state = UiState::new(presentation, false, (80, 24));
+            state.status = "Ready for review".to_owned();
+            assert!(!words(&state).contains("End: latest"));
+            state.focus_scroll = 3;
+            assert!(
+                words(&state).ends_with("reading earlier messages · End: latest"),
+                "{}",
+                words(&state)
+            );
+            state.apply(Beat::Busy("● authoring · m".to_owned()));
+            assert!(words(&state).ends_with("End: latest"), "{}", words(&state));
+            state.ascii = true;
+            assert!(words(&state).ends_with("reading earlier messages - End: latest"));
+        }
+        let mut inline = UiState::new(Presentation::Inline, false, (80, 24));
+        inline.focus_scroll = 3;
+        assert!(!words(&inline).contains("End: latest"));
     }
 }

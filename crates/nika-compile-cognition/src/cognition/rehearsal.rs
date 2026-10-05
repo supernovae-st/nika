@@ -159,11 +159,13 @@ impl<'a> Rehearsals<'a> {
 
     /// The behavioural judgment of this call's last run against `contract` (the request's own,
     /// never one the candidate states). The round admits that one run within the host's own
-    /// bounds (its time bound, twice its room); the turn admits `attempts` such runs. The run was
-    /// charged once when it ran: the turn resumes from what was spent before it.
-    pub(super) fn judged(&self, contract: &Contract, attempts: u32) -> Option<Report> {
+    /// bounds (its time bound, twice its room); the turn admits `attempts` such runs (`None`:
+    /// the runs spent before it and this one). The run was charged once when it ran: the turn
+    /// resumes from what was spent before it.
+    pub(super) fn judged(&self, contract: &Contract, attempts: Option<u32>) -> Option<Report> {
         let last = self.last.as_ref()?;
         let host = self.host?;
+        let attempts = attempts.unwrap_or_else(|| last.spent_before.fixtures.saturating_add(1));
         let time = u64::try_from(host.bound().as_millis()).unwrap_or(u64::MAX);
         let bytes = last.room_bytes.saturating_mul(2);
         let round = Limits::new(1, 1, bytes, time);

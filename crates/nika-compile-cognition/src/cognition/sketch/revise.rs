@@ -30,6 +30,7 @@ use super::{
     native, prelude, repair, semantic_record, system_message, withhold_record,
 };
 use crate::cognition::{AuthoringPolicy, CompileOutcome, CompileRequest, DiagnosticKind, Strategy};
+use crate::decide::DecisionSeat;
 use crate::fidelity::Diagnostic;
 use crate::sketch::{Sketch, revision};
 use crate::types::{EditChange, Input};
@@ -90,6 +91,7 @@ pub(in crate::cognition) async fn edit<P: ProviderInferDyn>(
     raw: &CompileRequest,
     reading: &CompileRequest,
     seat: Option<(&AuthoringPolicy, &P)>,
+    decision: Option<&dyn DecisionSeat>,
 ) -> Result<CompileOutcome, CompileError> {
     let core = nika_compile::compile(raw)?;
     let unresolved = core
@@ -100,7 +102,7 @@ pub(in crate::cognition) async fn edit<P: ProviderInferDyn>(
         unresolved && policy.native != crate::cognition::NativeMode::Off
     };
     match seat.filter(open) {
-        Some((policy, provider)) => revise(reading, policy, provider).await,
+        Some((policy, provider)) => revise(reading, policy, (provider, decision)).await,
         None => Ok(core),
     }
 }
@@ -200,7 +202,8 @@ async fn linked<P: ProviderInferDyn>(
     (policy, provider): (&AuthoringPolicy, &P),
     out: &mut CompileOutcome,
 ) -> Linked {
-    let last = policy.repairs.min(5);
+    let last = policy.repairs;
+    talk.remember_under(policy);
     let mut round = 0;
     loop {
         let role = if round == 0 {
@@ -241,7 +244,7 @@ async fn linked<P: ProviderInferDyn>(
                 message: message.clone(),
             })
             .collect();
-        if round >= last || !repair(talk, text, diagnostics, LINKS_AGAIN) {
+        if last.is_some_and(|last| round >= last) || !repair(talk, text, diagnostics, LINKS_AGAIN) {
             return Linked::Refused(why);
         }
         round += 1;
@@ -361,7 +364,7 @@ fn bind(
 async fn revise<P: ProviderInferDyn>(
     request: &CompileRequest,
     policy: &AuthoringPolicy,
-    provider: &P,
+    (provider, decision): (&P, Option<&dyn DecisionSeat>),
 ) -> Result<CompileOutcome, CompileError> {
     let mut out = crate::initial();
     let (
@@ -405,7 +408,7 @@ async fn revise<P: ProviderInferDyn>(
                     shown,
                     cold,
                 };
-                return Ok(delegated(at, (policy, provider), journal, pair, out).await);
+                return Ok(delegated(at, (policy, provider, decision), journal, pair, out).await);
             }
             Linked::Unanswered => {
                 native::record(&mut out, &revising, &cold, &talk, &sent, None, shown);
@@ -435,7 +438,7 @@ async fn revise<P: ProviderInferDyn>(
         shown,
         cold,
     };
-    let connection = (policy, provider);
+    let connection = (policy, provider, decision);
     Ok(filled(
         (&revising, base, &pair),
         connection,
@@ -451,7 +454,7 @@ async fn revise<P: ProviderInferDyn>(
 /// READY result judged against that request.
 async fn filled<P: ProviderInferDyn>(
     (revising, base, pair): (&CompileRequest, &Value, &(Sketch, SketchAnswer)),
-    (policy, provider): (&AuthoringPolicy, &P),
+    (policy, provider, decision): (&AuthoringPolicy, &P, Option<&dyn DecisionSeat>),
     journal: Journal<'_>,
     contract: &Contract<'_>,
     mut out: CompileOutcome,
@@ -480,7 +483,15 @@ async fn filled<P: ProviderInferDyn>(
         return out;
     }
     let judge = super::super::verify::judged_native;
-    judge(resolved, &reading, policy, provider, revising, out).await
+    judge(
+        resolved,
+        &reading,
+        policy,
+        (provider, decision),
+        revising,
+        out,
+    )
+    .await
 }
 
 /// A revision the preservation or delta laws refuse: nothing READY, no record, each law named.
@@ -538,7 +549,7 @@ fn revisable(base: &str) -> bool {
 pub(in crate::cognition) async fn source<P: ProviderInferDyn>(
     request: &CompileRequest,
     policy: &AuthoringPolicy,
-    provider: &P,
+    (provider, decision): (&P, Option<&dyn DecisionSeat>),
 ) -> Result<CompileOutcome, CompileError> {
     let kept = || {
         let mut out = historical();
@@ -594,7 +605,15 @@ pub(in crate::cognition) async fn source<P: ProviderInferDyn>(
         cold,
     };
     let reading = (intent.as_str(), &reading);
-    Ok(source_settled(request, reading, (policy, provider), journal, linked, out).await)
+    Ok(source_settled(
+        request,
+        reading,
+        (policy, provider, decision),
+        journal,
+        linked,
+        out,
+    )
+    .await)
 }
 
 /// What a revision's round journals: the round its accepted answer was stated in (the links
@@ -614,7 +633,7 @@ struct Journal<'a> {
 async fn source_settled<P: ProviderInferDyn>(
     request: &CompileRequest,
     (intent, reading): (&str, &lexicon::Reading),
-    (policy, provider): (&AuthoringPolicy, &P),
+    (policy, provider, decision): (&AuthoringPolicy, &P, Option<&dyn DecisionSeat>),
     mut journal: Journal<'_>,
     (links, text): (Links, String),
     mut out: CompileOutcome,
@@ -661,7 +680,15 @@ async fn source_settled<P: ProviderInferDyn>(
     if done.status != crate::CompileStatus::Ready {
         return done;
     }
-    super::super::verify::judged_native(intent, reading, policy, provider, request, done).await
+    super::super::verify::judged_native(
+        intent,
+        reading,
+        policy,
+        (provider, decision),
+        request,
+        done,
+    )
+    .await
 }
 
 /// The talk a source-anchored revision opens: the base workflow, both clause lists and the
@@ -734,7 +761,7 @@ fn destination_edit(
 /// revised record keeps the digest of the base's semantic record.
 async fn delegated<P: ProviderInferDyn>(
     (request, original, base): (&CompileRequest, &str, &Value),
-    (policy, provider): (&AuthoringPolicy, &P),
+    (policy, provider, decision): (&AuthoringPolicy, &P, Option<&dyn DecisionSeat>),
     journal: Journal<'_>,
     pair: (Links, String),
     out: CompileOutcome,
@@ -743,7 +770,7 @@ async fn delegated<P: ProviderInferDyn>(
     bound.plan = None;
     let intent = nika_compile::revise_intent(&bound).unwrap_or_default();
     let reading = lexicon::read(&intent);
-    let seated = (policy, provider);
+    let seated = (policy, provider, decision);
     let mut done = source_settled(&bound, (&intent, &reading), seated, journal, pair, out).await;
     if let Some(record) = done.provenance.plan.as_mut().filter(|r| r.is_object()) {
         record["semantic_base_sha256"] = json!(nika_compile::surface::sha256(&base.to_string()));

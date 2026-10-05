@@ -237,3 +237,44 @@ async fn several_files_keep_each_files_own_nested_names() {
     );
     assert!(said.contains("movements[]: kind, part, qty, seq"), "{said}");
 }
+
+#[tokio::test]
+async fn temporal_formats_and_runtime_parsing_guidance_reach_the_author_without_values() {
+    let mut document = supplies();
+    document["punches"] = json!([
+        {"at": "2042-11-28T07:36", "note": "PRIVATE-TIME-NOTE"},
+        {"at": "2042-11-29T07:36:42Z"}, {"at": "2042-11-30T07:36:42+04:00"},
+        {"at": null}, {}]);
+    let seat = Capture::new(&[asking("const.timezone")]);
+    let _ = compiled(world(&[(SOURCE, document)]), &seat).await;
+    let request_text = seat.first();
+    for fact in [
+        "punches[].at",
+        "temporal",
+        "matched",
+        "9999-99-99T99:99",
+        "9999-99-99T99:99:99Z",
+        "9999-99-99T99:99:99+99:99",
+        "fromdateiso8601",
+        "strptime",
+        "mktime",
+        "no timezone is inferred",
+    ] {
+        assert!(
+            request_text.contains(fact),
+            "missing observed context: {fact}"
+        );
+    }
+    for private in [
+        "2042-11-28",
+        "2042-11-29",
+        "2042-11-30",
+        "+04:00",
+        "PRIVATE-TIME-NOTE",
+    ] {
+        assert!(
+            !request_text.contains(private),
+            "a raw temporal value leaked: {private}"
+        );
+    }
+}

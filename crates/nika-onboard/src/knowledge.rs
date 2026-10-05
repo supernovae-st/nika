@@ -8,7 +8,7 @@
 //! that realize them (and the solved examples and the skill of the leading family, which a
 //! policy-R release never holds) — plus the repair principles the release wires to diagnostic
 //! codes, for the repair rounds. Deterministic retrieval (BM25 over the rows' text and the
-//! release's graph), bounded (three families · eight patterns · four blocks · three examples ·
+//! release's graph), bounded (three families · eight patterns · eight blocks · three examples ·
 //! one skill · ~40 KiB), and stated: the selection record names every row it selected, why, and
 //! whether it was presented or excluded (and for what reason); the identity carries the release's
 //! version, its `SNAPSHOT_SHA256` (the sha256 of its manifest's bytes) and this builder's version.
@@ -23,9 +23,8 @@
 //!
 //! The embedder names the [`TrustedIdentity`] it expects (the release's `SNAPSHOT_SHA256` and
 //! its policy), from its own release record. A source without one is refused before anything is
-//! collected. A named directory carries none today. This build embeds one qualified release,
-//! admitted in memory against the identity its owner issued: the knowledge where nothing names
-//! any.
+//! collected. A named directory carries none today. This build embeds the current release and retains R3 for earlier pins. Each is
+//! admitted against its issued identity; new authoring uses the current release by default.
 //!
 //! The release is read once:
 //! - every byte is bound to the manifest's pins;
@@ -84,10 +83,11 @@ pub fn redact_host_paths(identity: &mut serde_json::Value) {
 /// selected, excluded with a reason and presented, and a block states its row's metadata; v4:
 /// one strict admission against a trusted identity (profile r1 of the shared contract), every
 /// presented byte admitted when the release opens, never read again).
-pub const PACK_BUILDER: &str = "nika-compile/knowledge-door-v4";
+/// v5 retains up to eight matching blocks so broader project coverage preserves specific obligations.
+pub const PACK_BUILDER: &str = "nika-compile/knowledge-door-v5";
 const FAMILIES: usize = 3;
 const PATTERNS: usize = 8;
-const BLOCKS: usize = 4;
+const BLOCKS: usize = 8;
 const EXAMPLES: usize = 3;
 const SKILLS: usize = 1;
 /// The most bytes one referenced file contributes.

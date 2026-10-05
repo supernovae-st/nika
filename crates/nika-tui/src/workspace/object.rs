@@ -191,7 +191,11 @@ fn welcome_words(words: &[String], width: u16, height: u16, cut: &str) -> Vec<St
         width,
         cut,
     ));
-    steps.push(fit_head("F6: change panel", width, cut));
+    steps.push(fit_head(
+        "Click/F6: panel | wheel: scroll | chat End: latest",
+        width,
+        cut,
+    ));
     steps
 }
 
@@ -311,7 +315,9 @@ mod tests {
                     "deepseek/chosen",
                     "/intelligence: change anytime",
                     "/help: commands",
-                    "F6: change panel",
+                    "Click/F6: panel",
+                    "wheel: scroll",
+                    "chat End: latest",
                 ] {
                     assert!(
                         all.contains(expected),
@@ -326,7 +332,7 @@ mod tests {
                     project::welcome(Some(&ProjectView::new("local", "first", "/project")), ascii);
                 let all = text(&lines(&missing, area.width, area.height, paint(ascii))).join("\n");
                 assert!(
-                    all.contains("not chosen yet") && all.contains("F6: change panel"),
+                    all.contains("not chosen yet") && all.contains("Click/F6: panel"),
                     "{all}"
                 );
             }

@@ -865,7 +865,8 @@ fn blocked(out: &mut CompileOutcome, verdict: &Verdict, repairs: usize) {
 /// missing, a stated duty the plan leaves uncarried) is repaired from within the policy's
 /// repairs, and the repaired plan's computations go through the transform seat again with the
 /// judge's defects, so no program of the plan it replaced survives; an abstention, a failed
-/// judge or exhausted repairs stay INCOMPLETE.
+/// judge or exhausted repairs stay INCOMPLETE. Under no repair count, a repaired plan whose
+/// judgment names the very parts the last one named made no progress: the repairs end there.
 #[allow(clippy::too_many_arguments)] // the COLD door's own state, threaded once
 pub(super) async fn judged_cold<P: ProviderInferDyn>(
     intent: &str,
@@ -884,6 +885,8 @@ pub(super) async fn judged_cold<P: ProviderInferDyn>(
     let mut pre = out;
     let mut plan = plan;
     let mut attempt = 0;
+    let unbounded = policy.repairs.is_none();
+    let mut last_parts: Option<Vec<String>> = None;
     loop {
         let settled =
             super::settle_judged(Strategy::Cold, &plan, intent, request, &[], pre.clone())?;
@@ -914,8 +917,14 @@ pub(super) async fn judged_cold<P: ProviderInferDyn>(
             // A genuine question (a field, a count the request withholds): asked as it was.
             return Ok(settled);
         }
-        if !parts.is_empty() && attempt < policy.repairs as usize {
+        let stalled = unbounded && last_parts.as_ref() == Some(&parts);
+        if stalled {
+            route(&mut pre, "verify: no progress");
+        }
+        let allowed = (policy.repairs).is_none_or(|repairs| attempt < repairs as usize);
+        if !parts.is_empty() && !stalled && allowed {
             attempt += 1;
+            last_parts = Some(parts.clone());
             route(&mut pre, &format!("verify: repair {attempt}"));
             let candidate = settled.candidate.as_deref();
             let repaired = repair(
@@ -1074,9 +1083,9 @@ pub(super) async fn semantic<P: ProviderInferDyn>(
 /// C3): the seat wrote the workflow itself (the sketch door's seat its tasks and program holes),
 /// so no law of the core reads its programs, and the parser, Check and the fidelity laws only
 /// admit it. The whole request is judged against the candidate's actual final bytes as a COLD
-/// candidate's is: the same state and reference, the journaled authoring call under the
-/// authoring policy's caps, the authoring provider as judge (the native doors receive no
-/// decision seat). A candidate the judge finds unfaithful, or cannot settle, is withdrawn with
+/// candidate's is: the same state and reference, the selected decision seat when present,
+/// otherwise the journaled authoring provider under its policy. A selected seat's abstention
+/// or failure never falls back to the author. A refused candidate is withdrawn with
 /// its questions, its requested boundary and its replayable record, so no answer round replays
 /// it, and the request stays INCOMPLETE naming the part; no repair round follows. An outcome
 /// that is not READY (a question open, a refusal) is returned as it is.
@@ -1084,11 +1093,11 @@ pub(super) async fn judged_native<P: ProviderInferDyn>(
     intent: &str,
     reading: &Reading,
     policy: &AuthoringPolicy,
-    provider: &P,
+    (provider, decision): (&P, Option<&dyn DecisionSeat>),
     request: &CompileRequest,
     out: CompileOutcome,
 ) -> CompileOutcome {
-    match native_verdict(intent, reading, policy, provider, request, out).await {
+    match native_verdict(intent, reading, policy, (provider, decision), request, out).await {
         Ok(out) => out,
         Err(judged) => {
             let (out, verdict) = *judged;
@@ -1103,7 +1112,7 @@ pub(super) async fn native_verdict<P: ProviderInferDyn>(
     intent: &str,
     reading: &Reading,
     policy: &AuthoringPolicy,
-    provider: &P,
+    (provider, decision): (&P, Option<&dyn DecisionSeat>),
     request: &CompileRequest,
     mut out: CompileOutcome,
 ) -> Result<CompileOutcome, Box<(CompileOutcome, Verdict)>> {
@@ -1111,7 +1120,7 @@ pub(super) async fn native_verdict<P: ProviderInferDyn>(
     let Some(candidate) = out.candidate.clone().filter(|_| ready) else {
         return Ok(out);
     };
-    let judge = Judge::Provider(policy, provider);
+    let judge = decision.map_or(Judge::Provider(policy, provider), Judge::Seat);
     let journaled = journal(&out).len();
     let mut verdict = Verdict::default();
     let mut assembled = reading.plan.clone();
@@ -1145,6 +1154,24 @@ pub(super) fn withdrawn(mut out: CompileOutcome, verdict: &Verdict) -> CompileOu
     blocked(&mut out, verdict, 0);
     out
 }
+
+/// A candidate the judge could not judge (its call failed, or it chose none) and found no defect
+/// in: withdrawn as [`withdrawn`] withdraws it (never READY, never a candidate), but its replayable
+/// record is kept, so a later round replays the same bytes with no author call and asks its judge
+/// again; the `verify_resume` finding says so, to the human and to the host that resumes it.
+pub(super) fn preserve_unjudged(out: CompileOutcome, verdict: &Verdict) -> CompileOutcome {
+    let record = out.provenance.plan.clone();
+    let mut out = withdrawn(out, verdict);
+    if record.is_some() {
+        crate::finding(&mut out, DiagnosticKind::Applied, "verify_resume", RESUME);
+    }
+    out.provenance.plan = record;
+    route(&mut out, "verify: unjudged, record kept");
+    out
+}
+
+/// What an unjudged candidate's kept record offers.
+const RESUME: &str = "The candidate was not judged, so it is not offered; its bytes are kept: running this round again asks the judge on the same candidate, with no new authoring call.";
 
 /// A WARM candidate is judged by the seat that settled its readings (R4 A11); a part it finds
 /// missing, or one it cannot settle, keeps the request INCOMPLETE (WARM makes no proposal).

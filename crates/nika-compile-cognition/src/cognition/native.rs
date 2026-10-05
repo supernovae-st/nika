@@ -134,6 +134,9 @@ pub(super) struct Talk {
     pub(super) messages: Vec<Message>,
     pub(super) rounds: Vec<Value>,
     pub(super) last: Option<Vec<Diagnostic>>,
+    /// Under no repair count, every finding set this talk already answered: one met again is no
+    /// progress. `None` for a talk with a typed limit, whose count ends it.
+    pub(super) answered: Option<Vec<Vec<Diagnostic>>>,
     /// Exact malformed response repeated without progress; not an accepted candidate.
     last_decode: Option<String>,
     /// The last candidate the laws refused: the record keeps its text, so a refusal can be
@@ -157,6 +160,14 @@ pub(super) struct Talk {
 }
 
 impl Talk {
+    /// Under a policy with no repair count, remember every finding set answered from here on
+    /// (a bounded policy changes nothing).
+    pub(super) fn remember_under(&mut self, policy: &super::AuthoringPolicy) {
+        if policy.repairs.is_none() && self.answered.is_none() {
+            self.answered = Some(Vec::new());
+        }
+    }
+
     /// A conversation opened on the system message and the opening: no round yet, the
     /// answered values allowed, the observed world and the repair principles at hand.
     pub(super) fn open(
@@ -173,6 +184,7 @@ impl Talk {
             ],
             rounds: Vec::new(),
             last: None,
+            answered: None,
             last_decode: None,
             refused: None,
             route,

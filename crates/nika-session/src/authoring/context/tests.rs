@@ -475,7 +475,7 @@ fn a_default_session_presents_recalled_references_in_the_native_instruction() {
     assert_eq!(record["identity"]["source"], "embedded");
     assert_eq!(
         record["identity"]["snapshot_sha256"],
-        "b787fc53d6858db43d55958daaf02539fadcad4feeacc17b63c5aefcb92cc32b"
+        "b7f3861c55c785ba78fbf3fcfbb495ab79154b30f1bcb8483ce66018cc4659a9"
     );
     assert!(record["identity"].get("dir").is_none());
     assert_eq!(record["presented"], true);
@@ -565,7 +565,10 @@ fn source_recovery_binds_the_identity_only_when_named() {
     );
     assert!(!format!("{zero:?}").contains("source_recovery"), "{zero:?}");
     assert!(format!("{two:?}").contains("source_recovery: 2"), "{two:?}");
-    let refused = typed("9");
-    let error = AuthoringContextError::Config(ConfigError::SourceRecovery("9".into()));
+    let nine = typed("9");
+    assert_eq!(nine.recovery, 9);
+    assert!(nine.refusal().is_none());
+    let refused = typed("4294967296");
+    let error = AuthoringContextError::Config(ConfigError::SourceRecovery("4294967296".into()));
     assert_eq!(refused.refusal(), Some(&error));
 }

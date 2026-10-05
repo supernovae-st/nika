@@ -34,7 +34,9 @@ impl SessionRuntime {
             SessionPhase::GatePending
         } else if self.pending.is_some() {
             SessionPhase::ProposalPending
-        } else if self.authoring.is_some() || self.run_inputs.is_some() || self.activation.is_some()
+        } else if self.pending_question().is_some()
+            || self.run_inputs.is_some()
+            || self.activation.is_some()
         {
             SessionPhase::QuestionPending
         } else {

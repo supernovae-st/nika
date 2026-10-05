@@ -49,7 +49,7 @@ fn label_ceiling_reads_catalog_capability_without_guessing_names() {
         "deepseek/deepseek-reasoner",
         "openai/o3",
     ] {
-        assert_eq!(reasoner(model).label_ceiling(), 4096, "{model}");
+        assert_eq!(label_ceiling(model), 4096, "{model}");
     }
     for model in [
         "deepseek/deepseek-chat",
@@ -63,7 +63,7 @@ fn label_ceiling_reads_catalog_capability_without_guessing_names() {
         "deepseek-v4-pro",
         "mock/echo",
     ] {
-        assert_eq!(reasoner(model).label_ceiling(), 1024, "{model}");
+        assert_eq!(label_ceiling(model), 1024, "{model}");
     }
 }
 

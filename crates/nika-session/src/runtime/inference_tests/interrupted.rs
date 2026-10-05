@@ -846,3 +846,7 @@ fn a_question_less_live_round_owes_the_review_for_words_but_not_for_a_question()
     asked_cost(&s.turn("make it shorter"));
     assert!(peer.bodies().is_empty(), "nothing was sent");
 }
+
+mod stop;
+
+mod continuation;

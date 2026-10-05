@@ -428,7 +428,7 @@ fn relevance_not_id_order_decides_the_patterns_and_blocks_presented() {
     );
 }
 
-/// Two obligations, two families: four blocks realize the leading family's patterns and sort
+/// Two obligations, two families: eight blocks realize the leading family's patterns and sort
 /// first, one realizes the secondary family's; the secondary obligation keeps its block.
 #[test]
 fn a_secondary_obligation_keeps_its_block_beside_the_leading_family() {
@@ -441,7 +441,7 @@ fn a_secondary_obligation_keeps_its_block_beside_the_leading_family() {
         edge("pack:total", "CONTAINS", "pattern:sum-amounts"),
     ];
     let mut files = Vec::new();
-    for n in 1..=4 {
+    for n in 1..=8 {
         blocks.push(json!({"id": format!("block:a-filter-{n}"), "title": "Filter block", "purpose": "keep rows", "file": format!("blocks/f{n}.nika")}));
         relations.push(edge(
             &format!("block:a-filter-{n}"),
@@ -726,7 +726,7 @@ fn the_selection_names_its_selector_and_the_builder_version() {
     let pack = Snapshot::legacy_fixture(&snap)
         .pack(DIGEST_INTENT, Some("sealed"))
         .unwrap();
-    assert_eq!(PACK_BUILDER, "nika-compile/knowledge-door-v4");
+    assert_eq!(PACK_BUILDER, "nika-compile/knowledge-door-v5");
     assert_eq!(pack.identity["door"]["builder"], PACK_BUILDER);
     let selector = &pack.selection["selector"];
     assert!(

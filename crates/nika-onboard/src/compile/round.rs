@@ -343,7 +343,7 @@ impl std::fmt::Display for Unusable {
 
 impl RoundRecord {
     /// Whether this round can be continued: every executable text exact, the continuation kept
-    /// whole (or never settled), at most [`MAX_ANSWERS`] answers, a question waiting.
+    /// whole (or never settled), at most [`MAX_ANSWERS`] answers, a question or kept plan waiting.
     ///
     /// # Errors
     /// Why it cannot ([`Unusable`]).
@@ -369,7 +369,7 @@ impl RoundRecord {
                 return Err(Unusable::Altered("continuation"));
             }
         }
-        if self.questions.is_empty() {
+        if self.questions.is_empty() && self.continuation.is_none() {
             return Err(Unusable::NoQuestion);
         }
         Ok(())
@@ -693,40 +693,16 @@ impl RoundReading {
     /// Why the kept value cannot be read.
     pub fn words_as_typed(&self, typed: Option<&str>) -> Result<RoundWords, &str> {
         let record = self.record()?;
-        Ok(RoundWords {
-            summary: record.summary_as_typed(typed),
-            asked: record.pending().map(|q| q.why.clone()),
-            blocked: record.continuable().err().map(|why| why.to_string()),
-        })
+        Ok(RoundWords::new(
+            record.summary_as_typed(typed),
+            record.pending().map(|q| q.why.clone()),
+            record.continuable().err().map(|why| why.to_string()),
+        ))
     }
 }
 
-/// A request in words: « request », or « typed » as you typed it · rebuilt as « request » when a
-/// restatement rebuilt the sentence the human typed. A trailing line break is presentation and is
-/// never shown inside « »; the kept bytes stay as they were.
-#[must_use]
-pub fn as_typed(typed: Option<&str>, request: &str) -> String {
-    let request = request.trim_end();
-    match typed
-        .map(str::trim_end)
-        .filter(|typed| !typed.is_empty() && *typed != request)
-    {
-        Some(typed) => format!("« {typed} » as you typed it · rebuilt as « {request} »"),
-        None => format!("« {request} »"),
-    }
-}
-
-/// A kept round in words, evidence that names no host's protocol (a host adds its own way on).
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct RoundWords {
-    /// [`RoundRecord::summary`].
-    pub summary: String,
-    /// Why the compiler asked the question that waited, when one waited.
-    pub asked: Option<String>,
-    /// Why it cannot be continued ([`RoundRecord::continuable`]), `None` when it can.
-    pub blocked: Option<String>,
-}
+/// Pure kept-round words; validation remains with this module.
+pub use nika_display::front_door::round::{RoundWords, as_typed};
 
 /// The typed request a live round is: its EDIT (`(base, change, original)`, the request the
 /// base answered) or a CREATE of `intent`, every answer by key, the plan it replays once one
@@ -1080,3 +1056,16 @@ impl<'r> Capture<'r> {
 
 #[cfg(test)]
 mod tests;
+
+/// A compiler-owned unjudged slot, never a candidate or permission to save or run.
+#[must_use]
+pub fn awaiting_judge(out: &CompileOutcome) -> bool {
+    out.status == crate::compile::CompileStatus::Incomplete
+        && out.candidate.is_none()
+        && out.provenance.strategy.is_some()
+        && out.provenance.plan.is_some()
+        && out
+            .diagnostics
+            .iter()
+            .any(|d| d.kind == DiagnosticKind::Applied && d.target == "verify_resume")
+}

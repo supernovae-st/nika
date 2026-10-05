@@ -272,6 +272,31 @@ mod historical_tests {
     }
 
     #[test]
+    fn temporal_format_counts_are_bound_without_changing_file_identity() {
+        let (mut old, _) = worlds();
+        old["kinds"]["./in.json"]["temporal"] = json!({"at": {
+            "sampled": 2, "matched": 2, "formats": {"9999-99-99T99:99": 2}}});
+        let kept = json!({"read": {"world_sha256": of_request(Some(&old), WORDS)},
+            "world": keep(Some(&old))});
+        assert_eq!(
+            for_base(Some(&old), WORDS, &graph(), &kept),
+            Some(old.clone())
+        );
+        let mut changed = old.clone();
+        changed["kinds"]["./in.json"]["temporal"]["at"]["formats"] =
+            json!({"9999-99-99T99:99Z": 2});
+        assert_eq!(
+            old["observed"], changed["observed"],
+            "the host's path and peek are unchanged"
+        );
+        assert_ne!(keep(Some(&old))["sha256"], keep(Some(&changed))["sha256"]);
+        assert!(for_base(Some(&changed), WORDS, &graph(), &kept).is_none());
+        let mut forged = kept.clone();
+        forged["world"]["value"] = changed;
+        assert!(for_base(Some(&old), WORDS, &graph(), &forged).is_none());
+    }
+
+    #[test]
     fn a_legacy_absent_destination_is_recovered_only_by_its_exact_digest() {
         let (old, now) = worlds();
         let read = json!({"read": {"world_sha256": of_request(Some(&old), WORDS)}});

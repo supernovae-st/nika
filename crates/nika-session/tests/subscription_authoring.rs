@@ -13,6 +13,8 @@
 //! Only the executable's bytes are scripted; no compiler outcome is injected.
 //! Child environments carry no credentials, and every executable is fixture-local.
 mod common;
+#[path = "subscription_authoring/unjudged.rs"]
+mod subscription_unjudged;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -54,6 +56,9 @@ fn events(answer: &str, tool: bool) -> String {
         + "\n"
 }
 fn install_fixture(dir: &Path, scenario: &str) {
+    if scenario.starts_with("unjudged") {
+        return subscription_unjudged::install(dir);
+    }
     let answer = common::plan_answer();
     let answer = if scenario == "suffix" {
         format!("{answer} trailing {{\"second\":true}}")
@@ -302,6 +307,14 @@ fn child() {
         return;
     };
     let root = std::env::var("SUBSCRIPTION_TEST_ROOT").unwrap();
+    if scenario.starts_with("unjudged") {
+        subscription_unjudged::child(Path::new(&root), &scenario);
+        return;
+    }
+    child_scenario(&scenario, &root);
+}
+
+fn child_scenario(scenario: &str, root: &str) {
     let none = scenario == "none";
     let mut resolved = ResolvedSessionIntelligence::resolve(
         &UserIntelligencePreference::new(IntelligenceKind::None, None),
@@ -341,8 +354,8 @@ fn child() {
                 .into(),
             })
         };
-    let mut session = SessionRuntime::open(Path::new(&root), resolved, reasoner);
-    session.set_authoring_context(authoring_context(&scenario));
+    let mut session = SessionRuntime::open(Path::new(root), resolved, reasoner);
+    session.set_authoring_context(authoring_context(scenario));
     session.with_classifier(Box::new(RouteOnly));
     let intent = if scenario == "money" {
         "Read ./a.md and do something clever with it, then write ./b.md; budget 10 USD"
@@ -356,7 +369,7 @@ fn child() {
     let mut old_rejected = false;
     let mut details_answer = String::new();
     let mut meaning_answer = Value::Null;
-    if matches!(scenario.as_str(), "route" | "no-knowledge") {
+    if matches!(scenario, "route" | "no-knowledge") {
         assert_eq!(steps[0]["kind"], "question", "{steps:?}");
         steps.push(step(session.turn("openai/gpt-4.1-mini")));
         details_answer = session.details();

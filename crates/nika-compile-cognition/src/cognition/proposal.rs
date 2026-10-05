@@ -334,7 +334,7 @@ pub(super) fn decode(response: &InferResponse, out: &mut CompileOutcome) -> Opti
                 DiagnosticKind::Unknown,
                 "authoring_provider",
                 format!(
-                    "The seat stopped at {spent} output cap before the plan was complete (a reasoning seat spends part of the cap on its reasoning). Raise --authoring-max-tokens (up to 32768) or seat a model that reasons less; nothing partial was assembled."
+                    "The seat stopped at {spent} output cap before the plan was complete (a reasoning seat spends part of the cap on its reasoning). Raise --authoring-max-tokens within the route's output capacity, or seat a model that reasons less; nothing partial was assembled."
                 ),
             );
             return None;

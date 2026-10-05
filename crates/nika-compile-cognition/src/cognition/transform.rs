@@ -579,6 +579,38 @@ mod tests {
         assert!(run("empty", &records).unwrap_err().0.contains("no value"));
     }
 
+    #[test]
+    fn the_temporal_prompt_conventions_match_the_runtime_jq_language() {
+        let local = json!("2042-11-28T07:36");
+        assert!(
+            run("fromdateiso8601", &local).is_err(),
+            "no offset is not an instant"
+        );
+        assert_eq!(
+            run(r#"strptime("%Y-%m-%dT%H:%M") | .[:6]"#, &local).unwrap(),
+            json!([2042, 10, 28, 7, 36, 0])
+        );
+        // UTC is explicitly part of these fixtures; never inferred from the local shape above.
+        let z = json!("2042-11-28T07:36:00Z");
+        let offset = json!("2042-11-28T11:36:00+04:00");
+        assert_eq!(
+            run("fromdateiso8601", &z).unwrap(),
+            run("fromdateiso8601", &offset).unwrap()
+        );
+        assert_eq!(
+            run("fromdateiso8601 | gmtime | mktime", &z).unwrap(),
+            run("fromdateiso8601", &z).unwrap()
+        );
+        assert_eq!(
+            run(r#"fromdateiso8601 | strftime("%Y-%m-%dT%H:%M:%SZ")"#, &z).unwrap(),
+            z
+        );
+        assert!(
+            run("mktime(.)", &json!([2042, 10, 28, 7, 36, 0, 0, 0])).is_err(),
+            "mktime takes input, not an argument"
+        );
+    }
+
     /// The expression the compile EMITS at `task` for `intent` over the observed JSON `files`
     /// (R4 A8): the READY candidate is parsed and its task of exactly that id is read (ids are
     /// unique map keys); the test fails when the candidate is not READY, when the task is absent

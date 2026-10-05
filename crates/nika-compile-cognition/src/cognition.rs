@@ -129,7 +129,7 @@ async fn revise<P: ProviderInferDyn>(
         && deterministic.provenance.strategy == Some(Strategy::Native)
     {
         let provider = (request.authoring.as_ref())
-            .filter(|policy| policy_bounded(policy, &folded))
+            .filter(|policy| policy_bounded(policy))
             .zip(cognition.provider);
         let judges = (cognition.seat, provider);
         return Box::pin(verify::replayed(
@@ -165,7 +165,7 @@ async fn revise<P: ProviderInferDyn>(
         return Ok(deterministic);
     };
     let mut out = super::initial();
-    if !policy_bounded(policy, &folded) {
+    if !policy_bounded(policy) {
         super::finding(
             &mut out,
             DiagnosticKind::Missed,
@@ -188,7 +188,12 @@ async fn revise<P: ProviderInferDyn>(
     // source) is kept as it is, never revised from source (R4 F); a record-bound base is revised
     // at the entry ([`semantic_replayed`]). One destination it writes may still be replaced in
     // place (the source-anchored revision); anything else keeps the base with its limitation.
-    Box::pin(sketch::revise::source(request, policy, provider)).await
+    Box::pin(sketch::revise::source(
+        request,
+        policy,
+        (provider, cognition.seat),
+    ))
+    .await
 }
 
 /// Compile with explicit cognition: a decision seat (WARM) and/or a generative provider (COLD).
@@ -277,16 +282,16 @@ async fn semantic_replayed<P: ProviderInferDyn>(
     let Input::Create(words) = &reading.input else {
         // A revision of a base its record binds (R4 F): the core, then the semantic revision.
         let seat = (reading.authoring.as_ref())
-            .filter(|p| super::revise_intent(reading).is_some_and(|w| policy_bounded(p, &w)))
+            .filter(|p| super::revise_intent(reading).is_some() && policy_bounded(p))
             .zip(cognition.provider);
-        return Box::pin(sketch::revise::edit(raw, reading, seat)).await;
+        return Box::pin(sketch::revise::edit(raw, reading, seat, cognition.seat)).await;
     };
     let mut assembly = reading.clone();
     let clarified = (assembly.answers.remove("intent.clarification"))
         .and_then(|raw| serde_json::from_str::<String>(&raw).ok());
     let intent = lexicon::fold_apostrophes(clarified.as_deref().unwrap_or(words));
     let provider = (reading.authoring.as_ref())
-        .filter(|policy| policy_bounded(policy, &intent))
+        .filter(|policy| policy_bounded(policy))
         .zip(cognition.provider);
     verify::semantic(raw, &intent, &assembly, (cognition.seat, provider)).await
 }
@@ -364,7 +369,7 @@ async fn resolve_create<P: ProviderInferDyn>(
         if record.get("pending_transform").is_some() {
             replay(intent, record, assembly_request, &mut out)?;
             if let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider) {
-                if !policy_bounded(policy, intent) {
+                if !policy_bounded(policy) {
                     super::finding(
                         &mut out,
                         DiagnosticKind::Missed,
@@ -379,7 +384,7 @@ async fn resolve_create<P: ProviderInferDyn>(
         }
         // The remainder a record leaves unverified is judged in this round, or named (R4 A11).
         let provider = (request.authoring.as_ref())
-            .filter(|policy| policy_bounded(policy, intent))
+            .filter(|policy| policy_bounded(policy))
             .zip(cognition.provider);
         let judges = (cognition.seat, provider);
         return verify::replayed(intent, record, assembly_request, judges, false, out).await;
@@ -448,7 +453,7 @@ async fn route_create<P: ProviderInferDyn>(
     if let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider)
         && policy.native == NativeMode::Sketch
     {
-        if !policy_bounded(policy, intent) {
+        if !policy_bounded(policy) {
             super::finding(
                 &mut out,
                 DiagnosticKind::Missed,
@@ -463,7 +468,7 @@ async fn route_create<P: ProviderInferDyn>(
             intent,
             &reading,
             policy,
-            (provider, rehearsals),
+            (provider, cognition.seat, rehearsals),
             assembly_request,
             route,
             out,
@@ -637,7 +642,7 @@ async fn author_create<P: ProviderInferDyn>(
 ) -> Result<CompileOutcome, CompileError> {
     // COLD: explicitly authorized generative proposals, constrained by the deterministic facts.
     if let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider) {
-        if !policy_bounded(policy, intent) {
+        if !policy_bounded(policy) {
             super::finding(
                 &mut out,
                 DiagnosticKind::Missed,
@@ -666,7 +671,7 @@ async fn author_create<P: ProviderInferDyn>(
             intent,
             &reading,
             policy,
-            (provider, rehearsals),
+            (provider, cognition.seat, rehearsals),
             assembly_request,
             route,
             cold,
@@ -690,7 +695,11 @@ async fn after_cold<P: ProviderInferDyn>(
     intent: &str,
     reading: &Reading,
     policy: &AuthoringPolicy,
-    (provider, rehearsals): (&P, &mut rehearsal::Rehearsals<'_>),
+    (provider, decision, rehearsals): (
+        &P,
+        Option<&dyn DecisionSeat>,
+        &mut rehearsal::Rehearsals<'_>,
+    ),
     assembly_request: &CompileRequest,
     route: Vec<String>,
     cold: CompileOutcome,
@@ -718,7 +727,7 @@ async fn after_cold<P: ProviderInferDyn>(
         intent,
         reading,
         policy,
-        (provider, rehearsals),
+        (provider, decision, rehearsals),
         request,
         route,
         cold,
@@ -730,19 +739,18 @@ async fn after_cold<P: ProviderInferDyn>(
 /// Why a fresh CREATE under `only` sends no request.
 const ONLY_RETIRED: &str = "Source-only authoring (native: only) is retired for a new workflow: no model writes whole source. Use native: escalate (the default: the private plan, then the sketch door when the plan cannot carry the request) or native: sketch (the structure, then its typed fills); the compiler writes the source. No request was sent and no candidate was assembled.";
 
-const POLICY_BOUNDS: &str = "Authoring requires an explicit model, 1..32768 output tokens, a timeout up to 600 seconds, and an intent no larger than 32768 bytes.";
+const POLICY_BOUNDS: &str = "Authoring requires an explicit model, a positive output-token limit (an initial one within it) and a positive timeout.";
 
-/// The bounds every seat call honors: an explicit model, a bounded answer, a bounded wait,
-/// a request the seat can hold.
-fn policy_bounded(policy: &AuthoringPolicy, intent: &str) -> bool {
+/// The bounds every seat call honors: an explicit model, a positive answer limit and a positive
+/// wait. What a route can hold (its output cap, its context, its deadline) is its own technical
+/// limit, the host's and the provider's to answer, never a compiler ceiling on the request.
+fn policy_bounded(policy: &AuthoringPolicy) -> bool {
     !policy.model.trim().is_empty()
-        && (1..=32_768).contains(&policy.max_tokens)
+        && policy.max_tokens > 0
         && policy
             .initial_max_tokens
             .is_none_or(|initial| (1..=policy.max_tokens).contains(&initial))
         && !policy.timeout.is_zero()
-        && policy.timeout <= std::time::Duration::from_secs(600)
-        && intent.len() <= 32_768
 }
 
 /// The first complete JSON object of a seat's text — the text itself when it is one, else

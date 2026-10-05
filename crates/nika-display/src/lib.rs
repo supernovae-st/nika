@@ -20,6 +20,8 @@
 // nika-cli crate holds at its root — inherited by the descent).
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
+/// Typed preparation activity and its compatible text presentation.
+pub mod activity;
 mod check_journey;
 mod check_laws;
 mod check_models;
@@ -28,6 +30,7 @@ pub mod chrome;
 mod claims;
 pub mod dag_art;
 pub mod demo;
+pub mod experience;
 pub mod flow;
 pub mod format;
 /// Passive views of the host's composed welcome front door.
@@ -48,3 +51,6 @@ pub mod wires;
 
 /// Run machine frames rendered without host effects.
 pub mod run_story;
+
+/// One turn's typed activity folded into a card, without host effects.
+pub mod activity_card;

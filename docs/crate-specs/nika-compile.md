@@ -316,6 +316,12 @@ The laws are jq that the one runtime runs.
 
 ## Observed fields and pending transformations
 
+The raw-kind observation may also carry `temporal` counts of masked date-time shapes for
+CSV/TSV columns and JSON/JSONL keys; nested shapes use the same bounded structure walk.
+The counts retain no timestamp or offset value, infer no timezone, and prove no valid instant.
+Mixed and unmatched sampled slots remain visible. The native author's existing observed-world
+context carries these counts; source identity, sampling coverage and replay guards stay intact.
+
 Source observation distinguishes absent, unreadable, empty, unknown and observed
 material. An observed field choice is grounded in that source; a partial sample
 is not a complete schema. A missing field asks a closed clarification rather than
@@ -659,7 +665,7 @@ remains separate. With no explicit level, the route retains its default.
 Per-call evidence distinguishes the configured level, transmitted request keys,
 reported model and reasoning-token usage; internal served effort stays unknown.
 
-`AuthoringPolicy::with_source_recovery` (0..=3, default 0) is the operator's
+`AuthoringPolicy::with_source_recovery` (any count, as typed, default 0) is the operator's
 explicit consent to the cognition crate's source recovery after the sketch door's
 exhaustion on a creation. It grants no request beyond the caller's authority, no
 permit and no Run; a host that offers it adds `recovery_requests` to the bound it

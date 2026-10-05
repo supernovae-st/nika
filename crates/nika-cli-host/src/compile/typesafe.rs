@@ -40,7 +40,7 @@ pub struct TypesafeSeat {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Delivery {
-    /// Refused before any byte left (an oversized request, a client that could not be built).
+    /// Refused before any byte left (serialization failed, or a client could not be built).
     NotSent,
     /// The transport failed: the request may have been received and billed.
     Unknown,
@@ -172,11 +172,8 @@ impl TypesafeSeat {
                 "questions": {question.id.clone(): {"type": "choice", "instructions": question.instructions, "criteria": criteria}}
             });
             let bytes = serde_json::to_vec(&body).map_err(|e| unsent(e.to_string()))?;
-            if bytes.len() > 64_000 {
-                return Err(unsent(
-                    "decision request exceeds the 64000-byte transport cap".to_owned(),
-                ));
-            }
+            // Jev's context is token-based, not a JSON byte count. The selected service
+            // validates its context; a local byte threshold must not impersonate that limit.
             let host = url::Url::parse(&self.base)
                 .ok()
                 .and_then(|u| u.host_str().map(str::to_owned))

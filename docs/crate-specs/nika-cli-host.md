@@ -411,11 +411,20 @@ replaces the record atomically once the compile succeeded, so the next `--answer
 the observation the question showed; a write failure keeps the old record and names the error,
 and a verified or pending transform is never re-recorded over another source.
 
-`compile::typesafe::session` carries the bounded operator-selected decision
-adapter and its observation journal beside the one TypeSafe transport. Session
-still decides whether its current monetary account admits a call and persists
-observations; the host helper accepts that explicit verdict, not conversation text.
-The existing Session public selection path remains a compatibility re-export.
+`compile::typesafe::session` owns the operator-selected typed decision adapter
+and its observation journal beside the one TypeSafe transport. Session supplies
+an explicit admission verdict and persists the observations; conversation text
+is never such a verdict. Each finite compiler need makes one attempt, with no
+implicit call-count cap or transport retry. `SessionSeat::finish` consumes the
+scope; Drop performs the same conservative closure on errors or cancellation.
+The @2 observation records `scope_ended`; only fully answered or unsent attempts
+close as Closed. A send with no observed result stays Uncertain. Cost remains
+unknown after either state, never assigned to the author's account or priced0.
+An unavailable journal refuses before transport. Old @1 observations are retained
+unchanged. Pure status wording is projected by `nika-display::model_scope`.
+The Session public selection path remains a compatibility re-export; the former
+implicit-cap constant `MAX_DECISION_CALLS` no longer describes this behavior and
+is removed. Explicit CLI Compile and workflow limits are unchanged.
 
 ## Doctor local protocol evidence
 

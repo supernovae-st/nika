@@ -192,6 +192,16 @@ impl Composer {
         ComposerAction::Submit(text)
     }
 
+    /// Take the buffer as sent, exactly as `Enter` does: kept whole in
+    /// history (`Up` recalls it) and the box cleared. Sending it is the
+    /// caller's act.
+    pub fn take(&mut self) -> String {
+        match self.submit() {
+            ComposerAction::Submit(text) => text,
+            _ => String::new(),
+        }
+    }
+
     /// Empty the buffer and forget the recall position.
     pub fn clear(&mut self) {
         self.area = fresh_like(&self.area);
@@ -512,6 +522,25 @@ mod tests {
         assert_eq!(composer.text(), "second");
         composer.handle(key(KeyCode::Down, KeyModifiers::NONE));
         assert_eq!(composer.text(), "dra", "the draft comes back");
+    }
+
+    /// A line taken while Nika works is kept in history exactly as `Enter` keeps one:
+    /// whole, multi-line, the box cleared, and `Up` recalls it before older lines.
+    #[test]
+    fn a_taken_line_is_kept_in_history_like_a_sent_one() {
+        let mut composer = Composer::new();
+        type_text(&mut composer, "first");
+        composer.handle(key(KeyCode::Enter, KeyModifiers::NONE));
+        let long = "use the CSV export instead of the JSON one\nand keep the header row";
+        composer.paste(long);
+        assert_eq!(composer.take(), long);
+        assert!(composer.is_blank());
+        composer.handle(key(KeyCode::Up, KeyModifiers::NONE));
+        assert_eq!(composer.text(), long);
+        composer.clear();
+        assert_eq!(composer.take(), "", "a blank box keeps nothing");
+        composer.handle(key(KeyCode::Up, KeyModifiers::NONE));
+        assert_eq!(composer.text(), long, "the blank take added no entry");
     }
 
     #[test]

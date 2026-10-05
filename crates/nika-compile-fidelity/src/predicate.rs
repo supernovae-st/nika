@@ -171,7 +171,7 @@ pub fn typed_rule(
     unknowns: &[String],
     columns: &[String],
 ) -> Option<(rules::Rule, Vec<plan::Slot>)> {
-    typed(
+    admit(
         intent,
         evidence,
         &ProposedComputation::from_json(computation)?,
@@ -544,6 +544,80 @@ fn typed(
     Some((Rule::typed(evidence, clauses, junction, shape), slots))
 }
 
+/// The typed law, creation's and replay's alike, after the one refusal it owes the projection:
+/// an output the computation's own clause defines is no source column ([`defines_output`]), so
+/// no rule, never a question asking which source key it means. The verified transform states it.
+fn admit(
+    intent: &str,
+    evidence: &str,
+    computation: &ProposedComputation,
+    unknowns: &[String],
+    columns: &[String],
+) -> Option<(rules::Rule, Vec<plan::Slot>)> {
+    let scope = clause_scope(intent, evidence);
+    let hint = columns::columns_hint(intent);
+    let defined =
+        |column: &String| defines_output(column.trim(), computation, &scope, &hint, columns);
+    if computation.columns.iter().any(defined) {
+        return None;
+    }
+    typed(intent, evidence, computation, unknowns, columns)
+}
+
+/// Whether a projected `column` is an output the computation's own clause defines (« give each
+/// ticket a root id equal to the smallest `ticket_id` of its group »), not a source key the
+/// projection copies. The request lists no columns, and the host observed the source's keys
+/// (`observed`, non-empty only then): none of them spells it in any letter case, the computation
+/// names it nowhere but in its projection (no clause, grouping, aggregate, sort, duplicate key,
+/// arithmetic output or rename reads or makes it), and the clause's scope names it as its
+/// identifier or its words. The typed stages filter, group, total and copy; they cannot generate
+/// it. A key the computation reads, a spelling of an observed key, an output a stage makes, a
+/// column the clause does not name or a source nobody observed keeps the typed law, and a missing
+/// input its grounding question.
+fn defines_output(
+    column: &str,
+    computation: &ProposedComputation,
+    scope: &str,
+    hint: &[String],
+    observed: &[String],
+) -> bool {
+    let staged = (computation.clauses.iter())
+        .any(|c| c.field.trim() == column || c.value_field.trim() == column)
+        || [&computation.group_by, &computation.sort_by]
+            .into_iter()
+            .chain(&computation.distinct_by)
+            .chain(
+                computation
+                    .aggregations
+                    .iter()
+                    .flat_map(|a| [&a.field, &a.name]),
+            )
+            .chain(computation.derived.iter().map(|d| &d.name))
+            .chain(computation.renames.iter().flat_map(|r| [&r.from, &r.to]))
+            .any(|named| named.trim() == column);
+    hint.is_empty()
+        && !observed.is_empty()
+        && !observed.iter().any(|key| key.eq_ignore_ascii_case(column))
+        && !staged
+        && names_words(scope, column)
+}
+
+/// Whether `text` names `column` at word boundaries, as its identifier or as its words
+/// (`root_id` as « root id »): letters and digits compared in lower case, any other character
+/// a separator.
+fn names_words(text: &str, column: &str) -> bool {
+    let words = |phrase: &str| {
+        let lower = phrase.to_lowercase();
+        let parts: Vec<&str> = lower
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|part| !part.is_empty())
+            .collect();
+        parts.join(" ")
+    };
+    let column = words(column);
+    !column.is_empty() && format!(" {} ", words(text)).contains(&format!(" {column} "))
+}
+
 /// The shape with the tie rule and the output columns written as JSON numbers the computation
 /// states (E38), each admitted only where it can hold: the tie rule settles a sort over rows still
 /// in file order (never a grouping), and a number column is a projected column, named once, never
@@ -588,7 +662,7 @@ pub fn rederives(
         return false;
     };
     let unknowns: Vec<String> = slots.iter().map(|s| s.label.clone()).collect();
-    typed(intent, rule.text(), &meaning, &unknowns, columns)
+    admit(intent, rule.text(), &meaning, &unknowns, columns)
         .is_some_and(|(again, asked)| again == *rule && asked.iter().all(|s| slots.contains(s)))
 }
 
@@ -834,5 +908,67 @@ mod tests {
                 "{extra}"
             );
         }
+    }
+
+    // A live plan put an output the request defines (« a master id equal to the smallest
+    // contact_id in their group ») among the projected columns, and the grounding asked which
+    // observed field of the source it means. An output the computation's own clause names, that
+    // no observed key spells and that the computation reads nowhere, is generated: no typed rule
+    // (the verified transform states it). Every missing input keeps its rule, so its question.
+    #[test]
+    fn an_output_the_clause_defines_is_no_source_column_and_a_missing_input_keeps_its_rule() {
+        let read = |intent: &str, evidence: &str, computation: &Value, observed: &[String]| {
+            typed_rule(intent, evidence, computation, &[], observed).map(|(found, _)| found)
+        };
+        let reads = |found: Option<super::rules::Rule>, key: &str| {
+            found.is_some_and(|rule| rule.source_fields().iter().any(|f| f == key))
+        };
+        let observed = [
+            "email".to_owned(),
+            "ticket_id".to_owned(),
+            "title".to_owned(),
+        ];
+        let intent = "read ./data/tickets.json, give each ticket a root id equal to the smallest ticket_id among the tickets sharing its email, save ./out/roots.json as a list of {ticket_id, root_id} objects sorted by ticket_id";
+        let defining = "give each ticket a root id equal to the smallest ticket_id among the tickets sharing its email";
+        let generated = json!({"present": true, "polarity": "keep", "join": "and",
+            "clauses": [], "group_by": "", "aggregations": [], "sort_by": "ticket_id",
+            "order": "asc", "columns": ["ticket_id", "root_id"], "derived": []});
+        assert!(read(intent, defining, &generated, &observed).is_none());
+        // Its identifier in the clause defines it as well as its words.
+        let spelled = intent.replace("a root id equal", "a root_id equal");
+        let spelled_clause = defining.replace("a root id equal", "a root_id equal");
+        assert!(read(&spelled, &spelled_clause, &generated, &observed).is_none());
+        // Controls, each a rule reading `root_id` from the source, so its grounding question:
+        // nothing observed (no key to compare), an observed key in another letter case (a
+        // spelling the question settles), and a sort over it (the computation reads it).
+        assert!(reads(read(intent, defining, &generated, &[]), "root_id"));
+        let cased = [
+            "Root_ID".to_owned(),
+            "email".to_owned(),
+            "ticket_id".to_owned(),
+        ];
+        assert!(reads(read(intent, defining, &generated, &cased), "root_id"));
+        let mut sorted = generated;
+        sorted["sort_by"] = json!("root_id");
+        assert!(reads(read(intent, defining, &sorted, &observed), "root_id"));
+        // A column only the write names is copied from the source, perhaps misnamed: its rule
+        // stands, and so does its question.
+        let urgent = "read ./data/tickets.json, keep the tickets whose title is urgent, save ./out/urgent.json as a list of {ticket_id, root_id} objects";
+        let copied = json!({"present": true, "polarity": "keep", "join": "and",
+            "clauses": [{"field": "title", "op": "eq", "value": "urgent", "value_field": ""}],
+            "group_by": "", "aggregations": [], "sort_by": "", "order": "",
+            "columns": ["ticket_id", "root_id"], "derived": []});
+        let keeping = "keep the tickets whose title is urgent";
+        assert!(reads(read(urgent, keeping, &copied, &observed), "root_id"));
+        // A filter on a key the source does not carry is a missing input: its rule stands.
+        let paid =
+            "read ./data/orders.json, keep the rows whose state is paid, save ./out/paid.json";
+        let filtering = json!({"present": true, "polarity": "keep", "join": "and",
+            "clauses": [{"field": "state", "op": "eq", "value": "paid", "value_field": ""}],
+            "group_by": "", "aggregations": [], "sort_by": "", "order": "",
+            "columns": ["id", "state"], "derived": []});
+        let orders = ["amount".to_owned(), "id".to_owned(), "status".to_owned()];
+        let filter = "keep the rows whose state is paid";
+        assert!(reads(read(paid, filter, &filtering, &orders), "state"));
     }
 }

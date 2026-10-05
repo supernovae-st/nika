@@ -291,6 +291,50 @@ async fn a_repeated_refusal_is_no_progress_and_buys_no_further_round() {
 }
 
 #[tokio::test]
+async fn under_no_repair_count_a_stalled_structured_door_switches_to_source_recovery() {
+    let expected = greeting().await;
+    let unbounded = || {
+        crate::AuthoringPolicy::new(MODEL, 4096, Duration::from_secs(2))
+            .with_native(NativeMode::Sketch)
+    };
+    assert_eq!(
+        (unbounded().repairs, unbounded().source_recovery),
+        (None, 0)
+    );
+    // No operator count, yet the stall is no final barrier: the recovery opens and its valid
+    // source is READY on the same independent oracle.
+    let seat = Scripted::new([BROKEN.to_owned(), source(&expected)]);
+    let out = authored(&seat, unbounded()).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    writes_hello(out.candidate.as_deref().unwrap());
+    assert_eq!(roles(&out), ["sketch", "source-recovery", "judge_request"]);
+    let recovery = &decision(&out)["native"]["recovery"];
+    assert_eq!(recovery["rounds"], Value::Null, "no count: {recovery}");
+    assert_eq!(recovery["spent"], 1, "{recovery}");
+    let opened = "Source recovery opened: the structured doors made no further progress";
+    assert!(
+        (out.diagnostics.iter()).any(|d| d.message.starts_with(opened)),
+        "{out:#?}"
+    );
+    // With no count of its own, the recovery still ends on a refusal it already answered.
+    let elsewhere = source(&expected.replace("./out/result.txt", "./out/other.txt"));
+    let seat = Scripted::new([BROKEN.to_owned(), elsewhere.clone(), elsewhere]);
+    let out = authored(&seat, unbounded()).await;
+    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(out.candidate.is_none(), "{out:#?}");
+    assert_eq!(seat.calls(), 3);
+    assert!(
+        route(&out).iter().any(|s| s == "native: no progress"),
+        "{out:#?}"
+    );
+    // A typed repair limit without the operator's recovery count keeps the old law.
+    let seat = Scripted::new([BROKEN.to_owned()]);
+    let out = authored(&seat, policy(0)).await;
+    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(seat.calls(), 1);
+}
+
+#[tokio::test]
 async fn an_exhausted_total_authority_sends_no_further_request() {
     let expected = greeting().await;
     let inner = Scripted::new([BROKEN.to_owned(), source(&expected)]);

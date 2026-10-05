@@ -77,7 +77,8 @@ pub use cognition::{
 
 /// A host's scoped observation of its compile's authoring answers as received (slice C).
 pub mod observe {
-    pub use crate::cognition::receipt::observe::{
-        Answered, AuthoringObservation, Failure, Sink, TextBlocks, observe_authoring,
+    pub use nika_providers::authoring::observe::{
+        ActivitySink, Answered, AuthoringObservation, CallActivity, CallState, Failure, Sink,
+        TextBlocks, observe_activity, observe_authoring,
     };
 }

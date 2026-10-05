@@ -14,8 +14,10 @@
 
 /// Identity of a request's observed files and the shared numeric kind law.
 pub mod basis;
+mod temporal;
+pub use temporal::temporal_shapes;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde_json::{Map, Value, json};
 
@@ -30,6 +32,7 @@ pub const MAX_ELEMENTS: usize = 200;
 struct Walk<'k> {
     kind: &'k dyn Fn(&Value) -> &'static str,
     paths: Map<String, Value>,
+    temporal: BTreeMap<String, temporal::Temporal>,
     kept: BTreeSet<String>,
     collections: Map<String, Value>,
     complete: bool,
@@ -97,6 +100,10 @@ impl Walk<'_> {
             return;
         }
         self.count(path, (self.kind)(value));
+        self.temporal
+            .entry(path.to_owned())
+            .or_default()
+            .observe(value.as_str());
         if matches!(value, Value::Array(_) | Value::Object(_)) {
             if depth >= MAX_DEPTH {
                 self.complete = false;
@@ -109,12 +116,13 @@ impl Walk<'_> {
 
 /// The nested structure below the keys of the first `MAX_ELEMENTS` `rows`, each value's raw kind
 /// given by `kind`: `{"paths": {path: {kind: count}}, "collections": {path: {"elements",
-/// "sampled"}}, "complete": bool}`; `Value::Null` when no record holds an array or an object.
+/// "sampled"}}, "complete": bool}`, plus masked `temporal` formats when recognized; `Value::Null` when no record holds an array or an object.
 #[must_use]
 pub fn nested(rows: &[Value], kind: &dyn Fn(&Value) -> &'static str) -> Value {
     let mut walk = Walk {
         kind,
         paths: Map::new(),
+        temporal: BTreeMap::new(),
         kept: BTreeSet::new(),
         collections: Map::new(),
         complete: rows.len() <= MAX_ELEMENTS,
@@ -129,7 +137,20 @@ pub fn nested(rows: &[Value], kind: &dyn Fn(&Value) -> &'static str) -> Value {
     if walk.paths.is_empty() && walk.collections.is_empty() {
         return Value::Null;
     }
-    json!({"paths": walk.paths, "collections": walk.collections, "complete": walk.complete})
+    let temporal: Map<String, Value> = walk
+        .temporal
+        .into_iter()
+        .filter_map(|(path, counts)| {
+            let shapes = counts.finish();
+            (!shapes.is_null()).then_some((path, shapes))
+        })
+        .collect();
+    let mut out =
+        json!({"paths": walk.paths, "collections": walk.collections, "complete": walk.complete});
+    if !temporal.is_empty() {
+        out["temporal"] = Value::Object(temporal);
+    }
+    out
 }
 
 /// The keys of one observed file's kinds entry (`{"keys": {key: {kind: count}}, "nested"?}`)

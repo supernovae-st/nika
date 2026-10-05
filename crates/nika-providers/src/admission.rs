@@ -8,6 +8,8 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 mod amount;
 mod checkpoint;
+mod companion;
+pub use companion::admit_unpriced_companion;
 mod completed;
 pub use completed::CompletedCostReport;
 mod legacy;
@@ -15,7 +17,9 @@ pub use legacy::LegacyCostReport;
 mod summary;
 pub use amount::allowance;
 pub use summary::{
-    accounting_checkpoint, unadmitted_summary, unbudgeted_dispatch_note, unbudgeted_summary,
+    account_status, accounting_checkpoint, decision_summary, inference_summary, interrupted_note,
+    is_decision_observation, observation_details, unadmitted_summary, unbudgeted_dispatch_note,
+    unbudgeted_observation_summary, unbudgeted_summary,
 };
 mod declared;
 mod observation;

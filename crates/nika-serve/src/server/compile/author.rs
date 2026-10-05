@@ -246,7 +246,8 @@ async fn author(
     let authority = bounds.authority().map_err(|_| Refusal::Machinery)?;
     let invocations = authority.envelope();
     let requests = authority.envelope();
-    let http = nika_cli_host::compile::authoring_http().map_err(|_| Refusal::Machinery)?;
+    let http = nika_cli_host::compile::authoring_http_with_deadline(bounds.call_timeout)
+        .map_err(|_| Refusal::Machinery)?;
     let wire = Wire::new(http, Arc::clone(&requests));
     let registry = ProviderRegistry::new(Arc::new(wire), seat.providers.clone());
     let mut backend = nika_cli_host::compile::authoring_backend(&registry, &seat.model);

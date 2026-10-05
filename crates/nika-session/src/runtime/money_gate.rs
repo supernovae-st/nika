@@ -14,6 +14,7 @@ use crate::money::{CapKnowledge, InferenceEnforcement, MonetaryDecision, Monetar
 use crate::outcome::{ProposalId, Refusal, RefusalClass};
 
 pub(super) struct MoneyState {
+    pub preparation: Option<nika_providers::authoring::preparation::PreparationCosts>,
     // Persistent Session inference constraint, independent of the next
     // proposal/Run default; a refusal/zero survives even without an account.
     pub inference_guard: Option<MonetaryDecision>,
@@ -41,6 +42,7 @@ pub(super) struct MoneyState {
 impl Default for MoneyState {
     fn default() -> Self {
         Self {
+            preparation: None,
             inference_guard: None,
             account: None,
             admission_note: None,
@@ -338,7 +340,9 @@ impl SessionRuntime {
         if !continuation {
             self.rotate_observation();
         }
-        self.maybe_review_unknown(input)?;
+        if self.money.preparation.is_none() {
+            self.maybe_review_unknown(input)?;
+        }
         // A fresh turn is not an escape from a still-pending gate amendment.
         if self.money.gate.is_some() {
             return self.admit_gate_money(input);
@@ -356,13 +360,14 @@ impl SessionRuntime {
                 return Err(self.refuse_money(input, &reason));
             }
         };
-        if self.subscription() && parsed.amount.is_some() {
+        if self.money.preparation.is_none() && self.subscription() && parsed.amount.is_some() {
             self.hold_subscription();
         }
         // The Session restriction cannot replace an independent gate observation.
         // Gate parsing above still holds cognition, but does not consume this flag.
         // A round admitted under it (a stated ceiling or a zero-call replay) answers under it.
-        if self.money.reconfirm
+        if self.money.preparation.is_none()
+            && self.money.reconfirm
             && !self.subscription_open()
             && !self.unknown_cost.active
             && parsed.amount.is_none()
@@ -383,7 +388,9 @@ impl SessionRuntime {
                 .original_intent
                 .clone_from(&previous.original_intent);
         }
-        if self.unknown_cost.active {
+        if self.money.preparation.is_some() {
+            decision.inference = InferenceEnforcement::NotMetered;
+        } else if self.unknown_cost.active {
             decision.inference = InferenceEnforcement::ExplicitUnknown;
         } else if parsed.amount.is_some() {
             self.retain_money_guard();
@@ -398,7 +405,11 @@ impl SessionRuntime {
         }
         // A fresh request owns its proposal/Run default, but only an explicit
         // Session amendment can change the persistent inference constraint.
-        let decision = self.inference_observation(decision);
+        let decision = if self.money.preparation.is_some() {
+            decision
+        } else {
+            self.inference_observation(decision)
+        };
         self.money.current = Some(decision.clone());
         self.money.draft = Some(decision);
         Ok(())
@@ -427,6 +438,9 @@ impl SessionRuntime {
     /// Called at every cognition seam. Deterministic reading stays available;
     /// the selected intelligence is never substituted by a monetary decision.
     pub(super) fn money_blocks_cognition(&self) -> bool {
+        if self.money.preparation.is_some() {
+            return false;
+        }
         if self.subscription_open() {
             return self.money.gate.is_some()
                 || self.snapshot.ceiling == Some(0.0)

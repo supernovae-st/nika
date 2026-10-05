@@ -306,7 +306,8 @@ fn request_with_embedded_knowledge() -> CompileRequest {
         .expect("embedded release admitted");
     let pack = request.authoring_knowledge.as_ref().expect("attached");
     let ids: Vec<_> = pack.references.iter().map(|r| r.id.as_str()).collect();
-    assert_eq!(ids, ["pattern:typed-output", "block:typed-inputs-outputs"]);
+    assert!(ids.contains(&"pattern:typed-output"));
+    assert!(ids.contains(&"block:typed-inputs-outputs"));
     request.answers.insert("column".into(), "total".into());
     request.workflow_id = Some("typed-report".into());
     request
@@ -408,7 +409,8 @@ fn enabled_knowledge_replaces_the_previous_intents_pack() {
         .expect("embedded release admitted");
     let pack = after.authoring_knowledge.expect("new pack attached");
     let ids: Vec<_> = pack.references.iter().map(|r| r.id.as_str()).collect();
-    assert_eq!(ids, ["pattern:declared-zero", "block:run-deterministic"]);
+    assert!(ids.contains(&"pattern:declared-zero"));
+    assert!(ids.contains(&"block:run-deterministic"));
 }
 
 /// Nothing named attaches the release this build embeds, composed by the door for the intent as
@@ -423,7 +425,7 @@ fn nothing_named_attaches_the_embedded_release_composed_for_the_intent() {
     let pack = request.authoring_knowledge.expect("attached");
     assert_eq!(
         pack.identity["snapshot_sha256"],
-        "b787fc53d6858db43d55958daaf02539fadcad4feeacc17b63c5aefcb92cc32b"
+        "b7f3861c55c785ba78fbf3fcfbb495ab79154b30f1bcb8483ce66018cc4659a9"
     );
     assert_eq!(pack.identity["verification"]["policy"]["id"], "policy-r");
     let direct = bundled::admit(Some(&bundled::identity().unwrap()))
@@ -432,7 +434,8 @@ fn nothing_named_attaches_the_embedded_release_composed_for_the_intent() {
         .unwrap();
     assert_eq!(pack, direct, "the door's pack is the memory door's");
     let ids: Vec<_> = pack.references.iter().map(|r| r.id.as_str()).collect();
-    assert_eq!(ids, ["pattern:typed-output", "block:typed-inputs-outputs"]);
+    assert!(ids.contains(&"pattern:typed-output"));
+    assert!(ids.contains(&"block:typed-inputs-outputs"));
     assert!(pack.repairs.is_empty());
     // An intent with no words composes nothing, as for any release.
     let request = config
@@ -531,7 +534,7 @@ fn a_named_release_enters_only_through_the_strict_door_with_its_trusted_identity
 /// Source recovery is an explicit count the door's word or the environment names (`0..=3`), only
 /// under a strategy whose sketch door opens, and the one policy carries it.
 #[test]
-fn source_recovery_is_an_explicit_bounded_count_the_policy_carries() {
+fn source_recovery_carries_any_explicit_u32_count_on_a_compatible_strategy() {
     let named = |word: &str| {
         let mut settings = none();
         settings.source_recovery = Some(word.to_owned());
@@ -547,7 +550,14 @@ fn source_recovery_is_an_explicit_bounded_count_the_policy_carries() {
         resolve(&none(), &named("1")).map(|c| c.source_recovery),
         Ok(1)
     );
-    for word in ["4", "-1", "two", ""] {
+    for word in ["4", "9", "4294967295"] {
+        assert_eq!(
+            resolve(&named(word), &none()).map(|c| c.source_recovery),
+            word.parse::<u32>()
+                .map_err(|_| ConfigError::SourceRecovery(word.into()))
+        );
+    }
+    for word in ["4294967296", "-1", "two", ""] {
         let refused = ConfigError::SourceRecovery(word.to_owned());
         assert_eq!(resolve(&named(word), &none()), Err(refused), "{word:?}");
     }

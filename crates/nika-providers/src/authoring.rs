@@ -5,6 +5,11 @@
 
 use nika_kernel::http::HttpPostDyn;
 
+pub mod observe;
+pub mod policy;
+pub mod preparation;
+pub mod requests;
+
 /// The configured endpoint's host and optional nondefault port, without user info,
 /// path, query or fragment. Bare local host:port values use the same HTTP spelling
 /// as the local provider door. This is configuration evidence, not a remote identity.

@@ -51,6 +51,14 @@ is asked (option 2, measured: with the seat's citation as the scope one legitima
 broke, a threshold stated in the same clause just outside the citation; with the clause, none).
 Output names stay words of the whole request and fields stay among its columns.
 
+A projected name absent from observed source columns can require a generated output,
+rather than an input-field mapping. When no column list is stated, its computation's
+clause names it, and no typed stage reads or produces it, the typed rule is withheld.
+The existing verified transform may express that computation; withholding a rule
+grants no READY verdict. Observed spellings, copied columns named only by the write,
+and fields read by filtering, grouping, sorting or aggregation retain their grounding
+questions. Creation and replay share this admission through `predicate::admit`.
+
 Two additional stages are admitted beside the walk (`with_order`, one line in it: the walk
 measures 272 lines, its documented hard ceiling, never above): a tie rule (`ties`, `first_in_file` or empty) settles a
 stated sort over rows still in file order, never a grouping; the output columns written as JSON
@@ -405,3 +413,19 @@ is introduced. `nika-compile` keeps assembly and reuses the constants at its
 existing local names. Rust and both embedded jq sources count toward this
 member's 15k limit; the existing numeric precision integration tests remain the
 behavioral qualification.
+
+## Masked temporal observation context
+
+`observed::temporal_shapes` counts lexical ISO-like date-time shapes from already sampled
+slots. Every digit, including offset digits, is masked as `9`; no value or free text is
+retained. Shapes are ASCII and at most 64 bytes. `sampled`, `matched`, and per-format counts
+make mixed and unrecognized values explicit. No recognized shape emits no `temporal` entry.
+The existing nested walk collects the same metadata at admitted paths, within the unchanged
+row, element, path and depth bounds. Nested slots count visited members only; absent members
+are not visited. Its existing `complete` flag still describes coverage, not a schema.
+
+This context is not `instants` evidence: masking an offset destroys its numerical identity,
+and matching a shape validates neither a calendar nor a timezone. Law 25 is unchanged.
+Temporal metadata remains inside the source's kinds and the whole observed-world digest,
+so replay never substitutes changed context for retained evidence. The native author's
+existing observed-world input receives the metadata with parsing and timezone guidance.

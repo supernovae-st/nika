@@ -4,10 +4,12 @@
 //! The transport and recovery law the semantic doors share with this module's decoder: an
 //! answer that is not the schema's JSON ends its round with a named cause (the sketch door never
 //! repairs a syntax error), uncertainty never buys a retry, a refused graph is repaired only
-//! within the policy's bound (five at most), and usage is reported as the provider reported it.
+//! within the policy's own count, and usage is reported as the provider reported it.
 //! Through the public creation entry under the sketch door: the source door these laws were
 //! first written for (its line transport, its dual representations, its syntax feedback) is
-//! retired, and no product path reaches it.
+//! retired, and no product path reaches it. A typed repair count runs as typed; no count runs
+//! until a failed call or findings already answered; a cut answer below the ceiling is asked
+//! again once at the ceiling.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use crate::{CompileOutcome, CompileRequest, CompileStatus, NativeMode};
 use nika_kernel::ai::provider::{
@@ -163,19 +165,120 @@ async fn a_syntax_error_ends_the_round_with_its_cause_whatever_the_repair_budget
     }
 }
 
+fn route(out: &CompileOutcome) -> Vec<String> {
+    let route = &out.provenance.decision.as_ref().unwrap()["route"];
+    (route.as_array().into_iter().flatten())
+        .filter_map(|step| step.as_str().map(str::to_owned))
+        .collect()
+}
+
 #[tokio::test]
-async fn a_refused_graph_is_repaired_only_within_the_bound_of_five() {
-    let refused_graphs: Vec<Reply> = (0..10)
+async fn a_refused_graph_is_repaired_exactly_as_many_times_as_typed() {
+    // A caller-selected limit runs as typed, past the five the core once clamped to silently,
+    // through a builder or a direct field alike.
+    for typed in [9, 6] {
+        let refused_graphs: Vec<Reply> = (0..=typed)
+            .map(|n| reply(&graph(&format!("Bad-{n}"))))
+            .collect();
+        let seat = Seat::new(refused_graphs);
+        let mut limited = policy(typed);
+        limited.repairs = Some(typed);
+        let out = authored(&seat, limited).await;
+        refused(&out);
+        let calls = usize::try_from(typed).unwrap() + 1;
+        assert_eq!(seat.calls(), calls, "{typed}: {:?}", roles(&out));
+        let repairs = roles(&out).iter().filter(|r| *r == "sketch-repair").count();
+        assert_eq!(repairs, calls - 1, "{typed}");
+    }
+}
+
+#[tokio::test]
+async fn unbounded_repairs_end_on_a_failed_call_or_on_findings_already_answered() {
+    let unbounded = || policy(0).with_unbounded_repairs();
+    assert_eq!(unbounded().repair_limit(), None);
+    // No count: each round with new findings is repaired, past any former cap, until the seat's
+    // call fails (or the authority refuses it, or the caller stops the compile).
+    let mut replies: Vec<Reply> = (0..12)
         .map(|n| reply(&graph(&format!("Bad-{n}"))))
         .collect();
-    let seat = Seat::new(refused_graphs);
-    let mut generous = policy(5);
-    generous.repairs = 9; // a direct mutation cannot buy more than five repairs
-    let out = authored(&seat, generous).await;
+    replies.push(Reply::Failed);
+    let seat = Seat::new(replies);
+    let out = authored(&seat, unbounded()).await;
     refused(&out);
-    assert_eq!(seat.calls(), 6, "{:?}", roles(&out));
-    let repairs = roles(&out).iter().filter(|r| *r == "sketch-repair").count();
-    assert_eq!(repairs, 5);
+    assert_eq!(seat.calls(), 13, "{:?}", roles(&out));
+    // A set of findings met again, even not in a row, is no progress: the structured repairs
+    // end there and, under no count, the stall switches to source recovery (its call fails
+    // here, which ends it; nothing is READY).
+    let cycle = ["Bad-0", "Bad-1", "Bad-0"].map(|id| reply(&graph(id)));
+    let seat = Seat::new(cycle.into_iter().chain([Reply::Failed]));
+    let out = authored(&seat, unbounded()).await;
+    refused(&out);
+    assert_eq!(seat.calls(), 4, "{:?}", roles(&out));
+    assert_eq!(
+        roles(&out).last().map(String::as_str),
+        Some("source-recovery")
+    );
+    assert!(
+        route(&out).iter().any(|s| s == "native: no progress"),
+        "{out:#?}"
+    );
+    // A typed limit keeps its own rule: the same cycle is answered while the count lasts.
+    let seat = Seat::new(["Bad-0", "Bad-1", "Bad-0", "Bad-1"].map(|id| reply(&graph(id))));
+    let out = authored(&seat, policy(3)).await;
+    refused(&out);
+    assert_eq!(seat.calls(), 4, "{:?}", roles(&out));
+    // An unbounded policy still reaches READY in its two calls when the seat is right.
+    let seat = Seat::new([reply(&graph("save")), reply(&fills("save"))]);
+    let out = authored(&seat, unbounded()).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(roles(&out), ["sketch", "fill", "judge_request"]);
+}
+
+#[tokio::test]
+async fn a_cut_answer_below_the_ceiling_is_asked_again_once_at_the_ceiling() {
+    let opened = |initial| policy(0).with_initial_max_tokens(initial);
+    let mut cut = completed(r#"{"name": "greeting", "tasks": ["#);
+    cut.stop_reason = StopReason::MaxTokens;
+    cut.usage.output_tokens = 1024;
+    let seat = Seat::new([
+        Reply::Answer(Box::new(cut.clone())),
+        reply(&graph("save")),
+        reply(&fills("save")),
+    ]);
+    let out = authored(&seat, opened(1024)).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    // The cut call, the same call at the ceiling, then the fill opening at the ceiling: the
+    // compile widened once, so it never opens below the ceiling again.
+    let asked: Vec<Option<u32>> = (seat.requests.lock().unwrap().iter())
+        .map(|r| r.max_tokens)
+        .collect();
+    assert_eq!(asked, [Some(1024), Some(4096), Some(4096)]);
+    let receipt = out.provenance.authoring.as_ref().unwrap();
+    assert_eq!(roles(&out), ["sketch", "sketch", "fill", "judge_request"]);
+    assert_eq!(receipt.context[0]["max_output_tokens"], 1024);
+    assert_eq!(receipt.context[0]["widened_to"], 4096);
+    assert_eq!(receipt.context[1]["max_output_tokens"], 4096);
+    assert!(receipt.context[1].get("widened_to").is_none());
+    // Every attempt is charged: the cut answer's output tokens stay in the totals.
+    assert_eq!(receipt.output_tokens, Some(1024 + 50 + 50 + 50));
+    // Cut again at the ceiling: nothing wider exists, so the round ends on the cut, named.
+    let mut ceiling = cut;
+    ceiling.usage.output_tokens = 4096;
+    let seat = Seat::new([
+        Reply::Answer(Box::new(ceiling.clone())),
+        Reply::Answer(Box::new(ceiling)),
+    ]);
+    let out = authored(&seat, opened(1024)).await;
+    refused(&out);
+    assert_eq!(seat.calls(), 2);
+    assert_eq!(rounds(&out)[0]["answer"], "cut at the authoring cap");
+    // No initial limit: every call opens at the ceiling, and a cut there is not asked again.
+    let mut capped = completed(&graph("save"));
+    capped.stop_reason = StopReason::MaxTokens;
+    let seat = Seat::new([Reply::Answer(Box::new(capped))]);
+    let out = authored(&seat, policy(5)).await;
+    refused(&out);
+    assert_eq!(seat.calls(), 1);
 }
 
 #[tokio::test]
@@ -252,6 +355,162 @@ async fn a_failed_repair_call_keeps_the_partial_usage_and_is_never_retried() {
             .iter()
             .any(|d| d.message.contains("uncertain transport")),
         "{out:#?}"
+    );
+}
+
+#[tokio::test]
+async fn each_call_reports_its_start_and_finish_and_a_dropped_compile_its_cancel() {
+    use crate::observe::{CallState, observe_activity, observe_authoring};
+    use std::sync::Arc;
+    type Seen = Arc<Mutex<Vec<(u32, &'static str, String, CallState)>>>;
+    let watch = |seen: &Seen| -> crate::observe::ActivitySink {
+        let seen = Arc::clone(seen);
+        Arc::new(move |call: &crate::observe::CallActivity<'_>| {
+            let entry = (call.ordinal, call.role, call.model.to_owned(), call.state);
+            seen.lock().unwrap().push(entry);
+        })
+    };
+    let request = CompileRequest::create(INTENT).with_authoring_policy(policy(0));
+    // Every real request, judge included, starts then finishes in call order, under the model
+    // the policy requested; the existing observer, nested around it, still sees each authoring
+    // answer (never a judge's: the sketch and the fill).
+    let (seen, answers): (Seen, Arc<Mutex<u32>>) = (Arc::default(), Arc::default());
+    let counted = Arc::clone(&answers);
+    let observer: crate::observe::Sink =
+        Arc::new(move |_: &crate::observe::AuthoringObservation<'_>| {
+            *counted.lock().unwrap() += 1;
+        });
+    let seat = Seat::new([reply(&graph("save")), reply(&fills("save"))]);
+    let compile = observe_activity(watch(&seen), crate::compile_with_provider(&request, &seat));
+    let out = Box::pin(observe_authoring(observer, compile))
+        .await
+        .unwrap();
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let model = || "mock/authoring".to_owned();
+    let (started, finished) = (CallState::Started, CallState::Finished);
+    let expected: Vec<_> = (1..)
+        .zip(["sketch", "fill", "judge_request"])
+        .flat_map(|(n, role)| [(n, role, model(), started), (n, role, model(), finished)])
+        .collect();
+    assert_eq!(*seen.lock().unwrap(), expected);
+    assert_eq!(*answers.lock().unwrap(), 2);
+    // A compile dropped while its request is in flight reports that request cancelled.
+    let seen: Seen = Arc::default();
+    let seat = Seat::new([Reply::Pending]);
+    let compile = observe_activity(watch(&seen), crate::compile_with_provider(&request, &seat));
+    let dropped = Box::pin(tokio::time::timeout(Duration::from_millis(50), compile)).await;
+    assert!(dropped.is_err(), "the compile was dropped mid-call");
+    assert_eq!(
+        *seen.lock().unwrap(),
+        [
+            (1, "sketch", model(), started),
+            (1, "sketch", model(), CallState::Cancelled)
+        ]
+    );
+}
+
+#[tokio::test]
+async fn a_qualified_route_profile_is_asked_as_stated_and_only_a_zero_limit_is_refused() {
+    // A qualified route's profile (DeepSeek direct: 131072 first, 393216 at most, 600 s) is
+    // asked as stated: the core invents no ceiling and clamps nothing.
+    let profile = |max| {
+        crate::AuthoringPolicy::new("mock/authoring", max, Duration::from_secs(600))
+            .with_native(NativeMode::Sketch)
+            .with_initial_max_tokens(131_072.min(max))
+    };
+    let seat = Seat::new([reply(&graph("save")), reply(&fills("save"))]);
+    let out = authored(&seat, profile(393_216)).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let asked: Vec<Option<u32>> = (seat.requests.lock().unwrap().iter())
+        .map(|r| r.max_tokens)
+        .collect();
+    assert_eq!(asked, [Some(131_072), Some(131_072)]);
+    // Only a limit of zero is no limit to ask under: refused before any request.
+    let seat = Seat::new([]);
+    let out = authored(&seat, profile(0)).await;
+    refused(&out);
+    assert_eq!(seat.calls(), 0);
+    assert!(
+        (out.diagnostics.iter()).any(|d| d.message.contains("a positive output-token limit")),
+        "{out:#?}"
+    );
+}
+
+#[tokio::test]
+async fn a_long_request_reaches_the_seat_with_no_length_ceiling() {
+    // Forty thousand bytes: past the old 32768 cap, a request no representation refuses; what
+    // the route can hold is its provider's to answer (here the call fails, terminal as ever).
+    let long = format!("{INTENT} {}", "Keep the greeting short. ".repeat(1_600));
+    assert!(long.len() > 40_000);
+    let seat = Seat::new([Reply::Failed]);
+    let request = CompileRequest::create(long).with_authoring_policy(policy(0));
+    let out = crate::compile_with_provider(&request, &seat).await.unwrap();
+    assert_eq!(seat.calls(), 1, "the seat was asked: {out:#?}");
+    assert!(
+        !(out.diagnostics.iter()).any(|d| d.target == "authoring_policy"),
+        "{out:#?}"
+    );
+}
+
+/// The seat, behind a whole-request judge whose call fails while `down` holds.
+struct JudgeDown {
+    seat: Seat,
+    down: std::sync::atomic::AtomicBool,
+}
+
+impl ProviderInferDyn for JudgeDown {
+    async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
+        let judged = matches!(&request.response_format,
+            nika_kernel::ai::provider::ResponseFormat::JsonSchema(schema)
+                if schema["properties"]["choice"]["enum"].is_array());
+        if judged && self.down.load(std::sync::atomic::Ordering::SeqCst) {
+            return Err(ProviderError::Connection {
+                reason: "judge transport down".into(),
+            });
+        }
+        self.seat.infer(request).await
+    }
+}
+
+#[tokio::test]
+async fn an_unjudged_candidate_keeps_its_record_and_a_later_round_judges_it_unregenerated() {
+    let judge = JudgeDown {
+        seat: Seat::new([reply(&graph("save")), reply(&fills("save"))]),
+        down: std::sync::atomic::AtomicBool::new(true),
+    };
+    let request = CompileRequest::create(INTENT).with_authoring_policy(policy(0));
+    let out = crate::compile_with_provider(&request, &judge)
+        .await
+        .unwrap();
+    // The judge's failure is no defect: nothing is READY and no candidate is offered, but the
+    // record of the bytes it could not judge stays the round's continuation.
+    refused(&out);
+    no_clarification(&out);
+    assert!(
+        route(&out)
+            .iter()
+            .any(|s| s == "verify: unjudged, record kept"),
+        "{out:#?}"
+    );
+    let record = out.provenance.plan.clone().expect("the record is kept");
+    assert!(record.get("semantic_record").is_some(), "{record:#}");
+    let resume = (out.diagnostics.iter()).find(|d| d.target == "verify_resume");
+    assert!(
+        resume.is_some_and(|d| d.kind == crate::DiagnosticKind::Applied),
+        "the host and the human are told the round can resume: {out:#?}"
+    );
+    assert_eq!(judge.seat.calls(), 2, "the sketch and its fill");
+    // A later round replays those bytes, with no author call, and its judge now answers.
+    judge.down.store(false, std::sync::atomic::Ordering::SeqCst);
+    let again = request.clone().with_plan(record.clone());
+    let out = crate::compile_with_provider(&again, &judge).await.unwrap();
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(judge.seat.calls(), 2, "nothing was regenerated");
+    let candidate = out.candidate.as_deref().unwrap();
+    assert_eq!(
+        record["final"]["candidate_sha256"],
+        crate::cognition::knowledge::sha256(candidate),
+        "the bytes judged are the bytes the first round could not judge"
     );
 }
 

@@ -138,3 +138,23 @@ admission. Session retains the provider/census resolution and re-exports the
 same `DataLocus` name, so existing presentation consumers retain their path.
 Subscription completion transport vocabulary lives separately in
 `nika-types::access::HarnessTransport`; neither projection grants Run access.
+
+`model_scope::decision_status` projects the host-observed decision-service name,
+selection origin, endpoint/deadline or refusal. It performs no selection, transport,
+admission or pricing; the host supplies every fact.
+
+The pure `activity` presentation owns `Phase`, `Activity` and the compatible text/typed sinks.
+They carry the producer's phase unchanged; no runtime, model call, execution state or authority
+is owned here. `nika_onboard::activity` and `nika_session::activity` preserve their old paths.
+
+`activity::CallMark` carries producer-reported call identity and lifecycle; the model is requested,
+not observed as served. Scoped presentation callbacks contain neither transport nor authority.
+The front-door's Session help text is re-exported by Session without changing its public path.
+
+### Passive continuation and lifecycle words
+
+`front_door::round` formats the validated round facts supplied by its owner; `RoundWords` carries summary, asked and blocked text and grants no continuation authority. `front_door::recovery` formats recovery cards and the kept-unjudged notice. `front_door::status` formats an already selected proposal, gate or Run exit. None reads files, chooses a model, verifies a candidate, starts a call or changes Session state.
+
+`front_door::recovery::cannot_express` renders the host's already classified unfinished
+preparation and human-readable reasons. Session retains classification and all authoring,
+recovery, validation and authority decisions; Display performs no reading or dispatch.

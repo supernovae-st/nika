@@ -54,6 +54,7 @@ mod restore;
 mod round;
 mod route;
 mod run_budget;
+mod unjudged;
 mod unknown_cost;
 
 pub use decision::{DecisionAnswer, decision_answer};
@@ -81,6 +82,8 @@ pub enum TurnOutcome {
     Reply(String),
     /// A fact from the engine (no model asked).
     Facts(String),
+    /// Preparation stopped; the conversation remains open and no new result is accepted.
+    Cancelled(String),
     /// The help card.
     Help(String),
     /// The human closed the session.
@@ -167,24 +170,7 @@ pub(crate) enum Need {
     Authoring,
 }
 
-/// The help card — the few survivors, and the law that everything meaningful is reachable in words.
-pub const HELP: &str = "text                 describe work to build (« read ./notes, draft a summary, write ./out/summary.md ») · Nika compiles it,
-                     asks what it cannot invent, shows the workflow, and writes it only when you say yes · consent is never a run
-run …                run the workflow you accepted, or one you name (« run brief.nika with a ceiling of 0.05 ») · a paused run asks you
-activate             declare the schedule your request asked for in nika.yaml (Nika asks the time zone, the missed policy, the ceiling) · declared is not active: a firer must run
-text                 ask, in words · these answer from the engine, no AI asked: your workflows · a file's verdict (« is X valid »)
-                     · the builtins · the providers · an example or template for a job · a code (« explain NIKA-… »)
-                     · what Nika calls a node, step, trigger, secret, action · the rest goes to your chosen intelligence, in words
-/intelligence        the AI this session reasons with · asks the first screen again, the next line is your answer
-/status              where you are: the project root, the intelligence and where your context goes, the authoring seat
-/why                 beside a question or a gate: what the answer is for, what it lets happen · nothing is consumed
-/meaning             what Nika kept of your request, clause by clause, from the compiler's own ledger · a proposal still waits
-/proof               after a run: what its trace records (chain · seal · boundary · task hashes) and what it does not prove · judged by `nika trace verify`, never a second walker
-/details             how the last workflow was built: the authoring backend and model, calls, tokens and time, the strategy, the decision seat, the engine and spec identity · advanced, on demand
-/show                while a proposal waits: print its exact bytes (the review shows the boundary)
-/help                this card
-/quit                close the session
-Name a workflow file in your question to let the session read it (only files under the root are ever read).";
+pub use nika_onboard::activity::SESSION_HELP as HELP;
 
 /// The slash commands the session answers, in the help card's order
 /// (the most used first, never alphabetical): a door completes them.
@@ -234,6 +220,8 @@ pub struct SessionRuntime {
     home: Option<PathBuf>,
     factory: Option<ReasonerFactory>,
     pending: Option<ProjectChangeSet>,
+    /// Identities already waiting before the live preparation; Stop never discards them.
+    preparation_before: durable::PreparationBefore,
     /// The source basis the compiler recorded for the pending proposal, judged at its yes (F4).
     basis: Option<fresh::ProposalBasis>,
     /// A rehearsed copy's proofs, and what this turn's rehearsals spent (`rehearsed.rs`).
@@ -272,7 +260,7 @@ pub struct SessionRuntime {
     authoring_context: crate::authoring::AuthoringContext,
     /// Where a truthful progress line goes while the compiler works
     /// (presentation only: it never carries workflow meaning).
-    progress: Option<ProgressHook>,
+    progress: crate::activity::Progress,
     /// A run request waiting on the values of the workflow's declared inputs.
     run_inputs: Option<authoring::RunInputs>,
     /// Whether the human chose (or kept) an intelligence. Opened without one,
@@ -309,7 +297,8 @@ pub struct SessionRuntime {
 
 /// A door's sink for progress lines (« Working through this workflow… »);
 /// `Send` so the runtime may run a turn on a worker thread.
-pub type ProgressHook = Box<dyn Fn(&str) + Send>;
+pub type ProgressHook = crate::activity::TextHook;
+pub use crate::activity::ActivityHook;
 
 impl std::fmt::Debug for SessionRuntime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -345,6 +334,7 @@ impl SessionRuntime {
             home: None,
             factory: None,
             pending: None,
+            preparation_before: durable::PreparationBefore::default(),
             basis: None,
             rehearsals: rehearsed::Rehearsals::default(),
             restored_draft: None,
@@ -365,7 +355,7 @@ impl SessionRuntime {
             questions: question::Identities::default(),
             seat: AuthoringSeat::Deterministic { why: None },
             authoring_context: crate::authoring::AuthoringContext::default(),
-            progress: None,
+            progress: crate::activity::Progress::default(),
             run_inputs: None,
             chosen: true,
             interrupted: None,
@@ -395,22 +385,15 @@ impl SessionRuntime {
             return "Needs your choice of intelligence · the request waits".to_owned();
         }
         if let Some(gate) = &self.pending_gate {
-            return format!(
-                "Waiting for your answer · `{}` paused at `{}`",
-                gate.workflow.display(),
-                gate.task
-            );
+            return nika_cli_host::display::front_door::status::gate(&gate.workflow, &gate.task);
         }
         if let Some(set) = &self.pending {
-            let files: Vec<String> = set
-                .changes
-                .iter()
-                .map(|c| format!("`{}`", c.path().display()))
-                .collect();
-            return format!(
-                "Ready for review · {} · nothing saved, nothing run",
-                files.join(" · ")
+            return nika_cli_host::display::front_door::status::proposal(
+                set.changes.iter().map(crate::change::ProjectChange::path),
             );
+        }
+        if self.judgment_waits() {
+            return unjudged::STATUS.into();
         }
         if let Some(question) = self.pending_question() {
             return format!("Needs one answer · {}", question.label);
@@ -422,19 +405,10 @@ impl SessionRuntime {
             return format!("Needs one value to declare the schedule · `{key}`");
         }
         if let Some((exit, _)) = &self.last_run {
-            let word = match exit {
-                0 => "Done · the run succeeded",
-                1 => "Done · the run failed",
-                2 => "Not run · the check refused",
-                3 => "Not run · the environment refused",
-                4 => "Paused · a gate waits",
-                130 => "Stopped · the run was interrupted",
-                _ => "Done · an unknown code",
-            };
-            return match &self.last_workflow {
-                Some(w) => format!("{word} · `{}`", w.display()),
-                None => word.to_owned(),
-            };
+            return nika_cli_host::display::front_door::status::run(
+                *exit,
+                self.last_workflow.as_deref(),
+            );
         }
         if let Some(w) = &self.last_workflow {
             if let Some(declared) = schedule::declared_state(&self.snapshot.root, w) {
@@ -602,20 +576,17 @@ impl SessionRuntime {
     /// Where progress lines go while the compiler works under a seat: a
     /// door prints them; a remote host projects them. Presentation only.
     pub fn on_progress(&mut self, hook: ProgressHook) {
-        self.progress = Some(hook);
+        self.progress.on_text(hook);
+    }
+    /// Listen to the producer's typed phase without parsing presentation text.
+    pub fn on_activity(&mut self, hook: ActivityHook) {
+        self.progress.on_activity(hook);
     }
 
     /// One typed activity to the door, when one listens: the door prints
     /// its line (the plain loop) or draws it in the busy row (the renderer).
     pub(super) fn activity(&self, activity: &crate::activity::Activity) {
-        self.progress(&activity.line());
-    }
-
-    /// One truthful progress line to the door, when one listens.
-    pub(super) fn progress(&self, line: &str) {
-        if let Some(hook) = &self.progress {
-            hook(line);
-        }
+        self.progress.emit(activity);
     }
 
     /// Open a session that can re-choose its intelligence in-session:
@@ -825,6 +796,9 @@ impl SessionRuntime {
         // An open authoring question owns the next line — before any
         // fact, digit or model reads it (`./notes` answers « which folder »);
         // its own protocol (`why` · `cancel` · a command) before any review.
+        if self.judgment_waits() {
+            return self.continue_judgment(input);
+        }
         if self.authoring.is_some() {
             if let Some(outcome) = self.question_protocol(input) {
                 return self.keep_revising(outcome);
@@ -918,6 +892,9 @@ impl SessionRuntime {
                 let shown = KnownWorld::correct(&reply.text, &findings);
                 self.remember(input, &shown);
                 TurnOutcome::Reply(shown)
+            }
+            Err(ReasonError::Cancelled) => {
+                TurnOutcome::Cancelled(ReasonError::Cancelled.to_string())
             }
             Err(ReasonError::NoIntelligence) => TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::NoIntelligence,

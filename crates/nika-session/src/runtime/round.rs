@@ -26,11 +26,7 @@ use crate::change::{ProjectChange, ProjectChangeSet, Witness};
 /// How the continuation act appears in the conversation record.
 const ACT: &str = "(continue the kept round)";
 
-/// The restore notice's pointer to `/restore`, after the kept round's own line.
-pub(super) const ROUND_HINT: &str = "\n  → type /restore to continue it under the project as it is now · no AI asked · its question is asked again, no workflow is saved until you say yes";
-
-/// The help line of `/restore` while a kept round can be continued.
-pub(super) const ROUND_HELP: &str = "/restore            continue the round kept from your last session (its request, its answers, the question asked again) · no AI asked · no workflow is saved until you say yes";
+pub(super) use nika_cli_host::display::front_door::round::ROUND_HELP;
 
 /// A round kept when an earlier session closed, with the question labels its record projected
 /// beside it (`Saved.unresolved`).
@@ -130,66 +126,29 @@ impl SessionRuntime {
         Some(kept.reading.words_as_typed(self.intent.goal.as_deref()))
     }
 
-    /// The restore notice's line about a kept round, with the way on when it can be continued.
+    /// The restore notice projected from the validated record, without continuing it.
     pub(super) fn round_line(&self) -> Option<String> {
-        Some(match self.kept_words()? {
-            Ok(words) => match words.blocked {
-                None => format!("restored round: {}{ROUND_HINT}", words.summary),
-                Some(why) => format!(
-                    "restored round: {} · it cannot be continued ({why}); it stays kept as evidence · state the request again instead",
-                    words.summary
-                ),
-            },
-            Err(why) => format!(
-                "a round kept by another engine version cannot be read here ({why}); it stays kept unchanged and grants nothing"
-            ),
-        })
+        Some(nika_cli_host::display::front_door::round::line(
+            self.kept_words()?,
+        ))
     }
-
-    /// `/meaning` beside a round kept but not continued yet (R4 73): what it holds, read-only.
+    /// Read-only meaning of the kept round.
     pub(super) fn kept_round_meaning(&self) -> Option<TurnOutcome> {
-        let text = match self.kept_words()? {
-            Ok(words) => format!(
-                "the round kept from your last session, not continued yet: {}\n  its clause-by-clause reading is shown once /restore continues it · nothing was asked or changed",
-                words.summary
-            ),
-            Err(why) => format!(
-                "a round is kept from your last session but this engine cannot read it ({why}) · it grants nothing"
-            ),
-        };
-        Some(TurnOutcome::Facts(text))
+        Some(TurnOutcome::Facts(
+            nika_cli_host::display::front_door::round::meaning(self.kept_words()?),
+        ))
     }
-
-    /// `/why` while nothing waits but a round is kept: the question it waited on and why the
-    /// compiler asked it, read-only.
+    /// Read-only explanation of the kept round.
     pub(super) fn kept_round_why(&self) -> Option<TurnOutcome> {
-        let text = match self.kept_words()? {
-            Ok(words) => format!(
-                "nothing waits now · the round kept from your last session has not continued: {}{}\n  {} · nothing was asked or changed",
-                words.summary,
-                words
-                    .asked
-                    .map_or_else(String::new, |why| format!("\n  why it was asked: {why}")),
-                way(words.blocked, "/restore continues it (no AI asked)")
-            ),
-            Err(why) => format!(
-                "nothing waits now · a round is kept from your last session but this engine cannot read it ({why}) · it grants nothing"
-            ),
-        };
-        Some(TurnOutcome::Facts(text))
+        Some(TurnOutcome::Facts(
+            nika_cli_host::display::front_door::round::why(self.kept_words()?),
+        ))
     }
-
-    /// The `/status` line of a kept round: empty when none is kept.
+    /// The status line, empty when no round is kept.
     pub(super) fn kept_round_status(&self) -> String {
-        match self.kept_words() {
-            Some(Ok(words)) => format!(
-                "\n  kept round (not continued): {} · {}",
-                words.summary,
-                way(words.blocked, "/restore continues it")
-            ),
-            Some(Err(_)) => "\n  kept round: unreadable by this engine · kept unchanged".to_owned(),
-            None => String::new(),
-        }
+        self.kept_words()
+            .map(nika_cli_host::display::front_door::round::status)
+            .unwrap_or_default()
     }
 
     /// `/restore` for a kept round: recorded like a turn.
@@ -283,6 +242,11 @@ impl SessionRuntime {
         if round.target.is_none() {
             round.target =
                 (self.revising.as_ref()).and_then(|(set, _)| super::authoring::updated_target(set));
+        }
+        if record.questions.is_empty() {
+            self.restored_round = None;
+            self.authoring = Some(round);
+            return TurnOutcome::Facts(super::unjudged::KEPT.into());
         }
         // The recorded plan against its recorded observation: no seat, no fresh observation.
         match compile_deterministic(&round.request()) {
@@ -381,14 +345,6 @@ fn preface(outcome: TurnOutcome, line: &str) -> TurnOutcome {
         TurnOutcome::Facts(text) => TurnOutcome::Facts(format!("{line}\n{text}")),
         other => other,
     }
-}
-
-/// The way on from a kept round: `restore` when it can be continued, else why it cannot.
-fn way(blocked: Option<String>, restore: &str) -> String {
-    blocked.map_or_else(
-        || restore.to_owned(),
-        |why| format!("it cannot be continued ({why})"),
-    )
 }
 
 #[cfg(test)]

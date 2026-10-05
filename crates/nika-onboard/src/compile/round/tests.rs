@@ -802,3 +802,52 @@ fn a_semantic_record_requires_both_the_full_receipt_and_the_scoped_reading_ident
     assert!(record.remove("world").is_some());
     assert!(compiled(request, &decorated).is_none());
 }
+
+#[test]
+fn a_questionless_kept_plan_is_continuable_but_tamper_and_withholding_still_refuse() {
+    let plan = json!({"semantic_record":{"opaque":"compiler owns its validity"},"final":{"candidate_sha256":"evidence"}});
+    let kept = Capture::new("same request", &redact)
+        .continuation(Some(&plan))
+        .finish()
+        .unwrap();
+    assert_eq!(usable(kept.clone()).continuable(), Ok(()));
+    let mut altered = kept;
+    altered["continuation"]["value"]["final"]["candidate_sha256"] = json!("changed");
+    assert!(matches!(
+        usable(altered).continuable(),
+        Err(Unusable::Altered(_))
+    ));
+    let hidden = Capture::new("same request", &redact)
+        .continuation(Some(&json!({"semantic_record":SENTINEL})))
+        .finish()
+        .unwrap();
+    assert!(matches!(
+        usable(hidden).continuable(),
+        Err(Unusable::Withheld(_))
+    ));
+}
+#[test]
+fn only_the_compiler_resume_finding_retains_an_unjudged_slot() {
+    let mut out = compile(&CompileRequest::create("bounded-batch")).unwrap();
+    out.questions.clear();
+    out.candidate = None;
+    out.status = super::super::CompileStatus::Incomplete;
+    out.provenance.strategy = Some(super::super::Strategy::Native);
+    out.provenance.plan = Some(json!({"semantic_record":{}}));
+    assert!(
+        !awaiting_judge(&out),
+        "a plan is not permission to bypass its reading"
+    );
+    nika_compile::finding(
+        &mut out,
+        DiagnosticKind::Applied,
+        "verify_resume",
+        "kept by compiler",
+    );
+    assert!(awaiting_judge(&out));
+    out.diagnostics.last_mut().unwrap().kind = DiagnosticKind::Unknown;
+    assert!(
+        !awaiting_judge(&out),
+        "prose and unknown findings are not the resume signal"
+    );
+}

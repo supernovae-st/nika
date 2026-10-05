@@ -262,12 +262,13 @@ fn one_answer_is_one_bearer_request_and_missing_usage_stays_unknown() {
 }
 
 #[test]
-fn an_oversized_question_never_leaves() {
+fn json_bytes_are_not_treated_as_a_model_context_limit() {
     let peer = Peer::start(vec![Reply::Status(200, answer(None))]);
-    let failure = exchange(&peer, json!("x".repeat(64_001))).expect_err("an oversized request");
-    assert_eq!(failure.delivery, Delivery::NotSent);
-    assert!(
-        peer.heads().is_empty(),
-        "a refused request reached the peer"
-    );
+    let observed = exchange(&peer, json!("a word ".repeat(10_000))).expect("one request");
+    assert_eq!(observed.status, 200);
+    assert_eq!(peer.heads().len(), 1);
+    let peer = Peer::start(vec![Reply::Status(422, "{}".into())]);
+    let failure = exchange(&peer, json!("a word ".repeat(10_000))).expect_err("service refusal");
+    assert_eq!(failure.delivery, Delivery::Responded(422));
+    assert_eq!(peer.heads().len(), 1, "service refusal is never retried");
 }

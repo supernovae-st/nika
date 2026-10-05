@@ -363,8 +363,13 @@ also names the origin (`CostReview::details`). Both read `&self`; neither
 changes the challenge, its nonce or any authority. The serialized challenge
 itself, the host's IPC with its own lane, keeps the exact route.
 
-`CostReview::for_session` applies the Session preparation bounds: at most seven
-requests, 32768 output tokens and 180 seconds per request;
+`CostReview::for_session` retains the legacy bounded Session review: at most
+seven requests, 32768 output tokens and 180 seconds per request. These are
+compatibility allowance bounds, not a guarantee that every compiler strategy
+can finish within them. Interactive continuous preparation does not use this
+review as its default gate; its dispatch journal retains observed usage and
+unknown charges without creating an admission account.
+For callers that select the bounded review,
 `with_recovery_requests(n, worst_case)` adds exactly the requests an explicit
 source recovery reserves to that same review and account, and its question states
 the allowance they are added to and the configuration's theoretical worst case
@@ -730,3 +735,29 @@ Mixed histories (including decision-seat or no-budget observations) are delibera
 refused by this reader: another owner's state and invoice are never silently ignored.
 Pure accounting checkpoint/diagnostic projections stay in Providers; the host retains
 I/O, exclusive ownership and all admission decisions.
+
+`admission::admit_unpriced_companion` checks the compatibility of an explicitly
+selected external decision service with a caller's account. No account means
+separate observation; a supplied account must remain open and unbudgeted. It
+creates no authority and consumes no allowance. The host owns the prior operator
+selection and durable observation; service pricing stays unknown.
+
+### Interactive preparation observations
+
+`authoring::preparation::PreparationCosts` composes the existing `DispatchJournal` around an
+interactive Session driver. It neither grants a Run nor mutates an admission account. Physical
+requests that crossed transport are retained on success, failure and cancellation; durable
+records use `route_identity::durable_calls`, preserve missing values and have no allowance.
+The `nika/preparation-cost-observation@1` record is evidence only and is never deserialized as
+execution or monetary authority. Legacy account and Run review schemas are unchanged.
+
+### Interactive preparation cancellation
+
+`PreparationCosts::while_active` uses the existing `CancelCtx`, not execution authority.
+A pre-cancelled future is never polled; an in-flight cancellation drops the future and preserves
+every sent physical API request in `DispatchJournal`, with incomplete usage and unknown charges
+retained. A new host turn resets only its cancellation token, never the conversation's costs.
+It does not cancel Run, guarantee a provider refund, or manufacture subscription usage.
+
+Account-status and interrupted-dispatch prose remain pure projections in admission::summary.
+Their inputs are observations and host facts; none of these renderers grants or restores credit.

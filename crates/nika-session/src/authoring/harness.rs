@@ -11,25 +11,25 @@ pub(super) fn compile(
     model: Option<&str>,
     transport: nika_types::access::HarnessTransport,
     request: &CompileRequest,
+    decision: Option<super::decision::SessionSeat>,
     host: Option<&dyn nika_onboard::compile::rehearse::Rehearse>,
 ) -> Result<CompileOutcome, AuthoringError> {
     let harness =
         nika_harness::authoring::HarnessAuthoring::meet_with_transport(adapter, model, transport)
             .map_err(AuthoringError::Seat)?;
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .map_err(|e| AuthoringError::Runtime(e.to_string()))?;
-    let mut out = runtime.block_on(Box::pin(
+    let mut out = super::complete(Box::pin(
         nika_onboard::compile::compile_with_cognition_rehearsed(
             request,
             nika_onboard::compile::Cognition {
                 provider: Some(&harness),
-                seat: None,
+                seat: decision
+                    .as_ref()
+                    .map(|s| s as &dyn nika_onboard::compile::decide::DecisionSeat),
             },
             host,
         ),
-    ))?;
+    ))??;
+    super::decision::finish(&mut out, request, decision);
     if let Some(receipt) = out.provenance.authoring.as_mut() {
         receipt.backend = Some(harness.descriptor().map_err(AuthoringError::Seat)?);
     }
@@ -42,6 +42,7 @@ pub(super) fn compile(
     _: Option<&str>,
     _: nika_types::access::HarnessTransport,
     _: &CompileRequest,
+    _: Option<super::decision::SessionSeat>,
     _: Option<&dyn nika_onboard::compile::rehearse::Rehearse>,
 ) -> Result<CompileOutcome, AuthoringError> {
     Err(AuthoringError::Seat(format!(

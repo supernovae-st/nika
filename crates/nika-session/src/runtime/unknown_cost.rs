@@ -15,7 +15,6 @@ pub(super) struct UnknownCostState {
     pending: Option<PendingCost>,
     pub active: bool,
     pub in_consent: bool,
-    sequence: u64,
     pub observations: Vec<serde_json::Value>,
     pub completed_restored: bool,
 }
@@ -61,6 +60,14 @@ impl SessionRuntime {
     #[must_use]
     pub fn cost_observations(&self) -> Vec<serde_json::Value> {
         let mut observations = self.unknown_cost.observations.clone();
+        if let Some(observed) = self
+            .money
+            .preparation
+            .as_ref()
+            .and_then(nika_providers::authoring::preparation::PreparationCosts::observation)
+        {
+            observations.push(observed);
+        }
         if let Ok(Some(receipt)) = self.inference_receipt() {
             observations.push(receipt.durable_observation());
         }
@@ -90,7 +97,8 @@ impl SessionRuntime {
         CompletedCostReport::read(&self.unknown_cost.observations).ok()
     }
     pub(super) fn unreviewed_unknown_route(&self) -> bool {
-        !self.unknown_cost.active
+        self.money.preparation.is_none()
+            && !self.unknown_cost.active
             && matches!(self.intelligence.kind, crate::IntelligenceKind::Api { .. })
             && self
                 .selected_cost_route()
@@ -318,16 +326,7 @@ impl SessionRuntime {
                 return Err(e.clone());
             }
             let candidate = self.cost_candidate(input)?;
-            self.unknown_cost.sequence = self
-                .unknown_cost
-                .sequence
-                .checked_add(1)
-                .ok_or("review sequence exhausted")?;
-            let invocation = format!(
-                "session:{}:{}",
-                crate::intelligence::now_rfc3339(),
-                self.unknown_cost.sequence
-            );
+            let invocation = nika_types::id::CorrelationId::generate().to_string();
             let reserved = recovery_requests(self.authoring_context.recovery);
             let strategy = self.authoring_context.strategy();
             let worst = worst_case(strategy, 1, AUTHORING_REPAIRS, false);

@@ -29,6 +29,7 @@ jaq-core = { workspace = true }
 jaq-std  = { workspace = true }
 jaq-json = { workspace = true }
 nika-cap = { path = "../nika-cap", version = "0.122.0" }
+nika-providers = { path = "../nika-providers", version = "0.122.0", default-features = false } # the request counters and the call observer a seat runs under; the authority stays here
 unicode-normalization = { workspace = true, default-features = false } # the relation-canonical spelling probe compares texts under NFC (B24, prototype)
 
 [package.metadata.lore]

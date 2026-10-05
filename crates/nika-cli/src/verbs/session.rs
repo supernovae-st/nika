@@ -104,6 +104,7 @@ fn drive_with<R: BufRead, W: Write>(
         Some(pref) => SessionRuntime::open_with(cwd, census.clone(), &pref, home, factory),
         None => SessionRuntime::open_unchosen(cwd, census.clone(), home, factory),
     };
+    session.enable_continuous_preparation();
     if let Some(helper) = jq {
         session.with_jq_helper(helper);
     }
