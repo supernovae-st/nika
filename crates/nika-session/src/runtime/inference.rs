@@ -180,13 +180,15 @@ impl SessionRuntime {
         // A named level the session cannot ask refuses the turn before any record or byte (R4 B16).
         let effort = (self.authoring_context.reasoning_asked())
             .map_err(|why| ReasonError::Provider(format!("{why} · nothing was sent")))?;
-        let model = if self.reasoner.supports_admission() {
-            self.reasoner.authoring_model()
-        } else {
-            None
-        };
+        if !self.reads_answers() {
+            return Err(ReasonError::NoIntelligence);
+        }
+        let model = self
+            .reasoner
+            .supports_admission()
+            .then(|| self.reasoner.authoring_model());
         let (account, entered) = self
-            .enter_dispatch(model.as_deref())
+            .enter_dispatch(model.flatten().as_deref())
             .map_err(|e| ReasonError::Provider(format!("{UNRECORDED}: {e}")))?;
         // The session's explicit effort rides every call it names one for (R4 B16).
         let reply = match (&account, effort) {

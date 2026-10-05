@@ -172,3 +172,148 @@ fn each_unsettled_preparation_failure_is_unknown_in_the_durable_history() {
         assert!(!session.waiting_cost_choice());
     }
 }
+
+#[test]
+fn continuous_no_intelligence_greeting_and_fallback_create_no_project_artifact() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let mut session = SessionRuntime::open(
+        dir.path(),
+        super::super::tests::ready(IntelligenceKind::None, DataLocus::None),
+        Box::new(crate::reasoner::NoReasoner),
+    );
+    session.enable_continuous_preparation();
+    session.enable_history(home.path()).unwrap();
+    assert_eq!(
+        session.classify(SessionPhase::Idle, "hello there").method,
+        crate::turn::RoutingMethod::Fallback
+    );
+    let out = session.turn("hello there, how are you today?");
+    assert!(
+        matches!(out, TurnOutcome::Refusal(ref why)
+        if why.class == RefusalClass::NoIntelligence),
+        "{out:?}"
+    );
+    assert!(!dir.path().join(".nika").exists());
+    assert!(session.cost_observations().is_empty());
+    assert_eq!(session.uncertain_charges(), 0);
+}
+
+#[test]
+fn continuous_missing_classifier_is_fallback_without_an_inflight_record() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut session = open(dir.path());
+    session.factory = None;
+    session.enable_continuous_preparation();
+    assert_eq!(
+        session
+            .classify(SessionPhase::Idle, "read this line")
+            .method,
+        crate::turn::RoutingMethod::Fallback
+    );
+    assert!(!dir.path().join(".nika").exists());
+    assert!(session.cost_observations().is_empty());
+}
+
+struct BoundaryReasoner(std::path::PathBuf);
+impl SessionReasoner for BoundaryReasoner {
+    fn name(&self) -> String {
+        "custom fixture".into()
+    }
+    fn reason(&mut self, _: &str) -> Result<crate::Reply, ReasonError> {
+        assert_boundary(&self.0, None);
+        Ok(crate::Reply {
+            text: "fixture reply".into(),
+            usage_observed: false,
+        })
+    }
+}
+fn assert_boundary(root: &Path, decision: Option<&str>) {
+    let state = crate::SessionState::load(root).unwrap().unwrap();
+    assert!(state.decisions.iter().any(|line| {
+        line.starts_with(super::super::inference::OBSERVED_PREFIX)
+            && decision.is_none_or(|seat| line.contains(seat))
+    }));
+}
+
+#[test]
+fn continuous_custom_reasoners_and_acp_keep_their_pre_dispatch_boundary() {
+    use nika_types::access::HarnessTransport;
+    for (kind, locus) in [
+        (IntelligenceKind::None, DataLocus::None),
+        (
+            IntelligenceKind::Harness {
+                seat: "claude-code".into(),
+                transport: HarnessTransport::Acp,
+            },
+            DataLocus::Remote {
+                product: "claude-code".into(),
+            },
+        ),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let mut session = SessionRuntime::open(
+            dir.path(),
+            super::super::tests::ready(kind, locus),
+            Box::new(BoundaryReasoner(dir.path().into())),
+        );
+        session.enable_continuous_preparation();
+        assert!(session.reason_with_money("hello", false).is_ok());
+        let settled = crate::SessionState::load(dir.path()).unwrap().unwrap();
+        assert!(
+            settled
+                .decisions
+                .iter()
+                .all(|line| !line.starts_with(super::super::inference::OBSERVED_PREFIX))
+        );
+    }
+}
+
+struct BoundaryClassifier(std::path::PathBuf);
+impl TurnClassifier for BoundaryClassifier {
+    fn classify(&mut self, _: &TurnContext, _: &str) -> TurnDecision {
+        assert_boundary(&self.0, None);
+        TurnDecision::new(TurnAct::NewWork, crate::turn::RoutingMethod::Model)
+    }
+}
+#[test]
+fn continuous_injected_classifier_keeps_its_boundary_without_conversational_ai() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut session = SessionRuntime::open(
+        dir.path(),
+        super::super::tests::ready(IntelligenceKind::None, DataLocus::None),
+        Box::new(crate::reasoner::NoReasoner),
+    );
+    session.with_classifier(Box::new(BoundaryClassifier(dir.path().into())));
+    session.enable_continuous_preparation();
+    assert_eq!(
+        session.classify(SessionPhase::Idle, WORK).act,
+        TurnAct::NewWork
+    );
+}
+
+#[test]
+fn continuous_deterministic_seat_keeps_its_explicit_decision_boundary() {
+    use crate::authoring::decision::tests::{KEY, SEAT};
+    use crate::authoring::{AuthoringContext, DecisionSetup};
+    let dir = tempfile::tempdir().unwrap();
+    let mut session = SessionRuntime::open(
+        dir.path(),
+        super::super::tests::ready(IntelligenceKind::None, DataLocus::None),
+        Box::new(crate::reasoner::NoReasoner),
+    );
+    session.set_authoring_context(
+        AuthoringContext::default().with_decision(Some(DecisionSetup::with_key(
+            SEAT,
+            Some(KEY.into()),
+            None,
+        ))),
+    );
+    session.enable_continuous_preparation();
+    session
+        .seated(&AuthoringSeat::Deterministic { why: None }, |_| {
+            assert_boundary(dir.path(), Some(SEAT));
+            Ok(())
+        })
+        .unwrap();
+}

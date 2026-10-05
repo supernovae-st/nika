@@ -106,7 +106,7 @@ impl SessionRuntime {
             (Ok(_), None) => Ok(()),
         };
         // A paid label request may leave only after the record says it might.
-        let entered = if blocked || effort.is_err() {
+        let entered = if !asks || classifier.is_none() || effort.is_err() {
             Ok((None, false))
         } else {
             self.enter_dispatch(model.as_deref())
