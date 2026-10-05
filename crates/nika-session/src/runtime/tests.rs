@@ -394,9 +394,8 @@ fn the_review_reads_in_sections_and_meaning_holds_the_proposal() {
     // A yes lands the bytes: the status says saved, checked, not run.
     assert!(matches!(s.consent("yes"), TurnOutcome::Facts(ref t) if t.contains("applied")));
     assert!(
-        s.status_line().starts_with(
-            "Saved · checked · not active · nothing has run · `compiled-workflow.nika`"
-        ),
+        s.status_line()
+            .starts_with("Saved · no current Run result · `compiled-workflow.nika`"),
         "{}",
         s.status_line()
     );
@@ -1415,7 +1414,7 @@ fn saving_a_new_proposal_clears_the_previous_run_status() {
         assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
         assert!(matches!(s.consent("yes"), TurnOutcome::Facts(_)));
         assert!(
-            s.status_line().contains("nothing has run"),
+            s.status_line().contains("no current Run result"),
             "{}",
             s.status_line()
         );

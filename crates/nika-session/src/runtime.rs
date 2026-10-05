@@ -439,10 +439,7 @@ impl SessionRuntime {
             if let Some(declared) = schedule::declared_state(&self.snapshot.root, w) {
                 return declared;
             }
-            return format!(
-                "Saved · checked · not active · nothing has run · `{}`",
-                w.display()
-            );
+            return format!("Saved · no current Run result · `{}`", w.display());
         }
         String::new()
     }

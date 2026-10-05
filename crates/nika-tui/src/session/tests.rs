@@ -629,7 +629,7 @@ fn a_declined_run_review_has_no_effect() {
         .as_ref()
         .map(SessionRuntime::status_line)
         .unwrap_or_default();
-    assert!(before.contains("nothing has run"), "{before}");
+    assert!(before.contains("no current Run result"), "{before}");
     let _ = live.submit("no");
     assert!(
         reply_of(&room).is_empty(),

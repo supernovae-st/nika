@@ -479,3 +479,39 @@ fn a_pending_edit_receives_its_exact_record_and_keeps_the_original_when_compile_
     );
     p.nothing_ran();
 }
+
+/// Historical execution does not become a current check or result on reopen.
+#[test]
+fn saved_semantic_work_reopens_without_claiming_it_never_ran_or_is_still_checked() {
+    let peer = Peer::start(vec![
+        (200, response(&graph())),
+        (200, response(&fills())),
+        (200, response(JUDGE_APPROVES)),
+    ]);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().expect("root");
+    let home = tempfile::tempdir().expect("history");
+    std::fs::write(dir.path().join("inventory.json"), ROWS).expect("inventory");
+    let mut first = open(dir.path());
+    first.enable_history(home.path()).expect("history");
+    assert!(matches!(first.turn(WORK), TurnOutcome::Proposal { .. }));
+    assert!(matches!(first.consent("yes"), TurnOutcome::Facts(_)));
+    let _ = first.observe_run(0, None); // synthetic host observation, no execution
+    assert!(first.status_line().contains("run succeeded"));
+    drop(first);
+    let mut later = open(dir.path());
+    later.enable_history(home.path()).expect("resume");
+    let _ = later.restore_state();
+    assert_eq!(
+        later.kept_run().expect("run").expect("readable").exit,
+        Some(0)
+    );
+    assert_eq!(
+        later.status_line(),
+        "Saved · no current Run result · `reorder.nika`"
+    );
+    assert_eq!(later.last_check_clean, None);
+    assert_eq!(later.last_run, None);
+    assert_eq!(peer.bodies().len(), 3, "reopening calls nobody");
+    assert!(!dir.path().join("reorder.json").exists());
+}
