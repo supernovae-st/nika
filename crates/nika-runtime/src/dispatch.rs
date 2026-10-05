@@ -1160,7 +1160,7 @@ mod infer_deadline_tests {
     use crate::{DeterministicStamper, Runtime, RuntimeConfig, VecSink};
 
     /// Captures every provider request · answers a minimal
-    /// openai-compat success so the run settles green.
+    /// vendor-shaped success so the run settles green.
     #[derive(Default)]
     struct CapturingHttp {
         captured: Mutex<Vec<HttpRequest>>,
@@ -1176,6 +1176,9 @@ mod infer_deadline_tests {
         "choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],
         "usage":{"prompt_tokens":1,"completion_tokens":1}}"#;
 
+    const OLLAMA_OK: &str = r#"{"model":"llama3.2","message":{"role":"assistant","content":"ok"},
+        "done":true,"done_reason":"stop","prompt_eval_count":1,"eval_count":1}"#;
+
     const ANTHROPIC_OK: &str = r#"{"id":"msg_1","model":"claude-x","stop_reason":"end_turn",
         "content":[{"type":"text","text":"ok"}],
         "usage":{"input_tokens":1,"output_tokens":1}}"#;
@@ -1188,6 +1191,8 @@ mod infer_deadline_tests {
                 .push(request.clone());
             let body = if request.url.contains("anthropic") {
                 ANTHROPIC_OK
+            } else if request.url.ends_with("/api/chat") {
+                OLLAMA_OK
             } else {
                 OPENAI_OK
             };
@@ -1212,7 +1217,7 @@ mod infer_deadline_tests {
     /// `pub(super)`: the `model_template_tests` sibling runs the same rig.
     pub(super) async fn run_and_capture(yaml: &str) -> Vec<HttpRequest> {
         let (outcome, captured) = run_capture(yaml).await;
-        assert!(outcome.ok, "the canned success settles green");
+        assert!(outcome.ok, "the canned success settles green: {outcome:?}");
         captured
     }
 
@@ -1253,7 +1258,8 @@ mod infer_deadline_tests {
             Arc::clone(&http),
             ProvidersConfig::new()
                 .with_base_url("ollama", format!("http://127.0.0.1:{stub}"))
-                .with_key("anthropic", Secret::new("sk-ant-test")),
+                .with_key("anthropic", Secret::new("sk-ant-test"))
+                .with_key("openai", Secret::new("sk-test")),
         ));
         let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
         let runtime = Runtime::new(
@@ -1286,6 +1292,7 @@ mod infer_deadline_tests {
         )
         .await;
         assert_eq!(captured.len(), 1, "one provider round-trip");
+        assert!(captured[0].url.ends_with("/api/chat"));
         assert_eq!(
             captured[0].timeout,
             Some(Duration::from_secs(420)),
@@ -1300,6 +1307,7 @@ mod infer_deadline_tests {
         )
         .await;
         assert_eq!(captured.len(), 1, "one provider round-trip");
+        assert!(captured[0].url.ends_with("/api/chat"));
         // 300s — nika-providers' LOCAL_DEFAULT_TIMEOUT (pub(crate) there ·
         // the ≥300s F1 acceptance floor pinned at the consumer seam).
         assert_eq!(

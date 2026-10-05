@@ -519,15 +519,21 @@ async fn a_mute_local_endpoint_names_the_stuck_server() {
 async fn a_live_local_endpoint_passes_the_gate() {
     let port = spawn_stub_server(true);
     let seam = SeamHttp::with_json(&[
-        r#"{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1}}"#,
+        r#"{"model":"qwen3.5:4b","message":{"role":"assistant","content":"ok"},"done":true,"done_reason":"stop","prompt_eval_count":1,"eval_count":1}"#,
     ]);
     let verb = ollama_verb(&seam, format!("http://127.0.0.1:{port}"));
     let out = verb
         .run(InferInput::new("hi"))
         .await
         .expect("a live server clears the gate");
-    assert!(matches!(out.output, InferValue::Text(_)));
-    assert_eq!(seam.captured().len(), 1, "the one real call went through");
+    assert_eq!(out.output, InferValue::Text("ok".to_owned()));
+    assert_eq!(out.model_resolved, "ollama/qwen3.5:4b");
+    assert_eq!(out.usage.input_tokens, 1);
+    assert_eq!(out.usage.output_tokens, 1);
+    let captured = seam.captured();
+    assert_eq!(captured.len(), 1, "the one real call went through");
+    assert_eq!(captured[0].url, format!("http://127.0.0.1:{port}/api/chat"));
+    assert_eq!(wire_body(&seam)["stream"], false);
 }
 
 /// The captured wire body of the seam's one request.

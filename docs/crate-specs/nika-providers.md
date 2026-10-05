@@ -674,3 +674,33 @@ TOTAL ceiling. Closed reviewed scopes are observations; newly uncertain/active s
 refuse another review. The original exposure remains visible when later evidence refuses.
 The account's dispatch note and post-dispatch refusal are projections owned here; their
 host still owns recording the boundary before transport.
+
+## Ollama native chat and context preservation
+
+The Ollama profile uses native `/api/chat` inside its existing provider owner,
+through the injected HTTP effect. Other OpenAI-compatible profiles retain their
+wire. Both buffered JSON and incremental NDJSON carry `truncate:false` and
+`shift:false`: a server implementing these native guards must refuse capacity
+overflow instead of dropping input or sliding the context. The per-call default
+`options.num_ctx` is 65,536; an explicit positive native `options.num_ctx` can
+replace it (up to 1,048,576). This requests capacity; it does not attest that the
+model/hardware supports it. The finite output bound follows `max_tokens`
+(default 4,096 if absent), and must be below the requested context capacity.
+Daemon configuration, model identity and caller deadlines are unchanged.
+
+Native JSON schema, auto/disabled tools, inline images, thinking text, stop
+sequences and reported token counters map into the existing kernel DTOs. A
+forced tool choice, numeric thinking budget, explicit unqualified reasoning
+effort or unsupported raw parameter refuses before dispatch. The native API
+supplies no request id: none is invented. Returned model identity is recorded
+as reported, separately from the selected model. Missing/invalid token counters
+remain unknown; no USD price is invented for local compute.
+
+NDJSON frames are bounded to 1 MiB, survive arbitrary byte splits and must
+include `done:true`. EOF, malformed/trailing records or a server error cannot
+produce a successful terminal event. HTTP and dispatch accounting use their
+existing owners; native Ollama refuses a catalog admission account lacking a
+qualified native settlement. No endpoint/model fallback is attempted. An HTTP
+failure retains its typed sanitized status; server-controlled error prose is
+not echoed. Native guards require server support (source reference: Ollama
+v0.24.0); adapter tests do not establish a live model or hardware qualification.

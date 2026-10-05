@@ -14,6 +14,7 @@ pub(crate) mod gemini;
 pub(crate) mod json_mode;
 pub(crate) mod mock;
 mod mock_schema;
+mod ollama;
 pub(crate) mod openai_compat;
 #[cfg(test)]
 mod openai_compat_usage_tests;
