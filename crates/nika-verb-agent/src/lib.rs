@@ -400,6 +400,12 @@ where
         if let Some(seat) = &self.harness
             && !input.native_only
         {
+            // Match the native loop's model inheritance before leaving this
+            // verb: the seat must receive the model used to resolve its lane.
+            let mut input = input;
+            input
+                .model
+                .get_or_insert_with(|| self.default_model.clone());
             return harness_path::run_on_harness(
                 seat,
                 input,
@@ -1464,3 +1470,6 @@ mod tests_refusal;
 mod tests_schema;
 #[cfg(test)]
 mod tests_spill;
+
+#[cfg(all(test, feature = "access-harness"))]
+mod tests_harness_model;

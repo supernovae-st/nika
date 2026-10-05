@@ -33,6 +33,7 @@ const PNG: &[u8] = b"\x89PNG\r\n\x1a\nreceived fixture bytes";
 struct ImageTape {
     turns: AtomicUsize,
     reported_path: String,
+    requested_models: std::sync::Mutex<Vec<Option<String>>>,
 }
 
 impl ImageTape {
@@ -40,6 +41,7 @@ impl ImageTape {
         Self {
             turns: AtomicUsize::new(0),
             reported_path: reported_path.to_owned(),
+            requested_models: std::sync::Mutex::new(Vec::new()),
         }
     }
 }
@@ -47,10 +49,14 @@ impl ImageTape {
 impl DynAgentBackend for ImageTape {
     fn run_agent_boxed(
         &self,
-        _request: HarnessRequest,
+        request: HarnessRequest,
     ) -> Pin<
         Box<dyn std::future::Future<Output = Result<HarnessEventStream, HarnessError>> + Send + '_>,
     > {
+        self.requested_models
+            .lock()
+            .unwrap()
+            .push(request.requested_model);
         let turn = self.turns.fetch_add(1, Ordering::SeqCst);
         let bytes = [PNG, format!(" turn {turn}").as_bytes()].concat();
         let mut image = HarnessImage::new(format!("image-{turn}"));
@@ -188,11 +194,9 @@ async fn run_once(runtime: &Seated) -> (RunOutcome, Vec<Event>) {
 #[tokio::test]
 async fn received_bytes_land_in_the_held_project_and_the_runtime_runs_again() {
     let world = World::new("runs");
+    let backend = Arc::new(ImageTape::new("/outside/never-opened.png"));
     let runtime = runtime(&world.project)
-        .with_harness_backend(
-            Arc::new(ImageTape::new("/outside/never-opened.png")),
-            "tape".into(),
-        )
+        .with_harness_backend(backend.clone(), "tape".into())
         .expect("the project is held as the image room");
     assert!(
         !world.project.join(".nika").exists(),
@@ -237,6 +241,11 @@ async fn received_bytes_land_in_the_held_project_and_the_runtime_runs_again() {
         hashes.push(hash.to_owned());
     }
     assert_ne!(hashes[0], hashes[1], "two runs, two stored images");
+    assert_eq!(
+        *backend.requested_models.lock().unwrap(),
+        vec![Some("mock/echo".to_owned()), Some("mock/echo".to_owned())],
+        "each model-less agent task delegates the effective envelope model"
+    );
     assert!(world.outside_intact());
 }
 
