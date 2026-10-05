@@ -41,6 +41,13 @@ use serde_json::{Value, json};
 /// judge's call is a real call, counted like any other.
 const JUDGE_APPROVES: &str = r#"{"choice":"faithful"}"#;
 
+/// The seat's typed revision of the proposal: the change adds one destination, written like the
+/// base's own; the compiler owns the resulting source (a whole-source reply is no revision answer).
+fn copy_revision_answer() -> String {
+    json!({"supersedes": [], "adds": [CHANGE], "like": "./b.md", "notes": "copy the result"})
+        .to_string()
+}
+
 /// Whether a request the seat received is the judge's closed choice: its schema asks a `choice`
 /// between faithful and unfaithful, never a candidate.
 fn judged(body: &Value) -> bool {
@@ -259,7 +266,10 @@ fn assert_revision(world: &World, body: &Value, details: &str, port: u16) {
         "the revision presented its own pack in its own call: {details}"
     );
     assert!(
-        details.contains(&format!("native · instruction sha256 {}", sha256(&second))),
+        details.contains(&format!(
+            "revision · instruction sha256 {}",
+            sha256(&second)
+        )),
         "{details}"
     );
     let revision_sha = revision_pack.identity["door"]["pack_sha256"]
@@ -276,7 +286,7 @@ fn the_public_turn_presents_the_pinned_pack_and_the_receipt_names_the_bytes_the_
     let world = world();
     let seat = LoopbackSeat::start(vec![
         plan_answer(),
-        native_answer(&candidate(SEAT_MODEL, true)),
+        copy_revision_answer(),
         JUDGE_APPROVES.to_owned(),
     ]);
     let report = run_child(&world, "route", &seat, &[]);

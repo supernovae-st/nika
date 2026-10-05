@@ -1462,7 +1462,10 @@ fn an_authoring_timeout_keeps_its_limit_without_an_allowance_or_goal_rewrite() {
         panic!("a timeout returns the recovery facts");
     };
     assert!(card.contains("The authoring model did not answer within the call's time limit"));
-    assert!(card.contains(reason), "{card}");
+    assert!(
+        card.contains(reason),
+        "timeout card must preserve the measured timeout reason"
+    );
     assert!(card.contains("/intelligence"));
     assert!(!card.contains("narrowing the request"));
     assert!(!card.contains("authoring budget"));

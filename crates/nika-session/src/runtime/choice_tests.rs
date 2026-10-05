@@ -663,7 +663,10 @@ fn details_shows_a_failed_route_without_a_workflow_and_withholds_private_error_t
     assert!(details.contains("routes: 1") && details.contains("Failed"));
     assert!(details.contains("starts and is signed in"));
     for private in ["sk-", "prompt-secret", "my private input", "exited 69"] {
-        assert!(!details.contains(private), "{details}");
+        assert!(
+            !details.contains(private),
+            "private diagnostic text must be withheld"
+        );
     }
     assert!(!dir.path().join(COPY_DEST).exists());
     assert_eq!(

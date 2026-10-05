@@ -632,7 +632,9 @@ fn mutations(record: &Value) -> Vec<(&'static str, CompileRequest, Value)> {
         ),
         (
             "observed world",
-            request.clone().with_knowledge(json!({"observed": []})),
+            request.clone().with_knowledge(json!({"observed": [
+                {"path": "./alpha.txt", "state": "absent"}
+            ]})),
             record.clone(),
         ),
         (
@@ -739,6 +741,29 @@ async fn every_mutation_of_the_request_or_the_record_refuses_without_source_or_m
                 core.diagnostics
             );
         }
+    }
+}
+
+#[tokio::test]
+async fn no_relevant_world_facts_replay_but_still_need_a_fresh_judgment() {
+    let out = authored().await;
+    let record = out.provenance.plan.unwrap();
+    for world in [
+        json!({"observed": []}),
+        json!({"observed": [{"path": "./unrelated.txt", "state": "absent"}]}),
+    ] {
+        let request = CompileRequest::create(COPIES).with_knowledge(world);
+        assert_eq!(
+            nika_compile::surface::semantic::request_basis(COPIES, &request),
+            record["basis"]["read"]
+        );
+        let core = compile(&request.clone().with_plan(record.clone())).unwrap();
+        assert_eq!(core.candidate, out.candidate);
+        assert_eq!(core.status, CompileStatus::Incomplete);
+        let (replayed, calls, judgments) = judged_replay(request, record.clone()).await;
+        assert_eq!(replayed.candidate, out.candidate);
+        assert_eq!(replayed.status, CompileStatus::Ready);
+        assert_eq!((calls, judgments), (0, 1));
     }
 }
 

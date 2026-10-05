@@ -375,19 +375,34 @@ fn opening_and_reading_leave_the_kept_round_unchanged_and_ask_nothing() {
     let files = tree(root.path());
     let (mut again, seen, _) = reopen(root.path(), home.path());
     let meaning = facts(again.turn("/meaning"));
-    assert!(meaning.contains("not continued yet"), "{meaning}");
-    assert!(meaning.contains("settled model → mock/echo"), "{meaning}");
-    assert!(!meaning.contains("nothing to read"), "R4 73: {meaning}");
+    assert!(
+        meaning.contains("not continued yet"),
+        "meaning must say the kept round has not continued"
+    );
+    assert!(
+        meaning.contains("settled model → mock/echo"),
+        "meaning must preserve the selected mock model"
+    );
+    assert!(
+        !meaning.contains("nothing to read"),
+        "meaning must acknowledge the kept round"
+    );
     let why = facts(again.turn("/why"));
     assert!(
         why.contains("has not continued") && why.contains("why it was asked"),
-        "{why}"
+        "why must explain the paused continuation"
     );
-    assert!(why.contains("/restore continues it"), "{why}");
+    assert!(
+        why.contains("/restore continues it"),
+        "why must identify the explicit restore action"
+    );
     let TurnOutcome::Facts(status) = again.turn("/status") else {
         panic!("status is a fact");
     };
-    assert!(status.contains("kept round (not continued)"), "{status}");
+    assert!(
+        status.contains("kept round (not continued)"),
+        "status must name the kept inactive round"
+    );
     let bogus = again.turn("/bogus");
     assert!(
         !matches!(
@@ -456,7 +471,10 @@ fn cancel_after_restore_drops_the_round() {
     let (mut again, _, _) = reopen(root.path(), home.path());
     question(again.turn("/restore"));
     let dropped = facts(again.turn("cancel"));
-    assert!(dropped.contains("discarded"), "{dropped}");
+    assert!(
+        dropped.contains("discarded"),
+        "cancel must report the discarded round"
+    );
     drop(again);
     assert_eq!(kept_round(home.path(), root.path()), None);
     let (_, _, notice) = reopen(root.path(), home.path());
@@ -550,7 +568,10 @@ fn a_redacted_request_is_named_and_never_continued() {
     );
     assert!(!session.slash_commands().contains(&"/restore"));
     let refusal = refused(session.turn("/restore"));
-    assert!(refusal.text.contains("redacted"), "{}", refusal.text);
+    assert!(
+        refusal.text.contains("redacted"),
+        "refusal must identify redacted evidence"
+    );
     assert!(session.authoring.is_none() && session.last_outcome.is_none());
 }
 
@@ -572,8 +593,7 @@ fn an_unreadable_round_is_kept_byte_for_byte_and_never_continued() {
         let refusal = refused(session.turn("/restore"));
         assert!(
             refusal.text.contains("cannot be read by this engine"),
-            "{}",
-            refusal.text
+            "refusal must explain the unreadable kept version"
         );
         assert!(session.money.admitted.is_empty() && session.authoring.is_none());
         assert!(seen.lock().expect("record").is_empty());
@@ -605,13 +625,11 @@ fn a_revision_whose_base_moved_or_vanished_is_held_with_zero_calls() {
         assert!(refusal.text.contains(label), "{label}: {}", refusal.text);
         assert!(
             refusal.text.contains("kept as evidence"),
-            "{}",
-            refusal.text
+            "refusal must preserve the round as evidence"
         );
         assert!(
             refusal.text.contains("nothing was compiled"),
-            "{}",
-            refusal.text
+            "refusal must say no compilation occurred"
         );
         assert!(session.last_outcome.is_none() && session.authoring.is_none());
         assert!(session.money.admitted.is_empty() && session.money.current.is_none());
@@ -640,8 +658,7 @@ fn a_revision_of_a_proposal_that_cannot_be_proposed_again_is_refused() {
     let refusal = refused(session.turn("/restore"));
     assert!(
         refusal.text.contains("can no longer be proposed"),
-        "{}",
-        refusal.text
+        "refusal must explain the stale proposal"
     );
     assert!(session.pending_proposal().is_none() && session.revising.is_none());
     assert!(session.last_outcome.is_none() && session.restored_round.is_some());
@@ -664,8 +681,7 @@ fn without_history_nothing_is_kept_and_nothing_is_pretended() {
     let refusal = refused(again.turn("/restore"));
     assert!(
         refusal.text.contains("a question waiting for your answer"),
-        "{}",
-        refusal.text
+        "refusal must identify the pending question"
     );
     assert!(again.pending_question().is_none());
 }
@@ -929,8 +945,7 @@ fn a_round_admitted_before_the_restriction_is_not_answered_under_it() {
         refusal
             .text
             .contains("restored inference exposure is unknown"),
-        "{}",
-        refusal.text
+        "refusal must retain the unknown restored exposure"
     );
 }
 

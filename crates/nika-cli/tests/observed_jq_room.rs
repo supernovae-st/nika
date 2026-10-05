@@ -484,8 +484,9 @@ const SESSION_INTENT: &str = "read ./in/input.json, count the rows where status 
 /// A phrasing the sketch door authors but the behavioural judge cannot read a count from.
 const UNJUDGED_INTENT: &str = "tell me how many entries of ./in/input.json are marked paid and store that number in ./out/result.json";
 
-/// A scripted loopback seat: an OpenAI-compatible endpoint answering each chat completion by the
-/// schema it asks, from its queues; it records what each call asked.
+/// A scripted loopback seat: an Ollama native `/api/chat` endpoint (the only dialect the local
+/// seat speaks) answering each chat by the schema its `format` asks, from its queues; it records
+/// what each call asked.
 struct LoopbackSeat {
     port: u16,
     asked: std::sync::Arc<Mutex<Vec<&'static str>>>,
@@ -539,7 +540,8 @@ impl Drop for LoopbackSeat {
     }
 }
 
-/// Serve one HTTP request: a model listing for a GET, a chat completion for a POST.
+/// Serve one HTTP request: a model listing for a GET, a native chat for a POST (`done: true`, the
+/// completion marker the native decoder requires; one NDJSON line when the request streams).
 fn answer(mut stream: std::net::TcpStream, author: &Author, seen: &Mutex<Vec<&'static str>>) {
     use std::io::{Read, Write};
     stream.set_nonblocking(false).unwrap();
@@ -567,18 +569,15 @@ fn answer(mut stream: std::net::TcpStream, author: &Author, seen: &Mutex<Vec<&'s
         }
         raw.extend_from_slice(&chunk[..read]);
     }
+    let mut streams = false;
     let body = if raw.starts_with(b"GET") {
         json!({"models": [{"name": "llama3.2:latest", "model": "llama3.2:latest"}],
                "data": [{"id": "llama3.2", "object": "model"}]})
     } else {
         let request: Value = serde_json::from_slice(&raw[head_end..]).unwrap_or(Value::Null);
-        let format = &request["response_format"];
-        let schema = if format["json_schema"]["schema"].is_object() {
-            &format["json_schema"]["schema"]
-        } else {
-            &format["schema"]
-        };
-        let properties = &schema["properties"];
+        streams = request["stream"] == true;
+        // The native dialect carries the answer schema itself as `format`.
+        let properties = &request["format"]["properties"];
         let (kind, text) = if let Some(keys) = properties["choice"]["enum"].as_array() {
             let approve = ["faithful", "carried"]
                 .into_iter()
@@ -593,14 +592,17 @@ fn answer(mut stream: std::net::TcpStream, author: &Author, seen: &Mutex<Vec<&'s
             ("other", "{}".to_owned())
         };
         seen.lock().unwrap().push(kind);
-        json!({"id": "scripted", "object": "chat.completion", "model": request["model"],
-               "choices": [{"index": 0, "finish_reason": "stop",
-                            "message": {"role": "assistant", "content": text}}],
-               "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}})
+        json!({"model": request["model"], "created_at": "2026-01-01T00:00:00Z",
+               "message": {"role": "assistant", "content": text},
+               "done": true, "done_reason": "stop", "prompt_eval_count": 1, "eval_count": 1})
     };
-    let payload = body.to_string();
+    let (payload, content_type) = if streams {
+        (format!("{body}\n"), "application/x-ndjson")
+    } else {
+        (body.to_string(), "application/json")
+    };
     let response = format!(
-        "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{payload}",
+        "HTTP/1.1 200 OK\r\ncontent-type: {content_type}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{payload}",
         payload.len()
     );
     let _ = stream.write_all(response.as_bytes());

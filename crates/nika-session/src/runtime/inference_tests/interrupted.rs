@@ -623,7 +623,7 @@ fn a_private_route_is_recorded_by_its_origin_at_the_dispatch_boundary() {
     let status = resumed.status();
     assert!(
         status.contains("1 paid dispatch(es) left without a recorded settlement"),
-        "{status}"
+        "status must retain the unsettled paid dispatch"
     );
 }
 
@@ -804,7 +804,10 @@ fn an_unreadable_durable_observation_stays_fail_closed_and_visible() {
         "an unreadable entry may have been billed"
     );
     let status = s.status();
-    assert!(status.contains(named), "{status}");
+    assert!(
+        status.contains(named),
+        "restored unreadable cost evidence must remain visible"
+    );
     let live = tempfile::tempdir().unwrap();
     let mut s = open(live.path());
     s.unknown_cost.observations.push(Value::Null);
@@ -814,7 +817,10 @@ fn an_unreadable_durable_observation_stays_fail_closed_and_visible() {
         "live, it may have been billed as well"
     );
     let status = s.status();
-    assert!(status.contains(named), "{status}");
+    assert!(
+        status.contains(named),
+        "live unreadable cost evidence must remain visible"
+    );
 }
 
 /// C11 F2 r3 · a live round with no open question still owes the one-time review for words only

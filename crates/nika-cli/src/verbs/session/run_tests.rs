@@ -215,9 +215,12 @@ fn the_plain_session_runner_refuses_an_explicit_bad_pin_without_a_fallback() {
         exit::OK,
         "a pin never disappears into the available mock backend"
     );
-    let trace = trace.expect("the refused attempt may seal its empty journal");
+    assert_eq!(nika_trace::trace::manage::latest(), Some(foreign.clone()));
+    // Admission emits no runtime event; local signing custody may still seal an empty journal.
+    let Some(trace) = trace else {
+        return;
+    };
     assert_ne!(trace, foreign, "never borrow an earlier execution's trace");
-    assert_eq!(nika_trace::trace::manage::latest(), Some(foreign));
     let raw = std::fs::read_to_string(&trace).expect("refusal trace");
     let recovered = nika_dap::recover::recover_events(&raw, "access refusal")
         .expect("read the actual refusal events");

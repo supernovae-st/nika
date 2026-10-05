@@ -2,16 +2,17 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! A scripted author reaches the real observed room through the compile entry, on both routes
-//! that still author a candidate: the native door a revision keeps (source-only CREATE is
-//! retired) and the semantic sketch door a creation takes. The script is a provider double; the
-//! room and its Runtime are real. All files are synthetic and the existing room receipt helper
-//! records each host call before any assertion.
+//! that still author a candidate: the source-anchored revision a hand-written base keeps (the
+//! author states typed links, never the source; source-only CREATE is retired) and the semantic
+//! sketch door a creation takes. The script is a provider double; the room and its Runtime are
+//! real. All files are synthetic and the existing room receipt helper records each host call
+//! before any assertion.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 mod room_support;
 
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, ResponseFormat,
-    StopReason, TokenUsage,
+    Role, StopReason, TokenUsage,
 };
 use nika_onboard::compile::rehearse::{RehearsalFuture, Rehearse};
 use nika_onboard::compile::room::ObservedRoom;
@@ -33,7 +34,7 @@ const SEMANTIC: &str = concat!(
 );
 
 /// The author's scripted answers, in order, to every call that is not a judge's closed choice;
-/// a judge is approved.
+/// a judge is approved, and a revision's links are read from the facts its opening states.
 struct Author {
     answers: Vec<String>,
     calls: AtomicUsize,
@@ -41,10 +42,11 @@ struct Author {
 
 impl ProviderInferDyn for Author {
     async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
-        let keys = match &request.response_format {
-            ResponseFormat::JsonSchema(schema) => schema["properties"]["choice"]["enum"].as_array(),
+        let schema = match &request.response_format {
+            ResponseFormat::JsonSchema(schema) => Some(schema),
             _ => None,
         };
+        let keys = schema.and_then(|schema| schema["properties"]["choice"]["enum"].as_array());
         let approved = ["faithful", "carried"]
             .into_iter()
             .find(|key| keys.is_some_and(|keys| keys.iter().any(|value| value == *key)));
@@ -52,7 +54,11 @@ impl ProviderInferDyn for Author {
             json!({"choice": choice}).to_string()
         } else {
             let at = self.calls.fetch_add(1, Ordering::SeqCst);
-            self.answers.get(at).cloned().unwrap_or_default()
+            if schema.is_some_and(|schema| schema["properties"]["supersedes"].is_object()) {
+                links(&request)
+            } else {
+                self.answers.get(at).cloned().unwrap_or_default()
+            }
         };
         Ok(InferResponse::new(
             vec![ContentBlock::Text { text: answer }],
@@ -60,6 +66,25 @@ impl ProviderInferDyn for Author {
             StopReason::EndTurn,
         ))
     }
+}
+
+/// A source revision's typed links, read from its opening: every change clause added, the new
+/// destination written like the base's first one. The author never writes the source.
+fn links(request: &InferRequest) -> String {
+    let opening = request
+        .messages
+        .iter()
+        .find(|message| matches!(message.role, Role::User))
+        .and_then(|message| {
+            message.content.iter().find_map(|block| match block {
+                ContentBlock::Text { text } => serde_json::from_str::<serde_json::Value>(text).ok(),
+                _ => None,
+            })
+        })
+        .expect("HARNESS_INVALID: the revision opening is JSON");
+    json!({"supersedes": [], "adds": opening["change_clauses"],
+        "like": opening["base_destinations"][0], "notes": "copy the source again"})
+    .to_string()
 }
 
 struct RecordedRoom {
@@ -179,26 +204,20 @@ async fn rehearsed(
     out
 }
 
-/// The native door a revision keeps: the saved copy created no missing parent directory; the
-/// author's revised source is the copy itself, rehearsed exactly as it is proposed.
+/// The revision a hand-written base keeps: the change adds one destination beside the copy's;
+/// the author states the typed links, the compiler writes the revised source, and that exact
+/// candidate is rehearsed as it is proposed. (Any other change in words keeps such a base unrun.)
 #[tokio::test]
 async fn a_native_candidate_rehearses_without_mutating_the_project() {
     let project = project();
     let world = &project.world;
-    let base = project
-        .source
-        .replace("create_dirs: true", "create_dirs: false");
-    assert_ne!(base, project.source, "HARNESS_INVALID: the base differs");
-    let answer = json!({"candidate": project.source, "questions": [], "gaps": [], "notes": ""});
     let author = Author {
-        answers: vec![answer.to_string()],
+        answers: Vec::new(),
         calls: AtomicUsize::new(0),
     };
-    let change = format!(
-        "Create missing parent directories before writing to {}.",
-        world.path("out/copied.txt")
-    );
-    let request = CompileRequest::edit(base, change)
+    let second = world.path("out/second.txt");
+    let change = format!("also keep a copy of the result in {second}");
+    let request = CompileRequest::edit(project.source.clone(), change)
         .with_original_intent(room_support::copy_intent(&project.prefix))
         .with_authoring_policy(policy(NativeMode::Only));
     let out = rehearsed(&project, NATIVE, &request, &author).await;
@@ -207,8 +226,17 @@ async fn a_native_candidate_rehearses_without_mutating_the_project() {
         Some(Strategy::Native),
         "HARNESS_INVALID: the author was not reached"
     );
-    assert_eq!(out.candidate.as_deref(), Some(project.source.as_str()));
-    assert_eq!(author.calls.load(Ordering::SeqCst), 1);
+    let candidate = out.candidate.as_deref().expect("the revised source");
+    assert_ne!(candidate, project.source, "the revision changed the base");
+    assert!(
+        candidate.contains(&second) && candidate.contains(&world.path("out/copied.txt")),
+        "{candidate}"
+    );
+    assert_eq!(
+        author.calls.load(Ordering::SeqCst),
+        1,
+        "the links alone; the judge is approved apart"
+    );
 }
 
 /// A creation takes the semantic sketch door: the author states the copy's structure, the
