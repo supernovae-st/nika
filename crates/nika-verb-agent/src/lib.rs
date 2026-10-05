@@ -1471,5 +1471,6 @@ mod tests_schema;
 #[cfg(test)]
 mod tests_spill;
 
-#[cfg(all(test, feature = "access-harness"))]
+#[cfg(test)]
+#[cfg(feature = "access-harness")]
 mod tests_harness_model;
