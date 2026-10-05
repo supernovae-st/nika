@@ -1622,14 +1622,17 @@ pub nika_compile::AuthoringPolicy::native: nika_compile::NativeMode
 pub nika_compile::AuthoringPolicy::reasoning: core::option::Option<nika_compile::AuthoringReasoning>
 pub nika_compile::AuthoringPolicy::repairs: u32
 pub nika_compile::AuthoringPolicy::samples: u32
+pub nika_compile::AuthoringPolicy::source_recovery: u32
 pub nika_compile::AuthoringPolicy::timeout: core::time::Duration
 impl nika_compile::AuthoringPolicy
 pub fn nika_compile::AuthoringPolicy::new(model: impl core::convert::Into<alloc::string::String>, max_tokens: u32, timeout: core::time::Duration) -> Self
+pub fn nika_compile::AuthoringPolicy::recovery_rounds(word: core::option::Option<&str>, strategy: nika_compile::NativeMode) -> core::result::Result<u32, alloc::string::String>
 pub fn nika_compile::AuthoringPolicy::with_initial_max_tokens(self, initial: u32) -> Self
 pub fn nika_compile::AuthoringPolicy::with_native(self, native: nika_compile::NativeMode) -> Self
 pub fn nika_compile::AuthoringPolicy::with_reasoning(self, reasoning: nika_compile::AuthoringReasoning) -> Self
 pub fn nika_compile::AuthoringPolicy::with_repairs(self, repairs: u32) -> Self
 pub fn nika_compile::AuthoringPolicy::with_samples(self, samples: u32) -> Self
+pub fn nika_compile::AuthoringPolicy::with_source_recovery(self, rounds: u32) -> Self
 impl core::clone::Clone for nika_compile::AuthoringPolicy
 pub fn nika_compile::AuthoringPolicy::clone(&self) -> nika_compile::AuthoringPolicy
 impl core::fmt::Debug for nika_compile::AuthoringPolicy
@@ -1941,6 +1944,8 @@ pub nika_compile::CompileQuestion::label: alloc::string::String
 pub nika_compile::CompileQuestion::mandatory: bool
 pub nika_compile::CompileQuestion::options: alloc::vec::Vec<nika_compile::ChoiceOffer>
 pub nika_compile::CompileQuestion::why: alloc::string::String
+impl nika_compile::CompileQuestion
+pub fn nika_compile::CompileQuestion::literal_for(&self, line: &str) -> alloc::string::String
 impl core::clone::Clone for nika_compile::CompileQuestion
 pub fn nika_compile::CompileQuestion::clone(&self) -> nika_compile::CompileQuestion
 impl core::cmp::Eq for nika_compile::CompileQuestion

@@ -253,20 +253,35 @@ pub(crate) fn closed_choice(question: &ChoiceQuestion) -> (Vec<Message>, Value) 
     )
 }
 
+/// The sole final Text of a completed answer; separate Thinking is never answer material.
+/// All other block kinds and multiple Text blocks refuse the projection without changing the
+/// response, its observation or its usage. An empty Text still has to pass the caller's decoder.
+pub(crate) fn answer_text(response: &nika_kernel::ai::provider::InferResponse) -> Option<&str> {
+    if response.stop_reason != StopReason::EndTurn {
+        return None;
+    }
+    let mut blocks = response
+        .content
+        .iter()
+        .filter(|block| !matches!(block, ContentBlock::Thinking { .. }));
+    match (blocks.next(), blocks.next()) {
+        (Some(ContentBlock::Text { text }), None) => Some(text),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod answer_tests;
+
 /// The option a provider's answer to `question` chooses: one complete JSON text naming an
 /// offered key, or why it does not.
 pub(crate) fn decoded(
     question: &ChoiceQuestion,
     response: &nika_kernel::ai::provider::InferResponse,
 ) -> Result<String, DecisionError> {
-    let text = match response.content.as_slice() {
-        [ContentBlock::Text { text }] if response.stop_reason == StopReason::EndTurn => text,
-        _ => {
-            return Err(DecisionError(
-                "the seat did not return one complete JSON text".to_owned(),
-            ));
-        }
-    };
+    let text = answer_text(response).ok_or_else(|| {
+        DecisionError("the seat did not return one complete JSON text".to_owned())
+    })?;
     let value: Value = serde_json::from_str(text)
         .map_err(|e| DecisionError(format!("the seat answer is not JSON: {e}")))?;
     let choice = value

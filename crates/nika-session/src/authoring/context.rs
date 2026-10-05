@@ -89,6 +89,8 @@ pub struct AuthoringContext {
     /// The explicit reasoning effort every seated call asks for, when one is named, or the word
     /// the parser refused: resolved apart from the rest, so no other refusal drops it.
     reasoning: Result<Option<AuthoringReasoning>, ConfigError>,
+    /// The source recovery rounds the operator named (0: none), printed only when named.
+    pub(crate) recovery: u32,
 }
 
 #[allow(clippy::missing_fields_in_debug)] // the hashed identity bytes stay the pre-choice form
@@ -111,6 +113,9 @@ impl std::fmt::Debug for AuthoringContext {
             Err(refused) => debug.field("reasoning", refused),
             Ok(None) => &mut debug,
         };
+        if self.recovery > 0 {
+            debug.field("source_recovery", &self.recovery);
+        }
         debug.finish()
     }
 }
@@ -189,15 +194,16 @@ impl AuthoringContext {
         // The level resolves apart, through the same parser: no other refusal drops it.
         let reasoning = config::reasoning(explicit, env);
         match Self::pin(explicit, env) {
-            Ok((strategy, knowledge, choice)) => Self {
-                strategy,
+            Ok((resolved, knowledge)) => Self {
+                strategy: resolved.strategy,
                 knowledge,
-                choice,
+                choice: resolved.choice,
                 refusal: None,
                 source,
                 decision: None,
                 project: None,
                 reasoning,
+                recovery: resolved.source_recovery,
             },
             // Field by field, never through `Default`, which resolves and may refuse in turn: a
             // refused configuration pins nothing and reads nothing.
@@ -210,15 +216,16 @@ impl AuthoringContext {
                 decision: None,
                 project: None,
                 reasoning,
+                recovery: 0,
             },
         }
     }
 
-    /// The resolved strategy, the pinned release and the choice, or why they cannot be honored.
+    /// The resolved configuration and the pinned release, or why they cannot be honored.
     fn pin(
         explicit: &AuthoringSettings,
         env: &AuthoringSettings,
-    ) -> Result<(NativeMode, Option<KnowledgePin>, KnowledgeChoice), AuthoringContextError> {
+    ) -> Result<(config::AuthoringConfig, Option<KnowledgePin>), AuthoringContextError> {
         let config = config::resolve(explicit, env)?;
         match &config.knowledge {
             None | Some(KnowledgeSource::Snapshot { .. } | KnowledgeSource::Embedded { .. }) => {}
@@ -229,7 +236,7 @@ impl AuthoringContext {
         }
         // The one pin every door takes: a release on disk, or the one this build embeds.
         let pin = KnowledgePin::of_config(&config)?;
-        Ok((config.strategy, pin, config.choice))
+        Ok((config, pin))
     }
 
     /// When the seat writes the candidate itself.

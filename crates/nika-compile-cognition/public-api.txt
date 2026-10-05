@@ -285,6 +285,7 @@ pub const nika_compile_cognition::authority::DEFAULT_MAX_CALLS: u32
 pub const nika_compile_cognition::authority::REPAIRS: core::ops::range::RangeInclusive<u32>
 pub const nika_compile_cognition::authority::SAMPLES: core::ops::range::RangeInclusive<u32>
 pub const fn nika_compile_cognition::authority::least_requests(strategy: nika_compile::types::NativeMode) -> u32
+pub fn nika_compile_cognition::authority::recovery_requests(rounds: u32) -> u32
 pub fn nika_compile_cognition::authority::usage_complete(context: &[serde_json::value::Value]) -> bool
 pub fn nika_compile_cognition::authority::worst_case(strategy: nika_compile::types::NativeMode, samples: u32, repairs: u32, edit: bool) -> u32
 pub mod nika_compile_cognition::decide

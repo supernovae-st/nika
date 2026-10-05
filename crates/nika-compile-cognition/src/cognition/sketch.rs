@@ -27,6 +27,10 @@ use nika_kernel::ai::provider::{Message, ProviderInferDyn, Role};
 use serde_json::{Value, json};
 
 mod evidence;
+/// The whole-source recovery an explicit policy allows after the structured rounds.
+mod recover;
+#[cfg(test)]
+mod recover_tests;
 /// The semantic revision of a base its record binds, beside the door it reuses.
 pub(super) mod revise;
 use super::rehearsal::Rehearsals;
@@ -790,53 +794,56 @@ pub(super) async fn author<P: ProviderInferDyn>(
             settled,
             (&opened, &mut done),
         );
-        if accepted.is_none() {
-            return Ok(done);
-        }
-        let next = next_round(&talk);
+        // Every exhaustion (no accepted pair, spent evidence, a withdrawal) meets one recovery.
         let door = (intent, reading, policy, request);
-        let step = examine(
-            door,
-            (provider, &mut *rehearsals),
-            &mut talk,
-            done,
-            (next, last),
-        );
-        let (mut done, defects) = match step.await {
-            Step::Done(answer) => return Ok(answer),
-            Step::Reopen(done, defects) => (done, defects),
+        let (next, seats) = (next_round(&talk), (provider, &mut *rehearsals));
+        let ended = match accepted {
+            None => (done, Vec::new()),
+            Some(_) => match examine(door, seats, &mut talk, done, (next, last), last + 2).await {
+                Step::Done(answer) => return Ok(answer),
+                Step::Withdrawn(done, defects) => (done, defects),
+                Step::Reopen(mut done, defects) => {
+                    if next <= last && reopen(&mut talk, defects.clone(), SKETCH_AGAIN) {
+                        // The judge's calls, when it was asked, belong to the door's one journal.
+                        (out.provenance.authoring).clone_from(&done.provenance.authoring);
+                        first = next;
+                        continue;
+                    }
+                    evidence::refuse(&mut done, EVIDENCE_SPENT.to_owned());
+                    (done, defects)
+                }
+            },
         };
-        if next > last || !reopen(&mut talk, defects) {
-            let why = "The evidence refused this candidate and the repair allowance is spent: nothing is READY.";
-            evidence::refuse(&mut done, why.to_owned());
-            return Ok(done);
-        }
-        // The judge's calls, when it was asked, belong to the door's one journal.
-        out.provenance
-            .authoring
-            .clone_from(&done.provenance.authoring);
-        first = next;
+        let seats = (provider, &mut *rehearsals);
+        let recovered = recover::after(door, seats, &mut talk, (&opened, &sent), ended);
+        return Ok(Box::pin(recovered).await);
     }
 }
 
-/// Where one settled candidate leads: the door's answer, or a reopening from these defects.
+const EVIDENCE_SPENT: &str =
+    "The evidence refused this candidate and the repair allowance is spent: nothing is READY.";
+
+/// Where one settled candidate leads: the door's answer, a reopening from these defects, or a
+/// withdrawal past the last round from the defects the whole-request judgment demonstrated.
 enum Step {
     Done(CompileOutcome),
     Reopen(CompileOutcome, Vec<Diagnostic>),
+    Withdrawn(CompileOutcome, Vec<Diagnostic>),
 }
 
 /// One settled candidate faces its evidence (journalled in the attempt's record and the talk),
 /// then, when nothing there refuses it, the whole-request judgment. Round `next` is the one a
-/// reopening would spend; past `last` a refusal withdraws the candidate.
+/// reopening would spend; past `last` a refusal withdraws the candidate. The room admits
+/// `attempts` rehearsals in all: one per candidate the door's rounds can produce.
 async fn examine<P: ProviderInferDyn>(
     (intent, reading, policy, request): (&str, &Reading, &AuthoringPolicy, &CompileRequest),
     (provider, rehearsals): (&P, &mut Rehearsals<'_>),
     talk: &mut Talk,
     mut done: CompileOutcome,
     (next, last): (u32, u32),
+    attempts: u32,
 ) -> Step {
-    // The room admits one rehearsal per candidate the door's rounds can produce.
-    let (found, record) = evidence::examined(rehearsals, request, intent, &done, last + 2).await;
+    let (found, record) = evidence::examined(rehearsals, request, intent, &done, attempts).await;
     if !record.is_null() {
         // The evidence of the candidate the last round produced, in the journal this attempt
         // returns and in the talk a reopened graph continues.
@@ -861,10 +868,12 @@ async fn examine<P: ProviderInferDyn>(
                 Ok(judged) => Step::Done(judged),
                 Err(judged) => {
                     let (judged, verdict) = *judged;
-                    if verdict.defects.is_empty() || next > last {
+                    let defects = judge_defects(&verdict.defects);
+                    if verdict.defects.is_empty() {
                         Step::Done(super::verify::withdrawn(judged, &verdict))
+                    } else if next > last {
+                        Step::Withdrawn(super::verify::withdrawn(judged, &verdict), defects)
                     } else {
-                        let defects = judge_defects(&verdict.defects);
                         Step::Reopen(judged, defects)
                     }
                 }
@@ -894,19 +903,16 @@ fn judge_defects(defects: &[String]) -> Vec<Diagnostic> {
         .collect()
 }
 
-/// Reopen the graph from evidence: the diagnostics go back with the instruction to answer the
-/// whole sketch again (its holes are filled again after it); a repeated refusal is no progress.
-fn reopen(talk: &mut Talk, diagnostics: Vec<Diagnostic>) -> bool {
+/// Reopen from evidence: the diagnostics go back with the `tail` instruction (the whole sketch
+/// again, its holes filled after it; or a recovery's whole source); a repeat is no progress.
+fn reopen(talk: &mut Talk, diagnostics: Vec<Diagnostic>, tail: &str) -> bool {
     if talk.last.as_ref() == Some(&diagnostics) {
         talk.route.push("native: no progress".to_owned());
         return false;
     }
     talk.messages.push(Message::text(
         Role::User,
-        format!(
-            "{}{SKETCH_AGAIN}",
-            repair_message(&diagnostics, &talk.repairs)
-        ),
+        format!("{}{tail}", repair_message(&diagnostics, &talk.repairs)),
     ));
     talk.last = Some(diagnostics);
     true

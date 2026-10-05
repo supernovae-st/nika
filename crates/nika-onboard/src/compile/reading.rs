@@ -11,11 +11,11 @@
 
 use std::fmt::Write as _;
 
+#[cfg(test)]
+use super::QuestionType;
 use serde_json::Value;
 
-use super::{
-    AuthoringReceipt, CompileOutcome, CompileQuestion, CompileStatus, DiagnosticKind, QuestionType,
-};
+use super::{AuthoringReceipt, CompileOutcome, CompileQuestion, CompileStatus, DiagnosticKind};
 
 /// The compiler's question for a whole replacement request (its own key).
 pub const CLARIFICATION_KEY: &str = "intent.clarification";
@@ -29,19 +29,7 @@ pub const CLARIFICATION_KEY: &str = "intent.clarification";
 /// asks of a choice), else as one string.
 #[must_use]
 pub fn literal_for(question: &CompileQuestion, line: &str) -> String {
-    let line = line.trim();
-    let already = match question.answer_type {
-        QuestionType::Literal => serde_json::from_str::<Value>(line).is_ok(),
-        QuestionType::Choice | QuestionType::Text => {
-            matches!(serde_json::from_str::<Value>(line), Ok(Value::String(_)))
-        }
-        _ => false,
-    };
-    if already {
-        line.to_owned()
-    } else {
-        Value::String(line.to_owned()).to_string()
-    }
+    question.literal_for(line)
 }
 
 /// What one compile outcome means for the conversation — a closed reading of the compiler's

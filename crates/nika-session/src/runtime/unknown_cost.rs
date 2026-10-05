@@ -3,6 +3,8 @@
 //! One-time unknown-cost decisions, before any cognition. Observations are durable;
 //! reviews and admission authority are deliberately not deserializable.
 use super::{Refusal, RefusalClass, SessionRuntime, TurnOutcome};
+use crate::authoring::AUTHORING_REPAIRS;
+use nika_onboard::compile::authority::{recovery_requests, worst_case};
 use nika_providers::admission::LegacyCostReport;
 use nika_runtime::cost_choice::{CostHostEvidence, CostReview, CostRoute, monetary_default};
 use std::io::Read as _;
@@ -306,6 +308,9 @@ impl SessionRuntime {
                 crate::intelligence::now_rfc3339(),
                 self.unknown_cost.sequence
             );
+            let reserved = recovery_requests(self.authoring_context.recovery);
+            let strategy = self.authoring_context.strategy();
+            let worst = worst_case(strategy, 1, AUTHORING_REPAIRS, false);
             let review = CostReview::new(
                 candidate,
                 invocation,
@@ -314,7 +319,8 @@ impl SessionRuntime {
                 monetary_default(parsed.amount.or(Some(super::DEFAULT_CEILING_USD)))?,
                 monetary_default(current.ceiling)?,
             )?
-            .for_session();
+            .for_session()
+            .with_recovery_requests(reserved, 1 + worst + reserved);
             let review = match legacy {
                 Some(report) => review.after_legacy(report),
                 None => review,

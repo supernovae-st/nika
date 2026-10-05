@@ -543,3 +543,28 @@ fn a_subscription_seat_refuses_a_named_effort_before_any_call() {
     );
     assert!(peer.bodies().is_empty(), "no call was made");
 }
+
+/// Source recovery rides the context as resolved: absent or zero, the identity bytes every
+/// question and cost binding hashes carry nothing new; named, they carry it; a word the parser
+/// refuses is the context's refusal, never a silent zero.
+#[test]
+fn source_recovery_binds_the_identity_only_when_named() {
+    let typed = |word: &str| {
+        let mut settings = AuthoringSettings::none();
+        settings.source_recovery = Some(word.to_owned());
+        AuthoringContext::from_settings(&settings, &AuthoringSettings::none())
+    };
+    let plain =
+        AuthoringContext::from_settings(&AuthoringSettings::none(), &AuthoringSettings::none());
+    let (zero, two) = (typed("0"), typed("2"));
+    assert_eq!((plain.recovery, zero.recovery, two.recovery), (0, 0, 2));
+    assert!(
+        !format!("{plain:?}").contains("source_recovery"),
+        "{plain:?}"
+    );
+    assert!(!format!("{zero:?}").contains("source_recovery"), "{zero:?}");
+    assert!(format!("{two:?}").contains("source_recovery: 2"), "{two:?}");
+    let refused = typed("9");
+    let error = AuthoringContextError::Config(ConfigError::SourceRecovery("9".into()));
+    assert_eq!(refused.refusal(), Some(&error));
+}

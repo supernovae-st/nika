@@ -65,6 +65,19 @@ they name is refused (`ADMISSION_UNTRUSTED`). A named source that lacks trust or
 fails admission never falls back to the embedded release. An invalid embedded
 release also refuses with its typed cause; it is not treated as absent.
 
+`AuthoringSettings::source_recovery` (a host's field, else
+`NIKA_AUTHORING_SOURCE_RECOVERY`) names the operator's explicit source recovery
+rounds; `resolve` admits them through the compiler's closed parser
+(`AuthoringPolicy::recovery_rounds`: a count in `0..=3`, and rounds only under
+`escalate` or `sketch`, whose sketch door can be exhausted), else
+`ConfigError::SourceRecovery` names the word. `AuthoringConfig::policy` carries the
+count to the one policy every door builds, so the CLI and the Session (and its TUI) read the
+same word; Serve's seat resolves only its named settings, never `from_env`, so its count stays 0.
+Absent, nothing changes. A host shows its allowance apart from the theory:
+the CLI receipt keeps `max_calls` and `configured.worst_case` and adds
+`recovery_requests` and `worst_case_with_recovery`; a Session unknown-cost review
+states its allowance plus the reserved requests and the theoretical worst case.
+
 `knowledge` owns the strict admission of a Foundry knowledge release
 (`nika-knowledge-release/2`, profile `nika-knowledge-release-profile/r1`: the
 shared contract for producer and consumer, with common pinned vectors under

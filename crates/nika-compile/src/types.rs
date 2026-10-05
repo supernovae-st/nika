@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+use serde_json::Value;
 use std::collections::BTreeMap;
 
 /// One stateless authoring request. Answers belong to this request, never a chat session.
@@ -343,6 +344,26 @@ pub struct CompileQuestion {
     pub options: Vec<ChoiceOffer>,
 }
 
+impl CompileQuestion {
+    /// Read an answer line under this question's shape. Literal accepts any JSON;
+    /// Text and Choice accept a JSON string or the trimmed line as a string.
+    #[must_use]
+    pub fn literal_for(&self, line: &str) -> String {
+        let line = line.trim();
+        let already = match self.answer_type {
+            QuestionType::Literal => serde_json::from_str::<Value>(line).is_ok(),
+            QuestionType::Choice | QuestionType::Text => {
+                matches!(serde_json::from_str::<Value>(line), Ok(Value::String(_)))
+            }
+        };
+        if already {
+            line.to_owned()
+        } else {
+            Value::String(line.to_owned()).to_string()
+        }
+    }
+}
+
 /// What happened to a requested part of authoring.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -538,8 +559,31 @@ pub struct AuthoringPolicy {
     pub repairs: u32,
     /// The explicit reasoning effort every authoring and decision call asks for (R4 B16).
     pub reasoning: Option<AuthoringReasoning>,
+    /// Source recovery rounds an operator explicitly configured (0..=3, default 0: none).
+    pub source_recovery: u32,
 }
 impl AuthoringPolicy {
+    /// After the sketch door spends its repairs on a CREATE without an accepted candidate, let
+    /// the same seat write the whole source up to `rounds` times (0..=3), each answer judged as
+    /// any candidate and charged to the same request authority. Never a default.
+    #[must_use]
+    pub fn with_source_recovery(mut self, rounds: u32) -> Self {
+        self.source_recovery = rounds.min(3);
+        self
+    }
+    /// The source recovery rounds an operator's word names under `strategy` (none named: 0): a
+    /// count in `0..=3`, and rounds only where the sketch door opens (`escalate`, `sketch`).
+    ///
+    /// # Errors
+    /// The word itself, when it is no count in range or names rounds under `off` or `only`.
+    pub fn recovery_rounds(word: Option<&str>, strategy: NativeMode) -> Result<u32, String> {
+        let Some(word) = word else { return Ok(0) };
+        let rounds = word.trim().parse::<u32>().ok().filter(|n| *n <= 3);
+        let opens = !matches!(strategy, NativeMode::Off | NativeMode::Only);
+        rounds
+            .filter(|n| *n == 0 || opens)
+            .ok_or_else(|| word.to_owned())
+    }
     /// Ask every authoring and decision call for this reasoning effort (R4 B16): sent only on a
     /// route whose catalog qualifies it, refused before any request elsewhere. The output cap
     /// stays the policy's own.
@@ -587,6 +631,7 @@ impl AuthoringPolicy {
             native: NativeMode::default(),
             repairs: 3,
             reasoning: None,
+            source_recovery: 0,
         }
     }
 }

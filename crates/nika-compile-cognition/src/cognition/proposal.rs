@@ -15,7 +15,7 @@ use crate::words::{
     serialization_draft,
 };
 use crate::{CompileOutcome, DiagnosticKind, QuestionType, lexicon::Reading};
-use nika_kernel::ai::provider::{ContentBlock, InferResponse, StopReason};
+use nika_kernel::ai::provider::{InferResponse, StopReason};
 use serde::Deserialize;
 
 mod effects;
@@ -319,12 +319,8 @@ fn overlap_fold(text: &str) -> String {
 }
 
 pub(super) fn decode(response: &InferResponse, out: &mut CompileOutcome) -> Option<Proposal> {
-    let text = match response.content.as_slice() {
-        [ContentBlock::Text { text }]
-            if text.len() <= 65_536 && response.stop_reason == StopReason::EndTurn =>
-        {
-            text
-        }
+    let text = match crate::decide::answer_text(response) {
+        Some(text) if text.len() <= 65_536 => text,
         _ if response.stop_reason == StopReason::MaxTokens => {
             // A reasoning seat spends part of its output cap on its reasoning: 16 of 52
             // gpt-5-mini proposals stopped at exactly 4000 output tokens (eco-60, 2026-09-22).

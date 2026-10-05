@@ -335,6 +335,7 @@ pub fn nika_providers::admission::CostReview::request_timeout(&self) -> core::ti
 pub fn nika_providers::admission::CostReview::with_authored_retry(self, authored: bool) -> Self
 pub fn nika_providers::admission::CostReview::with_breakdown(self, lines: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_providers::admission::CostReview::with_concurrency(self, max_in_flight: u32) -> core::result::Result<Self, alloc::string::String>
+pub fn nika_providers::admission::CostReview::with_recovery_requests(self, requests: u32, worst_case: u32) -> Self
 impl core::fmt::Debug for nika_providers::admission::CostReview
 pub fn nika_providers::admission::CostReview::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_providers::admission::CostReview
@@ -754,6 +755,8 @@ pub fn nika_providers::admission::unknown_cost_route(model: &str, config: nika_p
 pub mod nika_providers::authoring
 pub fn nika_providers::authoring::authoring_backend<H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static>(registry: &nika_providers::registry::ProviderRegistry<H>, model: &str) -> serde_json::value::Value
 pub fn nika_providers::authoring::authoring_host(raw: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_providers::authoring::configured_gateway_host<H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static>(http: H, config: nika_providers::registry::ProvidersConfig, provider: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_providers::authoring::host_of(url: &str) -> alloc::string::String
 pub fn nika_providers::authoring::redact_authoring_error(error: nika_kernel_ai::provider::ProviderError, admission_remedy: &str) -> nika_kernel_ai::provider::ProviderError
 pub mod nika_providers::census
 pub struct nika_providers::census::AccessCensus

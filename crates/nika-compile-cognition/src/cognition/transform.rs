@@ -36,7 +36,7 @@ pub(super) struct Refusal(pub(super) String);
 use super::{AuthoringPolicy, CompileOutcome, DiagnosticKind};
 use crate::plan::{Op, Plan, Step};
 use nika_compile::surface::pending_transform::PendingTransform;
-use nika_kernel::ai::provider::{ContentBlock, Message, ProviderInferDyn, Role, StopReason};
+use nika_kernel::ai::provider::{Message, ProviderInferDyn, Role};
 use serde_json::json;
 mod domain;
 mod engine;
@@ -203,13 +203,10 @@ async fn propose_as<P: ProviderInferDyn>(
     super::call_with_schema(policy, provider, role, messages, schema(), out)
         .await
         .ok_or_else(|| Refusal("the seat returned no transform".to_owned()))
-        .and_then(|response| match response.content.as_slice() {
-            [ContentBlock::Text { text }] if response.stop_reason == StopReason::EndTurn => {
-                Ok(text.clone())
-            }
-            _ => Err(Refusal(
-                "the seat did not return one complete JSON text".to_owned(),
-            )),
+        .and_then(|response| {
+            crate::decide::answer_text(&response)
+                .map(str::to_owned)
+                .ok_or_else(|| Refusal("the seat did not return one complete JSON text".to_owned()))
         })
         .and_then(|text| {
             serde_json::from_str::<ProposedTransform>(&text)
@@ -456,6 +453,7 @@ fn number_literals(program: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nika_kernel::ai::provider::{ContentBlock, StopReason};
 
     #[test]
     fn literal_lookup_matches_numeric_identifiers_without_rewriting_string_ids() {

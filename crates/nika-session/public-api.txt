@@ -25,6 +25,7 @@ pub use nika_session::authoring::DecisionSetup
 pub use nika_session::authoring::KnowledgePin
 pub use nika_session::authoring::MAX_DECISION_CALLS
 pub use nika_session::authoring::Reading
+pub use nika_session::authoring::host_of
 pub use nika_session::authoring::is_cancel
 pub use nika_session::authoring::is_greeting
 pub use nika_session::authoring::is_meaning
@@ -346,7 +347,6 @@ pub fn nika_session::authoring::compile_in(seat: &nika_session::authoring::Autho
 pub fn nika_session::authoring::compile_in_with_admission(seat: &nika_session::authoring::AuthoringSeat, context: &nika_session::authoring::AuthoringContext, request: &nika_compile::types::CompileRequest, intent: &str, account: &nika_providers::admission::InferenceAdmission) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
 pub fn nika_session::authoring::compile_through(seat: &nika_session::authoring::AuthoringSeat, request: &nika_compile::types::CompileRequest) -> core::result::Result<nika_compile::types::CompileOutcome, nika_session::authoring::AuthoringError>
 pub fn nika_session::authoring::gateway_host(provider: &str) -> core::option::Option<alloc::string::String>
-pub fn nika_session::authoring::host_of(url: &str) -> alloc::string::String
 pub fn nika_session::authoring::openai_base_overridden() -> bool
 pub fn nika_session::authoring::session_policy(model: &str, harness: bool, strategy: nika_compile::types::NativeMode) -> nika_compile::types::AuthoringPolicy
 pub mod nika_session::broker

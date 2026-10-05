@@ -28,9 +28,7 @@ use super::{
     admit_hot, intent_sha256, lexical_rest_is_explicit, plan_record, record_ledger,
     record_retrieval, record_route, replay, unresolved,
 };
-use nika_kernel::ai::provider::{
-    ContentBlock, InferRequest, InferResponse, Message, ProviderInferDyn, Role,
-};
+use nika_kernel::ai::provider::{InferRequest, InferResponse, Message, ProviderInferDyn, Role};
 use serde_json::{Value, json};
 
 mod admitted;
@@ -1055,10 +1053,9 @@ async fn call<P: ProviderInferDyn>(
     out: &mut CompileOutcome,
 ) -> Option<(Proposal, String)> {
     let response = call_with_schema(policy, provider, role, messages, plan_schema(), out).await?;
-    let text = match response.content.as_slice() {
-        [ContentBlock::Text { text }] => text.clone(),
-        _ => String::new(),
-    };
+    let text = crate::decide::answer_text(&response)
+        .unwrap_or_default()
+        .to_owned();
     decode(&response, out).map(|proposal| (proposal, text))
 }
 

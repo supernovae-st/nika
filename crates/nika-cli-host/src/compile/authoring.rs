@@ -161,7 +161,17 @@ pub(super) fn compile(
         };
         // A harness is counted in invocations; its own requests are not observable here.
         let wire = harness.is_none().then_some(requests.as_ref());
-        let account = authority.record(&invocations, wire);
+        let mut account = authority.record(&invocations, wire);
+        // An explicit source recovery draws on this same allowance (`max_calls`): the theoretical
+        // worst case is stated with and without its requests, the allowance never raised.
+        if config.source_recovery > 0 {
+            let extra = nika_onboard::compile::authority::recovery_requests(config.source_recovery);
+            let configured = &mut account["configured"];
+            let bound = configured["worst_case"].as_u64().unwrap_or(0) + u64::from(extra);
+            configured["worst_case_with_recovery"] = bound.into();
+            configured["recovery_requests"] = extra.into();
+            configured["source_recovery"] = config.source_recovery.into();
+        }
         let backend = described.or(backend);
         stamp_backend(&mut outcome, args, backend, (reported, account));
         Ok(outcome)

@@ -24,6 +24,12 @@ native record application and replay stay in core and are shared by accepted can
 and answer rounds. Candidate, fidelity and sketch laws come from `nika-compile-fidelity`
 (ADR-141); no Reader implementation is duplicated.
 
+A completed seat answer may carry separate `Thinking` blocks beside exactly one final `Text`.
+Only that Text reaches proposal, sketch/fill, source-recovery, transform and closed-choice
+judgment decoders. Thinking never supplies missing answer bytes; multiple Text blocks, tools,
+images and any other block kind remain refused, as do non-terminal stop reasons. The shared
+projection borrows the response without changing the raw observation, receipt or usage.
+
 A seat's admitted typed rule joins the reader's reading of the same clause
 (`proposal::seat_rules`, E38). A clause the reader holds no rule of takes it. A seat rule that
 adds stages (a projection, numbers, an order, a limit, a grouping) over the reader's plain filter
@@ -312,6 +318,30 @@ verifier's and count, never ignored. A typed strategy is honored in full or refu
 - `sketch`: three (the sketch, its fills, then their judgment).
 The refusal names that number. A fresh creation under `only` is refused by the core
 with a migration to the semantic doors; no larger grant can enable it.
+
+Source recovery (`AuthoringPolicy::source_recovery`, 0..=3, default 0) is an explicit operator
+policy beside that retirement, never a default and never `only`: when the sketch door ends a
+CREATE INCOMPLETE with no candidate and no open question (its structured rounds spent, no
+progress, an answer that is not the sketch wire's, the evidence's defect with no round left, or
+a candidate the whole-request judgment withdrew past the last round for a demonstrated missing
+part; an unsettled or abstained judgment is not recovered), the same seat, in the same conversation,
+is told the previous findings, the evidence defects no reopening carried and the last refused
+candidate, and answers the whole source on the retired source wire
+(`assets/native_answer_schema.json`, instruction `assets/native_source_recovery.md`). Each answer
+faces `native::judge` (strict parser, pure Check, fidelity laws, admitted questions); a refusal is
+repaired within the stated rounds, a repeat is no progress. An accepted source settles as a native
+record (`native_apply`, zero-call replay, `native_pending` on answer rounds) and faces the
+rehearsal and the whole-request judgment like any candidate; a defect reopens it only while a
+round remains. Every request is charged to the same authority and receipt (no reset, no other
+model); `authority::recovery_requests` (`3` per round) is what a host adds to `worst_case`.
+The fallback is recorded: route `native: source recovery after structured exhaustion`,
+`decision.native.recovery` (rounds, spent, accepted by the laws, the structured findings) and an
+`authoring_recovery` finding that the recovery opened; only a READY outcome adds the finding that
+the recovered source passed every check (a refused request, a refusal, an open question or a
+withdrawal never claims it). A failed or cut seat, a refusal, an open question and every edit
+are never recovered: a whole-source rewrite would escape the revision's preservation laws. A
+recovered workflow carries a native record, never a semantic record (none is fabricated), so a
+later revision in words is kept or source-anchored (one destination), never semantic.
 
 Every verifier question and the COLD repair carry one compiler-owned reference, apart from the
 untrusted state (`verify::grounding`, R4 A11, E36): the engine's output conventions whole, the

@@ -527,3 +527,37 @@ fn a_named_release_enters_only_through_the_strict_door_with_its_trusted_identity
         resolve(&none().with_knowledge_release(&legacy, identity), &none()).expect("resolves");
     assert_eq!(refusal(attached(&config)), RefusalCode::ManifestMissing);
 }
+
+/// Source recovery is an explicit count the door's word or the environment names (`0..=3`), only
+/// under a strategy whose sketch door opens, and the one policy carries it.
+#[test]
+fn source_recovery_is_an_explicit_bounded_count_the_policy_carries() {
+    let named = |word: &str| {
+        let mut settings = none();
+        settings.source_recovery = Some(word.to_owned());
+        settings
+    };
+    assert_eq!(resolve(&none(), &none()).map(|c| c.source_recovery), Ok(0));
+    let config = resolve(&named("2"), &named("3")).expect("two rounds");
+    assert_eq!(
+        config.source_recovery, 2,
+        "the door's word outranks the environment's"
+    );
+    assert_eq!(
+        resolve(&none(), &named("1")).map(|c| c.source_recovery),
+        Ok(1)
+    );
+    for word in ["4", "-1", "two", ""] {
+        let refused = ConfigError::SourceRecovery(word.to_owned());
+        assert_eq!(resolve(&named(word), &none()), Err(refused), "{word:?}");
+    }
+    for strategy in ["off", "only"] {
+        let typed = named("1").with_strategy(strategy);
+        let refused = ConfigError::SourceRecovery("1".to_owned());
+        assert_eq!(resolve(&typed, &none()), Err(refused), "{strategy}");
+        let zero = named("0").with_strategy(strategy);
+        assert_eq!(resolve(&zero, &none()).map(|c| c.source_recovery), Ok(0));
+    }
+    let policy = config.policy("mock/echo", 1024, Duration::from_secs(30));
+    assert_eq!(policy.map(|p| p.source_recovery), Ok(2));
+}

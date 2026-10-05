@@ -254,3 +254,50 @@ async fn a_failed_repair_call_keeps_the_partial_usage_and_is_never_retried() {
         "{out:#?}"
     );
 }
+
+/// Every author and judge returns distinct reasoning beside its sole final answer.
+struct ThinkingSeat(Seat);
+
+impl ProviderInferDyn for ThinkingSeat {
+    async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
+        let mut answer = self.0.infer(request).await?;
+        answer.content.insert(
+            0,
+            ContentBlock::Thinking {
+                text: "private-thinking-canary; a different candidate must not be parsed".into(),
+            },
+        );
+        Ok(answer)
+    }
+}
+
+#[tokio::test]
+async fn sketch_fill_and_whole_judge_accept_separate_thinking_with_unchanged_usage() {
+    let replies = || [reply(&graph("save")), reply(&fills("save"))];
+    let baseline = authored(&Seat::new(replies()), policy(0)).await;
+    let seat = ThinkingSeat(Seat::new(replies()));
+    let request = CompileRequest::create(INTENT).with_authoring_policy(policy(0));
+    let out = crate::compile_with_provider(&request, &seat).await.unwrap();
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(out.candidate, baseline.candidate);
+    assert_eq!(roles(&out), ["sketch", "fill", "judge_request"]);
+    assert_eq!(seat.0.calls(), 2, "separate thinking buys no repair");
+    let receipt = out.provenance.authoring.as_ref().unwrap();
+    let original = baseline.provenance.authoring.as_ref().unwrap();
+    assert_eq!(
+        (receipt.calls, receipt.input_tokens, receipt.output_tokens),
+        (
+            original.calls,
+            original.input_tokens,
+            original.output_tokens
+        )
+    );
+    for (call, before) in receipt.context.iter().zip(&original.context) {
+        assert_eq!(
+            call["response"]["blocks"], 2,
+            "raw shape remains observable"
+        );
+        assert_eq!(call["response"]["sha256"], before["response"]["sha256"]);
+    }
+    assert!(!format!("{out:?}").contains("private-thinking-canary"));
+}

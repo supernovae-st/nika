@@ -218,6 +218,8 @@ pub struct AuthoringSettings {
     pub knowledge_pack: Option<PathBuf>,
     /// A reasoning effort word (`low` · `high` · `max`).
     pub reasoning: Option<String>,
+    /// Source recovery rounds as a word (`0` · `1` · `2` · `3`): an explicit operator consent.
+    pub source_recovery: Option<String>,
     /// Knowledge turned off on this layer (`--no-knowledge`).
     pub knowledge_off: bool,
     /// The identity this layer trusts for the snapshot it names, from an embedder's own release
@@ -232,11 +234,11 @@ impl AuthoringSettings {
         Self::default()
     }
 
-    /// The words the environment names for an authoring seat: `NIKA_AUTHORING_STRATEGY`,
-    /// `NIKA_KNOWLEDGE`, `NIKA_KNOWLEDGE_EXCLUDE`, `NIKA_KNOWLEDGE_PACK`,
-    /// `NIKA_AUTHORING_REASONING` — a strategy word, directories, a corpus name and an effort
-    /// word, never a secret. Empty values name nothing; `NIKA_KNOWLEDGE=off` exactly is the
-    /// environment's word for knowledge off, which [`resolve`] reads on that layer alone.
+    /// The environment's words for an authoring seat: `NIKA_AUTHORING_STRATEGY`, `NIKA_KNOWLEDGE`,
+    /// `NIKA_KNOWLEDGE_EXCLUDE`, `NIKA_KNOWLEDGE_PACK`, `NIKA_AUTHORING_REASONING`,
+    /// `NIKA_AUTHORING_SOURCE_RECOVERY` — names and a count, never a secret. Empty values name
+    /// nothing; `NIKA_KNOWLEDGE=off` exactly is the environment's word for knowledge off, which
+    /// [`resolve`] reads on that layer alone.
     #[must_use]
     #[allow(clippy::disallowed_methods)] // strategy, directory, corpus and effort names, NON-secret
     pub fn from_env() -> Self {
@@ -247,6 +249,7 @@ impl AuthoringSettings {
             knowledge_exclude: text("NIKA_KNOWLEDGE_EXCLUDE"),
             knowledge_pack: text("NIKA_KNOWLEDGE_PACK").map(PathBuf::from),
             reasoning: text("NIKA_AUTHORING_REASONING"),
+            source_recovery: text("NIKA_AUTHORING_SOURCE_RECOVERY"),
             knowledge_off: false,
             knowledge_identity: None,
         }
@@ -341,7 +344,7 @@ impl AuthoringSettings {
             knowledge_pack: pack.map(Path::to_path_buf),
             reasoning: reasoning.map(str::to_owned),
             knowledge_off,
-            knowledge_identity: None,
+            ..Self::none()
         }
     }
 }
@@ -359,6 +362,8 @@ pub struct AuthoringConfig {
     pub choice: KnowledgeChoice,
     /// The explicit reasoning effort every seat asks for, when one is named.
     pub reasoning: Option<AuthoringReasoning>,
+    /// The source recovery rounds the operator named (0: none), each charged to the same seat.
+    pub source_recovery: u32,
 }
 
 impl AuthoringConfig {
@@ -376,6 +381,7 @@ impl AuthoringConfig {
     ) -> Result<AuthoringPolicy, &'static str> {
         check_call_bounds(max_tokens, timeout)?;
         let policy = AuthoringPolicy::new(model, max_tokens, timeout).with_native(self.strategy);
+        let policy = policy.with_source_recovery(self.source_recovery);
         Ok(match self.reasoning {
             Some(reasoning) => policy.with_reasoning(reasoning),
             None => policy,
@@ -456,6 +462,8 @@ pub enum ConfigError {
     },
     /// The reasoning effort word is none of the levels.
     UnknownReasoning(String),
+    /// The source recovery word is no count in `0..=3`, or names rounds under `off` or `only`.
+    SourceRecovery(String),
     /// Knowledge turned off beside a source on the same settings layer.
     ContradictoryKnowledge {
         /// The layer that says both.
@@ -482,6 +490,7 @@ impl std::fmt::Display for ConfigError {
                 f,
                 "`{word}` is not a reasoning effort — low · high · max (--authoring-reasoning · NIKA_AUTHORING_REASONING)"
             ),
+            Self::SourceRecovery(w) => write!(f, "`{w}`: source recovery is 0..=3 (0 off or only)"),
             Self::ContradictoryKnowledge { layer } => write!(
                 f,
                 "the {} settings turn the knowledge off and name a source — keep one: the source, or knowledge off (--no-knowledge · NIKA_KNOWLEDGE=off)",
@@ -559,11 +568,15 @@ pub fn resolve(
             corpus: corpus.clone(),
         });
     }
+    let word = (explicit.source_recovery.as_deref()).or(env.source_recovery.as_deref());
+    let source_recovery =
+        AuthoringPolicy::recovery_rounds(word, strategy).map_err(ConfigError::SourceRecovery)?;
     Ok(AuthoringConfig {
         strategy,
         knowledge,
         choice,
         reasoning: reasoning(explicit, env)?,
+        source_recovery,
     })
 }
 

@@ -57,6 +57,14 @@ pub fn worst_case(strategy: NativeMode, samples: u32, repairs: u32, edit: bool) 
     }
 }
 
+/// The requests an explicit source recovery adds to [`worst_case`] for a creation: the source and
+/// the whole-request judgment per round (`1 + 2`), drawn from the same authority, never beside it.
+#[must_use]
+pub fn recovery_requests(rounds: u32) -> u32 {
+    let judged = u32::try_from(crate::cognition::WHOLE_QUESTIONS).unwrap_or(u32::MAX);
+    rounds.min(3).saturating_mul(judged.saturating_add(1))
+}
+
 /// Whether a receipt's usage totals are complete, read from its calls' own results: each call
 /// answered with its usage, or was refused by a local admission before any byte left (it used
 /// none). A timeout, an answer without usage or a provider failure (which may have been
@@ -552,6 +560,11 @@ mod tests {
         assert_eq!(worst_case(NativeMode::Off, 1, 3, true), 0);
         // Clamped as the policy clamps: five samples, five repairs.
         assert_eq!(worst_case(NativeMode::Escalate, 9, 9, false), 92 + 16);
+        // An explicit source recovery: the source and its whole-request judgment per round,
+        // none without the policy, clamped to its three rounds.
+        assert_eq!(super::recovery_requests(0), 0);
+        assert_eq!(super::recovery_requests(1), 1 + 2);
+        assert_eq!(super::recovery_requests(9), 3 * (1 + 2));
     }
 
     /// Totals are complete only when every call's usage is known (E10 P3-e): a local refusal

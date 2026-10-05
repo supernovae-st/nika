@@ -659,6 +659,12 @@ remains separate. With no explicit level, the route retains its default.
 Per-call evidence distinguishes the configured level, transmitted request keys,
 reported model and reasoning-token usage; internal served effort stays unknown.
 
+`AuthoringPolicy::with_source_recovery` (0..=3, default 0) is the operator's
+explicit consent to the cognition crate's source recovery after the sketch door's
+exhaustion on a creation. It grants no request beyond the caller's authority, no
+permit and no Run; a host that offers it adds `recovery_requests` to the bound it
+shows before any call.
+
 Knowledge is attached only when named: `--knowledge` or `NIKA_KNOWLEDGE` for a
 snapshot, and on the CLI `--knowledge-pack` or `NIKA_KNOWLEDGE_PACK` for a pack
 composed for one request. There is no default location, and release archives

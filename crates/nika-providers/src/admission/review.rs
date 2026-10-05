@@ -349,6 +349,22 @@ impl CostReview {
         self
     }
 
+    /// Reserve `requests` more in this same review and account for an explicit source recovery
+    /// the operator configured (the compiler's `recovery_requests`). The question states the
+    /// allowance they are added to and `worst_case`, the configuration's theoretical bound; none
+    /// reserved changes nothing, never a second account and never a retry.
+    #[must_use]
+    pub fn with_recovery_requests(mut self, requests: u32, worst_case: u32) -> Self {
+        if requests > 0 {
+            self.breakdown.push(format!(
+                "Allowance {} + {requests} reserved for the explicit source recovery the operator configured; this configuration's theoretical worst case is {worst_case} requests, so this bound may stop it first.",
+                self.max_requests
+            ));
+            self.max_requests = self.max_requests.saturating_add(requests);
+        }
+        self
+    }
+
     /// Display retained legacy exposure beside this fresh invocation. The host must bind
     /// the report and durable record to the candidate and re-observe both before confirming.
     /// This never restores a numeric account or settles an earlier charge.
@@ -607,6 +623,30 @@ mod tests {
     fn route() -> CostRoute {
         CostRoute::observe("deepseek/deepseek-v4-pro", ProvidersConfig::new())
             .expect("native route")
+    }
+    /// An explicit source recovery reserves its requests in the same Session review: the bound
+    /// shown before confirmation grows by exactly them, and none are reserved without it.
+    #[test]
+    fn a_recovery_reservation_extends_the_same_session_review() {
+        let session = review().for_session();
+        assert_eq!(session.max_requests(), SESSION_REVIEW_MAX_REQUESTS);
+        let plain = session.question();
+        let reserved = session.with_recovery_requests(3, 70);
+        assert_eq!(reserved.max_requests(), SESSION_REVIEW_MAX_REQUESTS + 3);
+        let asked = reserved.question();
+        assert!(asked.contains("Allowance 7 + 3 reserved"), "{asked}");
+        assert!(
+            asked.contains("theoretical worst case is 70 requests"),
+            "{asked}"
+        );
+        assert!(asked.contains("At most 10 requests"), "{asked}");
+        let none = review().for_session().with_recovery_requests(0, 66);
+        assert_eq!(none.max_requests(), SESSION_REVIEW_MAX_REQUESTS);
+        assert_eq!(
+            none.question(),
+            plain,
+            "no reservation: the question is unchanged"
+        );
     }
     fn review() -> CostReview {
         CostReview::new(

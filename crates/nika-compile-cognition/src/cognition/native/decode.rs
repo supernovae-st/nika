@@ -7,7 +7,7 @@ use super::super::{
     syntax_target,
 };
 use super::{CompileOutcome, DiagnosticKind, Talk, knowledge};
-use nika_kernel::ai::provider::{ContentBlock, InferResponse, StopReason};
+use nika_kernel::ai::provider::{InferResponse, StopReason};
 use serde_json::json;
 
 /// Two different answers in one text.
@@ -52,10 +52,8 @@ fn read<T: Shaped>(
     talk: &mut Talk,
     out: &mut CompileOutcome,
 ) -> Decoded<T> {
-    let text = match response.content.as_slice() {
-        [ContentBlock::Text { text }] if response.stop_reason == StopReason::EndTurn => {
-            text.clone()
-        }
+    let text = match crate::decide::answer_text(response) {
+        Some(text) => text.to_owned(),
         _ if response.stop_reason == StopReason::MaxTokens => {
             talk.rounds
                 .push(json!({"round":round,"answer":"cut at the authoring cap",

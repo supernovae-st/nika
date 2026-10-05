@@ -43,6 +43,7 @@ use nika_onboard::compile::rehearse::Rehearse;
 use nika_onboard::knowledge::pin::{
     carried_record, composed_record, observed_in, stamp, stamp_seat,
 };
+use nika_providers::authoring::configured_gateway_host;
 use serde_json::Value;
 
 use crate::intelligence::{IntelligenceKind, ResolvedSessionIntelligence};
@@ -77,24 +78,10 @@ pub fn openai_base_overridden() -> bool {
 #[must_use]
 pub fn gateway_host(provider: &str) -> Option<String> {
     let http = crate::reasoner::provider_http().ok()?;
-    let registry = nika_providers::ProviderRegistry::new(
-        Arc::new(http),
-        nika_runtime::compose::config_from_env(),
-    );
-    let effective = host_of(registry.effective_base_url(provider)?);
-    let seed = registry
-        .profiles()
-        .iter()
-        .find(|p| p.id == nika_providers::canonical_provider(provider))
-        .map(|p| host_of(p.base_url))?;
-    (effective != seed).then_some(effective)
+    configured_gateway_host(http, nika_runtime::compose::config_from_env(), provider)
 }
 
-/// The host part of a URL (`https://api.scaleway.ai/v1` → `api.scaleway.ai`).
-#[must_use]
-pub fn host_of(url: &str) -> String {
-    nika_cli_host::compile::authoring_host(url).unwrap_or_else(|| "unknown endpoint".to_owned())
-}
+pub use nika_providers::authoring::host_of;
 /// The hard output ceiling of one Session authoring call (the compiler's own maximum: a
 /// reasoning seat spends part of it on its reasoning, and a complete candidate needs the rest).
 pub const AUTHORING_MAX_TOKENS: u32 = 32_768;
@@ -676,7 +663,8 @@ fn compile_attached(
         return Err(AuthoringError::Context(why.clone()));
     }
     let harness = matches!(seat, AuthoringSeat::Harness { .. });
-    let policy = session_policy(&model, harness, context.strategy());
+    let policy =
+        session_policy(&model, harness, context.strategy()).with_source_recovery(context.recovery);
     // Every authoring and repair call asks the named effort; the caps stay the policy's (R4 B16).
     request = request.with_authoring_policy(match context.reasoning() {
         Some(level) => policy.with_reasoning(level),

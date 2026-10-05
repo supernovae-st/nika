@@ -364,7 +364,11 @@ changes the challenge, its nonce or any authority. The serialized challenge
 itself, the host's IPC with its own lane, keeps the exact route.
 
 `CostReview::for_session` applies the Session preparation bounds: at most seven
-requests, 32768 output tokens and 180 seconds per request. The displayed review
+requests, 32768 output tokens and 180 seconds per request;
+`with_recovery_requests(n, worst_case)` adds exactly the requests an explicit
+source recovery reserves to that same review and account, and its question states
+the allowance they are added to and the configuration's theoretical worst case
+(nothing changes for `n = 0`; never a second account or a retry). The displayed review
 and consuming admission use these same values. `CostReview::bounds()` answers
 the three together (requests, per-request output tokens, per-request deadline)
 so a host shows the owner's triple, which the confirmed choice enforces as
