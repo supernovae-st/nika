@@ -4,8 +4,8 @@
 //! Generation 2 of the compile request, spoken only by a server that seats native authoring.
 //!
 //! Every generation-1 law holds (unknown fields, a present `null`, duplicate keys and
-//! positional arrays refused; the same byte bounds). Added: the explicit cognition, the
-//! request a revised base answered, the caller's narrowing of the operator's bounds, and the
+//! positional arrays refused; the same configured HTTP body ceiling). Added: explicit cognition,
+//! the request a revised base answered, the caller's narrowing of the operator's bounds, and the
 //! token of a round this server kept. New to this generation: a literal that repeats an object
 //! key at any depth is refused, never read as its last value.
 
@@ -17,11 +17,7 @@ use nika_onboard::compile::{AuthoringCognition, CompileRequest};
 use serde_json::value::RawValue;
 
 use super::super::error::ApiError;
-use super::{
-    ANSWER_COUNT_MARKER, Answers, Change, MAX_COMPILE_NAME_BYTES, MAX_COMPILE_SOURCE_BYTES,
-    MAX_COMPILE_TEXT_BYTES, Object, answers_within, change_within, limit, present,
-    unsupported_mode,
-};
+use super::{Answers, Change, Object, limit, present, unsupported_mode};
 
 /// This generation's number.
 pub(super) const GENERATION: u64 = 2;
@@ -37,14 +33,14 @@ pub(super) const TOKEN_HEX: usize = 64;
 pub(super) struct Bounds {
     /// Output tokens per call.
     pub(super) max_tokens: u32,
+    /// First completion's route capacity, bounded by any explicit token limit.
+    pub(super) initial_tokens: u32,
     /// The wait for one call.
     pub(super) call_timeout: Duration,
     /// The whole round: calls, judging, assembly.
-    pub(super) deadline: Duration,
+    pub(super) deadline: Option<Duration>,
     /// Desired repair rounds, bounded separately by explicit request authority.
-    pub(super) repairs: u32,
-    /// Whether repairs were explicitly configured rather than defaulted.
-    pub(super) repairs_explicit: bool,
+    pub(super) repairs: Option<u32>,
     /// Explicit request authority, separate from repair preferences.
     pub(super) max_calls: Option<u32>,
     /// The operator or caller that narrowed the request grant.
@@ -58,19 +54,18 @@ impl Bounds {
         nika_onboard::compile::authority::Authority,
         nika_onboard::compile::authority::Refusal,
     > {
-        use nika_onboard::compile::authority::{Authority, DEFAULT_MAX_CALLS, Door, Typed};
-        // Serve keeps a one-request default; an absent core bound is intentionally unlimited.
+        use nika_onboard::compile::authority::{Authority, Door, Typed};
         Authority::resolve(
-            Some(self.max_calls.unwrap_or(DEFAULT_MAX_CALLS)),
+            self.max_calls,
             nika_cli_host::compile::config::DEFAULT_STRATEGY,
-            Typed::new(false).with_repairs(self.repairs_explicit.then_some(self.repairs)),
+            Typed::new(false).with_repairs(self.repairs),
             Door::new(
                 if self.max_calls.is_some() {
                     self.grant
                 } else {
-                    "default: one request"
+                    "continuous preparation: no request count"
                 },
-                "the operator must authorize sufficient max_calls; a request may only narrow its ceiling",
+                "the explicit max_calls limit was reached; a request may only narrow its ceiling",
             ),
         )
     }
@@ -170,26 +165,6 @@ impl Input {
         }
         request
     }
-
-    /// The bytes this input holds (what a kept round retains beside its plan).
-    pub(super) fn bytes(&self) -> usize {
-        match self {
-            Self::Create {
-                intent,
-                workflow_id,
-            } => intent.len() + workflow_id.as_ref().map_or(0, String::len),
-            Self::Revise {
-                source,
-                change,
-                original_intent,
-            } => source.len() + change.len() + original_intent.len(),
-            Self::Constant {
-                source,
-                name,
-                literal,
-            } => source.len() + name.len() + literal.len(),
-        }
-    }
 }
 
 /// What the round does.
@@ -211,10 +186,8 @@ pub(super) struct Request {
 /// Judge a generation-2 body: vocabulary first (mode · cognition), then bounds, then shape,
 /// then the literal rule — the order generation 1 keeps.
 pub(super) fn parse(body: &[u8], operator: Bounds) -> Result<Request, ApiError> {
-    let envelope = match serde_json::from_slice::<Object<Envelope>>(body) {
-        Ok(Object(envelope)) => envelope,
-        Err(error) if error.to_string().contains(ANSWER_COUNT_MARKER) => return Err(limit()),
-        Err(_) => return Err(malformed()),
+    let Ok(Object(envelope)) = serde_json::from_slice::<Object<Envelope>>(body) else {
+        return Err(malformed());
     };
     if envelope.compile_version != GENERATION {
         return Err(malformed());
@@ -296,54 +269,37 @@ fn input(
     }
 }
 
-/// The generation-1 byte bounds, `original_intent` as a text, then the caller's narrowing.
+/// The caller may narrow route capacities and explicitly configured operator limits.
 fn within_limits(envelope: &Envelope, operator: Bounds) -> Result<Bounds, ApiError> {
-    let text = |value: &Option<String>| {
-        value
-            .as_ref()
-            .is_none_or(|value| value.len() <= MAX_COMPILE_TEXT_BYTES)
-    };
-    let bounded = text(&envelope.intent)
-        && text(&envelope.original_intent)
-        && envelope
-            .workflow_id
-            .as_ref()
-            .is_none_or(|id| id.len() <= MAX_COMPILE_NAME_BYTES)
-        && envelope
-            .source
-            .as_ref()
-            .is_none_or(|source| source.len() <= MAX_COMPILE_SOURCE_BYTES)
-        && change_within(envelope.change.as_ref())
-        && answers_within(&envelope.answers);
-    if !bounded {
-        return Err(limit());
-    }
     let bounds = match &envelope.limits {
         None => operator,
         Some(Object(asked)) => narrow(asked, operator).ok_or_else(limit)?,
     };
-    bounds.authority().map_err(|_| ApiError::new(
-        StatusCode::UNPROCESSABLE_ENTITY,
-        "compile_limit",
-        "the explicit repair preference requires more requests than max_calls permits; narrow limits.repairs too, or ask the operator to grant sufficient max_calls",
-    ))?;
+    bounds.authority().map_err(|_| limit())?;
     Ok(bounds)
 }
 
 /// The operator's bounds narrowed by the caller's: every value asked must be positive (repairs
-/// may be zero) and at most the operator's; above is refused, never clamped.
+/// may be zero). A configured operator ceiling cannot be widened; above is refused, never clamped.
 fn narrow(asked: &Limits, operator: Bounds) -> Option<Bounds> {
     let mut bounds = operator;
     if let Some(max_calls) = asked.max_calls {
-        let ceiling = operator
-            .max_calls
-            .unwrap_or(nika_onboard::compile::authority::DEFAULT_MAX_CALLS);
-        bounds.max_calls = Some((1..=ceiling).contains(&max_calls).then_some(max_calls)?);
+        bounds.max_calls = Some(
+            (max_calls > 0
+                && operator
+                    .max_calls
+                    .is_none_or(|ceiling| max_calls <= ceiling))
+            .then_some(max_calls)?,
+        );
         bounds.grant = "request: limits.max_calls within operator ceiling";
     }
     if let Some(repairs) = asked.repairs {
-        bounds.repairs = (repairs <= operator.repairs).then_some(repairs)?;
-        bounds.repairs_explicit = true;
+        bounds.repairs = Some(
+            operator
+                .repairs
+                .is_none_or(|ceiling| repairs <= ceiling)
+                .then_some(repairs)?,
+        );
     }
     if let Some(tokens) = asked.max_tokens {
         bounds.max_tokens = (1..=operator.max_tokens)
@@ -358,7 +314,13 @@ fn narrow(asked: &Limits, operator: Bounds) -> Option<Bounds> {
         bounds.call_timeout = duration(millis, operator.call_timeout)?;
     }
     if let Some(millis) = asked.deadline_ms {
-        bounds.deadline = duration(millis, operator.deadline)?;
+        let asked = Duration::from_millis(millis);
+        bounds.deadline = Some(
+            (millis > 0
+                && operator.deadline.is_none_or(|ceiling| asked <= ceiling)
+                && std::time::Instant::now().checked_add(asked).is_some())
+            .then_some(asked)?,
+        );
     }
     Some(bounds)
 }

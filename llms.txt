@@ -13,11 +13,13 @@
 ## Use Nika
 
 - [README.md#try-it-in-two-minutes](README.md#try-it-in-two-minutes): Install, describe a first workflow in the Session with no AI account, set up a provider key, then compile · check · run · verify a file directly. Ends with the current limits.
-- [docs/usage/conversational-session.md](docs/usage/conversational-session.md): Bare `nika` on a terminal — describe · clarify · review · save (`yes`) · run (`run it`) · inspect (`/proof`). Provider keys come from the environment (DeepSeek example); the AI choice is kept in `~/.nika/session-intelligence.json`. Covers spending ceilings, `/restore`, optional `NIKA_KNOWLEDGE` snapshots (none ship with public releases) and the optional Jev decision model, and downgrade limits.
+- [docs/usage/conversational-session.md](docs/usage/conversational-session.md): Bare `nika` on a terminal — describe · clarify · review · save (`yes`) · run (`run it`) · inspect (`/proof`). Provider keys come from the environment (DeepSeek example); the AI choice is kept in `~/.nika/session-intelligence.json`. Covers intelligence selection, `/restore`, knowledge provenance, the optional Jev decision model and downgrade limits. Distinguish current behavior from the 0.123 target.
 - [docs/qa/delivery-a-2026-09.md](docs/qa/delivery-a-2026-09.md): The bounded qualification of the conversational path: six synthetic journeys, one macOS installation, not a general reliability claim.
 - [docs/architecture/session-history.md](docs/architecture/session-history.md): Where Session history lives, how reopening and recovery work, and their limits.
 
 ## Architecture (the non-negotiables)
+
+- [docs/architecture/ARCHITECTURE-0.123.md](docs/architecture/ARCHITECTURE-0.123.md): Accepted cooperative intent direction, amended 6 October 2026. Target responsibilities, evidence, repair and migration acceptance; not a claim that the current runtime already implements or qualifies them.
 
 - [docs/architecture/forward-compat-invariants.md](docs/architecture/forward-compat-invariants.md): 8 patterns + 10 rules. Gate 12. Public API is protected; only strictly-additive changes pass.
 - [docs/architecture/crate-layer-registry.md](docs/architecture/crate-layer-registry.md): L0→L4 layer discipline, allowed I/O axes, strict downward dependencies.

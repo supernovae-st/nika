@@ -23,7 +23,7 @@ pub fn of_request(world: Option<&Value>, words: &str) -> String {
 
 /// The complete host observation kept as historical data with its exact digest. Graph reads
 /// can be placed below a bare name the words state, so a word-only projection would lose them.
-/// The existing program-record owner withholds a whole plan over 128 KiB; nothing is truncated.
+/// The program-record owner retains the whole plan without a fixed byte quota.
 #[must_use]
 pub fn keep(world: Option<&Value>) -> Value {
     let value = world.unwrap_or(&Value::Null);

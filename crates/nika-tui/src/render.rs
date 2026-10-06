@@ -10,6 +10,10 @@
 //! slot for a gate, a permission, a cost or a boundary, the failure slot for a
 //! refusal; the default foreground for everything the human reads.
 
+mod wrapped;
+
+pub(crate) use wrapped::{pages, paint_page, window};
+
 use nika_display::theme::Role;
 use ratatui::Frame;
 use ratatui::buffer::Buffer;
@@ -146,12 +150,12 @@ pub fn block_lines(block: &Committed, color: bool, ascii: bool) -> Vec<Line<'sta
 /// The rows `lines` take at `width` once wrapped, at least one.
 #[must_use]
 pub fn wrapped_rows(lines: &[Line<'_>], width: u16) -> u16 {
-    // Use the same word wrapper as rendering. Cell-count division can
-    // underestimate rows and hide the last line of a consent question.
-    let rows = Paragraph::new(lines.to_vec())
-        .wrap(Wrap { trim: false })
-        .line_count(width.max(1));
-    u16::try_from(rows.max(1)).unwrap_or(u16::MAX)
+    u16::try_from(content_rows(lines, width)).unwrap_or(u16::MAX)
+}
+
+/// The complete content height, before any terminal-coordinate conversion.
+pub(crate) fn content_rows(lines: &[Line<'_>], width: u16) -> usize {
+    wrapped::height(lines, width)
 }
 
 /// Draw a block into a buffer (the `insert_before` callback).
@@ -167,11 +171,12 @@ pub fn render_block(block: &Committed, color: bool, ascii: bool, buf: &mut Buffe
 #[must_use]
 pub fn live_rows(state: &UiState, composer: &Composer, width: u16, height: u16) -> u16 {
     let prompt = u16::try_from(state.waiting.prompt().chars().count()).unwrap_or(8);
-    let composer_rows = composer.rows(width.saturating_sub(prompt).max(8));
-    let rail = u16::from(!state.rail.is_empty());
-    let hint = wrapped_rows(&[hint_line(state, width)], width).min(3);
-    let rows = rail + status_rows(state, width) + composer_rows + hint;
-    rows.clamp(3, height.saturating_div(2).max(3))
+    let composer_rows = composer.content_rows(width.saturating_sub(prompt).max(8));
+    let rail = usize::from(!state.rail.is_empty());
+    let hint = usize::from(wrapped_rows(&[hint_line(state, width)], width).min(3));
+    let rows = rail + usize::from(status_rows(state, width)) + composer_rows + hint;
+    let maximum = height.saturating_div(2).max(3);
+    u16::try_from(rows.clamp(3, usize::from(maximum))).unwrap_or(maximum)
 }
 
 /// The loader's frames: the theme seam's own braille orbit, one motion for the
@@ -370,16 +375,10 @@ pub(crate) fn render_transcript(frame: &mut Frame<'_>, state: &UiState, area: Re
         lines.extend(block_lines(block, state.color, state.ascii));
         lines.push(Line::default());
     }
-    let total = wrapped_rows(&lines, area.width);
-    let skip = total
-        .saturating_sub(area.height)
-        .saturating_sub(u16::try_from(state.focus_scroll).unwrap_or(u16::MAX));
-    frame.render_widget(
-        Paragraph::new(lines)
-            .wrap(Wrap { trim: false })
-            .scroll((skip, 0)),
-        area,
-    );
+    let skip = content_rows(&lines, area.width)
+        .saturating_sub(usize::from(area.height))
+        .saturating_sub(state.focus_scroll);
+    window(&lines, area, skip, frame.buffer_mut());
 }
 
 /// The focus presentation: the transcript above (scrolled from the end), a
@@ -432,6 +431,29 @@ mod tests {
             .collect::<String>()
             .trim_end()
             .to_owned()
+    }
+
+    #[test]
+    fn a_paste_beyond_terminal_height_keeps_its_text_and_draws_without_overflow() {
+        let text = "input row\n".repeat(70_000) + "last input";
+        let mut composer = Composer::new();
+        composer.paste(&text);
+        assert_eq!(composer.content_rows(80), 70_001);
+        for (width, height) in [(12, 4), (80, 24), (180, 48)] {
+            let mut state = UiState::new(Presentation::Focus, false, (width, height));
+            state.rail = "Draft · Saved · Checked".to_owned();
+            let live = live_rows(&state, &composer, width, height);
+            assert!(live <= height.saturating_div(2).max(3));
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).expect("terminal");
+            terminal
+                .draw(|frame| draw_focus(frame, &state, &composer))
+                .expect("large paste draws");
+            assert_eq!(
+                composer.text(),
+                text,
+                "drawing must not truncate the user's draft"
+            );
+        }
     }
 
     #[test]

@@ -391,6 +391,7 @@ pub fn nika_providers::admission::CostReview::request_timeout(&self) -> core::ti
 pub fn nika_providers::admission::CostReview::with_authored_retry(self, authored: bool) -> Self
 pub fn nika_providers::admission::CostReview::with_breakdown(self, lines: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_providers::admission::CostReview::with_concurrency(self, max_in_flight: u32) -> core::result::Result<Self, alloc::string::String>
+pub fn nika_providers::admission::CostReview::with_optional_recovery_requests(self, requests: u32, worst_case: core::option::Option<u32>) -> Self
 pub fn nika_providers::admission::CostReview::with_recovery_requests(self, requests: u32, worst_case: u32) -> Self
 impl core::fmt::Debug for nika_providers::admission::CostReview
 pub fn nika_providers::admission::CostReview::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result

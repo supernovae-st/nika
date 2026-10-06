@@ -211,15 +211,11 @@
   },
   "CompileRequest": {
     "additionalProperties": false,
-    "description": "Generation 1 of the compile request. The encoded body is limited to 1048576 bytes (or the listener's lower ceiling). Byte bounds below are UTF-8 bytes. Unknown fields, a present null, duplicate keys (including inside `answers`) and positional arrays are refused. No field names a host path: an EDIT base travels inline in `source`.",
+    "description": "Generation 1 of the compile request. The encoded body is limited by the listener's configured HTTP body ceiling; no smaller field-size or answer-count quota is imposed. Unknown fields, a present null, duplicate keys (including inside `answers`) and positional arrays are refused. No field names a host path: an EDIT base travels inline in `source`.",
     "properties": {
       "answers": {
         "additionalProperties": true,
-        "description": "Question key \u2192 one JSON literal with its type preserved, judged exactly as sent (at most 65536 bytes each)",
-        "maxProperties": 64,
-        "propertyNames": {
-          "maxLength": 256
-        },
+        "description": "Question key \u2192 one JSON literal with its type preserved, judged exactly as sent within the HTTP body envelope.",
         "type": "object"
       },
       "change": {
@@ -232,11 +228,10 @@
             "properties": {
               "name": {
                 "description": "Bare constant name, not a path",
-                "maxLength": 128,
                 "type": "string"
               },
               "value": {
-                "description": "One JSON literal, judged exactly as sent (at most 65536 bytes)"
+                "description": "One JSON literal, judged exactly as sent within the HTTP body envelope."
               }
             },
             "required": [
@@ -247,7 +242,6 @@
           },
           "text": {
             "description": "`Set const.NAME to JSON_LITERAL`, or `Set const.NAME` answered through `answers`",
-            "maxLength": 4096,
             "type": "string"
           }
         },
@@ -263,7 +257,6 @@
         "type": "integer"
       },
       "intent": {
-        "maxLength": 4096,
         "type": "string"
       },
       "mode": {
@@ -276,12 +269,10 @@
       },
       "source": {
         "description": "Accepted `.nika` source, inline. The caller owns source selection, revision checks and materialization",
-        "maxLength": 524288,
         "type": "string"
       },
       "workflow_id": {
         "description": "Names a created workflow. On edit the core refuses it as data: an edit cannot rename its accepted base",
-        "maxLength": 128,
         "type": "string"
       }
     },

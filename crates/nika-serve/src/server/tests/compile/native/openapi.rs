@@ -305,7 +305,7 @@ fn refused_requests() -> Vec<(String, &'static str)> {
             "compile_limit",
         ),
         (
-            fresh(&json!({"limits": {"deadline_ms": 3_600_001}})),
+            fresh(&json!({"limits": {"deadline_ms": 0}})),
             "compile_limit",
         ),
     ];
@@ -392,40 +392,27 @@ async fn the_published_nesting_ceiling_is_the_enforced_one() {
 }
 
 #[test]
-fn the_published_ceilings_are_the_ones_a_seat_is_validated_against() {
+fn large_explicit_bounds_are_not_refused_by_legacy_product_ceilings() {
     let document = openapi::live(true);
-    let limits = &document["components"]["schemas"]["CompileRequestV2"]["properties"]["limits"];
-    let max = |name: &str| limits["properties"][name]["maximum"].as_u64().expect(name);
+    let limits = &document["components"]["schemas"]["CompileRequestV2"]["properties"]["limits"]["properties"];
     let seated =
         |authoring: NativeAuthoring| crate::server::compile::Seat::open(&authoring).is_ok();
     let at = || NativeAuthoring::new(SEAT, ProvidersConfig::new());
-    let repairs = u32::try_from(max("repairs")).expect("u32");
-    let tokens = u32::try_from(max("max_tokens")).expect("u32");
-    // The published repair ceiling, honored only with the grant the shared law states for it
-    // under the seat's strategy (a creation's worst case: 100 for five), and never above it.
-    let needed = nika_onboard::compile::authority::worst_case(
-        nika_onboard::compile::NativeMode::Escalate,
-        1,
-        repairs,
-        false,
-    );
-    assert_eq!((repairs, needed), (5, 100));
-    assert!(
-        seated(at().with_max_calls(needed).with_repairs(repairs))
-            && !seated(at().with_max_calls(needed - 1).with_repairs(repairs))
-            && !seated(at().with_max_calls(needed).with_repairs(repairs + 1))
-    );
-    assert!(seated(at().with_max_tokens(tokens)) && !seated(at().with_max_tokens(tokens + 1)));
-    let call = max("call_timeout_ms");
-    assert!(seated(at().with_call_timeout(Duration::from_millis(call))));
-    assert!(!seated(
-        at().with_call_timeout(Duration::from_millis(call + 1))
+    assert!(seated(at().with_max_tokens(393_216)));
+    assert!(seated(at().with_call_timeout(Duration::from_secs(3601))));
+    assert!(seated(at().with_deadline(Duration::from_secs(86_400))));
+    assert!(seated(at().with_repairs(100)));
+    assert!(seated(
+        at().with_replay(2048, Duration::from_secs(7 * 86_400))
     ));
-    let deadline = max("deadline_ms");
-    assert!(seated(at().with_deadline(Duration::from_millis(deadline))));
-    assert!(!seated(
-        at().with_deadline(Duration::from_millis(deadline + 1))
-    ));
+    assert!(!seated(at().with_max_tokens(0)));
+    assert!(!seated(at().with_call_timeout(Duration::ZERO)));
+    assert!(!seated(at().with_deadline(Duration::ZERO)));
+    assert!(!seated(at().with_max_calls(0)));
+    assert_eq!(limits["max_tokens"]["maximum"], u32::MAX);
+    assert_eq!(limits["repairs"]["maximum"], u32::MAX);
+    assert!(limits["call_timeout_ms"].get("maximum").is_none());
+    assert!(limits["deadline_ms"].get("maximum").is_none());
 }
 
 #[test]

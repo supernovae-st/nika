@@ -46,7 +46,7 @@ impl SessionRuntime {
     /// Call immediately after `open` or `open_with`, before the first turn.
     ///
     /// # Errors
-    /// Refuses concurrent ownership, corrupt/oversized history or failed I/O.
+    /// Refuses concurrent ownership, corrupt history or failed I/O.
     /// A failed enable also blocks this instance; ignoring the error cannot
     /// silently downgrade a requested durable session to an ephemeral one.
     pub fn enable_history(&mut self, home: &Path) -> Result<Option<String>, Refusal> {

@@ -346,23 +346,24 @@ neither does a ceiling agreed for a saved file. To run a workflow saved in an
 earlier Session, name its ceiling:
 `run compiled-workflow.nika with a ceiling of 0.25`.
 
-## Spending
+## Spending and continued preparation
 
-- With no amount stated, the Session puts no allowance on authoring. On routes
-  the catalog prices exactly, such as DeepSeek's native endpoints, each
-  authoring call is recorded with its catalog cost estimate. Other routes are
-  not observed that way.
-- To bound authoring, state an amount in the request, for example
-  `… budget 0.50 dollars`. On an exactly priced route, each call reserves its
-  worst case at the catalog price, and the Session sends nothing the amount
-  cannot cover. Routes it cannot price that way are refused before any paid
-  call: other providers, custom gateways, streaming, tools, subscriptions and
-  unpriced local computation.
-- Authoring with a provider model is bounded per call: 180 seconds, an initial
-  limit of 16,384 output tokens that can rise to 32,768 after a truncation, and
-  at most three repairs. A call whose delivery is uncertain is not replayed.
-- Catalog estimates are not invoices. Your provider's bill is the reference.
-- The run ceiling is separate from authoring (see above).
+The interactive CLI and TUI keep chat, workflow creation, revision and repair
+open without an implicit total call, repair, token or spending allowance.
+Reported and unknown costs remain visible. Reopening preserves earlier exposure
+without treating it as fresh credit or asking for a new creation allowance.
+
+One provider request still has its selected route's completion capacity and
+transport deadline. These are not a total Session budget. Ordinary continuous
+chat requests the route's full output capacity; a provider-reported truncated
+reply is explicitly shown as incomplete. User Stop remains available. A numeric
+constraint for a workflow belongs to its separate Save/Run review and execution;
+it must not silently become a limit on designing or discussing that workflow.
+
+Catalog estimates are not invoices. The installed provider and model must support
+the selected operation; an unavailable service is reported without fabricating a
+result. The lower-level bounded embedding APIs retain their explicitly selected
+contracts; they do not describe the interactive preparation defaults.
 
 **Run provider limits in 0.121.0.** A price shown in the model catalog is not
 enough to admit an OpenAI-compatible API route automatically. The qualified
@@ -388,7 +389,7 @@ startup file as your key. The walkthroughs above need none of them.
 
 | Variable | Effect |
 |---|---|
-| `NIKA_AUTHORING_STRATEGY` | When the model writes the workflow itself: `escalate` (default), `only`, `sketch` or `off` |
+| `NIKA_AUTHORING_STRATEGY` | Compatibility routing: `escalate` (default) starts with Plan and can continue through Sketch and eligible recovery; `sketch` starts with Sketch; `off` keeps the older Plan route. Rust assembles the semantic proposal. `only` remains for historical paths and is refused for a new CREATE |
 | `NIKA_KNOWLEDGE` | An optional Foundry release root; the environment carries no trusted identity, so a named root is refused with `ADMISSION_UNTRUSTED`. Unset uses the embedded release; the exact word `off` disables knowledge |
 | `NIKA_KNOWLEDGE_EXCLUDE` | A corpus whose examples are never recalled from the selected release, including the embedded default |
 | `NIKA_SESSION_DECISION_MODEL` | An optional decision model; only `typesafe/<model>` (Jev) is supported, with `TYPESAFE_API_KEY` |
@@ -413,14 +414,21 @@ falls back to the embedded release. A release that changes after it was pinned
 is also refused before authoring. `/details` records what was actually presented,
 separately from the release available to the Session.
 
-**Jev.** The decision model is consulted only when the compiler faces a finite
-choice it cannot settle alone. For example: does a clause ask for a search, a
-lookup or neither? The compiler checks the answer against the options it
-offered. A compile makes at most three such calls, 20 seconds each, with no
-retry. They happen only under an API authoring model with no stated spending
-amount. Their cost is unknown and recorded separately, never counted as zero.
-Jev does not select knowledge, write workflows or grant permissions. TypeSafe
-is a third-party service with its own account and terms.
+**Jev.** The selected decision model answers finite compiler questions: interpreting
+an ambiguous clause, ranking feasible plans, judging fidelity to the request and
+locating a defect for repair. The compiler validates every answer against the
+offered options; an abstention or failed consultation is not a successful judgment.
+The current adapter makes one attempt per consultation, with a 20-second deadline
+and no transport retry. Interactive preparation has no implicit three-call ceiling.
+The same compiler capability accompanies API, native subscription and ACP authors;
+this wiring does not establish equal end-to-end qualification for every provider.
+Usage is recorded separately, and unknown monetary cost remains unknown.
+
+The current adapter does not perform Foundry retrieval. Cooperative knowledge
+search and qualification are part of the accepted
+[0.123 target](../architecture/ARCHITECTURE-0.123.md), still requiring implementation
+and qualification. Jev does not write workflows or grant execution authority.
+TypeSafe is a third-party service with its own account and terms.
 
 ## Limits
 

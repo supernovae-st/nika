@@ -300,6 +300,13 @@ pub struct ProviderReasoner {
     pub label: String,
 }
 
+/// A classifier consumes a complete label, never a user-facing status notice.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ReplyPurpose {
+    Chat,
+    Label,
+}
+
 impl SessionReasoner for ProviderReasoner {
     fn supports_admission(&self) -> bool {
         true
@@ -309,7 +316,7 @@ impl SessionReasoner for ProviderReasoner {
         prompt: &str,
         account: &nika_providers::InferenceAdmission,
     ) -> Result<Reply, ReasonError> {
-        self.infer(prompt, Some(8192), Some(account), None)
+        self.infer(prompt, Some(8192), Some(account), None, ReplyPurpose::Chat)
     }
     fn reason_label_with_admission(
         &mut self,
@@ -321,6 +328,7 @@ impl SessionReasoner for ProviderReasoner {
             Some(label_ceiling(&self.model)),
             Some(account),
             None,
+            ReplyPurpose::Label,
         )
     }
 
@@ -333,11 +341,17 @@ impl SessionReasoner for ProviderReasoner {
     }
 
     fn reason(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
-        self.infer(prompt, None, None, None)
+        self.infer(prompt, None, None, None, ReplyPurpose::Chat)
     }
 
     fn reason_label(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
-        self.infer(prompt, Some(label_ceiling(&self.model)), None, None)
+        self.infer(
+            prompt,
+            Some(label_ceiling(&self.model)),
+            None,
+            None,
+            ReplyPurpose::Label,
+        )
     }
 
     /// The same call, the same ceiling, asking the level (R4 B16): the effort never moves a cap.
@@ -353,7 +367,17 @@ impl SessionReasoner for ProviderReasoner {
         } else {
             account.map(|_| 8192)
         };
-        self.infer(prompt, ceiling, account, Some(effort))
+        self.infer(
+            prompt,
+            ceiling,
+            account,
+            Some(effort),
+            if label {
+                ReplyPurpose::Label
+            } else {
+                ReplyPurpose::Chat
+            },
+        )
     }
 }
 
@@ -366,6 +390,7 @@ impl ProviderReasoner {
         ceiling: Option<u32>,
         admission: Option<&nika_providers::InferenceAdmission>,
         effort: Option<AuthoringReasoning>,
+        purpose: ReplyPurpose,
     ) -> Result<Reply, ReasonError> {
         let reasoning_effort = effort
             .map(|level| {
@@ -392,13 +417,27 @@ impl ProviderReasoner {
         input.reasoning_effort = reasoning_effort;
         if PreparationCosts::active() {
             let limits = completion_bounds(&self.model, false, provider_config());
-            input.max_tokens = Some(limits.initial_tokens);
+            // Unbounded chat uses the route's full capacity. A label or an explicit
+            // allowance keeps the ceiling its caller passed, including in this scope.
+            input.max_tokens = Some(input.max_tokens.unwrap_or(limits.max_tokens));
             input.timeout = Some(limits.timeout);
         }
         let out = block_on(async { verb.run(input).await })?
             .map_err(|e| ReasonError::Provider(e.to_string()))?;
+        let mut text = infer_text(&out.output);
+        if matches!(
+            out.response.stop_reason,
+            nika_kernel::ai::provider::StopReason::MaxTokens
+        ) {
+            if purpose == ReplyPurpose::Label {
+                return Err(ReasonError::Provider(
+                    "classification response was truncated at its output limit; no label was accepted".to_owned(),
+                ));
+            }
+            text.push_str("\n\n[Incomplete response: the output limit for this response was reached. The conversation remains open; this is not a completed answer.]");
+        }
         Ok(Reply {
-            text: infer_text(&out.output),
+            text,
             usage_observed: out.response.usage_reported,
         })
     }

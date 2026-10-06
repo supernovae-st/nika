@@ -7,7 +7,7 @@
 //!
 //! One [`Candidate`] is one plan with its source, its structural signature and its
 //! feasibility verdict. The set is the distinct admissible COLD plans (first-seen
-//! order, capped at [`CAP`]) plus the pattern-informed variants the recalled
+//! order) plus the pattern-informed variants the recalled
 //! candidates suggest in a dimension the request leaves open — and ONLY when the
 //! assembler can express that dimension. Today the assembler emits one linear chain
 //! per invocation and the private plan carries no topology, so the fan-out and fan-in
@@ -27,9 +27,6 @@ use super::lexicon::Reading;
 use super::plan::{Binding, EffectPolicy, EffectVerb, Op, Plan, Step};
 use super::retrieve::Hit;
 use serde_json::{Value, json};
-
-/// The finite cap on composed candidates.
-pub(super) const CAP: usize = 8;
 
 /// Topologies the assembler expresses from a private plan today: one linear chain per
 /// invocation. A pattern dimension outside this set is recorded, never composed.
@@ -162,9 +159,6 @@ pub(super) fn compose(
 ) -> Composition {
     let mut candidates: Vec<Candidate> = Vec::new();
     for (index, plan) in samples {
-        if candidates.len() >= CAP {
-            break;
-        }
         let signature = signature(plan);
         let feasibility = feasibility(plan, &reading.plan, intent);
         if candidates
@@ -1154,26 +1148,26 @@ mod tests {
             .collect();
         assert_eq!(feasible, [true, false, true]);
         assert!(composition.dimensions.is_empty());
-        // The cap holds even when every sample is distinct.
-        let many: Vec<(usize, Plan)> = (0..12)
-            .map(|i| {
-                let mut plan = base();
-                if i > 0 {
-                    plan.obligations.push(Obligation::new(
-                        ObligationKind::RetryBound(u32::try_from(i).unwrap()),
-                        "never retry more than 3 times",
-                    ));
-                    plan.steps[2].detail = format!("note {i}");
-                }
+        // Every distinct proposal stays present. Feasibility here checks structural laws,
+        // not which operation the intent actually asks for; that is the seat's judgment.
+        let many: Vec<(usize, Plan)> = Op::ALL
+            .into_iter()
+            .enumerate()
+            .map(|(i, op)| {
+                let mut plan = Plan::default();
+                plan.steps.push(step(op, "the page", INTENT));
                 (i, plan)
             })
             .collect();
-        assert!(
-            compose(&many, &reading(Plan::default()), &[], INTENT)
-                .candidates
-                .len()
-                <= CAP
+        let all = compose(&many, &reading(Plan::default()), &[], INTENT).candidates;
+        assert_eq!(all.len(), Op::ALL.len());
+        assert_eq!(
+            all.iter().map(Candidate::sample).collect::<Vec<_>>(),
+            (0..10).collect::<Vec<_>>()
         );
+        assert!(all.iter().all(Candidate::feasible));
+        assert_eq!(rank(&all, &[8], &many), Some(8));
+        assert_eq!(all[8].to_json(8)["source"]["sample"], 8);
         let json = composition.candidates[1].to_json(1);
         assert_eq!(json["index"], 1);
         assert_eq!(json["source"], json!({"kind": "cold_sample", "sample": 1}));

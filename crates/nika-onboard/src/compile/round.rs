@@ -15,8 +15,9 @@
 //! executable text (the request, each answer, an EDIT's path, base, change and original) is
 //! kept with the sha256 of its exact original: a text the redactor changed is kept as
 //! displayed and never continued. The compiler's continuation is kept only when the redactor
-//! leaves it whole and it fits the bound; otherwise only its sha256 is kept and nothing
-//! continues.
+//! leaves it whole; otherwise only its sha256 is kept and nothing continues. Record size and
+//! settled-answer count impose no preparation quota. Historical `over_bound` records still
+//! cannot continue because the earlier engine did not keep their continuation.
 //!
 //! Record (JSON, schema 1, every key always written): `{"schema": 1, "request": <text>,
 //! "edit": null | {"path": null | <text>, "base": <text>, "change": <text>, "original": null
@@ -41,10 +42,11 @@ use super::{
 
 /// The round schema this engine writes and reads.
 pub const ROUND_SCHEMA: u64 = 1;
-/// The kept round's bound, serialized: far below a host journal's per-record bound. Over it,
-/// the continuation, knowledge and receipt are withheld; a round still over it is not kept.
+/// Historical serialized-round quota, retained for source compatibility only.
+/// Current capture and replay impose no record-size quota.
 pub const ROUND_LIMIT: usize = 256 * 1024;
-/// The most answers a kept round carries; a round with more is kept and never continued.
+/// Historical settled-answer quota, retained for source compatibility only.
+/// Current replay validates every answer without a count limit.
 pub const MAX_ANSWERS: usize = 64;
 
 /// A text as kept: as displayed (exact, or redacted), and the sha256 of its exact original.
@@ -230,7 +232,7 @@ pub struct KeptPlan {
     pub sha256: String,
     /// The continuation, when kept whole.
     pub value: Option<Value>,
-    /// Why it was withheld: `over_bound` · `redacted`.
+    /// Why it was withheld: `redacted`, or `over_bound` in historical records.
     pub withheld: Option<String>,
 }
 
@@ -308,7 +310,7 @@ pub enum Unusable {
     Withheld(String),
     /// A kept value no longer matches the sha256 recorded with it (damaged or edited).
     Altered(&'static str),
-    /// More answers than a round may carry.
+    /// Historical answer-count refusal, retained for source compatibility; no longer emitted.
     TooManyAnswers(usize),
     /// No question waited.
     NoQuestion,
@@ -333,7 +335,7 @@ impl std::fmt::Display for Unusable {
             Self::TooManyAnswers(n) => {
                 write!(
                     f,
-                    "it carries {n} answers; a round carries at most {MAX_ANSWERS}"
+                    "an earlier engine refused its {n} answers under a historical count limit"
                 )
             }
             Self::NoQuestion => write!(f, "no question waited in it"),
@@ -343,16 +345,13 @@ impl std::fmt::Display for Unusable {
 
 impl RoundRecord {
     /// Whether this round can be continued: every executable text exact, the continuation kept
-    /// whole (or never settled), at most [`MAX_ANSWERS`] answers, a question or kept plan waiting.
+    /// whole (or never settled), every answer checked, a question or kept plan waiting.
     ///
     /// # Errors
     /// Why it cannot ([`Unusable`]).
     pub fn continuable(&self) -> Result<(), Unusable> {
         if !self.request.is_exact() {
             return Err(Unusable::Redacted("request"));
-        }
-        if self.answers.len() > MAX_ANSWERS {
-            return Err(Unusable::TooManyAnswers(self.answers.len()));
         }
         if self.answers.iter().any(|a| !a.literal.is_exact()) {
             return Err(Unusable::Redacted("answer"));
@@ -1035,22 +1034,11 @@ impl<'r> Capture<'r> {
         (self.redact)(&text) == text
     }
 
-    /// The record value, bounded: over [`ROUND_LIMIT`] the continuation is withheld and the
-    /// knowledge and receipt dropped; a round still over it is not kept (`None`).
+    /// The complete record value, with no size quota. Redaction decisions made during capture
+    /// remain intact. The optional return type is retained for source compatibility.
     #[must_use]
-    pub fn finish(mut self) -> Option<Value> {
-        let within = |value: &Value| value.to_string().len() <= ROUND_LIMIT;
-        let value = self.record.to_value();
-        if within(&value) {
-            return Some(value);
-        }
-        if let Some(plan) = self.record.continuation.as_mut() {
-            plan.value = None;
-            plan.withheld = Some("over_bound".to_owned());
-        }
-        self.record.knowledge = None;
-        self.record.authoring_receipt = None;
-        Some(self.record.to_value()).filter(within)
+    pub fn finish(self) -> Option<Value> {
+        Some(self.record.to_value())
     }
 }
 

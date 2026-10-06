@@ -37,15 +37,6 @@ use crate::{
     Strategy,
 };
 
-/// The clause questions one verification attempt asks at most (R4 A11, nv1b): one `judge_clause`
-/// question per statement of each pending clause, so the authority's review can bound every
-/// request a compile sends (`authority::worst_case`). Past the cap the remaining clauses are never
-/// asked: they stay unknown, nothing is READY on them, and the finding names the cap. Measured
-/// keyless on 2026-09-29: at most 2 per attempt in the 5 recorded COLD verification attempts of the
-/// PILOT14 live rows and the DSR live proof, at most 4 in the 201 attempts of the compile and
-/// cognition suites; the cap is twice the largest.
-pub(crate) const CLAUSE_QUESTIONS: usize = 8;
-
 /// The questions the whole-request judgment asks at most ([`whole`]): the verdict, then, when
 /// unfaithful, the part the candidate misses.
 pub(crate) const WHOLE_QUESTIONS: usize = 2;
@@ -95,8 +86,6 @@ pub(super) struct Verdict {
     /// Duties the core named that no element of the plan carries, with their kind ([`silent`]):
     /// repaired from as the judge's defects are, but no judge was asked (B21 T3).
     pub(super) named: Vec<(String, String)>,
-    /// Clauses past the clause-question cap ([`CLAUSE_QUESTIONS`]): never asked, so unknown too.
-    pub(super) capped: Vec<String>,
 }
 
 impl Verdict {
@@ -333,7 +322,6 @@ fn parts(intent: &str) -> Vec<String> {
             parts.push(part.to_owned());
         }
     }
-    parts.truncate(16);
     parts
 }
 
@@ -506,19 +494,13 @@ async fn verdict_on<P: ProviderInferDyn>(
     }
     let grounding = grounding(Some(candidate));
     verdict.reference = grounding.record;
-    let mut budget = CLAUSE_QUESTIONS;
     for (k, open) in open.iter().enumerate() {
         if open.spans.is_empty() {
             verdict.unknown.push(open.clause.clone());
         } else if open.spans == [(0, intent.len())] {
             let asked = (&base, grounding.text.as_str());
             whole(intent, asked, judge, &binding, &mut verdict, out).await;
-        } else if !verdict.capped.is_empty() || open.spans.len() > budget {
-            // Past the cap: the clause and every later one are never asked, never judged silently.
-            verdict.unknown.push(open.clause.clone());
-            verdict.capped.push(open.clause.clone());
         } else {
-            budget -= open.spans.len();
             let asked = (k, &base, &binding, grounding.text.as_str());
             judge_clause(open, asked, judge, &mut verdict, out).await;
         }
@@ -868,15 +850,9 @@ fn blocked(out: &mut CompileOutcome, verdict: &Verdict, repairs: usize) {
         );
     }
     for unknown in &verdict.unknown {
-        let message = if verdict.capped.contains(unknown) {
-            format!(
-                "The judge was not asked `{unknown}`: this verification attempt had already asked its {CLAUSE_QUESTIONS} clause questions, the most one attempt asks so that the review a caller signs bounds every request; nothing is READY on it. Next: a request stating fewer separate clauses, or its parts compiled apart."
-            )
-        } else {
-            format!(
-                "The judge could not settle `{unknown}` against the candidate (it abstained or its call failed); nothing is READY on it. Next: a judge that answers, or a restatement the deterministic reader reads."
-            )
-        };
+        let message = format!(
+            "The judge could not settle `{unknown}` against the candidate (it abstained or its call failed); nothing is READY on it. Next: a judge that answers, or a restatement the deterministic reader reads."
+        );
         crate::finding(
             out,
             DiagnosticKind::Unknown,
@@ -1249,8 +1225,14 @@ mod tests {
     use super::{grounding, parts};
     use serde_json::json;
 
-    /// Approves every verifier question: `faithful` for the whole request, `carried` for a clause.
-    struct Approving;
+    /// Approves clauses except the explicitly missing one, and approves the whole request.
+    /// The conflicting whole verdict must never erase a clause's concrete defect.
+    #[derive(Default)]
+    struct Approving {
+        missing: Option<usize>,
+        locate: Option<&'static str>,
+        clauses: std::sync::atomic::AtomicUsize,
+    }
 
     impl nika_kernel::ai::provider::ProviderInferDyn for Approving {
         async fn infer(
@@ -1270,7 +1252,20 @@ mod tests {
             };
             let keys = schema["properties"]["choice"]["enum"].to_string();
             let key = if keys.contains("faithful") {
-                "faithful"
+                if self.locate.is_some() {
+                    "unfaithful"
+                } else {
+                    "faithful"
+                }
+            } else if keys.contains("another_part") {
+                self.locate.unwrap()
+            } else if self.missing
+                == Some(
+                    self.clauses
+                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst),
+                )
+            {
+                "missing"
             } else {
                 "carried"
             };
@@ -1284,11 +1279,9 @@ mod tests {
         }
     }
 
-    /// One verification attempt asks at most 8 clause questions (nv1b, R4 A11): past the cap,
-    /// the remaining clauses are not asked; they stay unknown, so nothing is READY, and the
-    /// blocked finding names the cap. The whole-request question is still asked.
-    #[tokio::test]
-    async fn clause_questions_past_the_cap_stay_unknown_and_name_the_cap() {
+    async fn ten_clauses<P: nika_kernel::ai::provider::ProviderInferDyn>(
+        provider: &P,
+    ) -> (Vec<String>, super::Verdict, crate::CompileOutcome) {
         let clauses: Vec<String> = (0..10).map(|k| format!("clause number {k}")).collect();
         let intent = clauses.join(", ");
         let mut open: Vec<serde_json::Value> = Vec::new();
@@ -1300,28 +1293,60 @@ mod tests {
         }
         open.push(json!({"clause": intent, "witness": null, "spans": [[0, intent.len()]]}));
         let mut settled = crate::initial();
-        settled.candidate = Some("nika: capped\n".to_owned());
+        settled.candidate = Some("nika: all-clauses\n".to_owned());
         settled.provenance.decision = Some(json!({"pending": {"open": open}}));
         let policy =
             crate::AuthoringPolicy::new("mock/judge", 256, std::time::Duration::from_secs(2));
-        let judge = super::Judge::Provider(&policy, &Approving);
+        let judge = super::Judge::Provider(&policy, provider);
         let request = crate::CompileRequest::create(intent.as_str());
         let plan = crate::plan::Plan::default();
         let mut out = crate::initial();
         let verdict = super::verdict_on(&intent, &request, &plan, &settled, &judge, &mut out).await;
-        let asked = |role: &str| verdict.records.iter().filter(|r| r["role"] == role).count();
-        assert_eq!(asked("judge_clause"), 8, "{:?}", verdict.records);
-        assert_eq!(asked("judge_request"), 1, "{:?}", verdict.records);
-        assert_eq!(verdict.unknown, clauses[8..].to_vec());
-        super::blocked(&mut out, &verdict, 0);
-        let told: Vec<&str> = out.diagnostics.iter().map(|d| d.message.as_str()).collect();
-        for clause in &clauses[8..] {
-            assert!(
-                told.iter()
-                    .any(|m| m.contains(clause.as_str()) && m.contains("8 clause questions")),
-                "{told:?}"
-            );
+        (clauses, verdict, out)
+    }
+
+    #[tokio::test]
+    async fn every_clause_is_judged_and_a_missing_ninth_clause_blocks() {
+        for missing in [None, Some(8)] {
+            let provider = Approving {
+                missing,
+                ..Approving::default()
+            };
+            let (clauses, verdict, mut out) = ten_clauses(&provider).await;
+            let asked = |role: &str| verdict.records.iter().filter(|r| r["role"] == role).count();
+            assert_eq!(asked("judge_clause"), 10, "{:?}", verdict.records);
+            assert_eq!(asked("judge_request"), 1, "{:?}", verdict.records);
+            assert!(verdict.unknown.is_empty());
+            let defects: Vec<String> = missing
+                .into_iter()
+                .map(|index| clauses[index].clone())
+                .collect();
+            assert_eq!(verdict.defects, defects);
+            super::blocked(&mut out, &verdict, 0);
+            if let Some(index) = missing {
+                assert!(
+                    out.diagnostics
+                        .iter()
+                        .any(|d| d.target == "semantic_verification"
+                            && d.message.contains(&clauses[index]))
+                );
+            } else {
+                assert!(out.diagnostics.is_empty(), "{out:#?}");
+            }
         }
+    }
+
+    #[tokio::test]
+    async fn every_clause_still_obeys_the_explicit_judge_authority() {
+        let authority = std::sync::Arc::new(crate::authority::Envelope::new(8, "test bound"));
+        let provider = crate::authority::Seat::new(Approving::default(), authority.clone());
+        let (clauses, verdict, _) = ten_clauses(&provider).await;
+        assert_eq!(authority.account(), json!({"sent": 8, "refused": 3}));
+        for clause in &clauses[8..] {
+            assert!(verdict.unknown.contains(clause));
+        }
+        assert!(verdict.unknown.contains(&clauses.join(", ")));
+        assert_eq!(verdict.consumed, 8);
     }
 
     /// A located part is the request's own phrase: punctuation cuts only where it ends a phrase,
@@ -1343,6 +1368,50 @@ mod tests {
             parts("sum qty per status. Then write it to ./out/a.json."),
             ["sum qty per status", "Then write it to ./out/a.json"]
         );
+    }
+
+    #[tokio::test]
+    async fn localization_offers_and_binds_the_seventeenth_and_twentieth_parts() {
+        let clauses: Vec<String> = (0..20)
+            .map(|k| format!("write clause {k} to ./out/part-{k}.json"))
+            .collect();
+        let intent = clauses.join("; ");
+        assert_eq!(parts(&intent), clauses);
+        let request = crate::CompileRequest::create(intent.as_str());
+        let plan = crate::plan::Plan::default();
+        let candidate = "nika: localization\n";
+        let binding = super::Binding::of(&intent, &request, &plan, candidate);
+        let base = super::state(&intent, &request, candidate);
+        let policy =
+            crate::AuthoringPolicy::new("mock/judge", 256, std::time::Duration::from_secs(2));
+        for (index, key) in [(16, "part-16"), (19, "part-19")] {
+            let provider = Approving {
+                locate: Some(key),
+                ..Approving::default()
+            };
+            let judge = super::Judge::Provider(&policy, &provider);
+            let mut verdict = super::Verdict::default();
+            let mut out = crate::initial();
+            super::whole(
+                &intent,
+                (&base, "fixture"),
+                &judge,
+                &binding,
+                &mut verdict,
+                &mut out,
+            )
+            .await;
+            assert_eq!(verdict.defects, [clauses[index].clone()]);
+            assert!(verdict.unknown.is_empty());
+            assert_eq!(verdict.records.len(), 2);
+            let located = &verdict.records[1];
+            assert_eq!(located["question"], "verify-locate");
+            assert_eq!(located["choice"], key);
+            assert_eq!(located["options"].as_array().unwrap().len(), 22);
+            for k in 0..20 {
+                assert_eq!(located["options"][k], format!("part-{k}"));
+            }
+        }
     }
 
     /// The reference selects its contracts by the checker's capability inference over the

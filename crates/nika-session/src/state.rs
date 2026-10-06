@@ -10,7 +10,7 @@
 //! reads it at open). What was pending at close never regains authority
 //! (ADR-133): the record says what it was, the door says it expired.
 
-use std::io;
+use std::io::{self, BufReader};
 use std::path::{Path, PathBuf};
 
 use nika_fs::OwnedDir;
@@ -19,8 +19,6 @@ use serde::{Deserialize, Serialize};
 /// The record's name under the project's `.nika/`.
 pub const STATE_FILE: &str = "session-state.json";
 const NIKA_DIR: &str = ".nika";
-/// The most bytes a reader takes from the record (a bound, not a quota).
-const MAX_STATE_BYTES: u64 = 1024 * 1024;
 
 /// What waits for the human, as it was when the record was written. A
 /// proposal is never here: nothing is written before its consent, and it
@@ -96,19 +94,17 @@ impl SessionState {
     /// no session ever wrote one there.
     ///
     /// # Errors
-    /// A record beyond 1 MiB, of another format, or that is not this
-    /// record; the file system's refusal. Nothing is rewritten.
+    /// A record of another format, malformed data, or the file system's refusal.
+    /// Nothing is rewritten; accumulated Session state has no fixed byte quota.
     pub fn load(root: &Path) -> io::Result<Option<Self>> {
-        let over = "the session record exceeds 1 MiB";
-        let text = match OwnedDir::open(root)
-            .and_then(|dir| dir.read_capped_below(&[NIKA_DIR], STATE_FILE, MAX_STATE_BYTES, over))
+        let file = match OwnedDir::open(root)
+            .and_then(|dir| dir.open_relative(&Path::new(NIKA_DIR).join(STATE_FILE)))
         {
-            Ok(Some(text)) => text,
-            Ok(None) => return Ok(None),
+            Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(error),
         };
-        let state: Self = serde_json::from_str(&text)?;
+        let state: Self = serde_json::from_reader(BufReader::new(file))?;
         if state.version != Self::VERSION {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -131,9 +127,6 @@ impl SessionState {
     pub fn save(&self, root: &Path) -> io::Result<()> {
         let dir = OwnedDir::open(root)?.create_below(&[NIKA_DIR])?;
         let text = serde_json::to_string_pretty(self)?;
-        if text.len() as u64 >= MAX_STATE_BYTES {
-            return Err(io::Error::other("the session record exceeds 1 MiB"));
-        }
         dir.write_atomic(STATE_FILE, &format!("{text}\n"))
     }
 }
@@ -182,6 +175,23 @@ mod tests {
         assert!(
             !text.contains("\"pending\"") && !text.contains("\"goal\""),
             "an absent value is absent, not null: {text}"
+        );
+    }
+
+    #[test]
+    fn accumulated_state_roundtrips_beyond_the_old_mebibyte_quota() {
+        let root = tempfile::tempdir().expect("root");
+        let mut state = SessionState::new("2026-10-06T00:00:00Z".to_owned());
+        state.goal = Some("An original requirement. ".repeat(50_000));
+        state
+            .decisions
+            .push("preserve every requirement".to_owned());
+        state.save(root.path()).expect("large state saved");
+        let path = root.path().join(NIKA_DIR).join(STATE_FILE);
+        assert!(std::fs::metadata(path).expect("record").len() > 1024 * 1024);
+        assert_eq!(
+            SessionState::load(root.path()).expect("reopen"),
+            Some(state)
         );
     }
 

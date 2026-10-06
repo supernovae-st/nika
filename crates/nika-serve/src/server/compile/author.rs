@@ -6,8 +6,8 @@
 //!
 //! A fresh round takes a compile slot, then a place for the round it may leave, before any
 //! provider call; both live inside the blocking work, so a caller that disconnected or timed
-//! out never frees a slot or a place still in use. Its deadline is ABSOLUTE, fixed when it is
-//! admitted: a round that starts late (a busy blocking pool) never gets a fresh window, and a
+//! out never frees a slot or a place still in use. An explicit deadline is absolute, fixed at
+//! admission: a round that starts late (a busy blocking pool) never gets a fresh window, and a
 //! round that must already stop never begins. The stop — that deadline, or the server stopping
 //! — is checked before the work begins, raced against it, and checked again before every
 //! provider call; an outcome that arrives once the round must stop is never answered or kept.
@@ -66,11 +66,11 @@ impl From<ContextChanged> for Refusal {
     }
 }
 
-/// When a round must stop: at the absolute deadline it was admitted with, or when its server
-/// stops.
+/// When a round must stop: at any explicit absolute deadline it was admitted with, or when
+/// its server stops.
 #[derive(Clone)]
 struct Stop {
-    deadline: Instant,
+    deadline: Option<Instant>,
     halt: tokio::sync::watch::Receiver<bool>,
 }
 
@@ -79,7 +79,10 @@ impl Stop {
     fn now(&self) -> Option<Refusal> {
         if *self.halt.borrow() {
             Some(Refusal::Stopping)
-        } else if Instant::now() >= self.deadline {
+        } else if self
+            .deadline
+            .is_some_and(|deadline| Instant::now() >= deadline)
+        {
             Some(Refusal::Deadline)
         } else {
             None
@@ -93,7 +96,12 @@ impl Stop {
             return refusal;
         }
         tokio::select! {
-            () = tokio::time::sleep_until(self.deadline) => Refusal::Deadline,
+            () = async {
+                match self.deadline {
+                    Some(deadline) => tokio::time::sleep_until(deadline).await,
+                    None => std::future::pending().await,
+                }
+            } => Refusal::Deadline,
             _ = self.halt.wait_for(|halted| *halted) => Refusal::Stopping,
         }
     }
@@ -184,11 +192,18 @@ async fn fresh(
         return replay_capacity().into_response();
     };
     // One absolute deadline, fixed at admission: a late start never gets a fresh window.
+    let deadline = match bounds.deadline {
+        Some(wait) => match Instant::now().checked_add(wait) {
+            Some(deadline) => Some(deadline),
+            None => return super::limit().into_response(),
+        },
+        None => None,
+    };
     let stop = Stop {
-        deadline: Instant::now() + bounds.deadline,
+        deadline,
         halt: seat.halted(),
     };
-    let handoff = stop.deadline + HANDOFF;
+    let handoff = deadline.map(|deadline| deadline.checked_add(HANDOFF).unwrap_or(deadline));
     #[cfg(test)]
     let before_compile = Arc::clone(&state.before_compile);
     let runtime = tokio::runtime::Handle::current();
@@ -206,10 +221,16 @@ async fn fresh(
     });
     // Past the deadline and its handoff the caller hears « stopped »: the work, if it has not
     // begun, never will (its stop is absolute), and nothing it produces is answered or kept.
-    match tokio::time::timeout_at(handoff, work).await {
+    let joined = match handoff {
+        Some(deadline) => tokio::time::timeout_at(deadline, work)
+            .await
+            .map_err(|_| ()),
+        None => Ok(work.await),
+    };
+    match joined {
         Ok(Ok(response)) => response,
         Ok(Err(_)) => ApiError::internal().into_response(),
-        Err(_) => deadline_exceeded().into_response(),
+        Err(()) => deadline_exceeded().into_response(),
     }
 }
 
@@ -225,10 +246,14 @@ async fn author(
     let policy = seat
         .authoring
         .policy(&seat.model, bounds.max_tokens, bounds.call_timeout);
-    let policy = policy.map_err(|_| Refusal::Machinery)?;
-    let mut request = input
-        .request(answers)
-        .with_authoring_policy(policy.with_repairs(bounds.repairs));
+    let policy = policy
+        .map_err(|_| Refusal::Machinery)?
+        .with_initial_max_tokens(bounds.initial_tokens.min(bounds.max_tokens));
+    let policy = match bounds.repairs {
+        Some(repairs) => policy.with_repairs(repairs),
+        None => policy.with_unbounded_repairs(),
+    };
+    let mut request = input.request(answers).with_authoring_policy(policy);
     if let Some((snapshot, exclude)) = seat.context()? {
         let intent = match input {
             Input::Create { intent, .. } => Some(intent.clone()),
@@ -273,16 +298,6 @@ async fn author(
         backend["observed_models"] = serde_json::json!(gate.provider.observed());
         backend["unreported_models"] = serde_json::json!(gate.provider.unreported());
         backend["authority"] = authority.record(&invocations, Some(&requests));
-        // The server's default repair preference is finite even when it was not typed.
-        let configured = &mut backend["authority"]["configured"];
-        configured["repairs"] = bounds.repairs.into();
-        configured["worst_case"] = nika_onboard::compile::authority::worst_case(
-            nika_cli_host::compile::config::DEFAULT_STRATEGY,
-            1,
-            bounds.repairs,
-            false,
-        )
-        .into();
         receipt.backend = Some(backend);
     }
     Ok(outcome)
@@ -330,7 +345,7 @@ async fn replay(
         return super::busy().into_response();
     };
     let stop = Stop {
-        deadline,
+        deadline: Some(deadline),
         halt: seat.halted(),
     };
     #[cfg(test)]
@@ -418,7 +433,7 @@ fn replay_capacity() -> ApiError {
     ApiError::new(
         StatusCode::SERVICE_UNAVAILABLE,
         "compile_replay_capacity",
-        "every kept answer round is in use; nothing was authored or spent — retry later",
+        "the operator's explicit kept-round capacity is full; nothing was authored or spent",
     )
 }
 
@@ -426,7 +441,7 @@ fn replay_unavailable() -> ApiError {
     ApiError::new(
         StatusCode::CONFLICT,
         "compile_replay_unavailable",
-        "this server keeps no round under that token (unknown, expired, or kept by another server run); author again with explicitProvider",
+        "this server run keeps no round under that token (unknown, past an explicit lifetime, or kept by another server run); author again with explicitProvider",
     )
 }
 

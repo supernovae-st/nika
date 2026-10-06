@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Bounded records of authored programs kept by a conversation. These are evidence keyed by
-//! exact candidate bytes, never authorization. The compiler must reconstruct and judge each
+//! Records of authored programs kept by a conversation, without count or byte quotas.
+//! These are evidence keyed by exact candidate bytes, never authorization. The compiler
+//! must reconstruct and judge each
 //! record again under the current request, observation and admission before it can revise it.
 //! Unknown envelopes stay unchanged. Records changed by redaction are withheld entirely.
 
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
-
-const LIMIT: usize = 256 * 1024;
-const ENTRIES: usize = 16;
 
 /// Which reviewed proposal or saved project file the program answered. Identical bytes at
 /// another place do not imply the same request or prohibitions; a proposal is not a Save.
@@ -62,13 +60,12 @@ pub fn original(plan: &Value) -> Option<&str> {
 
 fn entries(raw: &Value) -> Option<&Vec<Value>> {
     let map = raw.as_object()?;
-    if map.len() != 3 || raw["version"] != 1 || raw.to_string().len() > LIMIT {
+    if map.len() != 3 || raw["version"] != 1 {
         return None;
     }
     let rows = raw.get("entries")?.as_array()?;
     let last = raw.get("last_saved")?;
-    (rows.len() <= ENTRIES && (last.is_null() || last.as_str().is_some_and(relative)))
-        .then_some(rows)
+    (last.is_null() || last.as_str().is_some_and(relative)).then_some(rows)
 }
 
 fn relative(path: &str) -> bool {
@@ -82,7 +79,7 @@ fn relative(path: &str) -> bool {
         })
 }
 
-/// The whole plan bound to `source`, or none when missing, redacted, oversized or damaged.
+/// The whole plan bound to `source`, or none when missing, redacted or damaged.
 /// A host must send this only to EDIT with those exact bytes; it grants no carried knowledge,
 /// account, consent or permission. A fresh compiler call revalidates the complete pair.
 #[must_use]
@@ -101,7 +98,7 @@ pub fn plan(raw: Option<&Value>, place: Place<'_>, source: &str) -> Option<Value
 }
 
 /// Remember a compiler plan beside the exact bytes it emitted, before or after Save. The
-/// newest sixteen records fit within 256 KiB. An oversized/redacted plan is not stored; the
+/// evidence is not evicted to meet a count or byte quota. A redacted plan is not stored; the
 /// earlier evidence remains. No record is a live proposal or a permission after reopening.
 pub fn remember(
     raw: &mut Option<Value>,
@@ -121,7 +118,7 @@ pub fn remember(
         return;
     };
     let text = candidate_plan.to_string();
-    if text.len() > LIMIT / 2 || redact(&text) != text {
+    if redact(&text) != text {
         return;
     }
     if raw.as_ref().is_some_and(|raw| entries(raw).is_none()) {
@@ -138,15 +135,6 @@ pub fn remember(
         row["place"] != key || row["candidate_sha256"].as_str() != Some(hash.as_str())
     });
     rows.push(json!({"place": key, "candidate_sha256": hash, "plan_sha256": sha(&text), "plan": candidate_plan}));
-    while rows.len() > ENTRIES {
-        rows.remove(0);
-    }
-    while next.to_string().len() > LIMIT {
-        let Some(rows) = next["entries"].as_array_mut().filter(|rows| rows.len() > 1) else {
-            return;
-        };
-        rows.remove(0);
-    }
     *raw = Some(next);
 }
 
@@ -175,12 +163,7 @@ pub fn saved(
     if let Some(next) = next.as_mut() {
         next["last_saved"] = json!(path);
     }
-    if next
-        .as_ref()
-        .is_some_and(|next| next.to_string().len() <= LIMIT)
-    {
-        *raw = next;
-    }
+    *raw = next;
 }
 
 /// The previous Save's conversational selection, read without executing or approving it.
@@ -241,7 +224,7 @@ mod tests {
     }
 
     #[test]
-    fn records_are_bounded_redacted_and_future_envelopes_stay_opaque() {
+    fn records_are_not_evicted_and_integrity_redaction_and_version_checks_remain() {
         let mut raw = None;
         for n in 0..20 {
             let source = format!("program {n}");
@@ -253,7 +236,13 @@ mod tests {
                 &str::to_owned,
             );
         }
-        assert!(plan(raw.as_ref(), Place::Proposal("p"), "program 0").is_none());
+        for n in 0..20 {
+            let source = format!("program {n}");
+            assert_eq!(
+                plan(raw.as_ref(), Place::Proposal("p"), &source),
+                Some(record(&source, "work"))
+            );
+        }
         assert!(plan(raw.as_ref(), Place::Proposal("p"), "program 19").is_some());
         let before = raw.clone();
         remember(
@@ -266,7 +255,7 @@ mod tests {
         assert_eq!(raw, before);
         let mut damaged = raw.clone();
         if let Some(raw) = damaged.as_mut() {
-            raw["entries"][15]["plan"]["extra"] = json!(true);
+            raw["entries"][19]["plan"]["extra"] = json!(true);
         }
         assert!(plan(damaged.as_ref(), Place::Proposal("p"), "program 19").is_none());
         let future = json!({"version": 2, "entries": [], "last_saved": "workflow.nika"});
@@ -289,7 +278,7 @@ mod tests {
     }
 
     #[test]
-    fn historical_world_is_kept_whole_within_existing_program_record_bounds() {
+    fn historical_world_is_kept_whole_beyond_the_former_plan_and_envelope_quotas() {
         let source = "exact program";
         let mut raw = None;
         let mut small = record(source, "read input and write output");
@@ -305,17 +294,16 @@ mod tests {
         );
         saved(&mut raw, "a.nika", source, "p", &str::to_owned);
         let text = raw.as_ref().map(Value::to_string).unwrap_or_default();
-        assert!(text.len() <= LIMIT);
         let reopened = serde_json::from_str(&text).ok();
         assert_eq!(
             plan(reopened.as_ref(), Place::Saved("a.nika"), source),
             Some(small.clone())
         );
-        let before = raw.clone();
-        let mut large = small;
+        let mut large = small.clone();
         large["basis"]["world"] = crate::observed::basis::keep(Some(&json!({
-            "observed": [{"path": "./in.json", "value": "x".repeat(LIMIT / 2)}],
+            "observed": [{"path": "./in.json", "value": "x".repeat(512 * 1024)}],
         })));
+        assert!(large.to_string().len() > 256 * 1024);
         remember(
             &mut raw,
             Place::Proposal("large"),
@@ -323,10 +311,65 @@ mod tests {
             Some(&large),
             &str::to_owned,
         );
+        saved(&mut raw, "large.nika", source, "large", &str::to_owned);
+        let encoded = raw.as_ref().map(Value::to_string).unwrap_or_default();
+        assert!(encoded.len() > 256 * 1024);
+        let reopened = serde_json::from_str(&encoded).ok();
+        assert_eq!(last_saved(reopened.as_ref()), Some("large.nika"));
         assert_eq!(
-            raw, before,
-            "the whole oversized plan is withheld; history is never truncated"
+            plan(reopened.as_ref(), Place::Proposal("large"), source),
+            Some(large.clone())
         );
-        assert!(plan(raw.as_ref(), Place::Proposal("large"), source).is_none());
+        assert_eq!(
+            plan(reopened.as_ref(), Place::Saved("large.nika"), source),
+            Some(large)
+        );
+        assert_eq!(
+            plan(reopened.as_ref(), Place::Saved("a.nika"), source),
+            Some(small),
+            "storing the large record leaves the earlier saved evidence intact"
+        );
+    }
+
+    #[test]
+    fn every_saved_program_and_its_proposal_remain_readable_after_reopen() {
+        let mut raw = None;
+        for n in 0..24 {
+            let source = format!("exact program {n}");
+            let proposal = format!("proposal-{n}");
+            remember(
+                &mut raw,
+                Place::Proposal(&proposal),
+                &source,
+                Some(&record(&source, &format!("request {n}"))),
+                &str::to_owned,
+            );
+            saved(
+                &mut raw,
+                &format!("workflow-{n}.nika"),
+                &source,
+                &proposal,
+                &str::to_owned,
+            );
+        }
+        let encoded = raw.as_ref().map(Value::to_string).unwrap_or_default();
+        let reopened: Option<Value> = serde_json::from_str(&encoded).ok();
+        assert_eq!(last_saved(reopened.as_ref()), Some("workflow-23.nika"));
+        assert_eq!(
+            reopened.as_ref().map(|raw| &raw["version"]),
+            Some(&json!(1))
+        );
+        for n in 0..24 {
+            let source = format!("exact program {n}");
+            let proposal = format!("proposal-{n}");
+            let path = format!("workflow-{n}.nika");
+            let expected = record(&source, &format!("request {n}"));
+            for place in [Place::Proposal(&proposal), Place::Saved(&path)] {
+                assert_eq!(
+                    plan(reopened.as_ref(), place, &source),
+                    Some(expected.clone())
+                );
+            }
+        }
     }
 }

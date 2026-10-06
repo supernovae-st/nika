@@ -111,8 +111,13 @@ async fn a_stopping_server_cancels_and_joins_its_native_rounds_before_it_returns
     // A plan that leaves a part open: an un-cancelled round would send its sketch once released.
     let limits = compile_limits();
     let slots = limits.max_compile_requests();
-    let (server, _backend, state) =
-        start_native_observed(&world, limits, operator(&seat), None).await;
+    let (server, _backend, state) = start_native_observed(
+        &world,
+        limits,
+        NativeAuthoring::new(SEAT, seat.providers()),
+        None,
+    )
+    .await;
     let mut caller = tokio::net::TcpStream::connect(server.address)
         .await
         .expect("connect");

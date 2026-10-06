@@ -351,6 +351,31 @@ fn tree(root: &Path) -> Vec<(String, Vec<u8>)> {
     out
 }
 
+/// Large draft bytes survive close/reopen and can be reviewed again without a model call.
+#[test]
+fn a_large_pending_draft_is_kept_and_reproposed_without_losing_its_text() {
+    let root = project();
+    let home = tempfile::tempdir().expect("home");
+    let after = format!(
+        "nika: kept-update\n# {}\ntasks: {{}}\n",
+        "draft detail ".repeat(24_000)
+    );
+    assert!(after.len() > 256 * 1024);
+    closed_with_an_update(root.path(), home.path(), BASE, &after);
+    let (mut resumed, seen) = open(root.path(), &[ANSWER]);
+    resumed.enable_history(home.path()).expect("resume");
+    let draft = kept(&resumed);
+    assert_eq!(draft.files[0].text.as_deref(), Some(after.as_str()));
+    let _ = proposed(resumed.repropose_restored_draft());
+    let proposed_text = resumed.pending.as_ref().expect("proposal").changes[0].content();
+    assert_eq!(proposed_text, after);
+    assert_eq!(
+        std::fs::read_to_string(root.path().join(LANDED)).expect("original"),
+        BASE
+    );
+    assert!(seen.lock().expect("calls").is_empty());
+}
+
 const BASE: &str = "nika: kept-base\ntasks: {}\n";
 const UPDATED: &str = "nika: kept-update\ntasks: {}\n";
 

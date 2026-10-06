@@ -5,7 +5,7 @@
 
 use crate::composer::Composer;
 use crate::model::{Presentation, UiState};
-use crate::render::{block_lines, live_rows, wrapped_rows};
+use crate::render::{block_lines, content_rows, live_rows};
 use crate::workspace::{cards, desk::Desk, focus::Region, geometry::Geometry, screen};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -71,7 +71,7 @@ fn maximum(state: &UiState, desk: &Desk, composer: &Composer) -> usize {
                     .chain([ratatui::text::Line::default()])
             })
             .collect();
-        usize::from(wrapped_rows(&lines, area.width))
+        content_rows(&lines, area.width)
     };
     rows.saturating_sub(usize::from(area.height))
 }
@@ -158,6 +158,49 @@ mod tests {
                 state.observe_activity("a new update");
             });
             assert_eq!(state.focus_scroll, 0);
+        }
+    }
+
+    #[test]
+    fn content_past_u16_rows_keeps_both_ends_reachable_in_both_presentations() {
+        let text = (0..70_000)
+            .map(|n| format!("line {n:05}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        for presentation in [Presentation::Workspace, Presentation::Focus] {
+            let mut state = UiState::new(presentation, false, (120, 40));
+            state.transcript.push(Committed::new(Kind::Reply, &text));
+            let desk = Desk::new();
+            let composer = Composer::new();
+            let viewport = area(&state, &desk, &composer);
+            let mut terminal = Terminal::new(TestBackend::new(120, 40)).expect("terminal");
+            let paint = |terminal: &mut Terminal<TestBackend>, state: &UiState| {
+                terminal
+                    .draw(|frame| crate::render::render_transcript(frame, state, viewport))
+                    .expect("window draws");
+                let b = terminal.backend().buffer();
+                (viewport.y..viewport.bottom())
+                    .map(|y| {
+                        (viewport.x..viewport.right())
+                            .map(|x| b[(x, y)].symbol())
+                            .collect::<String>()
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            };
+            assert!(paint(&mut terminal, &state).contains("line 69999"));
+            rows(&mut state, &desk, &composer, true, usize::MAX);
+            assert!(state.focus_scroll > usize::from(u16::MAX));
+            assert!(paint(&mut terminal, &state).contains("line 00000"));
+            rows(&mut state, &desk, &composer, false, 35_000);
+            assert!(paint(&mut terminal, &state).contains("line 35001"));
+            assert!(end(
+                &mut state,
+                &desk,
+                KeyEvent::new(KeyCode::End, KeyModifiers::NONE)
+            ));
+            assert!(paint(&mut terminal, &state).contains("line 69999"));
+            assert_eq!(state.transcript[0].text, text);
         }
     }
 

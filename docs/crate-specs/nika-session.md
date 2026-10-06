@@ -145,8 +145,10 @@ capability admission, not a generic claim about ACP read-only modes. Codex
 keeps its existing authoring refusal until pre-execution tool disabling is
 attested. The whole answer reaches Compiler validation; no JSON prefix is extracted.
 
-ACP uses the same bounded Compiler call/repair policy and the same subscription
-monetary guards. The existing `harness_infer` receipt class carries an explicit
+ACP uses the same selected Compiler policy as API authoring. Interactive preparation
+has no implicit total call, repair or monetary bound; callers using the historical
+bounded Session surface retain its policy and subscription monetary guards. The
+existing `harness_infer` receipt class carries an explicit
 `transport: acp`, preserving clarification replay. Configured/accepted session
 models are recorded separately from a responding model, which remains unknown.
 Token usage and the subscription invoice remain unknown; no zero-priced API
@@ -221,14 +223,18 @@ Subscription authorization is not billed-provider admission. An explicit
 subscription selection suspends a retained API allowance without clearing its
 identity, settlements, reservations or uncertainty. Only that selected subscription
 uses its normal non-API door; its invoice remains unknown and no API fallback is
-admitted. A saved selection has the same separation after reopening. Returning
-to API requires a fresh total on the same complete account; historical uncertainty
+admitted. A saved selection has the same separation after reopening. For the
+historical bounded Session surface, returning to API requires a fresh total on
+the same complete account; historical uncertainty
 still cannot become a new numeric allowance. A USD ceiling stated while the
 subscription is selected blocks its cognition and is kept as a monetary restriction
 across reopening. Explicitly reselecting the subscription explains its unknown
 invoice and clears only this restriction, never API exposure. Invalid money,
-project zero and a pending gate still block cognition. This adds no subscription
-account or numeric price. A proposal still requires fresh review and
+project zero and a pending gate still block cognition on that bounded surface.
+Continuous preparation observes the selected subscription's unknown invoice and
+retained API exposure without those monetary gates; this supplies no credit and
+changes no Run constraint. This adds no subscription account or numeric price.
+A proposal still requires fresh review and
 consent, revisions expire the old identity, and authoring grants no Save or Run.
 
 Every authoring round observes the files its request names under the session's
@@ -275,6 +281,13 @@ factory again. An injected classifier retains its route, and a real classifier's
 failed or unknown answer still binds nothing. Reaching review grants no consent.
 
 ## Monetary admission
+
+The Session inference rules in this section describe the historical bounded
+embedding surface. The interactive CLI and TUI use continuous preparation instead:
+earlier exposure remains evidence, while monetary constraints govern the separate
+Save/Run review and execution. The Run rules below apply to both surfaces. See
+[Continuous interactive preparation](#continuous-interactive-preparation) for the
+current interactive defaults.
 
 Session reads explicit monetary intent before the compiler, classifier or
 reasoner sees new work, including Prepare. Currency or a monetary anchor gives
@@ -519,9 +532,12 @@ Each finite choice makes one attempt with a 20-second deadline and no transport
 retry. Interactive preparation has no implicit three-call ceiling. The selected
 service accompanies API, native subscription and ACP authoring through the same
 compiler capability. It can read ambiguous clauses, rank feasible plans and judge semantic
-fidelity, including locating a defect for the author to repair. It never selects Foundry
-knowledge or grants execution authority. A caller that explicitly supplies a monetary account keeps
-its existing admission rules; an unpriced decision never consumes that allowance.
+fidelity, including locating a defect for the author to repair. The current adapter does
+not perform Foundry retrieval; that role belongs to the accepted
+[cooperative target](../architecture/ARCHITECTURE-0.123.md) and needs separate
+implementation and qualification. It grants no execution authority. In the current
+implementation, a caller that explicitly supplies a monetary account keeps its
+existing admission rules; an unpriced decision never consumes that allowance.
 Billing units remain separate from tokens, with cost and invoice unknown.
 
 `nika/session-decision-seat@2` retains every attempt and closes the scope when its
@@ -575,7 +591,7 @@ a workflow, a reply or retrieved context.
 | `~/.nika/session-intelligence.json` | The kept choice (kind · model · time); a corrupt file reads as never chosen |
 | `NIKA_AUTHORING_STRATEGY` · `NIKA_KNOWLEDGE` · `NIKA_KNOWLEDGE_EXCLUDE` | The shared authoring configuration: a trusted named release or the embedded default is admitted and pinned when the context opens. Knowledge off attaches nothing; strategy off with no source is unread. `NIKA_KNOWLEDGE_PACK` is refused: a pack was composed for one request |
 | `NIKA_AUTHORING_REASONING` | The explicit reasoning effort every seated authoring call asks (`low` · `high` · `max`), through the same parser; a host's typed word outranks it |
-| `NIKA_AUTHORING_SOURCE_RECOVERY` | The operator’s explicit finite source recovery rounds, as a nonnegative integer (`0` or unset: none). Positive rounds are refused under `off` or `only`; invalid words refuse rather than silently becoming zero. These rounds use the same selected seat after structured exhaustion. Interactive preparation observes their costs without an extra monetary confirmation; explicitly bounded callers retain their chosen allowance and count. `/details` names the recovery route. |
+| `NIKA_AUTHORING_SOURCE_RECOVERY` | An optional explicit finite count of source recovery rounds, as a nonnegative integer. Positive rounds are refused under `off` or `only`; invalid words refuse. With a bounded repair policy, `0` or unset supplies no recovery rounds. Continuous preparation (`repairs: None`) can enter source recovery after an eligible structured failure even with `0` or unset, without an aggregate recovery count; provider failure, truncation and repeated diagnostics still end that attempt. Recovery uses the same selected seat and records its route in `/details`; its observed costs do not add a monetary confirmation. Explicitly bounded callers retain their allowance and count. |
 | `NIKA_SESSION_DECISION_MODEL` with `TYPESAFE_API_KEY` | The optional decision seat (`typesafe/<jev>` only) |
 | `NIKA_TUI` | `0` · `off` · `false` · `no` · `plain` keep bare `nika` on the plain loop |
 

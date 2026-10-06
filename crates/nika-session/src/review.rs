@@ -32,8 +32,6 @@ use crate::change::{ChangeError, ProjectChange, ProjectChangeSet, Witness};
 pub const WORKFLOWS_DIR: &str = "workflows";
 /// The id a candidate carries when the compiler named none it could read.
 const FALLBACK_ID: &str = "workflow";
-/// How many numbered twins a taken name may get before the door refuses.
-const MAX_TWINS: u32 = 99;
 
 pub(crate) fn parse(candidate: &str) -> Option<RawWorkflow> {
     nika_schema::parse(candidate, FileId::new(0), ParseMode::Strict).ok()
@@ -51,7 +49,8 @@ pub fn workflow_id(candidate: &str) -> String {
 /// Where a fresh candidate lands, relative to the root: `<id>.nika`, under
 /// `workflows/` when the project keeps that directory; a taken name gets a
 /// numbered twin (`<id>-2.nika` …) so nothing the human did not name is
-/// ever replaced. `None` when ninety-nine twins already exist.
+/// ever replaced. No product quota limits the number of siblings; `None` only if
+/// the representable suffix space is exhausted.
 #[must_use]
 pub fn destination(root: &Path, candidate: &str) -> Option<PathBuf> {
     let id = workflow_id(candidate);
@@ -64,7 +63,7 @@ pub fn destination(root: &Path, candidate: &str) -> Option<PathBuf> {
     if !taken(root, &first) {
         return Some(first);
     }
-    (2..=MAX_TWINS)
+    (2..=u64::MAX)
         .map(|n| dir.join(format!("{id}-{n}.nika")))
         .find(|twin| !taken(root, twin))
 }
@@ -114,7 +113,7 @@ pub fn propose(
     };
     let Some(path) = destination(root, candidate) else {
         return Err(ChangeError::Unnamed(format!(
-            "{}.nika and its ninety-nine numbered twins all exist",
+            "no representable unused destination for {}.nika",
             workflow_id(candidate)
         )));
     };
@@ -336,6 +335,37 @@ mod tests {
             destination(root.path(), candidate).expect("under workflows"),
             PathBuf::from("workflows/compiled-workflow.nika")
         );
+    }
+
+    #[test]
+    fn creation_past_ninety_nine_siblings_preserves_every_existing_file() {
+        let root = tempfile::tempdir().expect("root");
+        let out = ready("Read ./notes/brief.md and write it to ./out/copy.md");
+        let candidate = out.candidate.as_deref().expect("candidate");
+        for n in 1..=120 {
+            let name = if n == 1 {
+                "compiled-workflow.nika".to_owned()
+            } else {
+                format!("compiled-workflow-{n}.nika")
+            };
+            std::fs::write(root.path().join(name), "existing work").expect("existing sibling");
+        }
+        let proposal = propose(root.path(), "another workflow", &out).expect("proposal");
+        assert_eq!(
+            proposal.changes[0].path(),
+            PathBuf::from("compiled-workflow-121.nika")
+        );
+        assert_eq!(
+            destination(root.path(), candidate),
+            Some(proposal.changes[0].path())
+        );
+        assert_eq!(std::fs::read_dir(root.path()).expect("files").count(), 120);
+        for entry in std::fs::read_dir(root.path()).expect("files") {
+            assert_eq!(
+                std::fs::read(entry.expect("file").path()).expect("bytes"),
+                b"existing work"
+            );
+        }
     }
 
     #[test]

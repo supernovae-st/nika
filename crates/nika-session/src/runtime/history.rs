@@ -7,7 +7,7 @@
 //! by someone who can rewrite the private history directory.
 
 use std::fs::File;
-use std::io;
+use std::io::{self, BufRead as _, BufReader};
 use std::path::Path;
 use std::time::Duration;
 
@@ -16,9 +16,6 @@ use nika_fs::OwnedDir;
 use serde::{Deserialize, Serialize};
 
 const LOG: &str = "events.ndjson";
-const MAX_LOG_BYTES: usize = 16 * 1024 * 1024;
-const MAX_RECORD_BYTES: usize = 1024 * 1024;
-const MAX_INPUT_BYTES: usize = 64 * 1024;
 const GENESIS: &str = "0000000000000000000000000000000000000000000000000000000000000000";
 /// How long a lease may look held before it is refused as foreign. A sibling
 /// thread spawning a child (a run, an exec) duplicates this process's
@@ -212,14 +209,15 @@ impl History {
             restored: false,
             monetary_seen: false,
         };
-        let over = "conversation history exceeds 16 MiB; preserve it for migration";
-        if let Some(text) = (history.dir).read_capped_below(&[], LOG, MAX_LOG_BYTES as u64, over)? {
-            history.replay(&text)?;
-        } else {
-            let line = history.encode(Event::Opened)?;
-            // First publication syncs both file and its directory.
-            history.dir.write_once(LOG, &format!("{line}\n"))?;
-            history.accept_line(&line)?;
+        match history.dir.open_relative(Path::new(LOG)) {
+            Ok(file) => history.replay(file)?,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                let line = history.encode(Event::Opened)?;
+                // First publication syncs both file and its directory.
+                history.dir.write_once(LOG, &format!("{line}\n"))?;
+                history.accept_line(&line)?;
+            }
+            Err(error) => return Err(error),
         }
         if history.restored {
             // Replay marks reported uncertainty; pending authority still expires.
@@ -229,14 +227,25 @@ impl History {
         Ok(history)
     }
 
-    fn replay(&mut self, text: &str) -> io::Result<()> {
-        if text.is_empty() || !text.ends_with('\n') {
+    fn replay(&mut self, file: File) -> io::Result<()> {
+        // Retain one record at a time, not the entire journal. Its size is not a
+        // conversation allowance; every record still passes the same chain checks.
+        let mut reader = BufReader::new(file);
+        let mut line = String::new();
+        while reader.read_line(&mut line)? != 0 {
+            if !line.ends_with('\n') {
+                return Err(invalid(
+                    "conversation history is empty or truncated; nothing was reset",
+                ));
+            }
+            line.pop();
+            self.accept_line(&line)?;
+            line.clear();
+        }
+        if self.sequence == 0 {
             return Err(invalid(
                 "conversation history is empty or truncated; nothing was reset",
             ));
-        }
-        for line in text.lines() {
-            self.accept_line(line)?;
         }
         self.restored = true;
         Ok(())
@@ -253,11 +262,6 @@ impl History {
         };
         record.digest = record.digest()?;
         let text = serde_json::to_string(&record)?;
-        if text.len() > MAX_RECORD_BYTES || self.bytes + text.len() + 1 > MAX_LOG_BYTES {
-            return Err(invalid(
-                "conversation history capacity reached; preserve it for migration",
-            ));
-        }
         Ok(text)
     }
 
@@ -273,9 +277,6 @@ impl History {
     }
 
     fn accept_line(&mut self, line: &str) -> io::Result<()> {
-        if line.len() > MAX_RECORD_BYTES {
-            return Err(invalid("conversation history record exceeds 1 MiB"));
-        }
         let record: Record = serde_json::from_str(line)?;
         if record.version != 1
             || record.project != self.project
@@ -296,9 +297,6 @@ impl History {
                 ) {
                     self.monetary_seen |=
                         super::money_parse::parse(&input).map_or(true, |p| p.amount.is_some());
-                }
-                if input.len() > MAX_INPUT_BYTES {
-                    return Err(invalid("conversation input exceeds 64 KiB"));
                 }
                 self.started = Some((operation, input));
             }
@@ -367,22 +365,7 @@ impl History {
     }
 
     pub(super) fn begin(&mut self, operation: Operation, input: &str) -> io::Result<()> {
-        if input.len() > MAX_INPUT_BYTES {
-            return Err(invalid(
-                "conversation input exceeds 64 KiB; operation not started",
-            ));
-        }
-        // Reserve one maximum record for the completion before starting an
-        // effect. An oversized completion still refuses, never drops history.
-        if self.bytes + 2 * MAX_RECORD_BYTES + 2 > MAX_LOG_BYTES {
-            return Err(invalid(
-                "conversation history is full; operation not started",
-            ));
-        }
         let input = crate::broker::redact(input).0;
-        if input.len() > MAX_INPUT_BYTES {
-            return Err(invalid("redacted conversation input exceeds 64 KiB"));
-        }
         self.append(Event::Started { operation, input })
     }
 

@@ -23,9 +23,6 @@ use crate::outcome::ProposalId;
 
 /// The draft schema this engine writes and reads.
 pub(super) const DRAFT_SCHEMA: u64 = 1;
-/// Kept text stays far below the history's per-record bound; a larger proposal keeps its
-/// identity and witnesses only and cannot be proposed again.
-const TEXT_LIMIT: usize = 256 * 1024;
 /// How the re-proposal act appears in the conversation record.
 const ACT: &str = "(propose the kept draft again)";
 
@@ -43,7 +40,7 @@ pub(super) struct PendingDraft {
 
 /// One proposed file: its project-relative path, its change kind, the witness of the base it
 /// was proposed over (an update), the witness of its exact proposed bytes, and its redacted
-/// text when it fits the kept-text bound.
+/// text. Old records that omitted text remain readable without inventing missing bytes.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct DraftFile {
@@ -100,16 +97,12 @@ impl Restored {
 
 /// The pending proposal as a kept draft record.
 pub(super) fn capture(id: &ProposalId, set: &ProjectChangeSet) -> Option<Value> {
-    let mut room = TEXT_LIMIT;
     let files = set
         .changes
         .iter()
         .map(|change| {
             let content = change.content();
-            let text = (content.len() <= room).then(|| {
-                room = room.saturating_sub(content.len());
-                crate::broker::redact(content).0
-            });
+            let text = Some(crate::broker::redact(content).0);
             let kind = match change {
                 ProjectChange::CreateWorkflow { .. } => DraftKind::CreateWorkflow,
                 ProjectChange::UpdateWorkflow { .. } => DraftKind::UpdateWorkflow,
@@ -192,8 +185,8 @@ impl SessionRuntime {
     /// Propose the kept draft again, deterministically and without a model call. Its exact
     /// bytes are rebuilt through the change primitive a compiled candidate uses (a contained,
     /// canonical workflow path; the `nika check` audit; the destination witnessed now), and
-    /// refused when the kept text is not the proposed bytes (redacted, or over the kept-text
-    /// bound) or the project changed under it. The result is a fresh proposal: it needs a
+    /// refused when the kept text differs from the proposed bytes (redacted, altered or
+    /// absent in an old record) or the project changed under it. The result is a fresh proposal: it needs a
     /// fresh review and a fresh consent, and nothing of the earlier consent, budget or run
     /// is restored. Recorded like a turn.
     pub fn repropose_restored_draft(&mut self) -> TurnOutcome {
@@ -263,7 +256,7 @@ impl SessionRuntime {
 
 /// The one file of a kept draft and its exact bytes, or why the draft can never be rebuilt,
 /// whatever the project holds now: exactly one workflow file whose kept text is its proposed
-/// bytes (redaction or the kept-text bound breaks that), with its base witness when it was an
+/// bytes (redaction, alteration or an old missing-text record breaks that), with its base witness when it was an
 /// update. The project itself is checked by [`rebuild`].
 fn admissible(draft: &PendingDraft) -> Result<(&DraftFile, &str), String> {
     let [file] = draft.files.as_slice() else {
@@ -273,7 +266,7 @@ fn admissible(draft: &PendingDraft) -> Result<(&DraftFile, &str), String> {
         ));
     };
     let Some(text) = file.text.as_deref() else {
-        return Err("its text was not kept (over the kept-text bound)".to_owned());
+        return Err("its text was not kept by the engine that wrote this record".to_owned());
     };
     if Witness::of(text.as_bytes()).0 != file.witness {
         return Err(

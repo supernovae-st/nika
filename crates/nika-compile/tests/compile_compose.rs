@@ -51,6 +51,74 @@ fn rotating(plans: &[Value]) -> Rotating {
 }
 
 #[tokio::test]
+async fn the_ninth_distinct_candidate_is_offered_and_selectable() {
+    // Deliberately competing readings from an injected author. The feasibility filter still
+    // checks every candidate; this test measures retention and selection, not semantic truth.
+    let intent = "Read ./in.txt. Handle the supplied material.";
+    let operations = [
+        "fetch", "fetch", "lookup", "search", "extract", "classify", "compute", "validate", "draft",
+    ];
+    let mut plans: Vec<Value> = operations.iter().map(|op| json!({
+        "steps": [
+            {"op": "read", "detail": "./in.txt", "evidence": "Read ./in.txt"},
+            {"op": op, "detail": "the supplied material", "evidence": "Handle the supplied material"}],
+        "effects": [], "obligations": [], "constraints": [], "unknowns": []
+    })).collect();
+    // This Fetch+Classify combination and the eight single-operation alternatives have
+    // distinct signatures. A second Read cannot handle the material: read-residue rejects it.
+    plans[0]["steps"].as_array_mut().unwrap().push(json!({
+        "op": "classify", "detail": "the supplied material", "evidence": "Handle the supplied material"
+    }));
+    let provider = rotating(&plans);
+    let seat = ChoosePlan {
+        choice: "plan-8",
+        asked: Mutex::new(Vec::new()),
+    };
+    let req = CompileRequest::create(intent)
+        .with_hot_policy(nika_compile::HotPolicy::Off)
+        .with_authoring_policy(policy().with_samples(9));
+    let out = compile_with_cognition(
+        &req,
+        Cognition {
+            provider: Some(&provider),
+            seat: Some(&seat),
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 9);
+    let doc = outcome_document(&out);
+    let listed = candidates(&doc);
+    assert_eq!(listed.len(), 9, "{doc:#}");
+    assert_eq!(doc["provenance"]["decision"]["cold_samples"]["accepted"], 9);
+    for (index, candidate) in listed.iter().enumerate() {
+        assert_eq!(candidate["source"]["sample"], index);
+    }
+    assert!(
+        listed.iter().all(|candidate| candidate["feasible"] == true),
+        "{doc:#}"
+    );
+    assert_eq!(doc["provenance"]["decision"]["selected_candidate"], 8);
+    assert_eq!(doc["provenance"]["decision"]["cold_samples"]["selected"], 8);
+    assert_eq!(listed[8]["source"]["sample"], 8);
+    assert!(
+        listed[8]["signature"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item == "op:draft")
+    );
+    let asked = seat.asked.lock().unwrap();
+    let choice = asked
+        .iter()
+        .find(|question| question.id == "cold-plans")
+        .unwrap();
+    let mut expected: Vec<String> = (0..9).map(|index| format!("plan-{index}")).collect();
+    expected.push(NONE_OPTION.to_owned());
+    assert_eq!(choice.keys(), expected);
+}
+
+#[tokio::test]
 async fn compose_records_every_distinct_candidate_and_the_seat_picks_among_feasible_ones() {
     // (a) two distinct admissible plans, a seat choosing the second: both recorded feasible,
     // the chosen one assembled.
@@ -272,7 +340,7 @@ async fn compose_records_pattern_dimensions_without_composing_an_inexpressible_v
     let out = compile_with_provider(&request(), &provider).await.unwrap();
     let doc = outcome_document(&out);
     let compose = &doc["provenance"]["decision"]["compose"];
-    assert_eq!(compose["cap"], 8, "{doc:#}");
+    assert_eq!(compose.get("cap"), Some(&Value::Null), "{doc:#}");
     let dimensions = compose["pattern_dimensions"].as_array().unwrap();
     for dimension in dimensions {
         assert!(

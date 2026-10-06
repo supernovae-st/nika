@@ -1,5 +1,11 @@
 # Crate spec — `nika-compile-cognition`
 
+> Target direction amended 6 October 2026: [cooperative intent resolution](../architecture/ARCHITECTURE-0.123.md).
+> The implementation descriptions and dated measurements below retain their actual scope.
+> Historical HOT/WARM/COLD paths, BM25 selection and single-judge behavior are migration
+> seams, not requirements to preserve as the target product architecture. This note does
+> not claim that cooperative retrieval or incremental verification is implemented.
+
 | | |
 |---|---|
 | Status | **MEMBER** — implemented size-cap split of the admitted `nika-onboard` unit under the authorized V7 consolidation, ADR-140 and D-2026-07-09-N1 |
@@ -258,21 +264,15 @@ field answer's regeneration is the first candidate of its plan and is judged who
 record or a request carries is read as a judgment. The judge is a model: its approval is bounded
 evidence, not proof; a clause a line break splits across two named elements is judged, not read.
 
-A candidate the native or the sketch door finishes READY is judged against the whole request
-before READY too (`verify::judged_native`, R4 A11, E39 C3). The seat writes the workflow itself
-(the sketch door's seat its tasks and program holes), so no law of the core reads its programs:
-the parser, Check and the fidelity laws only admit it. Once the door's conclusion is READY, the
-authoring provider answers the whole-request question (`faithful` · `unfaithful`, then the part)
-over the candidate's actual final bytes, with the state and reference every verifier question
-carries, through the journaled authoring call under the authoring policy's caps and the same
-physical ceiling; the attempt is recorded under `semantic_verification` and the route says
-`verify: judged (authoring_provider)`. The native doors receive no decision seat, so a seat the
-caller permits does not judge a native candidate. A candidate found unfaithful, or not settled
-(an abstention, a failed call, a call the ceiling refuses), is withdrawn with its questions, its
-requested boundary and its replayable record, and the request stays INCOMPLETE naming the part;
-no repair round follows the judgment. A native outcome that is not READY in its authoring round
-(a business question or the `model` placeholder open) is not judged there: the answer round that
-finishes it is.
+The R4 A11 / E39 C3 whole-request check is the historical basis of native and
+sketch verification. Its earlier author-only account, without a post-judgment
+repair round, no longer describes all current paths. The selected decision seat
+now reaches sketch verification and supported recovery/revision paths; the
+[Semantic CREATE and resolved questions](#semantic-create-and-resolved-questions)
+section below specifies selection, abstention, defect localization and repair.
+A judgment reads the candidate's final bytes with the compiler-owned reference;
+structural admission alone does not establish semantic fidelity. Preserve the
+whole-request coverage and binding laws while qualifying the cooperative target.
 
 The answer round of a native record is judged too (R4 A11, step 2). The native and the sketch
 doors both record strategy `native`. The core's `native_replay` bakes the round's answers into
@@ -293,43 +293,59 @@ A native revision's answer round (`revise`) takes the same door. A judgment is n
 record, so a transport whose native answer rounds made no call now permits a judge in them (one
 request for a faithful verdict, two for an unfaithful one) or gets INCOMPLETE.
 
-The authority's worst case (`authority::worst_case`, R4 A11, nv1b) counts the author requests
-a finite configuration can ask for, the author-provider verifier's included, so a caller can
-compare it with an explicit request allowance. With `s` samples clamped to `SAMPLES` and
-an explicit repair count `r`:
+The current estimate is `authority::worst_case_of`. It counts author requests,
+including an author-provider verifier, when the configuration alone supplies a
+representable finite upper bound. With an explicit repair count `r`:
 
-- an edit's native revision: `3 + r`, the candidate and its repairs, then the
-  whole-request judgment and its locate question;
+- a revision using a model: unknown (`None`), because its retained representation
+  determines link, fill and repeated judgment work; `3 + r` was not an upper bound
+  for semantic revisions;
 - the sketch door: `2 + r + 2(1 + r) = 4 + 3r`, with each new candidate judged afresh;
-- COLD: `2s + 14r + 12`, each sample and its evidence repair, then `1 + r` verification attempts,
-  each asking at most 8 clause questions, the whole-request judgment and one transform synthesis of
-  at most 2 questions, with its `r` verify repairs and a transform repair allowance of `r`;
-- escalate: COLD, then the sketch door with one repair less: `3r + 1` when `r >= 1`,
-  no sketch request when `r = 0`;
+- COLD creation (`off` or `escalate`): unknown (`None`), including with an explicit
+  repair count, because the request determines its clause and transform work;
 - a creation under `only`: zero requests; the core refuses the retired source-authoring route.
 
-Arithmetic saturates at `u32::MAX`. `authority::worst_case_of` returns no finite count when
-repairs are unbounded and can add requests; paths unaffected by repairs retain their fixed
-count. An absent request bound still counts calls, without inventing a numeric limit or a
+An arithmetic overflow or an absent repair count where repairs add requests also
+returns `None`, never a saturated number presented as an upper bound. Paths with
+no possible call retain zero. The deprecated `authority::worst_case` preserves
+the old capped engine's formula and saturating arithmetic solely for compatibility;
+current consumers do not use it to estimate uncapped work.
+An absent request bound still counts calls, without inventing a numeric limit or a
 monetary ceiling. A separately selected decision seat retains its own consultation and cost
 observations; these author-call formulas do not price or count that service's requests.
 
-The bound is computed from the caps where they live: `verify::CLAUSE_QUESTIONS`,
-`verify::WHOLE_QUESTIONS` and `transform::MAX_CALLS`. One verification attempt asks at most
-`verify::CLAUSE_QUESTIONS` = 8 clause questions. The value was measured keyless on 2026-09-29: at
-most 2 per attempt in the 5 recorded COLD verification attempts of the PILOT14 live rows and the DSR
-live proof, and at most 4 in the 201 attempts of the compile and cognition suites; the cap is twice
-the largest. Past the cap the clause and every later one are never asked: they stay unknown,
-nothing is READY on them, and the finding names the cap. Typed repairs under `off` are the
-verifier's and count, never ignored. A typed strategy is honored in full or refused, needing
+Verification asks every pending clause, transform synthesis considers every unstated
+computation, and native decoding retains every admitted business question. Positive
+sample counts run as typed, with no hidden five-sample ceiling; zero is invalid. The
+composer retains every distinct signature and feasibility result, with no eight-plan
+ceiling; only feasible candidates reach selection, together with `NONE`. Its existing
+structural expressibility law is unchanged. A real request-authority refusal stops
+further sampling while retaining the attempts already recorded. The whole-request
+protocol still has at most two questions: verdict, then localization if unfaithful.
+Localization offers every qualifying distinct phrase of the request, including
+phrases beyond the former sixteen-part cutoff, and maps the selected index back
+to that complete phrase.
+The former eight-clause and two-transform caps are historical behavior, not active
+limits. Typed repairs under `off` are the verifier's and count, never ignored.
+A typed strategy is honored in full or refused, needing
 `authority::least_requests`:
 - `escalate`: two requests (the plan, then its judgment);
 - `sketch`: three (the sketch, its fills, then their judgment).
 The refusal names that number. A fresh creation under `only` is refused by the core
 with a migration to the semantic doors; no larger grant can enable it.
 
-Source recovery (`AuthoringPolicy::source_recovery`, any count, default 0) is an explicit operator
-policy beside that retirement, never a default and never `only`: when the sketch door ends a
+This removal does not claim unrestricted model context or complete R5 cooperation.
+The current native Check diagnostic projection still keeps up to six conformance
+violations and six error findings, and authoring knowledge excerpts retain up to
+2000 characters per builtin section. The whole-contract verifier reference described
+below is separate from those authoring excerpts. Their remaining context selection
+needs its own coverage qualification; no complete-context claim follows from an
+uncapped number of preparation calls.
+
+Source recovery retains an explicit operator count (`AuthoringPolicy::source_recovery`,
+default 0). When the policy has no repair count, an eligible stalled CREATE can also
+open it without a separate recovery count; an explicitly bounded policy requires a
+positive recovery count. It is not the retired `only` creation route: when the sketch door ends a
 CREATE INCOMPLETE with no candidate and no open question (its structured rounds spent, no
 progress, an answer that is not the sketch wire's, the evidence's defect with no round left, or
 a candidate the whole-request judgment withdrew past the last round for a demonstrated missing
@@ -338,11 +354,13 @@ is told the previous findings, the evidence defects no reopening carried and the
 candidate, and answers the whole source on the retired source wire
 (`assets/native_answer_schema.json`, instruction `assets/native_source_recovery.md`). Each answer
 faces `native::judge` (strict parser, pure Check, fidelity laws, admitted questions); a refusal is
-repaired within the stated rounds, a repeat is no progress. An accepted source settles as a native
+repaired within any stated rounds; a repeat is no progress under the current recovery
+law. An accepted source settles as a native
 record (`native_apply`, zero-call replay, `native_pending` on answer rounds) and faces the
-rehearsal and the whole-request judgment like any candidate; a defect reopens it only while a
-round remains. Every request is charged to the same authority and receipt (no reset, no other
-model); `authority::recovery_requests` (`3` per round) is what a host adds to `worst_case`.
+rehearsal and the whole-request judgment like any candidate; a defect reopens it while
+the configured policy permits. Every request is charged to the same authority and
+receipt (no reset, no other model). `authority::recovery_requests` describes an
+explicit reservation (`3` per stated round); an unknown total remains unknown.
 The fallback is recorded: route `native: source recovery after structured exhaustion`,
 `decision.native.recovery` (rounds, spent, accepted by the laws, the structured findings) and an
 `authoring_recovery` finding that the recovery opened; only a READY outcome adds the finding that
@@ -551,8 +569,9 @@ carried such a composition, the existing sketch door continues with the same int
 reading floor and receipt (the paid plan calls stay first), never source generation. Under
 `native: off` the composition is named and nothing is sent. Escalate continues through the
 sketch door with one repair less (checked); with no repair allowance the budget is named
-and no sketch request is sent. `authority::worst_case` counts this semantic continuation,
-including its fills and judgment. The forensic summary names this door `sketch` with the
+and no sketch request is sent. `authority::worst_case_of` leaves this request-dependent
+continuation unknown; the shared authority counts and enforces any explicit request limit.
+The forensic summary names this door `sketch` with the
 reason `plan_composition_requires_sketch` (from its route step); a composition stopped before any
 sketch request (native off, no repair allowance) keeps the plan round's own record, door `none`
 with `cold_plan_without_candidate`, and the finding that names the stop. Remaining limits: the
@@ -621,8 +640,9 @@ do not persist raw answers or implement the private writer and host adapters.
 ## Semantic CREATE and resolved questions
 
 Fresh Escalate proposes Plan and, when no candidate remains, Sketch; Rust assembles the
-ordinary workflow. Whole-source authoring remains an EDIT and historical-replay path,
-not a fallback for CREATE. After a Sketch passes structural laws, the existing admitted-question
+ordinary workflow. Whole-source authoring remains available for supported EDIT and
+historical replay, and as the eligible CREATE source recovery described above. Its
+success does not prove that structured composition succeeded. After a Sketch passes structural laws, the existing admitted-question
 check removes questions already resolved by the request or observation before fills are
 requested. The full check after filling remains. This adds no repair grant or second compiler.
 
@@ -639,4 +659,4 @@ compiler-owned reference, question IDs and offered choices, returned choice or f
 attempted/returned/consumed counts and reported usage. Questions read the final candidate bytes. A repair or source recovery
 retains prior verification attempts. Unknown usage stays incomplete, never a zero-cost
 claim; the host decision observation owns its separate settlement. These are typed semantic
-judgments, never permission to Save or Run and never Foundry retrieval decisions.
+judgments, never permission to Save or Run. The current record does not include Foundry retrieval decisions; wiring that role belongs to the cooperative target, and requires actual selection and consumption evidence.

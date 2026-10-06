@@ -354,13 +354,31 @@ impl CostReview {
     /// allowance they are added to and `worst_case`, the configuration's theoretical bound; none
     /// reserved changes nothing, never a second account and never a retry.
     #[must_use]
-    pub fn with_recovery_requests(mut self, requests: u32, worst_case: u32) -> Self {
+    pub fn with_recovery_requests(self, requests: u32, worst_case: u32) -> Self {
+        self.with_optional_recovery_requests(requests, Some(worst_case))
+    }
+
+    /// Reserve explicit recovery requests without inventing a total for request-dependent
+    /// work. `None` states that no finite upper bound can be calculated from the configuration;
+    /// the review's actual request allowance is unchanged except for `requests` reserved here.
+    #[must_use]
+    pub fn with_optional_recovery_requests(
+        mut self,
+        requests: u32,
+        worst_case: Option<u32>,
+    ) -> Self {
+        let estimate = worst_case.map_or_else(
+            || "no finite upper bound can be calculated for the work from this configuration; the request allowance still applies and may stop it first.".to_owned(),
+            |worst| format!("this configuration's theoretical worst case is {worst} requests, so this bound may stop it first."),
+        );
         if requests > 0 {
             self.breakdown.push(format!(
-                "Allowance {} + {requests} reserved for the explicit source recovery the operator configured; this configuration's theoretical worst case is {worst_case} requests, so this bound may stop it first.",
+                "Allowance {} + {requests} reserved for the explicit source recovery the operator configured; {estimate}",
                 self.max_requests
             ));
             self.max_requests = self.max_requests.saturating_add(requests);
+        } else if worst_case.is_none() {
+            self.breakdown.push(estimate);
         }
         self
     }
@@ -655,6 +673,36 @@ mod tests {
             plain,
             "no reservation: the question is unchanged"
         );
+    }
+    #[test]
+    fn an_unknown_work_estimate_never_becomes_zero_or_an_extra_allowance() {
+        for requests in [0, 3] {
+            let reviewed = review()
+                .for_session()
+                .with_optional_recovery_requests(requests, None);
+            let allowed = SESSION_REVIEW_MAX_REQUESTS + requests;
+            assert_eq!(reviewed.max_requests(), allowed);
+            let asked = reviewed.question();
+            assert!(
+                asked.contains("no finite upper bound can be calculated"),
+                "{asked}"
+            );
+            assert!(!asked.contains("theoretical worst case is"), "{asked}");
+            assert!(
+                asked.contains(&format!("At most {allowed} requests")),
+                "{asked}"
+            );
+            assert_eq!(
+                asked.contains("reserved for the explicit source recovery"),
+                requests > 0
+            );
+            let account = reviewed
+                .confirm("candidate-a", &route())
+                .expect("fresh review");
+            let snapshot = account.snapshot().expect("observed account");
+            let choice = serde_json::to_value(snapshot.unknown_cost).expect("choice");
+            assert_eq!(choice["max_requests"], allowed);
+        }
     }
     fn review() -> CostReview {
         CostReview::new(

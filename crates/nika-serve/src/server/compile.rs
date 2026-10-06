@@ -46,24 +46,8 @@ use super::route::{
     refuse_snapshot_envelope, request_timeout,
 };
 
-/// Whole-request ceiling. The listener's own body ceiling still applies when lower.
-pub(super) const MAX_COMPILE_BODY_BYTES: usize = 1024 * 1024;
-/// `intent` and `change.text`, in UTF-8 bytes.
-pub(super) const MAX_COMPILE_TEXT_BYTES: usize = 4 * 1024;
-/// The accepted EDIT base, in decoded UTF-8 bytes. It bounds uncancellable CPU work.
-pub(super) const MAX_COMPILE_SOURCE_BYTES: usize = 512 * 1024;
-/// `workflow_id` and `change.set_constant.name`, in UTF-8 bytes.
-pub(super) const MAX_COMPILE_NAME_BYTES: usize = 128;
-/// Entries in `answers`, counted while the envelope is deserialized.
-pub(super) const MAX_COMPILE_ANSWERS: usize = 64;
-/// One `answers` key, in UTF-8 bytes.
-pub(super) const MAX_COMPILE_ANSWER_KEY_BYTES: usize = 256;
-/// One literal (`answers` value or `change.set_constant.value`), as sent.
-pub(super) const MAX_COMPILE_LITERAL_BYTES: usize = 64 * 1024;
-
 /// The only authoring cognition this build implements, in the core's own word.
 const DETERMINISTIC_ONLY: &str = AuthoringCognition::DeterministicOnly.word();
-const ANSWER_COUNT_MARKER: &str = "nika compile answer count exceeded";
 
 /// Generation 1 of the request. Unknown fields, a present `null` and duplicate
 /// keys are refused: an authoring value is never chosen silently.
@@ -150,7 +134,7 @@ impl<'de> serde::Deserialize<'de> for Answers {
             type Value = Answers;
 
             fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formatter.write_str("a bounded object of literal answers")
+                formatter.write_str("an object of literal answers")
             }
 
             fn visit_map<M: serde::de::MapAccess<'de>>(
@@ -159,9 +143,6 @@ impl<'de> serde::Deserialize<'de> for Answers {
             ) -> Result<Self::Value, M::Error> {
                 let mut answers = BTreeMap::new();
                 while let Some(key) = map.next_key::<String>()? {
-                    if answers.len() == MAX_COMPILE_ANSWERS {
-                        return Err(serde::de::Error::custom(ANSWER_COUNT_MARKER));
-                    }
                     let literal = map.next_value::<Box<RawValue>>()?;
                     // Two values for one question select neither (the core's own law).
                     if answers.insert(key, literal).is_some() {
@@ -232,7 +213,7 @@ async fn intake(
     if let Some(error) = refuse_snapshot_envelope(&request) {
         return Err(error.into_response());
     }
-    let ceiling = state.limits.max_body_bytes().min(MAX_COMPILE_BODY_BYTES);
+    let ceiling = state.limits.max_body_bytes();
     if content_length(&request)
         .ok()
         .flatten()
@@ -285,19 +266,15 @@ async fn foundation(body: &Bytes, state: Arc<AppState>) -> Response<ResponseBody
 }
 
 fn parse(body: &[u8]) -> Result<CompileRequest, ApiError> {
-    let envelope = match serde_json::from_slice::<Object<Envelope>>(body) {
-        Ok(Object(envelope)) => envelope,
-        Err(error) if error.to_string().contains(ANSWER_COUNT_MARKER) => return Err(limit()),
-        Err(_) => {
-            // A newer generation may carry fields this one refuses: name the
-            // generation, so a client never mistakes it for a broken request.
-            return Err(match serde_json::from_slice::<Object<VersionProbe>>(body) {
-                Ok(Object(probe)) if probe.compile_version != u64::from(COMPILE_WIRE_VERSION) => {
-                    unsupported_version()
-                }
-                _ => malformed(),
-            });
-        }
+    let Ok(Object(envelope)) = serde_json::from_slice::<Object<Envelope>>(body) else {
+        // A newer generation may carry fields this one refuses: name the
+        // generation, so a client never mistakes it for a broken request.
+        return Err(match serde_json::from_slice::<Object<VersionProbe>>(body) {
+            Ok(Object(probe)) if probe.compile_version != u64::from(COMPILE_WIRE_VERSION) => {
+                unsupported_version()
+            }
+            _ => malformed(),
+        });
     };
     // Vocabulary first (generation · mode · cognition), then bounds, then shape.
     if envelope.compile_version != u64::from(COMPILE_WIRE_VERSION) {
@@ -313,7 +290,6 @@ fn parse(body: &[u8]) -> Result<CompileRequest, ApiError> {
     {
         return Err(unsupported_cognition());
     }
-    within_limits(&envelope)?;
     let Envelope {
         mode,
         intent,
@@ -347,45 +323,6 @@ fn parse(body: &[u8]) -> Result<CompileRequest, ApiError> {
         request = request.answer(key, literal.get());
     }
     Ok(request)
-}
-
-fn within_limits(envelope: &Envelope) -> Result<(), ApiError> {
-    let text = |value: &Option<String>| {
-        value
-            .as_ref()
-            .is_none_or(|value| value.len() <= MAX_COMPILE_TEXT_BYTES)
-    };
-    let name = |value: &str| value.len() <= MAX_COMPILE_NAME_BYTES;
-    let bounded = text(&envelope.intent)
-        && envelope.workflow_id.as_deref().is_none_or(name)
-        && envelope
-            .source
-            .as_ref()
-            .is_none_or(|source| source.len() <= MAX_COMPILE_SOURCE_BYTES)
-        && change_within(envelope.change.as_ref())
-        && answers_within(&envelope.answers);
-    if bounded { Ok(()) } else { Err(limit()) }
-}
-
-/// A change within its bounds: its text, the constant's name and literal.
-fn change_within(change: Option<&Object<Change>>) -> bool {
-    change.is_none_or(|Object(change)| {
-        change
-            .text
-            .as_ref()
-            .is_none_or(|text| text.len() <= MAX_COMPILE_TEXT_BYTES)
-            && change.set_constant.as_ref().is_none_or(|Object(constant)| {
-                constant.name.len() <= MAX_COMPILE_NAME_BYTES
-                    && constant.value.get().len() <= MAX_COMPILE_LITERAL_BYTES
-            })
-    })
-}
-
-/// Every answer within its bounds: its key and its literal as sent.
-fn answers_within(answers: &Answers) -> bool {
-    answers.0.iter().all(|(key, value)| {
-        key.len() <= MAX_COMPILE_ANSWER_KEY_BYTES && value.get().len() <= MAX_COMPILE_LITERAL_BYTES
-    })
 }
 
 fn malformed() -> ApiError {
@@ -424,7 +361,7 @@ fn limit() -> ApiError {
     ApiError::new(
         StatusCode::UNPROCESSABLE_ENTITY,
         "compile_limit",
-        "a compile field exceeds its bound; GET /v1/openapi.json states every bound",
+        "a compile limit must be positive (repairs may be zero), representable and no wider than the configured operator ceiling; GET /v1/openapi.json describes limits",
     )
 }
 

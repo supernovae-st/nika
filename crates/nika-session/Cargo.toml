@@ -11,6 +11,7 @@ homepage.workspace     = true
 publish                = false  # Foundation crate — never on crates.io. See ADR-022.
 
 [dependencies]
+nika-kernel  = { path = "../nika-kernel", version = "0.122.0" } # StopReason — preserve the provider's incomplete-response signal
 nika-cli-host = { path = "../nika-cli-host", version = "0.122.0", default-features = false }  # the ONE probe/census · the oracle facade · the git-root walk (lateral L4→L4 · ADR-124 precedent)
 nika-providers = { path = "../nika-providers", version = "0.122.0", default-features = false }  # AccessClass · ProviderRegistry (the API/local reasoner)
 nika-verb-infer = { path = "../nika-verb-infer", version = "0.122.0", default-features = false }  # ONE inference call, no workflow (the API/local reasoner)
@@ -46,6 +47,5 @@ workspace = true
 
 [dev-dependencies]
 nika-error = { path = "../nika-error", version = "0.122.0" } # cost::Cost — the reasoning-effort tests assert the typed cost
-nika-kernel = { path = "../nika-kernel", version = "0.122.0" } # injected loopback HTTP mechanics
 nika-onboard = { path = "../nika-onboard", version = "0.122.0", features = ["test-support"] } # the synthetic release the strict knowledge door admits
 tempfile = { workspace = true }

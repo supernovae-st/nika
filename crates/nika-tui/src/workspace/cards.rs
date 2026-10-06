@@ -8,13 +8,13 @@ use nika_display::theme::Role;
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
-use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::widgets::Paragraph;
 use unicode_width::UnicodeWidthStr;
 
 use super::text::fit_head;
 
 use crate::model::{Committed, Kind, UiState};
-use crate::render::{block_lines, wrapped_rows};
+use crate::render::{block_lines, content_rows, window};
 use crate::visual::role;
 
 fn heading(kind: Kind) -> (&'static str, Role) {
@@ -47,20 +47,17 @@ pub(crate) fn render(frame: &mut Frame<'_>, state: &UiState, area: Rect) {
         .iter()
         .map(|block| {
             let lines = block_lines(block, state.color, state.ascii);
-            let rows = wrapped_rows(&lines, width);
+            let rows = content_rows(&lines, width);
             (block, lines, rows)
         })
         .collect();
-    let total: usize = cards
-        .iter()
-        .map(|(_, _, rows)| usize::from(*rows) + 3)
-        .sum();
+    let total: usize = cards.iter().map(|(_, _, rows)| *rows + 3).sum();
     let mut skip = total
         .saturating_sub(usize::from(area.height))
         .saturating_sub(state.focus_scroll);
     let mut y = area.y;
     for (block, lines, rows) in cards {
-        let height = usize::from(rows) + 3;
+        let height = rows + 3;
         if skip >= height {
             skip -= height;
             continue;
@@ -69,14 +66,13 @@ pub(crate) fn render(frame: &mut Frame<'_>, state: &UiState, area: Rect) {
             .saturating_sub(skip)
             .min(usize::from(area.bottom() - y));
         let visible = u16::try_from(visible).unwrap_or(area.height);
-        let offset = u16::try_from(skip).unwrap_or(u16::MAX);
         paint(
             frame,
             block,
-            lines,
+            &lines,
             rows,
             Rect::new(area.x, y, area.width, visible),
-            offset,
+            skip,
             state,
         );
         y += visible;
@@ -95,17 +91,12 @@ pub(crate) fn height(state: &UiState, area: Rect) -> usize {
             .iter()
             .flat_map(|block| block_lines(block, state.color, state.ascii))
             .collect();
-        return usize::from(wrapped_rows(&lines, area.width));
+        return content_rows(&lines, area.width);
     };
     state
         .transcript
         .iter()
-        .map(|block| {
-            usize::from(wrapped_rows(
-                &block_lines(block, state.color, state.ascii),
-                width,
-            )) + 3
-        })
+        .map(|block| content_rows(&block_lines(block, state.color, state.ascii), width) + 3)
         .sum()
 }
 
@@ -121,29 +112,24 @@ fn compact(frame: &mut Frame<'_>, state: &UiState, area: Rect) {
         .iter()
         .flat_map(|block| block_lines(block, state.color, state.ascii))
         .collect();
-    let skip = wrapped_rows(&lines, area.width)
-        .saturating_sub(area.height)
-        .saturating_sub(u16::try_from(state.focus_scroll).unwrap_or(u16::MAX));
-    frame.render_widget(
-        Paragraph::new(lines)
-            .wrap(Wrap { trim: false })
-            .scroll((skip, 0)),
-        area,
-    );
+    let skip = content_rows(&lines, area.width)
+        .saturating_sub(usize::from(area.height))
+        .saturating_sub(state.focus_scroll);
+    window(&lines, area, skip, frame.buffer_mut());
 }
 
 fn paint(
     frame: &mut Frame<'_>,
     block: &Committed,
-    lines: Vec<Line<'static>>,
-    rows: u16,
+    lines: &[Line<'static>],
+    rows: usize,
     area: Rect,
-    offset: u16,
+    offset: usize,
     state: &UiState,
 ) {
-    let painted = area
-        .height
-        .min(rows.saturating_add(2).saturating_sub(offset));
+    let height = usize::from(area.height);
+    let painted = height.min(rows.saturating_add(2).saturating_sub(offset));
+    let painted = u16::try_from(painted).unwrap_or(area.height);
     frame.buffer_mut().set_style(
         Rect::new(area.x, area.y, area.width, painted),
         role::surface(state.color, true),
@@ -167,20 +153,15 @@ fn paint(
         );
     }
     let first = offset.max(1);
-    let last = (offset.saturating_add(area.height)).min(rows.saturating_add(1));
+    let last = offset.saturating_add(height).min(rows.saturating_add(1));
     if last > first {
         let body = Rect::new(
             area.x + 2,
-            area.y + first - offset,
+            area.y + u16::try_from(first - offset).unwrap_or(area.height),
             area.width.saturating_sub(4),
-            last - first,
+            u16::try_from(last - first).unwrap_or(area.height),
         );
-        frame.render_widget(
-            Paragraph::new(lines)
-                .wrap(Wrap { trim: false })
-                .scroll((first - 1, 0)),
-            body,
-        );
+        window(lines, body, first - 1, frame.buffer_mut());
         for y in body.y..body.bottom() {
             frame.buffer_mut().set_string(area.x, y, edge, style);
             frame
@@ -189,14 +170,19 @@ fn paint(
         }
     }
     let foot = rows.saturating_add(1);
-    if foot >= offset && foot < offset.saturating_add(area.height) {
+    if foot >= offset && foot < offset.saturating_add(height) {
         let line = format!(
             "{bottom}{}{bottom_end}",
             rule.repeat(usize::from(area.width).saturating_sub(2))
         );
         frame.render_widget(
             Paragraph::new(Line::styled(line, style)),
-            Rect::new(area.x, area.y + foot - offset, area.width, 1),
+            Rect::new(
+                area.x,
+                area.y + u16::try_from(foot - offset).unwrap_or(area.height),
+                area.width,
+                1,
+            ),
         );
     }
 }
@@ -207,6 +193,29 @@ mod tests {
     use super::*;
     use crate::model::Presentation;
     use ratatui::{Terminal, backend::TestBackend};
+
+    #[test]
+    fn compact_view_keeps_the_tail_beyond_u16_rows() {
+        let area = Rect::new(0, 0, 30, 5);
+        let mut state = UiState::new(Presentation::Workspace, false, (30, 5));
+        state.transcript.push(Committed::new(
+            Kind::Reply,
+            "row\n".repeat(70_000) + "final detail",
+        ));
+        assert!(height(&state, area) > usize::from(u16::MAX));
+        let mut terminal = Terminal::new(TestBackend::new(30, 5)).expect("terminal");
+        terminal
+            .draw(|frame| render(frame, &state, area))
+            .expect("compact draws");
+        let shown = terminal
+            .backend()
+            .buffer()
+            .content()
+            .iter()
+            .map(ratatui::buffer::Cell::symbol)
+            .collect::<String>();
+        assert!(shown.contains("final detail"), "{shown}");
+    }
 
     #[test]
     fn complete_cards_keep_both_borders_and_padding_at_every_width() {

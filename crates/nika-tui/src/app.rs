@@ -977,9 +977,12 @@ impl<C: Conversation + 'static> Shell<C> {
         let (color, ascii) = (self.state.color, self.state.ascii);
         let pending: Vec<Committed> = self.state.uncommitted().to_vec();
         for block in &pending {
-            let rows = render::wrapped_rows(&render::block_lines(block, color, ascii), width);
-            self.screen
-                .insert_before(rows, |buf| render::render_block(block, color, ascii, buf))?;
+            let lines = render::block_lines(block, color, ascii);
+            render::pages(&lines, width, self.state.size.1.max(1), |page| {
+                let rows = u16::try_from(page.len()).unwrap_or(self.state.size.1.max(1));
+                self.screen
+                    .insert_before(rows, |buf| render::paint_page(page, buf))
+            })?;
         }
         self.state.committed_inline = self.state.transcript.len();
         Ok(())

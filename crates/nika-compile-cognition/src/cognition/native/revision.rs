@@ -57,10 +57,6 @@ const ADDING: &[&str] = &[
     "append",
 ];
 
-/// How many gaps an accepted candidate's record keeps: a path is waived only through a gap the
-/// record keeps, so the human always sees what the candidate leaves behind.
-pub(super) const KEPT_GAPS: usize = 8;
-
 /// The base and the change words of a revision in words; none for a creation or a structured
 /// edit.
 pub(super) fn of(request: &CompileRequest) -> Option<(String, String)> {
@@ -90,7 +86,6 @@ pub(super) fn waivable(
         .iter()
         .map(|gap| gap.trim())
         .filter(|gap| !gap.is_empty())
-        .take(KEPT_GAPS)
         .collect();
     stated(intent)
         .into_iter()
@@ -280,7 +275,36 @@ fn unrooted(value: &mut Value) {
 
 #[cfg(test)]
 mod tests {
-    use super::{ADDING, REPLACING, names, says};
+    use super::{ADDING, REPLACING, names, says, waivable};
+
+    #[test]
+    fn a_ninth_named_gap_uses_the_same_path_proof_and_never_waives_an_unproven_change() {
+        let base = "nika: copy\ntasks: {save: {invoke: {tool: 'nika:write', args: {path: a.txt, content: hello}}}}";
+        let candidate = base.replace("a.txt", "b.txt");
+        let mut gaps: Vec<String> = (1..=8)
+            .map(|n| format!("Business requirement {n}"))
+            .collect();
+        gaps.push("a.txt is replaced by the change".to_owned());
+        let intent = "Write hello to a.txt.";
+        let revision = (base.to_owned(), "Use b.txt instead.".to_owned());
+        assert_eq!(
+            waivable(intent, Some(&revision), &gaps, &candidate),
+            vec!["a.txt"]
+        );
+        assert!(waivable(intent, None, &gaps, &candidate).is_empty());
+        assert!(waivable(intent, Some(&revision), &gaps[..8], &candidate).is_empty());
+
+        // When the change recalls the old path, only an exact substitution can waive it.
+        let revision = (base.to_owned(), "Replace a.txt with b.txt.".to_owned());
+        assert_eq!(
+            waivable(intent, Some(&revision), &gaps, &candidate),
+            vec!["a.txt"]
+        );
+        let changed_work = candidate.replace("hello", "different content");
+        assert!(waivable(intent, Some(&revision), &gaps, &changed_work).is_empty());
+        let addition = (base.to_owned(), "Also write to a.txt and b.txt.".to_owned());
+        assert!(waivable(intent, Some(&addition), &gaps, &candidate).is_empty());
+    }
 
     #[test]
     fn a_path_is_named_whole_and_never_as_a_piece_of_another() {

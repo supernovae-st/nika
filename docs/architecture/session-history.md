@@ -72,8 +72,10 @@ the rehearsal before the next Run.
 receipt head/length in an optional versioned `last_run` value. Session owns its
 persistence; `nika_trace::run_view::KeptRun` is only an observation, with no
 history or authority. Reopen exposes it and repaints retained dialogue as history;
-it does not restore task rows, outputs, a file inventory or execution. The
-workspace verifies the journal again only when Proof is opened. A resumed leg
+it does not restore task rows, outputs, a file inventory or execution by itself.
+Inspecting any face of that retained Run asks the workspace to read and verify its
+journal. Only an accepted reading bound to that Run populates its recorded task
+and output views; an unavailable or unbound reading stays explicit. A resumed leg
 has its own execution and journal; no identity is inferred from a previous leg.
 Legacy absence stays absent. An unreadable kept value is preserved and reported,
 not repaired; a present null is refused. Older engines whose closed history
@@ -101,15 +103,19 @@ snapshot or hidden reasoning is serialized.
 The local directory and files use `OwnedDir` and its private modes (0700/0600).
 Contained opens refuse symlinks and special files; opening a FIFO does not
 wait for another process to connect. The project tree receives no conversation
-file. Input is limited to 64 KiB, a record to 1 MiB, and a journal to 16 MiB;
-capacity is reserved before starting an operation. Reaching capacity refuses
-new work and preserves history. Automatic compaction, archive rotation,
-multiple named conversations and migration tooling are subsequent work.
+file. Inputs, records and total conversation history have no fixed byte quota.
+History is replayed one complete record at a time through the same integrity and
+transition checks; a truncated or corrupted journal is preserved and refused.
+Project state and consent history likewise have no product byte quota. Kept drafts
+retain their full redacted text instead of losing restore capability at a size threshold.
+The decoded state and consent list still occupy memory, and real storage failures
+remain visible. Streaming reads do not claim constant total memory. Automatic
+compaction, archive rotation and multiple named conversations remain subsequent work.
 
 ## Verification
 
 Runtime tests exercise reopen without inference, old-consent refusal, private
-redaction, blocked storage, corruption, limits and symlinks. Child processes
+redaction, blocked storage, corruption, large inputs/records/journals and symlinks. Child processes
 exercise writer exclusion, normal reopen and SIGKILL during inference. The
 terminal driver checks recovery and corruption exit behavior. The JSONL
 `session_script` example accepts an optional `home` for process-level tests;
@@ -126,7 +132,7 @@ cross-session retrieval, or transport parity.
 
 ## Byte-bound program evidence
 
-The optional `Saved.programs` field adds bounded semantic and source-revision
+The optional `Saved.programs` field adds semantic and source-revision
 records to the existing HOME history, with no parallel project file. It is
 omitted when absent, so pre-existing record digests are unchanged. Older
 engines whose strict `Saved` schema does not recognize it refuse newer history;
@@ -136,8 +142,10 @@ unchanged in engines that know the field.
 Records are keyed by proposal identity or saved relative path plus exact final
 program bytes, carry a whole-plan digest,
 and are withheld if redaction changes them. The pure codec lives in
-`nika_compile_fidelity::sketch::kept` and is exposed through Onboard. It limits
-the envelope to 256 KiB and sixteen records. Reopen restores evidence and the
+`nika_compile_fidelity::sketch::kept` and is exposed through Onboard. It retains
+records without a fixed count, plan-size or envelope-size quota. A new Save at
+the same path supersedes that path's prior meaning; it cannot revive stale evidence.
+Reopen restores evidence and the
 last Save's relative file selection, never consent, a live proposal,
 Run permission or past Check verdict. EDIT reconstructs the exact base again
 and passes current observation and monetary admission. Equal program bytes at

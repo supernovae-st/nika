@@ -646,11 +646,12 @@ impl AuthoringPolicy {
     pub const fn repair_limit(&self) -> Option<u32> {
         self.repairs
     }
-    /// Ask for `samples` independent proposals (1..=5) and keep the one the others agree
-    /// with most; disagreement is recorded, never voted away. Each sample is one call.
+    /// Ask for `samples` independent proposals, as typed, and keep the one the others agree
+    /// with most; disagreement is recorded, never voted away. Each sample is one call under
+    /// the caller's request authority. Zero is invalid, never silently raised to one.
     #[must_use]
     pub fn with_samples(mut self, samples: u32) -> Self {
-        self.samples = samples.clamp(1, 5);
+        self.samples = samples;
         self
     }
     /// Permit one call with an explicit model, output-token cap and timeout.

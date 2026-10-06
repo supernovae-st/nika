@@ -48,8 +48,7 @@ mod transform;
 mod verify;
 use proposal::{Composition, Merged, Proposal, decode, merged};
 pub(super) use proposal::{ProposedRegion, nullable_default};
-pub(crate) use transform::MAX_CALLS as TRANSFORM_QUESTIONS;
-pub(crate) use verify::{CLAUSE_QUESTIONS, WHOLE_QUESTIONS};
+pub(crate) use verify::WHOLE_QUESTIONS;
 
 /// The explicit cognition a caller permits for one request. Absent seats are not consent.
 #[derive(Clone, Copy)]
@@ -653,7 +652,7 @@ async fn author_create<P: ProviderInferDyn>(
         }
         // HOT and finite WARM judgments keep their place. The attached knowledge is context the
         // plan reads (`knowledge::plan_context`), never a route of its own.
-        route.push(format!("cold: {} sample(s)", policy.samples.clamp(1, 5)));
+        route.push(format!("cold: {} sample(s)", policy.samples));
         let mut found: Option<Composition> = None;
         let cold = sampled(
             intent,
@@ -739,13 +738,14 @@ async fn after_cold<P: ProviderInferDyn>(
 /// Why a fresh CREATE under `only` sends no request.
 const ONLY_RETIRED: &str = "Source-only authoring (native: only) is retired for a new workflow: no model writes whole source. Use native: escalate (the default: the private plan, then the sketch door when the plan cannot carry the request) or native: sketch (the structure, then its typed fills); the compiler writes the source. No request was sent and no candidate was assembled.";
 
-const POLICY_BOUNDS: &str = "Authoring requires an explicit model, a positive output-token limit (an initial one within it) and a positive timeout.";
+const POLICY_BOUNDS: &str = "Authoring requires an explicit model, a positive sample count, a positive output-token limit (an initial one within it) and a positive timeout.";
 
 /// The bounds every seat call honors: an explicit model, a positive answer limit and a positive
 /// wait. What a route can hold (its output cap, its context, its deadline) is its own technical
 /// limit, the host's and the provider's to answer, never a compiler ceiling on the request.
 fn policy_bounded(policy: &AuthoringPolicy) -> bool {
     !policy.model.trim().is_empty()
+        && policy.samples > 0
         && policy.max_tokens > 0
         && policy
             .initial_max_tokens
@@ -1105,7 +1105,7 @@ async fn sampled<P: ProviderInferDyn>(
     let mut context: Vec<Value> = Vec::new();
     // One context for every sample: the same request, reading and attachments.
     let prepared = knowledge::plan_context(intent, reading, request);
-    for index in 0..policy.samples.clamp(1, 5) as usize {
+    for index in 0..policy.samples as usize {
         let mut scratch = super::initial();
         let proposal = propose(intent, policy, provider, &prepared, &mut scratch).await;
         let merged = proposal.map(|p| merged(intent, p, reading, &mut scratch));
@@ -1134,6 +1134,16 @@ async fn sampled<P: ProviderInferDyn>(
             .filter(|d| d.kind != DiagnosticKind::Applied)
             .map(|d| d.message.clone())
             .collect();
+        let authority_spent = scratch
+            .provenance
+            .authoring
+            .as_ref()
+            .is_some_and(|receipt| {
+                receipt
+                    .context
+                    .iter()
+                    .any(|call| call["result"]["failure_kind"] == "admission_refused")
+            });
         records.push(json!({
             "sample": index,
             "calls": scratch.provenance.authoring.as_ref().map_or(0, |r| r.calls),
@@ -1148,9 +1158,12 @@ async fn sampled<P: ProviderInferDyn>(
             None if needs_sketch => {}
             None => rejected.push(scratch),
         }
+        if authority_spent {
+            break;
+        }
     }
     // Every call beyond one per sample is a repair: the route says how many were bought.
-    let repairs = calls.saturating_sub(policy.samples.clamp(1, 5));
+    let repairs = calls.saturating_sub(u32::try_from(records.len()).unwrap_or(u32::MAX));
     if repairs > 0 {
         route.push(format!("cold: repair {repairs}"));
     }
@@ -1267,7 +1280,7 @@ async fn sampled<P: ProviderInferDyn>(
     decision["feasible_count"] = json!(feasible.len());
     decision["selected_candidate"] = json!(chosen);
     decision["compose"] = json!({
-        "cap": compose::CAP,
+        "cap": null,
         "pattern_dimensions": composition.dimensions.iter().map(compose::Dimension::to_json).collect::<Vec<_>>(),
     });
     if let Some(record) = warm_record {

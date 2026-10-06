@@ -247,23 +247,57 @@ fn a_text_altered_after_it_was_kept_is_never_continued() {
 }
 
 #[test]
-fn an_oversized_round_withholds_its_plan_and_a_huge_request_is_not_kept() {
-    let plan = json!({"observed_world": {"blob": "x".repeat(ROUND_LIMIT + 1)}});
-    let kept = Capture::new("post the totals", &redact)
+fn a_large_round_preserves_its_request_plan_knowledge_and_receipt_after_reopen() {
+    let huge = "y".repeat(ROUND_LIMIT + 1);
+    let plan = json!({"observed_world": {"blob": huge}});
+    let knowledge = json!({"evidence": huge});
+    let mut receipt = AuthoringReceipt::new("mock/echo");
+    receipt.calls = 1;
+    receipt.context = vec![json!({"evidence": huge})];
+    let kept = Capture::new(&huge, &redact)
+        .edit(
+            Some("workflow.nika"),
+            &huge,
+            "keep its meaning",
+            Some(&huge),
+        )
         .questions(&questions())
         .continuation(Some(&plan))
-        .knowledge(Some(&json!({"k": 1})))
+        .knowledge(Some(&knowledge))
+        .authoring_receipt(Some(&receipt))
         .finish()
-        .expect("kept without its plan");
-    assert!(kept.to_string().len() <= ROUND_LIMIT);
-    let record = usable(kept);
+        .expect("the complete record is kept");
+    let encoded = kept.to_string();
+    assert!(encoded.len() > ROUND_LIMIT);
+    let reopened: Value = serde_json::from_str(&encoded).expect("schema-1 JSON");
+    assert_eq!(reopened, kept, "no field is dropped on the wire");
+    let record = usable(reopened);
+    assert_eq!(record.continuable(), Ok(()));
+    assert_eq!(record.request.text, huge);
+    assert_eq!(record.knowledge, Some(knowledge));
+    assert_eq!(record.authoring_receipt(), Some(receipt));
+    let continuation = record.continuation.expect("kept continuation");
+    assert_eq!(continuation.value, Some(plan));
+    assert_eq!(continuation.withheld, None);
+    let edit = record.edit.expect("kept edit");
+    assert_eq!(edit.base.text, huge);
+    assert_eq!(edit.original.expect("original request").text, huge);
+}
+
+#[test]
+fn a_historical_over_bound_continuation_stays_unavailable() {
+    let mut kept = plain();
+    kept["continuation"] = json!({
+        "sha256": sha256_hex(b"historical plan that was not saved"),
+        "value": null,
+        "withheld": "over_bound",
+    });
+    let reading = RoundReading::from_raw(kept.clone());
+    assert_eq!(reading.raw(), &kept, "historical evidence stays unchanged");
     assert_eq!(
-        record.continuable(),
+        reading.record().expect("known schema").continuable(),
         Err(Unusable::Withheld("over_bound".to_owned()))
     );
-    assert_eq!(record.knowledge, None);
-    let huge = "y".repeat(ROUND_LIMIT + 1);
-    assert_eq!(Capture::new(&huge, &redact).finish(), None);
 }
 
 #[test]
@@ -299,19 +333,37 @@ fn unreadable_values_are_named_kept_and_never_used() {
 }
 
 #[test]
-fn a_round_with_too_many_answers_or_no_question_is_not_continued() {
-    let many: BTreeMap<String, String> = (0..=MAX_ANSWERS)
-        .map(|i| (format!("k{i:03}"), "1".to_owned()))
-        .collect();
-    let kept = Capture::new("x", &redact)
-        .answers(&many)
-        .questions(&questions())
-        .finish()
-        .expect("kept");
-    assert_eq!(
-        usable(kept).continuable(),
-        Err(Unusable::TooManyAnswers(MAX_ANSWERS + 1))
-    );
+fn every_answer_survives_reopen_beyond_the_historical_count_and_the_last_is_validated() {
+    for count in [MAX_ANSWERS, MAX_ANSWERS + 1, MAX_ANSWERS * 2 + 1] {
+        let many: BTreeMap<String, String> = (0..count)
+            .map(|i| (format!("k{i:03}"), format!(r#"{{"answer":{i}}}"#)))
+            .collect();
+        let kept = Capture::new("x", &redact)
+            .answers(&many)
+            .questions(&questions())
+            .finish()
+            .expect("kept");
+        let reopened: Value = serde_json::from_str(&kept.to_string()).expect("JSON");
+        let record = usable(reopened);
+        assert_eq!(record.continuable(), Ok(()));
+        assert_eq!(record.answers.len(), count);
+        assert_eq!(record.answer_map(), many);
+
+        let mut altered = kept.clone();
+        altered["answers"][count - 1]["literal"]["text"] = json!("false");
+        assert_eq!(
+            usable(altered).continuable(),
+            Err(Unusable::Redacted("answer")),
+            "the last answer's digest is checked among all {count} answers"
+        );
+        let mut malformed = kept;
+        malformed["answers"][count - 1]["literal"]["text"] = json!(false);
+        assert!(unreadable(&malformed).contains(&format!("answers[{}]", count - 1)));
+    }
+}
+
+#[test]
+fn a_round_with_no_question_or_continuation_is_not_continued() {
     let kept = Capture::new("x", &redact).finish().expect("kept");
     assert_eq!(usable(kept).continuable(), Err(Unusable::NoQuestion));
 }

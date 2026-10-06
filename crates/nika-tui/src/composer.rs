@@ -101,6 +101,11 @@ impl Composer {
     /// with a multi-line draft and never cuts its last row.
     #[must_use]
     pub fn rows(&self, width: u16) -> u16 {
+        u16::try_from(self.content_rows(width)).unwrap_or(u16::MAX)
+    }
+
+    /// Content length is independent of the terminal's coordinate range.
+    pub(crate) fn content_rows(&self, width: u16) -> usize {
         let width = usize::from(width.max(1));
         let tab = self.area.tab_length();
         let rows: usize = self
@@ -109,7 +114,7 @@ impl Composer {
             .iter()
             .map(|line| wrapped_rows(line, width, tab))
             .sum();
-        u16::try_from(rows.max(1)).unwrap_or(u16::MAX)
+        rows.max(1)
     }
 
     /// Insert pasted text as data.

@@ -8,8 +8,8 @@
 //! structured-output fallback inside one invocation is a request too. A seat whose own requests
 //! cannot be observed (an agent harness) is bounded by its invocations alone. A request past the
 //! authority is refused before any byte leaves, and every refusal is counted beside what was
-//! sent, never over the core's own journal of attempts. [`worst_case`] is what a configuration
-//! of this core can ask for, and [`Authority`] resolves a door's bound against what its caller
+//! sent, never over the core's own journal of attempts. [`worst_case_of`] states what a
+//! configuration can bound without its request, and [`Authority`] resolves a door's bound against what its caller
 //! typed, before any request. The counters bound requests, never dollars.
 
 use std::sync::Arc;
@@ -23,27 +23,34 @@ use crate::NativeMode;
 /// API seat's requests. This authority resolves which bound they hold.
 pub use nika_providers::authoring::requests::{Envelope, Seat, Wire};
 
-/// The worst-case author requests a configuration can make, the author-provider verifier's
-/// included (R4 A11, nv1b), for comparison with an explicit allowance. A separately selected
+/// Historical request estimate of the former capped compiler, retained for source compatibility.
+/// It does not bound the current compiler: transform synthesis follows every unstated computation,
+/// whose count is not known from these arguments. Use [`worst_case_of`] for current accounting;
+/// an explicit allowance is enforced by the request counters, never by this historical estimate.
+/// The former author-provider verifier was included (R4 A11, nv1b). A separately selected
 /// decision seat keeps its own request observations. With `s` samples
-/// clamped to [`SAMPLES`] and `r` repairs as the policy holds them:
+/// formerly clamped to 1..=5 and `r` repairs as the policy holds them:
 /// - an edit's native revision: the candidate and its repairs, then the whole-request judgment
 ///   and its locate question (`verify::WHOLE_QUESTIONS`, 2): `3 + r`;
 /// - the sketch door: the sketch, its fills and `r` repairs (a fill, or the graph reproposed),
 ///   each new candidate judged afresh: `2 + r + 2 (1 + r) = 4 + 3r`;
 /// - COLD: each sample and its one evidence repair (`2s`), then `1 + r` verification attempts,
-///   each asking at most `verify::CLAUSE_QUESTIONS` (8) clause questions, the whole-request
-///   judgment (2) and one transform synthesis of at most `transform::MAX_CALLS` (2) questions;
+///   each asking at most 8 clause questions, the whole-request judgment (2) and one transform
+///   synthesis of at most 2 questions;
 ///   each of the `r` verify repairs is one call, and the transform repairs share one allowance of
 ///   `r`: `2s + 12 (1 + r) + 2r = 2s + 14r + 12`;
 /// - escalate: COLD, then the sketch door with one repair less (`3r + 1`; none when `r` is 0);
 /// - only: no request for a creation, which this core no longer authors as whole source.
 ///
-/// Arithmetic saturates rather than overflows. With no repair count, the worst case is not
-/// finite where repairs can add requests; otherwise it stays fixed ([`worst_case_of`]).
+/// Arithmetic saturates rather than overflows. These historical caps are not current limits.
 #[must_use]
+#[deprecated(note = "historical capped-engine estimate; use worst_case_of for current accounting")]
 pub fn worst_case(strategy: NativeMode, samples: u32, repairs: u32, edit: bool) -> u32 {
-    let samples = samples.clamp(*SAMPLES.start(), *SAMPLES.end());
+    historical_worst_case(strategy, samples, repairs, edit)
+}
+
+fn historical_worst_case(strategy: NativeMode, samples: u32, repairs: u32, edit: bool) -> u32 {
+    let samples = samples.clamp(1, 5);
     let count = |questions: usize| u32::try_from(questions).unwrap_or(u32::MAX);
     let judged = count(crate::cognition::WHOLE_QUESTIONS);
     let rounds = |repairs: u32| repairs.saturating_add(1);
@@ -51,9 +58,7 @@ pub fn worst_case(strategy: NativeMode, samples: u32, repairs: u32, edit: bool) 
     let sketch = |repairs: u32| {
         (repairs.saturating_add(2)).saturating_add(judged.saturating_mul(rounds(repairs)))
     };
-    let attempt = count(crate::cognition::CLAUSE_QUESTIONS)
-        .saturating_add(judged)
-        .saturating_add(count(crate::cognition::TRANSFORM_QUESTIONS));
+    let attempt = 8_u32.saturating_add(judged).saturating_add(2);
     let cold = (samples.saturating_mul(2))
         .saturating_add(rounds(repairs).saturating_mul(attempt))
         .saturating_add(repairs.saturating_mul(2));
@@ -67,24 +72,31 @@ pub fn worst_case(strategy: NativeMode, samples: u32, repairs: u32, edit: bool) 
     }
 }
 
-/// The worst case of a policy's own repair limit: [`worst_case`] under a typed limit; under no
-/// count (`None`), `None` wherever a repair buys a request (no finite worst case exists), else
-/// the count no repair changes.
+/// The request-independent worst case of the current policy. COLD creation (`off` or
+/// `escalate`) follows every unstated computation, so its request count is unknown here even
+/// with an explicit repair limit. Revisions also depend on the retained representation and
+/// its link, fill and repeated judgment work, which these arguments do not describe.
+/// A strategy with no repair limit has no finite worst case
+/// wherever repairs add requests, or the finite estimate exceeds the count representation.
+/// `None` never grants more requests: the explicit authority still refuses each attempt past
+/// its bound.
 #[must_use]
 pub fn worst_case_of(
     strategy: NativeMode,
-    samples: u32,
+    _samples: u32,
     repairs: Option<u32>,
     edit: bool,
 ) -> Option<u32> {
-    match repairs {
-        Some(repairs) => Some(worst_case(strategy, samples, repairs, edit)),
-        None if worst_case(strategy, 1, 1, edit) > worst_case(strategy, 1, 0, edit) => None,
-        None => Some(worst_case(strategy, samples, 0, edit)),
+    match (strategy, edit) {
+        (NativeMode::Off, true) | (NativeMode::Only, false) => Some(0),
+        (NativeMode::Sketch, false) => repairs
+            .and_then(|repairs| repairs.checked_mul(3))
+            .and_then(|calls| calls.checked_add(4)),
+        _ => None,
     }
 }
 
-/// The requests an explicit source recovery adds to [`worst_case`] for a creation: the source and
+/// The requests an explicit source recovery adds to a finite configured estimate: the source and
 /// the whole-request judgment per round (`1 + 2`), drawn from the same authority, never beside it.
 /// The rounds count as typed.
 #[must_use]
@@ -122,7 +134,7 @@ pub const fn least_requests(strategy: NativeMode) -> u32 {
 pub const DEFAULT_MAX_CALLS: u32 = 1;
 
 /// The COLD samples the core runs; a typed count outside is refused, never clamped into another.
-pub const SAMPLES: std::ops::RangeInclusive<u32> = 1..=5;
+pub const SAMPLES: std::ops::RangeInclusive<u32> = 1..=u32::MAX;
 
 /// The native repairs the core runs: every typed count, as typed (the core clamps none; a policy
 /// may also state no count). A typed count is refused only when the authority cannot honor it
@@ -284,8 +296,9 @@ impl Authority {
     ///
     /// # Errors
     /// [`Refusal::Range`] for typed samples outside [`SAMPLES`] or a grant of zero requests;
-    /// [`Refusal::Multiplicity`] when typed repairs or samples raise the
-    /// worst case above the defaults' and above a typed bound; [`Refusal::Strategy`] for a typed
+    /// [`Refusal::Multiplicity`] when a known finite request count under typed repairs exceeds
+    /// both the defaults' and a typed bound. A request-dependent count remains unknown and is
+    /// enforced by the counters; [`Refusal::Strategy`] for a typed
     /// escalate or sketch granted one request, outside an edit.
     pub fn resolve(
         max_calls: Option<u32>,
@@ -303,9 +316,16 @@ impl Authority {
             return Err(refusal);
         }
         let max = max_calls;
-        let baseline = worst_case(strategy, 1, 0, edit);
-        let needed = worst_case(strategy, samples.unwrap_or(1), repairs.unwrap_or(0), edit);
-        if let Some(authorized) = max.filter(|max| needed > baseline && needed > *max) {
+        let baseline = worst_case_of(strategy, 1, Some(0), edit);
+        let needed = worst_case_of(
+            strategy,
+            samples.unwrap_or(1),
+            Some(repairs.unwrap_or(0)),
+            edit,
+        );
+        if let Some((needed, baseline)) = needed.zip(baseline)
+            && let Some(authorized) = max.filter(|max| needed > baseline && needed > *max)
+        {
             return Err(Refusal::Multiplicity {
                 needed,
                 authorized,
@@ -332,11 +352,16 @@ impl Authority {
             ),
             (
                 "samples",
-                samples.is_some() && worst_case(strategy, 2, 0, edit) == baseline,
+                samples.is_some()
+                    && (edit || matches!(strategy, NativeMode::Only | NativeMode::Sketch)),
             ),
             (
                 "repairs",
-                repairs.is_some() && worst_case(strategy, 1, 1, edit) == baseline,
+                repairs.is_some()
+                    && matches!(
+                        (strategy, edit),
+                        (NativeMode::Off, true) | (NativeMode::Only, false)
+                    ),
             ),
         ]
         .into_iter()
@@ -413,21 +438,30 @@ mod tests {
         // each, with its r verify repairs and r transform repairs (2s + 14r + 12); escalate adds
         // the sketch door with one repair less (1 + 3r, none at r = 0). A creation under `only`
         // sends nothing. Before the verifier was counted, the default work was bounded at 2 + 1 + 3.
-        assert_eq!(worst_case(NativeMode::Escalate, 1, 3, false), 56 + 10);
-        assert_eq!(worst_case(NativeMode::Escalate, 1, 0, false), 14);
-        assert_eq!(worst_case(NativeMode::Escalate, 1, 1, false), 28 + 4);
-        assert_eq!(worst_case(NativeMode::Only, 1, 0, false), 0);
-        assert_eq!(worst_case(NativeMode::Only, 1, 3, false), 0);
-        assert_eq!(worst_case(NativeMode::Sketch, 1, 0, false), 4);
-        assert_eq!(worst_case(NativeMode::Sketch, 1, 3, false), 13);
-        assert_eq!(worst_case(NativeMode::Off, 1, 0, false), 14);
-        assert_eq!(worst_case(NativeMode::Off, 3, 5, false), 88);
-        assert_eq!(worst_case(NativeMode::Escalate, 1, 3, true), 6);
-        assert_eq!(worst_case(NativeMode::Only, 1, 3, true), 6);
-        assert_eq!(worst_case(NativeMode::Off, 1, 3, true), 0);
+        assert_eq!(
+            historical_worst_case(NativeMode::Escalate, 1, 3, false),
+            56 + 10
+        );
+        assert_eq!(historical_worst_case(NativeMode::Escalate, 1, 0, false), 14);
+        assert_eq!(
+            historical_worst_case(NativeMode::Escalate, 1, 1, false),
+            28 + 4
+        );
+        assert_eq!(historical_worst_case(NativeMode::Only, 1, 0, false), 0);
+        assert_eq!(historical_worst_case(NativeMode::Only, 1, 3, false), 0);
+        assert_eq!(historical_worst_case(NativeMode::Sketch, 1, 0, false), 4);
+        assert_eq!(historical_worst_case(NativeMode::Sketch, 1, 3, false), 13);
+        assert_eq!(historical_worst_case(NativeMode::Off, 1, 0, false), 14);
+        assert_eq!(historical_worst_case(NativeMode::Off, 3, 5, false), 88);
+        assert_eq!(historical_worst_case(NativeMode::Escalate, 1, 3, true), 6);
+        assert_eq!(historical_worst_case(NativeMode::Only, 1, 3, true), 6);
+        assert_eq!(historical_worst_case(NativeMode::Off, 1, 3, true), 0);
         // Samples clamped as the policy clamps them (five); repairs counted as typed (nine):
         // COLD 2·5 + 10·12 + 2·9, then the sketch door with eight repairs, 8 + 2 + 2·9.
-        assert_eq!(worst_case(NativeMode::Escalate, 9, 9, false), 148 + 28);
+        assert_eq!(
+            historical_worst_case(NativeMode::Escalate, 9, 9, false),
+            148 + 28
+        );
         // An explicit source recovery: the source and its whole-request judgment per round,
         // none without the policy, every typed round counted.
         assert_eq!(super::recovery_requests(0), 0);
@@ -471,29 +505,36 @@ mod tests {
         assert_eq!(default.max_calls(), None);
         assert_eq!(default.configured["repairs"], Value::Null);
         assert_eq!(default.configured["worst_case"], Value::Null);
-        // Typed repairs are honored as typed: no bound refuses them.
+        // COLD's computation count is request-dependent even with typed repairs: the receipt
+        // cannot promise the historical capped estimate. Its explicit authority remains exact.
         let repairs = nothing.with_repairs(Some(3));
         let honored = resolve(None, Escalate, repairs).expect("no bound to exceed");
-        assert_eq!(honored.configured["worst_case"], 66);
-        // A typed bound they can exceed refuses them, naming what they need.
-        let refused = resolve(Some(1), Escalate, repairs).expect_err("sixty-six");
+        assert_eq!(honored.configured["worst_case"], Value::Null);
+        let bounded = resolve(Some(1), Escalate, repairs).expect("dynamic work under one request");
+        assert_eq!(bounded.max_calls(), Some(1));
+        assert_eq!(bounded.configured["repairs"], 3);
+        assert_eq!(bounded.configured["worst_case"], Value::Null);
+        // A finite sketch configuration that exceeds a typed bound is still refused.
+        let refused = resolve(Some(1), Sketch, repairs).expect_err("thirteen");
         let needed = Refusal::Multiplicity {
-            needed: 66,
+            needed: 13,
             authorized: 1,
-            strategy: Escalate,
+            strategy: Sketch,
         };
         assert_eq!(refused, needed);
-        assert!(resolve(Some(66), Escalate, repairs).is_ok());
+        assert!(resolve(Some(13), Sketch, repairs).is_ok());
         // Nothing extra typed: never refused for what the defaults would allow (a typed only
         // strategy needs its judgment, below).
         let none = nothing.with_strategy().with_repairs(Some(0));
         assert!(resolve(Some(2), Only, none).is_ok());
         assert!(resolve(Some(1), Escalate, nothing.with_repairs(Some(0))).is_ok());
-        // Samples: eighteen under escalate for three of them (no repair typed: the sketch door
-        // after the plan has none left, so it sends nothing).
+        // Samples do not make the computation count known. Their calls still share the
+        // selected envelope; no preflight estimate silently raises that envelope.
         let samples = nothing.with_samples(Some(3));
-        let refused = resolve(Some(1), Escalate, samples).expect_err("eighteen");
-        assert!(matches!(refused, Refusal::Multiplicity { needed: 18, .. }));
+        let account = resolve(Some(1), Escalate, samples).expect("one request remains the bound");
+        assert_eq!(account.max_calls(), Some(1));
+        assert_eq!(account.configured["samples"], 3);
+        assert_eq!(account.configured["worst_case"], Value::Null);
         assert!(resolve(Some(18), Escalate, samples).is_ok());
         assert!(resolve(None, Escalate, samples).is_ok());
         // A typed strategy is honored in full or refused by a typed bound: a judged READY takes
@@ -561,36 +602,35 @@ mod tests {
         };
         let escalate = |max, typed| resolve(max, NativeMode::Escalate, typed);
         let nine = nothing.with_samples(Some(9));
-        assert_eq!(
-            escalate(Some(9), nine).err(),
-            Some(range("samples", 9, 1, Some(5)))
-        );
+        let accepted = escalate(Some(9), nine).expect("nine samples under nine requests");
+        assert_eq!(accepted.configured["samples"], 9);
+        assert_eq!(accepted.max_calls(), Some(9));
         let zero_samples = nothing.with_samples(Some(0));
         assert_eq!(
             escalate(Some(9), zero_samples).err(),
-            Some(range("samples", 0, 1, Some(5)))
+            Some(range("samples", 0, 1, Some(u32::MAX)))
         );
         // Repairs are honored as typed, any count: refused only by a typed bound that cannot
         // honor them, naming what they need.
         let six = nothing.with_repairs(Some(6));
-        let needed = worst_case(NativeMode::Escalate, 1, 6, false);
+        let needed = worst_case_of(NativeMode::Sketch, 1, Some(6), false).unwrap();
         assert_eq!(
-            escalate(Some(9), six).err(),
+            resolve(Some(9), NativeMode::Sketch, six).err(),
             Some(Refusal::Multiplicity {
                 needed,
                 authorized: 9,
-                strategy: NativeMode::Escalate,
+                strategy: NativeMode::Sketch,
             })
         );
-        assert!(escalate(Some(needed), six).is_ok());
+        assert!(resolve(Some(needed), NativeMode::Sketch, six).is_ok());
         assert!(escalate(None, nothing.with_repairs(Some(1000))).is_ok());
         // A grant of no request is refused before any request, never raised to one.
         assert_eq!(
             escalate(Some(0), nothing).err(),
             Some(range("max_calls", 0, 1, None))
         );
-        // The core's policy clamps samples to their range; a repair limit runs as typed, and the
-        // policy's own default states no count.
+        // Both counts stay as typed. Zero samples is refused by the authority/core, not changed
+        // silently into one; the policy's default repair count remains absent.
         let policy = || crate::AuthoringPolicy::new("mock/m", 1, std::time::Duration::from_secs(1));
         assert_eq!(policy().repairs, None);
         assert_eq!(
@@ -599,34 +639,69 @@ mod tests {
         );
         for count in [0, 1, 5, 6, 7, 64] {
             let policy = policy().with_samples(count).with_repairs(count);
-            assert_eq!(SAMPLES.contains(&count), policy.samples == count, "{count}");
+            assert_eq!(policy.samples, count, "{count}");
+            assert_eq!(SAMPLES.contains(&count), count > 0, "{count}");
             assert!(REPAIRS.contains(&count), "{count}");
             assert_eq!(policy.repair_limit(), Some(count), "{count}");
         }
     }
 
     #[test]
-    fn a_policy_with_no_repair_count_has_no_finite_worst_case() {
+    fn current_counts_are_unknown_for_dynamic_work_and_unbounded_repairs() {
         use NativeMode::{Escalate, Off, Only, Sketch};
         for strategy in [Escalate, Off, Only, Sketch] {
             for edit in [false, true] {
-                let typed = worst_case(strategy, 5, 64, edit);
-                assert_eq!(worst_case_of(strategy, 5, Some(64), edit), Some(typed));
-                let open = worst_case_of(strategy, 5, None, edit);
-                // Where a repair buys a request, no finite worst case exists; elsewhere none is
-                // bought, so the count is the one no repair changes.
-                if worst_case(strategy, 1, 1, edit) > worst_case(strategy, 1, 0, edit) {
-                    assert_eq!(open, None, "{strategy:?} {edit}");
+                let no_calls = matches!((strategy, edit), (Off, true) | (Only, false));
+                let typed = if no_calls {
+                    Some(0)
+                } else if !edit && strategy == Sketch {
+                    Some(196)
                 } else {
-                    assert_eq!(open, Some(typed), "{strategy:?} {edit}");
-                }
+                    None
+                };
+                assert_eq!(worst_case_of(strategy, 5, Some(64), edit), typed);
+                assert_eq!(
+                    worst_case_of(strategy, 5, None, edit),
+                    no_calls.then_some(0)
+                );
             }
         }
-        // The counts a typed limit needs are unchanged; an absurd typed count saturates rather
-        // than overflow.
-        assert_eq!(worst_case(Escalate, 1, 3, false), 66);
-        assert_eq!(worst_case(Off, 1, 3, false), 56);
-        assert_eq!(worst_case(Escalate, 1, u32::MAX, false), u32::MAX);
+        // The old API's historical estimate is preserved, never used as today's bound.
+        assert_eq!(historical_worst_case(Escalate, 1, 3, false), 66);
+        assert_eq!(historical_worst_case(Off, 1, 3, false), 56);
+        assert_eq!(
+            historical_worst_case(Escalate, 1, u32::MAX, false),
+            u32::MAX
+        );
+        assert_eq!(worst_case_of(Escalate, 1, Some(0), false), None);
+        assert_eq!(worst_case_of(Off, 1, Some(0), false), None);
+        // A saturated total is not an upper bound. Keep the largest representable estimates
+        // exact, then report unknown when either the multiplication or addition overflows.
+        let sketch_repairs = (u32::MAX - 4) / 3;
+        assert_eq!(
+            worst_case_of(Sketch, 1, Some(sketch_repairs), false),
+            Some(sketch_repairs * 3 + 4)
+        );
+        assert_eq!(
+            worst_case_of(Sketch, 1, Some(sketch_repairs + 1), false),
+            None
+        );
+        assert_eq!(worst_case_of(Sketch, 1, Some(u32::MAX), false), None);
+        // The historical 3 + r revision estimate omits semantic links and repeated judgments.
+        // Even zero repairs cannot make the retained representation known to this function.
+        for strategy in [Escalate, Only, Sketch] {
+            for repairs in [0, 1, 64, u32::MAX] {
+                assert_eq!(worst_case_of(strategy, 1, Some(repairs), true), None);
+            }
+        }
+        let authority = resolve(
+            Some(1),
+            Sketch,
+            Typed::new(true).with_repairs(Some(u32::MAX)),
+        )
+        .expect("an unrepresentable estimate does not change the explicit grant");
+        assert_eq!(authority.max_calls(), Some(1));
+        assert!(authority.configured["worst_case"].is_null());
         assert_eq!(recovery_requests(2), 6);
         assert_eq!(recovery_requests(4), 12, "recovery rounds count as typed");
     }
@@ -636,15 +711,13 @@ mod tests {
         use NativeMode::{Escalate, Off, Only, Sketch};
         let nothing = Typed::new(false);
         let ignored = |authority: &Authority| authority.configured["ignored"].clone();
-        // Repairs under off are the verifier's (R4 A11, nv1b): its verify repairs, their
-        // syntheses and the transform repair allowance are counted, so typed repairs are honored
-        // in full or refused, never ignored.
+        // Repairs under off are the verifier's, never ignored just because their total request
+        // count depends on the computations. The explicit request envelope remains unchanged.
         let typed = nothing.with_strategy().with_repairs(Some(3));
-        let refused = resolve(Some(1), Off, typed).expect_err("fifty-six");
-        assert!(matches!(refused, Refusal::Multiplicity { needed: 56, .. }));
-        let off = resolve(Some(56), Off, typed).expect("off with its verifier repairs");
+        let off = resolve(Some(1), Off, typed).expect("off with its verifier repairs");
         assert_eq!(ignored(&off), json!([]));
-        assert_eq!(off.configured["worst_case"], 56);
+        assert_eq!(off.max_calls(), Some(1));
+        assert_eq!(off.configured["worst_case"], Value::Null);
         // Samples change nothing where no plan is sampled.
         for strategy in [Only, Sketch] {
             let sampled = resolve(None, strategy, nothing.with_samples(Some(3))).expect("runs");
@@ -654,8 +727,10 @@ mod tests {
         let edit = Typed::new(true).with_strategy().with_samples(Some(3));
         let revision = resolve(None, Sketch, edit).expect("one request");
         assert_eq!(ignored(&revision), json!(["strategy", "samples"]));
-        // A value the strategy applies is never ignored, and is honored in full or refused.
-        assert!(resolve(Some(1), Off, nothing.with_samples(Some(2))).is_err());
+        // A value the strategy applies is never ignored when its request count is unknown.
+        let sampled = resolve(Some(1), Off, nothing.with_samples(Some(2))).expect("one request");
+        assert_eq!(ignored(&sampled), json!([]));
+        assert_eq!(sampled.max_calls(), Some(1));
         let repaired = resolve(Some(66), Escalate, nothing.with_repairs(Some(3))).expect("66");
         assert_eq!(ignored(&repaired), json!([]));
     }

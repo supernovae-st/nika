@@ -9,7 +9,7 @@
 //! never the transcript (that is the history under the home). One JSON
 //! object per line, readable by any `nika trace`-class reader.
 
-use std::io;
+use std::io::{self, BufRead, BufReader};
 use std::path::{Path, PathBuf};
 
 use nika_fs::OwnedDir;
@@ -21,8 +21,6 @@ use crate::outcome::ProposalId;
 /// The journal's name under the project's `.nika/`.
 pub const CONSENTS_FILE: &str = "consents.ndjson";
 const NIKA_DIR: &str = ".nika";
-/// The most bytes a reader takes from the journal (a bound, not a quota).
-const MAX_JOURNAL_BYTES: u64 = 16 * 1024 * 1024;
 
 /// What the consent decided.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -123,22 +121,24 @@ impl ConsentRecord {
     /// ever applied under this root.
     ///
     /// # Errors
-    /// A journal beyond 16 MiB, a line that is not a record, or the file
-    /// system's refusal.
+    /// A line that is not a record or the file system's refusal.
+    /// Read records incrementally without a fixed total journal byte quota.
     pub fn read_all(root: &Path) -> io::Result<Vec<Self>> {
-        let over = "the consent journal exceeds 16 MiB; preserve it for migration";
-        let text = match OwnedDir::open(root).and_then(|dir| {
-            dir.read_capped_below(&[NIKA_DIR], CONSENTS_FILE, MAX_JOURNAL_BYTES, over)
-        }) {
-            Ok(Some(text)) => text,
-            Ok(None) => return Ok(Vec::new()),
+        let file = match OwnedDir::open(root)
+            .and_then(|dir| dir.open_relative(&Path::new(NIKA_DIR).join(CONSENTS_FILE)))
+        {
+            Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
             Err(error) => return Err(error),
         };
-        text.lines()
-            .filter(|line| !line.trim().is_empty())
-            .map(|line| serde_json::from_str(line).map_err(io::Error::from))
-            .collect()
+        let mut records = Vec::new();
+        for line in BufReader::new(file).lines() {
+            let line = line?;
+            if !line.trim().is_empty() {
+                records.push(serde_json::from_str(&line)?);
+            }
+        }
+        Ok(records)
     }
 }
 
@@ -171,6 +171,38 @@ mod tests {
             repairs: Vec::new(),
             audits: Vec::new(),
         }
+    }
+
+    #[test]
+    fn a_journal_beyond_the_old_size_quota_remains_readable() {
+        use std::io::Write as _;
+        let root = tempfile::tempdir().expect("root");
+        let set = set(root.path());
+        let record = ConsentRecord::of(
+            &set,
+            &ProposalId::of("preview"),
+            ConsentDecision::Applied,
+            &[],
+            "2026-10-06T00:00:00Z".to_owned(),
+        );
+        record.append(root.path()).expect("first record");
+        let path = root.path().join(NIKA_DIR).join(CONSENTS_FILE);
+        let line = format!("{}\n", serde_json::to_string(&record).expect("record"));
+        let count = 16 * 1024 * 1024 / line.len() + 1;
+        let mut file = std::io::BufWriter::new(
+            std::fs::OpenOptions::new()
+                .append(true)
+                .open(&path)
+                .expect("journal"),
+        );
+        for _ in 0..count {
+            file.write_all(line.as_bytes()).expect("append record");
+        }
+        file.flush().expect("flush");
+        assert!(std::fs::metadata(&path).expect("metadata").len() > 16 * 1024 * 1024);
+        let records = ConsentRecord::read_all(root.path()).expect("entire journal");
+        assert_eq!(records.len(), count + 1);
+        assert!(records.iter().all(|r| r == &record));
     }
 
     #[test]

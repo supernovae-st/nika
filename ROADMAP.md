@@ -1,5 +1,10 @@
 # Nika Roadmap
 
+The accepted [0.123 cooperative intent direction](docs/architecture/ARCHITECTURE-0.123.md),
+amended 6 October 2026, governs this convergence. Historical routing descriptions
+below do not override it. Implementation, measured qualification and release
+remain separate from accepting that direction.
+
 > **⚠️ VERSION POLICY AMENDED 2026-06-20 (D-2026-06-20-N1) · "forever-v0.x" RETIRED.**
 > Nika now follows real semver toward a **1.0** public launch. The latest
 > tagged public release lives on the

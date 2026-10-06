@@ -6,14 +6,14 @@
 //! Off unless the operator builds the server with [`ServerConfig::with_native_authoring`]
 //! (`nika serve --authoring-model`): a default server speaks generation 1 alone, byte for byte.
 //! The seat is ONE direct provider model — never a harness, never a decision seat — with its
-//! bounds (output tokens and seconds per call, repair rounds, one request's deadline) and an
+//! route's completion capacity and any explicit operator limits, plus an
 //! optional Foundry knowledge snapshot, opened, verified and pinned when the listener attaches
 //! through the configuration parser and knowledge reader every door shares
 //! (`nika_cli_host::compile::{config, knowledge}`). The strategy is fixed: the shared default
 //! `escalate` (the compiler writes the source), one sample, at the operator's effort. A round
-//! permits one physical request by default; the operator must explicitly grant `max_calls` for
-//! more. Repair preferences are not grants. Redirects are disabled; provider resends consume
-//! that grant. A caller opts in per request and may narrow each bound, never widen one; it names
+//! has no implicit request, repair or whole-round limit. Redirects are disabled; requests are
+//! counted and any explicit `max_calls` is enforced. A caller opts in per request and may
+//! narrow each bound, never widen one; it names
 //! no model, endpoint, credential, path, strategy or effort. The key the seat's provider
 //! resolves is withheld from every answer, however the operator supplied it.
 
@@ -31,13 +31,6 @@ use super::super::config::ServerConfig;
 use super::replay::Replays;
 use super::v2::Bounds;
 
-const DEFAULT_DEADLINE: Duration = Duration::from_secs(300);
-const DEFAULT_REPLAY_ENTRIES: usize = 32;
-const DEFAULT_REPLAY_TTL: Duration = Duration::from_secs(30 * 60);
-const MAX_DEADLINE: Duration = Duration::from_secs(3600);
-const MAX_REPLAY_ENTRIES: usize = 1024;
-const MAX_REPLAY_TTL: Duration = Duration::from_secs(24 * 3600);
-
 /// The operator's explicit native authoring seat. Nothing here is a caller's choice.
 #[derive(Clone)]
 #[non_exhaustive]
@@ -46,69 +39,72 @@ pub struct NativeAuthoring {
     providers: ProvidersConfig,
     bounds: Bounds,
     named: config::AuthoringSettings,
-    replay_entries: usize,
-    replay_ttl: Duration,
+    replay_entries: Option<usize>,
+    replay_ttl: Option<Duration>,
     withheld: Vec<Secret>,
 }
 
 impl NativeAuthoring {
     /// Seat `model` (`provider/name`, a direct provider) with the provider configuration
-    /// (keys, endpoints) the composition root resolved. Defaults: 8192 output tokens and
-    /// 120 s per call, 3 desired repair rounds within ONE authorized request, a 300 s deadline,
-    /// no knowledge, 32 kept rounds for 30 minutes. Use `with_max_calls` to grant more requests.
+    /// (keys, endpoints) the composition root resolved. Completion limits follow that route;
+    /// request count, repair count and whole-round duration have no implicit ceiling.
+    /// Replay storage has no implicit count, size or expiry limit. It is held in memory by
+    /// this server run and is forgotten when the process stops.
     /// Validated when the listener attaches, before it binds.
     #[must_use]
     pub fn new(model: impl Into<String>, providers: ProvidersConfig) -> Self {
+        let model = model.into();
+        let route =
+            nika_providers::authoring::policy::completion_bounds(&model, false, providers.clone());
         Self {
-            model: model.into(),
+            model,
             providers,
             bounds: Bounds {
-                max_tokens: config::DEFAULT_MAX_TOKENS,
-                call_timeout: config::DEFAULT_CALL_TIMEOUT,
-                deadline: DEFAULT_DEADLINE,
-                repairs: config::DEFAULT_REPAIRS,
-                repairs_explicit: false,
+                max_tokens: route.max_tokens,
+                initial_tokens: route.initial_tokens,
+                call_timeout: route.timeout,
+                deadline: None,
+                repairs: None,
                 max_calls: None,
                 grant: "operator: NativeAuthoring::with_max_calls",
             },
             named: config::AuthoringSettings::none(),
-            replay_entries: DEFAULT_REPLAY_ENTRIES,
-            replay_ttl: DEFAULT_REPLAY_TTL,
+            replay_entries: None,
+            replay_ttl: None,
             withheld: Vec::new(),
         }
     }
 
-    /// Output tokens per call (1..=32768).
+    /// Explicit positive output-token limit per call.
     #[must_use]
     pub const fn with_max_tokens(mut self, tokens: u32) -> Self {
         self.bounds.max_tokens = tokens;
         self
     }
 
-    /// The wait for one model invocation (up to 600 s); resends consume the request grant.
+    /// An explicit positive wait for one model invocation.
     #[must_use]
     pub const fn with_call_timeout(mut self, timeout: Duration) -> Self {
         self.bounds.call_timeout = timeout;
         self
     }
 
-    /// One request's whole deadline (up to 3600 s): its work stops there.
+    /// An explicit positive whole-round deadline: its work stops there.
     #[must_use]
     pub const fn with_deadline(mut self, deadline: Duration) -> Self {
-        self.bounds.deadline = deadline;
+        self.bounds.deadline = Some(deadline);
         self
     }
 
-    /// Desired repair rounds (0..=5), which require an explicit sufficient `max_calls` grant.
+    /// An explicit repair-round limit (zero disables repairs).
     #[must_use]
     pub const fn with_repairs(mut self, repairs: u32) -> Self {
-        self.bounds.repairs = repairs;
-        self.bounds.repairs_explicit = true;
+        self.bounds.repairs = Some(repairs);
         self
     }
 
     /// Authorize at most this many model invocations and physical HTTP requests per round.
-    /// Absent this grant the ceiling is one; zero refuses before the listener binds.
+    /// Absent this limit no count is imposed; zero refuses before the listener binds.
     #[must_use]
     pub const fn with_max_calls(mut self, max_calls: u32) -> Self {
         self.bounds.max_calls = Some(max_calls);
@@ -154,11 +150,13 @@ impl NativeAuthoring {
         self
     }
 
-    /// How many answer rounds are kept (1..=1024) and for how long (up to 24 h).
+    /// Explicitly limit the kept answer rounds and their lifetime. Both values must be
+    /// positive, and the lifetime must be representable by the monotonic clock. Without
+    /// this option, count and lifetime have no implicit limit within this server run.
     #[must_use]
     pub const fn with_replay(mut self, entries: usize, ttl: Duration) -> Self {
-        self.replay_entries = entries;
-        self.replay_ttl = ttl;
+        self.replay_entries = Some(entries);
+        self.replay_ttl = Some(ttl);
         self
     }
 
@@ -233,8 +231,8 @@ pub fn seat_native_authoring(
 }
 
 /// Attach the operator's seat with an optional explicit physical-request ceiling.
-/// The existing flag structure remains source-compatible; absent a grant, one request
-/// is authorized. A grant without an authoring model is refused.
+/// The existing flag structure remains source-compatible; absent a limit no request count
+/// is imposed. A limit without an authoring model is refused.
 ///
 /// # Errors
 /// Returns the same seating errors as [`seat_native_authoring`], or a bound error
@@ -389,24 +387,26 @@ fn contains(haystack: &[u8], needle: &[u8]) -> bool {
 fn bounds(config: &NativeAuthoring) -> Result<Bounds, NativeAuthoringError> {
     let bounds = config.bounds;
     let refuse = |why| Err(NativeAuthoringError::Bound(why));
-    config::check_legacy_call_bounds(bounds.max_tokens, bounds.call_timeout)
+    config::check_call_bounds(bounds.max_tokens, bounds.call_timeout)
         .map_err(NativeAuthoringError::Bound)?;
-    if bounds.deadline.is_zero() || bounds.deadline > MAX_DEADLINE {
-        return refuse("the authoring deadline per request must be above zero and at most 3600 s");
+    if bounds.deadline.is_some_and(|deadline| {
+        deadline.is_zero() || std::time::Instant::now().checked_add(deadline).is_none()
+    }) {
+        return refuse("the authoring deadline must be positive and representable by the clock");
     }
-    if bounds.repairs > config::MAX_REPAIRS {
-        return refuse("authoring repair rounds must be 0..=5");
+    if config.replay_entries == Some(0) {
+        return refuse("an explicit kept-round count must be positive");
     }
-    if !(1..=MAX_REPLAY_ENTRIES).contains(&config.replay_entries)
-        || config.replay_ttl.is_zero()
-        || config.replay_ttl > MAX_REPLAY_TTL
+    if config
+        .replay_ttl
+        .is_some_and(|ttl| ttl.is_zero() || std::time::Instant::now().checked_add(ttl).is_none())
     {
-        return refuse("kept answer rounds must be 1..=1024 for at most 24 h");
+        return refuse(
+            "an explicit kept-round lifetime must be positive and representable by the clock",
+        );
     }
     if bounds.authority().is_err() {
-        return refuse(
-            "authoring max_calls must be positive and honor explicitly configured repairs",
-        );
+        return refuse("authoring max_calls must be positive");
     }
     Ok(bounds)
 }
@@ -438,4 +438,36 @@ fn direct_provider(
         nika_providers::profile::canonical_provider(id).to_owned(),
         resolved.key().cloned(),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn defaults_follow_the_effective_route_without_implicit_round_limits() {
+        let model = "deepseek/deepseek-v4-pro";
+        for providers in [
+            ProvidersConfig::new(),
+            ProvidersConfig::new()
+                .with_base_url("deepseek", "https://gateway.invalid/v1/chat/completions"),
+        ] {
+            let route = nika_providers::authoring::policy::completion_bounds(
+                model,
+                false,
+                providers.clone(),
+            );
+            let seat = NativeAuthoring::new(model, providers);
+            assert_eq!(seat.bounds.max_tokens, route.max_tokens);
+            assert_eq!(seat.bounds.initial_tokens, route.initial_tokens);
+            assert_eq!(seat.bounds.call_timeout, route.timeout);
+            assert_eq!(seat.bounds.deadline, None);
+            assert_eq!(seat.bounds.repairs, None);
+            assert_eq!(seat.bounds.max_calls, None);
+            assert!(bounds(&seat).is_ok());
+        }
+        let direct = NativeAuthoring::new(model, ProvidersConfig::new());
+        assert_eq!(direct.bounds.max_tokens, 393_216);
+        assert_eq!(direct.bounds.initial_tokens, 131_072);
+    }
 }

@@ -604,8 +604,8 @@ fn open_column(intent: &str, slug: &str, observed: Option<&Value>) -> Option<Vec
 }
 
 /// A candidate's questions, admitted: `const.<snake_slug>` keys only, each declared under
-/// `const:` in the candidate as a placeholder (an ask without a candidate declares none), at
-/// most eight; never a machine's construct; never a name the observed world states. A column
+/// `const:` in the candidate as a placeholder (an ask without a candidate declares none);
+/// never a machine's construct; never a name the observed world states. A column
 /// the request leaves open is admitted with its observed alternatives (`open_column`), the
 /// only answers the compiler takes.
 pub(super) fn admitted_questions(
@@ -623,7 +623,7 @@ pub(super) fn admitted_questions(
         .cloned()
         .unwrap_or_default();
     let mut admitted = Vec::new();
-    for question in questions.iter().take(8) {
+    for question in questions {
         let Some(slug) = question.key.strip_prefix("const.") else {
             return Err(Diagnostic {
                 kind: "question",
@@ -917,7 +917,6 @@ fn settle(
         .iter()
         .map(|g| g.trim())
         .filter(|g| !g.is_empty())
-        .take(revision::KEPT_GAPS)
         .collect();
     // A revision's gap the change proves superseded is recorded and applied, never asked; every
     // other gap stays for the human.
@@ -1056,6 +1055,88 @@ mod tests {
             &doc("${{ with.endpoint }}", "${{ const.crm_endpoint }}"),
             &[]
         ));
+    }
+
+    #[test]
+    fn business_questions_past_eight_are_kept_and_still_validated() {
+        let mut consts = serde_json::Map::new();
+        let mut questions = Vec::new();
+        for index in 0..9 {
+            let slug = format!("business_{index}");
+            consts.insert(slug.clone(), json!(""));
+            questions.push(Question {
+                key: format!("const.{slug}"),
+                label: format!("Business value {index}"),
+                answer_type: "text".to_owned(),
+                why: "not supplied".to_owned(),
+            });
+        }
+        let candidate = json!({"nika": "business", "const": consts, "tasks": {}}).to_string();
+        let admitted = admitted_questions("", &candidate, &questions, None).unwrap();
+        assert_eq!(admitted.len(), 9);
+        for ((actual, _), expected) in admitted.iter().zip(&questions) {
+            assert_eq!(actual.key, expected.key);
+        }
+        for key in ["model", "const.missing", "const.filter_expression"] {
+            let mut invalid = questions.clone();
+            invalid[8].key = key.to_owned();
+            assert!(
+                admitted_questions("", &candidate, &invalid, None).is_err(),
+                "{key}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_ninth_gap_survives_the_record_and_still_blocks_after_eight_dispositions() {
+        let gaps: Vec<String> = (1..=9)
+            .map(|n| format!("Business requirement {n}"))
+            .collect();
+        let intent = format!("Write hello to out.txt. {}", gaps.join(". "));
+        let request = CompileRequest::create(&intent);
+        let candidate = "nika: gap-record\npermits:\n  tools: [nika:write]\n  fs:\n    write: [out.txt]\ntasks:\n  save:\n    invoke:\n      tool: nika:write\n      args: {path: out.txt, content: hello}\n";
+        let mut out = outcome();
+        settle(&intent, None, candidate, &[], &gaps, &request, &mut out);
+        let record = out.provenance.plan.as_ref().unwrap();
+        assert_eq!(record["gaps"], json!(gaps));
+        assert_eq!(out.questions.len(), 9);
+        assert_ne!(out.status, CompileStatus::Ready);
+
+        let reopened: Value = serde_json::from_str(&record.to_string()).unwrap();
+        let mut request = request.with_plan(reopened);
+        for n in 1..=8 {
+            request = request.answer(format!("gap.{n}"), "\"drop\"");
+        }
+        let replay = crate::compile(&request).unwrap();
+        assert_eq!(replay.questions.len(), 1, "{replay:#?}");
+        assert_eq!(replay.questions[0].key, "gap.9");
+        assert!(replay.questions[0].label.contains(&gaps[8]));
+        assert!(replay.diagnostics.iter().any(|d| {
+            d.kind == DiagnosticKind::Missed && d.target == "gap" && d.message.contains(&gaps[8])
+        }));
+        assert_ne!(replay.status, CompileStatus::Ready);
+        assert_eq!(
+            replay.provenance.decision.as_ref().unwrap()["gap_dispositions"]
+                .as_array()
+                .unwrap()
+                .len(),
+            8
+        );
+
+        let disposed = crate::compile(&request.answer("gap.9", "\"drop\"")).unwrap();
+        assert!(disposed.questions.is_empty());
+        assert!(disposed.diagnostics.iter().all(|d| d.target != "gap"));
+        assert!(
+            disposed
+                .diagnostics
+                .iter()
+                .any(|d| d.target == "semantic_verification")
+        );
+        assert_eq!(
+            disposed.status,
+            CompileStatus::Incomplete,
+            "disposing gaps never replaces the fresh whole-request judgment"
+        );
     }
 
     #[test]

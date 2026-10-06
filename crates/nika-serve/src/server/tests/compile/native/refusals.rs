@@ -22,8 +22,9 @@ const WITHHELD: &str = "sk-withheld-S06-0123456789abcdef";
 pub(super) fn operator(seat: &Seat) -> NativeAuthoring {
     NativeAuthoring::new(SEAT, seat.providers())
         .with_max_tokens(4096)
-        // The plan, the sketch, its fill and the judgment; repairs stay the default preference,
-        // which grants no request.
+        .with_call_timeout(Duration::from_secs(120))
+        .with_deadline(Duration::from_secs(300))
+        .with_repairs(1)
         .with_max_calls(4)
 }
 
@@ -116,7 +117,6 @@ fn form_refusals() -> Vec<Case> {
 
 /// Vocabulary, bounds and rounds, each with its own typed code.
 fn typed_refusals() -> Vec<Case> {
-    let long = format!("{SENTINEL}{}", "x".repeat(4096));
     let limit = |fields: &Value| (fresh(fields), 422, "compile_limit");
     let cognition = "compile_cognition_unsupported";
     vec![
@@ -142,12 +142,6 @@ fn typed_refusals() -> Vec<Case> {
         limit(&json!({"limits": {"call_timeout_ms": 0}})),
         limit(&json!({"limits": {"call_timeout_ms": 120_001}})),
         limit(&json!({"limits": {"deadline_ms": 300_001}})),
-        limit(&json!({"intent": long})),
-        (
-            edit(&json!({"original_intent": long})),
-            422,
-            "compile_limit",
-        ),
         (
             fresh(&json!({"answers": {"intent.clarification": SENTINEL}})),
             422,
@@ -159,6 +153,27 @@ fn typed_refusals() -> Vec<Case> {
             "compile_replay_unavailable",
         ),
     ]
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_large_intent_reaches_the_native_seat_without_a_field_quota_or_truncation() {
+    let world = TestWorld::new();
+    let seat = Seat::start(vec![Reply::Text(plan_answer(DRAFT, &[]))]);
+    // Only one request is needed to observe admission and its exact bytes. The outcome may
+    // remain incomplete; this fixture does not claim the seat understood the extra context.
+    let authoring = NativeAuthoring::new(SEAT, seat.providers()).with_max_calls(1);
+    let (server, backend) = start_native(&world, compile_limits(), authoring).await;
+    let intent = format!("{INTENT}\nContext: {}", "é".repeat(3000));
+    assert!(intent.len() > 4096);
+    let response = server
+        .request(&compile_request(&fresh(&json!({"intent": intent}))))
+        .await;
+    assert_eq!(response.status, 200, "{}", response.body);
+    let bodies = seat.bodies();
+    assert_eq!(bodies.len(), 1, "{}", response.body);
+    assert_eq!(message(&bodies[0], "user"), intent);
+    assert_eq!(backend.calls(), 0, "authoring never creates a Run");
+    server.stop().await.expect("clean stop");
 }
 
 /// Caller-named authority is an unknown field, whatever the name: no host is opened.
@@ -429,7 +444,7 @@ async fn explicit_repair_preferences_run_within_the_grant_and_a_caller_can_narro
     assert_eq!(seat.calls(), 5);
     let account = &document["provenance"]["authoring"]["backend"]["authority"];
     assert_eq!(account["max_calls"], 32);
-    assert_eq!(account["configured"]["worst_case"], 32);
+    assert_eq!(account["configured"]["worst_case"], Value::Null);
     server.stop().await.expect("clean stop");
     // The caller narrows to zero repairs: the plan and the judge's two questions, the defect
     // the judge names stays unrepaired.
@@ -446,7 +461,7 @@ async fn explicit_repair_preferences_run_within_the_grant_and_a_caller_can_narro
     assert_eq!(seat.calls(), 3);
     assert_eq!(seat.bodies()[0]["max_tokens"].as_u64(), Some(1024));
     let account = &document["provenance"]["authoring"]["backend"]["authority"];
-    assert_eq!(account["configured"]["worst_case"], 14);
+    assert_eq!(account["configured"]["worst_case"], Value::Null);
     server.stop().await.expect("clean stop");
 }
 
@@ -714,35 +729,23 @@ async fn knowledge_off_on_the_operators_layer_pins_nothing_and_contradicts_a_nam
     assert_eq!(seat.calls(), 0);
 }
 
-/// An explicit repair preference is honored in full or refused before the listener binds: under
-/// the shared default strategy one repair can need 32 requests, so a smaller grant — the default
-/// one included — never seats, and a preference of zero needs no grant beyond the default.
+/// Repair work has no clause-independent request estimate. Explicit ceilings seat normally;
+/// the request envelopes enforce them when work actually reaches each call.
 #[tokio::test(flavor = "multi_thread")]
-async fn an_explicit_repair_preference_needs_its_whole_grant_before_the_listener_binds() {
+async fn repair_preferences_and_positive_request_limits_seat_without_a_fictitious_estimate() {
     let world = TestWorld::new();
     let seat = Seat::start(Vec::new());
     let seat_with = || NativeAuthoring::new(SEAT, seat.providers());
-    for (authoring, seats) in [
-        (seat_with().with_repairs(1), false),
-        (seat_with().with_repairs(1).with_max_calls(31), false),
-        (seat_with().with_repairs(1).with_max_calls(32), true),
-        (seat_with().with_repairs(0), true),
-        (seat_with(), true),
+    for authoring in [
+        seat_with().with_repairs(1),
+        seat_with().with_repairs(1).with_max_calls(1),
+        seat_with().with_repairs(100).with_max_calls(31),
+        seat_with().with_repairs(0),
+        seat_with(),
     ] {
         let described = format!("{authoring:?}");
         let outcome = attached(&world, authoring).await;
-        if seats {
-            assert!(outcome.is_ok(), "{described}: {outcome:?}");
-        } else {
-            assert!(
-                matches!(
-                    &outcome,
-                    Err(ServerError::NativeAuthoring(NativeAuthoringError::Bound(why)))
-                        if why.contains("honor explicitly configured repairs")
-                ),
-                "{described}: {outcome:?}"
-            );
-        }
+        assert!(outcome.is_ok(), "{described}: {outcome:?}");
     }
     assert_eq!(seat.calls(), 0);
 }
@@ -782,7 +785,7 @@ async fn an_invalid_seat_refuses_the_listener_before_it_binds() {
             "bound",
         ),
         (
-            NativeAuthoring::new(SEAT, providers()).with_max_tokens(32_769),
+            NativeAuthoring::new(SEAT, providers()).with_max_calls(0),
             "bound",
         ),
         (
@@ -790,15 +793,19 @@ async fn an_invalid_seat_refuses_the_listener_before_it_binds() {
             "bound",
         ),
         (
-            NativeAuthoring::new(SEAT, providers()).with_deadline(Duration::from_secs(3601)),
-            "bound",
-        ),
-        (
-            NativeAuthoring::new(SEAT, providers()).with_repairs(6),
+            NativeAuthoring::new(SEAT, providers()).with_deadline(Duration::ZERO),
             "bound",
         ),
         (
             NativeAuthoring::new(SEAT, providers()).with_replay(0, Duration::from_secs(1)),
+            "bound",
+        ),
+        (
+            NativeAuthoring::new(SEAT, providers()).with_replay(1, Duration::ZERO),
+            "bound",
+        ),
+        (
+            NativeAuthoring::new(SEAT, providers()).with_replay(1, Duration::MAX),
             "bound",
         ),
         (
@@ -926,8 +933,8 @@ fn the_flags_seat_only_what_the_operator_names() {
         "model: \"vllm/s06-seat\"",
         "max_tokens: 1024",
         "call_timeout: 30s",
-        "deadline: 90s",
-        "repairs: 0",
+        "deadline: Some(90s)",
+        "repairs: Some(0)",
     ] {
         assert!(described.contains(part), "{described}");
     }

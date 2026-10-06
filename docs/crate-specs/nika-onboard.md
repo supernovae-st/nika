@@ -1,5 +1,11 @@
 # nika-onboard — the onboarding surface (project bootstrap + stateless Compile)
 
+> Target direction amended 6 October 2026: [cooperative intent resolution](../architecture/ARCHITECTURE-0.123.md).
+> The implementation descriptions and dated measurements below retain their actual scope.
+> Historical HOT/WARM/COLD paths, BM25 selection and single-judge behavior are migration
+> seams, not requirements to preserve as the target product architecture. This note does
+> not claim that cooperative retrieval or incremental verification is implemented.
+
 > L4 · descended from the CLI authoring/bootstrap surface at the 15k
 > prod-LOC wall (2026-07-12 · the `nika-display`/`nika-dap`/`nika-tmpl`
 > precedents) — per D-2026-07-09-N1 this is the cli UNIT in a second
@@ -72,11 +78,14 @@ rounds; `resolve` admits them through the compiler's closed parser
 `escalate` or `sketch`, whose sketch door can be exhausted), else
 `ConfigError::SourceRecovery` names the word. `AuthoringConfig::policy` carries the
 count to the one policy every door builds, so the CLI and the Session (and its TUI) read the
-same word; Serve's seat resolves only its named settings, never `from_env`, so its count stays 0.
-Absent, nothing changes. A host shows its allowance apart from the theory:
-the CLI receipt keeps `max_calls` and `configured.worst_case` and adds
-`recovery_requests` and `worst_case_with_recovery`; a Session unknown-cost review
-states its allowance plus the reserved requests and the theoretical worst case.
+same word; Serve's seat resolves only its named settings, never `from_env`.
+Zero or absence supplies no explicit recovery count. Under a policy with no repair
+count, an eligible stalled CREATE can nevertheless enter source recovery without
+a separate round count; an explicitly bounded policy requires positive recovery
+rounds. The same seat, request authority and judgment laws still apply. A host
+shows its actual allowance apart from an estimate: request-dependent or
+unrepresentable totals remain unknown. A legacy Session unknown-cost review names
+only the explicit recovery reservation added to its existing allowance.
 
 `knowledge` owns the strict admission of a Foundry knowledge release
 (`nika-knowledge-release/2`, profile `nika-knowledge-release-profile/r1`: the
@@ -318,10 +327,12 @@ Every executable text (the request, each answer, an EDIT's path, base, change
 and original) is kept with the sha256 of its exact original; `Capture` passes
 each through the host's redactor, so a text the redactor changed is kept as
 displayed and `RoundRecord::continuable` refuses it (`Unusable::Redacted` · also
-a text altered since). The continuation is kept whole only when the redactor
-leaves it unchanged and the record fits `ROUND_LIMIT` (256 KiB); otherwise only
-its sha256 and why it was withheld are kept, and a round still over the bound is
-not kept at all. At most `MAX_ANSWERS` (64) answers. A record carries no
+a text altered since). The continuation is kept whole when the redactor leaves
+it unchanged; a changed continuation is withheld with its identity and reason.
+Capture and replay impose no record-size or answer-count quota. `ROUND_LIMIT`
+and `MAX_ANSWERS` retain their historical values for source compatibility, not
+as current restrictions; old withheld records remain honestly unreadable.
+A record carries no
 account, admission, review, consent, question identity or monetary span: the
 host re-admits the request through its own gates, and the compiler judges the
 answers against the project as it is when the round continues.
@@ -406,10 +417,14 @@ Check does not prove destination idempotency, external business outcome or
 approval freshness across executions; Run remains responsible for admission.
 
 `AuthoringPolicy::new(model, max_tokens, timeout)` with
-`CompileRequest::with_authoring_policy` permits one call through
+`CompileRequest::with_authoring_policy` selects authoring through
 `compile_with_provider(request, provider)`. The caller injects the existing
-kernel `ProviderInferDyn` seam. Limits are 1..8192 output tokens, at most 120
-seconds, and 32768 input-intent bytes. No retries occur. The provider returns a
+kernel `ProviderInferDyn` seam. The model, positive output-token limit and positive
+per-call timeout are explicit; the compiler imposes no global 8192-token,
+120-second or 32768-byte intent ceiling. The default is one sample and no repair
+count. Additional samples and explicit repair limits run as typed, under any
+request envelope the caller supplies. Repairs are recorded compiler calls, not
+permission for uncounted transport retries. The provider returns a
 closed private JSON semantic plan with exact intent excerpts, operation kinds,
 one effect-policy enum and unresolved regions. `intent.clarification` asks for
 a complete replacement request, explicitly superseding the earlier intent; the
@@ -423,24 +438,27 @@ excerpt nor model confidence is a proof of semantic equivalence. Independent
 qualification is still required.
 
 The default `compile` path never calls a provider; ambient keys never opt in.
-Exact skeletons, EDIT and support clauses the bounded grammar resolves stay
-deterministic even through the provider seam: an opted-in provider interprets
-only what the grammar cannot, and a grammar-resolved outcome keeps generation 1.
+Exact skeletons, structured edits and clauses the current deterministic paths
+fully resolve can retain direct paths through the provider seam; semantic edits
+and unresolved work can consult the selected seat. These historical routing
+paths are not a claim that the cooperative R5 target is implemented.
 The CLI opts in with `--authoring-model`, optional `--authoring-max-tokens`
-(default 8192) and `--authoring-timeout` (default 120 seconds, 300 for an ACP
-harness). Only then does its adapter use the established environment
+and `--authoring-timeout`. Absent explicit values, the effective provider route
+supplies completion capacity and per-call timeout through `completion_bounds`.
+Only then does its adapter use the established environment
 credential/endpoint ladder.
 
-The CLI sends one authoring request unless `--authoring-max-calls N`
-authorizes more; a repair or sample count is not that authority. A request
-past it is refused before any byte leaves. A direct API seat is counted per
+The CLI imposes no request-count bound when `--authoring-max-calls` is absent.
+An explicit `--authoring-max-calls N` is enforced; a repair or sample count does
+not expand it. A request past it is refused before any byte leaves. A direct API seat is counted per
 physical HTTP request on a single-attempt transport that follows no redirect,
 so a transport retry is a request too. An ACP harness is counted per
-invocation, and its own requests stay unknown. Repairs, samples, or an
-escalate or sketch strategy typed beyond what the authority can honor under
-the resolved strategy are refused before any request. So is a count the
-compiler would run as another: repairs above 5, samples outside 1 to 5, a
-grant of 0. A typed value the strategy cannot apply is recorded as ignored,
+invocation, and its own requests stay unknown. A known finite repair estimate
+beyond an explicit grant, or a typed strategy below its minimum calls, is refused
+before any request. Request-dependent totals are unknown and the envelope checks
+each actual attempt. Zero samples or a request grant of zero refuse; positive
+sample counts and nonnegative repair counts have no smaller product maximum than
+their `u32` representation. A typed value the strategy cannot apply is recorded as ignored,
 never refused. A seated `--decision-model` is outside this authority: it
 keeps its own client. A `typesafe/<jev>` question is sent at most once,
 without protocol retries; a `provider/name` seat keeps its client’s protocol
@@ -450,11 +468,13 @@ The authoring receipt's `backend` carries the account (`authority`, whose
 `requested_model`, `observed_models`, `unreported_models` (responses that
 named no model) and `usage_complete`. No dollar ceiling is claimed.
 
-Serve is deterministic by default. `nika serve --authoring-model` seats its
-own native authoring: strategy `only`, at most `1 + repairs` logical calls per
-request, and the provider transport may resend a call's request up to three
-more times after a 429, 503 or 529. The CLI's `--authoring-max-calls` does
-not apply to it, and Serve has no physical request bound yet.
+Serve is deterministic without a native seat. A configured native seat defaults
+to `escalate`, one sample and route-qualified completion settings, with no
+implicit request count, repair count or whole-round deadline. Operator and
+request limits can bound it; a request can only narrow an operator limit.
+Separate invocation and physical-request envelopes count the work, including
+any provider retry, and refuse requests beyond an explicit grant. See the
+[Serve contract](nika-serve.md).
 
 One authoring conversation is several requests of the same intent with more
 answers each round. `CompileRequest::with_plan(plan)` replays the private plan
@@ -682,7 +702,7 @@ why, meaning, last-failure and greeting acts, extracted without changing their
 vocabulary from Session. They do not classify arbitrary workflow intent. Session
 continues to export its existing function paths.
 
-`compile::program_records` re-exports the pure bounded record codec from
+`compile::program_records` re-exports the pure record codec from
 `nika_compile_fidelity::sketch::kept`. Session owns storage and the current
 admission; neither this facade nor a retained record restores authority. Program
 lookup binds the proposal or saved path as well as the exact program bytes.
@@ -710,10 +730,10 @@ It imposes no global model output cap and no deadline ceiling (the route's own).
 CLI creation selects defaults through Providers' effective-route completion policy;
 explicit completion and repair counts remain typed values. Without a repair count,
 the compiler keeps its continuous preparation behavior. `call_bounds` and
-`check_legacy_call_bounds` retain the historical bounded-door contract for explicit
-server configuration: 8192 default output tokens, 32768 maximum, and the existing
-timeouts. Serve calls that compatibility check; its operator grants and Run limits
-are unchanged.
+`check_legacy_call_bounds` retain the historical bounded-door contract for callers
+that select that compatibility API: 8192 default output tokens, 32768 maximum, and
+the existing timeouts. Serve uses `check_call_bounds` and the effective route's
+defaults. Its explicit operator grants and the separate Run limits remain enforced.
 
 `activity` reexports the shared Display presentation unchanged. Session and Compiler remain
 the producers of actual phases; no phase is inferred from an output string.

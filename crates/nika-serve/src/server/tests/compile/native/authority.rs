@@ -61,8 +61,7 @@ pub(super) fn judged_repair() -> Vec<Reply> {
     ]
 }
 
-/// An explicit repair preference of one: the shared law needs 32 requests for it (the plan's
-/// verification and its repair, then the sketch door), granted here in full and stated.
+/// One explicit repair and a request ceiling; actual dispatches enforce that ceiling.
 pub(super) fn one_repair(seat: &Seat) -> NativeAuthoring {
     NativeAuthoring::new(SEAT, seat.providers())
         .with_max_calls(32)
@@ -70,17 +69,21 @@ pub(super) fn one_repair(seat: &Seat) -> NativeAuthoring {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn absent_authority_never_buys_a_repair_request() {
+async fn an_explicit_one_request_limit_never_buys_a_repair_request() {
     let world = TestWorld::new();
     let seat = Seat::start(vec![
         Reply::Text(loose_plan()),
         Reply::Text(plan_answer(DRAFT, &[])),
     ]);
-    let operator = NativeAuthoring::new(SEAT, seat.providers());
+    let operator = NativeAuthoring::new(SEAT, seat.providers()).with_max_calls(1);
     let (server, _) = start_native(&world, compile_limits(), operator).await;
     let response = server.request(&compile_request(&fresh(&json!({})))).await;
     assert_eq!(response.status, 200, "{}", response.body);
-    assert_eq!(seat.calls(), 1, "default repairs grant no extra request");
+    assert_eq!(
+        seat.calls(),
+        1,
+        "the explicit request limit allows no extra request"
+    );
     assert_ne!(response.json()["status"], "ready");
     let document = response.json();
     let receipt = &document["provenance"]["authoring"];
@@ -125,25 +128,69 @@ async fn unidentified_responses_remain_visible_beside_named_responses() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn absent_authority_never_hides_a_transport_retry() {
+async fn continuous_preparation_never_hides_a_transport_retry() {
     let world = TestWorld::new();
     let seat = Seat::start(vec![Reply::Busy, Reply::Text(plan_answer(DRAFT, &[]))]);
     let operator = NativeAuthoring::new(SEAT, seat.providers()).with_repairs(0);
     let (server, _) = start_native(&world, compile_limits(), operator).await;
     let response = server.request(&compile_request(&fresh(&json!({})))).await;
     assert_eq!(response.status, 200, "{}", response.body);
-    assert_eq!(seat.calls(), 1, "a 503 never grants another wire request");
-    assert_ne!(response.json()["status"], "ready");
+    let document = response.json();
+    let bodies = seat.bodies();
+    assert_eq!(bodies.len(), 2, "the transient retry reached the seat");
+    assert_eq!(bodies[0], bodies[1], "the retry sends the same request");
+    assert_eq!(document["provenance"]["authoring"]["calls"], 1);
+    assert_eq!(roles(&document), [("plan".to_owned(), Value::Null)]);
+    let account = authority(&document);
+    assert_eq!(account["max_calls"], Value::Null);
+    assert_eq!(account["invocations"], json!({"sent": 1, "refused": 0}));
+    assert_eq!(
+        account["http_requests"],
+        json!({"sent": 2, "refused": 0, "unknown": null}),
+        "a physical retry remains visible beside its logical invocation"
+    );
+    assert_eq!(document["status"], "incomplete", "{document:#}");
+    assert!(document["candidate"].is_null(), "{document:#}");
+    assert_eq!(document["questions"][0]["key"], "model");
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_explicit_one_request_limit_refuses_a_transport_retry() {
+    let world = TestWorld::new();
+    let seat = Seat::start(vec![Reply::Busy, Reply::Text(plan_answer(DRAFT, &[]))]);
+    let operator = NativeAuthoring::new(SEAT, seat.providers())
+        .with_repairs(0)
+        .with_max_calls(1);
+    let (server, _) = start_native(&world, compile_limits(), operator).await;
+    let response = server.request(&compile_request(&fresh(&json!({})))).await;
+    assert_eq!(response.status, 200, "{}", response.body);
+    let document = response.json();
+    assert_eq!(
+        seat.calls(),
+        1,
+        "no retry exceeds the explicit request limit"
+    );
+    let account = authority(&document);
+    assert_eq!(account["max_calls"], 1);
+    assert_eq!(account["invocations"], json!({"sent": 1, "refused": 0}));
+    assert_eq!(
+        account["http_requests"],
+        json!({"sent": 1, "refused": 1, "unknown": null})
+    );
+    assert_ne!(document["status"], "ready", "{document:#}");
+    assert!(document["candidate"].is_null(), "{document:#}");
+    assert!(document.to_string().contains("max_calls"), "{document:#}");
     server.stop().await.expect("clean stop");
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn explicit_authority_repairs_and_a_caller_can_narrow_but_never_widen_it() {
-    for (limits, expected_calls, ready, configured) in [
+    for (limits, expected_calls, ready) in [
         // The operator's grant: the plan, its judgment and the locate question, the repair, the
         // repaired plan's judgment — one real repair.
-        (json!({}), 5, true, 32),
-        (json!({"max_calls": 1, "repairs": 0}), 1, false, 14),
+        (json!({}), 5, true),
+        (json!({"max_calls": 1, "repairs": 0}), 1, false),
     ] {
         let world = TestWorld::new();
         let seat = Seat::start(judged_repair());
@@ -151,21 +198,13 @@ async fn explicit_authority_repairs_and_a_caller_can_narrow_but_never_widen_it()
         for refused in [
             json!({"max_calls": 33}),
             json!({"max_calls": 0}),
-            json!({"max_calls": 1}),
+            json!({"repairs": 2}),
         ] {
             let response = server
                 .request(&compile_request(&fresh(&json!({"limits": refused}))))
                 .await;
             assert_eq!(response.status, 422, "{}", response.body);
             assert_eq!(seat.calls(), 0, "bad authority never contacts a provider");
-            if refused == json!({"max_calls": 1}) {
-                assert!(
-                    response.body.contains("limits.repairs"),
-                    "{}",
-                    response.body
-                );
-                assert!(!response.body.contains("exceeds its bound"));
-            }
         }
         let mut fields = answered();
         fields["limits"] = limits;
@@ -180,7 +219,7 @@ async fn explicit_authority_repairs_and_a_caller_can_narrow_but_never_widen_it()
         assert_eq!(account["http_requests"]["sent"], expected_calls);
         assert_eq!(account["invocations"]["sent"], expected_calls);
         // What the configuration could ask for is not what was granted, nor what was sent.
-        assert_eq!(account["configured"]["worst_case"], configured);
+        assert_eq!(account["configured"]["worst_case"], Value::Null);
         let granted = if ready { 32 } else { 1 };
         assert!(
             account["max_calls"] == granted,
@@ -190,59 +229,56 @@ async fn explicit_authority_repairs_and_a_caller_can_narrow_but_never_widen_it()
     }
 }
 
-/// The default grant (one request) authors the private plan: the compiler assembles the stated
-/// read and write and derives their permits, and the candidate stays a preview — its judgment
-/// is the next request, refused before a byte leaves, never READY and never kept.
+/// Default preparation continues through judgment; it neither saves nor runs the result.
 #[tokio::test(flavor = "multi_thread")]
-async fn a_default_round_sends_one_plan_and_keeps_its_candidate_a_preview() {
+async fn a_default_round_reaches_its_judgment_without_a_request_grant() {
     let world = TestWorld::new();
     let seat = Seat::start(vec![
         Reply::Text(plan_answer(DRAFT, &[])),
         Reply::Text(JUDGE_APPROVES.to_owned()),
     ]);
     let operator = NativeAuthoring::new(SEAT, seat.providers());
-    let (server, _) = start_native(&world, compile_limits(), operator).await;
-    let refused = server
-        .request(&compile_request(&fresh(&json!({
-            "limits": {"max_calls": 2}
-        }))))
-        .await;
-    assert_eq!(refused.status, 422, "{}", refused.body);
-    assert_eq!(seat.calls(), 0, "the caller cannot widen the default grant");
+    let (server, backend) = start_native(&world, compile_limits(), operator).await;
     let response = server.request(&compile_request(&fresh(&answered()))).await;
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
-    assert_eq!(document["compile_version"], 2);
-    assert_eq!(document["status"], "incomplete", "{document:#}");
-    assert_eq!(seat.calls(), 1, "one physical request, nothing more");
-    assert_eq!(document["provenance"]["strategy"], "cold");
-    let preview = document["candidate"].as_str().expect("the preview");
-    assert!(preview.contains(STATED_PERMITS), "{preview}");
-    assert!(
-        preview.contains(&format!("\nmodel: {RUN_MODEL}\n")),
-        "{preview}"
-    );
+    assert_eq!(document["status"], "ready", "{document:#}");
+    assert_eq!(seat.calls(), 2);
+    let candidate = document["candidate"].as_str().expect("candidate");
+    assert!(candidate.contains(STATED_PERMITS), "{candidate}");
     assert_eq!(
         roles(&document),
         [
             ("plan".to_owned(), Value::Null),
-            ("judge_request".to_owned(), json!("admission_refused")),
+            ("judge_request".to_owned(), Value::Null),
         ]
     );
     let account = authority(&document);
-    assert_eq!(account["source"], "default: one request");
-    assert_eq!(account["max_calls"], 1);
-    assert_eq!(account["configured"]["repairs"], 3);
-    assert_eq!(account["http_requests"]["sent"], 1);
-    assert_eq!(account["invocations"], json!({"sent": 1, "refused": 1}));
-    assert!(
-        document["diagnostics"]
-            .to_string()
-            .contains("nothing is READY"),
-        "{document:#}"
-    );
-    // A private plan's round is never kept: a native round is (the Cold replay is not served).
-    assert!(response.header("nika-compile-replay").is_none());
+    assert_eq!(account["max_calls"], Value::Null);
+    assert_eq!(account["configured"]["repairs"], Value::Null);
+    assert_eq!(account["configured"]["worst_case"], Value::Null);
+    assert_eq!(account["http_requests"]["sent"], 2);
+    assert_eq!(account["invocations"], json!({"sent": 2, "refused": 0}));
+    assert_eq!(backend.calls(), 0, "preparation never runs the candidate");
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_default_round_repairs_a_judged_defect_without_an_implicit_count() {
+    let world = TestWorld::new();
+    let seat = Seat::start(judged_repair());
+    let (server, _) = start_native(
+        &world,
+        compile_limits(),
+        NativeAuthoring::new(SEAT, seat.providers()),
+    )
+    .await;
+    let response = server.request(&compile_request(&fresh(&answered()))).await;
+    let document = response.json();
+    assert_eq!(document["status"], "ready", "{document:#}");
+    assert_eq!(seat.calls(), 5);
+    assert_eq!(authority(&document)["max_calls"], Value::Null);
+    assert_eq!(authority(&document)["configured"]["repairs"], Value::Null);
     server.stop().await.expect("clean stop");
 }
 
@@ -268,6 +304,32 @@ async fn a_plan_question_round_sends_one_request_and_keeps_no_token() {
     assert_eq!(document["provenance"]["strategy"], "cold");
     // Its answer round is authored again: the Cold replay is a missing Serve raccord.
     assert!(response.header("nika-compile-replay").is_none());
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_caller_can_select_large_limits_where_the_operator_left_preparation_open() {
+    let world = TestWorld::new();
+    let seat = Seat::start(vec![Reply::Text(plan_answer(DRAFT, &[]))]);
+    let operator = NativeAuthoring::new(SEAT, seat.providers());
+    let (server, _) = start_native(&world, compile_limits(), operator).await;
+    let limits = json!({"limits": {
+        "max_calls": 1000, "repairs": 100, "deadline_ms": 86_400_000,
+    }});
+    let response = server.request(&compile_request(&fresh(&limits))).await;
+    assert_eq!(response.status, 200, "{}", response.body);
+    let document = response.json();
+    assert_eq!(authority(&document)["max_calls"], 1000);
+    assert_eq!(authority(&document)["configured"]["repairs"], 100);
+    assert_eq!(
+        authority(&document)["configured"]["worst_case"],
+        Value::Null
+    );
+    assert_eq!(
+        seat.calls(),
+        1,
+        "the question still pauses for its missing value"
+    );
     server.stop().await.expect("clean stop");
 }
 
@@ -304,10 +366,10 @@ fn gated_round() -> Vec<Reply> {
 }
 
 /// An explicit grant of four: the plan, the sketch, its fills and the judgment — READY, the
-/// compiler's document gating the write on the human. The same request under the default grant
-/// sends the plan alone: the sketch is refused before it leaves, and nothing is READY.
+/// compiler's document gating the write on the human. An explicit limit of one sends the plan
+/// alone: the sketch is refused before it leaves, and nothing is READY.
 #[tokio::test(flavor = "multi_thread")]
-async fn an_explicit_grant_reaches_a_judged_sketch_and_the_default_one_never_sends_a_second() {
+async fn an_explicit_grant_reaches_a_judged_sketch_and_a_limit_of_one_stops_the_second() {
     let request = || {
         let mut fields = answered();
         fields["intent"] = json!(GATED);
@@ -357,8 +419,8 @@ async fn an_explicit_grant_reaches_a_judged_sketch_and_the_default_one_never_sen
 
     let world = TestWorld::new();
     let seat = Seat::start(gated_round());
-    let default = NativeAuthoring::new(SEAT, seat.providers());
-    let (server, _) = start_native(&world, compile_limits(), default).await;
+    let limited = NativeAuthoring::new(SEAT, seat.providers()).with_max_calls(1);
+    let (server, _) = start_native(&world, compile_limits(), limited).await;
     let response = server.request(&compile_request(&request())).await;
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
@@ -378,47 +440,36 @@ async fn an_explicit_grant_reaches_a_judged_sketch_and_the_default_one_never_sen
     server.stop().await.expect("clean stop");
 }
 
-/// The seat's policy and its account resolve one strategy, `escalate`: the configured worst
-/// case follows the repair preference (the default preference of three asks 66, an explicit
-/// zero 14, an explicit one 32) and is never a grant — the grant stays one request unless the
-/// operator names more, and the sends are counted apart.
-/// How a case seats its operator over the controlled seat.
+/// Requested work and actual dispatch counts stay distinct; COLD has no finite estimate.
 type Operator = fn(&Seat) -> NativeAuthoring;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn the_policy_and_its_account_resolve_one_strategy() {
-    let cases: [(Operator, u64, u64); 3] = [
-        (|seat| NativeAuthoring::new(SEAT, seat.providers()), 66, 1),
+    let cases: [(Operator, Option<u32>, Option<u32>); 3] = [
+        (
+            |seat| NativeAuthoring::new(SEAT, seat.providers()),
+            None,
+            None,
+        ),
         (
             |seat| NativeAuthoring::new(SEAT, seat.providers()).with_repairs(0),
-            14,
-            1,
+            Some(0),
+            None,
         ),
-        (one_repair, 32, 32),
+        (one_repair, Some(1), Some(32)),
     ];
-    for (operator, worst_case, max_calls) in cases {
+    for (operator, repairs, max_calls) in cases {
         let world = TestWorld::new();
         let seat = Seat::start(vec![Reply::Text(plan_answer(DRAFT, &[]))]);
         let (server, _) = start_native(&world, compile_limits(), operator(&seat)).await;
         let response = server.request(&compile_request(&fresh(&json!({})))).await;
         assert_eq!(response.status, 200, "{}", response.body);
         let account = authority(&response.json());
-        assert!(
-            account["configured"]["strategy"] == "escalate",
-            "authority strategy must be escalate"
-        );
-        assert!(
-            account["configured"]["worst_case"] == worst_case,
-            "configured worst case must follow the repair preference"
-        );
-        assert!(
-            account["max_calls"] == max_calls,
-            "authority max_calls must match the configured grant"
-        );
-        assert!(
-            account["http_requests"]["sent"] == 1,
-            "the authority receipt must count one sent request"
-        );
+        assert_eq!(account["configured"]["strategy"], "escalate");
+        assert_eq!(account["configured"]["repairs"], json!(repairs));
+        assert_eq!(account["configured"]["worst_case"], Value::Null);
+        assert_eq!(account["max_calls"], json!(max_calls));
+        assert_eq!(account["http_requests"]["sent"], 1);
         assert_eq!(seat.calls(), 1);
         server.stop().await.expect("clean stop");
     }
