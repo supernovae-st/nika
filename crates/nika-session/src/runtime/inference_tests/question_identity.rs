@@ -347,20 +347,38 @@ fn judged_over(body: &serde_json::Value, bound: &str) -> bool {
     body.contains("carried") && body.contains("missing") && body.contains(bound)
 }
 
+/// Whether a request the seat received is its round's judge of the whole request over the bytes
+/// that round finished: the closed whole-request choice over a candidate carrying `bound`.
+fn judged_whole_over(body: &serde_json::Value, bound: &str) -> bool {
+    super::unjudged::asked(body).is_some_and(|(state, verdicts)| {
+        verdicts == ["faithful", "unfaithful", "none"]
+            && (state["candidate_nika"].as_str()).is_some_and(|c| c.contains(bound))
+    })
+}
+
 /// The round's judge settles the change the request now carries: the asked destination does it.
 const JUDGE_CARRIES: &str = r#"{"choice":"carried"}"#;
+
+/// The seat's answers in DIALOG-11, in call order: the private plan of the request, the plan of
+/// the request read again, then the answer round's judge, the clause the change added carried
+/// and the whole request faithful.
+fn dialog_11_script() -> Vec<(u16, serde_json::Value)> {
+    let asks = || (200, response(&plans_destination()));
+    let says = |text: &str| (200, response(text));
+    vec![asks(), asks(), says(JUDGE_CARRIES), says(JUDGE_APPROVES)]
+}
 
 /// DIALOG-11's shape through semantic CREATE: the private plan leaves the destination open and
 /// the compiler asks it; the destination changes before any answer, the request is read again,
 /// and the SAME key is asked in the SAME words for the revised request. The old answer names the
 /// old question: refused with no route, no call and nothing changed; the current answer binds
-/// and the recorded plan replays, its one call the judge the seat is permitted as when the
-/// round finishes (the clause the change added, settled against the bound bytes); only the
-/// durable money record changes before consent, never a workflow or an output file.
+/// and the recorded plan replays, its calls the judge the seat is permitted as when the round
+/// finishes, over the bound bytes: the clause the change added, then the whole request (a
+/// replayed model plan is judged whole in the round, C3); only the durable money record changes
+/// before consent, never a workflow or an output file.
 #[test]
 fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String> {
-    let asks = || (200, response(&plans_destination()));
-    let peer = Peer::start(vec![asks(), asks(), (200, response(JUDGE_CARRIES))]);
+    let peer = Peer::start(dialog_11_script());
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
     let mut s = open(dir.path());
@@ -417,11 +435,15 @@ fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String
     assert!(preview.contains("archive/copie.txt"), "{preview}");
     assert_eq!(
         (peer.bodies().len(), routings.load(Ordering::SeqCst)),
-        (3, routed + 1)
+        (4, routed + 1)
     );
     assert!(
         judged_over(&peer.bodies()[2], "archive/copie.txt"),
         "the round's judge"
+    );
+    assert!(
+        judged_whole_over(&peer.bodies()[3], "archive/copie.txt"),
+        "the round's judge of the whole request"
     );
     let out = s.answer_question_for(&current, "autre.txt");
     assert!(refused(&out, RefusalClass::AlreadyConsumed), "{out:?}");
@@ -430,7 +452,7 @@ fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String
     assert_eq!(s.pending_proposal().as_ref(), Some(id));
     assert_eq!(
         (peer.bodies().len(), routings.load(Ordering::SeqCst)),
-        (3, routed + 1)
+        (4, routed + 1)
     );
     let state_path = dir
         .path()

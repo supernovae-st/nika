@@ -203,6 +203,10 @@ impl SessionRuntime {
         self.leave_paid_dispatch(entered);
         reply
     }
+    /// One compile of `round` on `seat`. It is handed the verdicts that rejected candidate bytes
+    /// in the goal's earlier compiles, and keeps the ones it records for the next (R6): an
+    /// answer round, the write-again after a located defect and the stronger seat's retry never
+    /// ask a judge again on bytes it rejected for the same request.
     pub(super) fn compile_round(
         &mut self,
         round: &AuthoringRound,
@@ -210,17 +214,23 @@ impl SessionRuntime {
     ) -> Result<nika_onboard::compile::CompileOutcome, AuthoringError> {
         self.rehearsals.clear_native();
         let context = self.authoring_context.clone();
-        if !seat.has_model() {
-            return self.seated(seat, |account| {
-                round.compile_rehearsed(seat, &context, account, None)
-            });
-        }
-        let intent = round.effective_intent();
-        self.rehearse_dispatch(&intent, |this, host| {
-            this.seated(seat, |account| {
-                round.compile_rehearsed(seat, &context, account, Some(host))
+        let declined = self.declined.carried(self.intent.goal.as_ref());
+        let out = if seat.has_model() {
+            let intent = round.effective_intent();
+            self.rehearse_dispatch(&intent, |this, host| {
+                this.seated(seat, |account| {
+                    round.compile_rehearsed(seat, &context, (account, Some(host)), declined)
+                })
             })
-        })
+        } else {
+            self.seated(seat, |account| {
+                round.compile_rehearsed(seat, &context, (account, None), declined)
+            })
+        };
+        if let Ok(out) = &out {
+            self.declined.keep(self.intent.goal.as_ref(), out);
+        }
+        out
     }
     /// One authoring dispatch on `seat`, bracketed like every other: its line
     /// before transport, the settled record after it, then the refusal of the

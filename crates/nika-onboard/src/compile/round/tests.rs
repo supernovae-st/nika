@@ -903,3 +903,179 @@ fn only_the_compiler_resume_finding_retains_an_unjudged_slot() {
         "prose and unknown findings are not the resume signal"
     );
 }
+
+/// A kept candidate is contested (R6) only when the LAST verification attempt names what the
+/// judge contested and located no defect: an earlier attempt's dispute, an empty list, a defect
+/// or an unknown alone, a contested part beside a located defect, a malformed list or no
+/// verification at all is not.
+#[test]
+fn only_the_last_verification_attempt_contesting_makes_a_judgment_contested() {
+    let mut out = compile(&CompileRequest::create("bounded-batch")).unwrap();
+    out.provenance.decision = None;
+    assert!(!contested_judgment(&out), "no decision, no judgment");
+    out.provenance.decision = Some(json!({"route": ["verify: not ready"]}));
+    assert!(!contested_judgment(&out), "no verification attempt");
+    let request = "Read ./a.md and write ./b.md";
+    for (attempts, contested) in [
+        (json!([]), false),
+        (json!([{"attempt": 0, "contested": []}]), false),
+        (
+            json!([{"attempt": 0, "defects": ["write ./b.md"], "contested": []}]),
+            false,
+        ),
+        (json!([{"attempt": 0, "unknown": [request]}]), false),
+        (json!([{"attempt": 0, "contested": request}]), false),
+        (json!([{"attempt": 0, "contested": [request]}]), true),
+        (
+            json!([{"attempt": 0, "contested": [request]}, {"attempt": 1, "contested": []}]),
+            false,
+        ),
+        (
+            json!([
+                {"attempt": 0, "defects": ["write ./b.md"], "contested": []},
+                {"attempt": 1, "contested": [request]},
+            ]),
+            true,
+        ),
+        (
+            json!([{"attempt": 0, "defects": [], "contested": [request]}]),
+            true,
+        ),
+        (
+            json!([{"attempt": 0, "defects": ["write ./b.md"], "contested": [request]}]),
+            false,
+        ),
+        (
+            json!([
+                {"attempt": 0, "contested": [request]},
+                {"attempt": 1, "defects": ["write ./b.md"], "contested": [request]},
+            ]),
+            false,
+        ),
+    ] {
+        let decision =
+            json!({"route": ["verify: not ready"], "semantic_verification": attempts.clone()});
+        out.provenance.decision = Some(decision);
+        assert_eq!(contested_judgment(&out), contested, "{attempts}");
+    }
+}
+
+/// A candidate is held for its verifier only by the compiler's applied `verify_held` finding:
+/// the same target under another kind, another applied target, or a contested verification alone
+/// is not.
+#[test]
+fn only_the_compilers_applied_held_finding_holds_a_candidate() {
+    let mut out = compile(&CompileRequest::create("bounded-batch")).unwrap();
+    out.diagnostics.clear();
+    out.provenance.decision = Some(json!({"semantic_verification": [
+        {"attempt": 0, "defects": [], "contested": ["Read ./a.md and write ./b.md"]}
+    ]}));
+    assert!(!verify_held(&out), "a contested verification alone");
+    nika_compile::finding(
+        &mut out,
+        DiagnosticKind::Applied,
+        "verify_resume",
+        "kept by compiler",
+    );
+    assert!(!verify_held(&out), "another applied target");
+    nika_compile::finding(
+        &mut out,
+        DiagnosticKind::Unknown,
+        "verify_held",
+        "named, not applied",
+    );
+    assert!(!verify_held(&out), "another kind");
+    nika_compile::finding(
+        &mut out,
+        DiagnosticKind::Applied,
+        "verify_held",
+        "held after a doubt",
+    );
+    assert!(verify_held(&out));
+}
+
+/// The verdicts an outcome carries for later compiles are every attempt that rejected candidate
+/// bytes it names (declined, rejected, not settled) and judged them, in order: never an
+/// abstention, an accepted or settled verdict, an older record that says nothing of settling, an
+/// attempt naming no bytes, or a repeat with no call (of this compile's attempt, or carried).
+/// Kept verdicts hold one per bytes, judge (seat and kind), request and context, the latest
+/// found replacing an earlier one (it resumed what that one left unfinished), in order; keeping
+/// the same ones again changes nothing.
+#[test]
+fn the_rejections_an_outcome_carries_are_its_rejecting_attempts_one_per_bytes_and_judge() {
+    let mut out = compile(&CompileRequest::create("bounded-batch")).unwrap();
+    out.provenance.decision = None;
+    assert_eq!(rejections(&out), Vec::<Value>::new(), "no decision");
+    let attempt =
+        |n: u64, sha: Value, (seat, kind): (&str, &str), declined: bool, rejected: bool| {
+            json!({"attempt": n, "candidate_sha256": sha, "judge": {"seat": seat, "kind": kind},
+            "declined": declined, "rejected": rejected, "settled": !declined})
+        };
+    let jev = ("typesafe/jev", "decision_seat");
+    let provider = ("typesafe/jev", "authoring_provider");
+    let mut older = attempt(5, json!("b5"), jev, true, true);
+    older.as_object_mut().expect("an attempt").remove("settled");
+    let mut settled = attempt(3, json!("b4"), jev, true, true);
+    settled["settled"] = json!(true);
+    let attempts = [
+        attempt(0, json!("b1"), jev, true, true),
+        attempt(1, json!("b2"), jev, true, false),
+        attempt(2, json!("b3"), jev, false, false),
+        settled,
+        attempt(4, Value::Null, jev, true, true),
+        older,
+        attempt(6, json!("b1"), jev, true, true),
+        attempt(7, json!("b1"), provider, true, true),
+        attempt(
+            8,
+            json!("b1"),
+            ("deepseek/deepseek-flash", "authoring_provider"),
+            true,
+            true,
+        ),
+        repeat(
+            attempt(9, json!("b1"), jev, true, true),
+            "same_bytes_as",
+            json!(0),
+        ),
+        repeat(
+            attempt(10, json!("b1"), jev, true, true),
+            "carried",
+            json!(true),
+        ),
+        repeat(
+            attempt(11, json!("b1"), jev, true, true),
+            "context_sha256",
+            json!("c2"),
+        ),
+    ];
+    out.provenance.decision = Some(json!({"semantic_verification": attempts}));
+    let found = rejections(&out);
+    let expected = [
+        &attempts[0],
+        &attempts[6],
+        &attempts[7],
+        &attempts[8],
+        &attempts[11],
+    ];
+    assert_eq!(found.iter().collect::<Vec<_>>(), expected);
+    let mut kept = vec![attempts[8].clone()];
+    assert!(keep_rejections(&mut kept, found.clone()));
+    // The latest verdict of the same bytes, judge, request and context replaces the first; one
+    // judged beside another context is its own.
+    assert_eq!(
+        kept,
+        [&attempts[8], &attempts[6], &attempts[7], &attempts[11]].map(Value::clone)
+    );
+    assert!(
+        !keep_rejections(&mut kept, found),
+        "the same verdicts again"
+    );
+    assert_eq!(kept.len(), 4);
+}
+
+/// `attempt` with `key` set to `value`.
+fn repeat(mut attempt: Value, key: &str, value: Value) -> Value {
+    attempt[key] = value;
+    attempt
+}

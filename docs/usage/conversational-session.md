@@ -204,6 +204,31 @@ the deterministic compiler no longer settles the request alone. Nika then asks
 you to choose an AI and writes the workflow with it. Review that proposal the
 same way: the saved workflow can still compute its results without a model.
 
+Before Nika proposes a workflow an AI wrote, a verifier compares it with your
+whole request: the decision model when one is selected, otherwise the AI that
+wrote it. When the verifier doubts the workflow, it is asked about each part of
+your request alone and, for a part it finds missing, which step fails it or
+whether no step performs it. A prohibition such as « need no time-zone
+conversion » is never a step to add: the verifier can only name a step that
+breaks it. Nika repairs the workflow from a defect the verifier points to that
+way, and proposes nothing until the verifier accepts it. A doubt that points to
+no defect is never repaired from: Nika says the workflow is built but not
+proposed, writes nothing, and names what can decide it, a correction or another
+model with `/intelligence`. While you keep working on the same request in the
+session, a workflow the verifier rejected is not put to it again, even when a
+later attempt writes the very same workflow: its rejection stands. A correction
+changes the request, so the verifier judges the corrected request afresh. When
+the verifier abstains, neither accepting nor rejecting the workflow, Nika holds
+it the same way, and a later attempt may ask the verifier again. During
+preparation, the configured verifier also reads what the workflow read and wrote
+when Nika tried it on copies of your files: when that trial run wrote every
+output it was read for, it can settle the parts the verifier left open that
+your files exercise, then the whole request when they exercise every part of
+it. A case your files never exercise stays undecided, and a trial run never
+clears a defect the verifier found in the workflow itself. When the verifier
+could not answer at all, Nika keeps the workflow unproposed; when it offers
+`continue`, that asks the verifier again.
+
 ## A result that depends on the model: summarize notes
 
 Add a notes file to the same folder:
@@ -415,14 +440,30 @@ is also refused before authoring. `/details` records what was actually presented
 separately from the release available to the Session.
 
 **Jev.** The selected decision model answers finite compiler questions: interpreting
-an ambiguous clause, ranking feasible plans, judging fidelity to the request and
-locating a defect for repair. The compiler validates every answer against the
-offered options; an abstention or failed consultation is not a successful judgment.
-The current adapter makes one attempt per consultation, with a 20-second deadline
-and no transport retry. Interactive preparation has no implicit three-call ceiling.
-The same compiler capability accompanies API, native subscription and ACP authors;
-this wiring does not establish equal end-to-end qualification for every provider.
-Usage is recorded separately, and unknown monetary cost remains unknown.
+an ambiguous clause, ranking feasible plans and judging fidelity to the request. It
+judges the whole request first. Only when it doubts the workflow does it answer more:
+one question per part of the request, then, as needed, which step fails a part it found
+missing, which step does something the request does not ask, and what a trial run
+produced. The compiler validates every answer against the offered options; an abstention
+or failed consultation is not a successful judgment. Within one compilation, a workflow
+it declined is not put to it again, and a workflow it rejected is not put to it again for
+the rest of that request's rounds in the session: its earlier answer stands. The current
+adapter makes one attempt per consultation, with a 20-second deadline and no transport
+retry, so a doubted workflow takes several consultations in sequence. Interactive
+preparation has no implicit three-call ceiling. The same compiler capability accompanies
+API, native subscription and ACP authors; this wiring does not establish equal end-to-end
+qualification for every provider. Usage is recorded separately, and unknown monetary cost
+remains unknown.
+
+**Trial runs.** While it prepares a workflow, Nika may try it in a sealed room on
+copies of your files. The configured verifier receives the relevant trial inputs and
+results by default, as ordinary preparation context, with no separate sharing switch or
+confirmation. The current room retains up to 64 KiB per file and explicitly marks partial
+observations; a partial result, or an output the run did not write, does not prove a whole
+output. The decision model when selected, otherwise the authoring model, receives this
+evidence once it doubts the workflow. Records retain paths, sizes and digests rather than
+duplicating the texts. This preparation does not start the workflow's live Run; its
+`.nika` execution rules remain separate.
 
 The current adapter does not perform Foundry retrieval. Cooperative knowledge
 search and qualification are part of the accepted

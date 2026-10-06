@@ -187,10 +187,32 @@ new call. Cold Plan question rounds currently carry no replay token, so
 answering them through a new fresh round spends again. Nonconstant EDIT still
 uses the historical source response; this does not establish semantic revision.
 
+The seat's whole-request verifier (the authoring provider: Serve seats no decision
+model and offers no rehearsal room) reaches the caller through the core's document,
+unchanged. A model-authored candidate is `ready` only after an admitted judgment carried
+the whole request. An `incomplete` document may still carry `candidate` as a preview: a
+candidate with unfilled holes, or one the verifier held, marked by an `applied`
+diagnostic with target `verify_held` whose message says what held it (located defects
+the repairs did not settle, a rejection with no defect located, or an abstention, and
+whether a judge call got no answer). An `applied` `verify_resume` diagnostic marks a
+candidate no admitted judgment was made of: it is withdrawn and its native plan kept.
+The `semantic_verification` findings and `provenance.decision.semantic_verification`
+carry each verification attempt as the core records it. A held outcome keeps no plan, so
+it carries no `Nika-Compile-Replay` token and no replay presents those bytes again; a
+kept round's replay (`deterministicOnly`) makes no call, so it asks no verifier either.
+Serve keeps no conversation between rounds: a request sent again after a held outcome is a
+fresh compile that carries no earlier verdict (`CompileRequest::declined` stays empty), so
+nothing keeps its verifier from judging the same bytes again if the new round authors them.
+A client may author again, the same request or a correction, or stop there.
+The published `CompileOutcome` schema describes these markers; what a client shows or
+hides of them is the client's choice. A workflow that later reaches `POST /v1/jobs` by
+name is judged there by Check and admission alone, never against the request.
+
 Repair preferences and physical-request limits describe different constraints.
 A caller may select a repair or request limit where the operator left it open,
 or narrow a configured limit. Cold creation has no finite request estimate
-without knowing how many clauses will need work: its receipt records
+without knowing how many clauses will need work, nor the sketch door without
+knowing how many parts of a doubted request its judgment asks: the receipt records
 `configured.worst_case: null`, including when repairs are explicitly bounded.
 Actual invocation and HTTP-request envelopes enforce `max_calls` whenever it
 is set. No fictitious fixed worst case rejects an otherwise valid seat.
@@ -597,8 +619,9 @@ A native round has no implicit count limit. The operator can select one with
 `NativeAuthoring::with_max_calls` or `nika serve --authoring-max-calls`;
 generation-2 `limits.max_calls` can select a limit when the operator left it
 open, or narrow the configured ceiling. Repair preferences never widen a
-request limit. Cold creation's clause-dependent work has no finite configured
-worst case; the receipt reports `null` while actual requests remain counted.
+request limit. Cold creation's clause-dependent work and the sketch door's
+request-dependent judgment have no finite configured worst case; the receipt
+reports `null` while actual requests remain counted.
 The transport follows no redirect and performs no automatic protocol-NACK retry.
 Provider retries and structured-output fallbacks consume the same explicit
 physical-request limit when present; a resend can make physical requests exceed

@@ -9,7 +9,7 @@
 use super::*;
 
 /// The run model the compiler asks for, answered in the request itself.
-fn answered() -> Value {
+pub(super) fn answered() -> Value {
     json!({"answers": {"model": RUN_MODEL}})
 }
 
@@ -19,7 +19,7 @@ fn authority(document: &Value) -> Value {
 }
 
 /// The roles of the calls a round journaled, with how each ended (`null` when it answered).
-fn roles(document: &Value) -> Vec<(String, Value)> {
+pub(super) fn roles(document: &Value) -> Vec<(String, Value)> {
     document["provenance"]["authoring"]["context"]
         .as_array()
         .into_iter()
@@ -50,15 +50,98 @@ fn loose_plan() -> String {
     plan.to_string()
 }
 
+/// The task of the compiled candidate that writes `./b.md`: the one the judge points to.
+const WRITE_TASK: &str = "write_output";
+
+/// The draft detail of the plan the repair answers in [`judged_repair`]: the same read, draft
+/// and write, the draft detailed otherwise, so the repaired candidate is other bytes than the
+/// ones the judge declined (those are never asked of it again).
+const REPAIRED_DRAFT: &str = "do something clever with it, in plain words";
+
 /// The judge's closed choices, then the plan the repair call answers.
 pub(super) fn judged_repair() -> Vec<Reply> {
+    judged_then(REPAIRED_DRAFT)
+}
+
+/// The plan, the judge's closed choices over its candidate, the repair's plan with the draft
+/// detailed as `repaired`, then an approving judge.
+pub(super) fn judged_then(repaired: &str) -> Vec<Reply> {
     vec![
         Reply::Text(plan_answer(DRAFT, &[])),
         Reply::Text(json!({"choice": "unfaithful"}).to_string()),
-        Reply::Text(json!({"choice": "part-1"}).to_string()),
-        Reply::Text(plan_answer(DRAFT, &[])),
+        // Each part of the request asked alone: the read carried, the write missing. A part
+        // judged missing is a defect only with its reason: the judge then points to the task
+        // that does it differently, and the repair starts from that part and that reason.
+        Reply::Text(json!({"choice": "carried"}).to_string()),
+        Reply::Text(json!({"choice": "missing"}).to_string()),
+        Reply::Text(json!({"choice": format!("task-{WRITE_TASK}")}).to_string()),
+        Reply::Text(plan_answer(repaired, &[])),
         Reply::Text(JUDGE_APPROVES.to_owned()),
     ]
+}
+
+/// The defect [`judged_repair`] locates, with the reason its pointer gave, as a repair and a
+/// finding read it.
+pub(super) const NOTED_DEFECT: &str =
+    "then write ./b.md (the judge points to the task write_output)";
+
+/// The core's own finding on the whole request still pending on `candidate`: no admitted
+/// judgment of these bytes carried it.
+pub(super) fn pending_finding(candidate: &str) -> String {
+    format!(
+        "The request states `{INTENT}` and no element of the plan names it: no law reads from candidate {} that it carries it, and no admitted judgment made in this compile settles it. Nothing is READY on a pending clause: it stays INCOMPLETE until an admitted judgment of these bytes against the whole request carries it.",
+        &sha256_hex(candidate.as_bytes())[..12]
+    )
+}
+
+/// The judge's located defect that `repairs` repairs did not settle.
+pub(super) fn unrepaired_finding(repairs: usize) -> String {
+    format!(
+        "The judge compared the whole request with the candidate's bytes: it does not carry « {NOTED_DEFECT} ». {repairs} repair(s) from that defect did not settle it; nothing is READY. Next: a stronger authoring model, or a restatement of that part."
+    )
+}
+
+/// The `verify_held` finding of a candidate the judge declined with a located defect: that
+/// verifier is not asked again on these bytes, in this compile or in a later round that carries
+/// the verdict (the server passes no declined verdict from one request to the next).
+pub(super) const HELD_DEFECTS: &str = "The candidate was judged and not accepted: the parts named above stay missing. It is shown, never offered, and nothing was written; this verifier is not asked again on these bytes, in this compile or in a later round that carries this verdict. A correction of the request, another authoring model or another verifier can decide it.";
+
+/// Every finding of a document, in order, as its kind, target and message.
+pub(super) fn findings(document: &Value) -> Vec<(String, String, String)> {
+    let text = |value: &Value| value.as_str().unwrap_or_default().to_owned();
+    (document["diagnostics"].as_array().into_iter().flatten())
+        .map(|d| (text(&d["kind"]), text(&d["target"]), text(&d["message"])))
+        .collect()
+}
+
+/// The findings of a candidate held with [`judged_repair`]'s defect unsettled after `repairs`
+/// repairs: the core's pending whole request, the judge's defect, then the held marker.
+pub(super) fn held_findings(candidate: &str, repairs: usize) -> Vec<(String, String, String)> {
+    let finding =
+        |kind: &str, target: &str, message: String| (kind.to_owned(), target.to_owned(), message);
+    vec![
+        finding(
+            "unknown",
+            "semantic_verification",
+            pending_finding(candidate),
+        ),
+        finding(
+            "unknown",
+            "semantic_verification",
+            unrepaired_finding(repairs),
+        ),
+        finding("applied", "verify_held", HELD_DEFECTS.to_owned()),
+    ]
+}
+
+/// The verification steps of a document's decision route, in order.
+pub(super) fn verify_steps(document: &Value) -> Vec<String> {
+    let route = document["provenance"]["decision"]["route"].as_array();
+    (route.into_iter().flatten())
+        .filter_map(Value::as_str)
+        .filter(|step| step.starts_with("verify:"))
+        .map(str::to_owned)
+        .collect()
 }
 
 /// One explicit repair and a request ceiling; actual dispatches enforce that ceiling.
@@ -187,9 +270,10 @@ async fn an_explicit_one_request_limit_refuses_a_transport_retry() {
 #[tokio::test(flavor = "multi_thread")]
 async fn explicit_authority_repairs_and_a_caller_can_narrow_but_never_widen_it() {
     for (limits, expected_calls, ready) in [
-        // The operator's grant: the plan, its judgment and the locate question, the repair, the
-        // repaired plan's judgment — one real repair.
-        (json!({}), 5, true),
+        // The operator's grant: the plan, its judgment, the request's two parts asked alone,
+        // the task the missing one points to, the repair, the repaired plan's judgment — one
+        // real repair.
+        (json!({}), 7, true),
         (json!({"max_calls": 1, "repairs": 0}), 1, false),
     ] {
         let world = TestWorld::new();
@@ -276,10 +360,172 @@ async fn a_default_round_repairs_a_judged_defect_without_an_implicit_count() {
     let response = server.request(&compile_request(&fresh(&answered()))).await;
     let document = response.json();
     assert_eq!(document["status"], "ready", "{document:#}");
-    assert_eq!(seat.calls(), 5);
+    assert_eq!(seat.calls(), 7);
     assert_eq!(authority(&document)["max_calls"], Value::Null);
     assert_eq!(authority(&document)["configured"]["repairs"], Value::Null);
+    let journaled: Vec<String> = roles(&document).into_iter().map(|(role, _)| role).collect();
+    assert_eq!(
+        journaled,
+        [
+            "plan",
+            "judge_request",
+            "judge_part",
+            "judge_part",
+            "judge_point",
+            "repair",
+            "judge_request"
+        ]
+    );
+    let attempts = document["provenance"]["decision"]["semantic_verification"]
+        .as_array()
+        .expect("the attempts");
+    assert_eq!(attempts.len(), 2, "{attempts:#?}");
+    assert_located(&attempts[0]);
+    // The repair starts from the part and the judge's reason, never from the doubt alone.
+    let told = user_texts(&seat.bodies()[5]);
+    assert_eq!(told.len(), 2, "the request, then what the verifier found");
+    assert!(
+        told[1].starts_with(&format!(
+            "{REPAIR_OPENING}\n- {NOTED_DEFECT}\nReturn the complete"
+        )),
+        "{}",
+        told[1]
+    );
+    // The repaired plan's judgment carries the request whole, over other bytes than the ones
+    // the judge declined: the bytes now proposed.
+    let proposed = document["candidate"].as_str().expect("the candidate");
+    assert_carried(&attempts[1], proposed);
+    assert_ne!(
+        attempts[0]["candidate_sha256"],
+        attempts[1]["candidate_sha256"]
+    );
+    assert_eq!(
+        verify_steps(&document),
+        ["verify: repair 1", "verify: judged (authoring_provider)"]
+    );
     server.stop().await.expect("clean stop");
+}
+
+/// The first attempt of [`judged_repair`]: the whole verdict doubts, and each part of the
+/// request is asked alone as evidence: the read carried, the write missing. Neither part
+/// restricts, and a request of two parts offers each `no_operation`. The missing write is a
+/// defect with its reason, the task the judge names among the candidate's; a located defect
+/// asks no extra-operation question.
+fn assert_located(first: &Value) {
+    assert_eq!(first["doubt"], json!(["unfaithful"]), "{first:#}");
+    assert_eq!(first["defects"], json!(["then write ./b.md"]));
+    assert_eq!(
+        first["notes"],
+        json!([{"defect": "then write ./b.md", "note": "the judge points to the task write_output"}])
+    );
+    for settled in ["unknown", "contested", "unsettled"] {
+        assert_eq!(first[settled], json!([]), "{settled}");
+    }
+    assert_eq!(first["settled_by"], Value::Null);
+    // The record states how the judge declined these bytes (rejected, not an abstention), that
+    // every call it sent was answered, and the whole request it asked: its own verdict, four
+    // questions sent, answered and consumed.
+    for (field, value) in [
+        ("declined", json!(true)),
+        ("rejected", json!(true)),
+        ("stopped", json!(false)),
+        ("whole_asked", json!(true)),
+        ("request", json!(INTENT)),
+        ("same_bytes_as", Value::Null),
+        ("attempted", json!(4)),
+        ("returned", json!(4)),
+        ("consumed", json!(4)),
+    ] {
+        assert_eq!(first[field], value, "{field}: {first:#}");
+    }
+    assert_eq!(first["usage"]["calls"], 4, "{first:#}");
+    let asked = first["questions"].as_array().expect("questions");
+    assert_eq!(asked.len(), 4, "{first:#}");
+    assert_eq!(asked[0]["question"], "verify-request");
+    assert_eq!(asked[0]["choice"], "unfaithful");
+    // Only an earlier part can be superseded by a later one: the last part is never offered it.
+    let parts = [
+        (
+            "Read ./a.md and do something clever with it",
+            "carried",
+            json!(["carried", "missing", "superseded", "no_operation", "none"]),
+        ),
+        (
+            "then write ./b.md",
+            "missing",
+            json!(["carried", "missing", "no_operation", "none"]),
+        ),
+    ];
+    for (k, (part, choice, offered)) in parts.into_iter().enumerate() {
+        let question = &asked[k + 1];
+        assert_eq!(question["question"], format!("verify-part-{k}"));
+        assert_eq!(question["role"], "judge_part");
+        assert_eq!(question["choice"], choice);
+        assert_eq!(question["options"], offered, "{question:#}");
+        assert_eq!(
+            question["clause"],
+            json!({"text": part, "restricts": false})
+        );
+    }
+    assert_pointed(&asked[3]);
+}
+
+/// An attempt whose one question carried the whole request over `proposed`, the READY bytes.
+fn assert_carried(second: &Value, proposed: &str) {
+    assert_eq!(second["questions"].as_array().map(Vec::len), Some(1));
+    assert_eq!(second["questions"][0]["question"], "verify-request");
+    assert_eq!(second["questions"][0]["choice"], "faithful");
+    assert_eq!(second["settled_by"], "verify-request");
+    for (field, value) in [
+        ("defects", json!([])),
+        ("doubt", json!([])),
+        ("declined", json!(false)),
+        ("rejected", json!(false)),
+        ("stopped", json!(false)),
+        ("whole_asked", json!(true)),
+        ("request", json!(INTENT)),
+        ("same_bytes_as", Value::Null),
+    ] {
+        assert_eq!(second[field], value, "{field}: {second:#}");
+    }
+    assert_eq!(second["candidate_sha256"], sha256_hex(proposed.as_bytes()));
+}
+
+/// What a COLD repair is told before the defects it starts from.
+const REPAIR_OPENING: &str = "VERIFIER: the workflow compiled from your plan was compared with the WHOLE request. It does not carry these parts of the request, or does them differently:";
+
+/// The texts of a request's user turns, in order.
+fn user_texts(body: &Value) -> Vec<String> {
+    (body["messages"].as_array().into_iter().flatten())
+        .filter(|message| message["role"] == "user")
+        .filter_map(|message| message["content"].as_str().map(str::to_owned))
+        .collect()
+}
+
+/// The question after the write judged missing: why, among every task of the candidate in
+/// document order, an operation no task performs, or no task failing it; answered with the
+/// task that writes `./b.md`.
+fn assert_pointed(point: &Value) {
+    assert_eq!(point["question"], "verify-point-1", "{point:#}");
+    assert_eq!(point["role"], "judge_point");
+    assert_eq!(point["choice"], format!("task-{WRITE_TASK}"));
+    assert_eq!(
+        point["options"],
+        json!([
+            "task-draft",
+            "task-draft_admit",
+            "task-draft_anchors",
+            "task-read_source",
+            "task-write_output",
+            "omitted",
+            "no_task",
+            "none"
+        ])
+    );
+    assert_eq!(
+        point["clause"],
+        json!({"text": "then write ./b.md", "restricts": false})
+    );
 }
 
 /// A plan whose candidate needs a value the request never names asks it in one request: no
@@ -335,10 +581,15 @@ async fn a_caller_can_select_large_limits_where_the_operator_left_preparation_op
 
 /// A request that gates its write on the human: the plan cannot carry the gate, so the sketch
 /// door takes it.
-const GATED: &str =
+pub(super) const GATED: &str =
     "Read ./a.md and do something clever with it, then ask me before you write ./b.md";
 
 fn gated_round() -> Vec<Reply> {
+    gated_round_judged(JUDGE_APPROVES)
+}
+
+/// The plan, the sketch door's graph and its fills for [`GATED`], then the judge's `answer`.
+pub(super) fn gated_round_judged(answer: &str) -> Vec<Reply> {
     let mut plan: Value = serde_json::from_str(&plan_answer(DRAFT, &[])).expect("plan");
     plan["effects"][0]["policy"] = json!("human_first");
     plan["effects"][0]["evidence"] = json!("ask me before you write ./b.md");
@@ -361,7 +612,7 @@ fn gated_round() -> Vec<Reply> {
         Reply::Text(plan.to_string()),
         Reply::Text(sketch.to_string()),
         Reply::Text(fills.to_string()),
-        Reply::Text(JUDGE_APPROVES.to_owned()),
+        Reply::Text(answer.to_owned()),
     ]
 }
 

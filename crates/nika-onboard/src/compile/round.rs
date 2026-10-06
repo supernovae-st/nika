@@ -1045,6 +1045,101 @@ impl<'r> Capture<'r> {
 #[cfg(test)]
 mod tests;
 
+/// Whether the last semantic verification of a kept candidate was judged and contested with no
+/// defect located: the verifier did not accept it and named nothing a repair could start from
+/// (R6), so nothing decided it. A contested entry beside a defect is no such judgment: the
+/// defect is what the verifier located.
+#[must_use]
+pub fn contested_judgment(out: &CompileOutcome) -> bool {
+    last_verification(out).is_some_and(|attempt| {
+        let named = |key: &str| attempt[key].as_array().is_some_and(|list| !list.is_empty());
+        named("contested") && !named("defects")
+    })
+}
+
+/// Whether the compiler held the outcome's candidate: its verifier answered those bytes and did
+/// not accept them (the applied `verify_held` finding). No record or continuation may replay them
+/// to that verifier again (R6); the bytes are at most shown.
+#[must_use]
+pub fn verify_held(out: &CompileOutcome) -> bool {
+    (out.diagnostics.iter()).any(|d| d.kind == DiagnosticKind::Applied && d.target == "verify_held")
+}
+
+/// The verdicts of `out` that rejected candidate bytes: each `semantic_verification` attempt
+/// whose judge answered its bytes and did not accept them (`declined` and `rejected`, never
+/// `settled`), every attempt of the outcome in order, not only the last. An abstention
+/// (`rejected` false) is none: a later round may still decide it. A repeat of an earlier
+/// verdict with no call (`same_bytes_as`, `carried`) is none either: the attempt that judged
+/// holds its answers. A host carries them into every later compile of the same request
+/// ([`CompileRequest::with_declined`]): that judge is never asked again on those bytes (R6), and
+/// a carried verdict can only keep them from READY.
+#[must_use]
+pub fn rejections(out: &CompileOutcome) -> Vec<Value> {
+    let attempts = (out.provenance.decision.as_ref())
+        .and_then(|decision| decision["semantic_verification"].as_array());
+    (attempts.into_iter().flatten())
+        .filter(|attempt| {
+            attempt["candidate_sha256"].is_string()
+                && attempt["declined"] == true
+                && attempt["rejected"] == true
+                && attempt["settled"] == false
+                && attempt["same_bytes_as"].is_null()
+                && attempt["carried"] != true
+        })
+        .cloned()
+        .collect()
+}
+
+/// Keep each verdict of `found`: one per candidate's bytes, judge, request and context (its
+/// `candidate_sha256`, its judge's `seat` and `kind`, its `request`, its `context_sha256`), in
+/// order. A later verdict of the same key replaces the kept one: it resumed a localization the
+/// kept one left unfinished, and holds every answer the judge gave those bytes.
+/// Whether anything was added or replaced.
+pub fn keep_rejections(kept: &mut Vec<Value>, found: Vec<Value>) -> bool {
+    // A rejection binds to the bytes, the judge, the request and the context it judged: the
+    // same bytes rejected again for a corrected request, other answers or another observed
+    // world are kept as their own verdict.
+    let key = |attempt: &Value| {
+        (
+            attempt["candidate_sha256"].clone(),
+            attempt["judge"]["seat"].clone(),
+            attempt["judge"]["kind"].clone(),
+            attempt["request"].clone(),
+            attempt["context_sha256"].clone(),
+        )
+    };
+    // The latest of `found` for each key, in order of first appearance.
+    let mut latest: Vec<Value> = Vec::new();
+    for attempt in found {
+        match latest.iter_mut().find(|held| key(held) == key(&attempt)) {
+            Some(held) => *held = attempt,
+            None => latest.push(attempt),
+        }
+    }
+    let mut changed = false;
+    for attempt in latest {
+        match kept.iter_mut().find(|held| key(held) == key(&attempt)) {
+            Some(held) if *held == attempt => {}
+            Some(held) => {
+                *held = attempt;
+                changed = true;
+            }
+            None => {
+                kept.push(attempt);
+                changed = true;
+            }
+        }
+    }
+    changed
+}
+
+/// The last semantic verification attempt the outcome records, when it records one.
+pub(crate) fn last_verification(out: &CompileOutcome) -> Option<&Value> {
+    (out.provenance.decision.as_ref())
+        .and_then(|decision| decision["semantic_verification"].as_array())
+        .and_then(|attempts| attempts.last())
+}
+
 /// A compiler-owned unjudged slot, never a candidate or permission to save or run.
 #[must_use]
 pub fn awaiting_judge(out: &CompileOutcome) -> bool {

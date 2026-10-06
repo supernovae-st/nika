@@ -5,8 +5,6 @@
 //! arm, the empty arm and the task rows (split from `check_render.rs` at
 //! the 1,500-line wall · wave 3.b; the bodies moved verbatim).
 
-use std::fmt::Write as _;
-
 use super::*;
 
 /// The composition arm of [`cost()`] (spec 14 · the 2026-07-29 finding): no

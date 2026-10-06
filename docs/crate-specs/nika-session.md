@@ -549,8 +549,22 @@ Each finite choice makes one attempt with a 20-second deadline and no transport
 retry. Interactive preparation has no implicit three-call ceiling. The selected
 service accompanies API, native subscription and ACP authoring through the same
 compiler capability. It can read ambiguous clauses, rank feasible plans and judge semantic
-fidelity, including locating a defect for the author to repair. The current adapter does
-not perform Foundry retrieval; that role belongs to the accepted
+fidelity: the whole request first and, only when it doubts it, each part of the request
+alone, why a part it finds missing is missing (the task it points to, an operation no task
+performs, or no task after all), each part still open over a trial run of the same bytes when
+the sketch door made one in this Session, any extra operation, and then the whole request
+over that run (the [whole-request judgment](nika-compile-cognition.md)). A verdict is
+therefore one consultation when it carries the request; otherwise it is one per part of the
+request plus those follow-up questions, asked in sequence, each its own attempt under the
+deadline, and an attempt that fails or is refused ends that verdict's questions. Only a defect
+it locates goes to the author for repair, with the reason it gave; a doubt it does not locate
+is never repaired from and never proposed, and the candidate is held (below). Within one
+compile, the service is not asked again on bytes it already declined: its earlier verdict
+stands with no consultation. Session also carries the service's rejections into every later
+compile of the same goal (below), where a rejection of the same bytes for the same request
+stands with no consultation too; an abstention is not carried. The questions over a trial run
+carry the run's texts to the configured service as preparation context. The current adapter
+does not perform Foundry retrieval; that role belongs to the accepted
 [cooperative target](../architecture/ARCHITECTURE-0.123.md) and needs separate
 implementation and qualification. It grants no execution authority. In the current
 implementation, a caller that explicitly supplies a monetary account keeps its
@@ -558,12 +572,26 @@ existing admission rules; an unpriced decision never consumes that allowance.
 Billing units remain separate from tokens, with cost and invoice unknown.
 
 `nika/session-decision-seat@2` retains every attempt and closes the scope when its
-compile ends. `scope_ended: true` means no further consultation of that scope, not
+compile ends; its `role` states what the seat decides, the whole-request judgment's
+questions included. Each attempt keeps its question id and offered keys (`task-<id>` and
+`part-<k>` among them), never the question's state or a trial run's texts.
+`scope_ended: true` means no further consultation of that scope, not
 that a price or successful workflow was proved. An unresolved send remains
 Uncertain even on cancellation. Old @1 records stay unchanged and visible. A new
 scope never reconciles an earlier uncertain charge, and reading observations
 never dispatches. The pre-dispatch durable marker remains the host's responsibility;
 an unavailable in-memory journal refuses before the decision transport starts.
+
+The configured verifier receives preparation trial observations by default. Session's
+sketch rounds may try a candidate in a sealed room on copies of the observed files. Every
+question over the run (a part asked again over it, its pointer, the whole request over it and
+its pointer) receives the texts the run read and the outputs it read back (currently at most
+64 KiB per file, with whole/partial and written-by-run markers); the verifier asks over a run
+only when it proves whole outputs. The decision service is used when selected, otherwise the
+authoring provider. The compiler binds the evidence to the exact candidate and records
+paths, sizes and sha256 rather than duplicate texts. The copy door continues to perform
+its deterministic qualification; making evidence available does not add a judge call.
+Workflow execution permissions belong to `.nika` and Run, not to this preparation context.
 
 The adapter and journal remain in `nika-cli-host::compile::typesafe::session`;
 `authoring::DecisionSetup` preserves its public path. Session owns persistence and
@@ -944,10 +972,77 @@ Started/Finished/Cancelled state. Finished means returned, not semantically acce
 
 An INCOMPLETE result carrying the compiler's Applied `verify_resume` finding is kept as an authoring round, never as a Save proposal or Run permission. `continue` or `retry` replays its exact semantic record and asks the judge without regenerating the author candidate. A new correction discards that candidate and enters the existing request-restatement path. The round's answers, obligations and provenance remain durable under the existing exact-digest record. Reopening makes no model call; `/restore` arms this questionless round without proposing it, and an explicit continuation asks the judge. An altered or withheld record still refuses. Ordinary clarification rounds retain their existing replay protocol.
 
+The compiler leaves that finding only when the verifier's call on the whole request returned
+no admitted choice (the judge answered nothing), and the kept round says the candidate could
+not be judged (`JUDGMENT_KEPT`); an empty line, a run verb, `yes` and `save` repeat those
+words and change nothing.
+
+A candidate the verifier answered and declined (it rejected the bytes or abstained) is held
+instead when no defect was located: the compiler keeps its bytes as the INCOMPLETE outcome's
+preview, drops its replayable record and adds the Applied `verify_held` finding, worded by what
+held it; COLD, WARM and answer rounds add the same finding to a candidate whose located
+defects stayed unsettled. The authoring round then drops the plan it replayed, with the
+knowledge and receipt of the call that authored it, and keeps every answer
+(`AuthoringRound::absorb`; a revision's base record, its input, stays), so no later compile of
+the round replays that record. A later compile of the same request may author the same bytes
+again: the same verifier's rejection of them stands there with no consultation, because
+Session carries the goal's rejections (below), while an abstention may be decided by a new
+round. Session words it
+through `nika_onboard::compile::reading::held_words`, by what the last verification found: a
+part missing that the repairs did not settle, an abstention, or a rejection with no defect
+located (« The workflow is built but not proposed: the verifier did not accept it and located no
+defect a repair could start from; nothing was written. »); then a correction, or
+`/intelligence` for another authoring model (which also judges unless a decision model is set),
+with `/meaning` for what was understood. No `continue` is offered, and nothing is proposed to
+save or run. `Reading::of` reads a held outcome as unsettled before its questions and provider
+findings, so a held candidate whose judge call timed out or was refused while the verifier was
+locating its doubt still gets these words, never those of a provider failure or an exhausted
+budget.
+
+The Session keeps, in memory, the verdicts that rejected candidate bytes in its current goal's
+compiles (`nika_onboard::compile::round::rejections`, the latest per candidate digest, judge,
+request and context by `keep_rejections`; an abstention is never kept). Every later compile of
+that goal carries them
+(`CompileRequest::with_declined`): an authoring or answer round, the write-again after a
+located defect, the stronger seat's retry, a continuation, and a request read again with the
+human's words or a correction, whose restated goal takes the kept rejections with it. The
+compiler repeats a carried rejection, with no consultation (`carried: true` on its attempt),
+only for the same verifier, the same bytes, the same whole request and the same answers and
+observed world; its located defects are what the round's repair or reopening starts from, and
+a localization it left unfinished resumes with no question asked again: a restated or
+corrected request is another request, so the verifier is asked again
+on it, even on bytes it rejected under the earlier words. A compile of new work keeps its own
+verdicts and drops the earlier goal's; a reopened Session carries none from before it closed. A
+deterministic compile, when money blocks cognition, asks no verifier and carries none.
+
+An answer round replays and judges, never repairs. The replay of a model's record (COLD,
+WARM, native or sketch) leaves the whole request pending on the bytes it emits, so the round's
+verifier judges the whole request again. When the last verification of the replayed candidate
+holds a located defect (`defects`: a part the verifier pointed to a task for or found no task
+performing, or an extra operation it pointed to a task for), Session forgets the replayed plan
+once and compiles the request again under every answer already given, where the authoring
+round's own judgment and repairs run. A verifier that declined the replay without locating a
+defect gives no defect to write again from: the compiler drops the replay's record and its
+questions (`verify: doubted, not replayable`) and adds `verify_held`, Session forgets the
+replayed plan, and the human gets the words above, never a question about rejected bytes. A
+verifier that answered nothing leaves the whole request pending: the compiler keeps the
+record, and the human is told the workflow is built but not proposed because no judgment made
+in this round settled it. When money blocks cognition, an answer round compiles
+deterministically: the core's replay keeps the whole request pending for every record but the
+reader's own HOT plan, so such a round is INCOMPLETE, never READY. An unsettled round in an
+unmetered Session whose model the human did not name is tried once more with the provider's
+stronger model; after a held replay, that retry writes the workflow afresh under the answers
+already given instead of replaying the held bytes, and carries the goal's rejections.
+
 After a stopped creation with no saved workflow or live round, the retained goal remains
 context for a classified correction. The existing turn classifier sees the earlier goal:
-Modify/Mixed restates its exact words followed by the exact correction, explicitly giving
-the correction precedence only over what it changes. NewWork is an independent CREATE;
+Modify/Mixed restates its exact words after « Original request: » and a line break, then
+« Correction (it takes precedence over the original where they differ; every other
+requirement stands): », a line break and the exact correction, so the correction takes
+precedence only over what it changes. The frame names no keep or exclusion lead and no
+restriction word, so the verifier's part it labels, the correction's first phrase, is judged
+for what it asks, never as a restriction; the restated goal takes the earlier goal's kept
+rejections, though its new words are judged afresh (above). NewWork is an independent CREATE;
 an unknown route preserves the goal and starts no authoring call. No cancelled candidate,
 Save consent or Run authority is restored. The combined request remains the goal even if
 its authoring fails, and the existing history restores it without asking a model. Compiler

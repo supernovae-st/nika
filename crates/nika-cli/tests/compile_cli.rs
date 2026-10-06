@@ -15,6 +15,8 @@ use std::thread::JoinHandle;
 
 #[path = "compile_cli/capture.rs"]
 mod capture;
+#[path = "compile_cli/held.rs"]
+mod held;
 
 fn command(room: &Path) -> Command {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika"));
@@ -661,11 +663,14 @@ fn cold_creation_is_never_refused_up_front_and_its_counters_keep_the_bound() {
     }
 }
 
-/// Repairs under the sketch door, or a two-request strategy (escalate, sketch: a READY is judged),
-/// typed beyond the authority are refused before any request: the operator's explicit quality is
-/// never reduced in silence, and the number to authorize is named. Source-only authoring is
-/// retired for a new workflow: under `only` the refusal names the semantic doors, before any
-/// request, whatever the authority.
+/// A typed strategy that needs more requests than the authority grants before its READY can be
+/// judged (escalate: the plan and its judgment; sketch: the sketch, its fills and their judgment)
+/// is refused before any request: the operator's explicit quality is never reduced in silence,
+/// and the number to authorize is named. Typed sketch repairs add no up-front count: the sketch
+/// door's judgment asks each part of a doubted request alone, so its count depends on the
+/// request, and only the strategy's own minimum is named. Source-only authoring is retired for a
+/// new workflow: under `only` the refusal names the semantic doors, before any request, whatever
+/// the authority.
 #[test]
 fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request() {
     let room = tempfile::tempdir().expect("room");
@@ -673,18 +678,16 @@ fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request
     let answer =
         serde_json::json!({"candidate": "not a workflow", "questions": [], "gaps": [], "notes": ""})
             .to_string();
+    let sketch = "the sketch strategy needs at least 3 authoring requests (the sketch, its fills, then their judgment): authorize --authoring-max-calls 3 or more";
     for (typed, needed) in [
         (
             vec!["--authoring-strategy", "sketch", "--authoring-repairs", "3"],
-            "--authoring-max-calls 13",
+            sketch,
         ),
-        (
-            vec!["--authoring-strategy", "sketch"],
-            "--authoring-max-calls 3",
-        ),
+        (vec!["--authoring-strategy", "sketch"], sketch),
         (
             vec!["--authoring-strategy", "escalate"],
-            "--authoring-max-calls 2",
+            "the escalate strategy needs at least 2 authoring requests (the plan, then its judgment): authorize --authoring-max-calls 2 or more",
         ),
     ] {
         let seat = LoopbackSeat::start(vec![answer.clone()]);
@@ -699,8 +702,7 @@ fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request
         let doc = result(&out);
         assert_eq!(out.status.code(), Some(2), "{typed:?}: {doc}");
         assert_eq!(doc["error"]["code"], "authoring_authority", "{doc}");
-        let message = doc["error"]["message"].as_str().expect("message");
-        assert!(message.contains(needed), "{typed:?}: {message}");
+        assert_eq!(doc["error"]["message"], needed, "{typed:?}");
         assert!(
             seat.bodies().is_empty(),
             "no request before the refusal: {typed:?}"
@@ -755,6 +757,42 @@ fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request
             "no request under only: {granted:?}"
         );
     }
+}
+
+/// Typed sketch repairs under a bound that holds the strategy's minimum: the sketch door's
+/// judgment asks each part of a doubted request alone, so no count of its repairs is known before
+/// the request and none refuses them up front (no finite worst case); the counters keep the
+/// bound. The seat's answer is no sketch, so the door ends after its one request.
+#[test]
+fn typed_sketch_repairs_are_never_refused_up_front_and_the_counters_keep_the_bound() {
+    let room = tempfile::tempdir().expect("room");
+    let intent = "Review this customer request and harmonise the tone of the support reply";
+    let answer =
+        serde_json::json!({"candidate": "not a workflow", "questions": [], "gaps": [], "notes": ""})
+            .to_string();
+    let seat = LoopbackSeat::start(vec![answer]);
+    let out = command(room.path())
+        .env("NIKA_VLLM_BASE_URL", seat.base())
+        .args(["compile", intent, "--authoring-model", "vllm/loopback-seat"])
+        .args(["--authoring-strategy", "sketch", "--authoring-repairs", "3"])
+        .args(["--authoring-max-calls", "3", "--authoring-timeout", "2"])
+        .arg("--json")
+        .output()
+        .expect("CLI");
+    let doc = result(&out);
+    assert_ne!(doc["error"]["code"], "authoring_authority", "{doc}");
+    let authority = &doc["provenance"]["authoring"]["backend"]["authority"];
+    assert_eq!(authority["max_calls"], 3, "{doc}");
+    assert_eq!(authority["source"], "--authoring-max-calls", "{doc}");
+    assert_eq!(authority["configured"]["strategy"], "sketch", "{doc}");
+    assert_eq!(authority["configured"]["repairs"], 3, "{doc}");
+    assert_eq!(authority["configured"]["worst_case"], Value::Null, "{doc}");
+    assert_eq!(
+        authority["http_requests"],
+        serde_json::json!({"sent": 1, "refused": 0, "unknown": null}),
+        "{doc}"
+    );
+    assert_eq!(seat.bodies().len(), 1, "{doc}");
 }
 
 /// Repairs under off belong to the verifier: the granted count is never ignored.

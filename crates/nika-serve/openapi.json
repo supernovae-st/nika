@@ -65,7 +65,7 @@
         "description": "The engine-owned machine document of one authoring result — the document `nika compile --json` prints, without the CLI-only `written`. No field grants authority, writes or executes source.",
         "properties": {
           "candidate": {
-            "description": "Ordinary `.nika` source; may still be incomplete",
+            "description": "Ordinary `.nika` source. It is proposed only when `status` is `ready`; under any other status it is never proposed. Under `incomplete` it is a preview: it may still carry unfilled holes, or, when an `applied` diagnostic targets `verify_held`, it is a candidate the verifier held: it answered on these bytes against the request and did not accept them. A preview is not to be run or saved as an accepted result. Null when no candidate is shown, a withdrawn one included.",
             "type": [
               "string",
               "null"
@@ -97,6 +97,7 @@
             "type": "integer"
           },
           "diagnostics": {
+            "description": "Findings, in order. `kind` and `target` are their machine-readable part; `message` is for a reader. `target` names what a finding concerns: a question key, a task, a source field, or one of the compiler's own targets, among them `semantic_verification`, a finding on the request against the candidate's bytes (a clause or the whole request that no admitted judgment of these bytes settled, a part a verifier judged missing with its reason, a part it left unsettled or contested, a verification stopped at a judge call that got no answer); `verify_held` (kind `applied`), the candidate is held: the verifier answered on these bytes against the request and did not accept them (it rejected them or abstained), so `candidate` is a preview only, no replayable round is kept, and that verifier is not asked about the same bytes again in this round; and `verify_resume` (kind `applied`), no admitted judgment of the candidate was made (the verifier's call failed or chose no offered answer): the candidate is withdrawn and the round's record kept, and a zero-call replay of that round asks no verifier. Each verification attempt is recorded in `provenance.decision.semantic_verification`.",
             "items": {
               "properties": {
                 "kind": {

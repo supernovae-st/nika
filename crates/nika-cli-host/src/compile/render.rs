@@ -55,14 +55,22 @@ fn authority_stop(out: &CompileOutcome) -> Option<String> {
     })
 }
 
+/// What this invocation did with the intent's records beside the working directory: its plan
+/// record, and the verdicts kept that rejected its bytes in earlier rounds.
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct Notes<'a> {
+    pub(super) plan: Option<&'a super::sidecar::Note>,
+    pub(super) declined: Option<&'a super::sidecar::Declined>,
+}
+
 pub(super) fn outcome(
     out: &CompileOutcome,
     written: Option<&str>,
     existing: Option<&str>,
-    note: Option<&super::sidecar::Note>,
+    notes: Notes<'_>,
     json_output: bool,
 ) -> VerbOutput {
-    use super::sidecar::Note;
+    use super::sidecar::{Declined, Note};
     // FILE is the existing authoring/validation finding class (2); trace's
     // INCOMPLETE (5) judges an unfinished journal, not authoring questions.
     let code = if out.status == CompileStatus::Ready {
@@ -81,18 +89,28 @@ pub(super) fn outcome(
             if let Some(path) = existing {
                 object.insert("existing_destination".to_owned(), json!(path));
             }
-            // A recorded or replayed plan is already the core's fact (`provenance.plan`,
-            // `decision.route`); only a failure to record is this adapter's own.
-            if let Some(Note::Failed { path, error }) = note {
+            // A recorded, replayed or removed plan is already the core's fact (`provenance.plan`,
+            // `decision.route`, the `verify_held` finding); only a failure to record or to
+            // remove the record is this adapter's own.
+            if let Some(Note::Failed { path, error } | Note::Unremoved { path, error }) = notes.plan
+            {
                 object.insert(
                     "plan_record_error".to_owned(),
+                    json!({"path": path.display().to_string(), "message": error}),
+                );
+            }
+            // A verdict carried from an earlier round is the core's fact (`carried` on its
+            // attempt); only a failure to keep this round's rejections is this adapter's own.
+            if let Some(Declined::Failed { path, error }) = notes.declined {
+                object.insert(
+                    "declined_record_error".to_owned(),
                     json!({"path": path.display().to_string(), "message": error}),
                 );
             }
         }
         document.to_string()
     } else {
-        human(out, written, existing, note)
+        human(out, written, existing, notes)
     };
     VerbOutput { text, code }
 }
@@ -103,9 +121,9 @@ fn human(
     out: &CompileOutcome,
     written: Option<&str>,
     existing: Option<&str>,
-    note: Option<&super::sidecar::Note>,
+    notes: Notes<'_>,
 ) -> String {
-    use super::sidecar::Note;
+    use super::sidecar::{Declined, Note};
     let status = out.status.word();
     let preview = if out.check_preview.is_some() {
         "source-only Check preview"
@@ -126,23 +144,54 @@ fn human(
     if let Some(line) = authority_stop(out) {
         text.push_str(&line);
     }
-    match note {
+    match notes.plan {
         Some(Note::Recorded(path)) => {
             let _ = writeln!(
                 text,
-                "recorded plan · {} · an --answer round replays it with zero provider calls (--fresh re-reads)",
+                "recorded plan · {} · an --answer round replays it with no authoring call; a judge it asks makes its own calls (--fresh re-reads)",
                 path.display()
             );
         }
         Some(Note::Replayed(path)) => {
             let _ = writeln!(
                 text,
-                "replayed plan · {} · zero provider calls (--fresh re-reads)",
+                "replayed plan · {} · no authoring call; a judge this round asks makes its own calls (--fresh re-reads)",
                 path.display()
             );
         }
         Some(Note::Failed { path, error }) => {
             let _ = writeln!(text, "plan not recorded · {} · {error}", path.display());
+        }
+        Some(Note::Removed(path)) => {
+            let _ = writeln!(
+                text,
+                "plan record removed · {} · its judge did not accept the candidate: no later round replays it, the next compile authors again",
+                path.display()
+            );
+        }
+        Some(Note::Unremoved { path, error }) => {
+            let _ = writeln!(
+                text,
+                "plan record not removed · {} · {error} · a later --answer round would replay the candidate its judge did not accept: remove the file, or compile with --fresh",
+                path.display()
+            );
+        }
+        None => {}
+    }
+    match notes.declined {
+        Some(Declined::Carried(path)) => {
+            let _ = writeln!(
+                text,
+                "declined verdicts · {} · its judge rejected these bytes in an earlier round: it was not asked again (--fresh keeps them)",
+                path.display()
+            );
+        }
+        Some(Declined::Failed { path, error }) => {
+            let _ = writeln!(
+                text,
+                "declined verdicts not kept · {} · {error} · a later round could ask a judge again on bytes it rejected",
+                path.display()
+            );
         }
         None => {}
     }
@@ -169,4 +218,115 @@ fn human(
         );
     }
     text
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod tests {
+    use super::super::sidecar::Note;
+    use nika_onboard::compile::{CompileRequest, compile};
+    use serde_json::Value;
+    use std::path::PathBuf;
+
+    /// The lines of `text` that name the plan record.
+    fn record_lines(text: &str) -> Vec<&str> {
+        text.lines()
+            .filter(|line| line.starts_with("plan "))
+            .collect()
+    }
+
+    /// A record removed after its candidate was held is named in words, and the machine document
+    /// adds nothing (the `verify_held` finding is the core's); a record that could not be removed
+    /// is named in both, the error with it.
+    #[test]
+    fn a_removed_or_unremovable_record_is_named() {
+        let intent = "Read ./a.md and do something clever with it, then write ./b.md";
+        let out = compile(&CompileRequest::create(intent)).expect("compiles");
+        let path = PathBuf::from(".nika/compile/abc.plan.json");
+        let removed = Note::Removed(path.clone());
+        let plan = |note| super::Notes {
+            plan: Some(note),
+            declined: None,
+        };
+        let human = super::outcome(&out, None, None, plan(&removed), false);
+        assert_eq!(
+            record_lines(&human.text),
+            [
+                "plan record removed · .nika/compile/abc.plan.json · its judge did not accept the candidate: no later round replays it, the next compile authors again"
+            ]
+        );
+        let machine = super::outcome(&out, None, None, plan(&removed), true);
+        let doc: Value = serde_json::from_str(&machine.text).expect("a document");
+        assert_eq!(doc.get("plan_record_error"), None);
+        let error = "Operation not permitted (os error 1)".to_owned();
+        let unremoved = Note::Unremoved { path, error };
+        let human = super::outcome(&out, None, None, plan(&unremoved), false);
+        assert_eq!(
+            record_lines(&human.text),
+            [
+                "plan record not removed · .nika/compile/abc.plan.json · Operation not permitted (os error 1) · a later --answer round would replay the candidate its judge did not accept: remove the file, or compile with --fresh"
+            ]
+        );
+        let machine = super::outcome(&out, None, None, plan(&unremoved), true);
+        let doc: Value = serde_json::from_str(&machine.text).expect("a document");
+        assert_eq!(
+            doc["plan_record_error"],
+            serde_json::json!({"path": ".nika/compile/abc.plan.json",
+                "message": "Operation not permitted (os error 1)"})
+        );
+        assert_eq!((human.code, machine.code), (2, 2));
+    }
+
+    /// The lines of `text` that name the kept rejections.
+    fn declined_lines(text: &str) -> Vec<&str> {
+        text.lines()
+            .filter(|line| line.starts_with("declined verdicts"))
+            .collect()
+    }
+
+    /// A verdict kept from an earlier round that decided this round's bytes is named in words,
+    /// and the machine document adds nothing (the attempt's `carried` is the core's); rejections
+    /// that could not be kept are named in both, the error with them.
+    #[test]
+    fn a_carried_rejection_or_one_that_could_not_be_kept_is_named() {
+        use super::super::sidecar::Declined;
+        let intent = "Read ./a.md and do something clever with it, then write ./b.md";
+        let out = compile(&CompileRequest::create(intent)).expect("compiles");
+        let path = PathBuf::from(".nika/compile/abc.declined.json");
+        let notes = |declined| super::Notes {
+            plan: None,
+            declined: Some(declined),
+        };
+        let carried = Declined::Carried(path.clone());
+        let human = super::outcome(&out, None, None, notes(&carried), false);
+        assert_eq!(
+            declined_lines(&human.text),
+            [
+                "declined verdicts · .nika/compile/abc.declined.json · its judge rejected these bytes in an earlier round: it was not asked again (--fresh keeps them)"
+            ]
+        );
+        let machine = super::outcome(&out, None, None, notes(&carried), true);
+        let doc: Value = serde_json::from_str(&machine.text).expect("a document");
+        assert_eq!(doc.get("declined_record_error"), None);
+        let error = "Permission denied (os error 13)".to_owned();
+        let failed = Declined::Failed { path, error };
+        let human = super::outcome(&out, None, None, notes(&failed), false);
+        assert_eq!(
+            declined_lines(&human.text),
+            [
+                "declined verdicts not kept · .nika/compile/abc.declined.json · Permission denied (os error 13) · a later round could ask a judge again on bytes it rejected"
+            ]
+        );
+        let machine = super::outcome(&out, None, None, notes(&failed), true);
+        let doc: Value = serde_json::from_str(&machine.text).expect("a document");
+        assert_eq!(
+            doc["declined_record_error"],
+            serde_json::json!({"path": ".nika/compile/abc.declined.json",
+                "message": "Permission denied (os error 13)"})
+        );
+        // Neither note: no line, no field.
+        let quiet = super::outcome(&out, None, None, super::Notes::default(), false);
+        assert_eq!(declined_lines(&quiet.text), Vec::<&str>::new());
+        assert_eq!((human.code, machine.code, quiet.code), (2, 2, 2));
+    }
 }

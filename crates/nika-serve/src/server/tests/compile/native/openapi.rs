@@ -16,15 +16,17 @@ use super::*;
 use crate::server::openapi;
 
 /// The request body schema of `POST /v1/compile`, as a JSON pointer into the document.
-const REQUEST: &str = "/paths/~1v1~1compile/post/requestBody/content/application~1json/schema";
+pub(super) const REQUEST: &str =
+    "/paths/~1v1~1compile/post/requestBody/content/application~1json/schema";
 /// The 200 answer schema of `POST /v1/compile`.
-const ANSWER: &str = "/paths/~1v1~1compile/post/responses/200/content/application~1json/schema";
+pub(super) const ANSWER: &str =
+    "/paths/~1v1~1compile/post/responses/200/content/application~1json/schema";
 /// The replay header's schema.
 const TOKEN: &str = "/paths/~1v1~1compile/post/responses/200/headers/Nika-Compile-Replay/schema";
 
 /// A validator for the schema at `pointer`: the whole document is its root, so every
 /// `$ref` resolves inside the published contract and nowhere else.
-fn schema_at(document: &Value, pointer: &str) -> jsonschema::Validator {
+pub(super) fn schema_at(document: &Value, pointer: &str) -> jsonschema::Validator {
     let mut root = document.clone();
     root["$ref"] = json!(format!("#{pointer}"));
     jsonschema::options()
@@ -41,7 +43,7 @@ fn assert_valid(validator: &jsonschema::Validator, instance: &Value, what: &str)
     assert!(errors.is_empty(), "{what}: {errors:?}");
 }
 
-async fn served(server: &TestServer) -> (String, Value) {
+pub(super) async fn served(server: &TestServer) -> (String, Value) {
     let response = server.request(&get_request("/v1/openapi.json")).await;
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
@@ -49,7 +51,7 @@ async fn served(server: &TestServer) -> (String, Value) {
 }
 
 /// Validate a request against the published schema, send it, validate the live answer.
-async fn exchange(
+pub(super) async fn exchange(
     server: &TestServer,
     request: &jsonschema::Validator,
     answer: &jsonschema::Validator,
@@ -184,6 +186,15 @@ async fn a_native_server_publishes_generation_two_and_its_live_payloads_validate
         (
             "/provenance/authoring/backend/authority/http_requests/sent",
             json!(-1),
+        ),
+        // A bound is positive, or null when none was configured.
+        (
+            "/provenance/authoring/backend/authority/max_calls",
+            json!(0),
+        ),
+        (
+            "/provenance/authoring/backend/authority/max_calls",
+            json!("4"),
         ),
         (
             "/provenance/authoring/backend/observed_models",

@@ -136,12 +136,20 @@ fn stopped_creation_correction_reaches_the_author_with_its_original_requirements
             "the author prompt must include the exact later change"
         );
         assert!(
-            prompt.contains("takes precedence over the original"),
+            prompt.contains("it takes precedence over the original where they differ"),
             "the author prompt must state correction precedence"
         );
         assert!(prompt.find(ORIGINAL) < prompt.find(CORRECTION));
+        // The restated request, exactly: the original, then the correction under a label with no
+        // keep or exclusion lead, so no reader takes the correction's first phrase for a
+        // restriction.
         let goal = session.intent.goal.as_deref().unwrap();
-        assert!(goal.contains(ORIGINAL) && goal.contains(CORRECTION));
+        assert_eq!(
+            goal,
+            format!(
+                "Original request:\n{ORIGINAL}\nCorrection (it takes precedence over the original where they differ; every other requirement stands):\n{CORRECTION}"
+            )
+        );
         no_effects(&session, root.path());
     }
 }

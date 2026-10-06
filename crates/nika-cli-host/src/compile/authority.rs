@@ -176,15 +176,28 @@ mod tests {
         // bound is never refused up front, and the counters refuse each request past it.
         let one = ["--authoring-repairs", "3", "--authoring-max-calls", "1"];
         assert!(resolve(&one, NativeMode::Escalate).is_ok());
-        // Under the sketch door three repairs can need thirteen: refused under a bound of one,
-        // with the number to authorize.
-        let refused = resolve(&one, NativeMode::Sketch).unwrap_err();
+        // The sketch door's judgment asks each part of a doubted request alone: its count
+        // depends on the request, so typed repairs are never refused up front under it either,
+        // and the counters refuse each request past the bound.
+        let sketched = resolve(&one, NativeMode::Sketch).expect("no request-independent count");
+        let record = sketched.record(&sketched.envelope(), None);
+        assert_eq!(sketched.max_calls(), Some(1));
+        assert_eq!(record["configured"]["repairs"], 3);
+        assert_eq!(record["configured"]["worst_case"], serde_json::Value::Null);
+        // A typed sketch strategy under that bound is refused for what the strategy needs before
+        // its READY can be judged, never for a count of its repairs.
+        let typed = [
+            "--authoring-strategy",
+            "sketch",
+            "--authoring-repairs",
+            "3",
+            "--authoring-max-calls",
+            "1",
+        ];
         assert_eq!(
-            refused,
-            "the repairs or samples typed can need 13 authoring requests under the sketch strategy, and 1 is authorized: authorize them with --authoring-max-calls 13, or ask for fewer"
+            resolve(&typed, NativeMode::Sketch).expect_err("three requests at least"),
+            "the sketch strategy needs at least 3 authoring requests (the sketch, its fills, then their judgment): authorize --authoring-max-calls 3 or more"
         );
-        let typed = ["--authoring-repairs", "3", "--authoring-max-calls", "13"];
-        assert!(resolve(&typed, NativeMode::Sketch).is_ok());
         // Nothing extra asked, and a typed only granted its judgment: never refused.
         let only = ["--authoring-strategy", "only", "--authoring-max-calls", "2"];
         assert!(resolve(&only, NativeMode::Only).is_ok());
@@ -271,8 +284,9 @@ mod tests {
             refused.expect_err("zero"),
             "--authoring-max-calls 0 authorizes no authoring request: authorize 1 or more, or drop --authoring-model"
         );
-        // The core runs any typed repair count as typed: only a typed bound refuses one whose
-        // count is known, with what it needs (the sketch door's 4 + 3 x 9).
+        // The core runs any typed repair count as typed, never clamped: no creating strategy
+        // states a request-independent count for it (the sketch door's judgment depends on the
+        // request too), so a typed bound never refuses it up front; the counters bound it.
         let parsed = Door::try_parse_from([
             "compile",
             "x",
@@ -285,12 +299,18 @@ mod tests {
         let args = parsed.args;
         assert_eq!(args.authoring_repairs, Some(9));
         assert!(super::resolve(&args, None, NativeMode::Escalate).is_ok());
-        assert!(super::resolve(&args, Some(1), NativeMode::Escalate).is_ok());
-        let refused = super::resolve(&args, Some(1), NativeMode::Sketch).expect_err("nine");
-        assert_eq!(
-            refused,
-            "the repairs or samples typed can need 31 authoring requests under the sketch strategy, and 1 is authorized: authorize them with --authoring-max-calls 31, or ask for fewer"
-        );
+        for strategy in [NativeMode::Escalate, NativeMode::Sketch] {
+            let authority = super::resolve(&args, Some(1), strategy).expect("nine, as typed");
+            let record = authority.record(&authority.envelope(), None);
+            assert_eq!(authority.max_calls(), Some(1), "{}", strategy.word());
+            assert_eq!(record["configured"]["repairs"], 9, "{}", strategy.word());
+            assert_eq!(
+                record["configured"]["worst_case"],
+                serde_json::Value::Null,
+                "{}",
+                strategy.word()
+            );
+        }
     }
 
     #[test]

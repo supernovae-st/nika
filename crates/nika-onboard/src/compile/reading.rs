@@ -44,7 +44,9 @@ pub enum Reading {
     Questions(CompileOutcome),
     /// Work was read but not settled under this seat's policy (the
     /// compiler says so): a wider policy may settle it, or the human
-    /// rephrases. How the compiler tried is its own business.
+    /// rephrases. How the compiler tried is its own business. A candidate
+    /// the compiler held for its verifier (`verify_held`) reads here too,
+    /// whatever a later call met: [`held_words`] says it.
     Unsettled(CompileOutcome),
     /// Nothing recognizable as work: no route, no plan, no question.
     NotWork(CompileOutcome),
@@ -67,6 +69,13 @@ impl Reading {
         }
         if out.status == CompileStatus::Ready && out.candidate.is_some() {
             return Self::Ready(out);
+        }
+        // A candidate the compiler held (its verifier answered those bytes and did not accept
+        // them) is read as held before anything else: a judge call that later timed out or was
+        // refused stopped the localization, it settles nothing, and the outcome's words are the
+        // held ones (`held_words`), never a recovery or a question about rejected bytes.
+        if super::round::verify_held(&out) {
+            return Self::Unsettled(out);
         }
         // `intent.clarification` is the compiler asking for a whole new
         // request: not a hole a line fills but a reading a seat may settle —
@@ -522,10 +531,59 @@ pub fn syntax_incomplete(clause: Option<&str>) -> String {
     )
 }
 
+/// A candidate the verifier judged and rejected, with no defect it could locate: shown, never
+/// proposed, and never asked again of the same verifier on the same bytes.
+const DOUBTED: &str = "The workflow is built but not proposed: the verifier did not accept it and located no defect a repair could start from; nothing was written.";
+
+/// A candidate the verifier read and neither accepted nor rejected.
+const ABSTAINED: &str = "The workflow is built but not proposed: the verifier read it and abstained (it neither accepted nor rejected it); nothing was written.";
+
+/// The ways on from a candidate its verifier did not accept: a correction, or another authoring
+/// model, which also judges unless a decision model is set.
+const HELD_NEXT: &str = "\n  describe a correction, or `/intelligence` for another authoring model (it also judges unless a decision model is set) · `/meaning` shows what was understood";
+
+/// Whether the verifier answered `out`'s candidate and did not accept it: the compiler held it
+/// (its applied `verify_held` finding), or its last verification contested it with no defect.
+/// Such a candidate is shown, never proposed, never replayed to the same verifier.
+pub(crate) fn judged_not_accepted(out: &CompileOutcome) -> bool {
+    out.candidate.is_some()
+        && (crate::compile::round::verify_held(out)
+            || crate::compile::round::contested_judgment(out))
+}
+
+/// What a candidate its verifier did not accept says, by what the last verification found: the
+/// parts it found missing that no repair settled (the first named), a rejection with no defect
+/// located, or an abstention; then the ways on.
+fn not_accepted_words(out: &CompileOutcome) -> String {
+    let attempt = crate::compile::round::last_verification(out);
+    let defects: Vec<&str> = (attempt.and_then(|a| a["defects"].as_array()).into_iter())
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect();
+    let abstained = attempt.is_some_and(|a| a["declined"] == true && a["rejected"] == false);
+    let said = match defects.as_slice() {
+        [part] => format!(
+            "The workflow is built but not proposed: the verifier found a part missing that the repairs did not settle: « {part} »; nothing was written."
+        ),
+        [first, ..] => format!(
+            "The workflow is built but not proposed: the verifier found parts missing that the repairs did not settle: « {first} »…; nothing was written."
+        ),
+        [] if abstained && !crate::compile::round::contested_judgment(out) => ABSTAINED.to_owned(),
+        [] => DOUBTED.to_owned(),
+    };
+    format!("{said}{HELD_NEXT}")
+}
+
 /// A native finish held for its round's judge (R4 A11 step 2), in words: the seat's program kept
 /// as the preview while the whole request stays open (`decision.pending.open`), waiting for a
-/// judge its round can permit — never an authoring failure nor a gap in the language.
+/// judge its round can permit — never an authoring failure nor a gap in the language. A candidate
+/// its verifier answered and did not accept (the compiler's applied `verify_held` finding, or a
+/// last verification that contested it with no defect) is said by what the verifier found
+/// instead, its ways on a correction or another authoring model.
 pub fn held_words(out: &CompileOutcome, has_model: bool) -> Option<String> {
+    if judged_not_accepted(out) {
+        return Some(not_accepted_words(out));
+    }
     let open = (out.provenance.decision.as_ref()).and_then(|d| d.pointer("/pending/open"));
     open.and_then(serde_json::Value::as_array)
         .filter(|open| !open.is_empty() && out.candidate.is_some())?;

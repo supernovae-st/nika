@@ -33,6 +33,7 @@ mod candidate;
 mod connection_money;
 pub use candidate::Candidate;
 mod decision;
+mod declined;
 mod details;
 mod draft;
 mod durable;
@@ -278,6 +279,10 @@ pub struct SessionRuntime {
     /// The compiler's last reading of the request (its ledger is the
     /// Meaning view), kept while its question or proposal waits.
     last_outcome: Option<CompileOutcome>,
+    /// The verdicts that rejected candidate bytes in this goal's compiles, handed to every later
+    /// compile of the goal: no judge is asked again on bytes it rejected for the same request
+    /// (R6).
+    declined: declined::Declined,
     /// The schedule the pending proposal asked for (kept beside the
     /// program); becomes `last_trigger` when the human saves that program.
     pending_trigger: Option<TriggerRequirement>,
@@ -364,6 +369,7 @@ impl SessionRuntime {
             classifier: None,
             routes: Vec::new(),
             last_outcome: None,
+            declined: declined::Declined::default(),
             pending_trigger: None,
             last_trigger: None,
             activation: None,

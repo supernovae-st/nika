@@ -1328,10 +1328,14 @@ pub fn nika_onboard::compile::round::awaiting_judge(out: &nika_compile::types::C
 pub fn nika_onboard::compile::round::carry_receipt(out: &mut nika_compile::types::CompileOutcome, receipt: core::option::Option<&nika_compile::types::AuthoringReceipt>)
 pub fn nika_onboard::compile::round::change_money(change: &str, admitted: bool) -> alloc::vec::Vec<core::ops::range::Range<usize>>
 pub fn nika_onboard::compile::round::compiled(request: nika_compile::types::CompileRequest, out: &nika_compile::types::CompileOutcome) -> core::option::Option<nika_compile::types::CompileRequest>
+pub fn nika_onboard::compile::round::contested_judgment(out: &nika_compile::types::CompileOutcome) -> bool
+pub fn nika_onboard::compile::round::keep_rejections(kept: &mut alloc::vec::Vec<serde_json::value::Value>, found: alloc::vec::Vec<serde_json::value::Value>) -> bool
 pub fn nika_onboard::compile::round::open(out: &nika_compile::types::CompileOutcome, revision: bool) -> (alloc::vec::Vec<nika_compile::types::CompileQuestion>, alloc::vec::Vec<alloc::string::String>)
 pub fn nika_onboard::compile::round::reanchored(recorded: core::option::Option<&serde_json::value::Value>, out: &nika_compile::types::CompileOutcome) -> core::option::Option<serde_json::value::Value>
+pub fn nika_onboard::compile::round::rejections(out: &nika_compile::types::CompileOutcome) -> alloc::vec::Vec<serde_json::value::Value>
 pub fn nika_onboard::compile::round::request(intent: &str, edit: core::option::Option<&(alloc::string::String, alloc::string::String, core::option::Option<alloc::string::String>)>, answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, plan: core::option::Option<&serde_json::value::Value>, money: &[core::ops::range::Range<usize>]) -> nika_compile::types::CompileRequest
 pub fn nika_onboard::compile::round::settled(out: &nika_compile::types::CompileOutcome) -> core::option::Option<nika_onboard::compile::round::Settled>
+pub fn nika_onboard::compile::round::verify_held(out: &nika_compile::types::CompileOutcome) -> bool
 pub mod nika_onboard::compile::seat
 pub fn nika_onboard::compile::seat::preparation_policy(model: &str, harness: bool, strategy: nika_compile::types::NativeMode, config: nika_providers::registry::ProvidersConfig, continuous: bool) -> nika_compile::types::AuthoringPolicy
 pub fn nika_onboard::compile::seat::priced_words(row: &str, priced: &[alloc::string::String]) -> alloc::string::String

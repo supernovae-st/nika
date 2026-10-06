@@ -426,10 +426,11 @@ async fn provider_failures_reach_the_document_as_fixed_reasons_and_a_withheld_va
 
 #[tokio::test(flavor = "multi_thread")]
 async fn explicit_repair_preferences_run_within_the_grant_and_a_caller_can_narrow_them() {
-    use super::authority::{judged_repair, one_repair};
+    use super::authority::{findings, held_findings, judged_repair, one_repair, verify_steps};
     let answered = json!({"answers": {"model": RUN_MODEL}});
-    // The operator's one repair under its stated grant of 32: the plan, its judgment and the
-    // locate question, the repair, the repaired plan's judgment — five calls.
+    // The operator's one repair under its stated grant of 32: the plan, its judgment, the
+    // request's two parts asked alone, the task the missing one points to, the repair, the
+    // repaired plan's judgment — seven calls.
     let world = TestWorld::new();
     let seat = Seat::start(judged_repair());
     let (server, _backend) = start_native(&world, compile_limits(), one_repair(&seat)).await;
@@ -437,17 +438,19 @@ async fn explicit_repair_preferences_run_within_the_grant_and_a_caller_can_narro
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
     assert_eq!(
-        document["provenance"]["authoring"]["calls"], 5,
+        document["provenance"]["authoring"]["calls"], 7,
         "{document:#}"
     );
     assert_eq!(document["status"], "ready", "{document:#}");
-    assert_eq!(seat.calls(), 5);
+    assert_eq!(seat.calls(), 7);
     let account = &document["provenance"]["authoring"]["backend"]["authority"];
     assert_eq!(account["max_calls"], 32);
     assert_eq!(account["configured"]["worst_case"], Value::Null);
     server.stop().await.expect("clean stop");
-    // The caller narrows to zero repairs: the plan and the judge's two questions, the defect
-    // the judge names stays unrepaired.
+    // The caller narrows to zero repairs: the plan and the judge's four questions. The defect
+    // the judge locates stays unrepaired, named with its reason, and the declined bytes are
+    // held: still the document's candidate, never proposed, with no record a later round would
+    // replay to the same judge.
     let world = TestWorld::new();
     let seat = Seat::start(judged_repair());
     let (server, _backend) = start_native(&world, compile_limits(), one_repair(&seat)).await;
@@ -456,12 +459,29 @@ async fn explicit_repair_preferences_run_within_the_grant_and_a_caller_can_narro
     let response = server.request(&compile_request(&fresh(&narrowed))).await;
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
-    assert_eq!(document["provenance"]["authoring"]["calls"], 3);
-    assert_ne!(document["status"], "ready");
-    assert_eq!(seat.calls(), 3);
+    assert_eq!(document["provenance"]["authoring"]["calls"], 5);
+    assert_eq!(document["status"], "incomplete", "{document:#}");
+    assert_eq!(seat.calls(), 5);
     assert_eq!(seat.bodies()[0]["max_tokens"].as_u64(), Some(1024));
     let account = &document["provenance"]["authoring"]["backend"]["authority"];
     assert_eq!(account["configured"]["worst_case"], Value::Null);
+    // The core's own word on the whole request it still holds pending, the judge's defect, then
+    // the marker of the held candidate.
+    let candidate = document["candidate"].as_str().expect("the held candidate");
+    assert_eq!(
+        findings(&document),
+        held_findings(candidate, 0),
+        "{document:#}"
+    );
+    assert_eq!(
+        verify_steps(&document),
+        ["verify: not ready", "verify: doubted, not replayable"]
+    );
+    assert_eq!(document["provenance"]["plan"], Value::Null, "{document:#}");
+    assert!(
+        response.header("nika-compile-replay").is_none(),
+        "nothing kept"
+    );
     server.stop().await.expect("clean stop");
 }
 
@@ -533,16 +553,29 @@ async fn a_disconnected_or_expired_native_round_holds_its_slot_until_its_work_st
     assert_eq!(seat.calls(), 1, "no later repair and no retry");
     server.stop().await.expect("clean stop");
 
-    // The operator's deadline stops the work: 408, and the slot returns with it.
+    // The operator's deadline stops the work the seat holds: 408, and the slot returns with it.
+    // The deadline leaves the plan request room to reach the seat on a loaded host, and the
+    // answer is awaited once the seat holds that request, so the 408 stops work that began.
     let world = TestWorld::new();
     let seat = Seat::start(vec![Reply::Parked(plan_answer(DRAFT, &[]))]);
-    let authoring = operator(&seat).with_deadline(Duration::from_millis(400));
+    let deadline = Duration::from_secs(3);
+    let authoring = operator(&seat).with_deadline(deadline);
     let (server, _backend) = start_native(&world, one_slot(), authoring).await;
     let started = std::time::Instant::now();
-    let expired = server.request(&compile_request(&fresh(&json!({})))).await;
+    let address = server.address;
+    let pending =
+        tokio::spawn(
+            async move { wire_request(address, &compile_request(&fresh(&json!({})))).await },
+        );
+    tokio::task::block_in_place(|| wait_entered(&seat));
+    let expired = pending.await.expect("the round answered");
     assert_eq!(expired.status, 408, "{}", expired.body);
     assert_eq!(expired.json()["error"]["code"], "compile_deadline_exceeded");
-    assert!(started.elapsed() < Duration::from_secs(10));
+    let elapsed = started.elapsed();
+    assert!(
+        elapsed >= deadline && elapsed < Duration::from_secs(10),
+        "{elapsed:?}"
+    );
     assert!(expired.header("nika-compile-replay").is_none());
     assert!(
         admitted_again(&server).await,

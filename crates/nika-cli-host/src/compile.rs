@@ -121,7 +121,9 @@ pub struct CompileArgs {
     #[arg(long, requires = "destination")]
     pub force: bool,
     /// Ignore the plan recorded for this intent (`.nika/compile/<sha256>.plan.json`) and read or
-    /// sample it again. An answer round otherwise replays that plan: zero provider calls.
+    /// sample it again. An answer round otherwise replays that plan: no authoring call (a judge
+    /// the round asks makes its own calls). The verdicts kept beside it
+    /// (`<sha256>.declined.json`) still apply: a judge is never asked again on bytes it rejected.
     #[arg(long, conflicts_with_all = ["base", "list"])]
     pub fresh: bool,
     /// Print the versioned structured result, including incomplete questions.
@@ -272,6 +274,8 @@ fn run_with_capture(
         None => intent_sha256(&effective_intent(args, cognition)),
     });
     let (request, note) = sidecar::replay(sha.as_deref(), args, request);
+    // Every compile of the intent carries the verdicts that rejected its bytes in earlier rounds.
+    let request = sidecar::carry(sha.as_deref(), request);
     let result = match (&resolved, &authoring_config) {
         (Some(resolved), Some(config)) => {
             authoring::compile(&request, args, config, resolved, capture)
@@ -285,6 +289,7 @@ fn run_with_capture(
         }
     };
     let note = sidecar::keep(sha.as_deref(), note, &outcome);
+    let declined = sidecar::decline(sha.as_deref(), &outcome);
     let mut written = None;
     if outcome.status == CompileStatus::Ready
         && let (Some(dest), Some(candidate)) = (dest, &outcome.candidate)
@@ -306,7 +311,11 @@ fn run_with_capture(
     let existing = dest
         .filter(|path| written.is_none() && Path::new(path.as_str()).symlink_metadata().is_ok())
         .map(String::as_str);
-    render::outcome(&outcome, written, existing, note.as_ref(), args.json)
+    let notes = render::Notes {
+        plan: note.as_ref(),
+        declined: declined.as_ref(),
+    };
+    render::outcome(&outcome, written, existing, notes, args.json)
 }
 
 /// What a seated compile reads before any file is observed or any request sent: the authoring

@@ -122,7 +122,8 @@ impl Rehearsals {
 }
 
 /// The observed room over a world's root: the production host, its `nika:jq` steps run by `jq`
-/// when the host named a helper and screened before any room otherwise.
+/// when the host named a helper and screened before any room otherwise. Its observations are
+/// preparation context for the configured verifier; they grant no live run authority.
 fn room(world: &Path, jq: Option<&JqHelper>) -> Box<dyn Rehearse> {
     let room = ObservedRoom::new(world);
     Box::new(match jq {
@@ -221,6 +222,7 @@ impl SessionRuntime {
             }
         }
         let jq = self.rehearsals.jq.as_ref();
+        // The copy door judges by exact bytes: no verifier reads its runs.
         let host = |world: &Path| room(world, jq);
         copy::qualify(&request, &round.intent, root, &host, &scratch, allowance)
     }

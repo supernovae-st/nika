@@ -201,7 +201,8 @@ pub fn call_activity(ordinal: u32, role: &str, model: &str, state: CallState) ->
         "repair" | "sketch-repair" | "fill-repair" | "native-repair" | "transform-repair" => {
             Phase::Repairing
         }
-        "judge" | "judge_native" | "judge_semantic" | "judge_transform" => Phase::Checking,
+        // Every judge question checks the candidate, whatever part of it it asks.
+        judge if judge.starts_with("judge") => Phase::Checking,
         _ => Phase::Authoring,
     };
     let action = match state {
@@ -261,5 +262,53 @@ mod tests {
             "↻ a stronger model reads it"
         );
         assert_eq!(Activity::now(Phase::Checking, "checking").glyph(), '●');
+    }
+
+    /// Every judge question checks the candidate, whatever it asks (the whole request, one
+    /// part alone, the task a missing part points to, an extra operation, one part against a
+    /// trial run, a whole trial run): a verification is never shown as authoring. A repair
+    /// repairs; the author's own calls author.
+    #[test]
+    fn every_judge_question_is_a_check_and_every_other_call_keeps_its_phase() {
+        for role in [
+            "judge",
+            "judge_request",
+            "judge_part",
+            "judge_point",
+            "judge_extra",
+            "judge_observed_part",
+            "judge_observed",
+            "judge_clause",
+            "judge_semantic",
+            "judge_native",
+            "judge_transform",
+        ] {
+            let activity = call_activity(4, role, "deepseek/v4", CallState::Started);
+            assert_eq!(activity.phase, Phase::Checking, "{role}");
+            assert_eq!(
+                activity.note,
+                format!("request started · {role} · requested deepseek/v4")
+            );
+            assert!(!activity.done, "{role}");
+            assert_eq!(
+                activity.call,
+                Some(CallMark::new(4, role, "deepseek/v4", CallState::Started))
+            );
+        }
+        for (role, phase) in [
+            ("repair", Phase::Repairing),
+            ("sketch-repair", Phase::Repairing),
+            ("fill-repair", Phase::Repairing),
+            ("native-repair", Phase::Repairing),
+            ("transform-repair", Phase::Repairing),
+            ("plan", Phase::Authoring),
+            ("sketch", Phase::Authoring),
+            ("fill", Phase::Authoring),
+            ("transform", Phase::Authoring),
+        ] {
+            let activity = call_activity(1, role, "deepseek/v4", CallState::Finished);
+            assert_eq!(activity.phase, phase, "{role}");
+            assert!(activity.done, "{role}");
+        }
     }
 }

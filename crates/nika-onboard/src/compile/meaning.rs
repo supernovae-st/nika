@@ -183,29 +183,86 @@ fn carrier_verb(clause: &Clause, candidate: Option<&str>) -> Option<&'static str
 /// The Meaning view of a compile outcome: one line per clause, its
 /// disposition and assurance, then the honest footer. A semantic record,
 /// which keeps no realization ledger, is shown as the compiler read the
-/// request (`render_reading`). `None` when the outcome carries neither.
+/// request (`render_reading`). A candidate its verifier answered and did not
+/// accept is said to be judged, not accepted (in an earlier round, when the
+/// verdict was carried from one); when the compiler kept neither a ledger nor
+/// its record (dropped, so no round replays those bytes), the view is the
+/// request as the verifier judged it, part by part (`render_judged`). `None`
+/// when the outcome carries none of them.
 #[must_use]
 pub fn render(out: &CompileOutcome) -> Option<String> {
+    let judged = Judged::of(out);
     match out
         .provenance
         .decision
         .as_ref()
         .and_then(|d| d.get("ledger"))
     {
-        Some(ledger) => Some(render_ledger(ledger, out.candidate.as_deref())),
-        None => (out.provenance.plan.as_ref())
+        Some(ledger) => Some(ledger_view(
+            ledger,
+            out.candidate.as_deref(),
+            judged.not_accepted().as_deref(),
+        )),
+        None => match (out.provenance.plan.as_ref())
             .filter(|plan| plan.get("semantic_record").is_some())
-            .map(|record| render_reading(record, out.status == super::CompileStatus::Ready)),
+        {
+            Some(record) => Some(render_reading(record, judged)),
+            None => judged.not_accepted().map(|_| render_judged(out)),
+        },
     }
 }
+
+/// Where a candidate stands with its verifier, as the views say it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Judged {
+    /// READY: judged against the whole request.
+    Ready,
+    /// Its verifier answered it and did not accept it: shown, never proposed.
+    NotAccepted,
+    /// Its verifier rejected these very bytes in an earlier round, and that verdict was carried
+    /// into this one with no call: shown, never proposed.
+    Carried,
+    /// Not judged yet.
+    Pending,
+}
+
+impl Judged {
+    fn of(out: &CompileOutcome) -> Self {
+        if out.status == super::CompileStatus::Ready {
+            Self::Ready
+        } else if !super::reading::judged_not_accepted(out) {
+            Self::Pending
+        } else if super::round::last_verification(out).is_some_and(|a| a["carried"] == true) {
+            Self::Carried
+        } else {
+            Self::NotAccepted
+        }
+    }
+
+    /// What a view says of a candidate its verifier did not accept; `None` for any other.
+    fn not_accepted(self) -> Option<String> {
+        match self {
+            Self::NotAccepted => Some(NOT_ACCEPTED.to_owned()),
+            Self::Carried => Some(format!("{NOT_ACCEPTED}; {CARRIED}")),
+            Self::Ready | Self::Pending => None,
+        }
+    }
+}
+
+/// What every view of a candidate its verifier did not accept says of it.
+const NOT_ACCEPTED: &str = "the program was judged against the whole request: judged, not accepted";
+
+/// What a view adds when that verdict was carried from an earlier round of the same request.
+const CARRIED: &str = "the verdict comes from an earlier round, which judged these same bytes: the verifier was not asked again";
 
 /// The Meaning view of a semantic record: the clauses the compiler read
 /// from the request (its `basis.read.ledger`), each said as read and never
 /// as carried, since a READY semantic program is judged against the whole
-/// request rather than clause by clause (`ready`: whether it is); the
-/// clauses the record names as gaps, in the request's own words when they
-/// are; an entry the view cannot read disclosed, never counted.
-fn render_reading(record: &Value, ready: bool) -> String {
+/// request rather than clause by clause (`judged`: whether it is, or was
+/// judged and not accepted); the clauses the record names as gaps, in the
+/// request's own words when they are; an entry the view cannot read
+/// disclosed, never counted.
+fn render_reading(record: &Value, judged: Judged) -> String {
     let mut text = "Meaning · your request as the compiler read it".to_owned();
     let read = &record["basis"]["read"];
     let Some(duties) = read["ledger"].as_array() else {
@@ -253,10 +310,12 @@ fn render_reading(record: &Value, ready: bool) -> String {
             if unread == 1 { "y" } else { "ies" }
         );
     }
-    let judged = if ready {
-        "the program was judged against the whole request, not clause by clause"
-    } else {
-        "the program is not judged yet"
+    let judged = match judged {
+        Judged::Ready => {
+            "the program was judged against the whole request, not clause by clause".to_owned()
+        }
+        Judged::NotAccepted | Judged::Carried => judged.not_accepted().unwrap_or_default(),
+        Judged::Pending => "the program is not judged yet".to_owned(),
     };
     let _ = write!(
         text,
@@ -285,6 +344,12 @@ const FOOTER: &str = "\n  this lists what the compiler read; a clause it did not
 /// claimed over what was not read.
 #[must_use]
 pub fn render_ledger(ledger: &Value, candidate: Option<&str>) -> String {
+    ledger_view(ledger, candidate, None)
+}
+
+/// [`render_ledger`], its count line also saying how its verifier did not accept the candidate,
+/// when it did not (`not_accepted`).
+fn ledger_view(ledger: &Value, candidate: Option<&str>, not_accepted: Option<&str>) -> String {
     let mut text = "Meaning · your request, clause by clause".to_owned();
     let Some(unread) = unread(ledger) else {
         text.push_str("\n  ! the compiler's ledger could not be read (it is not a list of duties) — no clause is shown, none is counted");
@@ -337,9 +402,143 @@ pub fn render_ledger(ledger: &Value, candidate: Option<&str>) -> String {
     if unread > 0 {
         let _ = write!(text, " · {unread} unreadable, not counted");
     }
+    if let Some(words) = not_accepted {
+        let _ = write!(text, " · {words}");
+    }
     text.push_str(FOOTER);
     text
 }
+
+/// The Meaning view of a candidate its verifier did not accept when the compiler kept neither a
+/// ledger nor its record: the request as the verification that judged its bytes left it (the
+/// last attempt, or the earlier one of this compile it repeats with no call, `same_bytes_as`).
+/// Each part the verifier asked alone, in its order, as that verification left it (a defect with
+/// the verifier's reason, a missing part nothing decided, a part it could not settle, else its
+/// answer, a trial run's over the part's own); then each other finding (an extra operation, a
+/// part never asked once a call got no answer); never a realization claim. A verdict carried
+/// from an earlier round asked nothing here: its findings are listed, and the view says where the
+/// verdict comes from.
+fn render_judged(out: &CompileOutcome) -> String {
+    let unrecorded = Value::Null;
+    let last = super::round::last_verification(out).unwrap_or(&unrecorded);
+    let attempt = judging(out, last);
+    let listed = |key: &str| -> Vec<&str> {
+        (attempt[key].as_array().into_iter().flatten())
+            .filter_map(Value::as_str)
+            .collect()
+    };
+    let (defects, contested, unknown) = (listed("defects"), listed("contested"), listed("unknown"));
+    let questions = attempt["questions"]
+        .as_array()
+        .map_or(&[][..], Vec::as_slice);
+    let note = |entry: &str| {
+        (attempt["notes"].as_array().into_iter().flatten())
+            .find(|note| note["defect"] == entry)
+            .and_then(|note| note["note"].as_str())
+    };
+    let state = |entry: &str| -> Option<String> {
+        if defects.contains(&entry) {
+            let noted = note(entry);
+            Some(noted.map_or_else(|| "missing".to_owned(), |note| format!("missing · {note}")))
+        } else if contested.contains(&entry) {
+            Some(contested_words(questions, entry, note(entry)))
+        } else if unknown.contains(&entry) {
+            Some("not settled".to_owned())
+        } else {
+            None
+        }
+    };
+    let mut text = "Meaning · your request as the verifier judged it".to_owned();
+    let mut asked: Vec<&str> = Vec::new();
+    for record in questions
+        .iter()
+        .filter(|record| record["role"] == "judge_part")
+    {
+        let Some(part) = record["clause"]["text"].as_str() else {
+            continue;
+        };
+        if asked.contains(&part) {
+            continue;
+        }
+        asked.push(part);
+        let word = state(part).unwrap_or_else(|| answered(questions, part).to_owned());
+        let _ = write!(text, "\n  · « {part} »\n      {word}");
+    }
+    // Every other finding once, the whole request aside (the last line says how it stands).
+    let request = attempt["request"].as_str();
+    let mut others: Vec<&str> = Vec::new();
+    for entry in defects.iter().chain(&contested).chain(&unknown).copied() {
+        if !asked.contains(&entry) && !others.contains(&entry) && request != Some(entry) {
+            others.push(entry);
+        }
+    }
+    for entry in others {
+        let word = state(entry).unwrap_or_default();
+        let _ = write!(text, "\n  ! « {entry} »\n      {word}");
+    }
+    let _ = write!(
+        text,
+        "\n  {} part(s) the verifier asked alone · {NOT_ACCEPTED}; nothing was written",
+        asked.len()
+    );
+    if last["carried"] == true {
+        let _ = write!(text, "\n  {CARRIED}");
+    }
+    text.push_str(JUDGED_FOOTER);
+    text
+}
+
+/// The verification that judged the bytes `last` names: the attempt of this compile it repeats
+/// with no call (`same_bytes_as`, that attempt's index among the outcome's verifications, on the
+/// same bytes), else `last` itself.
+fn judging<'a>(out: &'a CompileOutcome, last: &'a Value) -> &'a Value {
+    let attempts = (out.provenance.decision.as_ref())
+        .and_then(|decision| decision["semantic_verification"].as_array());
+    (last["same_bytes_as"].as_u64())
+        .and_then(|index| usize::try_from(index).ok())
+        .and_then(|index| attempts?.get(index))
+        .filter(|judged| judged["candidate_sha256"] == last["candidate_sha256"])
+        .unwrap_or(last)
+}
+
+/// A part judged missing that nothing decided, by why: the judge found it broken in the bytes
+/// (its reason kept as the part's `note`) while the trial run showed it done for its inputs, or
+/// the judge named no task that fails it.
+fn contested_words(questions: &[Value], part: &str, note: Option<&str>) -> String {
+    let over_run = (questions.iter().rev())
+        .find(|record| record["role"] == "judge_observed_part" && record["clause"]["text"] == part)
+        .and_then(|record| record["choice"].as_str());
+    match (note, over_run) {
+        (Some(note), _) => format!(
+            "broken in the candidate's bytes ({note}), but the trial run shows it done for its inputs: nothing decided it"
+        ),
+        (None, Some("carried")) => {
+            "broken in the candidate's bytes, but the trial run shows it done for its inputs: nothing decided it".to_owned()
+        }
+        _ => "missing, then no task named that fails it: nothing decided it".to_owned(),
+    }
+}
+
+/// A part's state by its verifier's last answer over it: a trial run's answer over the part, else
+/// its own question's.
+fn answered(questions: &[Value], part: &str) -> &'static str {
+    let last = |role: &str| {
+        (questions.iter().rev())
+            .find(|record| record["role"] == role && record["clause"]["text"] == part)
+            .and_then(|record| record["choice"].as_str())
+    };
+    match (last("judge_observed_part"), last("judge_part")) {
+        (Some("carried"), _) => "carried in the trial run",
+        (Some("unexercised"), _) => "not exercised by the trial run",
+        (_, Some("carried")) => "carried",
+        (_, Some("superseded")) => "superseded by a later part",
+        (_, Some("no_operation")) => "asks no operation of the workflow",
+        _ => "not settled",
+    }
+}
+
+/// The verifier's view's closing words: it lists what the verifier asked, never certifies.
+const JUDGED_FOOTER: &str = "\n  this lists the parts the verifier asked alone; a part it did not ask is not here — if something you asked is missing, say it again in its own words";
 
 /// What a revision changed in meaning: the revised ledger against the
 /// base one, clause by clause (a clause is its kind and its evidence) —
@@ -819,6 +1018,21 @@ mod tests {
                 .expect("view")
                 .contains("the program is not judged yet")
         );
+        // Judged and not accepted (held, its record kept here): never « not judged yet ».
+        let mut held = out.clone();
+        held.candidate = Some("nika: held\ntasks: {}\n".to_owned());
+        nika_compile::finding(
+            &mut held,
+            crate::compile::DiagnosticKind::Applied,
+            "verify_held",
+            "held after a doubt",
+        );
+        let view = render(&held).expect("view");
+        assert!(
+            view.contains("2 clause(s) the compiler read · 2 it could not realize · the program was judged against the whole request: judged, not accepted"),
+            "{view}"
+        );
+        assert!(!view.contains("not judged yet"), "{view}");
         // Not a list of duties: disclosed, nothing shown or counted.
         out.provenance.plan = Some(serde_json::json!({"semantic_record": 1,
             "basis": {"read": {"ledger": "none"}}}));
@@ -833,5 +1047,200 @@ mod tests {
         out.provenance.plan = Some(serde_json::json!({"semantic_record": 1}));
         out.provenance.decision = Some(serde_json::json!({"ledger": []}));
         assert!(render(&out).expect("view").contains("recorded no clause"));
+    }
+
+    /// One verification record of the part `part`, under `role`, answered `choice` (none: the
+    /// call got no answer).
+    fn asked(role: &str, part: &str, choice: Option<&str>) -> Value {
+        let mut record = serde_json::json!({"question": "q", "role": role,
+            "clause": {"text": part, "restricts": false}});
+        if let Some(choice) = choice {
+            record["choice"] = serde_json::json!(choice);
+        }
+        record
+    }
+
+    /// A candidate its verifier answered and did not accept, its record dropped and no ledger
+    /// kept, is shown as the verifier's last verification judged the request: each part asked
+    /// alone, in order and once, as that verification left it (a defect with the verifier's
+    /// reason, a missing part nothing decided, a part it could not settle, a trial run's answer
+    /// over the part's own, else the part's answer), then every other finding once, the whole
+    /// request aside; judged, not accepted, never « not judged yet ». A ledger it kept says so on
+    /// its count line; with no verification readable the parts are none.
+    #[test]
+    fn a_candidate_its_verifier_did_not_accept_is_shown_as_the_verifier_judged_it() {
+        use crate::compile::{CompileRequest, CompileStatus, DiagnosticKind, compile};
+        let request =
+            "Read ./a.csv, keep the paid rows, sum the amount, round it and write ./b.json";
+        let mut out = compile(&CompileRequest::create("chain")).expect("compiles");
+        out.status = CompileStatus::Incomplete;
+        out.candidate = Some("nika: held\ntasks: {}\n".to_owned());
+        out.provenance.plan = None;
+        nika_compile::finding(&mut out, DiagnosticKind::Applied, "verify_held", "held");
+        let questions = serde_json::json!([
+            {"question": "verify-request", "role": "judge_request", "choice": "unfaithful"},
+            asked("judge_part", "Read ./a.csv", Some("carried")),
+            asked("judge_part", "keep the paid rows", Some("missing")),
+            asked("judge_point", "keep the paid rows", Some("task-write")),
+            asked("judge_part", "sum the amount", Some("missing")),
+            asked("judge_point", "sum the amount", Some("no_task")),
+            asked("judge_part", "round it", Some("none")),
+            asked("judge_part", "Read ./a.csv", Some("carried")),
+            asked("judge_part", "write ./b.json", Some("none")),
+            asked("judge_observed_part", "write ./b.json", Some("carried")),
+            {"question": "verify-extra", "role": "judge_extra", "choice": "task-log"},
+        ]);
+        out.provenance.decision = Some(serde_json::json!({"semantic_verification": [
+            {"attempt": 0, "defects": ["stale"], "questions": []},
+            {"attempt": 1, "request": request, "questions": questions,
+             "defects": ["keep the paid rows", "only what the request asks"],
+             "notes": [{"defect": "keep the paid rows", "note": "the judge points to the task write"}],
+             "contested": ["sum the amount", request],
+             "unknown": ["round it", "a part never asked", "round it"]},
+        ]}));
+        let view = render(&out).expect("a view of the held candidate");
+        assert_eq!(
+            view,
+            "Meaning · your request as the verifier judged it\
+            \n  · « Read ./a.csv »\n      carried\
+            \n  · « keep the paid rows »\n      missing · the judge points to the task write\
+            \n  · « sum the amount »\n      missing, then no task named that fails it: nothing decided it\
+            \n  · « round it »\n      not settled\
+            \n  · « write ./b.json »\n      carried in the trial run\
+            \n  ! « only what the request asks »\n      missing\
+            \n  ! « a part never asked »\n      not settled\
+            \n  5 part(s) the verifier asked alone · the program was judged against the whole request: judged, not accepted; nothing was written\
+            \n  this lists the parts the verifier asked alone; a part it did not ask is not here — if something you asked is missing, say it again in its own words"
+        );
+        // No verification readable: no part, the judgment still said.
+        let mut unread = out.clone();
+        unread.provenance.decision = Some(serde_json::json!({}));
+        assert_eq!(
+            render(&unread).expect("view"),
+            "Meaning · your request as the verifier judged it\
+            \n  0 part(s) the verifier asked alone · the program was judged against the whole request: judged, not accepted; nothing was written\
+            \n  this lists the parts the verifier asked alone; a part it did not ask is not here — if something you asked is missing, say it again in its own words"
+        );
+        // A kept ledger says it on its count line.
+        let mut ledgered = out.clone();
+        ledgered.provenance.decision = Some(serde_json::json!({"ledger": [
+            {"kind": "effect", "evidence": "write ./b.json", "state": "realized",
+             "realized_by": "write", "note": null}]}));
+        let view = render(&ledgered).expect("view");
+        assert!(
+            view.contains("\n  1 clause(s) the compiler read · 0 waiting for you · 0 outside the bytes · the program was judged against the whole request: judged, not accepted\n"),
+            "{view}"
+        );
+        // Without the compiler's held finding nor a contested verification, nothing is said
+        // judged: no view without a ledger or a record.
+        let mut pending = out;
+        pending.diagnostics.retain(|d| d.target != "verify_held");
+        assert!(render(&pending).is_none());
+    }
+
+    /// A verdict repeated on the same bytes with no call (`same_bytes_as`, the index of the
+    /// attempt that judged them) is shown from that attempt: its questions are the ones asked,
+    /// each part said as it left it; an index past the attempts, or naming other bytes, is no
+    /// repeat, and the last attempt is read. A part the judge found broken in the bytes that the
+    /// trial run shows done for its inputs is contested for that reason, with the judge's reason
+    /// when the attempt kept it (an older record keeps none). A verdict carried from an earlier
+    /// round asked nothing here: its findings are listed and the view says where the verdict
+    /// comes from, as a kept ledger's count line does.
+    #[test]
+    fn a_repeated_or_carried_verdict_is_shown_from_the_attempt_that_judged_its_bytes() {
+        use crate::compile::{CompileRequest, CompileStatus, DiagnosticKind, compile};
+        const FOOTER: &str = "\n  this lists the parts the verifier asked alone; a part it did not ask is not here — if something you asked is missing, say it again in its own words";
+        const PART: &str = "keep the paid rows";
+        let request = "Read ./a.csv, keep the paid rows and write ./b.json";
+        let mut out = compile(&CompileRequest::create("chain")).expect("compiles");
+        out.status = CompileStatus::Incomplete;
+        out.candidate = Some("nika: held\ntasks: {}\n".to_owned());
+        out.provenance.plan = None;
+        nika_compile::finding(&mut out, DiagnosticKind::Applied, "verify_held", "held");
+        let judged = serde_json::json!({"attempt": 0, "candidate_sha256": "b1",
+            "request": request, "questions": [
+                {"question": "verify-request", "role": "judge_request", "choice": "unfaithful"},
+                asked("judge_part", "Read ./a.csv", Some("carried")),
+                asked("judge_part", PART, Some("missing")),
+                asked("judge_point", PART, Some("task-write")),
+                asked("judge_observed_part", PART, Some("carried")),
+                asked("judge_part", "write ./b.json", Some("carried")),
+            ],
+            "defects": [], "contested": [PART, request], "unknown": [],
+            "notes": [{"defect": PART, "note": "the judge points to the task write"}],
+            "same_bytes_as": null, "carried": false});
+        let repeat = |index: Value, sha: &str| {
+            serde_json::json!({"attempt": 1, "candidate_sha256": sha, "request": request,
+                "questions": [], "defects": [], "contested": [PART, request], "unknown": [],
+                "notes": [], "same_bytes_as": index, "carried": false})
+        };
+        let verifications =
+            |attempts: Vec<Value>| Some(serde_json::json!({"semantic_verification": attempts}));
+        out.provenance.decision =
+            verifications(vec![judged.clone(), repeat(serde_json::json!(0), "b1")]);
+        assert_eq!(
+            render(&out).expect("a view of the held candidate"),
+            format!(
+                "Meaning · your request as the verifier judged it\
+                \n  · « Read ./a.csv »\n      carried\
+                \n  · « keep the paid rows »\n      broken in the candidate's bytes (the judge points to the task write), but the trial run shows it done for its inputs: nothing decided it\
+                \n  · « write ./b.json »\n      carried\
+                \n  3 part(s) the verifier asked alone · the program was judged against the whole request: judged, not accepted; nothing was written{FOOTER}"
+            )
+        );
+        // An older record kept no reason: the run's answer still says why it is contested.
+        let mut older = judged.clone();
+        older["notes"] = serde_json::json!([]);
+        out.provenance.decision = verifications(vec![older]);
+        assert_eq!(
+            render(&out).expect("view"),
+            format!(
+                "Meaning · your request as the verifier judged it\
+                \n  · « Read ./a.csv »\n      carried\
+                \n  · « keep the paid rows »\n      broken in the candidate's bytes, but the trial run shows it done for its inputs: nothing decided it\
+                \n  · « write ./b.json »\n      carried\
+                \n  3 part(s) the verifier asked alone · the program was judged against the whole request: judged, not accepted; nothing was written{FOOTER}"
+            )
+        );
+        // No repeat: the last attempt alone, its contested part with no question asked of it.
+        let unrepeated = format!(
+            "Meaning · your request as the verifier judged it\
+            \n  ! « keep the paid rows »\n      missing, then no task named that fails it: nothing decided it\
+            \n  0 part(s) the verifier asked alone · the program was judged against the whole request: judged, not accepted; nothing was written{FOOTER}"
+        );
+        for (index, sha) in [
+            (serde_json::json!(0), "b2"),
+            (serde_json::json!(7), "b1"),
+            (Value::Null, "b1"),
+        ] {
+            out.provenance.decision = verifications(vec![judged.clone(), repeat(index, sha)]);
+            assert_eq!(render(&out).expect("view"), unrepeated);
+        }
+        // Carried from an earlier round: its findings, and where the verdict comes from.
+        let carried = serde_json::json!({"attempt": 0, "candidate_sha256": "b1",
+            "request": request, "questions": [], "defects": [PART], "contested": [],
+            "unknown": [], "notes": [{"defect": PART, "note": "the judge points to the task write"}],
+            "same_bytes_as": null, "carried": true});
+        out.provenance.decision = verifications(vec![carried.clone()]);
+        assert_eq!(
+            render(&out).expect("view"),
+            format!(
+                "Meaning · your request as the verifier judged it\
+                \n  ! « keep the paid rows »\n      missing · the judge points to the task write\
+                \n  0 part(s) the verifier asked alone · the program was judged against the whole request: judged, not accepted; nothing was written\
+                \n  the verdict comes from an earlier round, which judged these same bytes: the verifier was not asked again{FOOTER}"
+            )
+        );
+        let mut ledgered = out;
+        let mut decision = serde_json::json!({"ledger": [
+            {"kind": "effect", "evidence": "write ./b.json", "state": "realized",
+             "realized_by": "write", "note": null}]});
+        decision["semantic_verification"] = serde_json::json!([carried]);
+        ledgered.provenance.decision = Some(decision);
+        let view = render(&ledgered).expect("view");
+        assert!(
+            view.contains("\n  1 clause(s) the compiler read · 0 waiting for you · 0 outside the bytes · the program was judged against the whole request: judged, not accepted; the verdict comes from an earlier round, which judged these same bytes: the verifier was not asked again\n"),
+            "{view}"
+        );
     }
 }

@@ -20,6 +20,7 @@ use super::*;
 use crate::NativeAuthoring;
 
 mod authority;
+mod judged;
 mod lifecycle;
 mod openapi;
 mod reasoning;

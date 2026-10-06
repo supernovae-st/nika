@@ -68,9 +68,11 @@ fn install_fixture(dir: &Path, scenario: &str) {
     let second = json!({"supersedes": [], "adds": [common::CHANGE], "like": "./b.md",
         "notes": "keep the first output and add a copy at the requested destination"})
     .to_string();
-    // The first call is the private plan (semantic CREATE; its answer round replays with no
-    // call: the compiler assembled every clause); the second names the typed addition and
-    // source destination (EDIT), never workflow YAML; the third judges the READY revision.
+    // The first call is the private plan (semantic CREATE; the compiler assembles every clause
+    // and asks the runtime model); the second is its answer round's judge of the whole request
+    // over the replayed bytes (C3: a replayed model plan is judged whole in its round); the third
+    // names the typed addition and source destination (EDIT), never workflow YAML; the fourth
+    // judges the READY revision.
     for (name, text) in [
         ("one", answer),
         ("two", second),
@@ -95,7 +97,7 @@ if [ -f {observed}/count ]; then n=$(/bin/cat {observed}/count); fi
 printf '%s' "$((n+1))" > {observed}/count
 printf '%s\n' "$@" > {observed}/argv-$n
 /bin/cat > {observed}/prompt-$n
-if [ "$n" = 0 ] || [ {bad} = yes ]; then /bin/cat {one}; elif [ "$n" = 2 ]; then /bin/cat {three}; else /bin/cat {two}; fi
+if [ "$n" = 0 ] || [ {bad} = yes ]; then /bin/cat {one}; elif [ "$n" = 1 ] || [ "$n" = 3 ]; then /bin/cat {three}; else /bin/cat {two}; fi
 "#,
         observed = shell(&observed),
         one = shell(&dir.join("one")),
@@ -415,12 +417,14 @@ fn child_scenario(scenario: &str, root: &str) {
 fn subscription_authors_then_answers_and_revises_through_the_same_native_compiler() {
     let out = run("route");
     assert_eq!(
-        out["calls"], 3,
-        "the plan's question round, revision, judgment: {out:#}"
+        out["calls"], 4,
+        "the plan's question round, its answer round's judge, revision, judgment: {out:#}"
     );
     let judged = |n: usize| out["prompts"][n].as_str().unwrap().contains("unfaithful");
-    assert!(
-        !judged(0) && !judged(1) && judged(2),
+    let questions: Vec<bool> = (0..4).map(judged).collect();
+    assert_eq!(
+        questions,
+        [false, true, false, true],
         "{:#}",
         out["prompts"]
     );
@@ -486,7 +490,7 @@ fn missing_capability_refuses_and_no_intelligence_stays_deterministic() {
 }
 
 #[test]
-fn replay_retains_subscription_receipt_without_optional_knowledge() {
+fn a_replayed_round_states_its_own_judge_call_under_the_subscription_without_knowledge() {
     let out = run("no-knowledge");
     assert!(
         out["argv"]
@@ -496,11 +500,12 @@ fn replay_retains_subscription_receipt_without_optional_knowledge() {
             .all(|argv| { !argv.as_str().unwrap().contains("S03-PATTERN-MARKER") })
     );
     assert_eq!(
-        out["calls"], 3,
-        "the plan's question round, revision, judgment: {out:#}"
+        out["calls"], 4,
+        "the plan's question round, its answer round's judge, revision, judgment: {out:#}"
     );
-    // The answer round replays the plan with no call (the compiler assembled every clause): its
-    // receipt is the authoring round's, carried and said so, with the replay's zero calls.
+    // The answer round replays the plan (the compiler assembled every clause) and judges the
+    // whole request over the replayed bytes in its own call (C3): its receipt is its own, the
+    // same subscription seat and that one call, never a carried receipt claiming zero calls.
     for text in [
         out["details_answer"].as_str().unwrap(),
         out["meaning_answer"]["text"].as_str().unwrap(),
@@ -508,9 +513,7 @@ fn replay_retains_subscription_receipt_without_optional_knowledge() {
         assert!(text.contains("subscription claude-code"), "{text}");
         assert!(text.contains(" · 1 compiler calls · "), "{text}");
         assert!(
-            text.contains(
-                "receipt carried from the authoring round; this clarification replay made zero calls"
-            ),
+            !text.contains("receipt carried from the authoring round"),
             "{text}"
         );
         assert!(text.contains("subscription invoice unknown"), "{text}");

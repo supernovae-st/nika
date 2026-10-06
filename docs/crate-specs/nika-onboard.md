@@ -161,8 +161,37 @@ For a closed semantic record, `render` instead projects the reading ledger at
 `basis.read.ledger`: clauses are shown as read, without inventing a carrying task,
 a represented clause or a pending question. Gaps remain explicit; unreadable
 entries are disclosed. A Ready outcome states that the program was judged
-against the whole request, without assigning that judgment to each clause.
+against the whole request, without assigning that judgment to each clause: the
+parts a doubted verdict asks alone locate defects as evidence, and the view
+does not present their answers as clause judgments.
 `clauses` and the existing delta API retain their realization-ledger contract.
+
+A candidate its verifier answered and did not accept (the outcomes `held_words`
+reads so, below: the compiler's Applied `verify_held` finding, or a last
+verification contested with no defect, the candidate still shown) is said « the
+program was judged against the whole request: judged, not accepted » on the
+ledger's count line and in place of the reading's judgment. When the last
+verification repeats a rejection carried from an earlier round (`carried`), the
+view adds « the verdict comes from an earlier round, which judged these same
+bytes: the verifier was not asked again ». When the compiler kept neither a
+ledger nor a record (it dropped the record, so no round replays those bytes),
+`render` gives the request as the verifier judged it (« Meaning · your request as
+the verifier judged it »), from the verification that judged those bytes: the
+last attempt, or the earlier attempt of the compile it repeats with no call (its
+`same_bytes_as` index, on the same candidate digest). Each part that verification
+asked alone appears once, in order, with what it left: « missing » with the
+verifier's reason; for a contested part, « broken in the candidate's bytes
+(`<note>`), but the trial run shows it done for its inputs: nothing decided it »
+(without the note when the attempt kept none and a trial-run question answered
+`carried`), else « missing, then no task named that fails it: nothing decided
+it »; « not settled »; else its answer, a trial run's first (« carried in the
+trial run », « not exercised by the trial run », « carried », « superseded by a
+later part », « asks no operation of the workflow »). Each other finding follows
+once (an extra operation, a part never asked once a call got no answer), the
+whole request aside. The view ends with the count of parts asked alone, « judged,
+not accepted; nothing was written » and, for a carried verdict, which asked
+nothing in this compile, the earlier-round words; it lists what the verifier asked
+and claims no realization.
 
 ## The hallucination guard (read by Session)
 
@@ -210,7 +239,13 @@ literal a human line is at one question's shape. It descended from
 `nika-session` on 2026-09-28 (C7 · descent 1) with its tests;
 `nika_session::authoring` re-exports all three at their old paths. `Reading` is
 `#[non_exhaustive]`: the session refuses a reading it does not know yet, never
-proposes it. Pure: nothing here calls, reads or decides for a host.
+proposes it. Pure: nothing here calls, reads or decides for a host. A refusal and a
+READY candidate aside, an outcome carrying the compiler's Applied `verify_held`
+finding reads as unsettled before anything else, before a question it still asks
+and before a provider finding: a judge call that later timed out or was refused only
+stopped the localization and settles nothing, and its words are the held ones
+(`held_words`, below), never those of a provider failure or an exhausted budget, nor a
+question about rejected bytes.
 
 `authoring_budget_headline` distinguishes a measured call deadline from a generic
 budget outcome. It names a time limit only when the last authoring call records
@@ -453,9 +488,11 @@ An explicit `--authoring-max-calls N` is enforced; a repair or sample count does
 not expand it. A request past it is refused before any byte leaves. A direct API seat is counted per
 physical HTTP request on a single-attempt transport that follows no redirect,
 so a transport retry is a request too. An ACP harness is counted per
-invocation, and its own requests stay unknown. A known finite repair estimate
-beyond an explicit grant, or a typed strategy below its minimum calls, is refused
-before any request. Request-dependent totals are unknown and the envelope checks
+invocation, and its own requests stay unknown. A typed strategy below its
+minimum calls is refused before any request. A known finite repair estimate
+beyond an explicit grant would be refused too, but no configuration that asks a
+model has one: the sketch door's judgment, like COLD's work, depends on the
+request. Request-dependent totals are unknown and the envelope checks
 each actual attempt. Zero samples or a request grant of zero refuse; positive
 sample counts and nonnegative repair counts have no smaller product maximum than
 their `u32` representation. A typed value the strategy cannot apply is recorded as ignored,
@@ -483,15 +520,21 @@ an earlier round produced (the exact `provenance.plan` value, which names its
 proposals and assembles that plan with the round's answers, so every answer
 round reaches the same candidate with zero provider and zero seat calls
 (`decision.route = ["replayed plan"]`, cognition `deterministicOnly`, no
-authoring receipt). A record that does not parse, is not anchored in the intent
-or still carries unknown work is a `recorded_plan` finding, never a candidate.
+authoring receipt). Every plan replayed this way but the reader's own HOT plan
+(a COLD or WARM plan, a record with no strategy word or an unknown one) keeps
+its whole request pending on those bytes: with no judge in the round it is
+INCOMPLETE, never READY, and a round under cognition judges it. A record that
+does not parse, is not anchored in the intent or still carries unknown work is
+a `recorded_plan` finding, never a candidate.
 `intent_sha256` is the key a transport files the record under (typographic
 apostrophes folded, as the reader sees the intent) and is recorded as
 `provenance.decision.intent_sha256` on every general-path outcome. The CLI
 records a settled plan under `.nika/compile/<sha>.plan.json` (a self-ignoring
 directory carrying the plan, the engine version and the intent hash, never the
 candidate or a key), replays it on any `--answer` round of the same intent
-under the same engine, and reads the intent again under `--fresh`.
+under the same engine, and reads the intent again under `--fresh`; the verdicts
+that rejected the intent's bytes (`.nika/compile/<sha>.declined.json`) ride every
+compile of the intent, `--fresh` included (see the CLI host spec).
 
 Deterministic outcomes retain the exact generation-1 wire shape. A provider
 attempt emits generation 2 with cognition `explicitProvider` and an
@@ -746,3 +789,20 @@ bridge maps Compiler call events to Display's typed marks, keeping requested ide
 ### Kept candidates awaiting judgment
 
 `compile::round::awaiting_judge` projects only the compiler's typed Applied `verify_resume` finding on an INCOMPLETE, candidate-less outcome carrying a settled plan. A questionless durable round may be continued when its plan is preserved exactly; the host must not treat restoring that evidence as a successful judgment. The compiler remains the only owner of semantic-record validation and the final verdict. `RoundWords` and `as_typed` retain their public paths through reexports of pure Display presentation; record parsing, hashes, bounds and replay remain here.
+
+`compile::round::contested_judgment` reads whether the last `semantic_verification` attempt of an outcome holds contested entries and no defect: the verifier did not accept the request, or found a part missing and then named no task failing it, and located nothing a repair could start from. `compile::round::verify_held` reads whether the outcome carries the compiler's Applied `verify_held` finding, which the compiler adds at every exit whose verdict declined the candidate's bytes and dropped its replayable record (a candidate held with no defect located, and a COLD, WARM or answer-round candidate whose located defects, rejection or abstention stayed unsettled): no record or continuation may replay those bytes to that verifier again. `compile::reading::held_words` says a candidate the verifier answered and did not accept (the outcome still carries it, and either function holds) by what the last verification found: « The workflow is built but not proposed: the verifier found a part missing that the repairs did not settle: « `<part>` »; nothing was written. » (the first part followed by « … » when several stay missing); « The workflow is built but not proposed: the verifier read it and abstained (it neither accepted nor rejected it); nothing was written. » for an abstention with nothing contested; otherwise « The workflow is built but not proposed: the verifier did not accept it and located no defect a repair could start from; nothing was written. ». Each is followed by the ways on: a correction, or `/intelligence` for another authoring model (which also judges unless a decision model is set), beside `/meaning`. These words offer no `continue`: no record replays those bytes, and a rejection the host carries (below) keeps the same verifier from being asked again on them. A held candidate keeps its bytes and no plan, so `awaiting_judge` never reads it as a kept round. None of these functions is a defect to repair from or a judgment, and none grants continuation.
+
+`compile::round::rejections` lists the verdicts of an outcome that rejected candidate bytes: every `semantic_verification` attempt of the outcome, in order, that names a candidate digest, is `declined` and `rejected`, never `settled`, and judged them (never a repeat with no call: `same_bytes_as` set, or `carried`). An abstention (`rejected: false`) is none, so a later round may still decide it. `compile::round::keep_rejections` keeps one verdict per candidate digest, judge (`seat`, `kind`), request and context (`context_sha256`: the same bytes rejected for a corrected request, other answers or another observed world are their own verdict), the latest found replacing an earlier one (it resumed a localization that one left unfinished, and holds every answer the judge gave those bytes), in order of first appearance, and says whether it added or replaced any. A host carries what it keeps into every later compile of the same request (`CompileRequest::with_declined`), where the compiler repeats that rejection with no call rather than ask the same judge again on the same bytes for the same whole request (another request's words are judged afresh); a carried verdict can only keep those bytes from READY.
+
+### Trial runs shown to the verifier
+
+In Session's authoring rounds, `compile::copy::native::Scoped` wraps the
+`compile::room::ObservedRoom` as the compile's rehearsal host. The room's report of a run keeps
+each input the run read and each output it read back, at most `PREVIEW_BOUND` (64 KiB) of each
+file, with whether the text is whole and whether the run itself wrote it. When the sketch door's
+verifier doubts a candidate, the compiler gives the configured verifier (the decision seat, or
+the authoring provider) the observation of the last completed run of those exact bytes, by
+default, as preparation context, and asks over it only when the run proves whole outputs. The
+copy door (`copy::qualify`) judges by exact bytes, and no verifier reads its runs. The room's
+isolation, receipts and bounds (`COPY_BOUND`, `PREVIEW_BOUND`) are unchanged and are not
+session-wide creation quotas; a trial run grants no live `.nika` Run authority.

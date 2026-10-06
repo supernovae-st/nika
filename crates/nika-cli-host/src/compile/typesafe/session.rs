@@ -40,7 +40,7 @@ pub const DECISION_SCHEMA: &str = "nika/session-decision-seat@2";
 const COST: &str = "unknown — the decision seat has no catalog tariff; never priced as zero; outside any Session allowance and the no-budget priced subtotal; invoice unknown";
 
 /// What the seat decides — and what it does not.
-const ROLE: &str = "typed compiler decisions: clause reading, feasible-plan ranking, semantic verification and defect localization; NONE allowed; never Foundry or knowledge selection, never authority";
+const ROLE: &str = "typed compiler decisions: clause reading, feasible-plan ranking, semantic verification (the whole request, then each part alone, the task a missing part points to, extra operations and the questions over a trial run); NONE allowed; never Foundry or knowledge selection, never authority";
 
 /// The operator-selected decision seat of one session. Its `Debug` names the seat and whether it
 /// is ready — never the key, never the journal.
@@ -434,5 +434,44 @@ mod tests {
             matches!(result, Err(DecisionError(why)) if why == "decision journal unavailable; nothing sent")
         );
         assert_eq!(setup.observations()[0]["state"], "Uncertain");
+    }
+
+    /// The observation names every question the seat may decide, a pointer asked for any missing
+    /// part (never for a restriction alone) and the questions over a trial run among them; a
+    /// consultation the money law refuses records its question unsent.
+    #[test]
+    #[allow(clippy::expect_used)]
+    fn the_observation_names_every_question_the_seat_decides() {
+        let setup = DecisionSetup::with_key(
+            "typesafe/jev-test",
+            Some("fixture".into()),
+            Some("http://127.0.0.1:1"),
+        );
+        let seat = setup.consult(Err("the allowance is spent".into()));
+        let question = ChoiceQuestion::new("verify-point-0", "pick", json!({}), vec![]);
+        let result = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime")
+            .block_on(seat.choose(&question));
+        assert!(
+            matches!(&result, Err(DecisionError(why)) if why == "decision seat typesafe/jev-test not consulted: the allowance is spent"),
+            "{result:?}"
+        );
+        let observation = &setup.observations()[0];
+        assert_eq!(
+            observation["role"],
+            "typed compiler decisions: clause reading, feasible-plan ranking, semantic verification (the whole request, then each part alone, the task a missing part points to, extra operations and the questions over a trial run); NONE allowed; never Foundry or knowledge selection, never authority"
+        );
+        assert_eq!(
+            observation["attempts"],
+            json!([{"question": "verify-point-0", "sent": false, "outcome": "refused",
+                "error": "not consulted: the allowance is spent"}])
+        );
+        assert_eq!(
+            observation["refused"],
+            "not consulted: the allowance is spent"
+        );
+        assert_eq!(observation["calls_sent"], 0);
     }
 }

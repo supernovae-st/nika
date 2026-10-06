@@ -40,6 +40,11 @@ use crate::turn::{RouteRecord, RoutingMethod, SessionPhase, TurnAct, TurnDecisio
 /// The seat of the readings the session settles without a model: zero calls, the project observed.
 pub(super) const DETERMINISTIC: AuthoringSeat = AuthoringSeat::Deterministic { why: None };
 
+/// The label of a correction restated after its original request: the correction takes
+/// precedence where they differ, every other requirement of the original stands. No keep or
+/// exclusion lead, no restriction word: the label never makes the correction read as one.
+const CORRECTION_FRAME: &str = "Correction (it takes precedence over the original where they differ; every other requirement stands):";
+
 impl SessionRuntime {
     /// The authoring question the next line answers, when one is open.
     #[must_use]
@@ -74,7 +79,9 @@ impl SessionRuntime {
 
     /// A request that is not a round (a revision, a request read again with
     /// its change) through the seat under the session's context, its pack
-    /// composed for `intent`, bracketed like every other dispatch.
+    /// composed for `intent`, bracketed like every other dispatch. Like a
+    /// round's, it is handed the verdicts that rejected candidate bytes in the
+    /// goal's earlier compiles and keeps the ones it records (R6).
     pub(super) fn compile_request(
         &mut self,
         request: &CompileRequest,
@@ -85,26 +92,33 @@ impl SessionRuntime {
         if self.money_blocks_cognition() {
             return compile_in(&DETERMINISTIC, &context, request, intent);
         }
+        let declined = self.declined.carried(self.intent.goal.as_ref());
+        let request = &request.clone().with_declined(declined);
         let seat = self.seat.clone();
-        if !seat.has_model() {
-            return self.seated(&seat, |account| {
+        let out = if seat.has_model() {
+            self.rehearse_dispatch(intent, |this, host| {
+                this.seated(&seat, |account| {
+                    crate::authoring::compile_in_rehearsed(
+                        &seat,
+                        &context,
+                        request,
+                        intent,
+                        account,
+                        Some(host),
+                    )
+                })
+            })
+        } else {
+            self.seated(&seat, |account| {
                 crate::authoring::compile_in_rehearsed(
                     &seat, &context, request, intent, account, None,
                 )
-            });
-        }
-        self.rehearse_dispatch(intent, |this, host| {
-            this.seated(&seat, |account| {
-                crate::authoring::compile_in_rehearsed(
-                    &seat,
-                    &context,
-                    request,
-                    intent,
-                    account,
-                    Some(host),
-                )
             })
-        })
+        };
+        if let Ok(out) = &out {
+            self.declined.keep(self.intent.goal.as_ref(), out);
+        }
+        out
     }
 
     /// The session's authoring context rooted at its own project, never the process's working
@@ -248,15 +262,16 @@ impl SessionRuntime {
     }
 
     /// No source exists after an interrupted creation: restate its request, never invent an
-    /// EDIT base, replay an interrupted plan or restore permission to save or run.
+    /// EDIT base, replay an interrupted plan or restore permission to save or run. The frame
+    /// tells the author the correction wins where the two differ, in words no reader takes for a
+    /// restriction (no keep or exclusion lead): the correction's first phrase, which the frame
+    /// labels, is judged for what it asks.
     fn revise_current(&mut self, change: &str) -> Option<TurnOutcome> {
         if let Some(saved) = self.last_workflow.clone() {
             return Some(self.revise_saved(&saved, change));
         }
         let original = self.intent.goal.as_ref()?;
-        let intent = format!(
-            "Original request:\n{original}\nCorrection (takes precedence over the original where it changes it; keep the other requirements):\n{change}"
-        );
+        let intent = format!("Original request:\n{original}\n{CORRECTION_FRAME}\n{change}");
         Some(self.restate_request(intent, change))
     }
 
@@ -291,6 +306,15 @@ impl SessionRuntime {
             }
             break out;
         };
+        // A replayed candidate its verifier did not accept (held, no defect to write again from)
+        // is never replayed to it again (R6): every compile of this round after this one, the
+        // stronger seat's among them, authors afresh under the answers already given.
+        if let Ok(held) = &out
+            && round.replays()
+            && nika_onboard::compile::round::verify_held(held)
+        {
+            round.forget_plan();
+        }
         match out {
             Ok(out) if nika_onboard::compile::round::awaiting_judge(&out) => {
                 self.keep_unjudged(round, out)
@@ -374,7 +398,12 @@ impl SessionRuntime {
         self.remember(line, "(the request read again with these words)");
         let mut again = AuthoringRound::new(intent);
         again.money = money;
-        self.intent.goal = Some(again.effective_intent());
+        // The same goal in other words: the verdicts its earlier compiles recorded follow it (the
+        // compiler carries one only into a compile of the request it judged).
+        let restated = Some(again.effective_intent());
+        self.declined
+            .follow(self.intent.goal.as_ref(), restated.as_ref());
+        self.intent.goal = restated;
         match self.compile_request(&again.request(), &again.intent) {
             Ok(out) => {
                 let reading = Reading::of(out);

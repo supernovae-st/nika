@@ -149,6 +149,16 @@ is owned here. `nika_onboard::activity` and `nika_session::activity` preserve th
 
 `activity::CallMark` carries producer-reported call identity and lifecycle; the model is requested,
 not observed as served. Scoped presentation callbacks contain neither transport nor authority.
+`activity::call_activity` derives a compiler call's phase from its typed role alone: `repair`,
+`sketch-repair`, `fill-repair`, `native-repair` and `transform-repair` are Repairing, every role
+that starts with `judge` (the whole request, a clause, a part asked alone, the pointer that asks
+which task fails a part judged missing, an extra operation, one part over a trial run, a whole
+trial run) is Checking, and any other role is Authoring. The activity card names each role in
+plain words: `judge_request` and `judge_clause` « review your request », `judge_part` « review a
+part of your request », `judge_point` « find the step a missing part points to »,
+`judge_observed_part` « check one part against the trial run », `judge_observed` « review a
+trial run » and `judge_extra` « review the workflow »; a role it does not know is shown as it
+came, and the exact role stays in the event and the receipts.
 The front-door's Session help text is re-exported by Session without changing its public path.
 
 ### Passive continuation and lifecycle words

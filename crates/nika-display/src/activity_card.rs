@@ -385,7 +385,13 @@ fn role_words(role: &str) -> &str {
         "fill" => "write a step",
         "transform" => "write a data transformation",
         "judge_request" | "judge" | "judge_clause" | "judge_semantic" => "review your request",
-        "judge_locate" | "judge_native" | "judge_transform" => "review the workflow",
+        "judge_part" => "review a part of your request",
+        "judge_point" => "find the step a missing part points to",
+        "judge_observed_part" => "check one part against the trial run",
+        "judge_observed" => "review a trial run",
+        "judge_extra" | "judge_locate" | "judge_native" | "judge_transform" => {
+            "review the workflow"
+        }
         "fill-repair" => "repair a step",
         "transform-repair" | "transform_repair" => "repair a data transformation",
         "repair" | "sketch-repair" | "native-repair" | "revision-repair" | "source-recovery"
@@ -570,6 +576,14 @@ mod tests {
             ("sketch", "plan the workflow"),
             ("fill", "write a step"),
             ("judge_request", "review your request"),
+            ("judge_part", "review a part of your request"),
+            ("judge_point", "find the step a missing part points to"),
+            ("judge_extra", "review the workflow"),
+            (
+                "judge_observed_part",
+                "check one part against the trial run",
+            ),
+            ("judge_observed", "review a trial run"),
             ("judge_locate", "review the workflow"),
             ("sketch-repair", "repair the workflow"),
             ("source-recovery", "repair the workflow"),

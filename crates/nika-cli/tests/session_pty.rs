@@ -120,6 +120,9 @@ fn a_pipe_is_the_concierge_and_the_tty_is_the_session() {
     session
         .expect("No AI in this conversation")
         .expect("the fourth path");
+    // The choice is typed at its own prompt: a line typed before the prompt is drawn is
+    // type-ahead, which the choice never takes as its answer.
+    session.expect("› ").expect("the choice prompt");
     session.send_line("4").expect("choose");
     session
         .expect("no conversational AI")

@@ -245,7 +245,8 @@ pub enum AuthoringError {
 
 /// One authoring conversation over ONE intent: the answers the human gave
 /// by stable key, the plan the first round read (replayed on every answer
-/// round · zero provider calls), and the questions still open in order.
+/// round with no authoring call; the round's judge judges the replayed bytes),
+/// and the questions still open in order.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AuthoringRound {
     /// The intent, verbatim — the compiler's own key (its sha256 is recorded).
@@ -345,16 +346,21 @@ impl AuthoringRound {
         seat: &AuthoringSeat,
         context: &AuthoringContext,
     ) -> Result<CompileOutcome, AuthoringError> {
-        self.compile_rehearsed(seat, context, None, None)
+        self.compile_rehearsed(seat, context, (None, None), Vec::new())
     }
 
     /// The Session-owned path; public callers remain source-only unless their own host opts in.
+    /// `declined` are the verdicts that rejected candidate bytes in earlier compiles of the
+    /// round's goal ([`CompileRequest::with_declined`]): no judge is asked again on those bytes.
     pub(crate) fn compile_rehearsed(
         &self,
         seat: &AuthoringSeat,
         context: &AuthoringContext,
-        account: Option<&nika_providers::InferenceAdmission>,
-        host: Option<&dyn Rehearse>,
+        (account, host): (
+            Option<&nika_providers::InferenceAdmission>,
+            Option<&dyn Rehearse>,
+        ),
+        declined: Vec<Value>,
     ) -> Result<CompileOutcome, AuthoringError> {
         let intent = self.effective_intent();
         let attach = if self.replays() {
@@ -362,7 +368,8 @@ impl AuthoringRound {
         } else {
             Attach::Compose(&intent)
         };
-        let mut out = compile_attached(seat, context, &self.request(), attach, account, host)?;
+        let request = self.request().with_declined(declined);
+        let mut out = compile_attached(seat, context, &request, attach, account, host)?;
         round::carry_receipt(
             &mut out,
             self.replays()
@@ -389,11 +396,17 @@ impl AuthoringRound {
     /// (a plan that still carries unknown work is never replayed) with the
     /// knowledge record of the call that authored it when the native door
     /// presented a pack, the mandatory questions in the compiler's order (a
-    /// revision's clause dispositions too), its reasons.
+    /// revision's clause dispositions too), its reasons. A candidate its verifier
+    /// answered and did not accept (`verify_held`) leaves nothing to replay: the
+    /// compiler dropped its record, and the round drops the plan it replayed with
+    /// it, so no later compile sends those bytes to the same verifier again (R6).
     pub fn absorb(&mut self, out: &CompileOutcome) {
         // A base's record is input to a new revision, not that revision's settled plan.
         if self.base_record() && out.provenance.plan.is_some() {
             self.continuation = None;
+        }
+        if round::verify_held(out) && !self.base_record() {
+            self.forget_plan();
         }
         if let Some(plan) = round::reanchored(self.continuation.as_ref(), out) {
             // The compiler re-anchored the plan to a changed source (R4 A6): the next answer
@@ -891,6 +904,65 @@ mod tests {
         let candidate = second.candidate.expect("candidate");
         assert!(candidate.contains("model: mock/echo"), "{candidate}");
         assert!(candidate.contains("nika:write"), "{candidate}");
+    }
+
+    /// A candidate its verifier answered and did not accept (`verify_held`) leaves its round
+    /// nothing to replay (R6): the plan it replayed goes, with the knowledge and receipt of the
+    /// call that authored it, and every answer stays. Without the finding the record stays, and a
+    /// revision's base record, its input rather than the held candidate's, stays too.
+    #[test]
+    fn a_held_candidate_leaves_its_round_nothing_to_replay() {
+        let intent = "Read ./a.md and do something clever with it, then write ./b.md";
+        let mut held = compile_deterministic(&CompileRequest::create(intent)).expect("compiles");
+        held.provenance.plan = None;
+        let mut finding = (held.diagnostics.first().cloned()).expect("a finding to reshape");
+        finding.kind = nika_onboard::compile::DiagnosticKind::Applied;
+        "verify_held".clone_into(&mut finding.target);
+        held.diagnostics.push(finding);
+        let record = json!({"semantic_record": 1, "final": {"candidate_sha256": "abc"}});
+        let replaying = || {
+            let mut round = AuthoringRound::new(intent);
+            round.continuation = Some(record.clone());
+            round.knowledge = Some(json!({"presented": true}));
+            round.authoring_receipt = Some(AuthoringReceipt::new("fixture/model"));
+            round
+                .answers
+                .insert("const.k".to_owned(), "\"v\"".to_owned());
+            round
+        };
+        let mut round = replaying();
+        assert!(round.replays());
+        round.absorb(&held);
+        let forgotten = (
+            &round.continuation,
+            &round.knowledge,
+            &round.authoring_receipt,
+        );
+        assert_eq!(forgotten, (&None, &None, &None));
+        assert!(!round.replays());
+        assert_eq!(
+            round.answers.get("const.k").map(String::as_str),
+            Some("\"v\"")
+        );
+        // The same outcome without the finding: the replayed record stays.
+        let mut unheld = held.clone();
+        unheld.diagnostics.pop();
+        let mut round = replaying();
+        round.absorb(&unheld);
+        assert_eq!(round.continuation.as_ref(), Some(&record));
+        // A revision's base record names the base's own bytes: it stays the revision's input.
+        let base = "nika: base\n";
+        let sha = nika_event::source_id::sha256_hex(base.as_bytes());
+        let based = json!({"semantic_record": 1, "final": {"candidate_sha256": sha}});
+        let mut revision = replaying();
+        revision.edit = Some((base.to_owned(), "add a step".to_owned(), None));
+        revision.continuation = Some(based.clone());
+        assert!(
+            !revision.replays(),
+            "a base record is input, never replayed"
+        );
+        revision.absorb(&held);
+        assert_eq!(revision.continuation.as_ref(), Some(&based));
     }
 
     #[test]

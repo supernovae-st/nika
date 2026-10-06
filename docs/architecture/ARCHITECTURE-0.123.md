@@ -12,11 +12,17 @@ IntentContract is the preserved satisfaction contract: goal, required work, inpu
 
 Rust owns deterministic facts, types, graph/capability/policy constraints, hard feasibility, budgets, lowering, assembly, candidate identity, Check, consent binding, admission and runtime effect enforcement. Model output cannot grant authority or own final source bytes. A temporary direct-source recovery may produce or repair `.nika` inside the same resolution when structured composition cannot settle the task. Preserve its route, original obligations and the same checks; a successful recovery does not qualify structured composition by itself. Changing only the default to a less capable pilot does not satisfy convergence; creation, conversational revision, repair, CLI, Session, Serve and SDK must agree.
 
+## Open-source sovereignty and SDK delivery
+
+Nika is open source. Sovereignty means freedom to choose and replace the LLM, decision model, provider and access mode throughout intent-to-workflow, `.nika` and Run. The open-source user or deployment operator controls that configuration. Selected intelligences receive relevant work context without an additional sharing gate justified by sovereignty.
+
+The current delivery scope is the engine and SDK, with reliable, measured behavior, documented contracts and real-use qualification. SaaS interface design belongs to the consuming product team. Expose available capabilities, intelligence configuration, progress state/events, results and diagnostics through the SDK; its consumer decides what to display, hide or configure. The engine imposes no model-display or model-hiding rule on a consuming UI. The TUI remains part of this delivery and qualification scope.
+
 ## Resolution and knowledge
 
 For new free-language requests and contextual corrections, the normal Session path uses the LLM to understand the request with its relevant dialogue, active object, obligations and observed capabilities. Understanding and proposing a first action may share one call. Explicit commands, typed inputs and exact proven resolutions retain their direct paths without a ceremonial model call. A keyword, punctuation mark or template match alone does not establish complete understanding.
 
-New natural-language creation and revision use one cooperative loop: an LLM interprets and composes, Jev searches and qualifies Foundry, and Rust owns deterministic operations and controls. HOT/WARM/COLD/EXPLORE are historical routing labels, not target product modes. Reuse their useful operations and preserve old receipt decoding without imposing their old ladder. Exact commands, structured inputs and receipt replay retain direct paths. A service failure is visible; preserve work and identify degraded continuation rather than claiming the complete loop ran. Do not require ceremonial calls per node.
+New natural-language creation and revision use one cooperative loop: the selected LLM interprets and composes, the selected decision model searches and qualifies Foundry, and Rust owns deterministic operations and controls. Jev is the reference backend discussed below, not a mandatory vendor. Model and access choices made by the open-source user or deployment operator take precedence over any local-first or remote-first preference. HOT/WARM/COLD/EXPLORE are historical routing labels, not target product modes. Reuse their useful operations and preserve old receipt decoding without imposing their old ladder. Exact commands, structured inputs and receipt replay retain direct paths. A service failure is visible; preserve work and identify degraded continuation rather than claiming the complete loop ran. Do not require ceremonial calls per node.
 
 Foundry supplies admitted, versioned compiler knowledge by default where relevant: reusable patterns/blocks, capabilities/procedures, examples, counterexamples, repairs, known failures, relations, provenance and maturity. Retrieval supplies candidates, not truth, correctness or permission. The compiler revalidates feasibility. Measure FULL versus NO FOUNDRY with equal cases, model, DecisionSeat, budget and oracle; preserve harmful retrieval and zero/negative lift.
 
@@ -79,7 +85,7 @@ CLM is identified as Contrastive-LM/CLM at studied pin bb42c6c5bf914fd449bed2f6c
 
 Qualified bare `nika` enters the real fullscreen workspace. Recover existing native code before replacements. Project, conversation, persistent workflows, revision identity, visual task/dependency graph with drill-down, proposal, Check, rehearsal/UNKNOWN, authority/effects, Save, Run, live states/hierarchy, results/viewers, Proof and resume project canonical Session/runtime state. Do not create a TUI-only workflow model, permission model, fake run or second persistence owner. Inline/plain/accessibility remain usable explicit/fallback paths.
 
-Session and compiler own the model → action → observation → continuation loop and progressive context; TUI renders their canonical state. Preserve candidate/revision differences, request obligations, resolved questions and evidence across turns, compaction and restart. A correction invalidates superseded work; a late result from another project or revision cannot replace current state. Cancellation reports effects already committed honestly. Record each model call, retry and repair with observed or unknown usage. Creation continues without arbitrary total call, repair, duration or spending caps; adapt to actual request capabilities and external availability, retain user Stop, and enforce the explicit workflow constraints for Run. Removing redundant global judgments is an immediate architectural improvement to measure, not a reason to weaken fidelity. The actual-binary journey also checks input while work proceeds, multiline paste, stable scrolling/focus and stale-result refusal. Present search, composition, checking, rehearsal and repair, together with the actual author model and Jev activity; historical routing names belong in technical details or old receipts. These requirements extend the current producers and persistence owner, not a second Session model.
+Session and compiler own the model → action → observation → continuation loop and progressive context; TUI renders their canonical state. Preserve candidate/revision differences, request obligations, resolved questions and evidence across turns, compaction and restart. A correction invalidates superseded work; a late result from another project or revision cannot replace current state. Cancellation reports effects already committed honestly. Record each model call, retry and repair with observed or unknown usage. Creation continues without arbitrary total call, repair, duration or spending caps; adapt to actual request capabilities and external availability, retain user Stop, and enforce the explicit workflow constraints for Run. Removing redundant global judgments is an immediate architectural improvement to measure, not a reason to weaken fidelity. The actual-binary journey also checks input while work proceeds, multiline paste, stable scrolling/focus and stale-result refusal. Present search, composition, checking, rehearsal and repair in understandable language. In the technical TUI, make the actual author model and decision-backend activity accessible; consuming SaaS applications choose their own presentation from the SDK state. Historical routing names belong in technical details or old receipts. These requirements extend the current producers and persistence owner, not a second Session model.
 
 Actual-binary acceptance: bare → project → realistic unseen intent → needed question → visible compile/workflow/evidence/authority → conversational revision → Save → separate Run → live graph/results/Proof → exit/reopen/reuse without manual source repair. Prototype PTYs, galleries, screenshots and render units do not prove this journey. Resize, keyboard, ASCII/no-color, reduced motion and terminal restoration are included; SSH/tmux qualification is reported at its actual scope.
 
@@ -119,6 +125,30 @@ claiming the cooperative loop. Removing or renaming historical strategy branches
 sufficient. Do not replace the whole-request verifier until the new evidence aggregation
 preserves its coverage and rejects plausible wrong candidates. Keep semantic abstention,
 unsupported rehearsal and provider failures explicit.
+
+Current implementation, not qualified: the whole-request verdict remains the READY gate.
+After a doubt (a rejection or an abstention), the judge's answers on each part of the request
+alone, on why a part it finds missing is missing (the task it points to, or an operation no
+task performs, never offered for a pure prohibition or a structure law) and on any extra
+operation serve only to locate a repairable defect. A doubt with no located defect is put to
+the same judge only over a rehearsal of the exact bytes that proves whole outputs, when the
+sketch door has one and its host provides it (currently the Session): each part the bytes left
+open, then, once nothing stays open, the whole request, carried only when the run's inputs
+exercise every part; a part its inputs never exercise stays open, and a run never removes a
+defect located in the bytes, at most contests it. The configured verifier receives those
+trial inputs and outputs by default, as preparation context. With no such observation, or one
+that decides nothing, the candidate is held: shown, never offered, its replayable record
+dropped and its Applied `verify_held` finding worded by its cause (a rejection or an
+abstention, and whether a judge call got no answer). Within a compile the same judge is never
+asked again on bytes it declined; a host that keeps the conversation carries the judge's
+rejections into its later compiles (`CompileRequest::with_declined`), where the same judge's
+rejection of the same bytes for the same request stands with no call, while an abstention is
+not carried and a new round may decide it. A plan replayed in an answer round, the reader's
+own HOT plan aside, is READY only on a judgment of the replayed bytes made in that round. This
+localization is evidence for repair, not the evidence aggregation required above, and it
+replaces nothing of the whole-request verifier. The authoring provider's judge calls are
+journaled under distinct roles and a decision seat's questions under their identifiers, so
+their usage stays separable by role.
 
 Compare business success, false READY, false refusal, autonomous repair, median and tail
 latency, and usage by role on paired cases with comparable models, observations and oracles.
