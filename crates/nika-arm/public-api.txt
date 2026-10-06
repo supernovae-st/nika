@@ -39,6 +39,7 @@ pub fn nika_arm::fire::FireCtx::new(project_root: std::path::PathBuf, registry: 
 pub fn nika_arm::fire::FireCtx::new_with_coordinator(project_root: std::path::PathBuf, registry: nika_cadence::registry::ArmRegistry, index: usize, now: jiff::zoned::Zoned, pid: u32, prepare: nika_arm::fire::CoordinatedRunSeam) -> core::result::Result<Self, nika_arm::fire::FireCtxError>
 pub fn nika_arm::fire::FireCtx::new_with_execution(project_root: std::path::PathBuf, registry: nika_cadence::registry::ArmRegistry, index: usize, now: jiff::zoned::Zoned, pid: u32, run: nika_arm::fire::ExecutionRunSeam) -> core::result::Result<Self, nika_arm::fire::FireCtxError>
 pub fn nika_arm::fire::FireCtx::with_execution_service(self, service: nika_execution::service::ExecutionService) -> Self
+pub fn nika_arm::fire::FireCtx::with_provider_probes(self, probes: alloc::vec::Vec<nika_providers::probe::ProviderProbe>) -> Self
 pub fn nika_arm::fire::FireCtx::with_wait(self, wait: nika_arm::fire::WaitSeam) -> Self
 impl<D> owo_colors::OwoColorize for nika_arm::fire::FireCtx
 impl<T, U> core::convert::Into<U> for nika_arm::fire::FireCtx where U: core::convert::From<T>
@@ -1057,6 +1058,7 @@ pub fn nika_arm::fire::FireCtx::new(project_root: std::path::PathBuf, registry: 
 pub fn nika_arm::fire::FireCtx::new_with_coordinator(project_root: std::path::PathBuf, registry: nika_cadence::registry::ArmRegistry, index: usize, now: jiff::zoned::Zoned, pid: u32, prepare: nika_arm::fire::CoordinatedRunSeam) -> core::result::Result<Self, nika_arm::fire::FireCtxError>
 pub fn nika_arm::fire::FireCtx::new_with_execution(project_root: std::path::PathBuf, registry: nika_cadence::registry::ArmRegistry, index: usize, now: jiff::zoned::Zoned, pid: u32, run: nika_arm::fire::ExecutionRunSeam) -> core::result::Result<Self, nika_arm::fire::FireCtxError>
 pub fn nika_arm::fire::FireCtx::with_execution_service(self, service: nika_execution::service::ExecutionService) -> Self
+pub fn nika_arm::fire::FireCtx::with_provider_probes(self, probes: alloc::vec::Vec<nika_providers::probe::ProviderProbe>) -> Self
 pub fn nika_arm::fire::FireCtx::with_wait(self, wait: nika_arm::fire::WaitSeam) -> Self
 impl<D> owo_colors::OwoColorize for nika_arm::fire::FireCtx
 impl<T, U> core::convert::Into<U> for nika_arm::fire::FireCtx where U: core::convert::From<T>

@@ -2679,6 +2679,7 @@ pub const nika_compile_fidelity::observed::MAX_ELEMENTS: usize
 pub const nika_compile_fidelity::observed::MAX_PATHS: usize
 pub fn nika_compile_fidelity::observed::names(kinds: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
 pub fn nika_compile_fidelity::observed::nested(rows: &[serde_json::value::Value], kind: &dyn core::ops::function::Fn(&serde_json::value::Value) -> &'static str) -> serde_json::value::Value
+pub fn nika_compile_fidelity::observed::temporal_shapes<'a>(values: impl core::iter::traits::collect::IntoIterator<Item = core::option::Option<&'a str>>) -> serde_json::value::Value
 pub fn nika_compile_fidelity::observed::uncovered(kinds: &serde_json::value::Value) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_compile_fidelity::predicate
 pub fn nika_compile_fidelity::predicate::rederives(rule: &nika_compile_reader::rules::Rule, intent: &str, slots: &[nika_compile_reader::plan::Slot], columns: &[alloc::string::String]) -> bool

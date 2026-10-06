@@ -35,6 +35,8 @@ impl<T> core::convert::From<T> for nika_verb_infer::InferValue
 pub fn nika_verb_infer::InferValue::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_verb_infer::InferValue where T: 'static
 pub fn nika_verb_infer::InferValue::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_verb_infer::InferValue
+pub type nika_verb_infer::InferValue::Output = T
 #[non_exhaustive] pub enum nika_verb_infer::VerbInferError
 pub nika_verb_infer::VerbInferError::EmptyAnswer
 pub nika_verb_infer::VerbInferError::EmptyAnswer::detail: alloc::string::String
@@ -104,6 +106,8 @@ impl<T> core::convert::From<T> for nika_verb_infer::VerbInferError
 pub fn nika_verb_infer::VerbInferError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_verb_infer::VerbInferError where T: 'static
 pub fn nika_verb_infer::VerbInferError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_verb_infer::VerbInferError
+pub type nika_verb_infer::VerbInferError::Output = T
 #[non_exhaustive] pub enum nika_verb_infer::VisionPart
 pub nika_verb_infer::VisionPart::File
 pub nika_verb_infer::VisionPart::File::path: alloc::string::String
@@ -147,6 +151,8 @@ impl<T> core::convert::From<T> for nika_verb_infer::VisionPart
 pub fn nika_verb_infer::VisionPart::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_verb_infer::VisionPart where T: 'static
 pub fn nika_verb_infer::VisionPart::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_verb_infer::VisionPart
+pub type nika_verb_infer::VisionPart::Output = T
 #[non_exhaustive] pub struct nika_verb_infer::InferInput
 pub nika_verb_infer::InferInput::max_tokens: core::option::Option<u32>
 pub nika_verb_infer::InferInput::model: core::option::Option<alloc::string::String>
@@ -189,6 +195,8 @@ impl<T> core::convert::From<T> for nika_verb_infer::InferInput
 pub fn nika_verb_infer::InferInput::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_verb_infer::InferInput where T: 'static
 pub fn nika_verb_infer::InferInput::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_verb_infer::InferInput
+pub type nika_verb_infer::InferInput::Output = T
 #[non_exhaustive] pub struct nika_verb_infer::InferOutput
 pub nika_verb_infer::InferOutput::model_resolved: alloc::string::String
 pub nika_verb_infer::InferOutput::output: nika_verb_infer::InferValue
@@ -219,6 +227,8 @@ impl<T> core::convert::From<T> for nika_verb_infer::InferOutput
 pub fn nika_verb_infer::InferOutput::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_verb_infer::InferOutput where T: 'static
 pub fn nika_verb_infer::InferOutput::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_verb_infer::InferOutput
+pub type nika_verb_infer::InferOutput::Output = T
 pub struct nika_verb_infer::InferVerb<H>
 impl<H> nika_verb_infer::InferVerb<H> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
 pub async fn nika_verb_infer::InferVerb<H>::run(&self, input: nika_verb_infer::InferInput) -> core::result::Result<nika_verb_infer::InferOutput, nika_verb_infer::VerbInferError>
@@ -247,4 +257,6 @@ impl<T> core::convert::From<T> for nika_verb_infer::InferVerb<H>
 pub fn nika_verb_infer::InferVerb<H>::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_verb_infer::InferVerb<H> where T: 'static
 pub fn nika_verb_infer::InferVerb<H>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_verb_infer::InferVerb<H>
+pub type nika_verb_infer::InferVerb<H>::Output = T
 pub const nika_verb_infer::DEFAULT_SCHEMA_RETRY_BUDGET: u8

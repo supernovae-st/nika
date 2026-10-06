@@ -6,6 +6,7 @@ pub fn nika_service_execution::access::access_probes_env() -> alloc::vec::Vec<ni
 pub fn nika_service_execution::access::boot_access_fields(plan: &nika_providers::plan::ExecutionAccessPlan) -> alloc::vec::Vec<(&'static str, nika_types::resource::Value)>
 pub fn nika_service_execution::access::lane_rows(plan: &nika_providers::plan::ExecutionAccessPlan) -> alloc::vec::Vec<serde_json::value::Value>
 pub fn nika_service_execution::access::model_needs(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport) -> alloc::vec::Vec<nika_providers::plan::ModelNeed>
+pub fn nika_service_execution::access::provider_probes_env() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
 pub fn nika_service_execution::access::resolve_plan(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, model_override: core::option::Option<&str>, pin: core::option::Option<&str>) -> nika_providers::plan::ExecutionAccessPlan
 pub fn nika_service_execution::access::resolve_plan_over(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, model_override: core::option::Option<&str>, pin: core::option::Option<&str>, probes: &[nika_providers::probe::ProviderProbe]) -> nika_providers::plan::ExecutionAccessPlan
 pub fn nika_service_execution::access::verb_needs(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_providers::resolve_access::VerbNeeds

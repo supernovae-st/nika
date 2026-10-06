@@ -38,6 +38,8 @@ impl<T> core::convert::From<T> for nika_providers::admission::AdmissionState
 pub fn nika_providers::admission::AdmissionState::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::AdmissionState where T: 'static
 pub fn nika_providers::admission::AdmissionState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::AdmissionState
+pub type nika_providers::admission::AdmissionState::Output = T
 #[non_exhaustive] pub enum nika_providers::admission::CapEvidence
 pub nika_providers::admission::CapEvidence::NotApplicable
 pub nika_providers::admission::CapEvidence::NotApplicable::origin: alloc::string::String
@@ -74,6 +76,8 @@ impl<T> core::convert::From<T> for nika_providers::admission::CapEvidence
 pub fn nika_providers::admission::CapEvidence::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::CapEvidence where T: 'static
 pub fn nika_providers::admission::CapEvidence::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::CapEvidence
+pub type nika_providers::admission::CapEvidence::Output = T
 #[non_exhaustive] pub enum nika_providers::admission::HardMonetaryCap
 pub nika_providers::admission::HardMonetaryCap::Absent
 pub nika_providers::admission::HardMonetaryCap::Capped(nika_types::cost::Cost)
@@ -112,6 +116,8 @@ impl<T> core::convert::From<T> for nika_providers::admission::HardMonetaryCap
 pub fn nika_providers::admission::HardMonetaryCap::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::HardMonetaryCap where T: 'static
 pub fn nika_providers::admission::HardMonetaryCap::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::HardMonetaryCap
+pub type nika_providers::admission::HardMonetaryCap::Output = T
 #[non_exhaustive] pub enum nika_providers::admission::TariffUnit
 pub nika_providers::admission::TariffUnit::PerMillionTokens
 impl core::clone::Clone for nika_providers::admission::TariffUnit
@@ -150,6 +156,8 @@ impl<T> core::convert::From<T> for nika_providers::admission::TariffUnit
 pub fn nika_providers::admission::TariffUnit::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::TariffUnit where T: 'static
 pub fn nika_providers::admission::TariffUnit::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::TariffUnit
+pub type nika_providers::admission::TariffUnit::Output = T
 #[non_exhaustive] pub struct nika_providers::admission::AttemptReceipt
 pub nika_providers::admission::AttemptReceipt::endpoint: alloc::string::String
 pub nika_providers::admission::AttemptReceipt::estimated: core::option::Option<nika_types::cost::Cost>
@@ -199,6 +207,47 @@ impl<T> core::convert::From<T> for nika_providers::admission::AttemptReceipt
 pub fn nika_providers::admission::AttemptReceipt::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::AttemptReceipt where T: 'static
 pub fn nika_providers::admission::AttemptReceipt::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::AttemptReceipt
+pub type nika_providers::admission::AttemptReceipt::Output = T
+#[non_exhaustive] pub struct nika_providers::admission::CompletedCostReport
+impl nika_providers::admission::CompletedCostReport
+pub fn nika_providers::admission::CompletedCostReport::checkpoint(&self, project: &[u8]) -> serde_json::value::Value
+pub fn nika_providers::admission::CompletedCostReport::digest(&self) -> &str
+pub fn nika_providers::admission::CompletedCostReport::matches_checkpoint(&self, raw: &serde_json::value::Value, project: &[u8]) -> bool
+pub fn nika_providers::admission::CompletedCostReport::read(observations: &[serde_json::value::Value]) -> core::result::Result<Self, alloc::string::String>
+pub fn nika_providers::admission::CompletedCostReport::summary(&self) -> &str
+pub fn nika_providers::admission::CompletedCostReport::summary_of(observations: &[serde_json::value::Value]) -> core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_providers::admission::CompletedCostReport
+pub fn nika_providers::admission::CompletedCostReport::clone(&self) -> nika_providers::admission::CompletedCostReport
+impl core::fmt::Debug for nika_providers::admission::CompletedCostReport
+pub fn nika_providers::admission::CompletedCostReport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_providers::admission::CompletedCostReport
+impl<T, U> core::convert::Into<U> for nika_providers::admission::CompletedCostReport where U: core::convert::From<T>
+pub fn nika_providers::admission::CompletedCostReport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::admission::CompletedCostReport where U: core::convert::Into<T>
+pub type nika_providers::admission::CompletedCostReport::Error = core::convert::Infallible
+pub fn nika_providers::admission::CompletedCostReport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::admission::CompletedCostReport where U: core::convert::TryFrom<T>
+pub type nika_providers::admission::CompletedCostReport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::admission::CompletedCostReport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::admission::CompletedCostReport where T: core::clone::Clone
+pub type nika_providers::admission::CompletedCostReport::Owned = T
+pub fn nika_providers::admission::CompletedCostReport::clone_into(&self, target: &mut T)
+pub fn nika_providers::admission::CompletedCostReport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::admission::CompletedCostReport where T: 'static + ?core::marker::Sized
+pub fn nika_providers::admission::CompletedCostReport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::admission::CompletedCostReport where T: ?core::marker::Sized
+pub fn nika_providers::admission::CompletedCostReport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::admission::CompletedCostReport where T: ?core::marker::Sized
+pub fn nika_providers::admission::CompletedCostReport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::admission::CompletedCostReport where T: core::clone::Clone
+pub unsafe fn nika_providers::admission::CompletedCostReport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::admission::CompletedCostReport
+pub fn nika_providers::admission::CompletedCostReport::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::admission::CompletedCostReport where T: 'static
+pub fn nika_providers::admission::CompletedCostReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::CompletedCostReport
+pub type nika_providers::admission::CompletedCostReport::Output = T
 #[non_exhaustive] pub struct nika_providers::admission::CostChallenge
 pub nika_providers::admission::CostChallenge::candidate: alloc::string::String
 pub nika_providers::admission::CostChallenge::inputs_sha256: alloc::string::String
@@ -253,6 +302,8 @@ pub fn nika_providers::admission::CostChallenge::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::CostChallenge where T: 'static
 pub fn nika_providers::admission::CostChallenge::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_providers::admission::CostChallenge where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_providers::admission::CostChallenge
+pub type nika_providers::admission::CostChallenge::Output = T
 #[non_exhaustive] pub struct nika_providers::admission::CostHostEvidence
 impl nika_providers::admission::CostHostEvidence
 pub fn nika_providers::admission::CostHostEvidence::new(allowed: bool, policy: nika_providers::admission::CapEvidence, machine: nika_providers::admission::CapEvidence, occurrence: nika_providers::admission::CapEvidence) -> Self
@@ -290,6 +341,8 @@ impl<T> core::convert::From<T> for nika_providers::admission::CostHostEvidence
 pub fn nika_providers::admission::CostHostEvidence::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::CostHostEvidence where T: 'static
 pub fn nika_providers::admission::CostHostEvidence::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::CostHostEvidence
+pub type nika_providers::admission::CostHostEvidence::Output = T
 #[non_exhaustive] pub struct nika_providers::admission::CostResponse
 impl core::fmt::Debug for nika_providers::admission::CostResponse
 pub fn nika_providers::admission::CostResponse::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -317,8 +370,11 @@ pub fn nika_providers::admission::CostResponse::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::CostResponse where T: 'static
 pub fn nika_providers::admission::CostResponse::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_providers::admission::CostResponse where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_providers::admission::CostResponse
+pub type nika_providers::admission::CostResponse::Output = T
 #[non_exhaustive] pub struct nika_providers::admission::CostReview
 impl nika_providers::admission::CostReview
+pub fn nika_providers::admission::CostReview::after_completed(self, report: nika_providers::admission::CompletedCostReport) -> Self
 pub fn nika_providers::admission::CostReview::after_legacy(self, report: nika_providers::admission::LegacyCostReport) -> Self
 pub fn nika_providers::admission::CostReview::bounds(&self) -> (u32, u32, core::time::Duration)
 pub fn nika_providers::admission::CostReview::confirm(self, candidate: &str, route: &nika_providers::admission::CostRoute) -> core::result::Result<nika_providers::admission::InferenceAdmission, alloc::string::String>
@@ -357,6 +413,8 @@ impl<T> core::convert::From<T> for nika_providers::admission::CostReview
 pub fn nika_providers::admission::CostReview::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::CostReview where T: 'static
 pub fn nika_providers::admission::CostReview::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::CostReview
+pub type nika_providers::admission::CostReview::Output = T
 #[non_exhaustive] pub struct nika_providers::admission::CostRoute
 pub nika_providers::admission::CostRoute::endpoint: alloc::string::String
 pub nika_providers::admission::CostRoute::model: alloc::string::String
@@ -403,6 +461,8 @@ pub fn nika_providers::admission::CostRoute::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::CostRoute where T: 'static
 pub fn nika_providers::admission::CostRoute::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> serde_core::de::DeserializeOwned for nika_providers::admission::CostRoute where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_providers::admission::CostRoute
+pub type nika_providers::admission::CostRoute::Output = T
 #[non_exhaustive] pub struct nika_providers::admission::DeclaredTariff
 impl nika_providers::admission::DeclaredTariff
 pub fn nika_providers::admission::DeclaredTariff::currency(&self) -> &str
@@ -446,6 +506,8 @@ impl<T> core::convert::From<T> for nika_providers::admission::DeclaredTariff
 pub fn nika_providers::admission::DeclaredTariff::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::DeclaredTariff where T: 'static
 pub fn nika_providers::admission::DeclaredTariff::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::DeclaredTariff
+pub type nika_providers::admission::DeclaredTariff::Output = T
 pub struct nika_providers::admission::InferenceAdmission(_, _)
 impl nika_providers::admission::InferenceAdmission
 pub fn nika_providers::admission::InferenceAdmission::amend(&self, limit: nika_types::cost::Cost) -> core::result::Result<(), nika_kernel_ai::provider::ProviderError>
@@ -496,6 +558,8 @@ impl<T> core::convert::From<T> for nika_providers::admission::InferenceAdmission
 pub fn nika_providers::admission::InferenceAdmission::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::InferenceAdmission where T: 'static
 pub fn nika_providers::admission::InferenceAdmission::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::InferenceAdmission
+pub type nika_providers::admission::InferenceAdmission::Output = T
 #[non_exhaustive] pub struct nika_providers::admission::InferenceReceipt
 pub nika_providers::admission::InferenceReceipt::active: nika_types::cost::Cost
 pub nika_providers::admission::InferenceReceipt::attempts: alloc::vec::Vec<nika_providers::admission::AttemptReceipt>
@@ -552,6 +616,8 @@ impl<T> core::convert::From<T> for nika_providers::admission::InferenceReceipt
 pub fn nika_providers::admission::InferenceReceipt::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::InferenceReceipt where T: 'static
 pub fn nika_providers::admission::InferenceReceipt::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::InferenceReceipt
+pub type nika_providers::admission::InferenceReceipt::Output = T
 #[non_exhaustive] pub struct nika_providers::admission::LegacyCostReport
 impl nika_providers::admission::LegacyCostReport
 pub fn nika_providers::admission::LegacyCostReport::digest(&self) -> &str
@@ -587,6 +653,8 @@ impl<T> core::convert::From<T> for nika_providers::admission::LegacyCostReport
 pub fn nika_providers::admission::LegacyCostReport::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::LegacyCostReport where T: 'static
 pub fn nika_providers::admission::LegacyCostReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::LegacyCostReport
+pub type nika_providers::admission::LegacyCostReport::Output = T
 #[non_exhaustive] pub struct nika_providers::admission::PendingCostReview
 impl nika_providers::admission::PendingCostReview
 pub fn nika_providers::admission::PendingCostReview::challenge(&self) -> &nika_providers::admission::CostChallenge
@@ -613,6 +681,8 @@ impl<T> core::convert::From<T> for nika_providers::admission::PendingCostReview
 pub fn nika_providers::admission::PendingCostReview::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::PendingCostReview where T: 'static
 pub fn nika_providers::admission::PendingCostReview::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::PendingCostReview
+pub type nika_providers::admission::PendingCostReview::Output = T
 #[non_exhaustive] pub struct nika_providers::admission::UnknownAttemptReceipt
 pub nika_providers::admission::UnknownAttemptReceipt::choice: nika_providers::admission::UnknownCostChoice
 pub nika_providers::admission::UnknownAttemptReceipt::currency: core::option::Option<alloc::string::String>
@@ -660,6 +730,8 @@ impl<T> core::convert::From<T> for nika_providers::admission::UnknownAttemptRece
 pub fn nika_providers::admission::UnknownAttemptReceipt::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::UnknownAttemptReceipt where T: 'static
 pub fn nika_providers::admission::UnknownAttemptReceipt::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::UnknownAttemptReceipt
+pub type nika_providers::admission::UnknownAttemptReceipt::Output = T
 #[non_exhaustive] pub struct nika_providers::admission::UnknownCostChoice
 impl nika_providers::admission::UnknownCostChoice
 pub fn nika_providers::admission::UnknownCostChoice::endpoint(&self) -> &str
@@ -705,6 +777,8 @@ impl<T> core::convert::From<T> for nika_providers::admission::UnknownCostChoice
 pub fn nika_providers::admission::UnknownCostChoice::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::UnknownCostChoice where T: 'static
 pub fn nika_providers::admission::UnknownCostChoice::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::UnknownCostChoice
+pub type nika_providers::admission::UnknownCostChoice::Output = T
 #[non_exhaustive] pub struct nika_providers::admission::UnknownCostPolicy
 impl nika_providers::admission::UnknownCostPolicy
 pub fn nika_providers::admission::UnknownCostPolicy::new(allowed: bool, policy: nika_providers::admission::HardMonetaryCap, machine: nika_providers::admission::HardMonetaryCap, occurrence: nika_providers::admission::HardMonetaryCap, invocation_default: core::option::Option<nika_types::cost::Cost>, project_default: core::option::Option<nika_types::cost::Cost>) -> Self
@@ -738,21 +812,463 @@ impl<T> core::convert::From<T> for nika_providers::admission::UnknownCostPolicy
 pub fn nika_providers::admission::UnknownCostPolicy::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::UnknownCostPolicy where T: 'static
 pub fn nika_providers::admission::UnknownCostPolicy::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::UnknownCostPolicy
+pub type nika_providers::admission::UnknownCostPolicy::Output = T
 pub const nika_providers::admission::RUN_REVIEW_MAX_OUTPUT_TOKENS: u32
 pub const nika_providers::admission::RUN_REVIEW_TIMEOUT: core::time::Duration
 pub const nika_providers::admission::SESSION_REVIEW_MAX_OUTPUT_TOKENS: u32
 pub const nika_providers::admission::SESSION_REVIEW_MAX_REQUESTS: u32
 pub const nika_providers::admission::SESSION_REVIEW_TIMEOUT: core::time::Duration
+pub fn nika_providers::admission::account_status(receipt: core::result::Result<core::option::Option<nika_providers::admission::InferenceReceipt>, alloc::string::String>, reconfirm: bool, historical: usize, interrupted: &str, note: core::option::Option<&str>, refusal: core::option::Option<&str>, zero: bool) -> alloc::string::String
+pub fn nika_providers::admission::accounting_checkpoint(account: core::option::Option<&nika_providers::admission::InferenceAdmission>, observations: &[serde_json::value::Value], project: &[u8]) -> core::option::Option<serde_json::value::Value>
+pub fn nika_providers::admission::admit_unpriced_companion(admission: core::option::Option<&nika_providers::admission::InferenceAdmission>) -> core::result::Result<(), alloc::string::String>
 pub fn nika_providers::admission::allowance(amount: f64) -> core::result::Result<nika_types::cost::Cost, alloc::string::String>
+pub fn nika_providers::admission::decision_summary(observations: &[serde_json::value::Value], schema: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_providers::admission::inference_summary(account: &str, observed: core::option::Option<&str>, details: &str, subscription: bool, gate: bool) -> alloc::string::String
+pub fn nika_providers::admission::interrupted_note(count: usize) -> alloc::string::String
+pub fn nika_providers::admission::is_decision_observation(observation: &serde_json::value::Value, current: &str) -> bool
 pub fn nika_providers::admission::monetary_default(amount: core::option::Option<f64>) -> core::result::Result<core::option::Option<nika_types::cost::Cost>, alloc::string::String>
 pub fn nika_providers::admission::native_catalog_price_known(model: &str, config: nika_providers::registry::ProvidersConfig) -> bool
 pub fn nika_providers::admission::observation_consistent(observation: &serde_json::value::Value) -> core::result::Result<(nika_providers::admission::AdmissionState, bool), &'static str>
+pub fn nika_providers::admission::observation_details(costs: &[serde_json::value::Value], history: &[serde_json::value::Value], decision_schema: &str) -> alloc::string::String
 pub fn nika_providers::admission::observation_readable(observation: &serde_json::value::Value) -> bool
 pub fn nika_providers::admission::observation_request_ids(observation: &serde_json::value::Value) -> alloc::vec::Vec<&str>
 pub fn nika_providers::admission::observation_route(observation: &serde_json::value::Value) -> serde_json::value::Value
+pub fn nika_providers::admission::unadmitted_summary(note: core::option::Option<&str>, refusal: core::option::Option<&str>, zero: bool) -> alloc::string::String
+pub fn nika_providers::admission::unbudgeted_dispatch_note(model: &str, decision: core::option::Option<&str>, recorded_at: &str) -> alloc::string::String
+pub fn nika_providers::admission::unbudgeted_observation_summary(observations: &[serde_json::value::Value], decision_schema: &str, interrupted: usize) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::admission::unbudgeted_summary(observed: &[&serde_json::value::Value], interrupted: usize) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::admission::unknown_cost_route(model: &str, config: nika_providers::registry::ProvidersConfig) -> core::result::Result<core::option::Option<nika_providers::admission::CostRoute>, alloc::string::String>
 pub mod nika_providers::authoring
+pub mod nika_providers::authoring::observe
+#[non_exhaustive] pub enum nika_providers::authoring::observe::Answered<'a>
+pub nika_providers::authoring::observe::Answered::NoResponse(nika_providers::authoring::observe::Failure)
+pub nika_providers::authoring::observe::Answered::Text
+pub nika_providers::authoring::observe::Answered::Text::blocks: nika_providers::authoring::observe::TextBlocks<'a>
+pub nika_providers::authoring::observe::Answered::Text::framed_sha256: alloc::string::String
+pub nika_providers::authoring::observe::Answered::Text::other_blocks: usize
+impl<D> owo_colors::OwoColorize for nika_providers::authoring::observe::Answered<'a>
+impl<T, U> core::convert::Into<U> for nika_providers::authoring::observe::Answered<'a> where U: core::convert::From<T>
+pub fn nika_providers::authoring::observe::Answered<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::authoring::observe::Answered<'a> where U: core::convert::Into<T>
+pub type nika_providers::authoring::observe::Answered<'a>::Error = core::convert::Infallible
+pub fn nika_providers::authoring::observe::Answered<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::authoring::observe::Answered<'a> where U: core::convert::TryFrom<T>
+pub type nika_providers::authoring::observe::Answered<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::authoring::observe::Answered<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_providers::authoring::observe::Answered<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_providers::authoring::observe::Answered<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::authoring::observe::Answered<'a> where T: ?core::marker::Sized
+pub fn nika_providers::authoring::observe::Answered<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::authoring::observe::Answered<'a> where T: ?core::marker::Sized
+pub fn nika_providers::authoring::observe::Answered<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_providers::authoring::observe::Answered<'a>
+pub fn nika_providers::authoring::observe::Answered<'a>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::authoring::observe::Answered<'a> where T: 'static
+pub fn nika_providers::authoring::observe::Answered<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::authoring::observe::Answered<'a>
+pub type nika_providers::authoring::observe::Answered<'a>::Output = T
+#[non_exhaustive] pub enum nika_providers::authoring::observe::CallState
+pub nika_providers::authoring::observe::CallState::Cancelled
+pub nika_providers::authoring::observe::CallState::Finished
+pub nika_providers::authoring::observe::CallState::Started
+impl core::clone::Clone for nika_providers::authoring::observe::CallState
+pub fn nika_providers::authoring::observe::CallState::clone(&self) -> nika_providers::authoring::observe::CallState
+impl core::cmp::Eq for nika_providers::authoring::observe::CallState
+impl core::cmp::PartialEq for nika_providers::authoring::observe::CallState
+pub fn nika_providers::authoring::observe::CallState::eq(&self, other: &nika_providers::authoring::observe::CallState) -> bool
+impl core::fmt::Debug for nika_providers::authoring::observe::CallState
+pub fn nika_providers::authoring::observe::CallState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_providers::authoring::observe::CallState
+impl core::marker::StructuralPartialEq for nika_providers::authoring::observe::CallState
+impl<D> owo_colors::OwoColorize for nika_providers::authoring::observe::CallState
+impl<T, U> core::convert::Into<U> for nika_providers::authoring::observe::CallState where U: core::convert::From<T>
+pub fn nika_providers::authoring::observe::CallState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::authoring::observe::CallState where U: core::convert::Into<T>
+pub type nika_providers::authoring::observe::CallState::Error = core::convert::Infallible
+pub fn nika_providers::authoring::observe::CallState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::authoring::observe::CallState where U: core::convert::TryFrom<T>
+pub type nika_providers::authoring::observe::CallState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::authoring::observe::CallState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::authoring::observe::CallState where T: core::clone::Clone
+pub type nika_providers::authoring::observe::CallState::Owned = T
+pub fn nika_providers::authoring::observe::CallState::clone_into(&self, target: &mut T)
+pub fn nika_providers::authoring::observe::CallState::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::authoring::observe::CallState where T: 'static + ?core::marker::Sized
+pub fn nika_providers::authoring::observe::CallState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::authoring::observe::CallState where T: ?core::marker::Sized
+pub fn nika_providers::authoring::observe::CallState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::authoring::observe::CallState where T: ?core::marker::Sized
+pub fn nika_providers::authoring::observe::CallState::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::authoring::observe::CallState where T: core::clone::Clone
+pub unsafe fn nika_providers::authoring::observe::CallState::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::authoring::observe::CallState
+pub fn nika_providers::authoring::observe::CallState::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::authoring::observe::CallState where T: 'static
+pub fn nika_providers::authoring::observe::CallState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::authoring::observe::CallState
+pub type nika_providers::authoring::observe::CallState::Output = T
+#[non_exhaustive] pub enum nika_providers::authoring::observe::Failure
+pub nika_providers::authoring::observe::Failure::AdmissionRefused
+pub nika_providers::authoring::observe::Failure::ProviderError
+pub nika_providers::authoring::observe::Failure::Timeout
+impl core::clone::Clone for nika_providers::authoring::observe::Failure
+pub fn nika_providers::authoring::observe::Failure::clone(&self) -> nika_providers::authoring::observe::Failure
+impl core::cmp::Eq for nika_providers::authoring::observe::Failure
+impl core::cmp::PartialEq for nika_providers::authoring::observe::Failure
+pub fn nika_providers::authoring::observe::Failure::eq(&self, other: &nika_providers::authoring::observe::Failure) -> bool
+impl core::fmt::Debug for nika_providers::authoring::observe::Failure
+pub fn nika_providers::authoring::observe::Failure::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_providers::authoring::observe::Failure
+impl core::marker::StructuralPartialEq for nika_providers::authoring::observe::Failure
+impl<D> owo_colors::OwoColorize for nika_providers::authoring::observe::Failure
+impl<T, U> core::convert::Into<U> for nika_providers::authoring::observe::Failure where U: core::convert::From<T>
+pub fn nika_providers::authoring::observe::Failure::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::authoring::observe::Failure where U: core::convert::Into<T>
+pub type nika_providers::authoring::observe::Failure::Error = core::convert::Infallible
+pub fn nika_providers::authoring::observe::Failure::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::authoring::observe::Failure where U: core::convert::TryFrom<T>
+pub type nika_providers::authoring::observe::Failure::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::authoring::observe::Failure::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::authoring::observe::Failure where T: core::clone::Clone
+pub type nika_providers::authoring::observe::Failure::Owned = T
+pub fn nika_providers::authoring::observe::Failure::clone_into(&self, target: &mut T)
+pub fn nika_providers::authoring::observe::Failure::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::authoring::observe::Failure where T: 'static + ?core::marker::Sized
+pub fn nika_providers::authoring::observe::Failure::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::authoring::observe::Failure where T: ?core::marker::Sized
+pub fn nika_providers::authoring::observe::Failure::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::authoring::observe::Failure where T: ?core::marker::Sized
+pub fn nika_providers::authoring::observe::Failure::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::authoring::observe::Failure where T: core::clone::Clone
+pub unsafe fn nika_providers::authoring::observe::Failure::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::authoring::observe::Failure
+pub fn nika_providers::authoring::observe::Failure::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::authoring::observe::Failure where T: 'static
+pub fn nika_providers::authoring::observe::Failure::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::authoring::observe::Failure
+pub type nika_providers::authoring::observe::Failure::Output = T
+#[non_exhaustive] pub struct nika_providers::authoring::observe::AuthoringObservation<'a>
+pub nika_providers::authoring::observe::AuthoringObservation::answered: nika_providers::authoring::observe::Answered<'a>
+pub nika_providers::authoring::observe::AuthoringObservation::input_tokens: core::option::Option<u64>
+pub nika_providers::authoring::observe::AuthoringObservation::instruction_sha256: &'a str
+pub nika_providers::authoring::observe::AuthoringObservation::ordinal: u32
+pub nika_providers::authoring::observe::AuthoringObservation::output_tokens: core::option::Option<u64>
+pub nika_providers::authoring::observe::AuthoringObservation::prompt_messages: core::option::Option<u64>
+pub nika_providers::authoring::observe::AuthoringObservation::prompt_other_blocks: core::option::Option<u64>
+pub nika_providers::authoring::observe::AuthoringObservation::prompt_sha256: &'a str
+pub nika_providers::authoring::observe::AuthoringObservation::prompt_shape_sha256: core::option::Option<&'a str>
+pub nika_providers::authoring::observe::AuthoringObservation::prompt_text_blocks: core::option::Option<u64>
+pub nika_providers::authoring::observe::AuthoringObservation::prompt_text_bytes: core::option::Option<u64>
+pub nika_providers::authoring::observe::AuthoringObservation::reasoning_tokens: core::option::Option<u64>
+pub nika_providers::authoring::observe::AuthoringObservation::response_model: core::option::Option<&'a str>
+pub nika_providers::authoring::observe::AuthoringObservation::role: &'static str
+pub nika_providers::authoring::observe::AuthoringObservation::schema_sha256: &'a str
+pub nika_providers::authoring::observe::AuthoringObservation::stop_reason_detail: core::option::Option<&'a str>
+pub nika_providers::authoring::observe::AuthoringObservation::stop_reason_kind: core::option::Option<&'static str>
+pub nika_providers::authoring::observe::AuthoringObservation::usage_reported: core::option::Option<bool>
+impl<D> owo_colors::OwoColorize for nika_providers::authoring::observe::AuthoringObservation<'a>
+impl<T, U> core::convert::Into<U> for nika_providers::authoring::observe::AuthoringObservation<'a> where U: core::convert::From<T>
+pub fn nika_providers::authoring::observe::AuthoringObservation<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::authoring::observe::AuthoringObservation<'a> where U: core::convert::Into<T>
+pub type nika_providers::authoring::observe::AuthoringObservation<'a>::Error = core::convert::Infallible
+pub fn nika_providers::authoring::observe::AuthoringObservation<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::authoring::observe::AuthoringObservation<'a> where U: core::convert::TryFrom<T>
+pub type nika_providers::authoring::observe::AuthoringObservation<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::authoring::observe::AuthoringObservation<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_providers::authoring::observe::AuthoringObservation<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_providers::authoring::observe::AuthoringObservation<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::authoring::observe::AuthoringObservation<'a> where T: ?core::marker::Sized
+pub fn nika_providers::authoring::observe::AuthoringObservation<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::authoring::observe::AuthoringObservation<'a> where T: ?core::marker::Sized
+pub fn nika_providers::authoring::observe::AuthoringObservation<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_providers::authoring::observe::AuthoringObservation<'a>
+pub fn nika_providers::authoring::observe::AuthoringObservation<'a>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::authoring::observe::AuthoringObservation<'a> where T: 'static
+pub fn nika_providers::authoring::observe::AuthoringObservation<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::authoring::observe::AuthoringObservation<'a>
+pub type nika_providers::authoring::observe::AuthoringObservation<'a>::Output = T
+#[non_exhaustive] pub struct nika_providers::authoring::observe::CallActivity<'a>
+pub nika_providers::authoring::observe::CallActivity::model: &'a str
+pub nika_providers::authoring::observe::CallActivity::ordinal: u32
+pub nika_providers::authoring::observe::CallActivity::role: &'static str
+pub nika_providers::authoring::observe::CallActivity::state: nika_providers::authoring::observe::CallState
+impl<'a> core::clone::Clone for nika_providers::authoring::observe::CallActivity<'a>
+pub fn nika_providers::authoring::observe::CallActivity<'a>::clone(&self) -> nika_providers::authoring::observe::CallActivity<'a>
+impl<'a> core::fmt::Debug for nika_providers::authoring::observe::CallActivity<'a>
+pub fn nika_providers::authoring::observe::CallActivity<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> core::marker::Copy for nika_providers::authoring::observe::CallActivity<'a>
+impl<D> owo_colors::OwoColorize for nika_providers::authoring::observe::CallActivity<'a>
+impl<T, U> core::convert::Into<U> for nika_providers::authoring::observe::CallActivity<'a> where U: core::convert::From<T>
+pub fn nika_providers::authoring::observe::CallActivity<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::authoring::observe::CallActivity<'a> where U: core::convert::Into<T>
+pub type nika_providers::authoring::observe::CallActivity<'a>::Error = core::convert::Infallible
+pub fn nika_providers::authoring::observe::CallActivity<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::authoring::observe::CallActivity<'a> where U: core::convert::TryFrom<T>
+pub type nika_providers::authoring::observe::CallActivity<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::authoring::observe::CallActivity<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::authoring::observe::CallActivity<'a> where T: core::clone::Clone
+pub type nika_providers::authoring::observe::CallActivity<'a>::Owned = T
+pub fn nika_providers::authoring::observe::CallActivity<'a>::clone_into(&self, target: &mut T)
+pub fn nika_providers::authoring::observe::CallActivity<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::authoring::observe::CallActivity<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_providers::authoring::observe::CallActivity<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::authoring::observe::CallActivity<'a> where T: ?core::marker::Sized
+pub fn nika_providers::authoring::observe::CallActivity<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::authoring::observe::CallActivity<'a> where T: ?core::marker::Sized
+pub fn nika_providers::authoring::observe::CallActivity<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::authoring::observe::CallActivity<'a> where T: core::clone::Clone
+pub unsafe fn nika_providers::authoring::observe::CallActivity<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::authoring::observe::CallActivity<'a>
+pub fn nika_providers::authoring::observe::CallActivity<'a>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::authoring::observe::CallActivity<'a> where T: 'static
+pub fn nika_providers::authoring::observe::CallActivity<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::authoring::observe::CallActivity<'a>
+pub type nika_providers::authoring::observe::CallActivity<'a>::Output = T
+pub struct nika_providers::authoring::observe::TextBlocks<'a>
+impl nika_providers::authoring::observe::TextBlocks<'_>
+pub fn nika_providers::authoring::observe::TextBlocks<'_>::is_empty(&self) -> bool
+pub fn nika_providers::authoring::observe::TextBlocks<'_>::iter(&self) -> impl core::iter::traits::iterator::Iterator<Item = &str> + core::clone::Clone
+pub fn nika_providers::authoring::observe::TextBlocks<'_>::len(&self) -> usize
+impl<D> owo_colors::OwoColorize for nika_providers::authoring::observe::TextBlocks<'a>
+impl<T, U> core::convert::Into<U> for nika_providers::authoring::observe::TextBlocks<'a> where U: core::convert::From<T>
+pub fn nika_providers::authoring::observe::TextBlocks<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::authoring::observe::TextBlocks<'a> where U: core::convert::Into<T>
+pub type nika_providers::authoring::observe::TextBlocks<'a>::Error = core::convert::Infallible
+pub fn nika_providers::authoring::observe::TextBlocks<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::authoring::observe::TextBlocks<'a> where U: core::convert::TryFrom<T>
+pub type nika_providers::authoring::observe::TextBlocks<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::authoring::observe::TextBlocks<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_providers::authoring::observe::TextBlocks<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_providers::authoring::observe::TextBlocks<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::authoring::observe::TextBlocks<'a> where T: ?core::marker::Sized
+pub fn nika_providers::authoring::observe::TextBlocks<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::authoring::observe::TextBlocks<'a> where T: ?core::marker::Sized
+pub fn nika_providers::authoring::observe::TextBlocks<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_providers::authoring::observe::TextBlocks<'a>
+pub fn nika_providers::authoring::observe::TextBlocks<'a>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::authoring::observe::TextBlocks<'a> where T: 'static
+pub fn nika_providers::authoring::observe::TextBlocks<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::authoring::observe::TextBlocks<'a>
+pub type nika_providers::authoring::observe::TextBlocks<'a>::Output = T
+pub async fn nika_providers::authoring::observe::observe_activity<F: core::future::future::Future>(sink: nika_providers::authoring::observe::ActivitySink, future: F) -> <F as core::future::future::Future>::Output
+pub async fn nika_providers::authoring::observe::observe_authoring<F: core::future::future::Future>(sink: nika_providers::authoring::observe::Sink, future: F) -> <F as core::future::future::Future>::Output
+pub type nika_providers::authoring::observe::ActivitySink = alloc::sync::Arc<(dyn for<'a, 'b> core::ops::function::Fn(&'a nika_providers::authoring::observe::CallActivity<'b>) + core::marker::Send + core::marker::Sync)>
+pub type nika_providers::authoring::observe::Sink = alloc::sync::Arc<(dyn for<'a, 'b> core::ops::function::Fn(&'a nika_providers::authoring::observe::AuthoringObservation<'b>) + core::marker::Send + core::marker::Sync)>
+pub mod nika_providers::authoring::policy
+#[non_exhaustive] pub struct nika_providers::authoring::policy::CompletionBounds
+pub nika_providers::authoring::policy::CompletionBounds::initial_tokens: u32
+pub nika_providers::authoring::policy::CompletionBounds::max_tokens: u32
+pub nika_providers::authoring::policy::CompletionBounds::timeout: core::time::Duration
+impl core::clone::Clone for nika_providers::authoring::policy::CompletionBounds
+pub fn nika_providers::authoring::policy::CompletionBounds::clone(&self) -> nika_providers::authoring::policy::CompletionBounds
+impl core::cmp::Eq for nika_providers::authoring::policy::CompletionBounds
+impl core::cmp::PartialEq for nika_providers::authoring::policy::CompletionBounds
+pub fn nika_providers::authoring::policy::CompletionBounds::eq(&self, other: &nika_providers::authoring::policy::CompletionBounds) -> bool
+impl core::fmt::Debug for nika_providers::authoring::policy::CompletionBounds
+pub fn nika_providers::authoring::policy::CompletionBounds::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_providers::authoring::policy::CompletionBounds
+impl core::marker::StructuralPartialEq for nika_providers::authoring::policy::CompletionBounds
+impl<D> owo_colors::OwoColorize for nika_providers::authoring::policy::CompletionBounds
+impl<T, U> core::convert::Into<U> for nika_providers::authoring::policy::CompletionBounds where U: core::convert::From<T>
+pub fn nika_providers::authoring::policy::CompletionBounds::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::authoring::policy::CompletionBounds where U: core::convert::Into<T>
+pub type nika_providers::authoring::policy::CompletionBounds::Error = core::convert::Infallible
+pub fn nika_providers::authoring::policy::CompletionBounds::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::authoring::policy::CompletionBounds where U: core::convert::TryFrom<T>
+pub type nika_providers::authoring::policy::CompletionBounds::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::authoring::policy::CompletionBounds::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::authoring::policy::CompletionBounds where T: core::clone::Clone
+pub type nika_providers::authoring::policy::CompletionBounds::Owned = T
+pub fn nika_providers::authoring::policy::CompletionBounds::clone_into(&self, target: &mut T)
+pub fn nika_providers::authoring::policy::CompletionBounds::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::authoring::policy::CompletionBounds where T: 'static + ?core::marker::Sized
+pub fn nika_providers::authoring::policy::CompletionBounds::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::authoring::policy::CompletionBounds where T: ?core::marker::Sized
+pub fn nika_providers::authoring::policy::CompletionBounds::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::authoring::policy::CompletionBounds where T: ?core::marker::Sized
+pub fn nika_providers::authoring::policy::CompletionBounds::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::authoring::policy::CompletionBounds where T: core::clone::Clone
+pub unsafe fn nika_providers::authoring::policy::CompletionBounds::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::authoring::policy::CompletionBounds
+pub fn nika_providers::authoring::policy::CompletionBounds::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::authoring::policy::CompletionBounds where T: 'static
+pub fn nika_providers::authoring::policy::CompletionBounds::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::authoring::policy::CompletionBounds
+pub type nika_providers::authoring::policy::CompletionBounds::Output = T
+pub const nika_providers::authoring::policy::AUTHORING_CALLS_PER_COMPILE: u32
+pub const nika_providers::authoring::policy::AUTHORING_INITIAL_TOKENS: u32
+pub const nika_providers::authoring::policy::AUTHORING_MAX_TOKENS: u32
+pub const nika_providers::authoring::policy::AUTHORING_REPAIRS: u32
+pub const nika_providers::authoring::policy::AUTHORING_TIMEOUT: core::time::Duration
+pub fn nika_providers::authoring::policy::completion_bounds(model: &str, harness: bool, config: nika_providers::registry::ProvidersConfig) -> nika_providers::authoring::policy::CompletionBounds
+pub fn nika_providers::authoring::policy::label_ceiling(model: &str) -> u32
+pub fn nika_providers::authoring::policy::legacy_completion_bounds(harness: bool) -> nika_providers::authoring::policy::CompletionBounds
+pub mod nika_providers::authoring::preparation
+pub struct nika_providers::authoring::preparation::PreparationCosts
+impl nika_providers::authoring::preparation::PreparationCosts
+pub fn nika_providers::authoring::preparation::PreparationCosts::active() -> bool
+pub fn nika_providers::authoring::preparation::PreparationCosts::begin_turn(&mut self) -> nika_types::cancel::CancelCtx
+pub async fn nika_providers::authoring::preparation::PreparationCosts::capture<F: core::future::future::Future>(future: F) -> <F as core::future::future::Future>::Output
+pub fn nika_providers::authoring::preparation::PreparationCosts::enter(&self) -> nika_providers::authoring::preparation::PreparationScope
+pub fn nika_providers::authoring::preparation::PreparationCosts::interrupted() -> bool
+pub fn nika_providers::authoring::preparation::PreparationCosts::observation(&self) -> core::option::Option<serde_json::value::Value>
+pub fn nika_providers::authoring::preparation::PreparationCosts::stopped() -> bool
+pub fn nika_providers::authoring::preparation::PreparationCosts::summary(observations: &[serde_json::value::Value]) -> alloc::string::String
+pub fn nika_providers::authoring::preparation::PreparationCosts::uncertain_exposure(account: core::option::Option<&nika_providers::admission::InferenceAdmission>, observed: &nika_providers::admission::InferenceAdmission, kept: &[serde_json::value::Value], decisions: &[serde_json::value::Value], preparation: core::option::Option<&Self>) -> usize
+pub fn nika_providers::authoring::preparation::PreparationCosts::uncertain_observations(observations: &[serde_json::value::Value]) -> usize
+pub fn nika_providers::authoring::preparation::PreparationCosts::uncertain_requests(&self) -> usize
+pub fn nika_providers::authoring::preparation::PreparationCosts::was_stopped(&self) -> bool
+pub async fn nika_providers::authoring::preparation::PreparationCosts::while_active<F: core::future::future::Future>(future: F) -> core::option::Option<<F as core::future::future::Future>::Output>
+impl core::clone::Clone for nika_providers::authoring::preparation::PreparationCosts
+pub fn nika_providers::authoring::preparation::PreparationCosts::clone(&self) -> nika_providers::authoring::preparation::PreparationCosts
+impl core::default::Default for nika_providers::authoring::preparation::PreparationCosts
+pub fn nika_providers::authoring::preparation::PreparationCosts::default() -> Self
+impl core::fmt::Debug for nika_providers::authoring::preparation::PreparationCosts
+pub fn nika_providers::authoring::preparation::PreparationCosts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_providers::authoring::preparation::PreparationCosts
+impl<T, U> core::convert::Into<U> for nika_providers::authoring::preparation::PreparationCosts where U: core::convert::From<T>
+pub fn nika_providers::authoring::preparation::PreparationCosts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::authoring::preparation::PreparationCosts where U: core::convert::Into<T>
+pub type nika_providers::authoring::preparation::PreparationCosts::Error = core::convert::Infallible
+pub fn nika_providers::authoring::preparation::PreparationCosts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::authoring::preparation::PreparationCosts where U: core::convert::TryFrom<T>
+pub type nika_providers::authoring::preparation::PreparationCosts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::authoring::preparation::PreparationCosts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::authoring::preparation::PreparationCosts where T: core::clone::Clone
+pub type nika_providers::authoring::preparation::PreparationCosts::Owned = T
+pub fn nika_providers::authoring::preparation::PreparationCosts::clone_into(&self, target: &mut T)
+pub fn nika_providers::authoring::preparation::PreparationCosts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::authoring::preparation::PreparationCosts where T: 'static + ?core::marker::Sized
+pub fn nika_providers::authoring::preparation::PreparationCosts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::authoring::preparation::PreparationCosts where T: ?core::marker::Sized
+pub fn nika_providers::authoring::preparation::PreparationCosts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::authoring::preparation::PreparationCosts where T: ?core::marker::Sized
+pub fn nika_providers::authoring::preparation::PreparationCosts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::authoring::preparation::PreparationCosts where T: core::clone::Clone
+pub unsafe fn nika_providers::authoring::preparation::PreparationCosts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::authoring::preparation::PreparationCosts
+pub fn nika_providers::authoring::preparation::PreparationCosts::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::authoring::preparation::PreparationCosts where T: 'static
+pub fn nika_providers::authoring::preparation::PreparationCosts::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::authoring::preparation::PreparationCosts
+pub type nika_providers::authoring::preparation::PreparationCosts::Output = T
+pub struct nika_providers::authoring::preparation::PreparationScope(_, _)
+impl core::ops::drop::Drop for nika_providers::authoring::preparation::PreparationScope
+pub fn nika_providers::authoring::preparation::PreparationScope::drop(&mut self)
+impl<D> owo_colors::OwoColorize for nika_providers::authoring::preparation::PreparationScope
+impl<T, U> core::convert::Into<U> for nika_providers::authoring::preparation::PreparationScope where U: core::convert::From<T>
+pub fn nika_providers::authoring::preparation::PreparationScope::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::authoring::preparation::PreparationScope where U: core::convert::Into<T>
+pub type nika_providers::authoring::preparation::PreparationScope::Error = core::convert::Infallible
+pub fn nika_providers::authoring::preparation::PreparationScope::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::authoring::preparation::PreparationScope where U: core::convert::TryFrom<T>
+pub type nika_providers::authoring::preparation::PreparationScope::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::authoring::preparation::PreparationScope::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_providers::authoring::preparation::PreparationScope where T: 'static + ?core::marker::Sized
+pub fn nika_providers::authoring::preparation::PreparationScope::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::authoring::preparation::PreparationScope where T: ?core::marker::Sized
+pub fn nika_providers::authoring::preparation::PreparationScope::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::authoring::preparation::PreparationScope where T: ?core::marker::Sized
+pub fn nika_providers::authoring::preparation::PreparationScope::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_providers::authoring::preparation::PreparationScope
+pub fn nika_providers::authoring::preparation::PreparationScope::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::authoring::preparation::PreparationScope where T: 'static
+pub fn nika_providers::authoring::preparation::PreparationScope::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::authoring::preparation::PreparationScope
+pub type nika_providers::authoring::preparation::PreparationScope::Output = T
+pub mod nika_providers::authoring::requests
+pub struct nika_providers::authoring::requests::Envelope
+impl nika_providers::authoring::requests::Envelope
+pub fn nika_providers::authoring::requests::Envelope::account(&self) -> serde_json::value::Value
+pub const fn nika_providers::authoring::requests::Envelope::new(max: u32, remedy: &'static str) -> Self
+pub const fn nika_providers::authoring::requests::Envelope::uncapped(remedy: &'static str) -> Self
+impl core::fmt::Debug for nika_providers::authoring::requests::Envelope
+pub fn nika_providers::authoring::requests::Envelope::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_providers::authoring::requests::Envelope
+impl<T, U> core::convert::Into<U> for nika_providers::authoring::requests::Envelope where U: core::convert::From<T>
+pub fn nika_providers::authoring::requests::Envelope::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::authoring::requests::Envelope where U: core::convert::Into<T>
+pub type nika_providers::authoring::requests::Envelope::Error = core::convert::Infallible
+pub fn nika_providers::authoring::requests::Envelope::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::authoring::requests::Envelope where U: core::convert::TryFrom<T>
+pub type nika_providers::authoring::requests::Envelope::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::authoring::requests::Envelope::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_providers::authoring::requests::Envelope where T: 'static + ?core::marker::Sized
+pub fn nika_providers::authoring::requests::Envelope::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::authoring::requests::Envelope where T: ?core::marker::Sized
+pub fn nika_providers::authoring::requests::Envelope::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::authoring::requests::Envelope where T: ?core::marker::Sized
+pub fn nika_providers::authoring::requests::Envelope::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_providers::authoring::requests::Envelope
+pub fn nika_providers::authoring::requests::Envelope::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::authoring::requests::Envelope where T: 'static
+pub fn nika_providers::authoring::requests::Envelope::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::authoring::requests::Envelope
+pub type nika_providers::authoring::requests::Envelope::Output = T
+pub struct nika_providers::authoring::requests::Seat<P>
+impl<P> nika_providers::authoring::requests::Seat<P>
+pub const fn nika_providers::authoring::requests::Seat<P>::inner(&self) -> &P
+pub const fn nika_providers::authoring::requests::Seat<P>::new(inner: P, invocations: alloc::sync::Arc<nika_providers::authoring::requests::Envelope>) -> Self
+pub fn nika_providers::authoring::requests::Seat<P>::observed(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_providers::authoring::requests::Seat<P>::unreported(&self) -> u32
+impl<P: nika_kernel_ai::provider::ProviderInferDyn + core::marker::Send + core::marker::Sync> nika_kernel_ai::provider::ProviderInferDyn for nika_providers::authoring::requests::Seat<P>
+pub async fn nika_providers::authoring::requests::Seat<P>::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+impl<D> owo_colors::OwoColorize for nika_providers::authoring::requests::Seat<P>
+impl<T, U> core::convert::Into<U> for nika_providers::authoring::requests::Seat<P> where U: core::convert::From<T>
+pub fn nika_providers::authoring::requests::Seat<P>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::authoring::requests::Seat<P> where U: core::convert::Into<T>
+pub type nika_providers::authoring::requests::Seat<P>::Error = core::convert::Infallible
+pub fn nika_providers::authoring::requests::Seat<P>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::authoring::requests::Seat<P> where U: core::convert::TryFrom<T>
+pub type nika_providers::authoring::requests::Seat<P>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::authoring::requests::Seat<P>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_providers::authoring::requests::Seat<P> where T: 'static + ?core::marker::Sized
+pub fn nika_providers::authoring::requests::Seat<P>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::authoring::requests::Seat<P> where T: ?core::marker::Sized
+pub fn nika_providers::authoring::requests::Seat<P>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::authoring::requests::Seat<P> where T: ?core::marker::Sized
+pub fn nika_providers::authoring::requests::Seat<P>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_providers::authoring::requests::Seat<P>
+pub fn nika_providers::authoring::requests::Seat<P>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::authoring::requests::Seat<P> where T: 'static
+pub fn nika_providers::authoring::requests::Seat<P>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::authoring::requests::Seat<P>
+pub type nika_providers::authoring::requests::Seat<P>::Output = T
+impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderInfer for nika_providers::authoring::requests::Seat<P> where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderInferDyn
+pub async fn nika_providers::authoring::requests::Seat<P>::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
+pub struct nika_providers::authoring::requests::Wire<H>
+impl<H> nika_providers::authoring::requests::Wire<H>
+pub const fn nika_providers::authoring::requests::Wire<H>::new(inner: H, requests: alloc::sync::Arc<nika_providers::authoring::requests::Envelope>) -> Self
+impl<H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync> nika_kernel_core::io::http::HttpPostDyn for nika_providers::authoring::requests::Wire<H>
+pub async fn nika_providers::authoring::requests::Wire<H>::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
+pub async fn nika_providers::authoring::requests::Wire<H>::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
+pub fn nika_providers::authoring::requests::Wire<H>::supports_single_attempt(&self) -> bool
+impl<D> owo_colors::OwoColorize for nika_providers::authoring::requests::Wire<H>
+impl<T, U> core::convert::Into<U> for nika_providers::authoring::requests::Wire<H> where U: core::convert::From<T>
+pub fn nika_providers::authoring::requests::Wire<H>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::authoring::requests::Wire<H> where U: core::convert::Into<T>
+pub type nika_providers::authoring::requests::Wire<H>::Error = core::convert::Infallible
+pub fn nika_providers::authoring::requests::Wire<H>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::authoring::requests::Wire<H> where U: core::convert::TryFrom<T>
+pub type nika_providers::authoring::requests::Wire<H>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::authoring::requests::Wire<H>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_providers::authoring::requests::Wire<H> where T: 'static + ?core::marker::Sized
+pub fn nika_providers::authoring::requests::Wire<H>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::authoring::requests::Wire<H> where T: ?core::marker::Sized
+pub fn nika_providers::authoring::requests::Wire<H>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::authoring::requests::Wire<H> where T: ?core::marker::Sized
+pub fn nika_providers::authoring::requests::Wire<H>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_providers::authoring::requests::Wire<H>
+pub fn nika_providers::authoring::requests::Wire<H>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::authoring::requests::Wire<H> where T: 'static
+pub fn nika_providers::authoring::requests::Wire<H>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::authoring::requests::Wire<H>
+pub type nika_providers::authoring::requests::Wire<H>::Output = T
+impl<TraitVariantBlanketType> nika_kernel_core::io::http::HttpPost for nika_providers::authoring::requests::Wire<H> where TraitVariantBlanketType: nika_kernel_core::io::http::HttpPostDyn
+pub async fn nika_providers::authoring::requests::Wire<H>::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
+pub async fn nika_providers::authoring::requests::Wire<H>::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
+pub fn nika_providers::authoring::requests::Wire<H>::supports_single_attempt(&self) -> bool
 pub fn nika_providers::authoring::authoring_backend<H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static>(registry: &nika_providers::registry::ProviderRegistry<H>, model: &str) -> serde_json::value::Value
 pub fn nika_providers::authoring::authoring_host(raw: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::authoring::configured_gateway_host<H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static>(http: H, config: nika_providers::registry::ProvidersConfig, provider: &str) -> core::option::Option<alloc::string::String>
@@ -804,6 +1320,8 @@ impl<T> core::convert::From<T> for nika_providers::census::AccessCensus
 pub fn nika_providers::census::AccessCensus::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::census::AccessCensus where T: 'static
 pub fn nika_providers::census::AccessCensus::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::census::AccessCensus
+pub type nika_providers::census::AccessCensus::Output = T
 #[non_exhaustive] pub struct nika_providers::census::AccessPath
 pub nika_providers::census::AccessPath::class: nika_types::access::AccessClass
 pub nika_providers::census::AccessPath::configured: bool
@@ -843,6 +1361,8 @@ impl<T> core::convert::From<T> for nika_providers::census::AccessPath
 pub fn nika_providers::census::AccessPath::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::census::AccessPath where T: 'static
 pub fn nika_providers::census::AccessPath::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::census::AccessPath
+pub type nika_providers::census::AccessPath::Output = T
 #[non_exhaustive] pub struct nika_providers::census::SeatFact
 pub nika_providers::census::SeatFact::adapter_present: bool
 pub nika_providers::census::SeatFact::id: alloc::string::String
@@ -886,11 +1406,16 @@ impl<T> core::convert::From<T> for nika_providers::census::SeatFact
 pub fn nika_providers::census::SeatFact::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::census::SeatFact where T: 'static
 pub fn nika_providers::census::SeatFact::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::census::SeatFact
+pub type nika_providers::census::SeatFact::Output = T
 pub fn nika_providers::census::collect_seats() -> alloc::vec::Vec<nika_providers::census::SeatFact>
 pub mod nika_providers::dispatch_journal
 pub struct nika_providers::dispatch_journal::DispatchJournal(_)
 impl nika_providers::dispatch_journal::DispatchJournal
+pub async fn nika_providers::dispatch_journal::DispatchJournal::capture<F: core::future::future::Future>(&self, dispatch: F) -> <F as core::future::future::Future>::Output
 pub async fn nika_providers::dispatch_journal::DispatchJournal::observe<F, L>(dispatch: F, lost: L) -> <F as core::future::future::Future>::Output where F: core::future::future::Future, L: core::ops::function::FnOnce(alloc::vec::Vec<nika_types::cost::inference::InferenceCall>)
+pub fn nika_providers::dispatch_journal::DispatchJournal::snapshot(&self) -> alloc::vec::Vec<nika_types::cost::inference::InferenceCall>
+pub fn nika_providers::dispatch_journal::DispatchJournal::unfinished(&self) -> bool
 impl core::clone::Clone for nika_providers::dispatch_journal::DispatchJournal
 pub fn nika_providers::dispatch_journal::DispatchJournal::clone(&self) -> nika_providers::dispatch_journal::DispatchJournal
 impl core::default::Default for nika_providers::dispatch_journal::DispatchJournal
@@ -922,6 +1447,8 @@ impl<T> core::convert::From<T> for nika_providers::dispatch_journal::DispatchJou
 pub fn nika_providers::dispatch_journal::DispatchJournal::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::dispatch_journal::DispatchJournal where T: 'static
 pub fn nika_providers::dispatch_journal::DispatchJournal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::dispatch_journal::DispatchJournal
+pub type nika_providers::dispatch_journal::DispatchJournal::Output = T
 pub mod nika_providers::plan
 #[non_exhaustive] pub enum nika_providers::plan::LaneVerdict
 pub nika_providers::plan::LaneVerdict::Admitted(nika_providers::plan::ResolvedLane)
@@ -959,6 +1486,8 @@ impl<T> core::convert::From<T> for nika_providers::plan::LaneVerdict
 pub fn nika_providers::plan::LaneVerdict::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::plan::LaneVerdict where T: 'static
 pub fn nika_providers::plan::LaneVerdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::plan::LaneVerdict
+pub type nika_providers::plan::LaneVerdict::Output = T
 #[non_exhaustive] pub struct nika_providers::plan::ExecutionAccessPlan
 pub nika_providers::plan::ExecutionAccessPlan::lanes: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_providers::plan::LaneVerdict>
 pub nika_providers::plan::ExecutionAccessPlan::pin: core::option::Option<alloc::string::String>
@@ -1008,6 +1537,8 @@ impl<T> core::convert::From<T> for nika_providers::plan::ExecutionAccessPlan
 pub fn nika_providers::plan::ExecutionAccessPlan::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::plan::ExecutionAccessPlan where T: 'static
 pub fn nika_providers::plan::ExecutionAccessPlan::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::plan::ExecutionAccessPlan
+pub type nika_providers::plan::ExecutionAccessPlan::Output = T
 #[non_exhaustive] pub struct nika_providers::plan::ModelNeed
 pub nika_providers::plan::ModelNeed::agent: bool
 pub nika_providers::plan::ModelNeed::infer: bool
@@ -1047,6 +1578,8 @@ impl<T> core::convert::From<T> for nika_providers::plan::ModelNeed
 pub fn nika_providers::plan::ModelNeed::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::plan::ModelNeed where T: 'static
 pub fn nika_providers::plan::ModelNeed::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::plan::ModelNeed
+pub type nika_providers::plan::ModelNeed::Output = T
 #[non_exhaustive] pub struct nika_providers::plan::ResolvedLane
 pub nika_providers::plan::ResolvedLane::candidates: usize
 pub nika_providers::plan::ResolvedLane::plan: nika_types::access::AccessPlan
@@ -1085,6 +1618,8 @@ impl<T> core::convert::From<T> for nika_providers::plan::ResolvedLane
 pub fn nika_providers::plan::ResolvedLane::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::plan::ResolvedLane where T: 'static
 pub fn nika_providers::plan::ResolvedLane::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::plan::ResolvedLane
+pub type nika_providers::plan::ResolvedLane::Output = T
 pub fn nika_providers::plan::resolve_execution_plan(needs: &[nika_providers::plan::ModelNeed], probes: &[nika_providers::probe::ProviderProbe], pin: core::option::Option<&str>) -> nika_providers::plan::ExecutionAccessPlan
 pub fn nika_providers::plan::resolve_execution_plan_for(needs: &[nika_providers::plan::ModelNeed], probes: &[nika_providers::probe::ProviderProbe], pin: core::option::Option<&str>, verbs: nika_providers::resolve_access::VerbNeeds) -> nika_providers::plan::ExecutionAccessPlan
 pub mod nika_providers::probe
@@ -1132,6 +1667,8 @@ impl<T> core::convert::From<T> for nika_providers::probe::ExecutionLocus
 pub fn nika_providers::probe::ExecutionLocus::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::ExecutionLocus where T: 'static
 pub fn nika_providers::probe::ExecutionLocus::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::probe::ExecutionLocus
+pub type nika_providers::probe::ExecutionLocus::Output = T
 #[non_exhaustive] pub enum nika_providers::probe::KeyAuth
 pub nika_providers::probe::KeyAuth::Absent
 pub nika_providers::probe::KeyAuth::Implausible
@@ -1176,6 +1713,8 @@ impl<T> core::convert::From<T> for nika_providers::probe::KeyAuth
 pub fn nika_providers::probe::KeyAuth::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::KeyAuth where T: 'static
 pub fn nika_providers::probe::KeyAuth::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::probe::KeyAuth
+pub type nika_providers::probe::KeyAuth::Output = T
 pub enum nika_providers::probe::LocalLiveness
 pub nika_providers::probe::LocalLiveness::Live(u64)
 pub nika_providers::probe::LocalLiveness::Mute(alloc::string::String)
@@ -1213,6 +1752,8 @@ impl<T> core::convert::From<T> for nika_providers::probe::LocalLiveness
 pub fn nika_providers::probe::LocalLiveness::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::LocalLiveness where T: 'static
 pub fn nika_providers::probe::LocalLiveness::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::probe::LocalLiveness
+pub type nika_providers::probe::LocalLiveness::Output = T
 pub enum nika_providers::probe::PingState
 pub nika_providers::probe::PingState::Reachable(u64)
 pub nika_providers::probe::PingState::Unreachable
@@ -1250,6 +1791,8 @@ impl<T> core::convert::From<T> for nika_providers::probe::PingState
 pub fn nika_providers::probe::PingState::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::PingState where T: 'static
 pub fn nika_providers::probe::PingState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::probe::PingState
+pub type nika_providers::probe::PingState::Output = T
 #[non_exhaustive] pub struct nika_providers::probe::ModelListing
 pub nika_providers::probe::ModelListing::failure: core::option::Option<alloc::string::String>
 pub nika_providers::probe::ModelListing::http_status: core::option::Option<u16>
@@ -1293,6 +1836,8 @@ impl<T> core::convert::From<T> for nika_providers::probe::ModelListing
 pub fn nika_providers::probe::ModelListing::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::ModelListing where T: 'static
 pub fn nika_providers::probe::ModelListing::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::probe::ModelListing
+pub type nika_providers::probe::ModelListing::Output = T
 #[non_exhaustive] pub struct nika_providers::probe::ProviderProbe
 pub nika_providers::probe::ProviderProbe::endpoint: alloc::string::String
 pub nika_providers::probe::ProviderProbe::fix_var: alloc::string::String
@@ -1340,6 +1885,8 @@ impl<T> core::convert::From<T> for nika_providers::probe::ProviderProbe
 pub fn nika_providers::probe::ProviderProbe::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::ProviderProbe where T: 'static
 pub fn nika_providers::probe::ProviderProbe::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::probe::ProviderProbe
+pub type nika_providers::probe::ProviderProbe::Output = T
 #[non_exhaustive] pub struct nika_providers::probe::ProviderReadiness
 pub nika_providers::probe::ProviderReadiness::access: nika_types::access::AccessClass
 pub nika_providers::probe::ProviderReadiness::configured: bool
@@ -1384,6 +1931,8 @@ impl<T> core::convert::From<T> for nika_providers::probe::ProviderReadiness
 pub fn nika_providers::probe::ProviderReadiness::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::ProviderReadiness where T: 'static
 pub fn nika_providers::probe::ProviderReadiness::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::probe::ProviderReadiness
+pub type nika_providers::probe::ProviderReadiness::Output = T
 pub fn nika_providers::probe::classify_http_status(status: u16) -> nika_providers::probe::KeyAuth
 pub fn nika_providers::probe::classify_key_value(prefixes: &[&str], value: &str) -> nika_providers::probe::KeyAuth
 pub fn nika_providers::probe::collect_access_probes(registry: &nika_providers::registry::ProviderRegistry) -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
@@ -1440,6 +1989,8 @@ impl<T> core::convert::From<T> for nika_providers::profile::WireFormat
 pub fn nika_providers::profile::WireFormat::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::profile::WireFormat where T: 'static
 pub fn nika_providers::profile::WireFormat::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::profile::WireFormat
+pub type nika_providers::profile::WireFormat::Output = T
 #[non_exhaustive] pub struct nika_providers::profile::Profile
 pub nika_providers::profile::Profile::base_url: &'static str
 pub nika_providers::profile::Profile::catalog: core::option::Option<&'static nika_catalog::types::provider::Provider>
@@ -1481,6 +2032,8 @@ impl<T> core::convert::From<T> for nika_providers::profile::Profile
 pub fn nika_providers::profile::Profile::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::profile::Profile where T: 'static
 pub fn nika_providers::profile::Profile::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::profile::Profile
+pub type nika_providers::profile::Profile::Output = T
 #[non_exhaustive] pub struct nika_providers::profile::ResolveRefusal
 pub nika_providers::profile::ResolveRefusal::code: core::option::Option<&'static str>
 pub nika_providers::profile::ResolveRefusal::why: alloc::string::String
@@ -1520,12 +2073,17 @@ impl<T> core::convert::From<T> for nika_providers::profile::ResolveRefusal
 pub fn nika_providers::profile::ResolveRefusal::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::profile::ResolveRefusal where T: 'static
 pub fn nika_providers::profile::ResolveRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
-pub const nika_providers::profile::CANONICAL_IDS: [&str; 17]
+impl<T> typenum::type_operators::Same for nika_providers::profile::ResolveRefusal
+pub type nika_providers::profile::ResolveRefusal::Output = T
+pub const nika_providers::profile::CANONICAL_IDS: [&str; 18]
 pub const nika_providers::profile::PREFIX_REFUSAL_CODE: &str
 pub fn nika_providers::profile::access_class_for(provider: &str) -> nika_types::access::AccessClass
 pub fn nika_providers::profile::canonical_provider(id: &str) -> &str
 pub fn nika_providers::profile::catalog_warning(model: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::profile::resolve_refusal(model: &str) -> core::option::Option<nika_providers::profile::ResolveRefusal>
+pub fn nika_providers::profile::resolve_refusal_at(model: &str, effective_endpoint: core::option::Option<&str>) -> core::option::Option<nika_providers::profile::ResolveRefusal>
+pub fn nika_providers::profile::resolve_refusal_for_plan(model: &str, probes: &[nika_providers::probe::ProviderProbe], plan: core::option::Option<&nika_providers::plan::ExecutionAccessPlan>) -> core::option::Option<nika_providers::profile::ResolveRefusal>
+pub fn nika_providers::profile::resolve_refusal_over(model: &str, probes: &[nika_providers::probe::ProviderProbe]) -> core::option::Option<nika_providers::profile::ResolveRefusal>
 pub fn nika_providers::profile::seed() -> alloc::vec::Vec<nika_providers::profile::Profile>
 pub fn nika_providers::profile::server_backed_local(provider: &str) -> bool
 pub fn nika_providers::profile::wired_facet(wired: usize, local: usize) -> alloc::string::String
@@ -1567,6 +2125,8 @@ impl<T> core::convert::From<T> for nika_providers::registry::NoHttp
 pub fn nika_providers::registry::NoHttp::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::registry::NoHttp where T: 'static
 pub fn nika_providers::registry::NoHttp::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::registry::NoHttp
+pub type nika_providers::registry::NoHttp::Output = T
 impl<TraitVariantBlanketType> nika_kernel_core::io::http::HttpPost for nika_providers::registry::NoHttp where TraitVariantBlanketType: nika_kernel_core::io::http::HttpPostDyn
 pub async fn nika_providers::registry::NoHttp::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
 pub async fn nika_providers::registry::NoHttp::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
@@ -1605,9 +2165,12 @@ impl<T> core::convert::From<T> for nika_providers::registry::ProviderRegistry<H>
 pub fn nika_providers::registry::ProviderRegistry<H>::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::registry::ProviderRegistry<H> where T: 'static
 pub fn nika_providers::registry::ProviderRegistry<H>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::registry::ProviderRegistry<H>
+pub type nika_providers::registry::ProviderRegistry<H>::Output = T
 #[non_exhaustive] pub struct nika_providers::registry::ProvidersConfig
 impl nika_providers::registry::ProvidersConfig
 pub fn nika_providers::registry::ProvidersConfig::new() -> Self
+pub fn nika_providers::registry::ProvidersConfig::resolve_refusal(&self, model: &str) -> core::option::Option<nika_providers::profile::ResolveRefusal>
 pub fn nika_providers::registry::ProvidersConfig::with_base_url(self, provider: impl core::convert::Into<alloc::string::String>, url: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_providers::registry::ProvidersConfig::with_key(self, provider: impl core::convert::Into<alloc::string::String>, key: nika_kernel_core::infra::secret::Secret) -> Self
 impl core::clone::Clone for nika_providers::registry::ProvidersConfig
@@ -1641,6 +2204,8 @@ impl<T> core::convert::From<T> for nika_providers::registry::ProvidersConfig
 pub fn nika_providers::registry::ProvidersConfig::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::registry::ProvidersConfig where T: 'static
 pub fn nika_providers::registry::ProvidersConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::registry::ProvidersConfig
+pub type nika_providers::registry::ProvidersConfig::Output = T
 pub struct nika_providers::registry::ResolvedProvider<H>
 impl<H> nika_providers::registry::ResolvedProvider<H> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
 pub async fn nika_providers::registry::ResolvedProvider<H>::infer_reported(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<(nika_kernel_ai::provider::InferResponse, nika_providers::retry::TransportReport), (nika_kernel_ai::provider::ProviderError, alloc::boxed::Box<nika_providers::retry::TransportReport>)>
@@ -1678,6 +2243,8 @@ pub fn nika_providers::registry::ResolvedProvider<H>::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::registry::ResolvedProvider<H> where T: 'static
 pub fn nika_providers::registry::ResolvedProvider<H>::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> nika_kernel_ai::provider::Provider for nika_providers::registry::ResolvedProvider<H> where T: nika_kernel_ai::provider::ProviderInfer + nika_kernel_ai::provider::ProviderStream + nika_kernel_ai::provider::ProviderMeta + nika_kernel_core::sealed::Sealed
+impl<T> typenum::type_operators::Same for nika_providers::registry::ResolvedProvider<H>
+pub type nika_providers::registry::ResolvedProvider<H>::Output = T
 impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderInfer for nika_providers::registry::ResolvedProvider<H> where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderInferDyn
 pub async fn nika_providers::registry::ResolvedProvider<H>::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
 impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderStream for nika_providers::registry::ResolvedProvider<H> where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderStreamDyn
@@ -1725,6 +2292,8 @@ impl<T> core::convert::From<T> for nika_providers::resolve_access::PinRefusal
 pub fn nika_providers::resolve_access::PinRefusal::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::resolve_access::PinRefusal where T: 'static
 pub fn nika_providers::resolve_access::PinRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::resolve_access::PinRefusal
+pub type nika_providers::resolve_access::PinRefusal::Output = T
 #[non_exhaustive] pub struct nika_providers::resolve_access::AccessCandidate
 pub nika_providers::resolve_access::AccessCandidate::access: alloc::string::String
 pub nika_providers::resolve_access::AccessCandidate::billing: nika_types::access::BillingClass
@@ -1772,6 +2341,8 @@ impl<T> core::convert::From<T> for nika_providers::resolve_access::AccessCandida
 pub fn nika_providers::resolve_access::AccessCandidate::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::resolve_access::AccessCandidate where T: 'static
 pub fn nika_providers::resolve_access::AccessCandidate::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::resolve_access::AccessCandidate
+pub type nika_providers::resolve_access::AccessCandidate::Output = T
 #[non_exhaustive] pub struct nika_providers::resolve_access::AccessRefusal
 pub nika_providers::resolve_access::AccessRefusal::model: alloc::string::String
 pub nika_providers::resolve_access::AccessRefusal::provider: alloc::string::String
@@ -1811,6 +2382,8 @@ impl<T> core::convert::From<T> for nika_providers::resolve_access::AccessRefusal
 pub fn nika_providers::resolve_access::AccessRefusal::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::resolve_access::AccessRefusal where T: 'static
 pub fn nika_providers::resolve_access::AccessRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::resolve_access::AccessRefusal
+pub type nika_providers::resolve_access::AccessRefusal::Output = T
 #[non_exhaustive] pub struct nika_providers::resolve_access::VerbNeeds
 pub nika_providers::resolve_access::VerbNeeds::agent: bool
 pub nika_providers::resolve_access::VerbNeeds::infer: bool
@@ -1852,6 +2425,8 @@ impl<T> core::convert::From<T> for nika_providers::resolve_access::VerbNeeds
 pub fn nika_providers::resolve_access::VerbNeeds::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::resolve_access::VerbNeeds where T: 'static
 pub fn nika_providers::resolve_access::VerbNeeds::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::resolve_access::VerbNeeds
+pub type nika_providers::resolve_access::VerbNeeds::Output = T
 pub fn nika_providers::resolve_access::access_plan_map(models: &[alloc::string::String], probes: &[nika_providers::probe::ProviderProbe], pin: core::option::Option<&str>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::access::AccessPlan>
 pub fn nika_providers::resolve_access::candidates_for(probes: &[nika_providers::probe::ProviderProbe], provider: &str) -> alloc::vec::Vec<nika_providers::resolve_access::AccessCandidate>
 pub fn nika_providers::resolve_access::first_ready_harness(probes: &[nika_providers::probe::ProviderProbe]) -> core::option::Option<&str>
@@ -1905,6 +2480,8 @@ impl<T> core::convert::From<T> for nika_providers::retry::BillingRoute
 pub fn nika_providers::retry::BillingRoute::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::retry::BillingRoute where T: 'static
 pub fn nika_providers::retry::BillingRoute::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::retry::BillingRoute
+pub type nika_providers::retry::BillingRoute::Output = T
 pub struct nika_providers::retry::ClockBackoff<C>(pub alloc::sync::Arc<C>)
 impl<C: core::clone::Clone> core::clone::Clone for nika_providers::retry::ClockBackoff<C>
 pub fn nika_providers::retry::ClockBackoff<C>::clone(&self) -> nika_providers::retry::ClockBackoff<C>
@@ -1937,6 +2514,8 @@ impl<T> core::convert::From<T> for nika_providers::retry::ClockBackoff<C>
 pub fn nika_providers::retry::ClockBackoff<C>::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::retry::ClockBackoff<C> where T: 'static
 pub fn nika_providers::retry::ClockBackoff<C>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::retry::ClockBackoff<C>
+pub type nika_providers::retry::ClockBackoff<C>::Output = T
 #[non_exhaustive] pub struct nika_providers::retry::TransportReport
 pub nika_providers::retry::TransportReport::attempts: u32
 pub nika_providers::retry::TransportReport::billing_route: core::option::Option<nika_providers::retry::BillingRoute>
@@ -1983,6 +2562,8 @@ impl<T> core::convert::From<T> for nika_providers::retry::TransportReport
 pub fn nika_providers::retry::TransportReport::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::retry::TransportReport where T: 'static
 pub fn nika_providers::retry::TransportReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::retry::TransportReport
+pub type nika_providers::retry::TransportReport::Output = T
 pub const nika_providers::retry::MAX_RETRIES: u32
 pub const nika_providers::retry::MAX_RETRY_AFTER: core::time::Duration
 pub trait nika_providers::retry::Backoff: core::marker::Send + core::marker::Sync + core::fmt::Debug
@@ -2040,6 +2621,8 @@ impl<T> core::convert::From<T> for nika_providers::admission::AdmissionState
 pub fn nika_providers::admission::AdmissionState::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::AdmissionState where T: 'static
 pub fn nika_providers::admission::AdmissionState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::AdmissionState
+pub type nika_providers::admission::AdmissionState::Output = T
 #[non_exhaustive] pub enum nika_providers::KeyAuth
 pub nika_providers::KeyAuth::Absent
 pub nika_providers::KeyAuth::Implausible
@@ -2084,6 +2667,8 @@ impl<T> core::convert::From<T> for nika_providers::probe::KeyAuth
 pub fn nika_providers::probe::KeyAuth::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::KeyAuth where T: 'static
 pub fn nika_providers::probe::KeyAuth::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::probe::KeyAuth
+pub type nika_providers::probe::KeyAuth::Output = T
 #[non_exhaustive] pub enum nika_providers::LaneVerdict
 pub nika_providers::LaneVerdict::Admitted(nika_providers::plan::ResolvedLane)
 pub nika_providers::LaneVerdict::Refused(nika_providers::resolve_access::AccessRefusal)
@@ -2120,6 +2705,8 @@ impl<T> core::convert::From<T> for nika_providers::plan::LaneVerdict
 pub fn nika_providers::plan::LaneVerdict::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::plan::LaneVerdict where T: 'static
 pub fn nika_providers::plan::LaneVerdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::plan::LaneVerdict
+pub type nika_providers::plan::LaneVerdict::Output = T
 #[non_exhaustive] pub enum nika_providers::PinRefusal
 pub nika_providers::PinRefusal::NoPath
 pub nika_providers::PinRefusal::NoPath::message: alloc::string::String
@@ -2162,6 +2749,8 @@ impl<T> core::convert::From<T> for nika_providers::resolve_access::PinRefusal
 pub fn nika_providers::resolve_access::PinRefusal::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::resolve_access::PinRefusal where T: 'static
 pub fn nika_providers::resolve_access::PinRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::resolve_access::PinRefusal
+pub type nika_providers::resolve_access::PinRefusal::Output = T
 #[non_exhaustive] pub enum nika_providers::WireFormat
 pub nika_providers::WireFormat::Anthropic
 pub nika_providers::WireFormat::Gemini
@@ -2204,6 +2793,8 @@ impl<T> core::convert::From<T> for nika_providers::profile::WireFormat
 pub fn nika_providers::profile::WireFormat::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::profile::WireFormat where T: 'static
 pub fn nika_providers::profile::WireFormat::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::profile::WireFormat
+pub type nika_providers::profile::WireFormat::Output = T
 #[non_exhaustive] pub struct nika_providers::AccessCandidate
 pub nika_providers::AccessCandidate::access: alloc::string::String
 pub nika_providers::AccessCandidate::billing: nika_types::access::BillingClass
@@ -2251,6 +2842,8 @@ impl<T> core::convert::From<T> for nika_providers::resolve_access::AccessCandida
 pub fn nika_providers::resolve_access::AccessCandidate::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::resolve_access::AccessCandidate where T: 'static
 pub fn nika_providers::resolve_access::AccessCandidate::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::resolve_access::AccessCandidate
+pub type nika_providers::resolve_access::AccessCandidate::Output = T
 pub struct nika_providers::AccessCensus
 pub nika_providers::AccessCensus::best: core::option::Option<nika_providers::census::AccessPath>
 pub nika_providers::AccessCensus::paths: alloc::vec::Vec<nika_providers::census::AccessPath>
@@ -2296,6 +2889,8 @@ impl<T> core::convert::From<T> for nika_providers::census::AccessCensus
 pub fn nika_providers::census::AccessCensus::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::census::AccessCensus where T: 'static
 pub fn nika_providers::census::AccessCensus::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::census::AccessCensus
+pub type nika_providers::census::AccessCensus::Output = T
 #[non_exhaustive] pub struct nika_providers::AccessPath
 pub nika_providers::AccessPath::class: nika_types::access::AccessClass
 pub nika_providers::AccessPath::configured: bool
@@ -2335,6 +2930,8 @@ impl<T> core::convert::From<T> for nika_providers::census::AccessPath
 pub fn nika_providers::census::AccessPath::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::census::AccessPath where T: 'static
 pub fn nika_providers::census::AccessPath::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::census::AccessPath
+pub type nika_providers::census::AccessPath::Output = T
 #[non_exhaustive] pub struct nika_providers::AccessRefusal
 pub nika_providers::AccessRefusal::model: alloc::string::String
 pub nika_providers::AccessRefusal::provider: alloc::string::String
@@ -2374,6 +2971,8 @@ impl<T> core::convert::From<T> for nika_providers::resolve_access::AccessRefusal
 pub fn nika_providers::resolve_access::AccessRefusal::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::resolve_access::AccessRefusal where T: 'static
 pub fn nika_providers::resolve_access::AccessRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::resolve_access::AccessRefusal
+pub type nika_providers::resolve_access::AccessRefusal::Output = T
 #[non_exhaustive] pub struct nika_providers::AttemptReceipt
 pub nika_providers::AttemptReceipt::endpoint: alloc::string::String
 pub nika_providers::AttemptReceipt::estimated: core::option::Option<nika_types::cost::Cost>
@@ -2423,6 +3022,8 @@ impl<T> core::convert::From<T> for nika_providers::admission::AttemptReceipt
 pub fn nika_providers::admission::AttemptReceipt::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::AttemptReceipt where T: 'static
 pub fn nika_providers::admission::AttemptReceipt::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::AttemptReceipt
+pub type nika_providers::admission::AttemptReceipt::Output = T
 pub struct nika_providers::ClockBackoff<C>(pub alloc::sync::Arc<C>)
 impl<C: core::clone::Clone> core::clone::Clone for nika_providers::retry::ClockBackoff<C>
 pub fn nika_providers::retry::ClockBackoff<C>::clone(&self) -> nika_providers::retry::ClockBackoff<C>
@@ -2455,6 +3056,8 @@ impl<T> core::convert::From<T> for nika_providers::retry::ClockBackoff<C>
 pub fn nika_providers::retry::ClockBackoff<C>::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::retry::ClockBackoff<C> where T: 'static
 pub fn nika_providers::retry::ClockBackoff<C>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::retry::ClockBackoff<C>
+pub type nika_providers::retry::ClockBackoff<C>::Output = T
 #[non_exhaustive] pub struct nika_providers::ExecutionAccessPlan
 pub nika_providers::ExecutionAccessPlan::lanes: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_providers::plan::LaneVerdict>
 pub nika_providers::ExecutionAccessPlan::pin: core::option::Option<alloc::string::String>
@@ -2504,6 +3107,8 @@ impl<T> core::convert::From<T> for nika_providers::plan::ExecutionAccessPlan
 pub fn nika_providers::plan::ExecutionAccessPlan::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::plan::ExecutionAccessPlan where T: 'static
 pub fn nika_providers::plan::ExecutionAccessPlan::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::plan::ExecutionAccessPlan
+pub type nika_providers::plan::ExecutionAccessPlan::Output = T
 pub struct nika_providers::InferenceAdmission(_, _)
 impl nika_providers::admission::InferenceAdmission
 pub fn nika_providers::admission::InferenceAdmission::amend(&self, limit: nika_types::cost::Cost) -> core::result::Result<(), nika_kernel_ai::provider::ProviderError>
@@ -2554,6 +3159,8 @@ impl<T> core::convert::From<T> for nika_providers::admission::InferenceAdmission
 pub fn nika_providers::admission::InferenceAdmission::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::InferenceAdmission where T: 'static
 pub fn nika_providers::admission::InferenceAdmission::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::InferenceAdmission
+pub type nika_providers::admission::InferenceAdmission::Output = T
 #[non_exhaustive] pub struct nika_providers::InferenceReceipt
 pub nika_providers::InferenceReceipt::active: nika_types::cost::Cost
 pub nika_providers::InferenceReceipt::attempts: alloc::vec::Vec<nika_providers::admission::AttemptReceipt>
@@ -2610,6 +3217,8 @@ impl<T> core::convert::From<T> for nika_providers::admission::InferenceReceipt
 pub fn nika_providers::admission::InferenceReceipt::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::admission::InferenceReceipt where T: 'static
 pub fn nika_providers::admission::InferenceReceipt::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::admission::InferenceReceipt
+pub type nika_providers::admission::InferenceReceipt::Output = T
 #[non_exhaustive] pub struct nika_providers::ModelNeed
 pub nika_providers::ModelNeed::agent: bool
 pub nika_providers::ModelNeed::infer: bool
@@ -2649,6 +3258,8 @@ impl<T> core::convert::From<T> for nika_providers::plan::ModelNeed
 pub fn nika_providers::plan::ModelNeed::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::plan::ModelNeed where T: 'static
 pub fn nika_providers::plan::ModelNeed::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::plan::ModelNeed
+pub type nika_providers::plan::ModelNeed::Output = T
 pub struct nika_providers::NoHttp
 impl core::clone::Clone for nika_providers::registry::NoHttp
 pub fn nika_providers::registry::NoHttp::clone(&self) -> nika_providers::registry::NoHttp
@@ -2685,6 +3296,8 @@ impl<T> core::convert::From<T> for nika_providers::registry::NoHttp
 pub fn nika_providers::registry::NoHttp::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::registry::NoHttp where T: 'static
 pub fn nika_providers::registry::NoHttp::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::registry::NoHttp
+pub type nika_providers::registry::NoHttp::Output = T
 impl<TraitVariantBlanketType> nika_kernel_core::io::http::HttpPost for nika_providers::registry::NoHttp where TraitVariantBlanketType: nika_kernel_core::io::http::HttpPostDyn
 pub async fn nika_providers::registry::NoHttp::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
 pub async fn nika_providers::registry::NoHttp::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
@@ -2730,6 +3343,8 @@ impl<T> core::convert::From<T> for nika_providers::profile::Profile
 pub fn nika_providers::profile::Profile::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::profile::Profile where T: 'static
 pub fn nika_providers::profile::Profile::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::profile::Profile
+pub type nika_providers::profile::Profile::Output = T
 pub struct nika_providers::ProviderRegistry<H>
 impl nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>
 pub fn nika_providers::registry::ProviderRegistry<nika_providers::registry::NoHttp>::without_http(config: nika_providers::registry::ProvidersConfig) -> Self
@@ -2764,9 +3379,12 @@ impl<T> core::convert::From<T> for nika_providers::registry::ProviderRegistry<H>
 pub fn nika_providers::registry::ProviderRegistry<H>::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::registry::ProviderRegistry<H> where T: 'static
 pub fn nika_providers::registry::ProviderRegistry<H>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::registry::ProviderRegistry<H>
+pub type nika_providers::registry::ProviderRegistry<H>::Output = T
 #[non_exhaustive] pub struct nika_providers::ProvidersConfig
 impl nika_providers::registry::ProvidersConfig
 pub fn nika_providers::registry::ProvidersConfig::new() -> Self
+pub fn nika_providers::registry::ProvidersConfig::resolve_refusal(&self, model: &str) -> core::option::Option<nika_providers::profile::ResolveRefusal>
 pub fn nika_providers::registry::ProvidersConfig::with_base_url(self, provider: impl core::convert::Into<alloc::string::String>, url: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_providers::registry::ProvidersConfig::with_key(self, provider: impl core::convert::Into<alloc::string::String>, key: nika_kernel_core::infra::secret::Secret) -> Self
 impl core::clone::Clone for nika_providers::registry::ProvidersConfig
@@ -2800,6 +3418,8 @@ impl<T> core::convert::From<T> for nika_providers::registry::ProvidersConfig
 pub fn nika_providers::registry::ProvidersConfig::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::registry::ProvidersConfig where T: 'static
 pub fn nika_providers::registry::ProvidersConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::registry::ProvidersConfig
+pub type nika_providers::registry::ProvidersConfig::Output = T
 #[non_exhaustive] pub struct nika_providers::ResolveRefusal
 pub nika_providers::ResolveRefusal::code: core::option::Option<&'static str>
 pub nika_providers::ResolveRefusal::why: alloc::string::String
@@ -2839,6 +3459,8 @@ impl<T> core::convert::From<T> for nika_providers::profile::ResolveRefusal
 pub fn nika_providers::profile::ResolveRefusal::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::profile::ResolveRefusal where T: 'static
 pub fn nika_providers::profile::ResolveRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::profile::ResolveRefusal
+pub type nika_providers::profile::ResolveRefusal::Output = T
 #[non_exhaustive] pub struct nika_providers::ResolvedLane
 pub nika_providers::ResolvedLane::candidates: usize
 pub nika_providers::ResolvedLane::plan: nika_types::access::AccessPlan
@@ -2877,6 +3499,8 @@ impl<T> core::convert::From<T> for nika_providers::plan::ResolvedLane
 pub fn nika_providers::plan::ResolvedLane::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::plan::ResolvedLane where T: 'static
 pub fn nika_providers::plan::ResolvedLane::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::plan::ResolvedLane
+pub type nika_providers::plan::ResolvedLane::Output = T
 pub struct nika_providers::ResolvedProvider<H>
 impl<H> nika_providers::registry::ResolvedProvider<H> where H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static
 pub async fn nika_providers::registry::ResolvedProvider<H>::infer_reported(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<(nika_kernel_ai::provider::InferResponse, nika_providers::retry::TransportReport), (nika_kernel_ai::provider::ProviderError, alloc::boxed::Box<nika_providers::retry::TransportReport>)>
@@ -2914,6 +3538,8 @@ pub fn nika_providers::registry::ResolvedProvider<H>::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::registry::ResolvedProvider<H> where T: 'static
 pub fn nika_providers::registry::ResolvedProvider<H>::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> nika_kernel_ai::provider::Provider for nika_providers::registry::ResolvedProvider<H> where T: nika_kernel_ai::provider::ProviderInfer + nika_kernel_ai::provider::ProviderStream + nika_kernel_ai::provider::ProviderMeta + nika_kernel_core::sealed::Sealed
+impl<T> typenum::type_operators::Same for nika_providers::registry::ResolvedProvider<H>
+pub type nika_providers::registry::ResolvedProvider<H>::Output = T
 impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderInfer for nika_providers::registry::ResolvedProvider<H> where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderInferDyn
 pub async fn nika_providers::registry::ResolvedProvider<H>::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
 impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderStream for nika_providers::registry::ResolvedProvider<H> where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderStreamDyn
@@ -2961,6 +3587,8 @@ impl<T> core::convert::From<T> for nika_providers::census::SeatFact
 pub fn nika_providers::census::SeatFact::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::census::SeatFact where T: 'static
 pub fn nika_providers::census::SeatFact::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::census::SeatFact
+pub type nika_providers::census::SeatFact::Output = T
 #[non_exhaustive] pub struct nika_providers::TransportReport
 pub nika_providers::TransportReport::attempts: u32
 pub nika_providers::TransportReport::billing_route: core::option::Option<nika_providers::retry::BillingRoute>
@@ -3007,6 +3635,8 @@ impl<T> core::convert::From<T> for nika_providers::retry::TransportReport
 pub fn nika_providers::retry::TransportReport::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::retry::TransportReport where T: 'static
 pub fn nika_providers::retry::TransportReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_providers::retry::TransportReport
+pub type nika_providers::retry::TransportReport::Output = T
 #[non_exhaustive] pub struct nika_providers::VerbNeeds
 pub nika_providers::VerbNeeds::agent: bool
 pub nika_providers::VerbNeeds::infer: bool
@@ -3048,7 +3678,9 @@ impl<T> core::convert::From<T> for nika_providers::resolve_access::VerbNeeds
 pub fn nika_providers::resolve_access::VerbNeeds::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::resolve_access::VerbNeeds where T: 'static
 pub fn nika_providers::resolve_access::VerbNeeds::as_any(&self) -> &(dyn core::any::Any + 'static)
-pub const nika_providers::CANONICAL_IDS: [&str; 17]
+impl<T> typenum::type_operators::Same for nika_providers::resolve_access::VerbNeeds
+pub type nika_providers::resolve_access::VerbNeeds::Output = T
+pub const nika_providers::CANONICAL_IDS: [&str; 18]
 pub const nika_providers::MAX_RETRIES: u32
 pub const nika_providers::MAX_RETRY_AFTER: core::time::Duration
 pub const nika_providers::PREFIX_REFUSAL_CODE: &str
@@ -3075,6 +3707,9 @@ pub fn nika_providers::resolve_access(model: &str, candidates: &[nika_providers:
 pub fn nika_providers::resolve_execution_plan(needs: &[nika_providers::plan::ModelNeed], probes: &[nika_providers::probe::ProviderProbe], pin: core::option::Option<&str>) -> nika_providers::plan::ExecutionAccessPlan
 pub fn nika_providers::resolve_execution_plan_for(needs: &[nika_providers::plan::ModelNeed], probes: &[nika_providers::probe::ProviderProbe], pin: core::option::Option<&str>, verbs: nika_providers::resolve_access::VerbNeeds) -> nika_providers::plan::ExecutionAccessPlan
 pub fn nika_providers::resolve_refusal(model: &str) -> core::option::Option<nika_providers::profile::ResolveRefusal>
+pub fn nika_providers::resolve_refusal_at(model: &str, effective_endpoint: core::option::Option<&str>) -> core::option::Option<nika_providers::profile::ResolveRefusal>
+pub fn nika_providers::resolve_refusal_for_plan(model: &str, probes: &[nika_providers::probe::ProviderProbe], plan: core::option::Option<&nika_providers::plan::ExecutionAccessPlan>) -> core::option::Option<nika_providers::profile::ResolveRefusal>
+pub fn nika_providers::resolve_refusal_over(model: &str, probes: &[nika_providers::probe::ProviderProbe]) -> core::option::Option<nika_providers::profile::ResolveRefusal>
 pub fn nika_providers::route_label(route: &nika_types::cost::inference::InferenceRoute) -> alloc::string::String
 pub fn nika_providers::route_origin(endpoint: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::seed() -> alloc::vec::Vec<nika_providers::profile::Profile>

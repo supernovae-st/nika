@@ -811,6 +811,7 @@ pub fn nika_check_analyzer::analyze(wf: &nika_schema::raw::workflow::RawWorkflow
 pub fn nika_check_analyzer::bare_static_ref(expr: &str) -> core::option::Option<(&'static str, &str)>
 pub fn nika_check_analyzer::capacity_findings(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_check_analyzer::CapacityFinding>
 pub fn nika_check_analyzer::catalog_knows(provider: &str, name: &str, judged: &str) -> bool
+pub fn nika_check_analyzer::effective_workflow(wf: &nika_schema::raw::workflow::RawWorkflow, model_override: core::option::Option<&str>, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::option::Option<nika_schema::raw::workflow::RawWorkflow>
 pub fn nika_check_analyzer::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
 pub fn nika_check_analyzer::priced_builtin_floor(wf: &nika_schema::raw::workflow::RawWorkflow) -> f64
 pub fn nika_check_analyzer::reasoning_cap_hints(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_check_analyzer::ThinkingFinding>
@@ -824,4 +825,5 @@ pub fn nika_check_analyzer::scope_to_task(wf: nika_schema::raw::workflow::RawWor
 pub fn nika_check_analyzer::static_literal_of<'w>(wf: &'w nika_schema::raw::workflow::RawWorkflow, expr: &str) -> core::option::Option<&'w serde_json::value::Value>
 pub fn nika_check_analyzer::thinking_findings(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_check_analyzer::ThinkingFinding>
 pub fn nika_check_analyzer::unpriced_cloud_seat(model: &str) -> bool
+pub fn nika_check_analyzer::with_model_override(wf: &nika_schema::raw::workflow::RawWorkflow, model: &str) -> nika_schema::raw::workflow::RawWorkflow
 pub fn nika_check_analyzer::witness_routes(edges: &[nika_check_analyzer::edges::Edge], nodes: usize, source: usize) -> alloc::vec::Vec<nika_check_analyzer::edges::Route>

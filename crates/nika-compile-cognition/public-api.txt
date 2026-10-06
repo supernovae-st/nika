@@ -1,5 +1,8 @@
 pub mod nika_compile_cognition
 pub mod nika_compile_cognition::authority
+pub use nika_compile_cognition::authority::Envelope
+pub use nika_compile_cognition::authority::Seat
+pub use nika_compile_cognition::authority::Wire
 #[non_exhaustive] pub enum nika_compile_cognition::authority::Refusal
 pub nika_compile_cognition::authority::Refusal::Multiplicity
 pub nika_compile_cognition::authority::Refusal::Multiplicity::authorized: u32
@@ -59,9 +62,9 @@ impl<T> typenum::type_operators::Same for nika_compile_cognition::authority::Ref
 pub type nika_compile_cognition::authority::Refusal::Output = T
 pub struct nika_compile_cognition::authority::Authority
 impl nika_compile_cognition::authority::Authority
-pub fn nika_compile_cognition::authority::Authority::envelope(&self) -> alloc::sync::Arc<nika_compile_cognition::authority::Envelope>
-pub const fn nika_compile_cognition::authority::Authority::max_calls(&self) -> u32
-pub fn nika_compile_cognition::authority::Authority::record(&self, invocations: &nika_compile_cognition::authority::Envelope, requests: core::option::Option<&nika_compile_cognition::authority::Envelope>) -> serde_json::value::Value
+pub fn nika_compile_cognition::authority::Authority::envelope(&self) -> alloc::sync::Arc<nika_providers::authoring::requests::Envelope>
+pub const fn nika_compile_cognition::authority::Authority::max_calls(&self) -> core::option::Option<u32>
+pub fn nika_compile_cognition::authority::Authority::record(&self, invocations: &nika_providers::authoring::requests::Envelope, requests: core::option::Option<&nika_providers::authoring::requests::Envelope>) -> serde_json::value::Value
 pub fn nika_compile_cognition::authority::Authority::resolve(max_calls: core::option::Option<u32>, strategy: nika_compile::types::NativeMode, typed: nika_compile_cognition::authority::Typed, door: nika_compile_cognition::authority::Door) -> core::result::Result<Self, nika_compile_cognition::authority::Refusal>
 impl core::fmt::Debug for nika_compile_cognition::authority::Authority
 pub fn nika_compile_cognition::authority::Authority::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -135,64 +138,6 @@ impl<T> outref::AsOut<T> for nika_compile_cognition::authority::Door where T: co
 pub fn nika_compile_cognition::authority::Door::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> typenum::type_operators::Same for nika_compile_cognition::authority::Door
 pub type nika_compile_cognition::authority::Door::Output = T
-pub struct nika_compile_cognition::authority::Envelope
-impl nika_compile_cognition::authority::Envelope
-pub fn nika_compile_cognition::authority::Envelope::account(&self) -> serde_json::value::Value
-pub const fn nika_compile_cognition::authority::Envelope::new(max: u32, remedy: &'static str) -> Self
-impl core::fmt::Debug for nika_compile_cognition::authority::Envelope
-pub fn nika_compile_cognition::authority::Envelope::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<D> owo_colors::OwoColorize for nika_compile_cognition::authority::Envelope
-impl<T, U> core::convert::Into<U> for nika_compile_cognition::authority::Envelope where U: core::convert::From<T>
-pub fn nika_compile_cognition::authority::Envelope::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_compile_cognition::authority::Envelope where U: core::convert::Into<T>
-pub type nika_compile_cognition::authority::Envelope::Error = core::convert::Infallible
-pub fn nika_compile_cognition::authority::Envelope::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_compile_cognition::authority::Envelope where U: core::convert::TryFrom<T>
-pub type nika_compile_cognition::authority::Envelope::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_compile_cognition::authority::Envelope::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_compile_cognition::authority::Envelope where T: 'static + ?core::marker::Sized
-pub fn nika_compile_cognition::authority::Envelope::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_compile_cognition::authority::Envelope where T: ?core::marker::Sized
-pub fn nika_compile_cognition::authority::Envelope::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_compile_cognition::authority::Envelope where T: ?core::marker::Sized
-pub fn nika_compile_cognition::authority::Envelope::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_compile_cognition::authority::Envelope
-pub fn nika_compile_cognition::authority::Envelope::from(t: T) -> T
-impl<T> nika_error::traits::AsAny for nika_compile_cognition::authority::Envelope where T: 'static
-pub fn nika_compile_cognition::authority::Envelope::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> typenum::type_operators::Same for nika_compile_cognition::authority::Envelope
-pub type nika_compile_cognition::authority::Envelope::Output = T
-pub struct nika_compile_cognition::authority::Seat<P>
-impl<P> nika_compile_cognition::authority::Seat<P>
-pub const fn nika_compile_cognition::authority::Seat<P>::inner(&self) -> &P
-pub const fn nika_compile_cognition::authority::Seat<P>::new(inner: P, invocations: alloc::sync::Arc<nika_compile_cognition::authority::Envelope>) -> Self
-pub fn nika_compile_cognition::authority::Seat<P>::observed(&self) -> alloc::vec::Vec<alloc::string::String>
-pub fn nika_compile_cognition::authority::Seat<P>::unreported(&self) -> u32
-impl<P: nika_kernel_ai::provider::ProviderInferDyn + core::marker::Send + core::marker::Sync> nika_kernel_ai::provider::ProviderInferDyn for nika_compile_cognition::authority::Seat<P>
-pub async fn nika_compile_cognition::authority::Seat<P>::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
-impl<D> owo_colors::OwoColorize for nika_compile_cognition::authority::Seat<P>
-impl<T, U> core::convert::Into<U> for nika_compile_cognition::authority::Seat<P> where U: core::convert::From<T>
-pub fn nika_compile_cognition::authority::Seat<P>::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_compile_cognition::authority::Seat<P> where U: core::convert::Into<T>
-pub type nika_compile_cognition::authority::Seat<P>::Error = core::convert::Infallible
-pub fn nika_compile_cognition::authority::Seat<P>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_compile_cognition::authority::Seat<P> where U: core::convert::TryFrom<T>
-pub type nika_compile_cognition::authority::Seat<P>::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_compile_cognition::authority::Seat<P>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_compile_cognition::authority::Seat<P> where T: 'static + ?core::marker::Sized
-pub fn nika_compile_cognition::authority::Seat<P>::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_compile_cognition::authority::Seat<P> where T: ?core::marker::Sized
-pub fn nika_compile_cognition::authority::Seat<P>::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_compile_cognition::authority::Seat<P> where T: ?core::marker::Sized
-pub fn nika_compile_cognition::authority::Seat<P>::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_compile_cognition::authority::Seat<P>
-pub fn nika_compile_cognition::authority::Seat<P>::from(t: T) -> T
-impl<T> nika_error::traits::AsAny for nika_compile_cognition::authority::Seat<P> where T: 'static
-pub fn nika_compile_cognition::authority::Seat<P>::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> typenum::type_operators::Same for nika_compile_cognition::authority::Seat<P>
-pub type nika_compile_cognition::authority::Seat<P>::Output = T
-impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderInfer for nika_compile_cognition::authority::Seat<P> where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderInferDyn
-pub async fn nika_compile_cognition::authority::Seat<P>::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
 #[non_exhaustive] pub struct nika_compile_cognition::authority::Typed
 pub nika_compile_cognition::authority::Typed::edit: bool
 pub nika_compile_cognition::authority::Typed::repairs: core::option::Option<u32>
@@ -249,38 +194,6 @@ impl<T> outref::AsOut<T> for nika_compile_cognition::authority::Typed where T: c
 pub fn nika_compile_cognition::authority::Typed::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> typenum::type_operators::Same for nika_compile_cognition::authority::Typed
 pub type nika_compile_cognition::authority::Typed::Output = T
-pub struct nika_compile_cognition::authority::Wire<H>
-impl<H> nika_compile_cognition::authority::Wire<H>
-pub const fn nika_compile_cognition::authority::Wire<H>::new(inner: H, requests: alloc::sync::Arc<nika_compile_cognition::authority::Envelope>) -> Self
-impl<H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync> nika_kernel_core::io::http::HttpPostDyn for nika_compile_cognition::authority::Wire<H>
-pub async fn nika_compile_cognition::authority::Wire<H>::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
-pub async fn nika_compile_cognition::authority::Wire<H>::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
-pub fn nika_compile_cognition::authority::Wire<H>::supports_single_attempt(&self) -> bool
-impl<D> owo_colors::OwoColorize for nika_compile_cognition::authority::Wire<H>
-impl<T, U> core::convert::Into<U> for nika_compile_cognition::authority::Wire<H> where U: core::convert::From<T>
-pub fn nika_compile_cognition::authority::Wire<H>::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_compile_cognition::authority::Wire<H> where U: core::convert::Into<T>
-pub type nika_compile_cognition::authority::Wire<H>::Error = core::convert::Infallible
-pub fn nika_compile_cognition::authority::Wire<H>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_compile_cognition::authority::Wire<H> where U: core::convert::TryFrom<T>
-pub type nika_compile_cognition::authority::Wire<H>::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_compile_cognition::authority::Wire<H>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_compile_cognition::authority::Wire<H> where T: 'static + ?core::marker::Sized
-pub fn nika_compile_cognition::authority::Wire<H>::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_compile_cognition::authority::Wire<H> where T: ?core::marker::Sized
-pub fn nika_compile_cognition::authority::Wire<H>::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_compile_cognition::authority::Wire<H> where T: ?core::marker::Sized
-pub fn nika_compile_cognition::authority::Wire<H>::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_compile_cognition::authority::Wire<H>
-pub fn nika_compile_cognition::authority::Wire<H>::from(t: T) -> T
-impl<T> nika_error::traits::AsAny for nika_compile_cognition::authority::Wire<H> where T: 'static
-pub fn nika_compile_cognition::authority::Wire<H>::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> typenum::type_operators::Same for nika_compile_cognition::authority::Wire<H>
-pub type nika_compile_cognition::authority::Wire<H>::Output = T
-impl<TraitVariantBlanketType> nika_kernel_core::io::http::HttpPost for nika_compile_cognition::authority::Wire<H> where TraitVariantBlanketType: nika_kernel_core::io::http::HttpPostDyn
-pub async fn nika_compile_cognition::authority::Wire<H>::post(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpResponse, nika_kernel_core::io::http::HttpError>
-pub async fn nika_compile_cognition::authority::Wire<H>::send_streaming(&self, request: nika_kernel_core::io::http::HttpRequest) -> core::result::Result<nika_kernel_core::io::http::HttpStreamResponse, nika_kernel_core::io::http::HttpError>
-pub fn nika_compile_cognition::authority::Wire<H>::supports_single_attempt(&self) -> bool
 pub const nika_compile_cognition::authority::DEFAULT_MAX_CALLS: u32
 pub const nika_compile_cognition::authority::REPAIRS: core::ops::range::RangeInclusive<u32>
 pub const nika_compile_cognition::authority::SAMPLES: core::ops::range::RangeInclusive<u32>
@@ -288,6 +201,7 @@ pub const fn nika_compile_cognition::authority::least_requests(strategy: nika_co
 pub fn nika_compile_cognition::authority::recovery_requests(rounds: u32) -> u32
 pub fn nika_compile_cognition::authority::usage_complete(context: &[serde_json::value::Value]) -> bool
 pub fn nika_compile_cognition::authority::worst_case(strategy: nika_compile::types::NativeMode, samples: u32, repairs: u32, edit: bool) -> u32
+pub fn nika_compile_cognition::authority::worst_case_of(strategy: nika_compile::types::NativeMode, samples: u32, repairs: core::option::Option<u32>, edit: bool) -> core::option::Option<u32>
 pub mod nika_compile_cognition::decide
 #[non_exhaustive] pub struct nika_compile_cognition::decide::ChoiceAnswer
 pub nika_compile_cognition::decide::ChoiceAnswer::choice: alloc::string::String
@@ -514,149 +428,16 @@ pub fn nika_compile_cognition::decide::ProviderChoice<'_, P>::choose<'a>(&'a sel
 pub fn nika_compile_cognition::decide::ProviderChoice<'_, P>::name(&self) -> &str
 pub type nika_compile_cognition::decide::ChoiceFuture<'a> = core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<nika_compile_cognition::decide::ChoiceAnswer, nika_compile_cognition::decide::DecisionError>> + core::marker::Send + 'a)>>
 pub mod nika_compile_cognition::observe
-#[non_exhaustive] pub enum nika_compile_cognition::observe::Answered<'a>
-pub nika_compile_cognition::observe::Answered::NoResponse(nika_compile_cognition::observe::Failure)
-pub nika_compile_cognition::observe::Answered::Text
-pub nika_compile_cognition::observe::Answered::Text::blocks: nika_compile_cognition::observe::TextBlocks<'a>
-pub nika_compile_cognition::observe::Answered::Text::framed_sha256: alloc::string::String
-pub nika_compile_cognition::observe::Answered::Text::other_blocks: usize
-impl<D> owo_colors::OwoColorize for nika_compile_cognition::observe::Answered<'a>
-impl<T, U> core::convert::Into<U> for nika_compile_cognition::observe::Answered<'a> where U: core::convert::From<T>
-pub fn nika_compile_cognition::observe::Answered<'a>::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_compile_cognition::observe::Answered<'a> where U: core::convert::Into<T>
-pub type nika_compile_cognition::observe::Answered<'a>::Error = core::convert::Infallible
-pub fn nika_compile_cognition::observe::Answered<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_compile_cognition::observe::Answered<'a> where U: core::convert::TryFrom<T>
-pub type nika_compile_cognition::observe::Answered<'a>::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_compile_cognition::observe::Answered<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_compile_cognition::observe::Answered<'a> where T: 'static + ?core::marker::Sized
-pub fn nika_compile_cognition::observe::Answered<'a>::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_compile_cognition::observe::Answered<'a> where T: ?core::marker::Sized
-pub fn nika_compile_cognition::observe::Answered<'a>::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_compile_cognition::observe::Answered<'a> where T: ?core::marker::Sized
-pub fn nika_compile_cognition::observe::Answered<'a>::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_compile_cognition::observe::Answered<'a>
-pub fn nika_compile_cognition::observe::Answered<'a>::from(t: T) -> T
-impl<T> nika_error::traits::AsAny for nika_compile_cognition::observe::Answered<'a> where T: 'static
-pub fn nika_compile_cognition::observe::Answered<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> typenum::type_operators::Same for nika_compile_cognition::observe::Answered<'a>
-pub type nika_compile_cognition::observe::Answered<'a>::Output = T
-#[non_exhaustive] pub enum nika_compile_cognition::observe::Failure
-pub nika_compile_cognition::observe::Failure::AdmissionRefused
-pub nika_compile_cognition::observe::Failure::ProviderError
-pub nika_compile_cognition::observe::Failure::Timeout
-impl core::clone::Clone for nika_compile_cognition::observe::Failure
-pub fn nika_compile_cognition::observe::Failure::clone(&self) -> nika_compile_cognition::observe::Failure
-impl core::cmp::Eq for nika_compile_cognition::observe::Failure
-impl core::cmp::PartialEq for nika_compile_cognition::observe::Failure
-pub fn nika_compile_cognition::observe::Failure::eq(&self, other: &nika_compile_cognition::observe::Failure) -> bool
-impl core::fmt::Debug for nika_compile_cognition::observe::Failure
-pub fn nika_compile_cognition::observe::Failure::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Copy for nika_compile_cognition::observe::Failure
-impl core::marker::StructuralPartialEq for nika_compile_cognition::observe::Failure
-impl<D> owo_colors::OwoColorize for nika_compile_cognition::observe::Failure
-impl<Q, K> equivalent::Equivalent<K> for nika_compile_cognition::observe::Failure where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_compile_cognition::observe::Failure::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_compile_cognition::observe::Failure where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_compile_cognition::observe::Failure::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_compile_cognition::observe::Failure where U: core::convert::From<T>
-pub fn nika_compile_cognition::observe::Failure::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_compile_cognition::observe::Failure where U: core::convert::Into<T>
-pub type nika_compile_cognition::observe::Failure::Error = core::convert::Infallible
-pub fn nika_compile_cognition::observe::Failure::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_compile_cognition::observe::Failure where U: core::convert::TryFrom<T>
-pub type nika_compile_cognition::observe::Failure::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_compile_cognition::observe::Failure::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_compile_cognition::observe::Failure where T: core::clone::Clone
-pub type nika_compile_cognition::observe::Failure::Owned = T
-pub fn nika_compile_cognition::observe::Failure::clone_into(&self, target: &mut T)
-pub fn nika_compile_cognition::observe::Failure::to_owned(&self) -> T
-impl<T> core::any::Any for nika_compile_cognition::observe::Failure where T: 'static + ?core::marker::Sized
-pub fn nika_compile_cognition::observe::Failure::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_compile_cognition::observe::Failure where T: ?core::marker::Sized
-pub fn nika_compile_cognition::observe::Failure::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_compile_cognition::observe::Failure where T: ?core::marker::Sized
-pub fn nika_compile_cognition::observe::Failure::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_compile_cognition::observe::Failure where T: core::clone::Clone
-pub unsafe fn nika_compile_cognition::observe::Failure::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_compile_cognition::observe::Failure
-pub fn nika_compile_cognition::observe::Failure::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_compile_cognition::observe::Failure where T: core::clone::Clone
-pub fn nika_compile_cognition::observe::Failure::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_compile_cognition::observe::Failure where T: 'static
-pub fn nika_compile_cognition::observe::Failure::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> outref::AsOut<T> for nika_compile_cognition::observe::Failure where T: core::marker::Copy
-pub fn nika_compile_cognition::observe::Failure::as_out(&mut self) -> outref::Out<'_, T>
-impl<T> typenum::type_operators::Same for nika_compile_cognition::observe::Failure
-pub type nika_compile_cognition::observe::Failure::Output = T
-#[non_exhaustive] pub struct nika_compile_cognition::observe::AuthoringObservation<'a>
-pub nika_compile_cognition::observe::AuthoringObservation::answered: nika_compile_cognition::observe::Answered<'a>
-pub nika_compile_cognition::observe::AuthoringObservation::input_tokens: core::option::Option<u64>
-pub nika_compile_cognition::observe::AuthoringObservation::instruction_sha256: &'a str
-pub nika_compile_cognition::observe::AuthoringObservation::ordinal: u32
-pub nika_compile_cognition::observe::AuthoringObservation::output_tokens: core::option::Option<u64>
-pub nika_compile_cognition::observe::AuthoringObservation::prompt_messages: core::option::Option<u64>
-pub nika_compile_cognition::observe::AuthoringObservation::prompt_other_blocks: core::option::Option<u64>
-pub nika_compile_cognition::observe::AuthoringObservation::prompt_sha256: &'a str
-pub nika_compile_cognition::observe::AuthoringObservation::prompt_shape_sha256: core::option::Option<&'a str>
-pub nika_compile_cognition::observe::AuthoringObservation::prompt_text_blocks: core::option::Option<u64>
-pub nika_compile_cognition::observe::AuthoringObservation::prompt_text_bytes: core::option::Option<u64>
-pub nika_compile_cognition::observe::AuthoringObservation::reasoning_tokens: core::option::Option<u64>
-pub nika_compile_cognition::observe::AuthoringObservation::response_model: core::option::Option<&'a str>
-pub nika_compile_cognition::observe::AuthoringObservation::role: &'static str
-pub nika_compile_cognition::observe::AuthoringObservation::schema_sha256: &'a str
-pub nika_compile_cognition::observe::AuthoringObservation::stop_reason_detail: core::option::Option<&'a str>
-pub nika_compile_cognition::observe::AuthoringObservation::stop_reason_kind: core::option::Option<&'static str>
-pub nika_compile_cognition::observe::AuthoringObservation::usage_reported: core::option::Option<bool>
-impl<D> owo_colors::OwoColorize for nika_compile_cognition::observe::AuthoringObservation<'a>
-impl<T, U> core::convert::Into<U> for nika_compile_cognition::observe::AuthoringObservation<'a> where U: core::convert::From<T>
-pub fn nika_compile_cognition::observe::AuthoringObservation<'a>::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_compile_cognition::observe::AuthoringObservation<'a> where U: core::convert::Into<T>
-pub type nika_compile_cognition::observe::AuthoringObservation<'a>::Error = core::convert::Infallible
-pub fn nika_compile_cognition::observe::AuthoringObservation<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_compile_cognition::observe::AuthoringObservation<'a> where U: core::convert::TryFrom<T>
-pub type nika_compile_cognition::observe::AuthoringObservation<'a>::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_compile_cognition::observe::AuthoringObservation<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_compile_cognition::observe::AuthoringObservation<'a> where T: 'static + ?core::marker::Sized
-pub fn nika_compile_cognition::observe::AuthoringObservation<'a>::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_compile_cognition::observe::AuthoringObservation<'a> where T: ?core::marker::Sized
-pub fn nika_compile_cognition::observe::AuthoringObservation<'a>::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_compile_cognition::observe::AuthoringObservation<'a> where T: ?core::marker::Sized
-pub fn nika_compile_cognition::observe::AuthoringObservation<'a>::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_compile_cognition::observe::AuthoringObservation<'a>
-pub fn nika_compile_cognition::observe::AuthoringObservation<'a>::from(t: T) -> T
-impl<T> nika_error::traits::AsAny for nika_compile_cognition::observe::AuthoringObservation<'a> where T: 'static
-pub fn nika_compile_cognition::observe::AuthoringObservation<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> typenum::type_operators::Same for nika_compile_cognition::observe::AuthoringObservation<'a>
-pub type nika_compile_cognition::observe::AuthoringObservation<'a>::Output = T
-pub struct nika_compile_cognition::observe::TextBlocks<'a>
-impl nika_compile_cognition::observe::TextBlocks<'_>
-pub fn nika_compile_cognition::observe::TextBlocks<'_>::is_empty(&self) -> bool
-pub fn nika_compile_cognition::observe::TextBlocks<'_>::iter(&self) -> impl core::iter::traits::iterator::Iterator<Item = &str> + core::clone::Clone
-pub fn nika_compile_cognition::observe::TextBlocks<'_>::len(&self) -> usize
-impl<D> owo_colors::OwoColorize for nika_compile_cognition::observe::TextBlocks<'a>
-impl<T, U> core::convert::Into<U> for nika_compile_cognition::observe::TextBlocks<'a> where U: core::convert::From<T>
-pub fn nika_compile_cognition::observe::TextBlocks<'a>::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_compile_cognition::observe::TextBlocks<'a> where U: core::convert::Into<T>
-pub type nika_compile_cognition::observe::TextBlocks<'a>::Error = core::convert::Infallible
-pub fn nika_compile_cognition::observe::TextBlocks<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_compile_cognition::observe::TextBlocks<'a> where U: core::convert::TryFrom<T>
-pub type nika_compile_cognition::observe::TextBlocks<'a>::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_compile_cognition::observe::TextBlocks<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_compile_cognition::observe::TextBlocks<'a> where T: 'static + ?core::marker::Sized
-pub fn nika_compile_cognition::observe::TextBlocks<'a>::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_compile_cognition::observe::TextBlocks<'a> where T: ?core::marker::Sized
-pub fn nika_compile_cognition::observe::TextBlocks<'a>::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_compile_cognition::observe::TextBlocks<'a> where T: ?core::marker::Sized
-pub fn nika_compile_cognition::observe::TextBlocks<'a>::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_compile_cognition::observe::TextBlocks<'a>
-pub fn nika_compile_cognition::observe::TextBlocks<'a>::from(t: T) -> T
-impl<T> nika_error::traits::AsAny for nika_compile_cognition::observe::TextBlocks<'a> where T: 'static
-pub fn nika_compile_cognition::observe::TextBlocks<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> typenum::type_operators::Same for nika_compile_cognition::observe::TextBlocks<'a>
-pub type nika_compile_cognition::observe::TextBlocks<'a>::Output = T
-pub async fn nika_compile_cognition::observe::observe_authoring<F: core::future::future::Future>(sink: nika_compile_cognition::observe::Sink, future: F) -> <F as core::future::future::Future>::Output
-pub type nika_compile_cognition::observe::Sink = alloc::sync::Arc<(dyn for<'a, 'b> core::ops::function::Fn(&'a nika_compile_cognition::observe::AuthoringObservation<'b>) + core::marker::Send + core::marker::Sync)>
+pub use nika_compile_cognition::observe::ActivitySink
+pub use nika_compile_cognition::observe::Answered
+pub use nika_compile_cognition::observe::AuthoringObservation
+pub use nika_compile_cognition::observe::CallActivity
+pub use nika_compile_cognition::observe::CallState
+pub use nika_compile_cognition::observe::Failure
+pub use nika_compile_cognition::observe::Sink
+pub use nika_compile_cognition::observe::TextBlocks
+pub use nika_compile_cognition::observe::observe_activity
+pub use nika_compile_cognition::observe::observe_authoring
 pub mod nika_compile_cognition::rehearse
 #[non_exhaustive] pub enum nika_compile_cognition::rehearse::Attempt
 pub nika_compile_cognition::rehearse::Attempt::Completed

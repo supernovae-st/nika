@@ -4,6 +4,7 @@ pub mod nika_harness::authoring
 impl nika_harness::authoring::HarnessAuthoring
 pub fn nika_harness::authoring::HarnessAuthoring::descriptor(&self) -> core::result::Result<serde_json::value::Value, alloc::string::String>
 pub fn nika_harness::authoring::HarnessAuthoring::meet(adapter: &str, model: core::option::Option<&str>) -> core::result::Result<Self, alloc::string::String>
+pub fn nika_harness::authoring::HarnessAuthoring::meet_with_transport(adapter: &str, model: core::option::Option<&str>, transport: nika_types::access::HarnessTransport) -> core::result::Result<Self, alloc::string::String>
 impl core::fmt::Debug for nika_harness::authoring::HarnessAuthoring
 pub fn nika_harness::authoring::HarnessAuthoring::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl nika_kernel_ai::provider::ProviderInferDyn for nika_harness::authoring::HarnessAuthoring
@@ -32,6 +33,8 @@ pub type nika_harness::authoring::HarnessAuthoring::Output = T
 impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderInfer for nika_harness::authoring::HarnessAuthoring where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderInferDyn
 pub async fn nika_harness::authoring::HarnessAuthoring::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
 pub fn nika_harness::authoring::model_argument(adapter: &str, model: core::option::Option<&str>) -> core::result::Result<alloc::string::String, alloc::string::String>
+pub async fn nika_harness::authoring::reason(adapter: &str, model: core::option::Option<&str>, transport: nika_types::access::HarnessTransport, prompt: &str) -> core::result::Result<(alloc::string::String, bool), alloc::string::String>
+pub fn nika_harness::authoring::validate_selection(adapter: &str, model: core::option::Option<&str>, transport: nika_types::access::HarnessTransport) -> core::result::Result<alloc::string::String, alloc::string::String>
 pub mod nika_harness::client
 pub const nika_harness::client::IDLE_TIMEOUT_SECS: u64
 pub const nika_harness::client::MAX_LINE_BYTES: usize
