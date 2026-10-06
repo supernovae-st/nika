@@ -7,8 +7,11 @@
 //! ([`Conversation::stopper`]). While the turn runs, the first `Ctrl+C` asks the
 //! preparation to stop and arms the second press, which still leaves; `Enter`
 //! with words in the box asks the same stop and queues those words as a
-//! correction. A Run is never stopped here: the stop says so and only the
-//! usual warning applies. The Session answers the stopped turn itself.
+//! correction. A command the conversation knows (`/details`, `/status`, …)
+//! is not a correction: it reads and never redirects the work, so it stops
+//! nothing and waits in the box for the turn's end. A Run is never stopped
+//! here: the stop says so and only the usual warning applies. The Session
+//! answers the stopped turn itself.
 //!
 //! A queued correction is sent as the next line only when the turn ended on
 //! the free prompt. Any decision on screen (a proposal, a question, a gate, a
@@ -36,6 +39,21 @@ const RUN_KEEPS: &str = "a Run is under way and is not stopped here · Ctrl+C ag
 const RUN_ENTER_WAITS: &str = "a Run is under way · Enter sends when it is your turn";
 /// The row the activity card shows for the human's own request.
 const STOP_ASKED: &str = "stop requested by you";
+
+/// The command a draft names by its first word, when the conversation knows
+/// it: such a line reads, so it is never queued as a correction.
+fn command_typed<'c>(draft: &str, commands: &'c [String]) -> Option<&'c str> {
+    let first = draft.split_whitespace().next()?;
+    commands
+        .iter()
+        .map(String::as_str)
+        .find(|known| *known == first)
+}
+
+/// The hint when `Enter` keeps a command in the box while Nika works.
+fn command_waits(command: &str) -> String {
+    format!("Nika keeps working · {command} waits for your turn")
+}
 
 /// One turn's stop and the correction queued during it.
 #[derive(Default)]
@@ -158,6 +176,10 @@ impl<C: Conversation + 'static> Shell<C> {
     pub(super) fn queue_correction(&mut self) {
         if self.composer.is_blank() || self.hold.stopper.is_none() {
             self.state.completion = Some(ENTER_WAITS.to_owned());
+            return;
+        }
+        if let Some(command) = command_typed(&self.composer.text(), &self.commands) {
+            self.state.completion = Some(command_waits(command));
             return;
         }
         let was = self.hold.stopping();
@@ -300,6 +322,27 @@ mod tests {
         ] {
             assert_eq!(fate(&waiting, true, false, false), Fate::Transcript);
         }
+    }
+
+    /// A command typed while a preparation works is never a correction: it reads, so it stops
+    /// nothing and waits. Words that only mention a command, or a path that starts with a
+    /// slash, still correct the work.
+    #[test]
+    fn a_command_typed_during_a_preparation_is_never_a_correction() {
+        let commands = ["/details", "/status", "/show"].map(str::to_owned);
+        assert_eq!(command_typed("/details", &commands), Some("/details"));
+        assert_eq!(command_typed("  /status  ", &commands), Some("/status"));
+        assert_eq!(command_typed("/show now", &commands), Some("/show"));
+        for correction in [
+            "write it to /tmp/out.md instead",
+            "/tmp/out.md is the output",
+            "show /details of the plan",
+            "/detailsx",
+        ] {
+            assert_eq!(command_typed(correction, &commands), None, "{correction}");
+        }
+        let hint = command_waits("/intelligence");
+        assert!(hint.chars().count() <= 80, "{hint}");
     }
 
     /// The stop's hints fit one 80-column row and never claim a Run stops.
