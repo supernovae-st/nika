@@ -264,7 +264,7 @@ fn panel(
 fn preparation_line(intelligence: Option<&str>, color: bool) -> Line<'static> {
     let seat = intelligence.unwrap_or("not selected - /intelligence to choose; asked when needed");
     Line::from(vec![
-        Span::styled("Prepare: ", role::style(Role::VerbAgent, color)),
+        Span::styled("Prepare with: ", role::style(Role::VerbAgent, color)),
         Span::styled(seat.to_owned(), role::style(Role::Dim, color)),
     ])
 }
@@ -611,7 +611,8 @@ mod tests {
         let mut view = screen(welcome());
         view.thread.intelligence = Some("deepseek/chosen - deepseek API, metered".into());
         let (_, rows) = draw_at(&view, 120, 40, paint(true));
-        let model = find(&rows, "Prepare: deepseek/chosen").expect("selected model is visible");
+        let model =
+            find(&rows, "Prepare with: deepseek/chosen").expect("selected model is visible");
         assert!(rows[model].is_ascii(), "{}", rows[model]);
         assert!(rows[model + 1].is_ascii(), "{}", rows[model + 1]);
         view.thread.intelligence = Some("private/été·beta - app account".into());
@@ -679,7 +680,7 @@ mod tests {
                     for visible in [
                         "studio",
                         "release.nika",
-                        "Prepare:",
+                        "Prepare with:",
                         model,
                         "checking files locally",
                         "draft stays here",
@@ -731,7 +732,7 @@ mod tests {
                 .map(|y| (0..width).map(|x| buffer[(x, y)].symbol()).collect())
                 .collect();
             for visible in [
-                "Prepare:",
+                "Prepare with:",
                 "verifier:",
                 "typesafe/jev-1.13.0",
                 "draft stays here",
@@ -740,6 +741,91 @@ mod tests {
                     rows.iter().any(|row| row.contains(visible)),
                     "{width}x{height} {visible}: {rows:#?}"
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn an_open_preview_keeps_the_status_navigation_selection_and_the_draft() {
+        // The Session's leads, as a narrow status row must keep them.
+        const FAILED: &str = "Last Run · Done · the run failed";
+        const EARLIER: &str = "last run ✓ exit 0 in an earlier session";
+        let cases = [
+            (FAILED, format!("{FAILED} · `release.nika`"), 0),
+            (
+                EARLIER,
+                format!("{EARLIER} · Saved · no current Run result · `release.nika`"),
+                0,
+            ),
+            (FAILED, format!("{FAILED} · `release.nika`"), 3),
+        ];
+        for (width, height) in [(60, 18), (80, 24), (100, 32), (120, 40), (180, 48)] {
+            for ascii in [false, true] {
+                for (lead, status, scroll) in &cases {
+                    let mut view = screen(Object::Shown {
+                        icon: Icon::Workflow,
+                        name: "release.nika".into(),
+                        lines: vec!["saved workflow".into()],
+                    });
+                    // Idle: no paused run is pinned beside this frame.
+                    view.pinned = None;
+                    view.thread.intelligence = Some(
+                        "scaleway/chosen - scaleway API, metered; verifier: same model".into(),
+                    );
+                    let mut state = UiState::new(Presentation::Workspace, false, (width, height));
+                    state.ascii = ascii;
+                    state.status.clone_from(status);
+                    state.transcript.push(crate::model::Committed::new(
+                        crate::model::Kind::Reply,
+                        (0..80)
+                            .map(|n| format!("reply line {n:03}"))
+                            .collect::<Vec<_>>()
+                            .join("\n"),
+                    ));
+                    state.focus_scroll = *scroll;
+                    let mut composer = Composer::new();
+                    composer.paste("keep my draft");
+                    let mut terminal =
+                        Terminal::new(TestBackend::new(width, height)).expect("terminal");
+                    terminal
+                        .draw(|frame| {
+                            assert!(draw(
+                                frame,
+                                &view,
+                                paint(ascii),
+                                &Focus::composing(),
+                                &state,
+                                &composer
+                            ));
+                        })
+                        .expect("draw");
+                    let buffer = terminal.backend().buffer();
+                    let rows: Vec<String> = (0..height)
+                        .map(|y| (0..width).map(|x| buffer[(x, y)].symbol()).collect())
+                        .collect();
+                    let shown = rows.join("\n");
+                    let way = if *scroll > 0 {
+                        "click chat; End: latest"
+                    } else {
+                        "wheel"
+                    };
+                    for visible in [
+                        "Prepare with:",
+                        "scaleway/chosen",
+                        "verifier:",
+                        "same model",
+                        *lead,
+                        "/intelligence",
+                        way,
+                        "keep my draft",
+                    ] {
+                        assert!(
+                            shown.contains(visible),
+                            "{width}x{height} {visible}: {shown}"
+                        );
+                    }
+                    assert!(!shown.contains("Idle"), "{width}x{height}: {shown}");
+                }
             }
         }
     }
@@ -783,7 +869,7 @@ mod tests {
                     })
                     .expect("the fixed hint names all four choices together");
                 assert!(
-                    !choices.contains("Prepare:"),
+                    !choices.contains("Prepare with:"),
                     "the cue does not claim a model answered"
                 );
                 assert!(rows.iter().any(|row| row.contains("cancel")), "{rows:#?}");

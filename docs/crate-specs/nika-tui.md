@@ -169,7 +169,8 @@ a stamped integrated build or a paid model route.
   the object in view, the conversation with its composer and the pinned
   activity row. The composer and the object come first: below 100 columns the
   conversation sits under the object and keeps at least half the rows; from 100
-  columns it stands beside the object (36 to 56 columns); from 120 columns the
+  columns it stands to the left of the preview (48% of the available work area,
+  bounded to 42–92 columns); from 120 columns the
   project aside appears (20 to 32 columns); from 30 rows the header takes a
   second row. Below 60×16 there is no workspace and the caller keeps the focus
   presentation. The regions cover the screen exactly without overlap at 80×24,
@@ -205,7 +206,7 @@ a stamped integrated build or a paid model route.
   keeps apart what is only on screen and what is attached. What the next
   message carries keeps priority on a narrow panel; the on-screen part is cut
   first, then dropped. The heading identifies the Session's selection as
-  `Prepare:`; it does not attribute a local action or a reply to that model.
+  `Prepare with:`; it does not attribute a local action or a reply to that model.
   It names the explicitly configured model, or the authoring seat's resolved
   provider model when no model was named; an unresolved default stays explicit.
   During intelligence selection the fixed composer hint names all four numbered
@@ -214,6 +215,11 @@ a stamped integrated build or a paid model route.
   the existing activity/composer area stays fixed. The header and scroll bounds
   use the same measurement; one transcript row remains. An unknown selection
   stays explicit; the renderer makes no provider call.
+  The idle hint keeps intelligence selection and panel navigation visible after
+  the welcome closes. While scrolled back, it asks the user to click the
+  conversation, then press End for the latest messages: the wheel does not move
+  keyboard focus. The hint fits one row at the available width; Stop, Save,
+  cost questions and completion keep their own instructions.
 - `workspace::screen::draw` composes one frame from a `Screen` (place, aside,
   object, thread, pinned run): the transcript, status, composer and hint are
   painted by the same functions as the focus presentation. Beside the object

@@ -169,7 +169,7 @@ pub fn live_rows(state: &UiState, composer: &Composer, width: u16, height: u16) 
     let prompt = u16::try_from(state.waiting.prompt().chars().count()).unwrap_or(8);
     let composer_rows = composer.rows(width.saturating_sub(prompt).max(8));
     let rail = u16::from(!state.rail.is_empty());
-    let hint = wrapped_rows(&[hint_line(state)], width).min(3);
+    let hint = wrapped_rows(&[hint_line(state, width)], width).min(3);
     let rows = rail + status_rows(state, width) + composer_rows + hint;
     rows.clamp(3, height.saturating_div(2).max(3))
 }
@@ -261,9 +261,36 @@ fn earlier_cue(state: &UiState) -> Option<String> {
 const WORKING_HINT: &str =
     "Preparing: Ctrl+C requests Stop; correction + Enter. Run: typing waits.";
 
-fn hint_line(state: &UiState) -> Line<'static> {
+fn hint_line(state: &UiState, width: u16) -> Line<'static> {
     let idle = if state.busy.is_some() {
         WORKING_HINT
+    } else if state.waiting == Waiting::Free
+        && state.presentation == Presentation::Workspace
+        && crate::workspace::geometry::fits(state.size)
+    {
+        // One row, even beside a narrow preview; Stop, consent and completion keep priority.
+        // Scrolled back, the way to the latest comes first: the status row may clip its cue.
+        let hints = if state.focus_scroll > 0 {
+            [
+                "click chat; End: latest · /intelligence · /help · F6: panel · wheel: scroll",
+                "click chat; End: latest · /intelligence · F6: panel",
+                "click chat; End: latest · /intelligence",
+            ]
+        } else {
+            [
+                "describe work · /intelligence · /help · click/F6: panel · wheel: scroll",
+                "/intelligence · /help · click/F6: panel · wheel: scroll",
+                "/intelligence · F6:panel · wheel:scroll",
+            ]
+        };
+        hints
+            .into_iter()
+            .find(|hint| hint.chars().count() <= usize::from(width))
+            .unwrap_or(if state.focus_scroll > 0 {
+                "End: latest · /intelligence"
+            } else {
+                "/intelligence · /help"
+            })
     } else {
         state.waiting.hint()
     };
@@ -282,7 +309,7 @@ pub(crate) fn render_live(frame: &mut Frame<'_>, state: &UiState, composer: &Com
     // sentences; one 80-column row cannot hold them side by side) and
     // yields it on a terminal too short for four rows.
     let rail_rows = u16::from(!state.rail.is_empty() && area.height >= 4);
-    let hint_rows = wrapped_rows(&[hint_line(state)], area.width)
+    let hint_rows = wrapped_rows(&[hint_line(state, area.width)], area.width)
         .min(3)
         .min(area.height.saturating_sub(rail_rows + 2).max(1));
     let status_rows = status_rows(state, area.width)
@@ -319,7 +346,7 @@ pub(crate) fn render_live(frame: &mut Frame<'_>, state: &UiState, composer: &Com
     );
     composer.render(editor, frame.buffer_mut());
     frame.render_widget(
-        Paragraph::new(hint_line(state)).wrap(Wrap { trim: false }),
+        Paragraph::new(hint_line(state, area.width)).wrap(Wrap { trim: false }),
         hint,
     );
 }
@@ -493,6 +520,77 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn workspace_navigation_fits_one_row_and_yields_to_the_current_action() {
+        let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
+        let words = |line: Line<'_>| -> String {
+            line.spans
+                .iter()
+                .map(|span| span.content.as_ref())
+                .collect()
+        };
+        // The Session's words keep leading the status row: no prefix pushes them aside.
+        state.status = "Last Run · Done · the run failed · `release.nika`".into();
+        for (scroll, commands) in [
+            (0, ["/intelligence", "F6", "wheel"]),
+            (3, ["click chat", "End: latest", "/intelligence"]),
+        ] {
+            state.focus_scroll = scroll;
+            for width in [39, 44, 60, 68, 92] {
+                for ascii in [false, true] {
+                    state.ascii = ascii;
+                    let hint = hint_line(&state, width);
+                    let text = words(hint.clone());
+                    for command in commands {
+                        assert!(text.contains(command), "{scroll} {width}: {text}");
+                    }
+                    assert_eq!(wrapped_rows(&[hint], width), 1, "{scroll} {width}: {text}");
+                    if ascii {
+                        assert!(text.is_ascii());
+                    }
+                    assert!(words(status_line(&state)).starts_with(&state.status));
+                }
+            }
+        }
+        for waiting in [
+            Waiting::Choosing,
+            Waiting::Proposal,
+            Waiting::Gate,
+            Waiting::Question {
+                key: "unknown_cost".into(),
+            },
+        ] {
+            state.waiting = waiting;
+            assert_eq!(
+                words(hint_line(&state, 44)),
+                own(state.waiting.hint(), true)
+            );
+        }
+        state.waiting = Waiting::Free;
+        state.busy = Some("checking files locally".into());
+        assert_eq!(words(hint_line(&state, 44)), WORKING_HINT);
+        assert!(words(status_line(&state)).contains("checking files locally"));
+        state.completion = Some(ENTER.into());
+        assert_eq!(words(hint_line(&state, 44)), ENTER);
+        state.completion = None;
+        state.busy = None;
+        state.spinner = Some(3); // A stale animation frame is not active work.
+        assert!(words(status_line(&state)).starts_with(&state.status));
+        assert!(!words(status_line(&state)).contains("Idle"));
+        state.focus_scroll = 0;
+        state.presentation = Presentation::Inline;
+        assert_eq!(
+            words(hint_line(&state, 80)),
+            own(state.waiting.hint(), true)
+        );
+        state.presentation = Presentation::Workspace;
+        state.size = (40, 12); // Focus fallback has no workspace panel navigation.
+        assert_eq!(
+            words(hint_line(&state, 40)),
+            own(state.waiting.hint(), true)
+        );
     }
 
     /// The armed row says what a second press does and claims no
@@ -806,7 +904,7 @@ mod tests {
         let mut state = UiState::new(Presentation::Inline, true, (80, 5));
         state.waiting = Waiting::Proposal;
         let text = |state: &UiState| -> String {
-            hint_line(state)
+            hint_line(state, 80)
                 .spans
                 .iter()
                 .map(|s| s.content.as_ref())
@@ -824,7 +922,7 @@ mod tests {
         }
         assert!(!working.contains("Save"), "{working}");
         assert_eq!(
-            hint_line(&state).spans[0].style,
+            hint_line(&state, 80).spans[0].style,
             role::style(Role::Accent, true),
             "no consent tone while nothing can be consented to"
         );

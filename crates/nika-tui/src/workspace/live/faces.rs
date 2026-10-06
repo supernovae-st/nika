@@ -215,7 +215,10 @@ impl LiveRun {
     pub(super) fn history_missing(&self) -> Option<String> {
         self.kept.as_ref()?;
         let Some(proven) = &self.proven else {
-            return Some("its journal is captured and verified when this face opens".to_owned());
+            return Some(
+                "Click this run in the project list to read and verify its saved journal."
+                    .to_owned(),
+            );
         };
         if proven.events().is_some() {
             return None;

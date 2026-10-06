@@ -343,7 +343,7 @@ mod tests {
                 let mut terminal =
                     Terminal::new(TestBackend::new(size.0, size.1)).expect("terminal");
                 let (latest, full) = selected_frame(&mut terminal, &state, &desk, &composer);
-                for visible in ["Prepare:", MODEL, "release.nika", DRAFT] {
+                for visible in ["Prepare with:", MODEL, "release.nika", DRAFT] {
                     assert!(full.contains(visible), "{size:?} {visible}: {full}");
                 }
                 assert!(latest.contains("question line 059"), "{size:?}: {latest}");

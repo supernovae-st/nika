@@ -431,7 +431,8 @@ fn wait_workspace(term: &mut Term) {
         screen.on_alt()
             && screen.contains("diamond.nika")
             && screen.contains("single.nika")
-            && screen.contains("describe work")
+            && screen.contains("/intelligence")
+            && (screen.contains("nika ›") || screen.contains("nika >"))
     });
 }
 

@@ -437,7 +437,12 @@ fn a_kept_leg_is_evidence_whose_journal_is_read_first_on_every_face() {
     }
     for each in [RunFace::Run, RunFace::Files, RunFace::Outputs] {
         let said = face(&run, each);
-        assert!(said.contains("captured and verified when"), "{said}");
+        assert!(
+            said.contains(
+                "Click this run in the project list to read and verify its saved journal."
+            ),
+            "{said}"
+        );
     }
     assert_eq!(run.execution(), Some(execution));
 }
@@ -485,7 +490,9 @@ fn a_kept_leg_folds_its_verified_journal_and_names_it() {
     run.forget();
     assert_eq!(run.wants(RunFace::Files), [Want::Proof], "journal first");
     assert!(
-        !face(&run, RunFace::Run).contains("save"),
+        !face(&run, RunFace::Run)
+            .split_whitespace()
+            .any(|word| word == "save"),
         "{}",
         face(&run, RunFace::Run)
     );

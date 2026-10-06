@@ -284,7 +284,7 @@ fn the_keys_keep_their_other_roles_and_the_hint_promises_only_the_available() {
     );
     assert!(
         body.iter()
-            .any(|r| r.contains("captured and verified when")),
+            .any(|r| r.contains("Click this run in the project list")),
         "{body:#?}"
     );
     assert_eq!(kept.route(key(KeyCode::Enter), WIDE), Route::Nothing);
