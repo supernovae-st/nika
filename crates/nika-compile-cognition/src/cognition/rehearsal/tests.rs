@@ -5,9 +5,11 @@
 //! These tests establish plumbing and decisions, not the real room's confinement.
 
 use super::*;
+use crate::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat};
 use crate::rehearse::{
-    Bounds, EffectCounts, FailureRecord, FinalReceipt, FinalState, LedgerFacts, Observation,
-    RecordedCause, Refusal, RehearsalFuture, RehearsedOutput, RoomEvidence, Spent,
+    Bounds, CopyReceipt, Digest, EffectCounts, FailureRecord, FinalReceipt, FinalState, Held,
+    LedgerFacts, Observation, RecordedCause, Refusal, RehearsalFuture, RehearsedOutput,
+    RoomEvidence, Spent,
 };
 use crate::{
     AuthoringPolicy, NativeMode, compile_with_cognition, compile_with_cognition_rehearsed,
@@ -16,6 +18,7 @@ use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, ResponseFormat,
     StopReason, TokenUsage,
 };
+use std::collections::VecDeque;
 use std::sync::{
     Mutex,
     atomic::{AtomicUsize, Ordering},
@@ -24,6 +27,8 @@ use std::time::Duration;
 
 const INTENT: &str = "Write the text hello to ./out/result.txt.";
 const TARGET: &str = "./out/result.txt";
+/// The input a request that reads names, copied into the room by the copying modes.
+const SOURCE: &str = "./in/source.txt";
 
 fn source(directories: bool) -> String {
     format!(
@@ -112,6 +117,10 @@ enum Mode {
     DirtyRoom,
     Engine,
     StopAtBound,
+    /// The run reads [`SOURCE`] and writes its text to [`TARGET`], both held whole.
+    Copied,
+    /// The same run, both texts held only as a prefix cut at the preview bound.
+    Prefixed,
 }
 
 struct Host {
@@ -192,6 +201,25 @@ fn report(candidate: &str, mode: Mode) -> RehearsalReport {
             task: "save".into(),
             code: "synthetic-write-failure".into(),
             message: "the parent directory is absent".into(),
+        }
+    } else if matches!(mode, Mode::Copied | Mode::Prefixed) {
+        let bytes = Digest::of(b"hello");
+        let held = if matches!(mode, Mode::Copied) {
+            Held::Whole("hello".into())
+        } else {
+            Held::Preview("hel".into())
+        };
+        let copy = CopyReceipt::new(SOURCE, bytes.clone(), Some(bytes.clone()), held.clone());
+        observed.copies = vec![copy];
+        let written = FinalState::File {
+            digest: bytes,
+            held,
+        };
+        observed.finals = vec![FinalReceipt::new(TARGET, written)];
+        observed.ledger = LedgerFacts::clean(vec![TARGET.into()]);
+        observed.spent = Spent::new(5, 5);
+        Rehearsal::Passed {
+            outputs: vec![RehearsedOutput::new(TARGET, "hello")],
         }
     } else {
         let bytes = crate::rehearse::Digest::of(b"hello");
@@ -638,4 +666,247 @@ async fn an_open_question_starts_no_rehearsal_and_its_answer_replays_afresh() {
         finished.provenance.decision.as_ref().unwrap()["rehearsal"]["usage"]["attempts"],
         1
     );
+}
+
+/// What a judge may read of this call's runs: only the last run of exactly these bytes,
+/// completed and vouched for by the room, bound to their digest, each text with whether it was
+/// read whole. No run yet, a run of other bytes, a run the room sends back for repair (an output
+/// missing), a report the room stops on (it names other bytes) and a safe refusal before any
+/// attempt show nothing.
+#[tokio::test]
+async fn the_observation_is_the_vouched_run_of_these_exact_bytes() {
+    let req = CompileRequest::create("Read ./in/source.txt and write it to ./out/result.txt.");
+    let mut out = crate::initial();
+    nika_compile::surface::finish(source(true), &mut out);
+    assert!(ready(&out), "{out:#?}");
+    for (mode, text, whole) in [
+        (Mode::Copied, "hello", true),
+        (Mode::Prefixed, "hel", false),
+    ] {
+        let host = Host::new(mode);
+        let mut state = Rehearsals::new(Some(&host));
+        assert_eq!(state.observed(&source(true)), None, "no run yet");
+        assert!(matches!(
+            state.inspect(&req, &out).await.result,
+            Result::Proceed
+        ));
+        let observed = json!({
+            "candidate_sha256": crate::cognition::knowledge::sha256(&source(true)),
+            "inputs": [{"path": SOURCE, "text": text, "read_whole": whole}],
+            "outputs": [{"path": TARGET, "text": text, "written": true, "read_whole": whole}],
+        });
+        assert_eq!(state.observed(&source(true)), Some(observed));
+        assert_eq!(
+            state.observed(&source(false)),
+            None,
+            "another candidate's run"
+        );
+    }
+    let greeting = request(0);
+    let unvouched = [
+        (Mode::Missing, &greeting, "repair"),
+        (Mode::WrongDigest, &greeting, "stop"),
+        (Mode::NotRun, &req, "proceed"),
+    ];
+    for (mode, asked, decided) in unvouched {
+        let host = Host::new(mode);
+        let mut state = Rehearsals::new(Some(&host));
+        let decision = match state.inspect(asked, &out).await.result {
+            Result::Proceed => "proceed",
+            Result::Repair(_) => "repair",
+            Result::Stop(_) => "stop",
+        };
+        assert_eq!(decision, decided);
+        assert_eq!(state.observed(&source(true)), None, "{decided}");
+        assert_eq!(host.candidates.lock().unwrap().as_slice(), [source(true)]);
+    }
+}
+
+/// The selected judge of the sketch door's greeting: it answers each question its script names,
+/// in order, and keeps every question; a question the script does not expect panics.
+struct Judging {
+    script: Mutex<VecDeque<(&'static str, &'static str)>>,
+    asked: Mutex<Vec<ChoiceQuestion>>,
+}
+
+const JUDGE: &str = "mock/typed-judge";
+
+impl Judging {
+    fn new<const N: usize>(script: [(&'static str, &'static str); N]) -> Self {
+        Self {
+            script: Mutex::new(script.into_iter().collect()),
+            asked: Mutex::new(Vec::new()),
+        }
+    }
+
+    fn asked(&self) -> Vec<ChoiceQuestion> {
+        self.asked.lock().unwrap().clone()
+    }
+
+    /// The scripted answers no question asked for.
+    fn left(&self) -> usize {
+        self.script.lock().unwrap().len()
+    }
+}
+
+impl DecisionSeat for Judging {
+    fn name(&self) -> &str {
+        JUDGE
+    }
+
+    fn choose<'a>(&'a self, question: &'a ChoiceQuestion) -> ChoiceFuture<'a> {
+        Box::pin(async move {
+            self.asked.lock().unwrap().push(question.clone());
+            let (id, choice) = (self.script.lock().unwrap().pop_front())
+                .unwrap_or_else(|| panic!("an unscripted question: {}", question.id));
+            assert_eq!(question.id, id);
+            Ok(ChoiceAnswer::new(choice, JUDGE))
+        })
+    }
+}
+
+/// The sketch door's greeting, judged by `judge` (`host`: the room that rehearses it).
+async fn judged_greeting(judge: &Judging, host: Option<&Host>) -> CompileOutcome {
+    let author = sketched();
+    let cognition = crate::Cognition {
+        provider: Some(&author),
+        seat: Some(judge),
+    };
+    let host = host.map(|host| host as &dyn Rehearse);
+    let out = compile_with_cognition_rehearsed(&sketch_request(0), cognition, host).await;
+    assert_eq!(
+        author.authored.load(Ordering::SeqCst),
+        2,
+        "the sketch and its fills"
+    );
+    out.unwrap()
+}
+
+/// A disagreement no part locates is decided by this compile's run of the same bytes (R6): the
+/// judge doubts the whole request, carries its one part and names no task doing more, then is
+/// shown the run the evidence made of the candidate (nothing read, the greeting written whole)
+/// and finds it consistent. The candidate is READY on that judgment, the only one asked over
+/// the run, and the barrier reuses the run the judge read.
+#[tokio::test]
+async fn a_disagreement_is_decided_by_this_compiles_run_of_the_same_bytes() {
+    let host = Host::new(Mode::ByDirectories);
+    let judge = Judging::new([
+        ("verify-request", "unfaithful"),
+        ("verify-part-0", "carried"),
+        ("verify-extra", "only_requested"),
+        ("verify-observed", "consistent"),
+    ]);
+    let out = judged_greeting(&judge, Some(&host)).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(judge.left(), 0);
+    let candidate = out.candidate.clone().unwrap();
+    let ran = host.candidates.lock().unwrap().clone();
+    assert_eq!(
+        ran,
+        std::slice::from_ref(&candidate),
+        "one run, reused by the barrier"
+    );
+    let asked = judge.asked();
+    let ids: Vec<&str> = asked.iter().map(|q| q.id.as_str()).collect();
+    let questions = [
+        "verify-request",
+        "verify-part-0",
+        "verify-extra",
+        "verify-observed",
+    ];
+    assert_eq!(ids, questions);
+    let observation = json!({
+        "candidate_sha256": crate::cognition::knowledge::sha256(&candidate),
+        "inputs": [],
+        "outputs": [{"path": TARGET, "text": "hello", "written": true, "read_whole": true}],
+    });
+    assert_eq!(asked[3].state["observation"], observation);
+    let over_the_run = ["consistent", "unexercised", "part-0", "task-save", "none"];
+    assert_eq!(asked[3].keys(), over_the_run);
+    assert!(
+        asked[..3]
+            .iter()
+            .all(|q| q.state.get("observation").is_none())
+    );
+    let decision = out.provenance.decision.as_ref().unwrap();
+    let verified = &decision["semantic_verification"][0];
+    assert_eq!(verified["doubt"], json!(["unfaithful"]));
+    for list in ["defects", "unknown", "contested", "unsettled"] {
+        assert_eq!(verified[list], json!([]), "{list}: {verified:#}");
+    }
+    let counts = (&verified["attempted"], &verified["consumed"]);
+    assert_eq!(counts, (&json!(4), &json!(4)));
+    assert_eq!(verified["settled_by"], "verify-observed");
+    let run = &verified["questions"][3];
+    assert_eq!(run["choice"], "consistent");
+    // The record keeps what the judge read by digest and size, never the texts.
+    let sha256 = crate::cognition::knowledge::sha256;
+    let kept = json!({
+        "candidate_sha256": sha256(&candidate),
+        "sha256": sha256(&observation.to_string()),
+        "texts": [{"role": "output", "path": TARGET, "bytes": 5, "sha256": sha256("hello"),
+            "read_whole": true, "written": true}],
+    });
+    assert_eq!(run["observation"], kept);
+    let route = decision["route"].as_array().unwrap();
+    assert!(
+        route
+            .iter()
+            .any(|step| step == "verify: judged (decision_seat)"),
+        "{route:?}"
+    );
+}
+
+/// What a candidate judged and rejected with no defect located offers (the `verify_held`
+/// finding, as the verifier states it).
+const HELD: &str = "The candidate was judged and not accepted, with no defect a repair could start from: it is shown, never offered, and nothing was written. A correction of the request or another verifier can decide it.";
+
+/// Without a host there is no run of these bytes to show: the same doubt stays contested and
+/// nothing is READY; no question is asked over a run. The candidate the judge read is held: shown
+/// as the preview, never offered, its replayable record dropped so no later round asks the same
+/// judge again on these bytes, the finding naming the disagreement and what can decide it.
+#[tokio::test]
+async fn without_a_run_of_the_same_bytes_the_disagreement_is_held() {
+    let judge = Judging::new([
+        ("verify-request", "unfaithful"),
+        ("verify-part-0", "carried"),
+        ("verify-extra", "only_requested"),
+    ]);
+    let out = judged_greeting(&judge, None).await;
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert_eq!((judge.asked().len(), judge.left()), (3, 0));
+    let read = judge.asked()[0].state["candidate_nika"].clone();
+    assert_eq!(out.candidate.as_deref(), read.as_str(), "{out:#?}");
+    assert!(out.check_preview.is_some(), "{out:#?}");
+    assert!(out.requested_boundary.is_none() && out.questions.is_empty());
+    assert_eq!(
+        out.provenance.plan, None,
+        "no replay asks the same judge again"
+    );
+    let decision = out.provenance.decision.as_ref().unwrap();
+    let verified = &decision["semantic_verification"][0];
+    let unobserved = "no trial run of these exact bytes exists in this compile";
+    assert_eq!(verified["contested"], json!([INTENT]));
+    assert_eq!(verified["unsettled"], json!([unobserved]));
+    assert_eq!(verified["doubt"], json!(["unfaithful"]));
+    assert_eq!(
+        (&verified["defects"], &verified["unknown"]),
+        (&json!([]), &json!([]))
+    );
+    let held = (out.diagnostics.iter()).find(|d| d.target == "verify_held");
+    let held = held.expect("the held candidate is named");
+    assert_eq!(
+        (held.kind, held.message.as_str()),
+        (DiagnosticKind::Applied, HELD)
+    );
+    assert!(!(out.diagnostics.iter()).any(|d| d.target == "verify_resume"));
+    let disagreement = format!(
+        "The judge did not accept the request as carried (unfaithful) and located no defect a repair could start from; the same judge asked again decides nothing ({unobserved}). Nothing is READY on it. Next: a correction of the request, or another verifier."
+    );
+    let named = (out.diagnostics.iter()).filter(|d| d.target == "semantic_verification");
+    let named: Vec<&str> = named.map(|d| d.message.as_str()).collect();
+    assert_eq!(named, [disagreement.as_str()]);
+    let route = decision["route"].as_array().unwrap();
+    let held = "verify: not ready, candidate held";
+    assert!(route.iter().any(|step| step == held), "{route:?}");
 }

@@ -138,8 +138,10 @@ pub fn record_ledger(out: &mut CompileOutcome, ledger: &super::ledger::Ledger) {
 /// word is kept as the outcome's strategy; the route says `replayed plan`. A record that
 /// does not parse, is not anchored in this intent or still carries unknown work is a
 /// finding on `recorded_plan`, never a candidate. A native record's candidate stays pending on
-/// its whole request (no law reads the seat's program): its READY takes a judgment made in the
-/// round ([`replay_judged`]).
+/// its whole request (no law reads the seat's program), and so does every other plan but the
+/// reader's own HOT plan (a model's COLD or WARM plan, a record with no strategy word or an
+/// unknown one): its READY takes a judgment of the replayed bytes made in the round
+/// ([`replay_judged`]), so a replay with no judge leaves it INCOMPLETE (R4 A11).
 ///
 /// # Errors
 /// Returns representation failures while replaying an admitted record through assembly.
@@ -149,7 +151,10 @@ pub fn replay(
     request: &CompileRequest,
     out: &mut CompileOutcome,
 ) -> Result<(), CompileError> {
-    replay_judged(intent, record, request, &[], false, out)
+    // Fail closed: only the reader's own HOT plan replays as its laws judge it.
+    let strategy = (record.get("strategy").and_then(Value::as_str)).and_then(Strategy::parse);
+    let pending = strategy != Some(Strategy::Hot);
+    replay_judged(intent, record, request, &[], pending, out)
 }
 
 /// The same replay under the judgments a judge made in THIS round (R4 A11): each settles its

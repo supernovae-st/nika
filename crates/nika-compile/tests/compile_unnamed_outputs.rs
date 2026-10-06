@@ -4,7 +4,9 @@
 //! is asked as `const.output_path`; several are numbered in plan order and keep their keys
 //! when another one is answered, one answer never binds two outputs, and a file another
 //! output already receives is refused. Recorded plans replay through the assembler with zero
-//! calls.
+//! authoring calls; a model's plan is READY only once the round's judge carries its whole
+//! request over the replayed bytes (R4 A11), so the rounds that read a READY workflow permit
+//! the approving double.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use nika_compile::{CompileOutcome, CompileRequest, CompileStatus, compile};
 use serde_json::{Value, json};
@@ -52,12 +54,23 @@ fn two_outputs() -> Value {
     )
 }
 
-fn run(intent: &str, plan: Value, answers: &[(&str, &str)]) -> CompileOutcome {
+/// The answer round of `plan` for `intent`, with `answers`.
+fn answered(intent: &str, plan: Value, answers: &[(&str, &str)]) -> CompileRequest {
     let mut request = CompileRequest::create(intent).with_plan(plan);
     for (key, literal) in answers {
         request = request.answer(*key, *literal);
     }
-    compile(&request).unwrap()
+    request
+}
+
+/// The answer-round door with no judge: a model's plan it assembles waits for one.
+fn run(intent: &str, plan: Value, answers: &[(&str, &str)]) -> CompileOutcome {
+    compile(&answered(intent, plan, answers)).unwrap()
+}
+
+/// The same answer round under this round's judge, the approving double (R4 A11).
+async fn judged(intent: &str, plan: Value, answers: &[(&str, &str)]) -> CompileOutcome {
+    common::approved_round(&answered(intent, plan, answers)).await
 }
 
 fn label<'a>(out: &'a CompileOutcome, key: &str) -> &'a str {
@@ -69,8 +82,8 @@ fn document(out: &CompileOutcome) -> Value {
     serde_yaml_bw::from_str(source).unwrap()
 }
 
-#[test]
-fn a_single_unnamed_output_keeps_the_output_path_key() {
+#[tokio::test]
+async fn a_single_unnamed_output_keeps_the_output_path_key() {
     let single = plan(
         json!([
             {"categories": [], "detail": "./data/orders.csv", "evidence": "Read ./data/orders.csv", "op": "read"},
@@ -81,11 +94,12 @@ fn a_single_unnamed_output_keeps_the_output_path_key() {
     let asked = run(ONE, single.clone(), &[RULE]);
     assert!(keys(&asked).contains(&"const.output_path"), "{asked:#?}");
     assert!(!keys(&asked).contains(&"const.output_1_path"), "{asked:#?}");
-    let out = run(
-        ONE,
-        single,
-        &[RULE, ("const.output_path", r#""./out/totals.json""#)],
-    );
+    let answers = [RULE, ("const.output_path", r#""./out/totals.json""#)];
+    // With no judge, the answered bytes wait for one on the whole request alone (R4 A11).
+    let held = run(ONE, single.clone(), &answers);
+    common::assert_waits_for_its_judge(&held, ONE);
+    let out = judged(ONE, single, &answers).await;
+    assert_eq!(out.candidate, held.candidate, "{out:#?}");
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(document(&out)["const"]["output_path"], "./out/totals.json");
 }
@@ -125,9 +139,9 @@ fn answering_one_output_keeps_the_other_questions_identity() {
     assert!(label(&out, "const.output_1_path").contains("the totals as JSON"));
 }
 
-#[test]
-fn two_different_answers_stay_attached_to_their_own_outputs() {
-    let out = run(
+#[tokio::test]
+async fn two_different_answers_stay_attached_to_their_own_outputs() {
+    let out = judged(
         TWO,
         two_outputs(),
         &[
@@ -136,7 +150,8 @@ fn two_different_answers_stay_attached_to_their_own_outputs() {
             ("const.output_1_path", r#""./out/totals.json""#),
             ("const.output_2_path", r#""./out/note.md""#),
         ],
-    );
+    )
+    .await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let doc = document(&out);
     assert_eq!(

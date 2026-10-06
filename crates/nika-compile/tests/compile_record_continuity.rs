@@ -180,18 +180,24 @@ async fn historical_verified_records_replay_at_zero_calls_as_they_did() {
 }
 
 /// E14 `old-answers-old-r3`: the historical record of two computations sharing one detail
-/// reaches READY once the human states its expression, as it did on fcf290a7b.
-#[test]
-fn a_historical_joined_computation_is_ready_once_its_expression_is_answered() {
+/// reaches READY once the human states its expression, as it did on fcf290a7b, in a round whose
+/// judge carries the model plan's whole request over the bytes it replays (R4 A11). The door
+/// with no judge binds the same bytes, the answered expression in them, and holds them for it.
+#[tokio::test]
+async fn a_historical_joined_computation_is_ready_once_its_expression_is_answered() {
     let record = historical("f7-verified");
     let intent = record["verified_transform"]["intent"].as_str().unwrap();
     let expression = "[.records[] | select(.status == \"active\")] | group_by(.address | split(\"@\")[1]) | map(select(length > 1)) | add // []";
     let request = CompileRequest::create(intent)
         .with_plan(record.clone())
         .answer("const.rule_expression", json!(expression).to_string());
-    let out = compile(&request).unwrap();
+    let held = compile(&request).unwrap();
+    assert!(stale(&held).is_empty(), "{held:#?}");
+    common::assert_waits_for_its_judge(&held, intent);
+    let out = judged_replay(&request).await;
     assert!(stale(&out).is_empty(), "{out:#?}");
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(out.candidate, held.candidate, "{out:#?}");
     assert!(out.candidate.as_deref().unwrap().contains(expression));
     assert!(out.provenance.authoring.is_none());
 }
@@ -375,20 +381,23 @@ async fn seat_compile(intent: &str, constraint: &str) -> CompileOutcome {
 #[tokio::test]
 async fn a_rule_in_the_requests_words_is_anchored_whatever_their_spacing() {
     let folded = "keep only the rows whose status is active";
-    // Whether the plain replay is closed with no judge: a line break the reader reads as a
-    // boundary leaves a fragment across two named elements, a remainder a round judges (Q2).
-    for (intent, closed) in [
+    // The remainder a plain replay leaves with no judge, when the plan does not close every duty
+    // it states: a line break the reader reads as a boundary leaves a fragment across two named
+    // elements, a remainder a round judges (Q2). Either way the model plan's whole request waits
+    // for that round's judge (R4 A11): no replay with no judge is READY.
+    let fragment = "email, status), keep only the rows whose status";
+    for (intent, remainder) in [
         (
             "Read ./data/people.json (name, email, status), keep only the rows whose status is active, and write them to ./out/active.json",
-            true,
+            None,
         ),
         (
             "Read ./data/people.json (name, email, status), keep only the rows whose status  is active, and write them to ./out/active.json",
-            true,
+            None,
         ),
         (
             "Read ./data/people.json (name, email, status), keep only the rows whose status\nis active, and write them to ./out/active.json",
-            false,
+            Some(fragment),
         ),
     ] {
         let out = seat_compile(intent, folded).await;
@@ -398,27 +407,41 @@ async fn a_rule_in_the_requests_words_is_anchored_whatever_their_spacing() {
             candidate.contains("select(.status == \"active\")"),
             "{candidate}"
         );
-        // Its record replays at zero calls to the same candidate: READY when its duties are
-        // closed, else INCOMPLETE until a round judges its remainder.
+        // Its record replays at zero calls to the same candidate: with its duties closed, only
+        // the whole request waits for the round's judge; else the remainder waits beside it.
         let record = out.provenance.plan.clone().unwrap();
         let request = CompileRequest::create(intent).with_plan(record);
         let replay = compile(&request).unwrap();
-        let status = if closed {
-            CompileStatus::Ready
-        } else {
-            CompileStatus::Incomplete
-        };
-        assert_eq!(replay.status, status, "{intent:?}: {replay:#?}");
         assert_eq!(replay.candidate, out.candidate, "{intent:?}");
-        if !closed {
-            let judged = judged_replay(&request).await;
-            assert_eq!(
-                judged.status,
-                CompileStatus::Ready,
-                "{intent:?}: {judged:#?}"
-            );
-            assert_eq!(judged.candidate, out.candidate, "{intent:?}");
+        if let Some(clause) = remainder {
+            assert_eq!(replay.status, CompileStatus::Incomplete, "{intent:?}");
+            let open = &replay.provenance.decision.as_ref().unwrap()["pending"]["open"];
+            let at = intent.find(clause).unwrap();
+            let expected = json!([
+                {"clause": clause, "witness": null, "spans": [[at, at + clause.len()]]},
+                {"clause": intent, "witness": null, "spans": [[0, intent.len()]]},
+            ]);
+            assert_eq!(open, &expected, "{intent:?}: {open:#}");
+            let bytes = replay.candidate.as_deref().unwrap();
+            let told: Vec<&str> = (replay.diagnostics.iter())
+                .filter(|d| d.target == "semantic_verification")
+                .map(|d| d.message.as_str())
+                .collect();
+            let named = [
+                common::pending_finding(clause, common::NAMED_BY_NO_ELEMENT, bytes),
+                common::pending_finding(intent, common::NAMED_BY_NO_ELEMENT, bytes),
+            ];
+            assert_eq!(told, named, "{intent:?}: {replay:#?}");
+        } else {
+            common::assert_waits_for_its_judge(&replay, intent);
         }
+        let judged = judged_replay(&request).await;
+        assert_eq!(
+            judged.status,
+            CompileStatus::Ready,
+            "{intent:?}: {judged:#?}"
+        );
+        assert_eq!(judged.candidate, out.candidate, "{intent:?}");
     }
 }
 

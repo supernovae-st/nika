@@ -389,7 +389,11 @@ For callers that select the bounded review,
 `with_recovery_requests(n, worst_case)` adds exactly the requests an explicit
 source recovery reserves to that same review and account, and its question states
 the allowance they are added to and the configuration's theoretical worst case
-(nothing changes for `n = 0`; never a second account or a retry). The displayed review
+(nothing changes for `n = 0`; never a second account or a retry).
+`with_optional_recovery_requests(n, None)` states instead that no finite upper
+bound can be calculated, and the allowance still applies; the compiler's estimate
+(`authority::worst_case_of`) is `None` for every current creation strategy that
+asks a model. The displayed review
 and consuming admission use these same values. `CostReview::bounds()` answers
 the three together (requests, per-request output tokens, per-request deadline)
 so a host shows the owner's triple, which the confirmed choice enforces as

@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! An answer round replays the plan the previous round produced: the same candidate, the
-//! same questions, zero provider and zero seat calls. A plan that does not parse, is not
-//! anchored in the intent or still carries unknowns is a finding, never a candidate.
+//! same questions, zero authoring calls. A model's plan (COLD, WARM) is READY only once the
+//! round's own judge carries the whole request over the replayed bytes; the reader's own plan
+//! asks no judge. A plan that does not parse, is not anchored in the intent or still carries
+//! unknowns is a finding, never a candidate.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use nika_compile::{
     AuthoringCognition, AuthoringPolicy, CompileRequest, CompileStatus, DiagnosticKind, Strategy,
@@ -22,6 +24,9 @@ use std::{
     time::Duration,
 };
 
+/// The answer rounds of a COLD record, kept beside this file to bound its size.
+#[path = "compile_replay/cold.rs"]
+mod cold;
 mod common;
 
 /// A clause the deterministic reader cannot consume ("harmonise le ton") forces COLD.
@@ -93,92 +98,6 @@ fn keys(out: &nika_compile::CompileOutcome) -> Vec<&str> {
 }
 fn route(out: &nika_compile::CompileOutcome) -> Value {
     outcome_document(out)["provenance"]["decision"]["route"].clone()
-}
-
-#[tokio::test]
-async fn a_recorded_cold_plan_replays_the_same_candidate_with_zero_calls() {
-    let provider = Provider::new(&proposal());
-    let first = compile_with_provider(
-        &CompileRequest::create(COLD_INTENT).with_authoring_policy(policy()),
-        &provider,
-    )
-    .await
-    .unwrap();
-    assert_eq!(
-        first.provenance.strategy,
-        Some(Strategy::Cold),
-        "{first:#?}"
-    );
-    assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
-    let plan = first
-        .provenance
-        .plan
-        .clone()
-        .expect("a settled plan is recorded");
-    assert_eq!(
-        plan["strategy"], "cold",
-        "the plan record names its strategy"
-    );
-    // The original answer round: the provider is called again and may drift.
-    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
-    let original = compile_with_provider(
-        &answered(CompileRequest::create(COLD_INTENT).with_authoring_policy(policy())),
-        &common::Judged::approving(&provider),
-    )
-    .await
-    .unwrap();
-    assert_eq!(original.status, CompileStatus::Ready, "{original:#?}");
-    assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
-    // The replayed answer round: the recorded plan, the same answers, no seat of any kind.
-    let seat = Seat(AtomicU32::new(0));
-    let replayed = compile_with_cognition(
-        &answered(
-            CompileRequest::create(COLD_INTENT)
-                .with_authoring_policy(policy())
-                .with_plan(plan.clone()),
-        ),
-        Cognition {
-            provider: Some(&provider),
-            seat: Some(&seat),
-        },
-    )
-    .await
-    .unwrap();
-    assert_eq!(
-        provider.calls.load(Ordering::SeqCst),
-        2,
-        "zero provider calls"
-    );
-    assert_eq!(seat.0.load(Ordering::SeqCst), 0, "zero seat calls");
-    assert_eq!(replayed.status, CompileStatus::Ready, "{replayed:#?}");
-    assert_eq!(replayed.candidate, original.candidate);
-    assert_eq!(replayed.provenance.strategy, Some(Strategy::Cold));
-    assert_eq!(replayed.provenance.authoring, None);
-    assert_eq!(
-        replayed.provenance.cognition,
-        AuthoringCognition::DeterministicOnly
-    );
-    assert_eq!(route(&replayed), json!(["replayed plan"]));
-    assert_eq!(replayed.provenance.plan.as_ref(), Some(&plan));
-    let document = outcome_document(&replayed);
-    assert_eq!(document["compile_version"], 1);
-    assert_eq!(document["provenance"]["cognition"], "deterministicOnly");
-    assert_eq!(document["provenance"]["strategy"], "cold");
-    assert_eq!(
-        document["provenance"]["decision"]["intent_sha256"],
-        intent_sha256(COLD_INTENT)
-    );
-    // The deterministic door replays the same plan without any cognition at all.
-    let deterministic = compile(&answered(
-        CompileRequest::create(COLD_INTENT).with_plan(plan.clone()),
-    ))
-    .unwrap();
-    assert_eq!(deterministic.candidate, original.candidate);
-    assert_eq!(route(&deterministic), json!(["replayed plan"]));
-    // An unanswered replay asks exactly the questions the fresh compile asked.
-    let unanswered = compile(&CompileRequest::create(COLD_INTENT).with_plan(plan)).unwrap();
-    assert_eq!(keys(&unanswered), keys(&first));
-    assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
 }
 
 #[test]
@@ -787,18 +706,36 @@ async fn a_self_consistent_forged_record_is_reassembled_but_never_authority() {
         core.check_preview.is_some(),
         "Check still judges the rebuilt bytes"
     );
-    // The cognition replay asks the round's judge, a counted call: a refusing judge keeps it
-    // from READY whatever the record's digests say.
-    let refusing = common::Rotating::new(vec![json!({"choice": "unfaithful"}).to_string()]);
+    // The cognition replay asks the round's judge, counted calls: a refusing judge (the request
+    // unfaithful, each of its three parts, asked alone, missing, an operation no task performs)
+    // keeps it from READY whatever the record's digests say.
+    let choices = std::iter::once("unfaithful").chain(["missing", "omitted"].repeat(3));
+    let refusing =
+        common::Rotating::new(choices.map(|c| json!({"choice": c}).to_string()).collect());
     let request = request
         .with_authoring_policy(policy_c(nika_compile::NativeMode::Sketch, 0))
         .with_plan(hostile);
     let out = compile_with_provider(&request, &refusing).await.unwrap();
-    assert!(
-        refusing.calls.load(Ordering::SeqCst) >= 1,
-        "the judgment is a real call"
-    );
+    let calls = refusing.calls.load(Ordering::SeqCst);
+    assert_eq!(calls, 7, "the judgment is real calls");
     assert_ne!(out.status, CompileStatus::Ready, "{:?}", out.diagnostics);
+    let decision = out.provenance.decision.as_ref().unwrap();
+    let parts = [
+        "Copie ./alpha.txt dans ./out/alpha.txt et ./beta.txt dans ./out/beta.txt",
+        "Demande mon accord une seule fois avant les deux écritures",
+        "Nomme les résultats alpha et beta",
+    ];
+    let verified = &decision["semantic_verification"][0];
+    let omitted = "the judge finds no task performing it";
+    let notes: Vec<Value> = (parts.iter())
+        .map(|part| json!({"defect": part, "note": omitted}))
+        .collect();
+    let found = (&verified["defects"], &verified["notes"]);
+    assert_eq!(found, (&json!(parts), &json!(notes)), "{decision:#}");
+    // The judge doubted the whole request of the forged bytes: no record replays them to it.
+    assert!(out.provenance.plan.is_none(), "{:?}", out.diagnostics);
+    let route = decision["route"].to_string();
+    assert!(route.contains("verify: doubted, not replayable"), "{route}");
 }
 
 #[tokio::test]

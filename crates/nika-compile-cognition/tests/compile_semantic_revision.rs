@@ -13,10 +13,17 @@
 //! reached by the run that counts it.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+/// A revision whose bytes the judge rejected in an earlier round, kept beside this file to bound
+/// its size.
+#[path = "compile_semantic_revision/carried.rs"]
+mod carried;
+
 use std::sync::Mutex;
 use std::time::Duration;
 
-use nika_compile::{AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, NativeMode};
+use nika_compile::{
+    AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind, NativeMode,
+};
 use nika_compile_cognition::compile_with_provider;
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, ResponseFormat,
@@ -39,9 +46,13 @@ struct Semantic {
     /// The admission layer's call ceiling, as `semantic_verification`'s `Scripted::ceiling`:
     /// every call from this index is refused locally, counted as attempted, never answered.
     refused_from: usize,
-    /// The whole-request verdicts to answer, in order (`faithful` once spent); a part is located
-    /// as `another_part`, the whole request.
+    /// The whole-request verdicts to answer, in order (`faithful` once spent). After a verdict
+    /// that does not carry the request, the part the change replaced, asked alone, is `missing`
+    /// ([`judged_part`]) and its task question is answered `pointed`.
     verdicts: Mutex<Vec<&'static str>>,
+    /// The answer to the task question of the part judged missing (`task-<id>`, `omitted` or
+    /// `no_task`): by default the task that keeps the orders.
+    pointed: &'static str,
     /// The state of every whole-request question, as the judge read it.
     states: Mutex<Vec<Value>>,
 }
@@ -57,6 +68,7 @@ impl Semantic {
             sent: Mutex::new(Vec::new()),
             refused_from: usize::MAX,
             verdicts: Mutex::new(Vec::new()),
+            pointed: "task-keep",
             states: Mutex::new(Vec::new()),
         }
     }
@@ -64,6 +76,13 @@ impl Semantic {
         Self {
             verdicts: Mutex::new(verdicts),
             ..Self::ceiling(answers, ceiling)
+        }
+    }
+    /// The same double answering the missing part's task question `choice`.
+    fn pointing(self, choice: &'static str) -> Self {
+        Self {
+            pointed: choice,
+            ..self
         }
     }
     fn ceiling(answers: Vec<Value>, ceiling: usize) -> Self {
@@ -111,16 +130,7 @@ impl ProviderInferDyn for Semantic {
         let text = match props["choice"]["enum"].as_array() {
             // A judge's closed choice: the scripted verdict, else approve.
             Some(keys) if keys.iter().any(|k| k == "faithful") => {
-                let said = (request.messages.last()).and_then(|m| match m.content.first() {
-                    Some(ContentBlock::Text { text }) => text.strip_prefix("STATE:\n"),
-                    _ => None,
-                });
-                let state = said.and_then(|s| s.split("\n\nOPTIONS:").next());
-                let state = state.and_then(|s| serde_json::from_str(s).ok());
-                self.states
-                    .lock()
-                    .unwrap()
-                    .push(state.unwrap_or(Value::Null));
+                self.states.lock().unwrap().push(shown(&request));
                 let mut verdicts = self.verdicts.lock().unwrap();
                 let verdict = if verdicts.is_empty() {
                     "faithful"
@@ -129,8 +139,14 @@ impl ProviderInferDyn for Semantic {
                 };
                 json!({"choice": verdict}).to_string()
             }
-            Some(keys) if keys.iter().any(|k| k == "another_part") => {
-                r#"{"choice":"another_part"}"#.into()
+            Some(keys) if keys.iter().any(|k| k == "superseded") => {
+                json!({"choice": judged_part(&shown(&request))}).to_string()
+            }
+            Some(keys) if keys.iter().any(|k| k == "no_task") => {
+                json!({"choice": self.pointed}).to_string()
+            }
+            Some(keys) if keys.iter().any(|k| k == "only_requested") => {
+                r#"{"choice":"only_requested"}"#.into()
             }
             Some(keys) if keys.iter().any(|k| k == "carried") => r#"{"choice":"carried"}"#.into(),
             _ => self.answers.get(at).cloned().unwrap_or_default(),
@@ -140,6 +156,29 @@ impl ProviderInferDyn for Semantic {
             TokenUsage::new(1, 1),
             StopReason::EndTurn,
         ))
+    }
+}
+
+/// The STATE a closed choice showed its judge (the JSON before its OPTIONS).
+fn shown(request: &InferRequest) -> Value {
+    let said = (request.messages.last()).and_then(|m| match m.content.first() {
+        Some(ContentBlock::Text { text }) => text.strip_prefix("STATE:\n"),
+        _ => None,
+    });
+    let state = said.and_then(|s| s.split("\n\nOPTIONS:").next());
+    state
+        .and_then(|s| serde_json::from_str(s).ok())
+        .unwrap_or(Value::Null)
+}
+
+/// A part of the request asked alone: the part the change replaced is `missing` (its task
+/// question follows), every other part `carried`.
+fn judged_part(state: &Value) -> &'static str {
+    let part = state["clause"]["text"].as_str().unwrap_or_default();
+    if part.starts_with(SHIPPED) {
+        "missing"
+    } else {
+        "carried"
     }
 }
 
@@ -1090,10 +1129,31 @@ fn reordered() -> Value {
     answer
 }
 
+/// The questions a judgment that does not carry the revised request asks: the whole request, its
+/// six parts each asked alone, and the task question of the replaced part (judged missing).
+const JUDGED: usize = 1 + 6 + 1;
+
+/// The replaced part of the revised request as the judge finds it: missing.
+const REPLACED: &str =
+    "Keep the orders whose status is shipped instead of paid and write them to ./out/paid.json";
+/// The judge's reason for [`REPLACED`]: the task its task question names.
+const POINTED: &str = "the judge points to the task keep";
+
+/// What a held candidate offers, as the verifier states it.
+const HELD: &str = "The candidate was judged and not accepted, with no defect a repair could start from: it is shown, never offered, and nothing was written. A correction of the request or another verifier can decide it.";
+
+/// The finding a whole request the judge doubted leaves when no trial run decides it.
+const CONTESTED: &str = "The judge did not accept the request as carried (unfaithful) and located no defect a repair could start from; the same judge asked again decides nothing (no trial run of these exact bytes exists in this compile). Nothing is READY on it. Next: a correction of the request, or another verifier.";
+
+/// The finding the replaced part leaves once the judge found it missing and named no task
+/// failing it: named apart from the whole request, by its own words.
+const CONTESTED_PART: &str = "The judge found « Keep the orders whose status is shipped instead of paid and write them to ./out/paid.json » missing but then named no task that fails it and no operation it lacks: nothing decided it, and nothing is READY on it.";
+
 /// The seat's answers of a revision whose first READY candidate the judge refuses: the links, a
-/// first fill, the judge's two questions (answered by the double), the refill, the judge again.
+/// first fill, the slots of the judge's [`JUDGED`] questions (answered by the double), the
+/// refill, the judge again.
 fn refused_then(first: Value, refill: Value) -> Vec<Value> {
-    let judged = || [json!(null), json!(null)];
+    let judged = || vec![json!(null); JUDGED];
     let mut answers = vec![revised(link(PAID, SHIPPED)), first];
     answers.extend(judged());
     answers.push(refill);
@@ -1116,14 +1176,30 @@ async fn a_judged_defect_refills_the_revision_and_only_the_repaired_bytes_are_re
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let base_doc: Value = serde_yaml_bw::from_str(&bytes).unwrap();
     assert_eq!(doc(&out), expected(&base_doc), "the repaired fill is kept");
-    let calls = ["revision", "fill", "judge_request", "judge_locate"];
-    let want: Vec<&str> = calls.into_iter().chain(["fill", "judge_request"]).collect();
+    // The refused fill's judgment: the whole request, its parts alone (the replaced part, second,
+    // with the task question it needs), then the refill and its own judgment.
+    let mut want = vec!["revision", "fill", "judge_request"];
+    want.extend(["judge_part", "judge_part", "judge_point"]);
+    want.extend(["judge_part"; 4]);
+    want.extend(["fill", "judge_request"]);
     assert_eq!(roles(&out), want, "{out:#?}");
-    // The refill continues the talk: the judge's defect and the holes in one user turn.
-    let refill = seat.sent.lock().unwrap()[4].clone();
+    // Every question of that judgment is told the candidate revises an earlier workflow.
+    for at in 2..2 + JUDGED {
+        let asked = seat.sent.lock().unwrap()[at].to_string();
+        assert!(
+            asked.contains("REVISES an earlier workflow"),
+            "{at}: {asked}"
+        );
+    }
+    // The refill continues the talk: the judge's defect with its reason, and the holes, in one
+    // user turn.
+    let refill = seat.sent.lock().unwrap()[2 + JUDGED].clone();
     let turn = refill.as_array().unwrap().last().unwrap().to_string();
+    let defect = format!(
+        "[semantic_verification] the judge compared the whole request with the candidate's bytes: it does not carry « {REPLACED} » · the judge's reason: {POINTED}"
+    );
     for needle in [
-        "does not carry",
+        defect.as_str(),
         "refused by the judge",
         "Fill exactly these holes",
     ] {
@@ -1167,6 +1243,18 @@ async fn a_judged_defect_refills_the_revision_and_only_the_repaired_bytes_are_re
         })
         .collect();
     assert_eq!(attempts, [(0, 1), (1, 0)], "{decision:#}");
+    let refused = &decision["semantic_verification"][0];
+    assert_eq!(refused["defects"], json!([REPLACED]), "{refused:#}");
+    let noted = json!([{"defect": REPLACED, "note": POINTED}]);
+    assert_eq!(refused["notes"], noted, "{refused:#}");
+    let pointed = (refused["questions"].as_array().into_iter().flatten())
+        .find(|question| question["role"] == "judge_point")
+        .cloned()
+        .unwrap_or_default();
+    assert_eq!(pointed["choice"], "task-keep", "{refused:#}");
+    assert_eq!(pointed["clause"]["text"], REPLACED, "{refused:#}");
+    let approved = &decision["semantic_verification"][1];
+    assert_eq!(approved["settled_by"], "verify-request", "{approved:#}");
     assert_eq!(decision["revision"]["superseded"][0]["evidence"], PAID);
     let route = decision["route"].to_string();
     assert!(route.contains("verify: repair 1"), "{route}");
@@ -1181,22 +1269,23 @@ async fn a_judged_defect_refills_the_revision_and_only_the_repaired_bytes_are_re
 async fn a_judged_defect_that_does_not_settle_ends_with_its_repairs_named() {
     let (_, bytes, record) = base().await;
     let unbounded = policy(1).with_unbounded_repairs();
+    // The links and the first fill, each refused judgment's questions, the refill between them.
     let cases = [
         (
             "no progress",
             Some(unbounded),
             2,
             usize::MAX,
-            7,
+            2 + JUDGED + 1 + JUDGED,
             Some("1 repair(s)"),
         ),
-        ("refused refill", None, 1, 4, 5, None),
+        ("refused refill", None, 1, 2 + JUDGED, 2 + JUDGED + 1, None),
         (
             "spent",
             Some(policy(0)),
             1,
             usize::MAX,
-            4,
+            2 + JUDGED,
             Some("0 repair(s)"),
         ),
     ];
@@ -1225,4 +1314,71 @@ async fn a_judged_defect_that_does_not_settle_ends_with_its_repairs_named() {
             assert!(named, "{case}: {repairs}: {out:#?}");
         }
     }
+}
+
+/// A part the judge finds missing in a revision but names no task failing stays contested (R6):
+/// no defect, so the fills are never reopened though a round is left (the refill above shows one
+/// would be under this policy), and nothing is READY. The judge did not carry the revised
+/// request and no trial run decides it: the revised bytes are held, shown as the preview and
+/// never offered, with no record a later round could replay to the same judge and no delta (the
+/// host keeps its saved base).
+#[tokio::test]
+async fn a_revision_restriction_no_task_violates_is_contested_and_never_refilled() {
+    let (_, bytes, record) = base().await;
+    let answers = vec![revised(link(PAID, SHIPPED)), fills("shipped")];
+    let seat = Semantic::judging(answers, vec!["unfaithful"], usize::MAX).pointing("no_task");
+    let out = compile_with_provider(&revise(&bytes, &record, 1), &seat)
+        .await
+        .unwrap();
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    let judged = seat.states.lock().unwrap()[0].clone();
+    assert_eq!(
+        out.candidate.as_deref(),
+        judged["candidate_nika"].as_str(),
+        "the judged bytes are the preview: {out:#?}"
+    );
+    assert!(out.check_preview.is_some(), "{out:#?}");
+    assert!(out.provenance.plan.is_none(), "{out:#?}");
+    assert!(out.questions.is_empty() && out.requested_boundary.is_none());
+    let held: Vec<(&DiagnosticKind, &str)> = (out.diagnostics.iter())
+        .filter(|d| d.target == "verify_held")
+        .map(|d| (&d.kind, d.message.as_str()))
+        .collect();
+    assert_eq!(held, [(&DiagnosticKind::Applied, HELD)], "{out:#?}");
+    // One judgment, its extra question asked since no defect was located; no second fill.
+    let mut want = vec!["revision", "fill", "judge_request"];
+    want.extend(["judge_part", "judge_part", "judge_point"]);
+    want.extend(["judge_part"; 4]);
+    want.push("judge_extra");
+    assert_eq!(roles(&out), want, "{out:#?}");
+    assert_eq!(seat.calls(), JUDGED + 3);
+    let decision = out.provenance.decision.as_ref().unwrap();
+    assert!(decision.get("revision").is_none(), "{decision:#}");
+    let verified = &decision["semantic_verification"];
+    assert_eq!(verified.as_array().map(Vec::len), Some(1), "{verified:#}");
+    let resolved = judged["request"].clone();
+    let contested = json!([REPLACED, resolved]);
+    assert_eq!(verified[0]["contested"], contested, "{verified:#}");
+    assert_eq!(verified[0]["defects"], json!([]), "{verified:#}");
+    assert_eq!(verified[0]["unknown"], json!([]), "{verified:#}");
+    assert_eq!(verified[0]["doubt"], json!(["unfaithful"]), "{verified:#}");
+    let unsettled = json!(["no trial run of these exact bytes exists in this compile"]);
+    assert_eq!(verified[0]["unsettled"], unsettled, "{verified:#}");
+    let route = decision["route"].to_string();
+    assert!(
+        route.contains("verify: not ready, candidate held"),
+        "{route}"
+    );
+    assert!(!route.contains("verify: repair"), "{route}");
+    // The disagreement is named, never a defect: the part by its own words, then the whole
+    // request.
+    let told: Vec<&str> = (out.diagnostics.iter())
+        .filter(|d| d.target == "semantic_verification")
+        .map(|d| d.message.as_str())
+        .collect();
+    assert_eq!(told, [CONTESTED_PART, CONTESTED], "{told:?}");
+    assert!(
+        told.iter().all(|m| !m.contains("does not carry")),
+        "{told:?}"
+    );
 }

@@ -34,22 +34,35 @@ async fn judged(intent: &str, record: &Value, answers: &[(&str, &str)]) -> Compi
 }
 
 /// A plain replay of `record` names `clause`, which no element of the seat's plan names, as its
-/// remainder INCOMPLETE (Q2, R4 A11).
+/// remainder INCOMPLETE (Q2, R4 A11), beside the model plan's whole request, which no round
+/// judged on these bytes: exactly those two pending duties, each named by its finding.
 fn names_its_remainder(intent: &str, record: &Value, clause: &str) {
     let plain = replay(intent, record, &[MODEL]);
     assert_eq!(plain.status, CompileStatus::Incomplete, "{plain:#?}");
     let open = &plain.provenance.decision.as_ref().unwrap()["pending"]["open"];
-    assert!(
-        open.as_array()
-            .unwrap()
-            .iter()
-            .any(|duty| duty["clause"] == clause && duty["witness"].is_null()),
-        "{open:#}"
-    );
+    let spans: Vec<[usize; 2]> = (intent.match_indices(clause))
+        .map(|(at, _)| [at, at + clause.len()])
+        .collect();
+    let expected = json!([
+        {"clause": clause, "witness": null, "spans": spans},
+        {"clause": intent, "witness": null, "spans": [[0, intent.len()]]},
+    ]);
+    assert_eq!(open, &expected, "{open:#}");
+    let candidate = plain.candidate.as_deref().unwrap();
+    let told: Vec<&str> = (plain.diagnostics.iter())
+        .filter(|d| d.target == "semantic_verification")
+        .map(|d| d.message.as_str())
+        .collect();
+    let named = [
+        common::pending_finding(clause, common::NAMED_BY_NO_ELEMENT, candidate),
+        common::pending_finding(intent, common::NAMED_BY_NO_ELEMENT, candidate),
+    ];
+    assert_eq!(told, named, "{plain:#?}");
 }
 
 /// The answer-round door the CLI control uses: a trusted recorded plan replayed for its
-/// intent, zero provider calls.
+/// intent, zero provider calls. It permits no judge, so a model's plan (COLD, WARM) it
+/// assembles stays INCOMPLETE on its whole request (R4 A11): it asks, or it holds.
 fn replay(intent: &str, record: &Value, answers: &[(&str, &str)]) -> CompileOutcome {
     let mut request = CompileRequest::create(intent).with_plan(record.clone());
     for (key, literal) in answers {
@@ -116,7 +129,9 @@ fn chapters_record() -> Value {
 // instruction.
 #[tokio::test]
 async fn the_ledger_names_the_carrier_of_every_stated_duty_and_refuses_a_silent_one() {
-    let out = replay(CHAPTERS, &chapters_record(), &[MODEL]);
+    // A model's plan is READY only once the round's judge carries its whole request (R4 A11):
+    // the judged answer round reads the carriers below.
+    let out = judged(CHAPTERS, &chapters_record(), &[MODEL]).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let record = out.provenance.decision.clone().unwrap();
     let ledger = record["ledger"].as_array().unwrap();
@@ -130,6 +145,8 @@ async fn the_ledger_names_the_carrier_of_every_stated_duty_and_refuses_a_silent_
             )
         })
         .collect();
+    // Every stated duty names its carrier; the model plan's whole request is the last duty,
+    // carried by the round's judge (the approving double's seat).
     assert_eq!(
         duties,
         [
@@ -139,6 +156,7 @@ async fn the_ledger_names_the_carrier_of_every_stated_duty_and_refuses_a_silent_
             ("identity", "realized", "draft_fold"),
             ("identity", "realized", "draft_fold"),
             ("cardinality", "realized", "draft"),
+            ("work", "realized", "test/no-choice"),
         ],
         "{record:#}"
     );
@@ -211,10 +229,10 @@ async fn the_ledger_names_the_carrier_of_every_stated_duty_and_refuses_a_silent_
     assert_eq!(ledger[0]["state"], "realized");
     assert_eq!(ledger[1]["kind"], "format");
     assert_eq!(ledger[1]["state"], "unresolved");
-    // Metamorphic: the same request without the tone instruction is READY.
+    // Metamorphic: the same request without the tone instruction is READY once judged.
     let mut plain = record;
     plain["constraints"] = json!([]);
-    let out = replay("Read ./draft.md and write it to ./final.md.", &plain, &[]);
+    let out = judged("Read ./draft.md and write it to ./final.md.", &plain, &[]).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
 }
 
@@ -232,9 +250,10 @@ fn morning_record(trigger: &str) -> Value {
       "constraints":[],"unknowns":[],"trigger":trigger,"strategy":"cold"})
 }
 
-#[test]
-fn a_cadence_or_an_event_is_a_trigger_requirement_beside_the_candidate() {
-    let out = replay(MORNING, &morning_record("Every morning"), &[MODEL]);
+#[tokio::test]
+async fn a_cadence_or_an_event_is_a_trigger_requirement_beside_the_candidate() {
+    // The judged answer round (R4 A11): this test reads the candidate and its requirement.
+    let out = judged(MORNING, &morning_record("Every morning"), &[MODEL]).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let requirement = out.requested_trigger.as_ref().expect("a cadence is stated");
     assert_eq!(requirement.kind, TriggerKind::Schedule);
@@ -270,7 +289,7 @@ fn a_cadence_or_an_event_is_a_trigger_requirement_beside_the_candidate() {
         {"op":"draft","detail":"un accusé de réception","evidence":"rédige un accusé de réception","categories":[]}],
       "effects":[{"verb":"write","target":"./out/accuse.md","policy":"automatic","evidence":"écris-le dans ./out/accuse.md","policy_literal":null}],
       "obligations":[],"bindings":[],"constraints":[],"unknowns":[],"trigger":"Dès qu'un ticket arrive","strategy":"cold"});
-    let out = replay(intent, &record, &[MODEL]);
+    let out = judged(intent, &record, &[MODEL]).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let requirement = out.requested_trigger.as_ref().expect("an event is stated");
     assert_eq!(requirement.kind, TriggerKind::Event);
@@ -302,8 +321,8 @@ impl TapTriggerNull for Value {
 }
 
 // ── contradictory bounds on the produced content are refused, never run ──────────
-#[test]
-fn contradictory_bounds_on_the_produced_content_are_refused_never_run() {
+#[tokio::test]
+async fn contradictory_bounds_on_the_produced_content_are_refused_never_run() {
     let intent = "Read ./notes.md and write ./out/report.md: the report must be exactly 5 lines and at least 12 lines long, both are mandatory.";
     let record = |constraints: Value| {
         json!({"operations":[
@@ -336,25 +355,28 @@ fn contradictory_bounds_on_the_produced_content_are_refused_never_run() {
         .filter(|d| d["kind"] == "cardinality" && d["state"] == "contradicted")
         .count();
     assert_eq!(contradicted, 2, "{ledger:#}");
-    // Compatible bounds are carried by the draft's prompt and the request is READY.
-    let out = replay(
+    // Compatible bounds are carried by the draft's prompt and the request is READY once the
+    // round's judge carries it (R4 A11).
+    let out = judged(
         intent,
         &record(json!(["at least 3 lines", "5 lines"])),
         &[MODEL],
-    );
+    )
+    .await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
 }
 
 // ── a stated bound on the drafted text is verified at run, not only prompted ──────
-#[test]
-fn a_stated_bound_on_the_drafted_text_is_verified_at_run_not_only_prompted() {
+#[tokio::test]
+async fn a_stated_bound_on_the_drafted_text_is_verified_at_run_not_only_prompted() {
     let intent = "Read ./notes/brief.md and write a 3-bullet summary of under 150 words to ./out/summary.md.";
     let record = json!({"operations":[
         {"op":"read","detail":"./notes/brief.md","evidence":"Read ./notes/brief.md","categories":[]},
         {"op":"draft","detail":"a 3-bullet summary of under 150 words","evidence":"write a 3-bullet summary of under 150 words","categories":[]}],
       "effects":[{"verb":"write","target":"./out/summary.md","policy":"automatic","evidence":"write a 3-bullet summary of under 150 words to ./out/summary.md","policy_literal":null}],
       "obligations":[],"bindings":[],"constraints":["3 bullets", "under 150 words", "in a warm tone"],"unknowns":[],"trigger":null,"strategy":"cold"});
-    let out = replay(intent, &record, &[MODEL]);
+    // The judged answer round (R4 A11): this test reads the emitted law.
+    let out = judged(intent, &record, &[MODEL]).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let doc = document(&out);
     let bounds = &tasks(&doc)["draft_bounds"];
@@ -416,7 +438,7 @@ fn a_stated_bound_on_the_drafted_text_is_verified_at_run_not_only_prompted() {
     // No measurable bound: no law, no extra task, the write follows the draft's admit.
     let mut plain = record;
     plain["constraints"] = json!(["in a warm tone"]);
-    let doc = document(&replay(intent, &plain, &[MODEL]));
+    let doc = document(&judged(intent, &plain, &[MODEL]).await);
     assert!(tasks(&doc).get("draft_bounds").is_none(), "{doc:#}");
     assert_eq!(
         tasks(&doc)["write_output"]["after"],
@@ -427,8 +449,8 @@ fn a_stated_bound_on_the_drafted_text_is_verified_at_run_not_only_prompted() {
 // ── one approval clause covering several effects is one gate ─────────────────────
 // The sealed release seed asked for one confirmation before a POST and a write; the
 // assembler emitted one prompt per effect and the runner's single resume could not finish.
-#[test]
-fn one_approval_covering_several_effects_is_one_gate_two_approvals_are_two() {
+#[tokio::test]
+async fn one_approval_covering_several_effects_is_one_gate_two_approvals_are_two() {
     let intent = "Read ./draft.md, then ask me to confirm before you POST it to http://127.0.0.1:18471/hooks/x. Only after I say yes: do the POST, then write it to ./out/sent.md.";
     let record = json!({"operations":[
         {"op":"read","detail":"./draft.md","evidence":"Read ./draft.md","categories":[]}],
@@ -437,7 +459,8 @@ fn one_approval_covering_several_effects_is_one_gate_two_approvals_are_two() {
         {"verb":"write","target":"./out/sent.md","policy":"human_first","evidence":"write it to ./out/sent.md","policy_literal":null}],
       "obligations":[],"bindings":[{"role":"path","literal":"./draft.md"},{"role":"url","literal":"http://127.0.0.1:18471/hooks/x"},{"role":"path","literal":"./out/sent.md"}],
       "constraints":[],"unknowns":[],"trigger":null,"strategy":"cold"});
-    let out = replay(intent, &record, &[]);
+    // The judged answer round (R4 A11): this test reads the emitted gates.
+    let out = judged(intent, &record, &[]).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let doc = document(&out);
     let prompts: Vec<&String> = tasks(&doc)
@@ -483,7 +506,7 @@ fn one_approval_covering_several_effects_is_one_gate_two_approvals_are_two() {
         {"verb":"send","target":"sending it to http://127.0.0.1:18471/hooks/x","policy":"human_first","evidence":"Ask me again before sending it to http://127.0.0.1:18471/hooks/x","policy_literal":null}],
       "obligations":[],"bindings":[{"role":"path","literal":"./draft.md"},{"role":"path","literal":"./out/a.md"},{"role":"url","literal":"http://127.0.0.1:18471/hooks/x"}],
       "constraints":[],"unknowns":[],"trigger":null,"strategy":"cold"});
-    let out = replay(intent, &record, &[]);
+    let out = judged(intent, &record, &[]).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let doc = document(&out);
     let mut prompts: Vec<&String> = tasks(&doc)
@@ -532,7 +555,7 @@ async fn a_trigger_over_the_request_s_own_material_never_declares_an_item() {
         {"op":"draft","detail":"a formal headline","evidence":"write a formal headline to ./out/headline.txt","categories":[]}],
       "effects":[{"verb":"write","target":"./out/headline.txt","policy":"automatic","evidence":"write a formal headline to ./out/headline.txt","policy_literal":null}],
       "obligations":[],"bindings":[],"constraints":[],"unknowns":[],"trigger":"For each incoming brief","strategy":"cold"});
-    let per_item = replay(intent, &record, &[MODEL]);
+    let per_item = judged(intent, &record, &[MODEL]).await;
     assert_eq!(per_item.status, CompileStatus::Ready, "{per_item:#?}");
     let doc = document(&per_item);
     assert_eq!(doc["inputs"]["item"]["required"], true, "{doc:#}");
@@ -557,8 +580,8 @@ fn alerts_record(intent: &str, compute: &str, send: &str, trigger: &str) -> Valu
       "intent_check": intent.contains(send)})
 }
 
-#[test]
-fn an_outbound_effect_repeated_per_item_of_a_read_source_is_asked_never_sent_once() {
+#[tokio::test]
+async fn an_outbound_effect_repeated_per_item_of_a_read_source_is_asked_never_sent_once() {
     let record = alerts_record(
         ALERTS,
         "For each critical row",
@@ -586,7 +609,8 @@ fn an_outbound_effect_repeated_per_item_of_a_read_source_is_asked_never_sent_onc
         "send one POST to http://127.0.0.1:18471/hooks with the critical rows as a JSON body",
         "For each row",
     );
-    let out = replay(ALERTS_FOLD, &folded, &[RULE_CRITICAL]);
+    // The judged answer round (R4 A11): this test reads the emitted send.
+    let out = judged(ALERTS_FOLD, &folded, &[RULE_CRITICAL]).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let doc = document(&out);
     assert!(doc.get("inputs").is_none(), "{doc:#}");
@@ -621,8 +645,8 @@ fn variants_record() -> Value {
       "obligations":[],"bindings":[],"constraints":[],"unknowns":[],"trigger":null,"strategy":"cold"})
 }
 
-#[test]
-fn distinct_files_bound_to_one_drafted_text_are_asked_never_duplicated() {
+#[tokio::test]
+async fn distinct_files_bound_to_one_drafted_text_are_asked_never_duplicated() {
     let out = replay(VARIANTS, &variants_record(), &[MODEL]);
     assert!(out.candidate.is_none(), "{out:#?}");
     assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
@@ -645,7 +669,8 @@ fn distinct_files_bound_to_one_drafted_text_are_asked_never_duplicated() {
         {"verb":"write","target":"./out/big.json","policy":"automatic","evidence":"write those rows to ./out/big.json","policy_literal":null},
         {"verb":"write","target":"./out/big.csv","policy":"automatic","evidence":"to ./out/big.csv","policy_literal":null}],
       "obligations":[],"bindings":[],"constraints":[],"unknowns":[],"trigger":null,"strategy":"cold"});
-    let out = replay(intent, &record, &[RULE]);
+    // The judged answer round (R4 A11): this test reads the emitted writes.
+    let out = judged(intent, &record, &[RULE]).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let doc = document(&out);
     assert_eq!(
@@ -679,15 +704,16 @@ fn ledger_duties(out: &CompileOutcome) -> Vec<(String, String, String)> {
         .collect()
 }
 
-#[test]
-fn a_context_sentence_and_a_closure_bind_no_operation_and_are_recorded() {
+#[tokio::test]
+async fn a_context_sentence_and_a_closure_bind_no_operation_and_are_recorded() {
     let intent = "Read ./people.json, which has the fields name and city, and write it to ./out/people-copy.json. Nothing else.";
     let record = json!({"operations":[
         {"op":"read","detail":"./people.json","evidence":"Read ./people.json","categories":[]}],
       "effects":[{"verb":"write","target":"./out/people-copy.json","policy":"automatic","evidence":"write it to ./out/people-copy.json","policy_literal":null}],
       "obligations":[],"bindings":[{"role":"path","literal":"./people.json"},{"role":"path","literal":"./out/people-copy.json"}],
       "constraints":["which has the fields name and city","Nothing else."],"unknowns":[],"trigger":null,"strategy":"cold"});
-    let out = replay(intent, &record, &[]);
+    // The judged answer round (R4 A11): this test reads the duties the ledger records.
+    let out = judged(intent, &record, &[]).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let duties = ledger_duties(&out);
     assert!(
@@ -708,8 +734,8 @@ fn a_context_sentence_and_a_closure_bind_no_operation_and_are_recorded() {
     );
 }
 
-#[test]
-fn a_no_model_law_refuses_a_drafting_plan_and_admits_a_typed_one() {
+#[tokio::test]
+async fn a_no_model_law_refuses_a_drafting_plan_and_admits_a_typed_one() {
     let intent =
         "Read ./brief.md and write a short summary to ./out/summary.md. No language model.";
     let record = json!({"operations":[
@@ -738,7 +764,7 @@ fn a_no_model_law_refuses_a_drafting_plan_and_admits_a_typed_one() {
       "effects":[{"verb":"write","target":"./out/copy.md","policy":"automatic","evidence":"write it to ./out/copy.md","policy_literal":null}],
       "obligations":[],"bindings":[{"role":"path","literal":"./brief.md"},{"role":"path","literal":"./out/copy.md"}],
       "constraints":["No language model."],"unknowns":[],"trigger":null,"strategy":"cold"});
-    let out = replay(intent, &record, &[]);
+    let out = judged(intent, &record, &[]).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(
         ledger_duties(&out).contains(&(
@@ -754,8 +780,8 @@ fn a_no_model_law_refuses_a_drafting_plan_and_admits_a_typed_one() {
 // ── a quantified request without a corpus asks where the items live ───────────────
 // wave28 v2-52: « for each … » over items the request never locates compiled to a program
 // with a required `inputs.item` the run could not supply; the seed wanted the question.
-#[test]
-fn a_quantified_request_without_a_corpus_asks_where_the_items_live() {
+#[tokio::test]
+async fn a_quantified_request_without_a_corpus_asks_where_the_items_live() {
     let intent = "For each invoice, extract the vendor and the total and write the records to ./out/totals.json.";
     let record = json!({"operations":[
         {"op":"extract","detail":"the vendor and the total","evidence":"extract the vendor and the total","categories":[]}],
@@ -766,11 +792,13 @@ fn a_quantified_request_without_a_corpus_asks_where_the_items_live() {
     assert!(asked.candidate.is_none(), "{asked:#?}");
     assert!(keys(&asked).contains(&"const.source_glob"), "{asked:#?}");
     assert!(label(&asked, "const.source_glob").contains("For each invoice"));
-    let out = replay(
+    // The answered round under its judge (R4 A11): this test reads the emitted glob.
+    let out = judged(
         intent,
         &record,
         &[MODEL, ("const.source_glob", r#""./invoices/*.md""#)],
-    );
+    )
+    .await;
     let doc = document(&out);
     assert!(doc["inputs"].get("item").is_none(), "{doc:#}");
     assert_eq!(tasks(&doc)["glob_source"]["invoke"]["tool"], "nika:glob");

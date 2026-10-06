@@ -74,31 +74,33 @@ fn historical_worst_case(strategy: NativeMode, samples: u32, repairs: u32, edit:
 
 /// The request-independent worst case of the current policy. COLD creation (`off` or
 /// `escalate`) follows every unstated computation, so its request count is unknown here even
-/// with an explicit repair limit. Revisions also depend on the retained representation and
-/// its link, fill and repeated judgment work, which these arguments do not describe.
-/// A strategy with no repair limit has no finite worst case
-/// wherever repairs add requests, or the finite estimate exceeds the count representation.
+/// with an explicit repair limit. The sketch door's judgment asks each part of a doubted request
+/// alone, the task a missing part points to, the extra-operation question and the questions over
+/// a trial run: its count depends on the request too. Revisions also depend on the retained
+/// representation and its link, fill and repeated judgment work, which these arguments do not
+/// describe. A strategy with no repair limit has no finite worst case wherever repairs add
+/// requests, or the finite estimate exceeds the count representation.
 /// `None` never grants more requests: the explicit authority still refuses each attempt past
 /// its bound.
 #[must_use]
 pub fn worst_case_of(
     strategy: NativeMode,
-    _samples: u32,
+    samples: u32,
     repairs: Option<u32>,
     edit: bool,
 ) -> Option<u32> {
+    // Neither the samples nor the repairs bound a request-dependent judgment: kept for callers.
+    let _ = (samples, repairs);
     match (strategy, edit) {
         (NativeMode::Off, true) | (NativeMode::Only, false) => Some(0),
-        (NativeMode::Sketch, false) => repairs
-            .and_then(|repairs| repairs.checked_mul(3))
-            .and_then(|calls| calls.checked_add(4)),
         _ => None,
     }
 }
 
-/// The requests an explicit source recovery adds to a finite configured estimate: the source and
-/// the whole-request judgment per round (`1 + 2`), drawn from the same authority, never beside it.
-/// The rounds count as typed.
+/// The requests an explicit source recovery reserves at least: the source and the whole-request
+/// judgment per round (`1 + 2`), drawn from the same authority, never beside it. A doubted
+/// judgment asks more (each part of the request alone, then the extra-operation question): the
+/// counters refuse what the allowance cannot hold, never a silent cut. The rounds count as typed.
 #[must_use]
 pub fn recovery_requests(rounds: u32) -> u32 {
     let judged = u32::try_from(crate::cognition::WHOLE_QUESTIONS).unwrap_or(u32::MAX);
@@ -514,15 +516,11 @@ mod tests {
         assert_eq!(bounded.max_calls(), Some(1));
         assert_eq!(bounded.configured["repairs"], 3);
         assert_eq!(bounded.configured["worst_case"], Value::Null);
-        // A finite sketch configuration that exceeds a typed bound is still refused.
-        let refused = resolve(Some(1), Sketch, repairs).expect_err("thirteen");
-        let needed = Refusal::Multiplicity {
-            needed: 13,
-            authorized: 1,
-            strategy: Sketch,
-        };
-        assert_eq!(refused, needed);
-        assert!(resolve(Some(13), Sketch, repairs).is_ok());
+        // The sketch door's judgment depends on the request (each part of a doubted request
+        // asked alone): no finite count refuses typed repairs up front either, and the counters
+        // refuse each request past the bound.
+        let sketched = resolve(Some(1), Sketch, repairs).expect("dynamic judgment under one");
+        assert_eq!(sketched.configured["worst_case"], Value::Null);
         // Nothing extra typed: never refused for what the defaults would allow (a typed only
         // strategy needs its judgment, below).
         let none = nothing.with_strategy().with_repairs(Some(0));
@@ -610,19 +608,10 @@ mod tests {
             escalate(Some(9), zero_samples).err(),
             Some(range("samples", 0, 1, Some(u32::MAX)))
         );
-        // Repairs are honored as typed, any count: refused only by a typed bound that cannot
-        // honor them, naming what they need.
+        // Repairs are honored as typed, any count: no request-independent count refuses them,
+        // and the counters bound what they spend.
         let six = nothing.with_repairs(Some(6));
-        let needed = worst_case_of(NativeMode::Sketch, 1, Some(6), false).unwrap();
-        assert_eq!(
-            resolve(Some(9), NativeMode::Sketch, six).err(),
-            Some(Refusal::Multiplicity {
-                needed,
-                authorized: 9,
-                strategy: NativeMode::Sketch,
-            })
-        );
-        assert!(resolve(Some(needed), NativeMode::Sketch, six).is_ok());
+        assert!(resolve(Some(9), NativeMode::Sketch, six).is_ok());
         assert!(escalate(None, nothing.with_repairs(Some(1000))).is_ok());
         // A grant of no request is refused before any request, never raised to one.
         assert_eq!(
@@ -652,13 +641,7 @@ mod tests {
         for strategy in [Escalate, Off, Only, Sketch] {
             for edit in [false, true] {
                 let no_calls = matches!((strategy, edit), (Off, true) | (Only, false));
-                let typed = if no_calls {
-                    Some(0)
-                } else if !edit && strategy == Sketch {
-                    Some(196)
-                } else {
-                    None
-                };
+                let typed = no_calls.then_some(0);
                 assert_eq!(worst_case_of(strategy, 5, Some(64), edit), typed);
                 assert_eq!(
                     worst_case_of(strategy, 5, None, edit),
@@ -675,18 +658,10 @@ mod tests {
         );
         assert_eq!(worst_case_of(Escalate, 1, Some(0), false), None);
         assert_eq!(worst_case_of(Off, 1, Some(0), false), None);
-        // A saturated total is not an upper bound. Keep the largest representable estimates
-        // exact, then report unknown when either the multiplication or addition overflows.
-        let sketch_repairs = (u32::MAX - 4) / 3;
-        assert_eq!(
-            worst_case_of(Sketch, 1, Some(sketch_repairs), false),
-            Some(sketch_repairs * 3 + 4)
-        );
-        assert_eq!(
-            worst_case_of(Sketch, 1, Some(sketch_repairs + 1), false),
-            None
-        );
-        assert_eq!(worst_case_of(Sketch, 1, Some(u32::MAX), false), None);
+        // The sketch door's judgment asks as many questions as a doubted request has parts.
+        for repairs in [0, 1, 3, u32::MAX] {
+            assert_eq!(worst_case_of(Sketch, 1, Some(repairs), false), None);
+        }
         // The historical 3 + r revision estimate omits semantic links and repeated judgments.
         // Even zero repairs cannot make the retained representation known to this function.
         for strategy in [Escalate, Only, Sketch] {

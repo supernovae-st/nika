@@ -22,6 +22,9 @@ use serde_json::{Value, json};
 use std::sync::Mutex;
 use std::time::Duration;
 
+mod common;
+use common::{approval, verifier};
+
 /// The source every request reads and the keys the host observed in it, in every record.
 const SOURCE: &str = "./data/tickets.json";
 const OBSERVED: [&str; 3] = ["email", "ticket_id", "title"];
@@ -65,13 +68,8 @@ impl ProviderInferDyn for Seat {
                 .unwrap_or_default(),
             _ => Vec::new(),
         };
-        let offers = |key: &str| keys.iter().any(|k| k == key);
-        let text = if offers("faithful") {
-            json!({"choice": "faithful"}).to_string()
-        } else if offers("carried") {
-            json!({"choice": "carried"}).to_string()
-        } else if offers("another_part") {
-            json!({"choice": "another_part"}).to_string()
+        let text = if verifier(&keys) {
+            json!({"choice": approval(&keys)}).to_string()
         } else {
             let mut said = self.said.lock().unwrap();
             *said += 1;

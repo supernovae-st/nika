@@ -26,6 +26,12 @@ mod common;
 use common::{Judged, Rotating};
 
 const INTENT: &str = "Copie ./alpha.txt dans ./out/alpha.txt et ./beta.txt dans ./out/beta.txt. Demande mon accord une seule fois avant les deux écritures. Nomme les résultats alpha et beta.";
+/// The parts of [`INTENT`] the verifier asks alone (none restricts).
+const PARTS: [&str; 3] = [
+    "Copie ./alpha.txt dans ./out/alpha.txt et ./beta.txt dans ./out/beta.txt",
+    "Demande mon accord une seule fois avant les deux écritures",
+    "Nomme les résultats alpha et beta",
+];
 
 /// The independent oracle: each source, the write that must carry it, and the result name.
 const BRANCHES: [(&str, &str, &str, &str); 2] = [
@@ -993,9 +999,20 @@ fn every_mapping_mutant_is_lawful_structure_the_independent_oracle_rejects() {
     }
 }
 
-/// A judge double that refuses: the whole-request question is answered `unfaithful`, the locating
-/// question `another_part`, any other verification choice with its first non-approving option;
-/// each is counted. Every other call goes to the wrapped provider.
+/// The option each verifier question offers when it approves: the whole request, a clause or
+/// part, an observed run, the extra-operation question and the task question.
+const APPROVALS: [&str; 5] = [
+    "faithful",
+    "carried",
+    "consistent",
+    "only_requested",
+    "no_task",
+];
+
+/// A judge double that refuses: the whole-request question is answered `unfaithful`, each clause
+/// or part `missing`, a task question (and an observed run, or the extra-operation question) with
+/// the first task it offers (`task-<id>`), else `omitted`; each is counted. Every other call goes
+/// to the wrapped provider.
 struct Refusing<'a, P> {
     inner: &'a P,
     judged: AtomicU32,
@@ -1010,17 +1027,16 @@ impl<P: ProviderInferDyn> ProviderInferDyn for Refusing<'_, P> {
             .as_array()
             .cloned()
             .unwrap_or_default();
-        if !keys
-            .iter()
-            .any(|k| k == "faithful" || k == "carried" || k == "another_part")
-        {
+        if !keys.iter().any(|k| APPROVALS.iter().any(|a| k == a)) {
             return self.inner.infer(request).await;
         }
         self.judged.fetch_add(1, Ordering::SeqCst);
-        let key = keys
-            .iter()
-            .find(|k| *k == "another_part")
-            .or_else(|| keys.iter().find(|k| *k != "faithful" && *k != "carried"))
+        let offered = |key: &str| keys.iter().find(|k| *k == key);
+        let task = |k: &&Value| k.as_str().is_some_and(|k| k.starts_with("task-"));
+        let key = offered("unfaithful")
+            .or_else(|| offered("missing"))
+            .or_else(|| keys.iter().find(task))
+            .or_else(|| offered("omitted"))
             .cloned()
             .unwrap();
         Ok(InferResponse::new(
@@ -1053,14 +1069,36 @@ async fn a_refusing_judgment_keeps_its_verdict_and_calls_and_no_mutant_is_ready(
         );
         assert_eq!(
             judge.judged.load(Ordering::SeqCst),
-            2,
-            "{label}: request and locate"
+            7,
+            "{label}: the request, its three parts and the task question of each"
         );
         assert_eq!(
             roles(&out),
-            ["sketch", "fill", "judge_request", "judge_locate"],
+            [
+                "sketch",
+                "fill",
+                "judge_request",
+                "judge_part",
+                "judge_point",
+                "judge_part",
+                "judge_point",
+                "judge_part",
+                "judge_point"
+            ],
             "{label}"
         );
+        // Each part of the request, asked alone and found missing, is a defect named whole, with
+        // the task the judge names as its reason (the first the candidate's document orders).
+        let verified = &out.provenance.decision.as_ref().unwrap()["semantic_verification"];
+        assert_eq!(
+            verified[0]["defects"],
+            json!(PARTS),
+            "{label}: {verified:#}"
+        );
+        let notes: Vec<Value> = (PARTS.iter())
+            .map(|part| json!({"defect": part, "note": "the judge points to the task approve"}))
+            .collect();
+        assert_eq!(verified[0]["notes"], json!(notes), "{label}: {verified:#}");
         let receipt = out.provenance.authoring.as_ref().unwrap();
         for call in &receipt.context[2..] {
             assert_eq!(

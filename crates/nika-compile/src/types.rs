@@ -35,6 +35,9 @@ pub struct CompileRequest {
     /// admitted ceiling bounds the workflow's Run, never the preparation — see
     /// [`Self::with_observed_preparation`].
     pub observed_preparation: bool,
+    /// The verdicts that rejected candidate bytes in earlier rounds of the same conversation, as
+    /// the host kept them — see [`Self::with_declined`].
+    pub declined: Vec<serde_json::Value>,
 }
 
 /// One reference a knowledge snapshot recalled for the seat: its kind (`pattern` · `block` ·
@@ -116,12 +119,14 @@ impl CompileRequest {
     }
     /// Replay the private semantic plan a previous round produced for the SAME intent:
     /// `plan` is the exact `provenance.plan` value of that outcome. The compiler then skips
-    /// reading, decision seats and generative proposals entirely and assembles this plan
-    /// with the request's answers, so every answer round of one authoring conversation
-    /// reaches the same candidate with zero provider calls. The caller guarantees the
-    /// intent is unchanged; the intent's sha256 is recorded in provenance either way. A
-    /// plan that does not parse, is not anchored in the intent or still carries unknown
-    /// work is a finding, never a candidate. Skeletons, `hello` and EDIT ignore it.
+    /// reading and generative proposals and assembles this plan with the request's answers,
+    /// so every answer round of one authoring conversation reaches the same candidate with no
+    /// authoring call. Every plan but the reader's own HOT plan is READY only on a judgment of
+    /// the replayed bytes made in the round: the round's judge (its decision seat, else its
+    /// authoring provider) is asked, and a round with no judge stays INCOMPLETE. The caller
+    /// guarantees the intent is unchanged; the intent's sha256 is recorded in provenance
+    /// either way. A plan that does not parse, is not anchored in the intent or still carries
+    /// unknown work is a finding, never a candidate. Skeletons, `hello` and EDIT ignore it.
     #[must_use]
     pub fn with_plan(mut self, plan: serde_json::Value) -> Self {
         self.plan = Some(plan);
@@ -181,6 +186,16 @@ impl CompileRequest {
         self.observed_preparation = true;
         self
     }
+    /// Carry the verdicts that rejected candidate bytes in earlier rounds of the same
+    /// conversation (each a `semantic_verification` attempt of an earlier outcome, `rejected`
+    /// true): a judge of this compile is never asked again on bytes it already rejected (R6);
+    /// the verifier repeats that verdict with no call. Data the host kept, never a judgment that
+    /// carries anything: a carried verdict can only keep bytes from READY.
+    #[must_use]
+    pub fn with_declined(mut self, attempts: Vec<serde_json::Value>) -> Self {
+        self.declined = attempts;
+        self
+    }
     /// The same request with `text` as its complete input: a clarification or any replacement
     /// the caller answered. The monetary spans it admitted index the bytes it read, so they stay
     /// only when `text` is those very bytes; a replacement never inherits them, whatever its own
@@ -211,6 +226,7 @@ impl CompileRequest {
             money: Vec::new(),
             stated_money: false,
             observed_preparation: false,
+            declined: Vec::new(),
         }
     }
 
@@ -237,6 +253,7 @@ impl CompileRequest {
             money: Vec::new(),
             stated_money: false,
             observed_preparation: false,
+            declined: Vec::new(),
         }
     }
 
@@ -274,6 +291,7 @@ impl CompileRequest {
             money: Vec::new(),
             stated_money: false,
             observed_preparation: false,
+            declined: Vec::new(),
         }
     }
 

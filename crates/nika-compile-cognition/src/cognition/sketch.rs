@@ -282,7 +282,8 @@ fn diagnostics_record(diagnostics: &[Diagnostic]) -> Vec<Value> {
 /// Whether a repair round opens: the assistant's text and the repair message join the talk
 /// and the diagnostics are remembered; a repeated refusal is no progress and ends the talk.
 fn repair(talk: &mut Talk, text: String, diagnostics: Vec<Diagnostic>, tail: &str) -> bool {
-    if !progressed(talk, &diagnostics) {
+    let last = talk.last.clone();
+    if !progressed(talk, last.as_deref(), &diagnostics) {
         return false;
     }
     talk.messages.push(Message::text(Role::Assistant, text));
@@ -890,6 +891,9 @@ async fn examine<P: ProviderInferDyn>(
         }
         Evidence::Defect(defect) => Step::Reopen(done, vec![defect]),
         Evidence::Unoffered | Evidence::Open | Evidence::Holds | Evidence::Unknown => {
+            // The run the evidence just made of these exact bytes, when it completed: the
+            // observation a disagreement of the judge asks for.
+            let observed = (done.candidate.as_deref()).and_then(|c| rehearsals.observed(c));
             let verdict = super::verify::native_verdict(
                 intent,
                 reading,
@@ -898,16 +902,24 @@ async fn examine<P: ProviderInferDyn>(
                 request,
                 done,
                 0,
+                observed.as_ref(),
             );
             match verdict.await {
                 Ok(judged) => Step::Done(judged),
                 Err(judged) => {
                     let (judged, verdict) = *judged;
-                    let defects = judge_defects(&verdict.defects);
+                    let defects = judge_defects(&verdict);
+                    // The repairs the judge's earlier verdicts already opened in this talk.
+                    let repairs = judged_attempts(&judged).saturating_sub(1);
                     if verdict.defects.is_empty() {
                         Step::Done(super::verify::preserve_unjudged(judged, &verdict))
-                    } else if !within(last, next) {
-                        Step::Withdrawn(super::verify::withdrawn(judged, &verdict, 0), defects)
+                    } else if verdict.same_bytes_as.is_some() || !within(last, next) {
+                        // The same bytes again are no progress, whatever count is left (R6).
+                        let mut withdrawn = super::verify::withdrawn(judged, &verdict, repairs);
+                        if verdict.same_bytes_as.is_some() {
+                            super::verify::route(&mut withdrawn, "native: no progress");
+                        }
+                        Step::Withdrawn(withdrawn, defects)
                     } else {
                         Step::Reopen(judged, defects)
                     }
@@ -915,6 +927,13 @@ async fn examine<P: ProviderInferDyn>(
             }
         }
     }
+}
+
+/// How many whole-request verdicts this compile recorded, the last one included.
+fn judged_attempts(out: &CompileOutcome) -> usize {
+    (out.provenance.decision.as_ref())
+        .and_then(|decision| decision["semantic_verification"].as_array())
+        .map_or(0, Vec::len)
 }
 
 /// The round after the journal's last: where a reopened graph continues the door's count.
@@ -926,14 +945,37 @@ fn next_round(talk: &Talk) -> u32 {
         .unwrap_or(0)
 }
 
-/// The judge's defects as the repair reads them: the parts of the request the bytes miss.
-fn judge_defects(defects: &[String]) -> Vec<Diagnostic> {
-    (defects.iter())
-        .map(|defect| Diagnostic {
-            kind: "semantic_verification",
-            message: format!(
-                "the judge compared the whole request with the candidate's bytes: it does not carry `{defect}`"
-            ),
+/// The judge's defects as the repair reads them: the parts of the request the bytes miss, each
+/// with the reason the judge gave (the task it points to, or no task performing it) after
+/// [`REASON`].
+fn judge_defects(verdict: &super::verify::Verdict) -> Vec<Diagnostic> {
+    (verdict.defects.iter())
+        .map(|defect| {
+            let reason = (verdict.notes.iter())
+                .find(|(noted, _)| noted == defect)
+                .map(|(_, note)| format!("{REASON}{note}"));
+            Diagnostic {
+                kind: "semantic_verification",
+                message: format!(
+                    "the judge compared the whole request with the candidate's bytes: it does not carry « {defect} »{}",
+                    reason.unwrap_or_default()
+                ),
+            }
+        })
+        .collect()
+}
+
+/// Where a defect's reason starts in its message: what progress never compares, so a judge
+/// pointing to another task, or a repair renaming one, is still the same defect.
+const REASON: &str = " · the judge's reason: ";
+
+/// What a set of diagnostics names, for progress: each kind and message before its reason, as
+/// a set.
+fn identity(diagnostics: &[Diagnostic]) -> std::collections::BTreeSet<(&str, &str)> {
+    (diagnostics.iter())
+        .map(|d| {
+            let named = d.message.split(REASON).next().unwrap_or(&d.message);
+            (d.kind, named)
         })
         .collect()
 }
@@ -941,9 +983,11 @@ fn judge_defects(defects: &[String]) -> Vec<Diagnostic> {
 /// Reopen from evidence: the diagnostics go back with the `tail` instruction (the whole sketch
 /// again, its holes filled after it; or a recovery's whole source); a repeat is no progress.
 fn reopen(talk: &mut Talk, diagnostics: Vec<Diagnostic>, tail: &str) -> bool {
-    if !progressed(talk, &diagnostics) {
+    let last = talk.reopened.clone();
+    if !progressed(talk, last.as_deref(), &diagnostics) {
         return false;
     }
+    talk.reopened = Some(diagnostics.clone());
     talk.messages.push(Message::text(
         Role::User,
         format!("{}{tail}", repair_message(&diagnostics, &talk.repairs)),
@@ -952,11 +996,26 @@ fn reopen(talk: &mut Talk, diagnostics: Vec<Diagnostic>, tail: &str) -> bool {
     true
 }
 
-/// Whether these findings are new to the talk: the last ones again (or, under no repair count,
-/// any set it already answered) is no progress, routed so; a new set is remembered.
-fn progressed(talk: &mut Talk, diagnostics: &[Diagnostic]) -> bool {
-    let met = |sets: &Vec<Vec<Diagnostic>>| sets.iter().any(|set| set.as_slice() == diagnostics);
-    if talk.last.as_deref() == Some(diagnostics) || talk.answered.as_ref().is_some_and(met) {
+/// Whether these findings are new to the talk: `last` again (the last reopening's set for a
+/// reopening, the last fill's for a fill repair) is no progress, routed so; a new set is
+/// remembered. Under no repair count, a set is progress only when it names a finding
+/// no earlier set named, or narrows the last one (fewer findings, all among the last): each new
+/// finding grows a finite set and each narrowing shrinks the last, so a judge's variance over
+/// which parts it names never reopens the door without end (A, B, A ends; so does any reshuffle).
+fn progressed(talk: &mut Talk, last: Option<&[Diagnostic]>, diagnostics: &[Diagnostic]) -> bool {
+    let named = identity(diagnostics);
+    let last = last.map(identity);
+    let repeated = last.as_ref().is_some_and(|last| *last == named);
+    let stalled = talk.answered.as_ref().is_some_and(|sets| {
+        let seen: std::collections::BTreeSet<_> =
+            sets.iter().flat_map(|set| identity(set)).collect();
+        let new = named.iter().any(|finding| !seen.contains(finding));
+        let narrowed = last
+            .as_ref()
+            .is_some_and(|last| named.len() < last.len() && named.is_subset(last));
+        !sets.is_empty() && !new && !narrowed
+    });
+    if repeated || stalled {
         talk.route.push("native: no progress".to_owned());
         return false;
     }

@@ -48,8 +48,9 @@ impl Seen {
 }
 
 /// A recording transport: the plans it answers in order (the last repeats), the whole-request
-/// judge's verdicts in order (`faithful` once they run out), the located part and every clause
-/// carried. It keeps every request it received.
+/// judge's verdicts in order (`faithful` once they run out), every clause and every part asked
+/// alone carried, and the extra-operation question pointed at the candidate's first task. It
+/// keeps every request it received.
 struct Recorder {
     plans: Vec<String>,
     verdicts: Mutex<Vec<&'static str>>,
@@ -149,8 +150,14 @@ impl ProviderInferDyn for Recorder {
             let verdict = self.verdicts.lock().unwrap().pop().unwrap_or("faithful");
             return Ok(respond(&json!({"choice": verdict}).to_string()));
         }
-        if choices.contains("\"part-0\"") {
-            return Ok(respond(&json!({"choice": "part-0"}).to_string()));
+        // Every part asked alone is carried; the candidate's first task does something the
+        // request does not ask: the defect a repair starts from.
+        let offered = schema_value["properties"]["choice"]["enum"].as_array();
+        if let Some(keys) = offered.filter(|keys| keys.iter().any(|k| k == "only_requested")) {
+            let task = keys
+                .iter()
+                .find(|k| k.as_str().is_some_and(|k| k.starts_with("task-")));
+            return Ok(respond(&json!({"choice": task}).to_string()));
         }
         if choices.contains("\"carried\"") {
             return Ok(respond(&json!({"choice": "carried"}).to_string()));
@@ -347,14 +354,23 @@ async fn the_anchoring_repair_resends_the_same_context_and_refuses_reference_evi
     assert!(!candidate.contains("supprime"), "{candidate}");
 }
 
+/// The seat's plan of [`INTENT`] with its classification read as « le problème du client »: the
+/// same operations, other words in the classify prompt, so other candidate bytes.
+fn reworded() -> String {
+    let mut plan = common::plan();
+    plan["steps"][1]["detail"] = json!("le problème du client");
+    plan.to_string()
+}
+
 /// A verified candidate the judge finds unfaithful is repaired through the real
 /// verifier: the repair call keeps its own state (the request, its answers, the world, the
 /// candidate's bytes) and the grounding of the candidate, and carries the pack beside them;
-/// the references of both provenances stay observable; the calls stay counted.
+/// the references of both provenances stay observable; the calls stay counted. The repaired
+/// plan writes other bytes, which the judge is asked afresh and carries.
 #[tokio::test]
 async fn the_verifier_repair_keeps_its_grounding_and_carries_the_same_pack() {
     let plan = common::plan().to_string();
-    let recorder = Recorder::judging(&[plan.clone(), plan], &["unfaithful", "faithful"]);
+    let recorder = Recorder::judging(&[plan, reworded()], &["unfaithful", "faithful"]);
     let mut request = contextual();
     request.authoring = Some(policy().with_repairs(1));
     let out = compile_with_provider(&request, &recorder).await.unwrap();
@@ -388,6 +404,29 @@ async fn the_verifier_repair_keeps_its_grounding_and_carries_the_same_pack() {
             .iter()
             .any(|(role, text)| role == "user" && text.contains("VERIFIER: the workflow compiled")),
         "the verifier's defects and state stay: {repair:?}"
+    );
+    // The defect the repair starts from is the task the judge pointed to (the candidate's first,
+    // in its document's order): the record keeps the defect and its reason apart, the repair
+    // reads them together.
+    let extra = "only what the request asks";
+    let note =
+        "the judge points to the task classify, which does something the request does not ask";
+    let verified = &out.provenance.decision.as_ref().unwrap()["semantic_verification"];
+    assert_eq!(verified[0]["defects"], json!([extra]), "{verified:#}");
+    let noted = json!([{"defect": extra, "note": note}]);
+    assert_eq!(verified[0]["notes"], noted, "{verified:#}");
+    assert_eq!(verified[1]["defects"], json!([]), "{verified:#}");
+    assert_eq!(verified[1]["settled_by"], "verify-request", "{verified:#}");
+    assert_ne!(
+        verified[1]["candidate_sha256"], verified[0]["candidate_sha256"],
+        "the repaired bytes are judged: {verified:#}"
+    );
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(
+        repair.iter().any(|(role, text)| {
+            role == "user" && text.contains(&format!("\n- {extra} ({note})\n"))
+        }),
+        "{repair:?}"
     );
     let receipt = context(&out);
     assert_eq!(
@@ -446,4 +485,205 @@ async fn the_attached_context_changes_what_the_plan_reads_never_what_is_assemble
         plan["semantic_context"],
         json!({"pack_sha256": null, "world_sha256": null})
     );
+}
+
+/// The verification steps of the route the decision records, in order.
+fn verify_route(out: &CompileOutcome) -> Vec<String> {
+    let route = &out.provenance.decision.as_ref().unwrap()["route"];
+    (route.as_array().into_iter().flatten())
+        .filter_map(Value::as_str)
+        .filter(|step| step.starts_with("verify:"))
+        .map(str::to_owned)
+        .collect()
+}
+
+/// A COLD repair whose plan writes the very bytes the judge declined asks the judge nothing
+/// (R6): the attempt repeats the earlier verdict with no call, names the attempt it repeats,
+/// and is no progress, so the repairs end there though more are granted. Nothing is READY: the
+/// defect is named with its reason and the one repair made, the candidate stays the preview,
+/// and no record replays those bytes to the same judge.
+#[tokio::test]
+async fn a_cold_repair_writing_the_declined_bytes_again_asks_the_judge_nothing() {
+    let plan = common::plan().to_string();
+    let recorder = Recorder::judging(&[plan.clone(), plan], &["unfaithful"]);
+    let mut request = contextual();
+    request.authoring = Some(policy().with_repairs(3));
+    let out = compile_with_provider(&request, &recorder).await.unwrap();
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert_eq!(
+        recorder.plan_systems().len(),
+        2,
+        "the opening, one repair: {out:#?}"
+    );
+    let roles: Vec<String> = (context(&out).iter())
+        .filter_map(|call| call["call"].as_str().map(str::to_owned))
+        .collect();
+    let judged = roles
+        .iter()
+        .filter(|role| role.starts_with("judge_"))
+        .count();
+    let repair = roles.iter().position(|role| role == "repair");
+    assert_eq!(
+        repair,
+        Some(roles.len() - 1),
+        "no judge call after the repair: {roles:?}"
+    );
+    let verified = out.provenance.decision.as_ref().unwrap()["semantic_verification"].clone();
+    assert_eq!(verified.as_array().map(Vec::len), Some(2), "{verified:#}");
+    let first = &verified[0];
+    assert_eq!(first["attempted"], json!(judged), "{verified:#}");
+    let mut repeated = first.clone();
+    let spent = json!({"calls": 0, "input_tokens": 0, "output_tokens": 0, "complete": true});
+    for (key, value) in [
+        ("attempt", json!(1)),
+        ("questions", json!([])),
+        ("attempted", json!(0)),
+        ("returned", json!(0)),
+        ("consumed", json!(0)),
+        ("usage", spent),
+        ("same_bytes_as", json!(0)),
+    ] {
+        repeated[key] = value;
+    }
+    assert_eq!(verified[1], repeated, "{verified:#}");
+    let steps = [
+        "verify: repair 1",
+        "verify: same bytes, earlier verdict stands",
+        "verify: no progress",
+        "verify: not ready",
+        "verify: doubted, not replayable",
+    ];
+    assert_eq!(verify_route(&out), steps, "{out:#?}");
+    let extra = "only what the request asks";
+    let note =
+        "the judge points to the task classify, which does something the request does not ask";
+    let told: Vec<&str> = (out.diagnostics.iter())
+        .filter(|d| d.target == "semantic_verification" && d.message.starts_with("The judge"))
+        .map(|d| d.message.as_str())
+        .collect();
+    let named = format!(
+        "The judge compared the whole request with the candidate's bytes: it does not carry « {extra} ({note}) ». 1 repair(s) from that defect did not settle it; nothing is READY. Next: a stronger authoring model, or a restatement of that part."
+    );
+    assert_eq!(told, [named.as_str()], "{out:#?}");
+    let held: Vec<&str> = (out.diagnostics.iter())
+        .filter(|d| d.target == "verify_held")
+        .map(|d| d.message.as_str())
+        .collect();
+    assert_eq!(held, [HELD_DEFECTS], "{out:#?}");
+    assert!(out.candidate.is_some(), "the preview stays: {out:#?}");
+    assert!(out.provenance.plan.is_none(), "{out:#?}");
+}
+
+/// What a candidate held on located defects offers, as the verifier states it.
+const HELD_DEFECTS: &str = "The candidate was judged and not accepted: the parts named above stay missing. It is shown, never offered, and nothing was written; this verifier is not asked again on these bytes, in this compile or in a later round that carries this verdict. A correction of the request, another authoring model or another verifier can decide it.";
+
+/// The findings of the judge and the held words an outcome leaves, in order.
+fn told(out: &CompileOutcome) -> Vec<(String, String)> {
+    (out.diagnostics.iter())
+        .filter(|d| d.target == "verify_held" || d.target == "semantic_verification")
+        .map(|d| (d.target.clone(), d.message.clone()))
+        .collect()
+}
+
+/// The verification attempts an outcome records.
+fn attempts(out: &CompileOutcome) -> Vec<Value> {
+    let decision = out.provenance.decision.as_ref().unwrap();
+    decision["semantic_verification"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// A rejection a host carries from an earlier round (R6 across compiles), through the COLD
+/// door: the first compile's judge rejects the bytes with a located defect and no repair is
+/// granted, so they are held. The next compile of the same request carries that round's
+/// verdicts (`CompileRequest::with_declined`) and its plan writes the very bytes again: the judge
+/// is asked nothing (its double would now carry them), the attempt repeats the carried verdict
+/// with no call, `carried` and repeating no attempt of its own compile. Its located defect is
+/// what a repair would start from, and none is granted here. Nothing is READY: the same findings
+/// hold the same candidate, the promise its held words make.
+#[tokio::test]
+async fn a_cold_round_carrying_an_earlier_rejection_asks_the_judge_nothing() {
+    let plan = common::plan().to_string();
+    let mut request = contextual();
+    request.authoring = Some(policy().with_repairs(0));
+    let first_recorder = Recorder::judging(std::slice::from_ref(&plan), &["unfaithful"]);
+    let first = compile_with_provider(&request, &first_recorder)
+        .await
+        .unwrap();
+    assert_eq!(first.status, CompileStatus::Incomplete, "{first:#?}");
+    let steps = ["verify: not ready", "verify: doubted, not replayable"];
+    assert_eq!(verify_route(&first), steps, "{first:#?}");
+    let judged = attempts(&first);
+    assert_eq!(judged.len(), 1, "{judged:#?}");
+    let flags = [
+        "declined",
+        "rejected",
+        "settled",
+        "carried",
+        "same_bytes_as",
+    ];
+    let rejected = [
+        json!(true),
+        json!(true),
+        json!(false),
+        json!(false),
+        Value::Null,
+    ];
+    assert_eq!(flags.map(|key| &judged[0][key]), rejected.each_ref());
+    assert_eq!(judged[0]["defects"], json!(["only what the request asks"]));
+    let held = told(&first);
+    assert_eq!(
+        held.last().map(|(_, words)| words.as_str()),
+        Some(HELD_DEFECTS)
+    );
+    // The next compile of the same request, carrying the round's verdicts.
+    let second_recorder = Recorder::judging(&[plan], &[]);
+    let carrying = request.clone().with_declined(judged.clone());
+    let second = compile_with_provider(&carrying, &second_recorder)
+        .await
+        .unwrap();
+    assert_eq!(second.status, CompileStatus::Incomplete, "{second:#?}");
+    assert_eq!(
+        second.candidate, first.candidate,
+        "the same bytes: {second:#?}"
+    );
+    // The same authoring calls as the first compile, and none of its judge's.
+    let roles = |out: &CompileOutcome| -> Vec<String> {
+        (context(out).iter())
+            .filter_map(|call| call["call"].as_str().map(str::to_owned))
+            .collect()
+    };
+    let (asked, again) = (roles(&first), roles(&second));
+    let judge_calls = asked.iter().filter(|role| role.starts_with("judge_"));
+    assert_eq!(
+        json!(judge_calls.count()),
+        judged[0]["attempted"],
+        "{asked:?}"
+    );
+    let authored: Vec<&String> = (asked.iter())
+        .filter(|role| !role.starts_with("judge_"))
+        .collect();
+    assert_eq!(again.iter().collect::<Vec<_>>(), authored, "{again:?}");
+    let mut carried = judged[0].clone();
+    let spent = json!({"calls": 0, "input_tokens": 0, "output_tokens": 0, "complete": true});
+    for (key, value) in [
+        ("questions", json!([])),
+        ("attempted", json!(0)),
+        ("returned", json!(0)),
+        ("consumed", json!(0)),
+        ("usage", spent),
+        ("carried", json!(true)),
+    ] {
+        carried[key] = value;
+    }
+    assert_eq!(attempts(&second), [carried], "{second:#?}");
+    let steps = [
+        "verify: same bytes, rejected in an earlier round",
+        "verify: not ready",
+        "verify: doubted, not replayable",
+    ];
+    assert_eq!(verify_route(&second), steps, "{second:#?}");
+    assert_eq!(told(&second), held, "{second:#?}");
+    assert!(second.provenance.plan.is_none(), "{second:#?}");
 }

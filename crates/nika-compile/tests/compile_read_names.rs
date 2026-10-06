@@ -6,7 +6,10 @@
 //! capitalized run its reader glues to the file) is bound whole; a longer name it leaves
 //! open is asked; the last word of a name is never the file read. Every plan below is a
 //! recorded COLD plan replayed through the answer-round door (zero provider calls), or the
-//! proposal of the hermetic provider double of `common`.
+//! proposal of the hermetic provider double of `common`. A model's plan is READY only once the
+//! round's judge carries its whole request over the replayed bytes (R4 A11): the door with no
+//! judge asks, or holds the bytes it binds for that judge; the rounds that read a READY workflow
+//! permit the approving double.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use nika_compile::{
     CompileOutcome, CompileRequest, CompileStatus, Strategy, compile, intent_sha256,
@@ -30,13 +33,24 @@ fn recorded(detail: &str, read: &str, target: &str, write: &str) -> Value {
         "obligations":[],"bindings":[],"constraints":[],"unknowns":[]})
 }
 
-/// The answer-round door: the recorded plan replayed for the same intent, no provider.
-fn replay(intent: &str, record: &Value, answers: &[(&str, &str)]) -> CompileOutcome {
+/// The answer round of `record` for `intent`, with `answers`.
+fn answered(intent: &str, record: &Value, answers: &[(&str, &str)]) -> CompileRequest {
     let mut request = CompileRequest::create(intent).with_plan(record.clone());
     for (key, literal) in answers {
         request = request.answer(*key, *literal);
     }
-    compile(&request).unwrap()
+    request
+}
+
+/// The answer-round door: the recorded plan replayed for the same intent, no provider and no
+/// judge.
+fn replay(intent: &str, record: &Value, answers: &[(&str, &str)]) -> CompileOutcome {
+    compile(&answered(intent, record, answers)).unwrap()
+}
+
+/// The same answer round under this round's judge, the approving double (R4 A11).
+async fn judged(intent: &str, record: &Value, answers: &[(&str, &str)]) -> CompileOutcome {
+    common::approved_round(&answered(intent, record, answers)).await
 }
 
 /// The Ready candidate, checked clean, as a document.
@@ -51,16 +65,20 @@ fn document(out: &CompileOutcome) -> Value {
 
 /// The residual itself: the detail is the whole name, the request glues the same capitalized
 /// run to its file (`Lis Notes équipe.txt`), and the candidate reads that file under a read
-/// permit for it alone, never `équipe.txt`.
-#[test]
-fn a_cold_read_detail_that_is_one_name_binds_the_whole_name() {
+/// permit for it alone, never `équipe.txt`. The door with no judge binds the same bytes and
+/// holds them for the round's judge on the whole request alone.
+#[tokio::test]
+async fn a_cold_read_detail_that_is_one_name_binds_the_whole_name() {
     let record = recorded(
         "Notes équipe.txt",
         "Lis Notes équipe.txt",
         "Copie équipe.txt",
         "écris son contenu à l'identique dans Copie équipe.txt",
     );
-    let out = replay(COPY, &record, &[]);
+    let held = replay(COPY, &record, &[]);
+    common::assert_waits_for_its_judge(&held, COPY);
+    let out = judged(COPY, &record, &[]).await;
+    assert_eq!(out.candidate, held.candidate, "{out:#?}");
     assert_eq!(out.provenance.strategy, Some(Strategy::Cold), "{out:#?}");
     assert_eq!(
         outcome_document(&out)["provenance"]["decision"]["intent_sha256"],
@@ -75,8 +93,8 @@ fn a_cold_read_detail_that_is_one_name_binds_the_whole_name() {
 
 /// Prose around the name (a file noun before it, a gloss after it): the request's reader
 /// settles the capitalized run it glues to the file; the plan's words around it bind nothing.
-#[test]
-fn prose_around_a_stated_name_keeps_the_name_whole() {
+#[tokio::test]
+async fn prose_around_a_stated_name_keeps_the_name_whole() {
     let intent = "Lis le fichier Notes équipe.txt et écris son contenu dans Copie équipe.txt.";
     for detail in [
         "le fichier Notes équipe.txt",
@@ -88,7 +106,7 @@ fn prose_around_a_stated_name_keeps_the_name_whole() {
             "Copie équipe.txt",
             "écris son contenu dans Copie équipe.txt",
         );
-        let doc = document(&replay(intent, &record, &[]));
+        let doc = document(&judged(intent, &record, &[]).await);
         assert_eq!(
             doc["const"]["source_path"], "Notes équipe.txt",
             "{detail}: {doc:#}"
@@ -104,8 +122,8 @@ fn prose_around_a_stated_name_keeps_the_name_whole() {
 /// A name holding a function word (`de`) is one name where the request says so: quoted, it
 /// is read whole; unquoted, its reader cannot tell it from prose, so the file is asked,
 /// never cut to `réunion.txt`, and the answer names it.
-#[test]
-fn a_name_with_a_function_word_is_read_whole_when_quoted_and_asked_otherwise() {
+#[tokio::test]
+async fn a_name_with_a_function_word_is_read_whole_when_quoted_and_asked_otherwise() {
     let quoted = r#"Lis "Notes de réunion.txt" et écris son contenu dans "Compte rendu.docx"."#;
     let record = recorded(
         "Notes de réunion.txt",
@@ -113,7 +131,7 @@ fn a_name_with_a_function_word_is_read_whole_when_quoted_and_asked_otherwise() {
         "Compte rendu.docx",
         r#"écris son contenu dans "Compte rendu.docx""#,
     );
-    let doc = document(&replay(quoted, &record, &[]));
+    let doc = document(&judged(quoted, &record, &[]).await);
     assert_eq!(
         doc["const"]["source_path"], "Notes de réunion.txt",
         "{doc:#}"
@@ -135,7 +153,7 @@ fn a_name_with_a_function_word_is_read_whole_when_quoted_and_asked_otherwise() {
     assert_ne!(asked.status, CompileStatus::Ready, "{asked:#?}");
     assert_eq!(keys(&asked), ["const.source_paths"], "{asked:#?}");
     let answer = [("const.source_paths", r#"["«Notes de réunion.txt»"]"#)];
-    let doc = document(&replay(bare, &record, &answer));
+    let doc = document(&judged(bare, &record, &answer).await);
     assert_eq!(
         doc["const"]["source_path"], "Notes de réunion.txt",
         "{doc:#}"
@@ -149,8 +167,8 @@ fn a_name_with_a_function_word_is_read_whole_when_quoted_and_asked_otherwise() {
 /// The request spells the plan's longer name but its reader cannot settle it: the name opens
 /// the sentence, or the request writes it in lowercase with no file noun. The longer name
 /// the plan reads is asked, never cut, and the answer binds the file it names.
-#[test]
-fn a_longer_name_the_request_leaves_open_is_asked_then_answered_whole() {
+#[tokio::test]
+async fn a_longer_name_the_request_leaves_open_is_asked_then_answered_whole() {
     for (intent, read, write, name) in [
         (
             "Notes équipe.txt doit être copié tel quel dans sortie.txt.",
@@ -170,11 +188,8 @@ fn a_longer_name_the_request_leaves_open_is_asked_then_answered_whole() {
         assert_ne!(asked.status, CompileStatus::Ready, "{intent}: {asked:#?}");
         assert_eq!(keys(&asked), ["const.source_paths"], "{intent}: {asked:#?}");
         let answer = format!(r#"["{name}"]"#);
-        let doc = document(&replay(
-            intent,
-            &record,
-            &[("const.source_paths", answer.as_str())],
-        ));
+        let answers = [("const.source_paths", answer.as_str())];
+        let doc = document(&judged(intent, &record, &answers).await);
         assert_eq!(doc["const"]["source_path"], name, "{intent}: {doc:#}");
         assert_eq!(doc["permits"]["fs"]["read"], json!([name]), "{intent}");
     }
@@ -191,8 +206,8 @@ fn refused(out: &CompileOutcome) -> Vec<&str> {
 
 /// The whole name the human types holds only the occurrences it spans: a request that also
 /// names `équipe.txt` on its own still owes that file, until the answer reads it too.
-#[test]
-fn a_typed_whole_name_realizes_its_own_occurrence_and_no_separate_file() {
+#[tokio::test]
+async fn a_typed_whole_name_realizes_its_own_occurrence_and_no_separate_file() {
     let intent = "Notes équipe.txt doit être fusionné avec équipe.txt dans sortie.txt.";
     let record = recorded(
         "Notes équipe.txt",
@@ -212,7 +227,7 @@ fn a_typed_whole_name_realizes_its_own_occurrence_and_no_separate_file() {
         "const.source_paths",
         r#"["Notes équipe.txt", "équipe.txt"]"#,
     )];
-    let out = replay(intent, &record, &both);
+    let out = judged(intent, &record, &both).await;
     assert_eq!(
         outcome_document(&out)["provenance"]["decision"]["intent_sha256"],
         intent_sha256(intent)
@@ -245,8 +260,8 @@ fn an_answered_file_the_request_never_names_realizes_nothing() {
 
 /// An unquoted traversal the reader splits into a folder and a file: the answered whole name,
 /// verbatim, is read under its own permit, and the folder is not granted in its place.
-#[test]
-fn an_unquoted_traversal_answered_whole_keeps_its_exact_spelling() {
+#[tokio::test]
+async fn an_unquoted_traversal_answered_whole_keeps_its_exact_spelling() {
     let intent = "Lis ../Partage/Notes équipe.txt et écris son contenu dans ./out/copie.txt.";
     let record = recorded(
         "../Partage/Notes équipe.txt",
@@ -255,7 +270,7 @@ fn an_unquoted_traversal_answered_whole_keeps_its_exact_spelling() {
         "écris son contenu dans ./out/copie.txt",
     );
     let answer = [("const.source_paths", r#"["«../Partage/Notes équipe.txt»"]"#)];
-    let doc = document(&replay(intent, &record, &answer));
+    let doc = document(&judged(intent, &record, &answer).await);
     assert_eq!(
         doc["const"]["source_path"], "../Partage/Notes équipe.txt",
         "{doc:#}"
@@ -270,8 +285,8 @@ fn an_unquoted_traversal_answered_whole_keeps_its_exact_spelling() {
 /// The reader glues `Copie équipe.txt` after `dans` into one destination, whose `équipe.txt`
 /// is a destination occurrence of the last word the opening name was cut to: the assembler's
 /// write of that destination realizes it, beside the typed source.
-#[test]
-fn a_glued_destination_the_candidate_writes_realizes_its_own_occurrence() {
+#[tokio::test]
+async fn a_glued_destination_the_candidate_writes_realizes_its_own_occurrence() {
     let intent = "Notes équipe.txt doit aller dans Copie équipe.txt.";
     let record = recorded(
         "Notes équipe.txt",
@@ -281,7 +296,7 @@ fn a_glued_destination_the_candidate_writes_realizes_its_own_occurrence() {
     );
     assert_eq!(keys(&replay(intent, &record, &[])), ["const.source_paths"]);
     let answer = [("const.source_paths", r#"["Notes équipe.txt"]"#)];
-    let out = replay(intent, &record, &answer);
+    let out = judged(intent, &record, &answer).await;
     assert_eq!(
         outcome_document(&out)["provenance"]["decision"]["intent_sha256"],
         intent_sha256(intent)
@@ -309,8 +324,8 @@ fn the_last_word_of_a_stated_name_is_never_the_file_read() {
 }
 
 /// Several files in one detail: each keeps its own whole name, one read permit per file.
-#[test]
-fn several_read_files_keep_their_whole_names_one_permit_each() {
+#[tokio::test]
+async fn several_read_files_keep_their_whole_names_one_permit_each() {
     let intent =
         "Lis Notes équipe.txt et Planning.md puis écris leur contenu dans Dossier complet.txt.";
     let record = recorded(
@@ -319,7 +334,7 @@ fn several_read_files_keep_their_whole_names_one_permit_each() {
         "Dossier complet.txt",
         "écris leur contenu dans Dossier complet.txt",
     );
-    let doc = document(&replay(intent, &record, &[]));
+    let doc = document(&judged(intent, &record, &[]).await);
     let read = json!(["Notes équipe.txt", "Planning.md"]);
     assert_eq!(doc["const"]["source_paths"], read, "{doc:#}");
     assert_eq!(doc["permits"]["fs"]["read"], read, "{doc:#}");
@@ -332,8 +347,8 @@ fn several_read_files_keep_their_whole_names_one_permit_each() {
 /// A traversal literal keeps its exact spelling: quoted in the request, the plan's detail
 /// binds it verbatim (no normalization, no folder read in its place); unquoted, the request
 /// states a folder and a file, and the read is asked rather than widened.
-#[test]
-fn a_traversal_literal_is_bound_verbatim_or_asked_never_widened() {
+#[tokio::test]
+async fn a_traversal_literal_is_bound_verbatim_or_asked_never_widened() {
     let quoted = r#"Lis "../Partage/Notes équipe.txt" et écris son contenu dans ./out/copie.txt."#;
     let record = recorded(
         "../Partage/Notes équipe.txt",
@@ -341,7 +356,7 @@ fn a_traversal_literal_is_bound_verbatim_or_asked_never_widened() {
         "./out/copie.txt",
         "écris son contenu dans ./out/copie.txt",
     );
-    let doc = document(&replay(quoted, &record, &[]));
+    let doc = document(&judged(quoted, &record, &[]).await);
     assert_eq!(
         doc["const"]["source_path"], "../Partage/Notes équipe.txt",
         "{doc:#}"
@@ -365,8 +380,8 @@ fn a_traversal_literal_is_bound_verbatim_or_asked_never_widened() {
 
 /// What a read detail bound before still binds the same: a bare file after a file noun or a
 /// function word, a rooted path, a verb the request does not spell before its file.
-#[test]
-fn bare_files_and_rooted_paths_bind_as_before() {
+#[tokio::test]
+async fn bare_files_and_rooted_paths_bind_as_before() {
     for (intent, detail, read, target, write, file) in [
         (
             "Lis le fichier entree.txt et écris son contenu dans sortie.txt.",
@@ -402,7 +417,7 @@ fn bare_files_and_rooted_paths_bind_as_before() {
         ),
     ] {
         let record = recorded(detail, read, target, write);
-        let doc = document(&replay(intent, &record, &[]));
+        let doc = document(&judged(intent, &record, &[]).await);
         assert_eq!(doc["const"]["source_path"], file, "{intent}: {doc:#}");
         assert_eq!(doc["permits"]["fs"]["read"], json!([file]), "{intent}");
     }
@@ -442,5 +457,11 @@ async fn a_proposed_cold_plan_reads_the_whole_name_and_its_record_replays_it() {
     let record = out.provenance.plan.clone().expect("a recorded plan");
     let replayed = replay(STOCK, &record, &[("model", r#""mock/echo""#)]);
     assert_eq!(replayed.candidate, out.candidate, "{replayed:#?}");
+    // No judge in that round: the replayed bytes wait for one on the whole request (R4 A11).
+    assert_eq!(replayed.status, CompileStatus::Incomplete, "{replayed:#?}");
+    let pending = &replayed.provenance.decision.as_ref().unwrap()["pending"]["open"];
+    let whole = json!({"clause": STOCK, "witness": null, "spans": [[0, STOCK.len()]]});
+    let last = pending.as_array().and_then(|open| open.last());
+    assert_eq!(last, Some(&whole), "{pending:#}");
     assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
 }

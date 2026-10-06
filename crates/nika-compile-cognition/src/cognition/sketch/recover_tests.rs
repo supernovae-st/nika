@@ -15,10 +15,18 @@ use nika_kernel::ai::provider::{
 };
 use serde_json::{Value, json};
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicBool, Ordering::SeqCst};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 const INTENT: &str = "Write the text hello to ./out/result.txt.";
+/// The one part of the request, as a doubted whole request asks it alone.
+const PART: &str = "Write the text hello to ./out/result.txt";
+/// The defect a doubted, located greeting leaves, as a repair and a stop read it: the part,
+/// then the judge's reason (here the task it points to).
+const POINTED: &str = "does not carry « Write the text hello to ./out/result.txt » · the judge's reason: the judge points to the task save";
+/// The same defect, with the reason the judge gives when it names no task performing the part.
+const OMITTED: &str = "does not carry « Write the text hello to ./out/result.txt » · the judge's reason: the judge finds no task performing it";
 const MODEL: &str = "mock/authoring";
 
 fn policy(recovery: u32) -> crate::AuthoringPolicy {
@@ -36,13 +44,17 @@ fn completed(text: &str) -> InferResponse {
     )
 }
 
-/// A seat answering its replies in order and keeping every author request; the whole-request
-/// judge answers its scripted verdicts in order, then `faithful`, and locates a defect as
-/// `another_part` (the judge's own laws are tested elsewhere).
+/// A seat answering its replies in order and keeping every author request. As the judge, it
+/// answers the whole request with its scripted verdicts in order, then `faithful`; after a doubt
+/// it judges the one part asked alone `missing`, else `carried`; asked which task fails a missing
+/// part, it answers its scripted pointers in order, then `task-save`; it finds nothing extra or
+/// inconsistent (the judge's own laws are tested elsewhere).
 struct Scripted {
     replies: Mutex<VecDeque<String>>,
     requests: Mutex<Vec<InferRequest>>,
     verdicts: Mutex<VecDeque<&'static str>>,
+    pointers: Mutex<VecDeque<&'static str>>,
+    doubted: AtomicBool,
 }
 
 impl Scripted {
@@ -51,11 +63,18 @@ impl Scripted {
             replies: Mutex::new(replies.into_iter().collect()),
             requests: Mutex::new(Vec::new()),
             verdicts: Mutex::new(VecDeque::new()),
+            pointers: Mutex::new(VecDeque::new()),
+            doubted: AtomicBool::new(false),
         }
     }
 
     fn judging<const N: usize>(self, verdicts: [&'static str; N]) -> Self {
         *self.verdicts.lock().unwrap() = verdicts.into_iter().collect();
+        self
+    }
+
+    fn pointing<const N: usize>(self, pointers: [&'static str; N]) -> Self {
+        *self.pointers.lock().unwrap() = pointers.into_iter().collect();
         self
     }
 
@@ -68,13 +87,30 @@ impl ProviderInferDyn for Scripted {
     async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
         if let ResponseFormat::JsonSchema(schema) = &request.response_format
             && let Some(keys) = schema["properties"]["choice"]["enum"].as_array()
-            && let Some(offered) = ["faithful", "another_part", "carried"]
-                .into_iter()
-                .find(|k| keys.iter().any(|v| v == k))
+            && let Some(offered) = [
+                "faithful",
+                "carried",
+                "no_task",
+                "only_requested",
+                "consistent",
+            ]
+            .into_iter()
+            .find(|k| keys.iter().any(|v| v == k))
         {
-            let scripted =
-                (offered == "faithful").then(|| self.verdicts.lock().unwrap().pop_front());
-            let choice = scripted.flatten().unwrap_or(offered);
+            let choice = match offered {
+                "faithful" => {
+                    let verdict = self.verdicts.lock().unwrap().pop_front();
+                    let verdict = verdict.unwrap_or(offered);
+                    self.doubted.store(verdict != "faithful", SeqCst);
+                    verdict
+                }
+                "carried" if self.doubted.load(SeqCst) => "missing",
+                "no_task" => {
+                    let pointer = self.pointers.lock().unwrap().pop_front();
+                    pointer.unwrap_or("task-save")
+                }
+                _ => offered,
+            };
             return Ok(completed(&json!({"choice": choice}).to_string()));
         }
         self.requests.lock().unwrap().push(request);
@@ -103,6 +139,14 @@ async fn greeting() -> String {
         "HARNESS_INVALID: {out:#?}"
     );
     out.candidate.unwrap()
+}
+
+/// The greeting's source under the workflow name `name`: the same program, other bytes, so a
+/// judge that declined the greeting's bytes is asked again on these (R6).
+fn renamed(greeting: &str, name: &str) -> String {
+    let renamed = greeting.replacen("nika: greeting\n", &format!("nika: {name}\n"), 1);
+    assert_ne!(renamed, greeting, "HARNESS_INVALID: {greeting}");
+    renamed
 }
 
 fn source(candidate: &str) -> String {
@@ -407,19 +451,30 @@ async fn a_whole_request_withdrawal_without_the_policy_stays_not_ready() {
     );
     assert_eq!(
         roles(&out),
-        ["sketch", "fill", "judge_request", "judge_locate"]
+        [
+            "sketch",
+            "fill",
+            "judge_request",
+            "judge_part",
+            "judge_point"
+        ]
     );
     assert!(
         route(&out).iter().any(|s| s == "verify: not ready"),
         "{out:#?}"
     );
+    let told = (out.diagnostics.iter()).find(|d| d.target == "semantic_verification");
+    let told = told.map(|d| d.message.as_str()).unwrap_or_default();
+    let named = format!("it does not carry « {PART} (the judge points to the task save) »");
+    assert!(told.contains(&named), "{out:#?}");
 }
 
 /// The same withdrawal under the policy reaches the recovery, carrying the judge's defect; the
-/// recovered source is READY only on its own faithful judgment.
+/// recovered source (other bytes than the declined candidate) is READY only on its own faithful
+/// judgment.
 #[tokio::test]
 async fn a_whole_request_withdrawal_at_the_last_round_is_recovered() {
-    let expected = greeting().await;
+    let expected = renamed(&greeting().await, "greeting-recovered");
     let [graph, fills] = greeting_answers();
     let seat = Scripted::new([graph, fills, source(&expected)]).judging(["unfaithful", "faithful"]);
     let out = authored(&seat, policy(1)).await;
@@ -427,14 +482,15 @@ async fn a_whole_request_withdrawal_at_the_last_round_is_recovered() {
     writes_hello(out.candidate.as_deref().unwrap());
     let judged = [
         "judge_request",
-        "judge_locate",
+        "judge_part",
+        "judge_point",
         "source-recovery",
         "judge_request",
     ];
     assert_eq!(roles(&out)[2..], judged);
     let asked = serde_json::to_string(&seat.requests.lock().unwrap()[2].messages).unwrap();
     assert!(
-        asked.contains("evidence_defects") && asked.contains("does not carry"),
+        asked.contains("evidence_defects") && asked.contains(POINTED),
         "{asked}"
     );
     let recovery = &decision(&out)["native"]["recovery"];
@@ -443,24 +499,44 @@ async fn a_whole_request_withdrawal_at_the_last_round_is_recovered() {
         !recovery["after"].as_array().unwrap().is_empty(),
         "{recovery}"
     );
+    assert_eq!(out.candidate.as_deref(), Some(expected.as_str()));
 }
 
 /// A recovered source the whole-request judgment also finds unfaithful is withdrawn: never READY.
+/// A recovered source byte for byte the candidate the judge already declined is not judged again
+/// (R6): no judge call, its attempt repeating the earlier verdict; never READY either.
 #[tokio::test]
 async fn a_recovered_source_found_unfaithful_is_never_ready() {
-    let expected = greeting().await;
-    let [graph, fills] = greeting_answers();
-    let seat = Scripted::new([graph, fills, source(&expected)]).judging(["unfaithful"; 2]);
-    let out = authored(&seat, policy(1)).await;
-    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
-    assert!(out.candidate.is_none(), "{out:#?}");
-    assert_eq!(seat.calls(), 3, "one recovery round, as the policy states");
-    assert_eq!(roles(&out).last().map(String::as_str), Some("judge_locate"));
-    assert!(
-        route(&out).iter().any(|s| s == "verify: not ready"),
-        "{out:#?}"
-    );
-    assert!(!claims_passed(&out), "{out:#?}");
+    let greeted = greeting().await;
+    let other = renamed(&greeted, "greeting-recovered");
+    for (recovered, judged) in [(other.as_str(), true), (greeted.as_str(), false)] {
+        let [graph, fills] = greeting_answers();
+        let seat = Scripted::new([graph, fills, source(recovered)]).judging(["unfaithful"; 2]);
+        let out = authored(&seat, policy(1)).await;
+        assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+        assert!(out.candidate.is_none(), "{out:#?}");
+        assert_eq!(seat.calls(), 3, "one recovery round, as the policy states");
+        let last = if judged {
+            "judge_point"
+        } else {
+            "source-recovery"
+        };
+        assert_eq!(roles(&out).last().map(String::as_str), Some(last));
+        assert!(
+            route(&out).iter().any(|s| s == "verify: not ready"),
+            "{out:#?}"
+        );
+        assert!(!claims_passed(&out), "{out:#?}");
+        let attempts = decision(&out)["semantic_verification"].as_array().unwrap();
+        assert_eq!(attempts.len(), 2, "{out:#?}");
+        let repeated = (&attempts[1]["attempted"], &attempts[1]["same_bytes_as"]);
+        let expected = if judged {
+            (json!(3), Value::Null)
+        } else {
+            (json!(0), json!(0))
+        };
+        assert_eq!(repeated, (&expected.0, &expected.1), "{judged}");
+    }
 }
 
 /// The refusal a stopped door leaves, and whether any finding says an allowance was spent.
@@ -476,36 +552,50 @@ fn stop(out: &CompileOutcome, lead: &str) -> (String, bool) {
 /// round the count allows is never asked.
 #[tokio::test]
 async fn a_recovery_judged_twice_on_the_same_part_states_the_repeat_not_spent() {
-    let expected = greeting().await;
+    let greeted = greeting().await;
+    let first = renamed(&greeted, "greeting-recovered");
+    let second = renamed(&greeted, "greeting-recovered-again");
     let [graph, fills] = greeting_answers();
-    let replies = [graph, fills, source(&expected), source(&expected)];
+    let replies = [graph, fills, source(&first), source(&second)];
     let seat = Scripted::new(replies).judging(["unfaithful"; 3]);
     let out = authored(&seat, policy(3)).await;
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(out.candidate.is_none(), "{out:#?}");
     assert_eq!(seat.calls(), 4, "two recovery rounds of three: {out:#?}");
-    let tail = ["source-recovery-repair", "judge_request", "judge_locate"];
-    assert_eq!(roles(&out)[roles(&out).len() - 3..], tail, "{out:#?}");
+    let tail = [
+        "source-recovery-repair",
+        "judge_request",
+        "judge_part",
+        "judge_point",
+    ];
+    assert_eq!(roles(&out)[roles(&out).len() - 4..], tail, "{out:#?}");
     let lead = "The evidence refused the recovered source with findings the seat had already";
     let (told, spent) = stop(&out, lead);
     assert!(!spent, "a round was left: {out:#?}");
     assert!(told.contains("Nika stopped the recovery"), "{told}");
     assert!(
-        told.contains("Same findings: ") && told.contains(INTENT),
+        told.contains("Same findings: ") && told.contains(POINTED),
         "{told}"
     );
 }
 
 /// With no repair count, a second sketch judged on the same finding stops reopening and
 /// says so. The continuous door then tries one whole source: the same finding stops that too.
-/// The repeat is of findings, despite the second graph differing; neither stop spends a limit.
+/// The repeat is of findings, despite the second graph differing (another name: other bytes,
+/// so the judge is asked again) and the judge giving another reason for the same part (no task
+/// performing it, then the task it points to again); neither stop spends a limit.
 #[tokio::test]
 async fn a_sketch_judged_twice_on_the_same_part_states_the_repeat_not_spent() {
-    let expected = greeting().await;
+    let expected = renamed(&greeting().await, "greeting-recovered");
     let [graph, fills] = greeting_answers();
-    let again = graph.replace("save the greeting", "save the greeting text");
+    let again = graph.replace("\"greeting\"", "\"greeting-again\"");
+    assert_ne!(again, graph);
     let replies = [graph, fills.clone(), again, fills, source(&expected)];
-    let seat = Scripted::new(replies).judging(["unfaithful"; 3]);
+    let seat = Scripted::new(replies).judging(["unfaithful"; 3]).pointing([
+        "task-save",
+        "omitted",
+        "task-save",
+    ]);
     let continuous = crate::AuthoringPolicy::new(MODEL, 4096, Duration::from_secs(2))
         .with_native(NativeMode::Sketch);
     assert_eq!((continuous.repairs, continuous.source_recovery), (None, 0));
@@ -519,14 +609,17 @@ async fn a_sketch_judged_twice_on_the_same_part_states_the_repeat_not_spent() {
             "sketch",
             "fill",
             "judge_request",
-            "judge_locate",
+            "judge_part",
+            "judge_point",
             "sketch-repair",
             "fill",
             "judge_request",
-            "judge_locate",
+            "judge_part",
+            "judge_point",
             "source-recovery",
             "judge_request",
-            "judge_locate",
+            "judge_part",
+            "judge_point",
         ],
         "{out:#?}"
     );
@@ -535,13 +628,13 @@ async fn a_sketch_judged_twice_on_the_same_part_states_the_repeat_not_spent() {
     assert!(!spent, "no repair count was selected: {out:#?}");
     assert!(told.contains("Nika stopped reopening it"), "{told}");
     assert!(
-        told.contains("Same findings: ") && told.contains(INTENT),
+        told.contains("Same findings: ") && told.contains(OMITTED),
         "{told}"
     );
     let lead = "The evidence refused the recovered source with findings the seat had already";
     let (told, _) = stop(&out, lead);
     assert!(told.contains("Nika stopped the recovery"), "{told}");
-    assert!(told.contains(INTENT), "{told}");
+    assert!(told.contains(POINTED), "{told}");
     assert!(!claims_passed(&out), "{out:#?}");
 }
 

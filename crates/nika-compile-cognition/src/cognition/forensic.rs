@@ -33,7 +33,6 @@ pub(super) const EDIT_KEPT: &str =
 const NOT_CAPTURED: &[&str] = &[
     "transform_program_proposals: the verified-transform calls keep their journal entries, not their decoded programs",
     "decision_seat_usage: a caller's seat reports usage in its own receipt, outside this compile",
-    "semantic_judge_candidate_binding: verification records do not name the candidate digest they judged",
     "behavioral_satisfaction: no behavioral judge compares observations with the request's obligations",
 ];
 
@@ -417,12 +416,22 @@ fn evidence(out: &CompileOutcome, decision: &Value) -> Value {
         || json!({"state": "not_run"}),
         |attempts| {
             let last = attempts.last().cloned().unwrap_or(Value::Null);
+            let count = |key: &str| last[key].as_array().map_or(0, Vec::len);
+            // Whether the last verdict judged the final candidate's very bytes.
+            let binding = match (last["candidate_sha256"].as_str(), candidate.as_deref()) {
+                (Some(judged), Some(final_bytes)) if judged == final_bytes => "bound",
+                (Some(_), Some(_)) => "other_bytes",
+                _ => "NOT_CAPTURED",
+            };
             json!({
                 "state": "recorded",
                 "attempts": attempts.len(),
-                "last_defects": last["defects"].as_array().map_or(0, Vec::len),
-                "last_unknown": last["unknown"].as_array().map_or(0, Vec::len),
-                "candidate_binding": "NOT_CAPTURED",
+                "last_defects": count("defects"),
+                "last_unknown": count("unknown"),
+                "last_contested": count("contested"),
+                "last_declined": last["declined"] == Value::Bool(true),
+                "last_settled_by": last["settled_by"],
+                "candidate_binding": binding,
             })
         },
     );

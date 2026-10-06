@@ -5,7 +5,7 @@
 //! final barrier. Replayed provenance is data, never evidence that the present world ran.
 
 use nika_compile_fidelity::behavior::{
-    Budget, Cause, Contract, Limits, Report, Run, RunEnd, Usage, judge,
+    Budget, Cause, Contract, Coverage, Limits, Report, Run, RunEnd, Usage, judge,
 };
 use serde_json::{Value, json};
 
@@ -181,6 +181,38 @@ impl<'a> Rehearsals<'a> {
             std::slice::from_ref(&last.run),
             &mut budget,
         ))
+    }
+
+    /// What this call's last run of exactly `candidate` read and wrote, as a judge may read it:
+    /// only a completed run the room vouched for (`Proceed`), bound to the candidate's sha256,
+    /// each text with whether it was read whole and whether the run wrote it. These observations
+    /// belong to preparation context, with no separate sharing gate. `None` for another
+    /// candidate's run, a run that did not complete, or no run.
+    pub(super) fn observed(&self, candidate: &str) -> Option<Value> {
+        let last = self.last.as_ref()?;
+        let completed = matches!(last.run.end, RunEnd::Completed);
+        let proceeded = matches!(last.verdict.result, Result::Proceed);
+        if last.candidate != candidate || !completed || !proceeded {
+            return None;
+        }
+        let sha = super::knowledge::sha256(candidate);
+        let inputs: Vec<Value> = (last.run.consumed.iter())
+            .map(|read| {
+                json!({"path": read.path, "text": read.text,
+                    "read_whole": read.coverage == Coverage::Complete})
+            })
+            .collect();
+        let outputs: Vec<Value> = (last.run.read_back.iter())
+            .map(|written| {
+                json!({"path": written.path, "text": written.text, "written": written.written,
+                    "read_whole": !written.truncated})
+            })
+            .collect();
+        Some(json!({
+            "candidate_sha256": sha,
+            "inputs": inputs,
+            "outputs": outputs,
+        }))
     }
 
     /// Every returned Ready candidate, including COLD and replay, faces the same barrier on

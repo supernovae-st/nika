@@ -691,9 +691,11 @@ mod transform {
         assert_eq!(replayed.status, CompileStatus::Incomplete, "{replayed:#?}");
         assert_eq!(replayed.candidate, out.candidate);
         assert!(replayed.provenance.authoring.is_none());
-        // An answer round with its judge settles exactly that remainder: the two clauses,
-        // judged and metered; the closed duties and the whole request ask nothing again.
-        let judge = Rotating::new(vec![carried.clone(), carried]);
+        // An answer round with its judge settles that remainder, judged and metered: the two
+        // clauses, then the whole request, which a model's plan replays pending on the bytes
+        // the round replays (C3); the closed duties ask nothing again.
+        let faithful = json!({"choice": "faithful"}).to_string();
+        let judge = Rotating::new(vec![carried.clone(), carried, faithful]);
         let round = CompileRequest::create(SHARED)
             .with_plan(record)
             .with_authoring_policy(policy());
@@ -702,8 +704,13 @@ mod transform {
             .unwrap();
         assert_eq!(judged.status, CompileStatus::Ready, "{judged:#?}");
         assert_eq!(judged.candidate, out.candidate);
-        assert_eq!(judge.calls.load(std::sync::atomic::Ordering::SeqCst), 2);
-        assert_eq!(judged.provenance.authoring.as_ref().unwrap().calls, 2);
+        assert_eq!(judge.calls.load(std::sync::atomic::Ordering::SeqCst), 3);
+        let receipt = judged.provenance.authoring.as_ref().unwrap();
+        assert_eq!(receipt.calls, 3);
+        let roles: Vec<&str> = (receipt.context.iter())
+            .filter_map(|entry| entry["call"].as_str())
+            .collect();
+        assert_eq!(roles, ["judge_clause", "judge_clause", "judge_request"]);
     }
 }
 

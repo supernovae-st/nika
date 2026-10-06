@@ -21,6 +21,9 @@ use serde_json::{Value, json};
 use std::sync::Mutex;
 use std::time::Duration;
 
+mod common;
+use common::{approval, refusal, verifier};
+
 /// « livré » as the request states it (precomposed) and as a file may spell it (e + U+0301).
 const LIVRE_NFC: &str = "livr\u{e9}";
 const LIVRE_NFD: &str = "livre\u{301}";
@@ -84,8 +87,7 @@ impl ProviderInferDyn for Seat {
                 .unwrap_or_default(),
             _ => Vec::new(),
         };
-        let offers = |key: &str| keys.iter().any(|k| k == key);
-        let text = if offers("faithful") || offers("carried") || offers("another_part") {
+        let text = if verifier(&keys) {
             let said = last_text(&request);
             let state = said
                 .strip_prefix("STATE:\n")
@@ -93,12 +95,10 @@ impl ProviderInferDyn for Seat {
                 .and_then(|json| serde_json::from_str(json).ok())
                 .unwrap_or(Value::Null);
             self.judged.lock().unwrap().push(state);
-            let choice = match (self.refuses, offers("faithful"), offers("carried")) {
-                (false, true, _) => "faithful",
-                (false, false, true) => "carried",
-                (true, true, _) => "unfaithful",
-                (true, false, true) => "missing",
-                _ => "another_part",
+            let choice = if self.refuses {
+                refusal(&keys)
+            } else {
+                approval(&keys)
             };
             json!({"choice": choice}).to_string()
         } else {

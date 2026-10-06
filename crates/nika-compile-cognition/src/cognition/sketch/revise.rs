@@ -502,8 +502,9 @@ async fn filled<P: ProviderInferDyn>(
             return done;
         }
         let seats = (provider, decision);
-        let judged =
-            verify::native_verdict(resolved, &reading, policy, seats, revising, done, repairs);
+        let judged = verify::native_verdict(
+            resolved, &reading, policy, seats, revising, done, repairs, None,
+        );
         let (mut judged, verdict) = match judged.await {
             Ok(judged) => return judged,
             Err(judged) => *judged,
@@ -512,12 +513,17 @@ async fn filled<P: ProviderInferDyn>(
         if let Some(record) = (judged.provenance.decision.as_mut()).and_then(Value::as_object_mut) {
             record.remove("revision");
         }
-        // A defect reopens the fills while a round is left; an unsettled verdict never does.
+        // A defect reopens the fills while a round is left; an unsettled verdict never does, and
+        // neither does a verdict repeated on bytes already judged (no progress, R6).
         let next = next_round(&talk);
-        let open = !verdict.defects.is_empty() && within(last, next);
-        if !(open && reopen(&mut talk, judge_defects(&verdict.defects), JUDGED_AGAIN)) {
+        let open =
+            !verdict.defects.is_empty() && verdict.same_bytes_as.is_none() && within(last, next);
+        if !(open && reopen(&mut talk, judge_defects(&verdict), JUDGED_AGAIN)) {
             if open {
                 verify::route(&mut judged, "native: no progress");
+            }
+            if verdict.defects.is_empty() && verdict.doubted() {
+                return verify::held(judged, &verdict);
             }
             return verify::withdrawn(judged, &verdict, repairs);
         }

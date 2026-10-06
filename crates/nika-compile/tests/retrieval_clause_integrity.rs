@@ -43,6 +43,27 @@ impl DecisionSeat for Seat {
     }
 }
 
+/// A judge that carries every verifier question it is asked (the whole request `faithful`, a
+/// clause `carried`) and counts them; it settles no other choice.
+struct Approving {
+    judged: AtomicUsize,
+}
+
+impl DecisionSeat for Approving {
+    fn name(&self) -> &'static str {
+        "double/judge"
+    }
+    fn choose<'a>(&'a self, question: &'a ChoiceQuestion) -> ChoiceFuture<'a> {
+        let keys = question.keys();
+        let key = ["faithful", "carried"]
+            .into_iter()
+            .find(|key| keys.iter().any(|k| k == key))
+            .unwrap_or("none");
+        self.judged.fetch_add(1, Ordering::SeqCst);
+        Box::pin(async move { Ok(ChoiceAnswer::new(key, "judge-1.0")) })
+    }
+}
+
 /// The one structured source a request names (the answer the first round's corpus question takes).
 fn source(intent: &str) -> &str {
     intent
@@ -182,8 +203,26 @@ async fn a_looked_up_identifier_keeps_its_exact_selection() {
     for key in keys.iter().filter(|k| *k != field) {
         request = request.answer(*key, "\"./pedidos.json\"");
     }
-    let answered = compile(&request).expect("answer round");
+    // No round judged this plan's whole request (its first candidate is the answer round's):
+    // with no judge the answer round keeps it pending (R4 A11), under one it is READY.
+    let unjudged = compile(&request).expect("answer round");
+    assert_eq!(unjudged.status, CompileStatus::Incomplete, "{unjudged:#?}");
+    let judge = Approving {
+        judged: AtomicUsize::new(0),
+    };
+    let cognition = Cognition::<NoProvider> {
+        provider: None,
+        seat: Some(&judge),
+    };
+    let answered = compile_with_cognition(&request, cognition)
+        .await
+        .expect("answer round");
     assert_eq!(answered.status, CompileStatus::Ready, "{answered:#?}");
+    assert_eq!(
+        judge.judged.load(Ordering::SeqCst),
+        1,
+        "the whole request, once"
+    );
     let candidate = answered.candidate.expect("candidate");
     assert!(
         candidate.contains("W-5"),

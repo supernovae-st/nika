@@ -222,76 +222,456 @@ literal itself (B24 S8C: a per-row code-point threshold, refused by the exchange
 law leaves to the judges.
 
 A candidate a model's plan shaped is judged against the whole request before READY
-(`cognition::verify`, R4 A11). The core names what no law reads from the bytes: a duty a
-step's words only restate (a label), a task carrying words no law reads (unverified), a clause
-no element of the plan names, and, for the first candidate of a WARM or COLD plan, the whole
+(`cognition::verify`, R4 A11). The core names what no law reads from the bytes: a duty a step's
+words only restate (a label), a task carrying words no law reads (unverified), a clause no
+element of the plan names, and, for the first candidate of a WARM or COLD plan, the whole
 request. The judge answers one closed question per pending clause at each place the request
-states it (`carried` · `missing` · `no_operation` when no element claims it, or NONE): the core
-names every statement's span under `decision.pending.open[].spans` and settles a clause the
-request repeats only when each statement is judged. It then answers the whole request (`faithful` ·
-`unfaithful`, then the part it misses, located over the request's own text cut where
-punctuation ends a phrase, so a path, a URL or a decimal reaches the repair whole). Each question
-shows the request as compiled and as first stated, its answers, the observed world and the
-candidate's own bytes; labels, task names, comments and generator confidence are claims, never
-evidence. A judgment is admitted by the core only under the binding it recomputes (request,
-original request, answers, observed world, stated plan, candidate bytes, clause and span), so a
-judgment bound to another context or other bytes, or naming another clause or span, settles
-nothing, and `no_operation` never settles a claimed, whole or restrictive clause. The binding is
-that context, not a round nonce: it does not date a judgment. Cognition passes the core only the
-judgments its own judge calls returned in the compile at hand; a serialized plan or answer is
-never read as one. The judge is the caller's decision seat,
-else the authoring provider asked through the journaled authoring call: its calls, usage and
-failures ride the authoring receipt with every other call, under the same physical ceiling,
-and `usage_complete` covers them; each attempt records its own usage under
-`semantic_verification`. A part found missing is a concrete defect: COLD repairs from it within
-the policy's repairs, the repair call carrying the judge's own state and, after its instructions,
-the judge's reference (below), and a repaired plan's
-computations go through the transform seat again with the judge's defects, so no program of the
-plan it replaced survives; WARM makes no proposal and stays INCOMPLETE. An abstention, a failed
-judge or exhausted repairs leave the request INCOMPLETE naming the clause and the next action,
-never a question for what the request already says. A duty the core names that no element of
-the plan carries (no candidate is emitted and no judge is asked) is told as the core's: its
-finding names the duty and its kind and says no judge was asked, the clarification the core
-asks stays its next action, and a repair from it is told the compiler named it, never that a
-judge compared the workflow (B21 T3). A count or a size stated inside the clause a seat's
+states it (`verify-clause-<k>`, then `verify-clause-<k>.<n>` for a later statement, role
+`judge_clause`: `carried` · `missing` · `no_operation` when no element claims the clause and it
+does not restrict, as the verifier reads a restriction and as the core does
+(`structure::restricts`, a « don't forget to … » among them), or NONE): the core names every
+statement's span under
+`decision.pending.open[].spans` and settles a clause the request repeats only when each
+statement is judged. A clause that restricts (read as a part is, below) is told so in its
+question. A clause judged `missing` is asked why (`verify-clause-<k>-point`, or
+`verify-clause-<k>.<n>-point`, the pointer question below): a task the judge names, or an
+operation of its own that no task performs (`omitted`, offered only when the clause may ask
+one), makes it a defect with that reason; `no_task` leaves it contested, and no choice leaves it
+unknown. NONE, an answer that does not decode and an option the question does not offer leave
+the clause unknown. A clause question that gets no answer (a failed or refused call, or a
+decision seat's error) stops the verdict: that clause and every pending clause not yet asked,
+the whole request among them, stay unknown, and nothing more is asked of that judge. The whole
+request is judged as one property (below): only its verdict carries it, and a part of it is a
+defect only where the judge locates one. Each question shows the request as compiled and as first
+stated, its answers, the observed world and the candidate's own bytes; labels, task names,
+comments and generator confidence are claims, never evidence. A judgment is admitted by the core
+only under the binding it recomputes (request, original request, answers, observed world, stated
+plan, candidate bytes, clause and span), so a judgment bound to another context or other bytes,
+or naming another clause or span, settles nothing, and `no_operation` never settles a claimed,
+whole or restrictive clause. The binding is that context, not a round nonce: it does not date a
+judgment. Cognition passes the core only the judgments its own judge calls returned in the
+compile at hand; a serialized plan or answer is never read as one. The judge is the caller's
+decision seat, else the authoring provider asked through the journaled authoring call: its
+calls, usage and failures ride the authoring receipt with every other call, under the same
+physical ceiling, and `usage_complete` covers them; each attempt records its own usage under
+`semantic_verification`. A located defect (a clause or a part judged missing and then pointed to
+a task or found performed by none, an extra operation pointed to a task, or either found over a
+trial run, below) is concrete: COLD repairs from it within the policy's repairs, the repair call
+listing each defect with the judge's reason (« `<part>` (the judge points to the task `<id>`) »)
+and carrying the judge's own state and, after its instructions, the judge's reference (below),
+and a repaired plan's computations go through the transform seat again with the judge's defects,
+so no program of the plan it replaced survives; WARM makes no proposal and stays INCOMPLETE.
+COLD's repairs only move forward. A candidate whose bytes and judge repeat an earlier doubted
+attempt of this compile (that verdict then stands with no call, below) ends them under any
+repair count; a verdict repeated on bytes this loop judged keeps the judgments that judgment
+made, so a clause the judge carried there is never named pending again. A rejection carried
+from an earlier round stands with no call too, and its located defects are what the first
+repair starts from: a repair is an authoring call, never a judge call on those bytes. With no repair count, a defect set is progress only when it names a part no
+earlier set named, or narrows the last set (fewer parts, all among the last): the last set
+again, in any order, or any reshuffle of parts already repaired from, is no progress. Either
+way the route says `verify: no progress` and the repairs end. An abstention, a failed judge, a
+contested clause or request (below) or exhausted repairs leave the request INCOMPLETE naming
+the clause and the next action, never a question for what the request already says. A duty the
+core names that no
+element of the plan carries (no candidate is emitted and no judge is asked) is told as the
+core's: its finding names the duty and its kind and says no judge was asked, the clarification
+the core asks stays its next action, and a repair from it is told the compiler named it, never
+that a judge compared the workflow (B21 T3). A count or a size stated inside the clause a seat's
 verified program was read from (« return each item with its status as one line ») is no such
 duty: the core's `realize` has the compute task claim it unverified, and the judges settle it
 with the rest (B21 T2); a bound stated as its own constraint keeps its law. A clause several
-pending duties hold is asked once, since one judgment of it at its statements settles them all. An answer round replays its record through
-`replay_judged`: deterministically closed duties replay as they are, with no call; the remainder
-the core names is judged by the round's judge, or stays INCOMPLETE when the round has none; a
-field answer's regeneration is the first candidate of its plan and is judged whole. Nothing a
-record or a request carries is read as a judgment. The judge is a model: its approval is bounded
-evidence, not proof; a clause a line break splits across two named elements is judged, not read.
+pending duties hold is asked once, since one judgment of it at its statements settles them all.
 
-The R4 A11 / E39 C3 whole-request check is the historical basis of native and
-sketch verification. Its earlier author-only account, without a post-judgment
-repair round, no longer describes all current paths. The selected decision seat
-now reaches sketch verification and supported recovery/revision paths; the
-[Semantic CREATE and resolved questions](#semantic-create-and-resolved-questions)
-section below specifies selection, abstention, defect localization and repair.
-A judgment reads the candidate's final bytes with the compiler-owned reference;
-structural admission alone does not establish semantic fidelity. Preserve the
-whole-request coverage and binding laws while qualifying the cooperative target.
+An answer round replays its record through `replay_judged`: deterministically closed duties
+replay as they are, with no call. Every record but the reader's own HOT plan (a COLD or WARM
+plan, a record with no strategy word or an unknown one) replays with its whole request pending
+on the bytes this round emits, so the round's judge judges the whole request again, and a round
+with no judge stays INCOMPLETE on it, with the core's pending-clause finding; a HOT record
+replays under its laws alone. The core's judgeless `replay` (an answer round with no
+cognition, such as the CLI's with neither `--authoring-model` nor `--decision-model`) keeps the
+whole request pending the same way: a plan the reader did not settle alone is never READY on
+bytes no judgment made in the round carried. The remainder the core names is judged by the
+round's judge, or stays INCOMPLETE when the round has none; a field answer's regeneration is
+the first candidate of its plan and is judged whole. Nothing a record or a request carries is
+read as a judgment: a rejection a request carries from an earlier round (below) can only keep
+bytes from READY. The judge is a model: its approval is bounded evidence, not proof; a clause a
+line break splits across two named elements is judged, not read.
+
+The whole request is judged as one property, and its verdict is the READY gate
+(`verify::faithful`, R6): the questions that follow a doubt locate a defect as evidence, never
+as the verdict. The verdict question `verify-request` (role `judge_request`) offers `faithful`
+and `unfaithful` beside NONE. `faithful` is the `Carried` judgment of the whole request,
+admitted under the recomputed binding (`settled_by: verify-request`). A call that returns no
+admitted choice (an answer that does not decode, an option the question does not offer, or no
+answer at all) judged nothing: the request is unknown and nothing more is asked about it; a call
+that got no answer also stops the verdict. `unfaithful` rejects the bytes and NONE abstains on
+them: either is recorded as doubt (`doubt`), not as a defect, and the judge then localizes it,
+each part of the request asked alone.
+
+- **The parts** (`verify::parts`) are exact excerpts of the request, byte slices of its own
+  text: a merged part keeps the request's own separators (« Read ./a.csv. » then « Deduplicate »
+  on the next line make one part, line break included), and a path, a URL, a decimal or a
+  quoted literal reaches the repair whole. The text is cut after a comma, semicolon, colon,
+  period, exclamation or question mark followed by whitespace or the end, at every line end,
+  and after each full-width mark (`。` `！` `？` `；` `，` `、` `：`). A dot or a colon inside a
+  token (a path, a URL, a decimal) is no cut, nor is a comma between two numbers (« 1, 2 or
+  3 ») or the period of « e.g. » or « i.e. », and neither is anything inside a literal that
+  closes: `` `…` ``, `« … »`, `“…”`, `( … )`, or `"…"` and `'…'` opened after whitespace, an
+  opening parenthesis or bracket, or the start, and closed before a character that is not a
+  letter or a digit (« 5" » is an inch, and « don't » opens no quote). An opening mark that
+  never closes is an ordinary character, and the cut stays linear in the length of the text.
+  A list marker (`-`, `*`, `•`, `·`, `1.`, `2)`) is stripped from the start of a phrase, and a
+  number of one to three digits standing alone at a line start is a list's number, no part; no
+  other word of the request is dropped. A phrase can be judged alone when it has a letter, is
+  not made of function words only (unless it restricts), and holds four letters or digits in
+  two words or more, or in a script written without spaces (a CJK ideograph, kana or hangul).
+  A phrase ended by a colon (`:` or `：`) is a label, and a phrase that opens with a condition
+  word (« if », « when », « whenever », « unless », « once », « si », « quand », « lorsque »,
+  « cuando », « wenn », « falls », « sobald », « se », « quando », « caso ») and is ended by a
+  comma or a semicolon (`,` `;` `，` `、` `；`) opens its consequence: either waits, and every
+  phrase after it joins it, up to the next one that can be judged alone and is neither
+  (« Change: … », « Original request: » then a line, a heading, « If a row has no email, skip
+  it »). Any other phrase that cannot be judged alone (« deduplicate », « Sort », « 09:00 »,
+  « 10 », « Then write it ») joins the part before it, or waits for the next part when it opens
+  the request. What still waits at the end extends the last part, or stands alone when there
+  is none. A part stated twice is asked once.
+- **Each part** (`verify-part-<k>`, role `judge_part`) offers `carried`, `missing`, `superseded`
+  (a later part replaces it, offered on every part but the last, since only an earlier part can
+  be superseded) and, only when the request has two parts or more and the part does not
+  restrict, `no_operation`. A part restricts when the reader reads it so (a demand stated with
+  a negation of forgetting, `structure::negated_demand`, restricts nothing)
+  (`nika_compile_reader::structure::restricts`: a keep or an exclusion, a negation, « only », an
+  exception, a condition or a structure law), a negative contraction (« don't ») read as its
+  « not »: its question tells the judge it is carried when no task does what it forbids and
+  every task honors its condition, even though no task states it. The record of each part
+  question, pointer question and trial-run part question names its part
+  (`clause: {text, restricts}`). `carried`, `superseded` and `no_operation` settle the part;
+  `missing` rejects the bytes and asks the pointer; NONE, an answer that does not decode or an
+  option not offered leaves the part unknown, never a defect. A part question that gets no
+  answer stops the localization: that part and every later one stay unknown, nothing more is
+  asked of the judge in this verdict, and the request is unknown, never contested.
+- **The pointer** (`verify-point-<k>`, role `judge_point`) asks why a part judged missing is
+  missing: `task-<id>` for each task of the candidate in document order (that task does it
+  differently, does what it forbids or produces a result that ignores it), then `omitted` (the
+  part asks an operation of its own that no task performs), then `no_task` (no task fails it:
+  the part is carried as written). `omitted`, and the sentence of the question that describes
+  it, are offered unless the part is a pure prohibition
+  (`nika_compile_reader::structure::pure_prohibition`) or states a structure law
+  (`structure::laws`: « nothing else », « no other file », no model, a single request) with no
+  operation of its own beside it (`structure::states_operation`: « write the total to
+  ./out/t.txt and nothing else » asks the write), each read with its English negative
+  contractions as « not »; any other part may ask an operation of its own, a context sentence
+  or a computation over the rows (« sum qty over the rows where status is shipped ») included.
+  A pure prohibition forbids by negation alone. Its negations are the words of the reader's
+  table (« not », « no », « never », « without », « none » and their kin over the six
+  languages; « no » is « in the » in a Portuguese clause), or the French « ne » or « n' »
+  closed by « pas », « jamais », « rien », « aucun(e) », « plus », « personne » or « guère »
+  before any « que » (never « ne … que »), or negated by its subject (« personne ne … »). It
+  states no demand (a negation with a verb of forgetting, failing, missing, neglecting or
+  omitting within two words after it or before it in its phrase: « don't forget to write the
+  summary », « n'oublie pas … », « vergiss die Kopfzeile nicht »). Every operation, creation,
+  keep or exclusion word it states is one a negation of its phrase forbids: a negation before
+  it (« never email »), a negation standing for its object within two words after it (« send
+  no email », « lösche nichts »), or a German « nicht » closing the phrase (« lösche die Datei
+  nicht »). A phrase is cut at a comma, a semicolon, a colon or a joining word (« and », « et »,
+  « y », « e », « und », « then », « but » and their kin), so « do not email the customer and
+  write the refusal to ./r.md » asks the write and « produce the report without sending an
+  email » asks a report; every phrase naming a path holds a negation of its own (« I never
+  want emails, just the file ./out/a.md » asks the file). It states no other restriction word
+  (« only », an exception, a condition; an Italian « mai » after a negation is its « never »)
+  and no structure law. A pure
+  prohibition such as « need no time-zone conversion » or « never delete ./data/raw.csv » can be
+  pointed to a task that does what it forbids, or failed by no task, but never found
+  `omitted`. The same pointer, with the same rule, follows a clause judged missing. Over a
+  trial run, its instructions open with what the run's observation is, as every question over
+  a run does. A named task makes the part a defect noted « the judge points to the task
+  `<id>` », and `omitted` one noted « the judge finds no task performing it »; `no_task` leaves
+  the part contested, and no choice leaves it unknown. A pointer that gets no answer stops the
+  localization.
+- **A trial run** (below), when the sketch door passes a run of these exact bytes that proves
+  whole outputs and the localization did not stop: each part left unknown or contested, and each
+  restricting part judged a defect, is asked again over the run (`verify-observed-part-<k>`,
+  role `judge_observed_part`, its state carrying the observation), offering `carried` (these
+  inputs exercise it, an input meeting its case, its condition or what it forbids, and the
+  outputs show it done as asked), `missing` (the outputs show it missing or done differently)
+  and `unexercised` (these inputs never exercise it: the run shows nothing about it). `carried`
+  settles an open part. It never settles a part already judged a defect: a run of some inputs
+  never removes a defect located in the bytes, so the defect stays, for a repair, its note
+  followed by « ; the trial run shows it done for its inputs, which never removes a defect
+  located in the bytes ». `missing` rejects the bytes: a defect stays a
+  defect, its note followed by « ; the trial run confirms it », and an open part asks its
+  pointer over the run (`verify-observed-part-<k>-point`), whose named task or `omitted` makes
+  it a defect noted « in the trial run, the judge points to the task `<id>` » or « in the trial
+  run, the judge finds no task performing it », whose `no_task` leaves it contested, and whose
+  lack of a choice leaves it as it stood. `unexercised`, NONE and no choice leave the part as
+  it stood: a partial proof stays partial. A question that gets no answer stops the
+  localization.
+- **The extra operation.** When the localization did not stop and no part is a defect,
+  `verify-extra` (role `judge_extra`) asks which task, if any, does something the request does
+  not ask (`only_requested`, or `task-<id>` for each task). A named task is the defect « only
+  what the request asks », noted « the judge points to the task `<id>`, which does something the
+  request does not ask », unless that task has no effect the request could leave unasked (each
+  permit `nika_check::task_permits` derives for it is an `fs.read` of a path the request
+  states, or one of the tools `nika:read`, `nika:glob`, `nika:grep`, `nika:jq`, `nika:assert`,
+  `nika:convert`, `nika:validate`, `nika:date`, `nika:hash`, `nika:json_diff`,
+  `nika:json_merge_patch` or `nika:inspect`, as the guards and conversions the compiler writes
+  itself; a write, a send, a fetch, a program or a model call is an effect): that answer
+  decides nothing, and « whether any task does something the request does not ask (the judge
+  named `<id>`, which has no effect the request could leave unasked) » stays unknown. No choice leaves « whether any task does something
+  the request does not ask (the judge made no choice) » unknown. The question is not asked of a
+  candidate that does not parse (« … (the candidate does not parse) ») or names no task (« …
+  (the candidate names no task) »): it stays unknown. A question that gets no answer stops the
+  localization and leaves « whether any task does something the request does not ask (the call
+  got no answer) » unknown.
+
+A located defect joins `defects`, its note `notes` (`{defect, note}`), beside the parts left
+unknown or contested, and a door that repairs starts from the defects. A defect still located
+after the questions over a trial run (below) ends the judgment, and so does a stopped
+localization: with no defect located, the request is unknown, never contested. Otherwise the
+verdict doubted the request and its localization located nothing to repair from, and the same
+judge's answers on the bytes decide nothing more: only an observation of these exact bytes
+can. The sketch door, its source recovery included, passes the last rehearsal this compile
+made of the candidate (`Rehearsals::observed`): none unless that run completed, the room
+vouched for it (`Proceed`) and it ran exactly these bytes. The observation contains the
+candidate's sha256, each input the run read (`path`, `text`, `read_whole`) and each output path
+it read back (`path`, `text`, `written` by the run itself, `read_whole`). The verifier reads it
+only when that digest is the judged candidate's, and asks over it only when the run proves
+whole outputs (`trial_whole`): at least one output, every output written by the run itself,
+and every input and output read whole. A skipped or unwritten output proves nothing of the
+part that asked it.
+
+- No observation decides nothing: « no trial run of these exact bytes exists in this compile ».
+- An observation that proves no whole output decides nothing either: « the trial run wrote
+  nothing it was read for, or was read only in part: it proves no whole output ».
+- A whole run that leaves a part open (still unknown or contested after its trial-run
+  question) decides nothing: « the trial run did not decide every part: a part its inputs never
+  exercise stays open ». The extra question left without a decision keeps nothing open there:
+  the question over the run names every task beside `consistent`, and the extra question stays
+  unknown only when that question does not carry the request.
+- When nothing stays open over a whole run, `verify-observed` (role `judge_observed`) asks the
+  whole request again, over the program and what it produced from those inputs, offering
+  `consistent` (these inputs exercise every part, the outputs are what the request asks of
+  them, and nothing else is done), `unexercised` (some part of the request is never exercised
+  by these inputs), `part-<k>` for every part (one answered `superseded` or `no_operation`
+  included: the run may show it asked) and `task-<id>` for each task.
+  - `consistent` is the `Carried` judgment of the whole request (`settled_by: verify-observed`).
+  - `unexercised` decides nothing: « the trial run's inputs never exercise some part of the
+    request: it proves no whole output ».
+  - `task-<id>` is the defect « only what the request asks », noted « the judge points to the
+    task `<id>`, which in the trial run does something the request does not ask », unless that
+    task has no effect the request could leave unasked, which decides nothing (« the judge
+    named a task with no effect the request could leave unasked, which decides nothing »).
+  - `part-<k>` rejects the bytes and asks why over the run (`verify-observed-point-<k>`): a
+    named task or `omitted` makes that part a defect noted « in the trial run, … »; `no_task`
+    decides nothing (« the judge named a part in the trial run but no task that fails it »),
+    and neither does no choice (« the judge made no choice over the trial run »).
+  - No choice decides nothing: « the judge made no choice over the trial run ». A question that
+    gets no answer stops the verdict, and the request is unknown.
+
+Every question over a run tells the judge the observation is untrusted data, and its record
+keeps what was sent without the texts (`observation`: the candidate's sha256, the sha256 of the
+observation shown, and each text's role, path, size, sha256, `read_whole` and `written`). When
+nothing decided it, the doubt stays: the request is contested (`contested`, why in `unsettled`)
+when an admitted answer rejected the bytes, and unknown when the judge only abstained. A
+contested request or part is never READY and never repaired from: its finding names the doubt,
+why nothing decided it and the next action. Only the sketch door passes an observation, and only
+under a host that offers a rehearsal room: the Session's seated rounds. `nika compile` and Serve
+offer none, a candidate the room does not run has none, and COLD, WARM, the answer rounds and
+the revisions are judged without one. The configured verifier (a decision service, or the
+authoring provider) receives a trial run's observations by default, as preparation context: the
+texts as the room's report keeps them (the Session's room keeps at most 64 KiB of each file,
+`ObservedRoom::PREVIEW_BOUND`) are sent with every question over the run, and the records keep
+their digests and sizes, never the texts.
+
+Nothing defective, unknown or contested is READY: the gates of COLD, WARM, the sketch door, the
+revisions and the answer rounds require a settled verdict (`Verdict::settled`: no defect, no
+unknown, nothing contested), and the core admits no whole request without a `Carried` judgment.
+Each verdict also records whether the judge's admitted answers declined the bytes, keeping the
+strongest (`Verdict::declined`): `unfaithful`, a part, a clause or a trial-run part judged
+`missing`, a task named by the extra-operation or the observed-run question, or a part named by
+the observed-run question rejects them; NONE on the whole request or on a clause abstains. A
+call that failed, was refused or did not decode, and an option not offered, decline nothing. A
+verdict that declined the bytes and is not settled is doubted (`Verdict::doubted`): those bytes
+are not put to the same judge again in this compile, and a rejection is not put to it again for
+the same request in a later compile whose host carries it (below), so no later answer of that
+judge outvotes it there; a verdict that declined nothing may be asked again.
+
+- **Same bytes, same judge.** Before it asks, each verdict looks for an earlier attempt of the
+  compile at hand (`decision.semantic_verification`) on the same candidate sha256, under the
+  same judge (seat name and kind), that declined the bytes and was not settled
+  (`declined: true` and `settled: false`, a verdict that judged the whole request faithful but
+  declined a clause among them), taking the latest such attempt that repeats none
+  (`same_bytes_as: null`). When one exists, no call is made: that verdict stands, read back
+  from its record (defects with their notes, unknown, contested, doubt, unsettled, request,
+  stopped, rejected or abstained) and recorded as a new attempt with no question, zero calls
+  and `same_bytes_as` set to the index of the attempt it repeats in `semantic_verification`;
+  the route says `verify: same bytes, earlier verdict stands`.
+- **A rejection carried from an earlier round.** When this compile holds no such attempt, the
+  verdict looks in the attempts its host carried from earlier rounds of the same conversation
+  (`CompileRequest::declined`, set by `with_declined`): an attempt on the same sha256, under the
+  same judge, that declined the bytes, was not settled, rejected them (`rejected: true`),
+  judged the very request this verdict judges (its `request` is this verdict's whole request,
+  so a corrected or restated request is asked again) and read the same context beside them
+  (`context_sha256`, recorded on every attempt: the digest of the request as compiled and as
+  first stated, the answers and the observed world, so other answers or another observed world
+  ask again), taking the latest such attempt the host kept. When one exists, no call is made
+  either: that verdict stands, read back the same way and recorded with `carried: true` and
+  `same_bytes_as: null`; the route says `verify: same bytes, rejected in an earlier round`. An
+  abstention is never carried, so a new round may decide what an earlier one left held. A
+  carried attempt is data the host kept: it never carries anything, and it can only keep those
+  bytes from READY.
+- **An unfinished verdict is resumed.** When the attempt found stopped at a call that got no
+  answer, or its doubt stayed open only for lack of a whole trial run (« no trial run … », « the
+  trial run wrote nothing … ») and this call has one, it is not repeated as final. A new verdict
+  asks the same questions in the same order, but each question that attempt answered with an
+  admitted choice (over the bytes, or over the same observation) is read back from its record
+  with no call (`read_back: true` on the question's record, counted in the attempt's
+  `read_back`): the judge is never asked again what it answered, its rejection stands, and only
+  what it never got is asked. The route says `verify: same bytes, localization resumed`.
+- **A verdict repeated from an attempt of this compile** (`same_bytes_as` set) is no progress:
+  COLD's repairs end on it (`verify: no progress`); the sketch door reopens nothing from its
+  defects and withdraws the candidate whatever count is left (`native: no progress`), its
+  findings counting a repair for each verdict this compile recorded before it, as at any
+  sketch withdrawal; a revision never reopens its fills from it. A verdict carried from an
+  earlier round is not: its located defects are what COLD's first repair, the sketch door's
+  reopening and a revision's reopening start from, with no judge call on those bytes, and the
+  repaired bytes are judged.
+- **COLD, WARM and the answer rounds** (`replayed`, `semantic`) settle the candidate again at
+  their not-ready exits with the judgments the verdict made, so a clause the judge carried stays
+  settled and the whole request stays pending unless it was carried; the candidate stays as the
+  core leaves it, INCOMPLETE and kept as the preview. A doubted verdict there also drops the
+  replayable record (`provenance.plan`), the questions and the requested boundary, routes
+  `verify: doubted, not replayable` and adds the Applied `verify_held` finding; a verdict that
+  declined nothing keeps the record and its questions, so a later round asks its judge again.
+- **The sketch door** (its source recovery included), **the revisions and `judged_native`** hold
+  a doubted candidate with no defect located (`verify::held`): INCOMPLETE, its bytes and Check
+  preview kept as the preview, its questions and requested boundary cleared, its record dropped,
+  the verdict's findings and the Applied `verify_held` finding; the route says
+  `verify: not ready, candidate held`. When the verdict located no defect and declined nothing
+  (its calls failed, were refused, or returned nothing admissible), the sketch door withdraws
+  the candidate but keeps its replayable record (`preserve_unjudged`, route
+  `verify: unjudged, record kept`), with the Applied `verify_resume` finding: « The candidate
+  was not judged, so it is not offered; its bytes are kept: a round that replays this record
+  under a judge asks it on the same candidate, with no new authoring call (a replay with no
+  judge judges nothing). » A revision and `judged_native` withdraw that candidate with its
+  record (`withdrawn`), as they do a candidate whose defects end the repairs.
+
+The `verify_held` finding says what held the candidate (`held_text`), one of:
+
+- located defects the repairs did not settle (COLD, WARM, the answer rounds): « The candidate
+  was judged and not accepted: the parts named above stay missing. It is shown, never offered,
+  and nothing was written; this verifier is not asked again on these bytes, in this compile or
+  in a later round that carries this verdict. A correction of the request, another authoring
+  model or another verifier can decide it. »
+- a rejection with no defect located: « The candidate was judged and not accepted, with no
+  defect a repair could start from: it is shown, never offered, and nothing was written. A
+  correction of the request or another verifier can decide it. » (A rejection whose doubt
+  waited only for a whole trial run is resumed over one when a later round authors the same
+  bytes and runs them, so that run can still decide it.)
+- an abstention: « The verifier read the candidate and abstained: it neither accepted nor
+  rejected it, and located no defect. It is shown, never offered, and nothing was written; it
+  is not asked again on these bytes in this compile. A correction of the request, another
+  verifier, or a new round that authors again can decide it. »
+
+When a judge call got no answer, the text goes on: « Locating what it lacks stopped at a judge
+call that got no answer (refused by the call bound, or failed). » The finding marks bytes the
+core keeps no record of: a host drops any record or continuation of its own that would replay
+them, and a host that keeps a conversation's verdicts passes those attempts to its next compile
+(`CompileRequest::with_declined`), where a rejection of the same bytes by the same judge for the
+same request stands with no call (the CLI, Session and Serve specs say what each keeps).
+
+A blocked verification's findings (target `semantic_verification`) name each duty the core
+named (no judge asked) and the repairs made from it; each defect with its note (« it does not
+carry « `<part>` (`<note>`) » ») and the repairs made from it; each unknown as the judge could
+not settle it (« it abstained, answered outside its options, or its call failed »); the
+contested request once, with the judge's doubt and why the same judge asked again decides
+nothing (« The judge did not accept the request as carried (`<doubt>`) and located no defect a
+repair could start from; the same judge asked again decides nothing (`<reasons>`). Nothing is
+READY on it. Next: a correction of the request, or another verifier. »); each contested part
+apart, by its own words: « The judge found « `<part>` » missing but then named no task that
+fails it and no operation it lacks: nothing decided it, and nothing is READY on it. »; and,
+when a call got no answer, « The verification stopped at a judge call that got no
+answer (refused by the call bound, or failed: the receipt says which); nothing after it was
+asked of that judge. Next: another round, or a larger call bound. »
+
+Each attempt's record (`decision.semantic_verification[]`) carries the judge (`seat`, `kind`),
+`attempted`, `returned` and `consumed`, `usage`, `reference`, its `questions`, `defects`,
+`unknown`, `doubt`, `contested`, `unsettled`, `notes`, `settled_by`, `candidate_sha256`,
+`declined`, `rejected` and `settled` (booleans; `settled`: no defect, no unknown, nothing
+contested), `stopped`, `whole_asked`, `request` (the whole request when it was asked, else
+null), `same_bytes_as` (the index, in `semantic_verification`, of the attempt of this compile
+it repeats, else null), `carried` (whether it repeats a rejection carried from an earlier
+round), `context_sha256` (the digest of the context the judge read beside the bytes) and
+`read_back` (the answers a resumed verdict read back with no call). `defects`, `unknown`,
+`contested` and `unsettled` name each finding once, at its first place, and each defect keeps
+one note. `usage.calls` counts the provider's journal entries in
+the attempt that a local admission did not refuse (an entry whose `failure_kind` is
+`admission_refused` was never sent), an answer cut short and asked again with a wider output
+limit counting twice, or a seat's questions; a repeated verdict records zero calls. Every
+question of the whole-request judgment, and every clause question, carries the verdict's
+reference and the same creation or revision framing, so a part asking to create this workflow
+is judged as the workflow itself, never as a write of its own file. A revision whose request
+keeps its original statement (`original_intent`) and is judged on that request followed by its
+change (`nika_compile::revise_intent`: the original request, a line break, then « Change:
+`<words>` ») is told so (`revision.appended: true` in the state): where they differ the change
+takes precedence, a clause of the earlier request it replaces is superseded and no longer asked,
+and every other earlier clause is still asked. Its question count depends on the request: none
+when it repeats a verdict; one when the verdict carries it or judges nothing; otherwise one per
+part until a call gets no answer, a pointer per part judged missing, then, over a whole trial
+run, one question per open part or broken restriction and a pointer for each open part it finds
+missing, the extra-operation question when no part is a defect and the candidate names a task,
+and the observed-run question and its pointer when nothing stays open, all asked in sequence
+(`WHOLE_QUESTIONS`, 2, the verdict and one part, is not a bound). The parts are punctuation
+phrases, not a requirement register: an order, a data flow or a condition across parts is the
+verdict's and the observation's to judge. An observed run is one run over the request's observed
+inputs: its consistency is evidence for those inputs, not proof for others, and a part those
+inputs never exercise stays open.
+
+The defects reach the next attempt and the human with the judge's reasons. A sketch or revision
+reopening reads each as « the judge compared the whole request with the candidate's bytes: it
+does not carry « `<part>` » · the judge's reason: `<note>` ». Its progress compares each
+finding's kind and its words before « · the judge's reason: », as a set, whichever task the
+judge points to and whatever a repair renamed: the set the last reopening sent again is no
+progress (`native: no progress`; a fill's own repairs compare with the fill's last set and
+never reset it), and with no repair count a set is progress only when it names a finding no
+earlier set named or narrows the last set (fewer findings, all among the last), so a judge's
+variance over which parts it names never reopens the door without end. A verdict repeated on
+the same bytes of this compile reopens nothing; one carried from an earlier round reopens from
+its located defects (above).
+
+The R4 A11 / E39 C3 whole-request check is the historical basis of native and sketch
+verification. Its earlier author-only account, without a post-judgment repair round, no longer
+describes all current paths. The selected decision seat now reaches sketch verification and
+supported recovery/revision paths; the
+[Semantic CREATE and resolved questions](#semantic-create-and-resolved-questions) section below
+specifies selection, abstention and repair, and the whole-request judgment above its
+localization and observation. A judgment reads the candidate's final bytes with the
+compiler-owned reference; structural admission alone does not establish semantic fidelity.
+Preserve the whole-request coverage and binding laws while qualifying the cooperative target.
 
 The answer round of a native record is judged too (R4 A11, step 2). The native and the sketch
 doors both record strategy `native`. The core's `native_replay` bakes the round's answers into
 the recorded source with zero calls and keeps the whole request pending on a finish the laws
 admit (`decision.pending`); a finish they refuse is returned as it is, and no judge is asked of
-it. `verify::replayed` binds such a record to the reader's plan of the request,
-as the core does. It then asks the round's judge the whole-request question, at most
-`WHOLE_QUESTIONS` requests: a decision seat the caller permits, else the authoring provider
-through the journaled call when the round's policy is bounded.
+it. `verify::replayed` binds such a record to the reader's plan of the request, as the core
+does. It then asks the round's judge the whole-request judgment (above), with no observation: a
+decision seat the caller permits, else the authoring provider through the journaled call when
+the round's policy is bounded.
 - A faithful verdict under the recomputed binding is READY, and the route says
   `verify: judged (<kind>)` after the replay.
-- An unfaithful or unsettled verdict stays INCOMPLETE naming the part, with the candidate kept as
-  the preview. Nothing is repaired in an answer round.
+- A located defect, an unknown and a contested request stay INCOMPLETE naming them, with the
+  candidate kept as the preview. Nothing is repaired in an answer round, and no rehearsal
+  precedes its judgment, so a doubt its parts do not locate stays doubted there. A doubted
+  verdict also drops the round's replayable record, its questions and its requested boundary
+  (`verify: doubted, not replayable`) and adds the Applied `verify_held` finding, so no later
+  round replays that record; a judge that declined nothing keeps the record.
 - With no judge permitted, the round is INCOMPLETE and the core's finding names the judge to
   permit.
 
 A native revision's answer round (`revise`) takes the same door. A judgment is never read from a
 record, so a transport whose native answer rounds made no call now permits a judge in them (one
-request for a faithful verdict, two for an unfaithful one) or gets INCOMPLETE.
+request for a faithful verdict; a doubted one asks its parts and their follow-up questions) or
+gets INCOMPLETE.
 
 The current estimate is `authority::worst_case_of`. It counts author requests,
 including an author-provider verifier, when the configuration alone supplies a
@@ -300,14 +680,21 @@ representable finite upper bound. With an explicit repair count `r`:
 - a revision using a model: unknown (`None`), because its retained representation
   determines link, fill and repeated judgment work; `3 + r` was not an upper bound
   for semantic revisions;
-- the sketch door: `2 + r + 2(1 + r) = 4 + 3r`, with each new candidate judged afresh;
+- the sketch door: unknown (`None`), including with an explicit repair count, because
+  each new candidate's judgment asks one question per part of a doubted request, a pointer
+  per part judged missing, the extra-operation question and, over a trial run, a question per
+  part still open and the observed-run questions: the request determines that count (the
+  earlier `4 + 3r` counted two judgment questions per candidate);
 - COLD creation (`off` or `escalate`): unknown (`None`), including with an explicit
   repair count, because the request determines its clause and transform work;
 - a creation under `only`: zero requests; the core refuses the retired source-authoring route.
 
-An arithmetic overflow or an absent repair count where repairs add requests also
-returns `None`, never a saturated number presented as an upper bound. Paths with
-no possible call retain zero. The deprecated `authority::worst_case` preserves
+Only the paths with no possible call keep a finite count, zero; no saturated number is
+presented as an upper bound. No configuration that asks a model has a finite estimate, so
+`Authority::resolve` refuses no typed repair count for its multiplicity (`Refusal::Multiplicity`
+does not occur with the current estimates): an explicit request limit is enforced by the
+counters on each actual attempt, and a typed strategy still needs its least requests (below).
+The deprecated `authority::worst_case` preserves
 the old capped engine's formula and saturating arithmetic solely for compatibility;
 current consumers do not use it to estimate uncapped work.
 An absent request bound still counts calls, without inventing a numeric limit or a
@@ -321,12 +708,13 @@ composer retains every distinct signature and feasibility result, with no eight-
 ceiling; only feasible candidates reach selection, together with `NONE`. Its existing
 structural expressibility law is unchanged. A real request-authority refusal stops
 further sampling while retaining the attempts already recorded. The whole-request
-protocol still has at most two questions: verdict, then localization if unfaithful.
-Localization offers every qualifying distinct phrase of the request, including
-phrases beyond the former sixteen-part cutoff, and maps the selected index back
-to that complete phrase.
-The former eight-clause and two-transform caps are historical behavior, not active
-limits. Typed repairs under `off` are the verifier's and count, never ignored.
+judgment has no question cap either: a doubted verdict asks every distinct part of the
+request alone (a short phrase joined to its neighbour, never dropped), including parts
+beyond the former sixteen-part cutoff, and the observed-run question offers every part by its
+index (`part-<k>`), mapped back to that complete part.
+The former eight-clause and two-transform caps, and the former two-question
+whole-request protocol (the verdict, then one located part), are historical behavior,
+not active limits. Typed repairs under `off` are the verifier's and count, never ignored.
 A typed strategy is honored in full or refused, needing
 `authority::least_requests`:
 - `escalate`: two requests (the plan, then its judgment);
@@ -348,8 +736,11 @@ open it without a separate recovery count; an explicitly bounded policy requires
 positive recovery count. It is not the retired `only` creation route: when the sketch door ends a
 CREATE INCOMPLETE with no candidate and no open question (its structured rounds spent, no
 progress, an answer that is not the sketch wire's, the evidence's defect with no round left, or
-a candidate the whole-request judgment withdrew past the last round for a demonstrated missing
-part; an unsettled or abstained judgment is not recovered), the same seat, in the same conversation,
+a candidate the whole-request judgment withdrew for a located defect, past the last round or on
+a repeated verdict; a judgment that located no defect is not recovered: an unjudged candidate
+keeps its record
+unoffered (`verify_resume`), and a doubted one is held (`verify_held`)), the same seat, in the
+same conversation,
 is told the previous findings, the evidence defects no reopening carried and the last refused
 candidate, and answers the whole source on the retired source wire
 (`assets/native_answer_schema.json`, instruction `assets/native_source_recovery.md`). Each answer
@@ -359,8 +750,10 @@ law. An accepted source settles as a native
 record (`native_apply`, zero-call replay, `native_pending` on answer rounds) and faces the
 rehearsal and the whole-request judgment like any candidate; a defect reopens it while
 the configured policy permits. Every request is charged to the same authority and
-receipt (no reset, no other model). `authority::recovery_requests` describes an
-explicit reservation (`3` per stated round); an unknown total remains unknown.
+receipt (no reset, no other model). `authority::recovery_requests` describes the least
+explicit reservation (`3` per stated round: the source, the verdict and one more judgment
+question); a doubted judgment asks more from the same authority, which refuses each request
+past an explicit limit, and an unknown total remains unknown.
 The fallback is recorded: route `native: source recovery after structured exhaustion`,
 `decision.native.recovery` (rounds, spent, accepted by the laws, the structured findings) and an
 `authoring_recovery` finding that the recovery opened; only a READY outcome adds the finding that
@@ -486,8 +879,15 @@ or `not_applicable`. Foundry references distinguish attached, prepared and
 confirmed-presented: only an answered call confirms delivery; a provider failure
 is `delivery_unknown`, and a local refusal is not sent. Calls retain their roles,
 delivery and unknown usage as null. Evidence names the exact final bytes checked
-or rehearsed, while the semantic judge lacks a candidate binding and behavioral
-satisfaction remains `UNKNOWN` (`behavioral_judge: not_run`).
+or rehearsed, and behavioral satisfaction remains `UNKNOWN` (`behavioral_judge: not_run`).
+Its `semantic_judge` summary projects the verification attempts: their count (`attempts`),
+the last attempt's defects, unknowns and contested entries (`last_defects`, `last_unknown`,
+`last_contested`), whether it declined the bytes (`last_declined`), the question that
+settled it (`last_settled_by`, null when none did) and `candidate_binding`: `bound` when the
+last attempt judged the final candidate's exact bytes (its `candidate_sha256` is theirs),
+`other_bytes` when it judged other bytes, `NOT_CAPTURED` when there is no final candidate or
+the attempt recorded no digest. The doubt, the notes, the questions and their trial-run
+receipts stay in `decision.semantic_verification`, not projected here.
 
 Each authoring call journals its response digest and, for a plan, the decoded
 object. Accepted sketches and declared fills retain the closed form consumed by
@@ -648,15 +1048,33 @@ requested. The full check after filling remains. This adds no repair grant or se
 
 The selected decision seat also reaches the sketch whole-request verifier, its source
 recovery, and semantic or source-anchored revisions. Generation and repair remain with
-the author. The existing `verify-request` choice (`faithful`, `unfaithful`, `none`)
-and, after `unfaithful`, `verify-locate` name the defect consumed by the existing repair
-loop. An absent decision seat retains the journaled author-provider judge. An explicitly
-selected seat that fails, abstains or returns an unoffered option never falls back to it:
-the candidate stays incomplete. Deterministic refusals still ask no seat.
+the author. The seat answers every question of the whole-request judgment: the verdict
+`verify-request` (`faithful`, `unfaithful`, `none`), then, after a doubt, the part, pointer,
+trial-run and extra-operation questions; only the defects they locate, each with the judge's
+reason, reach the existing repair loop. An absent decision seat retains the journaled
+author-provider judge. An explicitly selected seat never falls back to it: a verdict call that
+fails or chooses no offered option declines nothing and leaves the candidate unjudged and
+incomplete (the sketch door keeps its record for a later round). An `unfaithful` verdict
+rejects the bytes and `none` abstains on them: only a located defect, or a trial run of these
+bytes whose inputs exercise every part and that settles every part and carries the whole
+request, decides such a doubt; otherwise nothing is READY, the sketch door and the revisions
+hold the candidate with the Applied `verify_held` finding worded by its cause, and the same
+seat is not asked again on the same bytes in that compile, nor, after a rejection, for the
+same request in a later compile whose host carries that verdict (`CompileRequest::declined`).
+Deterministic refusals still ask no seat.
 
 Each consultation stays in `decision.semantic_verification`: selected judge identity/kind,
-compiler-owned reference, question IDs and offered choices, returned choice or failure,
-attempted/returned/consumed counts and reported usage. Questions read the final candidate bytes. A repair or source recovery
-retains prior verification attempts. Unknown usage stays incomplete, never a zero-cost
-claim; the host decision observation owns its separate settlement. These are typed semantic
-judgments, never permission to Save or Run. The current record does not include Foundry retrieval decisions; wiring that role belongs to the cooperative target, and requires actual selection and consumption evidence.
+compiler-owned reference, question IDs and offered choices (with the part a part, pointer
+or trial-run part question names and, for a trial-run question, the digests and sizes of what
+it showed), returned choice or failure, attempted/returned/consumed counts and reported usage,
+and the attempt's defects with their notes, unknowns, doubt, contested parts, unsettled
+reasons, the question that settled it, the candidate digest it judged, whether it declined or
+rejected the bytes, whether it settled them, whether a call that got no answer stopped it,
+whether and which whole request it asked, the earlier attempt of the compile it repeats on the
+same bytes (`same_bytes_as`) and whether it repeats a rejection carried from an earlier round
+(`carried`). Questions read the final candidate bytes. A repair or source recovery retains
+prior verification attempts. Unknown usage stays incomplete, never a zero-cost claim; the host
+decision observation owns its separate settlement. These are typed semantic judgments, never
+permission to Save or Run. The current record does not include Foundry retrieval decisions;
+wiring that role belongs to the cooperative target, and requires actual selection and
+consumption evidence.

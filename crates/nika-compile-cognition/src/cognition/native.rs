@@ -134,6 +134,9 @@ pub(super) struct Talk {
     pub(super) messages: Vec<Message>,
     pub(super) rounds: Vec<Value>,
     pub(super) last: Option<Vec<Diagnostic>>,
+    /// The last finding set a reopening sent (evidence or the judge's): what the next
+    /// reopening's set is compared with. A fill's own repairs never reset it.
+    pub(super) reopened: Option<Vec<Diagnostic>>,
     /// Under no repair count, every finding set this talk already answered: one met again is no
     /// progress. `None` for a talk with a typed limit, whose count ends it.
     pub(super) answered: Option<Vec<Vec<Diagnostic>>>,
@@ -184,6 +187,7 @@ impl Talk {
             ],
             rounds: Vec::new(),
             last: None,
+            reopened: None,
             answered: None,
             last_decode: None,
             refused: None,
@@ -340,7 +344,7 @@ pub(super) fn conclude(
         "authoring_native",
         journal::line(&talk.rounds),
     );
-    let mut route = talk.route.clone();
+    let mut route = continued(out, &talk.route);
     let judged = talk
         .rounds
         .iter()
@@ -406,6 +410,28 @@ pub(super) fn conclude(
             super::super::finding(out, DiagnosticKind::Unknown, "authoring_native", EXHAUSTED);
         }
     }
+}
+
+/// The route this outcome records: the steps it already holds, in their order (what the
+/// verifier decided of earlier bytes in this talk among them: a carried rejection, a repeat, a
+/// judgment), then each step of the talk's route it does not hold yet.
+fn continued(out: &CompileOutcome, talk: &[String]) -> Vec<String> {
+    let held: Vec<String> = (out.provenance.decision.as_ref())
+        .and_then(|decision| decision["route"].as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(str::to_owned)
+        .collect();
+    let mut at = 0;
+    let mut route = held.clone();
+    for step in talk {
+        match held[at..].iter().position(|kept| kept == step) {
+            Some(found) => at += found + 1,
+            None => route.push(step.clone()),
+        }
+    }
+    route
 }
 
 /// An exhausted budget, stated: never a replacement request or a substitute workflow.

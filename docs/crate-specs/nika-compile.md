@@ -506,7 +506,8 @@ The ledger distinguishes a typed reading of the emitted program, a named element
 a program the human answered and a conversion the reader's own law states from
 words a step only restates (`label`) or words no law reads from the task's bytes
 (`unverified`). Label and unverified duties, clauses no plan element names, and
-the whole request for the first candidate of a WARM or COLD plan are pending.
+the whole request for the first candidate of a WARM or COLD plan, and for every
+replay of a record other than a HOT plan (below), are pending.
 A candidate with a pending duty is INCOMPLETE.
 
 A cardinality stated in the clause of a seat's verified program is claimed by
@@ -527,13 +528,36 @@ binding, not a chronological nonce or a grant of execution authority.
 (`nika_compile_reader::structure::restricts`). Serialized judgments in a saved
 plan or answers are data and are never accepted as active judgments.
 
-The ordinary `assemble` and `replay` entries pass no judgments and add no
-whole-request duty to a plan (a native record always carries one, below).
-Deterministically closed duties replay with zero calls.
-Cognition judges the remainder named in `decision.pending.open` using the
-current round's judge, or leaves it INCOMPLETE with a finding for each open
-clause. A regenerated candidate after a field answer is judged as the first
-candidate of its plan. A failed or abstaining judge settles nothing.
+`CompileRequest::with_declined` carries the `semantic_verification` attempts a
+host kept from earlier rounds of the same conversation (`CompileRequest::declined`,
+empty unless set). The core reads none of them and admits none as a judgment.
+Cognition's verifier repeats a rejection among them, with no call, when the same
+judge would be asked again on the same candidate bytes for the same request
+(`nika-compile-cognition`), so such an attempt can only keep those bytes from
+READY.
+
+The ordinary `assemble` entry passes no judgments and adds no whole-request duty
+to a plan. The core's `replay` passes no judgments either, and fails closed: only
+the reader's own HOT plan replays under its laws alone, and every other record (a
+model's COLD or WARM plan, a record with no strategy word or an unknown one)
+replays with its whole request pending on the bytes it emits, as a native record
+always does (below). With no judge in the round, such a replay is therefore
+INCOMPLETE with the pending-clause finding below, never READY: no judgment of the
+replayed bytes was made in the round. `replay_judged` adds the duty when its
+caller asks for it (`whole`). Cognition asks for it in the answer round of every
+record but a HOT plan's, so the whole request is judged again on the bytes that
+round replays, and for a regenerated candidate after a field answer, judged as the
+first candidate of its plan. Deterministically closed duties replay with
+zero calls. Cognition judges the remainder named in `decision.pending.open` using
+the current round's judge, or leaves it INCOMPLETE with a finding for each open
+clause (target `semantic_verification`): « The request states `<clause>` and
+`<why>`: no law reads from candidate `<sha12>` that it carries it, and no admitted
+judgment made in this compile settles it. Nothing is READY on a pending clause:
+it stays INCOMPLETE until an admitted judgment of these bytes against the whole
+request carries it. » `<why>` is « only the words of a step restate it », « a
+task carries words no law reads » or « no element of the plan names it »; the
+candidate is named by the first twelve characters of its sha256. A failed or
+abstaining judge settles nothing.
 
 A native record (strategy `native`, written by the native and sketch doors) is
 no plan (R4 A11, step 2). Its replay bakes the round's answers into the

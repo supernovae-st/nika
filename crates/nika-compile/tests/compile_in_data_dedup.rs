@@ -112,7 +112,8 @@ fn a_cross_run_removal_still_asks_its_state_file() {
 
 /// A judge double over a seat (amendment 1): it approves the whole request, and refuses every
 /// clause question whose words hold the removal clause, as a judge reading bytes that keep every
-/// duplicate would. It counts the clause questions it refused.
+/// duplicate would: missing, and no task performs it (`omitted`, the removal being an operation
+/// of its own). It counts the clause questions it refused.
 struct RefusesRemoval<'a> {
     inner: &'a Rotating,
     refused: AtomicU32,
@@ -131,10 +132,12 @@ impl ProviderInferDyn for RefusesRemoval<'_> {
                     .collect()
             })
             .unwrap_or_default();
+        let about_removal = format!("{request:?}").contains(DEDUP_FR);
         let answer = if choices.iter().any(|k| k == "faithful") {
             "faithful".to_owned()
+        } else if about_removal && choices.iter().any(|k| k == "omitted") {
+            "omitted".to_owned()
         } else if choices.iter().any(|k| k == "carried") {
-            let about_removal = format!("{request:?}").contains(DEDUP_FR);
             match choices.iter().find(|k| *k != "carried") {
                 Some(other) if about_removal => {
                     self.refused.fetch_add(1, Ordering::SeqCst);
@@ -253,14 +256,44 @@ async fn the_cold_round_holds_no_obligation_and_tells_the_reading() {
     assert!(tells_in_data(&out), "{:#?}", out.diagnostics);
 }
 
+/// The removal reaches the judge as a pending duty on the final bytes (R4 A11, amendment 1): the
+/// judge finds it missing, with no task performing it, a defect the COLD door repairs from; the
+/// repair writes the same bytes and names the same defect, which is no progress, so the repairs
+/// end and the duty stays pending. The in-data reading is told beside it (a role any step
+/// consumes hides no clause, D2 check); the judge declined these bytes, so no record replays
+/// them.
 #[tokio::test]
 async fn the_removal_reaches_the_judge_as_a_pending_duty() {
     let (out, refused) = keeping_every_duplicate().await;
-    // The judge was asked about the removal on the final bytes, and its duty stays pending, the
-    // in-data binding recorded beside it (a role any step consumes hides no clause, D2 check).
     assert!(refused > 0, "{out:#?}");
-    assert_eq!(in_data(&out).len(), 1, "{:#?}", out.provenance.plan);
+    let told = format!(
+        "`{DEDUP_FR}` is read as a removal of duplicates within the data, by the keys it names, keeping the occurrence it states: no state across runs is asked. If items processed in earlier runs must be skipped, say so."
+    );
+    let dedup: Vec<&str> = (out.diagnostics.iter())
+        .filter(|d| d.target == "dedup")
+        .map(|d| d.message.as_str())
+        .collect();
+    assert_eq!(dedup, [told.as_str()], "{out:#?}");
+    assert!(out.provenance.plan.is_none(), "{:#?}", out.provenance.plan);
     let decision = out.provenance.decision.clone().unwrap_or_default();
+    let attempts = decision["semantic_verification"].as_array().cloned();
+    let attempts = attempts.unwrap_or_default();
+    assert_eq!(attempts.len(), 2, "{decision:#}");
+    let removal = format!("{DEDUP_FR} ; {COUNT_FR}");
+    let noted = json!([{"defect": removal, "note": "the judge finds no task performing it"}]);
+    for attempt in &attempts {
+        assert_eq!(attempt["notes"], noted, "{decision:#}");
+    }
+    // The repair wrote the very bytes the judge declined.
+    let digests = (
+        &attempts[0]["candidate_sha256"],
+        &attempts[1]["candidate_sha256"],
+    );
+    assert_eq!(digests.0, digests.1, "{decision:#}");
+    let route = decision["route"].to_string();
+    for step in ["verify: no progress", "verify: doubted, not replayable"] {
+        assert!(route.contains(step), "{step}: {route}");
+    }
     let ledger = decision["ledger"].as_array().cloned().unwrap_or_default();
     let removal = ledger
         .iter()

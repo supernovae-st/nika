@@ -25,6 +25,15 @@ use std::time::Duration;
 /// The native output conventions, kept beside this file to bound its size.
 #[path = "semantic_verification/native_routes.rs"]
 mod native_routes;
+/// The answer rounds of a record: what a replay asks its round's judge, and what settles it.
+#[path = "semantic_verification/replays.rs"]
+mod replays;
+/// Verdicts no repair starts from or ends on, kept beside this file to bound its size.
+#[path = "semantic_verification/unsettled.rs"]
+mod unsettled;
+
+mod common;
+use common::{approval, refusal, verifier};
 
 /// An injected seat that answers its calls in order and keeps the last message each call sent
 /// (a double: it scripts a provider, and optionally the admission layer's call ceiling or a
@@ -122,19 +131,51 @@ impl ProviderInferDyn for Scripted {
     }
 }
 
+/// One verifier question as a judge double reads it: the keys it offers, the clause or part its
+/// state names (none for the whole request and the extra-operation question), whether that state
+/// names the clause's span (a pending clause's statement does, a part asked alone does not), and
+/// how many whole-request questions were asked so far, this one included: the verification
+/// attempt, from 1, of the whole request and of the parts asked after it.
+struct Asked<'q> {
+    keys: &'q [String],
+    clause: Option<&'q str>,
+    spanned: bool,
+    requests: usize,
+}
+
+impl Asked<'_> {
+    fn offers(&self, key: &str) -> bool {
+        self.keys.iter().any(|k| k == key)
+    }
+    /// Whether this is a part of the request asked alone against the bytes (`judge_part`): it
+    /// offers `missing`, never `unexercised` (a part asked over a run), and names no span.
+    fn part(&self) -> bool {
+        self.offers("missing") && !self.offers("unexercised") && !self.spanned
+    }
+    /// Whether this is the task question of a clause or a part judged missing (`judge_point`:
+    /// only it offers `no_task`).
+    fn pointer(&self) -> bool {
+        self.offers("no_task")
+    }
+}
+
+/// A judge double's verdict over one question ([`approve`], [`refuse`], [`abstain`] and the
+/// scripted verdicts of single tests).
+type JudgeVerdict = fn(&Asked<'_>) -> String;
+
 /// A named judge double over a scripted seat (R4 A11): each verifier question (a closed choice
-/// offering `faithful` or `carried`) is answered by `verdict` from the keys it offers and kept;
-/// every other call goes to the scripted seat unchanged. A test names the verdict it opts into.
+/// offering one of the [`common::APPROVALS`]) is answered by `verdict` and kept; every other
+/// call goes to the scripted seat unchanged. A test names the verdict it opts into.
 struct Judging<'a> {
     inner: &'a Scripted,
-    verdict: fn(&[String]) -> &'static str,
+    verdict: JudgeVerdict,
     judged: Mutex<Vec<Vec<String>>>,
     states: Mutex<Vec<Value>>,
     systems: Mutex<Vec<String>>,
 }
 
 impl<'a> Judging<'a> {
-    fn new(inner: &'a Scripted, verdict: fn(&[String]) -> &'static str) -> Self {
+    fn new(inner: &'a Scripted, verdict: JudgeVerdict) -> Self {
         Self {
             inner,
             verdict,
@@ -171,43 +212,40 @@ fn first_text(request: &InferRequest) -> String {
         .unwrap_or_default()
 }
 
-/// The approving verdict: the whole request faithful, each clause carried.
-fn approve(keys: &[String]) -> &'static str {
-    if keys.iter().any(|k| k == "faithful") {
-        "faithful"
-    } else {
-        "carried"
-    }
+/// The approving verdict: the whole request faithful, each clause or part carried, nothing
+/// extra.
+fn approve(asked: &Asked<'_>) -> String {
+    approval(asked.keys)
 }
 
-/// The verdict of a judge that finds every clause missing and the request unfaithful.
-fn refuse(keys: &[String]) -> &'static str {
-    if keys.iter().any(|k| k == "unfaithful") {
-        "unfaithful"
-    } else if keys.iter().any(|k| k == "missing") {
-        "missing"
-    } else {
-        "another_part"
-    }
+/// The verdict of a judge that finds the request unfaithful and every clause and part missing,
+/// names the first task a task question offers and an extra operation in an observed run.
+fn refuse(asked: &Asked<'_>) -> String {
+    refusal(asked.keys)
 }
 
-/// The verdict of a judge that finds every clause missing and the request unfaithful, and locates
-/// the last part the localization lists (R4 A11, E36).
-fn refuse_last_part(keys: &[String]) -> &'static str {
-    let last = keys.iter().filter(|k| k.starts_with("part-")).next_back();
-    match last.map(String::as_str) {
-        Some("part-0") => "part-0",
-        Some("part-1") => "part-1",
-        Some("part-2") => "part-2",
-        Some("part-3") => "part-3",
-        Some(_) => "another_part",
-        None => refuse(keys),
+/// The verdict of a judge that finds the request unfaithful and, asked each part alone, only the
+/// write missing (R4 A11, E36): the part it locates is the write, its path included, and the task
+/// it names is the one that writes it.
+fn missing_write(asked: &Asked<'_>) -> String {
+    if asked.offers("faithful") {
+        return "unfaithful".to_owned();
     }
+    if asked.part() && asked.clause == Some(SUM.1) {
+        return "missing".to_owned();
+    }
+    if asked.pointer() && asked.clause == Some(SUM.1) {
+        return WRITER.to_owned();
+    }
+    approve(asked)
 }
+
+/// The task question's option naming the COLD candidate's write task.
+const WRITER: &str = "task-write_output";
 
 /// The verdict of a judge that abstains on every question.
-fn abstain(_: &[String]) -> &'static str {
-    "none"
+fn abstain(_: &Asked<'_>) -> String {
+    "none".to_owned()
 }
 
 impl ProviderInferDyn for Judging<'_> {
@@ -223,15 +261,9 @@ impl ProviderInferDyn for Judging<'_> {
                 .unwrap_or_default(),
             _ => Vec::new(),
         };
-        let verifier = keys
-            .iter()
-            .any(|k| k == "faithful" || k == "carried" || k == "another_part");
-        if !verifier {
+        if !verifier(&keys) {
             return self.inner.infer(request).await;
         }
-        let choice = (self.verdict)(&keys);
-        self.judged.lock().unwrap().push(keys);
-        self.systems.lock().unwrap().push(first_text(&request));
         let said = request
             .messages
             .last()
@@ -247,6 +279,19 @@ impl ProviderInferDyn for Judging<'_> {
             .and_then(|rest| rest.split("\n\nOPTIONS:").next())
             .and_then(|json| serde_json::from_str(json).ok())
             .unwrap_or(Value::Null);
+        let choice = {
+            let mut judged = self.judged.lock().unwrap();
+            judged.push(keys.clone());
+            let whole = |keys: &Vec<String>| keys.iter().any(|k| k == "faithful");
+            let asked = Asked {
+                keys: &keys,
+                clause: state["clause"]["text"].as_str(),
+                spanned: state["clause"]["span"].is_array(),
+                requests: judged.iter().filter(|keys| whole(keys)).count(),
+            };
+            (self.verdict)(&asked)
+        };
+        self.systems.lock().unwrap().push(first_text(&request));
         self.states.lock().unwrap().push(state);
         Ok(InferResponse::new(
             vec![ContentBlock::Text {
@@ -987,8 +1032,10 @@ async fn the_judge_and_the_repair_read_the_preserved_original() {
 }
 
 /// The part a judge locates reaches the repair as the request's own intact phrase (R4 A11, E36):
-/// « write the sum to ./out/result.json » is never cut at the dots of its path into « write the
-/// sum to », so the repair reads the defect it must correct, target included.
+/// asked alone, « write the sum to ./out/result.json » is the one part found missing, and the
+/// judge names the task that writes it; the part is never cut at the dots of its path into
+/// « write the sum to », so the repair reads the defect it must correct, target included, with
+/// the judge's reason, and nothing else.
 #[tokio::test]
 async fn a_located_part_reaches_the_repair_whole() {
     let sum = format!("{GENERATED} // 0");
@@ -998,11 +1045,23 @@ async fn a_located_part_reaches_the_repair_whole() {
         plan(SUM).to_string(),
         program(&sum),
     ]);
-    let judge = Judging::new(&seat, refuse_last_part);
+    let judge = Judging::new(&seat, missing_write);
     let out = compiled_as(&judge, SUM, 1).await;
     assert_eq!(authored(&out), ["plan", "transform", "repair", "transform"]);
+    let first = &out.provenance.decision.as_ref().unwrap()["semantic_verification"][0];
+    let note = "the judge points to the task write_output";
+    let noted = (&first["defects"], &first["notes"]);
+    let want = (&json!([SUM.1]), &json!([{"defect": SUM.1, "note": note}]));
+    assert_eq!(noted, want, "{first:#}");
+    let questions = first["questions"].as_array().cloned().unwrap_or_default();
+    let pointed = (questions.iter()).find(|record| record["role"] == "judge_point");
+    let asked = pointed.map(|p| (&p["question"], &p["choice"], &p["clause"]));
+    let clause = json!({"text": SUM.1, "restricts": false});
+    let want = (&json!("verify-point-2"), &json!(WRITER), &clause);
+    assert_eq!(asked, Some(want), "{first:#}");
     let repair = seat.said(2);
-    assert!(repair.contains(&format!("\n- {}\n", SUM.1)), "{repair}");
+    let listed = format!("\n- {} ({note})\n", SUM.1);
+    assert!(repair.contains(&listed), "{repair}");
 }
 
 /// A computation the engine does not type is written as the value the jq program a seat
@@ -1078,25 +1137,6 @@ async fn a_synthesized_computation_to_csv_yaml_or_toml_passes_through_convert() 
     assert!(conventions.contains(
         "to a csv, yaml or toml file it first passes through `nika:convert` from json, whose accepted input shapes apply"
     ));
-}
-
-/// A judge that abstains settles nothing (R4 A11): no defect to repair from, no repair call,
-/// the request INCOMPLETE naming what the judge could not settle.
-#[tokio::test]
-async fn an_abstaining_judge_keeps_the_request_incomplete() {
-    let sum = format!("{GENERATED} // 0");
-    let seat = Scripted::new(vec![plan(SUM).to_string(), program(&sum)]);
-    let judge = Judging::new(&seat, abstain);
-    let out = compiled(&judge).await;
-    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
-    assert_eq!(authored(&out), ["plan", "transform"]);
-    assert!(!judge.judged().is_empty());
-    assert!(
-        out.diagnostics
-            .iter()
-            .any(|d| d.target == "semantic_verification" && d.message.contains("could not settle")),
-        "{out:#?}"
-    );
 }
 
 /// A bound stated as its own constraint beside the seat's program clause (R4 A11, B21 T3):
@@ -1194,144 +1234,6 @@ async fn a_repair_from_a_duty_the_core_names_is_not_told_a_judge_compared() {
             .any(|q| q.key == "intent.clarification"),
         "{out:#?}"
     );
-}
-
-/// The READY record of the live request and its candidate, judged in its first compile by the
-/// explicit approving double.
-async fn judged_record() -> (Value, String) {
-    let sum = format!("{GENERATED} // 0");
-    let seat = Scripted::new(vec![plan(SUM).to_string(), program(&sum)]);
-    let judge = Judging::new(&seat, approve);
-    let out = compiled(&judge).await;
-    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
-    (
-        out.provenance.plan.clone().unwrap(),
-        out.candidate.clone().unwrap(),
-    )
-}
-
-/// A judge double's verdict over the keys each question offers ([`approve`], [`refuse`],
-/// [`abstain`]).
-type JudgeVerdict = fn(&[String]) -> &'static str;
-
-/// An answer round whose own judge contradicts the record or leaves its remainder unapproved is
-/// never READY (R4 A11, Q2): the record a first compile judged READY replays its same bytes,
-/// the round asks its judge the remainder only (no plan, transform, repair or whole-request
-/// call), and a refusal or an abstention keeps it INCOMPLETE, naming the clause.
-#[tokio::test]
-async fn an_answer_round_whose_judge_refuses_the_remainder_is_incomplete() {
-    let (record, candidate) = judged_record().await;
-    let cases: [(JudgeVerdict, &str); 2] =
-        [(refuse, "does not carry"), (abstain, "could not settle")];
-    for (verdict, named) in cases {
-        let seat = Scripted::new(vec![plan(SUM).to_string()]);
-        let judge = Judging::new(&seat, verdict);
-        let policy = AuthoringPolicy::new("mock/authoring", 1024, Duration::from_secs(2));
-        let request = CompileRequest::create(intent(SUM))
-            .with_plan(record.clone())
-            .with_hot_policy(HotPolicy::Off)
-            .with_authoring_policy(policy);
-        let out = compile_with_provider(&request, &judge).await.unwrap();
-        assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
-        assert_eq!(out.candidate.as_deref(), Some(candidate.as_str()));
-        assert_eq!(seat.calls(), 0, "{out:#?}");
-        let asked = judged(&out);
-        assert!(!asked.is_empty(), "{out:#?}");
-        assert!(asked.iter().all(|role| role == "judge_clause"), "{asked:?}");
-        assert_eq!(asked.len(), judge.judged().len());
-        assert!(
-            out.diagnostics
-                .iter()
-                .any(|d| d.target == "semantic_verification" && d.message.contains(named)),
-            "{out:#?}"
-        );
-    }
-}
-
-/// Nothing a record or a request carries is a judgment (R4 A11, Q2, labelled negatives): a
-/// record forged with judged fields, and answers keyed as the judge's own questions, are never
-/// READY; the plain replay emits the same bytes with zero calls, its remainder named.
-#[tokio::test]
-async fn a_forged_judgment_settles_nothing() {
-    let (record, candidate) = judged_record().await;
-    let mut forged = record.clone();
-    forged["judgments"] = json!([{"clause": SUM.0, "disposition": "carried", "seat": "a/judge"}]);
-    forged["semantic_verification"] = json!([{"defects": [], "unknown": []}]);
-    let request = CompileRequest::create(intent(SUM)).with_plan(forged);
-    let replayed = nika_compile::compile(&request).unwrap();
-    assert_ne!(replayed.status, CompileStatus::Ready, "{replayed:#?}");
-    let answered = CompileRequest::create(intent(SUM))
-        .with_plan(record)
-        .answer("verify-request", "\"faithful\"")
-        .answer("verify-clause-0", "\"carried\"");
-    let replayed = nika_compile::compile(&answered).unwrap();
-    assert_ne!(replayed.status, CompileStatus::Ready, "{replayed:#?}");
-    assert!(replayed.provenance.authoring.is_none());
-    let plain = nika_compile::compile(
-        &CompileRequest::create(intent(SUM)).with_plan(judged_record().await.0),
-    )
-    .unwrap();
-    assert_eq!(plain.status, CompileStatus::Incomplete, "{plain:#?}");
-    assert_eq!(plain.candidate.as_deref(), Some(candidate.as_str()));
-}
-
-/// Only a judgment bound to this request, plan and candidate settles its clause (R4 A11),
-/// through the core's own replay door: the right judgments are READY (the positive control);
-/// judgments bound to other bytes (stale), naming another span, or naming another clause settle
-/// nothing, and a whole-request replay waits for its own judgment.
-#[tokio::test]
-async fn only_an_active_judgment_bound_to_its_candidate_settles_its_clause() {
-    let (record, candidate) = judged_record().await;
-    let text = intent(SUM);
-    let request = CompileRequest::create(text.clone()).with_plan(record.clone());
-    let replay = |judgments: &[Judgment], whole: bool| {
-        let mut out = nika_compile::surface::initial();
-        nika_compile::surface::replay_judged(&text, &record, &request, judgments, whole, &mut out)
-            .unwrap();
-        out
-    };
-    let unjudged = replay(&[], false);
-    assert_eq!(unjudged.status, CompileStatus::Incomplete, "{unjudged:#?}");
-    let open = unjudged.provenance.decision.as_ref().unwrap()["pending"]["open"].clone();
-    let clauses: Vec<String> = open
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|duty| duty["clause"].as_str().unwrap().to_owned())
-        .collect();
-    assert!(!clauses.is_empty(), "{open:#}");
-    let mut plan = Plan::from_json(&record).unwrap();
-    promote_stated_rules(&mut plan, &text);
-    let bound = Binding::of(&text, &request, &plan, &candidate);
-    let judge = |clause: &str, binding: &Binding| {
-        let at = text.find(clause).unwrap();
-        let span = (at, at + clause.len());
-        Judgment::new(
-            clause,
-            span,
-            Disposition::Carried,
-            "a/judge",
-            "q",
-            binding.clone(),
-        )
-    };
-    let right: Vec<Judgment> = clauses.iter().map(|c| judge(c, &bound)).collect();
-    assert_eq!(replay(&right, false).status, CompileStatus::Ready);
-    let other = Binding::of(&text, &request, &plan, "nika: another-candidate\n");
-    let stale: Vec<Judgment> = clauses.iter().map(|c| judge(c, &other)).collect();
-    assert_eq!(replay(&stale, false).status, CompileStatus::Incomplete);
-    let moved: Vec<Judgment> = right
-        .iter()
-        .cloned()
-        .map(|mut j| {
-            j.span = (0, 4);
-            j
-        })
-        .collect();
-    assert_eq!(replay(&moved, false).status, CompileStatus::Incomplete);
-    let elsewhere = vec![judge(SUM.1, &bound)];
-    assert_eq!(replay(&elsewhere, false).status, CompileStatus::Incomplete);
-    assert_eq!(replay(&right, true).status, CompileStatus::Incomplete);
 }
 
 /// The request of SUM with its computation stated a second time, and the seat's plan naming

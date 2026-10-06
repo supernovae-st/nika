@@ -377,7 +377,8 @@ async fn resolve_create<P: ProviderInferDyn>(
                     );
                     return Ok(out);
                 }
-                return transform::resume(intent, assembly_request, policy, provider, out).await;
+                let seats = (policy, provider, cognition.seat);
+                return transform::resume(intent, assembly_request, seats, out).await;
             }
             return Ok(out);
         }
@@ -386,7 +387,13 @@ async fn resolve_create<P: ProviderInferDyn>(
             .filter(|policy| policy_bounded(policy))
             .zip(cognition.provider);
         let judges = (cognition.seat, provider);
-        return verify::replayed(intent, record, assembly_request, judges, false, out).await;
+        // Every plan but the reader's own HOT plan (a model's COLD or WARM plan, a record with no
+        // strategy word or an unknown one) is READY only on a judgment of the whole request over
+        // the bytes this round replays (R4 A11): no judgment a record carries counts, and an
+        // answer changes the bytes. Fail closed.
+        let strategy = record.get("strategy").and_then(Value::as_str);
+        let pending = strategy != Some(Strategy::Hot.word());
+        return verify::replayed(intent, record, assembly_request, judges, pending, out).await;
     }
     // The exact grammar keeps its zero-call, fail-closed path when a provider is permitted.
     if let Ok(Some(plan)) = super::support::resolve(intent) {
@@ -573,7 +580,8 @@ async fn choose_create<P: ProviderInferDyn>(
         if settled_all {
             route.push("warm".to_owned());
             record_route(&mut out, &route);
-            return verify::judged_warm(intent, &reading.plan, seat, assembly_request, out).await;
+            let judged = verify::judged_warm(intent, &reading.plan, seat, assembly_request, out);
+            return Box::pin(judged).await;
         }
         route.push(
             if refused {

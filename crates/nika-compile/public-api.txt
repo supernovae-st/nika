@@ -1993,6 +1993,7 @@ pub type nika_compile::CompileQuestion::Output = T
 pub nika_compile::CompileRequest::answers: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub nika_compile::CompileRequest::authoring: core::option::Option<nika_compile::AuthoringPolicy>
 pub nika_compile::CompileRequest::authoring_knowledge: core::option::Option<nika_compile::AuthoringKnowledge>
+pub nika_compile::CompileRequest::declined: alloc::vec::Vec<serde_json::value::Value>
 pub nika_compile::CompileRequest::hot: nika_compile::HotPolicy
 pub nika_compile::CompileRequest::input: nika_compile::surface::Input
 pub nika_compile::CompileRequest::knowledge: core::option::Option<serde_json::value::Value>
@@ -2010,6 +2011,7 @@ pub fn nika_compile::CompileRequest::set_constant(base_workflow: impl core::conv
 pub fn nika_compile::CompileRequest::with_admitted_money(self, spans: alloc::vec::Vec<core::ops::range::Range<usize>>) -> Self
 pub fn nika_compile::CompileRequest::with_authoring_knowledge(self, pack: nika_compile::AuthoringKnowledge) -> Self
 pub fn nika_compile::CompileRequest::with_authoring_policy(self, policy: nika_compile::AuthoringPolicy) -> Self
+pub fn nika_compile::CompileRequest::with_declined(self, attempts: alloc::vec::Vec<serde_json::value::Value>) -> Self
 pub fn nika_compile::CompileRequest::with_hot_policy(self, hot: nika_compile::HotPolicy) -> Self
 pub fn nika_compile::CompileRequest::with_knowledge(self, snapshot: serde_json::value::Value) -> Self
 pub fn nika_compile::CompileRequest::with_observed_preparation(self) -> Self
