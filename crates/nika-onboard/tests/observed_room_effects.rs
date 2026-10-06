@@ -344,3 +344,78 @@ async fn a_wait_under_the_bound_completes_with_its_elapsed_time() {
     );
     assert!(completed(&report) && report.effects.is_none());
 }
+
+/// An envelope default is not a model requirement without an infer/agent task.
+/// The real room's conservative admission must therefore accept this pure body
+/// even though the same literal would be a wrong-seat request on a provider task.
+#[tokio::test]
+async fn an_unused_wrong_seat_envelope_does_not_block_the_observed_room() {
+    const TEST: &str = concat!(
+        module_path!(),
+        "::an_unused_wrong_seat_envelope_does_not_block_the_observed_room"
+    );
+    let model = "openai/deepseek-v4-flash-0731";
+    assert!(nika_providers::resolve_refusal(model).is_some());
+    let world = World::new(&[]);
+    let before = world.files();
+    let source =
+        slow(&world, "1ms").replacen("nika: slow\n", &format!("nika: slow\nmodel: {model}\n"), 1);
+    let workflow = nika_schema::parse(
+        &source,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    assert!(nika_check::check(&workflow).requirements.models.is_empty());
+    assert!(nika_execution::model_admission_findings(&workflow, None).is_empty());
+    room_support::door_admits(&source).expect("conservative room door admits unused default");
+    let report = rehearsed(TEST, "unused-default", &world.room(), &source, &[], &[]).await;
+    assert!(
+        matches!(&report.outcome, Rehearsal::Passed { outputs }
+            if outputs.len() == 1 && outputs[0].text == "late" && outputs[0].written),
+        "{report:?}"
+    );
+    assert!(completed(&report) && report.effects.is_none(), "{report:?}");
+    assert!(report.room.prepared && report.room.cleaned, "{report:?}");
+    assert!(
+        !report.admitted_digest.is_empty(),
+        "the room actually crossed admission"
+    );
+    assert!(room_support::bound_to(&report, &source));
+    assert_eq!(world.files(), before, "only the disposable room ran");
+}
+
+/// When a provider task actually uses that default, screening refuses before
+/// the conservative model-admission door, regardless of API endpoint config.
+#[tokio::test]
+async fn a_used_wrong_seat_model_is_screened_before_room_admission() {
+    const TEST: &str = concat!(
+        module_path!(),
+        "::a_used_wrong_seat_model_is_screened_before_room_admission"
+    );
+    let model = "openai/deepseek-v4-flash-0731";
+    let world = World::new(&[]);
+    let before = world.files();
+    for (kind, fixture) in [("infer", INFER), ("agent", AGENT)] {
+        let source = fixture.replace("mock/echo", model);
+        let workflow = nika_schema::parse(
+            &source,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let checked = nika_check::check(&workflow);
+        assert_eq!(checked.requirements.models.len(), 1);
+        assert_eq!(checked.requirements.models[0].model, model);
+        assert!(!nika_execution::model_admission_findings(&workflow, None).is_empty());
+        let report = rehearsed(TEST, kind, &world.room(), &source, &[], &[]).await;
+        assert!(refused_before_any_room(&report, "provider"), "{report:?}");
+        assert_eq!(report.observation.refusal, Some(Refusal::Effect));
+        assert!(
+            report.admitted_digest.is_empty(),
+            "the model-admission door was never reached"
+        );
+        assert!(room_support::bound_to(&report, &source));
+        assert_eq!(world.files(), before);
+    }
+}

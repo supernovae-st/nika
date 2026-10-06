@@ -167,7 +167,7 @@ outputs:                              # what the workflow returns · symmetric t
 | [16 projections](./16-projections.md) | The oracle surface · one canonical projection (graph_format:3) served byte-identical across CLI · LSP · MCP · the LSP semantic document (`semantic_document_format: 1`) wraps it with spans + one-word `reason` · the additive arc (holes · actions · capabilities over the frozen IR) |
 | [17 trace](./17-trace.md) | The run journal · NDJSON frames chained by sha256 (`trace_format: 2` · the prologue manifest · the closed kind vocabulary) · the REQUIRED permit-decision witness (NEP-0007 · granted and refused alike) · the differential check ⇔ run equivalence law · graved from an observed run |
 
-**Stdlib** (versioned independently · not a spec section) · [stdlib/](../stdlib/): **<!-- canon:providers -->17<!-- /canon --> providers · <!-- canon:extract_modes -->10<!-- /canon --> extract modes · <!-- canon:builtins -->29<!-- /canon --> builtins**.
+**Stdlib** (versioned independently · not a spec section) · [stdlib/](../stdlib/): **<!-- canon:providers -->18<!-- /canon --> providers · <!-- canon:extract_modes -->10<!-- /canon --> extract modes · <!-- canon:builtins -->29<!-- /canon --> builtins**.
 
 ---
 

@@ -46,6 +46,7 @@ fn connected(root: &Path, home: &Path, calls: &Arc<AtomicUsize>) -> SessionRunti
         }],
         api_keys: vec!["deepseek".into()],
         locals: vec![],
+        provider_context: Vec::new(),
     };
     let calls = Arc::clone(calls);
     let mut session = SessionRuntime::open_with(

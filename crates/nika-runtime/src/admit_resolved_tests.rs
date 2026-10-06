@@ -81,6 +81,100 @@ async fn run_refused(runtime: &MockRuntime, wf: &RawWorkflow) -> RuntimeError {
     err
 }
 
+fn custom_openai_probe() -> nika_providers::probe::ProviderProbe {
+    use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
+    ProviderProbe::new(
+        "openai",
+        true,
+        true,
+        "OPENAI_API_KEY",
+        true,
+        ProviderReadiness::new(
+            true,
+            true,
+            None,
+            None,
+            false,
+            ExecutionLocus::Remote,
+            nika_types::access::AccessClass::Api,
+        ),
+        "https://api.scaleway.ai/11111111-2222-4333-8444-555555555555/v1/chat/completions",
+    )
+}
+
+#[test]
+fn custom_endpoint_admission_preserves_unknown_cost_cap() {
+    let wf = parse(
+        "nika: custom\nmodel: openai/deepseek-v4-flash-0731\ntasks:\n  say:\n    infer: { prompt: hi, max_tokens: 512 }\n",
+    );
+    let report = nika_check::check(&wf);
+    let overrides = BTreeMap::new();
+    assert!(gates(&wf, &report, &overrides, None, None, (None, &[], None)).is_err());
+    let probes = [custom_openai_probe()];
+    assert!(gates(&wf, &report, &overrides, None, None, (None, &probes, None)).is_ok());
+    let refusal = gates(
+        &wf,
+        &report,
+        &overrides,
+        Some(1.0),
+        None,
+        (None, &probes, None),
+    )
+    .expect_err("an endpoint does not supply a tariff");
+    assert!(refusal.to_string().contains("unpriced"), "{refusal}");
+}
+
+#[tokio::test]
+async fn selected_harness_rejects_wrong_seat_before_events_even_with_custom_api_endpoint() {
+    let wf = parse(
+        "nika: custom\nmodel: openai/deepseek-v4-flash-0731\ntasks:\n  say:\n    infer: { prompt: hi, max_tokens: 512 }\n",
+    );
+    for planned in [true, false] {
+        let runtime =
+            runtime_with(MockShell::new()).with_access_probes(vec![custom_openai_probe()]);
+        let runtime = if planned {
+            runtime.with_access_plan(nika_providers::ExecutionAccessPlan::new(
+                BTreeMap::new(),
+                Some("codex".into()),
+                Some("codex".into()),
+                None,
+            ))
+        } else {
+            runtime.with_harness_seat_id(Some("codex".into()))
+        };
+        let error = run_refused(&runtime, &wf).await;
+        assert_eq!(error.spec_code(), "NIKA-1707");
+        assert!(
+            error
+                .to_string()
+                .contains("scaleway/deepseek-v4-flash-0731")
+        );
+    }
+}
+
+#[test]
+fn harness_budget_preflight_cannot_borrow_the_direct_api_endpoint() {
+    let wf = parse(
+        "nika: custom\nmodel: openai/deepseek-v4-flash-0731\ntasks:\n  say:\n    infer: { prompt: hi, max_tokens: 512 }\n",
+    );
+    let report = nika_check::check(&wf);
+    let error = crate::budget_floor_refusal_bound_over(
+        &wf,
+        &report,
+        Some(1.0),
+        None,
+        &BTreeMap::new(),
+        true,
+        &[custom_openai_probe()],
+    )
+    .expect("wrong seat still refuses on a harness");
+    assert!(
+        error
+            .to_string()
+            .contains("scaleway/deepseek-v4-flash-0731")
+    );
+}
+
 /// W0-D-R1 / issue 1297: `infer.model: ${{ inputs.model }}` is a
 /// run-time seat (the MODELS rung leaves it unjudged). The static
 /// report has no unpriced-cloud endpoint — that is the door the

@@ -150,7 +150,7 @@ pub fn seat_answers_here(seat: &str) -> bool {
 }
 
 /// The deterministic census — presence only, never a dial, never a value.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct IntelligenceCensus {
     /// The harness seats this machine holds.
@@ -160,6 +160,19 @@ pub struct IntelligenceCensus {
     pub api_keys: Vec<String>,
     /// Configured local routes, including catalog defaults; no reachability is established.
     pub locals: Vec<String>,
+    /// Effective endpoint facts from the same host probe, never key values or authority.
+    pub(crate) provider_context: Vec<nika_providers::probe::ProviderProbe>,
+}
+
+impl std::fmt::Debug for IntelligenceCensus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IntelligenceCensus")
+            .field("seats", &self.seats)
+            .field("api_keys", &self.api_keys)
+            .field("locals", &self.locals)
+            .field("provider_context_count", &self.provider_context.len())
+            .finish()
+    }
 }
 
 impl IntelligenceCensus {
@@ -170,6 +183,7 @@ impl IntelligenceCensus {
             seats: Vec::new(),
             api_keys: Vec::new(),
             locals: Vec::new(),
+            provider_context: Vec::new(),
         }
     }
 
@@ -220,6 +234,7 @@ impl IntelligenceCensus {
             seats,
             api_keys,
             locals,
+            provider_context: probe.providers.clone(),
         }
     }
 
@@ -646,6 +661,42 @@ mod tests {
     }
 
     #[test]
+    fn scaleway_choice_round_trips_separately_from_openai() {
+        let mut c = census();
+        c.api_keys = vec!["openai".into(), "scaleway".into()];
+        assert_eq!(annotated_keys(&c.api_keys, &|_| None), "openai · scaleway");
+        let pref = c
+            .choose("2 scaleway/deepseek-v4-flash-0731")
+            .expect("explicit Scaleway");
+        assert_eq!(
+            pref.kind,
+            IntelligenceKind::Api {
+                provider: "scaleway".into()
+            }
+        );
+        assert_eq!(
+            pref.model.as_deref(),
+            Some("scaleway/deepseek-v4-flash-0731")
+        );
+        let home = tempfile::tempdir().expect("disposable home");
+        pref.save(home.path()).expect("save");
+        assert_eq!(
+            UserIntelligencePreference::load(home.path()).expect("reopen"),
+            pref
+        );
+        let oa = c
+            .choose("2 openai/gpt-4o-mini")
+            .expect("OpenAI remains separate");
+        assert_eq!(
+            oa.kind,
+            IntelligenceKind::Api {
+                provider: "openai".into()
+            }
+        );
+        assert_eq!(oa.model.as_deref(), Some("openai/gpt-4o-mini"));
+    }
+
+    #[test]
     fn configured_local_routes_never_claim_a_reachability_probe() {
         let mut c = census();
         c.locals = vec!["ollama".to_owned(), "lmstudio".to_owned()];
@@ -673,6 +724,43 @@ mod tests {
         assert!(!why.contains("reachable"));
     }
 
+    #[test]
+    fn census_debug_keeps_endpoint_credentials_private() {
+        use nika_providers::probe::{
+            AccessClass, ExecutionLocus, ProviderProbe, ProviderReadiness,
+        };
+        let mut census = IntelligenceCensus::empty();
+        let endpoint = "https://debug-user:debug-secret@gateway.invalid/chat?key=debug-query";
+        census.provider_context.push(ProviderProbe::new(
+            "openai",
+            true,
+            true,
+            "NIKA_OPENAI_API_KEY",
+            false,
+            ProviderReadiness::new(
+                true,
+                true,
+                None,
+                None,
+                false,
+                ExecutionLocus::Remote,
+                AccessClass::Api,
+            ),
+            endpoint,
+        ));
+        let shown = format!("{census:?}");
+        for private in [
+            "debug-user",
+            "debug-secret",
+            "gateway.invalid",
+            "debug-query",
+        ] {
+            assert!(!shown.contains(private));
+        }
+        assert!(shown.contains("provider_context_count: 1"));
+        assert_eq!(census.provider_context[0].endpoint, endpoint);
+    }
+
     fn census() -> IntelligenceCensus {
         IntelligenceCensus {
             seats: vec![
@@ -691,6 +779,7 @@ mod tests {
             ],
             api_keys: vec!["mistral".to_owned()],
             locals: vec![],
+            provider_context: Vec::new(),
         }
     }
 
@@ -1189,6 +1278,7 @@ mod acp_choice_tests {
             }],
             api_keys: vec![],
             locals: vec![],
+            provider_context: Vec::new(),
         };
         let pref = census
             .choose("1 acp:claude-code/claude-opus-5-5[1m]")
@@ -1232,6 +1322,7 @@ mod acp_choice_tests {
             }],
             api_keys: vec![],
             locals: vec![],
+            provider_context: Vec::new(),
         };
         let pref = census.choose("1 acp:claude-code").expect("ACP choice");
         let selected = ResolvedSessionIntelligence::resolve(&pref, &census);

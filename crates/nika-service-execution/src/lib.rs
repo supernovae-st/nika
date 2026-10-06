@@ -627,8 +627,13 @@ impl AuthorizedRuntime {
         // A structurally clean captured report cannot waive the MODELS
         // judgments under the actual override chosen by CLI, ARM or Serve.
         // This gate precedes even the runtime prologue (zero events/effects).
-        if !nika_execution::model_admission_findings(&self.workflow, self.model_override.as_deref())
-            .is_empty()
+        if !nika_execution::model_admission_findings_for_plan(
+            &self.workflow,
+            self.model_override.as_deref(),
+            self.runtime.access_probes(),
+            self.runtime.access_plan(),
+        )
+        .is_empty()
         {
             return Err(RuntimeError::DirtyReport);
         }

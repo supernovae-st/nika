@@ -340,8 +340,15 @@ async fn validate_workflow(
     let project = Arc::clone(&state.project);
     let service = state.service;
     let workflow = definition.workflow().to_owned();
-    let admitted =
-        tokio::task::spawn_blocking(move || service.admit(&project, Path::new(&workflow))).await;
+    let admitted = tokio::task::spawn_blocking(move || {
+        service.admit_with_model_override_over(
+            &project,
+            Path::new(&workflow),
+            None,
+            &super::admission_probes(),
+        )
+    })
+    .await;
     match admitted {
         Ok(Ok(admitted)) => Ok(admitted),
         Ok(Err(error)) => Err(workflow_error_response(&error)),

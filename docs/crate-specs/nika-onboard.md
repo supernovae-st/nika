@@ -163,8 +163,10 @@ field) is validated against the installed catalogs and the project's configurati
 this engine does not carry is corrected under the reply, never presented as real. It moved
 here from `nika-session` on 2026-09-29 (the `meaning` precedent · D8 headroom);
 `nika_session::guard` re-exports it unchanged. Its model check is
-`nika_providers::resolve_refusal`, the #320 MODELS-rung law: a pure resolution, so this
-crate still never calls a provider. Its tests live beside it (`src/guard.rs`).
+`nika_providers::resolve_refusal_over`, the #320 MODELS-rung law over injected
+host endpoint observations. `audit_over` preserves a configured OpenAI-compatible
+route; the existing `audit` wrapper retains conservative profile defaults. Both
+are pure resolutions: this crate still never calls a provider. Its tests live beside it (`src/guard.rs`).
 
 ## The automation rail (read by Session)
 

@@ -53,8 +53,22 @@ impl ExecutionService {
         root: &Path,
         model_override: Option<&str>,
     ) -> Result<AdmittedExecution, ExecutionError> {
+        self.admit_with_model_override_over(project, root, model_override, &[])
+    }
+
+    /// Admit with effective provider endpoints supplied by the host.
+    ///
+    /// # Errors
+    /// Returns the same capture and admission refusals as [`Self::admit`].
+    pub fn admit_with_model_override_over(
+        &self,
+        project: &OwnedDir,
+        root: &Path,
+        model_override: Option<&str>,
+        probes: &[nika_providers::probe::ProviderProbe],
+    ) -> Result<AdmittedExecution, ExecutionError> {
         let snapshot = ExecutionSnapshot::capture(project, root, self.limits)?;
-        self.readmit_snapshot_with_model_override(snapshot, model_override)
+        self.readmit_snapshot_with_model_override_over(snapshot, model_override, probes)
     }
 
     /// Admit root bytes already captured by an interface, with transitive
@@ -84,9 +98,30 @@ impl ExecutionService {
         root_bytes: &[u8],
         model_override: Option<&str>,
     ) -> Result<AdmittedExecution, ExecutionError> {
+        self.admit_root_bytes_with_model_override_over(
+            project,
+            root,
+            root_bytes,
+            model_override,
+            &[],
+        )
+    }
+
+    /// Admit captured bytes with effective provider endpoints supplied by the host.
+    ///
+    /// # Errors
+    /// Returns the same refusals as [`Self::admit_root_bytes`].
+    pub fn admit_root_bytes_with_model_override_over(
+        &self,
+        project: &OwnedDir,
+        root: &Path,
+        root_bytes: &[u8],
+        model_override: Option<&str>,
+        probes: &[nika_providers::probe::ProviderProbe],
+    ) -> Result<AdmittedExecution, ExecutionError> {
         let snapshot =
             ExecutionSnapshot::capture_root_bytes(project, root, root_bytes, self.limits)?;
-        self.readmit_snapshot_with_model_override(snapshot, model_override)
+        self.readmit_snapshot_with_model_override_over(snapshot, model_override, probes)
     }
 
     /// Admit a workflow world with explicit project-level imports.
@@ -185,6 +220,20 @@ impl ExecutionService {
         snapshot: ExecutionSnapshot,
         model_override: Option<&str>,
     ) -> Result<AdmittedExecution, ExecutionError> {
+        self.readmit_snapshot_with_model_override_over(snapshot, model_override, &[])
+    }
+
+    /// Readmit root and child models against the same injected route context.
+    /// The context is neither serialized into the snapshot nor a model call.
+    ///
+    /// # Errors
+    /// Returns the same refusals as [`Self::readmit_snapshot`].
+    pub fn readmit_snapshot_with_model_override_over(
+        &self,
+        snapshot: ExecutionSnapshot,
+        model_override: Option<&str>,
+        probes: &[nika_providers::probe::ProviderProbe],
+    ) -> Result<AdmittedExecution, ExecutionError> {
         snapshot.revalidate(self.limits)?;
         let root = snapshot.root().to_owned();
         let root_text = snapshot
@@ -204,9 +253,9 @@ impl ExecutionService {
             let findings = crate::snapshot::report_findings(&root, &check);
             return Err(ExecutionError::CheckFailed { findings });
         }
-        validate_models(&root, &workflow, model_override)?;
+        validate_models(&root, &workflow, model_override, probes)?;
         let skills = validate_skills(&snapshot, &root, &workflow)?;
-        validate_child_worlds(&snapshot, &root)?;
+        validate_child_worlds(&snapshot, &root, probes)?;
         let execution_id = ExecutionId::generate();
         Ok(AdmittedExecution {
             execution_id,
@@ -522,7 +571,11 @@ fn validate_skills(
     })
 }
 
-fn validate_child_worlds(snapshot: &ExecutionSnapshot, root: &str) -> Result<(), ExecutionError> {
+fn validate_child_worlds(
+    snapshot: &ExecutionSnapshot,
+    root: &str,
+    probes: &[nika_providers::probe::ProviderProbe],
+) -> Result<(), ExecutionError> {
     for unit in snapshot.units() {
         if unit.logical_path() == root || unit.kind() != SnapshotUnitKind::Child {
             continue;
@@ -543,7 +596,7 @@ fn validate_child_worlds(snapshot: &ExecutionSnapshot, root: &str) -> Result<(),
                 findings: crate::snapshot::report_findings(unit.logical_path(), &report),
             });
         }
-        validate_models(unit.logical_path(), &workflow, None)?;
+        validate_models(unit.logical_path(), &workflow, None, probes)?;
         validate_skills(snapshot, unit.logical_path(), &workflow)?;
     }
     Ok(())
@@ -553,8 +606,9 @@ fn validate_models(
     logical_path: &str,
     workflow: &RawWorkflow,
     model_override: Option<&str>,
+    probes: &[nika_providers::probe::ProviderProbe],
 ) -> Result<(), ExecutionError> {
-    let findings = crate::model_admission_findings(workflow, model_override);
+    let findings = crate::model_admission_findings_over(workflow, model_override, probes);
     if findings.is_empty() {
         return Ok(());
     }

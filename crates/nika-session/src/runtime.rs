@@ -888,7 +888,12 @@ impl SessionRuntime {
             // In words only: a reply never becomes a file (the compiler is
             // the ONE door to a workflow · ADR-125 wave 5 retired here).
             Ok(reply) => {
-                let findings = self.known.audit(&reply.text);
+                let findings = self.known.audit_over(
+                    &reply.text,
+                    self.census
+                        .as_ref()
+                        .map_or(&[], |census| census.provider_context.as_slice()),
+                );
                 let shown = KnownWorld::correct(&reply.text, &findings);
                 self.remember(input, &shown);
                 TurnOutcome::Reply(shown)

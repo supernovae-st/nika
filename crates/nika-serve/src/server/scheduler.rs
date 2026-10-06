@@ -357,9 +357,11 @@ async fn prepare_claim(
             return Ok(None);
         }
         let admitted = service
-            .admit(
+            .admit_with_model_override_over(
                 &project,
                 Path::new(candidate.schedule.definition.workflow()),
+                None,
+                &super::admission_probes(),
             )
             .map_err(|_| ServerError::ScheduledAdmission)?;
         // The declared inputs are bound on EVERY fire against the workflow

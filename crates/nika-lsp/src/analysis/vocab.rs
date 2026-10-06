@@ -13,11 +13,11 @@
 //! The verb set + the envelope/task keys mirror the strict parser's own
 //! tables (`nika_schema::parser` `TOP_LEVEL_KEYS` + the closed task shape
 //! of spec `03-dag.md`). The provider list is mirrored-from-canon (the
-//! canonical 16-provider LLM catalog · spec `stdlib/providers-v0.1.md` +
+//! canonical LLM provider registry · spec `stdlib/providers-v0.1.md` +
 //! `spec/canon.yaml` SSOT); it is presented local/open-weight-first per
-//! the studio's vendor-agnostic ordering. A drift between this mirror and
-//! the catalog is caught the day `nika-lsp` grows a `nika-catalog` dep
-//! (deferred — v0.1 has no external-catalog dependency).
+//! the studio's vendor-agnostic ordering. Tests bind membership to the
+//! embedded canon and presentation to its design token, including the
+//! alphabetical tail for providers outside the explicit order.
 
 /// One vocabulary entry — a keyword/name with its one-line documentation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -192,11 +192,11 @@ pub const SCHEMA_KEYS: &[Entry] = &[
 
 /// The canonical LLM provider names for `model: <provider>/<name>`.
 ///
-/// MIRRORED-FROM-CANON: the 16-provider catalog (spec `canon.yaml` SSOT ·
+/// MIRRORED-FROM-CANON: the provider registry (spec `canon.yaml` SSOT ·
 /// `stdlib/providers-v0.1.md`). Ordered local/open-weight-first per the
 /// studio's vendor-agnostic presentation convention (the TEACHING surface
-/// leads with sovereign options). Keep in sync with the catalog when the
-/// `nika-catalog` dep lands.
+/// leads with sovereign options). Membership is checked against the embedded
+/// canon; providers outside its presentation order follow alphabetically.
 pub const PROVIDERS: &[Entry] = &[
     Entry {
         name: "ollama",
@@ -261,6 +261,14 @@ pub const PROVIDERS: &[Entry] = &[
     Entry {
         name: "mock",
         doc: "The in-engine deterministic mock provider (tests, offline).",
+    },
+    Entry {
+        name: "moonshot",
+        doc: "Moonshot AI models (cloud).",
+    },
+    Entry {
+        name: "scaleway",
+        doc: "Scaleway Generative APIs (cloud, separate endpoint and credentials).",
     },
 ];
 
@@ -339,7 +347,26 @@ mod tests {
     #[test]
     fn providers_are_local_first_and_complete() {
         let names: Vec<&str> = PROVIDERS.iter().map(|e| e.name).collect();
-        assert_eq!(names.len(), 16, "the canonical 16-provider catalog");
+        let provider_block = nika_pack::canon()
+            .split_once("\nproviders:\n")
+            .expect("the embedded canon carries the provider registry")
+            .1;
+        let mut canonical: Vec<&str> = provider_block
+            .lines()
+            .take_while(|line| line.is_empty() || line.starts_with([' ', '#']))
+            .filter_map(|line| line.trim().strip_prefix("- "))
+            .collect();
+        assert!(
+            !canonical.is_empty(),
+            "the canonical provider set is not empty"
+        );
+        canonical.sort_unstable();
+        let mut offered = names.clone();
+        offered.sort_unstable();
+        assert_eq!(
+            offered, canonical,
+            "completion membership follows the embedded canon"
+        );
         // local/open-weight first (vendor-agnostic teaching order)
         assert_eq!(names[0], "ollama");
         assert!(names.contains(&"anthropic"));
@@ -406,6 +433,12 @@ mod tests {
             &ours[..pinned.len()],
             pinned.as_slice(),
             "vocab::PROVIDERS drifted from the spec's presentation order token"
+        );
+        assert!(
+            ours[pinned.len()..]
+                .windows(2)
+                .all(|pair| pair[0] < pair[1]),
+            "providers outside the presentation token follow alphabetically"
         );
     }
 }

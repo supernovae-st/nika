@@ -93,6 +93,64 @@ fn a_root_override_cannot_waive_a_captured_childs_own_capacity_gate() {
     );
 }
 
+fn custom_openai_probe() -> nika_providers::probe::ProviderProbe {
+    use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
+    ProviderProbe::new(
+        "openai",
+        true,
+        true,
+        "OPENAI_API_KEY",
+        true,
+        ProviderReadiness::new(
+            true,
+            true,
+            None,
+            None,
+            false,
+            ExecutionLocus::Remote,
+            nika_types::access::AccessClass::Api,
+        ),
+        "https://api.scaleway.ai/11111111-2222-4333-8444-555555555555/v1/chat/completions",
+    )
+}
+
+#[test]
+fn custom_endpoint_context_survives_root_child_capture_and_readmission() {
+    let model = "openai/deepseek-v4-flash-0731";
+    let root = format!(
+        "nika: root\nmodel: {model}\ntasks:\n  say:\n    infer: {{ prompt: hi, max_tokens: 512 }}\n  call:\n    invoke: {{ workflow: ./child.nika }}\n"
+    );
+    let child = format!(
+        "nika: child\nmodel: {model}\ntasks:\n  say:\n    infer: {{ prompt: hi, max_tokens: 512 }}\n"
+    );
+    let (_tmp, owned) = project(&[("root.nika", &root), ("child.nika", &child)]);
+    let service = ExecutionService::default();
+    assert!(service.admit(&owned, Path::new("root.nika")).is_err());
+    let probes = [custom_openai_probe()];
+    let admitted = service
+        .admit_with_model_override_over(&owned, Path::new("root.nika"), None, &probes)
+        .expect("explicit compatible route");
+    assert_eq!(admitted.snapshot().text("root.nika"), Some(root.as_str()));
+    assert_eq!(admitted.snapshot().text("child.nika"), Some(child.as_str()));
+    let snapshot = admitted.snapshot().clone();
+    let digest = snapshot.digest().to_owned();
+    assert!(service.readmit_snapshot(snapshot.clone()).is_err());
+    let reopened = service
+        .readmit_snapshot_with_model_override_over(snapshot, None, &probes)
+        .expect("same endpoint context readmits both worlds");
+    assert_eq!(reopened.snapshot().digest(), digest);
+    let captured = service
+        .admit_root_bytes_with_model_override_over(
+            &owned,
+            Path::new("root.nika"),
+            root.as_bytes(),
+            None,
+            &probes,
+        )
+        .expect("captured bytes use the same endpoint context");
+    assert_eq!(captured.snapshot().digest(), digest);
+}
+
 fn project(files: &[(&str, &str)]) -> (tempfile::TempDir, OwnedDir) {
     let tmp = tempfile::tempdir().expect("tempdir");
     for (name, body) in files {

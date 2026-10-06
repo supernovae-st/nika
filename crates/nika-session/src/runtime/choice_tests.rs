@@ -32,6 +32,7 @@ fn an_unchosen_session_asks_in_context_and_resumes_the_waiting_line() {
         }],
         api_keys: vec![],
         locals: vec![],
+        provider_context: Vec::new(),
     };
     let factory: ReasonerFactory = Box::new(|resolved| match &resolved.kind {
         IntelligenceKind::None => Box::new(NoReasoner),
@@ -117,6 +118,7 @@ fn an_ambiguous_app_choice_waits_without_saving_or_resuming() {
             .to_vec(),
         api_keys: vec![],
         locals: vec![],
+        provider_context: Vec::new(),
     };
     let selections = Arc::new(AtomicUsize::new(0));
     let selected = Arc::clone(&selections);
@@ -407,6 +409,7 @@ fn a_kept_choice_that_cannot_answer_asks_in_context_and_resumes_the_line() {
         }],
         api_keys: vec!["mistral".to_owned()],
         locals: vec!["ollama".into()],
+        provider_context: Vec::new(),
     };
     let pref = UserIntelligencePreference::new(
         IntelligenceKind::Harness {
@@ -500,6 +503,7 @@ fn unsettled_work_under_a_kept_unusable_choice_asks_in_context() {
             }],
             api_keys: vec![],
             locals: vec![],
+            provider_context: Vec::new(),
         },
         &pref,
         None,
@@ -621,6 +625,7 @@ fn the_intelligence_can_be_rechosen_in_session() {
         }],
         api_keys: vec![],
         locals: vec![],
+        provider_context: Vec::new(),
     };
     let pref = UserIntelligencePreference::new(IntelligenceKind::None, None);
     let factory: ReasonerFactory = Box::new(|resolved| match &resolved.kind {

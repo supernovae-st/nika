@@ -39,7 +39,7 @@ tasks:
 > `ollama/qwen3.5:4b` · zero key, nothing leaves your machine
 > (`ollama pull qwen3.5:4b` first · or `lmstudio/…` · `llamacpp/…` ·
 > `vllm/…`). Prefer cloud? Swap the one `model:` line for any of the
-> <!-- canon:providers -->17<!-- /canon --> providers ·
+> <!-- canon:providers -->18<!-- /canon --> providers ·
 > `mistral/mistral-small` · `anthropic/claude-haiku-4-5` ·
 > `openai/gpt-5.2` · the rest of the file doesn't change.
 
@@ -248,7 +248,7 @@ a caller receives).
 - **[templates/](./templates/)**: writing your own? Instantiate a
   skeleton (6 valid, slot-marked) instead of starting blank, the
   deterministic path agents follow ([protocol](AGENTS.md))
-- **[stdlib/](./stdlib/)**: the <!-- canon:providers -->17<!-- /canon --> providers · <!-- canon:extract_modes -->10<!-- /canon --> extract modes · <!-- canon:builtins -->29<!-- /canon --> builtins
+- **[stdlib/](./stdlib/)**: the <!-- canon:providers -->18<!-- /canon --> providers · <!-- canon:extract_modes -->10<!-- /canon --> extract modes · <!-- canon:builtins -->29<!-- /canon --> builtins
 - **[examples/](./examples/)**: the numbered path + the jobs, all shipped and CI-gated (the count lives in [examples/manifest.yaml](./examples/manifest.yaml))
 - **[README.md](./README.md)**: why a language · repo layout · governance
 

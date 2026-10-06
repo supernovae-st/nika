@@ -13,16 +13,27 @@ pub(super) struct AdmittedWorld {
     pub(super) trace_id: nika_types::id::TraceId,
     pub(super) snapshot_digest: String,
     snapshot: nika_execution::ExecutionSnapshot,
+    probes: Vec<nika_providers::probe::ProviderProbe>,
     display_root: std::path::PathBuf,
     task_scope: Option<String>,
     trace: bool,
 }
 
 impl AdmittedWorld {
+    #[cfg(test)]
     fn from_context(
         context: nika_execution::ExecutionContext<'_>,
         display_root: std::path::PathBuf,
         trace: bool,
+    ) -> Option<Self> {
+        Self::from_context_over(context, display_root, trace, &[])
+    }
+
+    fn from_context_over(
+        context: nika_execution::ExecutionContext<'_>,
+        display_root: std::path::PathBuf,
+        trace: bool,
+        probes: &[nika_providers::probe::ProviderProbe],
     ) -> Option<Self> {
         let execution_id = context.execution_id();
         let trace_id = context.trace_id();
@@ -41,6 +52,7 @@ impl AdmittedWorld {
             trace_id,
             snapshot_digest,
             snapshot,
+            probes: probes.to_vec(),
             display_root,
             task_scope: None,
             trace,
@@ -70,12 +82,21 @@ impl AdmittedWorld {
     ) -> Result<(nika_execution::ExecutionSession, Self), Box<RunVerdict>> {
         let service = nika_execution::ExecutionService::default();
         let admitted = service
-            .readmit_snapshot_with_model_override(self.snapshot.clone(), model_override)
+            .readmit_snapshot_with_model_override_over(
+                self.snapshot.clone(),
+                model_override,
+                &self.probes,
+            )
             .map_err(|error| Box::new(admission_refusal(&error, output_json)))?;
         let session = service.begin(admitted);
-        let world = Self::from_context(session.context(), self.display_root.clone(), self.trace)
-            .ok_or_else(|| Box::new(admitted_root_refusal(output_json)))?
-            .with_task_scope(self.task_scope.as_deref(), output_json)?;
+        let world = Self::from_context_over(
+            session.context(),
+            self.display_root.clone(),
+            self.trace,
+            &self.probes,
+        )
+        .ok_or_else(|| Box::new(admitted_root_refusal(output_json)))?
+        .with_task_scope(self.task_scope.as_deref(), output_json)?;
         Ok((session, world))
     }
 }
@@ -180,7 +201,7 @@ pub(super) fn run_admitted(
     cost_review_stdio: bool,
 ) -> RunVerdict {
     let machine = output_json || json;
-    let (project, root, display_root) = match execution_project(file) {
+    let (project, root, display_root) = match nika_cli_host::source::execution_project(file) {
         Ok(parts) => parts,
         Err(error) => {
             epilogue::emit_diagnostic(&format!("nika run: environment: {error}"), machine);
@@ -188,10 +209,12 @@ pub(super) fn run_admitted(
         }
     };
     let service = nika_execution::ExecutionService::default();
-    let admitted = match admit_source(&service, &project, &root, preview, model_override) {
-        Ok(admitted) => admitted,
-        Err(error) => return admission_refusal(&error, machine),
-    };
+    let probes = nika_service_execution::access::provider_probes_env();
+    let admitted =
+        match admit_source_over(&service, &project, &root, preview, model_override, &probes) {
+            Ok(admitted) => admitted,
+            Err(error) => return admission_refusal(&error, machine),
+        };
     if admitted.snapshot().text(admitted.snapshot().root()) != Some(preview.source()) {
         epilogue::emit_diagnostic(
             "nika run: execution admission: workflow changed during admission; retry the run",
@@ -223,11 +246,12 @@ pub(super) fn run_admitted(
         invocation_cost,
     };
     let session = service.begin(admitted);
-    let outcome = run_admitted_context(session.context(), &request, display_root);
+    let outcome = run_admitted_context_over(session.context(), &request, display_root, &probes);
     let verdict = session.complete(outcome);
     verdict.into_outcome()
 }
 
+#[cfg(test)]
 pub(super) fn admit_source(
     service: &nika_execution::ExecutionService,
     project: &nika_fs::OwnedDir,
@@ -235,15 +259,27 @@ pub(super) fn admit_source(
     source: &crate::verbs::RunSource,
     model_override: Option<&str>,
 ) -> Result<nika_execution::AdmittedExecution, nika_execution::ExecutionError> {
+    admit_source_over(service, project, root, source, model_override, &[])
+}
+
+fn admit_source_over(
+    service: &nika_execution::ExecutionService,
+    project: &nika_fs::OwnedDir,
+    root: &std::path::Path,
+    source: &crate::verbs::RunSource,
+    model_override: Option<&str>,
+    probes: &[nika_providers::probe::ProviderProbe],
+) -> Result<nika_execution::AdmittedExecution, nika_execution::ExecutionError> {
     if source.logical_path() == "-" {
-        service.admit_root_bytes_with_model_override(
+        service.admit_root_bytes_with_model_override_over(
             project,
             root,
             source.source().as_bytes(),
             model_override,
+            probes,
         )
     } else {
-        service.admit_with_model_override(project, root, model_override)
+        service.admit_with_model_override_over(project, root, model_override, probes)
     }
 }
 
@@ -267,8 +303,19 @@ fn run_admitted_context(
     request: &CliExecutionRequest<'_>,
     display_root: std::path::PathBuf,
 ) -> RunVerdict {
+    let probes = nika_service_execution::access::provider_probes_env();
+    run_admitted_context_over(context, request, display_root, &probes)
+}
+
+fn run_admitted_context_over(
+    context: nika_execution::ExecutionContext<'_>,
+    request: &CliExecutionRequest<'_>,
+    display_root: std::path::PathBuf,
+    probes: &[nika_providers::probe::ProviderProbe],
+) -> RunVerdict {
     let machine = request.output_json || request.json;
-    let Some(world) = AdmittedWorld::from_context(context, display_root, !request.no_trace_file)
+    let Some(world) =
+        AdmittedWorld::from_context_over(context, display_root, !request.no_trace_file, probes)
     else {
         return admitted_root_refusal(machine);
     };
@@ -414,34 +461,6 @@ fn admitted_root_refusal(output_json: bool) -> RunVerdict {
     RunVerdict::bare(exit::ENV)
 }
 
-fn execution_project(
-    file: &str,
-) -> Result<(nika_fs::OwnedDir, std::path::PathBuf, std::path::PathBuf), String> {
-    let cwd = std::env::current_dir().map_err(|error| error.to_string())?;
-    let path = std::path::Path::new(file);
-    let absolute = if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        cwd.join(path)
-    };
-    let absolute = crate::verbs::check::lexical_snapshot_path(&absolute);
-    let (display_root, root) = absolute.strip_prefix(&cwd).map_or_else(
-        |_| {
-            let parent = absolute
-                .parent()
-                .ok_or_else(|| format!("`{file}` has no project directory"))?;
-            let name = absolute
-                .file_name()
-                .ok_or_else(|| format!("`{file}` has no workflow filename"))?;
-            Ok::<_, String>((parent.to_path_buf(), std::path::PathBuf::from(name)))
-        },
-        |relative| Ok((cwd.clone(), relative.to_path_buf())),
-    )?;
-    let project = nika_fs::OwnedDir::open(&display_root)
-        .map_err(|error| format!("cannot hold project `{}`: {error}", display_root.display()))?;
-    Ok((project, root, display_root))
-}
-
 fn admission_refusal(error: &nika_execution::ExecutionError, output_json: bool) -> RunVerdict {
     let code = if matches!(error, nika_execution::ExecutionError::Io { .. }) {
         exit::ENV
@@ -472,6 +491,64 @@ pub(super) fn mcp_project_root() -> std::path::PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn custom_openai_probe() -> nika_providers::probe::ProviderProbe {
+        use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
+        ProviderProbe::new(
+            "openai",
+            true,
+            true,
+            "OPENAI_API_KEY",
+            true,
+            ProviderReadiness::new(
+                true,
+                true,
+                None,
+                None,
+                false,
+                ExecutionLocus::Remote,
+                nika_types::access::AccessClass::Api,
+            ),
+            "https://api.scaleway.ai/11111111-2222-4333-8444-555555555555/v1/chat/completions",
+        )
+    }
+
+    #[test]
+    fn compatible_gateway_context_reaches_file_stdin_and_answered_leg() {
+        let directory = tempfile::tempdir().expect("project");
+        let bytes = b"nika: gateway\nmodel: openai/deepseek-v4-flash-0731\ntasks:\n  answer:\n    infer: { prompt: hi, max_tokens: 512 }\n";
+        let project = nika_fs::OwnedDir::open(directory.path()).expect("held project");
+        let service = nika_execution::ExecutionService::default();
+        let probes = [custom_openai_probe()];
+        for logical in ["root.nika", "-"] {
+            if logical != "-" {
+                std::fs::write(directory.path().join(logical), bytes).expect("file");
+            }
+            let source =
+                crate::verbs::RunSource::from_bytes(logical, bytes.to_vec()).expect("source");
+            let root = std::path::Path::new(logical);
+            assert!(admit_source(&service, &project, root, &source, None).is_err());
+            let admitted = admit_source_over(&service, &project, root, &source, None, &probes)
+                .expect("configured gateway");
+            let session = service.begin(admitted);
+            let world = AdmittedWorld::from_context_over(
+                session.context(),
+                directory.path().to_path_buf(),
+                false,
+                &probes,
+            )
+            .expect("world");
+            let (leg, answered) = world
+                .readmit_leg(None, false)
+                .ok()
+                .expect("new leg retains route");
+            assert_eq!(answered.snapshot_digest, world.snapshot_digest);
+            assert_ne!(answered.execution_id, world.execution_id);
+            assert_eq!(answered.driver.root_source().as_bytes(), bytes);
+            let _ = leg.complete(());
+        }
+        assert!(!directory.path().join("-").exists());
+    }
 
     #[test]
     fn model_override_reaches_file_and_stdin_admission() {

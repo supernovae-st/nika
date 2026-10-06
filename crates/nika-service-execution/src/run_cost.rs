@@ -774,7 +774,7 @@ fn run_time_routes(
         };
         let task = task.id.value.clone();
         routes.decided.push((task.clone(), model.clone()));
-        if nika_providers::resolve_refusal(&model).is_some()
+        if config.resolve_refusal(&model).is_some()
             || plan.seat_for(&model).is_some()
             || api_class(&model) != nika_types::access::AccessClass::Api
         {
@@ -1128,16 +1128,22 @@ fn model_cost(
     if literal.is_some() {
         // The literal admission a captured `model:` already met.
         blockers.extend(
-            nika_execution::model_admission_findings(wf, None)
+            nika_execution::model_admission_findings_over(wf, None, &probes)
                 .into_iter()
                 .map(|finding| {
                     ReadinessBlocker::new("model_admission_refused", None, None, finding)
                 }),
         );
     }
-    if let Some(error) =
-        nika_runtime::budget_floor_refusal_seated(wf, report, Some(ceiling_usd), None, false)
-    {
+    if let Some(error) = nika_runtime::budget_floor_refusal_bound_over(
+        wf,
+        report,
+        Some(ceiling_usd),
+        None,
+        &std::collections::BTreeMap::new(),
+        false,
+        &probes,
+    ) {
         blockers.push(ReadinessBlocker::new(
             "budget_floor",
             Some("NIKA-1709"),
@@ -1236,7 +1242,7 @@ fn route_row(
 /// The admission class of one route, from the providers' one predicate.
 fn route_class(model: &str, config: &nika_providers::ProvidersConfig) -> &'static str {
     use nika_types::access::AccessClass;
-    if nika_providers::resolve_refusal(model).is_some() {
+    if config.resolve_refusal(model).is_some() {
         return "unresolvable";
     }
     match api_class(model) {

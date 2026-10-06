@@ -1189,6 +1189,31 @@ mod tests {
     }
 
     #[test]
+    fn scaleway_env_ladder_does_not_consume_or_replace_openai() {
+        let lookup = |name: &str| match name {
+            "NIKA_SCALEWAY_API_KEY" => Some("scw-test-key".to_owned()),
+            "OPENAI_API_KEY" => Some("oa-test-key".to_owned()),
+            "NIKA_SCALEWAY_BASE_URL" => Some(
+                "https://api.scaleway.ai/11111111-2222-4333-8444-555555555555/v1/chat/completions"
+                    .to_owned(),
+            ),
+            _ => None,
+        };
+        let row =
+            nika_catalog::find_provider("scaleway").expect("catalog row loaded by config_from_env");
+        assert_eq!(
+            ladder_key(&lookup, row.id, row.env_var).as_deref(),
+            Some("scw-test-key")
+        );
+        assert_eq!(
+            ladder_key(&lookup, "openai", "OPENAI_API_KEY").as_deref(),
+            Some("oa-test-key")
+        );
+        assert!(cloud_base_url(&lookup, "scaleway").is_some());
+        assert!(cloud_base_url(&lookup, "openai").is_none());
+    }
+
+    #[test]
     fn registry_provider_reports_the_resolved_models_capability() {
         // BUG#11 robustness: the per-call bridge reports its `default_model`'s
         // ACTUAL wire capability (was hardcoded false). Every wired cloud

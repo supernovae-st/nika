@@ -18,6 +18,42 @@ use serde_json::Value;
 
 use crate::static_ref::{bare_static_ref, static_literal_of};
 
+/// The workflow with a CLI `--model` swapped into the envelope default
+/// (#342) — per-task `model:` keeps winning, mirroring the runtime's
+/// precedence. The synthetic span is fine: the pricing surfaces never
+/// render the envelope model's span. The ONE home for the swap (the
+/// CLI's budget preflight AND the runtime's admission gate both price
+/// the EFFECTIVE model — two surfaces, one constructor, no drift).
+#[must_use]
+pub fn with_model_override(wf: &RawWorkflow, model: &str) -> RawWorkflow {
+    let mut wf = wf.clone();
+    let span = wf
+        .model
+        .as_ref()
+        .map_or_else(nika_schema::Span::default, |m| m.span);
+    wf.model = Some(nika_schema::Spanned::new(model.to_owned(), span));
+    wf
+}
+
+/// The workflow as this run seats it before any effect (B9): the operator's
+/// `--model` in the envelope (a task's own `model:` keeps winning), then every
+/// fan over an input the invocation binds iterating the bound value (B11 · a
+/// bound value never falls back to the default), then every `model:` its
+/// bindings, a declared default or a const decide, as literals. `None` when
+/// that is the file itself. A seat only the run decides stays an expression,
+/// judged at dispatch. Public so a host's budget warnings describe the same
+/// workflow its floor prices.
+#[must_use]
+pub fn effective_workflow(
+    wf: &RawWorkflow,
+    model_override: Option<&str>,
+    overrides: &BTreeMap<String, Value>,
+) -> Option<RawWorkflow> {
+    let seated = model_override.map(|m| with_model_override(wf, m));
+    let bound = rendered_collections(seated.as_ref().unwrap_or(wf), overrides).or(seated);
+    rendered_models(bound.as_ref().unwrap_or(wf), overrides).or(bound)
+}
+
 /// The workflow as the run would seat it before any effect: every envelope or
 /// task `model:` expression that `overrides`, a declared default, a const or a
 /// determinable `with:` alias decides becomes that literal (the resolver

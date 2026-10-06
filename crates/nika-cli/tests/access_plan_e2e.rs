@@ -903,3 +903,54 @@ fn a_model_less_infer_needs_a_model_or_a_seat() {
     );
     assert_eq!(last_frame(&stdout)["status"], "succeeded", "{stdout}");
 }
+
+/// The SDK export keeps the same explicit OpenAI-compatible endpoint as Check.
+/// This is admission only: the owned canary must receive no request.
+#[test]
+fn sdk_snapshot_admits_the_explicit_compat_endpoint_without_dialing_it() {
+    let rig = Rig::new("sdk-custom-endpoint", false);
+    let source = "nika: lane\nmodel: openai/deepseek-v4-flash-0731\ntasks:\n  answer:\n    infer: { prompt: hi, max_tokens: 16 }\n";
+    std::fs::write(rig.root.join("work/lane.nika"), source).expect("workflow");
+    let canary = TcpListener::bind("127.0.0.1:0").expect("owned endpoint");
+    canary.set_nonblocking(true).expect("nonblocking canary");
+    let endpoint = format!(
+        "http://{}/v1/chat/completions",
+        canary.local_addr().expect("address")
+    );
+    let default = rig.nika(&["check", "lane.nika", "--json", "--sdk-snapshot"], false);
+    assert_eq!(default.status.code(), Some(2), "{}", text(&default.stdout));
+    let refused: serde_json::Value = serde_json::from_slice(&default.stdout).expect("refusal json");
+    assert!(refused.get("execution_snapshot").is_none());
+    let custom = rig.nika_with(
+        &["check", "lane.nika", "--json", "--sdk-snapshot"],
+        false,
+        &[
+            ("NIKA_OPENAI_BASE_URL", endpoint.as_str()),
+            ("NIKA_OPENAI_API_KEY", "fake-sdk-key"),
+        ],
+    );
+    assert_eq!(
+        custom.status.code(),
+        Some(0),
+        "{}\n{}",
+        text(&custom.stdout),
+        text(&custom.stderr)
+    );
+    let payload: serde_json::Value = serde_json::from_slice(&custom.stdout).expect("machine json");
+    let snapshot = nika_execution::ExecutionSnapshot::decode(
+        payload["execution_snapshot"]
+            .as_str()
+            .expect("snapshot string"),
+    )
+    .expect("snapshot decodes");
+    assert_eq!(snapshot.text(snapshot.root()), Some(source));
+    assert_eq!(
+        canary
+            .accept()
+            .expect_err("export must not call a model")
+            .kind(),
+        std::io::ErrorKind::WouldBlock
+    );
+    assert!(!rig.root.join("home/seat-invocations").exists());
+    assert!(!rig.root.join("work/.nika/traces").exists());
+}

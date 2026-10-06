@@ -24,7 +24,7 @@ Three nested levels · increasing scope ·
 |---|---|---|
 | **Core** | Parse + validate · DAG semantics · variable resolution · error structure | Linters · spec editors · static analyzers |
 | **Runtime** | Core + verb execution | Working engine (with own provider/tool impls) |
-| **Stdlib v0.1** | Runtime + the <!-- canon:providers -->17<!-- /canon --> providers + <!-- canon:extract_modes -->10<!-- /canon --> extract modes + <!-- canon:builtins -->29<!-- /canon --> builtins | Full reference-impl-equivalent engine |
+| **Stdlib v0.1** | Runtime + the <!-- canon:providers -->18<!-- /canon --> providers + <!-- canon:extract_modes -->10<!-- /canon --> extract modes + <!-- canon:builtins -->29<!-- /canon --> builtins | Full reference-impl-equivalent engine |
 
 A higher level **includes** the lower levels.
 
@@ -84,7 +84,7 @@ guarantees below) ·
 | **Energy ceiling** | the worst-case watt-hours over the same tasks, per scope class · the honesty law below | a sourced `Wh` per million OUTPUT tokens, catalog data |
 | **Secret leak** | every `secrets.X` that flows into an `exec` capture or a tool whose output is bound (the masking boundary · [04 §secrets](./04-variables.md)) | reference graph |
 | **Capability escape** | any effect outside a declared `permits:` block: a write outside `fs.write`, a fetch to an unlisted host, an `exec` under `exec: false`, an unlisted tool | `permits:` ([01](./01-envelope.md)) |
-| **Provider parity** | (`--providers`) that the workflow uses zero provider-specific fields → the same `schema:` runs identically on all <!-- canon:providers -->17<!-- /canon --> providers (incl. the 5 local) | the closed verb-field set |
+| **Provider parity** | (`--providers`) that the workflow uses zero provider-specific fields → the same `schema:` runs identically on all <!-- canon:providers -->18<!-- /canon --> providers (incl. the 5 local) | the closed verb-field set |
 
 This is the property no other AI workflow runner gives: **GitHub Actions,
 Temporal, and LangGraph tell you nothing (and charge you nothing back)
@@ -252,7 +252,7 @@ Runtime-compliant engines may bring **their own** provider implementations · to
 
 An engine claims « Stdlib v0.1-compliant » if it satisfies Runtime conformance PLUS ·
 
-1. **Ships all <!-- canon:providers -->17<!-- /canon --> canonical providers** (per [stdlib/providers-v0.1.md](../stdlib/providers-v0.1.md))
+1. **Ships all <!-- canon:providers -->18<!-- /canon --> canonical providers** (per [stdlib/providers-v0.1.md](../stdlib/providers-v0.1.md))
 2. **Ships all <!-- canon:extract_modes -->10<!-- /canon --> canonical extract modes** (per [stdlib/extract-modes-v0.1.md](../stdlib/extract-modes-v0.1.md))
 3. **Ships at least all <!-- canon:builtins -->29<!-- /canon --> canonical builtins** (the remaining deferred media builtins are optional · the byte-determinism clauses of `nika:image_fx` and `nika:chart` are part of the bar — an engine that cannot honor them is not conformant, no waiver)
 4. **Passes** all tests in `conformance/tests/stdlib/`

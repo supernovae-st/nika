@@ -919,3 +919,8 @@ an unknown route preserves the goal and starts no authoring call. No cancelled c
 Save consent or Run authority is restored. The combined request remains the goal even if
 its authoring fails, and the existing history restores it without asking a model. Compiler
 validation and fidelity still decide whether the resulting candidate answers that request.
+
+The intelligence census retains the same host probe's effective provider endpoints
+for the reply guard. Conversation and proposal discussion both pass these facts to
+`KnownWorld::audit_over`; missing context keeps the profile-default check. These
+facts grant no authority, contain no API key values, and are not model context.

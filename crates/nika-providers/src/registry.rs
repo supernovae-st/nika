@@ -67,6 +67,18 @@ impl ProvidersConfig {
         self.keys.insert(provider.into(), key);
         self
     }
+
+    /// Check the model law using only this configuration's injected endpoint
+    /// for the model's canonical provider. Other providers' overrides and
+    /// credentials cannot change the result; no environment is consulted.
+    #[must_use]
+    pub fn resolve_refusal(&self, model: &str) -> Option<crate::ResolveRefusal> {
+        let endpoint = model
+            .split_once('/')
+            .and_then(|(provider, _)| self.base_urls.get(crate::canonical_provider(provider)))
+            .map(String::as_str);
+        crate::profile::resolve_refusal_at(model, endpoint)
+    }
 }
 
 /// Placeholder http effect for registries that only serve the `mock`
@@ -566,14 +578,63 @@ where
 mod tests {
     use super::*;
 
+    #[test]
+    fn model_law_uses_only_the_canonical_providers_injected_endpoint() {
+        let model = "openai/deepseek-v4-flash-0731";
+        let endpoint = "https://compatible.example/v1/chat/completions";
+        let refusal = crate::resolve_refusal(model).expect("default refuses wrong seat");
+        assert_eq!(
+            ProvidersConfig::new().resolve_refusal(model),
+            Some(refusal.clone())
+        );
+        assert_eq!(
+            ProvidersConfig::new()
+                .with_base_url("scaleway", endpoint)
+                .resolve_refusal(model),
+            Some(refusal.clone()),
+            "another provider's endpoint cannot change this model's route"
+        );
+        assert_eq!(
+            ProvidersConfig::new()
+                .with_base_url(
+                    "openai",
+                    "HTTPS://API.OPENAI.COM:443/v1/chat/completions#view"
+                )
+                .resolve_refusal(model),
+            Some(refusal)
+        );
+        let custom = ProvidersConfig::new().with_base_url("openai", endpoint);
+        assert!(custom.resolve_refusal(model).is_none());
+        for malformed in ["deepseek-v4-flash-0731", "unknown/deepseek-v4-flash-0731"] {
+            assert_eq!(
+                custom.resolve_refusal(malformed),
+                crate::resolve_refusal(malformed)
+            );
+        }
+        assert!(
+            ProvidersConfig::new()
+                .with_base_url("xai", endpoint)
+                .resolve_refusal("grok/deepseek-v4-flash-0731")
+                .is_none(),
+            "model aliases select their canonical provider's override"
+        );
+        assert_eq!(
+            ProvidersConfig::new()
+                .with_base_url("grok", endpoint)
+                .resolve_refusal("grok/deepseek-v4-flash-0731"),
+            crate::resolve_refusal("grok/deepseek-v4-flash-0731"),
+            "an alias-keyed override is not used by the registry either"
+        );
+    }
+
     fn hermetic() -> ProvidersConfig {
         ProvidersConfig::new()
     }
 
     #[tokio::test]
-    async fn profiles_view_exposes_the_canonical_seventeen() {
+    async fn profiles_view_exposes_the_canonical_eighteen() {
         let reg = ProviderRegistry::new(Arc::new(NoHttp), hermetic());
-        assert_eq!(reg.profiles().len(), 17);
+        assert_eq!(reg.profiles().len(), 18);
     }
 
     #[test]
@@ -691,6 +752,81 @@ mod tests {
         );
         let p = reg.resolve("ollama/llama3.2").expect("resolves");
         assert_eq!(p.base_url, "http://10.0.0.5:11434/v1/chat/completions");
+    }
+
+    #[tokio::test]
+    async fn scaleway_and_openai_keep_separate_routes_keys_and_unknown_prices() {
+        use nika_kernel::ai::provider::{Message, Role};
+        let scw_reply = r#"{"model":"deepseek-v4-flash-0731","choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":3}}"#;
+        let oa_reply = r#"{"model":"gpt-4o-mini","choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":3}}"#;
+        let http = crate::test_support::FakeHttp::with_sequence(&[
+            (200, scw_reply, &[]),
+            (200, oa_reply, &[]),
+        ]);
+        let scw_url =
+            "https://api.scaleway.ai/11111111-2222-4333-8444-555555555555/v1/chat/completions";
+        let reg = ProviderRegistry::new(
+            Arc::clone(&http),
+            ProvidersConfig::new()
+                .with_key("openai", Secret::new("openai-test-key"))
+                .with_key("scaleway", Secret::new("scaleway-test-key"))
+                .with_base_url("scaleway", scw_url),
+        );
+        let scw = reg
+            .resolve("scaleway/deepseek-v4-flash-0731")
+            .expect("Scaleway");
+        let oa = reg.resolve("openai/gpt-4o-mini").expect("OpenAI");
+        assert_eq!(scw.name(), "scaleway");
+        assert_eq!(oa.name(), "openai");
+        let request = || InferRequest::new("ignored", vec![Message::text(Role::User, "hello")]);
+        let (response, report) = scw
+            .infer_reported(request())
+            .await
+            .expect("Scaleway response");
+        oa.infer(request()).await.expect("OpenAI response");
+        assert_eq!(response.usage.input_tokens, 9);
+        assert_eq!(report.inference_calls.len(), 1);
+        let call = &report.inference_calls[0];
+        let route = call.route.as_ref().expect("observed route");
+        assert_eq!(route.provider, "scaleway");
+        assert_eq!(route.model, "deepseek-v4-flash-0731");
+        assert_eq!(route.endpoint, scw_url);
+        assert_eq!(
+            call.response_model.as_deref(),
+            Some("deepseek-v4-flash-0731")
+        );
+        assert!(call.usage.is_some());
+        assert!(call.estimated_usd.is_none());
+        assert!(call.known_estimate().is_none());
+        assert!(nika_catalog::find_pricing_scoped("scaleway", "deepseek-v4-flash-0731").is_none());
+        assert!(nika_catalog::find_pricing_scoped("scaleway", "deepseek-v4-pro").is_none());
+        assert!(
+            nika_catalog::admission::InferenceTariff::new("scaleway", "deepseek-v4-pro", scw_url)
+                .is_none()
+        );
+        let sent = http.captured();
+        assert_eq!(sent.len(), 2);
+        assert_eq!(sent[0].url, scw_url);
+        assert_eq!(
+            sent[0].headers.get("authorization").map(String::as_str),
+            Some("Bearer scaleway-test-key")
+        );
+        assert_eq!(sent[1].url, "https://api.openai.com/v1/chat/completions");
+        assert_eq!(
+            sent[1].headers.get("authorization").map(String::as_str),
+            Some("Bearer openai-test-key")
+        );
+        let body: serde_json::Value =
+            serde_json::from_slice(sent[0].body.as_ref().expect("body")).expect("json");
+        assert_eq!(body["model"], "deepseek-v4-flash-0731");
+        let openai_only = ProviderRegistry::new(
+            Arc::new(NoHttp),
+            ProvidersConfig::new().with_key("openai", Secret::new("other-test-key")),
+        );
+        assert!(matches!(
+            openai_only.resolve("scaleway/deepseek-v4-flash-0731"),
+            Err(ProviderError::AuthFailed { .. })
+        ));
     }
 
     #[test]

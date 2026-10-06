@@ -85,6 +85,22 @@ auth: Bearer|XApiKey|None, env_key: NIKA_<PROVIDER>_API_KEY ladder, quirks }`,
 seeded from `nika-catalog::all_providers()`. Adding provider №15 (post-announce)
 = a canon.yaml row + a profile mapping — usually zero new wire code.
 
+Scaleway uses the existing OpenAI-compatible wire under the distinct `scaleway`
+prefix. `NIKA_SCALEWAY_API_KEY` (then `SCALEWAY_API_KEY`) and
+`NIKA_SCALEWAY_BASE_URL` configure only that provider. The default endpoint is
+`https://api.scaleway.ai/v1/chat/completions`; an operator can select their scoped
+`https://api.scaleway.ai/<project-uuid>/v1/chat/completions` endpoint explicitly.
+OpenAI configuration and its `openai/` model namespace remain independent.
+An explicit compatible endpoint on another origin can serve models beyond the
+profile's seed catalog. Paths and queries on the native origin, including a
+Scaleway project path, retain the native model-ownership check. This does not
+establish model availability, capability or price.
+Published endpoint forms: [Scaleway API](https://www.scaleway.com/en/developers/api/generative-apis)
+and [project-scoped requests](https://www.scaleway.com/en/docs/generative-apis/api-cli/using-generative-apis/).
+The catalog's exact `deepseek-v4-flash-0731` row is not an alias for DeepSeek's
+own service. No Scaleway tariff or reasoning-effort capability is inferred;
+observed usage remains separate from an unknown monetary estimate.
+
 ## §2 · Public API (as implemented · admission shape)
 
 ```rust

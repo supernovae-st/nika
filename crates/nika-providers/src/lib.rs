@@ -69,8 +69,8 @@ pub use plan::{
 pub use probe::{KeyAuth, classify_http_status, classify_key_value};
 pub use profile::{
     CANONICAL_IDS, PREFIX_REFUSAL_CODE, Profile, ResolveRefusal, WireFormat, canonical_provider,
-    catalog_warning, resolve_refusal, seed, server_backed_local, wired_facet,
-    wired_facet_of_this_build,
+    catalog_warning, resolve_refusal, resolve_refusal_at, resolve_refusal_for_plan,
+    resolve_refusal_over, seed, server_backed_local, wired_facet, wired_facet_of_this_build,
 };
 pub use registry::{NoHttp, ProviderRegistry, ProvidersConfig, ResolvedProvider};
 pub use resolve_access::VerbNeeds;

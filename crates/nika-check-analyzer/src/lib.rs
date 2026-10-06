@@ -75,7 +75,8 @@ pub use builtin_floor::{priced_builtin_floor, unpriced_cloud_seat};
 pub use capacity::{CapacityFinding, capacity_findings};
 pub use edges::{Edge, EdgeKind, RecoveryRead, Route, SettledState, role_of_field, witness_routes};
 pub use rendered::{
-    rendered_collections, rendered_models, resolve_model_expr, resolved_infer_models,
+    effective_workflow, rendered_collections, rendered_models, resolve_model_expr,
+    resolved_infer_models, with_model_override,
 };
 pub use static_ref::{bare_static_ref, static_literal_of};
 pub use task_scope::scope_to_task;

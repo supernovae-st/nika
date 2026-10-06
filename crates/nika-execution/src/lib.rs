@@ -12,7 +12,9 @@ mod service;
 mod snapshot;
 
 pub use error::ExecutionError;
-pub use model_admission::model_admission_findings;
+pub use model_admission::{
+    model_admission_findings, model_admission_findings_for_plan, model_admission_findings_over,
+};
 pub use service::{
     AdmittedExecution, ExecutionContext, ExecutionService, ExecutionSession, ExecutionVerdict,
     InputRefusal,

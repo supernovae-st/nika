@@ -16,7 +16,7 @@ use serde_json::Value;
 
 use crate::errors::RuntimeError;
 // The pre-effect model resolver lives beside the static analysis it builds on.
-use nika_check::analyzer::rendered_collections;
+pub use nika_check::analyzer::effective_workflow;
 pub use nika_check::analyzer::resolve_model_expr;
 use nika_check::analyzer::resolved_infer_models;
 // The `--task` cone cut is a pure graph walk beside the edges it reads.
@@ -30,24 +30,32 @@ pub(crate) use nika_check::analyzer::unpriced_cloud_seat;
 /// floor ([`budget_floor_refusal`]) · the MODELS rung over the seats this
 /// run uses · the access plan — all refuse BEFORE the prologue, so a
 /// refused run emits zero events and spends zero tasks.
-pub(crate) fn gates(
+pub(crate) fn gates_with_transport(
     wf: &RawWorkflow,
     report: &CheckReport,
     overrides: &BTreeMap<String, Value>,
     budget: Option<f64>,
     model_override: Option<&str>,
     (access_pin, probes, plan): (Option<&str>, &[ProviderProbe], Option<&ExecutionAccessPlan>),
+    planless_harness: bool,
 ) -> Result<(), RuntimeError> {
     crate::trust::check_report(wf, report)?;
     if let Some(err) = required_inputs_refusal(wf, overrides) {
         return Err(err);
     }
-    if let Some(err) =
-        budget_floor_refusal_bound(wf, report, budget, model_override, overrides, false)
-    {
+    if let Some(err) = budget_floor_refusal_bound_over(
+        wf,
+        report,
+        budget,
+        model_override,
+        overrides,
+        false,
+        probes,
+    ) {
         return Err(err);
     }
-    if let Some(err) = models_refusal(wf, report, model_override, overrides) {
+    let model_probes = if planless_harness { &[][..] } else { probes };
+    if let Some(err) = models_refusal(wf, report, model_override, overrides, (model_probes, plan)) {
         return Err(err);
     }
     // One Door · wave 1: a frozen plan IS the access admission — the
@@ -72,6 +80,27 @@ pub(crate) fn gates(
         }
     }
     Ok(())
+}
+
+/// Existing gate fixtures use the ordinary provider path unless a plan says otherwise.
+#[cfg(test)]
+pub(crate) fn gates(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    overrides: &BTreeMap<String, Value>,
+    budget: Option<f64>,
+    model_override: Option<&str>,
+    context: (Option<&str>, &[ProviderProbe], Option<&ExecutionAccessPlan>),
+) -> Result<(), RuntimeError> {
+    gates_with_transport(
+        wf,
+        report,
+        overrides,
+        budget,
+        model_override,
+        context,
+        false,
+    )
 }
 
 /// W3-F13 · an `infer:`/`agent:` task whose effective model is EMPTY
@@ -227,10 +256,38 @@ pub fn budget_floor_refusal_bound(
     overrides: &BTreeMap<String, Value>,
     seated_on_harness: bool,
 ) -> Option<RuntimeError> {
+    budget_floor_refusal_bound_over(
+        wf,
+        report,
+        budget,
+        model_override,
+        overrides,
+        seated_on_harness,
+        &[],
+    )
+}
+
+/// The budget floor with the same injected endpoints as model admission.
+/// Endpoint overrides do not supply a tariff or waive an unknown-cost cap.
+#[must_use]
+pub fn budget_floor_refusal_bound_over(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    budget: Option<f64>,
+    model_override: Option<&str>,
+    overrides: &BTreeMap<String, Value>,
+    seated_on_harness: bool,
+    probes: &[ProviderProbe],
+) -> Option<RuntimeError> {
     let budget = budget?;
-    if let Some(err) =
-        unmeterable_seat_on_resolved_ids(wf, budget, model_override, overrides, seated_on_harness)
-    {
+    if let Some(err) = unmeterable_seat_on_resolved_ids(
+        wf,
+        budget,
+        model_override,
+        overrides,
+        seated_on_harness,
+        probes,
+    ) {
         return Some(err);
     }
     let owned;
@@ -252,25 +309,6 @@ pub fn budget_floor_refusal_bound(
     Some(RuntimeError::BudgetFloor { message })
 }
 
-/// The workflow as this run seats it before any effect (B9): the operator's
-/// `--model` in the envelope (a task's own `model:` keeps winning), then every
-/// fan over an input the invocation binds iterating the bound value (B11 · a
-/// bound value never falls back to the default), then every `model:` its
-/// bindings, a declared default or a const decide, as literals. `None` when
-/// that is the file itself. A seat only the run decides stays an expression,
-/// judged at dispatch. Public so a host's budget warnings describe the same
-/// workflow its floor prices.
-#[must_use]
-pub fn effective_workflow(
-    wf: &RawWorkflow,
-    model_override: Option<&str>,
-    overrides: &BTreeMap<String, Value>,
-) -> Option<RawWorkflow> {
-    let seated = model_override.map(|m| nika_check::with_model_override(wf, m));
-    let bound = rendered_collections(seated.as_ref().unwrap_or(wf), overrides).or(seated);
-    nika_check::analyzer::rendered_models(bound.as_ref().unwrap_or(wf), overrides).or(bound)
-}
-
 /// The MODELS rung `nika check` applies to a literal seat, over every seat
 /// this run uses before any effect, literal or rendered: the ONE resolver's
 /// refusal (through a declared default, as the check's rung reads it), then
@@ -282,6 +320,7 @@ fn models_refusal(
     report: &CheckReport,
     model_override: Option<&str>,
     overrides: &BTreeMap<String, Value>,
+    (probes, plan): (&[ProviderProbe], Option<&ExecutionAccessPlan>),
 ) -> Option<RuntimeError> {
     let seated = effective_workflow(wf, model_override, overrides);
     let owned;
@@ -302,7 +341,7 @@ fn models_refusal(
                 None if m.model.contains("${{") => return None,
                 None => m.model.as_str(),
             };
-            let refusal = nika_providers::resolve_refusal(judged)?;
+            let refusal = nika_providers::resolve_refusal_for_plan(judged, probes, plan)?;
             Some(format!("`{judged}` · {}", refusal.why))
         })
         .collect();
@@ -423,14 +462,16 @@ fn unmeterable_seat_on_resolved_ids(
     model_override: Option<&str>,
     overrides: &BTreeMap<String, Value>,
     seated_on_harness: bool,
+    probes: &[ProviderProbe],
 ) -> Option<RuntimeError> {
+    let probes = if seated_on_harness { &[][..] } else { probes };
     let mut unresolvable: Vec<(String, String)> = Vec::new();
     let mut unpriced: Vec<String> = Vec::new();
     for model in resolved_infer_models(wf, model_override, overrides) {
         // The resolver's refusal is the stronger claim, judged first: a
         // cataloged vendor this binary cannot drive (the azure class) is
         // unresolvable HERE, not merely unpriced.
-        if let Some(refusal) = nika_providers::resolve_refusal(&model) {
+        if let Some(refusal) = nika_providers::resolve_refusal_over(&model, probes) {
             unresolvable.push((model, refusal.why));
         } else if unpriced_cloud_seat(&model) {
             unpriced.push(model);
@@ -520,23 +561,7 @@ pub fn required_inputs_refusal(
     Some(RuntimeError::MissingRequiredInputs { missing, declared })
 }
 
-/// `Some(refusal)` when the `--max-cost-usd` floor exceeds the budget —
-/// pure, so the operator-facing gate is unit-testable. A floor AT the
-/// budget passes (spending exactly the budget is not over it). The
-/// budget floor is a launch gate of the same family as
-/// [`required_inputs_refusal`] (refuse BEFORE any spend — descended
-/// from the run verb's budget preflight 2026-07-22).
-#[must_use]
-pub fn floor_refusal(floor: f64, budget: f64) -> Option<String> {
-    (floor > budget).then(|| {
-        format!(
-            "refusing to start: the workflow's unavoidable cost floor \
-             ${floor:.6} exceeds --max-cost-usd ${budget:.6} (cheapest \
-             static path · gates closed · first-try) — raise the budget \
-             or trim the workflow (`nika check` shows the envelope)\n"
-        )
-    })
-}
+pub use nika_check::floor_refusal;
 
 /// Tally the unbounded tasks BY THEIR ACTUAL reason (the report carries
 /// `unbounded_reason` per task) instead of parroting the fixed

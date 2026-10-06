@@ -29,6 +29,8 @@ what is wired, what is honestly active":
 - `clients_registry` + `data/clients.registry.yaml` — the vendored
   byte-copy of the agents-repo matrix (H6: one truth, machine-checked)
 - `context_envelope` — the single workspace resolution (chat_only law)
+- `context_redaction` — the pure text filter for secrets in model context;
+  Session retains its historical `broker::redact` path through a re-export.
 - `retention` · `metrics` · `text` · `output` (spec §4 exit codes ·
   `VerbOutput` · the OSC-8 link seam)
 

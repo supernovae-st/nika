@@ -141,6 +141,63 @@ fn run_counter() -> (Rc<Cell<u32>>, ExecutionRunSeam) {
 }
 
 #[test]
+fn workflow_admission_uses_injected_endpoints_without_relaxing_prefix_law() {
+    use nika_providers::probe::{AccessClass, ExecutionLocus, ProviderProbe, ProviderReadiness};
+
+    let dir = project("injected-endpoint");
+    let source = "nika: doctor\ntasks:\n  answer:\n    infer: { prompt: hi, model: groq/grok-3, max_tokens: 16 }\n";
+    std::fs::write(dir.path().join("workflows/doctor.nika"), source).expect("workflow");
+    let (calls, run) = run_counter();
+    let context = ctx(
+        dir.path(),
+        registry_with(SAUTER),
+        "2026-08-19T03:00:00Z",
+        Box::new(|_| Wait::Elapsed),
+        run,
+    );
+    let beat = context.registry.beats().next().expect("beat");
+    assert!(
+        admit_workflow(&context, beat).is_err(),
+        "default catalog still refuses the wrong seat"
+    );
+    let probe = ProviderProbe::new(
+        "groq",
+        true,
+        false,
+        "",
+        false,
+        ProviderReadiness::new(
+            true,
+            false,
+            None,
+            None,
+            false,
+            ExecutionLocus::Remote,
+            AccessClass::Api,
+        ),
+        "https://compatible.example/v1/chat/completions",
+    );
+    let context = context.with_provider_probes(vec![probe]);
+    let beat = context.registry.beats().next().expect("beat");
+    let admitted = admit_workflow(&context, beat).expect("custom compatible endpoint");
+    assert_eq!(
+        admitted.admitted.snapshot().text("workflows/doctor.nika"),
+        Some(source)
+    );
+    assert_eq!(calls.get(), 0, "admission does not call the run seam");
+    std::fs::write(
+        dir.path().join("workflows/doctor.nika"),
+        source.replace("groq/grok-3", "unknown/grok-3"),
+    )
+    .expect("unknown-prefix workflow");
+    assert!(
+        admit_workflow(&context, beat).is_err(),
+        "custom endpoint cannot grant a provider prefix"
+    );
+    assert_eq!(calls.get(), 0);
+}
+
+#[test]
 fn legacy_run_seam_receives_the_exact_admitted_root_source() {
     let dir = project("legacy-run-seam");
     let fixture = registry_with(SAUTER);

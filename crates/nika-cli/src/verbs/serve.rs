@@ -361,7 +361,9 @@ fn fire_due(
         ),
     };
     let ctx = match context {
-        Ok(ctx) => ctx.with_wait(wait),
+        Ok(ctx) => ctx
+            .with_wait(wait)
+            .with_provider_probes(nika_service_execution::access::provider_probes_env()),
         Err(error) => {
             println!("failed serve · {error}");
             return (error.into_registry(), false);

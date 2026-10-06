@@ -78,7 +78,7 @@ pub fn run(fire: &FireArgs) -> VerbOutput {
         std::process::id(),
         Rc::new(prod_run),
     ) {
-        Ok(ctx) => ctx,
+        Ok(ctx) => ctx.with_provider_probes(nika_service_execution::access::provider_probes_env()),
         Err(error) => return VerbOutput::file(error.to_string()),
     };
     let verdict = fire_beat(&ctx);

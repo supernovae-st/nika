@@ -26,6 +26,7 @@ pub(crate) mod choice;
 pub mod clients_registry;
 pub mod compile;
 pub(crate) mod context_envelope;
+pub mod context_redaction;
 pub use context_envelope::find_git_root;
 pub(crate) mod detect;
 pub mod doctor;

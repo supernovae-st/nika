@@ -7,7 +7,7 @@
 #   sealed outcome_class enum) · the 15 ledger sections (canon/EXCEPTIONS.md ·
 #   SSOT-1 §18) stay AUTHORED and are carried verbatim — editing those is legal.
 # regenerate: python3 scripts/ssot-compiler.py --emit-canon
-# body-sha256: adb37d81ad85be47ec5a94d2a9d1037add1f17b3b2ab6cba386d50a3829dac70
+# body-sha256: b441e805c5f7e4e3ef738947db2f47d87db741c389abe32450b7543761d9229d
 #   (digest of every byte below the end-of-header line · detached self-hash per PAA-006)
 # ---- end generated header (SSOT-1 §21-23 · the canon flip · C0)
 # nika canonical registry · the single source of truth for Nika canonical facts
@@ -60,7 +60,7 @@ counts:
   verbs: 4
   namespaces: 5
   builtins: 29
-  providers: 17
+  providers: 18
   extract_modes: 10
   templates: 22
   error_namespaces: 24
@@ -169,10 +169,10 @@ builtins:
     - write
 
 # ---------------------------------------------------------------- providers
-# 11 cloud + 5 local + 1 test = 17 (openrouter promoted D-2026-06-10-N2 · huggingface + nvidia promoted 2026-07-05 per the same precedent · ADR-104 · moonshot promoted 2026-07-17 · frontier open-weight · ADR-105). stdlib/providers-v0.1.md is the prose home.
+# Membership and kind mirror canon/providers.yaml (CF-14); stdlib/providers-v0.1.md is the prose home.
 # Sovereignty · 5 local providers (sovereignty Rule 1 · zero-cloud default path).
 providers:
-  count: 17
+  count: 18
   reference: stdlib/providers-v0.1.md
   # Presentation order (operator lock 2026-06-12 · supernovae-alignment Rule 3) ·
   # local/open-weight FIRST (sovereignty default) · then cloud with mistral (EU ·
@@ -187,6 +187,7 @@ providers:
       - vllm
     cloud:
       - mistral
+      - scaleway
       - anthropic
       - openai
       - gemini

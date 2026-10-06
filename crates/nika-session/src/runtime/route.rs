@@ -296,7 +296,12 @@ impl SessionRuntime {
         );
         let prompt = crate::broker::ContextBroker::prompt(&bundle, &self.recent, &turn);
         let reply = self.reason_with_money(&prompt, false).ok()?;
-        let findings = self.known.audit(&reply.text);
+        let findings = self.known.audit_over(
+            &reply.text,
+            self.census
+                .as_ref()
+                .map_or(&[], |census| census.provider_context.as_slice()),
+        );
         let shown = crate::guard::KnownWorld::correct(&reply.text, &findings);
         self.remember(raw, &shown);
         Some(shown)
@@ -342,5 +347,87 @@ pub(super) fn as_written(
             }
         }
         reading => reading,
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod endpoint_guard_tests {
+    use crate::intelligence::{IntelligenceCensus, IntelligenceKind, UserIntelligencePreference};
+    use crate::reasoner::ScriptedReasoner;
+    use crate::runtime::{SessionRuntime, TurnOutcome};
+    use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
+
+    #[test]
+    fn conversation_and_proposal_answers_keep_the_collected_endpoint_context() {
+        const ANSWER: &str = "Use `openai/deepseek-v4-flash-0731`.";
+        for (endpoint, refused) in [
+            ("https://api.openai.com/v1/chat/completions", true),
+            ("https://api.scaleway.ai/v1/chat/completions", false),
+        ] {
+            let root = tempfile::tempdir().expect("isolated project");
+            let mut census = IntelligenceCensus::empty();
+            census.api_keys.push("openai".to_owned());
+            census.provider_context.push(ProviderProbe::new(
+                "openai",
+                true,
+                true,
+                "NIKA_OPENAI_API_KEY",
+                true,
+                ProviderReadiness::new(
+                    true,
+                    true,
+                    None,
+                    None,
+                    false,
+                    ExecutionLocus::classify(
+                        Some(endpoint),
+                        "https://api.openai.com/v1/chat/completions",
+                    ),
+                    nika_types::access::AccessClass::Api,
+                ),
+                endpoint,
+            ));
+            let pref = UserIntelligencePreference::new(
+                IntelligenceKind::Api {
+                    provider: "openai".to_owned(),
+                },
+                Some("openai/gpt-4o-mini".to_owned()),
+            );
+            let mut session = SessionRuntime::open_with(
+                root.path(),
+                census,
+                &pref,
+                None,
+                Box::new(|_| Box::new(ScriptedReasoner::new(vec![ANSWER.into(), ANSWER.into()]))),
+            );
+            session.set_authoring_context(crate::authoring::AuthoringContext::from_settings(
+                &nika_cli_host::compile::config::AuthoringSettings::none(),
+                &nika_cli_host::compile::config::AuthoringSettings::none(),
+            ));
+            // Use the interactive preparation policy, as the TUI does. This
+            // scripted reasoner has no real model or metered account.
+            session.enable_continuous_preparation();
+            // Exercise the conversation owner directly; arbitrary open text first goes
+            // through the compiler router, which is outside this guard regression.
+            let TurnOutcome::Reply(conversation) =
+                session.converse_unrecorded("hello there, how are you today?")
+            else {
+                panic!("the conversational reply remains a reply");
+            };
+            let discussion = session
+                .reason_about("a proposal under review", "explain it")
+                .expect("the proposal discussion answered");
+            for shown in [conversation, discussion] {
+                assert_eq!(
+                    shown.contains("does not resolve in this binary"),
+                    refused,
+                    "{shown}"
+                );
+                if !refused {
+                    assert_eq!(shown, ANSWER);
+                }
+            }
+        }
     }
 }

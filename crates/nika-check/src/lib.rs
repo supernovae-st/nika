@@ -166,7 +166,7 @@ pub use analysis::{DagAnalysis, TaskBlast, WriteConflict};
 pub use certificate::{Bound, CertTerm, RunCertificate};
 pub use composition::CompositionFinding;
 pub use consent::ConsentFinding;
-pub use cost::{ComposedCost, CostCeiling, TaskCost, UnboundedReason};
+pub use cost::{ComposedCost, CostCeiling, TaskCost, UnboundedReason, floor_refusal};
 pub use data_journey::{
     DataClassification, DataJourney, EndpointLocus, JourneyConsent, JourneyEndpoint, ModelEndpoint,
     RetentionFact, SecretUse,
@@ -812,22 +812,7 @@ fn initial_hints(wf: &RawWorkflow, stated_miss: Option<String>) -> Vec<Hint> {
     hints
 }
 
-/// The workflow with a CLI `--model` swapped into the envelope default
-/// (#342) — per-task `model:` keeps winning, mirroring the runtime's
-/// precedence. The synthetic span is fine: the pricing surfaces never
-/// render the envelope model's span. The ONE home for the swap (the
-/// CLI's budget preflight AND the runtime's admission gate both price
-/// the EFFECTIVE model — two surfaces, one constructor, no drift).
-#[must_use]
-pub fn with_model_override(wf: &RawWorkflow, model: &str) -> RawWorkflow {
-    let mut wf = wf.clone();
-    let span = wf
-        .model
-        .as_ref()
-        .map_or_else(nika_schema::Span::default, |m| m.span);
-    wf.model = Some(nika_schema::Spanned::new(model.to_owned(), span));
-    wf
-}
+pub use analyzer::with_model_override;
 
 /// [`check`] + the RESOLVED composition lane (spec 14): the call graph
 /// is walked through the injected reader (the [`nika_schema::resolve_skills`]

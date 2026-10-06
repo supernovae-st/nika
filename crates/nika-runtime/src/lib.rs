@@ -134,9 +134,9 @@ type ValueBags<'a> = (
 
 pub use admit::{
     access_pin_refusal, budget_floor_refusal, budget_floor_refusal_bound,
-    budget_floor_refusal_seated, effective_workflow, first_modelless_task, floor_refusal,
-    modelless_refusal, plan_refusal, required_inputs_refusal, resolve_model_expr, scope_to_task,
-    unbounded_breakdown,
+    budget_floor_refusal_bound_over, budget_floor_refusal_seated, effective_workflow,
+    first_modelless_task, floor_refusal, modelless_refusal, plan_refusal, required_inputs_refusal,
+    resolve_model_expr, scope_to_task, unbounded_breakdown,
 };
 pub use compose::{
     ProdRuntime, RunSeams, RuntimeCapabilities, SimRuntime, capabilities_of, production_runtime,
@@ -1015,7 +1015,7 @@ where
         sink: &mut dyn EventSink,
     ) -> Result<RunOutcome, RuntimeError> {
         // A launch refusal precedes the prologue: zero events, zero spend.
-        admit::gates(
+        admit::gates_with_transport(
             wf,
             report,
             &self.var_overrides,
@@ -1026,6 +1026,7 @@ where
                 &self.access_probes,
                 self.access_plan.as_ref(),
             ),
+            self.access_plan.is_none() && self.harness_seat_id.is_some(),
         )?;
         let EnvelopeValues {
             inputs,

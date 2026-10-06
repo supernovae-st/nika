@@ -45,7 +45,15 @@ fn program(root: &Path, beat: &Beat, binding: ProjectBinding) -> (ReceiptIdentit
         Err(error) => return unavailable("project_unavailable", error.to_string()),
     };
     let service = nika_execution::ExecutionService::default();
-    let admitted = match service.admit(&project, Path::new(&beat.workflow)) {
+    let config = nika_runtime::compose::config_from_env();
+    let providers = nika_providers::ProviderRegistry::without_http(config.clone());
+    let probes = nika_providers::probe::collect_provider_probes(&providers);
+    let admitted = match service.admit_with_model_override_over(
+        &project,
+        Path::new(&beat.workflow),
+        None,
+        &probes,
+    ) {
         Ok(admitted) => admitted,
         Err(error) => return unavailable("workflow_unavailable", error.to_string()),
     };
@@ -70,7 +78,6 @@ fn program(root: &Path, beat: &Beat, binding: ProjectBinding) -> (ReceiptIdentit
         );
     };
     let pairs: Vec<String> = beat.input_vars().collect();
-    let config = nika_runtime::compose::config_from_env();
     let judged = nika_service_execution::run_cost::scheduled_program(
         admitted.workflow(),
         admitted.check(),

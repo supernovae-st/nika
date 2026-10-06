@@ -397,7 +397,12 @@ pub(super) async fn admit_by_name(
         #[cfg(test)]
         super::test_support::before_named_capture(&before_capture);
         service
-            .admit(&project, std::path::Path::new(&lookup))
+            .admit_with_model_override_over(
+                &project,
+                std::path::Path::new(&lookup),
+                None,
+                &super::admission_probes(),
+            )
             .map_err(Some)
     })
     .await
@@ -467,7 +472,11 @@ async fn readmit_body(
     let limits = state.snapshot_limits;
     let admitted = tokio::task::spawn_blocking(move || {
         let snapshot = nika_execution::ExecutionSnapshot::decode_with_limits(&encoded, limits)?;
-        service.readmit_snapshot(snapshot)
+        service.readmit_snapshot_with_model_override_over(
+            snapshot,
+            None,
+            &super::admission_probes(),
+        )
     })
     .await
     .map_err(|_| admission_refused().into_response())?;
@@ -717,7 +726,11 @@ async fn cancel_queued_job(
     let limits = state.snapshot_limits;
     let admitted = tokio::task::spawn_blocking(move || {
         let snapshot = nika_execution::ExecutionSnapshot::decode_with_limits(&encoded, limits)?;
-        service.readmit_snapshot(snapshot)
+        service.readmit_snapshot_with_model_override_over(
+            snapshot,
+            None,
+            &super::admission_probes(),
+        )
     })
     .await
     .map_err(|_| internal_error())?

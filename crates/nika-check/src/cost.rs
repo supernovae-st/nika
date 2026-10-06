@@ -23,6 +23,24 @@
 
 use nika_schema::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
 
+/// `Some(refusal)` when the `--max-cost-usd` floor exceeds the budget —
+/// pure, so the operator-facing gate is unit-testable. A floor AT the
+/// budget passes (spending exactly the budget is not over it). The
+/// budget floor is a launch gate of the same family as
+/// required-input admission (refuse BEFORE any spend — descended
+/// from the run verb's budget preflight 2026-07-22).
+#[must_use]
+pub fn floor_refusal(floor: f64, budget: f64) -> Option<String> {
+    (floor > budget).then(|| {
+        format!(
+            "refusing to start: the workflow's unavoidable cost floor \
+             ${floor:.6} exceeds --max-cost-usd ${budget:.6} (cheapest \
+             static path · gates closed · first-try) — raise the budget \
+             or trim the workflow (`nika check` shows the envelope)\n"
+        )
+    })
+}
+
 /// Per-task cost envelope.
 #[derive(Debug, Clone, PartialEq, serde::Serialize)]
 #[non_exhaustive]

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Provider profiles — the canonical 16, as data.
+//! Provider profiles — the canonical registry, as data.
 //!
 //! A profile binds a provider id to a wire format, a default endpoint and a
 //! key-loading recipe. Every canonical id joins its `nika-catalog` row
@@ -178,10 +178,11 @@ impl Profile {
     }
 }
 
-/// The canonical provider ids, in canon order (11 cloud · 5 local · 1 test).
-pub const CANONICAL_IDS: [&str; 17] = [
+/// The canonical provider ids, in canon order (12 cloud · 5 local · 1 test).
+pub const CANONICAL_IDS: [&str; 18] = [
     "anthropic",
     "openai",
+    "scaleway",
     "gemini",
     "deepseek",
     "mistral",
@@ -282,6 +283,19 @@ impl ResolveRefusal {
 /// binary cannot drive stays engine-local (`code` is `None`).
 #[must_use]
 pub fn resolve_refusal(model: &str) -> Option<ResolveRefusal> {
+    resolve_refusal_at(model, None)
+}
+
+/// The same model law over an injected effective endpoint. A valid custom
+/// HTTP(S) endpoint on an OpenAI-compatible profile can serve another
+/// provider's catalog model: that catalog alone cannot establish a wrong
+/// seat. Prefix and wired-provider checks still apply. This grants neither
+/// model availability nor capabilities, credentials or pricing.
+///
+/// `None` means the profile default. URLs are parsed as the transport parses
+/// them; the default origin, including project-scoped paths, stays conservative.
+#[must_use]
+pub fn resolve_refusal_at(model: &str, effective_endpoint: Option<&str>) -> Option<ResolveRefusal> {
     match model.split_once('/') {
         None => {
             // A known wire id / nickname gets the pasteable repair
@@ -307,6 +321,9 @@ pub fn resolve_refusal(model: &str) -> Option<ResolveRefusal> {
             // `groq` (B18 / issue 1306).
             let canonical = canonical_provider(provider);
             if CANONICAL_IDS.contains(&canonical) {
+                if custom_compat_endpoint(canonical, effective_endpoint) {
+                    return None;
+                }
                 // Persona 12 · a unique catalog id on the WRONG seat
                 // (`groq/grok-3`) is not a snapshot miss. The repair is
                 // the pasteable id (`xai/grok-3`). Unknown names stay
@@ -337,6 +354,97 @@ pub fn resolve_refusal(model: &str) -> Option<ResolveRefusal> {
             Some(refusal)
         }
     }
+}
+
+/// Resolve over the composition root's injected provider observations.
+/// Only the canonical provider's direct API/local row supplies its endpoint;
+/// a harness row and its `serves` set never override a provider's route.
+/// Missing direct context retains the conservative profile-default law.
+#[must_use]
+pub fn resolve_refusal_over(
+    model: &str,
+    probes: &[crate::probe::ProviderProbe],
+) -> Option<ResolveRefusal> {
+    use nika_types::access::AccessClass;
+
+    let endpoint = model.split_once('/').and_then(|(provider, _)| {
+        let canonical = canonical_provider(provider);
+        probes
+            .iter()
+            .find(|probe| {
+                probe.id == canonical
+                    && matches!(
+                        probe.readiness.access,
+                        AccessClass::Api | AccessClass::Local
+                    )
+            })
+            .map(|probe| probe.endpoint.as_str())
+    });
+    resolve_refusal_at(model, endpoint)
+}
+
+/// Judge ownership using the transport selected by the frozen execution plan.
+/// A configured API endpoint cannot justify a model on a selected harness or
+/// other non-direct path. Without a plan this remains a configuration-only
+/// judgment, as [`resolve_refusal_over`]; execution must judge its actual plan.
+#[must_use]
+pub fn resolve_refusal_for_plan(
+    model: &str,
+    probes: &[crate::probe::ProviderProbe],
+    plan: Option<&crate::ExecutionAccessPlan>,
+) -> Option<ResolveRefusal> {
+    use nika_types::access::AccessClass;
+
+    let direct = plan.is_none_or(|plan| {
+        plan.seat_for(model).is_none()
+            && plan.lane(model).is_none_or(|lane| {
+                matches!(lane.plan.chosen, AccessClass::Api | AccessClass::Local)
+            })
+    });
+    if direct {
+        resolve_refusal_over(model, probes)
+    } else {
+        resolve_refusal(model)
+    }
+}
+
+fn custom_compat_endpoint(provider: &str, effective: Option<&str>) -> bool {
+    let default = CATALOG_WIRED
+        .iter()
+        .find(|(id, wire, _)| *id == provider && *wire == WireFormat::OpenAiCompat)
+        .map(|(_, _, endpoint)| *endpoint)
+        .or_else(|| {
+            LOCAL
+                .iter()
+                .find(|(id, _)| *id == provider)
+                .map(|(_, endpoint)| *endpoint)
+        });
+    let (Some(default), Some(effective)) = (default, effective) else {
+        return false;
+    };
+    let (Some(default), Some(effective)) = (
+        comparable_http_endpoint(default),
+        comparable_http_endpoint(effective),
+    ) else {
+        return false;
+    };
+    // A provider's own project path or query still reaches that provider.
+    // Only another origin can establish an operator-selected serving route.
+    default.origin() != effective.origin()
+}
+
+fn comparable_http_endpoint(endpoint: &str) -> Option<url::Url> {
+    let mut endpoint = url::Url::parse(endpoint).ok()?;
+    if !matches!(endpoint.scheme(), "http" | "https") || !endpoint.has_host() {
+        return None;
+    }
+    // Fragment and authentication material do not change the endpoint the
+    // HTTP request targets. Neither can turn the vendor route into a custom
+    // model-serving route. URL parsing normalizes host case and default ports.
+    endpoint.set_fragment(None);
+    endpoint.set_username("").ok()?;
+    endpoint.set_password(None).ok()?;
+    Some(endpoint)
 }
 
 /// The MODELS-rung catalog cross-check (audit UX 2026-07-31 · the
@@ -465,12 +573,12 @@ fn pricing_provider_matches(row_provider: &str, query: &str) -> bool {
     }
 }
 
-/// The 10 cloud rows (catalog-backed) + the in-process mock.
+/// The cloud rows (catalog-backed) + the in-process mock.
 ///
 /// gemini's `base_url` is a STEM (`…/v1beta`) — the s8.6 adapter appends
 /// `/models/{model}:generateContent` per request (unlike the other wires,
 /// whose `base_url` is the complete endpoint).
-const CATALOG_WIRED: [(&str, WireFormat, &str); 12] = [
+const CATALOG_WIRED: [(&str, WireFormat, &str); 13] = [
     (
         "anthropic",
         WireFormat::Anthropic,
@@ -480,6 +588,12 @@ const CATALOG_WIRED: [(&str, WireFormat, &str); 12] = [
         "openai",
         WireFormat::OpenAiCompat,
         "https://api.openai.com/v1/chat/completions",
+    ),
+    // Scoped project endpoints use NIKA_SCALEWAY_BASE_URL; never the OpenAI route.
+    (
+        "scaleway",
+        WireFormat::OpenAiCompat,
+        "https://api.scaleway.ai/v1/chat/completions",
     ),
     (
         "gemini",
@@ -577,7 +691,7 @@ const LOCAL: [(&str, &str); 5] = [
     ("vllm", "http://127.0.0.1:8000/v1/chat/completions"),
 ];
 
-/// Build the canonical 17 profiles (catalog-joined where rows exist).
+/// Build the canonical profiles (catalog-joined where rows exist).
 #[must_use]
 pub fn seed() -> Vec<Profile> {
     let mut out = Vec::with_capacity(CANONICAL_IDS.len());
@@ -609,6 +723,259 @@ pub fn seed() -> Vec<Profile> {
 #[cfg(test)]
 mod tests {
     #[test]
+    fn selected_harness_cannot_borrow_an_unused_api_endpoint() {
+        use crate::ExecutionAccessPlan;
+        use nika_types::access::AccessClass;
+
+        let model = "openai/deepseek-v4-flash-0731";
+        let probes = [endpoint_probe(
+            "openai",
+            AccessClass::Api,
+            "https://compatible.example/v1/chat/completions",
+        )];
+        let refusal = resolve_refusal(model).expect("default wrong seat");
+        assert!(resolve_refusal_for_plan(model, &probes, None).is_none());
+        let harness = ExecutionAccessPlan::new(
+            std::collections::BTreeMap::new(),
+            Some("codex".into()),
+            Some("codex".into()),
+            None,
+        );
+        assert_eq!(
+            resolve_refusal_for_plan(model, &probes, Some(&harness)),
+            Some(refusal.clone())
+        );
+        assert_eq!(
+            resolve_refusal_for_plan(model, &[], Some(&harness)),
+            Some(refusal),
+            "changing an unused API config must not change a harness model verdict"
+        );
+        assert!(resolve_refusal_for_plan("openai/gpt-4o-mini", &probes, Some(&harness)).is_none());
+    }
+
+    #[test]
+    fn endpoint_ownership_follows_each_model_lane_in_a_mixed_plan() {
+        use crate::{ExecutionAccessPlan, LaneVerdict, ResolvedLane};
+        use nika_types::access::{AccessClass, AccessPlan, BillingClass};
+
+        let harness_model = "openai/deepseek-v4-flash-0731";
+        let api_model = "openai/grok-3";
+        let lane = |model, access, chosen| {
+            LaneVerdict::Admitted(ResolvedLane::new(
+                AccessPlan::new(
+                    model,
+                    "openai",
+                    access,
+                    chosen,
+                    BillingClass::Unknown,
+                    false,
+                    Vec::new(),
+                ),
+                2,
+            ))
+        };
+        let plan = ExecutionAccessPlan::new(
+            std::collections::BTreeMap::from([
+                (
+                    harness_model.into(),
+                    lane(harness_model, "codex", AccessClass::Harness),
+                ),
+                (
+                    api_model.into(),
+                    lane(api_model, "openai", AccessClass::Api),
+                ),
+            ]),
+            None,
+            Some("codex".into()),
+            None,
+        );
+        let probes = [endpoint_probe(
+            "openai",
+            AccessClass::Api,
+            "https://compatible.example/v1/chat/completions",
+        )];
+        assert!(resolve_refusal_for_plan(api_model, &probes, Some(&plan)).is_none());
+        assert_eq!(
+            resolve_refusal_for_plan(harness_model, &probes, Some(&plan)),
+            resolve_refusal(harness_model)
+        );
+        for model in ["grok-3", "unknown/grok-3"] {
+            assert_eq!(
+                resolve_refusal_for_plan(model, &probes, Some(&plan)),
+                resolve_refusal(model)
+            );
+        }
+    }
+
+    #[test]
+    fn endpoint_context_preserves_default_wrong_seat_refusal() {
+        let model = "openai/deepseek-v4-flash-0731";
+        let refusal =
+            resolve_refusal(model).expect("Scaleway model is not an OpenAI default model");
+        assert!(refusal.why.contains("scaleway/deepseek-v4-flash-0731"));
+        assert_eq!(resolve_refusal_at(model, None), Some(refusal.clone()));
+        for endpoint in [
+            "https://api.openai.com/v1/chat/completions",
+            "HTTPS://API.OPENAI.COM:443/v1/chat/completions",
+            "https://api.openai.com/v1/./chat/../chat/completions",
+            "https://api.openai.com/v1/chat/completions#display-only",
+            "https://unused:unused@api.openai.com/v1/chat/completions",
+        ] {
+            assert_eq!(
+                resolve_refusal_at(model, Some(endpoint)),
+                Some(refusal.clone()),
+                "equivalent default must retain the refusal: {endpoint}"
+            );
+        }
+    }
+
+    #[test]
+    fn custom_compat_endpoint_does_not_infer_catalog_ownership() {
+        for (model, endpoint) in [
+            (
+                "openai/deepseek-v4-flash-0731",
+                "https://api.scaleway.ai/00000000-0000-0000-0000-000000000000/v1/chat/completions",
+            ),
+            (
+                "groq/grok-3",
+                "https://compatible.example/v1/chat/completions",
+            ),
+            ("ollama/grok-3", "http://127.0.0.1:9999/v1/chat/completions"),
+        ] {
+            assert!(resolve_refusal(model).is_some(), "default refuses {model}");
+            assert!(
+                resolve_refusal_at(model, Some(endpoint)).is_none(),
+                "custom compatible route is not constrained to the seed catalog: {model}"
+            );
+        }
+        assert!(nika_catalog::find_pricing_for("openai/deepseek-v4-flash-0731").is_none());
+        assert!(nika_catalog::find_pricing_for("scaleway/deepseek-v4-flash-0731").is_none());
+    }
+
+    #[test]
+    fn provider_project_paths_keep_the_native_ownership_law() {
+        for endpoint in [
+            "https://api.scaleway.ai/00000000-0000-4000-8000-000000000000/v1/chat/completions",
+            "https://api.scaleway.ai/v1/chat/completions?project=synthetic",
+            "https://api.scaleway.ai/a/different/path",
+        ] {
+            assert_eq!(
+                resolve_refusal_at("scaleway/grok-3", Some(endpoint)),
+                resolve_refusal("scaleway/grok-3"),
+                "native origin retains its law: {endpoint}"
+            );
+            assert!(
+                resolve_refusal_at("openai/deepseek-v4-flash-0731", Some(endpoint)).is_none(),
+                "the same endpoint is a different origin for the OpenAI profile"
+            );
+        }
+    }
+
+    #[test]
+    fn endpoint_context_does_not_relax_prefix_or_wire_laws() {
+        let endpoint = Some("https://compatible.example/v1/chat/completions");
+        for model in [
+            "grok-3",
+            "unknown/grok-3",
+            "azure/grok-3",
+            "anthropic/grok-3",
+            "gemini/grok-3",
+            "mock/grok-3",
+        ] {
+            let refusal = resolve_refusal(model).expect("conservative law refuses this model");
+            assert_eq!(
+                resolve_refusal_at(model, endpoint),
+                Some(refusal),
+                "{model}"
+            );
+        }
+        assert!(resolve_refusal_at("openai/unlisted-model", endpoint).is_none());
+        assert!(resolve_refusal_at("mock/echo", endpoint).is_none());
+    }
+
+    #[test]
+    fn malformed_or_non_http_endpoint_cannot_exempt_wrong_seat() {
+        let model = "groq/grok-3";
+        let refusal = resolve_refusal(model).expect("default refuses wrong seat");
+        for endpoint in [
+            "",
+            "/v1/chat/completions",
+            "not a URL",
+            "https://",
+            "https://[invalid]/v1/chat/completions",
+            "ftp://compatible.example/v1/chat/completions",
+            "file:///v1/chat/completions",
+            "data:text/plain,model",
+        ] {
+            assert_eq!(
+                resolve_refusal_at(model, Some(endpoint)),
+                Some(refusal.clone()),
+                "invalid endpoint must not waive ownership: {endpoint}"
+            );
+        }
+    }
+
+    fn endpoint_probe(
+        id: &str,
+        access: nika_types::access::AccessClass,
+        endpoint: &str,
+    ) -> crate::probe::ProviderProbe {
+        use crate::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
+
+        ProviderProbe::new(
+            id,
+            false,
+            false,
+            "",
+            false,
+            ProviderReadiness::new(
+                true,
+                false,
+                None,
+                None,
+                false,
+                ExecutionLocus::Unknown,
+                access,
+            ),
+            endpoint,
+        )
+    }
+
+    #[test]
+    fn probe_context_uses_only_matching_direct_provider() {
+        use nika_types::access::AccessClass;
+
+        let model = "openai/deepseek-v4-flash-0731";
+        let endpoint = "https://compatible.example/v1/chat/completions";
+        let refusal = resolve_refusal(model).expect("default refuses wrong seat");
+        assert_eq!(resolve_refusal_over(model, &[]), Some(refusal.clone()));
+        for probe in [
+            endpoint_probe("scaleway", AccessClass::Api, endpoint),
+            endpoint_probe("codex", AccessClass::Harness, endpoint)
+                .with_serves(vec!["openai".into()]),
+            endpoint_probe("openai", AccessClass::Harness, endpoint),
+            endpoint_probe("openai", AccessClass::Oauth, endpoint),
+            endpoint_probe("openai", AccessClass::Mock, endpoint),
+        ] {
+            assert_eq!(resolve_refusal_over(model, &[probe]), Some(refusal.clone()));
+        }
+        for access in [AccessClass::Api, AccessClass::Local] {
+            let direct = endpoint_probe("openai", access, endpoint);
+            let harness = endpoint_probe("openai", AccessClass::Harness, endpoint);
+            assert!(resolve_refusal_over(model, &[harness, direct]).is_none());
+        }
+        let default = endpoint_probe(
+            "openai",
+            AccessClass::Api,
+            "https://api.openai.com:443/v1/chat/completions",
+        );
+        assert_eq!(resolve_refusal_over(model, &[default]), Some(refusal));
+        let xai = endpoint_probe("xai", AccessClass::Api, endpoint);
+        assert!(resolve_refusal("grok/deepseek-v4-flash-0731").is_some());
+        assert!(resolve_refusal_over("grok/deepseek-v4-flash-0731", &[xai]).is_none());
+    }
+
+    #[test]
     fn resolve_refusal_names_the_two_classes_and_clears_the_runnable() {
         // bare id — teaches the contract
         let bare = resolve_refusal("gpt-5-turbo").expect("bare id refused");
@@ -616,7 +983,7 @@ mod tests {
             bare.why.contains("bare model id")
                 && bare
                     .why
-                    .contains("16 wired in this build (5 local · 11 cloud · plus mock)"),
+                    .contains("17 wired in this build (5 local · 12 cloud · plus mock)"),
             "{}",
             bare.why
         );
@@ -774,13 +1141,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn seed_yields_the_canonical_seventeen() {
+    fn seed_yields_the_canonical_eighteen() {
         let profiles = seed();
-        assert_eq!(
-            profiles.len(),
-            17,
-            "11 cloud · 5 local · mock (#1398 wired moonshot)"
-        );
+        assert_eq!(profiles.len(), 18, "12 cloud · 5 local · mock");
         assert!(
             profiles
                 .iter()
@@ -792,6 +1155,35 @@ mod tests {
         let mut canon = CANONICAL_IDS.to_vec();
         canon.sort_unstable();
         assert_eq!(ids, canon);
+    }
+
+    #[test]
+    fn scaleway_is_a_distinct_keyed_compat_profile_without_model_aliases() {
+        let profiles = seed();
+        let scaleway = profiles
+            .iter()
+            .find(|p| p.id == "scaleway")
+            .expect("profile");
+        assert!(scaleway.requires_key);
+        assert_eq!(scaleway.wire, WireFormat::OpenAiCompat);
+        assert_eq!(
+            scaleway.env_candidates(),
+            ["NIKA_SCALEWAY_API_KEY", "SCALEWAY_API_KEY"]
+        );
+        assert_eq!(
+            scaleway.base_url,
+            "https://api.scaleway.ai/v1/chat/completions"
+        );
+        assert_eq!(
+            scaleway.resolve_model("deepseek-v4-flash-0731"),
+            "deepseek-v4-flash-0731"
+        );
+        assert_eq!(
+            scaleway.resolve_model("operator-exact-model"),
+            "operator-exact-model"
+        );
+        assert!(resolve_refusal("scaleway/deepseek-v4-flash-0731").is_none());
+        assert!(catalog_warning("scaleway/deepseek-v4-flash-0731").is_none());
     }
 
     #[test]

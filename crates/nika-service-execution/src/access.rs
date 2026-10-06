@@ -27,6 +27,15 @@ pub fn access_probes_env() -> Vec<ProviderProbe> {
     nika_providers::probe::collect_access_probes_env(nika_runtime::compose::config_from_env())
 }
 
+/// Effective provider endpoints and key presence only. This does not query
+/// harness authentication, local ports, model listings or inference.
+#[must_use]
+pub fn provider_probes_env() -> Vec<ProviderProbe> {
+    let registry =
+        nika_providers::ProviderRegistry::without_http(nika_runtime::compose::config_from_env());
+    nika_providers::probe::collect_provider_probes(&registry)
+}
+
 /// The verbs that read each static model — the checked requirements
 /// (task `model:` ?? envelope) joined with the action kind of every
 /// task that resolves to the model. The eligibility facts a harness

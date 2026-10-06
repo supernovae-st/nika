@@ -23,7 +23,11 @@ pub(super) fn swap(
     let swapped = crate::verbs::with_model_override(wf, model);
     let mut report = nika_check::check(&swapped);
     crate::verbs::stamp_judged_semantic(&swapped, &mut report);
-    let models = crate::verbs::check::models_rung::unresolvable_models(&report, &swapped);
+    let models = crate::verbs::check::models_rung::unresolvable_models_over(
+        &report,
+        &swapped,
+        &nika_service_execution::access::provider_probes_env(),
+    );
     let thinking = crate::verbs::check::models_rung::thinking_findings(&swapped);
     if report.is_clean() && models.findings.is_empty() && thinking.is_empty() {
         Ok((swapped, report))
@@ -49,6 +53,16 @@ pub(super) fn lane(
     theme: Theme,
     output_json: bool,
 ) -> RunVerdict {
+    let models = nika_execution::model_admission_findings_for_plan(
+        wf,
+        model_override,
+        &nika_service_execution::access::provider_probes_env(),
+        Some(plan),
+    );
+    if !models.is_empty() {
+        super::epilogue::emit_diagnostic(&models.join("\n"), output_json || json);
+        return RunVerdict::bare(exit::FILE);
+    }
     if let Some(model) = model_override {
         match swap(wf, model) {
             Ok((wf, report)) => {
@@ -224,6 +238,39 @@ mod tests {
             Some("codex".to_owned()),
             None,
         )
+    }
+
+    #[test]
+    fn a_wrong_seat_refuses_the_preview_on_its_selected_harness() {
+        // This verdict is independent of ambient API configuration: the chosen
+        // harness cannot consume those endpoints. The shared model-law fixtures
+        // explicitly supply the custom endpoint, including mixed API/ACP lanes.
+        let source = "nika: preview\nmodel: openai/deepseek-v4-flash-0731\ntasks:\n  answer:\n    infer: { prompt: hi, max_tokens: 512 }\n";
+        let wf = nika_schema::parse(
+            source,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_check::check(&wf);
+        assert!(report.is_clean());
+        for model_override in [None, Some("openai/deepseek-v4-flash-0731")] {
+            let verdict = super::lane(
+                "preview.nika",
+                source,
+                &wf,
+                &report,
+                &nika_schema::ResolvedSkills::default(),
+                nika_display::check_render::RepairTarget::Stdin,
+                model_override,
+                &seated_plan(),
+                false,
+                crate::Theme::new(false, true, false),
+                false,
+            );
+            assert_eq!(verdict.code, super::exit::FILE);
+            assert!(verdict.trace.is_none());
+        }
     }
 
     #[test]

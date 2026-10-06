@@ -1226,6 +1226,12 @@ async fn start_running(
     }
 }
 
+/// The resident's host boundary for endpoint configuration. Admission reads
+/// no harness authentication or model listing and performs no inference.
+fn admission_probes() -> Vec<nika_providers::probe::ProviderProbe> {
+    nika_service_execution::access::provider_probes_env()
+}
+
 async fn admit_workflow(
     state: &AuthorityState,
     task: &ExecutionTask,
@@ -1239,7 +1245,7 @@ async fn admit_workflow(
     let limits = state.snapshot_limits;
     let admission = tokio::task::spawn_blocking(move || {
         let snapshot = nika_execution::ExecutionSnapshot::decode_with_limits(&encoded, limits)?;
-        service.readmit_snapshot(snapshot)
+        service.readmit_snapshot_with_model_override_over(snapshot, None, &admission_probes())
     })
     .await
     .map_err(|_| None)?;
