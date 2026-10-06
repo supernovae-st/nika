@@ -1,1 +1,3 @@
-The preparation model line in the workspace and welcome view now names the selected semantic verifier, including when the authoring model verifies its own workflow.
+- **The preparation model line names the semantic verifier.**
+  The workspace and welcome view identify the selected verifier, including when
+  the authoring model verifies its own workflow.
