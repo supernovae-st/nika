@@ -669,7 +669,11 @@ fn an_invalid_native_seat_refuses_before_binding() {
     let address = listener.local_addr().expect("address").to_string();
     for (flags, why) in [
         (["--authoring-model", "claude-code/default"], "harness"),
-        (["--authoring-repairs", "9"], "repair rounds must be 0..=5"),
+        // Repair counts run as typed; a zero output bound is still no seat.
+        (
+            ["--authoring-max-tokens", "0"],
+            "authoring output tokens per call must be positive",
+        ),
     ] {
         let mut args = vec![
             "serve",

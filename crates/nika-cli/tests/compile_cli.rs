@@ -624,11 +624,48 @@ fn a_response_without_a_model_is_counted_as_unreported() {
     );
 }
 
-/// Repairs, samples or a two-request strategy (escalate, sketch: a READY is judged) typed beyond
-/// the authority are refused before any request: the operator's explicit quality is never
-/// reduced in silence, and the number to authorize is named. Repairs under off are the verifier's
-/// and count too (nv1b). Source-only authoring is retired for a new workflow: under `only` the
-/// refusal names the semantic doors, before any request, whatever the authority.
+/// COLD creation (off, escalate) follows every unstated computation: its count is unknown, so
+/// repairs or samples typed under it are never refused up front, and the counters refuse each
+/// request past the bound.
+#[test]
+fn cold_creation_is_never_refused_up_front_and_its_counters_keep_the_bound() {
+    let room = tempfile::tempdir().expect("room");
+    let intent = "Review this customer request and harmonise the tone of the support reply";
+    let answer =
+        serde_json::json!({"candidate": "not a workflow", "questions": [], "gaps": [], "notes": ""})
+            .to_string();
+    for typed in [
+        vec!["--authoring-repairs", "3"],
+        vec!["--authoring-samples", "2"],
+        vec!["--authoring-strategy", "off", "--authoring-repairs", "3"],
+    ] {
+        let seat = LoopbackSeat::start(vec![answer.clone()]);
+        let out = command(room.path())
+            .env("NIKA_VLLM_BASE_URL", seat.base())
+            .args(["compile", intent, "--authoring-model", "vllm/loopback-seat"])
+            .args(["--authoring-max-calls", "1"])
+            .args(&typed)
+            .arg("--json")
+            .output()
+            .expect("CLI");
+        let doc = result(&out);
+        assert_ne!(
+            doc["error"]["code"], "authoring_authority",
+            "{typed:?}: {doc}"
+        );
+        assert_eq!(
+            seat.bodies().len(),
+            1,
+            "the bound, then the counters: {typed:?}"
+        );
+    }
+}
+
+/// Repairs under the sketch door, or a two-request strategy (escalate, sketch: a READY is judged),
+/// typed beyond the authority are refused before any request: the operator's explicit quality is
+/// never reduced in silence, and the number to authorize is named. Source-only authoring is
+/// retired for a new workflow: under `only` the refusal names the semantic doors, before any
+/// request, whatever the authority.
 #[test]
 fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request() {
     let room = tempfile::tempdir().expect("room");
@@ -637,11 +674,9 @@ fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request
         serde_json::json!({"candidate": "not a workflow", "questions": [], "gaps": [], "notes": ""})
             .to_string();
     for (typed, needed) in [
-        (vec!["--authoring-repairs", "3"], "--authoring-max-calls 66"),
-        (vec!["--authoring-samples", "2"], "--authoring-max-calls 16"),
         (
-            vec!["--authoring-strategy", "off", "--authoring-repairs", "3"],
-            "--authoring-max-calls 56",
+            vec!["--authoring-strategy", "sketch", "--authoring-repairs", "3"],
+            "--authoring-max-calls 13",
         ),
         (
             vec!["--authoring-strategy", "sketch"],
@@ -744,7 +779,11 @@ fn granted_verifier_repairs_are_counted_instead_of_ignored() {
     assert_eq!(seat.bodies().len(), 1, "{doc}");
     let configured = &doc["provenance"]["authoring"]["backend"]["authority"]["configured"];
     assert_eq!(configured["ignored"], serde_json::json!([]), "{doc}");
-    assert_eq!(configured["worst_case"], 56, "{doc}");
+    assert_eq!(configured["repairs"], 3, "{doc}");
+    // COLD follows every unstated computation: no finite count, the granted bound kept.
+    assert_eq!(configured["worst_case"], serde_json::Value::Null, "{doc}");
+    let authority = &doc["provenance"]["authoring"]["backend"]["authority"];
+    assert_eq!(authority["max_calls"], 56, "{doc}");
 }
 
 /// The authoring seat rides the PROVIDER client (the runtime's fixed endpoint allowlist,

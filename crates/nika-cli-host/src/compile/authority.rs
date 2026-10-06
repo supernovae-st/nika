@@ -172,27 +172,28 @@ mod tests {
         assert_eq!(record["configured"]["worst_case"], serde_json::Value::Null);
         // Typed repairs under no bound run as typed.
         assert!(resolve(&["--authoring-repairs", "3"], NativeMode::Escalate).is_ok());
-        // Under a typed bound of one they can need sixty-six: refused, with the number to
-        // authorize.
+        // COLD creation follows every unstated computation: its count is unknown, so a typed
+        // bound is never refused up front, and the counters refuse each request past it.
         let one = ["--authoring-repairs", "3", "--authoring-max-calls", "1"];
-        let refused = resolve(&one, NativeMode::Escalate).unwrap_err();
+        assert!(resolve(&one, NativeMode::Escalate).is_ok());
+        // Under the sketch door three repairs can need thirteen: refused under a bound of one,
+        // with the number to authorize.
+        let refused = resolve(&one, NativeMode::Sketch).unwrap_err();
         assert_eq!(
             refused,
-            "the repairs or samples typed can need 66 authoring requests under the escalate strategy, and 1 is authorized: authorize them with --authoring-max-calls 66, or ask for fewer"
+            "the repairs or samples typed can need 13 authoring requests under the sketch strategy, and 1 is authorized: authorize them with --authoring-max-calls 13, or ask for fewer"
         );
-        let typed = ["--authoring-repairs", "3", "--authoring-max-calls", "66"];
-        assert!(resolve(&typed, NativeMode::Escalate).is_ok());
+        let typed = ["--authoring-repairs", "3", "--authoring-max-calls", "13"];
+        assert!(resolve(&typed, NativeMode::Sketch).is_ok());
         // Nothing extra asked, and a typed only granted its judgment: never refused.
         let only = ["--authoring-strategy", "only", "--authoring-max-calls", "2"];
         assert!(resolve(&only, NativeMode::Only).is_ok());
         let none = ["--authoring-repairs", "0", "--authoring-max-calls", "1"];
         assert!(resolve(&none, NativeMode::Escalate).is_ok());
-        // Samples: twenty-one under escalate for three of them.
+        // Samples add requests only where the count is already unknown: never refused up front.
         let short = ["--authoring-samples", "3", "--authoring-max-calls", "1"];
-        assert!(resolve(&short, NativeMode::Escalate).is_err());
+        assert!(resolve(&short, NativeMode::Escalate).is_ok());
         assert!(resolve(&["--authoring-samples", "3"], NativeMode::Escalate).is_ok());
-        let sampled = ["--authoring-samples", "3", "--authoring-max-calls", "21"];
-        assert!(resolve(&sampled, NativeMode::Escalate).is_ok());
         // A typed escalation needs the plan and its judgment under a typed bound; the implicit
         // one runs, and no bound refuses neither.
         let escalate = ["--authoring-strategy", "escalate"];
@@ -270,8 +271,8 @@ mod tests {
             refused.expect_err("zero"),
             "--authoring-max-calls 0 authorizes no authoring request: authorize 1 or more, or drop --authoring-model"
         );
-        // The core runs any typed repair count as typed: only a typed bound refuses one, with
-        // what it needs (COLD 2 + 10 x 12 + 18, then the sketch door's 8 + 2 + 2 x 9).
+        // The core runs any typed repair count as typed: only a typed bound refuses one whose
+        // count is known, with what it needs (the sketch door's 4 + 3 x 9).
         let parsed = Door::try_parse_from([
             "compile",
             "x",
@@ -284,10 +285,11 @@ mod tests {
         let args = parsed.args;
         assert_eq!(args.authoring_repairs, Some(9));
         assert!(super::resolve(&args, None, NativeMode::Escalate).is_ok());
-        let refused = super::resolve(&args, Some(1), NativeMode::Escalate).expect_err("nine");
+        assert!(super::resolve(&args, Some(1), NativeMode::Escalate).is_ok());
+        let refused = super::resolve(&args, Some(1), NativeMode::Sketch).expect_err("nine");
         assert_eq!(
             refused,
-            "the repairs or samples typed can need 168 authoring requests under the escalate strategy, and 1 is authorized: authorize them with --authoring-max-calls 168, or ask for fewer"
+            "the repairs or samples typed can need 31 authoring requests under the sketch strategy, and 1 is authorized: authorize them with --authoring-max-calls 31, or ask for fewer"
         );
     }
 
