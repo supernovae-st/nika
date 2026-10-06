@@ -270,7 +270,28 @@ impl SessionRuntime {
         }
         self.authoring_context = self.project_context();
         self.activity(&Activity::now(Phase::Authoring, self.authoring_note()));
-        match self.compile_round(&round, &self.seat.clone()) {
+        let mut round = round;
+        let out = loop {
+            let out = self.compile_round(&round, &self.seat.clone());
+            // An answer round replays its plan and judges it, never repairs it: a candidate its
+            // judge found a defect in is written again under every answer already given, where
+            // the authoring round's own judgment and repairs run. Once: that round replays
+            // nothing. A judge that abstained or failed is no defect to write again from.
+            if let Ok(held) = &out
+                && round.replays()
+                && held_words(held, true).is_some()
+                && judged_a_defect(held)
+            {
+                round.forget_plan();
+                self.activity(&Activity::now(
+                    Phase::Repairing,
+                    "the verifier did not settle the replayed workflow · writing it again with your answers",
+                ));
+                continue;
+            }
+            break out;
+        };
+        match out {
             Ok(out) if nika_onboard::compile::round::awaiting_judge(&out) => {
                 self.keep_unjudged(round, out)
             }
@@ -1290,6 +1311,16 @@ fn required_inputs_of(root: &std::path::Path, workflow: &std::path::Path) -> Vec
 pub(super) use nika_onboard::compile::reading::{question_text, revision_way, syntax_incomplete};
 
 use nika_onboard::compile::reading::held_words;
+
+/// Whether the last semantic verification of `out` found a defect in its candidate: a judged
+/// disagreement, never an abstention or a failed call.
+fn judged_a_defect(out: &nika_onboard::compile::CompileOutcome) -> bool {
+    (out.provenance.decision.as_ref())
+        .and_then(|decision| decision["semantic_verification"].as_array())
+        .and_then(|attempts| attempts.last())
+        .and_then(|attempt| attempt["defects"].as_array())
+        .is_some_and(|defects| !defects.is_empty())
+}
 
 pub(super) fn cannot_express_text(out: &CompileOutcome) -> String {
     let authoring_failed = matches!(

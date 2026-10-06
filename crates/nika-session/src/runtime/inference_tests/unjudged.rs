@@ -125,3 +125,42 @@ fn a_correction_discards_the_old_candidate_and_authors_the_changed_intent() {
         "fresh author, not old judge"
     );
 }
+/// A replayed candidate its judge finds unfaithful without locating a part (an answer round
+/// replays and judges, never repairs) is written again under the answers already given: the
+/// authoring round runs its own judgment, and the human never types the request again.
+/// Observed in the TUI on 2026-10-06 (certificates, DeepSeek): « built but not proposed ».
+#[test]
+fn a_replayed_candidate_the_judge_doubts_is_written_again_not_left_held() {
+    let peer = Peer::start(first_script());
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let mut s = live(dir.path(), home.path());
+    assert!(matches!(s.turn(WORK), TurnOutcome::Facts(_)));
+    let _plan = kept(&s);
+    let mut script = vec![
+        (200, response(r#"{"choice":"unfaithful"}"#)),
+        (200, response(r#"{"choice":"none"}"#)),
+    ];
+    script.extend(semantic_create().iter().map(|t| (200, response(t))));
+    script.push((200, response(JUDGE_APPROVES)));
+    let again = Peer::start(script);
+    let _again = test_transport::install(&again.url);
+    let out = s.turn("RePrEnD");
+    assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
+    let bodies = again.bodies();
+    assert_eq!(
+        bodies.len(),
+        2 + CREATE_CALLS,
+        "the doubt, then one authoring round"
+    );
+    assert!(bodies[0].to_string().contains("unfaithful"));
+    assert!(
+        !bodies[2].to_string().contains("unfaithful"),
+        "a fresh author call follows the doubt"
+    );
+    assert!(
+        !dir.path().join("sortie.txt").exists(),
+        "proposed, never run"
+    );
+}

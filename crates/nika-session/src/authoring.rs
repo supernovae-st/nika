@@ -309,8 +309,15 @@ impl AuthoringRound {
             })
     }
 
-    fn replays(&self) -> bool {
+    pub(crate) fn replays(&self) -> bool {
         self.continuation.is_some() && !self.base_record()
+    }
+
+    /// Forget the plan this round replays, and the knowledge and receipt of the call that
+    /// authored it, keeping every answer, the request and its money: the next compile writes
+    /// the workflow again instead of replaying it.
+    pub(crate) fn forget_plan(&mut self) {
+        (self.continuation, self.knowledge, self.authoring_receipt) = (None, None, None);
     }
 
     /// The intent the compiler reads for this round: a revision's original
