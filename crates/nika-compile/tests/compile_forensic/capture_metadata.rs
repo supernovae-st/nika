@@ -445,14 +445,16 @@ async fn observed(answers: Vec<Answer>) -> (CompileOutcome, Vec<Meta>, Canned) {
 // ── Product parity with the reference ───────────────────────────────────────────────────────
 
 /// Reviewed prompt identities for [`three_calls`] under the unchanged legacy framing.
-/// Captured by CI after commit 98c24b617462 added temporal-shape and jq date-time
-/// conventions to `native_output_conventions.md`. That asset is included in the System
-/// message retained by all three calls. The assertions below independently compare the
-/// observer with the legacy framing over each exact request before checking these values.
+/// Captured after commit 4470d33de sent each callable contract as its whole stdlib section
+/// (no longer cut at 2,000 characters); before it, after commit 98c24b617462 added
+/// temporal-shape and jq date-time conventions to `native_output_conventions.md`. Both are
+/// included in the System message retained by all three calls. The assertions below
+/// independently compare the observer with the legacy framing over each exact request before
+/// checking these values.
 const REVIEWED_PROMPTS: [&str; 3] = [
-    "043030837eb35ce5600a436d83549d3aada3e7fe88f3c269a0069606dc2fab7d",
-    "49a9ea931f814e88df419aa795c2ea143c03f9fec24a73dd28edccf6bfab362c",
-    "577463d6b675b142f9676750a4ad7c4f05af5b13b0071fa208d7744235afe28e",
+    "c7d66f6b71306dc5ba085ea88fef0558cb96b36d1c601f9667a58d7436bb0206",
+    "7413516c7e9b98e104d124bcb9102d4923979902b2b229a94e396af0bb0f8b99",
+    "f4add747564fa2b971c9debc462945920df07a4aae9fa93b7ce8d117bd0b126f",
 ];
 /// Legacy response identities, unchanged by the new prompt conventions.
 const PRE_CHANGE_FRAMED: [&str; 3] = [
