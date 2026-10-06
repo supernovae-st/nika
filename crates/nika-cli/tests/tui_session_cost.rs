@@ -256,6 +256,15 @@ impl Term {
         // current idle hint excludes the still-visible prompt of a busy turn.
         self.wait_until(reply, |screen| count(screen) > before && idle(screen));
     }
+
+    /// Keep reading for `window`, so a later frame of the same state lands.
+    fn settle(&mut self, window: Duration) {
+        let until = Instant::now() + window;
+        while !self.eof && Instant::now() < until {
+            self.pump();
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
 }
 
 fn idle(screen: &vt::Screen) -> bool {
@@ -265,9 +274,14 @@ fn idle(screen: &vt::Screen) -> bool {
 }
 
 fn spawn(root: &Path) -> Term {
+    spawn_sized(root, 80, 24)
+}
+
+fn spawn_sized(root: &Path, cols: u16, rows: u16) -> Term {
+    let size = format!("stty cols {cols} rows {rows} && exec \"$0\" \"$@\"");
     let mut command = Command::new("/bin/sh");
     command
-        .args(["-c", "stty cols 80 rows 24 && exec \"$0\" \"$@\""])
+        .args(["-c", &size])
         .arg(std::env::current_exe().unwrap())
         .args(["--exact", "native_tui_session_cost_parent", "--nocapture"])
         .current_dir(root)
@@ -276,8 +290,8 @@ fn spawn(root: &Path) -> Term {
         .env("TERM", "xterm-256color")
         .env("HOME", root);
     let mut pty = OsSession::spawn(command).unwrap();
-    pty.get_process_mut().set_window_size(80, 24).unwrap();
-    let mut screen = vt::Screen::new(80, 24);
+    pty.get_process_mut().set_window_size(cols, rows).unwrap();
+    let mut screen = vt::Screen::new(cols, rows);
     screen.park_at_bottom();
     let mut term = Term {
         pty,
@@ -382,6 +396,58 @@ fn leave(term: &mut Term) {
         term.pty.get_process().wait().unwrap(),
         WaitStatus::Exited(_, 0)
     ));
+}
+
+/// The hint row while a preparation works.
+const PREPARING: &str = "Preparing: Ctrl+C requests Stop;";
+
+/// The three transcript rows a 60 × 8 focus view shows while Nika works.
+fn reading_rows(screen: &vt::Screen) -> Vec<String> {
+    screen.lines().into_iter().take(3).collect()
+}
+
+/// `Enter` on a correction while the focus transcript is scrolled back asks
+/// Stop and sends the correction next. The stop, the correction's echo, its
+/// busy row and its reply land below the rows being read; End shows them.
+#[test]
+fn a_stop_and_its_queued_correction_keep_a_scrolled_focus_reading_position() {
+    let root = new_root();
+    std::fs::write(root.path().join("hold-response"), "wait for Stop").unwrap();
+    let mut p = spawn_sized(root.path(), 60, 8);
+    // Below the workspace size, Ctrl+T opens the focus view.
+    p.send("\x14");
+    p.wait_until("the focus view", |screen| screen.on_alt() && idle(screen));
+    p.send("hello\r");
+    wait_for_request(root.path());
+    p.wait_until("the busy preparation", |screen| screen.contains(PREPARING));
+    let latest = reading_rows(&p.screen);
+    // More pages than the transcript holds: the reading position is its first row.
+    p.send("\x1b[5~\x1b[5~\x1b[5~\x1b[5~yes");
+    p.wait_until("scrolled back with a typed correction", |screen| {
+        reading_rows(screen) != latest
+            && screen.contains("nika › yes")
+            && screen.contains(PREPARING)
+    });
+    let before = reading_rows(&p.screen);
+    p.send("\r");
+    p.wait_until(
+        "the stopped preparation and its sent correction",
+        |screen| !screen.contains(PREPARING) && screen.row_starting("nika ›").is_some(),
+    );
+    p.settle(Duration::from_millis(1500));
+    assert_eq!(
+        reading_rows(&p.screen),
+        before,
+        "the stop and its correction moved the reading position\n{}",
+        p.screen.text()
+    );
+    assert_eq!(calls(root.path()), 1, "Stop never retries the sent request");
+    p.send("\x1b[F");
+    p.wait_until("End shows the correction's reply", |screen| {
+        screen.contains("nothing waits for a yes or a no") && idle(screen)
+    });
+    assert_unknown_observed(root.path(), false);
+    leave(&mut p);
 }
 
 #[test]

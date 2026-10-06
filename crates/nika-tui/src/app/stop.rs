@@ -201,20 +201,22 @@ impl<C: Conversation + 'static> Shell<C> {
             self.hold.chained = Some(queued);
             return Ok(());
         }
-        if fate == Fate::Draft {
-            // The correction first, then whatever was typed after it.
-            let rest = self.composer.text();
-            self.composer.clear();
-            self.composer.paste(&queued);
-            if !rest.trim().is_empty() {
-                self.composer.paste("\n");
-                self.composer.paste(&rest);
-            }
-        }
         let notice = correction_unsent(&queued, fate == Fate::Transcript, self.state.ascii);
-        self.state
-            .transcript
-            .push(Committed::new(Kind::Notice, notice));
+        // A scrolled transcript keeps its reading position: the draft's rows
+        // and the notice land below it.
+        self.keep_reading(|state, composer| {
+            if fate == Fate::Draft {
+                // The correction first, then whatever was typed after it.
+                let rest = composer.text();
+                composer.clear();
+                composer.paste(&queued);
+                if !rest.trim().is_empty() {
+                    composer.paste("\n");
+                    composer.paste(&rest);
+                }
+            }
+            state.transcript.push(Committed::new(Kind::Notice, notice));
+        });
         self.commit_inline()
     }
 }

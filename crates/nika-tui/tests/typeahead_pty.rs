@@ -233,3 +233,58 @@ fn the_page_keys_scroll_the_focus_transcript_while_nika_works() {
     term.wait_prompt(APPLY);
     leave_term(&mut term);
 }
+
+/// The three transcript rows a 60 × 8 focus view shows while Nika works.
+fn reading_rows(term: &Term) -> Vec<String> {
+    term.screen.lines().into_iter().take(3).collect()
+}
+
+/// Words typed while a scrolled focus turn works are set aside when it ends
+/// on the proposal. The notice saying where they went lands below the rows
+/// being read: the reading position stays, End shows the notice, and the
+/// draft waits in the box, unsent.
+#[test]
+fn typeahead_set_aside_keeps_the_focus_reading_position() {
+    let mut term = Term::proto_with(
+        &["--demo-pace", PACE_MS, "--focus"],
+        60,
+        8,
+        &[("NO_COLOR", "1")],
+    );
+    term.wait_prompt(FREE);
+    term.send("qzxjqzxj\r");
+    term.wait_prompt(REPLY);
+    term.wait_text("const.source_path");
+    term.send("./notes/lundi.md\r");
+    term.wait_text(HOLDS);
+    // More pages than the transcript holds: the reading position is its first
+    // row (the banner, above the sent line), marked by the reading hint.
+    term.send("\x1b[5~\x1b[5~\x1b[5~\x1b[5~wvkx");
+    term.wait_until(
+        "scrolled back to the first line with a draft typed while Nika works",
+        |screen| {
+            screen.contains("reading earlier messages")
+                && screen.contains("wvkx")
+                && screen.contains(HOLDS)
+        },
+    );
+    let before = reading_rows(&term);
+    term.wait_prompt(APPLY);
+    // Any later frame of the same turn end is read too.
+    term.settle(Duration::from_millis(300));
+    assert_eq!(
+        reading_rows(&term),
+        before,
+        "the typeahead notice moved the reading position\n{}",
+        term.dump()
+    );
+    assert!(
+        term.screen.row_starting(&format!("{APPLY} wvkx")).is_some() && !term.screen.seen(SAVED),
+        "the typeahead waits in the box and consents to nothing\n{}",
+        term.dump()
+    );
+    term.send("\x1b[F");
+    term.wait_text("you typed");
+    term.wait_prompt(APPLY);
+    leave_term(&mut term);
+}

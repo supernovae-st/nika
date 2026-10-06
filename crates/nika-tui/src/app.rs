@@ -716,9 +716,8 @@ impl<C: Conversation + 'static> Shell<C> {
     fn submit_one(&mut self, line: &str, broker: &mut Broker) -> io::Result<Submitted> {
         self.submitted += 1;
         let echo = format!("{}{}", self.state.waiting.prompt(), line.trim_end());
-        self.state
-            .transcript
-            .push(Committed::new(Kind::Human, echo));
+        // A line sent from a scrolled transcript (a queued correction) keeps the reading position.
+        self.keep_reading(|state, _| state.transcript.push(Committed::new(Kind::Human, echo)));
         self.commit_inline()?;
         // The proof hook of the PTY suite: a panic inside the loop must
         // leave the terminal restored (the hook restores before the message
@@ -734,7 +733,7 @@ impl<C: Conversation + 'static> Shell<C> {
         // turn emits (« Working through this workflow… »). The turn's first
         // word clears the busy state.
         if let Some(label) = self.conversation()?.busy_label(line) {
-            self.state.busy = Some(label);
+            self.set_busy(label);
             self.draw()?;
         }
         let started = std::time::Instant::now();
@@ -793,11 +792,11 @@ impl<C: Conversation + 'static> Shell<C> {
         // what was typed while Nika worked is cleared, and a notice says so.
         let draft = self.composer.text();
         if !draft.trim().is_empty() {
-            self.composer.clear();
             let notice = cleared_notice(&draft, self.state.ascii);
-            self.state
-                .transcript
-                .push(Committed::new(Kind::Notice, notice));
+            self.keep_reading(|state, composer| {
+                composer.clear();
+                state.transcript.push(Committed::new(Kind::Notice, notice));
+            });
             self.commit_inline()?;
         }
         // Paint the question before accepting input; reveal its reply prompt
@@ -861,17 +860,19 @@ impl<C: Conversation + 'static> Shell<C> {
     /// reader, a resize). One dim notice says what is in the box. The two
     /// spending questions keep their stricter discard ([`Self::fresh_input`]).
     fn set_aside_typeahead(&mut self, typed: Vec<UiEvent>) -> io::Result<()> {
-        let kept = set_aside(&mut self.composer, typed);
+        // A scrolled transcript keeps its reading position: the draft's rows
+        // and the notice land below it.
+        let kept = self.keep_reading(|state, composer| {
+            let kept = set_aside(composer, typed);
+            let draft = composer.text();
+            if !draft.trim().is_empty() {
+                let notice = typed_notice(&draft, state.ascii);
+                state.transcript.push(Committed::new(Kind::Notice, notice));
+            }
+            kept
+        });
         self.deferred.extend(kept);
-        let draft = self.composer.text();
-        if !draft.trim().is_empty() {
-            let notice = typed_notice(&draft, self.state.ascii);
-            self.state
-                .transcript
-                .push(Committed::new(Kind::Notice, notice));
-            self.commit_inline()?;
-        }
-        Ok(())
+        self.commit_inline()
     }
 
     /// Hand the terminal back for one piece of work and take it again. The
@@ -1126,7 +1127,7 @@ impl<C: Conversation + 'static> Shell<C> {
             if secs != shown || frame != self.state.spinner {
                 shown = secs;
                 self.state.spinner = frame;
-                self.state.busy = Some(busy_text_with(
+                self.set_busy(busy_text_with(
                     last_done.as_deref(),
                     base.as_deref(),
                     secs,

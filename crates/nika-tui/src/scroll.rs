@@ -86,6 +86,25 @@ pub(crate) fn preserve_reading(
 ) {
     let before = (state.focus_scroll > 0).then(|| maximum(state, desk, composer));
     update(state);
+    keep(state, desk, composer, before);
+}
+
+/// [`preserve_reading`] when the update also edits the draft, whose rows are
+/// the live area's: the transcript above it keeps the reading position.
+pub(crate) fn preserve_reading_and_draft<T>(
+    state: &mut UiState,
+    desk: &Desk,
+    composer: &mut Composer,
+    update: impl FnOnce(&mut UiState, &mut Composer) -> T,
+) -> T {
+    let before = (state.focus_scroll > 0).then(|| maximum(state, desk, composer));
+    let out = update(state, composer);
+    keep(state, desk, composer, before);
+    out
+}
+
+/// Move a scrolled position by what the content below it gained or lost.
+fn keep(state: &mut UiState, desk: &Desk, composer: &Composer, before: Option<usize>) {
     if let Some(before) = before {
         let after = maximum(state, desk, composer);
         state.focus_scroll = if after >= before {
@@ -158,6 +177,31 @@ mod tests {
                 state.observe_activity("a new update");
             });
             assert_eq!(state.focus_scroll, 0);
+        }
+    }
+
+    #[test]
+    fn a_draft_and_a_notice_set_at_a_turn_end_keep_a_scrolled_reading_position() {
+        for presentation in [Presentation::Workspace, Presentation::Focus] {
+            let mut state = UiState::new(presentation, false, (120, 40));
+            state.transcript.push(Committed::new(
+                Kind::Reply,
+                (0..100)
+                    .map(|n| format!("history {n:03}"))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            ));
+            let desk = Desk::new();
+            let mut composer = Composer::new();
+            rows(&mut state, &desk, &composer, true, 30);
+            let top = maximum(&state, &desk, &composer) - state.focus_scroll;
+            preserve_reading_and_draft(&mut state, &desk, &mut composer, |state, composer| {
+                composer.paste("a queued correction\non three\nlines");
+                state
+                    .transcript
+                    .push(Committed::new(Kind::Notice, "it is in the box"));
+            });
+            assert_eq!(maximum(&state, &desk, &composer) - state.focus_scroll, top);
         }
     }
 

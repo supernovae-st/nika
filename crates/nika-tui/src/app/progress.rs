@@ -13,7 +13,8 @@ use nika_display::activity::Activity;
 use nika_display::activity_card::Update;
 
 use super::Shell;
-use crate::model::Conversation;
+use crate::composer::Composer;
+use crate::model::{Conversation, UiState};
 use crate::session::feed::Observed;
 
 /// The card's update for one activity the shell saw `at` since the turn
@@ -33,6 +34,21 @@ fn update(activity: &Activity, at: Duration) -> Update<'_> {
 }
 
 impl<C: Conversation + 'static> Shell<C> {
+    /// Change the state and the draft while a scrolled transcript keeps its
+    /// reading position: the rows they add or remove are below it.
+    pub(super) fn keep_reading<T>(
+        &mut self,
+        update: impl FnOnce(&mut UiState, &mut Composer) -> T,
+    ) -> T {
+        let (state, desk, composer) = (&mut self.state, &self.desk, &mut self.composer);
+        crate::scroll::preserve_reading_and_draft(state, desk, composer, update)
+    }
+
+    /// Show `busy` in the busy row, whose rows are the live area's.
+    pub(super) fn set_busy(&mut self, busy: String) {
+        self.keep_reading(|state, _| state.busy = Some(busy));
+    }
+
     /// Drain the turn's queue: each typed activity to the card and the busy
     /// row (a finished one beside the current one), every run observation to
     /// the desk. `true` when anything arrived.
