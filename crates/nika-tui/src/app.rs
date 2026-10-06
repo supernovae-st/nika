@@ -742,18 +742,18 @@ impl<C: Conversation + 'static> Shell<C> {
             TurnEnd::Done(turn) => turn,
             TurnEnd::Left(exit) => return Ok(Submitted::Left(exit)),
         };
-        self.state.busy = None;
-        self.state.settle_activity(started.elapsed());
+        crate::scroll::preserve_reading(&mut self.state, &self.desk, &self.composer, |state| {
+            state.busy = None;
+            state.settle_activity(started.elapsed());
+            state.completion = None;
+        });
         // A stop that raced the result: what the stopped preparation left is withdrawn first.
         let (stopped, queued) = (self.hold.stopping(), self.hold.release());
         if stopped {
             turn.beats.extend(self.conversation()?.withdraw_stopped());
         }
-        // The turn is over: a hint about it (« Enter sends when it is your
-        // turn ») goes with it, and a transcript scrolled back while Nika
-        // worked returns to its end, where the answer is.
-        self.state.completion = None;
-        self.state.focus_scroll = 0;
+        // Completing a turn keeps the reader's position. The live decision
+        // remains visible; End returns the transcript to the new answer.
         if started.elapsed() >= BELL_AFTER && !self.options.reduced_motion {
             // One bell: the human who looked away during a long turn is
             // called back; never for a short one, never under reduced motion.

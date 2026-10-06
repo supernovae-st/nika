@@ -21,15 +21,9 @@
 //! `cancel to stop`). Each decision is identified by its prompt row and by
 //! the phrase its turn alone prints; a decision answered by typeahead would
 //! print the next turn's phrase within the window watched here. The focus
-//! proof below still reads tokens the diff renderer writes whole.
+//! proof below also reads the composed screen, including its retained scroll.
 
-use std::process::Command;
 use std::time::Duration;
-
-use expectrl::process::unix::{PtyStream, UnixProcess, WaitStatus};
-use expectrl::session::{OsSession, Session};
-use expectrl::stream::log::LogStream;
-use expectrl::{Eof, Expect};
 
 mod qa_support;
 
@@ -38,37 +32,15 @@ use qa_support::{
     assert_restored, exit_code,
 };
 
-type LoggedSession = Session<UnixProcess, LogStream<PtyStream, Tee>>;
-
-/// A log sink that keeps every byte the process wrote, for the dumps.
-#[derive(Clone, Default)]
-struct Tee(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
-
-impl std::io::Write for Tee {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.lock().expect("tee").extend_from_slice(buf);
-        Ok(buf.len())
-    }
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
 /// How long each scripted turn stays busy.
 const PACE_MS: &str = "900";
 /// The dim notice that says where the typeahead went.
 const NOTICE: &str = "it is in the box, not sent";
 /// How long a decision is watched for an answer it must not get.
 const WATCH: Duration = Duration::from_millis(1500);
-/// The fixture's first question, by a token the diff renderer never splits.
-const FIRST_QUESTION: &str = "const.source_path";
 /// The busy row of a paced turn: what is typed after it shows is typed
 /// while Nika works.
 const HOLDS: &str = "the demo holds this turn";
-
-fn bin() -> &'static str {
-    env!("CARGO_BIN_EXE_nika-tui-proto")
-}
 
 /// The paced proto inline on an 80 × 24 PTY, read as a composed screen,
 /// at its free prompt.
@@ -131,55 +103,6 @@ fn leave_term(term: &mut Term) {
     let status = term.finish();
     assert_eq!(exit_code(status), Some(130), "{status:?}\n{}", term.dump());
     assert_restored(term);
-}
-
-/// The paced proto in the focus view on a 60 × 8 PTY: four transcript rows
-/// above the rule and the live area, so a short exchange already overflows
-/// them.
-fn spawn_focus() -> (LoggedSession, Tee) {
-    let (cols, rows) = (60, 8);
-    let mut cmd = Command::new(bin());
-    cmd.args(["--demo-pace", PACE_MS, "--focus"])
-        .env("TERM", "xterm-256color")
-        .env("NO_COLOR", "1");
-    let session = OsSession::spawn(cmd).expect("pty spawn");
-    let tee = Tee::default();
-    let mut session = expectrl::session::log(session, tee.clone()).expect("log tee");
-    session.set_expect_timeout(Some(Duration::from_secs(30)));
-    session
-        .expect("\x1b[c")
-        .expect("the terminal probe asks the device attributes");
-    // The size is set once the binary runs, before the shell reads it.
-    session
-        .get_process_mut()
-        .set_window_size(cols, rows)
-        .expect("size the terminal");
-    session.send("\x1b[?62;22c").expect("answer the attributes");
-    expect_or_dump(&mut session, &tee, "nika ›", "the free prompt");
-    (session, tee)
-}
-
-/// Expect `needle`; on failure, dump everything written.
-fn expect_or_dump(session: &mut LoggedSession, tee: &Tee, needle: &str, why: &str) {
-    if let Err(error) = session.expect(needle) {
-        let log = String::from_utf8_lossy(&tee.0.lock().expect("tee")).into_owned();
-        panic!("{why}: {error:?}\n--- output so far ---\n{log}");
-    }
-}
-
-/// Let a freshly painted decision be read before a human answer is typed:
-/// the harness answers what it sees, as a human does, never ahead of it.
-fn read_it() {
-    std::thread::sleep(Duration::from_millis(400));
-}
-
-fn leave(session: &mut LoggedSession) {
-    session.send("\x03").expect("first Ctrl+C");
-    std::thread::sleep(Duration::from_millis(300));
-    session.send("\x03").expect("second Ctrl+C");
-    session.expect(Eof).expect("the process ends");
-    let status = session.get_process_mut().wait().expect("wait");
-    assert!(matches!(status, WaitStatus::Exited(_, 130)), "{status:?}");
 }
 
 /// A question: the typeahead lands in the box and the question waits; the
@@ -271,32 +194,42 @@ fn words_typed_while_nika_works_show_at_once_and_enter_waits() {
     assert_restored(&term);
 }
 
-/// In the focus view the page keys scroll the transcript while Nika works,
-/// and the answer is on screen once the turn ends. The four transcript rows
-/// hold the first line (a token no other row holds) until the answer's echo
-/// pushes it out of view, so it is written again only when a block back is
-/// shown; the proposal's identity row is drawn only when the transcript is
-/// back at its end. (Sixty columns cut the proposal's hint before `/show`.)
+/// Paging uses rendered rows with one row of overlap. At 60 × 8 the
+/// two-line busy hint leaves three transcript rows, so two `PageUp` gestures
+/// reach the first line. Finishing the turn preserves that reading position;
+/// End explicitly returns to the proposal.
 #[test]
 fn the_page_keys_scroll_the_focus_transcript_while_nika_works() {
-    let (mut session, tee) = spawn_focus();
-    session.send("qzxjqzxj\r").expect("a first line");
-    expect_or_dump(&mut session, &tee, FIRST_QUESTION, "the fixture asks");
-    read_it();
-    session.send("./notes/lundi.md\r").expect("an answer");
-    std::thread::sleep(Duration::from_millis(150));
-    session.send("\x1b[5~").expect("PgUp while Nika works");
-    expect_or_dump(
-        &mut session,
-        &tee,
-        "qzxjqzxj",
-        "one block back while the turn runs: the first line is shown again",
+    let mut term = Term::proto_with(
+        &["--demo-pace", PACE_MS, "--focus"],
+        60,
+        8,
+        &[("NO_COLOR", "1")],
     );
-    expect_or_dump(
-        &mut session,
-        &tee,
-        "9f3c1a",
-        "the turn ended on the proposal: the transcript is back at its end",
+    term.wait_prompt(FREE);
+    term.send("qzxjqzxj\r");
+    term.wait_prompt(REPLY);
+    term.wait_text("const.source_path");
+    term.send("./notes/lundi.md\r");
+    term.wait_text(HOLDS);
+    assert!(
+        !term.screen.contains("qzxjqzxj"),
+        "the reply echo pushed the first line above the viewport\n{}",
+        term.dump()
     );
-    leave(&mut session);
+    term.send("\x1b[5~\x1b[5~");
+    term.wait_until(
+        "the first line is visible while the turn is busy",
+        |screen| screen.contains("qzxjqzxj") && screen.contains(HOLDS),
+    );
+    term.wait_prompt(APPLY);
+    assert!(
+        term.screen.contains("qzxjqzxj") && !term.screen.contains(PROPOSAL),
+        "the completed turn must preserve the earlier reading position\n{}",
+        term.dump()
+    );
+    term.send("\x1b[F");
+    term.wait_text(PROPOSAL);
+    term.wait_prompt(APPLY);
+    leave_term(&mut term);
 }
