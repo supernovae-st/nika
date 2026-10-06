@@ -30,8 +30,16 @@ if "--version" in sys.argv:
 init = recv()
 send({"jsonrpc":"2.0","id":init["id"],"result":{"protocolVersion":1}})
 new = recv()
-send({"jsonrpc":"2.0","id":new["id"],"result":{"sessionId":"s-bill"}})
+# The verb inherits mock/echo; advertise and confirm its wire model before a prompt.
+config = [{"id":"model","name":"Model","category":"model","type":"select",
+           "currentValue":"echo","options":[{"value":"echo","name":"Echo"}]}]
+send({"jsonrpc":"2.0","id":new["id"],"result":{"sessionId":"s-bill","configOptions":config}})
+selection = recv()
+assert selection["method"] == "session/set_config_option"
+assert selection["params"] == {"sessionId":"s-bill","configId":"model","value":"echo"}
+send({"jsonrpc":"2.0","id":selection["id"],"result":{"configOptions":config}})
 prompt = recv()
+assert prompt["method"] == "session/prompt"
 send({"jsonrpc":"2.0","method":"session/update","params":{
     "sessionId":"s-bill",
     "update":{"sessionUpdate":"agent_message_chunk",

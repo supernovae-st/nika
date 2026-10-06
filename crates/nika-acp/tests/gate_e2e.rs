@@ -47,8 +47,16 @@ program = sys.argv[1]
 init = recv()
 send({"jsonrpc":"2.0","id":init["id"],"result":{"protocolVersion":1}})
 new = recv()
-send({"jsonrpc":"2.0","id":new["id"],"result":{"sessionId":"s-gate"}})
+# The verb inherits mock/echo; advertise and confirm its wire model before a prompt.
+config = [{"id":"model","name":"Model","category":"model","type":"select",
+           "currentValue":"echo","options":[{"value":"echo","name":"Echo"}]}]
+send({"jsonrpc":"2.0","id":new["id"],"result":{"sessionId":"s-gate","configOptions":config}})
+selection = recv()
+assert selection["method"] == "session/set_config_option"
+assert selection["params"] == {"sessionId":"s-gate","configId":"model","value":"echo"}
+send({"jsonrpc":"2.0","id":selection["id"],"result":{"configOptions":config}})
 prompt = recv()
+assert prompt["method"] == "session/prompt"
 send({"jsonrpc":"2.0","id":"ask-1","method":"session/request_permission","params":{
     "sessionId":"s-gate",
     "toolCall":{"title":"run `" + program + "`","kind":"execute",

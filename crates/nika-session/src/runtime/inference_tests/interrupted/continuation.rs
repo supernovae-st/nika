@@ -5,7 +5,7 @@ use super::*;
 use std::sync::Mutex;
 
 const ORIGINAL: &str = "À partir de inventory.json, crée reorder.nika qui prépare un réapprovisionnement : pour chaque article dont stock est strictement inférieur à 8, écris dans reorder.json son sku et reorder_qty = 12 moins stock. Trie le résultat par sku. Le fichier inventory.json doit rester identique.";
-const CORRECTION: &str = "Reprends la préparation de reorder.nika avec une correction : le seuil reste stock strictement inférieur à 8, mais la quantité à commander doit être 10 moins stock. Trie par sku et conserve inventory.json intact.";
+const CORRECTION: &str = "Reprends la préparation de reorder.nika avec une correction : le seuil demeure stock strictement inférieur à 8, mais la quantité à commander doit être 10 moins stock. Trie par sku et conserve inventory.json intact.";
 
 struct Route {
     act: TurnAct,
