@@ -389,7 +389,8 @@ fn an_unknown_or_failed_route_binds_nothing() {
 }
 
 /// Without any intelligence the question's declared protocol answers: the value as typed
-/// binds, and the route says so — UNKNOWN (no one could judge), then ANSWER by protocol.
+/// binds, and the route says so — ANSWER by protocol, the identity alone being the model
+/// question's answer by its shape (no route is asked to judge it).
 #[test]
 fn without_an_intelligence_the_declared_answer_binds_by_protocol() {
     let dir = tree();
@@ -404,13 +405,7 @@ fn without_an_intelligence_the_declared_answer_binds_by_protocol() {
     assert!(matches!(s.turn("mock/echo"), TurnOutcome::Proposal { .. }));
     let routes: Vec<(TurnAct, RoutingMethod)> =
         s.routes().iter().map(|r| (r.act, r.method)).collect();
-    assert_eq!(
-        routes,
-        [
-            (TurnAct::Unknown, RoutingMethod::Fallback),
-            (TurnAct::Answer, RoutingMethod::Protocol)
-        ]
-    );
+    assert_eq!(routes, [(TurnAct::Answer, RoutingMethod::Protocol)]);
     assert!(s.details().contains("ANSWER · Protocol"), "{}", s.details());
 }
 

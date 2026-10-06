@@ -191,11 +191,8 @@ fn a_new_request_is_a_new_question_and_an_old_answer_reads_nothing() -> Result<(
     let TurnOutcome::Proposal { id, .. } = &out else {
         return Err(format!("the current answer proceeds: {out:?}"));
     };
-    assert_eq!(
-        calls.load(Ordering::SeqCst),
-        spent + 1,
-        "one route, no reading"
-    );
+    // A `provider/name` alone answers the model question by its shape: no route, no reading.
+    assert_eq!(calls.load(Ordering::SeqCst), spent, "no route, no reading");
     let out = s.answer_question_for(&current, "mock/echo");
     assert!(refused(&out, RefusalClass::AlreadyConsumed), "{out:?}");
     assert_eq!(
@@ -203,7 +200,7 @@ fn a_new_request_is_a_new_question_and_an_old_answer_reads_nothing() -> Result<(
         Some(id),
         "the proposal is untouched"
     );
-    assert_eq!(calls.load(Ordering::SeqCst), spent + 1);
+    assert_eq!(calls.load(Ordering::SeqCst), spent);
     assert!(matches!(s.consent("no"), TurnOutcome::Facts(_)));
     assert!(matches!(s.turn(REDRAFT), TurnOutcome::Question { .. }));
     let again = s.pending_question_id().ok_or("asked again")?;
@@ -269,8 +266,8 @@ fn another_intelligence_asks_another_question() -> Result<(), String> {
     assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
     assert_eq!(
         calls.load(Ordering::SeqCst),
-        1,
-        "one route under the chosen model"
+        0,
+        "an identity alone is the answer: no route under the chosen model"
     );
     Ok(())
 }
@@ -334,7 +331,11 @@ fn a_restarted_session_never_takes_an_earlier_answer() -> Result<(), String> {
         assert_eq!(s.pending_question_id().as_ref(), Some(&current));
         let out = s.answer_question_for(&current, "mock/echo");
         assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
-        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            0,
+            "an identity alone: no route"
+        );
     }
     Ok(())
 }

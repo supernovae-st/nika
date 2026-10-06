@@ -931,20 +931,6 @@ fn a_declined_run_is_typed_not_run_and_130_is_an_interruption() {
 /// work I can read »). Observed in the TUI on 2026-10-06 with an API and an ACP seat.
 #[test]
 fn the_current_request_is_never_routed_beside_itself() {
-    struct Counting(std::sync::Arc<std::sync::atomic::AtomicUsize>);
-    impl crate::turn::TurnClassifier for Counting {
-        fn classify(
-            &mut self,
-            _context: &crate::turn::TurnContext,
-            _raw: &str,
-        ) -> crate::turn::TurnDecision {
-            self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            crate::turn::TurnDecision::new(
-                crate::turn::TurnAct::Unknown,
-                crate::turn::RoutingMethod::Model,
-            )
-        }
-    }
     let dir = tree();
     std::fs::write(dir.path().join("a.md"), "alpha").expect("a");
     let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
@@ -970,4 +956,36 @@ fn the_current_request_is_never_routed_beside_itself() {
     s.last_outcome = None;
     let _ = s.turn(super::tests::UNSETTLED);
     assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+}
+
+/// A line that is the open question's answer by its shape alone — one `provider/name` token at
+/// the model question — binds without any route reading it: it cannot change the request, ask
+/// about the question, run or cancel. Observed in the TUI on 2026-10-06: the answer
+/// `deepseek/deepseek-v4-pro` cost a classification call before it bound. A sentence around the
+/// same identity is still read.
+#[test]
+fn an_answer_by_its_shape_alone_is_never_classified() {
+    let (calls, _dir, mut s) = counted();
+    let draft = "Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md";
+    assert!(matches!(s.turn(draft), TurnOutcome::Question { .. }));
+    assert_eq!(s.pending_question().map(|q| q.key.as_str()), Some("model"));
+    let before = classified(&calls);
+    let sentence = s.turn("use mock/echo for that please");
+    assert_eq!(
+        classified(&calls),
+        before + 1,
+        "a sentence is read: {sentence:?}"
+    );
+    assert_eq!(s.pending_question().map(|q| q.key.as_str()), Some("model"));
+    let answer = s.turn("mock/echo");
+    assert!(
+        matches!(answer, TurnOutcome::Proposal { ref preview, .. } if preview.contains("infer · mock/echo")),
+        "{answer:?}"
+    );
+    assert_eq!(
+        classified(&calls),
+        before + 1,
+        "the identity alone is not read"
+    );
+    assert!(s.routes.iter().any(|r| r.method == RoutingMethod::Protocol));
 }

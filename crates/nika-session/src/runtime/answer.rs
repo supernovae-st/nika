@@ -131,6 +131,29 @@ fn offered_keys(question: &CompileQuestion) -> String {
 
 /// The line is its own value without any reading: a JSON literal (`42` · `true` ·
 /// `"a quoted value"` · `["a", "b"]`) or one token, nothing around it to leave out.
+/// Whether the line is the open question's answer by its shape alone: an offered key alone at a
+/// choice, or one `provider/name` token at the model question. Such a line cannot change the
+/// request, ask about the question, run or cancel, so no route reads it.
+pub(super) fn answers_alone(round: &AuthoringRound, line: &str) -> bool {
+    round.current().is_some_and(|question| {
+        (is_offered_choice(question) && names_an_offer_alone(question, line))
+            || (question.key == "model" && names_a_model(line))
+    })
+}
+
+/// One `provider/name` token: a model identity as the model question asks it, nothing else.
+fn names_a_model(line: &str) -> bool {
+    let line = line.trim();
+    !line.contains(char::is_whitespace)
+        && line.split_once('/').is_some_and(|(provider, name)| {
+            !name.is_empty()
+                && !provider.is_empty()
+                && provider
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.' | ':'))
+        })
+}
+
 fn as_typed(line: &str) -> bool {
     let line = line.trim();
     !line.contains(char::is_whitespace) || serde_json::from_str::<serde_json::Value>(line).is_ok()

@@ -953,6 +953,14 @@ impl SessionRuntime {
         round: AuthoringRound,
         line: &str,
     ) -> Result<AuthoringRound, TurnOutcome> {
+        // A line that is the question's answer by its shape alone cannot change the request,
+        // ask about the question, run or cancel: it binds, and no route reads it.
+        if super::answer::answers_alone(&round, line) {
+            let answer = TurnDecision::new(TurnAct::Answer, RoutingMethod::Protocol);
+            let record = RouteRecord::new(SessionPhase::QuestionPending, line, &answer);
+            self.routes.push(record);
+            return Ok(round);
+        }
         // Open language at a question: its act is a bounded decision — an
         // answer binds, a question about the question explains it (the
         // question still waits), a change reads the request again with the
