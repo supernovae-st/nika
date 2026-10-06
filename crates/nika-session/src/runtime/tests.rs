@@ -1189,7 +1189,7 @@ fn a_finished_run_reads_as_a_result_and_proof_reads_its_trace() {
     );
     assert!(
         proof.contains("does not prove · that the content is right"),
-        "{proof}"
+        "proof must distinguish trace integrity from business correctness"
     );
     assert!(
         s.status_line()

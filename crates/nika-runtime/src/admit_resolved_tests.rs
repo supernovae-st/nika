@@ -121,7 +121,10 @@ fn custom_endpoint_admission_preserves_unknown_cost_cap() {
         (None, &probes, None),
     )
     .expect_err("an endpoint does not supply a tariff");
-    assert!(refusal.to_string().contains("unpriced"), "{refusal}");
+    assert!(
+        refusal.to_string().contains("unpriced"),
+        "custom endpoint refusal must report unknown pricing"
+    );
 }
 
 #[tokio::test]
