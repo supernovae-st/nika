@@ -85,11 +85,16 @@ fn an_answer_round_replays_the_recorded_plan() {
             "engine",
             "intent_sha256",
             "plan",
+            "resume",
             "strategy"
         ],
         "the record carries the plan, never the candidate or a key"
     );
     assert_eq!(record["compile_version"], 1);
+    assert_eq!(
+        record["resume"], false,
+        "an unanswered model is not a failed judgment"
+    );
     assert_eq!(record["engine"], doc["provenance"]["compiler_version"]);
     assert_eq!(record["intent_sha256"], sha);
     assert_eq!(record["strategy"], "hot");

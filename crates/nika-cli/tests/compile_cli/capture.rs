@@ -18,8 +18,8 @@ use std::process::Output;
 const INTENT: &str = "Review this customer request and harmonise the tone of the support reply";
 /// A synthetic Anthropic key; it must never reach any file or stream.
 const KEY: &str = "sk-ant-synthetic-capture-key";
-/// The explicit semantic Sketch route with its default repairs (a typed repair count would
-/// need more requests than these three authorized ones, and is refused before any request).
+/// Sketch with no repair count keeps continuous source recovery. The explicit three-call
+/// authority covers every scripted answer here; it does not impose a repair count.
 const ROUTE: [&str; 7] = [
     "--authoring-strategy",
     "sketch",
@@ -37,7 +37,8 @@ fn rejected_sketch(sentinel: &str) -> String {
     json!({"name": sentinel, "tasks": [], "questions": [], "gaps": [], "notes": ""}).to_string()
 }
 
-/// A repair answer naming a key the Sketch schema does not know: the round ends there.
+/// A repair answer naming an unknown key ends its structured round. With no repair count,
+/// source recovery still opens and independently rejects the same unknown-key shape.
 fn unknown_key(sentinel: &str) -> String {
     json!({"unknown_key_canary": sentinel}).to_string()
 }
@@ -220,11 +221,19 @@ fn a_rejected_sketch_is_saved_before_its_repair_and_never_published() {
     let room = tempfile::tempdir().expect("room");
     let first = rejected_sketch("SENTINEL-REJECTED-ONE é \"q\" \\ \n line");
     let second = unknown_key("SENTINEL-REPAIR-TWO");
-    let run = vllm(room.path(), vec![first.clone(), second.clone()], true);
+    let third = unknown_key("SENTINEL-RECOVERY-THREE");
+    let run = vllm(
+        room.path(),
+        vec![first.clone(), second.clone(), third.clone()],
+        true,
+    );
     assert_eq!(run.out.status.code(), Some(2), "{}", run.doc);
     assert_eq!(run.doc["status"], "incomplete");
-    assert_eq!(phases(&run.doc), ["sketch", "sketch-repair"]);
-    assert_eq!(run.bodies.len(), 2);
+    assert_eq!(
+        phases(&run.doc),
+        ["sketch", "sketch-repair", "source-recovery"]
+    );
+    assert_eq!(run.bodies.len(), 3);
 
     let (name, bytes) = artifact(room.path());
     let identity = stderr_identity(&run.out);
@@ -236,6 +245,8 @@ fn a_rejected_sketch_is_saved_before_its_repair_and_never_published() {
             "scope",
             "call",
             "call",
+            "call",
+            "call_metadata",
             "call_metadata",
             "call_metadata",
             "close"
@@ -245,9 +256,13 @@ fn a_rejected_sketch_is_saved_before_its_repair_and_never_published() {
     let context = run.doc["provenance"]["authoring"]["context"]
         .as_array()
         .expect("context");
-    for (i, (role, text)) in [("sketch", &first), ("sketch-repair", &second)]
-        .iter()
-        .enumerate()
+    for (i, (role, text)) in [
+        ("sketch", &first),
+        ("sketch-repair", &second),
+        ("source-recovery", &third),
+    ]
+    .iter()
+    .enumerate()
     {
         let call = &records[1 + i];
         assert_eq!(call["ordinal"], i + 1);
@@ -266,18 +281,13 @@ fn a_rejected_sketch_is_saved_before_its_repair_and_never_published() {
             call["returned_metadata"]["response_model"],
             "loopback-served-model"
         );
-        assert_eq!(records[3 + i]["ordinal"], i + 1);
+        assert_eq!(records[4 + i]["ordinal"], i + 1);
     }
-    let close = &records[5];
+    let close = &records[7];
     assert_eq!(close["outcome_returned"], true);
-    assert_eq!(
-        (
-            close["received"].as_u64(),
-            close["saved_call_records"].as_u64()
-        ),
-        (Some(2), Some(2))
-    );
-    assert_eq!(close["outcome_metadata_saved"], 2);
+    assert_eq!(close["received"].as_u64(), Some(3));
+    assert_eq!(close["saved_call_records"].as_u64(), Some(3));
+    assert_eq!(close["outcome_metadata_saved"], 3);
     assert_eq!(close["outcome_metadata_unknown"], 0);
     let file = std::fs::metadata(capture_dir(room.path()).join(&name)).expect("meta");
     assert_eq!(file.mode() & 0o777, 0o600);
@@ -289,6 +299,7 @@ fn a_rejected_sketch_is_saved_before_its_repair_and_never_published() {
     );
     raw_absent(&public, &first);
     raw_absent(&public, &second);
+    raw_absent(&public, &third);
     // A later compile in the same project never reads the capture back into a request.
     let again = vllm(
         room.path(),
@@ -297,7 +308,11 @@ fn a_rejected_sketch_is_saved_before_its_repair_and_never_published() {
     );
     for body in &again.bodies {
         let body = body.to_string();
-        assert!(!body.contains("SENTINEL-REJECTED-ONE") && !body.contains("SENTINEL-REPAIR-TWO"));
+        assert!(
+            !body.contains("SENTINEL-REJECTED-ONE")
+                && !body.contains("SENTINEL-REPAIR-TWO")
+                && !body.contains("SENTINEL-RECOVERY-THREE")
+        );
     }
     assert_eq!(
         artifact(room.path()).1,
@@ -307,7 +322,7 @@ fn a_rejected_sketch_is_saved_before_its_repair_and_never_published() {
 }
 
 #[test]
-fn a_terminal_refusal_keeps_every_text_block_but_no_reasoning_or_key() {
+fn an_unreadable_sketch_and_its_recovery_keep_text_but_no_reasoning_or_key() {
     let room = tempfile::tempdir().expect("room");
     let texts = [
         "{\"name\":\"draft\",\"tasks\":[],",
@@ -324,12 +339,37 @@ fn a_terminal_refusal_keeps_every_text_block_but_no_reasoning_or_key() {
     assert_eq!(run.out.status.code(), Some(2), "{}", run.doc);
     assert_eq!(
         phases(&run.doc),
-        ["sketch"],
-        "a terminal refusal, no repair"
+        ["sketch", "source-recovery"],
+        "an unreadable structured answer still opens continuous source recovery"
     );
     let (_, bytes) = artifact(room.path());
     let records = records(&bytes);
-    assert_eq!(kinds(&records), ["scope", "call", "call_metadata", "close"]);
+    assert_eq!(run.bodies.len(), 2);
+    assert_eq!(
+        kinds(&records),
+        [
+            "scope",
+            "call",
+            "call",
+            "call_metadata",
+            "call_metadata",
+            "close"
+        ]
+    );
+    assert_eq!(records[1]["role"], "sketch");
+    assert_eq!(records[2]["role"], "source-recovery");
+    assert_eq!(
+        records[2]["response"], records[1]["response"],
+        "the scripted blocks repeat exactly"
+    );
+    for (i, record) in records[1..=2].iter().enumerate() {
+        assert_eq!(record["ordinal"], i + 1);
+        assert_eq!(records[3 + i]["ordinal"], i + 1);
+    }
+    assert_eq!(records[5]["received"], 2);
+    assert_eq!(records[5]["saved_call_records"], 2);
+    assert_eq!(records[5]["outcome_metadata_saved"], 2);
+    assert_eq!(records[5]["outcome_metadata_unknown"], 0);
     let response = &records[1]["response"];
     assert_eq!(
         response["text"],
@@ -382,9 +422,27 @@ fn an_oversized_answer_is_withheld_whole_with_its_counts() {
     let room = tempfile::tempdir().expect("room");
     let big = format!("BIGPREFIX{}", "A".repeat(300 * 1024));
     let run = vllm(room.path(), vec![big.clone()], true);
-    assert_eq!(run.bodies.len(), 1);
+    assert_eq!(run.bodies.len(), 2);
+    assert_eq!(phases(&run.doc), ["sketch", "source-recovery"]);
     let (_, bytes) = artifact(room.path());
     let records = records(&bytes);
+    assert_eq!(
+        kinds(&records),
+        [
+            "scope",
+            "call",
+            "call",
+            "call_metadata",
+            "call_metadata",
+            "close"
+        ]
+    );
+    assert_eq!(
+        records[2]["response"], records[1]["response"],
+        "both oversized answers are withheld whole"
+    );
+    assert_eq!(records[5]["received"], 2);
+    assert_eq!(records[5]["saved_call_records"], 2);
     let response = &records[1]["response"];
     assert!(response["text"].is_null());
     assert_eq!(response["withheld_reason"], "returned_text_bound");

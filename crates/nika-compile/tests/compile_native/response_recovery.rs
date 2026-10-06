@@ -179,7 +179,8 @@ async fn invalid_initial_limit_cannot_override_the_hard_limit() {
             assert!(
                 out.diagnostics
                     .iter()
-                    .any(|d| d.target == "authoring_policy" && d.message.contains("output tokens")),
+                    .any(|d| d.target == "authoring_policy"
+                        && d.message.contains("output-token limit")),
                 "{native:?} {initial}: the bound is named: {out:#?}"
             );
         }

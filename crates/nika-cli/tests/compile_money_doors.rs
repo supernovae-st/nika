@@ -533,7 +533,22 @@ fn the_recorder_sees_the_request_a_named_seat_is_sent() {
     let doc = seated(room.path(), FREE, &recorder, &[]);
     let (accepts, bodies) = recorder.counts();
     assert!(accepts >= 1 && bodies >= 1, "{accepts}/{bodies}: {doc}");
-    assert_eq!(prepared(&doc), 1, "{doc}");
+    // A 503 can resend the same logical call. Every physical body stays counted;
+    // a timeout or provider failure never starts a new authoring round.
+    assert_eq!(
+        prepared(&doc),
+        bodies as u64,
+        "every received body is counted: {doc}"
+    );
+    let authority = &doc["provenance"]["authoring"]["backend"]["authority"];
+    assert_eq!(
+        authority["invocations"],
+        serde_json::json!({"sent": 1, "refused": 0})
+    );
+    assert_eq!(
+        doc["provenance"]["authoring"]["backend"]["usage_complete"],
+        false
+    );
 }
 
 /// F3: deterministic work under an explicit zero stays HOT with the seat named, and nothing is

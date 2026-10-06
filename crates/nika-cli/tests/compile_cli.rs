@@ -403,11 +403,11 @@ fn default_native_escalation_preserves_calls_and_honors_the_repair_bound() {
     }
 }
 
-/// `--authoring-model` alone authorizes ONE request: the escalation the default strategy would
-/// buy after the plan is refused before any byte leaves, and the outcome says so (the receipt's
-/// account and one human line), while the core's journal keeps the attempt it made.
+/// An explicit one-request authority stops escalation before any further byte leaves. The
+/// outcome states the refusal (the receipt's account and one human line), while the core's
+/// journal keeps its attempt. No flag means no request bound, exercised below.
 #[test]
-fn the_default_authority_sends_one_request_and_states_the_refusal() {
+fn an_explicit_single_request_authority_stops_and_states_the_refusal() {
     let room = tempfile::tempdir().expect("room");
     let intent = "Review this customer request and harmonise the tone of the support reply";
     let not_a_plan = serde_json::json!({"not": "a plan"}).to_string();
@@ -420,6 +420,8 @@ fn the_default_authority_sends_one_request_and_states_the_refusal() {
         "vllm/loopback-seat",
         "--authoring-timeout",
         "2",
+        "--authoring-max-calls",
+        "1",
     ];
     let json_out = command(room.path())
         .env("NIKA_VLLM_BASE_URL", seat.base())
@@ -436,7 +438,7 @@ fn the_default_authority_sends_one_request_and_states_the_refusal() {
     let authoring = &doc["provenance"]["authoring"];
     let authority = &authoring["backend"]["authority"];
     assert_eq!(authority["max_calls"], 1, "{doc}");
-    assert_eq!(authority["source"], "default: one request");
+    assert_eq!(authority["source"], "--authoring-max-calls");
     assert_eq!(
         authority["invocations"],
         serde_json::json!({"sent": 1, "refused": 1})
@@ -593,11 +595,33 @@ fn a_response_without_a_model_is_counted_as_unreported() {
         .output()
         .expect("CLI");
     let doc = result(&out);
-    assert_eq!(seat.bodies().len(), 1, "{doc}");
+    let received = seat.bodies().len();
+    assert_eq!(received, 3, "plan, sketch, then source recovery: {doc}");
     let backend = &doc["provenance"]["authoring"]["backend"];
     assert_eq!(backend["requested_model"], "vllm/loopback-seat");
     assert_eq!(backend["observed_models"], serde_json::json!([]), "{doc}");
-    assert_eq!(backend["unreported_models"], 1, "{doc}");
+    assert_eq!(backend["unreported_models"], received, "{doc}");
+    let authority = &backend["authority"];
+    assert_eq!(authority["max_calls"], Value::Null, "{doc}");
+    assert_eq!(authority["source"], "default: no request bound", "{doc}");
+    assert_eq!(
+        authority["invocations"],
+        serde_json::json!({"sent": received, "refused": 0})
+    );
+    assert_eq!(authority["http_requests"]["sent"], received, "{doc}");
+    let context = doc["provenance"]["authoring"]["context"]
+        .as_array()
+        .expect("context");
+    let phases: Vec<_> = context
+        .iter()
+        .map(|call| call["call"].as_str().expect("phase"))
+        .collect();
+    assert_eq!(phases, ["plan", "sketch", "source-recovery"]);
+    assert!(
+        context
+            .iter()
+            .all(|call| call["reasoning"]["response_model"].is_null())
+    );
 }
 
 /// Repairs, samples or a two-request strategy (escalate, sketch: a READY is judged) typed beyond
@@ -632,6 +656,7 @@ fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request
         let out = command(room.path())
             .env("NIKA_VLLM_BASE_URL", seat.base())
             .args(["compile", intent, "--authoring-model", "vllm/loopback-seat"])
+            .args(["--authoring-max-calls", "1"])
             .args(&typed)
             .arg("--json")
             .output()
@@ -646,8 +671,11 @@ fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request
             "no request before the refusal: {typed:?}"
         );
     }
-    // A typed count outside what the compiler runs is refused by the flag, never clamped.
-    for typed in [["--authoring-repairs", "9"], ["--authoring-samples", "0"]] {
+    // Repairs accept any u32; overflow and zero samples are refused by the flag, never clamped.
+    for typed in [
+        ["--authoring-repairs", "4294967296"],
+        ["--authoring-samples", "0"],
+    ] {
         let seat = LoopbackSeat::start(vec![answer.clone()]);
         let out = command(room.path())
             .env("NIKA_VLLM_BASE_URL", seat.base())
@@ -692,8 +720,16 @@ fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request
             "no request under only: {granted:?}"
         );
     }
-    // Repairs under off are the verifier's (nv1b): granted, nothing is refused, and the receipt
-    // counts them, never records them as ignored.
+}
+
+/// Repairs under off belong to the verifier: the granted count is never ignored.
+#[test]
+fn granted_verifier_repairs_are_counted_instead_of_ignored() {
+    let room = tempfile::tempdir().expect("room");
+    let intent = "Review this customer request and harmonise the tone of the support reply";
+    let answer =
+        serde_json::json!({"candidate": "not a workflow", "questions": [], "gaps": [], "notes": ""})
+            .to_string();
     let seat = LoopbackSeat::start(vec![answer]);
     let out = command(room.path())
         .env("NIKA_VLLM_BASE_URL", seat.base())

@@ -444,17 +444,17 @@ async fn observed(answers: Vec<Answer>) -> (CompileOutcome, Vec<Meta>, Canned) {
 
 // ── Product parity with the reference ───────────────────────────────────────────────────────
 
-/// The legacy prompt and response identities the pre-change observer produced for [`three_calls`]:
-/// streaming them must leave every byte of the identity unchanged. The third prompt is the fill
-/// call's: its baseline was rederived on 2026-10-04 from the legacy framing over the request
-/// messages once the fill instruction gained the clause on a program bound to several edges
-/// (`sketch.rs::holes_message`); without that clause the same framing gives the former
-/// `13cce2041aeb39f23ea3b32e0a8f099e0f40556aa561f78c28fc2a2bb2540f60`.
-const PRE_CHANGE_PROMPTS: [&str; 3] = [
-    "0e4a52651458457939dabd8f6cd7d180694e878379a3c93c224200362e32e9d2",
-    "a88d8dbd44640c28802bed0c058d02671f5d54ebc8376193e0d12baf290d0976",
-    "6cf4dfc3521a4dbaeb8a8500470f2cd8789b3709d1f3c0af6924dc06325a0d97",
+/// Reviewed prompt identities for [`three_calls`] under the unchanged legacy framing.
+/// Captured by CI after commit 98c24b617462 added temporal-shape and jq date-time
+/// conventions to `native_output_conventions.md`. That asset is included in the System
+/// message retained by all three calls. The assertions below independently compare the
+/// observer with the legacy framing over each exact request before checking these values.
+const REVIEWED_PROMPTS: [&str; 3] = [
+    "043030837eb35ce5600a436d83549d3aada3e7fe88f3c269a0069606dc2fab7d",
+    "49a9ea931f814e88df419aa795c2ea143c03f9fec24a73dd28edccf6bfab362c",
+    "577463d6b675b142f9676750a4ad7c4f05af5b13b0071fa208d7744235afe28e",
 ];
+/// Legacy response identities, unchanged by the new prompt conventions.
 const PRE_CHANGE_FRAMED: [&str; 3] = [
     "6efb41e17fac4b9d131098b896e9ce39723cc35e3d5038daa6653e604b5c176a",
     "505c1a6fea337d067bd2d709a57504b68e7ac52c30007f0b8b8e3c31ad02c1e6",
@@ -522,7 +522,7 @@ async fn every_identity_matches_the_reference_over_the_exact_request() {
     }
     assert_eq!(
         seen.iter().map(|m| m.prompt.as_str()).collect::<Vec<_>>(),
-        PRE_CHANGE_PROMPTS
+        REVIEWED_PROMPTS
     );
     assert_eq!(
         seen.iter()

@@ -533,7 +533,11 @@ fn without_a_level_the_cli_sends_the_request_with_the_routes_own_bytes() {
     assert_eq!(bodies.len() as u64, prepared(&doc), "{doc}");
     for body in &bodies {
         assert_eq!(body["model"], "deepseek-v4-pro", "{body}");
-        assert_eq!(body["reasoning_effort"], "low", "{body}");
+        assert_eq!(body["max_tokens"], 16384, "{body}");
+        assert!(
+            body.get("reasoning_effort").is_none(),
+            "the short-answer low-effort default applies only up to 8192: {body}"
+        );
         assert!(body.get("thinking").is_none(), "{body}");
     }
     assert!(
@@ -545,7 +549,7 @@ fn without_a_level_the_cli_sends_the_request_with_the_routes_own_bytes() {
     assert_eq!(call["reasoning"]["configured"], Value::Null, "{doc}");
     assert_eq!(
         call["reasoning"]["transmitted"],
-        json!({"thinking": null, "effort": "low"}),
+        json!({"thinking": null, "effort": null}),
         "{doc}"
     );
 }
