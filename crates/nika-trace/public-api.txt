@@ -1059,6 +1059,7 @@ pub type nika_trace::run_view::RunFacts::NoneType = T
 pub fn nika_trace::run_view::RunFacts::null_value() -> T
 pub fn nika_trace::run_view::human_size(bytes: u64) -> alloc::string::String
 pub fn nika_trace::run_view::hygiene_note(git_root: core::option::Option<&std::path::Path>) -> core::option::Option<alloc::string::String>
+pub fn nika_trace::run_view::last_run(root: &std::path::Path) -> alloc::string::String
 pub fn nika_trace::run_view::live_again(trace: &std::path::Path) -> core::option::Option<alloc::string::String>
 pub fn nika_trace::run_view::produced(root: &std::path::Path, workflow: &std::path::Path) -> core::option::Option<alloc::string::String>
 pub fn nika_trace::run_view::resumed_live(trace: &std::path::Path) -> alloc::vec::Vec<alloc::string::String>

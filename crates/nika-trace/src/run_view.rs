@@ -155,6 +155,78 @@ pub struct RunFacts {
     pub(crate) starts: Vec<Option<String>>,
 }
 
+/// The last run under `root`, read from the store's newest journal (the
+/// evidence, never memory): the workflow, every task's outcome, the
+/// settlement. Moved from the session's facts, which read nothing of their
+/// own here.
+#[must_use]
+pub fn last_run(root: &Path) -> String {
+    let store = root.join(".nika").join("traces");
+    let Some(trace) = newest_journal(&store) else {
+        return "no run yet under this root (no trace in `.nika/traces/`)".to_owned();
+    };
+    let Ok(journal) = std::fs::read_to_string(&trace) else {
+        return format!("the latest trace `{}` could not be read", trace.display());
+    };
+    let (mut workflow, mut tasks, mut settled) = (String::new(), Vec::new(), None);
+    for frame in journal
+        .lines()
+        .filter_map(|line| serde_json::from_str::<Value>(line).ok())
+    {
+        let f = fields(&frame);
+        let field = |key: &str| {
+            f.get(key)
+                .map(|v| v.as_str().map_or_else(|| v.to_string(), str::to_owned))
+                .unwrap_or_default()
+        };
+        match frame.get("kind").and_then(Value::as_str).unwrap_or("") {
+            "workflow_started" => workflow = field("workflow"),
+            "task_completed" => tasks.push(format!(
+                "✔ {} · {} · {} ms",
+                field("task"),
+                field("note"),
+                field("duration_ms")
+            )),
+            "task_failed" => tasks.push(format!("✖ {} · {}", field("task"), field("error"))),
+            "task_skipped" => tasks.push(format!("○ {} · skipped", field("task"))),
+            "workflow_completed" => settled = Some("completed".to_owned()),
+            "workflow_failed" => settled = Some(format!("failed · {}", field("error"))),
+            "workflow_paused" => settled = Some("paused for a human answer".to_owned()),
+            _ => {}
+        }
+    }
+    let settled = settled.unwrap_or_else(|| {
+        "no settlement line — the run may still be going, or was cut".to_owned()
+    });
+    let tasks = if tasks.is_empty() {
+        "no task line".to_owned()
+    } else {
+        tasks.join("\n  ")
+    };
+    format!(
+        "last run · `{workflow}` · {settled} · read from `{}`\n  {tasks}",
+        trace.display()
+    )
+}
+
+/// The newest `.ndjson` under the store by mtime (name tie-break), read raw:
+/// an unreadable or cut journal is still the last run, never hidden behind
+/// the one before it.
+fn newest_journal(store: &Path) -> Option<PathBuf> {
+    let mut journals: Vec<(std::time::SystemTime, PathBuf)> = std::fs::read_dir(store)
+        .ok()?
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|x| x == "ndjson"))
+        .filter_map(|p| {
+            let modified = std::fs::metadata(&p).and_then(|m| m.modified()).ok()?;
+            Some((modified, p))
+        })
+        .collect();
+    journals.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1)));
+    journals.into_iter().next().map(|(_, p)| p)
+}
+
 /// A frame's `fields` (`[{key, value}]`) as a map.
 fn fields(frame: &Value) -> BTreeMap<String, Value> {
     let mut map = BTreeMap::new();

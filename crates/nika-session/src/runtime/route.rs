@@ -190,7 +190,9 @@ impl SessionRuntime {
         // An engine fact answers first, deterministically and for zero
         // tokens (« what workflows are here? »): a closed set of engine
         // questions, not a reading of language.
-        if let Some(fact) = crate::facts::answer(raw, &self.snapshot, &self.snapshot.root) {
+        if let Some(fact) =
+            crate::facts::answer_beside_proposal(raw, &self.snapshot, &self.snapshot.root)
+        {
             return self.hold_pending(set, id, &fact);
         }
         let blocked = self.money_blocks_cognition();
@@ -269,7 +271,7 @@ impl SessionRuntime {
         id: crate::outcome::ProposalId,
         raw: &str,
     ) -> super::TurnOutcome {
-        let text = crate::facts::answer(raw, &self.snapshot, &self.snapshot.root)
+        let text = crate::facts::answer_beside_proposal(raw, &self.snapshot, &self.snapshot.root)
             .or_else(|| self.reason_about(&set.preview(), raw))
             .unwrap_or_else(|| set.effects_fact());
         self.hold_pending(set, id, &text)
