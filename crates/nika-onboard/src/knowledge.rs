@@ -8,14 +8,14 @@
 //! that realize them (and the solved examples and the skill of the leading family, which a
 //! policy-R release never holds) — plus the repair principles the release wires to diagnostic
 //! codes, for the repair rounds. Deterministic retrieval (BM25 over the rows' text and the
-//! release's graph), bounded (three families · eight patterns · eight blocks · three examples ·
-//! one skill · ~40 KiB), and stated: the selection record names every row it selected, why, and
+//! release's graph) with no count or byte quota: every row the recall reaches is presented whole,
+//! in relevance order, and stated — the selection record names every row it selected, why, and
 //! whether it was presented or excluded (and for what reason); the identity carries the release's
 //! version, its `SNAPSHOT_SHA256` (the sha256 of its manifest's bytes) and this builder's version.
 //! The order of what is taken is relevance — each recalled family, then the direct text match, in
 //! turn — never the rows' ids, and a block is presented with the holes, effects, capabilities,
-//! known failures and version its row states. The selection is this door's own (Rust BM25 over the
-//! Foundry graph), not the one the Foundry producer computes, and the record says so.
+//! known failures and version its row states. The selection is this door's own (Rust BM25 over
+//! the Foundry graph), not the one the Foundry producer computes, and the record says so.
 //!
 //! Admitted against a trusted identity, never trusted for its own claims. One strict admission
 //! ([`Snapshot::open`] on disk, [`Snapshot::from_files`] in memory, [`ADMISSION_PROFILE`]) serves
@@ -84,20 +84,9 @@ pub fn redact_host_paths(identity: &mut serde_json::Value) {
 /// one strict admission against a trusted identity (profile r1 of the shared contract), every
 /// presented byte admitted when the release opens, never read again).
 /// v5 retains up to eight matching blocks so broader project coverage preserves specific obligations.
-pub const PACK_BUILDER: &str = "nika-compile/knowledge-door-v5";
-const FAMILIES: usize = 3;
-const PATTERNS: usize = 8;
-const BLOCKS: usize = 8;
-const EXAMPLES: usize = 3;
-const SKILLS: usize = 1;
-/// The most bytes one referenced file contributes.
-const FILE_BYTES: usize = 6 * 1024;
-/// The most bytes the whole pack contributes.
-const PACK_BYTES: usize = 40 * 1024;
-/// The most bytes one block's metadata (holes, effects, capabilities, failures, version) adds.
-const METADATA_BYTES: usize = 1024;
-/// The most repair principles one repair round carries.
-const PRINCIPLES: usize = 3;
+/// v6 drops every count and byte quota: each row the recall reaches is presented whole (files,
+/// block metadata, every repair principle of a code).
+pub const PACK_BUILDER: &str = "nika-compile/knowledge-door-v6";
 
 /// Why the knowledge door refused a source: a named source is never replaced by no knowledge.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -345,7 +334,7 @@ impl Snapshot {
             .collect()
     }
 
-    /// A referenced file's admitted text, bounded; `None` when the release holds no such file
+    /// A referenced file's admitted text, whole; `None` when the release holds no such file
     /// (the composition records the absence) or its bytes are not UTF-8.
     fn file_text(&self, relative: &str, composition: &mut Composition) -> Option<String> {
         let Some(bytes) = self.files.get(relative) else {
@@ -353,9 +342,7 @@ impl Snapshot {
             return None;
         };
         composition.verified += 1;
-        std::str::from_utf8(bytes)
-            .ok()
-            .map(|text| cut(text, FILE_BYTES))
+        std::str::from_utf8(bytes).ok().map(str::to_owned)
     }
 
     /// The authoring pack for one intent: the references the seat reads, the selection
@@ -390,14 +377,14 @@ impl Snapshot {
         Ok(pack)
     }
 
-    /// 1 · the families by BM25 over their need, title and facets.
+    /// 1 · the families by BM25 over their need, title and facets, every one the request shares a
+    /// word with.
     fn recall_families(&self, intent: &str, composition: &mut Composition) -> Vec<(String, f64)> {
-        let mut families = rank(intent, self.rows("families"), usize::MAX, |r| {
-            text_of(r, &["title", "need", "facets", "evidence"])
+        let families = rank(intent, self.rows("families"), |r| {
+            text_of(r, &["title", "need", "facets"])
         });
         let available = self.rows("families").len();
-        composition.count("families", available, families.len(), FAMILIES);
-        families.truncate(FAMILIES);
+        composition.count("families", available, families.len());
         for (id, score) in &families {
             composition.select("families", id, &format!("bm25 {score:.2}"));
         }
@@ -407,7 +394,7 @@ impl Snapshot {
     /// 2 · each recalled family's patterns through the graph (family RECOMMENDS pack CONTAINS
     /// pattern) and 3 · the patterns BM25 matches directly (the graph is a prior, not a prison),
     /// taken in turn — the first of each source, then the second — so relevance, never the ids'
-    /// order, decides the eight; then 4 · the blocks that REALIZE each source's patterns, the one
+    /// order, decides the order; then 4 · the blocks that REALIZE each source's patterns, the one
     /// covering the most first, in turn too: a secondary obligation keeps its block beside the
     /// leading family's. Every block is presented with its row's metadata.
     fn recall_shapes(
@@ -420,7 +407,7 @@ impl Snapshot {
             .iter()
             .map(|(family, _)| (family.clone(), self.family_patterns(family)))
             .collect();
-        let direct = rank(intent, self.rows("patterns"), usize::MAX, |r| {
+        let direct = rank(intent, self.rows("patterns"), |r| {
             text_of(r, &["title", "purpose", "notes"])
         });
         sources.push((
@@ -434,8 +421,8 @@ impl Snapshot {
             sources.iter().map(|(_, list)| list.clone()).collect();
         let patterns = interleave(&lists);
         let available = self.rows("patterns").len();
-        composition.count("patterns", available, patterns.len(), PATTERNS);
-        for (pattern, why) in patterns.iter().take(PATTERNS) {
+        composition.count("patterns", available, patterns.len());
+        for (pattern, why) in &patterns {
             let text = self
                 .row(pattern)
                 .map(|row| {
@@ -454,8 +441,8 @@ impl Snapshot {
             .map(|(source, list)| self.covering_blocks(source, list))
             .collect();
         let blocks = interleave(&covering);
-        composition.count("blocks", self.rows("blocks").len(), blocks.len(), BLOCKS);
-        for (block, why) in blocks.iter().take(BLOCKS) {
+        composition.count("blocks", self.rows("blocks").len(), blocks.len());
+        for (block, why) in &blocks {
             let text = self.block_text(block, composition);
             composition.offer("blocks", "block", block, why, text);
         }
@@ -505,23 +492,15 @@ impl Snapshot {
     /// A block as the seat reads it — title and purpose, the metadata that keeps it from being
     /// misused, its code — or why it cannot be presented.
     fn block_text(&self, id: &str, composition: &mut Composition) -> Result<String, String> {
-        let mut omitted = Vec::new();
-        let text = self.presentable(id, composition, |row, code| {
-            let metadata;
-            (metadata, omitted) = block_metadata(row);
+        self.presentable(id, composition, |row, code| {
             format!(
-                "{} — {}\n{metadata}```yaml\n{}\n```",
+                "{} — {}\n{}```yaml\n{}\n```",
                 text_of(row, &["title"]),
                 text_of(row, &["purpose"]),
+                block_metadata(row),
                 code.trim_end()
             )
-        });
-        if !omitted.is_empty() {
-            composition
-                .omitted
-                .push(json!({"id": id, "metadata_omitted": omitted}));
-        }
-        text
+        })
     }
 
     /// 5 · the examples that read alike, never one of the case's own corpus.
@@ -538,11 +517,11 @@ impl Snapshot {
                 exclude_corpus.is_none_or(|c| r.get("corpus").and_then(Value::as_str) != Some(c))
             })
             .collect();
-        let ranked = rank(intent, examples.iter().copied(), usize::MAX, |r| {
+        let ranked = rank(intent, examples.iter().copied(), |r| {
             text_of(r, &["intent", "title"])
         });
-        composition.count("examples", examples.len(), ranked.len(), EXAMPLES);
-        for (id, score) in ranked.into_iter().take(EXAMPLES) {
+        composition.count("examples", examples.len(), ranked.len());
+        for (id, score) in ranked {
             let text = self.presentable(&id, composition, |row, text| {
                 format!(
                     "intent: {}\n```yaml\n{}\n```",
@@ -560,7 +539,7 @@ impl Snapshot {
         }
     }
 
-    /// 6 · the leading family's skill.
+    /// 6 · each recalled family's skill, in the families' order.
     fn recall_skill(&self, families: &[(String, f64)], composition: &mut Composition) {
         let skills: Vec<(String, String)> = families
             .iter()
@@ -573,8 +552,8 @@ impl Snapshot {
                 Some((id, format!("family {family}")))
             })
             .collect();
-        composition.count("skills", self.rows("skills").len(), skills.len(), SKILLS);
-        for (id, why) in skills.into_iter().take(SKILLS) {
+        composition.count("skills", self.rows("skills").len(), skills.len());
+        for (id, why) in skills {
             let text = self.presentable(&id, composition, |_, text| text);
             composition.offer("skills", "skill", &id, &why, text);
         }
@@ -626,10 +605,7 @@ impl Snapshot {
                 text_of(row, &["title"]),
                 text_of(row, &["strategy"])
             );
-            let lines = index.entry(code.to_owned()).or_default();
-            if lines.len() < PRINCIPLES {
-                lines.push(line);
-            }
+            index.entry(code.to_owned()).or_default().push(line);
         }
         index
     }
@@ -653,16 +629,14 @@ pub fn pack_sha256(pack: &AuthoringKnowledge) -> String {
     sha256_hex(record.to_string().as_bytes())
 }
 
-/// The pack under composition: the selection record, the references taken, the bytes left, the
-/// admitted files presented and the files the release lacks.
+/// The pack under composition: the selection record, the references taken, the bytes they carry,
+/// the admitted files presented and the files the release lacks.
 struct Composition {
     selection: Value,
     references: Vec<KnowledgeReference>,
-    budget: usize,
+    bytes: usize,
     verified: usize,
     absent: Vec<String>,
-    /// The blocks whose metadata did not fit whole, with the fields left out.
-    omitted: Vec<Value>,
 }
 
 /// The kinds a pack presents as references, by selection list.
@@ -679,7 +653,8 @@ impl Composition {
                     "patterns": "each recalled family's patterns (RECOMMENDS a pack that CONTAINS them), then BM25 over title, purpose and notes, taken in turn",
                     "blocks": "for each of those sources, the blocks that REALIZE its patterns, the most covering first, taken in turn",
                     "examples": "BM25 over intent and title",
-                    "skills": "the leading family's",
+                    "skills": "each recalled family's",
+                    "quota": "none: every row the recall reaches is presented whole",
                     "note": "this door's own selection (Rust BM25 over the Foundry graph), not the Foundry producer's",
                 },
                 "families": [],
@@ -690,10 +665,9 @@ impl Composition {
                 "receipt": {},
             }),
             references: Vec::new(),
-            budget: PACK_BYTES,
+            bytes: 0,
             verified: 0,
             absent: Vec::new(),
-            omitted: Vec::new(),
         }
     }
 
@@ -704,20 +678,18 @@ impl Composition {
         }
     }
 
-    /// How many rows of a kind the snapshot holds, how many the recall ranked, and how many of
-    /// those the count cap selects.
-    fn count(&mut self, list: &str, available: usize, candidates: usize, cap: usize) {
+    /// How many rows of a kind the snapshot holds and how many the recall reached: every one of
+    /// those is selected.
+    fn count(&mut self, list: &str, available: usize, candidates: usize) {
         self.selection["receipt"][list] = json!({
             "available": available,
             "candidates": candidates,
-            "selected": candidates.min(cap),
-            "over_count": candidates.saturating_sub(cap),
+            "selected": candidates,
         });
     }
 
-    /// A selected reference joins the pack while the byte budget holds it; past the budget, or
-    /// when its text cannot be read, it is recorded as selected and excluded with the reason —
-    /// never as presented.
+    /// A selected reference joins the pack whole; when its text cannot be read it is recorded as
+    /// selected and excluded with the reason — never as presented.
     fn offer(
         &mut self,
         list: &str,
@@ -727,8 +699,8 @@ impl Composition {
         text: Result<String, String>,
     ) {
         let excluded = match text {
-            Ok(text) if text.len() <= self.budget => {
-                self.budget -= text.len();
+            Ok(text) => {
+                self.bytes += text.len();
                 self.references.push(KnowledgeReference {
                     kind: kind.to_owned(),
                     id: id.to_owned(),
@@ -736,11 +708,6 @@ impl Composition {
                 });
                 None
             }
-            Ok(text) => Some(format!(
-                "pack byte cap: {} bytes, {} of {PACK_BYTES} left",
-                text.len(),
-                self.budget
-            )),
             Err(reason) => Some(reason),
         };
         let entry = match excluded {
@@ -755,14 +722,11 @@ impl Composition {
     /// The record's totals: the bytes and files presented, per kind the entries presented and
     /// excluded, and — when nothing at all was recalled — that the seat reads the card alone.
     fn close(&mut self) {
-        self.selection["bytes"] = json!(PACK_BYTES - self.budget);
+        self.selection["bytes"] = json!(self.bytes);
         self.selection["files"] = json!({
             "verified": self.verified,
             "absent": self.absent,
         });
-        if !self.omitted.is_empty() {
-            self.selection["metadata_omitted"] = json!(self.omitted);
-        }
         for list in PRESENTED_LISTS {
             let entries = self.selection[list]
                 .as_array()
@@ -805,11 +769,10 @@ fn interleave(sources: &[Vec<(String, String)>]) -> Vec<(String, String)> {
     taken
 }
 
-/// The metadata of a block row that keeps a seat from misusing the block, in priority order —
-/// the holes to fill (owner, note), effects, authority, capabilities, callables, known failure
-/// modes, the version it was checked at — as whole lines within `METADATA_BYTES`: a field that
-/// does not fit is named as omitted, never cut mid-line.
-fn block_metadata(row: &Value) -> (String, Vec<&'static str>) {
+/// The metadata of a block row that keeps a seat from misusing the block — the version it was
+/// checked at first (its status and proof), then the holes to fill (owner, note), effects,
+/// authority, capabilities, callables and known failure modes — each a whole line.
+fn block_metadata(row: &Value) -> String {
     let list = |key: &str, sep: &str| -> Option<String> {
         let items: Vec<&str> = row
             .get(key)?
@@ -855,36 +818,25 @@ fn block_metadata(row: &Value) -> (String, Vec<&'static str>) {
     })
     .collect();
     let fields = [
+        (
+            "version",
+            (!version.is_empty()).then(|| version.join(" · ")),
+        ),
         ("holes", holes.filter(|h| !h.is_empty())),
         ("effects", list("effects", ", ")),
         ("authority", list("authority", ", ")),
         ("capabilities", list("interfaces", ", ")),
         ("callables", list("callables", ", ")),
         ("known failures", list("known_failure_modes", "; ")),
-        (
-            "version",
-            (!version.is_empty()).then(|| version.join(" · ")),
-        ),
     ];
-    let (mut text, mut omitted) = (String::new(), Vec::new());
+    let mut text = String::new();
     for (label, value) in fields {
-        let Some(value) = value else { continue };
-        let line = format!("{label}: {value}\n");
-        if text.len() + line.len() <= METADATA_BYTES {
-            text.push_str(&line);
-        } else {
-            omitted.push(label);
+        if let Some(value) = value {
+            use std::fmt::Write as _;
+            let _ = writeln!(text, "{label}: {value}");
         }
     }
-    if !omitted.is_empty() {
-        use std::fmt::Write as _;
-        let _ = writeln!(
-            text,
-            "metadata omitted at {METADATA_BYTES} bytes: {}",
-            omitted.join(", ")
-        );
-    }
-    (text, omitted)
+    text
 }
 
 /// The words of a text, folded and lowercased, three letters or more.
@@ -908,15 +860,13 @@ fn text_of(row: &Value, fields: &[&str]) -> String {
         .join(" ")
 }
 
-/// BM25 over the rows' text for one query: the top `k` ids with their score, positive
-/// scores only.
+/// BM25 over the rows' text for one query: every id with a positive score, best first.
 // The counts are rows and words of a snapshot (hundreds, thousands): far below the 2^53
 // where a usize stops converting exactly.
 #[allow(clippy::cast_precision_loss)]
 fn rank<'a>(
     query: &str,
     rows: impl IntoIterator<Item = &'a Value>,
-    k: usize,
     text: impl Fn(&Value) -> String,
 ) -> Vec<(String, f64)> {
     let docs: Vec<(String, Vec<String>)> = rows
@@ -960,20 +910,7 @@ fn rank<'a>(
         .filter(|(_, s)| *s > 0.0)
         .collect();
     scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-    scored.truncate(k);
     scored
-}
-
-/// The first `max` bytes of a text on a character boundary.
-fn cut(text: &str, max: usize) -> String {
-    if text.len() <= max {
-        return text.to_owned();
-    }
-    let mut end = max;
-    while !text.is_char_boundary(end) {
-        end -= 1;
-    }
-    format!("{}\n# … cut at {max} bytes", &text[..end])
 }
 
 /// A pack another builder composed for one intent, read strictly from a JSON file: strict JSON

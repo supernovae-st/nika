@@ -4,8 +4,8 @@
 //! The authoring workspace's knowledge: what a native authoring call may read, versioned and
 //! journaled. The stable part is compact — the engine and pack identity, the compiler's laws,
 //! the language in one page and the canonical fragments a candidate is built from — and the
-//! rest arrives just in time: the contracts of the callables the request may reach (cut from
-//! the embedded stdlib page, one section per builtin) and the references recall returns (a
+//! rest arrives just in time: the contracts of the callables the request may reach (taken from
+//! the embedded stdlib page, one whole section per builtin) and the references recall returns (a
 //! canonical skeleton's lean source, a pattern family's row), never the whole shelf. Every
 //! piece carries an id and a digest so the receipt can say what the seat actually read.
 
@@ -86,11 +86,9 @@ pub(super) fn callables(names: &[String]) -> Vec<Reference> {
             .find("\n### ")
             .or_else(|| rest[heading.len()..].find("\n## "))
             .map_or(rest.len(), |at| at + heading.len());
+        // The whole section: an argument table cut mid-way reads complete and is not.
         let section = rest[..end].trim();
-        // Two thousand bytes of contract per builtin is the working set; the page's examples
-        // and forward-compat notes beyond that are not what a candidate needs.
-        let text: String = section.chars().take(2_000).collect();
-        out.push(Reference::new(format!("nika:{name}"), "callable", text));
+        out.push(Reference::new(format!("nika:{name}"), "callable", section));
     }
     out
 }
@@ -143,10 +141,14 @@ pub(super) fn references(intent: &str, skeletons: usize) -> Vec<Reference> {
 }
 
 /// The builtins the references use, for the callable contracts: every `nika:<name>` the
-/// skeleton sources mention, plus the everyday set, deduplicated in that order.
+/// skeleton sources and the knowledge pack's blocks and examples mention, plus the everyday set,
+/// deduplicated in that order.
 pub(super) fn builtins_of(references: &[Reference]) -> Vec<String> {
     let mut names: Vec<String> = EVERYDAY.iter().map(|s| (*s).to_owned()).collect();
-    for reference in references.iter().filter(|r| r.kind == "skeleton") {
+    let sources = references
+        .iter()
+        .filter(|r| matches!(r.kind, "skeleton" | "block" | "example"));
+    for reference in sources {
         for token in reference
             .text
             .split(|c: char| c == '"' || c.is_whitespace())

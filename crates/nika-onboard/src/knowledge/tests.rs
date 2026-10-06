@@ -304,15 +304,14 @@ fn bm25_ranks_the_row_that_shares_the_rare_words_first() {
         json!({"id": "b", "t": "summarize open tickets every monday"}),
         json!({"id": "c", "t": "fetch a page"}),
     ];
-    let ranked = rank("summarize tickets", &rows, 2, |r| text_of(r, &["t"]));
+    let ranked = rank("summarize tickets", &rows, |r| text_of(r, &["t"]));
     assert_eq!(ranked[0].0, "b", "{ranked:?}");
     assert_eq!(ranked.len(), 1, "no shared word, no hit: {ranked:?}");
     // A shared small word is a hit too (« the »), ranked below the rare words.
-    let ranked = rank("summarize the tickets", &rows, 3, |r| text_of(r, &["t"]));
+    let ranked = rank("summarize the tickets", &rows, |r| text_of(r, &["t"]));
     assert_eq!(ranked.len(), 2, "{ranked:?}");
     assert_eq!(ranked[0].0, "b");
     assert_eq!(ranked[1].0, "a");
-    assert_eq!(cut("héllo wörld", 6).lines().next(), Some("héllo"));
 }
 
 /// A synthetic snapshot: each row file written from its rows, each root file under `foundry/`,
@@ -501,17 +500,18 @@ fn a_secondary_obligation_keeps_its_block_beside_the_leading_family() {
     assert!(ids(&pack, "pattern").contains(&"pattern:sum-amounts"));
 }
 
-/// Four large blocks and three large examples exceed the pack's byte cap: what the cap leaves
-/// out is recorded as selected and excluded with its reason, never as presented.
+/// Twelve blocks and four large examples, more rows and bytes than the historical quotas (eight
+/// blocks, three examples, 6 KiB a file, 40 KiB a pack) allowed: every row the recall reaches is
+/// selected and presented whole, and the record says so.
 #[test]
-fn a_selected_item_the_byte_cap_leaves_out_is_recorded_excluded_never_presented() {
-    let big = |name: &str| format!("nika: {name}\n# {}\ntasks: {{}}\n", "x".repeat(FILE_BYTES));
+fn every_row_the_recall_reaches_is_presented_whole_without_a_quota() {
+    let big = |name: &str| format!("nika: {name}\n# {}\ntasks: {{}}\n", "x".repeat(7 * 1024));
     let mut relations = vec![edge("family:report", "RECOMMENDS", "pack:report")];
     let mut patterns = Vec::new();
     let mut blocks = Vec::new();
     let mut examples = Vec::new();
     let mut files = Vec::new();
-    for n in 1..=4 {
+    for n in 1..=12 {
         patterns.push(json!({"id": format!("pattern:p{n}"), "title": "report step", "purpose": "report", "notes": ""}));
         relations.push(edge("pack:report", "CONTAINS", &format!("pattern:p{n}")));
         blocks.push(json!({"id": format!("block:b{n}"), "title": "Report block", "purpose": "report", "file": format!("blocks/b{n}.nika")}));
@@ -522,7 +522,7 @@ fn a_selected_item_the_byte_cap_leaves_out_is_recorded_excluded_never_presented(
         ));
         files.push((format!("blocks/b{n}.nika"), big(&format!("b{n}"))));
     }
-    for n in 1..=3 {
+    for n in 1..=4 {
         examples.push(json!({"id": format!("example:e{n}"), "intent": "write the weekly sales report", "file": format!("examples/e{n}/workflow.nika")}));
         files.push((
             format!("examples/e{n}/workflow.nika"),
@@ -553,39 +553,36 @@ fn a_selected_item_the_byte_cap_leaves_out_is_recorded_excluded_never_presented(
         .iter()
         .map(|r| (r.kind.clone(), r.id.clone()))
         .collect();
-    let mut excluded = 0;
-    for (list, kind) in [
-        ("patterns", "pattern"),
-        ("blocks", "block"),
-        ("examples", "example"),
+    for (list, kind, rows) in [
+        ("patterns", "pattern", 12),
+        ("blocks", "block", 12),
+        ("examples", "example", 4),
     ] {
         for entry in pack.selection[list].as_array().unwrap() {
             let id = entry["id"].as_str().unwrap().to_owned();
-            let shown = presented.contains(&(kind.to_owned(), id.clone()));
-            assert_eq!(entry["presented"], json!(shown), "{list} {id}: {entry}");
-            if !shown {
-                excluded += 1;
-                let why = entry["excluded"].as_str().unwrap_or_default();
-                assert!(why.contains("byte cap"), "{list} {id}: {entry}");
-            }
+            assert!(
+                presented.contains(&(kind.to_owned(), id.clone())),
+                "{list} {id}: {entry}"
+            );
+            assert_eq!(entry["presented"], json!(true), "{list} {id}: {entry}");
         }
         let receipt = &pack.selection["receipt"][list];
-        assert_eq!(
-            receipt["presented"].as_u64().unwrap() + receipt["excluded"].as_u64().unwrap(),
-            receipt["selected"].as_u64().unwrap(),
-            "{list}: {receipt}"
-        );
+        assert_eq!(receipt["candidates"], json!(rows), "{list}: {receipt}");
+        assert_eq!(receipt["selected"], json!(rows), "{list}: {receipt}");
+        assert_eq!(receipt["presented"], json!(rows), "{list}: {receipt}");
+        assert_eq!(receipt["excluded"], json!(0), "{list}: {receipt}");
     }
+    let whole: usize = pack.references.iter().map(|r| r.text.len()).sum();
+    assert!(whole > 40 * 1024, "more than the old pack cap: {whole}");
+    assert_eq!(pack.selection["bytes"], json!(whole));
     assert!(
-        excluded >= 1,
-        "the cap left something out: {}",
-        pack.selection
+        pack.references.iter().all(|r| !r.text.contains("cut at")),
+        "every file whole"
     );
-    assert!(pack.selection["bytes"].as_u64().unwrap() <= 40 * 1024);
 }
 
-/// A block is presented with the metadata that keeps it from being misused, bounded, before
-/// its code.
+/// A block is presented with the metadata that keeps it from being misused — its version, status
+/// and proof first — before its code.
 #[test]
 fn a_block_states_its_holes_effects_capabilities_known_failures_and_version() {
     let block = json!({
@@ -650,6 +647,7 @@ fn a_block_states_its_holes_effects_capabilities_known_failures_and_version() {
         assert!(text.contains(needle), "{needle} missing from:\n{text}");
     }
     assert!(text.find("holes:") < text.find("```yaml"), "{text}");
+    assert!(text.find("version:") < text.find("holes:"), "{text}");
 }
 
 /// A request no row shares a word with presents nothing, says so, and the pack still composes:
@@ -726,7 +724,7 @@ fn the_selection_names_its_selector_and_the_builder_version() {
     let pack = Snapshot::legacy_fixture(&snap)
         .pack(DIGEST_INTENT, Some("sealed"))
         .unwrap();
-    assert_eq!(PACK_BUILDER, "nika-compile/knowledge-door-v5");
+    assert_eq!(PACK_BUILDER, "nika-compile/knowledge-door-v6");
     assert_eq!(pack.identity["door"]["builder"], PACK_BUILDER);
     let selector = &pack.selection["selector"];
     assert!(
@@ -739,10 +737,10 @@ fn the_selection_names_its_selector_and_the_builder_version() {
     assert_eq!(pack.selection["receipt"]["families"]["available"], 2);
 }
 
-/// Metadata past its byte bound is left out by whole field, named in the text and in the
-/// receipt — never cut mid-line into something that reads complete.
+/// Long metadata is presented whole: every known failure mode, never a field left out for its
+/// size.
 #[test]
-fn metadata_past_its_bound_is_named_as_omitted_never_cut_mid_line() {
+fn long_metadata_is_presented_whole() {
     let failures: Vec<String> = (0..40)
         .map(|n| format!("failure mode {n} described at length"))
         .collect();
@@ -787,20 +785,12 @@ fn metadata_past_its_bound_is_named_as_omitted_never_cut_mid_line() {
         .unwrap()
         .text;
     assert!(text.contains("holes: const.source_path (human)"), "{text}");
+    assert!(text.contains("version: EXPERIMENTAL"), "{text}");
     assert!(
-        text.contains("version: EXPERIMENTAL"),
-        "a later field that fits stays: {text}"
+        text.contains("failure mode 0 described at length")
+            && text.contains("failure mode 39 described at length"),
+        "every failure mode: {text}"
     );
-    assert!(
-        !text.contains("known failures:"),
-        "never a partial line: {text}"
-    );
-    assert!(
-        text.contains("metadata omitted at 1024 bytes: known failures"),
-        "{text}"
-    );
-    assert_eq!(
-        pack.selection["metadata_omitted"],
-        json!([{"id": "block:long", "metadata_omitted": ["known failures"]}])
-    );
+    assert!(!text.contains("omitted"), "{text}");
+    assert!(pack.selection.get("metadata_omitted").is_none());
 }

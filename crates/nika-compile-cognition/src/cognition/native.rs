@@ -434,7 +434,7 @@ pub(super) fn repair_message(
     let mut principles: Vec<&str> = Vec::new();
     for code in diagnostics.iter().flat_map(|d| codes_in(&d.message)) {
         for line in repairs.get(&code).into_iter().flatten() {
-            if !principles.contains(&line.as_str()) && principles.len() < 6 {
+            if !principles.contains(&line.as_str()) {
                 principles.push(line);
             }
         }
