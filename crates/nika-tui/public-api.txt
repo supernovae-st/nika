@@ -1427,7 +1427,7 @@ pub nika_tui::session::Work::Resume
 pub nika_tui::session::Work::Resume::answer: alloc::string::String
 pub nika_tui::session::Work::Resume::trace: std::path::PathBuf
 pub nika_tui::session::Work::Resume::workflow: std::path::PathBuf
-pub nika_tui::session::Work::Run(nika_session::change::RunRequest)
+pub nika_tui::session::Work::Run(nika_session_change::change::RunRequest)
 impl core::clone::Clone for nika_tui::session::Work
 pub fn nika_tui::session::Work::clone(&self) -> nika_tui::session::Work
 impl core::fmt::Debug for nika_tui::session::Work
@@ -1557,11 +1557,11 @@ impl<T> tracing::instrument::Instrument for nika_tui::session::Runners
 impl<T> tracing::instrument::WithSubscriber for nika_tui::session::Runners
 impl<T> typenum::type_operators::Same for nika_tui::session::Runners
 pub type nika_tui::session::Runners::Output = T
-pub type nika_tui::session::RunOnce = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &nika_session::change::RunRequest) -> nika_tui::session::RunOutcome + core::marker::Send)>
+pub type nika_tui::session::RunOnce = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &nika_session_change::change::RunRequest) -> nika_tui::session::RunOutcome + core::marker::Send)>
 pub type nika_tui::session::RunOutcome = (u8, core::option::Option<std::path::PathBuf>)
 pub type nika_tui::session::RunResume = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &std::path::Path, &std::path::Path, &str) -> nika_tui::session::RunOutcome + core::marker::Send)>
-pub type nika_tui::session::RunReviewed = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &nika_session::change::RunRequest, &std::sync::mpsc::Sender<alloc::string::String>) -> nika_cli_host::lane::review::RunProgress + core::marker::Send)>
-pub type nika_tui::session::RunReviewedObserved = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &nika_session::change::RunRequest, &dyn nika_display::run_story::RunSink) -> nika_cli_host::lane::review::RunProgress + core::marker::Send)>
+pub type nika_tui::session::RunReviewed = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &nika_session_change::change::RunRequest, &std::sync::mpsc::Sender<alloc::string::String>) -> nika_cli_host::lane::review::RunProgress + core::marker::Send)>
+pub type nika_tui::session::RunReviewedObserved = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &nika_session_change::change::RunRequest, &dyn nika_display::run_story::RunSink) -> nika_cli_host::lane::review::RunProgress + core::marker::Send)>
 pub type nika_tui::session::RunTapped = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &nika_tui::session::Work, &std::sync::mpsc::Sender<alloc::string::String>) -> (u8, core::option::Option<std::path::PathBuf>, alloc::vec::Vec<alloc::string::String>) + core::marker::Send)>
 pub type nika_tui::session::RunTappedObserved = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &nika_tui::session::Work, &dyn nika_display::run_story::RunSink) -> (u8, core::option::Option<std::path::PathBuf>, alloc::vec::Vec<alloc::string::String>) + core::marker::Send)>
 pub mod nika_tui::terminal
@@ -2058,7 +2058,7 @@ pub mod nika_tui::workspace::candidate
 impl nika_tui::workspace::candidate::Proposed
 pub fn nika_tui::workspace::candidate::Proposed::aside(&self) -> bool
 pub fn nika_tui::workspace::candidate::Proposed::face_lines(&self, face: nika_tui_view::workflow::Face, width: u16, ascii: bool, color: bool) -> (ratatui_core::text::line::Line<'static>, alloc::vec::Vec<ratatui_core::text::line::Line<'static>>)
-pub fn nika_tui::workspace::candidate::Proposed::id(&self) -> &nika_session::outcome::ProposalId
+pub fn nika_tui::workspace::candidate::Proposed::id(&self) -> &nika_session_change::outcome::ProposalId
 pub fn nika_tui::workspace::candidate::Proposed::label(&self) -> alloc::string::String
 pub fn nika_tui::workspace::candidate::Proposed::path(&self) -> &str
 pub fn nika_tui::workspace::candidate::Proposed::witness(&self) -> core::option::Option<&str>

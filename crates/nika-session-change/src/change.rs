@@ -226,10 +226,10 @@ pub struct PendingGate {
 
 impl PendingGate {
     /// The gate a paused trace carries, when it carries one: its first pause, as the trace's own
-    /// reader records it ([`crate::run_view::RunFacts::pause_gate`]).
+    /// reader records it ([`nika_trace::run_view::RunFacts::pause_gate`]).
     #[must_use]
     pub fn from_trace(workflow: &Path, trace: &Path) -> Option<Self> {
-        let facts = crate::run_view::RunFacts::read(trace)?;
+        let facts = nika_trace::run_view::RunFacts::read(trace)?;
         let (task, message, mode) = facts.pause_gate()?;
         Some(Self {
             workflow: workflow.to_path_buf(),
@@ -241,7 +241,7 @@ impl PendingGate {
     }
 
     /// The question as the session asks it, naming before any answer the completed tasks the
-    /// resume would run again (Q8 · [`crate::run_view::live_again`]).
+    /// resume would run again (Q8 · [`nika_trace::run_view::live_again`]).
     #[must_use]
     pub fn question(&self) -> String {
         let how = match self.mode.as_str() {
@@ -249,7 +249,7 @@ impl PendingGate {
             "choice" => "one of the choices, as written",
             _ => "in words",
         };
-        let again = crate::run_view::live_again(&self.trace)
+        let again = nika_trace::run_view::live_again(&self.trace)
             .map_or_else(String::new, |line| format!("\n  {line}"));
         format!(
             "the run paused at `{}` and asks you:\n  {}\n  (answer {how} · the answer resumes the run · nothing answers for you){again}",
@@ -282,7 +282,7 @@ pub struct Applied {
 /// A failed apply, together with the paths whose writes returned success
 /// before the refusal. The failed target may also have changed; the list
 /// is the write loop's own record, never inferred from the tree.
-pub(crate) struct ApplyAttempt {
+pub struct ApplyAttempt {
     /// Paths this call wrote, in set order, before the refusal.
     pub written: Vec<PathBuf>,
     /// The refusal (stale before any write, or Io at a write).
@@ -299,7 +299,8 @@ impl ApplyAttempt {
 
     /// The human-facing account: the error, then the on-disk check of
     /// workflows this call itself wrote (only those; never a tree scan).
-    pub(crate) fn refusal_text(&self, set: &ProjectChangeSet) -> String {
+    #[must_use]
+    pub fn refusal_text(&self, set: &ProjectChangeSet) -> String {
         let mut text = self.error.to_string();
         for path in &self.written {
             let Some(change) = set.changes.iter().find(|c| c.path() == *path) else {
@@ -406,7 +407,7 @@ impl ProjectChangeSet {
     /// BOUNDARY (everything before `tasks:` — the name, the model, the
     /// constants, the inputs, the permits, the outputs) and one line for the
     /// tasks; `/show` prints the exact bytes. The identity the consent
-    /// answers is still [`crate::ProposalId::of`] the full preview.
+    /// answers is still [`crate::outcome::ProposalId::of`] the full preview.
     #[must_use]
     pub fn preview_condensed(&self) -> String {
         self.preview_with(false)
@@ -516,7 +517,12 @@ impl ProjectChangeSet {
     /// Land the set, keeping the paths this call itself wrote when a
     /// later write is refused. Callers that must name a partial effect
     /// use this; [`apply`](Self::apply) still returns only the error.
-    pub(crate) fn apply_attempt(&self) -> Result<Applied, ApplyAttempt> {
+    ///
+    /// # Errors
+    ///
+    /// The refusals of [`apply`](Self::apply), each with the paths
+    /// written before it.
+    pub fn apply_attempt(&self) -> Result<Applied, ApplyAttempt> {
         self.apply_attempt_with(write_under)
     }
 
@@ -592,7 +598,8 @@ impl ProjectChangeSet {
 
     /// The project files the set's workflows read when they run, from the check facade's own
     /// permits for their exact bytes (typed, never the preview's words).
-    pub(crate) fn project_reads(&self) -> Vec<String> {
+    #[must_use]
+    pub fn project_reads(&self) -> Vec<String> {
         let mut reads: Vec<String> = Vec::new();
         for change in self.changes.iter().filter(|c| c.is_workflow()) {
             let logical = change.path().display().to_string();
@@ -624,7 +631,11 @@ pub fn check_on_disk(root: &Path, path: &Path) -> WorkflowAudit {
     check_with_access(root, path, None)
 }
 
-pub(crate) fn check_with_access(root: &Path, path: &Path, pin: Option<&str>) -> WorkflowAudit {
+/// [`check_on_disk`] under the human's explicit execution access, when
+/// they pinned one: a plan that access does not admit is not clean, and
+/// its blockers join the findings.
+#[must_use]
+pub fn check_with_access(root: &Path, path: &Path, pin: Option<&str>) -> WorkflowAudit {
     let on_disk = root.join(path);
     match std::fs::read_to_string(&on_disk) {
         Ok(source) => {

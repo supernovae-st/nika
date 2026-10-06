@@ -16,9 +16,8 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
-pub(crate) use display_review::task_face;
 #[doc(inline)]
-pub use display_review::{plan_lines, plan_lines_in_order};
+pub use display_review::{plan_lines, plan_lines_in_order, task_face};
 use nika_display::check_render::review as display_review;
 use nika_onboard::compile::{
     CompileOutcome, DiagnosticKind, TriggerKind, TriggerRequirement, TriggerStatus,
@@ -33,7 +32,10 @@ pub const WORKFLOWS_DIR: &str = "workflows";
 /// The id a candidate carries when the compiler named none it could read.
 const FALLBACK_ID: &str = "workflow";
 
-pub(crate) fn parse(candidate: &str) -> Option<RawWorkflow> {
+/// The candidate as the engine's parser reads it (strict), or `None` when
+/// it does not parse.
+#[must_use]
+pub fn parse(candidate: &str) -> Option<RawWorkflow> {
     nika_schema::parse(candidate, FileId::new(0), ParseMode::Strict).ok()
 }
 
@@ -131,7 +133,7 @@ pub fn propose(
 ///
 /// # Errors
 /// The candidate is absent, the path cannot be witnessed, or the file no longer holds `base`.
-pub(crate) fn propose_over(
+pub fn propose_over(
     root: &Path,
     goal: &str,
     path: &Path,
@@ -150,8 +152,9 @@ pub(crate) fn propose_over(
 }
 
 /// The review's line on execution: nothing has run. A proposal whose copy was rehearsed in a
-/// room replaces it with what that rehearsal did, never on the originals (`runtime/rehearsed.rs`).
-pub(crate) const NOTHING_RAN: &str = "Nothing has run yet · `yes` saves these exact bytes and checks them · running is its own line (« run it »)\n";
+/// room replaces it with what that rehearsal did, never on the originals (the session's
+/// `runtime/rehearsed.rs`).
+pub const NOTHING_RAN: &str = "Nothing has run yet · `yes` saves these exact bytes and checks them · running is its own line (« run it »)\n";
 
 /// The review: what Nika proposes, in the order a human decides — what it
 /// DOES (the tasks, first what runs first), when it RUNS (by hand, or the
@@ -228,7 +231,7 @@ pub fn render(set: &ProjectChangeSet, out: &CompileOutcome, bytes: &str) -> Stri
     let _ = writeln!(
         text,
         "  identity {} · `/show` the exact bytes · `/meaning` your request clause by clause · `yes` applies · `no` discards",
-        crate::ProposalId::of(bytes)
+        crate::outcome::ProposalId::of(bytes)
     );
     text
 }
@@ -427,7 +430,10 @@ mod tests {
             "the boundary is shown: {review}"
         );
         assert!(
-            review.contains(&format!("identity {}", crate::ProposalId::of(&bytes))),
+            review.contains(&format!(
+                "identity {}",
+                crate::outcome::ProposalId::of(&bytes)
+            )),
             "the identity a yes answers is printed: {review}"
         );
     }

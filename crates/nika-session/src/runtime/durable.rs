@@ -535,6 +535,9 @@ impl SessionRuntime {
                 "proposal {id} landed partially · wrote {} · left undecided",
                 paths.join(" · ")
             ),
+            // The decision is non-exhaustive across the member boundary (ADR-144); this
+            // session records only the two above, and names nothing it did not decide.
+            _ => format!("proposal {id} · wrote {}", paths.join(" · ")),
         });
         let record = ConsentRecord::of(set, id, decision, written, now_rfc3339());
         match record.append(&self.snapshot.root) {

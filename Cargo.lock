@@ -5531,6 +5531,7 @@ dependencies = [
  "nika-providers",
  "nika-runtime",
  "nika-schema",
+ "nika-session-change",
  "nika-source",
  "nika-trace",
  "nika-types",
@@ -5541,6 +5542,24 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.20",
  "tokio",
+]
+
+[[package]]
+name = "nika-session-change"
+version = "0.122.0"
+dependencies = [
+ "blake3",
+ "nika-cli-host",
+ "nika-display",
+ "nika-fs",
+ "nika-onboard",
+ "nika-schema",
+ "nika-source",
+ "nika-trace",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.20",
 ]
 
 [[package]]

@@ -66,7 +66,7 @@ impl fmt::Display for GateId {
 /// The identity of one authoring question as ONE session asked it: the
 /// witness of the question, of the request revision it belongs to and of
 /// the intelligence that reads its answer, held with the session that
-/// asked it. Only a session hands one out
+/// asked it. A session hands one out over its own [`Incarnation`]
 /// (`SessionRuntime::pending_question_id`); an answer that names it answers
 /// that question in that session, or nothing. It grants no consent and no
 /// run, and nothing keeps it: the same question asked again — a new
@@ -84,11 +84,14 @@ pub struct QuestionId {
 /// One session, told apart from every other by identity alone: no clock,
 /// no randomness, no counter shared between sessions.
 #[derive(Debug, Default)]
-pub(crate) struct Incarnation;
+pub struct Incarnation;
 
 impl QuestionId {
-    /// The identity of `witness` as `asker` asked it.
-    pub(crate) fn new(witness: String, asker: &Arc<Incarnation>) -> Self {
+    /// The identity of `witness` as `asker` asked it. Only the session that
+    /// holds `asker` can be the one that asked: an id built over another
+    /// incarnation answers nothing there.
+    #[must_use]
+    pub fn new(witness: String, asker: &Arc<Incarnation>) -> Self {
         Self {
             witness,
             asker: Arc::downgrade(asker),
@@ -103,7 +106,8 @@ impl QuestionId {
     }
 
     /// Whether `asker` is the session that asked this question.
-    pub(crate) fn asked_by(&self, asker: &Arc<Incarnation>) -> bool {
+    #[must_use]
+    pub fn asked_by(&self, asker: &Arc<Incarnation>) -> bool {
         Weak::ptr_eq(&self.asker, &Arc::downgrade(asker))
     }
 }

@@ -1,0 +1,73 @@
+# Crate spec — `nika-session-change`
+
+| | |
+|---|---|
+| Status | **WIP · MEMBER** (size-cap split of `nika-session`, a WIP crate itself · ADR-144 · D-2026-07-09-N1 · 2026-10-06) · it joins the workspace as WIP with its unit, the `nika-tui-view` precedent |
+| Layer | L4 — a library surface; lateral L4→L4 edge `nika-session → nika-session-change`, never back · its own lateral edges reach `nika-cli-host` (the check facade), `nika-display` (the review rows), `nika-onboard` (the compiler's outcome) and `nika-trace` (the run facts of a paused gate), none of which depends on it |
+| Design | the project change a session proposal writes, its factual review, the typed outcome a host renders and the consent record: four modules, kept under their historical paths `nika_session::{change, consent, outcome, review}` |
+| IMPL | measured by `scripts/crate-metrics.sh nika-session-change` at each freeze; the crate carries what `nika-session` held in `change.rs`, `review.rs`, `outcome.rs`, `consent.rs` and the `change_fs_tests` module on 2026-10-06 (the gate's own counter: 1,541 prod LOC at the split, 1,489 of them moved · 28 unit tests, all moved with their files) |
+| LOC budget | ≤15k crate · ≤1500/file · ≤100/fn |
+| Crate version | tracks workspace |
+| License | `AGPL-3.0-or-later` |
+| Edition | 2024 (workspace-inherited) |
+| Publish | `false` — member of the `nika-session` unit |
+| Dependencies | **read from `Cargo.toml`, which is authoritative** · lateral L4 `nika-cli-host` (`oracle::audit_source`, default features off), `nika-display` (`check_render::review`), `nika-onboard` (`compile::CompileOutcome` and the trigger it requested), `nika-trace` (`run_view::{RunFacts, live_again}`) · `nika-schema` (the strict parser) · `nika-fs` (`OwnedDir`) · `nika-source` (the canonical program name) · `blake3`, `serde`, `serde_json`, `thiserror` · dev: `tempfile` |
+| NIKA codes | none owed — `ChangeError` is a change set's refusal (outside the root · unnamed · stale · the file system), spoken by the session with its fix |
+
+## 1. Purpose
+
+`nika-session` stood at 14,998 prod LOC on 2026-10-06, against the 15,000 wall, with every next
+change to the Session still to land. Its `change`, `review`, `outcome` and `consent` modules formed
+a closed cluster: they named only each other inside the session, while the rest of the session
+reached them downward. Per D-2026-07-09-N1 a size-cap split is ONE architectural unit in several
+workspace members: the cluster descends here, below the session, which keeps 13,514 prod LOC
+(ADR-144).
+
+The session re-exports the four modules at their historical paths and keeps its root re-exports
+(`ProjectChangeSet`, `ProposalId`, `ConsentRecord`, …), so `nika-tui`, `nika-tui-view` and
+`nika-cli` compile unchanged; `crates/nika-session/tests/change_reexport.rs` compiles against
+those paths as an external consumer.
+
+## 2. The four modules
+
+- `change` (ADR-126) — one typed change set, built once from exact bytes and consumed by BOTH the
+  preview and the apply, so the two cannot diverge. A destination is contained (no `..`, no
+  absolute path, a canonical program name) and witnessed with the no-follow primitive the write
+  uses; every witness is checked before the first write; each file lands atomically below the
+  root's own descriptor. The preview carries the engine's own audit of the exact bytes (the
+  facade `nika check` uses); after apply, the real check judges the workflow as it sits on disk,
+  under the human's pinned execution access when they pinned one. A paused run's gate is read
+  from the trace's own pause event (`nika_trace::run_view`).
+- `review` — the factual review of a Ready candidate before any consent: what it does (its tasks
+  in run order, parsed by the engine's parser), when it runs, what it can touch, what changes on
+  disk and what it still needs, read from the candidate's bytes, the compiler's requested boundary
+  and the set's own audit rows. No model describes a workflow. A fresh candidate lands at a free
+  destination; a revision replaces only the file it compiled, over the exact base bytes.
+- `outcome` (ADR-133) — the typed answers a host renders and a remote host judges by identity:
+  the proposal a consent names (the witness of the exact preview), the gate or the question an
+  answer names, the class of a refusal. A question's identity is held with the session
+  incarnation that asked it; an answer naming it answers that question in that session, or
+  nothing.
+- `consent` — the append-only `.nika/consents.ndjson` under the project: what was previewed (the
+  proposal's identity, every path with the witness of the bytes it was previewed over and of the
+  bytes it lands), what landed, when. One JSON object per line.
+
+## 3. Boundary
+
+- The member owns no conversation, round, money gate or history: the session decides when a set
+  is proposed, previewed, consented to and applied, and writes the consent record at apply.
+- The seams the session reads across the boundary are public items of the member:
+  `change::{ApplyAttempt, check_with_access}`, `ProjectChangeSet::{apply_attempt, project_reads}`,
+  `review::{parse, propose_over, task_face, NOTHING_RAN}` and
+  `outcome::{Incarnation, QuestionId::new, QuestionId::asked_by}`. They were crate-private
+  inside the session; the crate boundary makes them public. No consumer outside the unit names
+  them.
+- `ConsentDecision` stays `#[non_exhaustive]`; across the member boundary the session matches it
+  with a wildcard that names nothing it did not decide.
+- This crate never depends on `nika-session`.
+
+## 4. Related
+
+- ADR-144 (this split) · ADR-125 (the native session) · ADR-126 (project changes from the
+  session) · ADR-133 (the portable session machine) · D-2026-07-09-N1
+- `docs/crate-specs/nika-session.md` · the session, the owner of the conversation
