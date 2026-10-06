@@ -19,9 +19,6 @@ use nika_kernel::ai::provider::{
 };
 use serde_json::{Value, json};
 
-/// The output cap of a bare closed choice, when no reasoning effort is asked of it.
-const CHOICE_MAX_TOKENS: u32 = 256;
-
 /// The reject-all option every closed choice carries.
 pub const NONE_OPTION: &str = "none";
 
@@ -153,22 +150,27 @@ pub struct ProviderChoice<'p, P: ProviderInferDyn> {
 }
 
 impl<'p, P: ProviderInferDyn> ProviderChoice<'p, P> {
-    /// Seat `model` (`provider/name`) behind an injected kernel provider.
+    /// Seat `model` (`provider/name`) behind an injected kernel provider, asking its route's
+    /// output capacity: a closed choice from a reasoning model may think before it answers.
     #[must_use]
-    pub fn new(provider: &'p P, model: impl Into<String>, timeout: std::time::Duration) -> Self {
+    pub fn new(
+        provider: &'p P,
+        model: impl Into<String>,
+        timeout: std::time::Duration,
+        max_tokens: u32,
+    ) -> Self {
         Self {
             provider,
             model: model.into(),
             timeout,
             reasoning: None,
-            max_tokens: CHOICE_MAX_TOKENS,
+            max_tokens,
         }
     }
 
     /// Ask the decision call for this reasoning effort under the operator's declared authoring
     /// output cap (R4 B16): the level is sent only where its route qualifies it, and the cap is
-    /// the authoring calls' own, never the bare choice's 256 tokens a reasoning level could spend
-    /// before it answers. Without it the choice keeps its 256 tokens and its route's default.
+    /// the authoring calls' own. Without it the choice keeps its route's default level.
     #[must_use]
     pub fn with_reasoning(mut self, reasoning: AuthoringReasoning, max_tokens: u32) -> Self {
         self.reasoning = Some(reasoning);

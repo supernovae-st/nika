@@ -316,7 +316,8 @@ impl SessionReasoner for ProviderReasoner {
         prompt: &str,
         account: &nika_providers::InferenceAdmission,
     ) -> Result<Reply, ReasonError> {
-        self.infer(prompt, Some(8192), Some(account), None, ReplyPurpose::Chat)
+        let ceiling = allowance_ceiling(8192);
+        self.infer(prompt, ceiling, Some(account), None, ReplyPurpose::Chat)
     }
     fn reason_label_with_admission(
         &mut self,
@@ -325,7 +326,7 @@ impl SessionReasoner for ProviderReasoner {
     ) -> Result<Reply, ReasonError> {
         self.infer(
             prompt,
-            Some(label_ceiling(&self.model)),
+            allowance_ceiling(label_ceiling(&self.model)),
             Some(account),
             None,
             ReplyPurpose::Label,
@@ -347,7 +348,7 @@ impl SessionReasoner for ProviderReasoner {
     fn reason_label(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
         self.infer(
             prompt,
-            Some(label_ceiling(&self.model)),
+            allowance_ceiling(label_ceiling(&self.model)),
             None,
             None,
             ReplyPurpose::Label,
@@ -363,9 +364,9 @@ impl SessionReasoner for ProviderReasoner {
         effort: AuthoringReasoning,
     ) -> Result<Reply, ReasonError> {
         let ceiling = if label {
-            Some(label_ceiling(&self.model))
+            allowance_ceiling(label_ceiling(&self.model))
         } else {
-            account.map(|_| 8192)
+            account.and_then(|_| allowance_ceiling(8192))
         };
         self.infer(
             prompt,
@@ -379,6 +380,14 @@ impl SessionReasoner for ProviderReasoner {
             },
         )
     }
+}
+
+/// The historical output ceiling of a call made under an explicit Session allowance; none in
+/// continuous preparation, where every call asks its route's real capacity (a fixed label
+/// ceiling cut a reasoning model's answer before it said one word). A ceiling a caller passes
+/// explicitly is never this default and is always kept.
+fn allowance_ceiling(historical: u32) -> Option<u32> {
+    (!PreparationCosts::active()).then_some(historical)
 }
 
 impl ProviderReasoner {
@@ -410,7 +419,7 @@ impl ProviderReasoner {
         let registry = Arc::new(registry);
         let verb = nika_verb_infer::InferVerb::new(registry, self.model.clone());
         let mut input = nika_verb_infer::InferInput::new(prompt);
-        input.max_tokens = ceiling.or_else(|| admission.map(|_| 8192));
+        input.max_tokens = ceiling.or_else(|| admission.and_then(|_| allowance_ceiling(8192)));
         if ceiling.is_some() {
             input.temperature = Some(0.0);
         }

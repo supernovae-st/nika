@@ -146,7 +146,7 @@ pub(super) fn compile(
             .as_ref()
             .zip(args.decision_model.as_deref())
             .map(|(provider, model)| {
-                let choice = ProviderChoice::new(provider, model, timeout);
+                let choice = ProviderChoice::new(provider, model, timeout, max_tokens);
                 match config.reasoning {
                     Some(level) => choice.with_reasoning(level, max_tokens),
                     None => choice,

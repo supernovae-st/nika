@@ -300,8 +300,8 @@ async fn the_decision_call_asks_the_level_under_the_declared_cap_on_the_wire() {
         .expect("named");
     let capture = Arc::new(Capture::default());
     let provider = direct(&capture);
-    let choice =
-        ProviderChoice::new(&provider, PRO, Duration::from_secs(5)).with_reasoning(level, 16_384);
+    let choice = ProviderChoice::new(&provider, PRO, Duration::from_secs(5), 393_216)
+        .with_reasoning(level, 16_384);
     let _answer = choice.choose(&question).await;
     let sent = capture.sent();
     assert_eq!(sent.len(), 1);
@@ -311,12 +311,18 @@ async fn the_decision_call_asks_the_level_under_the_declared_cap_on_the_wire() {
 
     let capture = Arc::new(Capture::default());
     let provider = direct(&capture);
-    let choice = ProviderChoice::new(&provider, PRO, Duration::from_secs(5));
+    let choice = ProviderChoice::new(&provider, PRO, Duration::from_secs(5), 393_216);
     let _answer = choice.choose(&question).await;
     let sent = capture.sent();
     assert_eq!(sent.len(), 1);
-    assert_eq!(sent[0].1["max_tokens"].as_u64(), Some(256), "compatibility");
-    assert_eq!(sent[0].1["reasoning_effort"], "low");
+    assert_eq!(
+        sent[0].1["max_tokens"].as_u64(),
+        Some(393_216),
+        "the route's capacity, never a fixed choice ceiling"
+    );
+    // At its route's capacity the choice keeps the provider's own default level: the low
+    // effort only protected a cap too small for the thinking a reasoning route spends.
+    assert!(sent[0].1.get("reasoning_effort").is_none());
     assert!(sent[0].1.get("thinking").is_none());
 }
 
@@ -667,8 +673,15 @@ fn the_decision_seat_asks_the_named_level_or_keeps_its_own_call() {
     let doc = document(&compile(room.path(), &control, WARM, &decision, None));
     let bodies = control.bodies();
     assert_eq!(bodies.len(), 1, "{doc}");
-    assert_eq!(bodies[0]["max_tokens"].as_u64(), Some(256), "{doc}");
-    assert_eq!(bodies[0]["reasoning_effort"], "low", "{doc}");
+    // The seat asks its route's capacity (a loopback gateway: the unknown-route default), never
+    // a fixed choice ceiling, and so the provider's own default level.
+    let capacity = nika_providers::authoring::policy::AUTHORING_MAX_TOKENS;
+    assert_eq!(
+        bodies[0]["max_tokens"].as_u64(),
+        Some(u64::from(capacity)),
+        "{doc}"
+    );
+    assert!(bodies[0].get("reasoning_effort").is_none(), "{doc}");
     assert!(bodies[0].get("thinking").is_none(), "{doc}");
     let named = Recorder::start();
     let flags = with_word(&decision, Some("max"));
@@ -860,7 +873,9 @@ fn serve_asks_the_flag_over_the_environment_on_every_round() {
             assert_eq!(call["reasoning"]["configured"], Value::Null, "{doc}");
             let bodies = recorder.bodies();
             assert_eq!(bodies.len(), 1, "{doc}");
-            assert_eq!(bodies[0]["reasoning_effort"], "low", "{doc}");
+            // The plan asks more than a reasoning route's low-effort cap: no flag, no ambient,
+            // and so the provider's own default level.
+            assert_eq!(bodies[0]["reasoning_effort"], Value::Null, "{doc}");
             assert!(bodies[0].get("thinking").is_none(), "{doc}");
         }
         assert_eq!(terminate(&mut child), Some(0), "{case}");

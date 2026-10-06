@@ -330,7 +330,14 @@ fn nonempty_truncated_classifiers_never_invent_or_accept_an_act() {
                 );
                 let bodies = peer.bodies();
                 assert_eq!(bodies.len(), 1, "no automatic retry");
-                assert_eq!(bodies[0]["max_tokens"], label_ceiling(MODEL));
+                // Continuous preparation asks the route's capacity; only an explicit
+                // allowance keeps the historical label ceiling.
+                let asked = if continuous {
+                    completion_bounds(MODEL, false, provider_config()).max_tokens
+                } else {
+                    label_ceiling(MODEL)
+                };
+                assert_eq!(bodies[0]["max_tokens"], asked);
                 assert!(
                     bodies[0]["messages"]
                         .as_array()
@@ -344,10 +351,7 @@ fn nonempty_truncated_classifiers_never_invent_or_accept_an_act() {
                     assert!(receipt.attempts[0].sent);
                     assert_eq!(
                         receipt.attempts[0].reserved,
-                        receipt.attempts[0]
-                            .tariff
-                            .reserve(label_ceiling(MODEL))
-                            .unwrap()
+                        receipt.attempts[0].tariff.reserve(asked).unwrap()
                     );
                 }
             }

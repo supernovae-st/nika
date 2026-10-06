@@ -393,7 +393,7 @@ impl<T> typenum::type_operators::Same for nika_compile_cognition::decide::Decisi
 pub type nika_compile_cognition::decide::DecisionError::Output = T
 pub struct nika_compile_cognition::decide::ProviderChoice<'p, P: nika_kernel_ai::provider::ProviderInferDyn>
 impl<'p, P: nika_kernel_ai::provider::ProviderInferDyn> nika_compile_cognition::decide::ProviderChoice<'p, P>
-pub fn nika_compile_cognition::decide::ProviderChoice<'p, P>::new(provider: &'p P, model: impl core::convert::Into<alloc::string::String>, timeout: core::time::Duration) -> Self
+pub fn nika_compile_cognition::decide::ProviderChoice<'p, P>::new(provider: &'p P, model: impl core::convert::Into<alloc::string::String>, timeout: core::time::Duration, max_tokens: u32) -> Self
 pub fn nika_compile_cognition::decide::ProviderChoice<'p, P>::with_reasoning(self, reasoning: nika_compile::types::AuthoringReasoning, max_tokens: u32) -> Self
 impl<P: nika_kernel_ai::provider::ProviderInferDyn> nika_compile_cognition::decide::DecisionSeat for nika_compile_cognition::decide::ProviderChoice<'_, P>
 pub fn nika_compile_cognition::decide::ProviderChoice<'_, P>::choose<'a>(&'a self, question: &'a nika_compile_cognition::decide::ChoiceQuestion) -> nika_compile_cognition::decide::ChoiceFuture<'a>

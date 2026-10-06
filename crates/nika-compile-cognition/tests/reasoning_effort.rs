@@ -325,6 +325,7 @@ async fn the_decision_call_asks_the_level_under_the_declared_cap_or_keeps_its_ow
         &provider,
         "deepseek/deepseek-v4-pro",
         Duration::from_secs(5),
+        393_216,
     )
     .with_reasoning(AuthoringReasoning::Max, 4096);
     let answer = seat.choose(&question).await.unwrap();
@@ -337,9 +338,18 @@ async fn the_decision_call_asks_the_level_under_the_declared_cap_or_keeps_its_ow
     );
 
     let legacy = Capture::new(r#"{"choice":"a"}"#, low_wire());
-    let seat = ProviderChoice::new(&legacy, "deepseek/deepseek-v4-pro", Duration::from_secs(5));
+    let seat = ProviderChoice::new(
+        &legacy,
+        "deepseek/deepseek-v4-pro",
+        Duration::from_secs(5),
+        393_216,
+    );
     let answer = seat.choose(&question).await.unwrap();
-    assert_eq!(legacy.asked(), [(Some(256), None)], "compatibility");
+    assert_eq!(
+        legacy.asked(),
+        [(Some(393_216), None)],
+        "the route's capacity, never a fixed choice ceiling"
+    );
     let record = answer.reasoning.expect("recorded");
     assert_eq!(record["configured"], Value::Null);
     assert_eq!(
