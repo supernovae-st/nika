@@ -496,5 +496,19 @@ fn typeahead_paste_and_stop_keep_unknown_exposure_without_consent() {
         assert_unknown_observed(root.path(), false);
         leave(&mut p);
         assert_unknown_observed(root.path(), false);
+        // Reopened with the request still unanswered, nothing is replayed:
+        // the held transport would count a resent request and never answer it.
+        let mut reopened = spawn(root.path());
+        assert_eq!(
+            calls(root.path()),
+            1,
+            "reopening does not replay the stopped request"
+        );
+        assert_unknown_observed(root.path(), false);
+        // A yes after the reopen still answers nothing and revives no authority.
+        reopened.turn("yes\r", "nothing waits for a yes or a no");
+        leave(&mut reopened);
+        assert_eq!(calls(root.path()), 1);
+        assert_unknown_observed(root.path(), false);
     }
 }
