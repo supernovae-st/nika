@@ -924,3 +924,50 @@ fn a_declined_run_is_typed_not_run_and_130_is_an_interruption() {
         s.status_line()
     );
 }
+
+/// A request typed before any intelligence was chosen, or typed again after a reopening that
+/// restored it, IS the goal: it is compiled under the seat, never routed as a change beside
+/// itself (where a classifier sees the same text twice and answers UNKNOWN — « that line is not
+/// work I can read »). Observed in the TUI on 2026-10-06 with an API and an ACP seat.
+#[test]
+fn the_current_request_is_never_routed_beside_itself() {
+    struct Counting(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+    impl crate::turn::TurnClassifier for Counting {
+        fn classify(
+            &mut self,
+            _context: &crate::turn::TurnContext,
+            _raw: &str,
+        ) -> crate::turn::TurnDecision {
+            self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            crate::turn::TurnDecision::new(
+                crate::turn::TurnAct::Unknown,
+                crate::turn::RoutingMethod::Model,
+            )
+        }
+    }
+    let dir = tree();
+    std::fs::write(dir.path().join("a.md"), "alpha").expect("a");
+    let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let mut s = super::tests::ready_with(dir.path(), vec![]);
+    s.with_classifier(Box::new(Counting(std::sync::Arc::clone(&calls))));
+    s.seat = crate::authoring::AuthoringSeat::Provider {
+        model: "mock/echo".to_owned(),
+    };
+    // What the first pass (or a restored session record) leaves: the request is the goal.
+    s.intent.goal = Some(super::tests::UNSETTLED.to_owned());
+    let out = s.turn(super::tests::UNSETTLED);
+    assert_eq!(
+        calls.load(std::sync::atomic::Ordering::SeqCst),
+        0,
+        "the same request is not read beside itself: {out:?}"
+    );
+    assert!(
+        !format!("{out:?}").contains("not work I can read"),
+        "the request reaches the seat: {out:?}"
+    );
+    // A different request beside that goal is still a decision the route reads.
+    s.intent.goal = Some("Read ./a.md and write its first line to ./c.md".to_owned());
+    s.last_outcome = None;
+    let _ = s.turn(super::tests::UNSETTLED);
+    assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+}

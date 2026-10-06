@@ -87,7 +87,7 @@ pub(super) fn ready(kind: IntelligenceKind, locus: DataLocus) -> ResolvedSession
 }
 
 /// A session on a harness seat (words only): authoring stays deterministic.
-fn ready_with(dir: &Path, replies: Vec<&str>) -> SessionRuntime {
+pub(super) fn ready_with(dir: &Path, replies: Vec<&str>) -> SessionRuntime {
     let seated = ResolvedSessionIntelligence {
         kind: IntelligenceKind::Harness {
             seat: "codex".to_owned(),

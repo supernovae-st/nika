@@ -143,7 +143,10 @@ impl SessionRuntime {
         let reading = super::route::as_written(Reading::of(out), &round, &context, intent);
         // Only work owns the automation goal. Keep this round before any
         // seat/admission failure; an earlier conversation is not its request.
-        let earlier = self.intent.goal.clone();
+        // The request itself is never a goal beside itself: resumed after the
+        // intelligence choice or typed again after a reopening, it IS the goal.
+        let earlier = (self.intent.goal.clone())
+            .filter(|goal| goal.trim() != round.effective_intent().trim());
         if !matches!(reading, Reading::NotWork(_)) {
             self.intent.goal = Some(round.effective_intent());
         }
