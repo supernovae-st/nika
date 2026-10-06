@@ -9,6 +9,7 @@ const DRY_RUN: &str = include_str!("dry_run.rs");
 const PROVENANCE: &str = include_str!("provenance.rs");
 const CHILD_RUNNER: &str = include_str!("child_runner.rs");
 const RUNTIME_DRIVER: &str = include_str!("../../../../nika-service-execution/src/lib.rs");
+const RUNTIME_CLOSURE: &str = include_str!("../../../../nika-service-execution/src/closure.rs");
 const CLI_CARGO: &str = include_str!("../../../Cargo.toml");
 const EXECUTION_CARGO: &str = include_str!("../../../../nika-execution/Cargo.toml");
 const EXECUTION_SERVICE: &str = include_str!("../../../../nika-execution/src/service.rs");
@@ -64,7 +65,9 @@ fn child_execution_has_no_post_admission_filesystem_reader() {
     assert!(!run_signature.contains("CheckReport"));
     for forbidden in ["std::fs::read(", "read_to_string(", "nika_fs::OwnedDir"] {
         assert!(
-            !RUNTIME_DRIVER.contains(forbidden),
+            [RUNTIME_DRIVER, RUNTIME_CLOSURE]
+                .iter()
+                .all(|source| !source.contains(forbidden)),
             "L3 execution driver contains forbidden reader `{forbidden}`"
         );
     }
