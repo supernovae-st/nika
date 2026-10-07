@@ -133,6 +133,16 @@ jobs:
         with:
           toolchain: "1.91"
           components: clippy, rustfmt
+      # The tests leg builds and runs the whole battery in one debug target, and it outgrew the
+      # runner's free disk (2026-10-07: the runner's own log write died with ENOSPC mid-battery).
+      # The image's preinstalled SDKs this job never uses go first; `df` shows what was freed.
+      - name: Free the runner's unused SDKs (tests leg)
+        if: matrix.job == 'tests'
+        run: |
+          df -h / | tail -1
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL /usr/share/swift
+          df -h / | tail -1
       - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           shared-key: diamond
