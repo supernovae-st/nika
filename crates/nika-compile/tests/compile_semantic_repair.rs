@@ -324,7 +324,8 @@ fn reports(out: &CompileOutcome) -> Vec<Value> {
 }
 
 /// The repaired witness keeps one contract across its attempts, records both candidates, and
-/// spends one round count: the sketch, its fills, the reopened sketch, its fills, the judgment.
+/// spends one round count: the sketch, its fills, the reopened sketch, its fills, the judgment
+/// (the whole request, then each of its three parts over the trial run of the faithful bytes).
 #[tokio::test]
 async fn a_repair_keeps_the_request_contract_and_spends_one_round_count() {
     let (out, seat, room) = compiled(2, vec![fills(RAW_COUNT), fills(PAID_COUNT)]).await;
@@ -353,7 +354,16 @@ async fn a_repair_keeps_the_request_contract_and_spends_one_round_count() {
         .collect();
     assert_eq!(
         roles,
-        ["sketch", "fill", "sketch-repair", "fill", "judge_request"]
+        [
+            "sketch",
+            "fill",
+            "sketch-repair",
+            "fill",
+            "judge_request",
+            "judge_observed_part",
+            "judge_observed_part",
+            "judge_observed_part"
+        ]
     );
     assert_eq!(receipt.calls as usize, seat.calls.lock().unwrap().len());
     // One run per candidate: the final barrier reused the last report, charged once.

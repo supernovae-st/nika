@@ -98,6 +98,8 @@ const UNPARSED: &str =
     "whether any task does something the request does not ask (the candidate does not parse)";
 /// The extra-operation question answered with the task that reads the request's own source.
 const READS_STATED: &str = "whether any task does something the request does not ask (the judge named `load`, which has no effect the request could leave unasked)";
+/// The extra question when the judge names the write of the destination the request names.
+const WRITES_STATED: &str = "whether any task does something the request does not ask (the judge named `save`, which has no effect the request could leave unasked)";
 /// The extra question when the judge names the jq filter: no effect, so it decides nothing.
 const NO_EFFECT: &str = "whether any task does something the request does not ask (the judge named `keep`, which has no effect the request could leave unasked)";
 /// The defect an extra operation leaves; its note names the task.
@@ -477,15 +479,16 @@ fn pointing(count: usize, at: usize, pointed: Reply) -> Vec<(Kind, Reply)> {
     script
 }
 
-/// « faithful » carries the whole request in one question: one Carried judgment of the whole
-/// span under the candidate's binding, named by the question that settled it. Nothing else is
-/// asked, nothing is doubted, and the verdict names the request it asked.
+/// « faithful » carries the whole request in one question when no run proves whole outputs (here
+/// a run read only in part): one Carried judgment of the whole span under the candidate's
+/// binding, named by the question that settled it. Nothing else is asked, nothing is doubted,
+/// and the verdict names the request it asked. Over a whole run, see [`observed`].
 #[tokio::test]
 async fn a_faithful_request_is_carried_by_its_one_question() {
     let judge = Scripted::new([(Request, Choose("faithful"))]);
     let Judged {
         verdict, binding, ..
-    } = provided(ORDERS, &judge, Some(&observed(true, true))).await;
+    } = provided(ORDERS, &judge, Some(&observed(true, false))).await;
     let judgment = carried(ORDERS, "verify-request", MODEL, &binding);
     assert_eq!(verdict.judgments, [judgment]);
     assert_eq!(ids(&verdict), ["verify-request"]);
@@ -1058,9 +1061,10 @@ async fn a_whole_none_left_without_any_choice_stays_unknown_never_contested() {
 }
 
 /// When no part is missing, one question asks which task, if any, does something the request
-/// does not ask: a task named that has an effect (a write) is a defect whose note names it,
-/// never contested; a task with no effect the request could leave unasked (the read of the
-/// source the request names, a jq filter) serves it, so naming it decides nothing; a question
+/// does not ask: a task named that has an effect (a write the request does not name) is a defect
+/// whose note names it, never contested; a task with no effect the request could leave unasked
+/// (the read of the source the request names, a jq filter, the write of the destination it
+/// names) serves it, so naming it decides nothing; a question
 /// left without a choice stays unknown in its own words, and the rejected request contested. A call that got no answer stops: the extra question is unknown
 /// as unanswered (never as a choice the judge did not make), the request unknown, never
 /// contested.
@@ -1086,6 +1090,7 @@ async fn the_extra_question_names_a_task_as_a_defect_or_stays_unknown() {
             ),
             (5, 5, 5),
         ),
+        (Choose("task-save"), disputed(WRITES_STATED), (5, 5, 5)),
         (Choose("task-keep"), disputed(NO_EFFECT), (5, 5, 5)),
         (Choose("task-load"), disputed(READS_STATED), (5, 5, 5)),
         (Choose("none"), disputed(EXTRA_UNSETTLED), (5, 5, 4)),
@@ -1095,12 +1100,23 @@ async fn the_extra_question_names_a_task_as_a_defect_or_stays_unknown() {
             (5, 4, 4),
         ),
     ];
-    for (reply, expected, calls) in cases {
+    // The first case's candidate writes a file the request never names; every other writes
+    // the destination it names.
+    let elsewhere = CANDIDATE.replace("./out/open.json", "./out/elsewhere.json");
+    for (k, (reply, expected, calls)) in cases.into_iter().enumerate() {
         let mut script = vec![(Request, Choose("unfaithful"))];
         script.extend(repeat_n((Part, Choose("carried")), 3));
         script.push((Extra, reply));
         let judge = Scripted::new(script);
-        let Judged { verdict, .. } = provided(ORDERS, &judge, None).await;
+        let candidate = if k == 0 {
+            elsewhere.as_str()
+        } else {
+            CANDIDATE
+        };
+        let policy = AuthoringPolicy::new(MODEL, 256, Duration::from_secs(2));
+        let provider = Judge::Provider(&policy, &judge);
+        let request = CompileRequest::create(ORDERS);
+        let Judged { verdict, .. } = judged(ORDERS, &request, candidate, &provider, None).await;
         assert_eq!(ids(&verdict).last(), Some(&"verify-extra"), "{reply:?}");
         let asked = record(&verdict, "verify-extra");
         assert_eq!(asked["role"], "judge_extra");

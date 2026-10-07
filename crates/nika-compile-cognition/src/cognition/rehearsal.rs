@@ -5,12 +5,12 @@
 //! final barrier. Replayed provenance is data, never evidence that the present world ran.
 
 use nika_compile_fidelity::behavior::{
-    Budget, Cause, Contract, Coverage, Limits, Report, Run, RunEnd, Usage, judge,
+    Budget, Cause, Contract, Limits, Report, Run, RunEnd, Usage, judge,
 };
 use serde_json::{Value, json};
 
 use crate::fidelity::Diagnostic;
-use crate::rehearse::{Attempt, Rehearsal, RehearsalReport, Rehearse, judged_run};
+use crate::rehearse::{Attempt, Rehearsal, RehearsalReport, Rehearse, judged_run, trial_shown};
 use crate::{CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind};
 
 mod record;
@@ -192,27 +192,37 @@ impl<'a> Rehearsals<'a> {
         let last = self.last.as_ref()?;
         let completed = matches!(last.run.end, RunEnd::Completed);
         let proceeded = matches!(last.verdict.result, Result::Proceed);
-        if last.candidate != candidate || !completed || !proceeded {
-            return None;
+        let shown = last.candidate == candidate && completed && proceeded;
+        shown.then(|| trial_shown(&super::knowledge::sha256(candidate), &last.run))
+    }
+
+    /// The trial an answer round judges over (R6, A1): bytes READY but for that judgment run once
+    /// (the run the final barrier reuses), shown only as [`Self::observed`] vouches for it.
+    pub(super) async fn trial(
+        &mut self,
+        req: &CompileRequest,
+        out: &CompileOutcome,
+    ) -> Option<Value> {
+        let held = (out.diagnostics.iter())
+            .any(|d| d.kind != DiagnosticKind::Applied && d.target != "semantic_verification");
+        let clean = (out.check_preview.as_ref()).is_some_and(|p| p.report.is_clean());
+        let asks = out.questions.iter().any(|question| question.mandatory);
+        let runs = self.offered() && clean && !asks && !held;
+        let candidate = out.candidate.as_deref().filter(|_| runs)?;
+        self.served(req, out).await;
+        self.observed(candidate)
+    }
+
+    /// One rehearsal of `out`'s candidate as the compile returns it: bound to the caller, its
+    /// paths read through the request the final barrier reads (else `req`).
+    pub(super) async fn served(&mut self, req: &CompileRequest, out: &CompileOutcome) -> Verdict {
+        let mut view = out.clone();
+        let mut read = req.clone();
+        if let Some(serves) = self.serves() {
+            super::sketch::bind_caller(serves.caller.clone(), &serves.raw, &mut view);
+            read = serves.reading.clone();
         }
-        let sha = super::knowledge::sha256(candidate);
-        let inputs: Vec<Value> = (last.run.consumed.iter())
-            .map(|read| {
-                json!({"path": read.path, "text": read.text,
-                    "read_whole": read.coverage == Coverage::Complete})
-            })
-            .collect();
-        let outputs: Vec<Value> = (last.run.read_back.iter())
-            .map(|written| {
-                json!({"path": written.path, "text": written.text, "written": written.written,
-                    "read_whole": !written.truncated})
-            })
-            .collect();
-        Some(json!({
-            "candidate_sha256": sha,
-            "inputs": inputs,
-            "outputs": outputs,
-        }))
+        self.inspect(&read, &view).await
     }
 
     /// Every returned Ready candidate, including COLD and replay, faces the same barrier on
@@ -312,6 +322,16 @@ fn effective_paths(
             extend_paths(&mut inputs, &reads);
             extend_paths(&mut targets, &writes);
         }
+    }
+    // A path the request names that the candidate writes and never reads (« Save ./out/x.json
+    // as … ») is its output, never an input the room must find.
+    let fs = (nika_compile::parse(out.candidate.as_deref().unwrap_or_default()).ok())
+        .and_then(|workflow| nika_check::infer_permits(&workflow).permits.fs);
+    if let Some(fs) = fs {
+        let output = |path: &String| fs.write.contains(path) && !fs.read.contains(path);
+        let outputs: Vec<String> = inputs.iter().filter(|path| output(path)).cloned().collect();
+        inputs.retain(|path| !output(path));
+        extend_paths(&mut targets, &outputs);
     }
     Ok((inputs, targets))
 }

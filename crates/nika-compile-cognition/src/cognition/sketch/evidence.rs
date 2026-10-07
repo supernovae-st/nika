@@ -67,15 +67,7 @@ pub(super) async fn examined(
         );
         return (Evidence::Stop(why), noted("stop", Value::Null));
     }
-    // The candidate as the compile will return it: its semantic record bound to the caller,
-    // its paths read through the request the final barrier reads.
-    let mut view = out.clone();
-    let mut read = request.clone();
-    if let Some(serves) = rehearsals.serves() {
-        super::bind_caller(serves.caller.clone(), &serves.raw, &mut view);
-        read = serves.reading.clone();
-    }
-    match rehearsals.inspect(&read, &view).await.result {
+    match rehearsals.served(request, out).await.result {
         Rehearsed::Repair(diagnostic) => {
             return (Evidence::Defect(diagnostic), noted("defect", Value::Null));
         }

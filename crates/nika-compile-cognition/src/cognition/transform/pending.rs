@@ -73,7 +73,10 @@ pub(crate) async fn resume<P: ProviderInferDyn>(
             // chose, else the authoring provider through the journaled call (R4 A11).
             let judges = (seat, Some((policy, provider)));
             let verify = super::super::verify::replayed;
-            out = verify(intent, &verified, &assembly_request, judges, true, out).await?;
+            // No room is offered to a regeneration: it is judged on its bytes alone.
+            let mut unhosted = super::super::rehearsal::Rehearsals::new(None);
+            let request = &assembly_request;
+            out = verify(intent, &verified, request, judges, true, &mut unhosted, out).await?;
             let regeneration = kept_or_refused(&mut out, &verified);
             let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
             decision["transform_regeneration"] = regeneration;

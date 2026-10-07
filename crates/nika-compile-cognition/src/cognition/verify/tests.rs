@@ -119,7 +119,8 @@ async fn ten_clauses<P: nika_kernel::ai::provider::ProviderInferDyn>(
     let request = crate::CompileRequest::create(intent.as_str());
     let plan = crate::plan::Plan::default();
     let mut out = crate::initial();
-    let verdict = super::verdict_on(&intent, &request, &plan, &settled, &judge, &mut out).await;
+    let on = (intent.as_str(), &request, &plan);
+    let verdict = super::verdict_on(on, &settled, &judge, None, &mut out).await;
     (clauses, verdict, out)
 }
 

@@ -26,6 +26,7 @@ use nika_kernel::ai::provider::{InferResponse, Message, ProviderInferDyn, Role};
 use serde_json::{Value, json};
 
 use super::knowledge;
+use super::rehearsal::Rehearsals;
 use crate::decide::{
     self, ChoiceAnswer, ChoiceOption, ChoiceQuestion, DecisionError, DecisionSeat,
 };
@@ -514,11 +515,10 @@ fn usage<P: ProviderInferDyn>(judge: &Judge<'_, P>, verdict: &Verdict, calls: &[
 /// calls are journaled into `out`. Each question's state also carries the spelling law's notes on
 /// the plan's programs it could not judge ([`unjudged`], B21 T1).
 async fn verdict_on<P: ProviderInferDyn>(
-    intent: &str,
-    request: &CompileRequest,
-    plan: &Plan,
+    (intent, request, plan): (&str, &CompileRequest, &Plan),
     settled: &CompileOutcome,
     judge: &Judge<'_, P>,
+    observation: Option<&Value>,
     out: &mut CompileOutcome,
 ) -> Verdict {
     let journaled = journal(out).len();
@@ -551,8 +551,10 @@ async fn verdict_on<P: ProviderInferDyn>(
         }
     }
     let sha = knowledge::sha256(candidate);
+    // An observation binds only to the bytes it ran: the judge never sees another's.
+    let run = observation.filter(|o| o["candidate_sha256"] == sha.as_str());
     if let Some(earlier) = judged_before(out, (request, intent), &sha, judge) {
-        if !unfinished(&earlier, None) {
+        if !unfinished(&earlier, run) {
             route(out, if earlier.carried { CARRIED } else { SAME_BYTES });
             return earlier;
         }
@@ -574,7 +576,7 @@ async fn verdict_on<P: ProviderInferDyn>(
             verdict.unknown.push(open.clause.clone());
         } else if open.spans == [(0, intent.len())] {
             let asked = (&base, grounding.text.as_str());
-            whole(intent, asked, judge, &binding, None, &mut verdict, out).await;
+            whole(intent, asked, judge, &binding, run, &mut verdict, out).await;
         } else {
             let asked = (k, &base, &binding, grounding.text.as_str());
             judge_clause(open, asked, judge, &mut verdict, out).await;
@@ -1066,10 +1068,7 @@ pub(super) async fn judged_cold<P: ProviderInferDyn>(
     request: &CompileRequest,
     mut pre: CompileOutcome,
 ) -> Result<CompileOutcome, CompileError> {
-    let judge = match seat {
-        Some(seat) => Judge::Seat(seat),
-        None => Judge::Provider(policy, provider),
-    };
+    let judge = seat.map_or(Judge::Provider(policy, provider), Judge::Seat);
     let mut attempt = 0;
     let unbounded = policy.repairs.is_none();
     let mut seen_parts: Vec<Vec<String>> = Vec::new();
@@ -1081,7 +1080,8 @@ pub(super) async fn judged_cold<P: ProviderInferDyn>(
             super::settle_judged(Strategy::Cold, &plan, intent, request, &[], pre.clone())?;
         let omitted = silent(&settled);
         let verdict = if omitted.is_empty() {
-            let mut verdict = verdict_on(intent, request, &plan, &settled, &judge, &mut pre).await;
+            let on = (intent, request, &plan);
+            let mut verdict = verdict_on(on, &settled, &judge, None, &mut pre).await;
             if let Some(sha) = verdict.candidate_sha256.clone() {
                 match carried.iter().find(|(judged, _)| *judged == sha) {
                     Some((_, judgments)) if verdict.same_bytes_as.is_some() => {
@@ -1186,6 +1186,7 @@ pub(super) async fn replayed<P: ProviderInferDyn>(
     request: &CompileRequest,
     judges: (Option<&dyn DecisionSeat>, Option<(&AuthoringPolicy, &P)>),
     whole: bool,
+    rehearsals: &mut Rehearsals<'_>,
     out: CompileOutcome,
 ) -> Result<CompileOutcome, CompileError> {
     let folded = crate::lexicon::fold_apostrophes(intent);
@@ -1215,8 +1216,10 @@ pub(super) async fn replayed<P: ProviderInferDyn>(
     if out.candidate.is_none() || !open {
         return Ok(out);
     }
+    let observation = Box::pin(rehearsals.trial(request, &out)).await;
     let mut pre = before;
-    let verdict = verdict_on(intent, request, &plan, &out, &judge, &mut pre).await;
+    let on = (intent, request, &plan);
+    let verdict = verdict_on(on, &out, &judge, observation.as_ref(), &mut pre).await;
     record(&mut pre, &judge, &verdict, 0);
     if verdict.settled() {
         crate::replay_judged(intent, saved, request, &verdict.judgments, whole, &mut pre)?;
@@ -1259,10 +1262,9 @@ fn unreplayed(out: &mut CompileOutcome, verdict: &Verdict) {
 /// binding (a mismatch leaves it INCOMPLETE). The judge's journal joins that outcome; nothing
 /// is read from the record as a judgment.
 pub(super) async fn semantic<P: ProviderInferDyn>(
-    raw: &CompileRequest,
-    intent: &str,
-    request: &CompileRequest,
+    (raw, intent, request): (&CompileRequest, &str, &CompileRequest),
     judges: (Option<&dyn DecisionSeat>, Option<(&AuthoringPolicy, &P)>),
+    rehearsals: &mut Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     let mut out = nika_compile::compile_judged(raw, &[])?;
     let rebuilt = out.provenance.plan.as_ref();
@@ -1293,9 +1295,11 @@ pub(super) async fn semantic<P: ProviderInferDyn>(
     if out.candidate.is_none() || !open {
         return Ok(out);
     }
+    let observation = Box::pin(rehearsals.trial(raw, &out)).await;
     let mut pre = crate::initial();
     let plan = crate::lexicon::read(intent).plan;
-    let verdict = verdict_on(intent, request, &plan, &out, &judge, &mut pre).await;
+    let on = (intent, request, &plan);
+    let verdict = verdict_on(on, &out, &judge, observation.as_ref(), &mut pre).await;
     record(&mut pre, &judge, &verdict, 0);
     let settled = verdict.settled();
     // The core's READY law weighs the judgments made; what the judge did not carry stays open.
@@ -1432,7 +1436,7 @@ pub(super) async fn judged_warm(
     }
     let judge = Judge::<super::NoProvider>::Seat(seat);
     let mut pre = out;
-    let verdict = verdict_on(intent, request, plan, &settled, &judge, &mut pre).await;
+    let verdict = verdict_on((intent, request, plan), &settled, &judge, None, &mut pre).await;
     record(&mut pre, &judge, &verdict, 0);
     if verdict.settled() {
         route(&mut pre, "verify: judged (decision_seat)");

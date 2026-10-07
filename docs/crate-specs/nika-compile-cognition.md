@@ -310,7 +310,8 @@ The whole request is judged as one property, and its verdict is the READY gate
 (`verify::faithful`, R6): the questions that follow a doubt locate a defect as evidence, never
 as the verdict. The verdict question `verify-request` (role `judge_request`) offers `faithful`
 and `unfaithful` beside NONE. `faithful` is the `Carried` judgment of the whole request,
-admitted under the recomputed binding (`settled_by: verify-request`). A call that returns no
+admitted under the recomputed binding (`settled_by: verify-request`), once a whole trial run of
+these bytes, when one exists, stands nothing against it (below). A call that returns no
 admitted choice (an answer that does not decode, an option the question does not offer, or no
 answer at all) judged nothing: the request is unknown and nothing more is asked about it; a call
 that got no answer also stops the verdict. `unfaithful` rejects the bytes and NONE abstains on
@@ -416,13 +417,28 @@ each part of the request asked alone.
   lack of a choice leaves it as it stood. `unexercised`, NONE and no choice leave the part as
   it stood: a partial proof stays partial. A question that gets no answer stops the
   localization.
+- **A faithful verdict over a whole trial run** (`verify::faithful::confirmed`, A1). `faithful`
+  reads the program, never what it produced: when the observation below proves whole outputs,
+  each part of the request is asked over the run (`verify-observed-part-<k>`, the questions of
+  one step put to a decision seat together, as `verify-observed-parts`), with the options and
+  instructions of the trial-run bullet above. `carried` and `unexercised` leave the verdict
+  standing; when every part is one or the other the request is the `Carried` judgment of
+  `verify-request`. `missing` rejects the bytes and asks its pointer over the run: a named task
+  or `omitted` is a defect noted « in the trial run, … », what a repair starts from, never READY;
+  `no_task` leaves the part contested. NONE abstains on the bytes, and NONE, no choice or a
+  pointer left without one keep the part unknown: never READY on it, never a defect. A call that
+  gets no answer stops the verdict, the part and every part after it unknown. No confidence the
+  seat reports is read: it is a concentration statistic, not a probability of correctness
+  (`ChoiceAnswer::confidence`), and the run is asked whatever it says. A candidate with no whole
+  run keeps the one-question verdict.
 - **The extra operation.** When the localization did not stop and no part is a defect,
   `verify-extra` (role `judge_extra`) asks which task, if any, does something the request does
   not ask (`only_requested`, or `task-<id>` for each task). A named task is the defect « only
   what the request asks », noted « the judge points to the task `<id>`, which does something the
   request does not ask », unless that task has no effect the request could leave unasked (each
-  permit `nika_check::task_permits` derives for it is an `fs.read` of a path the request
-  states, or one of the tools `nika:read`, `nika:glob`, `nika:grep`, `nika:jq`, `nika:assert`,
+  permit `nika_check::task_permits` derives for it is an `fs.read` or an `fs.write` of a path
+  the request states (« Save ./out/x.json »: the write it asks), or `nika:write`, or one of the
+  tools `nika:read`, `nika:glob`, `nika:grep`, `nika:jq`, `nika:assert`,
   `nika:convert`, `nika:validate`, `nika:date`, `nika:hash`, `nika:json_diff`,
   `nika:json_merge_patch` or `nika:inspect`, as the guards and conversions the compiler writes
   itself; a write, a send, a fetch, a program or a model call is an effect): that answer
@@ -484,10 +500,17 @@ observation shown, and each text's role, path, size, sha256, `read_whole` and `w
 nothing decided it, the doubt stays: the request is contested (`contested`, why in `unsettled`)
 when an admitted answer rejected the bytes, and unknown when the judge only abstained. A
 contested request or part is never READY and never repaired from: its finding names the doubt,
-why nothing decided it and the next action. Only the sketch door passes an observation, and only
-under a host that offers a rehearsal room: the Session's seated rounds. `nika compile` and Serve
-offer none, a candidate the room does not run has none, and COLD, WARM, the answer rounds and
-the revisions are judged without one. The configured verifier (a decision service, or the
+why nothing decided it and the next action. Only the sketch door and the answer rounds of a
+replayed record (`verify::replayed`, `verify::semantic`) pass an observation, and only under a
+host that offers a rehearsal room: the Session's seated rounds. An answer round runs its trial
+before its judge reads the bytes (`Rehearsals::trial`), only when those bytes are READY but for
+that judgment (a clean Check, no mandatory question, no finding but `semantic_verification`);
+the final barrier reuses that run. `nika compile` and Serve offer none, a candidate the room does
+not run has none, and COLD, WARM, a transform regeneration and the revisions are judged without
+one. The paths the room is given are the request's (`stated_sources`, `stated_destinations`)
+with its answered paths, except that a stated path the candidate writes and never reads
+(« Save ./out/x.json as … », where no connector marks the destination) is a target read back,
+never an input the room must find. The configured verifier (a decision service, or the
 authoring provider) receives a trial run's observations by default, as preparation context: the
 texts as the room's report keeps them (the Session's room keeps at most 64 KiB of each file,
 `ObservedRoom::PREVIEW_BOUND`) are sent with every question over the run, and the records keep
@@ -678,8 +701,9 @@ the round's policy is bounded.
 - A faithful verdict under the recomputed binding is READY, and the route says
   `verify: judged (<kind>)` after the replay.
 - A located defect, an unknown and a contested request stay INCOMPLETE naming them, with the
-  candidate kept as the preview. Nothing is repaired in an answer round, and no rehearsal
-  precedes its judgment, so a doubt its parts do not locate stays doubted there. A doubted
+  candidate kept as the preview. Nothing is repaired in an answer round; under a host that
+  offers a room, its trial precedes its judgment (above), so a doubt its parts do not locate is
+  asked over that run, and stays doubted there only when no whole run exists. A doubted
   verdict also drops the round's replayable record, its questions and its requested boundary
   (`verify: doubted, not replayable`) and adds the Applied `verify_held` finding, so no later
   round replays that record; a judge that declined nothing keeps the record.

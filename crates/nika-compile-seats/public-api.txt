@@ -1257,4 +1257,7 @@ pub fn nika_compile_seats::rehearse::Rehearse::rehearse<'a>(&'a self, candidate:
 pub fn nika_compile_seats::rehearse::Rehearse::rehearse_reading<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String], _targets: &'a [alloc::string::String]) -> nika_compile_seats::rehearse::RehearsalFuture<'a>
 pub fn nika_compile_seats::rehearse::judged_run(fixture: &str, report: &nika_compile_seats::rehearse::RehearsalReport, inputs: &[alloc::string::String], targets: &[alloc::string::String], declared: &[alloc::string::String]) -> nika_compile_fidelity::behavior::Run
 pub fn nika_compile_seats::rehearse::targets_of(contract: &nika_compile_fidelity::behavior::Contract) -> impl core::iter::traits::iterator::Iterator<Item = alloc::string::String> + use<>
+pub fn nika_compile_seats::rehearse::trial_receipts(observed: &serde_json::value::Value) -> serde_json::value::Value
+pub fn nika_compile_seats::rehearse::trial_shown(candidate_sha256: &str, run: &nika_compile_fidelity::behavior::Run) -> serde_json::value::Value
+pub fn nika_compile_seats::rehearse::trial_whole(observed: &serde_json::value::Value) -> bool
 pub type nika_compile_seats::rehearse::RehearsalFuture<'a> = core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_compile_seats::rehearse::RehearsalReport> + core::marker::Send + 'a)>>

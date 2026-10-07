@@ -27,6 +27,9 @@
 //! request is asked over the run: consistent outputs carry it. Without such a run, or with a
 //! part still open, the doubt stays: the request is contested when the judge rejected it,
 //! unknown when it only abstained, and the candidate is held, never READY.
+//!
+//! « faithful » reads the bytes, not what they produced: over such a run it stands only once no
+//! part is shown missing or left unsettled there ([`confirmed`]).
 
 use serde_json::{Value, json};
 
@@ -36,6 +39,9 @@ use super::{
 };
 use crate::CompileOutcome;
 use crate::decide::{ChoiceOption, ChoiceQuestion};
+use crate::rehearse::trial_receipts;
+/// Whether a trial run proves whole outputs (descended to the rehearsal port, ADR-146).
+pub(super) use crate::rehearse::trial_whole;
 use nika_compile::surface::{Binding, Disposition, Judgment};
 use nika_compile_clauses::parts::{asks_an_operation, restricts};
 use nika_kernel::ai::provider::ProviderInferDyn;
@@ -109,6 +115,17 @@ struct Part {
     text: String,
     restricting: bool,
     state: State,
+}
+
+/// Each part of the request, none settled yet.
+fn split(intent: &str) -> Vec<Part> {
+    (parts(intent).into_iter())
+        .map(|text| Part {
+            restricting: restricts(&text),
+            text,
+            state: State::Unknown,
+        })
+        .collect()
 }
 
 /// What a part stands at.
@@ -204,8 +221,25 @@ pub(super) async fn whole<P: ProviderInferDyn>(
         verdict.unknown.push(intent.to_owned());
         return;
     };
+    let candidate = base["candidate_nika"].as_str().unwrap_or_default();
+    let tasks = parsed_tasks(candidate);
+    let asked = Asked {
+        base,
+        reference,
+        judge,
+        tasks: tasks.as_deref().unwrap_or_default(),
+        intent,
+    };
     if answer == "faithful" {
         verdict.consumed += 1;
+        // A whole run of these bytes is evidence the bytes alone are not: the verdict stands
+        // only when nothing over it stands against it.
+        let run = observation.filter(|observed| trial_whole(observed));
+        if let Some(run) = run
+            && !Box::pin(confirmed(&asked, run, verdict, out)).await
+        {
+            return;
+        }
         verdict.judgments.push(carried("verify-request"));
         verdict.settled_by = Some("verify-request");
         return;
@@ -217,15 +251,6 @@ pub(super) async fn whole<P: ProviderInferDyn>(
         verdict.decline(Declined::Rejected);
     }
     verdict.doubt.push(answer);
-    let candidate = base["candidate_nika"].as_str().unwrap_or_default();
-    let tasks = parsed_tasks(candidate);
-    let asked = Asked {
-        base,
-        reference,
-        judge,
-        tasks: tasks.as_deref().unwrap_or_default(),
-        intent,
-    };
     if locate(
         candidate,
         tasks.as_deref(),
@@ -253,18 +278,12 @@ async fn locate<P: ProviderInferDyn>(
     out: &mut CompileOutcome,
 ) -> bool {
     let intent = asked.intent;
-    let mut parts: Vec<Part> = (parts(intent).into_iter())
-        .map(|text| Part {
-            restricting: restricts(&text),
-            text,
-            state: State::Unknown,
-        })
-        .collect();
+    let mut parts = split(intent);
     localize(&mut parts, asked, verdict, out).await;
     super::unread(verdict);
     let trial = observation.filter(|observed| trial_whole(observed));
     if let Some(run) = trial.filter(|_| !verdict.stopped) {
-        over_run(&mut parts, asked, run, verdict, out).await;
+        over_run(&mut parts, (asked, false), run, verdict, out).await;
         super::unread(verdict);
     }
     let broken = parts.iter().any(|p| matches!(p.state, State::Defect(_)));
@@ -531,7 +550,7 @@ fn named<'t>(key: &str, tasks: &'t [String]) -> Option<&'t str> {
 /// choice, leaves it as it stood.
 async fn over_run<P: ProviderInferDyn>(
     parts: &mut [Part],
-    asked: &Asked<'_, '_, P>,
+    (asked, confirming): (&Asked<'_, '_, P>, bool),
     run: &Value,
     verdict: &mut Verdict,
     out: &mut CompileOutcome,
@@ -597,10 +616,35 @@ async fn over_run<P: ProviderInferDyn>(
                     None => return,
                 }
             }
-            Some("unexercised") => verdict.consumed += 1,
-            _ => {}
+            Some("unexercised") => {
+                verdict.consumed += 1;
+                // A part no input meets shows nothing against a faithful verdict.
+                if confirming {
+                    part.state = State::Settled;
+                }
+            }
+            // NONE over the run abstains on these bytes: it rejects nothing.
+            Some(_) => verdict.decline(Declined::Abstained),
+            None => {}
         }
     }
+}
+
+/// A faithful verdict over a whole trial run of these bytes (A1): each part is judged again over
+/// what the run read and wrote. `carried` or `unexercised` leave the verdict standing; `missing`
+/// asks the task that fails it there (a defect to repair from; contested when no task fails it);
+/// NONE or no choice keeps it unknown. Whether nothing over the run stands against the verdict.
+async fn confirmed<P: ProviderInferDyn>(
+    asked: &Asked<'_, '_, P>,
+    run: &Value,
+    verdict: &mut Verdict,
+    out: &mut CompileOutcome,
+) -> bool {
+    let mut parts = split(asked.intent);
+    over_run(&mut parts, (asked, true), run, verdict, out).await;
+    super::unread(verdict);
+    // A stopped call leaves its part, and every part after it, unknown: open.
+    !keep(&parts, verdict) && verdict.defects.is_empty()
 }
 
 /// Part `k` asked again over a trial run (`state`: the base state and the run's observation),
@@ -706,10 +750,11 @@ async fn extra<P: ProviderInferDyn>(
     }
 }
 
-/// Whether a task of the candidate has no effect the request could leave unasked: it reads only
-/// sources the request names and calls only tools with no effect (a read, a search, a
-/// conversion, a jq program, a check), such as the guards and conversions the compiler writes
-/// itself. A write, a send, a fetch, a program run or a model call is an effect.
+/// Whether a task of the candidate has no effect the request could leave unasked: it reads or
+/// writes only paths the request names (« Save ./out/x.json »: the write it asks) and calls only
+/// `nika:write` or tools with no effect (a read, a search, a conversion, a jq program, a check),
+/// such as the guards and conversions the compiler writes itself. A write elsewhere, a send, a
+/// fetch, a program run or a model call is an effect.
 fn reads_stated(candidate: &str, task: &str, intent: &str) -> bool {
     let Ok(workflow) = nika_compile::parse(candidate) else {
         return false;
@@ -723,13 +768,13 @@ fn reads_stated(candidate: &str, task: &str, intent: &str) -> bool {
         !path.is_empty() && intent.contains(path)
     };
     !permits.is_empty()
-        && permits
-            .iter()
-            .all(|permit| match permit.strip_prefix("fs.read: ") {
+        && permits.iter().all(|permit| {
+            match (permit.strip_prefix("fs.read: ")).or_else(|| permit.strip_prefix("fs.write: ")) {
                 Some(path) => stated(path),
                 None => matches!(
                     permit.as_str(),
                     "tool: nika:read"
+                        | "tool: nika:write"
                         | "tool: nika:glob"
                         | "tool: nika:grep"
                         | "tool: nika:jq"
@@ -742,7 +787,8 @@ fn reads_stated(candidate: &str, task: &str, intent: &str) -> bool {
                         | "tool: nika:json_merge_patch"
                         | "tool: nika:inspect"
                 ),
-            })
+            }
+        })
 }
 
 /// The whole request over this compile's trial run of the same bytes, once every part is
@@ -839,50 +885,13 @@ async fn observe<P: ProviderInferDyn>(
     }
 }
 
-/// Whether a trial run proves whole outputs: at least one output, each written by the run
-/// itself, and every input and output read whole. A skipped or unwritten output proves nothing
-/// of the part that asked it.
-pub(super) fn trial_whole(observed: &Value) -> bool {
-    let texts = |key: &str| observed[key].as_array().map_or(&[][..], Vec::as_slice);
-    let (inputs, outputs) = (texts("inputs"), texts("outputs"));
-    !outputs.is_empty()
-        && outputs
-            .iter()
-            .all(|output| output["written"] == Value::Bool(true))
-        && (inputs.iter().chain(outputs)).all(|text| text["read_whole"] == Value::Bool(true))
-}
-
-/// The receipts of the trial run on every record a question over it left since `from`.
+/// The receipts of the trial run on every record a question over it left since `from`: never
+/// its texts ([`trial_receipts`]).
 fn witnessed(verdict: &mut Verdict, from: usize, run: &Value) {
-    let receipts = receipts(run);
+    let receipts = trial_receipts(run);
     for record in verdict.records.iter_mut().skip(from) {
         record["observation"] = receipts.clone();
     }
-}
-
-/// What a trial-run question transmitted, text by text: the role, the path, the size and the
-/// digest of each text, and whether it was whole — never the text again.
-fn receipts(observed: &Value) -> Value {
-    let texts = |role: &str, key: &str| -> Vec<Value> {
-        (observed[key]
-            .as_array()
-            .map_or(&[][..], Vec::as_slice)
-            .iter())
-        .map(|text| {
-            let body = text["text"].as_str().unwrap_or_default();
-            json!({"role": role, "path": text["path"], "bytes": body.len(),
-                    "sha256": super::knowledge::sha256(body), "read_whole": text["read_whole"],
-                    "written": text.get("written")})
-        })
-        .collect()
-    };
-    let mut all = texts("input", "inputs");
-    all.extend(texts("output", "outputs"));
-    json!({
-        "candidate_sha256": observed["candidate_sha256"],
-        "sha256": super::knowledge::sha256(&observed.to_string()),
-        "texts": all,
-    })
 }
 
 /// The part a question judged, on its record: what a reader of the record needs to map the

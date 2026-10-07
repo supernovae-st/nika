@@ -606,8 +606,9 @@ async fn a_part_named_in_the_run_asks_its_task_over_the_run() {
 }
 
 /// Over the run, a task the judge names doing something the request does not ask is a defect
-/// whose note says so, unless it only reads the source the request names: that answer decides
-/// nothing, and the request stays contested saying so; a question over the run left without a
+/// whose note says so (here a write the request never names), unless it only reads the source
+/// or writes the destination the request names: that answer decides nothing, and the request
+/// stays contested saying so; a question over the run left without a
 /// choice (NONE, an answer that is no JSON choice) decides nothing and the request stays
 /// contested; one that gets no answer stops, the request unknown, never contested.
 #[tokio::test]
@@ -621,7 +622,8 @@ async fn a_task_named_in_the_run_is_a_defect_and_no_choice_decides_nothing() {
             found(&[(EXTRA_DEFECT, extra)], &[], &[], &["unfaithful"], &[]),
             (6, 6, 6),
         ),
-        (Choose("task-load"), read_only, (6, 6, 6)),
+        (Choose("task-load"), read_only.clone(), (6, 6, 6)),
+        (Choose("task-save"), read_only, (6, 6, 6)),
         (Choose("none"), undecided.clone(), (6, 6, 5)),
         (
             Fail,
@@ -630,10 +632,20 @@ async fn a_task_named_in_the_run_is_a_defect_and_no_choice_decides_nothing() {
         ),
         (Prose, undecided, (6, 6, 5)),
     ];
-    for (reply, expected, calls) in cases {
+    let elsewhere = CANDIDATE.replace("./out/open.json", "./out/elsewhere.json");
+    for (k, (reply, expected, calls)) in cases.into_iter().enumerate() {
         let judge = Scripted::new(undisputed("unfaithful", 3, Some((Observed, reply))));
         let observation = observed(true, true);
-        let Judged { verdict, .. } = provided(ORDERS, &judge, Some(&observation)).await;
+        let candidate = if k == 0 {
+            elsewhere.as_str()
+        } else {
+            CANDIDATE
+        };
+        let policy = AuthoringPolicy::new(MODEL, 256, Duration::from_secs(2));
+        let provider = Judge::Provider(&policy, &judge);
+        let request = CompileRequest::create(ORDERS);
+        let run = Some(&observation);
+        let Judged { verdict, .. } = judged(ORDERS, &request, candidate, &provider, run).await;
         assert_eq!(ids(&verdict).last(), Some(&"verify-observed"), "{reply:?}");
         witnessed(&verdict, &observation);
         assert_eq!(lists(&verdict), expected, "{reply:?}");
@@ -698,4 +710,149 @@ async fn the_run_question_offers_every_part_and_an_unexercised_request_is_held()
         drop(sent);
         assert_eq!(judge.left(), 0);
     }
+}
+
+/// « faithful » is read on the program, never on what it produced (A1): over a whole run of these
+/// bytes each part is judged again over what the run read and wrote, every part asked, the
+/// restriction told so, and the run's receipts on each record. Every part carried there, or
+/// never exercised by these inputs, leaves the verdict standing: the whole request is carried by
+/// `verify-request`.
+#[tokio::test]
+async fn a_faithful_verdict_stands_once_each_part_holds_over_the_run() {
+    for middle in ["carried", "unexercised"] {
+        let judge = Scripted::new([
+            (Request, Choose("faithful")),
+            (ObservedPart, Choose("carried")),
+            (ObservedPart, Choose(middle)),
+            (ObservedPart, Choose("carried")),
+        ]);
+        let observation = observed(true, true);
+        let Judged {
+            verdict, binding, ..
+        } = provided(ORDERS, &judge, Some(&observation)).await;
+        let asked = [
+            "verify-request",
+            "verify-observed-part-0",
+            "verify-observed-part-1",
+            "verify-observed-part-2",
+        ];
+        assert_eq!(ids(&verdict), asked);
+        let judgment = carried(ORDERS, "verify-request", MODEL, &binding);
+        assert_eq!(verdict.judgments, [judgment]);
+        assert_eq!(verdict.settled_by, Some("verify-request"));
+        assert_eq!(lists(&verdict), found(&[], &[], &[], &[], &[]));
+        assert_eq!(verdict.declined, Declined::No);
+        assert!(verdict.settled() && !verdict.doubted());
+        assert_eq!(counts(&verdict), (4, 4, 4));
+        witnessed(&verdict, &observation);
+        let sent = judge.sent.lock().unwrap();
+        assert!(sent[0].state.get("observation").is_none());
+        for (k, part) in ORDER_PARTS.iter().enumerate() {
+            shown_the_run(&sent[k + 1], &observation, Some(part));
+            assert_eq!(sent[k + 1].told.contains(RESTRICTING), k == 1);
+        }
+        drop(sent);
+        assert_eq!(judge.left(), 0);
+    }
+}
+
+/// An output that contradicts a part the judge called carried on the bytes is the defect the
+/// program hides (A1): over the run the part is `missing`, its pointer over the run names the
+/// task that fails it, and the faithful verdict yields to a located defect a repair starts from.
+/// No Carried judgment is made; the bytes are rejected, never READY.
+#[tokio::test]
+async fn an_output_contradicting_a_part_turns_a_faithful_verdict_into_a_defect() {
+    let judge = Scripted::new([
+        (Request, Choose("faithful")),
+        (ObservedPart, Choose("carried")),
+        (ObservedPart, Choose("missing")),
+        (Point, Choose("task-keep")),
+        (ObservedPart, Choose("carried")),
+    ]);
+    let observation = observed(true, true);
+    let Judged { verdict, .. } = provided(ORDERS, &judge, Some(&observation)).await;
+    let asked = [
+        "verify-request",
+        "verify-observed-part-0",
+        "verify-observed-part-1",
+        "verify-observed-part-1-point",
+        "verify-observed-part-2",
+    ];
+    assert_eq!(ids(&verdict), asked);
+    assert_eq!(verdict.judgments, NO_JUDGMENT);
+    let note = format!("in the trial run, {}", points("keep"));
+    let located = found(&[(ORDER_PARTS[1], note.as_str())], &[], &[], &[], &[]);
+    assert_eq!(lists(&verdict), located);
+    assert_eq!(verdict.settled_by, None);
+    assert!(verdict.rejected() && verdict.doubted() && !verdict.settled());
+    assert_eq!(counts(&verdict), (5, 5, 5));
+    witnessed(&verdict, &observation);
+    let sent = judge.sent.lock().unwrap();
+    assert_eq!(sent[3].kind, Point);
+    shown_the_run(&sent[3], &observation, Some(ORDER_PARTS[1]));
+    drop(sent);
+    assert_eq!(judge.left(), 0);
+}
+
+/// The answers a scripted judge gives, in order.
+type Script = Vec<(Kind, Reply)>;
+
+/// Over the run, a part shown missing that no task fails is contested, and NONE, or a pointer
+/// left without a choice, keeps the part unknown: the faithful verdict never stands on an
+/// uncertainty, and none of them is a defect (the judge law). NONE abstains; `missing` rejects.
+#[tokio::test]
+async fn an_uncertain_answer_over_the_run_never_settles_nor_locates_a_defect() {
+    let cases: [(Script, Value, Declined); 3] = [
+        (
+            vec![(ObservedPart, Choose("none"))],
+            found(&[], &[ORDER_PARTS[1]], &[], &[], &[]),
+            Declined::Abstained,
+        ),
+        (
+            vec![
+                (ObservedPart, Choose("missing")),
+                (Point, Choose("no_task")),
+            ],
+            found(&[], &[], &[ORDER_PARTS[1]], &[], &[]),
+            Declined::Rejected,
+        ),
+        (
+            vec![(ObservedPart, Choose("missing")), (Point, Choose("none"))],
+            found(&[], &[ORDER_PARTS[1]], &[], &[], &[]),
+            Declined::Rejected,
+        ),
+    ];
+    for (middle, expected, declined) in cases {
+        let mut script = vec![
+            (Request, Choose("faithful")),
+            (ObservedPart, Choose("carried")),
+        ];
+        script.extend(middle);
+        script.push((ObservedPart, Choose("carried")));
+        let judge = Scripted::new(script);
+        let observation = observed(true, true);
+        let Judged { verdict, .. } = provided(ORDERS, &judge, Some(&observation)).await;
+        assert_eq!(verdict.judgments, NO_JUDGMENT);
+        assert_eq!(lists(&verdict), expected);
+        assert_eq!(verdict.declined, declined);
+        assert!(verdict.defects.is_empty() && !verdict.settled() && verdict.doubted());
+        assert_eq!(judge.left(), 0);
+    }
+}
+
+/// A call over the run that gets no answer stops the verdict: that part and every part after it
+/// stay unknown, nothing more is asked, and nothing is READY.
+#[tokio::test]
+async fn a_failed_call_over_the_run_stops_a_faithful_verdict() {
+    let judge = Scripted::new([
+        (Request, Choose("faithful")),
+        (ObservedPart, Choose("carried")),
+        (ObservedPart, Fail),
+    ]);
+    let Judged { verdict, .. } = provided(ORDERS, &judge, Some(&observed(true, true))).await;
+    assert_eq!(verdict.judgments, NO_JUDGMENT);
+    assert!(verdict.stopped && !verdict.settled());
+    let unknown = found(&[], &[ORDER_PARTS[1], ORDER_PARTS[2]], &[], &[], &[]);
+    assert_eq!(lists(&verdict), unknown);
+    assert_eq!(judge.left(), 0);
 }

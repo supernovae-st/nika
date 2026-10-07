@@ -283,8 +283,9 @@ fn the_original_reply_binds_the_destination_it_names_not_the_sentence() {
     assert_eq!(sent.len(), 1, "{sent:?}");
     assert!(sent[0].contains("«Destination file path»"), "{}", sent[0]);
     assert!(sent[0].contains("«Écris dans sortie.txt.»"), "{}", sent[0]);
-    // The round that finished the seat's record asked its judge once, over the bound bytes.
-    assert_eq!(judge.requests(), 1);
+    // The round that finished the seat's record asked its judge over the bound bytes: the whole
+    // request, then its one part over the round's trial run of them.
+    assert_eq!(judge.requests(), 2);
     assert!(judge.peer.bodies()[0].to_string().contains("sortie.txt"));
     // Nothing lands before consent, and consent is never a run.
     assert!(workflows(root.path()).is_empty());
@@ -298,7 +299,7 @@ fn the_original_reply_binds_the_destination_it_names_not_the_sentence() {
         !root.path().join("sortie.txt").exists(),
         "consent saved, nothing ran"
     );
-    assert_eq!(judge.requests(), 1, "a consent asks no judge");
+    assert_eq!(judge.requests(), 2, "a consent asks no judge");
 }
 
 /// The same act in English, and a destination with a space — whole, or inside quotes.
@@ -328,7 +329,11 @@ fn an_english_reply_and_a_path_with_spaces_bind_verbatim() {
         let TurnOutcome::Proposal { .. } = s.turn(line) else {
             panic!("{line}: a proposal");
         };
-        assert_eq!(judge.requests(), 1, "{line}");
+        assert_eq!(
+            judge.requests(),
+            2,
+            "{line}: the whole request, its part over the run"
+        );
         let source = candidate(&s);
         assert!(
             source.contains(&format!("destination_path: \"{value}\"")),
@@ -416,7 +421,11 @@ fn an_ambiguous_invented_or_partial_value_binds_nothing() {
     assert_eq!(judge.requests(), 0, "nothing bound, nothing judged");
     assert!(matches!(s.turn("sortie.txt"), TurnOutcome::Proposal { .. }));
     assert_eq!(prompts.try_iter().count(), 0, "one token is its own value");
-    assert_eq!(judge.requests(), 1);
+    assert_eq!(
+        judge.requests(),
+        2,
+        "the whole request, its part over the run"
+    );
     assert!(candidate(&s).contains("write: [\"sortie.txt\"]"));
 }
 
@@ -452,7 +461,11 @@ fn a_piece_cut_out_of_a_token_binds_nothing() {
         "{source}"
     );
     assert_eq!(prompts.try_iter().count(), 3);
-    assert_eq!(judge.requests(), 1, "only the finishing round is judged");
+    assert_eq!(
+        judge.requests(),
+        2,
+        "only the finishing round is judged, its part over the run"
+    );
 }
 
 /// A failed reading, and a spending limit that refuses the reading before any call:

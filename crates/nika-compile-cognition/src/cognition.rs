@@ -111,7 +111,7 @@ pub async fn compile_with_provider<P: ProviderInferDyn>(
 async fn revise<P: ProviderInferDyn>(
     request: &CompileRequest,
     cognition: Cognition<'_, P>,
-    _rehearsals: &mut rehearsal::Rehearsals<'_>,
+    rehearsals: &mut rehearsal::Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     let deterministic = super::compile(request)?;
     let Input::Edit {
@@ -133,15 +133,9 @@ async fn revise<P: ProviderInferDyn>(
             .filter(|policy| policy_bounded(policy))
             .zip(cognition.provider);
         let judges = (cognition.seat, provider);
-        return Box::pin(verify::replayed(
-            &folded,
-            record,
-            request,
-            judges,
-            false,
-            super::initial(),
-        ))
-        .await;
+        let round = super::initial();
+        let replayed = verify::replayed(&folded, record, request, judges, false, rehearsals, round);
+        return Box::pin(replayed).await;
     }
     let unresolved = deterministic
         .diagnostics
@@ -253,7 +247,7 @@ pub async fn compile_with_cognition_rehearsed<P: ProviderInferDyn>(
         .as_ref()
         .is_some_and(|r| r.get("semantic_record").is_some())
     {
-        Box::pin(semantic_replayed(request, &reading, seats)).await?
+        Box::pin(semantic_replayed(request, &reading, seats, &mut rehearsals)).await?
     } else {
         compile_inner(&reading, seats, &mut rehearsals).await?
     };
@@ -279,6 +273,7 @@ async fn semantic_replayed<P: ProviderInferDyn>(
     raw: &CompileRequest,
     reading: &CompileRequest,
     cognition: Cognition<'_, P>,
+    rehearsals: &mut rehearsal::Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     let Input::Create(words) = &reading.input else {
         // A revision of a base its record binds (R4 F): the core, then the semantic revision.
@@ -294,7 +289,8 @@ async fn semantic_replayed<P: ProviderInferDyn>(
     let provider = (reading.authoring.as_ref())
         .filter(|policy| policy_bounded(policy))
         .zip(cognition.provider);
-    verify::semantic(raw, &intent, &assembly, (cognition.seat, provider)).await
+    let judges = (cognition.seat, provider);
+    verify::semantic((raw, &intent, &assembly), judges, rehearsals).await
 }
 
 async fn compile_inner<P: ProviderInferDyn>(
@@ -395,7 +391,8 @@ async fn resolve_create<P: ProviderInferDyn>(
         // answer changes the bytes. Fail closed.
         let strategy = record.get("strategy").and_then(Value::as_str);
         let pending = strategy != Some(Strategy::Hot.word());
-        return verify::replayed(intent, record, assembly_request, judges, pending, out).await;
+        let request = assembly_request;
+        return verify::replayed(intent, record, request, judges, pending, rehearsals, out).await;
     }
     // The exact grammar keeps its zero-call, fail-closed path when a provider is permitted.
     if let Ok(Some(plan)) = super::support::resolve(intent) {

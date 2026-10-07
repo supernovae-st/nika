@@ -187,7 +187,7 @@ async fn a_carried_rejection_asks_no_question_of_the_remainder() {
     let judge = Judge::Provider(&policy, &approving);
     let plan = crate::plan::Plan::default();
     let mut out = crate::initial();
-    let verdict = verdict_on(INTENT, &request, &plan, &settled, &judge, &mut out).await;
+    let verdict = verdict_on((INTENT, &request, &plan), &settled, &judge, None, &mut out).await;
     assert!(approving.told.lock().unwrap().is_empty(), "no call");
     assert!(verdict.carried && verdict.same_bytes_as.is_none());
     assert_eq!(verdict.defects, [PART]);

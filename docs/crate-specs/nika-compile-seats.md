@@ -48,7 +48,11 @@ as an external consumer.
   (`RehearsalReport`, `Rehearsal`, `Attempt`, `RoomEvidence`, `EffectCounts`, `RehearsedOutput`),
   the host's observation of the copied world (`observed`: copies, final states, the ledger, the
   bounds, the refusal, the failure) and `judged_run`, which maps a report to the behavioural
-  judge's run (`targets_of` names the results a contract reads back).
+  judge's run (`targets_of` names the results a contract reads back). A completed run as a
+  verifier is shown it (`shown`, descended from the cognition's verifier at its size cap):
+  `trial_shown` (the candidate's sha256, each input read and output read back with its text,
+  `read_whole` and `written`), `trial_whole` (at least one output, each written by the run, every
+  text read whole) and `trial_receipts` (each text's role, path, size and sha256, never the text).
 - `reasoning` — `effort` (the provider level an authoring level names) and `reasoning_record`
   (one call's reasoning, each fact apart), shared with every authoring call of the doors.
 

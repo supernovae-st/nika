@@ -910,3 +910,122 @@ async fn without_a_run_of_the_same_bytes_the_disagreement_is_held() {
     let held = "verify: not ready, candidate held";
     assert!(route.iter().any(|step| step == held), "{route:?}");
 }
+
+/// A faithful verdict on the bytes is weighed against this compile's run of them (A1): the one
+/// part is asked again over what the run wrote, after the verdict and never in it. An output the
+/// judge finds contradicting the part is a defect located in the run: nothing is READY, the
+/// candidate is withdrawn past its last repair round, and the defect names the task the judge
+/// points to there. The same run found carrying the part leaves the faithful verdict READY.
+#[tokio::test]
+async fn a_faithful_verdict_is_weighed_against_this_compiles_run_of_the_same_bytes() {
+    let host = Host::new(Mode::ByDirectories);
+    let judge = Judging::new([
+        ("verify-request", "faithful"),
+        ("verify-observed-part-0", "missing"),
+        ("verify-observed-part-0-point", "task-save"),
+    ]);
+    let out = judged_greeting(&judge, Some(&host)).await;
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert_eq!(out.candidate, None);
+    assert_eq!(judge.left(), 0);
+    let asked = judge.asked();
+    assert!(asked[0].state.get("observation").is_none());
+    let output = &asked[1].state["observation"]["outputs"][0];
+    assert_eq!(
+        (&output["path"], &output["text"]),
+        (&json!(TARGET), &json!("hello"))
+    );
+    let verified = &out.provenance.decision.as_ref().unwrap()["semantic_verification"][0];
+    let part = INTENT.trim_end_matches('.');
+    assert_eq!(verified["defects"], json!([part]));
+    let note = "in the trial run, the judge points to the task save";
+    assert_eq!(verified["notes"], json!([{"defect": part, "note": note}]));
+    assert_eq!(
+        (&verified["rejected"], &verified["settled"]),
+        (&json!(true), &json!(false))
+    );
+
+    let host = Host::new(Mode::ByDirectories);
+    let judge = Judging::new([
+        ("verify-request", "faithful"),
+        ("verify-observed-part-0", "carried"),
+    ]);
+    let out = judged_greeting(&judge, Some(&host)).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(judge.left(), 0);
+    let verified = &out.provenance.decision.as_ref().unwrap()["semantic_verification"][0];
+    assert_eq!(verified["settled_by"], "verify-request");
+    assert_eq!(verified["questions"][1]["choice"], "carried");
+}
+
+/// An answer round judges the bytes it replays over a run of them (R6, A1): the creation round
+/// asks the greeting and runs nothing; once it is answered, the round rehearses the bound bytes
+/// before its judge reads them, so a rejection no part locates is decided by that run (here found
+/// consistent: READY on `verify-observed`), and the final barrier reuses the same run. Without the
+/// run, the same answers hold the candidate (`a_disagreement_without_a_run_*`).
+#[tokio::test]
+async fn an_answer_round_decides_a_disagreement_over_a_run_of_the_bytes_it_replays() {
+    let author = sketched_open();
+    let host = Host::new(Mode::ByDirectories);
+    let req = open_request();
+    let opened = Judging::new([]);
+    let cognition = crate::Cognition {
+        provider: Some(&author),
+        seat: Some(&opened),
+    };
+    let waiting = compile_with_cognition_rehearsed(&req, cognition, Some(&host)).await;
+    let waiting = waiting.unwrap();
+    assert!(host.candidates.lock().unwrap().is_empty(), "{waiting:#?}");
+    let mut answered = req.with_plan(waiting.provenance.plan.unwrap());
+    let greeting = "\"hello\"".to_owned();
+    answered.answers.insert("const.greeting".into(), greeting);
+    let judge = Judging::new([
+        ("verify-request", "unfaithful"),
+        ("verify-part-0", "carried"),
+        ("verify-extra", "only_requested"),
+        ("verify-observed", "consistent"),
+    ]);
+    let cognition = crate::Cognition {
+        provider: Some(&author),
+        seat: Some(&judge),
+    };
+    let out = compile_with_cognition_rehearsed(&answered, cognition, Some(&host)).await;
+    let out = out.unwrap();
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(judge.left(), 0);
+    let asked = judge.asked();
+    let output = &asked[3].state["observation"]["outputs"][0];
+    assert_eq!(
+        (&output["path"], &output["text"]),
+        (&json!(TARGET), &json!("hello"))
+    );
+    assert!(
+        asked[..3]
+            .iter()
+            .all(|q| q.state.get("observation").is_none())
+    );
+    let ran = host.candidates.lock().unwrap().clone();
+    assert_eq!(
+        ran,
+        [out.candidate.clone().unwrap()],
+        "one run, reused by the barrier"
+    );
+    let verified = &out.provenance.decision.as_ref().unwrap()["semantic_verification"][0];
+    assert_eq!(verified["settled_by"], "verify-observed");
+}
+
+/// A path the request names after a bare verb (« Save ./out/result.txt … ») that the candidate
+/// writes and never reads is its output, never an input the room must find: the host is asked to
+/// read it back as a target, and nothing asks it to copy it in.
+#[tokio::test]
+async fn a_stated_path_the_candidate_only_writes_is_a_target_never_an_input() {
+    let host = Host::new(Mode::ByDirectories);
+    let request = CompileRequest::create("Save ./out/result.txt with the text hello.")
+        .with_authoring_policy(sketch_request(0).authoring.unwrap());
+    let out = compiled(&request, &sketched(), &host).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let inputs = host.inputs.lock().unwrap().clone();
+    let targets = host.targets.lock().unwrap().clone();
+    assert_eq!(inputs, [Vec::<String>::new()], "the output is no input");
+    assert_eq!(targets, [vec![TARGET.to_owned()]]);
+}

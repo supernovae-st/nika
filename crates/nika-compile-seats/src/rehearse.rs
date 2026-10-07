@@ -17,12 +17,14 @@ mod judged;
 #[cfg(test)]
 mod judged_tests;
 mod observed;
+mod shown;
 
 pub use judged::{judged_run, targets_of};
 pub use observed::{
     Bounds, CopyReceipt, Digest, FailureRecord, FinalReceipt, FinalState, Held, LedgerFacts,
     Observation, RecordedCause, Refusal, Spent,
 };
+pub use shown::{trial_receipts, trial_shown, trial_whole};
 
 /// One declared output a rehearsal read back from its room.
 #[derive(Clone, Debug, PartialEq, Eq)]

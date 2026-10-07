@@ -374,8 +374,9 @@ fn dialog_11_script() -> Vec<(u16, serde_json::Value)> {
 /// old question: refused with no route, no call and nothing changed; the current answer binds
 /// and the recorded plan replays, its calls the judge the seat is permitted as when the round
 /// finishes, over the bound bytes: the clause the change added, then the whole request (a
-/// replayed model plan is judged whole in the round, C3); only the durable money record changes
-/// before consent, never a workflow or an output file.
+/// replayed model plan is judged whole in the round, C3), whose faithful verdict is weighed
+/// against the round's trial run of those bytes, each part asked over it; only the durable money
+/// record changes before consent, never a workflow or an output file.
 #[test]
 fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String> {
     let peer = Peer::start(dialog_11_script());
@@ -432,7 +433,12 @@ fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String
         return Err(format!("the current answer binds: {out:?}"));
     };
     assert!(preview.contains("archive/copie.txt"), "{preview}");
-    assert_eq!(calls(), (4, routed + 1));
+    assert_eq!(calls(), (6, routed + 1));
+    let over_the_run = |body: &serde_json::Value| body.to_string().contains("unexercised");
+    assert!(
+        peer.bodies()[4..].iter().all(over_the_run),
+        "its parts over the trial run"
+    );
     assert!(
         judged_over(&peer.bodies()[2], "archive/copie.txt"),
         "the round's judge"
@@ -446,7 +452,7 @@ fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String
     let out = s.answer_question_for(&old, "sortie.txt");
     assert!(refused(&out, RefusalClass::WrongState), "{out:?}");
     assert_eq!(s.pending_proposal().as_ref(), Some(id));
-    assert_eq!(calls(), (4, routed + 1));
+    assert_eq!(calls(), (6, routed + 1));
     let state_path = dir
         .path()
         .join(".nika/session-state.json")
