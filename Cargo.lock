@@ -5581,6 +5581,7 @@ dependencies = [
  "nika-schema",
  "nika-source",
  "nika-trace",
+ "nika-types",
  "serde",
  "serde_json",
  "tempfile",

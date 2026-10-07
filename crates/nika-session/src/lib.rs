@@ -41,9 +41,10 @@ pub mod broker;
 /// typed outcome a host renders ([`outcome`]) and the consent record ([`consent`]) are owned
 /// by the size-cap member below the session since 2026-10-06 (ADR-144):
 /// `nika_session_change::{change, consent, outcome, review}`. These paths are kept and name
-/// the very same items (types, functions, constants).
+/// the very same items (types, functions, constants). Where a workflow's bytes reach
+/// ([`world`]) and the work snapshot every host reads ([`work`]) are typed there too.
 #[doc(inline)]
-pub use nika_session_change::{change, consent, outcome, review};
+pub use nika_session_change::{change, consent, outcome, review, work, world};
 pub mod facts;
 /// The hallucination guard (a reply's named builtins, models, codes, MCP servers, verbs
 /// and fields checked against what this engine carries) is owned beside the other

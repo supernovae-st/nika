@@ -171,6 +171,20 @@ The run's own guards (`compute_admit`, the number policy)
 stay the check at use: the observation is bounded, and nothing is atomic
 between the yes and the run.
 
+## One waiting state, one routing, one work snapshot
+
+`SessionRuntime::waiting` is the one precedence every host reads for the next line: the one-time
+cost decision, the choice of intelligence, a proposal's consent, a run's gate, then the value an
+authoring question, a run input or an activation asks, else a new turn. `submit(line, shown)`
+routes that line to what waits, by the identity the host displayed: a consent answers the
+proposal shown (`consent_to`), a gate answer names the gate shown (`answer_gate_for`). With no
+proposal shown, a declining or leaving line still declines and any other line is refused with
+`NOTHING_SHOWN`: nothing is consented that was not seen. `work()` builds the typed snapshot
+(`nika_session_change::work`) from the session's own state; it audits nothing, reads no file and
+decides nothing. The CLI plain loop routes through these since 2026-10-08; the terminal
+renderer keeps its own copy of the precedence until its host adapter switches (the Run cost
+review it holds is still outside the session).
+
 ## Exact schedule activation
 
 Saving a scheduled candidate activates nothing. Activation consumes Compile's

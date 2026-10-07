@@ -38,6 +38,8 @@ pub use nika_session::identity
 pub use nika_session::lifecycle
 pub use nika_session::outcome
 pub use nika_session::review
+pub use nika_session::work
+pub use nika_session::world
 pub mod nika_session::authoring
 pub use nika_session::authoring::AUTHORING_CALLS_PER_COMPILE
 pub use nika_session::authoring::AUTHORING_INITIAL_TOKENS
@@ -1777,6 +1779,10 @@ pub fn nika_session::runtime::SessionRuntime::restored_draft_id(&self) -> core::
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::restore_round(&mut self) -> nika_session::runtime::TurnOutcome
 impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::submit(&mut self, line: &str, shown: &nika_session_change::work::Waiting) -> nika_session::runtime::TurnOutcome
+pub fn nika_session::runtime::SessionRuntime::waiting(&self) -> nika_session_change::work::Waiting
+pub fn nika_session::runtime::SessionRuntime::work(&self) -> nika_session_change::work::Work
+impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::with_jq_helper(&mut self, helper: nika_service_execution::rehearsal::isolated_jq::JqHelper)
 impl core::fmt::Debug for nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -1806,6 +1812,7 @@ impl<T> tracing::instrument::Instrument for nika_session::runtime::SessionRuntim
 impl<T> tracing::instrument::WithSubscriber for nika_session::runtime::SessionRuntime
 impl<T> typenum::type_operators::Same for nika_session::runtime::SessionRuntime
 pub type nika_session::runtime::SessionRuntime::Output = T
+pub const nika_session::runtime::NOTHING_SHOWN: &str
 pub const nika_session::runtime::SLASH_COMMANDS: &[&str]
 pub fn nika_session::runtime::decision_answer(line: &str) -> nika_session::runtime::DecisionAnswer
 pub type nika_session::runtime::ProgressHook = nika_display::activity::TextHook
@@ -3255,6 +3262,10 @@ pub fn nika_session::runtime::SessionRuntime::repropose_restored_draft(&mut self
 pub fn nika_session::runtime::SessionRuntime::restored_draft_id(&self) -> core::option::Option<&str>
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::restore_round(&mut self) -> nika_session::runtime::TurnOutcome
+impl nika_session::runtime::SessionRuntime
+pub fn nika_session::runtime::SessionRuntime::submit(&mut self, line: &str, shown: &nika_session_change::work::Waiting) -> nika_session::runtime::TurnOutcome
+pub fn nika_session::runtime::SessionRuntime::waiting(&self) -> nika_session_change::work::Waiting
+pub fn nika_session::runtime::SessionRuntime::work(&self) -> nika_session_change::work::Work
 impl nika_session::runtime::SessionRuntime
 pub fn nika_session::runtime::SessionRuntime::with_jq_helper(&mut self, helper: nika_service_execution::rehearsal::isolated_jq::JqHelper)
 impl core::fmt::Debug for nika_session::runtime::SessionRuntime

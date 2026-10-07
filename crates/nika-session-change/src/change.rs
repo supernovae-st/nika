@@ -14,8 +14,11 @@ use nika_cli_host::oracle::{AuditOptions, audit_source};
 use nika_display::check_render::review::{effect_rows, finding_rows};
 use nika_fs::OwnedDir;
 
-/// The blake3 of the bytes a preview was built over (hex).
-#[derive(Clone, Debug, PartialEq, Eq)]
+use crate::world::World;
+
+/// The blake3 of the bytes a preview was built over (hex). It serializes as the hex digest.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(transparent)]
 pub struct Witness(pub String);
 
 impl Witness {
@@ -163,6 +166,10 @@ pub struct WorkflowAudit {
     /// permits and requirements (reads · writes · network · programs ·
     /// tools · models · secrets · spend · human gates).
     pub effects: Vec<String>,
+    /// Where the same bytes reach, typed from the report's data journey: local files, a
+    /// service on this machine, a connected service, or a destination the check cannot
+    /// determine ([`crate::world`]). Unaudited bytes claim no reach.
+    pub world: World,
 }
 
 /// What a set could not become.
@@ -666,6 +673,7 @@ pub fn check_with_access(root: &Path, path: &Path, pin: Option<&str>) -> Workflo
             findings: vec![format!("unreadable after apply: {e}")],
             hints: Vec::new(),
             effects: Vec::new(),
+            world: World::default(),
         },
     }
 }
@@ -688,12 +696,22 @@ fn fold_audit<E: std::fmt::Display>(
     match judged {
         Ok(audit) => {
             let (findings, hints) = finding_rows(&audit.report);
+            let journey = &audit.report.data_journey;
+            let world = World::declared(
+                journey
+                    .sources
+                    .iter()
+                    .chain(&journey.destinations)
+                    .map(|e| (e.kind, e.target.as_str(), e.tasks.as_slice())),
+                journey.secrets_used.iter().map(|s| s.name.as_str()),
+            );
             WorkflowAudit {
                 path: path.to_path_buf(),
                 clean: audit.verdict.clean,
                 findings,
                 hints,
                 effects: effect_rows(&audit.report),
+                world,
             }
         }
         Err(e) => WorkflowAudit {
@@ -702,6 +720,7 @@ fn fold_audit<E: std::fmt::Display>(
             findings: vec![format!("NIKA-PARSE · {e}")],
             hints: Vec::new(),
             effects: Vec::new(),
+            world: World::default(),
         },
     }
 }

@@ -18,6 +18,14 @@
 //!   an answer names, the class of a refusal.
 //! - [`consent`] — the append-only consent journal under the project: what
 //!   was previewed, what landed, when.
+//! - [`world`] — where a workflow's exact bytes reach, typed from the check's
+//!   data journey: local files, a service on this machine, a connected
+//!   service, or a destination the check cannot determine. A fixture or a
+//!   local contract server is never shown as the real service.
+//! - [`work`] — the work a session holds, typed once for every host: what
+//!   the next line answers with the identity an answer names, and one
+//!   serializable snapshot of the request, the candidate, the saved
+//!   workflow and the last run. It grants nothing.
 //!
 //! The session owns the conversation, the rounds and the money gate; it
 //! reaches this member downward, and keeps these modules at their
@@ -31,6 +39,8 @@ pub mod change;
 pub mod consent;
 pub mod outcome;
 pub mod review;
+pub mod work;
+pub mod world;
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
