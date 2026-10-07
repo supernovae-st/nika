@@ -177,8 +177,13 @@ fn a_resize_during_a_busy_turn_reaches_the_workspace_regions_at_once() {
     term.send("\x1b[17~");
     term.settle(SETTLE);
     term.resize(50, 14);
+    // The shell's own focus view (its frames drawn from the left edge), never the emulator's
+    // shrunk grid alone: dropping rows hides `release.nika` before the shell sees the new size,
+    // and keys typed then still reach the workspace's aside.
     term.wait_until("the focus view below the minimum", |screen| {
-        screen.contains(BUSY) && !screen.contains("release.nika")
+        screen.contains(BUSY)
+            && !screen.contains("release.nika")
+            && screen.lines().iter().any(|line| line.starts_with('╭'))
     });
     term.send("xyz");
     term.settle(SETTLE);
