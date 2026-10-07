@@ -25,7 +25,9 @@ pub use crate::serve_args::NativeAuthoringArgs;
 pub mod typesafe;
 
 use crate::output::{VerbOutput, exit};
-use nika_onboard::compile::{CompileRequest, CompileStatus, compile, intent_sha256, revise_intent};
+use nika_onboard::compile::{
+    CompileOutcome, CompileRequest, CompileStatus, compile, intent_sha256, revise_intent,
+};
 use std::io::Write as _;
 use std::path::Path;
 
@@ -290,22 +292,10 @@ fn run_with_capture(
     };
     let note = sidecar::keep(sha.as_deref(), note, &outcome);
     let declined = sidecar::decline(sha.as_deref(), &outcome);
-    let mut written = None;
-    if outcome.status == CompileStatus::Ready
-        && let (Some(dest), Some(candidate)) = (dest, &outcome.candidate)
-    {
-        if let Err(error) = materialize(Path::new(dest), candidate, args.force) {
-            return render::failure("destination", &error.to_string(), exit::ENV, args.json);
-        }
-        written = Some(dest.as_str());
-        crate::metrics::record_if_enabled(
-            crate::metrics::EventKind::DraftCreated,
-            crate::metrics::Facts {
-                draft: Some(crate::metrics::DraftSource::Compile),
-                ..crate::metrics::Facts::none()
-            },
-        );
-    }
+    let written = match write_ready(dest.map(String::as_str), &outcome, args) {
+        Ok(written) => written,
+        Err(failure) => return failure,
+    };
     // A named destination this compile did not write: what is there remains; only its
     // presence is read, never through a link, never its bytes.
     let existing = dest
@@ -316,6 +306,38 @@ fn run_with_capture(
         declined: declined.as_ref(),
     };
     render::outcome(&outcome, written, existing, notes, args.json)
+}
+
+/// Only a Ready candidate with a named destination is written there, and counted as a draft;
+/// any other outcome writes nothing.
+fn write_ready<'a>(
+    dest: Option<&'a str>,
+    outcome: &CompileOutcome,
+    args: &CompileArgs,
+) -> Result<Option<&'a str>, VerbOutput> {
+    let (Some(dest), Some(candidate)) = (dest, &outcome.candidate) else {
+        return Ok(None);
+    };
+    if outcome.status != CompileStatus::Ready {
+        return Ok(None);
+    }
+    if let Err(error) = materialize(Path::new(dest), candidate, args.force) {
+        let message = error.to_string();
+        return Err(render::failure(
+            "destination",
+            &message,
+            exit::ENV,
+            args.json,
+        ));
+    }
+    crate::metrics::record_if_enabled(
+        crate::metrics::EventKind::DraftCreated,
+        crate::metrics::Facts {
+            draft: Some(crate::metrics::DraftSource::Compile),
+            ..crate::metrics::Facts::none()
+        },
+    );
+    Ok(Some(dest))
 }
 
 /// What a seated compile reads before any file is observed or any request sent: the authoring

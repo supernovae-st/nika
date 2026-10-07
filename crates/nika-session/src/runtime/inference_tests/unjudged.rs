@@ -234,6 +234,13 @@ fn a_replayed_candidate_the_judge_doubts_is_written_again_not_left_held() {
         "proposed, never run"
     );
 }
+/// The steps of a decision's route that start with `prefix`, in order.
+fn steps<'a>(decision: &'a Value, prefix: &str) -> Vec<&'a str> {
+    (decision["route"].as_array().into_iter().flatten())
+        .filter_map(Value::as_str)
+        .filter(|step| step.starts_with(prefix))
+        .collect()
+}
 /// The written-again round after a located defect authors the held bytes again: the verdict that
 /// rejected them in the replay is carried into it (R6), so their judge is not asked again. No
 /// judge question follows the replay's three; the written-again attempt repeats that verdict
@@ -267,23 +274,10 @@ fn a_write_again_that_reproduces_the_held_bytes_never_asks_their_judge() {
     let out = s.turn("RePrEnD");
     let bodies = again.bodies();
     let judged: Vec<Option<String>> = bodies.iter().map(judged_sha).collect();
-    let held = Some(held_sha.clone());
-    assert_eq!(
-        judged,
-        [
-            held.clone(),
-            held.clone(),
-            held,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None
-        ],
-        "the replay's three questions, then authoring calls only: {out:?}"
-    );
+    let mut expected = vec![Some(held_sha.clone()); 3];
+    expected.resize(10, None);
+    let calls = "the replay's three questions, then authoring calls only";
+    assert_eq!(judged, expected, "{calls}: {out:?}");
     let TurnOutcome::Facts(words) = &out else {
         panic!("nothing is proposed: {out:?}");
     };
@@ -315,12 +309,8 @@ fn a_write_again_that_reproduces_the_held_bytes_never_asks_their_judge() {
     );
     // The door's own steps, in order: the sketch accepted, reopened from the carried defect and
     // accepted again, stopped on no progress, then the source recovery, exhausted.
-    let native: Vec<&str> = (decision["route"].as_array().into_iter().flatten())
-        .filter_map(Value::as_str)
-        .filter(|step| step.starts_with("native:"))
-        .collect();
     assert_eq!(
-        native,
+        steps(decision, "native:"),
         [
             "native: sketch after the plan",
             "native: accepted",
@@ -331,10 +321,7 @@ fn a_write_again_that_reproduces_the_held_bytes_never_asks_their_judge() {
         ]
     );
     // The verifier's steps stay on the route: the carried verdict, then its repeat.
-    let verify: Vec<&str> = (decision["route"].as_array().into_iter().flatten())
-        .filter_map(Value::as_str)
-        .filter(|step| step.starts_with("verify:"))
-        .collect();
+    let verify = steps(decision, "verify:");
     assert_eq!(
         verify[..2],
         [

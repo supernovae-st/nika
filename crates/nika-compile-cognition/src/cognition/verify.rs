@@ -676,6 +676,12 @@ async fn judge_clause<P: ProviderInferDyn>(
     let clause = &open.clause;
     let restricting = restricts(clause);
     let tasks = faithful::task_ids(base["candidate_nika"].as_str().unwrap_or_default());
+    let instructions = if restricting {
+        format!("{CLAUSE} {}", faithful::RESTRICTING)
+    } else {
+        CLAUSE.to_owned()
+    };
+    let told = faithful::told(base, reference, &instructions);
     for (n, &span) in open.spans.iter().enumerate() {
         let mut options = vec![
             ChoiceOption::new(
@@ -686,28 +692,16 @@ async fn judge_clause<P: ProviderInferDyn>(
         ];
         // The core never admits « no operation » on a clause that restricts (R4 A11), as the
         // core reads a restriction (a « don't forget to … » among them).
-        let core_restricts = nika_compile_reader::structure::restricts(clause);
-        if open.unclaimed && !restricting && !core_restricts {
+        if open.unclaimed && !restricting && !nika_compile_reader::structure::restricts(clause) {
             options.push(ChoiceOption::new("no_operation", NO_OPERATION));
         }
         let mut asked = base.clone();
         asked["clause"] = json!({"text": clause, "span": [span.0, span.1]});
-        let id = if n == 0 {
-            format!("verify-clause-{k}")
-        } else {
-            format!("verify-clause-{k}.{n}")
+        let id = match n {
+            0 => format!("verify-clause-{k}"),
+            n => format!("verify-clause-{k}.{n}"),
         };
-        let instructions = if restricting {
-            format!("{CLAUSE} {}", faithful::RESTRICTING)
-        } else {
-            CLAUSE.to_owned()
-        };
-        let question = ChoiceQuestion::new(
-            &id,
-            faithful::told(base, reference, &instructions),
-            asked,
-            options,
-        );
+        let question = ChoiceQuestion::new(&id, &told, asked, options);
         let returned = verdict.answers();
         let answer = ask(judge, &question, "judge_clause", verdict, out).await;
         // A call that got no answer stops the verdict: nothing more is asked of this judge.
@@ -1019,20 +1013,18 @@ const STOPPED: &str = "The verification stopped at a judge call that got no answ
 #[allow(clippy::too_many_arguments)] // the COLD door's own state, threaded once
 pub(super) async fn judged_cold<P: ProviderInferDyn>(
     intent: &str,
-    plan: Plan,
+    mut plan: Plan,
     policy: &AuthoringPolicy,
     provider: &P,
     seat: Option<&dyn DecisionSeat>,
     reading: &Reading,
     request: &CompileRequest,
-    out: CompileOutcome,
+    mut pre: CompileOutcome,
 ) -> Result<CompileOutcome, CompileError> {
     let judge = match seat {
         Some(seat) => Judge::Seat(seat),
         None => Judge::Provider(policy, provider),
     };
-    let mut pre = out;
-    let mut plan = plan;
     let mut attempt = 0;
     let unbounded = policy.repairs.is_none();
     let mut seen_parts: Vec<Vec<String>> = Vec::new();

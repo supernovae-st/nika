@@ -527,8 +527,7 @@ async fn choose_create<P: ProviderInferDyn>(
         })
     {
         out.provenance.cognition = AuthoringCognition::ExplicitDecision;
-        let mut records = Vec::new();
-        let (mut settled_all, mut refused) = (true, false);
+        let (mut records, mut settled_all, mut refused) = (Vec::new(), true, false);
         for (index, ambiguity) in reading.ambiguous.iter().enumerate() {
             let options = ambiguity
                 .options

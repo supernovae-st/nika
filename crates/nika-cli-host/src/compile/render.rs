@@ -123,7 +123,6 @@ fn human(
     existing: Option<&str>,
     notes: Notes<'_>,
 ) -> String {
-    use super::sidecar::{Declined, Note};
     let status = out.status.word();
     let preview = if out.check_preview.is_some() {
         "source-only Check preview"
@@ -144,6 +143,36 @@ fn human(
     if let Some(line) = authority_stop(out) {
         text.push_str(&line);
     }
+    note_lines(&mut text, notes);
+    if let Some(dest) = written {
+        let run_path = if dest.starts_with('-') {
+            format!("./{dest}")
+        } else {
+            dest.to_owned()
+        };
+        let _ = writeln!(
+            text,
+            "wrote {dest}\nnext · nika run {}",
+            crate::output::sh_word(&run_path)
+        );
+    } else if let Some(candidate) = &out.candidate {
+        let _ = writeln!(text, "\n{candidate}");
+    } else {
+        text.push_str("Choose an exact skeleton with nika compile --list; no substitute workflow was selected.\n");
+    }
+    if let Some(path) = existing {
+        let _ = writeln!(
+            text,
+            "existing destination remains at {path}; this compile did not write or remove it"
+        );
+    }
+    text
+}
+
+/// What this invocation did with the intent's records, one line each: its plan record, then the
+/// verdicts kept that rejected its bytes in earlier rounds.
+fn note_lines(text: &mut String, notes: Notes<'_>) {
+    use super::sidecar::{Declined, Note};
     match notes.plan {
         Some(Note::Recorded(path)) => {
             let _ = writeln!(
@@ -195,29 +224,6 @@ fn human(
         }
         None => {}
     }
-    if let Some(dest) = written {
-        let run_path = if dest.starts_with('-') {
-            format!("./{dest}")
-        } else {
-            dest.to_owned()
-        };
-        let _ = writeln!(
-            text,
-            "wrote {dest}\nnext · nika run {}",
-            crate::output::sh_word(&run_path)
-        );
-    } else if let Some(candidate) = &out.candidate {
-        let _ = writeln!(text, "\n{candidate}");
-    } else {
-        text.push_str("Choose an exact skeleton with nika compile --list; no substitute workflow was selected.\n");
-    }
-    if let Some(path) = existing {
-        let _ = writeln!(
-            text,
-            "existing destination remains at {path}; this compile did not write or remove it"
-        );
-    }
-    text
 }
 
 #[cfg(test)]
