@@ -191,7 +191,7 @@ impl<P: ProviderInferDyn> DecisionSeat for ProviderChoice<'_, P> {
             infer.timeout = Some(self.timeout);
             if let Some(reasoning) = self.reasoning {
                 infer.reasoning_effort =
-                    Some(crate::cognition::effort(reasoning).ok_or_else(|| {
+                    Some(crate::reasoning::effort(reasoning).ok_or_else(|| {
                         DecisionError("the reasoning effort has no provider level".to_owned())
                     })?);
             }
@@ -216,7 +216,7 @@ impl<P: ProviderInferDyn> DecisionSeat for ProviderChoice<'_, P> {
                 output_tokens: response
                     .usage_reported
                     .then_some(response.usage.output_tokens),
-                reasoning: Some(crate::cognition::reasoning_record(
+                reasoning: Some(crate::reasoning::reasoning_record(
                     self.reasoning,
                     Some(&response),
                 )),
@@ -227,7 +227,8 @@ impl<P: ProviderInferDyn> DecisionSeat for ProviderChoice<'_, P> {
 
 /// The two messages and the answer schema of one closed choice, as a provider seat asks it
 /// (R4 A11: the verifier journals the same bytes through the authoring call).
-pub(crate) fn closed_choice(question: &ChoiceQuestion) -> (Vec<Message>, Value) {
+#[must_use]
+pub fn closed_choice(question: &ChoiceQuestion) -> (Vec<Message>, Value) {
     let system = format!(
         "You settle ONE closed choice for a workflow compiler. Read the state and pick exactly one option key. {} Choose \"{NONE_OPTION}\" when no option fits. Return only a JSON object {{\"choice\": <key>}}.",
         question.instructions
@@ -258,7 +259,8 @@ pub(crate) fn closed_choice(question: &ChoiceQuestion) -> (Vec<Message>, Value) 
 /// The sole final Text of a completed answer; separate Thinking is never answer material.
 /// All other block kinds and multiple Text blocks refuse the projection without changing the
 /// response, its observation or its usage. An empty Text still has to pass the caller's decoder.
-pub(crate) fn answer_text(response: &nika_kernel::ai::provider::InferResponse) -> Option<&str> {
+#[must_use]
+pub fn answer_text(response: &nika_kernel::ai::provider::InferResponse) -> Option<&str> {
     if response.stop_reason != StopReason::EndTurn {
         return None;
     }
@@ -277,7 +279,11 @@ mod answer_tests;
 
 /// The option a provider's answer to `question` chooses: one complete JSON text naming an
 /// offered key, or why it does not.
-pub(crate) fn decoded(
+///
+/// # Errors
+/// A [`DecisionError`] when the answer is not one complete JSON text, names no choice, or names
+/// a key the question did not offer.
+pub fn decoded(
     question: &ChoiceQuestion,
     response: &nika_kernel::ai::provider::InferResponse,
 ) -> Result<String, DecisionError> {
@@ -300,7 +306,11 @@ pub(crate) fn decoded(
 }
 
 /// Revalidate an answer against the question it claims to answer.
-pub(super) fn admit(question: &ChoiceQuestion, answer: &ChoiceAnswer) -> Result<(), DecisionError> {
+///
+/// # Errors
+/// A [`DecisionError`] when the seat chose a key outside the offered options, or reported a
+/// distribution over keys the question did not offer.
+pub fn admit(question: &ChoiceQuestion, answer: &ChoiceAnswer) -> Result<(), DecisionError> {
     if !question.options.iter().any(|o| o.key == answer.choice) {
         return Err(DecisionError(format!(
             "seat chose `{}`, outside the offered options",
@@ -320,10 +330,8 @@ pub(super) fn admit(question: &ChoiceQuestion, answer: &ChoiceAnswer) -> Result<
 }
 
 /// The provenance projection of one settled question.
-pub(super) fn record(
-    question: &ChoiceQuestion,
-    answer: Result<&ChoiceAnswer, &DecisionError>,
-) -> Value {
+#[must_use]
+pub fn record(question: &ChoiceQuestion, answer: Result<&ChoiceAnswer, &DecisionError>) -> Value {
     match answer {
         Ok(answer) => json!({
             "question": question.id, "options": question.keys(), "choice": answer.choice,

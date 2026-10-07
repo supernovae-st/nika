@@ -106,11 +106,11 @@ pub type nika_onboard::compile::copy::native::Preview::Output = T
 #[non_exhaustive] pub struct nika_onboard::compile::copy::native::Scoped
 impl nika_onboard::compile::copy::native::Scoped
 pub fn nika_onboard::compile::copy::native::Scoped::finish(self) -> nika_onboard::compile::copy::native::Settled
-pub fn nika_onboard::compile::copy::native::Scoped::new(root: std::path::PathBuf, host: alloc::boxed::Box<dyn nika_compile_cognition::rehearse::Rehearse>, allowance: nika_onboard::compile::copy::Allowance) -> Self
-impl nika_compile_cognition::rehearse::Rehearse for nika_onboard::compile::copy::native::Scoped
+pub fn nika_onboard::compile::copy::native::Scoped::new(root: std::path::PathBuf, host: alloc::boxed::Box<dyn nika_compile_seats::rehearse::Rehearse>, allowance: nika_onboard::compile::copy::Allowance) -> Self
+impl nika_compile_seats::rehearse::Rehearse for nika_onboard::compile::copy::native::Scoped
 pub fn nika_onboard::compile::copy::native::Scoped::bound(&self) -> core::time::Duration
-pub fn nika_onboard::compile::copy::native::Scoped::rehearse<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String]) -> nika_compile_cognition::rehearse::RehearsalFuture<'a>
-pub fn nika_onboard::compile::copy::native::Scoped::rehearse_reading<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String], targets: &'a [alloc::string::String]) -> nika_compile_cognition::rehearse::RehearsalFuture<'a>
+pub fn nika_onboard::compile::copy::native::Scoped::rehearse<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String]) -> nika_compile_seats::rehearse::RehearsalFuture<'a>
+pub fn nika_onboard::compile::copy::native::Scoped::rehearse_reading<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String], targets: &'a [alloc::string::String]) -> nika_compile_seats::rehearse::RehearsalFuture<'a>
 impl<D> owo_colors::OwoColorize for nika_onboard::compile::copy::native::Scoped
 impl<T, U> core::convert::Into<U> for nika_onboard::compile::copy::native::Scoped where U: core::convert::From<T>
 pub fn nika_onboard::compile::copy::native::Scoped::into(self) -> U
@@ -215,7 +215,7 @@ impl<T> typenum::type_operators::Same for nika_onboard::compile::copy::Qualifica
 pub type nika_onboard::compile::copy::Qualification::Output = T
 #[non_exhaustive] pub enum nika_onboard::compile::copy::Seen
 pub nika_onboard::compile::copy::Seen::Absent
-pub nika_onboard::compile::copy::Seen::File(nika_compile_cognition::rehearse::observed::Digest)
+pub nika_onboard::compile::copy::Seen::File(nika_compile_seats::rehearse::observed::Digest)
 impl core::clone::Clone for nika_onboard::compile::copy::Seen
 pub fn nika_onboard::compile::copy::Seen::clone(&self) -> nika_onboard::compile::copy::Seen
 impl core::cmp::Eq for nika_onboard::compile::copy::Seen
@@ -474,7 +474,7 @@ pub type nika_onboard::compile::copy::Witness::Output = T
 #[non_exhaustive] pub struct nika_onboard::compile::copy::WorldBefore
 impl nika_onboard::compile::copy::WorldBefore
 pub async fn nika_onboard::compile::copy::WorldBefore::capture(root: &std::path::Path, candidate: &str, inputs: &[alloc::string::String], targets: &[alloc::string::String]) -> core::result::Result<Self, alloc::string::String>
-pub async fn nika_onboard::compile::copy::WorldBefore::witness(self, candidate: &str, report: &nika_compile_cognition::rehearse::RehearsalReport) -> core::result::Result<nika_onboard::compile::copy::Witness, alloc::string::String>
+pub async fn nika_onboard::compile::copy::WorldBefore::witness(self, candidate: &str, report: &nika_compile_seats::rehearse::RehearsalReport) -> core::result::Result<nika_onboard::compile::copy::Witness, alloc::string::String>
 impl core::fmt::Debug for nika_onboard::compile::copy::WorldBefore
 pub fn nika_onboard::compile::copy::WorldBefore::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_onboard::compile::copy::WorldBefore
@@ -506,7 +506,7 @@ pub type nika_onboard::compile::copy::WorldBefore::Output = T
 pub const nika_onboard::compile::copy::EXCERPT: usize
 pub fn nika_onboard::compile::copy::qualify(request: &nika_compile::types::CompileRequest, intent: &str, root: &std::path::Path, host: &nika_onboard::compile::copy::Host<'_>, scratch: &std::path::Path, allowance: nika_onboard::compile::copy::Allowance) -> nika_onboard::compile::copy::Qualification
 pub fn nika_onboard::compile::copy::same_project_path(root: &std::path::Path, left: &std::path::Path, right: &std::path::Path) -> bool
-pub type nika_onboard::compile::copy::Host<'a> = (dyn core::ops::function::Fn(&std::path::Path) -> alloc::boxed::Box<dyn nika_compile_cognition::rehearse::Rehearse> + core::marker::Sync + 'a)
+pub type nika_onboard::compile::copy::Host<'a> = (dyn core::ops::function::Fn(&std::path::Path) -> alloc::boxed::Box<dyn nika_compile_seats::rehearse::Rehearse> + core::marker::Sync + 'a)
 pub mod nika_onboard::compile::meaning
 #[non_exhaustive] pub enum nika_onboard::compile::meaning::Disposition
 pub nika_onboard::compile::meaning::Disposition::Contradicted
@@ -705,10 +705,10 @@ impl core::clone::Clone for nika_onboard::compile::room::ObservedRoom
 pub fn nika_onboard::compile::room::ObservedRoom::clone(&self) -> nika_onboard::compile::room::ObservedRoom
 impl core::fmt::Debug for nika_onboard::compile::room::ObservedRoom
 pub fn nika_onboard::compile::room::ObservedRoom::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_compile_cognition::rehearse::Rehearse for nika_onboard::compile::room::ObservedRoom
+impl nika_compile_seats::rehearse::Rehearse for nika_onboard::compile::room::ObservedRoom
 pub fn nika_onboard::compile::room::ObservedRoom::bound(&self) -> core::time::Duration
-pub fn nika_onboard::compile::room::ObservedRoom::rehearse<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String]) -> nika_compile_cognition::rehearse::RehearsalFuture<'a>
-pub fn nika_onboard::compile::room::ObservedRoom::rehearse_reading<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String], targets: &'a [alloc::string::String]) -> nika_compile_cognition::rehearse::RehearsalFuture<'a>
+pub fn nika_onboard::compile::room::ObservedRoom::rehearse<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String]) -> nika_compile_seats::rehearse::RehearsalFuture<'a>
+pub fn nika_onboard::compile::room::ObservedRoom::rehearse_reading<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String], targets: &'a [alloc::string::String]) -> nika_compile_seats::rehearse::RehearsalFuture<'a>
 impl<D> owo_colors::OwoColorize for nika_onboard::compile::room::ObservedRoom
 impl<T, U> core::convert::Into<U> for nika_onboard::compile::room::ObservedRoom where U: core::convert::From<T>
 pub fn nika_onboard::compile::room::ObservedRoom::into(self) -> U

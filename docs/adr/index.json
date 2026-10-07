@@ -1697,5 +1697,21 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-146",
+      "title": "nika-compile-cognition size-cap member split: the decision seats and the rehearsal port descend to nika-compile-seats",
+      "status": "accepted",
+      "date": "2026-10-07",
+      "filename": "adr-146-nika-compile-seats-member-split.md",
+      "tags": ["architecture","crates","split","size-cap","compile"],
+      "affects_crates": ["nika-compile-cognition","nika-compile-seats"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-137","ADR-140","ADR-141","ADR-142","ADR-144","ADR-145"],
+      "requires": [],
+      "enables": []
+    }
   ]
 }

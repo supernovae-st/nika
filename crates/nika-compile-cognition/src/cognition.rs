@@ -41,8 +41,10 @@ mod native;
 mod proposal;
 pub(crate) mod receipt;
 mod rehearsal;
+/// The reasoning a call is asked for and the record of what it reported, owned with the
+/// decision seats that ask them too (ADR-146).
+pub(crate) use nika_compile_seats::reasoning::{effort, reasoning_record};
 use receipt::call_with_schema;
-pub(crate) use receipt::{effort, reasoning_record};
 mod sketch;
 mod transform;
 mod verify;

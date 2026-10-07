@@ -18,13 +18,21 @@
 
 The member reads `nika_compile::surface` and the core's public request/outcome types.
 `CompileRequest` and `AuthoringPolicy` remain core-owned with their builders; `Cognition`
-and decision seats live here. `nika-onboard::compile` combines both members at the existing
-consumer paths. Provider choice and admission context remain host-owned and explicit.
+lives here. The two capabilities a host lends a preparation, the bounded decision seats
+(`decide`) and the rehearsal port (`rehearse`), with the reasoning record their calls share,
+are owned by the size-cap member below the doors since 2026-10-07, `nika-compile-seats`
+(ADR-146); this crate keeps them at their historical paths `nika_compile_cognition::{decide,
+rehearse}` (`#[doc(inline)]` re-exports naming the very same items), so every caller reads
+them unchanged. How one clause of a request reads (the verifier's parts and part readings, the
+prohibition reading, the proposal merge's words, the stated spellings) is owned by
+`nika-compile-clauses` (ADR-145), which this crate reads; the merge keeps its `crate::words`
+path. `nika-onboard::compile` combines the members at the existing consumer paths. Provider
+choice and admission context remain host-owned and explicit.
 
 `cognition` owns the orchestration ladder; its children own proposal decoding, native
 answers/judgment/repairs, sketch filling, verified transforms and knowledge references.
-`compose`, `predicate` and `decide` move with their complete tests; `predicate` keeps the
-seat's wire decoding of a typed computation, whose law descended to `nika-compile-fidelity`
+`compose`, `predicate` and `decide` moved here with their complete tests (`decide` descended
+again to `nika-compile-seats` with ADR-146); `predicate` keeps the seat's wire decoding of a typed computation, whose law descended to `nika-compile-fidelity`
 (`predicate::typed_rule`, shared with the replay, 2026-09-28). The deterministic
 native record application and replay stay in core and are shared by accepted candidates
 and answer rounds. Candidate, fidelity and sketch laws come from `nika-compile-fidelity`

@@ -5,13 +5,13 @@
 //! authoring call makes, whatever its messages, and the call's journal entry (its role, the
 //! digests of what it was shown, its bounds, its result, its usage).
 
-use nika_compile::AuthoringReasoning;
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, Message, ProviderError, ProviderInferDyn,
-    ReasoningEffort, ResponseFormat, Role, StopReason,
+    ResponseFormat, Role, StopReason,
 };
 use serde_json::{Value, json};
 
+use super::{effort, reasoning_record};
 use crate::{
     AuthoringCognition, AuthoringPolicy, AuthoringReceipt, CompileOutcome, DiagnosticKind,
 };
@@ -19,37 +19,6 @@ use crate::{
 /// The observer of authoring calls, owned by the provider layer; this module produces its
 /// observations.
 pub(crate) use nika_providers::authoring::observe;
-
-/// The provider level an authoring level names (R4 B16): the same word, or `None` for a level
-/// the provider seam does not know, which no call may silently drop.
-pub(crate) fn effort(reasoning: AuthoringReasoning) -> Option<ReasoningEffort> {
-    ReasoningEffort::parse(reasoning.word())
-}
-
-/// One call's reasoning, each fact apart (R4 B16): the level the policy configured, the keys the
-/// adapter read back from the body it dispatched (`unobserved` when it reports none, or when no
-/// response came), the effort the provider served internally (never observable here), the
-/// reasoning tokens it reported (null when unreported) and the model it named.
-pub(crate) fn reasoning_record(
-    configured: Option<AuthoringReasoning>,
-    response: Option<&InferResponse>,
-) -> Value {
-    let transmitted = response
-        .and_then(|r| r.reasoning_wire.as_ref())
-        .map_or_else(
-            || json!("unobserved"),
-            |wire| json!({"thinking": wire.thinking, "effort": wire.effort}),
-        );
-    json!({
-        "configured": configured.map(AuthoringReasoning::word),
-        "transmitted": transmitted,
-        "served": "unknown",
-        "reasoning_tokens": response
-            .filter(|r| r.usage_reported)
-            .and_then(|r| r.usage.reasoning_tokens),
-        "response_model": response.and_then(|r| r.gen_ai.response_model.clone()),
-    })
-}
 
 /// One bounded call under any answer schema (the plan's, the transform's), accounted in the
 /// outcome's receipt: the raw response, or None with the finding recorded. It opens at the

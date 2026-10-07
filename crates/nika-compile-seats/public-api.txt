@@ -1,0 +1,1156 @@
+pub mod nika_compile_seats
+pub mod nika_compile_seats::decide
+#[non_exhaustive] pub struct nika_compile_seats::decide::ChoiceAnswer
+pub nika_compile_seats::decide::ChoiceAnswer::choice: alloc::string::String
+pub nika_compile_seats::decide::ChoiceAnswer::confidence: core::option::Option<f64>
+pub nika_compile_seats::decide::ChoiceAnswer::input_tokens: core::option::Option<u64>
+pub nika_compile_seats::decide::ChoiceAnswer::model: alloc::string::String
+pub nika_compile_seats::decide::ChoiceAnswer::output_tokens: core::option::Option<u64>
+pub nika_compile_seats::decide::ChoiceAnswer::probabilities: alloc::collections::btree::map::BTreeMap<alloc::string::String, f64>
+pub nika_compile_seats::decide::ChoiceAnswer::reasoning: core::option::Option<serde_json::value::Value>
+impl nika_compile_seats::decide::ChoiceAnswer
+pub fn nika_compile_seats::decide::ChoiceAnswer::new(choice: impl core::convert::Into<alloc::string::String>, model: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_compile_seats::decide::ChoiceAnswer
+pub fn nika_compile_seats::decide::ChoiceAnswer::clone(&self) -> nika_compile_seats::decide::ChoiceAnswer
+impl core::cmp::PartialEq for nika_compile_seats::decide::ChoiceAnswer
+pub fn nika_compile_seats::decide::ChoiceAnswer::eq(&self, other: &nika_compile_seats::decide::ChoiceAnswer) -> bool
+impl core::fmt::Debug for nika_compile_seats::decide::ChoiceAnswer
+pub fn nika_compile_seats::decide::ChoiceAnswer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::decide::ChoiceAnswer
+impl<D> owo_colors::OwoColorize for nika_compile_seats::decide::ChoiceAnswer
+impl<T, U> core::convert::Into<U> for nika_compile_seats::decide::ChoiceAnswer where U: core::convert::From<T>
+pub fn nika_compile_seats::decide::ChoiceAnswer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::decide::ChoiceAnswer where U: core::convert::Into<T>
+pub type nika_compile_seats::decide::ChoiceAnswer::Error = core::convert::Infallible
+pub fn nika_compile_seats::decide::ChoiceAnswer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::decide::ChoiceAnswer where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::decide::ChoiceAnswer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::decide::ChoiceAnswer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::decide::ChoiceAnswer where T: core::clone::Clone
+pub type nika_compile_seats::decide::ChoiceAnswer::Owned = T
+pub fn nika_compile_seats::decide::ChoiceAnswer::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::decide::ChoiceAnswer::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::decide::ChoiceAnswer where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::decide::ChoiceAnswer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::decide::ChoiceAnswer where T: ?core::marker::Sized
+pub fn nika_compile_seats::decide::ChoiceAnswer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::decide::ChoiceAnswer where T: ?core::marker::Sized
+pub fn nika_compile_seats::decide::ChoiceAnswer::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::decide::ChoiceAnswer where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::decide::ChoiceAnswer::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::decide::ChoiceAnswer
+pub fn nika_compile_seats::decide::ChoiceAnswer::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::decide::ChoiceAnswer where T: core::clone::Clone
+pub fn nika_compile_seats::decide::ChoiceAnswer::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::decide::ChoiceAnswer where T: 'static
+pub fn nika_compile_seats::decide::ChoiceAnswer::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::decide::ChoiceAnswer
+pub type nika_compile_seats::decide::ChoiceAnswer::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::decide::ChoiceOption
+pub nika_compile_seats::decide::ChoiceOption::description: alloc::string::String
+pub nika_compile_seats::decide::ChoiceOption::key: alloc::string::String
+impl nika_compile_seats::decide::ChoiceOption
+pub fn nika_compile_seats::decide::ChoiceOption::new(key: impl core::convert::Into<alloc::string::String>, description: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_compile_seats::decide::ChoiceOption
+pub fn nika_compile_seats::decide::ChoiceOption::clone(&self) -> nika_compile_seats::decide::ChoiceOption
+impl core::cmp::Eq for nika_compile_seats::decide::ChoiceOption
+impl core::cmp::PartialEq for nika_compile_seats::decide::ChoiceOption
+pub fn nika_compile_seats::decide::ChoiceOption::eq(&self, other: &nika_compile_seats::decide::ChoiceOption) -> bool
+impl core::fmt::Debug for nika_compile_seats::decide::ChoiceOption
+pub fn nika_compile_seats::decide::ChoiceOption::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::decide::ChoiceOption
+impl<D> owo_colors::OwoColorize for nika_compile_seats::decide::ChoiceOption
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::decide::ChoiceOption where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::decide::ChoiceOption::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::decide::ChoiceOption where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::decide::ChoiceOption::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::decide::ChoiceOption where U: core::convert::From<T>
+pub fn nika_compile_seats::decide::ChoiceOption::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::decide::ChoiceOption where U: core::convert::Into<T>
+pub type nika_compile_seats::decide::ChoiceOption::Error = core::convert::Infallible
+pub fn nika_compile_seats::decide::ChoiceOption::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::decide::ChoiceOption where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::decide::ChoiceOption::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::decide::ChoiceOption::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::decide::ChoiceOption where T: core::clone::Clone
+pub type nika_compile_seats::decide::ChoiceOption::Owned = T
+pub fn nika_compile_seats::decide::ChoiceOption::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::decide::ChoiceOption::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::decide::ChoiceOption where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::decide::ChoiceOption::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::decide::ChoiceOption where T: ?core::marker::Sized
+pub fn nika_compile_seats::decide::ChoiceOption::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::decide::ChoiceOption where T: ?core::marker::Sized
+pub fn nika_compile_seats::decide::ChoiceOption::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::decide::ChoiceOption where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::decide::ChoiceOption::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::decide::ChoiceOption
+pub fn nika_compile_seats::decide::ChoiceOption::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::decide::ChoiceOption where T: core::clone::Clone
+pub fn nika_compile_seats::decide::ChoiceOption::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::decide::ChoiceOption where T: 'static
+pub fn nika_compile_seats::decide::ChoiceOption::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::decide::ChoiceOption
+pub type nika_compile_seats::decide::ChoiceOption::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::decide::ChoiceQuestion
+pub nika_compile_seats::decide::ChoiceQuestion::id: alloc::string::String
+pub nika_compile_seats::decide::ChoiceQuestion::instructions: alloc::string::String
+pub nika_compile_seats::decide::ChoiceQuestion::options: alloc::vec::Vec<nika_compile_seats::decide::ChoiceOption>
+pub nika_compile_seats::decide::ChoiceQuestion::state: serde_json::value::Value
+impl nika_compile_seats::decide::ChoiceQuestion
+pub fn nika_compile_seats::decide::ChoiceQuestion::keys(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_seats::decide::ChoiceQuestion::new(id: impl core::convert::Into<alloc::string::String>, instructions: impl core::convert::Into<alloc::string::String>, state: serde_json::value::Value, options: alloc::vec::Vec<nika_compile_seats::decide::ChoiceOption>) -> Self
+impl core::clone::Clone for nika_compile_seats::decide::ChoiceQuestion
+pub fn nika_compile_seats::decide::ChoiceQuestion::clone(&self) -> nika_compile_seats::decide::ChoiceQuestion
+impl core::cmp::Eq for nika_compile_seats::decide::ChoiceQuestion
+impl core::cmp::PartialEq for nika_compile_seats::decide::ChoiceQuestion
+pub fn nika_compile_seats::decide::ChoiceQuestion::eq(&self, other: &nika_compile_seats::decide::ChoiceQuestion) -> bool
+impl core::fmt::Debug for nika_compile_seats::decide::ChoiceQuestion
+pub fn nika_compile_seats::decide::ChoiceQuestion::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::decide::ChoiceQuestion
+impl<D> owo_colors::OwoColorize for nika_compile_seats::decide::ChoiceQuestion
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::decide::ChoiceQuestion where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::decide::ChoiceQuestion::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::decide::ChoiceQuestion where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::decide::ChoiceQuestion::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::decide::ChoiceQuestion where U: core::convert::From<T>
+pub fn nika_compile_seats::decide::ChoiceQuestion::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::decide::ChoiceQuestion where U: core::convert::Into<T>
+pub type nika_compile_seats::decide::ChoiceQuestion::Error = core::convert::Infallible
+pub fn nika_compile_seats::decide::ChoiceQuestion::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::decide::ChoiceQuestion where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::decide::ChoiceQuestion::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::decide::ChoiceQuestion::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::decide::ChoiceQuestion where T: core::clone::Clone
+pub type nika_compile_seats::decide::ChoiceQuestion::Owned = T
+pub fn nika_compile_seats::decide::ChoiceQuestion::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::decide::ChoiceQuestion::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::decide::ChoiceQuestion where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::decide::ChoiceQuestion::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::decide::ChoiceQuestion where T: ?core::marker::Sized
+pub fn nika_compile_seats::decide::ChoiceQuestion::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::decide::ChoiceQuestion where T: ?core::marker::Sized
+pub fn nika_compile_seats::decide::ChoiceQuestion::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::decide::ChoiceQuestion where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::decide::ChoiceQuestion::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::decide::ChoiceQuestion
+pub fn nika_compile_seats::decide::ChoiceQuestion::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::decide::ChoiceQuestion where T: core::clone::Clone
+pub fn nika_compile_seats::decide::ChoiceQuestion::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::decide::ChoiceQuestion where T: 'static
+pub fn nika_compile_seats::decide::ChoiceQuestion::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::decide::ChoiceQuestion
+pub type nika_compile_seats::decide::ChoiceQuestion::Output = T
+pub struct nika_compile_seats::decide::DecisionError(pub alloc::string::String)
+impl core::clone::Clone for nika_compile_seats::decide::DecisionError
+pub fn nika_compile_seats::decide::DecisionError::clone(&self) -> nika_compile_seats::decide::DecisionError
+impl core::cmp::Eq for nika_compile_seats::decide::DecisionError
+impl core::cmp::PartialEq for nika_compile_seats::decide::DecisionError
+pub fn nika_compile_seats::decide::DecisionError::eq(&self, other: &nika_compile_seats::decide::DecisionError) -> bool
+impl core::error::Error for nika_compile_seats::decide::DecisionError
+impl core::fmt::Debug for nika_compile_seats::decide::DecisionError
+pub fn nika_compile_seats::decide::DecisionError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_compile_seats::decide::DecisionError
+pub fn nika_compile_seats::decide::DecisionError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::decide::DecisionError
+impl<D> owo_colors::OwoColorize for nika_compile_seats::decide::DecisionError
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::decide::DecisionError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::decide::DecisionError::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::decide::DecisionError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::decide::DecisionError::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::decide::DecisionError where U: core::convert::From<T>
+pub fn nika_compile_seats::decide::DecisionError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::decide::DecisionError where U: core::convert::Into<T>
+pub type nika_compile_seats::decide::DecisionError::Error = core::convert::Infallible
+pub fn nika_compile_seats::decide::DecisionError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::decide::DecisionError where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::decide::DecisionError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::decide::DecisionError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::decide::DecisionError where T: core::clone::Clone
+pub type nika_compile_seats::decide::DecisionError::Owned = T
+pub fn nika_compile_seats::decide::DecisionError::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::decide::DecisionError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_compile_seats::decide::DecisionError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_compile_seats::decide::DecisionError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_compile_seats::decide::DecisionError where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::decide::DecisionError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::decide::DecisionError where T: ?core::marker::Sized
+pub fn nika_compile_seats::decide::DecisionError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::decide::DecisionError where T: ?core::marker::Sized
+pub fn nika_compile_seats::decide::DecisionError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::decide::DecisionError where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::decide::DecisionError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::decide::DecisionError
+pub fn nika_compile_seats::decide::DecisionError::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::decide::DecisionError where T: core::clone::Clone
+pub fn nika_compile_seats::decide::DecisionError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::decide::DecisionError where T: 'static
+pub fn nika_compile_seats::decide::DecisionError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::decide::DecisionError
+pub type nika_compile_seats::decide::DecisionError::Output = T
+pub struct nika_compile_seats::decide::ProviderChoice<'p, P: nika_kernel_ai::provider::ProviderInferDyn>
+impl<'p, P: nika_kernel_ai::provider::ProviderInferDyn> nika_compile_seats::decide::ProviderChoice<'p, P>
+pub fn nika_compile_seats::decide::ProviderChoice<'p, P>::new(provider: &'p P, model: impl core::convert::Into<alloc::string::String>, timeout: core::time::Duration, max_tokens: u32) -> Self
+pub fn nika_compile_seats::decide::ProviderChoice<'p, P>::with_reasoning(self, reasoning: nika_compile::types::AuthoringReasoning, max_tokens: u32) -> Self
+impl<P: nika_kernel_ai::provider::ProviderInferDyn> nika_compile_seats::decide::DecisionSeat for nika_compile_seats::decide::ProviderChoice<'_, P>
+pub fn nika_compile_seats::decide::ProviderChoice<'_, P>::choose<'a>(&'a self, question: &'a nika_compile_seats::decide::ChoiceQuestion) -> nika_compile_seats::decide::ChoiceFuture<'a>
+pub fn nika_compile_seats::decide::ProviderChoice<'_, P>::name(&self) -> &str
+impl<D> owo_colors::OwoColorize for nika_compile_seats::decide::ProviderChoice<'p, P>
+impl<T, U> core::convert::Into<U> for nika_compile_seats::decide::ProviderChoice<'p, P> where U: core::convert::From<T>
+pub fn nika_compile_seats::decide::ProviderChoice<'p, P>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::decide::ProviderChoice<'p, P> where U: core::convert::Into<T>
+pub type nika_compile_seats::decide::ProviderChoice<'p, P>::Error = core::convert::Infallible
+pub fn nika_compile_seats::decide::ProviderChoice<'p, P>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::decide::ProviderChoice<'p, P> where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::decide::ProviderChoice<'p, P>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::decide::ProviderChoice<'p, P>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_compile_seats::decide::ProviderChoice<'p, P> where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::decide::ProviderChoice<'p, P>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::decide::ProviderChoice<'p, P> where T: ?core::marker::Sized
+pub fn nika_compile_seats::decide::ProviderChoice<'p, P>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::decide::ProviderChoice<'p, P> where T: ?core::marker::Sized
+pub fn nika_compile_seats::decide::ProviderChoice<'p, P>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_compile_seats::decide::ProviderChoice<'p, P>
+pub fn nika_compile_seats::decide::ProviderChoice<'p, P>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_compile_seats::decide::ProviderChoice<'p, P> where T: 'static
+pub fn nika_compile_seats::decide::ProviderChoice<'p, P>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::decide::ProviderChoice<'p, P>
+pub type nika_compile_seats::decide::ProviderChoice<'p, P>::Output = T
+pub const nika_compile_seats::decide::NONE_OPTION: &str
+pub trait nika_compile_seats::decide::DecisionSeat: core::marker::Send + core::marker::Sync
+pub fn nika_compile_seats::decide::DecisionSeat::choose<'a>(&'a self, question: &'a nika_compile_seats::decide::ChoiceQuestion) -> nika_compile_seats::decide::ChoiceFuture<'a>
+pub fn nika_compile_seats::decide::DecisionSeat::name(&self) -> &str
+impl<P: nika_kernel_ai::provider::ProviderInferDyn> nika_compile_seats::decide::DecisionSeat for nika_compile_seats::decide::ProviderChoice<'_, P>
+pub fn nika_compile_seats::decide::ProviderChoice<'_, P>::choose<'a>(&'a self, question: &'a nika_compile_seats::decide::ChoiceQuestion) -> nika_compile_seats::decide::ChoiceFuture<'a>
+pub fn nika_compile_seats::decide::ProviderChoice<'_, P>::name(&self) -> &str
+pub fn nika_compile_seats::decide::admit(question: &nika_compile_seats::decide::ChoiceQuestion, answer: &nika_compile_seats::decide::ChoiceAnswer) -> core::result::Result<(), nika_compile_seats::decide::DecisionError>
+pub fn nika_compile_seats::decide::answer_text(response: &nika_kernel_ai::provider::InferResponse) -> core::option::Option<&str>
+pub fn nika_compile_seats::decide::closed_choice(question: &nika_compile_seats::decide::ChoiceQuestion) -> (alloc::vec::Vec<nika_kernel_ai::provider::Message>, serde_json::value::Value)
+pub fn nika_compile_seats::decide::decoded(question: &nika_compile_seats::decide::ChoiceQuestion, response: &nika_kernel_ai::provider::InferResponse) -> core::result::Result<alloc::string::String, nika_compile_seats::decide::DecisionError>
+pub fn nika_compile_seats::decide::record(question: &nika_compile_seats::decide::ChoiceQuestion, answer: core::result::Result<&nika_compile_seats::decide::ChoiceAnswer, &nika_compile_seats::decide::DecisionError>) -> serde_json::value::Value
+pub type nika_compile_seats::decide::ChoiceFuture<'a> = core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<nika_compile_seats::decide::ChoiceAnswer, nika_compile_seats::decide::DecisionError>> + core::marker::Send + 'a)>>
+pub mod nika_compile_seats::reasoning
+pub fn nika_compile_seats::reasoning::effort(reasoning: nika_compile::types::AuthoringReasoning) -> core::option::Option<nika_kernel_ai::provider::ReasoningEffort>
+pub fn nika_compile_seats::reasoning::reasoning_record(configured: core::option::Option<nika_compile::types::AuthoringReasoning>, response: core::option::Option<&nika_kernel_ai::provider::InferResponse>) -> serde_json::value::Value
+pub mod nika_compile_seats::rehearse
+#[non_exhaustive] pub enum nika_compile_seats::rehearse::Attempt
+pub nika_compile_seats::rehearse::Attempt::Completed
+pub nika_compile_seats::rehearse::Attempt::Completed::elapsed_ms: u64
+pub nika_compile_seats::rehearse::Attempt::NeverAttempted
+pub nika_compile_seats::rehearse::Attempt::Stopped
+pub nika_compile_seats::rehearse::Attempt::Stopped::elapsed_ms: u64
+impl core::clone::Clone for nika_compile_seats::rehearse::Attempt
+pub fn nika_compile_seats::rehearse::Attempt::clone(&self) -> nika_compile_seats::rehearse::Attempt
+impl core::cmp::Eq for nika_compile_seats::rehearse::Attempt
+impl core::cmp::PartialEq for nika_compile_seats::rehearse::Attempt
+pub fn nika_compile_seats::rehearse::Attempt::eq(&self, other: &nika_compile_seats::rehearse::Attempt) -> bool
+impl core::fmt::Debug for nika_compile_seats::rehearse::Attempt
+pub fn nika_compile_seats::rehearse::Attempt::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_seats::rehearse::Attempt
+impl core::marker::StructuralPartialEq for nika_compile_seats::rehearse::Attempt
+impl<D> owo_colors::OwoColorize for nika_compile_seats::rehearse::Attempt
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::rehearse::Attempt where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Attempt::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::rehearse::Attempt where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Attempt::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::rehearse::Attempt where U: core::convert::From<T>
+pub fn nika_compile_seats::rehearse::Attempt::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::rehearse::Attempt where U: core::convert::Into<T>
+pub type nika_compile_seats::rehearse::Attempt::Error = core::convert::Infallible
+pub fn nika_compile_seats::rehearse::Attempt::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::rehearse::Attempt where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::rehearse::Attempt::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::rehearse::Attempt::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::rehearse::Attempt where T: core::clone::Clone
+pub type nika_compile_seats::rehearse::Attempt::Owned = T
+pub fn nika_compile_seats::rehearse::Attempt::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::rehearse::Attempt::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::rehearse::Attempt where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Attempt::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::rehearse::Attempt where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Attempt::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::rehearse::Attempt where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Attempt::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::rehearse::Attempt where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::rehearse::Attempt::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::rehearse::Attempt
+pub fn nika_compile_seats::rehearse::Attempt::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::rehearse::Attempt where T: core::clone::Clone
+pub fn nika_compile_seats::rehearse::Attempt::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::Attempt where T: 'static
+pub fn nika_compile_seats::rehearse::Attempt::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile_seats::rehearse::Attempt where T: core::marker::Copy
+pub fn nika_compile_seats::rehearse::Attempt::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::Attempt
+pub type nika_compile_seats::rehearse::Attempt::Output = T
+#[non_exhaustive] pub enum nika_compile_seats::rehearse::FinalState
+pub nika_compile_seats::rehearse::FinalState::Absent
+pub nika_compile_seats::rehearse::FinalState::Directory
+pub nika_compile_seats::rehearse::FinalState::File
+pub nika_compile_seats::rehearse::FinalState::File::digest: nika_compile_seats::rehearse::Digest
+pub nika_compile_seats::rehearse::FinalState::File::held: nika_compile_seats::rehearse::Held
+pub nika_compile_seats::rehearse::FinalState::Unreadable
+impl core::clone::Clone for nika_compile_seats::rehearse::FinalState
+pub fn nika_compile_seats::rehearse::FinalState::clone(&self) -> nika_compile_seats::rehearse::FinalState
+impl core::cmp::Eq for nika_compile_seats::rehearse::FinalState
+impl core::cmp::PartialEq for nika_compile_seats::rehearse::FinalState
+pub fn nika_compile_seats::rehearse::FinalState::eq(&self, other: &nika_compile_seats::rehearse::FinalState) -> bool
+impl core::fmt::Debug for nika_compile_seats::rehearse::FinalState
+pub fn nika_compile_seats::rehearse::FinalState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::rehearse::FinalState
+impl<D> owo_colors::OwoColorize for nika_compile_seats::rehearse::FinalState
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::rehearse::FinalState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::FinalState::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::rehearse::FinalState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::FinalState::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::rehearse::FinalState where U: core::convert::From<T>
+pub fn nika_compile_seats::rehearse::FinalState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::rehearse::FinalState where U: core::convert::Into<T>
+pub type nika_compile_seats::rehearse::FinalState::Error = core::convert::Infallible
+pub fn nika_compile_seats::rehearse::FinalState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::rehearse::FinalState where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::rehearse::FinalState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::rehearse::FinalState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::rehearse::FinalState where T: core::clone::Clone
+pub type nika_compile_seats::rehearse::FinalState::Owned = T
+pub fn nika_compile_seats::rehearse::FinalState::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::rehearse::FinalState::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::rehearse::FinalState where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::FinalState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::rehearse::FinalState where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::FinalState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::rehearse::FinalState where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::FinalState::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::rehearse::FinalState where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::rehearse::FinalState::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::rehearse::FinalState
+pub fn nika_compile_seats::rehearse::FinalState::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::rehearse::FinalState where T: core::clone::Clone
+pub fn nika_compile_seats::rehearse::FinalState::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::FinalState where T: 'static
+pub fn nika_compile_seats::rehearse::FinalState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::FinalState
+pub type nika_compile_seats::rehearse::FinalState::Output = T
+#[non_exhaustive] pub enum nika_compile_seats::rehearse::Held
+pub nika_compile_seats::rehearse::Held::NotText
+pub nika_compile_seats::rehearse::Held::Preview(alloc::string::String)
+pub nika_compile_seats::rehearse::Held::Whole(alloc::string::String)
+impl nika_compile_seats::rehearse::Held
+pub fn nika_compile_seats::rehearse::Held::of(bytes: &[u8], bound: u64) -> Self
+pub fn nika_compile_seats::rehearse::Held::text(&self) -> &str
+impl core::clone::Clone for nika_compile_seats::rehearse::Held
+pub fn nika_compile_seats::rehearse::Held::clone(&self) -> nika_compile_seats::rehearse::Held
+impl core::cmp::Eq for nika_compile_seats::rehearse::Held
+impl core::cmp::PartialEq for nika_compile_seats::rehearse::Held
+pub fn nika_compile_seats::rehearse::Held::eq(&self, other: &nika_compile_seats::rehearse::Held) -> bool
+impl core::fmt::Debug for nika_compile_seats::rehearse::Held
+pub fn nika_compile_seats::rehearse::Held::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::rehearse::Held
+impl<D> owo_colors::OwoColorize for nika_compile_seats::rehearse::Held
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::rehearse::Held where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Held::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::rehearse::Held where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Held::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::rehearse::Held where U: core::convert::From<T>
+pub fn nika_compile_seats::rehearse::Held::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::rehearse::Held where U: core::convert::Into<T>
+pub type nika_compile_seats::rehearse::Held::Error = core::convert::Infallible
+pub fn nika_compile_seats::rehearse::Held::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::rehearse::Held where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::rehearse::Held::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::rehearse::Held::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::rehearse::Held where T: core::clone::Clone
+pub type nika_compile_seats::rehearse::Held::Owned = T
+pub fn nika_compile_seats::rehearse::Held::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::rehearse::Held::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::rehearse::Held where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Held::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::rehearse::Held where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Held::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::rehearse::Held where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Held::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::rehearse::Held where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::rehearse::Held::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::rehearse::Held
+pub fn nika_compile_seats::rehearse::Held::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::rehearse::Held where T: core::clone::Clone
+pub fn nika_compile_seats::rehearse::Held::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::Held where T: 'static
+pub fn nika_compile_seats::rehearse::Held::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::Held
+pub type nika_compile_seats::rehearse::Held::Output = T
+#[non_exhaustive] pub enum nika_compile_seats::rehearse::RecordedCause
+pub nika_compile_seats::rehearse::RecordedCause::Engine
+pub nika_compile_seats::rehearse::RecordedCause::RetryExhausted
+pub nika_compile_seats::rehearse::RecordedCause::Timeout
+pub nika_compile_seats::rehearse::RecordedCause::VerbError
+impl core::clone::Clone for nika_compile_seats::rehearse::RecordedCause
+pub fn nika_compile_seats::rehearse::RecordedCause::clone(&self) -> nika_compile_seats::rehearse::RecordedCause
+impl core::cmp::Eq for nika_compile_seats::rehearse::RecordedCause
+impl core::cmp::PartialEq for nika_compile_seats::rehearse::RecordedCause
+pub fn nika_compile_seats::rehearse::RecordedCause::eq(&self, other: &nika_compile_seats::rehearse::RecordedCause) -> bool
+impl core::fmt::Debug for nika_compile_seats::rehearse::RecordedCause
+pub fn nika_compile_seats::rehearse::RecordedCause::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_seats::rehearse::RecordedCause
+impl core::marker::StructuralPartialEq for nika_compile_seats::rehearse::RecordedCause
+impl<D> owo_colors::OwoColorize for nika_compile_seats::rehearse::RecordedCause
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::rehearse::RecordedCause where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::RecordedCause::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::rehearse::RecordedCause where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::RecordedCause::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::rehearse::RecordedCause where U: core::convert::From<T>
+pub fn nika_compile_seats::rehearse::RecordedCause::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::rehearse::RecordedCause where U: core::convert::Into<T>
+pub type nika_compile_seats::rehearse::RecordedCause::Error = core::convert::Infallible
+pub fn nika_compile_seats::rehearse::RecordedCause::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::rehearse::RecordedCause where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::rehearse::RecordedCause::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::rehearse::RecordedCause::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::rehearse::RecordedCause where T: core::clone::Clone
+pub type nika_compile_seats::rehearse::RecordedCause::Owned = T
+pub fn nika_compile_seats::rehearse::RecordedCause::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::rehearse::RecordedCause::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::rehearse::RecordedCause where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::RecordedCause::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::rehearse::RecordedCause where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::RecordedCause::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::rehearse::RecordedCause where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::RecordedCause::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::rehearse::RecordedCause where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::rehearse::RecordedCause::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::rehearse::RecordedCause
+pub fn nika_compile_seats::rehearse::RecordedCause::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::rehearse::RecordedCause where T: core::clone::Clone
+pub fn nika_compile_seats::rehearse::RecordedCause::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::RecordedCause where T: 'static
+pub fn nika_compile_seats::rehearse::RecordedCause::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile_seats::rehearse::RecordedCause where T: core::marker::Copy
+pub fn nika_compile_seats::rehearse::RecordedCause::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::RecordedCause
+pub type nika_compile_seats::rehearse::RecordedCause::Output = T
+#[non_exhaustive] pub enum nika_compile_seats::rehearse::Refusal
+pub nika_compile_seats::rehearse::Refusal::Admission
+pub nika_compile_seats::rehearse::Refusal::Confinement
+pub nika_compile_seats::rehearse::Refusal::CopyIn
+pub nika_compile_seats::rehearse::Refusal::DataBounds
+pub nika_compile_seats::rehearse::Refusal::Effect
+pub nika_compile_seats::rehearse::Refusal::NotBuilt
+pub nika_compile_seats::rehearse::Refusal::Plan
+pub nika_compile_seats::rehearse::Refusal::Surface
+impl nika_compile_seats::rehearse::Refusal
+pub const fn nika_compile_seats::rehearse::Refusal::word(self) -> &'static str
+impl core::clone::Clone for nika_compile_seats::rehearse::Refusal
+pub fn nika_compile_seats::rehearse::Refusal::clone(&self) -> nika_compile_seats::rehearse::Refusal
+impl core::cmp::Eq for nika_compile_seats::rehearse::Refusal
+impl core::cmp::PartialEq for nika_compile_seats::rehearse::Refusal
+pub fn nika_compile_seats::rehearse::Refusal::eq(&self, other: &nika_compile_seats::rehearse::Refusal) -> bool
+impl core::fmt::Debug for nika_compile_seats::rehearse::Refusal
+pub fn nika_compile_seats::rehearse::Refusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_seats::rehearse::Refusal
+impl core::marker::StructuralPartialEq for nika_compile_seats::rehearse::Refusal
+impl<D> owo_colors::OwoColorize for nika_compile_seats::rehearse::Refusal
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::rehearse::Refusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Refusal::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::rehearse::Refusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Refusal::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::rehearse::Refusal where U: core::convert::From<T>
+pub fn nika_compile_seats::rehearse::Refusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::rehearse::Refusal where U: core::convert::Into<T>
+pub type nika_compile_seats::rehearse::Refusal::Error = core::convert::Infallible
+pub fn nika_compile_seats::rehearse::Refusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::rehearse::Refusal where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::rehearse::Refusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::rehearse::Refusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::rehearse::Refusal where T: core::clone::Clone
+pub type nika_compile_seats::rehearse::Refusal::Owned = T
+pub fn nika_compile_seats::rehearse::Refusal::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::rehearse::Refusal::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::rehearse::Refusal where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Refusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::rehearse::Refusal where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Refusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::rehearse::Refusal where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Refusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::rehearse::Refusal where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::rehearse::Refusal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::rehearse::Refusal
+pub fn nika_compile_seats::rehearse::Refusal::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::rehearse::Refusal where T: core::clone::Clone
+pub fn nika_compile_seats::rehearse::Refusal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::Refusal where T: 'static
+pub fn nika_compile_seats::rehearse::Refusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile_seats::rehearse::Refusal where T: core::marker::Copy
+pub fn nika_compile_seats::rehearse::Refusal::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::Refusal
+pub type nika_compile_seats::rehearse::Refusal::Output = T
+#[non_exhaustive] pub enum nika_compile_seats::rehearse::Rehearsal
+pub nika_compile_seats::rehearse::Rehearsal::Failed
+pub nika_compile_seats::rehearse::Rehearsal::Failed::code: alloc::string::String
+pub nika_compile_seats::rehearse::Rehearsal::Failed::message: alloc::string::String
+pub nika_compile_seats::rehearse::Rehearsal::Failed::task: alloc::string::String
+pub nika_compile_seats::rehearse::Rehearsal::Missing
+pub nika_compile_seats::rehearse::Rehearsal::Missing::outputs: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_seats::rehearse::Rehearsal::NotRun
+pub nika_compile_seats::rehearse::Rehearsal::NotRun::reason: alloc::string::String
+pub nika_compile_seats::rehearse::Rehearsal::Passed
+pub nika_compile_seats::rehearse::Rehearsal::Passed::outputs: alloc::vec::Vec<nika_compile_seats::rehearse::RehearsedOutput>
+impl core::clone::Clone for nika_compile_seats::rehearse::Rehearsal
+pub fn nika_compile_seats::rehearse::Rehearsal::clone(&self) -> nika_compile_seats::rehearse::Rehearsal
+impl core::cmp::Eq for nika_compile_seats::rehearse::Rehearsal
+impl core::cmp::PartialEq for nika_compile_seats::rehearse::Rehearsal
+pub fn nika_compile_seats::rehearse::Rehearsal::eq(&self, other: &nika_compile_seats::rehearse::Rehearsal) -> bool
+impl core::fmt::Debug for nika_compile_seats::rehearse::Rehearsal
+pub fn nika_compile_seats::rehearse::Rehearsal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::rehearse::Rehearsal
+impl<D> owo_colors::OwoColorize for nika_compile_seats::rehearse::Rehearsal
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::rehearse::Rehearsal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Rehearsal::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::rehearse::Rehearsal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Rehearsal::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::rehearse::Rehearsal where U: core::convert::From<T>
+pub fn nika_compile_seats::rehearse::Rehearsal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::rehearse::Rehearsal where U: core::convert::Into<T>
+pub type nika_compile_seats::rehearse::Rehearsal::Error = core::convert::Infallible
+pub fn nika_compile_seats::rehearse::Rehearsal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::rehearse::Rehearsal where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::rehearse::Rehearsal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::rehearse::Rehearsal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::rehearse::Rehearsal where T: core::clone::Clone
+pub type nika_compile_seats::rehearse::Rehearsal::Owned = T
+pub fn nika_compile_seats::rehearse::Rehearsal::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::rehearse::Rehearsal::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::rehearse::Rehearsal where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Rehearsal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::rehearse::Rehearsal where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Rehearsal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::rehearse::Rehearsal where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Rehearsal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::rehearse::Rehearsal where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::rehearse::Rehearsal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::rehearse::Rehearsal
+pub fn nika_compile_seats::rehearse::Rehearsal::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::rehearse::Rehearsal where T: core::clone::Clone
+pub fn nika_compile_seats::rehearse::Rehearsal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::Rehearsal where T: 'static
+pub fn nika_compile_seats::rehearse::Rehearsal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::Rehearsal
+pub type nika_compile_seats::rehearse::Rehearsal::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::rehearse::Bounds
+pub nika_compile_seats::rehearse::Bounds::preview_bytes: u64
+pub nika_compile_seats::rehearse::Bounds::room_bytes: u64
+pub nika_compile_seats::rehearse::Bounds::time_ms: u64
+impl nika_compile_seats::rehearse::Bounds
+pub const fn nika_compile_seats::rehearse::Bounds::new(time_ms: u64, room_bytes: u64, preview_bytes: u64) -> Self
+pub const fn nika_compile_seats::rehearse::Bounds::stated(&self) -> bool
+impl core::clone::Clone for nika_compile_seats::rehearse::Bounds
+pub fn nika_compile_seats::rehearse::Bounds::clone(&self) -> nika_compile_seats::rehearse::Bounds
+impl core::cmp::Eq for nika_compile_seats::rehearse::Bounds
+impl core::cmp::PartialEq for nika_compile_seats::rehearse::Bounds
+pub fn nika_compile_seats::rehearse::Bounds::eq(&self, other: &nika_compile_seats::rehearse::Bounds) -> bool
+impl core::default::Default for nika_compile_seats::rehearse::Bounds
+pub fn nika_compile_seats::rehearse::Bounds::default() -> nika_compile_seats::rehearse::Bounds
+impl core::fmt::Debug for nika_compile_seats::rehearse::Bounds
+pub fn nika_compile_seats::rehearse::Bounds::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_seats::rehearse::Bounds
+impl core::marker::StructuralPartialEq for nika_compile_seats::rehearse::Bounds
+impl<D> owo_colors::OwoColorize for nika_compile_seats::rehearse::Bounds
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::rehearse::Bounds where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Bounds::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::rehearse::Bounds where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Bounds::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::rehearse::Bounds where U: core::convert::From<T>
+pub fn nika_compile_seats::rehearse::Bounds::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::rehearse::Bounds where U: core::convert::Into<T>
+pub type nika_compile_seats::rehearse::Bounds::Error = core::convert::Infallible
+pub fn nika_compile_seats::rehearse::Bounds::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::rehearse::Bounds where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::rehearse::Bounds::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::rehearse::Bounds::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::rehearse::Bounds where T: core::clone::Clone
+pub type nika_compile_seats::rehearse::Bounds::Owned = T
+pub fn nika_compile_seats::rehearse::Bounds::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::rehearse::Bounds::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::rehearse::Bounds where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Bounds::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::rehearse::Bounds where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Bounds::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::rehearse::Bounds where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Bounds::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::rehearse::Bounds where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::rehearse::Bounds::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::rehearse::Bounds
+pub fn nika_compile_seats::rehearse::Bounds::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::rehearse::Bounds where T: core::clone::Clone
+pub fn nika_compile_seats::rehearse::Bounds::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::Bounds where T: 'static
+pub fn nika_compile_seats::rehearse::Bounds::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile_seats::rehearse::Bounds where T: core::marker::Copy
+pub fn nika_compile_seats::rehearse::Bounds::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::Bounds
+pub type nika_compile_seats::rehearse::Bounds::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::rehearse::CopyReceipt
+pub nika_compile_seats::rehearse::CopyReceipt::held: nika_compile_seats::rehearse::Held
+pub nika_compile_seats::rehearse::CopyReceipt::path: alloc::string::String
+pub nika_compile_seats::rehearse::CopyReceipt::room: core::option::Option<nika_compile_seats::rehearse::Digest>
+pub nika_compile_seats::rehearse::CopyReceipt::source: nika_compile_seats::rehearse::Digest
+impl nika_compile_seats::rehearse::CopyReceipt
+pub fn nika_compile_seats::rehearse::CopyReceipt::new(path: impl core::convert::Into<alloc::string::String>, source: nika_compile_seats::rehearse::Digest, room: core::option::Option<nika_compile_seats::rehearse::Digest>, held: nika_compile_seats::rehearse::Held) -> Self
+impl core::clone::Clone for nika_compile_seats::rehearse::CopyReceipt
+pub fn nika_compile_seats::rehearse::CopyReceipt::clone(&self) -> nika_compile_seats::rehearse::CopyReceipt
+impl core::cmp::Eq for nika_compile_seats::rehearse::CopyReceipt
+impl core::cmp::PartialEq for nika_compile_seats::rehearse::CopyReceipt
+pub fn nika_compile_seats::rehearse::CopyReceipt::eq(&self, other: &nika_compile_seats::rehearse::CopyReceipt) -> bool
+impl core::fmt::Debug for nika_compile_seats::rehearse::CopyReceipt
+pub fn nika_compile_seats::rehearse::CopyReceipt::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::rehearse::CopyReceipt
+impl<D> owo_colors::OwoColorize for nika_compile_seats::rehearse::CopyReceipt
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::rehearse::CopyReceipt where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::CopyReceipt::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::rehearse::CopyReceipt where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::CopyReceipt::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::rehearse::CopyReceipt where U: core::convert::From<T>
+pub fn nika_compile_seats::rehearse::CopyReceipt::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::rehearse::CopyReceipt where U: core::convert::Into<T>
+pub type nika_compile_seats::rehearse::CopyReceipt::Error = core::convert::Infallible
+pub fn nika_compile_seats::rehearse::CopyReceipt::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::rehearse::CopyReceipt where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::rehearse::CopyReceipt::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::rehearse::CopyReceipt::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::rehearse::CopyReceipt where T: core::clone::Clone
+pub type nika_compile_seats::rehearse::CopyReceipt::Owned = T
+pub fn nika_compile_seats::rehearse::CopyReceipt::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::rehearse::CopyReceipt::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::rehearse::CopyReceipt where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::CopyReceipt::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::rehearse::CopyReceipt where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::CopyReceipt::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::rehearse::CopyReceipt where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::CopyReceipt::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::rehearse::CopyReceipt where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::rehearse::CopyReceipt::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::rehearse::CopyReceipt
+pub fn nika_compile_seats::rehearse::CopyReceipt::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::rehearse::CopyReceipt where T: core::clone::Clone
+pub fn nika_compile_seats::rehearse::CopyReceipt::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::CopyReceipt where T: 'static
+pub fn nika_compile_seats::rehearse::CopyReceipt::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::CopyReceipt
+pub type nika_compile_seats::rehearse::CopyReceipt::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::rehearse::Digest
+pub nika_compile_seats::rehearse::Digest::bytes: u64
+pub nika_compile_seats::rehearse::Digest::sha256: alloc::string::String
+impl nika_compile_seats::rehearse::Digest
+pub fn nika_compile_seats::rehearse::Digest::of(bytes: &[u8]) -> Self
+impl core::clone::Clone for nika_compile_seats::rehearse::Digest
+pub fn nika_compile_seats::rehearse::Digest::clone(&self) -> nika_compile_seats::rehearse::Digest
+impl core::cmp::Eq for nika_compile_seats::rehearse::Digest
+impl core::cmp::PartialEq for nika_compile_seats::rehearse::Digest
+pub fn nika_compile_seats::rehearse::Digest::eq(&self, other: &nika_compile_seats::rehearse::Digest) -> bool
+impl core::default::Default for nika_compile_seats::rehearse::Digest
+pub fn nika_compile_seats::rehearse::Digest::default() -> nika_compile_seats::rehearse::Digest
+impl core::fmt::Debug for nika_compile_seats::rehearse::Digest
+pub fn nika_compile_seats::rehearse::Digest::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::rehearse::Digest
+impl<D> owo_colors::OwoColorize for nika_compile_seats::rehearse::Digest
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::rehearse::Digest where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Digest::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::rehearse::Digest where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Digest::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::rehearse::Digest where U: core::convert::From<T>
+pub fn nika_compile_seats::rehearse::Digest::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::rehearse::Digest where U: core::convert::Into<T>
+pub type nika_compile_seats::rehearse::Digest::Error = core::convert::Infallible
+pub fn nika_compile_seats::rehearse::Digest::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::rehearse::Digest where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::rehearse::Digest::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::rehearse::Digest::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::rehearse::Digest where T: core::clone::Clone
+pub type nika_compile_seats::rehearse::Digest::Owned = T
+pub fn nika_compile_seats::rehearse::Digest::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::rehearse::Digest::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::rehearse::Digest where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Digest::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::rehearse::Digest where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Digest::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::rehearse::Digest where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Digest::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::rehearse::Digest where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::rehearse::Digest::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::rehearse::Digest
+pub fn nika_compile_seats::rehearse::Digest::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::rehearse::Digest where T: core::clone::Clone
+pub fn nika_compile_seats::rehearse::Digest::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::Digest where T: 'static
+pub fn nika_compile_seats::rehearse::Digest::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::Digest
+pub type nika_compile_seats::rehearse::Digest::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::rehearse::EffectCounts
+pub nika_compile_seats::rehearse::EffectCounts::child: u32
+pub nika_compile_seats::rehearse::EffectCounts::network: u32
+pub nika_compile_seats::rehearse::EffectCounts::prompt: u32
+pub nika_compile_seats::rehearse::EffectCounts::provider: u32
+pub nika_compile_seats::rehearse::EffectCounts::secret: u32
+pub nika_compile_seats::rehearse::EffectCounts::spawn: u32
+impl nika_compile_seats::rehearse::EffectCounts
+pub fn nika_compile_seats::rehearse::EffectCounts::is_none(&self) -> bool
+pub fn nika_compile_seats::rehearse::EffectCounts::none() -> Self
+impl core::clone::Clone for nika_compile_seats::rehearse::EffectCounts
+pub fn nika_compile_seats::rehearse::EffectCounts::clone(&self) -> nika_compile_seats::rehearse::EffectCounts
+impl core::cmp::Eq for nika_compile_seats::rehearse::EffectCounts
+impl core::cmp::PartialEq for nika_compile_seats::rehearse::EffectCounts
+pub fn nika_compile_seats::rehearse::EffectCounts::eq(&self, other: &nika_compile_seats::rehearse::EffectCounts) -> bool
+impl core::default::Default for nika_compile_seats::rehearse::EffectCounts
+pub fn nika_compile_seats::rehearse::EffectCounts::default() -> nika_compile_seats::rehearse::EffectCounts
+impl core::fmt::Debug for nika_compile_seats::rehearse::EffectCounts
+pub fn nika_compile_seats::rehearse::EffectCounts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_seats::rehearse::EffectCounts
+impl core::marker::StructuralPartialEq for nika_compile_seats::rehearse::EffectCounts
+impl<D> owo_colors::OwoColorize for nika_compile_seats::rehearse::EffectCounts
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::rehearse::EffectCounts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::EffectCounts::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::rehearse::EffectCounts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::EffectCounts::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::rehearse::EffectCounts where U: core::convert::From<T>
+pub fn nika_compile_seats::rehearse::EffectCounts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::rehearse::EffectCounts where U: core::convert::Into<T>
+pub type nika_compile_seats::rehearse::EffectCounts::Error = core::convert::Infallible
+pub fn nika_compile_seats::rehearse::EffectCounts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::rehearse::EffectCounts where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::rehearse::EffectCounts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::rehearse::EffectCounts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::rehearse::EffectCounts where T: core::clone::Clone
+pub type nika_compile_seats::rehearse::EffectCounts::Owned = T
+pub fn nika_compile_seats::rehearse::EffectCounts::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::rehearse::EffectCounts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::rehearse::EffectCounts where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::EffectCounts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::rehearse::EffectCounts where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::EffectCounts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::rehearse::EffectCounts where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::EffectCounts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::rehearse::EffectCounts where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::rehearse::EffectCounts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::rehearse::EffectCounts
+pub fn nika_compile_seats::rehearse::EffectCounts::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::rehearse::EffectCounts where T: core::clone::Clone
+pub fn nika_compile_seats::rehearse::EffectCounts::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::EffectCounts where T: 'static
+pub fn nika_compile_seats::rehearse::EffectCounts::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile_seats::rehearse::EffectCounts where T: core::marker::Copy
+pub fn nika_compile_seats::rehearse::EffectCounts::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::EffectCounts
+pub type nika_compile_seats::rehearse::EffectCounts::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::rehearse::FailureRecord
+pub nika_compile_seats::rehearse::FailureRecord::cause: nika_compile_seats::rehearse::RecordedCause
+pub nika_compile_seats::rehearse::FailureRecord::code: alloc::string::String
+pub nika_compile_seats::rehearse::FailureRecord::task: alloc::string::String
+impl nika_compile_seats::rehearse::FailureRecord
+pub fn nika_compile_seats::rehearse::FailureRecord::new(task: impl core::convert::Into<alloc::string::String>, code: impl core::convert::Into<alloc::string::String>, cause: nika_compile_seats::rehearse::RecordedCause) -> Self
+impl core::clone::Clone for nika_compile_seats::rehearse::FailureRecord
+pub fn nika_compile_seats::rehearse::FailureRecord::clone(&self) -> nika_compile_seats::rehearse::FailureRecord
+impl core::cmp::Eq for nika_compile_seats::rehearse::FailureRecord
+impl core::cmp::PartialEq for nika_compile_seats::rehearse::FailureRecord
+pub fn nika_compile_seats::rehearse::FailureRecord::eq(&self, other: &nika_compile_seats::rehearse::FailureRecord) -> bool
+impl core::fmt::Debug for nika_compile_seats::rehearse::FailureRecord
+pub fn nika_compile_seats::rehearse::FailureRecord::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::rehearse::FailureRecord
+impl<D> owo_colors::OwoColorize for nika_compile_seats::rehearse::FailureRecord
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::rehearse::FailureRecord where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::FailureRecord::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::rehearse::FailureRecord where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::FailureRecord::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::rehearse::FailureRecord where U: core::convert::From<T>
+pub fn nika_compile_seats::rehearse::FailureRecord::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::rehearse::FailureRecord where U: core::convert::Into<T>
+pub type nika_compile_seats::rehearse::FailureRecord::Error = core::convert::Infallible
+pub fn nika_compile_seats::rehearse::FailureRecord::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::rehearse::FailureRecord where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::rehearse::FailureRecord::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::rehearse::FailureRecord::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::rehearse::FailureRecord where T: core::clone::Clone
+pub type nika_compile_seats::rehearse::FailureRecord::Owned = T
+pub fn nika_compile_seats::rehearse::FailureRecord::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::rehearse::FailureRecord::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::rehearse::FailureRecord where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::FailureRecord::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::rehearse::FailureRecord where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::FailureRecord::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::rehearse::FailureRecord where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::FailureRecord::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::rehearse::FailureRecord where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::rehearse::FailureRecord::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::rehearse::FailureRecord
+pub fn nika_compile_seats::rehearse::FailureRecord::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::rehearse::FailureRecord where T: core::clone::Clone
+pub fn nika_compile_seats::rehearse::FailureRecord::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::FailureRecord where T: 'static
+pub fn nika_compile_seats::rehearse::FailureRecord::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::FailureRecord
+pub type nika_compile_seats::rehearse::FailureRecord::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::rehearse::FinalReceipt
+pub nika_compile_seats::rehearse::FinalReceipt::path: alloc::string::String
+pub nika_compile_seats::rehearse::FinalReceipt::state: nika_compile_seats::rehearse::FinalState
+impl nika_compile_seats::rehearse::FinalReceipt
+pub fn nika_compile_seats::rehearse::FinalReceipt::new(path: impl core::convert::Into<alloc::string::String>, state: nika_compile_seats::rehearse::FinalState) -> Self
+impl core::clone::Clone for nika_compile_seats::rehearse::FinalReceipt
+pub fn nika_compile_seats::rehearse::FinalReceipt::clone(&self) -> nika_compile_seats::rehearse::FinalReceipt
+impl core::cmp::Eq for nika_compile_seats::rehearse::FinalReceipt
+impl core::cmp::PartialEq for nika_compile_seats::rehearse::FinalReceipt
+pub fn nika_compile_seats::rehearse::FinalReceipt::eq(&self, other: &nika_compile_seats::rehearse::FinalReceipt) -> bool
+impl core::fmt::Debug for nika_compile_seats::rehearse::FinalReceipt
+pub fn nika_compile_seats::rehearse::FinalReceipt::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::rehearse::FinalReceipt
+impl<D> owo_colors::OwoColorize for nika_compile_seats::rehearse::FinalReceipt
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::rehearse::FinalReceipt where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::FinalReceipt::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::rehearse::FinalReceipt where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::FinalReceipt::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::rehearse::FinalReceipt where U: core::convert::From<T>
+pub fn nika_compile_seats::rehearse::FinalReceipt::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::rehearse::FinalReceipt where U: core::convert::Into<T>
+pub type nika_compile_seats::rehearse::FinalReceipt::Error = core::convert::Infallible
+pub fn nika_compile_seats::rehearse::FinalReceipt::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::rehearse::FinalReceipt where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::rehearse::FinalReceipt::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::rehearse::FinalReceipt::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::rehearse::FinalReceipt where T: core::clone::Clone
+pub type nika_compile_seats::rehearse::FinalReceipt::Owned = T
+pub fn nika_compile_seats::rehearse::FinalReceipt::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::rehearse::FinalReceipt::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::rehearse::FinalReceipt where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::FinalReceipt::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::rehearse::FinalReceipt where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::FinalReceipt::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::rehearse::FinalReceipt where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::FinalReceipt::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::rehearse::FinalReceipt where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::rehearse::FinalReceipt::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::rehearse::FinalReceipt
+pub fn nika_compile_seats::rehearse::FinalReceipt::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::rehearse::FinalReceipt where T: core::clone::Clone
+pub fn nika_compile_seats::rehearse::FinalReceipt::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::FinalReceipt where T: 'static
+pub fn nika_compile_seats::rehearse::FinalReceipt::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::FinalReceipt
+pub type nika_compile_seats::rehearse::FinalReceipt::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::rehearse::LedgerFacts
+pub nika_compile_seats::rehearse::LedgerFacts::drained: bool
+pub nika_compile_seats::rehearse::LedgerFacts::late_refused: u64
+pub nika_compile_seats::rehearse::LedgerFacts::leftovers: u64
+pub nika_compile_seats::rehearse::LedgerFacts::panicked: u64
+pub nika_compile_seats::rehearse::LedgerFacts::written: alloc::vec::Vec<alloc::string::String>
+impl nika_compile_seats::rehearse::LedgerFacts
+pub fn nika_compile_seats::rehearse::LedgerFacts::clean(written: alloc::vec::Vec<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_compile_seats::rehearse::LedgerFacts
+pub fn nika_compile_seats::rehearse::LedgerFacts::clone(&self) -> nika_compile_seats::rehearse::LedgerFacts
+impl core::cmp::Eq for nika_compile_seats::rehearse::LedgerFacts
+impl core::cmp::PartialEq for nika_compile_seats::rehearse::LedgerFacts
+pub fn nika_compile_seats::rehearse::LedgerFacts::eq(&self, other: &nika_compile_seats::rehearse::LedgerFacts) -> bool
+impl core::default::Default for nika_compile_seats::rehearse::LedgerFacts
+pub fn nika_compile_seats::rehearse::LedgerFacts::default() -> nika_compile_seats::rehearse::LedgerFacts
+impl core::fmt::Debug for nika_compile_seats::rehearse::LedgerFacts
+pub fn nika_compile_seats::rehearse::LedgerFacts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::rehearse::LedgerFacts
+impl<D> owo_colors::OwoColorize for nika_compile_seats::rehearse::LedgerFacts
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::rehearse::LedgerFacts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::LedgerFacts::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::rehearse::LedgerFacts where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::LedgerFacts::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::rehearse::LedgerFacts where U: core::convert::From<T>
+pub fn nika_compile_seats::rehearse::LedgerFacts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::rehearse::LedgerFacts where U: core::convert::Into<T>
+pub type nika_compile_seats::rehearse::LedgerFacts::Error = core::convert::Infallible
+pub fn nika_compile_seats::rehearse::LedgerFacts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::rehearse::LedgerFacts where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::rehearse::LedgerFacts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::rehearse::LedgerFacts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::rehearse::LedgerFacts where T: core::clone::Clone
+pub type nika_compile_seats::rehearse::LedgerFacts::Owned = T
+pub fn nika_compile_seats::rehearse::LedgerFacts::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::rehearse::LedgerFacts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::rehearse::LedgerFacts where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::LedgerFacts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::rehearse::LedgerFacts where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::LedgerFacts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::rehearse::LedgerFacts where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::LedgerFacts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::rehearse::LedgerFacts where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::rehearse::LedgerFacts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::rehearse::LedgerFacts
+pub fn nika_compile_seats::rehearse::LedgerFacts::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::rehearse::LedgerFacts where T: core::clone::Clone
+pub fn nika_compile_seats::rehearse::LedgerFacts::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::LedgerFacts where T: 'static
+pub fn nika_compile_seats::rehearse::LedgerFacts::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::LedgerFacts
+pub type nika_compile_seats::rehearse::LedgerFacts::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::rehearse::Observation
+pub nika_compile_seats::rehearse::Observation::bounds: nika_compile_seats::rehearse::Bounds
+pub nika_compile_seats::rehearse::Observation::copies: alloc::vec::Vec<nika_compile_seats::rehearse::CopyReceipt>
+pub nika_compile_seats::rehearse::Observation::failure: core::option::Option<nika_compile_seats::rehearse::FailureRecord>
+pub nika_compile_seats::rehearse::Observation::finals: alloc::vec::Vec<nika_compile_seats::rehearse::FinalReceipt>
+pub nika_compile_seats::rehearse::Observation::ledger: nika_compile_seats::rehearse::LedgerFacts
+pub nika_compile_seats::rehearse::Observation::refusal: core::option::Option<nika_compile_seats::rehearse::Refusal>
+pub nika_compile_seats::rehearse::Observation::spent: nika_compile_seats::rehearse::Spent
+impl nika_compile_seats::rehearse::Observation
+pub fn nika_compile_seats::rehearse::Observation::none() -> Self
+pub fn nika_compile_seats::rehearse::Observation::refused(refusal: nika_compile_seats::rehearse::Refusal) -> Self
+impl core::clone::Clone for nika_compile_seats::rehearse::Observation
+pub fn nika_compile_seats::rehearse::Observation::clone(&self) -> nika_compile_seats::rehearse::Observation
+impl core::cmp::Eq for nika_compile_seats::rehearse::Observation
+impl core::cmp::PartialEq for nika_compile_seats::rehearse::Observation
+pub fn nika_compile_seats::rehearse::Observation::eq(&self, other: &nika_compile_seats::rehearse::Observation) -> bool
+impl core::default::Default for nika_compile_seats::rehearse::Observation
+pub fn nika_compile_seats::rehearse::Observation::default() -> nika_compile_seats::rehearse::Observation
+impl core::fmt::Debug for nika_compile_seats::rehearse::Observation
+pub fn nika_compile_seats::rehearse::Observation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::rehearse::Observation
+impl<D> owo_colors::OwoColorize for nika_compile_seats::rehearse::Observation
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::rehearse::Observation where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Observation::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::rehearse::Observation where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Observation::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::rehearse::Observation where U: core::convert::From<T>
+pub fn nika_compile_seats::rehearse::Observation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::rehearse::Observation where U: core::convert::Into<T>
+pub type nika_compile_seats::rehearse::Observation::Error = core::convert::Infallible
+pub fn nika_compile_seats::rehearse::Observation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::rehearse::Observation where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::rehearse::Observation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::rehearse::Observation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::rehearse::Observation where T: core::clone::Clone
+pub type nika_compile_seats::rehearse::Observation::Owned = T
+pub fn nika_compile_seats::rehearse::Observation::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::rehearse::Observation::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::rehearse::Observation where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Observation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::rehearse::Observation where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Observation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::rehearse::Observation where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Observation::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::rehearse::Observation where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::rehearse::Observation::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::rehearse::Observation
+pub fn nika_compile_seats::rehearse::Observation::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::rehearse::Observation where T: core::clone::Clone
+pub fn nika_compile_seats::rehearse::Observation::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::Observation where T: 'static
+pub fn nika_compile_seats::rehearse::Observation::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::Observation
+pub type nika_compile_seats::rehearse::Observation::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::rehearse::RehearsalReport
+pub nika_compile_seats::rehearse::RehearsalReport::admitted_digest: alloc::string::String
+pub nika_compile_seats::rehearse::RehearsalReport::attempt: nika_compile_seats::rehearse::Attempt
+pub nika_compile_seats::rehearse::RehearsalReport::candidate_sha256: alloc::string::String
+pub nika_compile_seats::rehearse::RehearsalReport::effects: nika_compile_seats::rehearse::EffectCounts
+pub nika_compile_seats::rehearse::RehearsalReport::observation: nika_compile_seats::rehearse::Observation
+pub nika_compile_seats::rehearse::RehearsalReport::outcome: nika_compile_seats::rehearse::Rehearsal
+pub nika_compile_seats::rehearse::RehearsalReport::room: nika_compile_seats::rehearse::RoomEvidence
+impl nika_compile_seats::rehearse::RehearsalReport
+pub fn nika_compile_seats::rehearse::RehearsalReport::new(outcome: nika_compile_seats::rehearse::Rehearsal, attempt: nika_compile_seats::rehearse::Attempt, effects: nika_compile_seats::rehearse::EffectCounts, candidate_sha256: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_compile_seats::rehearse::RehearsalReport::with_admitted_digest(self, admitted_digest: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_compile_seats::rehearse::RehearsalReport::with_observation(self, observation: nika_compile_seats::rehearse::Observation) -> Self
+pub fn nika_compile_seats::rehearse::RehearsalReport::with_room(self, room: nika_compile_seats::rehearse::RoomEvidence) -> Self
+impl core::clone::Clone for nika_compile_seats::rehearse::RehearsalReport
+pub fn nika_compile_seats::rehearse::RehearsalReport::clone(&self) -> nika_compile_seats::rehearse::RehearsalReport
+impl core::cmp::Eq for nika_compile_seats::rehearse::RehearsalReport
+impl core::cmp::PartialEq for nika_compile_seats::rehearse::RehearsalReport
+pub fn nika_compile_seats::rehearse::RehearsalReport::eq(&self, other: &nika_compile_seats::rehearse::RehearsalReport) -> bool
+impl core::fmt::Debug for nika_compile_seats::rehearse::RehearsalReport
+pub fn nika_compile_seats::rehearse::RehearsalReport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::rehearse::RehearsalReport
+impl<D> owo_colors::OwoColorize for nika_compile_seats::rehearse::RehearsalReport
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::rehearse::RehearsalReport where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::RehearsalReport::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::rehearse::RehearsalReport where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::RehearsalReport::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::rehearse::RehearsalReport where U: core::convert::From<T>
+pub fn nika_compile_seats::rehearse::RehearsalReport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::rehearse::RehearsalReport where U: core::convert::Into<T>
+pub type nika_compile_seats::rehearse::RehearsalReport::Error = core::convert::Infallible
+pub fn nika_compile_seats::rehearse::RehearsalReport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::rehearse::RehearsalReport where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::rehearse::RehearsalReport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::rehearse::RehearsalReport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::rehearse::RehearsalReport where T: core::clone::Clone
+pub type nika_compile_seats::rehearse::RehearsalReport::Owned = T
+pub fn nika_compile_seats::rehearse::RehearsalReport::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::rehearse::RehearsalReport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::rehearse::RehearsalReport where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::RehearsalReport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::rehearse::RehearsalReport where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::RehearsalReport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::rehearse::RehearsalReport where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::RehearsalReport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::rehearse::RehearsalReport where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::rehearse::RehearsalReport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::rehearse::RehearsalReport
+pub fn nika_compile_seats::rehearse::RehearsalReport::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::rehearse::RehearsalReport where T: core::clone::Clone
+pub fn nika_compile_seats::rehearse::RehearsalReport::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::RehearsalReport where T: 'static
+pub fn nika_compile_seats::rehearse::RehearsalReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::RehearsalReport
+pub type nika_compile_seats::rehearse::RehearsalReport::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::rehearse::RehearsedOutput
+pub nika_compile_seats::rehearse::RehearsedOutput::full_bytes: u64
+pub nika_compile_seats::rehearse::RehearsedOutput::full_sha256: alloc::string::String
+pub nika_compile_seats::rehearse::RehearsedOutput::path: alloc::string::String
+pub nika_compile_seats::rehearse::RehearsedOutput::text: alloc::string::String
+pub nika_compile_seats::rehearse::RehearsedOutput::truncated: bool
+pub nika_compile_seats::rehearse::RehearsedOutput::written: bool
+impl nika_compile_seats::rehearse::RehearsedOutput
+pub fn nika_compile_seats::rehearse::RehearsedOutput::new(path: impl core::convert::Into<alloc::string::String>, text: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_compile_seats::rehearse::RehearsedOutput::with_full(self, full_bytes: u64, full_sha256: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_compile_seats::rehearse::RehearsedOutput::with_written(self, written: bool) -> Self
+impl core::clone::Clone for nika_compile_seats::rehearse::RehearsedOutput
+pub fn nika_compile_seats::rehearse::RehearsedOutput::clone(&self) -> nika_compile_seats::rehearse::RehearsedOutput
+impl core::cmp::Eq for nika_compile_seats::rehearse::RehearsedOutput
+impl core::cmp::PartialEq for nika_compile_seats::rehearse::RehearsedOutput
+pub fn nika_compile_seats::rehearse::RehearsedOutput::eq(&self, other: &nika_compile_seats::rehearse::RehearsedOutput) -> bool
+impl core::fmt::Debug for nika_compile_seats::rehearse::RehearsedOutput
+pub fn nika_compile_seats::rehearse::RehearsedOutput::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::rehearse::RehearsedOutput
+impl<D> owo_colors::OwoColorize for nika_compile_seats::rehearse::RehearsedOutput
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::rehearse::RehearsedOutput where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::RehearsedOutput::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::rehearse::RehearsedOutput where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::RehearsedOutput::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::rehearse::RehearsedOutput where U: core::convert::From<T>
+pub fn nika_compile_seats::rehearse::RehearsedOutput::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::rehearse::RehearsedOutput where U: core::convert::Into<T>
+pub type nika_compile_seats::rehearse::RehearsedOutput::Error = core::convert::Infallible
+pub fn nika_compile_seats::rehearse::RehearsedOutput::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::rehearse::RehearsedOutput where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::rehearse::RehearsedOutput::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::rehearse::RehearsedOutput::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::rehearse::RehearsedOutput where T: core::clone::Clone
+pub type nika_compile_seats::rehearse::RehearsedOutput::Owned = T
+pub fn nika_compile_seats::rehearse::RehearsedOutput::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::rehearse::RehearsedOutput::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::rehearse::RehearsedOutput where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::RehearsedOutput::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::rehearse::RehearsedOutput where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::RehearsedOutput::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::rehearse::RehearsedOutput where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::RehearsedOutput::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::rehearse::RehearsedOutput where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::rehearse::RehearsedOutput::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::rehearse::RehearsedOutput
+pub fn nika_compile_seats::rehearse::RehearsedOutput::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::rehearse::RehearsedOutput where T: core::clone::Clone
+pub fn nika_compile_seats::rehearse::RehearsedOutput::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::RehearsedOutput where T: 'static
+pub fn nika_compile_seats::rehearse::RehearsedOutput::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::RehearsedOutput
+pub type nika_compile_seats::rehearse::RehearsedOutput::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::rehearse::RoomEvidence
+pub nika_compile_seats::rehearse::RoomEvidence::cleaned: bool
+pub nika_compile_seats::rehearse::RoomEvidence::late_refused: u32
+pub nika_compile_seats::rehearse::RoomEvidence::prepared: bool
+impl nika_compile_seats::rehearse::RoomEvidence
+pub fn nika_compile_seats::rehearse::RoomEvidence::new(prepared: bool, cleaned: bool) -> Self
+pub fn nika_compile_seats::rehearse::RoomEvidence::untouched() -> Self
+pub fn nika_compile_seats::rehearse::RoomEvidence::with_late_refused(self, late_refused: u32) -> Self
+impl core::clone::Clone for nika_compile_seats::rehearse::RoomEvidence
+pub fn nika_compile_seats::rehearse::RoomEvidence::clone(&self) -> nika_compile_seats::rehearse::RoomEvidence
+impl core::cmp::Eq for nika_compile_seats::rehearse::RoomEvidence
+impl core::cmp::PartialEq for nika_compile_seats::rehearse::RoomEvidence
+pub fn nika_compile_seats::rehearse::RoomEvidence::eq(&self, other: &nika_compile_seats::rehearse::RoomEvidence) -> bool
+impl core::fmt::Debug for nika_compile_seats::rehearse::RoomEvidence
+pub fn nika_compile_seats::rehearse::RoomEvidence::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_seats::rehearse::RoomEvidence
+impl core::marker::StructuralPartialEq for nika_compile_seats::rehearse::RoomEvidence
+impl<D> owo_colors::OwoColorize for nika_compile_seats::rehearse::RoomEvidence
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::rehearse::RoomEvidence where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::RoomEvidence::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::rehearse::RoomEvidence where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::RoomEvidence::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::rehearse::RoomEvidence where U: core::convert::From<T>
+pub fn nika_compile_seats::rehearse::RoomEvidence::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::rehearse::RoomEvidence where U: core::convert::Into<T>
+pub type nika_compile_seats::rehearse::RoomEvidence::Error = core::convert::Infallible
+pub fn nika_compile_seats::rehearse::RoomEvidence::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::rehearse::RoomEvidence where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::rehearse::RoomEvidence::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::rehearse::RoomEvidence::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::rehearse::RoomEvidence where T: core::clone::Clone
+pub type nika_compile_seats::rehearse::RoomEvidence::Owned = T
+pub fn nika_compile_seats::rehearse::RoomEvidence::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::rehearse::RoomEvidence::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::rehearse::RoomEvidence where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::RoomEvidence::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::rehearse::RoomEvidence where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::RoomEvidence::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::rehearse::RoomEvidence where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::RoomEvidence::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::rehearse::RoomEvidence where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::rehearse::RoomEvidence::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::rehearse::RoomEvidence
+pub fn nika_compile_seats::rehearse::RoomEvidence::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::rehearse::RoomEvidence where T: core::clone::Clone
+pub fn nika_compile_seats::rehearse::RoomEvidence::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::RoomEvidence where T: 'static
+pub fn nika_compile_seats::rehearse::RoomEvidence::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile_seats::rehearse::RoomEvidence where T: core::marker::Copy
+pub fn nika_compile_seats::rehearse::RoomEvidence::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::RoomEvidence
+pub type nika_compile_seats::rehearse::RoomEvidence::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::rehearse::Spent
+pub nika_compile_seats::rehearse::Spent::copied_bytes: u64
+pub nika_compile_seats::rehearse::Spent::read_back_bytes: u64
+impl nika_compile_seats::rehearse::Spent
+pub const fn nika_compile_seats::rehearse::Spent::new(copied_bytes: u64, read_back_bytes: u64) -> Self
+impl core::clone::Clone for nika_compile_seats::rehearse::Spent
+pub fn nika_compile_seats::rehearse::Spent::clone(&self) -> nika_compile_seats::rehearse::Spent
+impl core::cmp::Eq for nika_compile_seats::rehearse::Spent
+impl core::cmp::PartialEq for nika_compile_seats::rehearse::Spent
+pub fn nika_compile_seats::rehearse::Spent::eq(&self, other: &nika_compile_seats::rehearse::Spent) -> bool
+impl core::default::Default for nika_compile_seats::rehearse::Spent
+pub fn nika_compile_seats::rehearse::Spent::default() -> nika_compile_seats::rehearse::Spent
+impl core::fmt::Debug for nika_compile_seats::rehearse::Spent
+pub fn nika_compile_seats::rehearse::Spent::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_seats::rehearse::Spent
+impl core::marker::StructuralPartialEq for nika_compile_seats::rehearse::Spent
+impl<D> owo_colors::OwoColorize for nika_compile_seats::rehearse::Spent
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::rehearse::Spent where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Spent::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::rehearse::Spent where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Spent::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::rehearse::Spent where U: core::convert::From<T>
+pub fn nika_compile_seats::rehearse::Spent::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::rehearse::Spent where U: core::convert::Into<T>
+pub type nika_compile_seats::rehearse::Spent::Error = core::convert::Infallible
+pub fn nika_compile_seats::rehearse::Spent::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::rehearse::Spent where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::rehearse::Spent::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::rehearse::Spent::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::rehearse::Spent where T: core::clone::Clone
+pub type nika_compile_seats::rehearse::Spent::Owned = T
+pub fn nika_compile_seats::rehearse::Spent::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::rehearse::Spent::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::rehearse::Spent where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Spent::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::rehearse::Spent where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Spent::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::rehearse::Spent where T: ?core::marker::Sized
+pub fn nika_compile_seats::rehearse::Spent::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::rehearse::Spent where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::rehearse::Spent::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::rehearse::Spent
+pub fn nika_compile_seats::rehearse::Spent::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::rehearse::Spent where T: core::clone::Clone
+pub fn nika_compile_seats::rehearse::Spent::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::rehearse::Spent where T: 'static
+pub fn nika_compile_seats::rehearse::Spent::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile_seats::rehearse::Spent where T: core::marker::Copy
+pub fn nika_compile_seats::rehearse::Spent::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile_seats::rehearse::Spent
+pub type nika_compile_seats::rehearse::Spent::Output = T
+pub trait nika_compile_seats::rehearse::Rehearse: core::marker::Send + core::marker::Sync
+pub fn nika_compile_seats::rehearse::Rehearse::bound(&self) -> core::time::Duration
+pub fn nika_compile_seats::rehearse::Rehearse::rehearse<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String]) -> nika_compile_seats::rehearse::RehearsalFuture<'a>
+pub fn nika_compile_seats::rehearse::Rehearse::rehearse_reading<'a>(&'a self, candidate: &'a str, inputs: &'a [alloc::string::String], _targets: &'a [alloc::string::String]) -> nika_compile_seats::rehearse::RehearsalFuture<'a>
+pub fn nika_compile_seats::rehearse::judged_run(fixture: &str, report: &nika_compile_seats::rehearse::RehearsalReport, inputs: &[alloc::string::String], targets: &[alloc::string::String], declared: &[alloc::string::String]) -> nika_compile_fidelity::behavior::Run
+pub fn nika_compile_seats::rehearse::targets_of(contract: &nika_compile_fidelity::behavior::Contract) -> impl core::iter::traits::iterator::Iterator<Item = alloc::string::String> + use<>
+pub type nika_compile_seats::rehearse::RehearsalFuture<'a> = core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_compile_seats::rehearse::RehearsalReport> + core::marker::Send + 'a)>>

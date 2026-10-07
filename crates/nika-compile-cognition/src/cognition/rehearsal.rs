@@ -470,6 +470,11 @@ fn classify(candidate: &str, report: &RehearsalReport, end: &RunEnd) -> Result {
             "The rehearsal claimed success without a completed, effect-free observation."
                 .to_owned(),
         ),
+        // Non-exhaustive across the member boundary (ADR-146): an outcome this door does not
+        // know proves nothing, so it stops, never proceeds.
+        _ => Result::Stop(
+            "The rehearsal reported an outcome this compiler does not read.".to_owned(),
+        ),
     }
 }
 

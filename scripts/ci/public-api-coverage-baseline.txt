@@ -31,6 +31,7 @@ nika-compile-clauses
 nika-compile-cognition
 nika-compile-fidelity
 nika-compile-reader
+nika-compile-seats
 nika-compile-trigger
 nika-dap
 nika-dataflow

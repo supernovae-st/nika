@@ -167,7 +167,7 @@ extend-exclude = [
   # ADR-140: the prior Compile multilingual exclusion follows only moved files.
   "crates/nika-compile-cognition/src/cognition.rs",
   "crates/nika-compile-cognition/src/compose.rs",
-  "crates/nika-compile-cognition/src/decide.rs",
+  "crates/nika-compile-seats/src/decide.rs",
   "crates/nika-compile-cognition/src/predicate.rs",
   "crates/nika-compile-cognition/src/cognition/backstops.rs",
   "crates/nika-compile-cognition/src/cognition/instructions.rs",

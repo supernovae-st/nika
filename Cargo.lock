@@ -4756,6 +4756,7 @@ dependencies = [
  "nika-compile-clauses",
  "nika-compile-fidelity",
  "nika-compile-reader",
+ "nika-compile-seats",
  "nika-kernel",
  "nika-pack",
  "nika-providers",
@@ -4763,7 +4764,6 @@ dependencies = [
  "serde_json",
  "serde_yaml_bw",
  "sha2 0.10.9",
- "thiserror 2.0.20",
  "tokio",
  "unicode-normalization",
 ]
@@ -4787,6 +4787,18 @@ name = "nika-compile-reader"
 version = "0.122.0"
 dependencies = [
  "serde_json",
+]
+
+[[package]]
+name = "nika-compile-seats"
+version = "0.122.0"
+dependencies = [
+ "nika-compile",
+ "nika-compile-fidelity",
+ "nika-kernel",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
 ]
 
 [[package]]

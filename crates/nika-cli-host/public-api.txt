@@ -253,8 +253,8 @@ pub fn nika_cli_host::compile::typesafe::session::SessionSeat::finish(self) -> c
 pub fn nika_cli_host::compile::typesafe::session::SessionSeat::receipt(&self) -> core::option::Option<serde_json::value::Value>
 impl core::ops::drop::Drop for nika_cli_host::compile::typesafe::session::SessionSeat
 pub fn nika_cli_host::compile::typesafe::session::SessionSeat::drop(&mut self)
-impl nika_compile_cognition::decide::DecisionSeat for nika_cli_host::compile::typesafe::session::SessionSeat
-pub fn nika_cli_host::compile::typesafe::session::SessionSeat::choose<'a>(&'a self, question: &'a nika_compile_cognition::decide::ChoiceQuestion) -> nika_compile_cognition::decide::ChoiceFuture<'a>
+impl nika_compile_seats::decide::DecisionSeat for nika_cli_host::compile::typesafe::session::SessionSeat
+pub fn nika_cli_host::compile::typesafe::session::SessionSeat::choose<'a>(&'a self, question: &'a nika_compile_seats::decide::ChoiceQuestion) -> nika_compile_seats::decide::ChoiceFuture<'a>
 pub fn nika_cli_host::compile::typesafe::session::SessionSeat::name(&self) -> &str
 impl<D> owo_colors::OwoColorize for nika_cli_host::compile::typesafe::session::SessionSeat
 impl<T, U> core::convert::Into<U> for nika_cli_host::compile::typesafe::session::SessionSeat where U: core::convert::From<T>
@@ -338,7 +338,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli_host::compile::typesafe
 impl<T> typenum::type_operators::Same for nika_cli_host::compile::typesafe::Delivery
 pub type nika_cli_host::compile::typesafe::Delivery::Output = T
 #[non_exhaustive] pub struct nika_cli_host::compile::typesafe::Exchange
-pub nika_cli_host::compile::typesafe::Exchange::answer: nika_compile_cognition::decide::ChoiceAnswer
+pub nika_cli_host::compile::typesafe::Exchange::answer: nika_compile_seats::decide::ChoiceAnswer
 pub nika_cli_host::compile::typesafe::Exchange::billing_units: core::option::Option<u64>
 pub nika_cli_host::compile::typesafe::Exchange::status: u16
 impl core::clone::Clone for nika_cli_host::compile::typesafe::Exchange
@@ -384,7 +384,7 @@ impl<T> typenum::type_operators::Same for nika_cli_host::compile::typesafe::Exch
 pub type nika_cli_host::compile::typesafe::Exchange::Output = T
 #[non_exhaustive] pub struct nika_cli_host::compile::typesafe::ExchangeError
 pub nika_cli_host::compile::typesafe::ExchangeError::delivery: nika_cli_host::compile::typesafe::Delivery
-pub nika_cli_host::compile::typesafe::ExchangeError::error: nika_compile_cognition::decide::DecisionError
+pub nika_cli_host::compile::typesafe::ExchangeError::error: nika_compile_seats::decide::DecisionError
 impl core::clone::Clone for nika_cli_host::compile::typesafe::ExchangeError
 pub fn nika_cli_host::compile::typesafe::ExchangeError::clone(&self) -> nika_cli_host::compile::typesafe::ExchangeError
 impl core::cmp::Eq for nika_cli_host::compile::typesafe::ExchangeError
@@ -434,14 +434,14 @@ pub type nika_cli_host::compile::typesafe::ExchangeError::Output = T
 pub struct nika_cli_host::compile::typesafe::TypesafeSeat
 impl nika_cli_host::compile::typesafe::TypesafeSeat
 pub fn nika_cli_host::compile::typesafe::TypesafeSeat::endpoint_host(&self) -> alloc::string::String
-pub fn nika_cli_host::compile::typesafe::TypesafeSeat::exchange<'a>(&'a self, question: &'a nika_compile_cognition::decide::ChoiceQuestion) -> nika_cli_host::compile::typesafe::ExchangeFuture<'a>
+pub fn nika_cli_host::compile::typesafe::TypesafeSeat::exchange<'a>(&'a self, question: &'a nika_compile_seats::decide::ChoiceQuestion) -> nika_cli_host::compile::typesafe::ExchangeFuture<'a>
 pub fn nika_cli_host::compile::typesafe::TypesafeSeat::from_env(model: &str) -> core::result::Result<Self, alloc::string::String>
 pub fn nika_cli_host::compile::typesafe::TypesafeSeat::model(&self) -> &str
 pub fn nika_cli_host::compile::typesafe::TypesafeSeat::new(key: alloc::string::String, model: &str) -> core::result::Result<Self, alloc::string::String>
 pub fn nika_cli_host::compile::typesafe::TypesafeSeat::timeout(&self) -> core::time::Duration
 pub fn nika_cli_host::compile::typesafe::TypesafeSeat::with_base(key: alloc::string::String, model: &str, base: &str) -> core::result::Result<Self, alloc::string::String>
-impl nika_compile_cognition::decide::DecisionSeat for nika_cli_host::compile::typesafe::TypesafeSeat
-pub fn nika_cli_host::compile::typesafe::TypesafeSeat::choose<'a>(&'a self, question: &'a nika_compile_cognition::decide::ChoiceQuestion) -> nika_compile_cognition::decide::ChoiceFuture<'a>
+impl nika_compile_seats::decide::DecisionSeat for nika_cli_host::compile::typesafe::TypesafeSeat
+pub fn nika_cli_host::compile::typesafe::TypesafeSeat::choose<'a>(&'a self, question: &'a nika_compile_seats::decide::ChoiceQuestion) -> nika_compile_seats::decide::ChoiceFuture<'a>
 pub fn nika_cli_host::compile::typesafe::TypesafeSeat::name(&self) -> &str
 impl<D> owo_colors::OwoColorize for nika_cli_host::compile::typesafe::TypesafeSeat
 impl<T, U> core::convert::Into<U> for nika_cli_host::compile::typesafe::TypesafeSeat where U: core::convert::From<T>
