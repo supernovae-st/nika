@@ -22,6 +22,9 @@
 
 pub mod authoring;
 pub mod client;
+/// The authoring seat a compile names as `<harness>/<model>`: the operator's agent over ACP,
+/// or native Codex under its measured tool-free profile.
+pub mod compile_seat;
 pub mod declaration;
 pub mod infer;
 mod media;

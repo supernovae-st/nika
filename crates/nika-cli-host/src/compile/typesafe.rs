@@ -74,6 +74,17 @@ pub struct ExchangeError {
 pub type ExchangeFuture<'a> =
     Pin<Box<dyn Future<Output = Result<Exchange, ExchangeError>> + Send + 'a>>;
 
+/// The seat `typesafe/<model>` names, opened from the environment for a door that seats it for
+/// many rounds (Serve), with its key to withhold. Errors as [`TypesafeSeat::from_env`].
+///
+/// # Errors
+/// The key is absent, empty or malformed, or the endpoint is refused.
+pub fn seat(model: &str) -> Result<nika_onboard::remote_door::decision::Opened, String> {
+    let seat = TypesafeSeat::from_env(model)?;
+    let key = nika_kernel::secret::Secret::new(seat.key.as_str());
+    Ok((Box::new(seat), key))
+}
+
 impl TypesafeSeat {
     /// `model` is the wire id (`jev-1.13.0`); the key must already be in hand. The endpoint is
     /// `TYPESAFE_BASE_URL` when the operator names one, else the public service.

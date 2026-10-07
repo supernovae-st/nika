@@ -470,6 +470,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli_host::compile::typesafe
 impl<T> typenum::type_operators::Same for nika_cli_host::compile::typesafe::TypesafeSeat
 pub type nika_cli_host::compile::typesafe::TypesafeSeat::Output = T
 pub const nika_cli_host::compile::typesafe::TIMEOUT: core::time::Duration
+pub fn nika_cli_host::compile::typesafe::seat(model: &str) -> core::result::Result<nika_onboard::remote_door::decision::Opened, alloc::string::String>
 pub type nika_cli_host::compile::typesafe::ExchangeFuture<'a> = core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<nika_cli_host::compile::typesafe::Exchange, nika_cli_host::compile::typesafe::ExchangeError>> + core::marker::Send + 'a)>>
 #[non_exhaustive] pub enum nika_cli_host::compile::CaptureState
 pub nika_cli_host::compile::CaptureState::Armed
@@ -926,6 +927,8 @@ pub type nika_cli_host::compile::CompileArgs::Output = T
 pub nika_cli_host::compile::CompileCommand::args: nika_cli_host::compile::CompileArgs
 pub nika_cli_host::compile::CompileCommand::authority: nika_cli_host::compile::AuthoringAuthority
 pub nika_cli_host::compile::CompileCommand::capture: nika_cli_host::compile::CaptureFlags
+pub nika_cli_host::compile::CompileCommand::observe: nika_cli_host::compile::ObserveFlags
+pub nika_cli_host::compile::CompileCommand::trials: core::option::Option<nika_onboard::compile::room::ObservedRoom>
 impl nika_cli_host::compile::CompileCommand
 pub const fn nika_cli_host::compile::CompileCommand::new(args: nika_cli_host::compile::CompileArgs, authority: nika_cli_host::compile::AuthoringAuthority) -> Self
 pub fn nika_cli_host::compile::CompileCommand::run(&self) -> nika_cli_host::output::VerbOutput
@@ -968,6 +971,7 @@ impl<T> typenum::type_operators::Same for nika_cli_host::compile::CompileCommand
 pub type nika_cli_host::compile::CompileCommand::Output = T
 pub struct nika_cli_host::compile::NativeAuthoringArgs
 pub nika_cli_host::compile::NativeAuthoringArgs::deadline: core::option::Option<u64>
+pub nika_cli_host::compile::NativeAuthoringArgs::decision_model: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::NativeAuthoringArgs::knowledge: core::option::Option<std::path::PathBuf>
 pub nika_cli_host::compile::NativeAuthoringArgs::knowledge_exclude: core::option::Option<alloc::string::String>
 pub nika_cli_host::compile::NativeAuthoringArgs::max_tokens: core::option::Option<u32>
@@ -1028,8 +1032,66 @@ pub type nika_cli_host::serve_args::NativeAuthoringArgs::Output = T
 impl<T> zvariant::optional::NoneValue for nika_cli_host::serve_args::NativeAuthoringArgs where T: core::default::Default
 pub type nika_cli_host::serve_args::NativeAuthoringArgs::NoneType = T
 pub fn nika_cli_host::serve_args::NativeAuthoringArgs::null_value() -> T
+#[non_exhaustive] pub struct nika_cli_host::compile::ObserveFlags
+pub nika_cli_host::compile::ObserveFlags::observe_only: bool
+impl clap_builder::derive::Args for nika_cli_host::compile::ObserveFlags
+pub fn nika_cli_host::compile::ObserveFlags::augment_args<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli_host::compile::ObserveFlags::augment_args_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_cli_host::compile::ObserveFlags::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for nika_cli_host::compile::ObserveFlags
+pub fn nika_cli_host::compile::ObserveFlags::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli_host::compile::ObserveFlags::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_cli_host::compile::ObserveFlags::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_cli_host::compile::ObserveFlags::update_from_arg_matches_mut(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl core::clone::Clone for nika_cli_host::compile::ObserveFlags
+pub fn nika_cli_host::compile::ObserveFlags::clone(&self) -> nika_cli_host::compile::ObserveFlags
+impl core::default::Default for nika_cli_host::compile::ObserveFlags
+pub fn nika_cli_host::compile::ObserveFlags::default() -> nika_cli_host::compile::ObserveFlags
+impl core::fmt::Debug for nika_cli_host::compile::ObserveFlags
+pub fn nika_cli_host::compile::ObserveFlags::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli_host::compile::ObserveFlags
+impl<D> owo_colors::OwoColorize for nika_cli_host::compile::ObserveFlags
+impl<T, U> core::convert::Into<U> for nika_cli_host::compile::ObserveFlags where U: core::convert::From<T>
+pub fn nika_cli_host::compile::ObserveFlags::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::compile::ObserveFlags where U: core::convert::Into<T>
+pub type nika_cli_host::compile::ObserveFlags::Error = core::convert::Infallible
+pub fn nika_cli_host::compile::ObserveFlags::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::compile::ObserveFlags where U: core::convert::TryFrom<T>
+pub type nika_cli_host::compile::ObserveFlags::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::compile::ObserveFlags::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::compile::ObserveFlags where T: core::clone::Clone
+pub type nika_cli_host::compile::ObserveFlags::Owned = T
+pub fn nika_cli_host::compile::ObserveFlags::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::compile::ObserveFlags::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::compile::ObserveFlags where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::compile::ObserveFlags::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::compile::ObserveFlags where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::ObserveFlags::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::compile::ObserveFlags where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::ObserveFlags::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::compile::ObserveFlags where T: core::clone::Clone
+pub unsafe fn nika_cli_host::compile::ObserveFlags::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::compile::ObserveFlags
+pub fn nika_cli_host::compile::ObserveFlags::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::compile::ObserveFlags where T: core::clone::Clone
+pub fn nika_cli_host::compile::ObserveFlags::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::compile::ObserveFlags where T: 'static
+pub fn nika_cli_host::compile::ObserveFlags::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli_host::compile::ObserveFlags where T: core::marker::Copy
+pub fn nika_cli_host::compile::ObserveFlags::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::compile::ObserveFlags where T: ?core::marker::Sized
+pub fn nika_cli_host::compile::ObserveFlags::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::compile::ObserveFlags::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::compile::ObserveFlags
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::compile::ObserveFlags
+impl<T> typenum::type_operators::Same for nika_cli_host::compile::ObserveFlags
+pub type nika_cli_host::compile::ObserveFlags::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli_host::compile::ObserveFlags where T: core::default::Default
+pub type nika_cli_host::compile::ObserveFlags::NoneType = T
+pub fn nika_cli_host::compile::ObserveFlags::null_value() -> T
 pub fn nika_cli_host::compile::authoring_http() -> core::result::Result<impl nika_kernel_core::io::http::HttpPostDyn, nika_kernel_core::io::http::HttpError>
 pub fn nika_cli_host::compile::authoring_http_with_deadline(deadline: core::time::Duration) -> core::result::Result<impl nika_kernel_core::io::http::HttpPostDyn, nika_kernel_core::io::http::HttpError>
+pub fn nika_cli_host::compile::decision_seat_note(model: &str) -> &'static str
 pub fn nika_cli_host::compile::run(args: &nika_cli_host::compile::CompileArgs) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli_host::compile::run_with(args: &nika_cli_host::compile::CompileArgs, authority: &nika_cli_host::compile::AuthoringAuthority) -> nika_cli_host::output::VerbOutput
 pub type nika_cli_host::compile::CaptureListener = alloc::sync::Arc<(dyn core::ops::function::Fn(nika_cli_host::compile::CaptureStatus) + core::marker::Send + core::marker::Sync)>
@@ -3205,6 +3267,7 @@ pub fn nika_cli_host::run_settlement::write_run_settlement<T: serde_core::ser::S
 pub mod nika_cli_host::serve_args
 pub struct nika_cli_host::serve_args::NativeAuthoringArgs
 pub nika_cli_host::serve_args::NativeAuthoringArgs::deadline: core::option::Option<u64>
+pub nika_cli_host::serve_args::NativeAuthoringArgs::decision_model: core::option::Option<alloc::string::String>
 pub nika_cli_host::serve_args::NativeAuthoringArgs::knowledge: core::option::Option<std::path::PathBuf>
 pub nika_cli_host::serve_args::NativeAuthoringArgs::knowledge_exclude: core::option::Option<alloc::string::String>
 pub nika_cli_host::serve_args::NativeAuthoringArgs::max_tokens: core::option::Option<u32>

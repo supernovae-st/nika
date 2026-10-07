@@ -28,7 +28,8 @@
 //! TLS-blind posture) — (the composer surfaces all three on stderr, the
 //! FCI-009 honest seam: the run journal's `EventSink` is a `&mut` threaded
 //! through the settle pass, unreachable from an out-of-band proxy thread —
-//! the `StderrEmitter` precedent in `nika-cli`).
+//! the `StderrEmitter` precedent in `nika-cli`). A journal thread writes
+//! those lines: a connection never waits for stderr (`journal`).
 //!
 //! The floor under the allowlist (the 2026-07-23 red-team stopgaps, now
 //! law): (1) DNS-rebinding is REFUSED AT THE DIAL — every resolved address
@@ -63,6 +64,10 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 use nika_kernel::process::EgressAllowlist;
+
+mod journal;
+
+pub(crate) use journal::stderr_journal;
 
 /// Handshake-phase I/O deadline (greeting, CONNECT line, SOCKS request). A
 /// stalled handshake cannot hold a connection thread forever; the tunnel
@@ -115,43 +120,9 @@ pub enum EgressEvent {
 
 /// The event sink — the composer wires the stderr journal, tests wire a
 /// collecting probe. `Fn` (never `FnMut`): the proxy calls it from
-/// connection threads.
+/// connection threads, before it dials, so it must not wait: the client's
+/// CONNECT waits with it.
 pub type EgressObserver = Arc<dyn Fn(&EgressEvent) + Send + Sync>;
-
-/// The one journal line for an event (pure — the [`stderr_journal`]
-/// wrapper's `eprintln` is the only impurity, so tests pin the EXACT
-/// shapes: the REFUSED row is the greppable security event, `allowed`
-/// the debug line, `closed` the metering row).
-fn journal_line(event: &EgressEvent) -> String {
-    match event {
-        EgressEvent::Decision(d) if d.allowed => {
-            format!("nika:egress allowed {}:{}", d.host, d.port)
-        }
-        EgressEvent::Decision(d) => format!(
-            "nika:egress REFUSED {}:{} (not in permits.net.http)",
-            d.host, d.port
-        ),
-        EgressEvent::Closed {
-            host,
-            port,
-            bytes_up,
-            bytes_down,
-        } => format!("nika:egress closed {host}:{port} up={bytes_up} down={bytes_down}"),
-    }
-}
-
-/// The default journal when no observer is injected — a namespaced stderr
-/// line per event (see the module doc for the FCI-009 seam rationale).
-/// REFUSED is the security event (greppable), `allowed` the debug line,
-/// `closed` the metering row (F-P5 · octets, never content).
-/// stderr, NOT `tracing::warn!`: no workspace tracing subscriber exists
-/// (the `StderrEmitter` precedent in `nika-cli`), so a tracing call would
-/// journal into the void — and a security journal that can silently vanish
-/// is worse than an unformatted one.
-#[allow(clippy::disallowed_macros, clippy::print_stderr)]
-pub(crate) fn stderr_journal() -> EgressObserver {
-    Arc::new(|e: &EgressEvent| eprintln!("{}", journal_line(e)))
-}
 
 /// The per-run loopback proxy. Owns the accept thread; `Drop` stops the
 /// listener (no orphan listener outlives the runner — see `Drop`).
@@ -720,7 +691,7 @@ impl crate::TokioShell {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
+    use std::sync::{Mutex, mpsc};
 
     /// A collecting observer — every event the proxy journalised, in order.
     #[derive(Clone, Default)]
@@ -877,34 +848,40 @@ mod tests {
     }
 
     #[test]
-    fn the_journal_lines_are_the_greppable_contract() {
-        // F-P5 (b) · REFUSED is the security event, verbatim — the
-        // composer greps this line; `allowed` and `closed` are the debug
-        // and metering rows.
-        let refused = journal_line(&EgressEvent::Decision(EgressDecision {
-            host: "evil.com".to_owned(),
-            port: 443,
-            allowed: false,
-        }));
-        assert_eq!(
-            refused,
-            "nika:egress REFUSED evil.com:443 (not in permits.net.http)"
-        );
-        let allowed = journal_line(&EgressEvent::Decision(EgressDecision {
-            host: "api.github.com".to_owned(),
-            port: 443,
-            allowed: true,
-        }));
-        assert_eq!(allowed, "nika:egress allowed api.github.com:443");
-        let closed = journal_line(&EgressEvent::Closed {
-            host: "api.github.com".to_owned(),
-            port: 443,
-            bytes_up: 128,
-            bytes_down: 4096,
+    fn a_waiting_journal_never_stalls_the_connect_it_reports() {
+        // `nika run` holds the stderr lock until the run ends. A line
+        // written before the dial kept every confined CONNECT waiting for
+        // the run, and the child's client timed out. This writer waits for
+        // the test's release, the way that lock waits for the run.
+        let (release, held) = mpsc::channel::<()>();
+        let held = Mutex::new(held);
+        let (written, lines) = mpsc::channel::<String>();
+        let observer = journal::queued_journal(move |line| {
+            if let Ok(held) = held.lock() {
+                let _ = held.recv();
+            }
+            let _ = written.send(line.to_owned());
         });
+        let (upstream_port, echo) = echo_upstream();
+        let proxy = EgressProxy::start(vec!["127.0.0.1".to_owned()], observer)
+            .expect("proxy starts on loopback");
+        let mut c = dial(proxy.port());
+        c.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        write!(c, "CONNECT 127.0.0.1:{upstream_port} HTTP/1.1\r\n\r\n").unwrap();
+        let mut buf = [0u8; 64];
+        let n = c
+            .read(&mut buf)
+            .expect("the CONNECT is answered while its journal line waits");
+        assert!(String::from_utf8_lossy(&buf[..n]).contains("200 Connection Established"));
+        c.write_all(b"PING").unwrap();
+        let n = c.read(&mut buf).unwrap();
+        assert_eq!(&buf[..n], b"PING", "the tunnel relays while the line waits");
+        echo.join().unwrap();
+        drop(release);
         assert_eq!(
-            closed,
-            "nika:egress closed api.github.com:443 up=128 down=4096"
+            lines.recv_timeout(Duration::from_secs(2)).unwrap(),
+            format!("nika:egress allowed 127.0.0.1:{upstream_port}"),
+            "the line is written once the writer is free"
         );
     }
 

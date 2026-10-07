@@ -5,8 +5,9 @@
 //!
 //! Off unless the operator builds the server with [`ServerConfig::with_native_authoring`]
 //! (`nika serve --authoring-model`): a default server speaks generation 1 alone, byte for byte.
-//! The seat is ONE direct provider model — never a harness, never a decision seat — with its
-//! route's completion capacity and any explicit operator limits, plus an
+//! The seat is ONE direct provider model — never a harness — with its route's completion
+//! capacity and any explicit operator limits, an optional decision model that judges in place
+//! of the author (`--decision-model`, the `nika compile` words), plus an
 //! optional Foundry knowledge snapshot, opened, verified and pinned when the listener attaches
 //! through the configuration parser and knowledge reader every door shares
 //! (`nika_cli_host::compile::{config, knowledge}`). The strategy is fixed: the shared default
@@ -22,10 +23,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use nika_cli_host::compile::{config, knowledge};
+use nika_cli_host::compile::{config, knowledge, typesafe};
 use nika_error::prelude::{NikaCode, NikaErrorCode, codes};
 use nika_kernel::secret::Secret;
-use nika_providers::{ProviderRegistry, ProvidersConfig};
+use nika_onboard::compile::room::JqHelper;
+use nika_onboard::remote_door::decision::{DecisionModel, direct_provider};
+use nika_providers::ProvidersConfig;
 
 use super::super::config::ServerConfig;
 use super::replay::Replays;
@@ -42,6 +45,8 @@ pub struct NativeAuthoring {
     replay_entries: Option<usize>,
     replay_ttl: Option<Duration>,
     withheld: Vec<Secret>,
+    decision: Option<String>,
+    trials: Option<JqHelper>,
 }
 
 impl NativeAuthoring {
@@ -72,7 +77,25 @@ impl NativeAuthoring {
             replay_entries: None,
             replay_ttl: None,
             withheld: Vec::new(),
+            decision: None,
+            trials: None,
         }
+    }
+
+    /// Try each final candidate on the caller's `trial_inputs` in the shared observed room, `jq`
+    /// evaluating its steps; without it, `trial_inputs` is refused.
+    #[must_use]
+    pub fn with_trials(mut self, jq: JqHelper) -> Self {
+        self.trials = Some(jq);
+        self
+    }
+
+    /// Seat a decision model that judges in place of the author; it opens (its key withheld)
+    /// when the listener attaches, or refuses the server.
+    #[must_use]
+    pub fn with_decision_model(mut self, model: impl Into<String>) -> Self {
+        self.decision = Some(model.into());
+        self
     }
 
     /// Explicit positive output-token limit per call.
@@ -177,6 +200,7 @@ impl fmt::Debug for NativeAuthoring {
             .field("model", &self.model)
             .field("bounds", &self.bounds)
             .field("knowledge", &self.named.knowledge.is_some())
+            .field("decision", &self.decision)
             .finish_non_exhaustive()
     }
 }
@@ -278,6 +302,12 @@ pub fn seat_native_authoring_with_calls(
     if let Some(word) = config::reasoning_word(flags.reasoning.as_deref()) {
         seat = seat.with_reasoning(word);
     }
+    if let Some(model) = &flags.decision_model {
+        seat = seat.with_decision_model(model.as_str());
+    }
+    if let Ok(exe) = std::env::current_exe() {
+        seat = seat.with_trials(JqHelper::new(exe));
+    }
     Ok(Some(config.with_native_authoring(seat)))
 }
 
@@ -296,6 +326,8 @@ pub(in crate::server) struct Seat {
     pub(in crate::server) replays: Arc<Replays>,
     /// Raised once when the server stops: every round of this seat stops with it.
     halt: tokio::sync::watch::Sender<bool>,
+    pub(in crate::server) decision: Option<DecisionModel>,
+    pub(in crate::server) trials: Option<JqHelper>,
 }
 
 /// The pinned snapshot no longer reads as pinned (changed, stale or gone).
@@ -307,7 +339,13 @@ impl Seat {
     /// refuse there), no environment read. The provider's key joins the withheld values.
     pub(in crate::server) fn open(config: &NativeAuthoring) -> Result<Self, NativeAuthoringError> {
         let bounds = bounds(config)?;
-        let (provider, key) = direct_provider(&config.model, &config.providers)?;
+        let (provider, key) =
+            direct_provider(&config.model, &config.providers).map_err(|reason| {
+                NativeAuthoringError::Model {
+                    model: config.model.clone(),
+                    reason,
+                }
+            })?;
         let none = config::AuthoringSettings::none();
         let authoring =
             config::resolve(&config.named, &none).map_err(|error| NativeAuthoringError::Model {
@@ -318,6 +356,17 @@ impl Seat {
             .map_err(|error| NativeAuthoringError::Knowledge(error.to_string()))?;
         let mut withheld = config.withheld.clone();
         withheld.extend(key);
+        let opened = (config.decision.as_deref())
+            .map(|model| DecisionModel::open(model, &config.providers, typesafe::seat))
+            .transpose()
+            .map_err(|reason| NativeAuthoringError::Model {
+                model: config.decision.clone().unwrap_or_default(),
+                reason,
+            })?;
+        let decision = opened.map(|(seat, key)| {
+            withheld.extend(key);
+            seat
+        });
         Ok(Self {
             model: config.model.clone(),
             provider,
@@ -328,6 +377,8 @@ impl Seat {
             withheld,
             replays: Replays::new(config.replay_entries, config.replay_ttl),
             halt: tokio::sync::watch::channel(false).0,
+            decision,
+            trials: config.trials.clone(),
         })
     }
 
@@ -359,29 +410,8 @@ impl Seat {
     /// Whether a document carries a withheld value, raw or as a JSON string carries it
     /// (escaped): every nonempty value counts, however short.
     pub(super) fn discloses(&self, document: &[u8]) -> bool {
-        self.withheld
-            .iter()
-            .map(Secret::expose)
-            .filter(|secret| !secret.is_empty())
-            .any(|secret| {
-                contains(document, secret.as_bytes())
-                    || escaped(secret).is_some_and(|escaped| contains(document, escaped.as_bytes()))
-            })
+        nika_onboard::remote_door::decision::discloses(&self.withheld, document)
     }
-}
-
-/// A value as the body of a JSON string spells it (the enclosing quotes removed, exactly one
-/// each side).
-fn escaped(value: &str) -> Option<String> {
-    let quoted = serde_json::to_string(value).ok()?;
-    Some(quoted.strip_prefix('"')?.strip_suffix('"')?.to_owned())
-}
-
-fn contains(haystack: &[u8], needle: &[u8]) -> bool {
-    !needle.is_empty()
-        && haystack
-            .windows(needle.len())
-            .any(|window| window == needle)
 }
 
 fn bounds(config: &NativeAuthoring) -> Result<Bounds, NativeAuthoringError> {
@@ -409,35 +439,6 @@ fn bounds(config: &NativeAuthoring) -> Result<Bounds, NativeAuthoringError> {
         return refuse("authoring max_calls must be positive");
     }
     Ok(bounds)
-}
-
-/// A direct provider model that resolves now (known provider, its key present): its canonical
-/// id and the key it resolved (`None` when keyless). A harness seat or any other name refuses,
-/// never falls back.
-fn direct_provider(
-    model: &str,
-    providers: &ProvidersConfig,
-) -> Result<(String, Option<Secret>), NativeAuthoringError> {
-    let refuse = |reason: String| NativeAuthoringError::Model {
-        model: model.to_owned(),
-        reason,
-    };
-    let Some((id, _)) = model.split_once('/') else {
-        return Err(refuse("name it `provider/name`".to_owned()));
-    };
-    if nika_types::access::HarnessRuntime::lookup(id).is_some() {
-        return Err(refuse(
-            "a harness seat cannot author on the server; seat a direct provider model".to_owned(),
-        ));
-    }
-    let http = nika_runtime::compose::provider_http().map_err(|error| refuse(error.to_string()))?;
-    let resolved = ProviderRegistry::new(Arc::new(http), providers.clone())
-        .resolve(model)
-        .map_err(|error| refuse(error.to_string()))?;
-    Ok((
-        nika_providers::profile::canonical_provider(id).to_owned(),
-        resolved.key().cloned(),
-    ))
 }
 
 #[cfg(test)]

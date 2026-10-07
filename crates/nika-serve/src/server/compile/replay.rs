@@ -162,6 +162,7 @@ mod tests {
         Input::Create {
             intent: intent.to_owned(),
             workflow_id: None,
+            observed: None,
         }
     }
 

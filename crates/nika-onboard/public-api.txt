@@ -59,6 +59,7 @@ pub use nika_onboard::compile::observe
 pub use nika_onboard::compile::outcome_document
 pub use nika_onboard::compile::program_records
 pub use nika_onboard::compile::rehearse
+pub use nika_onboard::compile::remote
 pub use nika_onboard::compile::retrieve
 pub use nika_onboard::compile::retrieve_by_ops
 pub use nika_onboard::compile::revise_intent
@@ -2455,6 +2456,115 @@ pub mod nika_onboard::recipes
 pub mod nika_onboard::rehearsal
 pub fn nika_onboard::rehearsal::stage(slug: &str, room: &std::path::Path) -> core::io::error::Result<usize>
 pub fn nika_onboard::rehearsal::supplied_vars(slug: &str, operator: &[alloc::string::String]) -> impl core::iter::traits::iterator::Iterator<Item = alloc::string::String>
+pub mod nika_onboard::remote_door
+pub mod nika_onboard::remote_door::decision
+#[non_exhaustive] pub enum nika_onboard::remote_door::decision::DecisionModel
+pub nika_onboard::remote_door::decision::DecisionModel::Provider(alloc::string::String)
+pub nika_onboard::remote_door::decision::DecisionModel::Typesafe(alloc::boxed::Box<(dyn nika_compile_seats::decide::DecisionSeat + core::marker::Send + core::marker::Sync)>, alloc::string::String)
+impl nika_onboard::remote_door::decision::DecisionModel
+pub fn nika_onboard::remote_door::decision::DecisionModel::judge<'a, P: nika_kernel_ai::provider::ProviderInferDyn>(&'a self, provider: core::option::Option<&'a P>, (timeout, max_tokens): (core::time::Duration, u32), reasoning: core::option::Option<nika_compile::types::AuthoringReasoning>) -> core::option::Option<nika_onboard::remote_door::decision::Judge<'a, P>>
+pub fn nika_onboard::remote_door::decision::DecisionModel::model(&self) -> alloc::string::String
+pub fn nika_onboard::remote_door::decision::DecisionModel::open(model: &str, providers: &nika_providers::registry::ProvidersConfig, typesafe: impl core::ops::function::FnOnce(&str) -> core::result::Result<nika_onboard::remote_door::decision::Opened, alloc::string::String>) -> core::result::Result<(Self, core::option::Option<nika_kernel_core::infra::secret::Secret>), alloc::string::String>
+pub fn nika_onboard::remote_door::decision::DecisionModel::resolve(&self, providers: &nika_providers::registry::ProvidersConfig) -> core::result::Result<core::option::Option<impl nika_kernel_ai::provider::ProviderInferDyn + use<>>, alloc::string::String>
+pub fn nika_onboard::remote_door::decision::DecisionModel::stamp(&self, backend: &mut serde_json::value::Value, note: &str)
+impl<D> owo_colors::OwoColorize for nika_onboard::remote_door::decision::DecisionModel
+impl<T, U> core::convert::Into<U> for nika_onboard::remote_door::decision::DecisionModel where U: core::convert::From<T>
+pub fn nika_onboard::remote_door::decision::DecisionModel::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::remote_door::decision::DecisionModel where U: core::convert::Into<T>
+pub type nika_onboard::remote_door::decision::DecisionModel::Error = core::convert::Infallible
+pub fn nika_onboard::remote_door::decision::DecisionModel::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::remote_door::decision::DecisionModel where U: core::convert::TryFrom<T>
+pub type nika_onboard::remote_door::decision::DecisionModel::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::remote_door::decision::DecisionModel::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_onboard::remote_door::decision::DecisionModel where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::remote_door::decision::DecisionModel::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::remote_door::decision::DecisionModel where T: ?core::marker::Sized
+pub fn nika_onboard::remote_door::decision::DecisionModel::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::remote_door::decision::DecisionModel where T: ?core::marker::Sized
+pub fn nika_onboard::remote_door::decision::DecisionModel::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_onboard::remote_door::decision::DecisionModel
+pub fn nika_onboard::remote_door::decision::DecisionModel::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_onboard::remote_door::decision::DecisionModel where T: 'static
+pub fn nika_onboard::remote_door::decision::DecisionModel::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::remote_door::decision::DecisionModel where T: ?core::marker::Sized
+pub fn nika_onboard::remote_door::decision::DecisionModel::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::remote_door::decision::DecisionModel::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::remote_door::decision::DecisionModel
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::remote_door::decision::DecisionModel
+impl<T> typenum::type_operators::Same for nika_onboard::remote_door::decision::DecisionModel
+pub type nika_onboard::remote_door::decision::DecisionModel::Output = T
+pub enum nika_onboard::remote_door::decision::Judge<'a, P: nika_kernel_ai::provider::ProviderInferDyn>
+pub nika_onboard::remote_door::decision::Judge::Provider(nika_compile_seats::decide::ProviderChoice<'a, P>)
+pub nika_onboard::remote_door::decision::Judge::Typesafe(&'a (dyn nika_compile_seats::decide::DecisionSeat + core::marker::Send + core::marker::Sync))
+impl<P: nika_kernel_ai::provider::ProviderInferDyn> nika_onboard::remote_door::decision::Judge<'_, P>
+pub fn nika_onboard::remote_door::decision::Judge<'_, P>::seat(&self) -> &dyn nika_compile_seats::decide::DecisionSeat
+impl<D> owo_colors::OwoColorize for nika_onboard::remote_door::decision::Judge<'a, P>
+impl<T, U> core::convert::Into<U> for nika_onboard::remote_door::decision::Judge<'a, P> where U: core::convert::From<T>
+pub fn nika_onboard::remote_door::decision::Judge<'a, P>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::remote_door::decision::Judge<'a, P> where U: core::convert::Into<T>
+pub type nika_onboard::remote_door::decision::Judge<'a, P>::Error = core::convert::Infallible
+pub fn nika_onboard::remote_door::decision::Judge<'a, P>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::remote_door::decision::Judge<'a, P> where U: core::convert::TryFrom<T>
+pub type nika_onboard::remote_door::decision::Judge<'a, P>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::remote_door::decision::Judge<'a, P>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_onboard::remote_door::decision::Judge<'a, P> where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::remote_door::decision::Judge<'a, P>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::remote_door::decision::Judge<'a, P> where T: ?core::marker::Sized
+pub fn nika_onboard::remote_door::decision::Judge<'a, P>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::remote_door::decision::Judge<'a, P> where T: ?core::marker::Sized
+pub fn nika_onboard::remote_door::decision::Judge<'a, P>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_onboard::remote_door::decision::Judge<'a, P>
+pub fn nika_onboard::remote_door::decision::Judge<'a, P>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_onboard::remote_door::decision::Judge<'a, P> where T: 'static
+pub fn nika_onboard::remote_door::decision::Judge<'a, P>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::remote_door::decision::Judge<'a, P> where T: ?core::marker::Sized
+pub fn nika_onboard::remote_door::decision::Judge<'a, P>::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::remote_door::decision::Judge<'a, P>::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::remote_door::decision::Judge<'a, P>
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::remote_door::decision::Judge<'a, P>
+impl<T> typenum::type_operators::Same for nika_onboard::remote_door::decision::Judge<'a, P>
+pub type nika_onboard::remote_door::decision::Judge<'a, P>::Output = T
+pub fn nika_onboard::remote_door::decision::direct_provider(model: &str, providers: &nika_providers::registry::ProvidersConfig) -> core::result::Result<(alloc::string::String, core::option::Option<nika_kernel_core::infra::secret::Secret>), alloc::string::String>
+pub fn nika_onboard::remote_door::decision::discloses(withheld: &[nika_kernel_core::infra::secret::Secret], document: &[u8]) -> bool
+pub type nika_onboard::remote_door::decision::Opened = (alloc::boxed::Box<(dyn nika_compile_seats::decide::DecisionSeat + core::marker::Send + core::marker::Sync)>, nika_kernel_core::infra::secret::Secret)
+pub mod nika_onboard::remote_door::trial
+pub struct nika_onboard::remote_door::trial::TrialProject(_)
+impl nika_onboard::remote_door::trial::TrialProject
+pub fn nika_onboard::remote_door::trial::TrialProject::new(trial: &serde_json::value::Value) -> core::io::error::Result<Self>
+pub fn nika_onboard::remote_door::trial::TrialProject::path(&self) -> &std::path::Path
+pub fn nika_onboard::remote_door::trial::TrialProject::room(trial: &serde_json::value::Value, jq: &nika_service_execution::rehearsal::isolated_jq::JqHelper) -> core::io::error::Result<(Self, nika_onboard::compile::room::ObservedRoom)>
+impl core::fmt::Debug for nika_onboard::remote_door::trial::TrialProject
+pub fn nika_onboard::remote_door::trial::TrialProject::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_onboard::remote_door::trial::TrialProject
+impl<T, U> core::convert::Into<U> for nika_onboard::remote_door::trial::TrialProject where U: core::convert::From<T>
+pub fn nika_onboard::remote_door::trial::TrialProject::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::remote_door::trial::TrialProject where U: core::convert::Into<T>
+pub type nika_onboard::remote_door::trial::TrialProject::Error = core::convert::Infallible
+pub fn nika_onboard::remote_door::trial::TrialProject::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::remote_door::trial::TrialProject where U: core::convert::TryFrom<T>
+pub type nika_onboard::remote_door::trial::TrialProject::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::remote_door::trial::TrialProject::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_onboard::remote_door::trial::TrialProject where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::remote_door::trial::TrialProject::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::remote_door::trial::TrialProject where T: ?core::marker::Sized
+pub fn nika_onboard::remote_door::trial::TrialProject::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::remote_door::trial::TrialProject where T: ?core::marker::Sized
+pub fn nika_onboard::remote_door::trial::TrialProject::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_onboard::remote_door::trial::TrialProject
+pub fn nika_onboard::remote_door::trial::TrialProject::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_onboard::remote_door::trial::TrialProject where T: 'static
+pub fn nika_onboard::remote_door::trial::TrialProject::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::remote_door::trial::TrialProject where T: ?core::marker::Sized
+pub fn nika_onboard::remote_door::trial::TrialProject::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::remote_door::trial::TrialProject::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::remote_door::trial::TrialProject
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::remote_door::trial::TrialProject
+impl<T> typenum::type_operators::Same for nika_onboard::remote_door::trial::TrialProject
+pub type nika_onboard::remote_door::trial::TrialProject::Output = T
+pub fn nika_onboard::remote_door::trial::inputs(root: &std::path::Path, world: &serde_json::value::Value) -> core::option::Option<serde_json::value::Value>
+pub fn nika_onboard::remote_door::trial::materialize(root: &std::path::Path, trial: &serde_json::value::Value) -> core::io::error::Result<()>
+pub const nika_onboard::remote_door::OBSERVATION_VERSION: u32
+pub fn nika_onboard::remote_door::document(root: &std::path::Path, intent: &str, world: core::option::Option<&serde_json::value::Value>) -> serde_json::value::Value
 pub mod nika_onboard::routing
 pub use nika_onboard::routing::run_options
 pub mod nika_onboard::routing::conversation

@@ -295,7 +295,8 @@ impl Job {
         let originals = world::originals(&self.project)
             .await
             .map_err(|refused| (refused, Vec::new()))?;
-        let result = world::copy_in(&originals, room, &screened.inputs).await;
+        let inputs = (screened.inputs.as_slice(), screened.write_only.as_slice());
+        let result = world::copy_in(&originals, room, inputs).await;
         // Every read of the originals is joined before anything else happens.
         let _ = world::next_phase(originals.ledger()).await;
         drop(originals);

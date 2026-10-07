@@ -14,7 +14,6 @@ publish                = false  # Internal member of the nika-cli unit (the bina
 nika-fs = { path = "../nika-fs", version = "0.122.0" } # descriptor-rooted cost observation journal
 nika-vocab = { path = "../nika-vocab", version = "0.122.0" } # the existing project monetary-default discovery
 tokio = { workspace = true, features = ["process", "io-util"] } # bounded authoring and machine lane child I/O
-futures-core = { workspace = true } # the harness event stream an authoring seat drains
 nika-onboard = { path = "../nika-onboard", version = "0.122.0" } # typed Compile core; host adapter only materializes explicit Ready results
 tempfile = { workspace = true } # atomic same-directory Compile publication and scratch tests
 nika-builtin   = { path = "../nika-builtin", version = "0.122.0" }   # tool surfaces the welcome glance names
