@@ -17,6 +17,9 @@
 //!   contracts), rendered and receipted.
 //! - [`foundry`] · recalled Foundry knowledge qualified by a decision seat against the request
 //!   before an author reads it, and the record of what was found, shown, discarded and traced.
+//! - [`remote`] · what a door that holds no project admits from its caller's engine to prepare
+//!   as `nika compile` does: the observation of the stated files and the trial inputs a room is
+//!   built from.
 //!
 //! A size-cap member of the `nika-onboard` unit (ADR-146 · D-2026-07-09-N1 · the ADR-144
 //! precedent), placed below the seats' doors: `nika-compile-cognition` →
@@ -31,5 +34,6 @@ pub mod foundry;
 pub mod objects;
 pub mod reasoning;
 pub mod rehearse;
+pub mod remote;
 pub mod repairs;
 pub mod shelf;

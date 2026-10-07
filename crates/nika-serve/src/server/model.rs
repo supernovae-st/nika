@@ -166,6 +166,11 @@ const NATIVE_COMPILE_CAPABILITY: &str = "compileNativeV2";
 // Beside it: `explicitProvider` with a kept round's `replay_token` is that round's judged
 // answer round (the kept plan replayed with the answers, the seat asked only to judge it).
 const JUDGED_ANSWER_CAPABILITY: &str = "compileJudgedAnswerRound";
+// Beside it: `observed_world`; with a decision seat and with trials, their own tokens.
+const OBSERVED_WORLD_CAPABILITY: &str = "compileObservedWorld";
+const DECISION_SEAT_CAPABILITY: &str = "compileDecisionSeat";
+const TRIAL_CAPABILITY: &str = "compileTrialInputs";
+
 // Only on a server the operator started with `--cost-review` (C6): the cost-review door,
 // version 2 (B12: a finite fan or authored retry with its typed bound) beside version 1.
 const COST_REVIEW_CAPABILITIES: [&str; 2] = ["costReviewV1", "costReviewV2"];
@@ -197,7 +202,9 @@ struct HttpAdapterIdentity {
 }
 
 impl HttpAdapterIdentity {
-    fn current(schedule_live: bool, native: bool, cost_review: bool) -> Self {
+    fn current(schedule_live: bool, native: Option<(bool, bool)>, cost_review: bool) -> Self {
+        let (decision, trials) = native.unwrap_or_default();
+        let native = native.is_some();
         let identity = nika_runtime::engine_identity();
         Self {
             engine_version: identity.engine_version(),
@@ -218,6 +225,9 @@ impl HttpAdapterIdentity {
                 .chain(schedule_live.then_some(SCHEDULE_CAPABILITY))
                 .chain(native.then_some(NATIVE_COMPILE_CAPABILITY))
                 .chain(native.then_some(JUDGED_ANSWER_CAPABILITY))
+                .chain(native.then_some(OBSERVED_WORLD_CAPABILITY))
+                .chain(decision.then_some(DECISION_SEAT_CAPABILITY))
+                .chain(trials.then_some(TRIAL_CAPABILITY))
                 .chain(COST_REVIEW_CAPABILITIES.into_iter().filter(|_| cost_review))
                 .collect(),
         }
@@ -225,7 +235,8 @@ impl HttpAdapterIdentity {
 }
 
 impl HealthResponse {
-    pub(crate) fn current(schedule_live: bool, native: bool, cost_review: bool) -> Self {
+    /// `seated`: whether a decision model judges, whether the server tries candidates.
+    pub(crate) fn current(schedule_live: bool, seated: Option<(bool, bool)>, review: bool) -> Self {
         Self {
             status: "ok",
             service: "nika-serve",
@@ -233,7 +244,7 @@ impl HealthResponse {
                 jobs: crate::job::STATE_VERSION,
                 schedules: crate::schedule::STATE_VERSION,
             },
-            identity: HttpAdapterIdentity::current(schedule_live, native, cost_review),
+            identity: HttpAdapterIdentity::current(schedule_live, seated, review),
         }
     }
 }

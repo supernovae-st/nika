@@ -68,6 +68,15 @@ as an external consumer.
   lines a candidate kept, a lexical trace, never causal proof) and `traced` (the record on
   the outcome, `decision.knowledge_qualification`).
 
+`remote` is what a door that holds no project admits from its caller's
+engine: `admit_observation` (the host observer's document only, rows about
+paths the request states or files directly inside a stated folder,
+`OBSERVATION_ROWS` 64 and `OBSERVATION_BYTES` 256 KiB at most),
+`admit_trial` (`{files: [{path, text}]}`, only files the observation marks
+`observed`, `TRIAL_BYTES` 1 MiB in all), `Observed::admit` (both, from JSON
+texts, a repeated key at any depth refused by `repeats_a_key`) and `Refusal`
+with its door code and words. Pure: no file, no network.
+
 ## 3. Boundary
 
 - Neither capability grants authority: a seat answers one closed choice the compiler

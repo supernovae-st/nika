@@ -1391,6 +1391,121 @@ pub fn nika_compile_seats::rehearse::trial_receipts(observed: &serde_json::value
 pub fn nika_compile_seats::rehearse::trial_shown(candidate_sha256: &str, run: &nika_compile_fidelity::behavior::Run) -> serde_json::value::Value
 pub fn nika_compile_seats::rehearse::trial_whole(observed: &serde_json::value::Value) -> bool
 pub type nika_compile_seats::rehearse::RehearsalFuture<'a> = core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_compile_seats::rehearse::RehearsalReport> + core::marker::Send + 'a)>>
+pub mod nika_compile_seats::remote
+#[non_exhaustive] pub enum nika_compile_seats::remote::Refusal
+pub nika_compile_seats::remote::Refusal::Malformed
+pub nika_compile_seats::remote::Refusal::Oversize
+pub nika_compile_seats::remote::Refusal::Shape
+pub nika_compile_seats::remote::Refusal::TrialOversize
+pub nika_compile_seats::remote::Refusal::TrialShape
+pub nika_compile_seats::remote::Refusal::Unstated
+impl nika_compile_seats::remote::Refusal
+pub const fn nika_compile_seats::remote::Refusal::code(self) -> &'static str
+pub const fn nika_compile_seats::remote::Refusal::message(self) -> &'static str
+impl core::clone::Clone for nika_compile_seats::remote::Refusal
+pub fn nika_compile_seats::remote::Refusal::clone(&self) -> nika_compile_seats::remote::Refusal
+impl core::cmp::Eq for nika_compile_seats::remote::Refusal
+impl core::cmp::PartialEq for nika_compile_seats::remote::Refusal
+pub fn nika_compile_seats::remote::Refusal::eq(&self, other: &nika_compile_seats::remote::Refusal) -> bool
+impl core::error::Error for nika_compile_seats::remote::Refusal
+impl core::fmt::Debug for nika_compile_seats::remote::Refusal
+pub fn nika_compile_seats::remote::Refusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_compile_seats::remote::Refusal
+pub fn nika_compile_seats::remote::Refusal::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_seats::remote::Refusal
+impl core::marker::StructuralPartialEq for nika_compile_seats::remote::Refusal
+impl<D> owo_colors::OwoColorize for nika_compile_seats::remote::Refusal
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::remote::Refusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::remote::Refusal::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::remote::Refusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::remote::Refusal::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::remote::Refusal where U: core::convert::From<T>
+pub fn nika_compile_seats::remote::Refusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::remote::Refusal where U: core::convert::Into<T>
+pub type nika_compile_seats::remote::Refusal::Error = core::convert::Infallible
+pub fn nika_compile_seats::remote::Refusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::remote::Refusal where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::remote::Refusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::remote::Refusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::remote::Refusal where T: core::clone::Clone
+pub type nika_compile_seats::remote::Refusal::Owned = T
+pub fn nika_compile_seats::remote::Refusal::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::remote::Refusal::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_compile_seats::remote::Refusal where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_compile_seats::remote::Refusal::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_compile_seats::remote::Refusal where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::remote::Refusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::remote::Refusal where T: ?core::marker::Sized
+pub fn nika_compile_seats::remote::Refusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::remote::Refusal where T: ?core::marker::Sized
+pub fn nika_compile_seats::remote::Refusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::remote::Refusal where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::remote::Refusal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::remote::Refusal
+pub fn nika_compile_seats::remote::Refusal::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::remote::Refusal where T: core::clone::Clone
+pub fn nika_compile_seats::remote::Refusal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::remote::Refusal where T: 'static
+pub fn nika_compile_seats::remote::Refusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile_seats::remote::Refusal where T: core::marker::Copy
+pub fn nika_compile_seats::remote::Refusal::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile_seats::remote::Refusal
+pub type nika_compile_seats::remote::Refusal::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::remote::Observed
+pub nika_compile_seats::remote::Observed::trial: core::option::Option<serde_json::value::Value>
+pub nika_compile_seats::remote::Observed::world: serde_json::value::Value
+impl nika_compile_seats::remote::Observed
+pub fn nika_compile_seats::remote::Observed::admit(text: &str, world: &str, trial: core::option::Option<&str>) -> core::result::Result<Self, nika_compile_seats::remote::Refusal>
+impl core::clone::Clone for nika_compile_seats::remote::Observed
+pub fn nika_compile_seats::remote::Observed::clone(&self) -> nika_compile_seats::remote::Observed
+impl core::cmp::Eq for nika_compile_seats::remote::Observed
+impl core::cmp::PartialEq for nika_compile_seats::remote::Observed
+pub fn nika_compile_seats::remote::Observed::eq(&self, other: &nika_compile_seats::remote::Observed) -> bool
+impl core::fmt::Debug for nika_compile_seats::remote::Observed
+pub fn nika_compile_seats::remote::Observed::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::remote::Observed
+impl<D> owo_colors::OwoColorize for nika_compile_seats::remote::Observed
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::remote::Observed where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::remote::Observed::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::remote::Observed where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::remote::Observed::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::remote::Observed where U: core::convert::From<T>
+pub fn nika_compile_seats::remote::Observed::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::remote::Observed where U: core::convert::Into<T>
+pub type nika_compile_seats::remote::Observed::Error = core::convert::Infallible
+pub fn nika_compile_seats::remote::Observed::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::remote::Observed where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::remote::Observed::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::remote::Observed::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::remote::Observed where T: core::clone::Clone
+pub type nika_compile_seats::remote::Observed::Owned = T
+pub fn nika_compile_seats::remote::Observed::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::remote::Observed::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::remote::Observed where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::remote::Observed::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::remote::Observed where T: ?core::marker::Sized
+pub fn nika_compile_seats::remote::Observed::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::remote::Observed where T: ?core::marker::Sized
+pub fn nika_compile_seats::remote::Observed::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::remote::Observed where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::remote::Observed::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::remote::Observed
+pub fn nika_compile_seats::remote::Observed::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::remote::Observed where T: core::clone::Clone
+pub fn nika_compile_seats::remote::Observed::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::remote::Observed where T: 'static
+pub fn nika_compile_seats::remote::Observed::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::remote::Observed
+pub type nika_compile_seats::remote::Observed::Output = T
+pub const nika_compile_seats::remote::OBSERVATION_BYTES: usize
+pub const nika_compile_seats::remote::OBSERVATION_ROWS: usize
+pub const nika_compile_seats::remote::TRIAL_BYTES: u64
+pub fn nika_compile_seats::remote::admit_observation(intent: &str, world: &serde_json::value::Value) -> core::result::Result<(), nika_compile_seats::remote::Refusal>
+pub fn nika_compile_seats::remote::admit_trial(world: &serde_json::value::Value, trial: &serde_json::value::Value) -> core::result::Result<(), nika_compile_seats::remote::Refusal>
+pub fn nika_compile_seats::remote::observed_paths(world: &serde_json::value::Value) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_seats::remote::relative(path: &str) -> core::option::Option<&std::path::Path>
+pub fn nika_compile_seats::remote::repeats_a_key(literal: &str) -> bool
+pub fn nika_compile_seats::remote::stated(intent: &str) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_compile_seats::repairs
 pub fn nika_compile_seats::repairs::progressed(seen: &[alloc::vec::Vec<alloc::string::String>], key: &[alloc::string::String]) -> bool
 pub mod nika_compile_seats::shelf

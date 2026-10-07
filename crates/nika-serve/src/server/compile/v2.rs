@@ -9,10 +9,11 @@
 //! token of a round this server kept. New to this generation: a literal that repeats an object
 //! key at any depth is refused, never read as its last value.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::time::Duration;
 
 use hyper::StatusCode;
+use nika_onboard::compile::remote::{self, Observed};
 use nika_onboard::compile::{AuthoringCognition, CompileRequest};
 use serde_json::value::RawValue;
 
@@ -94,6 +95,11 @@ struct Envelope {
     limits: Option<Object<Limits>>,
     #[serde(default, deserialize_with = "present")]
     replay_token: Option<String>,
+    /// `nika compile --observe-only`'s `observed_world` and `trial_inputs`, admitted by law.
+    #[serde(default, deserialize_with = "present")]
+    observed_world: Option<Box<RawValue>>,
+    #[serde(default, deserialize_with = "present")]
+    trial_inputs: Option<Box<RawValue>>,
 }
 
 /// The caller's narrowing of the operator's bounds; each value optional.
@@ -119,12 +125,14 @@ pub(super) enum Input {
     Create {
         intent: String,
         workflow_id: Option<String>,
+        observed: Option<Observed>,
     },
     /// A revision in words of an accepted base, beside the request that base answered.
     Revise {
         source: String,
         change: String,
         original_intent: String,
+        observed: Option<Observed>,
     },
     /// One constant set from a literal: the deterministic door, zero calls.
     Constant {
@@ -135,16 +143,32 @@ pub(super) enum Input {
 }
 
 impl Input {
+    /// The trial inputs this input carries, if any.
+    pub(super) fn trial(&self) -> Option<&serde_json::Value> {
+        match self {
+            Self::Create { observed, .. } | Self::Revise { observed, .. } => {
+                observed.as_ref()?.trial.as_ref()
+            }
+            Self::Constant { .. } => None,
+        }
+    }
+
     /// The core's request for this input with these literal answers.
     pub(super) fn request(&self, answers: &BTreeMap<String, Box<RawValue>>) -> CompileRequest {
         let mut request = match self {
             Self::Create {
                 intent,
                 workflow_id,
+                observed,
             } => {
                 let request = CompileRequest::create(intent.as_str());
-                match workflow_id {
+                let request = match workflow_id {
                     Some(id) => request.with_workflow_id(id.as_str()),
+                    None => request,
+                };
+                // The caller's admitted observation rides as the CLI observer's own does.
+                match observed {
+                    Some(observed) => request.with_knowledge(observed.world.clone()),
                     None => request,
                 }
             }
@@ -152,8 +176,15 @@ impl Input {
                 source,
                 change,
                 original_intent,
-            } => CompileRequest::edit(source.as_str(), change.as_str())
-                .with_original_intent(original_intent.as_str()),
+                observed,
+            } => {
+                let request = CompileRequest::edit(source.as_str(), change.as_str())
+                    .with_original_intent(original_intent.as_str());
+                match observed {
+                    Some(observed) => request.with_knowledge(observed.world.clone()),
+                    None => request,
+                }
+            }
             Self::Constant {
                 source,
                 name,
@@ -214,9 +245,16 @@ pub(super) fn parse(body: &[u8], operator: Bounds) -> Result<Request, ApiError> 
         answers: Answers(answers),
         limits,
         replay_token,
+        observed_world,
+        trial_inputs,
         ..
     } = envelope;
-    let input = input(&mode, intent, workflow_id, source, change, original_intent)?;
+    let mut input = input(&mode, intent, workflow_id, source, change, original_intent)?;
+    match (observed_world, trial_inputs) {
+        (Some(world), trial) => input = observed(input, &world, trial.as_deref())?,
+        (None, Some(_)) => return Err(malformed()),
+        (None, None) => {}
+    }
     let action = match (fresh, replay_token, limits) {
         (true, None, _) => Action::Author(bounds),
         (true, Some(token), _) if is_token(&token) => Action::Judge(token, bounds),
@@ -224,7 +262,7 @@ pub(super) fn parse(body: &[u8], operator: Bounds) -> Result<Request, ApiError> 
         _ => return Err(malformed()),
     };
     if answers.values().any(|literal| repeats_a_key(literal))
-        || matches!(&input, Input::Constant { literal, .. } if repeats_a_key_in(literal))
+        || matches!(&input, Input::Constant { literal, .. } if remote::repeats_a_key(literal))
     {
         return Err(malformed());
     }
@@ -253,6 +291,7 @@ fn input(
         ("create", Some(intent), None, None) if original_intent.is_none() => Ok(Input::Create {
             intent,
             workflow_id,
+            observed: None,
         }),
         ("edit", None, Some(source), Some(Object(change))) if workflow_id.is_none() => {
             match (change.text, change.set_constant, original_intent) {
@@ -260,6 +299,7 @@ fn input(
                     source,
                     change,
                     original_intent,
+                    observed: None,
                 }),
                 (None, Some(Object(constant)), None) => Ok(Input::Constant {
                     source,
@@ -269,6 +309,35 @@ fn input(
                 _ => Err(malformed()),
             }
         }
+        _ => Err(malformed()),
+    }
+}
+
+/// The input with the caller's observation, admitted against the words it states; a structured
+/// constant states no file.
+fn observed(input: Input, world: &RawValue, trial: Option<&RawValue>) -> Result<Input, ApiError> {
+    let admit = |text: &str| Observed::admit(text, world.get(), trial.map(RawValue::get));
+    match input {
+        Input::Create {
+            intent,
+            workflow_id,
+            observed: None,
+        } => Ok(Input::Create {
+            observed: Some(admit(&intent).map_err(refused)?),
+            intent,
+            workflow_id,
+        }),
+        Input::Revise {
+            source,
+            change,
+            original_intent,
+            observed: None,
+        } => Ok(Input::Revise {
+            observed: Some(admit(&format!("{original_intent}\n{change}")).map_err(refused)?),
+            source,
+            change,
+            original_intent,
+        }),
         _ => Err(malformed()),
     }
 }
@@ -338,72 +407,7 @@ fn is_token(token: &str) -> bool {
 }
 
 fn repeats_a_key(literal: &RawValue) -> bool {
-    repeats_a_key_in(literal.get())
-}
-
-/// Whether a JSON literal repeats an object key at any depth (the parser's own recursion
-/// ceiling bounds the walk; a sent literal is already valid JSON).
-fn repeats_a_key_in(literal: &str) -> bool {
-    serde_json::from_str::<Unique>(literal).is_err()
-}
-
-/// A JSON value whose objects never repeat a key.
-struct Unique;
-
-impl<'de> serde::Deserialize<'de> for Unique {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        deserializer.deserialize_any(UniqueVisitor)
-    }
-}
-
-struct UniqueVisitor;
-
-impl<'de> serde::de::Visitor<'de> for UniqueVisitor {
-    type Value = Unique;
-
-    fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.write_str("a JSON literal without a repeated key")
-    }
-
-    fn visit_bool<E>(self, _: bool) -> Result<Unique, E> {
-        Ok(Unique)
-    }
-
-    fn visit_i64<E>(self, _: i64) -> Result<Unique, E> {
-        Ok(Unique)
-    }
-
-    fn visit_u64<E>(self, _: u64) -> Result<Unique, E> {
-        Ok(Unique)
-    }
-
-    fn visit_f64<E>(self, _: f64) -> Result<Unique, E> {
-        Ok(Unique)
-    }
-
-    fn visit_str<E>(self, _: &str) -> Result<Unique, E> {
-        Ok(Unique)
-    }
-
-    fn visit_unit<E>(self) -> Result<Unique, E> {
-        Ok(Unique)
-    }
-
-    fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut items: A) -> Result<Unique, A::Error> {
-        while items.next_element::<Unique>()?.is_some() {}
-        Ok(Unique)
-    }
-
-    fn visit_map<M: serde::de::MapAccess<'de>>(self, mut map: M) -> Result<Unique, M::Error> {
-        let mut seen = BTreeSet::new();
-        while let Some(key) = map.next_key::<String>()? {
-            if !seen.insert(key) {
-                return Err(serde::de::Error::custom("repeated key"));
-            }
-            map.next_value::<Unique>()?;
-        }
-        Ok(Unique)
-    }
+    remote::repeats_a_key(literal.get())
 }
 
 pub(super) fn malformed() -> ApiError {
@@ -411,6 +415,15 @@ pub(super) fn malformed() -> ApiError {
         StatusCode::UNPROCESSABLE_ENTITY,
         "malformed_compile_request",
         "use compile_version 2 with cognition explicitProvider (create {intent} or edit {source, change}; a text change also carries original_intent; a kept round's replay_token judges its answer round) or deterministicOnly with that token; unknown fields, null values, duplicate keys (literals included) and wrong types are refused",
+    )
+}
+
+/// A caller's observation or trial inputs refused by the shared law, in its words.
+pub(super) fn refused(refusal: remote::Refusal) -> ApiError {
+    ApiError::new(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        refusal.code(),
+        refusal.message(),
     )
 }
 

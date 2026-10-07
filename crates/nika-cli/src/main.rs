@@ -892,7 +892,15 @@ fn dispatch_verb(
         }),
         Command::Try(a) => try_args::listing(&a, plain_theme)
             .map_or_else(|| try_args::rehearse(&a, plain_theme), |o| emit(&o)),
-        Command::Compile(command) => emit(&command.run()),
+        Command::Compile(mut command) => {
+            // The working directory's observed room; this binary is its jq helper (the Session's).
+            let (exe, root) = (std::env::current_exe(), std::env::current_dir());
+            command.trials = exe.ok().zip(root.ok()).map(|(exe, root)| {
+                let jq = nika_onboard::compile::room::JqHelper::new(exe);
+                nika_onboard::compile::room::ObservedRoom::new(root).with_jq_helper(jq)
+            });
+            emit(&command.run())
+        }
         Command::Completions { shell } => {
             write_completions(shell, &mut std::io::stdout());
             0

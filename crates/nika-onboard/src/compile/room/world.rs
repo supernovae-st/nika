@@ -120,7 +120,7 @@ pub(super) async fn originals(project: &Path) -> Result<RootedFs, Refused> {
 pub(super) async fn copy_in(
     originals: &RootedFs,
     room: &RootedFs,
-    inputs: &[(String, String)],
+    (inputs, write_only): (&[(String, String)], &[String]),
 ) -> Result<Vec<CopyReceipt>, Refused> {
     let mut receipts = Vec::with_capacity(inputs.len());
     let mut total = 0_u64;
@@ -128,10 +128,10 @@ pub(super) async fn copy_in(
         let path = Path::new(at);
         let refused =
             |why: &str| Refused::new(Refusal::CopyIn, format!("the observed input {named} {why}"));
-        let found = originals
-            .metadata(path)
-            .await
-            .map_err(|error| refused(&unreadable(&error)))?;
+        let found = match originals.metadata(path).await {
+            Err(FsError::NotFound { .. }) if write_only.contains(at) => continue,
+            found => found.map_err(|error| refused(&unreadable(&error)))?,
+        };
         if !found.is_file {
             return Err(refused("is not a regular file"));
         }

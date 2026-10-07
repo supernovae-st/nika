@@ -17,8 +17,8 @@
 //! attested pre-execution empty-tools profile (measured: through codex-acp the shell, file and
 //! MCP tools ran without one permission ask), so `codex/<model>` seats the native infer-grade
 //! transport under its measured profile instead, never the ACP agent.
-use nika_harness::authoring::HarnessAuthoring;
-use nika_harness::{SpawnedHarness, seat_from_id};
+use crate::authoring::HarnessAuthoring;
+use crate::{SpawnedHarness, seat_from_id};
 use nika_kernel::ai::harness::{
     AgentBackendDyn, HarnessEvent, HarnessOutcome, HarnessRequest, PermissionDecision,
 };
@@ -32,7 +32,7 @@ use std::sync::Mutex;
 
 /// One harness seat for the length of a compile: one ACP session per authoring call, or the
 /// native tool-free transport where ACP has no attested empty-tools profile (Codex).
-pub(super) struct HarnessSeat {
+pub struct HarnessSeat {
     seat: Backend,
     runtime: HarnessRuntime,
     requested_model: Option<String>,
@@ -49,14 +49,19 @@ enum Backend {
 
 impl HarnessSeat {
     /// Whether `<adapter>/<model>` names a harness the engine knows (`claude-code/default`).
-    pub(super) fn names_a_harness(spec: &str) -> bool {
+    #[must_use]
+    pub fn names_a_harness(spec: &str) -> bool {
         spec.split_once('/')
             .is_some_and(|(id, _)| HarnessRuntime::lookup(id).is_some())
     }
 
     /// Seat the harness `<adapter>/<model>` names (`default` or an empty model leaves the
     /// harness's own choice).
-    pub(super) fn meet(spec: &str) -> Result<Self, String> {
+    ///
+    /// # Errors
+    /// The spec is not `<adapter>/<model>`, names no known harness, or the harness cannot be
+    /// seated (an unattested Codex, a missing ACP adapter row).
+    pub fn meet(spec: &str) -> Result<Self, String> {
         let (id, model) = spec.split_once('/').ok_or_else(|| {
             format!("a harness seat is `<adapter>/<model>` (`claude-code/default`), not `{spec}`")
         })?;
@@ -93,7 +98,7 @@ impl HarnessSeat {
     }
 
     /// The receipt's backend descriptor: the addendum's fields, observed where observable.
-    pub(super) fn descriptor(&self) -> Value {
+    pub fn descriptor(&self) -> Value {
         if let Backend::Native(native) = &self.seat {
             return native.descriptor().unwrap_or_else(|why| {
                 json!({"kind": "harness_infer", "adapter": self.runtime.id,

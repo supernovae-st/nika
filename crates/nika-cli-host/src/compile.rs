@@ -3,6 +3,7 @@
 
 //! CLI transport and explicit materialization for the stateless Compile core.
 mod authoring;
+pub use authoring::decision_seat_note;
 mod capture;
 pub use capture::{
     Capture, CaptureContext, CaptureFlags, CaptureListener, CapturePolicy, CaptureReport,
@@ -14,8 +15,6 @@ pub use authority::{
     redact_authoring_error,
 };
 pub mod config;
-#[cfg(feature = "access-harness")]
-mod harness_seat;
 pub mod knowledge;
 pub mod observe;
 mod render;
@@ -136,6 +135,20 @@ pub struct CompileArgs {
     pub list: bool,
 }
 
+/// `--observe-only`, beside the compile flags (their literal is unchanged).
+#[derive(Clone, Copy, Debug, Default, clap::Args)]
+#[non_exhaustive]
+pub struct ObserveFlags {
+    /// Print only what this host observes of the files the intent states (what a seat reads,
+    /// never a row) and their text for a remote trial, as one JSON document; nothing else runs.
+    #[arg(
+        long,
+        requires = "intent",
+        conflicts_with_all = ["dest", "output", "base", "answers", "authoring_model", "decision_model", "list", "fresh", "force"]
+    )]
+    pub observe_only: bool,
+}
+
 /// The authoring authority a CLI compile runs under: how many requests the authoring seat may
 /// be sent. Absent, requests are observed without a count limit.
 #[derive(Clone, Debug, Default, clap::Args)]
@@ -178,6 +191,12 @@ pub struct CompileCommand {
     pub authority: AuthoringAuthority,
     #[command(flatten)]
     pub capture: CaptureFlags,
+    #[command(flatten)]
+    pub observe: ObserveFlags,
+    /// The observed room a seated free-intent compile tries each final candidate in (the host
+    /// names it, as the Session does): a failed or missing trial is never READY. Not a flag.
+    #[arg(skip)]
+    pub trials: Option<nika_onboard::compile::room::ObservedRoom>,
 }
 
 impl CompileCommand {
@@ -188,13 +207,26 @@ impl CompileCommand {
             args,
             authority,
             capture: CaptureFlags::new(),
+            observe: ObserveFlags {
+                observe_only: false,
+            },
+            trials: None,
         }
     }
 
     /// Compile once as the command line states it.
     #[must_use]
     pub fn run(&self) -> VerbOutput {
-        let output = run_with_capture(&self.args, &self.authority, &self.capture);
+        if self.observe.observe_only {
+            let intent = self.args.intent.as_deref().unwrap_or("");
+            return VerbOutput::ok(observation_document(Path::new("."), intent).to_string());
+        }
+        let output = run_with_capture(
+            &self.args,
+            &self.authority,
+            &self.capture,
+            self.trials.as_ref(),
+        );
         if self.capture.enabled {
             let line = format!("{}\n", self.capture.status().summary());
             let _ = std::io::Write::write_all(&mut std::io::stderr().lock(), line.as_bytes());
@@ -214,13 +246,14 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
 /// destination writes files.
 #[must_use]
 pub fn run_with(args: &CompileArgs, authority: &AuthoringAuthority) -> VerbOutput {
-    run_with_capture(args, authority, &CaptureFlags::new())
+    run_with_capture(args, authority, &CaptureFlags::new(), None)
 }
 
 fn run_with_capture(
     args: &CompileArgs,
     authority: &AuthoringAuthority,
     capture: &CaptureFlags,
+    trials: Option<&nika_onboard::compile::room::ObservedRoom>,
 ) -> VerbOutput {
     capture.begin();
     if args.list {
@@ -278,9 +311,10 @@ fn run_with_capture(
     let (request, note) = sidecar::replay(sha.as_deref(), args, request);
     // Every compile of the intent carries the verdicts that rejected its bytes in earlier rounds.
     let request = sidecar::carry(sha.as_deref(), request);
+    let host = trials.map(|room| room as &dyn nika_onboard::compile::rehearse::Rehearse);
     let result = match (&resolved, &authoring_config) {
         (Some(resolved), Some(config)) => {
-            authoring::compile(&request, args, config, resolved, capture)
+            authoring::compile(&request, args, (config, resolved), capture, host)
         }
         _ => compile(&request).map_err(|error| error.to_string()),
     };
@@ -467,6 +501,14 @@ fn observed_world(root: &Path, intent: &str, request: CompileRequest) -> Compile
         Some(world) => request.with_knowledge(world),
         None => request,
     }
+}
+
+/// The `--observe-only` document of what `intent` states under `root`.
+fn observation_document(root: &Path, intent: &str) -> serde_json::Value {
+    let world = (!intent.trim().is_empty())
+        .then(|| observe::world(root, intent))
+        .flatten();
+    nika_onboard::remote_door::document(root, intent, world.as_ref())
 }
 
 /// The door's own explicit words: the strategy, the snapshot, the pack, the excluded corpus —
@@ -734,5 +776,47 @@ mod tests {
         // A request that states nothing is observed as nothing.
         let silent = observed_world(root, "  ", CompileRequest::create("  "));
         assert!(silent.knowledge.is_none());
+    }
+
+    #[derive(clap::Parser)]
+    struct Verb {
+        #[command(flatten)]
+        command: CompileCommand,
+    }
+
+    /// `--observe-only` prints the observation the compile door would read, and the remote door
+    /// admits exactly that document: it states nothing beyond the observer's own facts.
+    #[test]
+    fn observe_only_prints_the_observation_a_remote_door_admits() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("calendar.json"),
+            r#"{"owner":"desk@x.org","appointments":[{"id":"a","status":"booked"}]}"#,
+        )
+        .unwrap();
+        let intent = "Read ./calendar.json and save ./out/reminders.json";
+        let document = observation_document(dir.path(), intent);
+        assert_eq!(document["observation_version"], 1);
+        assert_eq!(document["intent_sha256"], intent_sha256(intent));
+        let world = &document["observed_world"];
+        assert_eq!(
+            world["observed"][0]["columns"],
+            serde_json::json!(["appointments", "owner"])
+        );
+        assert!(!world.to_string().contains("desk@x.org"), "{world}");
+        let observed = (world.to_string(), document["trial_inputs"].to_string());
+        let admitted =
+            nika_onboard::compile::remote::Observed::admit(intent, &observed.0, Some(&observed.1));
+        assert_eq!(admitted.map(|o| o.trial.is_some()), Ok(true));
+        assert!(observation_document(dir.path(), " ")["observed_world"].is_null());
+        let verb = Verb::try_parse_from(["compile", intent, "--observe-only"]).expect("parses");
+        assert!(verb.command.observe.observe_only);
+        assert!(Verb::try_parse_from(["compile", "--observe-only"]).is_err());
+        for seat in ["--authoring-model", "--decision-model"] {
+            let argv = ["compile", intent, "--observe-only", seat, "m/x"];
+            assert!(Verb::try_parse_from(argv).is_err(), "{seat}");
+        }
+        let argv = ["compile", intent, "out.nika", "--observe-only"];
+        assert!(Verb::try_parse_from(argv).is_err());
     }
 }

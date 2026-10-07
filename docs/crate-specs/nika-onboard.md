@@ -669,6 +669,24 @@ exit vocabulary.
 - **No CLI framework below the root**: `CanvasTheme` stays a plain enum
   here; the root mirrors it as its clap `ValueEnum`.
 
+## Remote door support (`remote_door` · `compile::remote`)
+
+What a door that holds no project (Serve) shares with `nika compile`.
+`compile::remote` re-exports `nika_compile_seats::remote`: the laws by which
+such a door admits a caller's `observed_world` and `trial_inputs`.
+`remote_door::document` is the `nika compile --observe-only` document (the
+host observation it is handed, `OBSERVATION_VERSION`, the intent's sha256 and
+`trial::inputs`: the UTF-8 text of the files the observation marks `observed`,
+at most the room's 1 MiB copy bound in all, else none, never a cut).
+`trial::TrialProject` is the scratch project a door builds from admitted trial
+inputs (removed on drop); `TrialProject::room` is the shared `ObservedRoom`
+over it. `decision::DecisionModel` is a decision model a door opens once in the
+`--decision-model` words (`typesafe/<jev>` through the System One opener the
+host passes, or a direct `provider/name` through `direct_provider`, a harness
+refused), resolves per round (`resolve`), passes the core as a `Judge`
+(`judge`) and names in a receipt (`stamp`); `discloses` is the withheld-value
+law of an answer (raw or JSON-escaped, every nonempty value).
+
 ## Authoring observation facade
 
 `compile::observe` re-exports the shared Cognition observer for a host's own

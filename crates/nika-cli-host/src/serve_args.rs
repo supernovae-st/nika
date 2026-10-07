@@ -54,6 +54,10 @@ pub struct NativeAuthoringArgs {
     /// qualifies it; the one word `NIKA_AUTHORING_REASONING` names when the flag is absent.
     #[arg(long = "authoring-reasoning", value_name = "LEVEL", requires = "model")]
     pub reasoning: Option<String>,
+    /// A decision model (`typesafe/jev-1.13.0` or `provider/name`, the `nika compile` words) that
+    /// judges every candidate in place of the author, on its own client; its key is read now.
+    #[arg(long = "decision-model", value_name = "MODEL", requires = "model")]
+    pub decision_model: Option<String>,
 }
 
 const SHUTDOWN_HELP: &str = "Shutdown (persistent mode): Ctrl-C/SIGINT and SIGTERM stop HTTP admissions \
