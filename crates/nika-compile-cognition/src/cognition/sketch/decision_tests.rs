@@ -613,14 +613,16 @@ fn two_writes(name: &str) -> [String; 2] {
 }
 
 /// One verdict of the two writes naming, of its two parts, those `missing` (each pinned to the
-/// task that writes it), the others carried.
+/// task that writes it), the others carried. The seat is asked both parts together (A1), then
+/// each missing part's task question in its turn.
 fn naming(missing: [bool; 2]) -> Vec<Result<&'static str, &'static str>> {
     let mut answers = vec![Ok("unfaithful")];
+    for missed in missing {
+        answers.push(Ok(if missed { "missing" } else { "carried" }));
+    }
     for (missed, task) in missing.into_iter().zip(["task-hello", "task-bye"]) {
         if missed {
-            answers.extend([Ok("missing"), Ok(task)]);
-        } else {
-            answers.push(Ok("carried"));
+            answers.push(Ok(task));
         }
     }
     answers

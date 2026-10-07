@@ -33,7 +33,17 @@ as an external consumer.
   doors read across the boundary are public: `closed_choice` (the two messages and the answer
   schema), `answer_text` (the sole final Text of a completed answer), `decoded` (the option an
   answer chooses), `admit` (the answer revalidated against its question) and `record` (the
-  provenance projection of one settled question).
+  provenance projection of one settled question). Independent questions are asked together
+  (A1): `ChoiceBatch` holds them (`ChoiceBatch::of` keeps, as the batch's, the longest common
+  prefix of their instructions up to its last paragraph break and the state entries they all
+  hold alike; each `BatchItem` keeps the question as asked alone, what it asks beyond the shared
+  words and what it adds to the shared state). `DecisionSeat::choose_each` answers a batch,
+  one answer per item in item order: by default each item asked alone, all in flight together
+  (`each_alone`: one physical request per question, no retry, a failure failing only its own
+  item); `ProviderChoice` settles a batch in ONE request (`closed_choices`: the shared words and
+  state once, an answer schema keyed by item id; `decoded_each`: each item's key bound by its
+  id, an item left without one of its keys failing alone, a failed request failing every item,
+  the request's usage and reasoning riding the first item's answer only).
 - `rehearse` — the port a host answers (`Rehearse`, `RehearsalFuture`), the report
   (`RehearsalReport`, `Rehearsal`, `Attempt`, `RoomEvidence`, `EffectCounts`, `RehearsedOutput`),
   the host's observation of the copied world (`observed`: copies, final states, the ledger, the

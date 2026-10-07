@@ -41,6 +41,8 @@ use crate::{AuthoringPolicy, CompileOutcome, CompileRequest};
 use Kind::{Extra, Observed, ObservedPart, Part, Point, Request};
 use Reply::{Choose, Fail, Prose};
 
+/// The parts of one step put to a decision seat together.
+mod batched;
 /// The questions a localization that stops, and a doubt held by its cause, kept beside this file
 /// to bound its size.
 mod declined;
@@ -1414,9 +1416,13 @@ async fn a_selected_seat_answers_the_same_questions_under_its_own_name() {
     assert_eq!(verdict.unknown, [ORDERS]);
     assert_eq!((verdict.attempted, verdict.returned), (1, 0));
     assert!(verdict.stopped);
+    // The parts are put to the seat together (A1): the first gets no answer and stops the
+    // verdict there; the two answers it never read were sent, so they are recorded and counted.
     let seat = Seated::new([
         ("verify-request", Ok("unfaithful")),
         ("verify-part-0", Err("the seat is unavailable")),
+        ("verify-part-1", Ok("carried")),
+        ("verify-part-2", Ok("carried")),
     ]);
     let judge = Judge::<Scripted>::Seat(&seat);
     let Judged { verdict, .. } = judged(ORDERS, &request, CANDIDATE, &judge, None).await;
@@ -1426,7 +1432,12 @@ async fn a_selected_seat_answers_the_same_questions_under_its_own_name() {
         lists(&verdict),
         found(&[], &stopped, &[], &["unfaithful"], &[])
     );
-    assert_eq!(counts(&verdict), (2, 1, 1));
+    assert_eq!(counts(&verdict), (4, 3, 1));
+    let unread: Vec<&str> = (verdict.records.iter())
+        .filter(|record| record["role"] == "unread")
+        .filter_map(|record| record["question"].as_str())
+        .collect();
+    assert_eq!(unread, ["verify-part-1", "verify-part-2"]);
     assert!(verdict.stopped);
     assert_eq!(seat.left(), 0);
 }

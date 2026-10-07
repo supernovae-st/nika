@@ -15,7 +15,8 @@ use std::{collections::BTreeMap, future::Future, pin::Pin};
 
 use nika_compile::AuthoringReasoning;
 use nika_kernel::ai::provider::{
-    ContentBlock, InferRequest, Message, ProviderInferDyn, ResponseFormat, Role, StopReason,
+    ContentBlock, InferRequest, InferResponse, Message, ProviderInferDyn, ResponseFormat, Role,
+    StopReason,
 };
 use serde_json::{Value, json};
 
@@ -132,12 +133,21 @@ pub struct DecisionError(pub String);
 pub type ChoiceFuture<'a> =
     Pin<Box<dyn Future<Output = Result<ChoiceAnswer, DecisionError>> + Send + 'a>>;
 
+mod batch;
+pub use batch::{BatchFuture, BatchItem, ChoiceBatch, closed_choices, decoded_each, each_alone};
+
 /// A bounded decision capability. Vendor-neutral by construction.
 pub trait DecisionSeat: Send + Sync {
     /// The requested seat identity (`provider/model`), for provenance.
     fn name(&self) -> &str;
     /// Exactly one physical request per question; no hidden retry.
     fn choose<'a>(&'a self, question: &'a ChoiceQuestion) -> ChoiceFuture<'a>;
+    /// Several independent questions (A1): by default each asked alone, all at once, one
+    /// physical request per question and no retry; a seat that settles a batch in one request
+    /// answers it so. One answer per item, in item order, each bound to its item by id.
+    fn choose_each<'a>(&'a self, batch: &'a ChoiceBatch) -> BatchFuture<'a> {
+        each_alone(batch, |question| self.choose(question))
+    }
 }
 
 /// A generative provider seated as a closed-choice decider through a JSON-schema enum.
@@ -179,48 +189,88 @@ impl<'p, P: ProviderInferDyn> ProviderChoice<'p, P> {
     }
 }
 
+impl<P: ProviderInferDyn> ProviderChoice<'_, P> {
+    /// The request this seat sends, its messages and schema given: its model, output bound,
+    /// deadline and reasoning level.
+    fn request(
+        &self,
+        (messages, schema): (Vec<Message>, Value),
+    ) -> Result<InferRequest, DecisionError> {
+        let mut infer = InferRequest::new(&self.model, messages);
+        infer.max_tokens = Some(self.max_tokens);
+        infer.timeout = Some(self.timeout);
+        if let Some(reasoning) = self.reasoning {
+            infer.reasoning_effort =
+                Some(crate::reasoning::effort(reasoning).ok_or_else(|| {
+                    DecisionError("the reasoning effort has no provider level".to_owned())
+                })?);
+        }
+        infer.response_format = ResponseFormat::JsonSchema(schema);
+        Ok(infer)
+    }
+
+    /// The one call of a request under the seat's own deadline; no retry.
+    async fn call(&self, infer: InferRequest) -> Result<InferResponse, DecisionError> {
+        tokio::time::timeout(self.timeout, self.provider.infer(infer))
+            .await
+            .map_err(|_| DecisionError("the single decision call timed out; no retry".to_owned()))?
+            .map_err(|e| DecisionError(e.to_string()))
+    }
+
+    /// The answer a response makes of one choice: the response's usage and reasoning ride the
+    /// answer only when `usage` (the first item of a batch carries the request's).
+    fn answer(&self, choice: String, response: &InferResponse, usage: bool) -> ChoiceAnswer {
+        let mut probabilities = BTreeMap::new();
+        probabilities.insert(choice.clone(), 1.0);
+        let reported = |tokens: u64| (usage && response.usage_reported).then_some(tokens);
+        ChoiceAnswer {
+            choice,
+            probabilities,
+            confidence: None,
+            model: self.model.clone(),
+            input_tokens: reported(response.usage.input_tokens),
+            output_tokens: reported(response.usage.output_tokens),
+            reasoning: usage
+                .then(|| crate::reasoning::reasoning_record(self.reasoning, Some(response))),
+        }
+    }
+}
+
 impl<P: ProviderInferDyn> DecisionSeat for ProviderChoice<'_, P> {
     fn name(&self) -> &str {
         &self.model
     }
+
+    /// A batch settled in ONE request: the shared instructions and state once, each item's own
+    /// words and options, an answer mapping each item id to one of its keys. An item the answer
+    /// leaves undecided fails alone; a request that fails fails every item.
+    fn choose_each<'a>(&'a self, batch: &'a ChoiceBatch) -> BatchFuture<'a> {
+        Box::pin(async move {
+            let count = batch.items.len();
+            let response = match self.request(closed_choices(batch)) {
+                Ok(infer) => self.call(infer).await,
+                Err(error) => Err(error),
+            };
+            let decoded = response
+                .and_then(|response| decoded_each(batch, &response).map(|keys| (response, keys)));
+            match decoded {
+                Ok((response, keys)) => (keys.into_iter().enumerate())
+                    .map(|(at, key)| {
+                        let key = key.ok_or_else(|| {
+                            DecisionError("the seat left this item without one of its keys".into())
+                        })?;
+                        Ok(self.answer(key, &response, at == 0))
+                    })
+                    .collect(),
+                Err(error) => vec![Err(error); count],
+            }
+        })
+    }
     fn choose<'a>(&'a self, question: &'a ChoiceQuestion) -> ChoiceFuture<'a> {
         Box::pin(async move {
-            let (messages, schema) = closed_choice(question);
-            let mut infer = InferRequest::new(&self.model, messages);
-            infer.max_tokens = Some(self.max_tokens);
-            infer.timeout = Some(self.timeout);
-            if let Some(reasoning) = self.reasoning {
-                infer.reasoning_effort =
-                    Some(crate::reasoning::effort(reasoning).ok_or_else(|| {
-                        DecisionError("the reasoning effort has no provider level".to_owned())
-                    })?);
-            }
-            infer.response_format = ResponseFormat::JsonSchema(schema);
-            let response = tokio::time::timeout(self.timeout, self.provider.infer(infer))
-                .await
-                .map_err(|_| {
-                    DecisionError("the single decision call timed out; no retry".to_owned())
-                })?
-                .map_err(|e| DecisionError(e.to_string()))?;
+            let response = self.call(self.request(closed_choice(question))?).await?;
             let choice = decoded(question, &response)?;
-            let mut probabilities = BTreeMap::new();
-            probabilities.insert(choice.clone(), 1.0);
-            Ok(ChoiceAnswer {
-                choice,
-                probabilities,
-                confidence: None,
-                model: self.model.clone(),
-                input_tokens: response
-                    .usage_reported
-                    .then_some(response.usage.input_tokens),
-                output_tokens: response
-                    .usage_reported
-                    .then_some(response.usage.output_tokens),
-                reasoning: Some(crate::reasoning::reasoning_record(
-                    self.reasoning,
-                    Some(&response),
-                )),
-            })
+            Ok(self.answer(choice, &response, true))
         })
     }
 }

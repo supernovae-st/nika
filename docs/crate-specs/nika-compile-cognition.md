@@ -630,7 +630,15 @@ when it repeats a verdict; one when the verdict carries it or judges nothing; ot
 part until a call gets no answer, a pointer per part judged missing, then, over a whole trial
 run, one question per open part or broken restriction and a pointer for each open part it finds
 missing, the extra-operation question when no part is a defect and the candidate names a task,
-and the observed-run question and its pointer when nothing stays open, all asked in sequence
+and the observed-run question and its pointer when nothing stays open, all asked in turn. When
+the judge is a decision seat, the independent questions of one step (each part against the
+bytes, each doubtful part over a whole run) are put to it together before their turn
+(`DecisionSeat::choose_each`: one request for a provider seated for decisions, one request per
+question in flight together for a decision service), and each answer is taken in its turn, so
+the questions, records, defects and stops are those of asking one by one; an answer read back
+from an earlier attempt is never asked again. An answer to a question the verdict then never
+reached (a call before it got no answer) was sent: it is recorded (role `unread`, `answered`)
+and counted, never read. A provider judge asks each question in its turn
 (`WHOLE_QUESTIONS`, 2, the verdict and one part, is not a bound). The parts are punctuation
 phrases, not a requirement register: an order, a data flow or a condition across parts is the
 verdict's and the observation's to judge. An observed run is one run over the request's observed

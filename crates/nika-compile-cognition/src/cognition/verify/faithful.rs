@@ -32,7 +32,7 @@ use serde_json::{Value, json};
 
 use super::{
     CLAUSE, CREATED, Declined, Judge, NO_OPERATION, REVISED, REVISED_APPENDED, Verdict, WHOLE, ask,
-    grounded, parts,
+    grounded, parts, prefetch,
 };
 use crate::CompileOutcome;
 use crate::decide::{ChoiceOption, ChoiceQuestion};
@@ -261,9 +261,11 @@ async fn locate<P: ProviderInferDyn>(
         })
         .collect();
     localize(&mut parts, asked, verdict, out).await;
+    super::unread(verdict);
     let trial = observation.filter(|observed| trial_whole(observed));
     if let Some(run) = trial.filter(|_| !verdict.stopped) {
         over_run(&mut parts, asked, run, verdict, out).await;
+        super::unread(verdict);
     }
     let broken = parts.iter().any(|p| matches!(p.state, State::Defect(_)));
     let extra = if verdict.stopped || broken {
@@ -359,42 +361,13 @@ async fn localize<P: ProviderInferDyn>(
     verdict: &mut Verdict,
     out: &mut CompileOutcome,
 ) {
-    // A request of one part asks no operation of nothing; only an earlier part is superseded.
-    let several = parts.len() > 1;
-    let last = parts.len().saturating_sub(1);
-    for (k, part) in parts.iter_mut().enumerate() {
-        let mut options = vec![
-            ChoiceOption::new(
-                "carried",
-                "the candidate does exactly what this clause asks",
-            ),
-            ChoiceOption::new("missing", "the candidate omits it or does it differently"),
-        ];
-        if k < last {
-            options.push(ChoiceOption::new(
-                "superseded",
-                "a later correction in the request replaces this part",
-            ));
-        }
-        if several && !part.restricting {
-            options.push(ChoiceOption::new("no_operation", NO_OPERATION));
-        }
-        let instructions = if part.restricting {
-            format!("{CLAUSE} {PART} {RESTRICTING}")
-        } else {
-            format!("{CLAUSE} {PART}")
-        };
-        let mut state = asked.base.clone();
-        state["clause"] = json!({"text": part.text});
-        let id = format!("verify-part-{k}");
-        let question = ChoiceQuestion::new(
-            id,
-            told(asked.base, asked.reference, &instructions),
-            state,
-            options,
-        );
+    let questions: Vec<ChoiceQuestion> = (parts.iter().enumerate())
+        .map(|(k, part)| part_question(k, part, parts.len(), asked))
+        .collect();
+    prefetch(asked.judge, "verify-parts", &questions, verdict).await;
+    for (k, (part, question)) in parts.iter_mut().zip(&questions).enumerate() {
         let returned = verdict.answers();
-        let answer = ask(asked.judge, &question, "judge_part", verdict, out).await;
+        let answer = ask(asked.judge, question, "judge_part", verdict, out).await;
         annotate(verdict, &part.text, part.restricting);
         if verdict.answers() == returned {
             verdict.stopped = true;
@@ -427,6 +400,41 @@ async fn localize<P: ProviderInferDyn>(
             _ => State::Unknown,
         };
     }
+}
+
+/// Part `k` of `count` asked alone against the bytes. A request of one part asks no operation
+/// of nothing; only an earlier part is superseded.
+fn part_question<P: ProviderInferDyn>(
+    k: usize,
+    part: &Part,
+    count: usize,
+    asked: &Asked<'_, '_, P>,
+) -> ChoiceQuestion {
+    let mut options = vec![
+        ChoiceOption::new(
+            "carried",
+            "the candidate does exactly what this clause asks",
+        ),
+        ChoiceOption::new("missing", "the candidate omits it or does it differently"),
+    ];
+    if k + 1 < count {
+        options.push(ChoiceOption::new(
+            "superseded",
+            "a later correction in the request replaces this part",
+        ));
+    }
+    if count > 1 && !part.restricting {
+        options.push(ChoiceOption::new("no_operation", NO_OPERATION));
+    }
+    let instructions = if part.restricting {
+        format!("{CLAUSE} {PART} {RESTRICTING}")
+    } else {
+        format!("{CLAUSE} {PART}")
+    };
+    let mut state = asked.base.clone();
+    state["clause"] = json!({"text": part.text});
+    let instructions = told(asked.base, asked.reference, &instructions);
+    ChoiceQuestion::new(format!("verify-part-{k}"), instructions, state, options)
 }
 
 /// What a part judged missing stands at once the task question named why (`over` prefixes the
@@ -530,40 +538,23 @@ async fn over_run<P: ProviderInferDyn>(
 ) {
     let mut state = asked.base.clone();
     state["observation"] = run.clone();
-    for (k, part) in parts.iter_mut().enumerate() {
-        let doubtful = match part.state {
-            State::Unknown | State::Contested => true,
-            State::Defect(_) => part.restricting,
-            State::Settled => false,
-        };
-        if !doubtful {
+    let questions: Vec<Option<ChoiceQuestion>> = (parts.iter().enumerate())
+        .map(|(k, part)| observed_question(k, part, &state, asked))
+        .collect();
+    let asked_together: Vec<ChoiceQuestion> = questions.iter().flatten().cloned().collect();
+    prefetch(
+        asked.judge,
+        "verify-observed-parts",
+        &asked_together,
+        verdict,
+    )
+    .await;
+    for (k, (part, question)) in parts.iter_mut().zip(&questions).enumerate() {
+        let Some(question) = question else {
             continue;
-        }
-        let options = vec![
-            ChoiceOption::new(
-                "carried",
-                "these inputs exercise it and the outputs show it done as asked",
-            ),
-            ChoiceOption::new("missing", "the outputs show it missing or done differently"),
-            ChoiceOption::new(
-                "unexercised",
-                "these inputs never exercise it: this run shows nothing about it",
-            ),
-        ];
-        let mut instructions = format!("{RUN} {OBSERVED_PART}");
-        if part.restricting {
-            instructions = format!("{instructions} {RESTRICTING}");
-        }
-        let mut judged = state.clone();
-        judged["clause"] = json!({"text": part.text});
-        let question = ChoiceQuestion::new(
-            format!("verify-observed-part-{k}"),
-            told(asked.base, asked.reference, &instructions),
-            judged,
-            options,
-        );
+        };
         let (returned, before) = (verdict.answers(), verdict.records.len());
-        let answer = ask(asked.judge, &question, "judge_observed_part", verdict, out).await;
+        let answer = ask(asked.judge, question, "judge_observed_part", verdict, out).await;
         annotate(verdict, &part.text, part.restricting);
         witnessed(verdict, before, run);
         if verdict.answers() == returned {
@@ -610,6 +601,45 @@ async fn over_run<P: ProviderInferDyn>(
             _ => {}
         }
     }
+}
+
+/// Part `k` asked again over a trial run (`state`: the base state and the run's observation),
+/// when it is doubtful there: left unknown or contested by the bytes, or a restriction they
+/// break.
+fn observed_question<P: ProviderInferDyn>(
+    k: usize,
+    part: &Part,
+    state: &Value,
+    asked: &Asked<'_, '_, P>,
+) -> Option<ChoiceQuestion> {
+    let doubtful = match part.state {
+        State::Unknown | State::Contested => true,
+        State::Defect(_) => part.restricting,
+        State::Settled => false,
+    };
+    if !doubtful {
+        return None;
+    }
+    let options = vec![
+        ChoiceOption::new(
+            "carried",
+            "these inputs exercise it and the outputs show it done as asked",
+        ),
+        ChoiceOption::new("missing", "the outputs show it missing or done differently"),
+        ChoiceOption::new(
+            "unexercised",
+            "these inputs never exercise it: this run shows nothing about it",
+        ),
+    ];
+    let mut instructions = format!("{RUN} {OBSERVED_PART}");
+    if part.restricting {
+        instructions = format!("{instructions} {RESTRICTING}");
+    }
+    let mut judged = state.clone();
+    judged["clause"] = json!({"text": part.text});
+    let instructions = told(asked.base, asked.reference, &instructions);
+    let id = format!("verify-observed-part-{k}");
+    Some(ChoiceQuestion::new(id, instructions, judged, options))
 }
 
 /// The task, if any, that does something the request does not ask. A task that only reads a

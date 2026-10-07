@@ -245,7 +245,8 @@ fn defect_sets(out: &CompileOutcome) -> Vec<(Value, Value)> {
 }
 
 /// One COLD verdict naming, of the request's three parts, those at `missing` (each with the
-/// reason [`POINTED`] gives it), its pending computation clause carried.
+/// reason [`POINTED`] gives it), its pending computation clause carried. The seat is asked the
+/// three parts together (A1), then each missing part's task question in its turn.
 fn naming(missing: &[usize]) -> Vec<(&'static str, Result<&'static str, &'static str>)> {
     let mut script = vec![
         ("verify-clause-0", Ok("carried")),
@@ -256,11 +257,19 @@ fn naming(missing: &[usize]) -> Vec<(&'static str, Result<&'static str, &'static
         ("verify-part-1", "verify-point-1"),
         ("verify-part-2", "verify-point-2"),
     ];
-    for (k, (part, point)) in ids.into_iter().enumerate() {
+    for (k, (part, _)) in ids.into_iter().enumerate() {
+        script.push((
+            part,
+            Ok(if missing.contains(&k) {
+                "missing"
+            } else {
+                "carried"
+            }),
+        ));
+    }
+    for (k, (_, point)) in ids.into_iter().enumerate() {
         if missing.contains(&k) {
-            script.extend([(part, Ok("missing")), (point, Ok(POINTED[k]))]);
-        } else {
-            script.push((part, Ok("carried")));
+            script.push((point, Ok(POINTED[k])));
         }
     }
     script
@@ -280,17 +289,17 @@ async fn a_defect_set_met_again_in_another_order_ends_the_repairs() {
         ("verify-clause-0", Ok("carried")),
         ("verify-request", Ok("unfaithful")),
         ("verify-part-0", Ok("missing")),
-        ("verify-point-0", Ok("omitted")),
         ("verify-part-1", Ok("missing")),
-        ("verify-point-1", Ok("task-compute")),
         ("verify-part-2", Ok("carried")),
+        ("verify-point-0", Ok("omitted")),
+        ("verify-point-1", Ok("task-compute")),
         ("verify-clause-0", Ok("missing")),
         ("verify-clause-0-point", Ok("task-compute")),
         ("verify-request", Ok("unfaithful")),
         ("verify-part-0", Ok("missing")),
-        ("verify-point-0", Ok("omitted")),
         ("verify-part-1", Ok("carried")),
         ("verify-part-2", Ok("carried")),
+        ("verify-point-0", Ok("omitted")),
     ]);
     let out = cold(policy(None), &author, &judge).await;
     assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");

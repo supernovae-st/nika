@@ -1,0 +1,254 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! Several independent closed choices over one state (A1: independent questions are grouped).
+//! Each item keeps its own id, options and NONE, and stays answerable alone. A provider seat
+//! settles a batch in one request whose answer maps each item id to one of that item's keys, so
+//! every answer is bound to its question by id, never by position. A seat that cannot group
+//! questions asks each item as its own question, all at once: one physical request per item, no
+//! retry, the answers in item order.
+
+use std::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
+
+use nika_kernel::ai::provider::{InferResponse, Message, Role};
+use serde_json::{Map, Value, json};
+
+use super::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionError, NONE_OPTION, answer_text};
+
+/// One item of a batch: the question as it is asked alone, and what it adds to the batch's
+/// shared instructions and state when the batch is asked in one request.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct BatchItem {
+    /// The item asked alone: its id, its whole instructions and state, its options and NONE.
+    pub question: ChoiceQuestion,
+    /// What the item asks beyond the batch's shared instructions (empty when nothing).
+    pub asks: String,
+    /// What the item adds to the batch's shared state (its clause, its part of a run).
+    pub adds: Value,
+}
+
+impl BatchItem {
+    /// One item: the question as asked alone, what it asks beyond the shared instructions, the
+    /// state it adds to the shared state.
+    #[must_use]
+    pub fn new(question: ChoiceQuestion, asks: impl Into<String>, adds: Value) -> Self {
+        Self {
+            question,
+            asks: asks.into(),
+            adds,
+        }
+    }
+}
+
+/// Several independent closed choices over one state.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ChoiceBatch {
+    /// Stable batch id.
+    pub id: String,
+    /// What the seat decides for every item.
+    pub instructions: String,
+    /// The bounded state every item reads.
+    pub state: Value,
+    /// The items, in order.
+    pub items: Vec<BatchItem>,
+}
+
+impl ChoiceBatch {
+    /// A batch of items over one shared state and shared instructions.
+    #[must_use]
+    pub fn new(
+        id: impl Into<String>,
+        instructions: impl Into<String>,
+        state: Value,
+        items: Vec<BatchItem>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            instructions: instructions.into(),
+            state,
+            items,
+        }
+    }
+}
+
+impl ChoiceBatch {
+    /// The batch of `questions`, each as it is asked alone: what their instructions share (their
+    /// longest common prefix, ended at the last paragraph break in it) and the state entries
+    /// they all hold alike become the batch's; what each adds stays its item's own.
+    #[must_use]
+    pub fn of(id: impl Into<String>, questions: &[ChoiceQuestion]) -> Self {
+        let shared = (questions.iter().map(|q| q.instructions.as_str()))
+            .reduce(common_prefix)
+            .unwrap_or_default();
+        let shared = shared.rfind("\n\n").map_or("", |end| &shared[..end]);
+        let alike =
+            |key: &str, value: &Value| (questions.iter()).all(|q| q.state.get(key) == Some(value));
+        let state: Map<String, Value> = (questions.first())
+            .and_then(|q| q.state.as_object())
+            .map(|first| {
+                (first.iter())
+                    .filter(|(key, value)| alike(key, value))
+                    .map(|(key, value)| (key.clone(), value.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let items = (questions.iter())
+            .map(|q| {
+                let asks = q.instructions[shared.len()..].trim_start().to_owned();
+                let own: Map<String, Value> = (q.state.as_object().into_iter().flatten())
+                    .filter(|(key, _)| !state.contains_key(*key))
+                    .map(|(key, value)| (key.clone(), value.clone()))
+                    .collect();
+                let adds = if own.is_empty() {
+                    Value::Null
+                } else {
+                    Value::Object(own)
+                };
+                BatchItem::new(q.clone(), asks, adds)
+            })
+            .collect();
+        Self::new(id, shared, Value::Object(state), items)
+    }
+}
+
+/// The longest common prefix of two texts, on a character boundary.
+fn common_prefix<'t>(a: &'t str, b: &str) -> &'t str {
+    let end = (a.char_indices())
+        .zip(b.chars())
+        .find(|((_, x), y)| x != y)
+        .map_or(a.len().min(b.len()), |((at, _), _)| at);
+    &a[..end]
+}
+
+/// The object-safe future a seat returns for a batch: one answer per item, in item order.
+pub type BatchFuture<'a> =
+    Pin<Box<dyn Future<Output = Vec<Result<ChoiceAnswer, DecisionError>>> + Send + 'a>>;
+
+/// Each item of `batch` asked alone of `ask`, all at once: one physical request per item, the
+/// answers in item order.
+pub fn each_alone<'a>(
+    batch: &'a ChoiceBatch,
+    ask: impl Fn(&'a ChoiceQuestion) -> ChoiceFuture<'a>,
+) -> BatchFuture<'a> {
+    let asked: Vec<ChoiceFuture<'a>> = (batch.items.iter())
+        .map(|item| ask(&item.question))
+        .collect();
+    Box::pin(joined(asked))
+}
+
+/// Every future to its end, polled together; the outputs in the order given.
+async fn joined<T>(mut futures: Vec<Pin<Box<dyn Future<Output = T> + Send + '_>>>) -> Vec<T> {
+    let mut done: Vec<Option<T>> = futures.iter().map(|_| None).collect();
+    std::future::poll_fn(|cx: &mut Context<'_>| {
+        let mut pending = false;
+        for (slot, future) in done.iter_mut().zip(futures.iter_mut()) {
+            if slot.is_none() {
+                match future.as_mut().poll(cx) {
+                    Poll::Ready(value) => *slot = Some(value),
+                    Poll::Pending => pending = true,
+                }
+            }
+        }
+        if pending {
+            Poll::Pending
+        } else {
+            Poll::Ready(())
+        }
+    })
+    .await;
+    done.into_iter().flatten().collect()
+}
+
+/// The two messages and the answer schema of a batch asked in one request: the shared
+/// instructions and state once, then each item with what it asks, what it adds and its options;
+/// the answer names, for each item id, one of that item's keys.
+#[must_use]
+pub fn closed_choices(batch: &ChoiceBatch) -> (Vec<Message>, Value) {
+    let system = format!(
+        "You settle SEVERAL independent closed choices for a workflow compiler, one per item. Read the state once, then judge each item alone, on its own words, and pick exactly one of THAT item's option keys. {} Choose \"{NONE_OPTION}\" for an item when none of its options fits. Return only a JSON object mapping each item id to the key you chose for it.",
+        batch.instructions
+    );
+    let items: Vec<String> = (batch.items.iter())
+        .map(|item| {
+            let options: Vec<String> = (item.question.options.iter())
+                .map(|o| format!("- {}: {}", o.key, o.description))
+                .collect();
+            let mut text = format!("ITEM {}:", item.question.id);
+            if !item.asks.is_empty() {
+                text.push('\n');
+                text.push_str(&item.asks);
+            }
+            if !item.adds.is_null() {
+                text.push('\n');
+                text.push_str(&serde_json::to_string_pretty(&item.adds).unwrap_or_default());
+            }
+            format!("{text}\nOPTIONS:\n{}", options.join("\n"))
+        })
+        .collect();
+    let user = format!(
+        "STATE:\n{}\n\nITEMS:\n\n{}",
+        serde_json::to_string_pretty(&batch.state).unwrap_or_default(),
+        items.join("\n\n")
+    );
+    let properties: Map<String, Value> = (batch.items.iter())
+        .map(|item| {
+            let keys = item.question.keys();
+            (
+                item.question.id.clone(),
+                json!({"type": "string", "enum": keys}),
+            )
+        })
+        .collect();
+    let required: Vec<&str> = (batch.items.iter())
+        .map(|item| item.question.id.as_str())
+        .collect();
+    let schema = json!({
+        "type": "object", "additionalProperties": false, "required": required,
+        "properties": properties,
+    });
+    (
+        vec![
+            Message::text(Role::System, system),
+            Message::text(Role::User, user),
+        ],
+        schema,
+    )
+}
+
+/// Each item's key in a batch answer: one complete JSON object naming, for each item id, one of
+/// that item's offered keys. An item the answer leaves out, or answers outside its options, is
+/// undecided (`None`).
+///
+/// # Errors
+/// A [`DecisionError`] when the answer is not one complete JSON object: it decides no item.
+pub fn decoded_each(
+    batch: &ChoiceBatch,
+    response: &InferResponse,
+) -> Result<Vec<Option<String>>, DecisionError> {
+    let text = answer_text(response).ok_or_else(|| {
+        DecisionError("the seat did not return one complete JSON text".to_owned())
+    })?;
+    let value: Value = serde_json::from_str(text)
+        .map_err(|e| DecisionError(format!("the seat answer is not JSON: {e}")))?;
+    if !value.is_object() {
+        return Err(DecisionError(
+            "the seat answer is not one object of item keys".to_owned(),
+        ));
+    }
+    Ok((batch.items.iter())
+        .map(|item| {
+            (value.get(&item.question.id).and_then(Value::as_str))
+                .filter(|key| item.question.options.iter().any(|o| o.key == *key))
+                .map(str::to_owned)
+        })
+        .collect())
+}
+
+#[cfg(test)]
+mod tests;

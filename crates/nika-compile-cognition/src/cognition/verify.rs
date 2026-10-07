@@ -136,6 +136,9 @@ pub(super) struct Verdict {
     pub(super) earlier: Vec<Value>,
     /// The answers read back from `earlier`.
     pub(super) read_back: u32,
+    /// What a decision seat answered the questions of one step asked together (A1), by
+    /// question id: each taken in its turn as the verdict asks that question.
+    pub(super) prefetched: Vec<(String, Result<ChoiceAnswer, DecisionError>)>,
 }
 
 /// What the judge's admitted answers did to a candidate's bytes, by strength.
@@ -367,7 +370,11 @@ async fn ask<P: ProviderInferDyn>(
     verdict.attempted += 1;
     let (returned, answer) = match judge {
         Judge::Seat(seat) => {
-            let answer = seat.choose(question).await;
+            let at = (verdict.prefetched.iter()).position(|(id, _)| *id == question.id);
+            let answer = match at {
+                Some(at) => verdict.prefetched.remove(at).1,
+                None => seat.choose(question).await,
+            };
             (answer.is_ok(), answer)
         }
         Judge::Provider(policy, provider) => {
@@ -405,6 +412,44 @@ async fn ask<P: ProviderInferDyn>(
     }
     verdict.records.push(record);
     admitted.ok()
+}
+
+/// The questions of one step, put to a decision seat together before their turn (A1): one
+/// request for a provider seated for decisions, one per question in flight together for a
+/// decision service. Each answer is taken in its turn as the verdict asks that question; one
+/// read back from an earlier attempt is not asked again (R6). A provider judge asks each
+/// question in its turn.
+async fn prefetch<P: ProviderInferDyn>(
+    judge: &Judge<'_, P>,
+    step: &str,
+    questions: &[ChoiceQuestion],
+    verdict: &mut Verdict,
+) {
+    let Judge::Seat(seat) = judge else {
+        return;
+    };
+    let open: Vec<ChoiceQuestion> = (questions.iter())
+        .filter(|question| read_back(verdict, question).is_none())
+        .cloned()
+        .collect();
+    if open.len() > 1 {
+        let answers = seat
+            .choose_each(&decide::ChoiceBatch::of(step, &open))
+            .await;
+        let ids = open.into_iter().map(|question| question.id);
+        verdict.prefetched.extend(ids.zip(answers));
+    }
+}
+
+/// The answers a seat gave questions the verdict never reached (it stopped first): sent, so each
+/// is recorded and counted, never read.
+fn unread(verdict: &mut Verdict) {
+    for (id, answer) in std::mem::take(&mut verdict.prefetched) {
+        verdict.attempted += 1;
+        verdict.returned += u32::from(answer.is_ok());
+        let record = json!({"question": id, "role": "unread", "answered": answer.is_ok()});
+        verdict.records.push(record);
+    }
 }
 
 /// The admitted answer the attempt a verdict resumes gave the same question over the same
