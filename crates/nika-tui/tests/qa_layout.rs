@@ -350,6 +350,16 @@ fn rule_row(screen: &Screen) -> Option<u16> {
     screen.row_of(RULE).and_then(|row| u16::try_from(row).ok())
 }
 
+/// The switch is right-aligned at this width. After a grow, old cells can
+/// remain visible at their old column until the new frame reaches us.
+fn switch_at_width(screen: &Screen, switch: &str, cols: u16) -> bool {
+    use unicode_width::UnicodeWidthStr as _;
+    screen.lines().first().is_some_and(|row| {
+        row.find(switch)
+            .is_some_and(|at| row[..at].width() == usize::from(cols).saturating_sub(switch.width()))
+    })
+}
+
 /// The conversation's rule column stands at `x` beside the object.
 fn rule_at(screen: &Screen, x: u16, rows: std::ops::Range<u16>) -> bool {
     let lines = screen.lines();
@@ -418,7 +428,7 @@ fn rearrange(term: &mut Term, typed: &str) {
         term.resize(cols, rows);
         term.wait_until("rearranged at the new size", |s| {
             s.size() == (usize::from(cols), usize::from(rows))
-                && s.contains(SESSION_SWITCH)
+                && switch_at_width(s, SESSION_SWITCH, cols)
                 && s.contains(typed)
         });
         prove_settled_bounds(term, cols, rows);
@@ -432,11 +442,10 @@ fn prove_settled_bounds(term: &mut Term, cols: u16, rows: u16) {
     let window = std::time::Duration::from_millis(400);
     term.settle(window);
     term.screen.clear_beyond();
+    let mark = term.mark();
     term.send("\x0c");
-    assert!(
-        term.settle(window) > 0,
-        "no complete redraw at {cols}x{rows}"
-    );
+    term.spin_until_bytes(mark, b"\x1b[2J");
+    term.settle(window);
     assert_eq!(term.screen.beyond(), 0, "settled redraw at {cols}x{rows}");
 }
 
@@ -498,7 +507,7 @@ fn both_layouts_keep_the_composer_and_the_switch_at_every_size() {
             term.resize(cols, rows);
             term.wait_until(&format!("{switch} at {cols}x{rows}"), |s| {
                 s.size() == (usize::from(cols), usize::from(rows))
-                    && s.lines()[0].trim_end().ends_with(switch)
+                    && switch_at_width(s, switch, cols)
                     && s.contains("nika › draft here")
             });
         }
