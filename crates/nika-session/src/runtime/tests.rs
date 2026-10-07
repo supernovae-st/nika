@@ -1174,18 +1174,18 @@ fn a_finished_run_reads_as_a_result_and_proof_reads_its_trace() {
     let TurnOutcome::Facts(proof) = s.turn("/proof") else {
         panic!("a proof");
     };
-    assert!(proof.starts_with("Proof · "), "{proof}");
+    assert!(proof.starts_with("Proof · "), "the proof header");
     assert!(
         proof.contains("\n  workflow · compiled-workflow · bytes sha256 5d1bf591…0730"),
-        "{proof}"
+        "a line of the proof"
     );
     assert!(
         proof.contains("\n  chain · OK — 13 events · chain intact · head 1cf484e5…7f01"),
-        "{proof}"
+        "a line of the proof"
     );
     assert!(
         proof.contains("written · ./out/copie.md · 40 B · sha256 "),
-        "{proof}"
+        "a line of the proof"
     );
     assert!(
         proof.contains("does not prove · that the content is right"),

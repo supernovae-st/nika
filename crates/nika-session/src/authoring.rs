@@ -902,8 +902,8 @@ mod tests {
             "no provider was contacted for an answer round"
         );
         let candidate = second.candidate.expect("candidate");
-        assert!(candidate.contains("model: mock/echo"), "{candidate}");
-        assert!(candidate.contains("nika:write"), "{candidate}");
+        assert!(candidate.contains("model: mock/echo"), "the answered model");
+        assert!(candidate.contains("nika:write"), "the requested write");
     }
 
     /// A candidate its verifier answered and did not accept (`verify_held`) leaves its round

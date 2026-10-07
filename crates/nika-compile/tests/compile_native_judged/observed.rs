@@ -198,14 +198,15 @@ impl DecisionSeat for Judging {
     fn choose<'a>(&'a self, question: &'a ChoiceQuestion) -> ChoiceFuture<'a> {
         Box::pin(async move {
             self.asked.lock().unwrap().push(question.clone());
+            // Answered by question, first scripted entry first: the parts of one step are asked
+            // together (A1), so a later part may arrive before an earlier part's pointer.
             let mut script = self.script.lock().unwrap();
-            match script.front() {
-                Some((id, choice)) if *id == question.id => {
-                    let answer = ChoiceAnswer::new(*choice, JUDGE);
-                    script.pop_front();
-                    Ok(answer)
+            match script.iter().position(|(id, _)| *id == question.id) {
+                Some(at) => {
+                    let (_, choice) = script.remove(at).unwrap();
+                    Ok(ChoiceAnswer::new(choice, JUDGE))
                 }
-                _ => Err(DecisionError(format!("unscripted: {}", question.id))),
+                None => Err(DecisionError(format!("unscripted: {}", question.id))),
             }
         })
     }
