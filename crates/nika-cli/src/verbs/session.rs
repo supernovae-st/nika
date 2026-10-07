@@ -20,6 +20,7 @@ use std::path::PathBuf;
 
 use nika_session::intelligence::{IntelligenceKind, UserIntelligencePreference};
 use nika_session::reasoner::{NoReasoner, ProviderReasoner, SessionReasoner};
+use nika_session::work::Waiting;
 use nika_session::{
     IntelligenceCensus, ResolvedSessionIntelligence, RunRequest, SessionRuntime, TurnOutcome,
 };
@@ -144,24 +145,22 @@ fn drive_with<R: BufRead, W: Write>(
     // The line goes where the MACHINE's state says (ADR-133 · #1464): the
     // runtime owns what waits — the first screen, a proposal, a gate, an
     // authoring question (each its own prompt: a `yes` never crosses from
-    // one to another). The door keeps no bit of its own.
+    // one to another) — and routes the line to the identity shown. The door
+    // keeps no bit of its own.
     loop {
-        let prompt = if session.waiting_cost_choice() {
-            nika_cli_host::lines::fresh_terminal(output)?;
-            "continue once? › "
-        } else if session.pending_choice() {
-            "› "
-        } else if session.pending_proposal().is_some() {
-            "apply? › "
-        } else if session.waiting_gate().is_some() {
-            "answer › "
-        } else if session.pending_question().is_some()
-            || session.pending_input().is_some()
-            || session.pending_activation().is_some()
-        {
-            "reply › "
-        } else {
-            "nika › "
+        let shown = session.waiting();
+        let prompt = match &shown {
+            Waiting::CostChoice => {
+                nika_cli_host::lines::fresh_terminal(output)?;
+                "continue once? › "
+            }
+            Waiting::IntelligenceChoice => "› ",
+            Waiting::Consent { .. } => "apply? › ",
+            Waiting::Gate { .. } => "answer › ",
+            Waiting::Question { .. } | Waiting::Input { .. } | Waiting::Activation { .. } => {
+                "reply › "
+            }
+            _ => "nika › ",
         };
         fresh_question(output, prompt)?;
         write!(output, "\n{prompt}")?;
@@ -170,17 +169,7 @@ fn drive_with<R: BufRead, W: Write>(
         if input.read_line(&mut line)? == 0 {
             return Ok(exit::OK);
         }
-        let outcome = if session.waiting_cost_choice() {
-            session.turn(&line)
-        } else if session.pending_choice() {
-            session.choose(line.trim())
-        } else if session.pending_proposal().is_some() {
-            session.consent(line.trim())
-        } else if session.waiting_gate().is_some() {
-            session.answer_gate(line.trim())
-        } else {
-            session.turn(&line)
-        };
+        let outcome = session.submit(&line, &shown);
         if handle_outcome(output, &mut session, outcome, theme)? {
             return Ok(exit::OK);
         }
