@@ -9,7 +9,9 @@
 //!   key's values and no other column's. A sample that never shows it proves nothing.
 use crate::rules::Rule;
 use nika_compile_fidelity::grounding::compares;
-pub(crate) use nika_compile_fidelity::grounding::{Entry, Grade, Seen, grade, revision, row, seen};
+pub(crate) use nika_compile_fidelity::grounding::{
+    Entry, Grade, Seen, grade, revision, row, seen, seen_in,
+};
 use serde_json::Value;
 
 /// Whether an answer round's observation of `path` differs from the one the replayed record

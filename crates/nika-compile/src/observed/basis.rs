@@ -267,7 +267,7 @@ fn key(entry: &Value, fresh: Option<&Value>, supported: &[(String, String)]) -> 
         .map(|(_, key)| key.clone())
         .collect();
     let asserted = stated.iter().any(|name| name == key);
-    let Some(seen) = grounding::seen(Some(row)) else {
+    let Some(seen) = grounding::seen_in(fresh, Some(row)) else {
         // A key asserted over a source never observed stays asserted while it is still not
         // observed; a source that was observed and shows no record now has moved.
         let observed_then = entry["revision"].as_str().is_some_and(is_digest);

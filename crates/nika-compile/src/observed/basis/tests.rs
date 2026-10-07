@@ -725,3 +725,48 @@ fn a_semantic_candidates_literal_reads_are_its_judged_basis() {
     let computed = recorded("fromjson | map(.[$k])");
     assert!(computed.is_none_or(|d| d.get("grounding").is_none()));
 }
+
+/// The world the host observer records of one JSON document: its row, and its kinds beside the
+/// row with the nested key paths of its collections.
+fn document(path: &str, doc: &Value) -> Value {
+    let sample = observation::records(std::slice::from_ref(doc));
+    let mut row = json!({"path": path, "state": "observed", "complete": true, "kind": "json",
+        "columns": sample.columns, "peek_sha256": crate::surface::sha256(&doc.to_string())});
+    if let Some(common) = sample.common {
+        row["common_columns"] = json!(common);
+    }
+    let mut kinds = sample.kinds;
+    if !sample.nested.is_null() {
+        kinds["nested"] = sample.nested;
+    }
+    json!({"observed": [row], "kinds": {path: kinds}})
+}
+
+/// A key the candidate reads in the records of a document's collection (`lists[].list`) holds
+/// against an unchanged document: the check before Save never withdraws a proposal because
+/// such a key is not one of the document's top-level keys. A key the records no longer hold
+/// still moves the basis.
+#[test]
+fn a_record_key_of_a_documents_collection_holds_the_basis() {
+    let source = "./mailing.json";
+    let doc = json!({"closed_accounts": ["a@x.test"],
+        "lists": [{"list": "news", "members": [{"email": "a@x.test", "subscribed": true}]},
+                  {"list": "deals", "members": []}]});
+    let world = document(source, &doc);
+    let recorded = json!({"grounding": [{
+        "rule": "the lists, sorted by list name", "field": "list", "source": source,
+        "revision": "b".repeat(64), "grade": "observed_complete", "in_every_sampled_record": true,
+        "bound_by": "semantic_reads", "admissible": true,
+    }]});
+    assert_eq!(basis(Some(&recorded), Some(&world), ""), Basis::Holds(1));
+    let renamed = json!({"closed_accounts": [],
+        "lists": [{"name": "news", "members": []}]});
+    assert!(
+        moved(basis(
+            Some(&recorded),
+            Some(&document(source, &renamed)),
+            ""
+        ))[0]
+            .contains("no longer has `list`")
+    );
+}

@@ -62,6 +62,12 @@ pub struct Seen {
     pub declared: bool,
     /// Whether the host read the whole artifact.
     pub complete: bool,
+    /// The keys of the records the document's own collections hold (`stock[].part` shows
+    /// `part`), also counted in `all` (and in `everywhere` when every record of every collection
+    /// holding them does): a rule over those records reads them by name.
+    pub nested: Vec<String>,
+    /// Whether the host walked those collections whole (no bound reached).
+    pub nested_complete: bool,
 }
 
 /// The one observation row of a path; `None` when the world holds none or several.
@@ -104,7 +110,69 @@ pub fn seen(row: Option<&Value>) -> Option<Seen> {
         everywhere,
         declared,
         complete,
+        nested: Vec::new(),
+        nested_complete: true,
     })
+}
+
+/// [`seen`], with the record keys of the collections one observed document holds, read from the
+/// nested structure the host keeps beside the row (`world.kinds[path].nested`, keys and kinds,
+/// never a value). Only a single document's top-level collections of records count (`stock[]`
+/// in `{"stock": [{..}], "movements": [{..}]}`): a record's own inner lists are not records a
+/// rule iterates.
+#[must_use]
+pub fn seen_in(world: Option<&Value>, row: Option<&Value>) -> Option<Seen> {
+    let mut seen = seen(row)?;
+    let path = row.and_then(|r| r.get("path")).and_then(Value::as_str);
+    let entry = path.and_then(|p| world?.get("kinds")?.get(p));
+    if let Some(entry) = entry.filter(|e| e.get("sampled").and_then(Value::as_u64) == Some(1)) {
+        seen.nest(&entry["nested"]);
+    }
+    Some(seen)
+}
+
+impl Seen {
+    /// Fold the record keys of a document's top-level collections into the keys seen.
+    fn nest(&mut self, nested: &Value) {
+        let Some(paths) = nested.get("paths").and_then(Value::as_object) else {
+            return;
+        };
+        let collections = nested.get("collections");
+        // key -> whether every record of every collection holding it holds it
+        let mut keys: Vec<(String, bool)> = Vec::new();
+        for (path, counts) in paths {
+            let Some((collection, key)) = path.split_once("[].") else {
+                continue;
+            };
+            let plain = |s: &str| !s.is_empty() && !s.contains(['.', '[', ']']);
+            if !plain(collection) || !plain(key) {
+                continue;
+            }
+            let held: u64 = (counts.as_object().into_iter().flatten())
+                .filter_map(|(_, n)| n.as_u64())
+                .sum();
+            let sampled = collections
+                .and_then(|c| c.get(format!("{collection}[]")))
+                .and_then(|c| c.get("sampled"))
+                .and_then(Value::as_u64);
+            let every = sampled == Some(held);
+            match keys.iter_mut().find(|(k, _)| k == key) {
+                Some((_, all)) => *all &= every,
+                None => keys.push((key.to_owned(), every)),
+            }
+        }
+        self.nested_complete = nested.get("complete").and_then(Value::as_bool) == Some(true);
+        for (key, every) in keys {
+            if self.all.contains(&key) {
+                continue;
+            }
+            if every {
+                self.everywhere.push(key.clone());
+            }
+            self.all.push(key.clone());
+            self.nested.push(key);
+        }
+    }
 }
 
 /// A key's grade and whether every sampled record holds it. A header lists every name, so a
@@ -114,16 +182,19 @@ pub fn grade(key: &str, seen: Option<&Seen>, stated_columns: &[String]) -> (Grad
     match seen {
         Some(seen) if seen.all.iter().any(|k| k == key) => {
             let everywhere = seen.everywhere.iter().any(|k| k == key);
+            let partial = !seen.nested_complete && seen.nested.iter().any(|k| k == key);
             let grade = if seen.declared {
                 Grade::Declared
-            } else if seen.complete {
+            } else if seen.complete && !partial {
                 Grade::ObservedComplete
             } else {
                 Grade::ObservedPartial
             };
             (grade, everywhere)
         }
-        Some(seen) if seen.declared || seen.complete => (Grade::Inferred, false),
+        Some(seen) if seen.declared || (seen.complete && seen.nested_complete) => {
+            (Grade::Inferred, false)
+        }
         _ if stated_columns.iter().any(|c| c == key) => (Grade::UserAsserted, true),
         _ => (Grade::Inferred, false),
     }

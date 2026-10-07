@@ -19,7 +19,7 @@
 
 use serde_json::Value;
 
-use super::{Entry, grade, row, seen};
+use super::{Entry, grade, row, seen_in};
 
 /// What binds a recorded semantic fact: the candidate reads the key literally.
 pub const BOUND_BY: &str = "semantic_reads";
@@ -47,7 +47,7 @@ pub fn facts(record: &Value, world: Option<&Value>) -> Vec<Value> {
     let mut facts = Vec::new();
     for source in sources(record, world) {
         let row = row(world, &source);
-        let Some(seen) = seen(row) else {
+        let Some(seen) = seen_in(world, row) else {
             continue;
         };
         for key in seen.all.iter().filter(|key| read.contains(key)) {

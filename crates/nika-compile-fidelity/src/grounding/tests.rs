@@ -195,3 +195,59 @@ fn every_declared_source_showing_a_read_key_records_it() {
     let got = facts(&record(&["a.json"], ".stock"), Some(&partial));
     assert_eq!(got[0]["in_every_sampled_record"], false);
 }
+
+/// One observed JSON document holding a collection of records (`lines[]`) and a plain object.
+fn shop(complete: bool, sampled: u64) -> Value {
+    let row = json!({"path": "./shop.json", "state": "observed", "kind": "json",
+        "columns": ["lines", "owner"], "common_columns": ["lines", "owner"], "complete": true});
+    let nested = json!({"complete": complete,
+        "paths": {"lines[]": {"object": 3}, "lines[].sku": {"text": 3},
+            "lines[].note": {"text": 1}, "lines[].tags[]": {"text": 2},
+            "lines[].tags[].x": {"text": 1}, "owner.name": {"text": 1}},
+        "collections": {"lines[]": {"elements": 3, "sampled": 3}}});
+    json!({"observed": [row], "kinds": {"./shop.json": {"sampled": sampled, "nested": nested}}})
+}
+
+/// The record keys of a document's collections are keys the source shows (a rule over those
+/// records reads them by name), graded by the walk's completeness, and in every sampled record
+/// only when every record of every collection holding them holds them.
+#[test]
+fn the_record_keys_of_a_documents_collections_are_seen() {
+    let w = shop(true, 1);
+    let flat = seen(row(Some(&w), "shop.json")).expect("seen");
+    assert_eq!(grade("sku", Some(&flat), &[]), (Grade::Inferred, false));
+    let deep = seen_in(Some(&w), row(Some(&w), "shop.json")).expect("seen");
+    assert_eq!(deep.nested, ["note", "sku"]);
+    assert_eq!(
+        grade("sku", Some(&deep), &[]),
+        (Grade::ObservedComplete, true)
+    );
+    assert_eq!(
+        grade("note", Some(&deep), &[]),
+        (Grade::ObservedComplete, false)
+    );
+    // An inner list of a record and a plain object's key are not records a rule iterates.
+    for key in ["x", "tags", "name"] {
+        assert_eq!(
+            grade(key, Some(&deep), &[]),
+            (Grade::Inferred, false),
+            "{key}"
+        );
+    }
+    // A walk cut by a bound shows a key only partially and disproves nothing.
+    let cut = shop(false, 1);
+    let cut = seen_in(Some(&cut), row(Some(&cut), "shop.json")).expect("seen");
+    assert_eq!(
+        grade("sku", Some(&cut), &[]),
+        (Grade::ObservedPartial, true)
+    );
+    assert_eq!(
+        grade("qty", Some(&cut), &["qty".into()]),
+        (Grade::UserAsserted, true)
+    );
+    // Several sampled rows are a list of records, not one document: their inner lists stay out.
+    let many = shop(true, 2);
+    let many = seen_in(Some(&many), row(Some(&many), "shop.json")).expect("seen");
+    assert!(many.nested.is_empty());
+    assert_eq!(grade("sku", Some(&many), &[]), (Grade::Inferred, false));
+}

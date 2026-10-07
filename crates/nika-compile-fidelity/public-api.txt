@@ -2634,6 +2634,8 @@ pub nika_compile_fidelity::grounding::Seen::all: alloc::vec::Vec<alloc::string::
 pub nika_compile_fidelity::grounding::Seen::complete: bool
 pub nika_compile_fidelity::grounding::Seen::declared: bool
 pub nika_compile_fidelity::grounding::Seen::everywhere: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_fidelity::grounding::Seen::nested: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_fidelity::grounding::Seen::nested_complete: bool
 impl<D> owo_colors::OwoColorize for nika_compile_fidelity::grounding::Seen
 impl<T, U> core::convert::Into<U> for nika_compile_fidelity::grounding::Seen where U: core::convert::From<T>
 pub fn nika_compile_fidelity::grounding::Seen::into(self) -> U
@@ -2660,6 +2662,7 @@ pub fn nika_compile_fidelity::grounding::grade(key: &str, seen: core::option::Op
 pub fn nika_compile_fidelity::grounding::revision(row: core::option::Option<&serde_json::value::Value>) -> alloc::string::String
 pub fn nika_compile_fidelity::grounding::row<'a>(world: core::option::Option<&'a serde_json::value::Value>, path: &str) -> core::option::Option<&'a serde_json::value::Value>
 pub fn nika_compile_fidelity::grounding::seen(row: core::option::Option<&serde_json::value::Value>) -> core::option::Option<nika_compile_fidelity::grounding::Seen>
+pub fn nika_compile_fidelity::grounding::seen_in(world: core::option::Option<&serde_json::value::Value>, row: core::option::Option<&serde_json::value::Value>) -> core::option::Option<nika_compile_fidelity::grounding::Seen>
 pub mod nika_compile_fidelity::literal
 pub mod nika_compile_fidelity::literal::answered
 pub fn nika_compile_fidelity::literal::answered::grant_host(after: &mut serde_json::value::Value, slug: &str, value: &serde_json::value::Value) -> bool
