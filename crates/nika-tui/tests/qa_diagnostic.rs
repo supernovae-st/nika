@@ -52,13 +52,19 @@ fn the_palette_diagnostic_opens_at_rest_and_while_a_turn_is_working() {
             "{}",
             term.dump()
         );
+        let words = term
+            .screen
+            .lines()
+            .iter()
+            .map(|row| row.trim().trim_matches('│').trim())
+            .collect::<Vec<_>>()
+            .join(" ");
         assert!(
-            term.screen
-                .contains("nothing was sent to the authoring model"),
+            words.contains("nothing was sent to the authoring model"),
             "{}",
             term.dump()
         );
-        term.send("\x1b");
+        term.send(if busy { "\x1b" } else { "\r" });
         term.wait_text("keep this exact draft");
         if busy {
             term.wait_prompt(REPLY);
@@ -75,4 +81,32 @@ fn the_palette_diagnostic_opens_at_rest_and_while_a_turn_is_working() {
         assert!(!term.screen.seen("Save these changes"), "{}", term.dump());
         leave(&mut term);
     }
+}
+
+/// Inline diagnostics scroll inside the actual twelve-row viewport even
+/// when the terminal is taller; the full raw suffix remains reachable.
+#[test]
+fn an_inline_diagnostic_reaches_its_last_raw_row() {
+    let mut term = Term::proto(&["--demo-diagnostic"], 60, 40);
+    term.wait_prompt(FREE);
+    term.send("keep inline draft");
+    term.wait_text("nika › keep inline draft");
+    term.send("\x1bOQ");
+    term.wait_text("Full diagnostic");
+    term.send("\x1b[F");
+    term.wait_until("the raw suffix inside the inline diagnostic", |screen| {
+        let rows = screen.lines();
+        rows.iter()
+            .position(|row| row.contains("Full diagnostic"))
+            .is_some_and(|start| {
+                rows.iter()
+                    .skip(start + 1)
+                    .take(10)
+                    .any(|row| row.contains("session again"))
+            })
+    });
+    term.send("\x1b");
+    term.wait_text("nika › keep inline draft");
+    assert!(!term.screen.seen(QUESTION), "{}", term.dump());
+    leave(&mut term);
 }

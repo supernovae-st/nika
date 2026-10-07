@@ -6,7 +6,7 @@
 //!
 //! The transcript keeps the Session's block untouched; a summary only changes
 //! how a card shows it. `F2` (or the palette) opens this view while such a
-//! refusal exists, the arrows and the page keys scroll it, and `Esc` or `F2`
+//! refusal exists, the arrows and the page keys scroll it, and `Esc`, `Enter` or `F2`
 //! closes it with the composer, its draft and the keyboard focus exactly as
 //! they were. It sends nothing and grants nothing; any other key closes it
 //! and takes its ordinary path.
@@ -59,7 +59,7 @@ pub(crate) fn latest(
 pub(crate) enum Viewed {
     /// It scrolled (or stayed at an end): nothing else changed.
     Read,
-    /// `Esc` or `F2`: the view closes, everything else as it was.
+    /// `Esc`, `Enter` or `F2`: the view closes, everything else as it was.
     Closed,
     /// Not its key: the view closes and the key takes its ordinary path.
     Passed,
@@ -98,7 +98,7 @@ impl Diagnostic {
             return Viewed::Passed;
         }
         self.scroll = match key.code {
-            KeyCode::Esc => return Viewed::Closed,
+            KeyCode::Esc | KeyCode::Enter => return Viewed::Closed,
             code if code == DIAGNOSTIC_KEY => return Viewed::Closed,
             KeyCode::Up => self.scroll.saturating_sub(1),
             KeyCode::Down => self.scroll.saturating_add(1),
@@ -137,9 +137,9 @@ impl Diagnostic {
         };
         let title = format!(" Full diagnostic{sep}the Session's words, read only ");
         let keys = if ascii {
-            " Up/Down PgUp/PgDn scroll - Esc returns "
+            " Up/Down PgUp/PgDn scroll - Esc/Enter returns "
         } else {
-            " ↑↓ PgUp/PgDn scroll · Esc returns "
+            " ↑↓ PgUp/PgDn scroll · Esc/Enter returns "
         };
         let block = Block::bordered()
             .border_set(set)
@@ -201,10 +201,10 @@ mod tests {
         assert_eq!(view.key(key(KeyCode::Home)), Viewed::Read);
         assert_eq!(view.scroll, 0);
         assert_eq!(view.key(key(KeyCode::Esc)), Viewed::Closed);
+        assert_eq!(view.key(key(KeyCode::Enter)), Viewed::Closed);
         assert_eq!(view.key(key(DIAGNOSTIC_KEY)), Viewed::Closed);
         for other in [
             key(KeyCode::Char('y')),
-            key(KeyCode::Enter),
             KeyEvent::new(KeyCode::Char('t'), KeyModifiers::CONTROL),
         ] {
             assert_eq!(view.key(other), Viewed::Passed, "{other:?}");
@@ -297,7 +297,7 @@ mod tests {
             assert!(rows[0].contains("Full diagnostic"), "{rows:#?}");
             assert!(rows[1].contains("NIKA-E042 untrusted release"), "{rows:#?}");
             assert!(rows[2].contains("nothing was sent"), "{rows:#?}");
-            assert!(rows[7].contains("Esc returns"), "{rows:#?}");
+            assert!(rows[7].contains("Esc/Enter returns"), "{rows:#?}");
             if ascii {
                 assert!(rows.iter().all(|row| row.is_ascii()), "{rows:#?}");
             }

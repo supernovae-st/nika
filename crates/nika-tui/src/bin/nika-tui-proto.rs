@@ -78,7 +78,11 @@ fn diagnostic_words() -> Option<String> {
     use nika_cli_host::compile::config::AuthoringSettings;
     use nika_session::authoring::{AuthoringContext, AuthoringError};
     let mut env = AuthoringSettings::none();
-    env.knowledge = Some(std::path::PathBuf::from("/srv/foundry/release-r3"));
+    // A long named source makes the raw diagnostic exceed an inline viewport.
+    env.knowledge = Some(std::path::PathBuf::from(format!(
+        "/srv/foundry/{}release-r3",
+        "display-evidence/".repeat(24)
+    )));
     let context = AuthoringContext::from_settings(&AuthoringSettings::none(), &env);
     context.refusal().cloned().map(|cause| format!(
         "{} · nothing was sent to the authoring model, nothing was written · fix or unset the knowledge (NIKA_KNOWLEDGE · NIKA_AUTHORING_STRATEGY) and open the session again",

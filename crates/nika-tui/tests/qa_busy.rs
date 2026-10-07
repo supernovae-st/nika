@@ -321,3 +321,43 @@ fn a_gate_that_asks_for_fresh_input_drops_the_typeahead() {
     term.wait_until(AFTER_GATE, |screen| screen.seen(AFTER_GATE));
     leave(&mut term);
 }
+
+/// A fresh spending answer cannot recover pre-question words with Escape.
+/// The controlled conversation exercises the production shell's fresh-input
+/// law, without a provider or any billing effect.
+#[test]
+fn a_fresh_question_keeps_palette_aside_words_only_in_the_transcript() {
+    let release = Release::new("palette-fresh");
+    let mut term = busy("slow-gate-fresh", &release);
+    term.send("yes");
+    term.wait_text("nika › yes");
+    term.send("\x0f");
+    term.wait_text("commands ›");
+    term.send("status\r");
+    term.wait_text("nika › /status");
+    release.open();
+    term.wait_prompt(ANSWER);
+    term.send("\x1b");
+    term.settle(SETTLE);
+    term.wait_until("the fresh answer remains empty after Escape", |screen| {
+        screen.lines().iter().any(|row| row == ANSWER)
+    });
+    assert!(!term.screen.contains("set aside:"), "{}", term.dump());
+    assert!(
+        term.screen.seen("you typed « yes /status »")
+            && term.screen.seen("kept in this conversation, whole:"),
+        "{}",
+        term.dump()
+    );
+    term.send("\r");
+    term.settle(SETTLE);
+    assert!(
+        !term.screen.seen(AFTER_GATE),
+        "old words answered a fresh question: {}",
+        term.dump()
+    );
+    term.send("no\r");
+    term.wait_text(AFTER_GATE);
+    assert!(term.screen.seen("qa fresh answer: no"), "{}", term.dump());
+    leave(&mut term);
+}

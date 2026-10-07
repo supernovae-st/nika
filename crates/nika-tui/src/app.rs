@@ -429,7 +429,7 @@ fn cleared_notice(draft: &str, ascii: bool) -> String {
     };
     let sep = if ascii { " - " } else { " · " };
     format!(
-        "{}{sep}cleared: this cost question takes only an answer typed after it",
+        "{}{sep}cleared: this cost question takes only an answer typed after it{sep}kept in this conversation, whole:\n{draft}",
         typed.strip_suffix(kept).unwrap_or(&typed)
     )
 }
@@ -714,11 +714,10 @@ impl<C: Conversation + 'static> Shell<C> {
     fn fresh_input(&mut self, broker: &mut Broker) -> io::Result<Option<Exit>> {
         // A spending question takes only an answer typed after it shows:
         // what was typed while Nika worked is cleared, and a notice says so.
-        let draft = self.composer.text();
+        let draft = self.keep_reading(|_, composer| composer.discard_before_question());
         if !draft.trim().is_empty() {
             let notice = cleared_notice(&draft, self.state.ascii);
-            self.keep_reading(|state, composer| {
-                composer.clear();
+            self.keep_reading(|state, _| {
                 state.transcript.push(Committed::new(Kind::Notice, notice));
             });
             self.commit_inline()?;
@@ -1145,14 +1144,12 @@ impl<C: Conversation + 'static> Shell<C> {
             self.desk.prepare(self.state.size, ascii, color);
         }
         self.sync_choices();
-        if let Some(diagnostic) = self.diagnostic.as_mut() {
-            diagnostic.fit(self.state.size);
-        }
         let paint = self.welcome_paint();
         let (state, composer, desk) = (&self.state, &self.composer, &self.desk);
-        let diagnostic = self.diagnostic.as_ref();
-        self.screen
-            .draw(|frame| draw_frame(frame, state, composer, desk, paint, diagnostic))?;
+        let diagnostic = self.diagnostic.as_mut();
+        self.screen.draw(|frame| {
+            draw_frame(frame, state, composer, desk, paint, diagnostic);
+        })?;
         Ok(())
     }
 }
@@ -1177,7 +1174,7 @@ fn draw_frame(
     composer: &Composer,
     desk: &Desk,
     paint: Paint,
-    diagnostic: Option<&commands::diagnostic::Diagnostic>,
+    diagnostic: Option<&mut commands::diagnostic::Diagnostic>,
 ) {
     match state.presentation {
         Presentation::Inline => render::draw_inline(frame, state, composer),
@@ -1189,7 +1186,9 @@ fn draw_frame(
         }
     }
     if let Some(diagnostic) = diagnostic {
-        diagnostic.render(frame, frame.area(), state.ascii, state.color);
+        let area = frame.area();
+        diagnostic.fit((area.width, area.height));
+        diagnostic.render(frame, area, state.ascii, state.color);
     }
 }
 
@@ -1327,7 +1326,7 @@ mod typeahead_tests {
     fn a_cleared_draft_is_named_and_why() {
         assert_eq!(
             super::cleared_notice("yes", false),
-            "you typed « yes » while Nika worked · cleared: this cost question takes only an answer typed after it"
+            "you typed « yes » while Nika worked · cleared: this cost question takes only an answer typed after it · kept in this conversation, whole:\nyes"
         );
         assert!(super::cleared_notice("yes", true).is_ascii());
     }

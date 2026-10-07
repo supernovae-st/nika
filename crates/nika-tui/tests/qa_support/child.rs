@@ -80,6 +80,16 @@ impl Conversation for Child {
         self.fresh_at_gate && self.gate_waits
     }
 
+    // One insertion-only command for the fresh-answer palette proof. The
+    // controlled script never qualifies real Session command availability.
+    fn commands(&self) -> Vec<String> {
+        if self.fresh_at_gate {
+            vec!["/status".to_owned()]
+        } else {
+            Vec::new()
+        }
+    }
+
     fn project(&self) -> Option<nika_tui::workspace::project::ProjectView> {
         self.lends_project.then(demo_project)
     }
@@ -89,7 +99,16 @@ impl Conversation for Child {
     }
 
     fn submit(&mut self, line: &str) -> Turn {
-        let turn = <Script as Conversation>::submit(&mut self.script, line);
+        if self.fresh_at_gate && self.gate_waits && !matches!(line.trim(), "yes" | "no") {
+            let mut waiting = Script::new(Vec::new(), vec![vec![Beat::Wait(Waiting::Gate)]]);
+            return <Script as Conversation>::submit(&mut waiting, line);
+        }
+        let fresh_answer = self.fresh_at_gate && self.gate_waits;
+        let mut turn = <Script as Conversation>::submit(&mut self.script, line);
+        if fresh_answer {
+            turn.beats
+                .insert(0, say(Kind::Notice, format!("qa fresh answer: {line}")));
+        }
         self.gate_waits = turn
             .beats
             .iter()

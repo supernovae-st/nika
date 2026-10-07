@@ -235,6 +235,21 @@ impl Composer {
         self.draft = None;
     }
 
+    /// A fresh answer clears every pre-question draft, returning its exact
+    /// words for the conversation's notice rather than restoring them later.
+    pub(crate) fn discard_before_question(&mut self) -> String {
+        let mut kept: Vec<String> = self.aside.take().into_iter().collect();
+        if let Some(draft) = self.draft.take() {
+            kept.push(draft.join("\n"));
+        }
+        let text = self.text();
+        if !text.trim().is_empty() {
+            kept.push(text);
+        }
+        self.clear();
+        kept.join("\n")
+    }
+
     fn at_first_line(&self) -> bool {
         self.area.cursor().0 == 0
     }

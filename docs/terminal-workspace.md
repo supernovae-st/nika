@@ -78,8 +78,11 @@ Choosing intelligence does not rewrite a previously observed Run.
 Pasted text is data. It does not answer a question, authorize Save or start Run.
 An open command list uses `PgUp` / `PgDn` to page its own entries; Escape closes
 it before the panel's navigation keys apply again.
-Input typed before a new decision is painted stays a draft rather than answering
-that decision. New activity preserves a manual conversation reading position.
+Input typed before a new cost decision is painted is kept whole in the
+conversation and cleared from the answer box, including words set aside by
+the palette. Escape cannot restore those words as a cost answer. Other new
+decisions keep prior input as a draft rather than answering that decision.
+New activity preserves a manual conversation reading position.
 On a Run task list, Up/Down selects a task, Enter opens its detail and Backspace
 returns. A reported child can be inspected from that detail without starting it.
 
@@ -91,7 +94,8 @@ Run, Outputs, Files and Proof describe the selected execution, including a kept
 earlier result; they do not substitute today's workflow for its source witness.
 
 A recognized knowledge-admission refusal shows a short cause, its effect scope
-and a supported next step. `F2` keeps the original diagnostic available. Other
+and a supported next step. `F2` keeps the original diagnostic available;
+Escape or Enter returns to the kept draft without sending it. Other
 errors keep their own evidence; a generic provider failure does not gain a
 guarantee that nothing was sent. Reading details neither disables knowledge nor
 retries a provider.

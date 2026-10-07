@@ -270,7 +270,7 @@ fn a_draft_set_aside_by_the_palette_returns_unsent() {
     c.choose(key(KeyCode::Enter));
     assert_eq!(c.text(), "/status");
     assert_eq!(c.aside(), Some("use the CSV export\nnot the JSON one"));
-    // Clearing the box (a fresh question's discard) keeps it aside.
+    // Ordinary buffer clearing keeps it aside; fresh answers use an explicit discard.
     c.clear();
     assert_eq!(c.aside(), Some("use the CSV export\nnot the JSON one"));
     c.paste("/status");
@@ -335,4 +335,24 @@ fn an_edit_from_elsewhere_closes_the_palette_before_touching_the_draft() {
     c.paste(" data");
     assert!(!c.palette_open());
     assert_eq!(c.text(), "yes! data");
+}
+
+#[test]
+fn a_fresh_answer_takes_palette_words_whole_and_never_restores_them() {
+    let mut c = composer();
+    c.paste("yes\nkeep every original character");
+    c.toggle_palette();
+    type_query(&mut c, "status");
+    c.choose(key(KeyCode::Enter));
+    assert_eq!(
+        c.discard_before_question(),
+        "yes\nkeep every original character\n/status"
+    );
+    assert_eq!(c.text(), "");
+    assert_eq!(c.aside(), None);
+    c.choose(key(KeyCode::Esc));
+    assert_eq!(c.text(), "");
+    c.paste("no");
+    assert_eq!(c.take(), "no");
+    assert_eq!(c.text(), "");
 }
