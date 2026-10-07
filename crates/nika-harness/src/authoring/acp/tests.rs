@@ -220,6 +220,19 @@ async fn truncation_turn_limit_refusal_and_eof_never_become_completed() {
 async fn an_unexpected_permission_is_denied_and_the_whole_answer_refused() {
     refuses_after_prompt("permission").await;
 }
+/// A lost sign-in is told as one, in our own words: the human signs in again in the app.
+#[test]
+fn a_lost_sign_in_is_told_as_one() {
+    let why = safe_error(&HarnessError::Unavailable {
+        reason: crate::client::SIGN_IN_EXPIRED.into(),
+    });
+    assert!(why.contains("sign-in has expired or was revoked"), "{why}");
+    assert!(why.contains("sign in again"), "{why}");
+    let other = safe_error(&HarnessError::Unavailable {
+        reason: "OAuth token for someone@example.invalid".into(),
+    });
+    assert!(!other.contains("someone@example.invalid"), "{other}");
+}
 #[test]
 fn transport_errors_do_not_publish_peer_secrets() {
     let why = safe_error(&HarnessError::Refused {

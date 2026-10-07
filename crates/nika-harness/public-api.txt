@@ -607,6 +607,7 @@ pub mod nika_harness::wire
 #[non_exhaustive] pub enum nika_harness::wire::Incoming
 pub nika_harness::wire::Incoming::ErrorResponse
 pub nika_harness::wire::Incoming::ErrorResponse::id: u64
+pub nika_harness::wire::Incoming::ErrorResponse::kind: core::option::Option<alloc::string::String>
 pub nika_harness::wire::Incoming::ErrorResponse::message: alloc::string::String
 pub nika_harness::wire::Incoming::Notification
 pub nika_harness::wire::Incoming::Notification::method: alloc::string::String

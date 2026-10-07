@@ -157,7 +157,12 @@ before `session/new`. Its audited options disable built-in tools, external MCP
 configuration and filesystem settings, allow one SDK turn and disable transcript
 persistence. The session uses a fresh scratch directory. Tool, permission,
 non-text output and incomplete stop reasons refuse the answer; EOF, timeout or
-cancellation never become a completed candidate. This is adapter-specific
+cancellation never become a completed candidate. An error answer the adapter
+types as a lost sign-in (`error.data.errorKind` `authentication_failed`) is told
+as « ACP authoring unavailable: the app's sign-in has expired or was revoked; sign
+in again in that app, then retry; no fallback », in Nika's words, never the
+adapter's; any other error answer stays « transport ended before a complete
+answer ». This is adapter-specific
 capability admission, not a generic claim about ACP read-only modes. Codex
 keeps its existing authoring refusal until pre-execution tool disabling is
 attested. The whole answer reaches Compiler validation; no JSON prefix is extracted.

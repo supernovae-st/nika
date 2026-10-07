@@ -108,6 +108,9 @@ pub enum Incoming {
         id: u64,
         /// The error's `message` (code folded in for the teaching line).
         message: String,
+        /// The adapter's own typed kind of the error (`error.data.errorKind`, for example
+        /// `authentication_failed`), when it names one: a closed word, never its prose.
+        kind: Option<String>,
     },
     /// A request FROM the agent (`id` + `method` — permission asks).
     Request {
@@ -175,7 +178,10 @@ pub fn parse_line(line: &str) -> Result<Incoming, WireError> {
                     }
                     _ => format!("{msg} (jsonrpc {code})"),
                 };
-                Ok(Incoming::ErrorResponse { id, message })
+                let kind = (err.get("data").and_then(|d| d.get("errorKind")))
+                    .and_then(Value::as_str)
+                    .map(str::to_owned);
+                Ok(Incoming::ErrorResponse { id, message, kind })
             } else {
                 Ok(Incoming::Response {
                     id,
@@ -506,11 +512,25 @@ mod tests {
         let err =
             parse_line(r#"{"jsonrpc":"2.0","id":3,"error":{"code":-32600,"message":"nope"}}"#)
                 .expect("parses");
-        let Incoming::ErrorResponse { id: 3, message } = err else {
+        let Incoming::ErrorResponse {
+            id: 3,
+            message,
+            kind: None,
+        } = err
+        else {
             panic!("an id+error line is an error response");
         };
         assert!(message.contains("nope"), "{message}");
         assert!(message.contains("-32600"), "{message}");
+        // The adapter's typed kind rides apart from its words.
+        let expired = parse_line(
+            r#"{"jsonrpc":"2.0","id":4,"error":{"code":-32603,"message":"Internal error","data":{"errorKind":"authentication_failed"}}}"#,
+        )
+        .expect("parses");
+        let Incoming::ErrorResponse { id: 4, kind, .. } = expired else {
+            panic!("an id+error line is an error response");
+        };
+        assert_eq!(kind.as_deref(), Some("authentication_failed"));
     }
 
     #[test]

@@ -247,8 +247,8 @@ where
                                 .await;
                             return Ok(());
                         }
-                        Incoming::ErrorResponse { message, .. } => {
-                            return Err(HarnessError::Session { reason: message });
+                        Incoming::ErrorResponse { message, kind, .. } => {
+                            return Err(answered_error(message, kind.as_deref()));
                         }
                         Incoming::Notification { method, params }
                             if method == wire::METHOD_SESSION_UPDATE =>
@@ -548,8 +548,15 @@ where
                 Incoming::Response { id: got, result } if got == id => {
                     return parse_payload(result, what);
                 }
-                Incoming::ErrorResponse { id: got, message } if got == id => {
-                    return Err(HarnessError::Refused { reason: message });
+                Incoming::ErrorResponse {
+                    id: got,
+                    message,
+                    kind,
+                } if got == id => {
+                    return Err(match kind.as_deref() {
+                        Some(SIGN_IN_KIND) => signed_out(),
+                        _ => HarnessError::Refused { reason: message },
+                    });
                 }
                 Incoming::Notification { method, params }
                     if self.authoring && method == wire::METHOD_SESSION_UPDATE =>
@@ -691,6 +698,30 @@ async fn read_bounded_line<R: AsyncRead + Unpin>(
                 ),
             });
         }
+    }
+}
+
+/// The adapter's typed kind of an error that a lost sign-in raises.
+const SIGN_IN_KIND: &str = "authentication_failed";
+
+/// The reason a harness the app no longer signs in for is unavailable: our own words, never the
+/// adapter's (its prose may carry account details).
+pub(crate) const SIGN_IN_EXPIRED: &str = "the app's sign-in has expired or was revoked";
+
+/// The unavailable harness a lost sign-in leaves: no retry heals it before the human signs in
+/// again in the app.
+fn signed_out() -> HarnessError {
+    HarnessError::Unavailable {
+        reason: SIGN_IN_EXPIRED.to_owned(),
+    }
+}
+
+/// The failure an error answer to the prompt is: a lost sign-in by the adapter's typed kind,
+/// else a session that ended before a complete answer.
+fn answered_error(message: String, kind: Option<&str>) -> HarnessError {
+    match kind {
+        Some(SIGN_IN_KIND) => signed_out(),
+        _ => HarnessError::Session { reason: message },
     }
 }
 

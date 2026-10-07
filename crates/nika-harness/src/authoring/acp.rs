@@ -7,8 +7,12 @@ use serde_json::{Value, json};
 use std::{fmt::Write as _, pin::Pin};
 
 fn safe_error(error: &HarnessError) -> String {
-    // Neither adapter stderr nor JSON-RPC error text is a safe user-facing diagnostic.
+    // Neither adapter stderr nor JSON-RPC error text is a safe user-facing diagnostic. A lost
+    // sign-in is read from the adapter's typed kind, and told in our own words.
     match error {
+        HarnessError::Unavailable { reason } if reason == crate::client::SIGN_IN_EXPIRED => {
+            "ACP authoring unavailable: the app's sign-in has expired or was revoked; sign in again in that app, then retry; no fallback".into()
+        }
         HarnessError::Unavailable { .. } => "ACP authoring unavailable: check the installed adapter, version and account; no fallback".into(),
         HarnessError::Refused { .. } => "ACP authoring refused: the audited claude-agent-acp 0.81.1 profile, selected model or text-only contract was not satisfied; no answer accepted".into(),
         _ => "ACP authoring transport ended before a complete answer; no answer accepted".into(),
