@@ -160,7 +160,9 @@ Off unless the operator seats it when building the server:
 or `nika serve … --authoring-model provider/name` (requires `--bind`; the
 provider configuration is read from the environment only then, through
 `nika_runtime::compose::config_from_env`). A server without a native seat remains deterministic: generation 2 there is `422 compile_version_unsupported`,
-and `/health` never lists `compileNativeV2`. On a native server generation 1
+and `/health` never lists `compileNativeV2`, nor `compileJudgedAnswerRound` (a native
+server lists both: the second says `explicitProvider` with a kept round's `replay_token`
+is that round's judged answer round). On a native server generation 1
 keeps its parser, core call, slot and request deadline; both generations use the
 configured HTTP body ceiling.
 

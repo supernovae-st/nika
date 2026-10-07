@@ -28,6 +28,15 @@ async fn a_judged_answer_round_replays_the_kept_plan_and_asks_the_seat_only_to_j
     let seat = Seat::start(script);
     let operator = NativeAuthoring::new(SEAT, seat.providers());
     let (server, _backend) = start_native(&world, compile_limits(), operator).await;
+    let health = server
+        .request("GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+        .await
+        .json();
+    let tokens = health["supportedCapabilities"].as_array().expect("tokens");
+    assert!(
+        tokens.contains(&json!("compileJudgedAnswerRound")),
+        "{health}"
+    );
     let first = server.request(&compile_request(&fresh(&json!({})))).await;
     assert_eq!(first.status, 200, "{}", first.body);
     let token = token_of(&first);
