@@ -11,7 +11,7 @@
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 (workspace-inherited) |
 | Publish | `false` — member of the `nika-onboard` unit |
-| Dependencies | **read from `Cargo.toml`, which is authoritative** · `nika-compile` (`AuthoringReasoning`) · `nika-kernel` (the provider seam) · `nika-compile-fidelity` (`behavior`, the judge's run) · `serde_json`, `thiserror`, `tokio` |
+| Dependencies | **read from `Cargo.toml`, which is authoritative** · `nika-compile` (`AuthoringReasoning`) · `nika-kernel` (the provider seam) · `nika-pack` (the skeletons and stdlib page of the shelf) · `nika-compile-fidelity` (`behavior`, the judge's run) · `serde`, `serde_json`, `thiserror`, `tokio` |
 | NIKA codes | none minted here — `DecisionError` is a seat's failure the doors record and fall back from; a rehearsal states its refusal in its report |
 
 ## 1. Purpose
@@ -55,6 +55,18 @@ as an external consumer.
   text read whole) and `trial_receipts` (each text's role, path, size and sha256, never the text).
 - `reasoning` — `effort` (the provider level an authoring level names) and `reasoning_record`
   (one call's reasoning, each fact apart), shared with every authoring call of the doors.
+- `objects` — the JSON objects of a seat's text (`first_json_object`, `answer_objects` and
+  `Objects`, `answer_shaped`, `syntax_target`), descended from the doors on 2026-10-07.
+- `shelf` — the references an authoring seat reads beside its card (`Reference`, `references`:
+  the embedded recall's skeletons and families; `callables` and `builtins_of`: the stdlib
+  contracts they name; `rendered`), receipted by digest.
+- `foundry` — recalled Foundry knowledge qualified by a decision seat before an author reads it
+  (R3 · A1): `question` (one closed choice per reference, `applies` · `unrelated` · NONE),
+  `verdict`, `qualify` (all references asked together; the unrelated leave the pack, the
+  unqualified stay as hypotheses), `qualified` (the embedded recall folded into the attached
+  pack, then qualified; no seat: shown unqualified and said so), `trace` (which shown code
+  lines a candidate kept, a lexical trace, never causal proof) and `traced` (the record on
+  the outcome, `decision.knowledge_qualification`).
 
 ## 3. Boundary
 

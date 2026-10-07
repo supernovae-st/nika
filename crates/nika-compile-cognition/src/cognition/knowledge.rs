@@ -11,28 +11,12 @@
 
 use serde_json::{Value, json};
 
-/// One reference the seat received, as it was sent.
-pub(super) struct Reference {
-    pub(super) id: String,
-    pub(super) kind: &'static str,
-    pub(super) text: String,
-}
-
-impl Reference {
-    fn new(id: impl Into<String>, kind: &'static str, text: impl Into<String>) -> Self {
-        Self {
-            id: id.into(),
-            kind,
-            text: text.into(),
-        }
-    }
-    /// The receipt row: id, kind, bytes and digest — never the text again.
-    pub(super) fn receipt(&self) -> Value {
-        json!({"id": self.id, "kind": self.kind, "bytes": self.text.len(), "sha256": sha256(&self.text)})
-    }
-}
-
 pub(super) use nika_compile::surface::sha256;
+/// The references a seat reads and the Foundry fold, owned with the seats (ADR-146 descent).
+pub(super) use nika_compile_seats::foundry::{folded, qualified, traced};
+pub(super) use nika_compile_seats::shelf::{
+    Reference, builtins_of, callables, references, rendered,
+};
 
 /// The identity every native call is stamped with: the engine, the embedded language pack,
 /// the spec pin and the digests of the card and of the engine's output conventions.
@@ -67,127 +51,6 @@ pub(super) fn output_caps(answers: &std::collections::BTreeMap<String, String>) 
         .and_then(|literal| serde_json::from_str::<Value>(literal).ok())
         .and_then(|model| model.as_str().and_then(nika_compile::surface::output_caps))
         .unwrap_or(Value::Null)
-}
-
-/// The stdlib sections of the callables a candidate may reach: the builtins named in the
-/// references plus the everyday set, each cut from the embedded page at its own heading.
-pub(super) fn callables(names: &[String]) -> Vec<Reference> {
-    let Some(page) = nika_pack::doc("stdlib/builtins-v0.1.md") else {
-        return Vec::new();
-    };
-    let mut out = Vec::new();
-    for name in names {
-        let heading = format!("### `nika:{name}`");
-        let Some(start) = page.find(&heading) else {
-            continue;
-        };
-        let rest = &page[start..];
-        let end = rest[heading.len()..]
-            .find("\n### ")
-            .or_else(|| rest[heading.len()..].find("\n## "))
-            .map_or(rest.len(), |at| at + heading.len());
-        // The whole section: an argument table cut mid-way reads complete and is not.
-        let section = rest[..end].trim();
-        out.push(Reference::new(format!("nika:{name}"), "callable", section));
-    }
-    out
-}
-
-/// The everyday builtins every native call receives, before the ones the references name.
-pub(super) const EVERYDAY: &[&str] = &[
-    "read", "write", "glob", "jq", "convert", "prompt", "fetch", "notify",
-];
-
-/// The references recall returns for the request, expanded just in time: the lean source of
-/// every canonical skeleton among the top hits (or covering a hit family) and the row of every
-/// hit family, at most `skeletons` sources. Recall orders; nothing here selects.
-pub(super) fn references(intent: &str, skeletons: usize) -> Vec<Reference> {
-    let hits = crate::retrieve::retrieve(intent, 8);
-    let mut out = Vec::new();
-    let mut named: Vec<String> = Vec::new();
-    for hit in &hits {
-        let name = match hit.kind {
-            crate::retrieve::HitKind::Skeleton => Some(hit.id.clone()),
-            crate::retrieve::HitKind::Family => hit.skeleton.clone(),
-            _ => None,
-        };
-        if let Some(name) = name
-            && !named.contains(&name)
-            && named.len() < skeletons
-            && let Some(source) = nika_pack::template(&name)
-        {
-            named.push(name.clone());
-            out.push(Reference::new(
-                format!("skeleton:{name}"),
-                "skeleton",
-                nika_pack::lean(source),
-            ));
-        }
-        if hit.kind == crate::retrieve::HitKind::Family {
-            out.push(Reference::new(
-                format!("family:{}", hit.id),
-                "family",
-                format!(
-                    "{} · {} · signature {} · patterns {}",
-                    hit.id,
-                    hit.title,
-                    hit.signature.as_deref().unwrap_or("-"),
-                    hit.patterns.join(", ")
-                ),
-            ));
-        }
-    }
-    out
-}
-
-/// The builtins the references use, for the callable contracts: every `nika:<name>` the
-/// skeleton sources and the knowledge pack's blocks and examples mention, plus the everyday set,
-/// deduplicated in that order.
-pub(super) fn builtins_of(references: &[Reference]) -> Vec<String> {
-    let mut names: Vec<String> = EVERYDAY.iter().map(|s| (*s).to_owned()).collect();
-    let sources = references
-        .iter()
-        .filter(|r| matches!(r.kind, "skeleton" | "block" | "example"));
-    for reference in sources {
-        for token in reference
-            .text
-            .split(|c: char| c == '"' || c.is_whitespace())
-        {
-            if let Some(name) = token.strip_prefix("nika:")
-                && !name.is_empty()
-                && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
-                && !names.iter().any(|n| n == name)
-            {
-                names.push(name.to_owned());
-            }
-        }
-    }
-    names
-}
-
-/// The callable contracts, then the references recalled for the request, as every door that
-/// reads them renders them after its own instructions (the native card, the Plan's).
-pub(super) fn rendered(references: &[Reference], callables: &[Reference]) -> String {
-    let mut text = String::from("\n\n# Callable contracts (the stdlib page, cut)\n");
-    for callable in callables {
-        text.push_str(&callable.text);
-        text.push_str("\n\n");
-    }
-    text.push_str("\n# References recalled for this request (priors, never prisons)\n");
-    for reference in references {
-        text.push_str("## ");
-        text.push_str(&reference.id);
-        text.push('\n');
-        if reference.kind == "skeleton" {
-            text.push_str("```yaml\n");
-            text.push_str(&reference.text);
-            text.push_str("\n```\n\n");
-        } else {
-            text.push_str(&reference.text);
-            text.push_str("\n\n");
-        }
-    }
-    text
 }
 
 /// The context the Plan door reads after its instructions: the native door's prelude (the

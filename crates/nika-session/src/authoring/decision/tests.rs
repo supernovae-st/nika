@@ -213,8 +213,12 @@ fn a_chosen_option_through_the_session_door_shapes_the_candidate_and_is_journale
         &account,
     )
     .expect("seated compile");
-    // The decision settled the clause: WARM, one bound value left to ask (the id field).
-    assert_eq!(out.provenance.strategy, Some(Strategy::Warm), "{out:#?}");
+    // The decision settled the clause (WARM), the settled plan held for the check with the
+    // author repairing (a judged plan's record): one bound value left to ask (the id field).
+    assert_eq!(out.provenance.strategy, Some(Strategy::Cold), "{out:#?}");
+    let route = &out.provenance.decision.as_ref().unwrap()["route"];
+    assert_eq!(route[1], "warm", "{out:#?}");
+    assert_eq!(route[2], "check: the settled plan, the author repairing");
     assert_eq!(keys(&out), vec!["const.ticket_id_field"], "{out:#?}");
     // Exactly one physical request, to the one endpoint, the key only in its header.
     let seen = peer.requests();
@@ -293,8 +297,10 @@ fn an_answer_outside_the_options_is_refused_by_the_compiler_and_recorded() {
     );
 }
 
+/// A readable request is composed by the reader and held for the seat's check (R1): the
+/// record is a judged plan's, and no seat question is asked while its own questions are open.
 #[test]
-fn a_settled_readable_request_never_calls_the_seat() {
+fn a_settled_readable_request_is_held_for_the_seats_check() {
     let peer = Peer::start(vec![Reply::Json(200, answer("lookup"))]);
     let context = AuthoringContext::default().with_decision(Some(setup(&peer)));
     let seat = AuthoringSeat::Provider {
@@ -309,7 +315,9 @@ fn a_settled_readable_request_never_calls_the_seat() {
         &account,
     )
     .expect("seated compile");
-    assert_eq!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
+    assert_eq!(out.provenance.strategy, Some(Strategy::Cold), "{out:#?}");
+    let route = &out.provenance.decision.as_ref().unwrap()["route"];
+    assert_eq!(route[1], "check: the reader's own plan", "{out:#?}");
     assert!(peer.requests().is_empty());
     assert!(context.decision().unwrap().observations().is_empty());
 }
@@ -542,7 +550,8 @@ fn selected_jev_works_without_borrowing_an_authoring_account() {
         TICKETS,
     )
     .expect("separate observed decision service");
-    assert_eq!(out.provenance.strategy, Some(Strategy::Warm));
+    // Settled by the seat, held for the check the author repairs under (a judged plan's record).
+    assert_eq!(out.provenance.strategy, Some(Strategy::Cold));
     assert_eq!(keys(&out), vec!["const.ticket_id_field"]);
     assert_eq!(peer.requests().len(), 1);
     assert_eq!(setup.observations()[0]["state"], "Closed");

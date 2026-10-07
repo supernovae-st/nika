@@ -1292,17 +1292,19 @@ async fn a_directory_is_never_read_as_one_file_it_asks_for_a_glob_then_fans_out(
 
 #[tokio::test]
 async fn a_placeholder_path_asks_for_the_exact_files() {
-    // Explicit enough for the deterministic reader: zero model calls, one placeholder.
+    // Explicit enough for the deterministic reader: no plan call, one placeholder; the judge the
+    // author stands for checks the reader's plan before READY (R1).
     let intent = "Read ./catalog/<slug>.md and write the text to ./out/blurbs.md.";
     let plan = json!({"steps":[
         {"op":"read","detail":"./catalog/<slug>.md","evidence":"Read ./catalog/<slug>.md"}],
       "effects":[{"verb":"write","target":"./out/blurbs.md","policy":"automatic","evidence":"write the text to ./out/blurbs.md"}],
       "obligations":[],"constraints":[],"unknowns":[]});
-    let asked = compile(intent, &plan, &[]).await;
+    let asked = compile_approved(intent, &plan, &[]).await;
     assert_eq!(keys(&asked), ["const.source_paths"], "{asked:#?}");
-    let rejected = compile(intent, &plan, &[("const.source_paths", r#"["./catalog"]"#)]).await;
+    let rejected =
+        compile_approved(intent, &plan, &[("const.source_paths", r#"["./catalog"]"#)]).await;
     assert_eq!(keys(&rejected), ["const.source_paths"], "{rejected:#?}");
-    let out = compile(
+    let out = compile_approved(
         intent,
         &plan,
         &[(

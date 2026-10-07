@@ -36,7 +36,7 @@ pub(super) use decode::{Shaped, decode};
 pub(super) use journal::record;
 
 /// Whether a cold outcome calls for the native strategy: a question that hands the human a
-/// machine's problem (a rewrite, a jq expression, a glob), or a dead end (no candidate and
+/// machine's problem (a rewrite, a jq expression, a glob, a rule's unnamed source key), or a dead end (no candidate and
 /// nothing to answer). A cold outcome waiting on business values is not a failure.
 pub(super) fn escalates(out: &CompileOutcome) -> bool {
     // A refusal is the floor (a bypassed approval, a literal-only policy, an effect the words
@@ -53,11 +53,14 @@ pub(super) fn escalates(out: &CompileOutcome) -> bool {
     {
         return false;
     }
+    // A typed rule's source key the request never names (`const.rule_field_*`) is the author's to
+    // read from the observed world (a nested or derived value no observed key holds), not the
+    // human's: the sketch door may still ask a business question of its own.
     let machine = out.questions.iter().any(|q| {
         matches!(
             q.key.as_str(),
             "intent.clarification" | "const.rule_expression" | "const.source_glob"
-        )
+        ) || q.key.starts_with("const.rule_field_")
     });
     machine || (out.candidate.is_none() && out.questions.is_empty())
 }
@@ -262,11 +265,18 @@ pub(super) fn prelude<'a>(
     reading: &Reading,
     request: &'a CompileRequest,
 ) -> Prelude<'a> {
-    let mut references = knowledge::references(intent, 2);
+    // A qualified pack already carries the embedded recall, judged with it.
+    let mut references = if knowledge::folded(request) {
+        Vec::new()
+    } else {
+        knowledge::references(intent, 2)
+    };
     if let Some(pack) = &request.authoring_knowledge {
         references.extend(pack.references.iter().map(|r| Reference {
             id: r.id.clone(),
             kind: match r.kind.as_str() {
+                "skeleton" => "skeleton",
+                "family" => "family",
                 "pattern" => "pattern",
                 "block" => "block",
                 "example" => "example",
@@ -1017,6 +1027,10 @@ mod tests {
             QuestionType::Text,
         );
         assert!(escalates(&machine));
+        let mut field = outcome();
+        let label = "Which observed field does `list name` mean?";
+        crate::question(&mut field, "const.rule_field_1", label, QuestionType::Text);
+        assert!(escalates(&field));
         let mut business = outcome();
         crate::question(
             &mut business,

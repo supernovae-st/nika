@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-//! Explicit cognition contracts: HOT reads alone, WARM asks a bounded seat, COLD asks
-//! one generative provider. All seats are injected hermetic doubles.
+//! Explicit cognition contracts: a whole reading is checked by the selected judge before READY,
+//! WARM asks a bounded seat, COLD asks one generative provider. All seats are injected hermetic
+//! doubles.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use nika_compile::{AuthoringPolicy, CompileRequest, CompileStatus, Strategy, outcome_document};
 use nika_compile_cognition::{
@@ -441,7 +442,21 @@ async fn french_fichier_is_not_the_yesterday_bypass_phrase() {
         .unwrap();
     assert!(keys(&out).contains(&"const.refund_policy"), "{out:#?}");
     assert!(!keys(&out).contains(&"intent.clarification"));
-    assert_eq!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
+    // The reader composed the request; with an author selected its plan is checked (R1), so it
+    // records the judged plan's strategy, and no plan was asked of the author.
+    assert_eq!(out.provenance.strategy, Some(Strategy::Cold), "{out:#?}");
+    assert_eq!(route(&out)[..2], ["hot", "check: the reader's own plan"]);
+}
+
+/// The route an outcome records.
+fn route(out: &nika_compile::CompileOutcome) -> Vec<String> {
+    let steps = out.provenance.decision.as_ref().unwrap()["route"]
+        .as_array()
+        .unwrap();
+    steps
+        .iter()
+        .map(|s| s.as_str().unwrap().to_owned())
+        .collect()
 }
 
 #[tokio::test]
@@ -666,25 +681,43 @@ async fn warm_seat_cannot_choose_outside_the_offered_options() {
 }
 
 #[tokio::test]
-async fn fully_readable_intents_never_call_a_permitted_seat() {
+async fn a_fully_readable_intent_is_checked_by_the_seat_and_never_recomposed() {
     let seat = Seat {
         choice: "lookup",
         asked: Mutex::new(Vec::new()),
     };
+    let judge = JudgedSeat::approving(&seat);
     let provider = Provider::new(plan());
     let out = compile_with_cognition(
         &CompileRequest::create("Look up the customer, classify the ticket and draft a reply.")
             .with_authoring_policy(policy()),
         Cognition {
             provider: Some(&provider),
-            seat: Some(&seat),
+            seat: Some(&judge),
         },
     )
     .await
     .unwrap();
-    assert_eq!(out.provenance.strategy, Some(Strategy::Hot));
+    // A lexical reading never settles an open intent alone (R1): the reader's plan waits for the
+    // seat's check, no reading is asked of it and no plan of the author. Its questions are still
+    // open, so the check comes with the candidate: the record is a judged plan's (`cold`), and
+    // the answer round that replays it is judged before READY.
+    assert_eq!(out.provenance.strategy, Some(Strategy::Cold));
+    assert_eq!(out.provenance.plan.as_ref().unwrap()["strategy"], "cold");
+    assert_eq!(route(&out)[..2], ["hot", "check: the reader's own plan"]);
+    assert_eq!(judge.judged.load(Ordering::SeqCst), 0, "{out:#?}");
     assert!(seat.asked.lock().unwrap().is_empty());
     assert_eq!(provider.calls.load(Ordering::SeqCst), 0);
+    let doc = outcome_document(&out);
+    assert_eq!(
+        doc["provenance"]["decision"]["agenda"][0]["action"],
+        "check"
+    );
+    let door = &doc["provenance"]["decision"]["forensic"]["door"];
+    assert_eq!(door["name"], "hot", "{door}");
+    assert_eq!(door["reason"], "every_clause_read_then_checked");
+    let proposal = &doc["provenance"]["decision"]["forensic"]["proposal"];
+    assert_eq!(proposal["author"], "reader", "{proposal}");
 }
 
 #[tokio::test]
@@ -705,16 +738,24 @@ async fn attached_knowledge_does_not_bypass_a_useful_warm_choice() {
             }],
             ..AuthoringKnowledge::default()
         });
+    let judge = JudgedSeat::approving(&seat);
     let out = compile_with_cognition(
         &request,
         Cognition {
             provider: Some(&provider),
-            seat: Some(&seat),
+            seat: Some(&judge),
         },
     )
     .await
     .unwrap();
-    assert_eq!(out.provenance.strategy, Some(Strategy::Warm));
+    // The seat settles the reading, the settled plan is checked with the author repairing (no
+    // repair was needed here): no plan is asked of the author, the knowledge is never a route.
+    assert_eq!(out.provenance.strategy, Some(Strategy::Cold));
+    assert_eq!(
+        route(&out)[1..3],
+        ["warm", "check: the settled plan, the author repairing"]
+    );
     assert_eq!(seat.asked.lock().unwrap().len(), 1);
+    assert_eq!(out.provenance.plan.as_ref().unwrap()["strategy"], "cold");
     assert_eq!(provider.calls.load(Ordering::SeqCst), 0);
 }

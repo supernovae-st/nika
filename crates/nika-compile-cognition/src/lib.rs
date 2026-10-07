@@ -54,7 +54,9 @@ mod support {
 }
 /// The core's retrieval index.
 mod retrieve {
-    pub(crate) use nika_compile::{Hit, HitKind, retrieve};
+    #[cfg(test)]
+    pub(crate) use nika_compile::HitKind;
+    pub(crate) use nika_compile::{Hit, retrieve};
 }
 /// The core's request input shape.
 mod types {

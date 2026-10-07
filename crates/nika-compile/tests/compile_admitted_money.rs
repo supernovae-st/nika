@@ -232,11 +232,13 @@ fn spans(text: &str) -> Vec<std::ops::Range<usize>> {
         .collect()
 }
 
-/// The cognition door compiling `request` (the conflict path folds the replacement; no call).
+/// The cognition door compiling `request` (the conflict path folds the replacement): no plan
+/// call; a reading the reader composed is checked by the approving judge double (R1).
 async fn door(request: CompileRequest) -> CompileOutcome {
     let provider = common::Provider::new(json!({}));
+    let judged = common::Judged::approving(&provider);
     let request = request.with_authoring_policy(common::policy());
-    let out = nika_compile_cognition::compile_with_provider(&request, &provider)
+    let out = nika_compile_cognition::compile_with_provider(&request, &judged)
         .await
         .unwrap();
     let calls = provider.calls.load(std::sync::atomic::Ordering::SeqCst);

@@ -333,6 +333,136 @@ pub fn nika_compile_seats::decide::each_alone<'a>(batch: &'a nika_compile_seats:
 pub fn nika_compile_seats::decide::record(question: &nika_compile_seats::decide::ChoiceQuestion, answer: core::result::Result<&nika_compile_seats::decide::ChoiceAnswer, &nika_compile_seats::decide::DecisionError>) -> serde_json::value::Value
 pub type nika_compile_seats::decide::BatchFuture<'a> = core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = alloc::vec::Vec<core::result::Result<nika_compile_seats::decide::ChoiceAnswer, nika_compile_seats::decide::DecisionError>>> + core::marker::Send + 'a)>>
 pub type nika_compile_seats::decide::ChoiceFuture<'a> = core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<nika_compile_seats::decide::ChoiceAnswer, nika_compile_seats::decide::DecisionError>> + core::marker::Send + 'a)>>
+pub mod nika_compile_seats::foundry
+#[non_exhaustive] pub enum nika_compile_seats::foundry::Verdict
+pub nika_compile_seats::foundry::Verdict::Applies
+pub nika_compile_seats::foundry::Verdict::Unqualified(alloc::string::String)
+pub nika_compile_seats::foundry::Verdict::Unrelated
+impl nika_compile_seats::foundry::Verdict
+pub const fn nika_compile_seats::foundry::Verdict::word(&self) -> &'static str
+impl core::clone::Clone for nika_compile_seats::foundry::Verdict
+pub fn nika_compile_seats::foundry::Verdict::clone(&self) -> nika_compile_seats::foundry::Verdict
+impl core::cmp::Eq for nika_compile_seats::foundry::Verdict
+impl core::cmp::PartialEq for nika_compile_seats::foundry::Verdict
+pub fn nika_compile_seats::foundry::Verdict::eq(&self, other: &nika_compile_seats::foundry::Verdict) -> bool
+impl core::fmt::Debug for nika_compile_seats::foundry::Verdict
+pub fn nika_compile_seats::foundry::Verdict::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::foundry::Verdict
+impl<D> owo_colors::OwoColorize for nika_compile_seats::foundry::Verdict
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::foundry::Verdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::Verdict::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::foundry::Verdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::Verdict::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::foundry::Verdict where U: core::convert::From<T>
+pub fn nika_compile_seats::foundry::Verdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::foundry::Verdict where U: core::convert::Into<T>
+pub type nika_compile_seats::foundry::Verdict::Error = core::convert::Infallible
+pub fn nika_compile_seats::foundry::Verdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::foundry::Verdict where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::foundry::Verdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::foundry::Verdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::foundry::Verdict where T: core::clone::Clone
+pub type nika_compile_seats::foundry::Verdict::Owned = T
+pub fn nika_compile_seats::foundry::Verdict::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::foundry::Verdict::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::foundry::Verdict where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::Verdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::foundry::Verdict where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::Verdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::foundry::Verdict where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::Verdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::foundry::Verdict where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::foundry::Verdict::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::foundry::Verdict
+pub fn nika_compile_seats::foundry::Verdict::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::foundry::Verdict where T: core::clone::Clone
+pub fn nika_compile_seats::foundry::Verdict::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::foundry::Verdict where T: 'static
+pub fn nika_compile_seats::foundry::Verdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::Verdict
+pub type nika_compile_seats::foundry::Verdict::Output = T
+#[non_exhaustive] pub struct nika_compile_seats::foundry::Qualified
+pub nika_compile_seats::foundry::Qualified::knowledge: nika_compile::types::AuthoringKnowledge
+pub nika_compile_seats::foundry::Qualified::record: serde_json::value::Value
+impl core::clone::Clone for nika_compile_seats::foundry::Qualified
+pub fn nika_compile_seats::foundry::Qualified::clone(&self) -> nika_compile_seats::foundry::Qualified
+impl core::fmt::Debug for nika_compile_seats::foundry::Qualified
+pub fn nika_compile_seats::foundry::Qualified::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_compile_seats::foundry::Qualified
+impl<T, U> core::convert::Into<U> for nika_compile_seats::foundry::Qualified where U: core::convert::From<T>
+pub fn nika_compile_seats::foundry::Qualified::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::foundry::Qualified where U: core::convert::Into<T>
+pub type nika_compile_seats::foundry::Qualified::Error = core::convert::Infallible
+pub fn nika_compile_seats::foundry::Qualified::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::foundry::Qualified where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::foundry::Qualified::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::foundry::Qualified::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::foundry::Qualified where T: core::clone::Clone
+pub type nika_compile_seats::foundry::Qualified::Owned = T
+pub fn nika_compile_seats::foundry::Qualified::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::foundry::Qualified::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::foundry::Qualified where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::foundry::Qualified::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::foundry::Qualified where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::Qualified::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::foundry::Qualified where T: ?core::marker::Sized
+pub fn nika_compile_seats::foundry::Qualified::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::foundry::Qualified where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::foundry::Qualified::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::foundry::Qualified
+pub fn nika_compile_seats::foundry::Qualified::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::foundry::Qualified where T: core::clone::Clone
+pub fn nika_compile_seats::foundry::Qualified::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::foundry::Qualified where T: 'static
+pub fn nika_compile_seats::foundry::Qualified::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::foundry::Qualified
+pub type nika_compile_seats::foundry::Qualified::Output = T
+pub const nika_compile_seats::foundry::APPLIES: &str
+pub const nika_compile_seats::foundry::FOLDED: &str
+pub const nika_compile_seats::foundry::UNRELATED: &str
+pub fn nika_compile_seats::foundry::folded(request: &nika_compile::types::CompileRequest) -> bool
+pub async fn nika_compile_seats::foundry::qualified(intent: &str, request: &nika_compile::types::CompileRequest, seat: core::option::Option<&dyn nika_compile_seats::decide::DecisionSeat>) -> core::option::Option<(nika_compile::types::CompileRequest, serde_json::value::Value)>
+pub async fn nika_compile_seats::foundry::qualify(intent: &str, pack: &nika_compile::types::AuthoringKnowledge, seat: &dyn nika_compile_seats::decide::DecisionSeat, by: &str) -> nika_compile_seats::foundry::Qualified
+pub fn nika_compile_seats::foundry::question(intent: &str, at: usize, reference: &nika_compile::types::KnowledgeReference) -> nika_compile_seats::decide::ChoiceQuestion
+pub fn nika_compile_seats::foundry::trace(shown: &[nika_compile::types::KnowledgeReference], candidate: &str) -> serde_json::value::Value
+pub fn nika_compile_seats::foundry::traced(qualified: &nika_compile::types::CompileRequest, record: serde_json::value::Value, out: &mut nika_compile::types::CompileOutcome)
+pub fn nika_compile_seats::foundry::verdict(question: &nika_compile_seats::decide::ChoiceQuestion, answer: core::result::Result<&nika_compile_seats::decide::ChoiceAnswer, &nika_compile_seats::decide::DecisionError>) -> nika_compile_seats::foundry::Verdict
+pub mod nika_compile_seats::objects
+pub enum nika_compile_seats::objects::Objects<'a>
+pub nika_compile_seats::objects::Objects::None
+pub nika_compile_seats::objects::Objects::One
+pub nika_compile_seats::objects::Objects::One::answer: &'a str
+pub nika_compile_seats::objects::Objects::One::unread: alloc::vec::Vec<&'a str>
+pub nika_compile_seats::objects::Objects::Two(alloc::vec::Vec<&'a str>)
+pub nika_compile_seats::objects::Objects::Undecided(alloc::vec::Vec<&'a str>)
+impl<D> owo_colors::OwoColorize for nika_compile_seats::objects::Objects<'a>
+impl<T, U> core::convert::Into<U> for nika_compile_seats::objects::Objects<'a> where U: core::convert::From<T>
+pub fn nika_compile_seats::objects::Objects<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::objects::Objects<'a> where U: core::convert::Into<T>
+pub type nika_compile_seats::objects::Objects<'a>::Error = core::convert::Infallible
+pub fn nika_compile_seats::objects::Objects<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::objects::Objects<'a> where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::objects::Objects<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::objects::Objects<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_compile_seats::objects::Objects<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::objects::Objects<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::objects::Objects<'a> where T: ?core::marker::Sized
+pub fn nika_compile_seats::objects::Objects<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::objects::Objects<'a> where T: ?core::marker::Sized
+pub fn nika_compile_seats::objects::Objects<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_compile_seats::objects::Objects<'a>
+pub fn nika_compile_seats::objects::Objects<'a>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_compile_seats::objects::Objects<'a> where T: 'static
+pub fn nika_compile_seats::objects::Objects<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::objects::Objects<'a>
+pub type nika_compile_seats::objects::Objects<'a>::Output = T
+pub const nika_compile_seats::objects::UNCLOSED_RETRIES: usize
+pub fn nika_compile_seats::objects::answer_objects(text: &str, is_answer: impl core::ops::function::Fn(&str) -> bool) -> nika_compile_seats::objects::Objects<'_>
+pub fn nika_compile_seats::objects::answer_shaped<T: serde_core::de::DeserializeOwned>(object: &str, keys: &[&str]) -> bool
+pub fn nika_compile_seats::objects::digests(objects: &[&str]) -> serde_json::value::Value
+pub fn nika_compile_seats::objects::first_json_object(text: &str) -> core::option::Option<&str>
+pub fn nika_compile_seats::objects::record_objects(out: &mut nika_compile::types::CompileOutcome, field: &str, objects: &[&str])
+pub fn nika_compile_seats::objects::syntax_target(text: &str) -> core::option::Option<&str>
 pub mod nika_compile_seats::reasoning
 pub fn nika_compile_seats::reasoning::effort(reasoning: nika_compile::types::AuthoringReasoning) -> core::option::Option<nika_kernel_ai::provider::ReasoningEffort>
 pub fn nika_compile_seats::reasoning::reasoning_record(configured: core::option::Option<nika_compile::types::AuthoringReasoning>, response: core::option::Option<&nika_kernel_ai::provider::InferResponse>) -> serde_json::value::Value
@@ -1261,3 +1391,59 @@ pub fn nika_compile_seats::rehearse::trial_receipts(observed: &serde_json::value
 pub fn nika_compile_seats::rehearse::trial_shown(candidate_sha256: &str, run: &nika_compile_fidelity::behavior::Run) -> serde_json::value::Value
 pub fn nika_compile_seats::rehearse::trial_whole(observed: &serde_json::value::Value) -> bool
 pub type nika_compile_seats::rehearse::RehearsalFuture<'a> = core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = nika_compile_seats::rehearse::RehearsalReport> + core::marker::Send + 'a)>>
+pub mod nika_compile_seats::repairs
+pub fn nika_compile_seats::repairs::progressed(seen: &[alloc::vec::Vec<alloc::string::String>], key: &[alloc::string::String]) -> bool
+pub mod nika_compile_seats::shelf
+pub struct nika_compile_seats::shelf::Reference
+pub nika_compile_seats::shelf::Reference::id: alloc::string::String
+pub nika_compile_seats::shelf::Reference::kind: &'static str
+pub nika_compile_seats::shelf::Reference::text: alloc::string::String
+impl nika_compile_seats::shelf::Reference
+pub fn nika_compile_seats::shelf::Reference::new(id: impl core::convert::Into<alloc::string::String>, kind: &'static str, text: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_compile_seats::shelf::Reference::receipt(&self) -> serde_json::value::Value
+impl core::clone::Clone for nika_compile_seats::shelf::Reference
+pub fn nika_compile_seats::shelf::Reference::clone(&self) -> nika_compile_seats::shelf::Reference
+impl core::cmp::Eq for nika_compile_seats::shelf::Reference
+impl core::cmp::PartialEq for nika_compile_seats::shelf::Reference
+pub fn nika_compile_seats::shelf::Reference::eq(&self, other: &nika_compile_seats::shelf::Reference) -> bool
+impl core::fmt::Debug for nika_compile_seats::shelf::Reference
+pub fn nika_compile_seats::shelf::Reference::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_seats::shelf::Reference
+impl<D> owo_colors::OwoColorize for nika_compile_seats::shelf::Reference
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_seats::shelf::Reference where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::shelf::Reference::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_seats::shelf::Reference where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_seats::shelf::Reference::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_seats::shelf::Reference where U: core::convert::From<T>
+pub fn nika_compile_seats::shelf::Reference::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_seats::shelf::Reference where U: core::convert::Into<T>
+pub type nika_compile_seats::shelf::Reference::Error = core::convert::Infallible
+pub fn nika_compile_seats::shelf::Reference::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_seats::shelf::Reference where U: core::convert::TryFrom<T>
+pub type nika_compile_seats::shelf::Reference::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_seats::shelf::Reference::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_seats::shelf::Reference where T: core::clone::Clone
+pub type nika_compile_seats::shelf::Reference::Owned = T
+pub fn nika_compile_seats::shelf::Reference::clone_into(&self, target: &mut T)
+pub fn nika_compile_seats::shelf::Reference::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_seats::shelf::Reference where T: 'static + ?core::marker::Sized
+pub fn nika_compile_seats::shelf::Reference::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_seats::shelf::Reference where T: ?core::marker::Sized
+pub fn nika_compile_seats::shelf::Reference::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_seats::shelf::Reference where T: ?core::marker::Sized
+pub fn nika_compile_seats::shelf::Reference::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_seats::shelf::Reference where T: core::clone::Clone
+pub unsafe fn nika_compile_seats::shelf::Reference::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_seats::shelf::Reference
+pub fn nika_compile_seats::shelf::Reference::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_seats::shelf::Reference where T: core::clone::Clone
+pub fn nika_compile_seats::shelf::Reference::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_seats::shelf::Reference where T: 'static
+pub fn nika_compile_seats::shelf::Reference::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_seats::shelf::Reference
+pub type nika_compile_seats::shelf::Reference::Output = T
+pub const nika_compile_seats::shelf::EVERYDAY: &[&str]
+pub fn nika_compile_seats::shelf::builtins_of(references: &[nika_compile_seats::shelf::Reference]) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_seats::shelf::callables(names: &[alloc::string::String]) -> alloc::vec::Vec<nika_compile_seats::shelf::Reference>
+pub fn nika_compile_seats::shelf::references(intent: &str, skeletons: usize) -> alloc::vec::Vec<nika_compile_seats::shelf::Reference>
+pub fn nika_compile_seats::shelf::rendered(references: &[nika_compile_seats::shelf::Reference], callables: &[nika_compile_seats::shelf::Reference]) -> alloc::string::String

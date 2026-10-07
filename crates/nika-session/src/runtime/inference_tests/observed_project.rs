@@ -226,7 +226,10 @@ fn the_session_budget_and_its_review_are_one_bound() {
 
 #[test]
 fn a_hot_copy_observes_the_source_without_claiming_model_presentation() {
-    let peer = Peer::start(vec![]);
+    // The reader composes the copy; the selected author checks it as its judge before READY (R1):
+    // every closed choice it is asked is answered with the approval it offers.
+    let approve = |choice: &str| (200, response(&json!({"choice": choice}).to_string()));
+    let peer = Peer::start(vec![approve("faithful"), approve("only_requested")]);
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
     sales(dir.path());
@@ -239,7 +242,7 @@ fn a_hot_copy_observes_the_source_without_claiming_model_presentation() {
         &InferenceAdmission::unbudgeted(),
     )
     .expect("hot copy");
-    assert!(peer.bodies().is_empty());
+    assert!(!peer.bodies().is_empty(), "the judge was asked");
     let observed = &out.provenance.decision.expect("record")["session"]["observed"];
     assert_eq!(observed["attached"], true);
     assert_eq!(observed["presented"], false);

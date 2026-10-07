@@ -134,6 +134,8 @@ fn door(
             ("source_revision", "record_less_source_revision")
         }
         _ if request.plan.is_some() => ("replay", "answer_round_replays_a_recorded_plan"),
+        _ if has(super::agenda::READER_CHECKED) => ("hot", "every_clause_read_then_checked"),
+        _ if has(super::agenda::SETTLED_CHECKED) => ("warm", "readings_settled_then_checked"),
         Some(Strategy::Skeleton) => ("skeleton", "exact_skeleton_name"),
         Some(Strategy::Support) => ("support", "exact_support_grammar"),
         Some(Strategy::Hot) => ("hot", "every_clause_read_and_admitted"),
@@ -144,6 +146,8 @@ fn door(
                 "policy_sketch_before_hot"
             } else if composition {
                 "plan_composition_requires_sketch"
+            } else if has(super::agenda::PLAN_LIMIT) {
+                "plan_computation_needs_the_sketch_door"
             } else if escalated {
                 "plan_round_escalated_to_sketch"
             } else {
@@ -220,6 +224,13 @@ fn proposal(request: &CompileRequest, out: &CompileOutcome, decision: &Value) ->
             "why": "source-direct generation: the model wrote the candidate itself and no private semantic plan exists",
             "payload": "decision.native.rounds[*].candidate",
         }),
+        // A reader's or a seat-settled plan the judge passed unrepaired: no model proposed it.
+        Some(Strategy::Cold) if reader_checked(decision) => json!({
+            "author": "reader",
+            "kind": "plan",
+            "state": "deterministic",
+            "assembled_plan_sha256": out.provenance.plan.as_ref().map(plan_sha),
+        }),
         Some(Strategy::Cold) => json!({
             "author": "model",
             "kind": "plan",
@@ -239,6 +250,18 @@ fn proposal(request: &CompileRequest, out: &CompileOutcome, decision: &Value) ->
         }),
         _ => json!({"state": "none"}),
     }
+}
+
+/// Whether the route checked the reader's own (or a seat-settled) plan and no repair rewrote it.
+fn reader_checked(decision: &Value) -> bool {
+    let steps = decision["route"].as_array().into_iter().flatten();
+    let steps: Vec<&str> = steps.filter_map(Value::as_str).collect();
+    let checked = [
+        super::agenda::READER_CHECKED,
+        super::agenda::SETTLED_CHECKED,
+    ];
+    steps.iter().any(|s| checked.contains(s))
+        && !steps.iter().any(|s| s.starts_with("verify: repair"))
 }
 
 /// The finite candidate universe a route built and where it is kept, or that this route built

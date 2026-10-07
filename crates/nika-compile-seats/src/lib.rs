@@ -11,6 +11,12 @@
 //!   the observed world says what the run did, and the report maps to the behavioural judge's
 //!   run.
 //! - [`reasoning`] · the reasoning one call is asked for and the record of what it reported.
+//! - [`objects`] · the JSON objects of a seat's text: its one answer, competing answers, the
+//!   group a syntax diagnostic targets.
+//! - [`shelf`] · the references an authoring seat reads (the embedded recall, the callable
+//!   contracts), rendered and receipted.
+//! - [`foundry`] · recalled Foundry knowledge qualified by a decision seat against the request
+//!   before an author reads it, and the record of what was found, shown, discarded and traced.
 //!
 //! A size-cap member of the `nika-onboard` unit (ADR-146 · D-2026-07-09-N1 · the ADR-144
 //! precedent), placed below the seats' doors: `nika-compile-cognition` →
@@ -21,5 +27,9 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 pub mod decide;
+pub mod foundry;
+pub mod objects;
 pub mod reasoning;
 pub mod rehearse;
+pub mod repairs;
+pub mod shelf;

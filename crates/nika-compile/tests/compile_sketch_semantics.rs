@@ -1156,3 +1156,50 @@ async fn a_fill_never_replaces_the_input_a_program_reads_from_its_edges() {
         "{fill}"
     );
 }
+
+// ── A computation the plan cannot state: the sketch door next, no program round first (R5) ──
+
+const PAIRS: &str = "Read ./punches.json, pair each employee's punches in time order and write the pairs to ./out/pairs.json.";
+
+fn pairs_plan() -> String {
+    json!({"steps": [
+        {"op": "read", "detail": "./punches.json", "evidence": "Read ./punches.json"},
+        {"op": "compute", "detail": "pair each employee's punches in time order", "evidence": "pair each employee's punches in time order"}
+    ], "effects": [
+        {"verb": "write", "target": "./out/pairs.json", "policy": "automatic", "evidence": "write the pairs to ./out/pairs.json"}
+    ], "obligations": [], "constraints": [], "unknowns": []})
+    .to_string()
+}
+
+#[tokio::test]
+async fn a_computation_the_plan_cannot_state_goes_to_the_sketch_door_without_a_program_round() {
+    // Under escalate the plan's own limit is observed before any program round is paid for: the
+    // sketch door composes the request next, its program one typed fill.
+    let escalate = Rotating::new(vec![pairs_plan(), "{}".to_owned()]);
+    let request =
+        CompileRequest::create(PAIRS).with_authoring_policy(policy(NativeMode::Escalate, 2));
+    let out = compile_with_provider(&request, &escalate).await.unwrap();
+    let called = roles(&out);
+    assert_eq!(
+        called.first().map(String::as_str),
+        Some("plan"),
+        "{called:?}"
+    );
+    assert!(!called.iter().any(|r| r == "transform"), "{called:?}");
+    assert!(called.iter().any(|r| r == "sketch"), "{called:?}");
+    assert!(
+        route(&out).contains("compose: the plan's computation goes to the sketch door"),
+        "{}",
+        route(&out)
+    );
+    let door = &outcome_document(&out)["provenance"]["decision"]["forensic"]["door"];
+    assert_eq!(
+        door["reason"], "plan_computation_needs_the_sketch_door",
+        "{door}"
+    );
+    // The plan alone (no sketch door) keeps its program round.
+    let off = Rotating::new(vec![pairs_plan(), "{}".to_owned()]);
+    let request = CompileRequest::create(PAIRS).with_authoring_policy(policy(NativeMode::Off, 2));
+    let out = compile_with_provider(&request, &off).await.unwrap();
+    assert_eq!(roles(&out)[..2], ["plan", "transform"], "{}", route(&out));
+}

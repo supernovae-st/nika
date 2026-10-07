@@ -1121,7 +1121,9 @@ pub(super) async fn judged_cold<P: ProviderInferDyn>(
         let mut key = parts.clone();
         key.sort();
         let stalled = verdict.same_bytes_as.is_some()
-            || (unbounded && !seen_parts.is_empty() && !progressed(&seen_parts, &key));
+            || (unbounded
+                && !seen_parts.is_empty()
+                && !nika_compile_seats::repairs::progressed(&seen_parts, &key));
         if stalled {
             route(&mut pre, "verify: no progress");
         }
@@ -1155,19 +1157,6 @@ pub(super) async fn judged_cold<P: ProviderInferDyn>(
         unreplayed(&mut out, &verdict);
         return Ok(out);
     }
-}
-
-/// Whether a defect set is progress over the sets already repaired from: it names a part never
-/// named before, or it narrows the last set (fewer parts, all among the last). Each new part
-/// grows a finite set and each narrowing shrinks the last, so the repairs end.
-fn progressed(seen: &[Vec<String>], key: &[String]) -> bool {
-    let new = key
-        .iter()
-        .any(|part| !seen.iter().flatten().any(|named| named == part));
-    let narrowed = seen
-        .last()
-        .is_some_and(|last| key.len() < last.len() && key.iter().all(|part| last.contains(part)));
-    new || narrowed
 }
 
 /// A replayed record under this round's judge (R4 A11, Q2): deterministically closed duties

@@ -463,6 +463,10 @@ fn comparable(run: &Run) -> Value {
     for call in authoring["context"].as_array_mut().expect("context") {
         call["elapsed_ms"] = Value::Null;
     }
+    // The Foundry qualification's wall time is a measure, never part of what is compared.
+    if let Some(record) = doc["provenance"]["decision"].get_mut("knowledge_qualification") {
+        record["elapsed_ms"] = Value::Null;
+    }
     json!({"exit": run.out.status.code(), "doc": doc, "bodies": run.bodies})
 }
 
@@ -664,8 +668,15 @@ fn the_resolved_typesafe_key_is_withheld_from_capture() {
         comparable(&off),
         "capture never changes the compile"
     );
+    // The seat's questions are asked together: compared as a set, not by arrival order.
+    let sorted = |bodies: Vec<Value>| {
+        let mut bodies: Vec<String> = bodies.iter().map(Value::to_string).collect();
+        bodies.sort();
+        bodies
+    };
     assert_eq!(
-        on_decisions, off_decisions,
+        sorted(on_decisions),
+        sorted(off_decisions),
         "nor the decision seat's requests"
     );
     assert!(String::from_utf8_lossy(&on.out.stderr).contains("private capture Withheld"));

@@ -57,6 +57,15 @@ fn schema() -> serde_json::Value {
         "expected_output":{}}})
 }
 
+/// Whether `plan` holds a computation its typed stages cannot state and no answer settles: the
+/// plan's own observed limit (R5), read before any program round is paid for.
+pub(super) fn unstated(intent: &str, plan: &Plan, request: &crate::CompileRequest) -> bool {
+    let observed = nika_compile::surface::observed::for_intent(request.knowledge.as_ref(), intent);
+    let hint = observed.unwrap_or_else(|| crate::columns::columns_hint(intent));
+    !request.answers.contains_key("const.rule_expression")
+        && !unstated_computations(plan, &hint).is_empty()
+}
+
 /// The compute steps of a plan whose computation no rule states: the typed stages could not
 /// say it and the closed grammar cannot parse it. Each is one transform question.
 fn unstated_computations<'a>(plan: &'a Plan, hint: &[String]) -> Vec<&'a Step> {

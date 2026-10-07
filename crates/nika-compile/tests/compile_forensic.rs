@@ -272,7 +272,8 @@ async fn witness_a_record_less_revision_never_requests_source_under_any_mode() {
 
 #[tokio::test]
 async fn witness_sketch_skips_the_zero_call_hot_reading() {
-    // The same request settles HOT with zero calls under the default doors.
+    // The same request is read whole under the default doors, its plan held for the judge's
+    // check (R1); no call while the model question is open.
     let hot = Script::texts(&[native_answer()]);
     let out = compile_with_provider(
         &CompileRequest::create(HOT_INTENT).with_authoring_policy(policy(NativeMode::Escalate, 0)),
@@ -280,7 +281,11 @@ async fn witness_sketch_skips_the_zero_call_hot_reading() {
     )
     .await
     .unwrap();
-    assert_eq!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
+    assert_eq!(
+        route(&out)[..2],
+        ["hot", "check: the reader's own plan"],
+        "{out:#?}"
+    );
     assert_eq!(hot.calls(), 0);
     // Under Sketch the seat is called before HOT is ever tried.
     let sketch = Script::texts(&[
@@ -767,9 +772,22 @@ async fn hot_names_the_elided_calls_and_a_seatless_compile_is_unchanged() {
             .get("forensic")
             .is_none()
     );
-    let mut stripped = out.provenance.decision.clone().unwrap();
-    stripped.as_object_mut().unwrap().remove("forensic");
-    assert_eq!(Some(stripped), plain.provenance.decision);
+    // With an author selected the reader's plan is checked before READY (R1): the route and the
+    // agenda say so; the judge is not reached while the model question is open. The rest of the
+    // record is the seatless compile's.
+    let decision = out.provenance.decision.clone().unwrap();
+    assert_eq!(
+        decision["route"],
+        json!(["hot", "check: the reader's own plan"])
+    );
+    assert_eq!(decision["agenda"][0]["action"], "check");
+    let mut stripped = decision;
+    let mut plain_decision = plain.provenance.decision.clone().unwrap();
+    for key in ["forensic", "agenda", "route"] {
+        stripped.as_object_mut().unwrap().remove(key);
+        plain_decision.as_object_mut().unwrap().remove(key);
+    }
+    assert_eq!(stripped, plain_decision);
     assert_eq!(out.candidate, plain.candidate);
     assert_eq!(out.questions, plain.questions);
 }

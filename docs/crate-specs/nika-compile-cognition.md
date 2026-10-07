@@ -1120,3 +1120,54 @@ decision observation owns its separate settlement. These are typed semantic judg
 permission to Save or Run. The current record does not include Foundry retrieval decisions;
 wiring that role belongs to the cooperative target, and requires actual selection and
 consumption evidence.
+
+## The next useful action (R1 · A1, 2026-10-07)
+
+An open CREATE is no longer an exclusive HOT → WARM → COLD escalation. After the exact paths
+(skeletons, `hello`, the support grammar, conflicts, `native: only`, recorded replays),
+`cognition::agenda::next` picks the next action from what the request still lacks and which
+intelligences the caller selected, and `decision.agenda` records each choice with what
+motivated it:
+
+- **check** — the reader composed a whole plan under the request's HOT contract and a judge
+  is selected: the plan is assembled and judged before READY (route `hot`, then
+  `check: the reader's own plan`). With an author the COLD verifier judges it and the author
+  repairs a located defect (the record's strategy is `cold`, so its answer rounds are judged
+  too); a decision seat alone judges and holds (`warm`). No judge selected: the deterministic
+  assembly, as without cognition. A lexical reading never settles an open intent alone.
+- **settle** — only finite readings of explicit clauses are open and a seat is selected: the
+  seat settles them; a settled plan is checked with the author repairing when one is selected
+  (`check: the settled plan, the author repairing`), else by the seat (WARM as before).
+  Readings the seat leaves open go back to the loop.
+- **compose** — the author composes through the private plan, or the sketch door under the
+  `sketch` policy (the caller's explicit composer). A limit the plan itself shows is enough to
+  change the approach (R5): under `escalate` (with a repair allowance) a selected plan holding
+  a computation its typed stages cannot state goes to the sketch door next, its program one
+  typed fill (`compose: the plan's computation goes to the sketch door`), instead of a
+  separate program round whose refusal escalated anyway. The plan alone (`off`) keeps the
+  verified-transform round. A plan round ending on a typed rule's unnamed source key
+  (`const.rule_field_*`, often a nested or derived value no observed key holds) escalates under
+  `escalate` like a jq question: the author reads the observed world, and may still ask.
+- **ask** — no selected intelligence can take the next step: what is missing is named.
+
+`--hot-policy` keeps its meaning (whether the reader may compose a whole plan; `off` never),
+`--authoring-strategy` its composers. `Strategy` words, route steps and old receipts read as
+before; the forensic door names the checked reader plan (`every_clause_read_then_checked`),
+the checked settled plan (`readings_settled_then_checked`) and the plan limit
+(`plan_computation_needs_the_sketch_door`).
+
+### Foundry recall qualified before the author reads it
+
+Before the author composes, the attached Foundry pack and the embedded recall (skeletons,
+families) are folded into one pack and each reference is put to the selected decision seat as
+one closed question over the whole request and the reference's whole text (`applies` ·
+`unrelated` · NONE), all together (`DecisionSeat::choose_each`). An unrelated reference never
+reaches any authoring call of the compile (plan, sketch, repairs); NONE, a failed call or an
+answer outside the options keeps it shown as an unqualified hypothesis. Without a seat the
+recall is shown unqualified and the record says so. `decision.knowledge_qualification` keeps
+found · shown · applies · discarded · unqualified, every answer and each reference by digest,
+and after the composition a lexical `trace` of which shown code the candidate kept
+(`instantiated` · `adapted` · `not_traced` · `consulted`), never claimed as causal use. The
+qualification, the shelf of references and the JSON-object scan of a seat's text descended to
+`nika-compile-seats` (`foundry`, `shelf`, `objects`; ADR-146 precedent) and keep their paths
+here.
