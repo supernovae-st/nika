@@ -830,6 +830,8 @@ fn ctrl_c_during_a_stalled_seat_call_leaves_the_plain_session() {
     session
         .expect("4  No AI in this conversation")
         .expect("the choices");
+    // The choice's own prompt: a line typed before it is shown is discarded (C11 · typeahead).
+    session.expect("› ").expect("the choice prompt");
     session
         .send_line("2 openai")
         .expect("a metered seat on the stalling endpoint");
