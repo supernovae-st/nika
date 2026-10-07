@@ -234,6 +234,220 @@ fn the_page_keys_scroll_the_focus_transcript_while_nika_works() {
     leave_term(&mut term);
 }
 
+/// While Nika works the slash list chooses without reaching the turn: it
+/// says a command waits in the box, `Tab` inserts it, `Enter` keeps it for
+/// the human's turn, and once the question is painted the command is in the
+/// box, unsent, under the typeahead law.
+#[test]
+fn a_command_chosen_while_nika_works_waits_in_the_box_and_answers_nothing() {
+    for (cols, rows) in [(80, 24), (120, 40)] {
+        let mut term =
+            Term::proto_with(&["--demo-pace", PACE_MS], cols, rows, &[("NO_COLOR", "1")]);
+        term.wait_prompt(FREE);
+        term.send("digest my notes\r");
+        term.wait_text(HOLDS);
+        term.send("/st");
+        term.wait_until("the list while Nika works", |screen| {
+            screen.contains("Nika is working · a command waits in the box until your turn")
+                && screen.contains("› /status")
+        });
+        term.send("\t");
+        term.wait_text("/status waits for your turn");
+        term.send("\r");
+        decision_holds_the_draft_as(&mut term, QUESTION, REPLY, "/status");
+        never_answered(
+            &mut term,
+            REPLY,
+            PROPOSAL,
+            "a command chosen while Nika worked answered the question",
+        );
+        leave_term(&mut term);
+    }
+}
+
+/// [`decision_holds_the_draft`] for any typed draft.
+fn decision_holds_the_draft_as(term: &mut Term, shows: &str, prompt: &str, typed: &str) {
+    term.wait_until(NOTICE, |screen| screen.seen(NOTICE));
+    let draft = format!("{prompt} {typed}");
+    term.wait_until(&format!("{shows} · {draft}"), |screen| {
+        screen.seen(shows) && screen.row_starting(&draft).is_some()
+    });
+}
+
+/// The active-gate law with the palette: opened while the run reaches its
+/// gate, a command chosen and `Enter` pressed before the gate is painted,
+/// the gate never takes it; the human's draft waits in the box.
+#[test]
+fn the_palette_while_a_run_reaches_its_gate_never_answers_it() {
+    let mut term = paced();
+    term.walk(&JOURNEY[..3]);
+    term.send("run it\r");
+    term.wait_text(HOLDS);
+    term.send("\x0f");
+    term.wait_text("commands ›");
+    term.send("help\r\r");
+    decision_holds_the_draft_as(&mut term, GATE, ANSWER, "/help");
+    never_answered(
+        &mut term,
+        ANSWER,
+        RESULT,
+        "a chosen command answered the gate",
+    );
+    leave_term(&mut term);
+}
+
+/// While Nika works, cancelling the palette opened from the preview gives the
+/// keys back to the preview: a letter typed then never reaches the draft
+/// typed earlier, which waits unsent in the box of the question.
+#[test]
+fn cancelling_the_palette_while_nika_works_returns_the_keys_to_the_preview() {
+    let mut term = Term::proto_with(&["--demo-pace", PACE_MS], 80, 24, &[("NO_COLOR", "1")]);
+    term.wait_prompt(FREE);
+    term.send("\x14");
+    term.wait_text("workspace · F6 panel");
+    term.send("digest my notes\r");
+    term.wait_text(HOLDS);
+    term.send("kept");
+    term.wait_text("nika › kept");
+    term.send("\x1b[17~\x0f");
+    term.wait_text("commands ›");
+    term.send("\x1b");
+    term.wait_until("the palette closed", |screen| {
+        !screen.contains("commands ›")
+    });
+    term.send("x");
+    term.wait_until("the question with the draft", |screen| {
+        screen.seen(QUESTION) && screen.contains("reply › kept")
+    });
+    term.settle(WATCH);
+    assert!(
+        !term.screen.contains("keptx") && !term.screen.seen(PROPOSAL),
+        "the keys went to the composer, or the draft was sent\n{}",
+        term.dump()
+    );
+    leave_term(&mut term);
+}
+
+/// A switch of presentation while typing, and one asked while Nika works,
+/// keep the exact draft (two lines) and send nothing: the line typed during
+/// the turn waits in the box of the question that ends it.
+#[test]
+fn a_presentation_switch_while_typing_or_working_keeps_the_exact_draft() {
+    for (cols, rows) in [(80, 24), (120, 40)] {
+        let mut term =
+            Term::proto_with(&["--demo-pace", PACE_MS], cols, rows, &[("NO_COLOR", "1")]);
+        term.wait_prompt(FREE);
+        term.send("keep this\x1b\rexact draft");
+        term.wait_until("the draft", |screen| {
+            screen.row_starting("nika › keep this").is_some() && screen.contains("exact draft")
+        });
+        term.send("\x14");
+        term.wait_until("the workspace with the draft", |screen| {
+            screen.on_alt() && screen.contains("nika › keep this") && screen.contains("exact draft")
+        });
+        term.send("\x14");
+        term.wait_until("inline with the draft", |screen| {
+            !screen.on_alt()
+                && screen.row_starting("nika › keep this").is_some()
+                && screen.contains("exact draft")
+        });
+        term.settle(Duration::from_millis(300));
+        assert!(
+            !term.screen.seen(QUESTION),
+            "a switch sent the draft\n{}",
+            term.dump()
+        );
+        term.send(&"\x7f".repeat("keep this\nexact draft".chars().count()));
+        term.wait_until("the draft erased", |screen| {
+            screen.lines().iter().any(|line| line == FREE)
+        });
+        term.send("digest my notes\r");
+        term.wait_text(HOLDS);
+        term.send("typed while busy");
+        term.wait_text("typed while busy");
+        term.send("\x14");
+        term.wait_until(
+            "the question, in the workspace, the draft unsent",
+            |screen| {
+                screen.on_alt()
+                    && screen.seen(QUESTION)
+                    && screen.contains("reply › typed while busy")
+            },
+        );
+        term.settle(WATCH);
+        assert!(
+            !term.screen.seen(PROPOSAL),
+            "the draft typed while Nika worked was sent\n{}",
+            term.dump()
+        );
+        leave_term(&mut term);
+    }
+}
+
+/// `F4` as a terminal sends it.
+const F4: &str = "\x1bOS";
+
+/// The Session / Workbench switch (`F4`) rearranges the same conversation:
+/// while typing, the two-line draft stays exact and nothing is sent; while
+/// Nika works it acts at once, and the words typed meanwhile wait, unsent,
+/// in the box of the question the turn ends on.
+#[test]
+fn the_layout_switch_while_typing_or_working_keeps_the_exact_draft() {
+    for (cols, rows) in [(80, 24), (120, 40)] {
+        let mut term =
+            Term::proto_with(&["--demo-pace", PACE_MS], cols, rows, &[("NO_COLOR", "1")]);
+        term.wait_prompt(FREE);
+        term.send("\x14");
+        term.wait_text("[Session] Workbench");
+        term.send("keep this\x1b\rexact draft");
+        term.wait_until("the draft", |screen| {
+            screen.contains("nika › keep this") && screen.contains("exact draft")
+        });
+        term.send(F4);
+        term.wait_until("the Workbench with the draft", |screen| {
+            screen.contains("Session [Workbench]")
+                && screen.contains("nika › keep this")
+                && screen.contains("exact draft")
+        });
+        term.send(F4);
+        term.wait_until("the Session again with the draft", |screen| {
+            screen.contains("[Session] Workbench")
+                && screen.contains("nika › keep this")
+                && screen.contains("exact draft")
+        });
+        term.settle(Duration::from_millis(300));
+        assert!(
+            !term.screen.seen(QUESTION),
+            "a switch sent the draft\n{}",
+            term.dump()
+        );
+        term.send(&"\x7f".repeat("keep this\nexact draft".chars().count()));
+        term.wait_until("the draft erased", |screen| !screen.contains("keep this"));
+        term.send("digest my notes\r");
+        term.wait_text(HOLDS);
+        term.send("typed while busy");
+        term.wait_text("typed while busy");
+        term.send(F4);
+        term.wait_until("the Workbench while Nika works", |screen| {
+            screen.contains("Session [Workbench]") && screen.contains(HOLDS)
+        });
+        // The compact conversation may scroll the question itself out of
+        // view: its reply prompt and the typeahead notice name it.
+        term.wait_until("the question's prompt, the draft in its box", |screen| {
+            screen.contains("reply › typed while busy") && screen.contains(NOTICE)
+        });
+        term.settle(WATCH);
+        assert!(
+            term.screen.contains("reply › typed while busy")
+                && !term.screen.contains(APPLY)
+                && !term.screen.seen(PROPOSAL),
+            "the draft typed while Nika worked was sent\n{}",
+            term.dump()
+        );
+        leave_term(&mut term);
+    }
+}
+
 /// The three transcript rows a 60 × 8 focus view shows while Nika works.
 fn reading_rows(term: &Term) -> Vec<String> {
     term.screen.lines().into_iter().take(3).collect()

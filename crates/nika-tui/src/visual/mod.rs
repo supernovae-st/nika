@@ -2,6 +2,9 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The renderer's visual vocabulary, borrowed before anything is invented.
+//! It lives in the viewer member, [`nika_tui_view::visual`] (ADR-143), so the
+//! renderer and every viewer paint with one palette; these paths keep the
+//! renderer's callers unchanged.
 //!
 //! Colour, the task-state glyphs and the four verb identities belong to the
 //! engine's one theme seam, [`nika_display::theme`]: the terminal's ANSI-16

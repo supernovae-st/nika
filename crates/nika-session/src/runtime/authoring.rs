@@ -284,7 +284,11 @@ impl SessionRuntime {
             return self.cognition_money_refusal();
         }
         self.authoring_context = self.project_context();
-        self.activity(&Activity::now(Phase::Authoring, self.authoring_note()));
+        // A configuration already refused at open cannot start generation.
+        // Keep the ordinary compile/refusal path, including its state cleanup.
+        if self.authoring_context.refusal().is_none() {
+            self.activity(&Activity::now(Phase::Authoring, self.authoring_note()));
+        }
         let mut round = round;
         let out = loop {
             let out = self.compile_round(&round, &self.seat.clone());
@@ -1430,3 +1434,8 @@ pub(super) fn updated_target(set: &ProjectChangeSet) -> Option<(PathBuf, Witness
         _ => None,
     })
 }
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+#[path = "authoring/activity_tests.rs"]
+mod activity_tests;

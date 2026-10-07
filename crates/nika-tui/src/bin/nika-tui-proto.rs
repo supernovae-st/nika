@@ -91,6 +91,15 @@ impl Conversation for Demo {
     fn perform(&mut self, handoff: &Handoff) -> Vec<Beat> {
         Conversation::perform(&mut self.script, handoff)
     }
+
+    /// The Session's own slash commands, so the chooser lists the real set.
+    /// The demo still answers any line it is sent as its next scripted turn.
+    fn commands(&self) -> Vec<String> {
+        nika_session::runtime::SLASH_COMMANDS
+            .iter()
+            .map(|command| (*command).to_owned())
+            .collect()
+    }
 }
 
 /// `TERM` for the probe. The `disallowed_methods` ban on `std::env::var`

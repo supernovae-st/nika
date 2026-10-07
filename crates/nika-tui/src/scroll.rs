@@ -6,14 +6,14 @@
 use crate::composer::Composer;
 use crate::model::{Presentation, UiState};
 use crate::render::{block_lines, content_rows, live_rows};
-use crate::workspace::{cards, desk::Desk, focus::Region, geometry::Geometry, screen};
+use crate::workspace::{cards, desk::Desk, focus::Region, screen};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::{Constraint, Layout, Rect};
 
 fn area(state: &UiState, desk: &Desk, composer: &Composer) -> Rect {
     let area = Rect::new(0, 0, state.size.0, state.size.1);
     if state.presentation == Presentation::Workspace
-        && let Some(geometry) = Geometry::of(area, desk.pins())
+        && let Some(geometry) = desk.geometry(state.size)
     {
         let intelligence = desk.view.as_ref().and_then(|view| view.seat.as_deref());
         return screen::panel_areas(&geometry, state, composer, intelligence)[1];
@@ -142,7 +142,36 @@ pub(crate) fn end(state: &mut UiState, desk: &Desk, key: KeyEvent) -> bool {
 mod tests {
     use super::*;
     use crate::model::{Committed, Kind};
+    use crate::workspace::geometry::{Arrangement, Geometry, Layout as WorkspaceLayout};
     use ratatui::{Terminal, backend::TestBackend};
+
+    #[test]
+    fn transcript_bounds_follow_the_actual_arrangement_after_a_resize() {
+        let mut desk = Desk::new();
+        let composer = Composer::new();
+        for size in [(80, 24), (120, 40), (180, 48)] {
+            let mut state = UiState::new(Presentation::Workspace, false, size);
+            state
+                .transcript
+                .push(Committed::new(Kind::Reply, "history\n".repeat(120)));
+            for layout in [WorkspaceLayout::Session, WorkspaceLayout::Workbench] {
+                desk.arrange(
+                    Arrangement::of(layout)
+                        .with_conversation_width(Some(650))
+                        .with_conversation_height(Some(250)),
+                );
+                let geometry = desk.geometry(size).expect("workspace");
+                let expected = screen::panel_areas(&geometry, &state, &composer, None)[1];
+                assert_eq!(area(&state, &desk, &composer), expected);
+                state.focus_scroll = 0;
+                page(&mut state, &desk, &composer, true);
+                assert_eq!(
+                    state.focus_scroll,
+                    usize::from(expected.height.saturating_sub(1)).max(1)
+                );
+            }
+        }
+    }
 
     #[test]
     fn observed_activity_and_final_blocks_keep_a_scrolled_reading_position() {

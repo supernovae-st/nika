@@ -15,7 +15,7 @@
 //! examines at most [`Limits::line_bytes`] of any one line, and says so
 //! when it stops.
 //!
-//! Two families:
+//! Two families of views, and the workspace parts the renderer composes:
 //!
 //! - the workflow in view ([`workflow()`] with a [`Face`]): its source with
 //!   verb-aware highlighting, its plan in run order
@@ -28,7 +28,12 @@
 //!   declared type, then its extension, then its magic bytes
 //!   ([`classify()`]), and shown honestly: an image or a sound by the facts
 //!   its header states, never guessed and never drawn through a terminal
-//!   image protocol; an opaque file by its facts and a short hex head.
+//!   image protocol; an opaque file by its facts and a short hex head;
+//! - the workspace vocabulary ([`visual`]: the palette, the icons, the
+//!   brand mark and the state glyphs) and the pure parts of the workspace
+//!   screen ([`workspace`]: its geometry, header, aside, pinned run, object
+//!   and conversation rows), which the renderer's desk, keys and Session
+//!   host compose; none of them owns state, a terminal or an authority.
 //!
 //! Null, missing, empty and unknown stay four different sentences. When the
 //! caller marks the object protected, every value that looks like a secret
@@ -56,7 +61,9 @@ mod secret;
 mod source;
 mod table;
 mod text;
+pub mod visual;
 mod workflow;
+pub mod workspace;
 
 #[cfg(test)]
 mod adversarial_tests;

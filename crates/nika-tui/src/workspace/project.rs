@@ -376,36 +376,10 @@ pub(crate) fn thread(view: Option<&ProjectView>, on_screen: Option<&str>) -> Thr
     }
 }
 
-/// The listing in words, `sep` between its facts: how many workflows, how
-/// many clean, and whether the counts are lower bounds. An empty project
-/// says what comes next, over several rows.
-fn inventory(view: &ProjectView, sep: &str) -> Vec<String> {
-    let total = view.workflows.len();
-    let clean = view.workflows.iter().filter(|w| w.clean).count();
-    let floor = if view.complete { "" } else { "at least " };
-    let partial = if view.complete {
-        String::new()
-    } else {
-        format!("{sep}partial listing")
-    };
-    match total {
-        0 if view.complete => vec![
-            format!("No workflow in {} yet", view.name),
-            "the first appears here when Nika proposes it".to_owned(),
-            "opening here sends nothing to the model".to_owned(),
-        ],
-        0 => vec![format!("none found in the listed part{sep}listing partial")],
-        1 => vec![format!("{floor}1 workflow{sep}{clean} clean{partial}")],
-        n => vec![format!("{floor}{n} workflows{sep}{clean} clean{partial}")],
-    }
-}
-
-/// The welcome: where the human stands in one glance (the listing, the
-/// intelligence), what to do, and the one key that moves between regions;
-/// its separators follow the glyph column (`ascii`).
+/// The welcome explains the work once. The aside owns inventory, the
+/// conversation owns intelligence/context, and its hint owns the keys.
 #[must_use]
-pub(crate) fn welcome(view: Option<&ProjectView>, ascii: bool) -> Object {
-    let (sep, _) = marks(ascii);
+pub(crate) fn welcome(view: Option<&ProjectView>, _ascii: bool) -> Object {
     let mut words = vec![
         "N I K A".to_owned(),
         "Turn an intention into a workflow.".to_owned(),
@@ -418,21 +392,9 @@ pub(crate) fn welcome(view: Option<&ProjectView>, ascii: bool) -> Object {
         "and write totals to customer-totals.json.".to_owned(),
         String::new(),
     ];
-    match view {
-        Some(view) => {
-            words.extend(inventory(view, sep));
-            words.push(match &view.seat {
-                Some(seat) => format!("To prepare{sep}{seat}"),
-                None => format!("To prepare{sep}not chosen yet; asked when needed"),
-            });
-        }
-        None => words.push("no project is known to this conversation".to_owned()),
+    if view.is_none() {
+        words.push("no project is known to this conversation".to_owned());
     }
-    words.push(String::new());
-    words.push("Ways: app account / API / local / no AI".to_owned());
-    words.push("/intelligence: change anytime  /help: commands".to_owned());
-    words.push("Click a panel or press F6; scroll over it.".to_owned());
-    words.push("End: latest messages. Copy: terminal modifier + drag.".to_owned());
     Object::Welcome { words }
 }
 
@@ -501,6 +463,7 @@ mod tests {
             Object::Welcome { words } => words.clone(),
             Object::Shown { lines, .. } => lines.clone(),
             Object::Workflow { body, .. } => body.iter().map(ToString::to_string).collect(),
+            _ => vec!["unsupported object in this fixture".to_owned()],
         }
     }
 
@@ -579,7 +542,7 @@ mod tests {
     }
 
     #[test]
-    fn welcome_explains_the_path_and_keeps_observed_inventory_and_model() {
+    fn welcome_explains_the_path_without_repeating_inventory_model_or_keys() {
         let demo = demo_project();
         let welcome_words = words(&welcome(Some(&demo), false));
         for expected in [
@@ -587,15 +550,16 @@ mod tests {
             "1  Describe the outcome in the conversation.",
             "2  Answer questions; inspect the proposed plan.",
             "3  Save, then Run with the workflow's models.",
-            "3 workflows · 2 clean",
-            "To prepare · the demo script, no model is called",
-            "Ways: app account / API / local / no AI",
-            "/intelligence: change anytime  /help: commands",
-            "Click a panel or press F6; scroll over it.",
         ] {
             assert!(
                 welcome_words.iter().any(|word| word == expected),
                 "{expected}"
+            );
+        }
+        for repeated in ["3 workflows", "To prepare", "Ways:", "/intelligence:", "F6"] {
+            assert!(
+                !welcome_words.iter().any(|word| word.contains(repeated)),
+                "the welcome repeats another region's information: {repeated}"
             );
         }
         assert!(
@@ -614,25 +578,23 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_or_partial_welcome_does_not_invent_workflows() {
+    fn empty_and_partial_inventory_stays_in_the_aside() {
         let fresh = ProjectView::new("local", "veille", "~/veille").listing(Vec::new(), true);
         let fresh_words = words(&welcome(Some(&fresh), false));
-        assert!(
-            fresh_words
-                .iter()
-                .any(|word| word == "No workflow in veille yet")
-        );
-        assert!(
-            fresh_words
-                .iter()
-                .any(|word| word == "opening here sends nothing to the model")
+        assert!(!fresh_words.iter().any(|word| word.contains("No workflow")));
+        assert_eq!(
+            aside(Some(&fresh), Tab::Nika, None, None, None)
+                .note
+                .as_deref(),
+            Some("No workflow in veille yet")
         );
         let cut = ProjectView::new("local", "veille", "~/veille").listing(Vec::new(), false);
         assert!(
             words(&welcome(Some(&cut), true))
                 .iter()
-                .any(|word| word == "none found in the listed part - listing partial")
+                .all(|word| !word.contains("listing partial"))
         );
+        assert!(!aside(Some(&cut), Tab::Nika, None, None, None).complete);
     }
 
     #[test]

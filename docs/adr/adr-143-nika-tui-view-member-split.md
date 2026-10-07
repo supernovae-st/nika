@@ -144,6 +144,29 @@ measurements and unrecovered gallery remain historical facts. Workspace PTYs
 cover an output and a Markdown file, not every viewer format, the full workspace
 journey or a stamped integrated build.
 
+## Amendment 2026-10-07 · pure workspace presentation
+
+The Session/Workbench layouts and contextual command chooser exceed the
+renderer member's production-size budget when composed with the native host.
+The existing viewer member also owns the pure visual vocabulary and workspace
+views: geometry, header, project listing, pinned row, object and conversation
+chrome, with their shared text fitting. These functions consume supplied facts,
+cells and elapsed time; they acquire no data and grant no authority.
+
+The original `nika_tui::visual` and affected `nika_tui::workspace` source paths
+remain compatibility projections of the viewer implementation. Native Desk,
+keyboard and pointer routing, event broker, composer, transcript state, Session
+and Live acquisition/storage keep their owners. A viewer does not depend back
+on `nika-tui`, including in its tests: tests needing the native project adapter
+remain at the native compatibility boundary.
+
+The viewer's visual role mapping supplies both members, resolving the earlier
+duplicate palette owner. The existing `sha2` workspace test dependency follows
+the brand rendition provenance proof into the viewer. There is no new crate,
+production dependency on `sha2`, package version change or second terminal
+owner. The API locks and native reception evidence must cover the composed revision;
+moving pure code alone does not qualify a live provider or business outcome.
+
 ## Related
 
 - ADR-139 (the terminal renderer), ADR-137, ADR-138, ADR-140 and ADR-141 (the size-cap member

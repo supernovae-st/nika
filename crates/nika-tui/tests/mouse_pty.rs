@@ -3,7 +3,9 @@
 #![cfg(unix)]
 #![allow(clippy::expect_used, clippy::panic, clippy::disallowed_types)]
 //! Real PTY proofs: the sole broker carries SGR mouse input, fullscreen owns
-//! capture, inline returns it, and pointer input during work never submits.
+//! capture, inline returns it, and pointer input during work never submits:
+//! neither a wheel nor a click, nor a layout switch, a dragged separator or a
+//! click on the header's switch.
 
 #[path = "qa_support/child.rs"]
 mod child;
@@ -135,6 +137,85 @@ fn busy_wheel_and_click_keep_the_draft_unsent_after_resize() {
         "draft lost: {}",
         term.dump()
     );
+    term.send("\x03");
+    term.wait_text("Ctrl+C again leaves");
+    term.send("\x03");
+    assert_eq!(exit_code(term.finish()), Some(130));
+    assert!(term.raw_text().contains(MOUSE_OFF));
+}
+
+/// The header's layout switch, the layout in view in brackets.
+const SESSION_SWITCH: &str = "[Session] Workbench · F4";
+const WORKBENCH_SWITCH: &str = "Session [Workbench] · F4";
+/// The conversation's title as the rule under the object (Workbench).
+const RULE: &str = "── ◌ this conversation";
+
+/// A left press at `from`, a move to `to` with the button held, its release
+/// (cells from zero here, from one on the wire).
+fn drag(term: &mut Term, from: (u16, u16), to: (u16, u16)) {
+    term.send(&format!("\x1b[<0;{};{}M", from.0 + 1, from.1 + 1));
+    term.send(&format!("\x1b[<32;{};{}M", to.0 + 1, to.1 + 1));
+    term.send(&format!("\x1b[<0;{};{}m", to.0 + 1, to.1 + 1));
+}
+
+/// A vertical rule stands at column `x` on at least ten rows.
+fn rule_at(screen: &qa_support::vt::Screen, x: u16) -> bool {
+    let at = |line: &String| line.chars().nth(usize::from(x)) == Some('│');
+    screen.lines().iter().filter(|line| at(line)).count() >= 10
+}
+
+/// While a turn runs, `F4`, a dragged Workbench rule, a click on the
+/// header's switch and a dragged aside edge rearrange the screen; the words
+/// typed meanwhile stay in the composer and nothing is submitted, before and
+/// after the turn ends.
+#[test]
+fn busy_layout_switch_drags_and_header_click_keep_the_draft_unsent() {
+    let release = child::Release::new("layout-busy");
+    let mut term = child::spawn("slow-free:120:workspace", Some(release.path()), 120, 40);
+    term.wait_text(qa_support::FREE);
+    term.send("work\r");
+    term.wait_text(child::BUSY);
+    term.send("draft-layout");
+    term.send("\x1bOS");
+    // The whole frame, not its first rows: the rule is painted below the header.
+    term.wait_until("the Workbench while busy", |s| {
+        s.contains(WORKBENCH_SWITCH) && s.row_of(RULE).is_some() && s.contains("draft-layout")
+    });
+    let rule = term.screen.row_of(RULE).expect("the Workbench rule");
+    let rule = u16::try_from(rule).expect("a row");
+    drag(&mut term, (60, rule), (60, rule - 4));
+    term.wait_until("the rule four rows up", |s| {
+        s.row_of(RULE) == Some(usize::from(rule - 4))
+    });
+    let header = term.screen.lines()[0].clone();
+    let at = header.find("Session").expect("the switch");
+    let x = u16::try_from(header[..at].chars().count()).expect("a column") + 2;
+    term.send(&format!("\x1b[<0;{};1M\x1b[<0;{};1m", x + 1, x + 1));
+    let area = ratatui::layout::Rect::new(0, 0, 120, 40);
+    let g = nika_tui::workspace::geometry::Geometry::of(area, false).expect("geometry");
+    let edge = g.aside.expect("the aside").right() - 1;
+    let beside = g.conversation.right() - 1;
+    term.wait_until("the Session", |s| {
+        s.contains(SESSION_SWITCH) && rule_at(s, edge) && rule_at(s, beside)
+    });
+    drag(&mut term, (edge, 10), (edge + 5, 11));
+    term.wait_until("the aside five columns wider", |s| rule_at(s, edge + 5));
+    term.settle(Duration::from_millis(200));
+    assert!(!term.screen.seen(child::SECOND), "a view change submitted");
+    assert!(term.screen.contains("draft-layout"), "{}", term.dump());
+    release.open();
+    term.wait_text(child::DONE);
+    term.settle(Duration::from_millis(200));
+    assert!(
+        !term.screen.seen(child::SECOND),
+        "a view change became a submission"
+    );
+    assert!(
+        term.screen.contains("draft-layout"),
+        "draft lost: {}",
+        term.dump()
+    );
+    assert!(term.screen.contains(SESSION_SWITCH));
     term.send("\x03");
     term.wait_text("Ctrl+C again leaves");
     term.send("\x03");

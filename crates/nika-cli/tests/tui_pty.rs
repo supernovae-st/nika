@@ -255,12 +255,33 @@ fn tui_on_a_pipe_keeps_the_concierge_and_writes_no_escape_sequence() {
 
 /// Everything the child wrote, for the assertions no `expect` can make
 /// (no escape sequence · the restore at the end).
-#[derive(Clone, Default)]
-struct Tee(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+#[derive(Clone)]
+struct Tee {
+    log: std::sync::Arc<std::sync::Mutex<Vec<u8>>>,
+    screen: std::sync::Arc<std::sync::Mutex<vt::Screen>>,
+}
+
+impl Tee {
+    fn new(cols: u16, rows: u16) -> Self {
+        let mut screen = vt::Screen::new(cols, rows);
+        screen.park_at_bottom();
+        Self {
+            log: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
+            screen: std::sync::Arc::new(std::sync::Mutex::new(screen)),
+        }
+    }
+
+    fn observe(&self, bytes: &[u8]) {
+        let mut screen = self.screen.lock().expect("screen");
+        screen.feed(bytes);
+        // answer_until answers these queries itself.
+        screen.take_replies();
+    }
+}
 
 impl std::io::Write for Tee {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.lock().expect("tee").extend_from_slice(buf);
+        self.log.lock().expect("tee").extend_from_slice(buf);
         Ok(buf.len())
     }
 
@@ -271,7 +292,7 @@ impl std::io::Write for Tee {
 
 impl Tee {
     fn text(&self) -> String {
-        String::from_utf8_lossy(&self.0.lock().expect("tee")).into_owned()
+        String::from_utf8_lossy(&self.log.lock().expect("tee")).into_owned()
     }
 
     /// Did the child write `raw`? The log stream escapes control bytes
@@ -323,7 +344,7 @@ fn spawn_sized_with(
         .get_process_mut()
         .set_window_size(cols, rows)
         .expect("window size");
-    let tee = Tee::default();
+    let tee = Tee::new(cols, rows);
     let mut session = expectrl::session::log(session, tee.clone()).expect("log tee");
     session.set_expect_timeout(Some(Duration::from_secs(120)));
     (session, tee)
@@ -344,6 +365,7 @@ fn answer_until(session: &mut TeeSession, tee: &Tee, rows: u16, needle: &str) {
                 tee.text()
             ),
         };
+        tee.observe(found.as_bytes());
         if found.get(0) == Some(DA_QUERY.as_bytes()) {
             session.send(DA_ANSWER).expect("answer the attributes");
         } else if found.get(0) == Some(CURSOR_QUERY.as_bytes()) {
@@ -355,6 +377,47 @@ fn answer_until(session: &mut TeeSession, tee: &Tee, rows: u16, needle: &str) {
         }
     }
     panic!("the viewport kept asking where the cursor is instead of drawing `{needle}`");
+}
+
+/// Read the terminal's painted state, including diff updates that do not
+/// repeat a sentence as contiguous bytes. The predicates below distinguish
+/// a fresh free prompt from a command list or a turn still working.
+fn screen_until(
+    session: &mut TeeSession,
+    tee: &Tee,
+    what: &str,
+    done: impl Fn(&vt::Screen) -> bool,
+) {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let mut bytes = [0; 16 * 1024];
+    loop {
+        match session.try_read(&mut bytes) {
+            Ok(0) => panic!("EOF before {what}\n{}", tee.text()),
+            Ok(n) => {
+                let replies = {
+                    let mut screen = tee.screen.lock().expect("screen");
+                    screen.feed(&bytes[..n]);
+                    screen.take_replies()
+                };
+                for reply in replies {
+                    session.send(reply).expect("terminal reply");
+                }
+            }
+            Err(why) if why.kind() == std::io::ErrorKind::WouldBlock => {}
+            Err(why) => panic!("{what}: {why}\n{}", tee.text()),
+        }
+        let screen = tee.screen.lock().expect("screen");
+        if done(&screen) {
+            return;
+        }
+        assert!(Instant::now() < deadline, "{what}\n{}", screen.text());
+        drop(screen);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+fn empty_composer(screen: &vt::Screen) -> bool {
+    screen.lines().iter().any(|row| row.trim() == "nika ›")
 }
 
 /// D · the renderer opens, helps and closes at three terminal sizes: the
@@ -440,7 +503,7 @@ fn term_dumb_opens_the_plain_session_without_escape_sequences() {
     let (project, home) = rig("dumb");
     let session =
         OsSession::spawn(tui_command(project.path(), home.path(), "dumb")).expect("pty spawn");
-    let tee = Tee::default();
+    let tee = Tee::new(80, 24);
     let mut session = expectrl::session::log(session, tee.clone()).expect("log tee");
     session.set_expect_timeout(Some(Duration::from_secs(120)));
     session
@@ -473,7 +536,7 @@ fn a_mute_cursor_report_falls_back_to_the_plain_session() {
     let (project, home) = rig("mute");
     let session = OsSession::spawn(tui_command(project.path(), home.path(), "xterm-256color"))
         .expect("pty spawn");
-    let tee = Tee::default();
+    let tee = Tee::new(80, 24);
     let mut session = expectrl::session::log(session, tee.clone()).expect("log tee");
     session.set_expect_timeout(Some(Duration::from_secs(120)));
     session
@@ -549,15 +612,30 @@ fn stalled_turn(tag: &str) -> (TeeSession, Tee) {
     );
     answer_until(&mut session, &tee, 24, "automate?");
     session.send("/intelligence\r").expect("the first screen");
-    answer_until(&mut session, &tee, 24, "conversation");
+    screen_until(&mut session, &tee, "the intelligence choice", |screen| {
+        screen.contains("Needs your choice of intelligence")
+            && screen.contains("1 account · 2 API · 3 local · 4 no AI")
+    });
     session
         .send("3 ollama/stall-fixture\r")
         .expect("a local seat on the stalling endpoint");
-    answer_until(&mut session, &tee, 24, "private");
+    screen_until(
+        &mut session,
+        &tee,
+        "the selected seat and fresh prompt",
+        |screen| {
+            screen.contains("ollama/stall-fixture")
+                && empty_composer(screen)
+                && !screen.contains("seating the intelligence")
+                && !screen.contains("Needs your choice")
+        },
+    );
     session
         .send("Que penses-tu de ce projet ?\r")
         .expect("a line only a seat answers");
-    answer_until(&mut session, &tee, 24, "through your words");
+    screen_until(&mut session, &tee, "the working turn", |screen| {
+        screen.contains("working through your words")
+    });
     std::mem::forget(project);
     std::mem::forget(home);
     (session, tee)
@@ -811,7 +889,7 @@ fn door_text(flag: &str, prompt: &str, leave: &[(&str, &str)]) -> (String, i32) 
         .get_process_mut()
         .set_window_size(80, 24)
         .expect("window size");
-    let mut session = expectrl::session::log(session, Tee::default()).expect("log tee");
+    let mut session = expectrl::session::log(session, Tee::new(80, 24)).expect("log tee");
     session.set_expect_timeout(Some(Duration::from_secs(120)));
     let mut raw = Vec::new();
     record_until(&mut session, &mut raw, 24, "automate?");
@@ -947,9 +1025,21 @@ fn a_locked_history_refusal_survives_fullscreen_exit_and_preserves_its_owner() {
     // Complete the draft typed before the rejected sibling opened.
     owner.send("p\r").expect("holder still has its draft");
     answer_until(&mut owner, &owner_tee, 40, "/intelligence");
+    screen_until(
+        &mut owner,
+        &owner_tee,
+        "the help turn's fresh prompt",
+        |screen| {
+            empty_composer(screen)
+                && screen.contains("Name a workflow file in your question")
+                && !screen.contains("working")
+        },
+    );
     owner
         .send("/quit\r")
         .expect("close the original owner normally");
-    owner.expect(Eof).expect("owner closes");
+    owner
+        .expect(Eof)
+        .unwrap_or_else(|why| panic!("owner closes: {why}\n{}", owner_tee.text()));
     assert_eq!(exit_code(&mut owner), 0);
 }

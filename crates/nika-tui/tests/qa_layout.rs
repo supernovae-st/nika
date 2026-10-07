@@ -17,11 +17,13 @@
 
 mod qa_support;
 
+use nika_tui::workspace::geometry::{Arrangement, Geometry, Layout};
 use qa_support::vt::Screen;
 use qa_support::{
-    ANSWER, APPLY, FREE, FREE_HINT, GATE, GATE_HINT, JOURNEY, PROPOSAL, QUESTION, REPLY, SAVED,
-    SIZES, Term, assert_restored, exit_code,
+    ANSWER, APPLY, FREE, FREE_HINT, GATE, GATE_HINT, JOURNEY, PROPOSAL, QUESTION, REPLY, RESULT,
+    SAVED, SIZES, Step, Term, assert_restored, exit_code,
 };
+use ratatui::layout::Rect;
 
 /// Two `Ctrl+C` from an idle prompt: the terminal comes back with 130.
 fn leave(term: &mut Term) {
@@ -309,6 +311,210 @@ fn a_waiting_proposal_outlives_a_resize_and_its_consent_saves_it() {
     term.send("yes\r");
     term.wait_until("the proposal saved", |screen| screen.contains(SAVED));
     term.wait_prompt(FREE);
+    leave(&mut term);
+}
+
+/// The header's layout switch, the layout in view in brackets.
+const SESSION_SWITCH: &str = "[Session] Workbench · F4";
+const WORKBENCH_SWITCH: &str = "Session [Workbench] · F4";
+/// The conversation's title as the rule under the object (Workbench).
+const RULE: &str = "── ◌ this conversation";
+/// `F4`, `F6` and `Shift+F6` as an xterm sends them (never a lone `Esc`,
+/// which a mouse report right behind it could join).
+const F4: &str = "\x1bOS";
+const F6: &str = "\x1b[17~";
+const SHIFT_F6: &str = "\x1b[17;2~";
+
+/// A left press at `from`, a move to `to` with the button held, its release:
+/// the SGR reports of an xterm (cells from zero here, from one on the wire).
+fn drag(term: &mut Term, from: (u16, u16), to: (u16, u16)) {
+    term.send(&format!("\x1b[<0;{};{}M", from.0 + 1, from.1 + 1));
+    term.send(&format!("\x1b[<32;{};{}M", to.0 + 1, to.1 + 1));
+    term.send(&format!("\x1b[<0;{};{}m", to.0 + 1, to.1 + 1));
+}
+
+/// A left click at `at`.
+fn click(term: &mut Term, at: (u16, u16)) {
+    let (x, y) = (at.0 + 1, at.1 + 1);
+    term.send(&format!("\x1b[<0;{x};{y}M\x1b[<0;{x};{y}m"));
+}
+
+/// The column where `needle` starts on `row` (one cell per character there).
+fn column_of(row: &str, needle: &str) -> u16 {
+    let at = row.find(needle).expect("on the row");
+    u16::try_from(row[..at].chars().count()).expect("a column")
+}
+
+/// The Workbench rule's row.
+fn rule_row(screen: &Screen) -> Option<u16> {
+    screen.row_of(RULE).and_then(|row| u16::try_from(row).ok())
+}
+
+/// The conversation's rule column stands at `x` beside the object.
+fn rule_at(screen: &Screen, x: u16, rows: std::ops::Range<u16>) -> bool {
+    let lines = screen.lines();
+    rows.filter_map(|y| lines.get(usize::from(y)))
+        .filter(|line| line.chars().nth(usize::from(x)) == Some('│'))
+        .count()
+        >= 10
+}
+
+/// One step of the demo journey in the workspace, whose prompts are inset.
+fn step_in_workspace(term: &mut Term, step: &Step) {
+    term.send(step.send);
+    let (shows, prompt) = (step.shows, step.prompt);
+    term.wait_until(shows, |screen| {
+        screen.seen(shows) && screen.contains(prompt)
+    });
+}
+
+/// Every view change at 120x40 while `typed` sits in the composer: `F4`, a
+/// dragged Workbench rule, the keys that move it (`F6` to the object, `0`,
+/// `-`, `Shift+F6` back to the composer), the header's switch, a dragged
+/// Session rule and `0`, then three resizes. After each, the switch names
+/// the layout in view and the draft is still in the composer.
+fn rearrange(term: &mut Term, typed: &str) {
+    let area = Rect::new(0, 0, 120, 40);
+    term.send(F4);
+    // The whole frame, not its first rows: the rule is painted below the header.
+    term.wait_until("the Workbench", |s| {
+        s.contains(WORKBENCH_SWITCH) && rule_row(s).is_some() && s.contains(typed)
+    });
+    let rule = rule_row(&term.screen).expect("the Workbench rule");
+    drag(term, (60, rule), (60, rule - 3));
+    term.wait_until("the rule three rows up", |s| rule_row(s) == Some(rule - 3));
+    let workbench = Arrangement::of(Layout::Workbench);
+    let automatic = Geometry::arranged(area, false, &workbench).expect("fits");
+    term.send(F6);
+    term.send("0");
+    term.wait_until("the automatic rule", |s| {
+        rule_row(s) == Some(automatic.conversation.y)
+    });
+    term.send("--");
+    term.send(SHIFT_F6);
+    term.wait_until("two rows to the conversation", |s| {
+        rule_row(s) == Some(automatic.conversation.y - 2) && s.contains(typed)
+    });
+    let header = term.screen.lines()[0].clone();
+    click(term, (column_of(&header, "Session") + 2, 0));
+    let session = Geometry::of(area, false).expect("fits");
+    let edge = session.conversation.right() - 1;
+    let rows = session.conversation.y..session.conversation.bottom();
+    term.wait_until("the Session", |s| {
+        s.contains(SESSION_SWITCH) && rule_at(s, edge, rows.clone()) && rule_row(s).is_none()
+    });
+    drag(term, (edge, 20), (edge + 6, 21));
+    term.wait_until("the rule six columns right", |s| {
+        rule_at(s, edge + 6, rows.clone())
+    });
+    term.send(F6);
+    term.send("0");
+    term.send(SHIFT_F6);
+    term.wait_until("the automatic rule", |s| {
+        rule_at(s, edge, rows.clone()) && s.contains(typed)
+    });
+    for (cols, rows) in [(80, 24), (180, 48), (120, 40)] {
+        assert_eq!(term.screen.beyond(), 0, "before resize to {cols}x{rows}");
+        term.resize(cols, rows);
+        term.wait_until("rearranged at the new size", |s| {
+            s.size() == (usize::from(cols), usize::from(rows))
+                && s.contains(SESSION_SWITCH)
+                && s.contains(typed)
+        });
+        prove_settled_bounds(term, cols, rows);
+    }
+}
+
+/// A frame from the old size may still arrive during SIGWINCH. Judge a
+/// complete redraw after the new size settled, without dropping checks of
+/// the steady frames before and after that transition.
+fn prove_settled_bounds(term: &mut Term, cols: u16, rows: u16) {
+    let window = std::time::Duration::from_millis(400);
+    term.settle(window);
+    term.screen.clear_beyond();
+    term.send("\x0c");
+    assert!(
+        term.settle(window) > 0,
+        "no complete redraw at {cols}x{rows}"
+    );
+    assert_eq!(term.screen.beyond(), 0, "settled redraw at {cols}x{rows}");
+}
+
+/// Layout changes are view changes: with a consent-shaped draft in the
+/// composer, neither the proposal nor the gate is answered by `F4`, the
+/// header's switch, a dragged separator, the separator keys or a resize; the
+/// draft stays unsent until `Enter`, and each decision is then the human's.
+#[test]
+fn layout_changes_keep_the_draft_unsent_and_the_decisions_waiting() {
+    let mut term = Term::proto(&[], 120, 40);
+    term.wait_prompt(FREE);
+    term.send("\x14");
+    term.wait_text(SESSION_SWITCH);
+    for step in &JOURNEY[..2] {
+        step_in_workspace(&mut term, step);
+    }
+    term.send("yes");
+    rearrange(&mut term, "Save? › yes");
+    assert!(
+        term.screen.contains(PROPOSAL),
+        "the proposal\n{}",
+        term.dump()
+    );
+    assert!(
+        !term.screen.seen(SAVED),
+        "a view change saved\n{}",
+        term.dump()
+    );
+    term.send("\r");
+    term.wait_until(SAVED, |s| s.seen(SAVED) && s.contains(FREE));
+    term.send("run it\r");
+    term.wait_until(GATE, |s| s.seen(GATE) && s.contains(ANSWER));
+    term.send("yes");
+    rearrange(&mut term, "answer › yes");
+    assert!(term.screen.seen(GATE), "the gate\n{}", term.dump());
+    assert!(
+        !term.screen.seen(RESULT),
+        "a view change answered the gate\n{}",
+        term.dump()
+    );
+    term.send("\r");
+    term.wait_until(RESULT, |s| s.seen(RESULT) && s.contains(FREE));
+    assert_eq!(term.screen.beyond(), 0, "addressed past the screen");
+    leave(&mut term);
+}
+
+/// The minimum, the three target sizes and a short pane, in both layouts:
+/// the composer's prompt and the switch are on screen, without colour too.
+#[test]
+fn both_layouts_keep_the_composer_and_the_switch_at_every_size() {
+    let mut term = Term::proto_with(&[], 120, 40, &[("NO_COLOR", "1")]);
+    term.wait_prompt(FREE);
+    term.send("\x14");
+    term.wait_text(SESSION_SWITCH);
+    term.send("draft here");
+    for (switch, key) in [(SESSION_SWITCH, ""), (WORKBENCH_SWITCH, F4)] {
+        term.send(key);
+        for (cols, rows) in [(60, 16), (80, 24), (120, 40), (180, 48), (100, 32)] {
+            term.resize(cols, rows);
+            term.wait_until(&format!("{switch} at {cols}x{rows}"), |s| {
+                s.size() == (usize::from(cols), usize::from(rows))
+                    && s.lines()[0].trim_end().ends_with(switch)
+                    && s.contains("nika › draft here")
+            });
+        }
+    }
+    assert!(term.screen.hues().is_empty(), "{:?}", term.screen.hues());
+    // Below the minimum the focus view stands in: the draft stays, and F4
+    // switches nothing there (no layout is drawn).
+    term.resize(59, 15);
+    term.send(F4);
+    term.wait_until("the focus view", |s| {
+        s.size() == (59, 15) && s.contains("nika › draft here") && !s.contains("Workbench")
+    });
+    term.resize(120, 40);
+    term.wait_until("the same Workbench again", |s| {
+        s.contains(WORKBENCH_SWITCH) && s.contains("nika › draft here")
+    });
     leave(&mut term);
 }
 

@@ -586,6 +586,21 @@ pub trait Conversation: Send {
     fn commands(&self) -> Vec<String> {
         Vec::new()
     }
+    /// A host's kept display arrangement, without Session or Run authority.
+    /// The shell reads it at open, never while drawing. The default keeps
+    /// the automatic Session layout.
+    fn arrangement(&self) -> Option<crate::workspace::geometry::Arrangement> {
+        None
+    }
+    /// Keep a settled human display change through the host. A notice may
+    /// report an unconfirmed preference save; no input decision is answered.
+    /// The default retains no preferences outside this shell.
+    fn keep_arrangement(
+        &mut self,
+        _arrangement: crate::workspace::geometry::Arrangement,
+    ) -> Vec<Beat> {
+        Vec::new()
+    }
     /// The project this conversation stands in, read-only, as its Session
     /// observed it: the workspace's header, aside and welcome read it. The
     /// shell asks after the opening and after every turn, never while it

@@ -168,6 +168,8 @@ pub struct Live {
     /// Set once the current turn hands a Run to its runner: the turn's stop
     /// then answers that a Run is under way and cancels nothing.
     run_started: Arc<AtomicBool>,
+    /// HOME display preferences, with no Session or Run authority.
+    layout: layout::Store,
 }
 
 impl std::fmt::Debug for Live {
@@ -192,6 +194,7 @@ impl Live {
         factory: ReasonerFactory,
         runners: Runners,
     ) -> Self {
+        let layout = layout::Store::open(home.as_deref());
         let mut live = Self {
             cwd,
             census,
@@ -211,6 +214,7 @@ impl Live {
             kept: None,
             jq: None,
             run_started: Arc::default(),
+            layout,
         };
         live.open_runtime(kept);
         live
@@ -342,6 +346,9 @@ impl Live {
             legs.kept(run);
         }
         self.kept = kept;
+        if let Some(notice) = self.layout.notice() {
+            beats.push(Beat::Say(Committed::new(Kind::Notice, notice)));
+        }
         beats.extend(self.footer());
         beats.push(Beat::Wait(self.waiting()));
         beats
@@ -733,6 +740,21 @@ fn authoring_cost_question(question: &str) -> String {
 }
 
 impl Conversation for Live {
+    fn arrangement(&self) -> Option<crate::workspace::geometry::Arrangement> {
+        self.layout.current()
+    }
+
+    fn keep_arrangement(
+        &mut self,
+        arrangement: crate::workspace::geometry::Arrangement,
+    ) -> Vec<Beat> {
+        self.layout
+            .keep(arrangement)
+            .map(|notice| Beat::Say(Committed::new(Kind::Notice, notice)))
+            .into_iter()
+            .collect()
+    }
+
     fn commands(&self) -> Vec<String> {
         // `/restore` completes only while a kept draft can be proposed again.
         self.runtime
@@ -1220,6 +1242,7 @@ pub mod acquire;
 mod candidate;
 pub mod feed;
 mod footer;
+mod layout;
 pub(crate) mod legs;
 mod look;
 mod selection;

@@ -44,7 +44,8 @@ The roles remain the engine's closed set, `nika_display::theme::Role`
 (the accent, the three verdicts, dim, strong and the four verb chips).
 `visual::role::style` resolves them to the workspace's RGB product palette:
 blue activity, green success, amber attention, red failure, and readable
-secondary text. The viewer member pins the same RGB values. The CLI retains
+secondary text. The renderer and viewer share the viewer's pure visual owner
+through compatibility paths (ADR-143). The CLI retains
 its terminal-theme palette. Under `NO_COLOR` no role carries a hue; dim and
 strong remain weights. Roles and words still carry meaning without colour.
 The existing 100ms busy tick drives the native orbit and its blue/cyan/purple
@@ -95,6 +96,17 @@ runs before drawing and opens no consent, Save or Run authority. For a workflow 
 `infer:`/`agent:` tasks, the readiness judgement may observe provider key presence and,
 in a harness build, run the installed agent CLIs' authentication status probes; it never
 calls a model.
+
+Session and Workbench are arrangements of the same Desk, selected with `F4` or
+the header switch. Their bounded separators have pointer and keyboard routes;
+resize clamps the rendered geometry without changing the chosen proportions.
+The Live host keeps only settled display choices in a versioned HOME preference
+file through `OwnedDir`. Painting performs no I/O; restoring an arrangement
+restores no Session authority. The command chooser names the conversation's
+supported commands and their effect/scope; selecting a slash command inserts
+it without submitting. `Ctrl+O` opens the palette and `F2` reads the original
+words behind a summarized diagnostic. The [workspace guide](../terminal-workspace.md)
+describes these gestures and the distinction between inspection, Save and Run.
 
 The check is explicitly `ParentOnly`: imports, skills and registry closure are
 unobserved, and RUN READY stays UNKNOWN. Rendering is cached by observation,

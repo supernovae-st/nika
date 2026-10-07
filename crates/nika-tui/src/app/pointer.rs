@@ -2,9 +2,13 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! Pointer navigation and input while a turn runs. All coordinates are judged
-//! against the current frame geometry; no click becomes a submitted line.
-//! Hold Shift for the terminal's own selection/copy where supported; F6,
-//! arrows, PageUp/PageDown and Enter remain the complete keyboard path.
+//! against the current frame geometry (the desk's arrangement); no click, no
+//! drag becomes a submitted line, a consent or a Run. The header's switch
+//! shows the other layout, a separator follows the pointer while its button
+//! is held (within its bounds), and the marker of a transcript scrolled back
+//! returns it to its latest row as `End` does. Hold Shift for the terminal's
+//! own selection/copy where supported; F4, F6, the separator keys, arrows,
+//! PageUp/PageDown, End and Enter remain the complete keyboard path.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use nika_tui_view::Face;
@@ -16,6 +20,7 @@ use super::{
     Busy, Composer, ComposerAction, Conversation, Desk, Exit, Heard, LEAVE_WAITS, Presentation,
     Route, Shell, Signal, UiEvent, UiState, busy_key, is_ctrl_c,
 };
+use crate::workspace::screen::{self, Switch};
 use crate::workspace::{
     aside, focus::Region, geometry::Geometry, live::RunFace, object::Object, project::Target,
 };
@@ -26,14 +31,36 @@ fn key(code: KeyCode) -> KeyEvent {
     KeyEvent::new(code, KeyModifiers::NONE)
 }
 
+/// What a held separator's move or release asks.
+const fn held(moved: bool) -> Route {
+    if moved {
+        Route::Repaint
+    } else {
+        Route::Nothing
+    }
+}
+
 /// Only real painted regions take the pointer. Inline leaves selection and
 /// scrollback to the terminal; a workspace too small follows its focus fallback.
 fn route(state: &mut UiState, desk: &mut Desk, composer: &Composer, mouse: MouseEvent) -> Route {
+    let point = Position::new(mouse.column, mouse.row);
+    match mouse.kind {
+        // A held separator follows the pointer; letting go keeps it there. A
+        // move without the button means it came up out of sight.
+        MouseEventKind::Drag(MouseButton::Left)
+            if state.presentation == Presentation::Workspace =>
+        {
+            return held(desk.drag_to(point, state.size));
+        }
+        MouseEventKind::Up(MouseButton::Left) | MouseEventKind::Moved => {
+            return held(desk.release());
+        }
+        _ => {}
+    }
     if state.presentation == Presentation::Inline || mouse.modifiers != KeyModifiers::NONE {
         return Route::Nothing;
     }
     let area = Rect::new(0, 0, state.size.0, state.size.1);
-    let point = Position::new(mouse.column, mouse.row);
     if !area.contains(point) {
         return Route::Nothing;
     }
@@ -44,7 +71,7 @@ fn route(state: &mut UiState, desk: &mut Desk, composer: &Composer, mouse: Mouse
         _ => return Route::Nothing,
     };
     let geometry = (state.presentation == Presentation::Workspace)
-        .then(|| Geometry::of(area, desk.pins()))
+        .then(|| desk.geometry(state.size))
         .flatten();
     let Some(geometry) = geometry else {
         if let Some(older) = older {
@@ -53,6 +80,11 @@ fn route(state: &mut UiState, desk: &mut Desk, composer: &Composer, mouse: Mouse
         }
         return Route::Nothing;
     };
+    if older.is_none()
+        && let Some(route) = chrome_pointer(state, desk, composer, &geometry, point)
+    {
+        return route;
+    }
     let aside = geometry
         .aside
         .map(|mut area| {
@@ -90,6 +122,48 @@ fn route(state: &mut UiState, desk: &mut Desk, composer: &Composer, mouse: Mouse
         return Route::Repaint;
     }
     Route::Nothing
+}
+
+/// A press on the chrome rather than on a region's content: the header's
+/// layout switch, a separator (held until the button comes up, the keyboard
+/// focus unchanged), or the marker back to the transcript's latest row (the
+/// conversation takes the keys, as a click on it does, and `End` applies).
+/// `None` leaves the press to the regions. Every one of them is view only.
+fn chrome_pointer(
+    state: &mut UiState,
+    desk: &mut Desk,
+    composer: &Composer,
+    geometry: &Geometry,
+    point: Position,
+) -> Option<Route> {
+    desk.release();
+    let shown = desk.screen(state.ascii);
+    let layout = desk.arrangement().layout;
+    if point.y == geometry.header.y {
+        let asked = screen::switch_at(&shown.place, geometry.header, layout, state.ascii, point.x);
+        match asked {
+            Some(Switch::To(layout)) => return Some(held(desk.set_layout(layout))),
+            Some(Switch::Toggle) => {
+                desk.toggle_layout();
+                return Some(Route::Repaint);
+            }
+            None => {}
+        }
+    }
+    if desk.press(point, state.size).is_some() {
+        return Some(Route::Repaint);
+    }
+    if state.focus_scroll > 0 {
+        let seat = shown.thread.intelligence.as_deref();
+        let transcript = screen::panel_areas(geometry, state, composer, seat)[1];
+        let marker = screen::latest_area(transcript, state.ascii);
+        if marker.is_some_and(|marker| marker.contains(point)) {
+            desk.focus.region = Region::Conversation;
+            crate::scroll::end(state, desk, key(KeyCode::End));
+            return Some(Route::Repaint);
+        }
+    }
+    None
 }
 
 fn aside_pointer(
@@ -244,8 +318,18 @@ impl<C: Conversation + 'static> Shell<C> {
         cleared
     }
 
-    pub(super) fn on_mouse(&mut self, mouse: MouseEvent) {
+    /// One pointer event; what it changed (`Route::Nothing`: nothing to draw).
+    pub(super) fn on_mouse(&mut self, mouse: MouseEvent) -> Route {
         let routed = route(&mut self.state, &mut self.desk, &self.composer, mouse);
+        if self.composer.palette_open()
+            && matches!(mouse.kind, MouseEventKind::Down(MouseButton::Left))
+            && self.desk.focus.region != Region::Conversation
+        {
+            // The click explicitly chose another panel. Restore the draft,
+            // but let that new focus supersede where the palette opened.
+            self.palette_from = None;
+            self.keep_reading(|_, composer| composer.close_palette());
+        }
         if routed != Route::Nothing {
             self.state.interrupt_armed = false;
             self.state.completion = None;
@@ -253,6 +337,7 @@ impl<C: Conversation + 'static> Shell<C> {
         if routed == Route::Inspect {
             self.look();
         }
+        routed
     }
     /// One event heard while a turn runs. An interruption acts now (the
     /// exit to leave with, once armed). The composer stays usable: words,
@@ -278,8 +363,11 @@ impl<C: Conversation + 'static> Shell<C> {
                 return Heard::Redraw;
             }
             UiEvent::Mouse(mouse) => {
-                self.on_mouse(mouse);
-                return Heard::Redraw;
+                // A pointer moving over the screen changes nothing: no frame.
+                return match self.on_mouse(mouse) {
+                    Route::Nothing => Heard::Nothing,
+                    _ => Heard::Redraw,
+                };
             }
             UiEvent::Key(key) => key,
             UiEvent::Resize(cols, rows) if self.state.presentation != Presentation::Inline => {
@@ -549,6 +637,149 @@ mod tests {
         assert_eq!(focus.scroll, 40);
         focus.scroll_rows(true, usize::MAX, extent);
         assert_eq!(focus.scroll, 0);
+    }
+
+    /// The header's switch shows the layout clicked; the layout in view asks
+    /// nothing; `F4` toggles. The draft, the transcript, the keys and the
+    /// reading position stay.
+    #[test]
+    fn the_header_switch_shows_a_layout_and_keeps_the_draft_and_the_reading() {
+        use crate::workspace::geometry::Layout;
+        let (mut state, mut desk, composer) = setup((120, 40));
+        state.focus_scroll = 7;
+        let header = desk.geometry(state.size).expect("geometry").header;
+        let place = desk.screen(state.ascii).place;
+        let area = screen::switch_area(&place, header, state.ascii).expect("switch");
+        let down = |x| mouse(MouseEventKind::Down(MouseButton::Left), x, area.y);
+        let blocks = state.transcript.len();
+        assert_eq!(
+            route(&mut state, &mut desk, &composer, down(area.x + 12)),
+            Route::Repaint
+        );
+        assert_eq!(desk.arrangement().layout, Layout::Workbench);
+        assert_eq!(
+            route(&mut state, &mut desk, &composer, down(area.x + 12)),
+            Route::Nothing
+        );
+        assert_eq!(
+            route(&mut state, &mut desk, &composer, down(area.right() - 1)),
+            Route::Repaint
+        );
+        assert_eq!(desk.arrangement().layout, Layout::Session);
+        assert_eq!(
+            route(&mut state, &mut desk, &composer, down(area.x + 4)),
+            Route::Nothing
+        );
+        assert_eq!(composer.text(), "unsent yes");
+        assert_eq!(state.transcript.len(), blocks);
+        assert_eq!(
+            state.focus_scroll, 7,
+            "the reading position is the reader's"
+        );
+        assert_eq!(desk.focus.region, Region::Conversation);
+    }
+
+    /// A separator follows real pointer events from press to release, within
+    /// its bounds; the keys stay in their region and nothing is sent.
+    #[test]
+    fn a_separator_follows_press_drag_and_release_and_never_submits() {
+        use crate::workspace::geometry::Separator;
+        let (mut state, mut desk, composer) = setup((120, 40));
+        desk.focus.region = Region::Object;
+        let g = desk.geometry(state.size).expect("geometry");
+        let handle = g.handle(Separator::Beside).expect("beside");
+        let (x, y) = (handle.x + 1, handle.y + 3);
+        let mut at = |kind, x, y| route(&mut state, &mut desk, &composer, mouse(kind, x, y));
+        assert_eq!(
+            at(MouseEventKind::Down(MouseButton::Left), x, y),
+            Route::Repaint
+        );
+        assert_eq!(
+            at(MouseEventKind::Drag(MouseButton::Left), x + 6, y),
+            Route::Repaint
+        );
+        assert_eq!(
+            at(MouseEventKind::Drag(MouseButton::Left), x + 6, y + 2),
+            Route::Nothing
+        );
+        assert_eq!(
+            at(MouseEventKind::Up(MouseButton::Left), x + 6, y + 2),
+            Route::Repaint
+        );
+        assert_eq!(
+            at(MouseEventKind::Drag(MouseButton::Left), x + 30, y),
+            Route::Nothing
+        );
+        assert_eq!(desk.dragging(), None);
+        let moved = desk.geometry(state.size).expect("geometry");
+        assert_eq!(moved.conversation.width, g.conversation.width + 6);
+        assert_eq!(
+            desk.focus.region,
+            Region::Object,
+            "a separator never takes the keys"
+        );
+        assert_eq!(composer.text(), "unsent yes");
+        assert_eq!(state.focus_scroll, 0);
+        // A release lost out of sight: the next move without a button lets go.
+        let mut at = |kind, x, y| route(&mut state, &mut desk, &composer, mouse(kind, x, y));
+        assert_eq!(
+            at(MouseEventKind::Down(MouseButton::Left), x + 6, y),
+            Route::Repaint
+        );
+        assert_eq!(at(MouseEventKind::Moved, x + 20, y), Route::Repaint);
+        assert_eq!(at(MouseEventKind::Moved, x + 20, y), Route::Nothing);
+        assert_eq!(desk.dragging(), None);
+        state.presentation = Presentation::Inline;
+        let inline = mouse(MouseEventKind::Down(MouseButton::Left), x + 6, y);
+        assert_eq!(
+            route(&mut state, &mut desk, &composer, inline),
+            Route::Nothing
+        );
+        assert_eq!(desk.dragging(), None, "inline holds no separator");
+    }
+
+    /// The marker of a transcript scrolled back returns it to its latest
+    /// row as `End` does, the conversation taking the keys; a click beside it
+    /// only focuses; nothing is sent. In both layouts.
+    #[test]
+    fn the_latest_marker_returns_the_transcript_to_its_newest_row() {
+        use crate::workspace::geometry::Layout;
+        for layout in Layout::ALL {
+            let (mut state, mut desk, composer) = setup((120, 40));
+            desk.set_layout(layout);
+            desk.focus.region = Region::Object;
+            state.focus_scroll = 9;
+            let g = desk.geometry(state.size).expect("geometry");
+            let seat = desk.screen(state.ascii).thread.intelligence;
+            let transcript = screen::panel_areas(&g, &state, &composer, seat.as_deref())[1];
+            let marker = screen::latest_area(transcript, state.ascii).expect("marker");
+            let click = |x| mouse(MouseEventKind::Down(MouseButton::Left), x, marker.y);
+            assert_eq!(
+                route(&mut state, &mut desk, &composer, click(marker.x - 2)),
+                Route::Repaint
+            );
+            assert_eq!(desk.focus.region, Region::Conversation);
+            assert_eq!(
+                state.focus_scroll, 9,
+                "{layout:?}: a click beside it only focuses"
+            );
+            desk.focus.region = Region::Object;
+            assert_eq!(
+                route(&mut state, &mut desk, &composer, click(marker.x + 2)),
+                Route::Repaint
+            );
+            assert_eq!(state.focus_scroll, 0, "{layout:?}: back to the latest row");
+            assert_eq!(desk.focus.region, Region::Conversation);
+            assert_eq!(
+                route(&mut state, &mut desk, &composer, click(marker.x + 2)),
+                Route::Repaint
+            );
+            assert_eq!(
+                state.focus_scroll, 0,
+                "at the latest row it is a focus click"
+            );
+            assert_eq!(composer.text(), "unsent yes");
+        }
     }
 
     #[test]
