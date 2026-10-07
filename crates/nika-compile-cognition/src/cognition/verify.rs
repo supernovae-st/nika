@@ -11,10 +11,10 @@
 //! generator confidence are claims, never evidence; nothing here grants READY by itself.
 //!
 //! Every question and the repair also carry one compiler-owned reference, apart from that state
-//! ([`grounding`], E36): the engine's output conventions, the language in one page and the whole
-//! contract of each tool the candidate reaches by the checker's own capability inference over the
-//! parsed workflow. The verdict records the digest of the reference text sent and each piece's
-//! receipt, and every call that carried it journals the same receipts.
+//! ([`grounding`](fn@grounding), E36): the engine's output conventions, the language in one page
+//! and the whole contract of each tool the candidate reaches by the checker's own capability
+//! inference over the parsed workflow. The verdict records the digest of the reference text sent
+//! and each piece's receipt, and every call that carried it journals the same receipts.
 //!
 //! The judge is a decision seat the caller permits, or the authoring provider itself. The
 //! provider is asked through the journaled authoring call: its calls, usage and failures ride
@@ -47,8 +47,11 @@ pub(crate) const WHOLE_QUESTIONS: usize = 2;
 
 mod faithful;
 mod grounding;
+mod held;
 use faithful::{Pointed, whole};
 use grounding::grounding;
+use held::held_text;
+pub(super) use held::{HELD_TARGET, held, preserve_unjudged, withdrawn};
 use nika_compile_clauses::parts::{parts, restricts};
 
 /// Who judges a candidate: a decision seat the caller permits (its calls and usage are its own,
@@ -90,8 +93,9 @@ pub(super) struct Verdict {
     pub(super) consumed: u32,
     /// What this attempt's judge calls cost ([`usage`]).
     pub(super) usage: Value,
-    /// The reference its questions carried ([`grounding`]): the engine identity, the digest and
-    /// size of the text sent, each piece's receipt and the tools the candidate reaches.
+    /// The reference its questions carried ([`grounding`](fn@grounding)): the engine identity,
+    /// the digest and size of the text sent, each piece's receipt and the tools the candidate
+    /// reaches.
     pub(super) reference: Value,
     /// Duties the core named that no element of the plan carries, with their kind ([`silent`]):
     /// repaired from as the judge's defects are, but no judge was asked (B21 T3).
@@ -855,11 +859,11 @@ fn silent(out: &CompileOutcome) -> Vec<(String, String)> {
 /// The repair call: the verifier's concrete defects with the same state the judge read (the
 /// request as compiled and as first stated, its answers, the observed world, the candidate's
 /// bytes); the proposal it returns is merged as any other, never taken on its word. Its
-/// instructions carry the reference the judge read over the same candidate ([`grounding`]),
-/// apart from that state: the seat cannot know by itself how the compiler writes or what each
-/// tool it calls does (E36). The call's journal entry records the reference's receipts. A part
-/// a judge found missing is said to be compared; a duty the core named is said to be the
-/// compiler's, never compared (B21 T3).
+/// instructions carry the reference the judge read over the same candidate
+/// ([`grounding`](fn@grounding)), apart from that state: the seat cannot know by itself how the
+/// compiler writes or what each tool it calls does (E36). The call's journal entry records the
+/// reference's receipts. A part a judge found missing is said to be compared; a duty the core
+/// named is said to be the compiler's, never compared (B21 T3).
 #[allow(clippy::too_many_arguments)] // the COLD door's state the repair must carry whole
 async fn repair<P: ProviderInferDyn>(
     intent: &str,
@@ -1375,94 +1379,6 @@ pub(super) async fn native_verdict<P: ProviderInferDyn>(
     }
     Err(Box::new((out, verdict)))
 }
-
-/// A judged candidate that is not READY, withdrawn with its questions, its requested boundary and
-/// its replayable record; the request stays INCOMPLETE naming the part and the `repairs` made
-/// from the judge's defects before it.
-pub(super) fn withdrawn(
-    mut out: CompileOutcome,
-    verdict: &Verdict,
-    repairs: usize,
-) -> CompileOutcome {
-    route(&mut out, "verify: not ready");
-    out.status = CompileStatus::Incomplete;
-    out.candidate = None;
-    out.check_preview = None;
-    out.requested_boundary = None;
-    out.questions.clear();
-    out.provenance.plan = None;
-    blocked(&mut out, verdict, repairs);
-    out
-}
-
-/// A candidate the judge answered and did not accept, with no defect located (R6): shown as the
-/// preview, never offered (INCOMPLETE), its questions and boundary cleared, and no replayable
-/// record kept, so no later round asks the same judge again on these bytes. The `verify_held`
-/// finding says what can decide it.
-pub(super) fn held(mut out: CompileOutcome, verdict: &Verdict) -> CompileOutcome {
-    route(&mut out, "verify: not ready, candidate held");
-    out.status = CompileStatus::Incomplete;
-    out.requested_boundary = None;
-    out.questions.clear();
-    out.provenance.plan = None;
-    blocked(&mut out, verdict, 0);
-    crate::finding(
-        &mut out,
-        DiagnosticKind::Applied,
-        HELD_TARGET,
-        held_text(verdict),
-    );
-    out
-}
-
-/// The finding every outcome whose candidate the judge answered and did not accept carries:
-/// its bytes are shown at most, never offered, never replayed to that judge. A host drops any
-/// record or continuation that would ask it again.
-pub(super) const HELD_TARGET: &str = "verify_held";
-
-/// What a held candidate offers, by what held it: located defects the repairs did not settle,
-/// a rejection with no defect located, or an abstention; and why the localization stopped, when
-/// a call got no answer.
-fn held_text(verdict: &Verdict) -> String {
-    let held = if !verdict.defects.is_empty() {
-        HELD_DEFECTS
-    } else if verdict.rejected() {
-        HELD
-    } else {
-        HELD_ABSTAINED
-    };
-    if verdict.stopped {
-        format!("{held} {HELD_STOPPED}")
-    } else {
-        held.to_owned()
-    }
-}
-
-const HELD: &str = "The candidate was judged and not accepted, with no defect a repair could start from: it is shown, never offered, and nothing was written. A correction of the request or another verifier can decide it.";
-const HELD_DEFECTS: &str = "The candidate was judged and not accepted: the parts named above stay missing. It is shown, never offered, and nothing was written; this verifier is not asked again on these bytes, in this compile or in a later round that carries this verdict. A correction of the request, another authoring model or another verifier can decide it.";
-const HELD_ABSTAINED: &str = "The verifier read the candidate and abstained: it neither accepted nor rejected it, and located no defect. It is shown, never offered, and nothing was written; it is not asked again on these bytes in this compile. A correction of the request, another verifier, or a new round that authors again can decide it.";
-const HELD_STOPPED: &str = "Locating what it lacks stopped at a judge call that got no answer (refused by the call bound, or failed).";
-
-/// A candidate the judge could not judge (its call failed, or it chose none) and found no defect
-/// in: withdrawn as [`withdrawn`] withdraws it (never READY, never a candidate), but its replayable
-/// record is kept, so a later round replays the same bytes with no author call and asks its judge
-/// again; the `verify_resume` finding says so, to the human and to the host that resumes it.
-pub(super) fn preserve_unjudged(out: CompileOutcome, verdict: &Verdict) -> CompileOutcome {
-    if verdict.doubted() {
-        return held(out, verdict);
-    }
-    let record = out.provenance.plan.clone();
-    let mut out = withdrawn(out, verdict, 0);
-    if record.is_some() {
-        crate::finding(&mut out, DiagnosticKind::Applied, "verify_resume", RESUME);
-    }
-    out.provenance.plan = record;
-    route(&mut out, "verify: unjudged, record kept");
-    out
-}
-
-/// What an unjudged candidate's kept record offers.
-const RESUME: &str = "The candidate was not judged, so it is not offered; its bytes are kept: a round that replays this record under a judge asks it on the same candidate, with no new authoring call (a replay with no judge judges nothing).";
 
 /// A WARM candidate is judged by the seat that settled its readings (R4 A11); a part it finds
 /// missing, or one it cannot settle, keeps the request INCOMPLETE (WARM makes no proposal).
