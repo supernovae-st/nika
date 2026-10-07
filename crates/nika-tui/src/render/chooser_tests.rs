@@ -77,6 +77,35 @@ fn inline(state: &UiState, composer: &Composer, width: u16) -> Vec<String> {
 }
 
 #[test]
+fn an_open_chooser_keeps_status_facts_without_competing_key_instructions() {
+    for presentation in [Presentation::Focus, Presentation::Workspace] {
+        for palette in [false, true] {
+            let mut state = UiState::new(presentation, false, (120, 40));
+            state.status = "Ready for review".to_owned();
+            let mut composer = composer();
+            if palette {
+                composer.toggle_palette();
+            } else {
+                composer.paste("/");
+            }
+            let shown = inline(&state, &composer, 120);
+            assert_eq!(
+                shown[0], "Ready for review",
+                "{presentation:?}, palette {palette}"
+            );
+            assert!(shown.last().expect("hint row").contains("Esc"));
+            composer.choose(key(KeyCode::Esc));
+            let shown = inline(&state, &composer, 120);
+            let mode = match presentation {
+                Presentation::Focus => "focus · Esc returns inline · PgUp/PgDn scroll",
+                _ => "workspace · F6 panel · Esc back",
+            };
+            assert_eq!(shown[0], format!("Ready for review · {mode}"));
+        }
+    }
+}
+
+#[test]
 fn a_slash_lists_the_commands_under_the_line_with_the_selection_and_its_detail() {
     let state = UiState::new(Presentation::Inline, false, (80, 12));
     let mut composer = composer();

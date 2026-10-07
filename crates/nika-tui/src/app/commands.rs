@@ -18,7 +18,8 @@
 //! The palette opens in the composer's row, with the keys, from whichever
 //! region held them. Cancelling it (`Esc`, `Ctrl+O` again, or any key it
 //! does not read) gives the keys back to that region, the draft exact; a view
-//! key chosen in it is pressed from that region too. Only a command chosen
+//! key chosen in it is pressed from that region too, except the conversation
+//! navigation entries, which give the conversation the keys. Only a command chosen
 //! leaves the keys on the composer, where the `Enter` that sends it is the
 //! human's own act. Choosing never sends: a view key chosen is pressed
 //! through the ordinary path, exactly as if typed. The chooser offers what
@@ -244,11 +245,7 @@ impl<C: Conversation + 'static> Shell<C> {
             }
             return Some(self.caught(Caught::Read));
         }
-        if key.code == catalog::DIAGNOSTIC_KEY
-            && key.modifiers.is_empty()
-            && let Some(block) = self.summarized()
-        {
-            self.diagnostic = Some(diagnostic::Diagnostic::of(block));
+        if self.open_diagnostic(key) {
             return Some(self.caught(Caught::Read));
         }
         if !self.composer.palette_open() && !self.composer_has_keys() {
@@ -266,8 +263,32 @@ impl<C: Conversation + 'static> Shell<C> {
         match chosen {
             Chosen::Pass => None,
             Chosen::Read | Chosen::Inserted => Some(self.caught(Caught::Read)),
-            Chosen::Press(key) => Some(self.caught(Caught::Press(key))),
+            Chosen::Press(key) if self.open_diagnostic(key) => Some(self.caught(Caught::Read)),
+            Chosen::Press(key) => {
+                // These entries name the conversation, regardless of where
+                // the palette opened. Other view keys retain their origin.
+                if self.state.presentation == Presentation::Workspace
+                    && geometry::fits(self.state.size)
+                    && key.modifiers.is_empty()
+                    && matches!(key.code, KeyCode::PageUp | KeyCode::PageDown | KeyCode::End)
+                {
+                    self.desk.focus.region = Region::Conversation;
+                }
+                Some(self.caught(Caught::Press(key)))
+            }
         }
+    }
+
+    /// Both the physical key and the palette entry open the same reader.
+    fn open_diagnostic(&mut self, key: KeyEvent) -> bool {
+        if key.code != catalog::DIAGNOSTIC_KEY || !key.modifiers.is_empty() {
+            return false;
+        }
+        let Some(block) = self.summarized() else {
+            return false;
+        };
+        self.diagnostic = Some(diagnostic::Diagnostic::of(block));
+        true
     }
 
     /// Close the palette, the draft exact, and give the keys back to the

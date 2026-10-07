@@ -605,3 +605,52 @@ fn choosing_at_a_gate_fills_the_draft_and_never_answers_it() {
         leave(&mut term);
     }
 }
+
+/// The palette names the conversation explicitly: from the preview or the
+/// aside, its `PgUp` and `End` entries must move that transcript, keep the draft
+/// and leave a pending Save unanswered.
+#[test]
+fn palette_conversation_navigation_reaches_the_transcript_from_other_regions() {
+    let mut term = opened(80, 24, true);
+    term.walk(&JOURNEY[..2]);
+    term.send("keep my navigation draft");
+    term.wait_text("Save? › keep my navigation draft");
+    for origin in [1, 2] {
+        for _ in 0..origin {
+            term.send(F6);
+        }
+        term.send(CTRL_O);
+        term.wait_text("commands ›");
+        term.send("earlier messages");
+        term.wait_text("› PgUp");
+        term.send("\r");
+        term.wait_until("the conversation scrolled from another region", |screen| {
+            !screen.contains("commands ›") && screen.contains("↓ latest")
+        });
+        assert!(
+            term.screen.contains("Save? › keep my navigation draft"),
+            "{}",
+            term.dump()
+        );
+        for _ in 0..origin {
+            term.send(F6);
+        }
+        term.send(CTRL_O);
+        term.wait_text("commands ›");
+        term.send("back to the latest message");
+        term.wait_text("› End");
+        term.send("\r");
+        term.wait_until("the conversation returned to its latest row", |screen| {
+            !screen.contains("commands ›")
+                && !screen.contains("↓ latest")
+                && screen.contains("Save? › keep my navigation draft")
+        });
+        term.settle(SETTLE);
+        assert!(
+            !term.screen.seen(SAVED),
+            "a navigation entry saved: {}",
+            term.dump()
+        );
+    }
+    leave(&mut term);
+}

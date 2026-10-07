@@ -10,7 +10,7 @@
 //! the human presses `Enter`), and that `Up`/`Down` recall history only when
 //! the cursor stands at the buffer's first or last line.
 //!
-//! The composer also keeps the command chooser ([`chooser`]): the slash list
+//! The composer also keeps the command chooser (`chooser`): the slash list
 //! of a command being typed and the palette. Choosing inserts words into the
 //! draft and never sends them; `Enter` stays the only way a line leaves.
 //!
@@ -60,7 +60,7 @@ pub struct Composer {
     history: Vec<String>,
     recall: Option<usize>,
     draft: Option<Vec<String>>,
-    /// The slash list and the palette ([`chooser`]).
+    /// The slash list and the palette (`chooser`).
     chooser: chooser::Chooser,
     /// Words the palette set aside to insert a command: back in the box once
     /// the line that replaced them is taken, or at once with `Esc`.

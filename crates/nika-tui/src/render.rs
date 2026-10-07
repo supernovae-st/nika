@@ -11,7 +11,7 @@
 //! refusal; the default foreground for everything the human reads.
 //!
 //! The live area holds the command chooser under the line it fills
-//! ([`chooser`]): while it shows, the area may take all but two rows of what
+//! (`chooser`): while it shows, the area may take all but two rows of what
 //! it is given, so the transcript and its rule always keep a row.
 
 mod chooser;
@@ -103,9 +103,9 @@ pub(crate) fn activity_marker(state: &UiState) -> Option<Span<'static>> {
 
 /// A working phase can name a model and the last completed phase. Reserve
 /// enough rows to read those words rather than clipping them to one line.
-fn status_rows(state: &UiState, width: u16) -> u16 {
+fn status_rows(state: &UiState, choosing: bool, width: u16) -> u16 {
     if state.busy.is_some() {
-        wrapped_rows(&[status_line(state)], width).min(3)
+        wrapped_rows(&[status_line(state, choosing)], width).min(3)
     } else {
         1
     }
@@ -191,7 +191,7 @@ pub fn live_rows(state: &UiState, composer: &Composer, width: u16, height: u16) 
     let rail = usize::from(!state.rail.is_empty() && chooser == 0);
     let aside = usize::from(composer.aside().is_some());
     let hint = usize::from(wrapped_rows(&[hint_line(state, composer, width)], width).min(3));
-    let status = usize::from(status_rows(state, width));
+    let status = usize::from(status_rows(state, composer.listing().is_some(), width));
     let rows = rail + status + aside + input + chooser + hint;
     // Only a multi-line draft asks past the half; a one-line draft never does.
     let readable = if input > 1 {
@@ -226,7 +226,7 @@ fn rail_line(state: &UiState) -> Line<'static> {
     ))
 }
 
-fn status_line(state: &UiState) -> Line<'static> {
+fn status_line(state: &UiState, choosing: bool) -> Line<'static> {
     let dim = role::style(Role::Dim, state.color);
     let accent = accent(state.color);
     if state.interrupt_armed {
@@ -261,7 +261,7 @@ fn status_line(state: &UiState) -> Line<'static> {
                 role::style(tone, state.color),
             ));
         }
-        if let Some(cue) = earlier_cue(state) {
+        if !choosing && let Some(cue) = earlier_cue(state) {
             spans.push(Span::styled(cue, dim));
         }
         Line::from(spans)
@@ -273,6 +273,7 @@ fn status_line(state: &UiState) -> Line<'static> {
     } else {
         // Where the automation stands, then the presentation's own note.
         let mode = match state.presentation {
+            _ if choosing => "",
             Presentation::Inline => "",
             Presentation::Focus => "focus · Esc returns inline · PgUp/PgDn scroll",
             Presentation::Workspace => "workspace · F6 panel · Esc back",
@@ -284,7 +285,11 @@ fn status_line(state: &UiState) -> Line<'static> {
             (false, true) => state.status.clone(),
             (false, false) => format!("{}{sep}{mode}", state.status),
         };
-        let cue = earlier_cue(state).unwrap_or_default();
+        let cue = if choosing {
+            String::new()
+        } else {
+            earlier_cue(state).unwrap_or_default()
+        };
         Line::from(Span::styled(format!("{text}{cue}"), dim))
     }
 }
@@ -292,8 +297,11 @@ fn status_line(state: &UiState) -> Line<'static> {
 /// While the full-screen transcript is scrolled back, new activity keeps the
 /// reading place; the row says so and names the key back to the latest.
 fn earlier_cue(state: &UiState) -> Option<String> {
-    (state.focus_scroll > 0 && state.presentation != Presentation::Inline)
-        .then(|| own(" · reading earlier messages · End: latest", state.ascii))
+    (state.focus_scroll > 0
+        && state.presentation != Presentation::Inline
+        && !(state.presentation == Presentation::Workspace
+            && crate::workspace::geometry::fits(state.size)))
+    .then(|| own(" · reading earlier messages · End: latest", state.ascii))
 }
 
 /// Preparation has Stop and queued corrections; a Run keeps its separate controls.
@@ -321,7 +329,7 @@ fn hint_line(state: &UiState, composer: &Composer, width: u16) -> Line<'static> 
         && crate::workspace::geometry::fits(state.size)
     {
         // One row, even beside a narrow preview; Stop, consent and completion keep priority.
-        // Scrolled back, the way to the latest comes first: the status row may clip its cue.
+        // Scrolled back, this row owns the keyboard cue beside the clickable marker.
         let hints = if state.focus_scroll > 0 {
             [
                 "click chat; End: latest · /intelligence · Ctrl+O: commands",
@@ -385,7 +393,7 @@ fn live_areas(state: &UiState, composer: &Composer, area: Rect) -> LiveAreas {
         u16::try_from(chooser::rows(state, composer, area.width)).unwrap_or(u16::MAX);
     let choosing = chooser_wanted > 0;
     let hint_wanted = wrapped_rows(&[hint_line(state, composer, area.width)], area.width).min(3);
-    let status_wanted = status_rows(state, area.width);
+    let status_wanted = status_rows(state, composer.listing().is_some(), area.width);
     let lines = if composer.palette_open() {
         1
     } else {
@@ -468,7 +476,7 @@ pub(crate) fn render_live(frame: &mut Frame<'_>, state: &UiState, composer: &Com
         frame.render_widget(Paragraph::new(rail_line(state)), areas.rail);
     }
     frame.render_widget(
-        Paragraph::new(status_line(state)).wrap(Wrap { trim: false }),
+        Paragraph::new(status_line(state, composer.listing().is_some())).wrap(Wrap { trim: false }),
         areas.status,
     );
     if let Some(aside) = composer.aside().filter(|_| areas.aside.height > 0) {
@@ -722,12 +730,12 @@ mod tests {
                     }
                     // `F6` and `Esc` keep their one home, the status row.
                     assert!(!text.contains("F6"), "{scroll} {width}: {text}");
-                    assert!(words(status_line(&state)).contains("F6 panel"));
+                    assert!(words(status_line(&state, false)).contains("F6 panel"));
                     assert_eq!(wrapped_rows(&[hint], width), 1, "{scroll} {width}: {text}");
                     if ascii {
                         assert!(text.is_ascii());
                     }
-                    assert!(words(status_line(&state)).starts_with(&state.status));
+                    assert!(words(status_line(&state, false)).starts_with(&state.status));
                 }
             }
         }
@@ -748,14 +756,14 @@ mod tests {
         state.waiting = Waiting::Free;
         state.busy = Some("checking files locally".into());
         assert_eq!(words(hint_line(&state, &composer, 44)), WORKING_HINT);
-        assert!(words(status_line(&state)).contains("checking files locally"));
+        assert!(words(status_line(&state, false)).contains("checking files locally"));
         state.completion = Some(ENTER.into());
         assert_eq!(words(hint_line(&state, &composer, 44)), ENTER);
         state.completion = None;
         state.busy = None;
         state.spinner = Some(3); // A stale animation frame is not active work.
-        assert!(words(status_line(&state)).starts_with(&state.status));
-        assert!(!words(status_line(&state)).contains("Idle"));
+        assert!(words(status_line(&state, false)).starts_with(&state.status));
+        assert!(!words(status_line(&state, false)).contains("Idle"));
         state.focus_scroll = 0;
         state.presentation = Presentation::Inline;
         // The free prompt names the palette key once, where the row holds it.
@@ -991,12 +999,12 @@ mod tests {
         state.apply(Beat::Busy("thinking".to_owned()));
         for frame in 0..8u8 {
             state.spinner = Some(frame);
-            let line = status_line(&state);
+            let line = status_line(&state, false);
             let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
             assert!(text.is_ascii() && text.ends_with("thinking"), "{text:?}");
         }
         state.spinner = None;
-        let still: String = status_line(&state)
+        let still: String = status_line(&state, false)
             .spans
             .iter()
             .map(|s| s.content.as_ref())
@@ -1048,8 +1056,8 @@ mod tests {
             );
             state.spinner = Some(3);
             let rows = live_rows(&state, &composer, width, 30);
-            assert!(status_rows(&state, width) > 1);
-            assert!(status_rows(&state, width) <= 3);
+            assert!(status_rows(&state, false, width) > 1);
+            assert!(status_rows(&state, false, width) <= 3);
             let mut terminal = Terminal::new(TestBackend::new(width, rows)).expect("test terminal");
             terminal
                 .draw(|frame| render_live(frame, &state, &composer, frame.area()))
@@ -1099,7 +1107,7 @@ mod tests {
         );
         let mut state = UiState::new(Presentation::Workspace, true, (80, 4));
         state.apply(Beat::Busy("↻ a stronger model reads it".to_owned()));
-        let busy = status_line(&state);
+        let busy = status_line(&state, false);
         assert_eq!(busy.spans[1].style, role::style(Role::Warn, true));
     }
 
@@ -1145,31 +1153,43 @@ mod tests {
 
     const ENTER: &str = "Nika is working - Enter sends when it is your turn";
 
-    /// A scrolled-back transcript is said on the status row (busy or idle) with the key
-    /// back to the latest; at the latest row, and inline (the terminal scrolls), nothing.
+    /// Focus and the small workspace fallback name End on the status row. A
+    /// fitting workspace owns that cue beside its clickable transcript marker.
     #[test]
     fn a_scrolled_back_transcript_names_the_way_back_to_the_latest() {
         let words = |state: &UiState| -> String {
-            status_line(state)
+            status_line(state, false)
                 .spans
                 .iter()
                 .map(|s| s.content.as_ref())
                 .collect()
         };
-        for presentation in [Presentation::Focus, Presentation::Workspace] {
-            let mut state = UiState::new(presentation, false, (80, 24));
+        for (presentation, size, status_cue) in [
+            (Presentation::Focus, (80, 24), true),
+            (Presentation::Workspace, (50, 14), true),
+            (Presentation::Workspace, (80, 24), false),
+        ] {
+            let mut state = UiState::new(presentation, false, size);
             state.status = "Ready for review".to_owned();
             assert!(!words(&state).contains("End: latest"));
             state.focus_scroll = 3;
             assert!(
-                words(&state).ends_with("reading earlier messages · End: latest"),
+                words(&state).ends_with("reading earlier messages · End: latest") == status_cue,
                 "{}",
                 words(&state)
             );
             state.apply(Beat::Busy("● authoring · m".to_owned()));
-            assert!(words(&state).ends_with("End: latest"), "{}", words(&state));
+            assert_eq!(
+                words(&state).ends_with("End: latest"),
+                status_cue,
+                "{}",
+                words(&state)
+            );
             state.ascii = true;
-            assert!(words(&state).ends_with("reading earlier messages - End: latest"));
+            assert_eq!(
+                words(&state).ends_with("reading earlier messages - End: latest"),
+                status_cue
+            );
         }
         let mut inline = UiState::new(Presentation::Inline, false, (80, 24));
         inline.focus_scroll = 3;

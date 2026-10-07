@@ -596,6 +596,11 @@ fn a_scrolled_transcript_shows_one_way_back_in_both_layouts() {
             let area = screen::latest_area(transcript, ascii).expect("room for the marker");
             let (rows, buffer) = frame(&desk, LARGE, &state, &composer, paint(ascii, false));
             assert_eq!(rows.join("\n").matches(marker).count(), 1, "{layout:?}");
+            assert!(
+                rows.join("\n").matches("End: latest").count() <= 1,
+                "{layout:?}: one keyboard cue beside the clickable marker\n{}",
+                rows.join("\n")
+            );
             let shown: String = (area.x..area.right())
                 .map(|x| buffer[(x, area.y)].symbol())
                 .collect();

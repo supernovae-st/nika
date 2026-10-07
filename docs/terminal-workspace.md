@@ -52,9 +52,9 @@ authority.
 | Inspect authoring provenance | `/details` |
 | Read the last Run's trace verdict and its limits | `/proof` |
 | Show the Session's intelligence choices | `/intelligence` |
-| Read the full words behind a summarized diagnostic | `F2` |
+| Read the full words behind the latest summarized diagnostic | `F2` |
 
-The chooser lists the commands available now. `/restore` appears only when the
+The chooser lists the commands the Session exposes, with each command's scope. `/restore` appears only when the
 Session offers kept work for a fresh review. Model names do not establish route
 capabilities; authoring, decision and Run information retains its own scope.
 Choosing intelligence does not rewrite a previously observed Run.
@@ -76,6 +76,8 @@ Choosing intelligence does not rewrite a previously observed Run.
 | `Ctrl+L` | Redraw |
 
 Pasted text is data. It does not answer a question, authorize Save or start Run.
+An open command list uses `PgUp` / `PgDn` to page its own entries; Escape closes
+it before the panel's navigation keys apply again.
 Input typed before a new decision is painted stays a draft rather than answering
 that decision. New activity preserves a manual conversation reading position.
 On a Run task list, Up/Down selects a task, Enter opens its detail and Backspace
