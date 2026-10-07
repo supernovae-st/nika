@@ -710,7 +710,7 @@ pub(crate) fn capture_mock_outputs_with_answers(
         // deterministic stamps — the test goldens stop drifting).
         let mut stamper =
             nika_runtime::RunSeams::of(mock_wf.run.as_ref().map(|s| &s.value)).stamper();
-        let mut sink = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Quiet);
+        let mut sink = FoldSink::on_stderr(theme, RenderMode::Quiet);
         let (code, outcome) = drive_raw(
             &runtime,
             &mock_wf,
@@ -945,7 +945,7 @@ async fn execute_output_json_lane(
     carry: &str,
     scoped: bool,
 ) -> RunVerdict {
-    let mut fold = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
+    let mut fold = FoldSink::on_stderr(theme, RenderMode::Plain);
     fold.set_plan(plan_waves(wf, report));
     fold.set_trace_recorded(!trace.is_disabled());
     fold.set_source_path(file);
