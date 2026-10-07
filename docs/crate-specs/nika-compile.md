@@ -219,8 +219,9 @@ The pure public surface owns the shared relation:
 `surface::observed::equivalent_spellings(literal, observed)` returns observed
 canonical equivalents with different bytes, in observed order. Typed equalities
 and seat-written programs consume this same relation.
-`surface::observed::stated_spellings(clause, observed, columns)` binds each
-observed value to an actual canonically equivalent span of the clause. The span
+`nika_compile_clauses::spellings::stated_spellings(clause, observed, columns)` (ascended from
+`surface::observed` at the 15k prod-LOC wall, ADR-145: only the seats' spelling law reads it)
+binds each observed value to an actual canonically equivalent span of the clause. The span
 keeps its original bytes, including partly composed forms that are neither NFC
 nor NFD; enumerating those two normal forms alone misses valid statements.
 Letters, digits and combining marks cannot adjoin the span, and a column name

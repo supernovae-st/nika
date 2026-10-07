@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! A clause may state a canonical equivalent in a partly composed spelling.
-use nika_compile::surface::observed::stated_spellings;
+use nika_compile_clauses::spellings::stated_spellings;
 
 #[test]
 fn observed_statement_binds_the_actual_composite_bytes() {

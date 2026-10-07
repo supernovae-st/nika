@@ -4,9 +4,13 @@
 //! The parts of a request a localization asks alone (R4 A11): its own text cut where a phrase
 //! ends, never a reader's reading nor a proposal's region, each part an exact excerpt of the
 //! request, so the part a judge finds missing reaches the repair whole, its path, URL, decimal or
-//! quoted literal included.
+//! quoted literal included. Each part reads as the reader reads a clause: whether it restricts
+//! ([`restricts`]) and whether it may ask an operation of its own ([`asks_an_operation`]).
+//! Ascended from `nika-compile-cognition`'s verifier with those readings at the 15k prod-LOC wall
+//! (ADR-145), unchanged but for their visibility.
 
-use super::faithful;
+use crate::prohibition::{negated_demand, pure_prohibition, states_operation};
+use nika_compile_reader::structure::laws;
 
 /// The parts of `intent`, in order, each an exact excerpt of it. A phrase too short to be judged
 /// alone (« deduplicate », « Sort », a lone « No ») stays with the part before it, or with the
@@ -16,7 +20,8 @@ use super::faithful;
 /// write it »), or of no letter (« 09:00 », « 10 »), is never judged alone: it joins its
 /// neighbour the same way, so no word of the request is lost; only a list marker standing at a
 /// line start (« 1. », « 2) ») is no part. A part stated twice is asked once.
-pub(super) fn parts(intent: &str) -> Vec<String> {
+#[must_use]
+pub fn parts(intent: &str) -> Vec<String> {
     let mut spans: Vec<(usize, usize)> = Vec::new();
     // A span that waits for the next part it introduces (an opening, a label).
     let mut waiting: Option<(usize, usize)> = None;
@@ -29,8 +34,7 @@ pub(super) fn parts(intent: &str) -> Vec<String> {
         }
         // A phrase of words of its own (or one that restricts, a lone « No » included).
         let worded = phrase.chars().any(char::is_alphabetic)
-            && (!nika_compile_reader::structure::only_function_words(phrase)
-                || faithful::restricts(phrase));
+            && (!nika_compile_reader::structure::only_function_words(phrase) || restricts(phrase));
         let alone = worded && judged_alone(phrase);
         let label = matches!(mark, Some(':' | '：'))
             || (matches!(mark, Some(',' | '，' | '、' | ';' | '；')) && conditional(phrase));
@@ -263,3 +267,32 @@ impl Closes {
         }
     }
 }
+
+/// Whether a clause may ask an operation of its own: a prohibition is carried by no task doing
+/// what it forbids, and a structure law (« nothing else », a single request) binds none unless
+/// the clause also states an operation (« write the total to ./t.txt and nothing else »). Any
+/// other clause may ask one (a read, a filter, a computation over the rows, a write).
+#[must_use]
+pub fn asks_an_operation(part: &str) -> bool {
+    let read = read_contractions(part);
+    !pure_prohibition(&read) && (laws(&read).is_empty() || states_operation(&read))
+}
+
+/// A clause with its English negative contractions (« don't », « shouldn't ») read as their
+/// « not ».
+fn read_contractions(part: &str) -> String {
+    part.replace("n't", " not").replace("n’t", " not")
+}
+
+/// Whether a part restricts, read as the reader reads a restriction, with English negative
+/// contractions read as their « not ».
+#[must_use]
+pub fn restricts(part: &str) -> bool {
+    use nika_compile_reader::structure::restricts;
+    // « Don't forget to write … » demands what follows: it restricts nothing.
+    let read = read_contractions(part);
+    restricts(&read) && !negated_demand(&read)
+}
+
+#[cfg(test)]
+mod tests;

@@ -325,6 +325,13 @@ pub(crate) fn compute_head(phrase: &str) -> bool {
         .is_some_and(|(p, head)| p.len() == lower.len() && matches!(head, Head::Op(Op::Compute)))
 }
 
+/// Whether a word (as written, or folded) opens with a head the reader reads (« write »,
+/// « send »): the clause readings above the reader ask it without its head table.
+#[must_use]
+pub fn reads_a_head(word: &str) -> bool {
+    head_of_exact(word).is_some()
+}
+
 pub(crate) fn head_of_exact(lower: &str) -> Option<(&'static str, &'static Head)> {
     let mut best: Option<(&'static str, &'static Head)> = None;
     for (phrase, head) in heads::TABLES.iter().flat_map(|table| table.iter()) {

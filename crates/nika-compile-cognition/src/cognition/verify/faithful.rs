@@ -37,6 +37,7 @@ use super::{
 use crate::CompileOutcome;
 use crate::decide::{ChoiceOption, ChoiceQuestion};
 use nika_compile::surface::{Binding, Disposition, Judgment};
+use nika_compile_clauses::parts::{asks_an_operation, restricts};
 use nika_kernel::ai::provider::ProviderInferDyn;
 
 /// What a part asked alone adds to the clause instructions: a later part replaces it.
@@ -515,16 +516,6 @@ fn named<'t>(key: &str, tasks: &'t [String]) -> Option<&'t str> {
     tasks.iter().find(|t| *t == task).map(String::as_str)
 }
 
-/// Whether a clause may ask an operation of its own: a prohibition is carried by no task doing
-/// what it forbids, and a structure law (« nothing else », a single request) binds none unless
-/// the clause also states an operation (« write the total to ./t.txt and nothing else »). Any
-/// other clause may ask one (a read, a filter, a computation over the rows, a write).
-fn asks_an_operation(part: &str) -> bool {
-    use nika_compile_reader::structure::{laws, pure_prohibition, states_operation};
-    let read = read_contractions(part);
-    !pure_prohibition(&read) && (laws(&read).is_empty() || states_operation(&read))
-}
-
 /// Each part the bytes left open, and each restriction judged broken, judged again over the
 /// trial run: carried settles an open part, and only notes a broken restriction (a run of some
 /// inputs never removes a defect located in the bytes: it stays, for a repair); missing
@@ -870,21 +861,6 @@ fn annotate(verdict: &mut Verdict, part: &str, restricting: bool) {
     if let Some(record) = verdict.records.last_mut() {
         record["clause"] = json!({"text": part, "restricts": restricting});
     }
-}
-
-/// A clause with its English negative contractions (« don't », « shouldn't ») read as their
-/// « not ».
-fn read_contractions(part: &str) -> String {
-    part.replace("n't", " not").replace("n’t", " not")
-}
-
-/// Whether a part restricts, read as the reader reads a restriction, with English negative
-/// contractions read as their « not ».
-pub(super) fn restricts(part: &str) -> bool {
-    use nika_compile_reader::structure::{negated_demand, restricts};
-    // « Don't forget to write … » demands what follows: it restricts nothing.
-    let read = read_contractions(part);
-    restricts(&read) && !negated_demand(&read)
 }
 
 /// The ids of the candidate's tasks, in their order; none when it does not parse.

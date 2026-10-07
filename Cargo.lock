@@ -4736,6 +4736,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-compile-clauses"
+version = "0.122.0"
+dependencies = [
+ "nika-compile-reader",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "nika-compile-cognition"
 version = "0.122.0"
 dependencies = [
@@ -4745,6 +4753,7 @@ dependencies = [
  "nika-cap",
  "nika-check",
  "nika-compile",
+ "nika-compile-clauses",
  "nika-compile-fidelity",
  "nika-compile-reader",
  "nika-kernel",

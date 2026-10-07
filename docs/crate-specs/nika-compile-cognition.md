@@ -100,8 +100,9 @@ A11), under the bounded canonical-spelling law of R4 A5, defined once
 (`nika_compile::surface::observed::equivalent_spellings`) for the typed equalities and the
 seat's programs. A binding is a column of the request's one stated source whose host-observed
 categorical values spell, with other bytes, a literal the clause states at exact token
-boundaries (`stated_spellings`: never inside another word, never a column name, never a
-byte-identical spelling; no case or compatibility folding). A program must not drop either
+boundaries (`nika_compile_clauses::spellings::stated_spellings`, ADR-145: never inside another
+word, never a column name, never a byte-identical spelling; no case or compatibility folding).
+A program must not drop either
 spelling of a bound column, whatever columns its `columns_read` declares (a bracket read escapes
 a declaration, and a column the program never reads moves none of its outputs): on each one-row
 source of its own example with the column set to the stated literal, to the observed spelling,
@@ -308,8 +309,9 @@ that got no answer also stops the verdict. `unfaithful` rejects the bytes and NO
 them: either is recorded as doubt (`doubt`), not as a defect, and the judge then localizes it,
 each part of the request asked alone.
 
-- **The parts** (`verify::parts`) are exact excerpts of the request, byte slices of its own
-  text: a merged part keeps the request's own separators (« Read ./a.csv. » then « Deduplicate »
+- **The parts** (`nika_compile_clauses::parts`, ascended from `verify::parts` with the part
+  readings `restricts` and `asks_an_operation` · ADR-145) are exact excerpts of the request,
+  byte slices of its own text: a merged part keeps the request's own separators (« Read ./a.csv. » then « Deduplicate »
   on the next line make one part, line break included), and a path, a URL, a decimal or a
   quoted literal reaches the repair whole. The text is cut after a comma, semicolon, colon,
   period, exclamation or question mark followed by whitespace or the end, at every line end,
@@ -339,8 +341,8 @@ each part of the request asked alone.
   (a later part replaces it, offered on every part but the last, since only an earlier part can
   be superseded) and, only when the request has two parts or more and the part does not
   restrict, `no_operation`. A part restricts when the reader reads it so (a demand stated with
-  a negation of forgetting, `structure::negated_demand`, restricts nothing)
-  (`nika_compile_reader::structure::restricts`: a keep or an exclusion, a negation, « only », an
+  a negation of forgetting, `nika_compile_clauses::prohibition::negated_demand`, restricts
+  nothing) (`nika_compile_reader::structure::restricts`: a keep or an exclusion, a negation, « only », an
   exception, a condition or a structure law), a negative contraction (« don't ») read as its
   « not »: its question tells the judge it is carried when no task does what it forbids and
   every task honors its condition, even though no task states it. The record of each part
@@ -356,9 +358,9 @@ each part of the request asked alone.
   part asks an operation of its own that no task performs), then `no_task` (no task fails it:
   the part is carried as written). `omitted`, and the sentence of the question that describes
   it, are offered unless the part is a pure prohibition
-  (`nika_compile_reader::structure::pure_prohibition`) or states a structure law
+  (`nika_compile_clauses::prohibition::pure_prohibition`) or states a structure law
   (`structure::laws`: « nothing else », « no other file », no model, a single request) with no
-  operation of its own beside it (`structure::states_operation`: « write the total to
+  operation of its own beside it (`prohibition::states_operation`: « write the total to
   ./out/t.txt and nothing else » asks the write), each read with its English negative
   contractions as « not »; any other part may ask an operation of its own, a context sentence
   or a computation over the rows (« sum qty over the rows where status is shipped ») included.

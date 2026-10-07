@@ -17,8 +17,11 @@
 
 use nika_compile_reader::{
     cardinality, columns, gates, hot, lexicon, objects, paths, plan, rule_tokens, rules, shape,
-    structure, text, unknowns, words,
+    structure, text, unknowns,
 };
+
+// The proposal merge's word tables, at the path the merge has always read them (ADR-145).
+use nika_compile_clauses::words;
 
 use nika_compile_fidelity::{fidelity, sketch};
 

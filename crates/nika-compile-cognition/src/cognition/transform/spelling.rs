@@ -5,7 +5,7 @@
 //! ([`nika_compile::surface::observed::equivalent_spellings`]), which the typed equalities
 //! already hold. A binding is a column of the request's one stated source whose host-observed
 //! categorical values spell, with other bytes, a literal the clause states at exact token
-//! boundaries ([`nika_compile::surface::observed::stated_spellings`]).
+//! boundaries ([`nika_compile_clauses::spellings::stated_spellings`]).
 //!
 //! A program must not drop either spelling of a bound column, whether or not its `columns_read`
 //! declares that column (a bracket read escapes a declaration; a column the program never reads
@@ -82,7 +82,8 @@ mod relations;
 
 use super::super::verify::UNJUDGED_SPELLINGS as UNJUDGED_KEY;
 use super::{CompileOutcome, DiagnosticKind, ProposedTransform, Refusal, run};
-use nika_compile::surface::observed::{for_intent, stated_spellings};
+use nika_compile::surface::observed::for_intent;
+use nika_compile_clauses::spellings::stated_spellings;
 use serde_json::{Map, Value, json};
 
 /// The refusal's lead, which the one repair allowance recognizes (`domain::repairable`).

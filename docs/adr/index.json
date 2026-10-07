@@ -1681,5 +1681,21 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-145",
+      "title": "nika-compile-clauses size-cap member: how one clause of a request reads ascends from the reader, the verifier and the core's surface",
+      "status": "accepted",
+      "date": "2026-10-07",
+      "filename": "adr-145-nika-compile-clauses-member-split.md",
+      "tags": ["architecture","crates","split","size-cap","compile"],
+      "affects_crates": ["nika-compile-clauses","nika-compile-reader","nika-compile-cognition","nika-compile"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-137","ADR-138","ADR-140","ADR-141","ADR-142","ADR-144"],
+      "requires": [],
+      "enables": []
+    }
   ]
 }

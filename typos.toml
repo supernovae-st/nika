@@ -194,6 +194,9 @@ extend-exclude = [
   # The trigger reading ascended from the compiler with the six-language tables the reader never
   # read on 2026-09-30 (ADR-142); the same exclusion follows them.
   "crates/nika-compile-trigger/",
+  # The prohibition reading and the proposal merge's words ascended from the reader with their
+  # six-language tables on 2026-10-07 (ADR-145); the same exclusion follows them.
+  "crates/nika-compile-clauses/",
   # cargo public-api baselines — generated symbol dumps, not prose. Real
   # source typos are still caught in the .rs files they derive from.
   "**/public-api.txt",

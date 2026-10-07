@@ -47,10 +47,9 @@ pub(crate) const WHOLE_QUESTIONS: usize = 2;
 
 mod faithful;
 mod grounding;
-mod parts;
 use faithful::{Pointed, whole};
 use grounding::grounding;
-use parts::parts;
+use nika_compile_clauses::parts::{parts, restricts};
 
 /// Who judges a candidate: a decision seat the caller permits (its calls and usage are its own,
 /// recorded here), or the authoring provider through the journaled authoring call.
@@ -671,7 +670,7 @@ async fn judge_clause<P: ProviderInferDyn>(
     out: &mut CompileOutcome,
 ) {
     let clause = &open.clause;
-    let restricting = faithful::restricts(clause);
+    let restricting = restricts(clause);
     let tasks = faithful::task_ids(base["candidate_nika"].as_str().unwrap_or_default());
     for (n, &span) in open.spans.iter().enumerate() {
         let mut options = vec![

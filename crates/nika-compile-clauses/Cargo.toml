@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#
+# nika-compile-clauses · L4 · how one clause of a request reads above the reader: the exact
+# parts a verifier asks alone, whether a part restricts or may ask an operation of its own,
+# the prohibition reading of a clause, the key of a clause and the literals it states that the
+# host observed spelled otherwise. Size-cap member of the nika-onboard unit (D-2026-07-09-N1 ·
+# ADR-145): nika-compile-cognition → nika-compile-clauses → nika-compile-reader, never back.
+[package]
+name        = "nika-compile-clauses"
+description = "How one clause of a request reads above the reader: the exact parts a verifier asks alone and whether each restricts or may ask an operation of its own, the prohibition reading of a clause, the key of a clause and the literals it states that the host observed spelled with other bytes. Layer L4 — a size-cap member of the nika-onboard unit (D-2026-07-09-N1 · ADR-145 · the ADR-142 precedent), above the reader and below nika-compile-cognition; cognition depends on it and it depends on the reader, never the reverse."
+
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # member of the nika-onboard unit — never on crates.io alone
+
+[dependencies]
+nika-compile-reader = { path = "../nika-compile-reader", version = "0.122.0" } # the restriction, keep, exclusion and operation words, the heads, the fold and the structure laws a clause is read by (ONE unit, several members · ADR-145)
+unicode-normalization = { workspace = true, default-features = false } # a stated literal and an observed value compared under canonical decomposition (R4 A11)
+
+[package.metadata.lore]
+daemon        = "forgeron"
+archetype     = "compiler-smith"
+spirit_role   = "lit une clause comme le lecteur la lit, ne juge jamais · une interdiction reste une interdiction, une demande reste une demande"
+
+[lints]
+workspace = true

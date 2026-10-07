@@ -3,11 +3,11 @@
 
 //! The verifier's own tests: the grounding, the clause and whole-request judgments, a call that
 //! gets no answer stopping the verdict, what a doubted verdict leaves replayable and holds, and
-//! the observation a native verdict may show its judge. The parts a doubted request is asked in
-//! ([`cuts`]), the attempts on the same bytes and their records ([`attempts`]), the rejections
-//! carried from an earlier round ([`carried`]), the localizations resumed on the same bytes
-//! ([`resumed`]) and the COLD and WARM rounds ([`rounds`]) are kept beside this file to bound
-//! its size.
+//! the observation a native verdict may show its judge. The attempts on the same bytes and their
+//! records ([`attempts`]), the rejections carried from an earlier round ([`carried`]), the
+//! localizations resumed on the same bytes ([`resumed`]) and the COLD and WARM rounds
+//! ([`rounds`]) are kept beside this file to bound its size; the parts a doubted request is asked
+//! in are proven with their owner, `nika_compile_clauses::parts` (ADR-145).
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -20,8 +20,6 @@ use serde_json::{Value, json};
 mod attempts;
 /// The rejections a host carries from an earlier round of the conversation.
 mod carried;
-/// The parts a doubted request is asked in.
-mod cuts;
 /// The localizations a verdict on the same bytes left unfinished, resumed.
 mod resumed;
 /// The COLD and WARM rounds under a doubting judge.

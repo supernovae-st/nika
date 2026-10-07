@@ -413,8 +413,12 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   unread part; `lexicon::compute_head` is its crate-private reading. Limits: closed word
   lists; a restriction phrased with none of these words reads as no restriction, and the
   judge's `no_operation` stays admissible for it.
-- **A pure prohibition asks no operation of its own (R4 A11).** `structure::pure_prohibition`
-  reads a clause as a pure prohibition when it forbids by negation alone (« never email the
+- **A pure prohibition asks no operation of its own (R4 A11).** Read above this crate since
+  2026-10-07, by `nika_compile_clauses::prohibition` (ADR-145, ascended from `structure` at the
+  15k prod-LOC wall); the words it reads stay here, public as `stages::{restriction_word,
+  keep_lead, operation_word}`, `rules::exclusion_lead` and `lexicon::reads_a_head` (never the
+  head type). `prohibition::pure_prohibition` reads a clause as a pure prohibition when it
+  forbids by negation alone (« never email the
   customer », « need no time-zone conversion », « don't round the totals », « n'envoie pas
   d'email au client », « never delete ./data/raw.csv », « do not drop any rows », « send no
   email to the customer », « lösche die Datei nicht », « personne ne doit recevoir d'email »).
@@ -437,7 +441,7 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   « vergiss », « dimenticare », « scordare », « esquecer » and their forms) within two words
   after a negation, or before it in its phrase, makes it a demand, no prohibition (« don't
   forget to write the summary », « no olvides … », « n'oublie pas … », « vergiss die Kopfzeile
-  nicht »). `structure::negated_demand` reads such a demand when nothing else in the clause
+  nicht »). `prohibition::negated_demand` reads such a demand when nothing else in the clause
   restricts (no other restriction word, keep or exclusion lead, structure law): the verifier
   then frames the clause as no restriction at all. Every operation the clause states must be one
   a negation of its phrase forbids, else it is a mixed clause, no prohibition. An operation is a
@@ -458,7 +462,7 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   path with no negation of its own asks a target (« I never want emails, just the file
   ./out/a.md »). Any other restriction word anywhere (« only », an exception, a condition: « if
   a row has no email, skip it »; an Italian « mai » after a negation is its « never ») and any
-  structure law make it no prohibition either. `structure::states_operation` reads whether a
+  structure law make it no prohibition either. `prohibition::states_operation` reads whether a
   clause states an operation of its own or names a path, beside whatever law or negation it
   states (« write the total to ./out/t.txt and nothing else » does, « nothing else » does not).
   The verifier's pointer question never offers `omitted` (an operation no task performs) for a

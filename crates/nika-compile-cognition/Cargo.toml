@@ -13,6 +13,7 @@ publish     = false  # member of the nika-onboard unit — never on crates.io al
 nika-compile        = { path = "../nika-compile", version = "0.122.0" }        # the deterministic core and its stated surface, one unit in several members (ADR-140)
 nika-compile-reader = { path = "../nika-compile-reader", version = "0.122.0" } # the frozen reader and typed plan
 nika-compile-fidelity = { path = "../nika-compile-fidelity", version = "0.122.0" } # candidate read-back, fidelity and sketch laws (ADR-141)
+nika-compile-clauses = { path = "../nika-compile-clauses", version = "0.122.0" } # how one clause of a request reads: the parts, the prohibition reading, the clause key, the stated spellings (ADR-145)
 nika-kernel = { path = "../nika-kernel", version = "0.122.0" } # explicit authoring provider seam
 nika-check  = { path = "../nika-check", version = "0.122.0" }  # the same pure Check core the native door judges a candidate with
 nika-pack   = { path = "../nika-pack", version = "0.122.0" }   # the card, the skeletons and the examples a seat is shown

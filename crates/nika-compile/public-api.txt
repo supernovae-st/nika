@@ -261,7 +261,6 @@ pub fn nika_compile::surface::observed::equivalent_spellings(literal: &str, obse
 pub fn nika_compile::surface::observed::field_answer(request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome, key: &str, label: &str, columns: &[alloc::string::String]) -> core::option::Option<serde_json::value::Value>
 pub fn nika_compile::surface::observed::for_intent(world: core::option::Option<&serde_json::value::Value>, intent: &str) -> core::option::Option<alloc::vec::Vec<alloc::string::String>>
 pub fn nika_compile::surface::observed::record(request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome)
-pub fn nika_compile::surface::observed::stated_spellings(clause: &str, observed: &[alloc::string::String], columns: &[alloc::string::String]) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub fn nika_compile::surface::observed::world(request: &nika_compile::CompileRequest) -> core::option::Option<&serde_json::value::Value>
 pub mod nika_compile::surface::pending_transform
 #[non_exhaustive] pub enum nika_compile::surface::pending_transform::PendingTransformError

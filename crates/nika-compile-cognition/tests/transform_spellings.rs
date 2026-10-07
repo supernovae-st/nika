@@ -13,8 +13,9 @@
 use jaq_core::load::{Arena, File, Loader};
 use jaq_core::{Compiler, Ctx, Vars, data as jaq_data};
 use jaq_json::{Val, read};
-use nika_compile::surface::observed::{equivalent_spellings, stated_spellings};
+use nika_compile::surface::observed::equivalent_spellings;
 use nika_compile::{AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, HotPolicy};
+use nika_compile_clauses::spellings::stated_spellings;
 use nika_compile_cognition::compile_with_provider;
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, ResponseFormat,

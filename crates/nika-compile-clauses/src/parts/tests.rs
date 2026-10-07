@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The parts a doubted request is asked in (R4 A11), kept beside the verifier's tests to bound
-//! their size: each part an exact excerpt of the request (a byte slice, the request's own
+//! The parts a doubted request is asked in (R4 A11), moved with their cut from the verifier's
+//! tests (ADR-145): each part an exact excerpt of the request (a byte slice, the request's own
 //! separators kept where phrases merge), cut where a phrase ends and never inside a closed
 //! literal; a list marker at a line start is no part, a label introduces the part after it, and
 //! a phrase too short to be judged alone, of function words only or of no letter, stays with its
