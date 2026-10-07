@@ -18,7 +18,9 @@ nika-clock   = { path = "../nika-clock", version = "0.122.0" }   # the transport
 nika-harness = { path = "../nika-harness", version = "0.122.0", optional = true } # PATH-only ACP rows (access-harness)
 serde        = { workspace = true } # bounded JSON rejects duplicate response fields
 serde_json   = { workspace = true }
+sha2         = { workspace = true } # the authoring observer's prompt and answer digests
 bytes        = { workspace = true }
+blake3       = { workspace = true } # exact closed admission checkpoint identity
 futures-core = { workspace = true }
 # task_local only: the dispatch journal outlives a dropped dispatch (the
 # runtime scopes each attempt with it and keeps its own zero tokio edge).
@@ -32,6 +34,7 @@ access-harness = ["dep:nika-harness"]
 [dev-dependencies]
 proptest   = { workspace = true }
 jsonschema = { workspace = true }   # mock_schema tests validate the synthesized instance with the SAME crate the verb's floor uses
+tokio      = { workspace = true, features = ["sync"] } # cancellation tests coordinate an in-flight request
 
 [package.metadata.lore]
 daemon        = "messager"

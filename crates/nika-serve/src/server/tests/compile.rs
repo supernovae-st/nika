@@ -19,7 +19,7 @@ mod refusals;
 const FIXTURE: &str =
     include_str!("../../../../nika-compile/tests/fixtures/compile_parity_v1.json");
 
-/// The listener ceiling sits above the compile ceiling, so the compile bounds bind.
+/// The configured HTTP transport ceiling for these compile-door fixtures.
 fn compile_limits() -> ServerLimits {
     ServerLimits::new(
         2 * 1024 * 1024,
@@ -346,8 +346,6 @@ impl ExecutionBackend for CandidateBackend {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn the_capability_and_the_published_contract_name_the_door_and_its_bounds() {
-    use super::super::compile as door;
-
     let world = TestWorld::new();
     let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
     let server = world.start(backend, compile_limits()).await;
@@ -383,27 +381,18 @@ async fn the_capability_and_the_published_contract_name_the_door_and_its_bounds(
         request["properties"]["cognition"]["const"],
         "deterministicOnly"
     );
-    // The published bounds ARE the enforced constants.
+    // The HTTP envelope is configurable; there is no smaller per-field quota.
     let properties = &request["properties"];
-    assert_eq!(
-        properties["intent"]["maxLength"],
-        door::MAX_COMPILE_TEXT_BYTES
-    );
-    assert_eq!(
-        properties["source"]["maxLength"],
-        door::MAX_COMPILE_SOURCE_BYTES
-    );
-    assert_eq!(
-        properties["workflow_id"]["maxLength"],
-        door::MAX_COMPILE_NAME_BYTES
-    );
-    assert_eq!(
-        properties["answers"]["maxProperties"],
-        door::MAX_COMPILE_ANSWERS
-    );
-    assert_eq!(
-        properties["answers"]["propertyNames"]["maxLength"],
-        door::MAX_COMPILE_ANSWER_KEY_BYTES
+    for field in ["intent", "source", "workflow_id"] {
+        assert!(properties[field].get("maxLength").is_none(), "{field}");
+    }
+    assert!(properties["answers"].get("maxProperties").is_none());
+    assert!(properties["answers"].get("propertyNames").is_none());
+    assert!(
+        request["description"]
+            .as_str()
+            .expect("description")
+            .contains("configured HTTP body ceiling")
     );
     assert!(
         properties.get("path").is_none() && properties.get("base").is_none(),

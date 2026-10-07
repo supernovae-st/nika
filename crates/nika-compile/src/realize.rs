@@ -176,7 +176,7 @@ fn settle_pending(
             DiagnosticKind::Unknown,
             "semantic_verification",
             format!(
-                "The request states `{}` and {why}: no law reads from candidate {} that it carries it, and no judgment made in this compile settles it. Nothing is READY on a pending clause: a bounded judge's seat judges it against the whole request, or it stays INCOMPLETE.",
+                "The request states `{}` and {why}: no law reads from candidate {} that it carries it, and no admitted judgment made in this compile settles it. Nothing is READY on a pending clause: it stays INCOMPLETE until an admitted judgment of these bytes against the whole request carries it.",
                 duty.evidence,
                 &bound.candidate[..12]
             ),

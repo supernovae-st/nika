@@ -16,12 +16,28 @@ use super::native::{
     self, Answer, Prelude, Question, Shaped, Talk, cold, conclude, decode, floor_refuses, judge,
     prelude, repair_message, system_message,
 };
-use super::{AuthoringPolicy, CompileOutcome, CompileRequest, Strategy};
-use crate::fidelity::{self, Diagnostic};
-use crate::sketch::{self as ir, Fill, Sketch};
+use super::proposal::Composition;
+use super::{
+    AuthoringPolicy, CompileOutcome, CompileRequest, DiagnosticKind, NativeMode, Strategy,
+};
+use crate::decide::DecisionSeat;
+use crate::fidelity::Diagnostic;
+use crate::sketch::{self as ir, Sketch, judge_sketch, reach_laws, validated};
 use crate::{CompileError, lexicon::Reading};
 use nika_kernel::ai::provider::{Message, ProviderInferDyn, Role};
 use serde_json::{Value, json};
+
+#[cfg(test)]
+mod decision_tests;
+mod evidence;
+/// The whole-source recovery an explicit policy allows after the structured rounds.
+mod recover;
+#[cfg(test)]
+mod recover_tests;
+/// The semantic revision of a base its record binds, beside the door it reuses.
+pub(super) mod revise;
+use super::rehearsal::Rehearsals;
+use evidence::Evidence;
 
 /// The seat's first answer: the sketch, its business questions, the clauses no task realizes.
 #[derive(serde::Deserialize)]
@@ -31,6 +47,9 @@ struct SketchAnswer {
     name: String,
     #[serde(default, deserialize_with = "super::nullable_default")]
     tasks: Vec<Value>,
+    /// The workflow's named results as the seat stated them; read by `Sketch::from_json`.
+    #[serde(default)]
+    outputs: Option<Value>,
     #[serde(default, deserialize_with = "super::nullable_default")]
     questions: Vec<Question>,
     #[serde(default, deserialize_with = "super::nullable_default")]
@@ -92,39 +111,6 @@ async fn call<T: Shaped, P: ProviderInferDyn>(
     decode::<T>(&response, what, round, talk, out)
 }
 
-/// The structural judge of a sketch: the sketch's own laws, then the fidelity laws over the
-/// document it states before any hole is filled (the stated paths, the approval, the
-/// prohibitions, no invented literal).
-fn judge_sketch(
-    intent: &str,
-    reading: &Reading,
-    sketch: &Sketch,
-    allowed: &[String],
-    clarified: &[String],
-) -> Vec<Diagnostic> {
-    let mut out: Vec<Diagnostic> = ir::structural_laws(sketch, intent, allowed)
-        .into_iter()
-        .map(|message| Diagnostic {
-            kind: "sketch",
-            message,
-        })
-        .collect();
-    if out.is_empty() {
-        let doc = ir::document(sketch, &[]);
-        fidelity::laws(
-            intent,
-            &reading.plan,
-            &doc,
-            allowed,
-            &[],
-            clarified,
-            &mut out,
-        );
-    }
-    out.dedup();
-    out
-}
-
 /// The holes as the seat reads them: one line each, the kind and the purpose.
 fn holes_message(sketch: &Sketch) -> String {
     let mut text = String::from(
@@ -140,15 +126,27 @@ fn holes_message(sketch: &Sketch) -> String {
         );
     }
     text.push_str(
-        "Answer one JSON object {\"fills\": [{\"task\", \"field\", \"value\"}], \"notes\"}.",
+        "Fill each hole once, with its value; fill every hole not marked optional; an `args` object never names an argument the sketch states for its task (the path or glob it reaches, its edge input or bound content, its channel); a program bound to several edges reads them as one input object keyed by their names (`.<name>` for each edge); a content template reads every edge its task is bound to; a builtin's file argument is one of the paths its own task states in reads or writes. Answer one JSON object {\"fills\": [{\"task\", \"field\", \"value\"}], \"notes\"}.",
     );
     text
 }
 
 /// The task keys a sketch parse reads; any other key of a task is ignored by it.
 const TASK_KEYS: &[&str] = &[
-    "id", "verb", "tool", "reads", "writes", "hosts", "after", "with", "gated_by", "for_each",
+    "id",
+    "verb",
+    "tool",
+    "reads",
+    "writes",
+    "hosts",
+    "after",
+    "with",
+    "gated_by",
+    "for_each",
     "purpose",
+    "max_turns",
+    "tools",
+    "fail_fast",
 ];
 
 /// How many keys of `object` are not in `known`: data the parse never read.
@@ -156,6 +154,25 @@ fn ignored_keys(object: &Value, known: &[&str]) -> usize {
     object.as_object().map_or(0, |map| {
         map.keys().filter(|k| !known.contains(&k.as_str())).count()
     })
+}
+
+/// The controls this task's verb carries that the sketch left to the historical emission (an
+/// agent's `max_turns` 4 and empty `tools`, a loop's `fail_fast` false): projected so the record
+/// never presents them as requested.
+fn defaulted(task: &ir::SketchTask) -> Vec<&'static str> {
+    let mut out = Vec::new();
+    if task.verb == ir::Verb::Agent {
+        if task.max_turns.is_none() {
+            out.push("max_turns");
+        }
+        if task.tools.is_none() {
+            out.push("tools");
+        }
+    }
+    if task.for_each.is_some() && task.fail_fast.is_none() {
+        out.push("fail_fast");
+    }
+    out
 }
 
 /// An accepted sketch as the compiler consumed it: the closed form of every field the parse read,
@@ -186,7 +203,13 @@ fn consumed_sketch(sketch: &Sketch, raw: &Value) -> Value {
             "writes": t.writes, "hosts": t.hosts, "after": t.after,
             "with": t.with.iter().map(|e| json!({"name": e.name, "from": e.from})).collect::<Vec<_>>(),
             "gated_by": t.gated_by, "for_each": t.for_each, "purpose": t.purpose,
+            "max_turns": t.max_turns, "tools": t.tools, "fail_fast": t.fail_fast,
+            "defaulted": defaulted(t),
         })).collect::<Vec<_>>(),
+        "outputs": sketch.outputs.as_ref().map(|outputs| outputs
+            .iter()
+            .map(|o| json!({"name": o.name, "from": o.from}))
+            .collect::<Vec<_>>()),
         "sha256": super::knowledge::sha256(&raw.to_string()),
         "ignored_keys": ignored,
     })
@@ -228,6 +251,27 @@ fn proposed_fills(sketch: &Sketch, fills: &[Value], used: bool) -> Vec<Value> {
         .collect()
 }
 
+/// The journal entry of a fill round refused before emission: no candidate and no candidate
+/// digest, the fills by digest only, the named diagnostics.
+fn refused_round(
+    round: u32,
+    sketch: &Sketch,
+    filling: &Filling,
+    diagnostics: &[Diagnostic],
+) -> Value {
+    json!({
+        "round": round,
+        "phase": "fill",
+        "fills": filling.fills.len(),
+        "proposed_fills": proposed_fills(sketch, &filling.fills, false),
+        "notes": super::receipt::withheld(&filling.notes, &[], "fill notes"),
+        "diagnostics": diagnostics_record(diagnostics),
+    })
+}
+
+/// The tail of a fill repair: the sketch stays as accepted, only the named holes are filled again.
+const FILL_AGAIN: &str = "\nFill the named holes again (the sketch stays as accepted); answer the same {\"fills\", \"notes\"} object.";
+
 fn diagnostics_record(diagnostics: &[Diagnostic]) -> Vec<Value> {
     diagnostics
         .iter()
@@ -238,8 +282,8 @@ fn diagnostics_record(diagnostics: &[Diagnostic]) -> Vec<Value> {
 /// Whether a repair round opens: the assistant's text and the repair message join the talk
 /// and the diagnostics are remembered; a repeated refusal is no progress and ends the talk.
 fn repair(talk: &mut Talk, text: String, diagnostics: Vec<Diagnostic>, tail: &str) -> bool {
-    if talk.last.as_ref() == Some(&diagnostics) {
-        talk.route.push("native: no progress".to_owned());
+    let last = talk.last.clone();
+    if !progressed(talk, last.as_deref(), &diagnostics) {
         return false;
     }
     talk.messages.push(Message::text(Role::Assistant, text));
@@ -251,19 +295,56 @@ fn repair(talk: &mut Talk, text: String, diagnostics: Vec<Diagnostic>, tail: &st
     true
 }
 
-/// Phase 1 · the sketch, judged structurally, repaired within the budget. Returns the rounds
-/// spent and the accepted sketch with the answer that carried it.
+/// One sketch round as the journal keeps it. The graph the laws accepted, as parsed; a refused
+/// one by digest, shape and reason. The seat's free text stays out of the record: its notes by
+/// digest on every round, and a refused round's question keys and gaps too (an accepted round's
+/// passed the laws).
+fn sketch_round(
+    round: u32,
+    record: &Value,
+    parsed: Option<&Sketch>,
+    answer: &SketchAnswer,
+    diagnostics: &[Diagnostic],
+) -> Value {
+    let proposed = match parsed {
+        Some(sketch) if diagnostics.is_empty() => consumed_sketch(sketch, record),
+        _ => super::receipt::withheld(&record.to_string(), &["name", "tasks"], "refused sketch"),
+    };
+    let refused = parsed.is_none() || !diagnostics.is_empty();
+    let listed = |values: Value, what: &str| {
+        if refused {
+            super::receipt::withheld(&values.to_string(), &[], what)
+        } else {
+            values
+        }
+    };
+    let keys: Vec<&str> = answer.questions.iter().map(|q| q.key.as_str()).collect();
+    json!({
+        "round": round,
+        "phase": "sketch",
+        "sketch_sha256": super::knowledge::sha256(&record.to_string()),
+        "proposed_sketch": proposed,
+        "tasks": parsed.map_or(0, |s| s.tasks.len()),
+        "questions": listed(json!(keys), "refused sketch question keys"),
+        "gaps": listed(json!(answer.gaps), "refused sketch gaps"),
+        "notes": super::receipt::withheld(&answer.notes, &[], "sketch notes"),
+        "diagnostics": diagnostics_record(diagnostics),
+    })
+}
+
+/// Phase 1 · the sketch, judged structurally, repaired within the budget, from round `first` of
+/// the door's one round count (a graph reopened by evidence continues it, never resets it).
+/// Returns the rounds spent and the accepted sketch with the answer that carried it.
 async fn propose<P: ProviderInferDyn>(
     talk: &mut Talk,
     intent: &str,
     reading: &Reading,
     policy: &AuthoringPolicy,
-    provider: &P,
+    (provider, first): (&P, u32),
     out: &mut CompileOutcome,
 ) -> (u32, Option<(Sketch, SketchAnswer)>) {
-    let budget = policy.repairs.min(5);
-    let mut round = 0;
-    while round <= budget {
+    let mut round = first;
+    while within(policy.repairs, round) {
         let role = if round == 0 {
             "sketch"
         } else {
@@ -282,12 +363,31 @@ async fn propose<P: ProviderInferDyn>(
         else {
             return (round + 1, None);
         };
-        let record = json!({"name": answer.name, "tasks": answer.tasks});
+        let record = graph(&answer);
         let (diagnostics, parsed) = match Sketch::from_json(&record) {
-            Ok(parsed) => (
-                judge_sketch(intent, reading, &parsed, &talk.allowed, &talk.clarified),
-                Some(parsed),
-            ),
+            Ok(parsed) => {
+                let mut judged = judge_sketch(
+                    intent,
+                    reading,
+                    &parsed,
+                    (&talk.allowed, &talk.clarified),
+                    talk.observed.as_ref(),
+                );
+                // A question the request or the observed world already settles is refused before
+                // the graph is fixed, so this repair can withdraw it (no fill can).
+                let questions = &answer.questions;
+                if judged.is_empty()
+                    && let Err(refused) = super::native::admitted_questions(
+                        intent,
+                        "",
+                        questions,
+                        talk.observed.as_ref(),
+                    )
+                {
+                    judged.push(refused);
+                }
+                (judged, Some(parsed))
+            }
             Err(message) => (
                 vec![Diagnostic {
                     kind: "sketch",
@@ -296,24 +396,13 @@ async fn propose<P: ProviderInferDyn>(
                 None,
             ),
         };
-        // The graph the laws accepted, as parsed; a refused one by digest, shape and reason.
-        let proposed = match &parsed {
-            Some(sketch) if diagnostics.is_empty() => consumed_sketch(sketch, &record),
-            _ => {
-                super::receipt::withheld(&record.to_string(), &["name", "tasks"], "refused sketch")
-            }
-        };
-        talk.rounds.push(json!({
-            "round": round,
-            "phase": "sketch",
-            "sketch_sha256": super::knowledge::sha256(&record.to_string()),
-            "proposed_sketch": proposed,
-            "tasks": parsed.as_ref().map_or(0, |s| s.tasks.len()),
-            "questions": answer.questions.iter().map(|q| q.key.clone()).collect::<Vec<_>>(),
-            "gaps": answer.gaps.clone(),
-            "notes": answer.notes.clone(),
-            "diagnostics": diagnostics_record(&diagnostics),
-        }));
+        talk.rounds.push(sketch_round(
+            round,
+            &record,
+            parsed.as_ref(),
+            &answer,
+            &diagnostics,
+        ));
         round += 1;
         if let Some(parsed) = parsed
             && diagnostics.is_empty()
@@ -328,8 +417,19 @@ async fn propose<P: ProviderInferDyn>(
     (round, None)
 }
 
+/// The graph a sketch answer states, as `Sketch::from_json` reads it: its name, its tasks and,
+/// when stated, its named results (omitted and explicit stay distinct).
+fn graph(answer: &SketchAnswer) -> Value {
+    let mut record = json!({"name": answer.name, "tasks": answer.tasks});
+    if let Some(outputs) = &answer.outputs {
+        record["outputs"] = outputs.clone();
+    }
+    record
+}
+
 /// Phase 2 · the holes, filled and judged as the whole document they state, repaired within
-/// the budget. Returns the accepted answer, its candidate the emitted document.
+/// the budget. Returns the accepted answer, its candidate the emitted document, and the fills
+/// exactly as accepted (the semantic record replays them).
 async fn fill<P: ProviderInferDyn>(
     talk: &mut Talk,
     intent: &str,
@@ -339,14 +439,15 @@ async fn fill<P: ProviderInferDyn>(
     out: &mut CompileOutcome,
     accepted: &(Sketch, SketchAnswer),
     first_round: u32,
-) -> Option<Answer> {
+) -> Option<(Answer, Vec<Value>)> {
     let (sketch, answer) = accepted;
-    let last_round = policy.repairs.min(5) + 1;
+    // The fill keeps the round after the sketch's last.
+    let last_round = policy.repairs.map(|repairs| repairs.saturating_add(1));
     talk.last = None;
-    talk.messages
-        .push(Message::text(Role::User, holes_message(sketch)));
+    // Joined to a reopening's own user turn (a revision's judged defect), never a second one.
+    recover::say(talk, holes_message(sketch));
     let mut round = first_round;
-    while round <= last_round {
+    while within(last_round, round) {
         let role = if round == first_round {
             "fill"
         } else {
@@ -362,16 +463,21 @@ async fn fill<P: ProviderInferDyn>(
             out,
         )
         .await?;
-        let fills: Vec<Fill> = match ir::fills_from_json(&json!({"fills": filling.fills})) {
-            Ok(fills) => fills,
-            Err(message) => {
+        // Every fill is judged against the accepted sketch before a document exists: a refusal
+        // is a named diagnostic for the same bounded repair, never a candidate or its digest.
+        let (fills, doc) = match validated(sketch, &filling.fills) {
+            Ok(valid) => valid,
+            Err(diagnostics) => {
                 talk.rounds
-                    .push(json!({"round": round, "phase": "fill", "answer": message,
-                    "proposed_fills": proposed_fills(sketch, &filling.fills, false)}));
-                return None;
+                    .push(refused_round(round, sketch, &filling, &diagnostics));
+                round += 1;
+                if !repair(talk, text, diagnostics, FILL_AGAIN) {
+                    break;
+                }
+                continue;
             }
         };
-        let candidate = match serde_yaml_bw::to_string(&ir::document(sketch, &fills)) {
+        let candidate = match serde_yaml_bw::to_string(&doc) {
             Ok(candidate) => candidate,
             Err(error) => {
                 talk.rounds.push(json!({
@@ -401,26 +507,224 @@ async fn fill<P: ProviderInferDyn>(
             "candidate_sha256": super::knowledge::sha256(&candidate),
             "fills": fills.len(),
             "proposed_fills": proposed_fills(sketch, &filling.fills, true),
-            "notes": filling.notes.clone(),
+            "notes": super::receipt::withheld(&filling.notes, &[], "fill notes"),
             "diagnostics": diagnostics_record(&diagnostics),
         }));
         round += 1;
         if diagnostics.is_empty() {
-            return Some(Answer {
+            let answer = Answer {
                 candidate,
                 questions: answer.questions.clone(),
                 gaps: answer.gaps.clone(),
-                notes: answer.notes.clone(),
-                dual: None,
-            });
+            };
+            talk.messages.push(Message::text(Role::Assistant, text));
+            return Some((answer, filling.fills));
         }
         talk.refused = Some(candidate);
-        let tail = "\nFill the named holes again (the sketch stays as accepted); answer the same {\"fills\", \"notes\"} object.";
-        if !repair(talk, text, diagnostics, tail) {
+        if !repair(talk, text, diagnostics, FILL_AGAIN) {
             break;
         }
     }
     None
+}
+
+/// The route step of a COLD round whose plan could not keep the request's branches apart.
+pub(super) const COMPOSITION: &str = "native: sketch for branches the plan cannot keep apart";
+/// The route step of an escalating COLD round that ended without a candidate, or handed the human
+/// a machine's problem.
+pub(super) const ESCALATED: &str = "native: sketch after the plan";
+
+/// Why a COLD round hands its request to the sketch door.
+pub(super) enum Escalation {
+    /// Branches the private plan cannot keep apart.
+    Composition(Composition),
+    /// An escalating policy's plan round ended without a candidate, or with a machine's problem.
+    Plan,
+}
+
+/// The sketch door after a COLD round paid for its plan: the same request, answers, reading
+/// floor and receipt. Within the bound the policy already grants: the sketch door takes one
+/// request more than the native door that bound once counted (the sketch, then its fills), so
+/// its repair allowance is one less (none left is a budget finding, no request). A policy with
+/// no native door names why and assembles nothing. Never source generation.
+#[allow(clippy::too_many_arguments)] // the sketch door's own inputs, plus why it opens
+pub(super) async fn compose<P: ProviderInferDyn>(
+    intent: &str,
+    reading: &Reading,
+    policy: &AuthoringPolicy,
+    seats: (&P, Option<&dyn DecisionSeat>, &mut Rehearsals<'_>),
+    request: &CompileRequest,
+    mut route: Vec<String>,
+    mut out: CompileOutcome,
+    why: &Escalation,
+) -> Result<CompileOutcome, CompileError> {
+    let (what, step) = match why {
+        Escalation::Composition(composition) => {
+            let kinds: Vec<String> = (composition.occurrences.iter())
+                .map(|(op, _)| format!("`{}`", op.word()))
+                .collect();
+            let what = format!(
+                "The request composes {} independent branches ({}) that the private plan cannot keep apart",
+                kinds.len(),
+                kinds.join(", ")
+            );
+            (what, COMPOSITION)
+        }
+        Escalation::Plan => (
+            "The private plan ended without a candidate the request can stand on".to_owned(),
+            ESCALATED,
+        ),
+    };
+    let refusal = if policy.native == NativeMode::Off {
+        Some(format!(
+            "{what}, and this authoring policy permits no sketch door (native: off). No candidate was assembled."
+        ))
+    } else if policy.repairs == Some(0) {
+        Some(format!(
+            "{what}; the sketch door needs one request more than the single candidate this policy bounds, and its repair allowance (0) leaves none. No request was sent and no candidate was assembled."
+        ))
+    } else {
+        None
+    };
+    if let Some(message) = refusal {
+        crate::finding(
+            &mut out,
+            DiagnosticKind::RequiresHuman,
+            "authoring_plan",
+            message,
+        );
+        let needs = match why {
+            Escalation::Composition(_) => "cold: composition needs the sketch door",
+            Escalation::Plan => "cold: escalation needs the sketch door",
+        };
+        route.push(needs.to_owned());
+        super::record_route(&mut out, &route);
+        return Ok(out);
+    }
+    route.push(step.to_owned());
+    // One repair less under a typed limit (the sketch takes the request it would have had).
+    let mut bounded = policy.clone();
+    bounded.repairs = policy.repairs.map(|repairs| repairs.saturating_sub(1));
+    author(intent, reading, &bounded, seats, request, route, out).await
+}
+
+/// Whether `round` is within the rounds a limit allows (`None`: no count).
+fn within(last: Option<u32>, round: u32) -> bool {
+    last.is_none_or(|last| round <= last)
+}
+
+/// The question fields a native settlement reads (`apply_native`, `bake`, `ask`).
+const QUESTION_KEYS: [&str; 5] = ["key", "label", "answer_type", "why", "options"];
+
+/// The semantic record of the accepted pair (slice C), closed: the basis read before the
+/// proposal, the graph and fills exactly as decoded, the settlement fields a native settlement
+/// reads (questions through an allowlist, gaps, trigger), the pre-answer assembly (`source`,
+/// labelled so: an observation no replay reads) and the final candidate bound to its answers. No
+/// `strategy` word, judgment or journal. `None` when the settlement lacks a field it needs.
+fn semantic_record(
+    basis: Value,
+    stated: &Value,
+    fills: &[Value],
+    settled: &Value,
+    out: &CompileOutcome,
+    world: Option<&Value>,
+) -> Option<Value> {
+    let assembled = settled["source"].as_str()?;
+    let questions: Vec<Value> = (settled["questions"].as_array()?.iter())
+        .map(|q| {
+            let kept = (q.as_object().into_iter().flatten())
+                .filter(|(key, _)| QUESTION_KEYS.contains(&key.as_str()))
+                .map(|(k, v)| (k.clone(), v.clone()));
+            Value::Object(kept.collect())
+        })
+        .collect();
+    let sha = super::knowledge::sha256;
+    // The trigger in the request's own words (the reader's phrase is normalized): its occurrence
+    // in the effective request; none found, no record.
+    let trigger = match settled["trigger"].as_str() {
+        Some(phrase) => json!(occurrence(basis["effective"].as_str()?, phrase)?),
+        None => Value::Null,
+    };
+    let mut record = json!({
+        "semantic_record": 1,
+        "lowering": 1,
+        "intent_sha256": settled["intent_sha256"].as_str()?,
+        "final": {"answers": basis["answers"], "candidate_sha256": out.candidate.as_deref().map(sha)},
+        "sketch": stated,
+        "fills": fills,
+        "settlement": {"questions": questions, "gaps": settled["gaps"].as_array()?,
+                       "trigger": trigger},
+        "assembly_sha256": sha(assembled),
+        "source": assembled,
+        "source_is": "pre_answer_assembly",
+    });
+    record["basis"] = json!({});
+    record["basis"]["read"] = basis;
+    record["basis"]["world"] = nika_compile_fidelity::observed::basis::keep(world);
+    Some(record)
+}
+
+/// The words of `text` a lowercase `phrase` was read from: the first occurrence, cut at `text`'s
+/// own character boundaries, whose lowercase is the phrase.
+fn occurrence<'a>(text: &'a str, phrase: &str) -> Option<&'a str> {
+    let most = phrase.chars().count();
+    text.char_indices().find_map(|(start, _)| {
+        let rest = &text[start..];
+        (rest.char_indices().take(most))
+            .map(|(at, c)| &rest[..at + c.len_utf8()])
+            .find(|words| words.to_lowercase() == phrase)
+    })
+}
+
+/// At the compile's entry, once the door returned: the caller basis read before any money was
+/// blanked joins the semantic record the door just produced (a replayed record keeps its own),
+/// which is kept only when the core's own replay reproduces its final binding with no call;
+/// otherwise no record, a finding and INCOMPLETE: an answer round compiles afresh, no retry.
+pub(super) fn bind_caller(caller: Value, raw: &CompileRequest, out: &mut CompileOutcome) {
+    let fresh =
+        |r: &&mut Value| r.get("semantic_record").is_some() && r["basis"].get("caller").is_none();
+    let Some(record) = out.provenance.plan.as_mut().filter(fresh) else {
+        return;
+    };
+    record["basis"]["caller"] = caller;
+    let mut replay = raw.clone();
+    replay.plan = Some(record.clone());
+    let kept = nika_compile::compile_judged(&replay, &[]).is_ok_and(|replayed| {
+        (replayed.provenance.plan.as_ref()).is_some_and(|p| p["final"] == record["final"])
+    });
+    if !kept {
+        withhold_record(out);
+    }
+}
+
+/// No replay record for an accepted sketch that cannot be recorded or does not replay: the round
+/// is INCOMPLETE with a static finding, never READY without its record and never retried (the
+/// judge of the whole request is asked only of a READY conclusion); an answer round compiles the
+/// request again.
+fn withhold_record(out: &mut CompileOutcome) {
+    out.provenance.plan = None;
+    out.status = crate::CompileStatus::Incomplete;
+    super::super::finding(
+        out,
+        DiagnosticKind::Unknown,
+        "recorded_plan",
+        "The accepted sketch cannot be kept as a replay record under this request, so nothing is READY: compile the request again.",
+    );
+}
+
+/// The laws a replayed semantic record must still hold before any judgment is asked of it: the
+/// reach of each task (`nika_cap`, which the core cannot read) and every fill judged again as
+/// emitted. The core's replay already ran the structural and fill laws and the emission.
+pub(super) fn replay_laws(record: &Value) -> Vec<String> {
+    let Ok(sketch) = Sketch::from_json(&record["sketch"]) else {
+        return vec!["its graph does not decode".to_owned()];
+    };
+    let mut refused: Vec<Diagnostic> = reach_laws(&sketch);
+    if refused.is_empty() {
+        let fills = record["fills"].as_array().map_or(&[][..], Vec::as_slice);
+        refused = validated(&sketch, fills).err().unwrap_or_default();
+    }
+    refused.into_iter().map(|d| d.message).collect()
 }
 
 /// The sketch door: the two-phase conversation, judged at each phase, settled by the native
@@ -430,12 +734,14 @@ pub(super) async fn author<P: ProviderInferDyn>(
     intent: &str,
     reading: &Reading,
     policy: &AuthoringPolicy,
-    provider: &P,
+    (provider, decision, rehearsals): (&P, Option<&dyn DecisionSeat>, &mut Rehearsals<'_>),
     request: &CompileRequest,
     mut route: Vec<String>,
     mut out: CompileOutcome,
 ) -> Result<CompileOutcome, CompileError> {
-    let cold = cold(&mut out);
+    // The cold round as the door opened on it: every attempt concludes against the same one.
+    let opened = out.clone();
+    let _ = cold(&mut out);
     if floor_refuses(reading, &mut out) {
         route.push("native: refused by the floor".to_owned());
         super::record_route(&mut out, &route);
@@ -453,6 +759,8 @@ pub(super) async fn author<P: ProviderInferDyn>(
     let mut system = system_message(&references, &callables);
     system.push_str("\n\n");
     system.push_str(SKETCH);
+    // The request's own basis, read before any proposal: no answer of the seat reaches it.
+    let basis = nika_compile::surface::semantic::request_basis(intent, request);
     let mut talk = Talk::open(
         system,
         format!("{opening}\n\nAnswer with the SKETCH (call 1), not a file."),
@@ -461,49 +769,337 @@ pub(super) async fn author<P: ProviderInferDyn>(
         request,
     );
     talk.presented = json!(sent);
-    let (spent, sketched) = propose(&mut talk, intent, reading, policy, provider, &mut out).await;
-    let mut accepted = None;
-    if let Some(pair) = &sketched {
-        accepted = fill(
-            &mut talk, intent, reading, policy, provider, &mut out, pair, spent,
+    talk.remember_under(policy);
+    // One round count spans the sketch, its fills and every reopening (the last round leaves the
+    // fill its turn), and one rehearsal per candidate they can produce (no count: as many).
+    let (last, attempts) = (policy.repairs, policy.repairs.map(|r| r.saturating_add(2)));
+    let mut first = 0;
+    loop {
+        let (spent, sketched) = propose(
+            &mut talk,
+            intent,
+            reading,
+            policy,
+            (provider, first),
+            &mut out,
         )
         .await;
+        let accepted = match &sketched {
+            Some(pair) => {
+                fill(
+                    &mut talk, intent, reading, policy, provider, &mut out, pair, spent,
+                )
+                .await
+            }
+            None => None,
+        };
+        let mut done = out.clone();
+        let settled = (sketched.as_ref(), accepted.as_ref());
+        settle(
+            (intent, reading, request),
+            &talk,
+            (&sent, revision),
+            basis.clone(),
+            settled,
+            (&opened, &mut done),
+        );
+        // Every exhaustion (no accepted pair, spent evidence, a withdrawal) meets one recovery.
+        let door = (intent, reading, policy, request);
+        let (next, seats) = (next_round(&talk), (provider, decision, &mut *rehearsals));
+        let ended = match accepted {
+            None => (done, Vec::new()),
+            Some(_) => match examine(door, seats, &mut talk, done, (next, last), attempts).await {
+                Step::Done(answer) => return Ok(answer),
+                Step::Withdrawn(done, defects) => (done, defects),
+                Step::Reopen(mut done, defects) => {
+                    if within(last, next) && reopen(&mut talk, defects.clone(), SKETCH_AGAIN) {
+                        // The judge's calls, when it was asked, belong to the door's one journal.
+                        (out.provenance.authoring).clone_from(&done.provenance.authoring);
+                        (out.provenance.decision).clone_from(&done.provenance.decision);
+                        first = next;
+                        continue;
+                    }
+                    evidence::refuse(&mut done, refused_reason(within(last, next), &defects));
+                    (done, defects)
+                }
+            },
+        };
+        let seats = (provider, decision, &mut *rehearsals);
+        let recovered = recover::after(door, seats, &mut talk, (&opened, &sent), ended);
+        return Ok(Box::pin(recovered).await);
     }
-    native::record(
-        &mut out,
-        request,
-        &cold,
-        &talk,
-        &sent,
-        accepted.as_ref(),
-        revision,
-    );
-    if let Some(decision) = out.provenance.decision.as_mut() {
+}
+
+const EVIDENCE_SPENT: &str =
+    "The evidence refused this candidate and the repair allowance is spent: nothing is READY.";
+/// A reopening the round count still allowed, not opened because these findings are ones the
+/// seat was already asked to repair ([`progressed`]): an observed repeat, never a spent allowance.
+const EVIDENCE_REPEATED: &str = "The evidence refused this candidate with findings the seat had already been asked to repair, so Nika stopped reopening it: nothing is READY.";
+
+/// Why a refused candidate ends the door: past the round count (`more` false) the allowance is
+/// spent; within it, the findings repeated one the seat was already asked to repair, and they
+/// are named so the human and the next attempt read which part stopped it.
+fn refused_reason(more: bool, defects: &[Diagnostic]) -> String {
+    stop_reason(more, defects, (EVIDENCE_SPENT, EVIDENCE_REPEATED))
+}
+
+/// [`refused_reason`] under the caller's own wording (the sketch door's, a recovery's).
+fn stop_reason(more: bool, defects: &[Diagnostic], (spent, repeated): (&str, &str)) -> String {
+    if !more {
+        return spent.to_owned();
+    }
+    let named: Vec<&str> = defects.iter().map(|d| d.message.as_str()).collect();
+    format!("{repeated} Same findings: {}.", named.join("; "))
+}
+
+/// Where one settled candidate leads: the door's answer, a reopening from these defects, or a
+/// withdrawal past the last round from the defects the whole-request judgment demonstrated.
+enum Step {
+    Done(CompileOutcome),
+    Reopen(CompileOutcome, Vec<Diagnostic>),
+    Withdrawn(CompileOutcome, Vec<Diagnostic>),
+}
+
+/// One settled candidate faces its evidence (journalled in the attempt's record and the talk),
+/// then, when nothing there refuses it, the whole-request judgment. Round `next` is the one a
+/// reopening would spend; past `last` (`None`: no count) a refusal withdraws the candidate. The
+/// room admits `attempts` rehearsals in all (`None`: one per candidate produced).
+async fn examine<P: ProviderInferDyn>(
+    (intent, reading, policy, request): (&str, &Reading, &AuthoringPolicy, &CompileRequest),
+    (provider, decision, rehearsals): (&P, Option<&dyn DecisionSeat>, &mut Rehearsals<'_>),
+    talk: &mut Talk,
+    mut done: CompileOutcome,
+    (next, last): (u32, Option<u32>),
+    attempts: Option<u32>,
+) -> Step {
+    let (found, record) = evidence::examined(rehearsals, request, intent, &done, attempts).await;
+    if !record.is_null() {
+        // The evidence of the candidate the last round produced, in the journal this attempt
+        // returns and in the talk a reopened graph continues.
+        let entry = json!({"round": next.saturating_sub(1), "evidence": record});
+        let rounds = (done.provenance.decision.as_mut())
+            .and_then(|decision| decision["native"]["rounds"].as_array_mut());
+        if let Some(rounds) = rounds {
+            rounds.push(entry.clone());
+        }
+        talk.rounds.push(entry);
+    }
+    match found {
+        Evidence::Stop(reason) => {
+            evidence::refuse(&mut done, reason);
+            Step::Done(done)
+        }
+        Evidence::Defect(defect) => Step::Reopen(done, vec![defect]),
+        Evidence::Unoffered | Evidence::Open | Evidence::Holds | Evidence::Unknown => {
+            // The run the evidence just made of these exact bytes, when it completed: the
+            // observation a disagreement of the judge asks for.
+            let observed = (done.candidate.as_deref()).and_then(|c| rehearsals.observed(c));
+            let verdict = super::verify::native_verdict(
+                intent,
+                reading,
+                policy,
+                (provider, decision),
+                request,
+                done,
+                0,
+                observed.as_ref(),
+            );
+            match verdict.await {
+                Ok(judged) => Step::Done(judged),
+                Err(judged) => {
+                    let (judged, verdict) = *judged;
+                    let defects = judge_defects(&verdict);
+                    // The repairs the judge's earlier verdicts already opened in this talk.
+                    let repairs = judged_attempts(&judged).saturating_sub(1);
+                    if verdict.defects.is_empty() {
+                        Step::Done(super::verify::preserve_unjudged(judged, &verdict))
+                    } else if verdict.same_bytes_as.is_some() || !within(last, next) {
+                        // The same bytes again are no progress, whatever count is left (R6).
+                        let mut withdrawn = super::verify::withdrawn(judged, &verdict, repairs);
+                        if verdict.same_bytes_as.is_some() {
+                            super::verify::route(&mut withdrawn, "native: no progress");
+                        }
+                        Step::Withdrawn(withdrawn, defects)
+                    } else {
+                        Step::Reopen(judged, defects)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// How many whole-request verdicts this compile recorded, the last one included.
+fn judged_attempts(out: &CompileOutcome) -> usize {
+    (out.provenance.decision.as_ref())
+        .and_then(|decision| decision["semantic_verification"].as_array())
+        .map_or(0, Vec::len)
+}
+
+/// The round after the journal's last: where a reopened graph continues the door's count.
+fn next_round(talk: &Talk) -> u32 {
+    (talk.rounds.iter())
+        .filter_map(|round| round["round"].as_u64())
+        .max()
+        .and_then(|round| u32::try_from(round + 1).ok())
+        .unwrap_or(0)
+}
+
+/// The judge's defects as the repair reads them: the parts of the request the bytes miss, each
+/// with the reason the judge gave (the task it points to, or no task performing it) after
+/// [`REASON`].
+fn judge_defects(verdict: &super::verify::Verdict) -> Vec<Diagnostic> {
+    (verdict.defects.iter())
+        .map(|defect| {
+            let reason = (verdict.notes.iter())
+                .find(|(noted, _)| noted == defect)
+                .map(|(_, note)| format!("{REASON}{note}"));
+            Diagnostic {
+                kind: "semantic_verification",
+                message: format!(
+                    "the judge compared the whole request with the candidate's bytes: it does not carry « {defect} »{}",
+                    reason.unwrap_or_default()
+                ),
+            }
+        })
+        .collect()
+}
+
+/// Where a defect's reason starts in its message: what progress never compares, so a judge
+/// pointing to another task, or a repair renaming one, is still the same defect.
+const REASON: &str = " · the judge's reason: ";
+
+/// What a set of diagnostics names, for progress: each kind and message before its reason, as
+/// a set.
+fn identity(diagnostics: &[Diagnostic]) -> std::collections::BTreeSet<(&str, &str)> {
+    (diagnostics.iter())
+        .map(|d| {
+            let named = d.message.split(REASON).next().unwrap_or(&d.message);
+            (d.kind, named)
+        })
+        .collect()
+}
+
+/// Reopen from evidence: the diagnostics go back with the `tail` instruction (the whole sketch
+/// again, its holes filled after it; or a recovery's whole source); a repeat is no progress.
+fn reopen(talk: &mut Talk, diagnostics: Vec<Diagnostic>, tail: &str) -> bool {
+    let last = talk.reopened.clone();
+    if !progressed(talk, last.as_deref(), &diagnostics) {
+        return false;
+    }
+    talk.reopened = Some(diagnostics.clone());
+    talk.messages.push(Message::text(
+        Role::User,
+        format!("{}{tail}", repair_message(&diagnostics, &talk.repairs)),
+    ));
+    talk.last = Some(diagnostics);
+    true
+}
+
+/// Whether these findings are new to the talk: `last` again (the last reopening's set for a
+/// reopening, the last fill's for a fill repair) is no progress, routed so; a new set is
+/// remembered. Under no repair count, a set is progress only when it names a finding
+/// no earlier set named, or narrows the last one (fewer findings, all among the last): each new
+/// finding grows a finite set and each narrowing shrinks the last, so a judge's variance over
+/// which parts it names never reopens the door without end (A, B, A ends; so does any reshuffle).
+fn progressed(talk: &mut Talk, last: Option<&[Diagnostic]>, diagnostics: &[Diagnostic]) -> bool {
+    let named = identity(diagnostics);
+    let last = last.map(identity);
+    let repeated = last.as_ref().is_some_and(|last| *last == named);
+    let stalled = talk.answered.as_ref().is_some_and(|sets| {
+        let seen: std::collections::BTreeSet<_> =
+            sets.iter().flat_map(|set| identity(set)).collect();
+        let new = named.iter().any(|finding| !seen.contains(finding));
+        let narrowed = last
+            .as_ref()
+            .is_some_and(|last| named.len() < last.len() && named.is_subset(last));
+        !sets.is_empty() && !new && !narrowed
+    });
+    if repeated || stalled {
+        talk.route.push("native: no progress".to_owned());
+        return false;
+    }
+    if let Some(sets) = talk.answered.as_mut() {
+        sets.push(diagnostics.to_vec());
+    }
+    true
+}
+
+/// What a reopened graph is asked.
+const SKETCH_AGAIN: &str = "\n\nThe workflow these fills made was refused by the evidence above. Answer the whole SKETCH again (call 1 schema), corrected so that it does what the request asks; its holes are filled again after it.";
+
+/// The accepted sketch with the answer that carried it.
+type Sketched = (Sketch, SketchAnswer);
+/// The accepted fill's answer with the fills exactly as accepted.
+type Filled = (Answer, Vec<Value>);
+
+/// One attempt's conclusion on `done`: the native record, the sketch summary, the settlement
+/// against the cold round the door opened on, and the semantic record of the accepted pair.
+fn settle(
+    (intent, reading, request): (&str, &Reading, &CompileRequest),
+    talk: &Talk,
+    (sent, revision): (&[Value], Option<(&str, &str)>),
+    basis: Value,
+    (sketched, accepted): (Option<&Sketched>, Option<&Filled>),
+    (opened, done): (&CompileOutcome, &mut CompileOutcome),
+) {
+    let cold = cold(&mut opened.clone());
+    let answer = accepted.map(|(answer, _)| answer);
+    native::record(done, request, &cold, talk, sent, answer, revision);
+    if let Some(decision) = done.provenance.decision.as_mut() {
         decision["native"]["sketch"] = json!({
             "accepted": sketched.is_some(),
-            "tasks": sketched.as_ref().map_or(0, |(s, _)| s.tasks.len()),
-            "holes": sketched.as_ref().map_or(0, |(s, _)| ir::holes(s).len()),
+            "tasks": sketched.map_or(0, |(s, _)| s.tasks.len()),
+            "holes": sketched.map_or(0, |(s, _)| ir::holes(s).len()),
         });
     }
-    conclude(
-        intent,
-        reading,
-        request,
-        accepted.as_ref(),
-        &talk,
-        cold,
-        &mut out,
-    );
-    out.provenance.strategy = Some(Strategy::Native);
-    if accepted.is_some() {
-        out = super::verify::judged_native(intent, reading, policy, provider, request, out).await;
+    conclude(intent, reading, request, answer, talk, cold, done);
+    // The settlement's record becomes the semantic record: the accepted pair from its producer,
+    // the basis read before the proposal; the source it emitted stays an observation.
+    if let (Some((_, fills)), Some((_, stated))) = (accepted, sketched)
+        && let Some(settled) = done.provenance.plan.take()
+    {
+        done.provenance.plan = semantic_record(
+            basis,
+            &graph(stated),
+            fills,
+            &settled,
+            done,
+            request.knowledge.as_ref(),
+        );
+        if done.provenance.plan.is_none() {
+            withhold_record(done);
+        }
     }
-    Ok(out)
+    done.provenance.strategy = Some(Strategy::Native);
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{FILLS_SCHEMA, SKETCH_SCHEMA, schema};
+    use super::{FILLS_SCHEMA, SKETCH_SCHEMA, schema, semantic_record, withhold_record};
+    use serde_json::json;
+
+    #[test]
+    fn a_settlement_missing_a_field_builds_no_record_and_the_round_is_withheld() {
+        let mut out = nika_compile::surface::initial();
+        out.status = crate::CompileStatus::Ready;
+        let settled = json!({"intent_sha256": "x", "questions": [], "gaps": [], "trigger": null});
+        let basis = json!({"answers": {}});
+        let record = semantic_record(
+            basis,
+            &json!({"name": "x", "tasks": []}),
+            &[],
+            &settled,
+            &out,
+            None,
+        );
+        assert!(record.is_none(), "no source: no record built from defaults");
+        out.provenance.plan = Some(json!({"strategy": "native"}));
+        withhold_record(&mut out);
+        assert_eq!(out.status, crate::CompileStatus::Incomplete);
+        assert!(out.provenance.plan.is_none());
+        assert!(out.diagnostics.iter().any(|d| d.target == "recorded_plan"));
+    }
 
     #[test]
     fn the_two_answer_schemas_parse_and_close_their_objects() {
@@ -512,5 +1108,164 @@ mod tests {
             assert_eq!(value["additionalProperties"], false, "{value}");
             assert!(value["required"].is_array(), "{value}");
         }
+    }
+
+    /// Run a jq program over `input` with the core, std and json definitions (the language the
+    /// builtin runs, without the run-start clock no program here reads): its one output.
+    fn jq(program: &str, input: &serde_json::Value) -> Result<serde_json::Value, String> {
+        use jaq_core::load::{Arena, File, Loader};
+        use jaq_core::{Compiler, Ctx, Vars, data::JustLut};
+        use jaq_json::{Val, read};
+        let defs = jaq_core::defs()
+            .chain(jaq_std::defs())
+            .chain(jaq_json::defs());
+        let funs = jaq_core::funs()
+            .chain(jaq_std::funs())
+            .chain(jaq_json::funs());
+        let arena = Arena::default();
+        let modules = Loader::new(defs)
+            .load(
+                &arena,
+                File {
+                    code: program,
+                    path: (),
+                },
+            )
+            .map_err(|_| "parse".to_owned())?;
+        let filter = Compiler::default()
+            .with_funs(funs)
+            .compile(modules)
+            .map_err(|_| "compile".to_owned())?;
+        let bytes = serde_json::to_vec(input).map_err(|e| e.to_string())?;
+        let val = read::parse_single(&bytes).map_err(|e| e.to_string())?;
+        let ctx = Ctx::<JustLut<Val>>::new(&filter.lut, Vars::new([]));
+        let mut outputs = filter.id.run((ctx, val));
+        let first = outputs.next().ok_or("no output")?;
+        let first = first.map_err(|_| "the program fails on its input".to_owned())?;
+        serde_json::from_str(&first.to_string()).map_err(|e| e.to_string())
+    }
+
+    /// A program bound to two tables reads both (the input object of its edge names, each its
+    /// exact binding), in any edge order, and computes the totals the tables state; the former
+    /// first-edge input computes another answer. One edge keeps its whole-value input; none,
+    /// no input.
+    #[test]
+    fn a_program_bound_to_two_tables_reads_both_and_computes_the_stated_totals() {
+        use nika_compile_fidelity::sketch::{Sketch, document, fills_from_json};
+        let orders = json!([
+            {"customer_id": "a", "amount_cents": "100"},
+            {"customer_id": "b", "amount_cents": "50"},
+            {"customer_id": "a", "amount_cents": "25"}
+        ]);
+        let customers = json!([
+            {"customer_id": "a", "region": "north"},
+            {"customer_id": "b", "region": "south"}
+        ]);
+        let tables = json!({"read_orders": orders, "read_customers": customers});
+        // The independent oracle: each region's total over the joined rows.
+        let mut expected = std::collections::BTreeMap::new();
+        for row in orders.as_array().unwrap() {
+            let region = customers
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|c| c["customer_id"] == row["customer_id"])
+                .unwrap()["region"]
+                .clone();
+            let cents: i64 = row["amount_cents"].as_str().unwrap().parse().unwrap();
+            *expected
+                .entry(region.as_str().unwrap().to_owned())
+                .or_insert(0) += cents;
+        }
+        let program = "(.customers | map({key: .customer_id, value: .region}) | from_entries) as $region | .orders | group_by($region[.customer_id]) | map({region: $region[.[0].customer_id], total_cents: (map(.amount_cents | tonumber) | add)})";
+        let fills = fills_from_json(&json!({"fills": [
+            {"task": "totals", "field": "expression", "value": program}
+        ]}))
+        .unwrap();
+        let emitted = |edges: &[(&str, &str)]| {
+            let with: Vec<_> = edges
+                .iter()
+                .map(|(n, f)| json!({"name": n, "from": f}))
+                .collect();
+            let sketch = Sketch::from_json(&json!({"name": "regional-totals", "tasks": [
+                {"id": "read_orders", "verb": "invoke", "tool": "nika:read", "reads": ["./orders.json"], "purpose": "orders"},
+                {"id": "read_customers", "verb": "invoke", "tool": "nika:read", "reads": ["./customers.json"], "purpose": "customers"},
+                {"id": "totals", "verb": "invoke", "tool": "nika:jq", "with": with, "purpose": "join and sum"}
+            ]}))
+            .unwrap();
+            document(&sketch, &fills)["tasks"]["totals"].clone()
+        };
+        // The value a template reads at run: its edge's source table.
+        let resolve = |task: &serde_json::Value, template: &str| {
+            let name = template
+                .trim_start_matches("${{ with.")
+                .trim_end_matches(" }}");
+            let source = task["with"][name].as_str().unwrap();
+            let id = source
+                .trim_start_matches("${{ tasks.")
+                .trim_end_matches(".output }}");
+            tables[id].clone()
+        };
+        let totals = |task: &serde_json::Value| -> std::collections::BTreeMap<String, i64> {
+            let input = &task["invoke"]["args"]["input"];
+            let bound: serde_json::Map<String, serde_json::Value> =
+                (input.as_object().unwrap().iter())
+                    .map(|(k, v)| (k.clone(), resolve(task, v.as_str().unwrap())))
+                    .collect();
+            let out = jq(program, &serde_json::Value::Object(bound)).unwrap();
+            (out.as_array().unwrap().iter())
+                .map(|r| {
+                    (
+                        r["region"].as_str().unwrap().to_owned(),
+                        r["total_cents"].as_i64().unwrap(),
+                    )
+                })
+                .collect()
+        };
+        let two = [("orders", "read_orders"), ("customers", "read_customers")];
+        for edges in [two, [two[1], two[0]]] {
+            let task = emitted(&edges);
+            assert_eq!(
+                task["invoke"]["args"]["input"],
+                json!({"orders": "${{ with.orders }}", "customers": "${{ with.customers }}"}),
+                "{task:#}"
+            );
+            assert_eq!(task["with"]["orders"], "${{ tasks.read_orders.output }}");
+            assert_eq!(
+                task["with"]["customers"],
+                "${{ tasks.read_customers.output }}"
+            );
+            assert_eq!(totals(&task), expected, "{task:#}");
+        }
+        // The former first-edge input: the orders alone, and the program cannot find its regions.
+        assert!(
+            jq(program, &orders).is_err(),
+            "the orders alone carry no regions"
+        );
+        let one = emitted(&[two[0]]);
+        assert_eq!(
+            one["invoke"]["args"]["input"], "${{ with.orders }}",
+            "{one:#}"
+        );
+        let none = emitted(&[]);
+        assert!(none["invoke"]["args"].get("input").is_none(), "{none:#}");
+    }
+
+    /// The trigger's words are cut from the request at its own character boundaries: a
+    /// character whose lowercase is longer (`İ`) before the phrase, a mixed case, the phrase
+    /// absent.
+    #[test]
+    fn the_trigger_occurrence_is_the_requests_own_words() {
+        let text = "İstanbul : Chaque Lundi matin, copie ./notes.md";
+        assert_eq!(
+            super::occurrence(text, "chaque lundi matin"),
+            Some("Chaque Lundi matin")
+        );
+        assert_eq!(
+            super::occurrence("İİ chaque jour", "chaque jour"),
+            Some("chaque jour")
+        );
+        assert_eq!(super::occurrence(text, "chaque vendredi"), None);
+        assert_eq!(super::occurrence("", "chaque jour"), None);
     }
 }

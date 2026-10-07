@@ -11,6 +11,7 @@ homepage.workspace     = true
 publish                = false  # Foundation crate — never on crates.io. See ADR-022.
 
 [dependencies]
+nika-kernel  = { path = "../nika-kernel", version = "0.122.0" } # StopReason — preserve the provider's incomplete-response signal
 nika-cli-host = { path = "../nika-cli-host", version = "0.122.0", default-features = false }  # the ONE probe/census · the oracle facade · the git-root walk (lateral L4→L4 · ADR-124 precedent)
 nika-providers = { path = "../nika-providers", version = "0.122.0", default-features = false }  # AccessClass · ProviderRegistry (the API/local reasoner)
 nika-verb-infer = { path = "../nika-verb-infer", version = "0.122.0", default-features = false }  # ONE inference call, no workflow (the API/local reasoner)
@@ -22,11 +23,10 @@ nika-source   = { path = "../nika-source", version = "0.122.0" }      # lexical 
 nika-types    = { path = "../nika-types", version = "0.122.0" }       # AccessClass — the census reads the probe rows by class
 nika-onboard  = { path = "../nika-onboard", version = "0.122.0" }     # routing::route_query — the ONE intent router
 nika-harness  = { path = "../nika-harness", version = "0.122.0", optional = true }  # the infer-grade seat (the harness reasoner)
-nika-check    = { path = "../nika-check", version = "0.122.0" }       # CheckReport — the preview's effect rows read the report's own permits and requirements
 nika-display  = { path = "../nika-display", version = "0.122.0" }     # check_render::review — the preview's effect, spend, finding and hint rows of a report (lateral L4→L4 · never back)
-nika-schema   = { path = "../nika-schema", version = "0.122.0" }      # the parser — the review reads a candidate's tasks from the AST, never from prose
-nika-cap      = { path = "../nika-cap", version = "0.122.0" }         # ExecPermit — the exec grant's shape in the effect rows
-nika-fs       = { path = "../nika-fs", version = "0.122.0" }          # OwnedDir::write_atomic — a change lands by temp + rename below the root's descriptor
+nika-session-change = { path = "../nika-session-change", version = "0.122.0" }  # the change set a proposal writes, its review, its outcome and the consent record (size-cap member of this unit · ADR-144 · nika-session → nika-session-change, never back)
+nika-schema   = { path = "../nika-schema", version = "0.122.0" }      # the parser — the inputs a saved workflow declares are read from the AST, never from prose
+nika-fs       = { path = "../nika-fs", version = "0.122.0" }          # OwnedDir · read_capped — the session state (temp + rename), the history journal and the context reads stay below a descriptor
 nika-cadence  = { path = "../nika-cadence", version = "0.122.0" }     # the arm: grammar (L0 · pure) — a cadence the session derives is validated before it is proposed
 nika-trace    = { path = "../nika-trace", version = "0.122.0" }       # run_view::RunFacts — what a run's trace proves, read for the result, gate and `/proof` views (its ONE verify door judges the chain · lateral L4→L4 · never back)
 nika-event    = { path = "../nika-event", version = "0.122.0" }       # source_id::sha256_hex — the digest of each knowledge-pack reference the authoring record keeps (L0 · pure)
@@ -48,6 +48,6 @@ workspace = true
 
 [dev-dependencies]
 nika-error = { path = "../nika-error", version = "0.122.0" } # cost::Cost — the reasoning-effort tests assert the typed cost
-nika-kernel = { path = "../nika-kernel", version = "0.122.0" } # injected loopback HTTP mechanics
+nika-compile = { path = "../nika-compile", version = "0.122.0" } # finding — the Meaning view's tests record the compiler's own verify_held finding on an outcome
 nika-onboard = { path = "../nika-onboard", version = "0.122.0", features = ["test-support"] } # the synthetic release the strict knowledge door admits
 tempfile = { workspace = true }

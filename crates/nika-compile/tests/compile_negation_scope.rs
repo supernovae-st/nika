@@ -23,7 +23,7 @@ use serde_json::{Value, json};
 use std::time::Duration;
 
 mod common;
-use common::Rotating;
+use common::{Judged, Rotating};
 
 /// The policies of every effect the reader states for a request.
 fn policies(intent: &str) -> Vec<EffectPolicy> {
@@ -140,10 +140,6 @@ fn policy(native: NativeMode, repairs: u32) -> AuthoringPolicy {
         .with_repairs(repairs)
 }
 
-fn answer(candidate: &str) -> String {
-    json!({"candidate": candidate, "questions": [], "gaps": [], "notes": "read → send"}).to_string()
-}
-
 fn rounds(out: &CompileOutcome) -> Vec<Vec<String>> {
     out.provenance.decision.as_ref().unwrap()["native"]["rounds"]
         .as_array()
@@ -165,81 +161,91 @@ fn accepted(out: &CompileOutcome) -> Value {
     out.provenance.decision.as_ref().unwrap()["native"]["accepted"].clone()
 }
 
-fn send_note(send: &str) -> String {
-    format!(
-        r#"nika: send-note
-permits:
-  tools: ["nika:read", "nika:prompt", "nika:fetch"]
-  fs:
-    read: ["./note.txt"]
-  net:
-    http: ["hooks.example.test"]
-tasks:
-  read_note:
-    invoke:
-      tool: "nika:read"
-      args: {{ path: "./note.txt" }}
-{send}"#
-    )
+/// The note sent as the sketch door's graph and its fills: read, then post to the stated hook,
+/// behind a review when `gated`.
+fn send_note(gated: bool) -> Vec<String> {
+    let note = json!([{"name": "note", "from": "read_note"}]);
+    let mut tasks = vec![
+        json!({"id": "read_note", "verb": "invoke", "tool": "nika:read",
+        "reads": ["./note.txt"], "purpose": "the note"}),
+    ];
+    let mut send = json!({"id": "send", "verb": "invoke", "tool": "nika:notify",
+        "hosts": ["hooks.example.test"], "with": note, "purpose": "post the note"});
+    let mut fills = vec![
+        json!({"task": "send", "field": "args.target", "value": "https://hooks.example.test/in"}),
+        json!({"task": "send", "field": "args.message", "value": "${{ with.note }}"}),
+    ];
+    if gated {
+        tasks.push(
+            json!({"id": "review", "verb": "invoke", "tool": "nika:prompt", "with": note,
+            "purpose": "ask before sending"}),
+        );
+        send["gated_by"] = json!("review");
+        fills.push(json!({"task": "review", "field": "args.message",
+            "value": "Envoyer cette note ? ${{ with.note }}"}));
+    }
+    tasks.push(send);
+    let graph = json!({"name": "send-note", "tasks": tasks, "questions": [], "gaps": [],
+        "notes": "read → send"});
+    vec![
+        graph.to_string(),
+        json!({"fills": fills, "notes": "fills"}).to_string(),
+    ]
 }
-
-const UNGATED: &str = r#"  send:
-    with: { note: "${{ tasks.read_note.output }}" }
-    invoke:
-      tool: "nika:fetch"
-      args: { url: "https://hooks.example.test/in", method: POST, body: "${{ with.note }}" }
-"#;
-
-const GATED: &str = r#"  review:
-    with: { note: "${{ tasks.read_note.output }}" }
-    invoke:
-      tool: "nika:prompt"
-      args: { message: "Envoyer cette note ? ${{ with.note }}" }
-  send:
-    with: { approved: "${{ tasks.review.output }}", note: "${{ tasks.read_note.output }}" }
-    when: "${{ with.approved == true }}"
-    invoke:
-      tool: "nika:fetch"
-      args: { url: "https://hooks.example.test/in", method: POST, body: "${{ with.note }}" }
-"#;
 
 #[tokio::test]
 async fn the_seat_realizes_what_the_reader_left_to_cognition_without_a_new_gate() {
     let intent = "Read ./note.txt and don't forget to post it to https://hooks.example.test/in.";
-    let provider = Rotating::new(vec![answer(&send_note(UNGATED))]);
-    let req = CompileRequest::create(intent).with_authoring_policy(policy(NativeMode::Only, 1));
-    let out = compile_with_provider(&req, &provider).await.unwrap();
+    let provider = Rotating::new(send_note(false));
+    let req = CompileRequest::create(intent).with_authoring_policy(policy(NativeMode::Sketch, 1));
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&req, &Judged::approving(&provider))
+        .await
+        .unwrap();
     let rounds = rounds(&out);
     assert_eq!(
         rounds,
-        vec![Vec::<String>::new()],
+        vec![Vec::<String>::new(), Vec::<String>::new()],
         "accepted as written, no gate demanded"
     );
     assert_eq!(accepted(&out), true, "{out:#?}");
+    // The intended automatic effect: the send, ungated; no review was invented.
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let doc: Value = serde_yaml_bw::from_str(out.candidate.as_deref().unwrap()).unwrap();
+    assert_eq!(
+        doc["tasks"]["send"]["invoke"]["args"]["target"],
+        "https://hooks.example.test/in"
+    );
+    assert!(doc["tasks"]["send"].get("when").is_none(), "{doc:#}");
+    assert!(doc["tasks"].get("review").is_none(), "{doc:#}");
 }
 
 #[tokio::test]
 async fn a_banned_destination_is_refused_even_behind_a_gate() {
     let intent = "Lis ./note.txt et ne l'envoie jamais à https://hooks.example.test/in.";
-    let provider = Rotating::new(vec![answer(&send_note(GATED))]);
-    let req = CompileRequest::create(intent).with_authoring_policy(policy(NativeMode::Only, 1));
+    let provider = Rotating::new(send_note(true));
+    let req = CompileRequest::create(intent).with_authoring_policy(policy(NativeMode::Sketch, 1));
     let out = compile_with_provider(&req, &provider).await.unwrap();
     let rounds = rounds(&out);
+    // A nonempty, targeted prohibition: never a vacuous `all` over no round.
+    assert!(!rounds.is_empty(), "{out:#?}");
     assert!(
         rounds
             .iter()
-            .all(|r| r.iter().any(|m| m.starts_with("PROHIBITED EFFECT"))),
+            .flatten()
+            .any(|m| m.starts_with("PROHIBITED EFFECT")),
         "{rounds:?}"
     );
     assert_ne!(accepted(&out), true, "{out:#?}");
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(out.candidate.is_none(), "{out:#?}");
 }
 
 #[tokio::test]
 async fn a_contradiction_of_the_words_stays_the_humans_and_never_reaches_a_seat() {
     let intent = "Lis ./note.txt et envoie-la à https://hooks.example.test/in; ne l'envoie jamais à https://hooks.example.test/in.";
     // A seat would realize the send if it were asked (the earlier contract let it choose).
-    let provider = Rotating::new(vec![answer(&send_note(UNGATED))]);
+    let provider = Rotating::new(send_note(false));
     let req = CompileRequest::create(intent).with_authoring_policy(policy(NativeMode::Escalate, 1));
     let out = compile_with_provider(&req, &provider).await.unwrap();
     assert_eq!(

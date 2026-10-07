@@ -4,7 +4,7 @@
 # Consumers · the reference engine embeds this pack (nika try ·
 # nika spec) · docs + website render projections of the same files.
 pack_version: 0.2.0-draft
-workflow_count: 61
+workflow_count: 62
 foundation:
   - file: examples/01-hello.nika
     sha256_16: 09082d4400e1250c
@@ -188,6 +188,10 @@ showcase:
     name: release-train
     constructs: [outputs, retry, timeout, typed_inputs, when, with]
     sha256_16: 052afffd8b71dba8
+  - file: examples/remove-owned-file.nika
+    name: remove-owned-file
+    constructs: [outputs]
+    sha256_16: f3fa5c9d883ed464
   - file: examples/resume-screener.nika
     name: resume-screener
     constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema, when, with]

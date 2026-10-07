@@ -65,7 +65,7 @@ async fn infer_shapes_request_with_bearer_and_parses() {
 async fn local_profile_sends_no_auth_header() {
     let fake = FakeHttp::with_json(
         200,
-        r#"{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],"usage":{}}"#,
+        r#"{"message":{"content":"ok"},"done":true,"done_reason":"stop"}"#,
     );
     let rp = resolved_with(&fake, "ollama", "");
     let _ = infer(&rp, req(vec![Message::text(Role::User, "x")]))

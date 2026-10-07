@@ -23,7 +23,7 @@ use std::task::{Context, Poll};
 use futures_core::Stream;
 use nika_kernel::ai::harness::{
     HarnessError, HarnessEvent, HarnessEventStream, HarnessOutcome, HarnessRequest,
-    PermissionDecision, PermissionReply,
+    ModelProvenance, PermissionDecision, PermissionReply,
 };
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
@@ -37,23 +37,12 @@ use crate::wire::{
 /// One incoming line may not exceed this (bounded reads · spec §4): a
 /// hostile or broken peer overflows into a refusal, never an OOM.
 ///
-/// **This is a TRANSPORT bound and it is not the forensics decode
-/// grain**, even though both are 1 MiB today. It guards one line off a
-/// live wire from a peer this process is talking to; `nika_dap`'s
-/// `bounded::MAX_ARTIFACT_BYTES` guards a stored artifact a verifier
-/// reads whole. Two readers, two threat models, two bounds that happen
-/// to agree on a number.
-///
-/// Do not "de-duplicate" them onto one constant. A grep finds three
-/// `1024 * 1024` in this tree and reads like a single value restated
-/// three times; it is not (measured 2026-08-13 · nika-spec
-/// `conformance/FINDINGS.md` F-4). Aliasing this to a forensics
-/// constant would couple a wire protocol to a decoder, so raising one
-/// bound would move the other for no stated reason — the coupling
-/// costs more than the repetition. The one real duplicate is
-/// `nika-registry-client`'s own artifact bound, which shares this
-/// crate's number *and* `nika-dap`'s meaning.
-pub const MAX_LINE_BYTES: usize = 1024 * 1024;
+/// This TRANSPORT bound is separate from the unchanged 1 MiB forensics grain.
+/// Codex ACP repeats a native image's base64 in content and rawOutput. Eighteen
+/// MiB allows two copies of the 8 MiB image budget plus protocol metadata. The
+/// verb stores decoded bytes in `BlobStore`; journal/trace lines keep only metadata.
+/// Never alias this bound to a forensic decoder's limit.
+pub const MAX_LINE_BYTES: usize = 18 * 1024 * 1024;
 
 /// How long the driver waits for the NEXT byte before calling the
 /// session dead. A size bound alone leaves the wedge the refuter
@@ -98,6 +87,20 @@ where
     R: AsyncRead + Unpin + Send + 'static,
     W: AsyncWrite + Unpin + Send + 'static,
 {
+    drive_profile(reader, writer, request, idle, false)
+}
+
+pub(crate) fn drive_profile<R, W>(
+    reader: R,
+    writer: W,
+    request: HarnessRequest,
+    idle: std::time::Duration,
+    authoring: bool,
+) -> HarnessEventStream
+where
+    R: AsyncRead + Unpin + Send + 'static,
+    W: AsyncWrite + Unpin + Send + 'static,
+{
     let (event_tx, event_rx) = mpsc::channel::<Result<HarnessEvent, HarnessError>>(64);
     tokio::spawn(async move {
         let mut driver = Driver {
@@ -108,8 +111,12 @@ where
             idle,
             pending: Vec::new(),
             observed_model: None,
+            observed_source: None,
+            media: crate::media::MediaState::default(),
+            authoring,
         };
         if let Err(e) = driver.run(request).await {
+            let e = driver.media.no_replay(e);
             // The stream may already be dropped — best-effort final word.
             let _ = driver.event_tx.send(Err(e)).await;
         }
@@ -140,6 +147,11 @@ struct Driver<R, W> {
     /// The model the session serves, as the agent itself stated it (the current value of its
     /// model option, or the one it accepted): the outcome's observed model.
     observed_model: Option<String>,
+    /// How `observed_model` was learned: a selection or a configuration, never a
+    /// response attestation (ACP prompt results name no model).
+    observed_source: Option<ModelProvenance>,
+    media: crate::media::MediaState,
+    authoring: bool,
 }
 
 impl<R, W> Driver<R, W>
@@ -157,7 +169,11 @@ where
             },
         )
         .await?;
-        let init: wire::InitializeResult = self.await_response(ID_INITIALIZE, "initialize").await?;
+        let value: Value = self.await_response(ID_INITIALIZE, "initialize").await?;
+        if self.authoring {
+            crate::authoring::acp::admit(&value)?;
+        }
+        let init: wire::InitializeResult = parse_payload(value, "initialize")?;
         if init.protocol_version != wire::PROTOCOL_V1 {
             return Err(HarnessError::Refused {
                 reason: format!(
@@ -168,15 +184,16 @@ where
             });
         }
 
-        self.send_request(
-            ID_SESSION_NEW,
-            wire::METHOD_SESSION_NEW,
-            &NewSessionParams {
-                cwd: request.cwd.clone(),
-                mcp_servers: Vec::new(),
-            },
-        )
-        .await?;
+        let mut params = serde_json::to_value(NewSessionParams {
+            cwd: request.cwd.clone(),
+            mcp_servers: Vec::new(),
+        })
+        .map_err(session_err)?;
+        if self.authoring {
+            params["_meta"] = crate::authoring::acp::profile();
+        }
+        self.send_request(ID_SESSION_NEW, wire::METHOD_SESSION_NEW, &params)
+            .await?;
         let session: wire::NewSessionResult =
             self.await_response(ID_SESSION_NEW, "session/new").await?;
         self.seat_session(&session, &request).await?;
@@ -219,6 +236,10 @@ where
                     })? {
                         Incoming::Response { id: ID_PROMPT, result } => {
                             let done: PromptResult = parse_payload(result, "session/prompt")?;
+                            self.media.check_stop(&done.stop_reason)?;
+                            if self.authoring && done.stop_reason != "end_turn" {
+                                return Err(crate::authoring::acp::refusal("ACP authoring did not complete a turn"));
+                            }
                             let outcome = self.close_turn(&done, request);
                             let _ = self
                                 .event_tx
@@ -226,8 +247,8 @@ where
                                 .await;
                             return Ok(());
                         }
-                        Incoming::ErrorResponse { message, .. } => {
-                            return Err(HarnessError::Session { reason: message });
+                        Incoming::ErrorResponse { message, kind, .. } => {
+                            return Err(answered_error(message, kind.as_deref()));
                         }
                         Incoming::Notification { method, params }
                             if method == wire::METHOD_SESSION_UPDATE =>
@@ -240,9 +261,15 @@ where
                         // flight · reader leniency).
                         Incoming::Response { .. } | Incoming::Notification { .. } => {}
                         Incoming::Request { id, method, params } if method == wire::METHOD_REQUEST_PERMISSION => {
+                            if self.authoring {
+                                let line = wire::response_line(&id, &serde_json::json!({"outcome":{"outcome":"cancelled"}})).map_err(session_err)?;
+                                self.write_line(&line).await?;
+                                return Err(crate::authoring::acp::refusal("ACP authoring requested a tool; no answer accepted"));
+                            }
                             self.on_permission_ask(id, params, &ptx).await?;
                         }
                         Incoming::Request { id, .. } => {
+                            if self.authoring { return Err(crate::authoring::acp::refusal("ACP authoring requested an unsupported client action")); }
                             // An unknown agent request refuses politely —
                             // JSON-RPC method-not-found keeps the wire honest.
                             let line = wire::response_line(
@@ -268,7 +295,31 @@ where
         if update.session_id != session_id {
             return Ok(()); // another session's beat — observed, never ours
         }
+        if self.authoring {
+            crate::authoring::acp::judge_update(&update.update)?;
+        }
+        if let Some(tool_call_id) = self.media.starting(&update.update) {
+            let _ = self
+                .event_tx
+                .send(Ok(HarnessEvent::ImageActivityObserved { tool_call_id }))
+                .await;
+        }
+        if let Some(image) = self.media.observe(&update.update)? {
+            let _ = self
+                .event_tx
+                .send(Ok(HarnessEvent::ImageObserved {
+                    image: Box::new(image),
+                }))
+                .await;
+        }
         if let Some(text) = wire::agent_chunk_text(&update.update) {
+            if self.authoring
+                && self.output.len().saturating_add(text.len()) > crate::authoring::acp::MAX_ANSWER
+            {
+                return Err(crate::authoring::acp::refusal(
+                    "ACP authoring answer exceeded its byte limit",
+                ));
+            }
             self.output.push_str(&text);
             let _ = self
                 .event_tx
@@ -330,14 +381,24 @@ where
         let _ = request;
         let _ = &done.stop_reason;
         outcome.observed_model = self.observed_model.take();
+        outcome.observed_model_source = self.observed_source.take();
+        outcome.images = self.media.images();
         outcome
+    }
+
+    /// Record the session model and how it was learned (never a response attestation).
+    fn observe(&mut self, model: Option<String>, source: ModelProvenance) {
+        self.observed_source = model.as_ref().map(|_| source);
+        self.observed_model = model;
     }
 
     /// Between `session/new` and the prompt: the model the workflow names must be one the agent
     /// offers (a pin is a pin: an unoffered model refuses before any prompt), set through the
     /// v1 config option when the agent advertises one, through the legacy `session/set_model`
-    /// when it advertises a `models` list; the current model is observed either way. A
-    /// requested mode (`read-only`) picks an advertised plan / read-only mode, best effort.
+    /// when it advertises a `models` list; the current model is observed either way.
+    /// Model ids and display names must match a live offer; a family match must not
+    /// discard an explicit variant. A requested mode (`read-only`) picks an advertised
+    /// plan / read-only mode, best effort.
     async fn seat_session(
         &mut self,
         session: &wire::NewSessionResult,
@@ -345,7 +406,8 @@ where
     ) -> Result<(), HarnessError> {
         let sid = session.session_id.clone();
         let model_option = seats::model_option(session.config_options.as_ref());
-        self.observed_model = seats::current_model(model_option, session.models.as_ref());
+        let current = seats::current_model(model_option, session.models.as_ref());
+        self.observe(current, ModelProvenance::SessionConfig);
         if let Some(wanted) = seats::wanted(request.requested_model.as_deref()) {
             if let Some((config_id, value)) = seats::offered_option(model_option, &wanted) {
                 self.send_request(
@@ -364,8 +426,9 @@ where
                 // ACP returns an object containing the complete configuration, not the
                 // array itself. Never recycle session/new's stale currentValue or promote
                 // the requested value into an observation when the peer did not confirm it.
-                self.observed_model =
+                let confirmed =
                     seats::current_model(seats::model_option(answered.get("configOptions")), None);
+                self.observe(confirmed, ModelProvenance::ConfirmedSelection);
                 if self.observed_model.as_deref() != value.as_str() || self.observed_model.is_none()
                 {
                     return Err(HarnessError::Refused {
@@ -387,7 +450,7 @@ where
                 let _: Value = self
                     .await_response(ID_SESSION_SEAT, "session/set_model")
                     .await?;
-                self.observed_model = Some(model_id);
+                self.observe(Some(model_id), ModelProvenance::AcceptedRequest);
             } else {
                 return Err(HarnessError::Refused {
                     reason: format!(
@@ -485,8 +548,25 @@ where
                 Incoming::Response { id: got, result } if got == id => {
                     return parse_payload(result, what);
                 }
-                Incoming::ErrorResponse { id: got, message } if got == id => {
-                    return Err(HarnessError::Refused { reason: message });
+                Incoming::ErrorResponse {
+                    id: got,
+                    message,
+                    kind,
+                } if got == id => {
+                    return Err(match kind.as_deref() {
+                        Some(SIGN_IN_KIND) => signed_out(),
+                        _ => HarnessError::Refused { reason: message },
+                    });
+                }
+                Incoming::Notification { method, params }
+                    if self.authoring && method == wire::METHOD_SESSION_UPDATE =>
+                {
+                    crate::authoring::acp::judge_update(&params["update"])?;
+                }
+                Incoming::Request { .. } if self.authoring => {
+                    return Err(crate::authoring::acp::refusal(
+                        "ACP authoring requested a client action before the prompt",
+                    ));
                 }
                 _ => {} // interleaved beats before the handshake settles
             }
@@ -499,212 +579,7 @@ where
 /// way (`configOptions[{id, category, currentValue, options[{value, name}]}]`,
 /// `models{currentModelId, availableModels[{modelId, name}]}`, `modes{currentModeId,
 /// availableModes[{id, name}]}`).
-mod seats {
-    use serde_json::Value;
-
-    /// The `category: "model"` config option, when advertised.
-    pub(super) fn model_option(config_options: Option<&Value>) -> Option<&Value> {
-        config_options?
-            .as_array()?
-            .iter()
-            .find(|o| o.get("category").and_then(Value::as_str) == Some("model"))
-    }
-
-    /// The model the session serves now: the option's current value, else the legacy list's.
-    pub(super) fn current_model(option: Option<&Value>, models: Option<&Value>) -> Option<String> {
-        option
-            .and_then(|o| o.get("currentValue"))
-            .and_then(Value::as_str)
-            .or_else(|| models?.get("currentModelId")?.as_str())
-            .map(str::to_owned)
-    }
-
-    /// The model the caller wants (`provider/name` keeps its name; `default` and an empty name
-    /// leave the harness's own choice).
-    pub(super) fn wanted(requested: Option<&str>) -> Option<String> {
-        let requested = requested?.trim();
-        let name = requested.rsplit('/').next().unwrap_or(requested).trim();
-        (!name.is_empty() && !name.eq_ignore_ascii_case("default")).then(|| name.to_owned())
-    }
-
-    fn same(a: &str, b: &str) -> bool {
-        a.trim().eq_ignore_ascii_case(b.trim())
-    }
-
-    /// Whether an offered alias stands as a whole segment of the requested name — bounded by
-    /// the name's edges or its separators (`sonnet` in `claude-sonnet-4-5`, `grok-4.7` in
-    /// `xai-grok-4.7`), never a substring (`son` matches nothing) and never a bare number.
-    fn family_word(offered: &str, wanted: &str) -> bool {
-        let offered = offered.trim();
-        if offered.is_empty() || !offered.chars().any(|c| c.is_ascii_alphabetic()) {
-            return false;
-        }
-        let haystack = wanted.to_ascii_lowercase();
-        let needle = offered.to_ascii_lowercase();
-        let boundary = |c: Option<char>| c.is_none_or(|c| !c.is_ascii_alphanumeric());
-        let mut from = 0;
-        while let Some(at) = haystack[from..].find(&needle) {
-            let start = from + at;
-            let end = start + needle.len();
-            if boundary(haystack[..start].chars().next_back())
-                && boundary(haystack[end..].chars().next())
-            {
-                return true;
-            }
-            from = end;
-        }
-        false
-    }
-
-    /// The choice that names the wanted model: exactly (value or name) first, then by its
-    /// family word.
-    fn choose<'a>(
-        choices: impl Iterator<Item = &'a Value> + Clone,
-        value_key: &str,
-        wanted: &str,
-    ) -> Option<&'a Value> {
-        let exact = choices.clone().find(|c| {
-            c.get(value_key)
-                .and_then(Value::as_str)
-                .is_some_and(|v| same(v, wanted))
-                || c.get("name")
-                    .and_then(Value::as_str)
-                    .is_some_and(|n| same(n, wanted))
-        });
-        exact.or_else(|| {
-            choices.into_iter().find(|c| {
-                c.get(value_key)
-                    .and_then(Value::as_str)
-                    .is_some_and(|v| family_word(v, wanted))
-            })
-        })
-    }
-
-    /// The (config id, value) that names the wanted model among the option's choices, by value
-    /// or by display name.
-    pub(super) fn offered_option(option: Option<&Value>, wanted: &str) -> Option<(String, Value)> {
-        let option = option?;
-        let id = option.get("id")?.as_str()?.to_owned();
-        let choice = choose(option.get("options")?.as_array()?.iter(), "value", wanted)?;
-        Some((id, choice.get("value")?.clone()))
-    }
-
-    /// The legacy list's `modelId` that names the wanted model, by id or by display name.
-    pub(super) fn offered_model(models: Option<&Value>, wanted: &str) -> Option<String> {
-        choose(
-            models?.get("availableModels")?.as_array()?.iter(),
-            "modelId",
-            wanted,
-        )?
-        .get("modelId")?
-        .as_str()
-        .map(str::to_owned)
-    }
-
-    /// Every model the agent offers, for the refusal's teaching line.
-    pub(super) fn offered_names(option: Option<&Value>, models: Option<&Value>) -> String {
-        let mut names: Vec<String> = Vec::new();
-        if let Some(choices) = option
-            .and_then(|o| o.get("options"))
-            .and_then(Value::as_array)
-        {
-            names.extend(
-                choices
-                    .iter()
-                    .filter_map(|c| c.get("value").and_then(Value::as_str).map(str::to_owned)),
-            );
-        }
-        if let Some(list) = models
-            .and_then(|m| m.get("availableModels"))
-            .and_then(Value::as_array)
-        {
-            names.extend(
-                list.iter()
-                    .filter_map(|m| m.get("modelId").and_then(Value::as_str).map(str::to_owned)),
-            );
-        }
-        if names.is_empty() {
-            "(it advertises no model choice; `default` is its own)".to_owned()
-        } else {
-            names.join(" · ")
-        }
-    }
-
-    /// How a mode is set: the v1 config option when advertised, else the deprecated method.
-    pub(super) enum ModeDoor {
-        Config { config_id: String, value: Value },
-        Mode { mode_id: String },
-    }
-
-    /// Whether an advertised mode fits the intent (`read-only` → a plan / read-only mode).
-    fn fits(intent: &str, id: &str, name: &str) -> bool {
-        let id = id.to_ascii_lowercase();
-        let name = name.to_ascii_lowercase();
-        match intent {
-            "read-only" => {
-                id.ends_with("plan")
-                    || id.contains("read-only")
-                    || id.contains("read_only")
-                    || name.contains("plan")
-                    || name.contains("read only")
-                    || name.contains("read-only")
-            }
-            other => id == other.to_ascii_lowercase() || name == other.to_ascii_lowercase(),
-        }
-    }
-
-    /// The door to the mode that fits the intent, if the agent advertises one.
-    pub(super) fn mode_door(
-        session: &super::wire::NewSessionResult,
-        intent: &str,
-    ) -> Option<ModeDoor> {
-        let by_option = session
-            .config_options
-            .as_ref()
-            .and_then(Value::as_array)
-            .and_then(|options| {
-                options
-                    .iter()
-                    .find(|o| o.get("category").and_then(Value::as_str) == Some("mode"))
-            })
-            .and_then(|option| {
-                let id = option.get("id")?.as_str()?.to_owned();
-                let choice = option.get("options")?.as_array()?.iter().find(|c| {
-                    fits(
-                        intent,
-                        c.get("value").and_then(Value::as_str).unwrap_or(""),
-                        c.get("name").and_then(Value::as_str).unwrap_or(""),
-                    )
-                })?;
-                Some(ModeDoor::Config {
-                    config_id: id,
-                    value: choice.get("value")?.clone(),
-                })
-            });
-        if by_option.is_some() {
-            return by_option;
-        }
-        session
-            .modes
-            .as_ref()
-            .and_then(|m| m.get("availableModes"))
-            .and_then(Value::as_array)
-            .and_then(|modes| {
-                modes.iter().find(|m| {
-                    fits(
-                        intent,
-                        m.get("id").and_then(Value::as_str).unwrap_or(""),
-                        m.get("name").and_then(Value::as_str).unwrap_or(""),
-                    )
-                })
-            })
-            .and_then(|m| {
-                m.get("id")?.as_str().map(|id| ModeDoor::Mode {
-                    mode_id: id.to_owned(),
-                })
-            })
-    }
-}
+mod seats;
 
 /// The engine's verdict → the wire outcome. `AllowOnce` selects the
 /// agent's `allow_once` option; `allow_always` is NEVER selected even
@@ -823,6 +698,30 @@ async fn read_bounded_line<R: AsyncRead + Unpin>(
                 ),
             });
         }
+    }
+}
+
+/// The adapter's typed kind of an error that a lost sign-in raises.
+const SIGN_IN_KIND: &str = "authentication_failed";
+
+/// The reason a harness the app no longer signs in for is unavailable: our own words, never the
+/// adapter's (its prose may carry account details).
+pub(crate) const SIGN_IN_EXPIRED: &str = "the app's sign-in has expired or was revoked";
+
+/// The unavailable harness a lost sign-in leaves: no retry heals it before the human signs in
+/// again in the app.
+fn signed_out() -> HarnessError {
+    HarnessError::Unavailable {
+        reason: SIGN_IN_EXPIRED.to_owned(),
+    }
+}
+
+/// The failure an error answer to the prompt is: a lost sign-in by the adapter's typed kind,
+/// else a session that ended before a complete answer.
+fn answered_error(message: String, kind: Option<&str>) -> HarnessError {
+    match kind {
+        Some(SIGN_IN_KIND) => signed_out(),
+        _ => HarnessError::Session { reason: message },
     }
 }
 
@@ -1025,10 +924,11 @@ mod tests {
         );
         let (_, outcome) = collect(stream).await;
         agent.await.expect("scripted agent completes");
+        let o = outcome.expect("completed");
+        let seen = (o.observed_model.as_deref(), o.observed_model_source);
         assert_eq!(
-            outcome.expect("completed").observed_model.as_deref(),
-            Some("k3-256k"),
-            "the accepted model is the observed one"
+            seen,
+            (Some("k3-256k"), Some(ModelProvenance::ConfirmedSelection))
         );
     }
 
@@ -1099,10 +999,9 @@ mod tests {
         );
         let (_, outcome) = collect(stream).await;
         agent.await.expect("scripted agent completes");
-        assert_eq!(
-            outcome.expect("completed").observed_model.as_deref(),
-            Some("k3")
-        );
+        let o = outcome.expect("completed");
+        let seen = (o.observed_model.as_deref(), o.observed_model_source);
+        assert_eq!(seen, (Some("k3"), Some(ModelProvenance::SessionConfig)));
     }
 
     #[tokio::test]
@@ -1147,20 +1046,20 @@ mod tests {
         );
         let (_, outcome) = collect(stream).await;
         agent.await.expect("scripted agent completes");
-        assert_eq!(
-            outcome.expect("completed").observed_model.as_deref(),
-            Some("opus")
-        );
+        let o = outcome.expect("completed"); // set_model echoes nothing: accepted, not attested
+        let seen = (o.observed_model.as_deref(), o.observed_model_source);
+        assert_eq!(seen, (Some("opus"), Some(ModelProvenance::AcceptedRequest)));
     }
 
     #[test]
-    fn a_requested_model_meets_an_offered_alias_by_its_family_word_never_a_substring() {
+    fn a_requested_model_must_name_an_offered_id_or_display_name() {
         let models = serde_json::json!({"currentModelId":"fable","availableModels":[
             {"modelId":"default","name":"Default (recommended)"},{"modelId":"sonnet","name":"Sonnet"},
             {"modelId":"haiku","name":"Haiku"},{"modelId":"fable","name":"fable"}]});
         assert_eq!(
-            seats::offered_model(Some(&models), "claude-sonnet-4-5").as_deref(),
-            Some("sonnet")
+            seats::offered_model(Some(&models), "claude-sonnet-4-5"),
+            None,
+            "an unoffered provider model must not silently become a family alias"
         );
         assert_eq!(
             seats::offered_model(Some(&models), "Sonnet").as_deref(),
@@ -1176,8 +1075,8 @@ mod tests {
         );
         assert_eq!(
             seats::offered_option(Some(&option), "xai-grok-4.7").map(|(_, v)| v),
-            Some(Value::String("grok-4.7".to_owned())),
-            "the family word may itself carry a dot"
+            None,
+            "a model's extra prefix is not an advertised choice"
         );
     }
 
@@ -1468,3 +1367,9 @@ mod wedge_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod media_bound_tests;
+
+#[cfg(test)]
+mod model_selection_tests;

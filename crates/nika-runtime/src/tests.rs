@@ -15,6 +15,8 @@ mod boot_manifest;
 mod declared_free_receipt;
 mod dynamic_model_admission;
 mod fan_out_accounting;
+#[cfg(feature = "access-harness")]
+mod harness_image_room;
 mod returns_contract;
 mod route_identity_trace;
 mod seated_receipt;

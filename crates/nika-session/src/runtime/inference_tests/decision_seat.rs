@@ -70,6 +70,8 @@ fn a_turn_consults_the_selected_seat_once_and_persists_its_observation() {
         .find(|o| o["schema"] == DECISION_SCHEMA)
         .expect("the decision seat's observation is persisted");
     assert_eq!(o["calls_sent"], 1);
+    assert_eq!(o["state"], "Closed");
+    assert_eq!(o["scope_ended"], true);
     assert_eq!(o["unbudgeted"], true);
     assert_eq!(o["attempts"][0]["outcome"], "chosen");
     assert!(o["cost"].as_str().unwrap().starts_with("unknown"));

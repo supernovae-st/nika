@@ -9,7 +9,9 @@
 //! choose the projection (Nika · Files) and `Enter` opens the entry: the
 //! object in view changes, the conversation does not, and nothing is attached
 //! to the next message. In the object, `Up`/`Down` and the page keys scroll
-//! it, `Left`/`Right` change its face and `r` asks its owner to read it again.
+//! it, `Left`/`Right` change its face and `r` asks its owner to read it again;
+//! on the task list of a run in view the desk reads `Up`/`Down`, `Enter` and
+//! `Backspace` first (it picks a task and opens its detail).
 //! `Tab` stays the composer's completion key.
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -106,10 +108,35 @@ impl Focus {
         }
     }
 
+    /// Scroll the preview in rows without taking its keyboard focus or
+    /// interpreting a run's task-navigation keys.
+    pub(crate) fn scroll_rows(&mut self, older: bool, step: usize, extent: Extent) {
+        let last = extent
+            .object_lines
+            .saturating_sub(usize::from(extent.object_rows));
+        let before = self.scroll.min(last);
+        self.scroll = if older {
+            before.saturating_sub(step)
+        } else {
+            before.saturating_add(step).min(last)
+        };
+    }
+
+    /// Move the listing's anchor while preserving the region holding the draft.
+    pub(crate) fn scroll_aside(&mut self, older: bool, step: usize, entries: usize) {
+        let last = entries.saturating_sub(1);
+        let before = self.selected.min(last);
+        self.selected = if older {
+            before.saturating_sub(step)
+        } else {
+            before.saturating_add(step).min(last)
+        };
+    }
+
     /// The next region (or the previous one when `back`), skipping a folded aside.
     fn cycle(&self, back: bool, aside_shown: bool) -> Region {
         let order: &[Region] = if aside_shown {
-            &[Region::Conversation, Region::Aside, Region::Object]
+            &[Region::Aside, Region::Conversation, Region::Object]
         } else {
             &[Region::Conversation, Region::Object]
         };
@@ -216,13 +243,17 @@ mod tests {
         }
         assert_eq!(focus.region, Region::Conversation);
         assert_eq!(focus.handle(key(KeyCode::F(6)), WIDE), Action::Moved);
-        assert_eq!(focus.region, Region::Aside);
-        focus.handle(key(KeyCode::F(6)), WIDE);
         assert_eq!(focus.region, Region::Object);
+        focus.handle(key(KeyCode::F(6)), WIDE);
+        assert_eq!(focus.region, Region::Aside);
         focus.handle(key(KeyCode::F(6)), WIDE);
         assert_eq!(focus.region, Region::Conversation);
         focus.handle(shift(KeyCode::F(6)), WIDE);
-        assert_eq!(focus.region, Region::Object, "Shift+F6 goes back");
+        assert_eq!(
+            focus.region,
+            Region::Aside,
+            "Shift+F6 goes left to the aside"
+        );
     }
 
     #[test]
@@ -237,7 +268,7 @@ mod tests {
     #[test]
     fn the_aside_selects_and_opens_without_touching_the_conversation() {
         let mut focus = Focus::composing();
-        focus.handle(key(KeyCode::F(6)), WIDE);
+        focus.handle(shift(KeyCode::F(6)), WIDE);
         assert_eq!(focus.handle(key(KeyCode::Up), WIDE), Action::Ignored);
         assert_eq!(focus.handle(key(KeyCode::Down), WIDE), Action::Moved);
         assert_eq!(focus.handle(key(KeyCode::End), WIDE), Action::Moved);
@@ -252,7 +283,7 @@ mod tests {
             ..WIDE
         };
         let mut none = Focus::composing();
-        none.handle(key(KeyCode::F(6)), empty);
+        none.handle(shift(KeyCode::F(6)), empty);
         assert_eq!(none.handle(key(KeyCode::Enter), empty), Action::Ignored);
     }
 
@@ -263,7 +294,7 @@ mod tests {
         let mut focus = Focus::composing();
         assert_eq!(focus.handle(key(KeyCode::Right), WIDE), Action::Compose);
         assert_eq!(focus.tab, Tab::Nika);
-        focus.handle(key(KeyCode::F(6)), WIDE);
+        focus.handle(shift(KeyCode::F(6)), WIDE);
         focus.handle(key(KeyCode::Down), WIDE);
         assert_eq!(focus.handle(key(KeyCode::Left), WIDE), Action::Ignored);
         assert_eq!(focus.handle(key(KeyCode::Right), WIDE), Action::Moved);
@@ -276,7 +307,7 @@ mod tests {
     #[test]
     fn the_object_scrolls_within_its_lines() {
         let mut focus = Focus::composing();
-        focus.handle(shift(KeyCode::F(6)), WIDE);
+        focus.handle(key(KeyCode::F(6)), WIDE);
         assert_eq!(focus.region, Region::Object);
         assert_eq!(focus.handle(key(KeyCode::Up), WIDE), Action::Ignored);
         assert_eq!(focus.handle(key(KeyCode::PageDown), WIDE), Action::Moved);

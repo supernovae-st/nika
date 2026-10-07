@@ -5,9 +5,11 @@
 //! These tests establish plumbing and decisions, not the real room's confinement.
 
 use super::*;
+use crate::decide::{ChoiceAnswer, ChoiceFuture, ChoiceQuestion, DecisionSeat};
 use crate::rehearse::{
-    Bounds, EffectCounts, FailureRecord, FinalReceipt, FinalState, LedgerFacts, Observation,
-    RecordedCause, Refusal, RehearsalFuture, RehearsedOutput, RoomEvidence, Spent,
+    Bounds, CopyReceipt, Digest, EffectCounts, FailureRecord, FinalReceipt, FinalState, Held,
+    LedgerFacts, Observation, RecordedCause, Refusal, RehearsalFuture, RehearsedOutput,
+    RoomEvidence, Spent,
 };
 use crate::{
     AuthoringPolicy, NativeMode, compile_with_cognition, compile_with_cognition_rehearsed,
@@ -16,6 +18,7 @@ use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, ResponseFormat,
     StopReason, TokenUsage,
 };
+use std::collections::VecDeque;
 use std::sync::{
     Mutex,
     atomic::{AtomicUsize, Ordering},
@@ -24,6 +27,8 @@ use std::time::Duration;
 
 const INTENT: &str = "Write the text hello to ./out/result.txt.";
 const TARGET: &str = "./out/result.txt";
+/// The input a request that reads names, copied into the room by the copying modes.
+const SOURCE: &str = "./in/source.txt";
 
 fn source(directories: bool) -> String {
     format!(
@@ -112,7 +117,10 @@ enum Mode {
     DirtyRoom,
     Engine,
     StopAtBound,
-    TimeBoundByDirectories,
+    /// The run reads [`SOURCE`] and writes its text to [`TARGET`], both held whole.
+    Copied,
+    /// The same run, both texts held only as a prefix cut at the preview bound.
+    Prefixed,
 }
 
 struct Host {
@@ -173,9 +181,7 @@ fn report(candidate: &str, mode: Mode) -> RehearsalReport {
     observed.ledger = LedgerFacts::clean(Vec::new());
     observed.finals = vec![FinalReceipt::new(TARGET, FinalState::Absent)];
     let failed = candidate.contains("create_dirs: false") || matches!(mode, Mode::Engine);
-    let stopped = matches!(mode, Mode::StopAtBound)
-        || (matches!(mode, Mode::TimeBoundByDirectories)
-            && candidate.contains("create_dirs: false"));
+    let stopped = matches!(mode, Mode::StopAtBound);
     let outcome = if matches!(mode, Mode::Missing) {
         Rehearsal::Missing {
             outputs: vec![TARGET.into()],
@@ -195,6 +201,25 @@ fn report(candidate: &str, mode: Mode) -> RehearsalReport {
             task: "save".into(),
             code: "synthetic-write-failure".into(),
             message: "the parent directory is absent".into(),
+        }
+    } else if matches!(mode, Mode::Copied | Mode::Prefixed) {
+        let bytes = Digest::of(b"hello");
+        let held = if matches!(mode, Mode::Copied) {
+            Held::Whole("hello".into())
+        } else {
+            Held::Preview("hel".into())
+        };
+        let copy = CopyReceipt::new(SOURCE, bytes.clone(), Some(bytes.clone()), held.clone());
+        observed.copies = vec![copy];
+        let written = FinalState::File {
+            digest: bytes,
+            held,
+        };
+        observed.finals = vec![FinalReceipt::new(TARGET, written)];
+        observed.ledger = LedgerFacts::clean(vec![TARGET.into()]);
+        observed.spent = Spent::new(5, 5);
+        Rehearsal::Passed {
+            outputs: vec![RehearsedOutput::new(TARGET, "hello")],
         }
     } else {
         let bytes = crate::rehearse::Digest::of(b"hello");
@@ -252,6 +277,25 @@ async fn compiled(request: &CompileRequest, author: &Author, host: &Host) -> Com
     .unwrap()
 }
 
+/// The same greeting through the sketch door: one write the compiler emits from the graph and its
+/// typed content fill.
+fn sketch_request(repairs: u32) -> CompileRequest {
+    CompileRequest::create(INTENT).with_authoring_policy(
+        AuthoringPolicy::new("mock/author", 4096, Duration::from_secs(2))
+            .with_native(NativeMode::Sketch)
+            .with_repairs(repairs),
+    )
+}
+
+fn sketched() -> Author {
+    let graph = json!({"name": "greeting", "tasks": [{"id": "save", "verb": "invoke",
+        "tool": "nika:write", "purpose": "save the greeting", "writes": [TARGET]}],
+        "questions": [], "gaps": [], "notes": "graph"});
+    let fills = json!({"fills": [{"task": "save", "field": "args.content", "value": "hello"}],
+        "notes": "fills"});
+    Author::new(vec![graph.to_string(), fills.to_string()])
+}
+
 fn reports(out: &CompileOutcome) -> &[Value] {
     out.provenance.decision.as_ref().unwrap()["rehearsal"]["reports"]
         .as_array()
@@ -259,49 +303,17 @@ fn reports(out: &CompileOutcome) -> &[Value] {
 }
 
 #[tokio::test]
-async fn native_run_failure_repairs_within_the_original_budget() {
-    let author = Author::new(vec![answer(&source(false)), answer(&source(true))]);
-    let host = Host::new(Mode::ByDirectories);
-    let out = compiled(&request(1), &author, &host).await;
-    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
-    assert_eq!(author.authored.load(Ordering::SeqCst), 2);
-    assert_eq!(
-        host.candidates.lock().unwrap().len(),
-        2,
-        "the final barrier must not rerun the accepted candidate"
-    );
-    assert!(author.seen.lock().unwrap()[1].contains("run_failure"));
-    assert!(
-        out.candidate
-            .as_ref()
-            .unwrap()
-            .contains("create_dirs: true")
-    );
-    assert_eq!(reports(&out)[0]["outcome"]["kind"], "failed");
-    assert_eq!(reports(&out)[1]["outcome"]["kind"], "passed");
-}
-
-#[tokio::test]
-async fn failed_rehearsal_with_no_repair_budget_never_becomes_ready() {
-    let author = Author::new(vec![answer(&source(false))]);
-    let out = compiled(&request(0), &author, &Host::new(Mode::ByDirectories)).await;
-    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
-    assert_eq!(author.authored.load(Ordering::SeqCst), 1);
-    assert_eq!(reports(&out).len(), 1);
-}
-
-#[tokio::test]
 async fn a_missing_output_is_not_a_completed_success() {
-    let author = Author::new(vec![answer(&source(true))]);
-    let out = compiled(&request(0), &author, &Host::new(Mode::Missing)).await;
+    let author = sketched();
+    let out = compiled(&sketch_request(0), &author, &Host::new(Mode::Missing)).await;
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(reports(&out)[0]["outcome"]["kind"], "missing");
 }
 
 #[tokio::test]
 async fn a_safe_not_run_is_explicit_and_does_not_invent_outputs() {
-    let author = Author::new(vec![answer(&source(true))]);
-    let out = compiled(&request(0), &author, &Host::new(Mode::NotRun)).await;
+    let author = sketched();
+    let out = compiled(&sketch_request(0), &author, &Host::new(Mode::NotRun)).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(reports(&out)[0]["outcome"]["kind"], "not_run");
     assert_eq!(reports(&out)[0]["attempt"], "never_attempted");
@@ -315,71 +327,20 @@ async fn a_safe_not_run_is_explicit_and_does_not_invent_outputs() {
 #[tokio::test]
 async fn invalid_harness_or_engine_failure_never_buys_an_author_repair() {
     for mode in [Mode::WrongDigest, Mode::DirtyRoom, Mode::Engine] {
-        let author = Author::new(vec![answer(&source(true)), answer(&source(true))]);
-        let out = compiled(&request(3), &author, &Host::new(mode)).await;
+        let author = sketched();
+        let out = compiled(&sketch_request(3), &author, &Host::new(mode)).await;
         assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
-        assert_eq!(author.authored.load(Ordering::SeqCst), 1);
+        // The sketch and its fills, and no authoring after the host's fault.
+        assert_eq!(author.authored.load(Ordering::SeqCst), 2);
         assert_eq!(reports(&out)[0]["decision"]["kind"], "stop");
     }
 }
 
 #[tokio::test]
-async fn a_stopped_rehearsal_with_no_repair_budget_is_not_ready_and_counts_its_attempt() {
-    let author = Author::new(vec![answer(&source(true))]);
-    let out = compiled(&request(0), &author, &Host::new(Mode::StopAtBound)).await;
-    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
-    assert_eq!(author.authored.load(Ordering::SeqCst), 1);
-    assert_eq!(reports(&out).len(), 1);
-    assert_eq!(reports(&out)[0]["outcome"]["kind"], "not_run");
-    assert_eq!(reports(&out)[0]["decision"]["kind"], "repair");
-    assert_eq!(reports(&out)[0]["decision"]["code"], "rehearsal_time_bound");
-    assert_eq!(
-        out.provenance.decision.as_ref().unwrap()["rehearsal"]["usage"]["attempts"],
-        1
-    );
-    assert_eq!(reports(&out)[0]["attempt"], "stopped");
-}
-
-#[tokio::test]
-async fn a_time_bound_repairs_within_the_original_budget_and_keeps_both_attempts() {
-    let author = Author::new(vec![answer(&source(false)), answer(&source(true))]);
-    let host = Host::new(Mode::TimeBoundByDirectories);
-    let out = compiled(&request(1), &author, &host).await;
-    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
-    assert_eq!(author.authored.load(Ordering::SeqCst), 2);
-    assert_eq!(host.candidates.lock().unwrap().len(), 2);
-    assert!(
-        out.candidate
-            .as_ref()
-            .unwrap()
-            .contains("create_dirs: true")
-    );
-    assert_eq!(reports(&out).len(), 2);
-    assert_eq!(reports(&out)[0]["attempt"], "stopped");
-    assert_eq!(reports(&out)[0]["outcome"]["kind"], "not_run");
-    assert_eq!(reports(&out)[0]["decision"]["kind"], "repair");
-    assert_eq!(reports(&out)[0]["decision"]["code"], "rehearsal_time_bound");
-    let diagnostic: Value =
-        serde_json::from_str(reports(&out)[0]["decision"]["message"].as_str().unwrap()).unwrap();
-    assert_eq!(
-        diagnostic,
-        json!({"kind": "run_failure", "cause": "time_bound"})
-    );
-    assert_eq!(reports(&out)[1]["attempt"], "completed");
-    assert_eq!(reports(&out)[1]["outcome"]["kind"], "passed");
-    let usage = &out.provenance.decision.as_ref().unwrap()["rehearsal"]["usage"];
-    assert_eq!(usage["attempts"], 2);
-    assert_eq!(usage["elapsed_ms"], 10_002);
-    let seen = author.seen.lock().unwrap();
-    assert!(seen[1].contains("time_bound"));
-    assert!(!seen[1].contains("synthetic time bound"));
-}
-
-#[tokio::test]
 async fn absent_host_keeps_the_existing_entry_source_only() {
-    let author = Author::new(vec![answer(&source(false))]);
+    let author = sketched();
     let out = compile_with_cognition(
-        &request(0),
+        &sketch_request(0),
         crate::Cognition {
             provider: Some(&author),
             seat: None,
@@ -461,38 +422,6 @@ tasks:
 }
 
 #[tokio::test]
-async fn answers_are_baked_before_the_host_sees_the_candidate() {
-    let unbaked = source(true)
-        .replace(
-            "nika: greeting\n",
-            "nika: greeting\nconst:\n  greeting: \"\"\n",
-        )
-        .replace("content: hello", "content: \"${{ const.greeting }}\"");
-    let questions = json!([{"key": "const.greeting", "label": "What greeting?", "answer_type": "text", "why": "the request leaves the greeting open"}]);
-    let wire =
-        json!({"candidate": unbaked, "questions": questions, "gaps": [], "notes": ""}).to_string();
-    let author = Author::new(vec![wire]);
-    let host = Host::new(Mode::ByDirectories);
-    let mut req = CompileRequest::create("Write the greeting I choose to ./out/result.txt.")
-        .with_authoring_policy(request(0).authoring.unwrap());
-    req.answers
-        .insert("const.greeting".into(), "\"hello\"".into());
-    let out = compiled(&req, &author, &host).await;
-    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
-    let candidates = host.candidates.lock().unwrap();
-    assert_eq!(candidates.len(), 1);
-    assert_ne!(
-        candidates[0], unbaked,
-        "the placeholder source is not the final program"
-    );
-    assert_eq!(Some(&candidates[0]), out.candidate.as_ref());
-    assert_eq!(
-        reports(&out)[0]["candidate_sha256"],
-        crate::cognition::knowledge::sha256(&candidates[0])
-    );
-}
-
-#[tokio::test]
 async fn a_changed_final_candidate_cannot_reuse_an_earlier_report() {
     let host = Host::new(Mode::ByDirectories);
     let mut state = Rehearsals::new(Some(&host));
@@ -511,22 +440,9 @@ async fn a_changed_final_candidate_cannot_reuse_an_earlier_report() {
     assert_eq!(reports(&out)[1]["outcome"]["kind"], "failed");
 }
 
+/// A hand-written base with no semantic record keeps its bytes: no author call and no run.
 #[tokio::test]
-async fn repeating_the_same_failed_candidate_stops_without_spending_every_repair() {
-    let author = Author::new(vec![
-        answer(&source(false)),
-        answer(&source(false)),
-        answer(&source(true)),
-    ]);
-    let host = Host::new(Mode::ByDirectories);
-    let out = compiled(&request(3), &author, &host).await;
-    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
-    assert_eq!(author.authored.load(Ordering::SeqCst), 2);
-    assert_eq!(host.candidates.lock().unwrap().len(), 2);
-}
-
-#[tokio::test]
-async fn native_edit_keeps_its_base_and_rehearses_the_revised_source() {
+async fn a_manual_base_edit_is_kept_unrun_with_its_limitation() {
     let author = Author::new(vec![answer(&source(true))]);
     let host = Host::new(Mode::ByDirectories);
     let req = CompileRequest::edit(
@@ -534,58 +450,20 @@ async fn native_edit_keeps_its_base_and_rehearses_the_revised_source() {
         "Create missing parent directories before writing hello to ./out/result.txt.",
     )
     .with_original_intent(INTENT)
-    .with_authoring_policy(request(0).authoring.unwrap());
+    .with_authoring_policy(sketch_request(0).authoring.unwrap());
     let out = compiled(&req, &author, &host).await;
-    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
-    assert_eq!(author.authored.load(Ordering::SeqCst), 1);
-    assert!(author.seen.lock().unwrap()[0].contains("create_dirs: false"));
-    assert_eq!(
-        host.candidates.lock().unwrap().as_slice(),
-        [out.candidate.clone().unwrap()]
-    );
-}
-
-#[tokio::test]
-async fn an_open_question_starts_no_rehearsal_and_its_answer_replays_afresh() {
-    let unbaked = source(true)
-        .replace(
-            "nika: greeting\n",
-            "nika: greeting\nconst:\n  greeting: \"\"\n",
-        )
-        .replace("content: hello", "content: \"${{ const.greeting }}\"");
-    let wire = json!({"candidate": unbaked, "questions": [{"key": "const.greeting", "label": "What greeting?", "answer_type": "text", "why": "the human chooses it"}], "gaps": [], "notes": ""}).to_string();
-    let author = Author::new(vec![wire]);
-    let host = Host::new(Mode::ByDirectories);
-    let req = CompileRequest::create("Write the greeting I choose to ./out/result.txt.")
-        .with_authoring_policy(request(0).authoring.unwrap());
-    let waiting = compiled(&req, &author, &host).await;
-    assert_eq!(waiting.status, CompileStatus::Incomplete, "{waiting:#?}");
-    assert!(host.candidates.lock().unwrap().is_empty());
+    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(
-        waiting
-            .questions
-            .iter()
-            .any(|question| question.key == "const.greeting")
+        out.candidate.is_none() || out.candidate == Some(source(false)),
+        "{out:#?}"
     );
-    let mut answered = req.with_plan(waiting.provenance.plan.unwrap());
-    answered
-        .answers
-        .insert("const.greeting".into(), "\"hello\"".into());
-    let finished = compiled(&answered, &author, &host).await;
-    assert_eq!(finished.status, CompileStatus::Ready, "{finished:#?}");
-    assert_eq!(
-        author.authored.load(Ordering::SeqCst),
-        1,
-        "replay does not regenerate a candidate"
-    );
-    assert_eq!(
-        host.candidates.lock().unwrap().len(),
-        1,
-        "the current answered candidate must run afresh"
-    );
-    assert_eq!(
-        Some(&host.candidates.lock().unwrap()[0]),
-        finished.candidate.as_ref()
+    // One typed reading call (choice A); its answer is no revision, so nothing runs.
+    assert_eq!(author.authored.load(Ordering::SeqCst), 1);
+    assert!(host.candidates.lock().unwrap().is_empty());
+    assert!(out.candidate.is_none(), "{out:#?}");
+    assert!(
+        (out.diagnostics.iter()).any(|d| d.message.contains("not a revision answer")),
+        "the limitation is named: {out:#?}"
     );
 }
 
@@ -597,54 +475,38 @@ fn forensic(out: &CompileOutcome) -> Value {
 /// identity; an observed run, a judge's verdict and a READY are never called satisfaction.
 #[tokio::test]
 async fn the_forensic_record_binds_rehearsal_to_the_final_bytes_and_proves_no_satisfaction() {
-    let author = Author::new(vec![answer(&source(false)), answer(&source(true))]);
-    let out = compiled(&request(1), &author, &Host::new(Mode::ByDirectories)).await;
+    // The sketch door's final bytes are bound to its rehearsal, and the compiler wrote them.
+    let out = compiled(
+        &sketch_request(0),
+        &sketched(),
+        &Host::new(Mode::ByDirectories),
+    )
+    .await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let summary = forensic(&out);
-    let evidence = &summary["evidence"];
     let final_sha = crate::cognition::knowledge::sha256(out.candidate.as_deref().unwrap());
-    assert_eq!(evidence["candidate_sha256"], final_sha);
-    assert_eq!(evidence["check"], "clean");
-    assert_eq!(evidence["rehearsal"]["state"], "observed", "{summary:#}");
-    assert_eq!(evidence["rehearsal"]["bound_to_candidate"], true);
-    assert_eq!(evidence["rehearsal"]["outcome"], "passed");
-    assert_eq!(evidence["semantic_judge"]["state"], "recorded");
+    assert_eq!(summary["evidence"]["candidate_sha256"], final_sha);
+    assert_eq!(summary["evidence"]["rehearsal"]["bound_to_candidate"], true);
+    assert_eq!(summary["evidence"]["satisfaction"], "UNKNOWN");
+    assert_eq!(summary["door"]["reason"], "policy_sketch_before_hot");
     assert_eq!(
-        evidence["semantic_judge"]["candidate_binding"],
-        "NOT_CAPTURED"
+        summary["door"]["source_owner"],
+        "compiler_from_model_sketch_and_fills"
     );
-    assert_eq!(evidence["behavioral_judge"]["state"], "not_run");
-    assert_eq!(evidence["satisfaction"], "UNKNOWN");
-    // The repaired attempt keeps its own identity beside the rehearsal that refused it.
-    let attempts = summary["attempts"].as_array().unwrap();
-    assert_eq!(attempts.len(), 2, "{summary:#}");
-    assert_eq!(
-        attempts[0]["candidate_sha256"],
-        reports(&out)[0]["candidate_sha256"]
-    );
-    assert_eq!(attempts[1]["candidate_sha256"], final_sha);
-    let calls = &summary["calls"]["generative"];
-    assert_eq!(calls["by_role"]["native"], 1, "{calls:#}");
-    assert_eq!(calls["by_role"]["native-repair"], 1, "{calls:#}");
-    assert_eq!(
-        calls["count"],
-        out.provenance.authoring.as_ref().unwrap().calls
-    );
-    assert_eq!(calls["usage"], "complete");
-    assert_eq!(summary["door"]["name"], "native_source");
-    assert_eq!(summary["door"]["reason"], "policy_native_only_before_hot");
-    assert_eq!(summary["door"]["source_owner"], "model");
     // READY over a run the host never attempted: visible as such, never as an observation.
-    let author = Author::new(vec![answer(&source(true))]);
-    let out = compiled(&request(0), &author, &Host::new(Mode::NotRun)).await;
+    let out = compiled(&sketch_request(0), &sketched(), &Host::new(Mode::NotRun)).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     let evidence = forensic(&out)["evidence"].clone();
     assert_eq!(evidence["rehearsal"]["state"], "not_run", "{evidence:#}");
     assert_eq!(evidence["rehearsal"]["outcome"], "not_run");
     assert_eq!(evidence["satisfaction"], "UNKNOWN");
     // A report for other bytes is not evidence about this candidate.
-    let author = Author::new(vec![answer(&source(true))]);
-    let out = compiled(&request(0), &author, &Host::new(Mode::WrongDigest)).await;
+    let out = compiled(
+        &sketch_request(0),
+        &sketched(),
+        &Host::new(Mode::WrongDigest),
+    )
+    .await;
     let evidence = forensic(&out)["evidence"].clone();
     assert_eq!(
         evidence["rehearsal"]["bound_to_candidate"], false,
@@ -652,5 +514,518 @@ async fn the_forensic_record_binds_rehearsal_to_the_final_bytes_and_proves_no_sa
     );
 }
 
+fn sketched_open() -> Author {
+    let graph = json!({"name": "greeting", "tasks": [{"id": "save", "verb": "invoke",
+        "tool": "nika:write", "purpose": "save the greeting", "writes": [TARGET]}],
+        "questions": [{"key": "const.greeting", "label": "What greeting?", "answer_type": "text",
+                       "why": "the human chooses it"}],
+        "gaps": [], "notes": "graph"});
+    let fills = json!({"fills": [{"task": "save", "field": "args.content",
+        "value": "${{ const.greeting }}"}], "notes": "fills"});
+    Author::new(vec![graph.to_string(), fills.to_string()])
+}
+
+fn open_request() -> CompileRequest {
+    CompileRequest::create("Write the greeting I choose to ./out/result.txt.")
+        .with_authoring_policy(sketch_request(0).authoring.unwrap())
+}
+
+#[tokio::test]
+async fn a_semantic_open_question_starts_no_rehearsal_and_its_answer_replays_afresh() {
+    let author = sketched_open();
+    let host = Host::new(Mode::ByDirectories);
+    let req = open_request();
+    let waiting = compiled(&req, &author, &host).await;
+    assert_eq!(waiting.status, CompileStatus::Incomplete, "{waiting:#?}");
+    assert!(host.candidates.lock().unwrap().is_empty());
+    assert!(
+        waiting.questions.iter().any(|q| q.key == "const.greeting"),
+        "{waiting:#?}"
+    );
+    // The creation round keeps its replayable record and spends no rehearsal admission.
+    assert!(waiting.provenance.plan.is_some(), "{waiting:#?}");
+    assert!(reports(&waiting).is_empty(), "{waiting:#?}");
+    assert!(
+        !(waiting.diagnostics.iter()).any(|d| d.target == "rehearsal"),
+        "{waiting:#?}"
+    );
+    assert_eq!(author.authored.load(Ordering::SeqCst), 2);
+    let mut answered = req.with_plan(waiting.provenance.plan.unwrap());
+    answered
+        .answers
+        .insert("const.greeting".into(), "\"hello\"".into());
+    let finished = compiled(&answered, &author, &host).await;
+    assert_eq!(finished.status, CompileStatus::Ready, "{finished:#?}");
+    assert_eq!(
+        author.authored.load(Ordering::SeqCst),
+        2,
+        "replay does not regenerate the sketch or its fills"
+    );
+    let candidates = host.candidates.lock().unwrap();
+    assert_eq!(candidates.len(), 1, "the answered candidate runs afresh");
+    assert_eq!(Some(&candidates[0]), finished.candidate.as_ref());
+    // The answer round rehearses the bound bytes once, under the original budget.
+    assert_eq!(reports(&finished).len(), 1, "{finished:#?}");
+    assert_eq!(
+        reports(&finished)[0]["candidate_sha256"],
+        crate::cognition::knowledge::sha256(&candidates[0])
+    );
+    assert_eq!(
+        finished.provenance.decision.as_ref().unwrap()["rehearsal"]["usage"]["attempts"],
+        1
+    );
+}
+
 #[path = "tests/answered_paths.rs"]
 mod answered_paths;
+
+#[tokio::test]
+async fn a_stopped_rehearsal_with_no_repair_budget_is_not_ready_and_counts_its_attempt() {
+    let author = sketched();
+    let out = compiled(&sketch_request(0), &author, &Host::new(Mode::StopAtBound)).await;
+    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(
+        author.authored.load(Ordering::SeqCst),
+        2,
+        "the sketch and its fills"
+    );
+    assert_eq!(reports(&out).len(), 1);
+    assert_eq!(reports(&out)[0]["outcome"]["kind"], "not_run");
+    assert_eq!(reports(&out)[0]["attempt"], "stopped");
+    assert_eq!(reports(&out)[0]["decision"]["code"], "rehearsal_time_bound");
+    assert_eq!(
+        out.provenance.decision.as_ref().unwrap()["rehearsal"]["usage"]["attempts"],
+        1
+    );
+}
+
+#[tokio::test]
+async fn answers_are_baked_before_the_host_sees_the_candidate() {
+    let author = sketched_open();
+    let host = Host::new(Mode::ByDirectories);
+    let mut req = open_request();
+    req.answers
+        .insert("const.greeting".into(), "\"hello\"".into());
+    let out = compiled(&req, &author, &host).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let candidates = host.candidates.lock().unwrap();
+    assert_eq!(candidates.len(), 1);
+    assert!(
+        candidates[0].contains("greeting: \"hello\""),
+        "{}",
+        candidates[0]
+    );
+    assert_eq!(Some(&candidates[0]), out.candidate.as_ref());
+    assert_eq!(
+        reports(&out)[0]["candidate_sha256"],
+        crate::cognition::knowledge::sha256(&candidates[0])
+    );
+}
+
+#[tokio::test]
+async fn an_open_question_starts_no_rehearsal_and_its_answer_replays_afresh() {
+    let author = sketched_open();
+    let host = Host::new(Mode::ByDirectories);
+    let req = open_request();
+    let waiting = compiled(&req, &author, &host).await;
+    assert_eq!(waiting.status, CompileStatus::Incomplete, "{waiting:#?}");
+    assert!(host.candidates.lock().unwrap().is_empty());
+    assert!(
+        waiting.questions.iter().any(|q| q.key == "const.greeting"),
+        "{waiting:#?}"
+    );
+    // The creation round keeps its replayable record and spends no rehearsal admission.
+    assert!(waiting.provenance.plan.is_some(), "{waiting:#?}");
+    assert!(reports(&waiting).is_empty(), "{waiting:#?}");
+    assert!(
+        !(waiting.diagnostics.iter()).any(|d| d.target == "rehearsal"),
+        "{waiting:#?}"
+    );
+    assert_eq!(author.authored.load(Ordering::SeqCst), 2);
+    let mut answered = req.with_plan(waiting.provenance.plan.unwrap());
+    answered
+        .answers
+        .insert("const.greeting".into(), "\"hello\"".into());
+    let finished = compiled(&answered, &author, &host).await;
+    assert_eq!(finished.status, CompileStatus::Ready, "{finished:#?}");
+    assert_eq!(
+        author.authored.load(Ordering::SeqCst),
+        2,
+        "replay does not regenerate the sketch or its fills"
+    );
+    let candidates = host.candidates.lock().unwrap();
+    assert_eq!(candidates.len(), 1, "the answered candidate runs afresh");
+    assert_eq!(Some(&candidates[0]), finished.candidate.as_ref());
+    // The answer round rehearses the bound bytes once, under the original budget.
+    assert_eq!(reports(&finished).len(), 1, "{finished:#?}");
+    assert_eq!(
+        reports(&finished)[0]["candidate_sha256"],
+        crate::cognition::knowledge::sha256(&candidates[0])
+    );
+    assert_eq!(
+        finished.provenance.decision.as_ref().unwrap()["rehearsal"]["usage"]["attempts"],
+        1
+    );
+}
+
+/// What a judge may read of this call's runs: only the last run of exactly these bytes,
+/// completed and vouched for by the room, bound to their digest, each text with whether it was
+/// read whole. No run yet, a run of other bytes, a run the room sends back for repair (an output
+/// missing), a report the room stops on (it names other bytes) and a safe refusal before any
+/// attempt show nothing.
+#[tokio::test]
+async fn the_observation_is_the_vouched_run_of_these_exact_bytes() {
+    let req = CompileRequest::create("Read ./in/source.txt and write it to ./out/result.txt.");
+    let mut out = crate::initial();
+    nika_compile::surface::finish(source(true), &mut out);
+    assert!(ready(&out), "{out:#?}");
+    for (mode, text, whole) in [
+        (Mode::Copied, "hello", true),
+        (Mode::Prefixed, "hel", false),
+    ] {
+        let host = Host::new(mode);
+        let mut state = Rehearsals::new(Some(&host));
+        assert_eq!(state.observed(&source(true)), None, "no run yet");
+        assert!(matches!(
+            state.inspect(&req, &out).await.result,
+            Result::Proceed
+        ));
+        let observed = json!({
+            "candidate_sha256": crate::cognition::knowledge::sha256(&source(true)),
+            "inputs": [{"path": SOURCE, "text": text, "read_whole": whole}],
+            "outputs": [{"path": TARGET, "text": text, "written": true, "read_whole": whole}],
+        });
+        assert_eq!(state.observed(&source(true)), Some(observed));
+        assert_eq!(
+            state.observed(&source(false)),
+            None,
+            "another candidate's run"
+        );
+    }
+    let greeting = request(0);
+    let unvouched = [
+        (Mode::Missing, &greeting, "repair"),
+        (Mode::WrongDigest, &greeting, "stop"),
+        (Mode::NotRun, &req, "proceed"),
+    ];
+    for (mode, asked, decided) in unvouched {
+        let host = Host::new(mode);
+        let mut state = Rehearsals::new(Some(&host));
+        let decision = match state.inspect(asked, &out).await.result {
+            Result::Proceed => "proceed",
+            Result::Repair(_) => "repair",
+            Result::Stop(_) => "stop",
+        };
+        assert_eq!(decision, decided);
+        assert_eq!(state.observed(&source(true)), None, "{decided}");
+        assert_eq!(host.candidates.lock().unwrap().as_slice(), [source(true)]);
+    }
+}
+
+/// The selected judge of the sketch door's greeting: it answers each question its script names,
+/// in order, and keeps every question; a question the script does not expect panics.
+struct Judging {
+    script: Mutex<VecDeque<(&'static str, &'static str)>>,
+    asked: Mutex<Vec<ChoiceQuestion>>,
+}
+
+const JUDGE: &str = "mock/typed-judge";
+
+impl Judging {
+    fn new<const N: usize>(script: [(&'static str, &'static str); N]) -> Self {
+        Self {
+            script: Mutex::new(script.into_iter().collect()),
+            asked: Mutex::new(Vec::new()),
+        }
+    }
+
+    fn asked(&self) -> Vec<ChoiceQuestion> {
+        self.asked.lock().unwrap().clone()
+    }
+
+    /// The scripted answers no question asked for.
+    fn left(&self) -> usize {
+        self.script.lock().unwrap().len()
+    }
+}
+
+impl DecisionSeat for Judging {
+    fn name(&self) -> &str {
+        JUDGE
+    }
+
+    fn choose<'a>(&'a self, question: &'a ChoiceQuestion) -> ChoiceFuture<'a> {
+        Box::pin(async move {
+            self.asked.lock().unwrap().push(question.clone());
+            let (id, choice) = (self.script.lock().unwrap().pop_front())
+                .unwrap_or_else(|| panic!("an unscripted question: {}", question.id));
+            assert_eq!(question.id, id);
+            Ok(ChoiceAnswer::new(choice, JUDGE))
+        })
+    }
+}
+
+/// The sketch door's greeting, judged by `judge` (`host`: the room that rehearses it).
+async fn judged_greeting(judge: &Judging, host: Option<&Host>) -> CompileOutcome {
+    let author = sketched();
+    let cognition = crate::Cognition {
+        provider: Some(&author),
+        seat: Some(judge),
+    };
+    let host = host.map(|host| host as &dyn Rehearse);
+    let out = compile_with_cognition_rehearsed(&sketch_request(0), cognition, host).await;
+    assert_eq!(
+        author.authored.load(Ordering::SeqCst),
+        2,
+        "the sketch and its fills"
+    );
+    out.unwrap()
+}
+
+/// A disagreement no part locates is decided by this compile's run of the same bytes (R6): the
+/// judge doubts the whole request, carries its one part and names no task doing more, then is
+/// shown the run the evidence made of the candidate (nothing read, the greeting written whole)
+/// and finds it consistent. The candidate is READY on that judgment, the only one asked over
+/// the run, and the barrier reuses the run the judge read.
+#[tokio::test]
+async fn a_disagreement_is_decided_by_this_compiles_run_of_the_same_bytes() {
+    let host = Host::new(Mode::ByDirectories);
+    let judge = Judging::new([
+        ("verify-request", "unfaithful"),
+        ("verify-part-0", "carried"),
+        ("verify-extra", "only_requested"),
+        ("verify-observed", "consistent"),
+    ]);
+    let out = judged_greeting(&judge, Some(&host)).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(judge.left(), 0);
+    let candidate = out.candidate.clone().unwrap();
+    let ran = host.candidates.lock().unwrap().clone();
+    assert_eq!(
+        ran,
+        std::slice::from_ref(&candidate),
+        "one run, reused by the barrier"
+    );
+    let asked = judge.asked();
+    let ids: Vec<&str> = asked.iter().map(|q| q.id.as_str()).collect();
+    let questions = [
+        "verify-request",
+        "verify-part-0",
+        "verify-extra",
+        "verify-observed",
+    ];
+    assert_eq!(ids, questions);
+    let observation = json!({
+        "candidate_sha256": crate::cognition::knowledge::sha256(&candidate),
+        "inputs": [],
+        "outputs": [{"path": TARGET, "text": "hello", "written": true, "read_whole": true}],
+    });
+    assert_eq!(asked[3].state["observation"], observation);
+    let over_the_run = ["consistent", "unexercised", "part-0", "task-save", "none"];
+    assert_eq!(asked[3].keys(), over_the_run);
+    assert!(
+        asked[..3]
+            .iter()
+            .all(|q| q.state.get("observation").is_none())
+    );
+    let decision = out.provenance.decision.as_ref().unwrap();
+    let verified = &decision["semantic_verification"][0];
+    assert_eq!(verified["doubt"], json!(["unfaithful"]));
+    for list in ["defects", "unknown", "contested", "unsettled"] {
+        assert_eq!(verified[list], json!([]), "{list}: {verified:#}");
+    }
+    let counts = (&verified["attempted"], &verified["consumed"]);
+    assert_eq!(counts, (&json!(4), &json!(4)));
+    assert_eq!(verified["settled_by"], "verify-observed");
+    let run = &verified["questions"][3];
+    assert_eq!(run["choice"], "consistent");
+    // The record keeps what the judge read by digest and size, never the texts.
+    let sha256 = crate::cognition::knowledge::sha256;
+    let kept = json!({
+        "candidate_sha256": sha256(&candidate),
+        "sha256": sha256(&observation.to_string()),
+        "texts": [{"role": "output", "path": TARGET, "bytes": 5, "sha256": sha256("hello"),
+            "read_whole": true, "written": true}],
+    });
+    assert_eq!(run["observation"], kept);
+    let route = decision["route"].as_array().unwrap();
+    assert!(
+        route
+            .iter()
+            .any(|step| step == "verify: judged (decision_seat)"),
+        "{route:?}"
+    );
+}
+
+/// What a candidate judged and rejected with no defect located offers (the `verify_held`
+/// finding, as the verifier states it).
+const HELD: &str = "The candidate was judged and not accepted, with no defect a repair could start from: it is shown, never offered, and nothing was written. A correction of the request or another verifier can decide it.";
+
+/// Without a host there is no run of these bytes to show: the same doubt stays contested and
+/// nothing is READY; no question is asked over a run. The candidate the judge read is held: shown
+/// as the preview, never offered, its replayable record dropped so no later round asks the same
+/// judge again on these bytes, the finding naming the disagreement and what can decide it.
+#[tokio::test]
+async fn without_a_run_of_the_same_bytes_the_disagreement_is_held() {
+    let judge = Judging::new([
+        ("verify-request", "unfaithful"),
+        ("verify-part-0", "carried"),
+        ("verify-extra", "only_requested"),
+    ]);
+    let out = judged_greeting(&judge, None).await;
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert_eq!((judge.asked().len(), judge.left()), (3, 0));
+    let read = judge.asked()[0].state["candidate_nika"].clone();
+    assert_eq!(out.candidate.as_deref(), read.as_str(), "{out:#?}");
+    assert!(out.check_preview.is_some(), "{out:#?}");
+    assert!(out.requested_boundary.is_none() && out.questions.is_empty());
+    assert_eq!(
+        out.provenance.plan, None,
+        "no replay asks the same judge again"
+    );
+    let decision = out.provenance.decision.as_ref().unwrap();
+    let verified = &decision["semantic_verification"][0];
+    let unobserved = "no trial run of these exact bytes exists in this compile";
+    assert_eq!(verified["contested"], json!([INTENT]));
+    assert_eq!(verified["unsettled"], json!([unobserved]));
+    assert_eq!(verified["doubt"], json!(["unfaithful"]));
+    assert_eq!(
+        (&verified["defects"], &verified["unknown"]),
+        (&json!([]), &json!([]))
+    );
+    let held = (out.diagnostics.iter()).find(|d| d.target == "verify_held");
+    let held = held.expect("the held candidate is named");
+    assert_eq!(
+        (held.kind, held.message.as_str()),
+        (DiagnosticKind::Applied, HELD)
+    );
+    assert!(!(out.diagnostics.iter()).any(|d| d.target == "verify_resume"));
+    let disagreement = format!(
+        "The judge did not accept the request as carried (unfaithful) and located no defect a repair could start from; the same judge asked again decides nothing ({unobserved}). Nothing is READY on it. Next: a correction of the request, or another verifier."
+    );
+    let named = (out.diagnostics.iter()).filter(|d| d.target == "semantic_verification");
+    let named: Vec<&str> = named.map(|d| d.message.as_str()).collect();
+    assert_eq!(named, [disagreement.as_str()]);
+    let route = decision["route"].as_array().unwrap();
+    let held = "verify: not ready, candidate held";
+    assert!(route.iter().any(|step| step == held), "{route:?}");
+}
+
+/// A faithful verdict on the bytes is weighed against this compile's run of them (A1): the one
+/// part is asked again over what the run wrote, after the verdict and never in it. An output the
+/// judge finds contradicting the part is a defect located in the run: nothing is READY, the
+/// candidate is withdrawn past its last repair round, and the defect names the task the judge
+/// points to there. The same run found carrying the part leaves the faithful verdict READY.
+#[tokio::test]
+async fn a_faithful_verdict_is_weighed_against_this_compiles_run_of_the_same_bytes() {
+    let host = Host::new(Mode::ByDirectories);
+    let judge = Judging::new([
+        ("verify-request", "faithful"),
+        ("verify-observed-part-0", "missing"),
+        ("verify-observed-part-0-point", "task-save"),
+    ]);
+    let out = judged_greeting(&judge, Some(&host)).await;
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
+    assert_eq!(out.candidate, None);
+    assert_eq!(judge.left(), 0);
+    let asked = judge.asked();
+    assert!(asked[0].state.get("observation").is_none());
+    let output = &asked[1].state["observation"]["outputs"][0];
+    assert_eq!(
+        (&output["path"], &output["text"]),
+        (&json!(TARGET), &json!("hello"))
+    );
+    let verified = &out.provenance.decision.as_ref().unwrap()["semantic_verification"][0];
+    let part = INTENT.trim_end_matches('.');
+    assert_eq!(verified["defects"], json!([part]));
+    let note = "in the trial run, the judge points to the task save";
+    assert_eq!(verified["notes"], json!([{"defect": part, "note": note}]));
+    assert_eq!(
+        (&verified["rejected"], &verified["settled"]),
+        (&json!(true), &json!(false))
+    );
+
+    let host = Host::new(Mode::ByDirectories);
+    let judge = Judging::new([
+        ("verify-request", "faithful"),
+        ("verify-observed-part-0", "carried"),
+    ]);
+    let out = judged_greeting(&judge, Some(&host)).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(judge.left(), 0);
+    let verified = &out.provenance.decision.as_ref().unwrap()["semantic_verification"][0];
+    assert_eq!(verified["settled_by"], "verify-request");
+    assert_eq!(verified["questions"][1]["choice"], "carried");
+}
+
+/// An answer round judges the bytes it replays over a run of them (R6, A1): the creation round
+/// asks the greeting and runs nothing; once it is answered, the round rehearses the bound bytes
+/// before its judge reads them, so a rejection no part locates is decided by that run (here found
+/// consistent: READY on `verify-observed`), and the final barrier reuses the same run. Without the
+/// run, the same answers hold the candidate (`a_disagreement_without_a_run_*`).
+#[tokio::test]
+async fn an_answer_round_decides_a_disagreement_over_a_run_of_the_bytes_it_replays() {
+    let author = sketched_open();
+    let host = Host::new(Mode::ByDirectories);
+    let req = open_request();
+    let opened = Judging::new([]);
+    let cognition = crate::Cognition {
+        provider: Some(&author),
+        seat: Some(&opened),
+    };
+    let waiting = compile_with_cognition_rehearsed(&req, cognition, Some(&host)).await;
+    let waiting = waiting.unwrap();
+    assert!(host.candidates.lock().unwrap().is_empty(), "{waiting:#?}");
+    let mut answered = req.with_plan(waiting.provenance.plan.unwrap());
+    let greeting = "\"hello\"".to_owned();
+    answered.answers.insert("const.greeting".into(), greeting);
+    let judge = Judging::new([
+        ("verify-request", "unfaithful"),
+        ("verify-part-0", "carried"),
+        ("verify-extra", "only_requested"),
+        ("verify-observed", "consistent"),
+    ]);
+    let cognition = crate::Cognition {
+        provider: Some(&author),
+        seat: Some(&judge),
+    };
+    let out = compile_with_cognition_rehearsed(&answered, cognition, Some(&host)).await;
+    let out = out.unwrap();
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(judge.left(), 0);
+    let asked = judge.asked();
+    let output = &asked[3].state["observation"]["outputs"][0];
+    assert_eq!(
+        (&output["path"], &output["text"]),
+        (&json!(TARGET), &json!("hello"))
+    );
+    assert!(
+        asked[..3]
+            .iter()
+            .all(|q| q.state.get("observation").is_none())
+    );
+    let ran = host.candidates.lock().unwrap().clone();
+    assert_eq!(
+        ran,
+        [out.candidate.clone().unwrap()],
+        "one run, reused by the barrier"
+    );
+    let verified = &out.provenance.decision.as_ref().unwrap()["semantic_verification"][0];
+    assert_eq!(verified["settled_by"], "verify-observed");
+}
+
+/// A path the request names after a bare verb (« Save ./out/result.txt … ») that the candidate
+/// writes and never reads is its output, never an input the room must find: the host is asked to
+/// read it back as a target, and nothing asks it to copy it in.
+#[tokio::test]
+async fn a_stated_path_the_candidate_only_writes_is_a_target_never_an_input() {
+    let host = Host::new(Mode::ByDirectories);
+    let request = CompileRequest::create("Save ./out/result.txt with the text hello.")
+        .with_authoring_policy(sketch_request(0).authoring.unwrap());
+    let out = compiled(&request, &sketched(), &host).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    let inputs = host.inputs.lock().unwrap().clone();
+    let targets = host.targets.lock().unwrap().clone();
+    assert_eq!(inputs, [Vec::<String>::new()], "the output is no input");
+    assert_eq!(targets, [vec![TARGET.to_owned()]]);
+}

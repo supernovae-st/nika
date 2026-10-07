@@ -101,6 +101,7 @@ wrappers = [
   "nika-onboard",          # L4 authoring: bounded Tokio timeout around an explicitly injected ProviderInferDyn call; no ambient provider selection
   "nika-compile",          # L4 deterministic Compile core: tokio dev-dep only for hermetic async integration tests
   "nika-compile-cognition", # L4 authoring (ADR-140): bounded Tokio timeout around explicitly injected ProviderInferDyn calls
+  "nika-compile-seats",    # L4 decision seat (ADR-146): the one bounded Tokio timeout around a ProviderChoice's single injected ProviderInferDyn call · no retry
   "nika-cli-host",         # L4 authoring adapter: current-thread executor only after explicit --authoring-model opt-in
   "nika-models",           # L4 local-models unit (descended from nika-cli 2026-07-12): current-thread runtime blocks the Hub pull on the nika-http seam (the registry #452 idiom)
   "nika-registry-client",  # L2 service (descended from nika-cli 2026-07-12): tokio dev-dep ONLY — the tests park a current-thread executor around the async resolve (zero runtime tokio dep · the L4 shim owns the production executor)

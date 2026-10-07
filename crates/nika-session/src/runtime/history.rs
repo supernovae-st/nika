@@ -6,25 +6,22 @@
 //! across inference. Hash chaining detects accidental damage, not forgery
 //! by someone who can rewrite the private history directory.
 
-use std::fs::{File, TryLockError};
-use std::io::{self, Read as _};
+use std::fs::File;
+use std::io::{self, BufRead as _, BufReader};
 use std::path::Path;
 use std::time::Duration;
 
+use nika_display::front_door::recovery;
 use nika_fs::OwnedDir;
 use serde::{Deserialize, Serialize};
 
 const LOG: &str = "events.ndjson";
-const MAX_LOG_BYTES: usize = 16 * 1024 * 1024;
-const MAX_RECORD_BYTES: usize = 1024 * 1024;
-const MAX_INPUT_BYTES: usize = 64 * 1024;
 const GENESIS: &str = "0000000000000000000000000000000000000000000000000000000000000000";
 /// How long a lease may look held before it is refused as foreign. A sibling
 /// thread spawning a child (a run, an exec) duplicates this process's
 /// descriptors until the child's exec closes them, and a BSD `flock` rides the
 /// duplicate for that window: a bounded wait tells that window from an owner.
 const LEASE_GRACE: Duration = Duration::from_millis(250);
-const LEASE_STEP: Duration = Duration::from_millis(5);
 
 pub(super) enum HistoryMode {
     Ephemeral,
@@ -50,6 +47,22 @@ pub(super) struct Saved {
     /// otherwise. Absent from records that had none, whose bytes stay exactly as before.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub round: Option<serde_json::Value>,
+    /// Bounded, byte-bound program evidence; kept opaque across unknown versions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub programs: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inference_checkpoint: Option<serde_json::Value>,
+    /// The last observed run (a `run_view::KeptRun` value), kept unchanged when unreadable;
+    /// absent from records that had none. A present `null` is refused, never an absence.
+    #[serde(default, deserialize_with = "present")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_run: Option<serde_json::Value>,
+}
+
+fn present<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<serde_json::Value>, D::Error> {
+    let value = serde_json::Value::deserialize(d)?;
+    let null = || serde::de::Error::custom("a kept run is present but null");
+    (!value.is_null()).then_some(Some(value)).ok_or_else(null)
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize)]
@@ -97,7 +110,7 @@ enum Event {
         input: String,
     },
     Completed {
-        state: Saved,
+        state: Box<Saved>,
         run: RunState,
         authority: AuthorityState,
         effect: EffectState,
@@ -131,6 +144,13 @@ impl Record {
     }
 }
 
+/// Presentation acknowledgements rebuilt from journal events, never accounting or authority.
+#[derive(Default)]
+struct Notices {
+    unreported_effect: bool,
+    run_notified: bool,
+}
+
 pub(super) struct History {
     dir: OwnedDir,
     _lease: File,
@@ -143,6 +163,7 @@ pub(super) struct History {
     pub run: RunState,
     pub authority: AuthorityState,
     pub uncertain: bool,
+    notices: Notices,
     pub restored: bool,
     pub monetary_seen: bool,
 }
@@ -165,8 +186,13 @@ impl History {
             dir.as_file().sync_all()?;
             dir = child;
         }
-        let lease = dir.open_lock("session.lock")?;
-        acquire(&lease)?;
+        let lease = dir
+            .hold_lock("session.lock", LEASE_GRACE)
+            .map_err(|error| {
+                io::Error::other(format!(
+                    "cannot exclusively open conversation history: {error}"
+                ))
+            })?;
         let mut history = Self {
             dir,
             _lease: lease,
@@ -179,6 +205,7 @@ impl History {
             run: RunState::Idle,
             authority: AuthorityState::None,
             uncertain: false,
+            notices: Notices::default(),
             restored: false,
             monetary_seen: false,
         };
@@ -193,30 +220,32 @@ impl History {
             Err(error) => return Err(error),
         }
         if history.restored {
-            // Expire pending authority and record uncertainty before any new
-            // operation. Recovery never calls a reasoner or a workflow.
+            // Replay marks reported uncertainty; pending authority still expires.
+            // Recovery never reconciles effects or calls a reasoner or a workflow.
             history.append(Event::Recovered)?;
         }
         Ok(history)
     }
 
     fn replay(&mut self, file: File) -> io::Result<()> {
-        let mut bytes = Vec::new();
-        file.take(MAX_LOG_BYTES as u64 + 1)
-            .read_to_end(&mut bytes)?;
-        if bytes.len() > MAX_LOG_BYTES {
-            return Err(invalid(
-                "conversation history exceeds 16 MiB; preserve it for migration",
-            ));
+        // Retain one record at a time, not the entire journal. Its size is not a
+        // conversation allowance; every record still passes the same chain checks.
+        let mut reader = BufReader::new(file);
+        let mut line = String::new();
+        while reader.read_line(&mut line)? != 0 {
+            if !line.ends_with('\n') {
+                return Err(invalid(
+                    "conversation history is empty or truncated; nothing was reset",
+                ));
+            }
+            line.pop();
+            self.accept_line(&line)?;
+            line.clear();
         }
-        let text = String::from_utf8(bytes).map_err(|_| invalid("history is not UTF-8"))?;
-        if text.is_empty() || !text.ends_with('\n') {
+        if self.sequence == 0 {
             return Err(invalid(
                 "conversation history is empty or truncated; nothing was reset",
             ));
-        }
-        for line in text.lines() {
-            self.accept_line(line)?;
         }
         self.restored = true;
         Ok(())
@@ -233,11 +262,6 @@ impl History {
         };
         record.digest = record.digest()?;
         let text = serde_json::to_string(&record)?;
-        if text.len() > MAX_RECORD_BYTES || self.bytes + text.len() + 1 > MAX_LOG_BYTES {
-            return Err(invalid(
-                "conversation history capacity reached; preserve it for migration",
-            ));
-        }
         Ok(text)
     }
 
@@ -253,9 +277,6 @@ impl History {
     }
 
     fn accept_line(&mut self, line: &str) -> io::Result<()> {
-        if line.len() > MAX_RECORD_BYTES {
-            return Err(invalid("conversation history record exceeds 1 MiB"));
-        }
         let record: Record = serde_json::from_str(line)?;
         if record.version != 1
             || record.project != self.project
@@ -277,9 +298,6 @@ impl History {
                     self.monetary_seen |=
                         super::money_parse::parse(&input).map_or(true, |p| p.amount.is_some());
                 }
-                if input.len() > MAX_INPUT_BYTES {
-                    return Err(invalid("conversation input exceeds 64 KiB"));
-                }
                 self.started = Some((operation, input));
             }
             Event::Completed {
@@ -287,14 +305,17 @@ impl History {
                 run,
                 authority,
                 effect,
-                ..
+                outcome,
             } if self.started.is_some() => {
                 if state.recent.len() > super::RECENT_TURNS {
                     return Err(invalid(
                         "conversation projection exceeds its context window",
                     ));
                 }
-                self.state = state;
+                self.state = *state;
+                self.notices.unreported_effect |= effect == EffectState::Unknown;
+                self.notices.run_notified &= run == self.run
+                    && !matches!(outcome.as_str(), "run_requested" | "resume_requested");
                 self.run = run;
                 self.authority = authority;
                 self.uncertain |= effect == EffectState::Unknown;
@@ -313,24 +334,16 @@ impl History {
     }
 
     fn recover(&mut self) {
+        let notify = self.notices.unreported_effect
+            || self.started.is_some()
+            || (self.run == RunState::AwaitingObservation && !self.notices.run_notified);
+        self.notices.unreported_effect = false;
+        self.notices.run_notified = self.run == RunState::AwaitingObservation;
         self.uncertain |= self.started.is_some() || self.run == RunState::AwaitingObservation;
         if let Some((Operation::Turn | Operation::Run, input)) = self.started.take() {
-            self.recovery_line(
-                input,
-                "[Interrupted turn: no completed reply was recorded.]",
-            );
+            self.recovery_line(input, recovery::INTERRUPTED_TURN);
         }
-        let note = if self.uncertain {
-            Some(
-                "[An earlier operation has an uncertain result. Nothing was replayed; inspect effects and receipts before proposing a retry.]",
-            )
-        } else if self.authority != AuthorityState::None {
-            Some(
-                "[The earlier proposal or gate expired. Fresh validation and consent are required.]",
-            )
-        } else {
-            None
-        };
+        let note = recovery::conversation_note(notify, self.authority != AuthorityState::None);
         if let Some(note) = note {
             self.recovery_line("(recovery)".to_owned(), note);
         }
@@ -352,22 +365,7 @@ impl History {
     }
 
     pub(super) fn begin(&mut self, operation: Operation, input: &str) -> io::Result<()> {
-        if input.len() > MAX_INPUT_BYTES {
-            return Err(invalid(
-                "conversation input exceeds 64 KiB; operation not started",
-            ));
-        }
-        // Reserve one maximum record for the completion before starting an
-        // effect. An oversized completion still refuses, never drops history.
-        if self.bytes + 2 * MAX_RECORD_BYTES + 2 > MAX_LOG_BYTES {
-            return Err(invalid(
-                "conversation history is full; operation not started",
-            ));
-        }
         let input = crate::broker::redact(input).0;
-        if input.len() > MAX_INPUT_BYTES {
-            return Err(invalid("redacted conversation input exceeds 64 KiB"));
-        }
         self.append(Event::Started { operation, input })
     }
 
@@ -380,7 +378,7 @@ impl History {
         effect: EffectState,
     ) -> io::Result<()> {
         self.append(Event::Completed {
-            state,
+            state: Box::new(state),
             run,
             authority,
             outcome,
@@ -391,25 +389,4 @@ impl History {
 
 fn invalid(message: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidData, message)
-}
-
-/// Take the project's writer lease, or refuse it as held by another opener.
-/// A lease that only looks held for a fork window is acquired within the
-/// grace; one held past it is a foreign owner, named as before.
-fn acquire(lease: &File) -> io::Result<()> {
-    let mut waited = Duration::ZERO;
-    loop {
-        match lease.try_lock() {
-            Ok(()) => return Ok(()),
-            Err(TryLockError::WouldBlock) if waited < LEASE_GRACE => {
-                std::thread::sleep(LEASE_STEP);
-                waited += LEASE_STEP;
-            }
-            Err(error) => {
-                return Err(io::Error::other(format!(
-                    "cannot exclusively open conversation history: {error}"
-                )));
-            }
-        }
-    }
 }

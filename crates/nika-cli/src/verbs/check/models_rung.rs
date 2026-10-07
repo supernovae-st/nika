@@ -8,8 +8,11 @@
 //! crate). The finding TYPE lives beside its renderer
 //! (`nika_display::check_render` · the 15k descent).
 
+#[cfg(test)]
+pub(crate) use nika_cli_host::models_rung::unresolvable_models;
 pub(crate) use nika_cli_host::models_rung::{
-    access_decisions, boot_access_fields, capacity_findings, thinking_findings, unresolvable_models,
+    access_decisions, boot_access_fields, capacity_findings, thinking_findings,
+    unresolvable_models_over,
 };
 pub(crate) use nika_display::check_render::VerdictLayers;
 #[cfg(test)]

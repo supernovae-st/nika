@@ -251,6 +251,9 @@ pub struct TaskRecord {
     /// of the `tasks.<id>` expression namespace (the closed field set in
     /// [`Self::field`] is unchanged — a spec amendment would name it).
     pub integrity: nika_cap::Integrity,
+    /// Peer-reported media evidence with attempt/iteration provenance. This is not a
+    /// `tasks.<id>` expression field, a changed output, or verified filesystem evidence.
+    pub harness_media: Vec<Value>,
     /// Present iff `status == failure` — PLUS the `on_error: skip`
     /// state where status is `skipped` AND the original error stays
     /// readable (spec 05 · the one coexist state).
@@ -308,6 +311,7 @@ impl TaskRecord {
             cause,
             output: Value::Null,
             integrity: nika_cap::Integrity::trusted(),
+            harness_media: Vec::new(),
             error: None,
             attempts: None,
             recovered_from: None,

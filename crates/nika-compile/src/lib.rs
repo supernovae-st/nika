@@ -71,7 +71,7 @@
 mod admitted;
 mod approval;
 mod assemble;
-mod binding;
+use nika_compile_fidelity::binding;
 mod bindings;
 mod doors;
 mod edit;
@@ -87,6 +87,8 @@ pub(crate) mod pattern;
 mod pending_transform;
 mod realize;
 mod retrieve;
+/// The shared lexical reading of explicit Run words, never execution authority.
+pub mod run_words;
 mod seat_cap;
 mod support;
 mod trigger;
@@ -108,6 +110,7 @@ use nika_schema::{FileId, ParseMode, raw::RawWorkflow};
 use serde_json::Value;
 use types::{EditChange, Input};
 
+pub use doors::import::{Substituted, source_revision, substitute};
 pub use doors::intent_sha256;
 pub use materialize::{MaterializeError, materialize_ready};
 pub use nika_compile_reader::hot::{fold, stated_destinations, stated_sources};
@@ -132,11 +135,55 @@ pub mod surface;
 /// failure. Missing values, invalid answers and unsupported user requests are outcomes.
 #[must_use = "the candidate and its authoring questions must be reviewed"]
 pub fn compile(request: &CompileRequest) -> Result<CompileOutcome, CompileError> {
+    compile_judged(request, &[])
+}
+
+/// [`compile`] with the judgments a judge made in THIS round, for the answer round of a semantic
+/// record (slice C): the raw request alone supplies the record, answers, world and money; its
+/// caller is read once, before any money is blanked, and the request the record replays under is
+/// derived here. A judgment settles the whole request only under the binding the core recomputes
+/// from that request and the bytes it emits: data consistency for a trusted host, not an
+/// authentication of the judge (a Rust caller can build a matching `Judgment`), and never a
+/// permission or a consent. Any other request replays exactly as [`compile`] does.
+///
+/// # Errors
+/// The same machinery failures as [`compile`].
+pub fn compile_judged(
+    request: &CompileRequest,
+    judgments: &[ledger::Judgment],
+) -> Result<CompileOutcome, CompileError> {
+    if let Err(refused) = doors::caller(request) {
+        return Ok(*refused);
+    }
+    if (request.plan.as_ref()).is_none_or(|r| r.get("semantic_record").is_none()) {
+        return compile_admitted(request);
+    }
+    // A semantic record's money is read as the seats' door read it: one derivation.
+    let (reading, money) = match admitted::reading(request) {
+        Ok(read) => read,
+        Err(why) => return Ok(admitted::refused(&why)),
+    };
+    let mut outcome = initial();
+    if matches!(request.input, Input::Edit { .. }) {
+        doors::semantic_edit(&reading, &mut outcome)?;
+    } else {
+        doors::semantic_round(&reading, judgments, &mut outcome);
+    }
+    if let Some(money) = money {
+        admitted::record(request, money, &mut outcome);
+    }
+    observed::record(request, &mut outcome);
+    Ok(outcome)
+}
+
+/// [`compile`] after its caller guard: the money recursion compiles the normalized request
+/// without comparing it with the raw caller again.
+fn compile_admitted(request: &CompileRequest) -> Result<CompileOutcome, CompileError> {
     // The monetary directives the caller admitted are read as its ceiling, never as business
     // clauses (R4 A6): the reading has none left, so this recursion is one step deep.
     match admitted::read(request) {
         Ok(Some((reading, money))) => {
-            let mut outcome = compile(&reading)?;
+            let mut outcome = compile_admitted(&reading)?;
             admitted::record(request, money, &mut outcome);
             return Ok(outcome);
         }

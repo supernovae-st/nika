@@ -56,6 +56,9 @@ pub(crate) struct UsageSplit {
     pub model_served: Option<String>,
     /// `gen_ai.response.id` — the provider's own id for the response.
     pub response_id: Option<String>,
+    /// A harness's session model and how it was learned (`session_config` ·
+    /// `confirmed_selection` · `accepted_request`): reported, never served.
+    pub model_reported: Option<(String, &'static str)>,
     /// Round-trips the transport sent for this task (1 = the seat
     /// answered first time · summed across a `schema:` task's re-asks
     /// like the meters). `None` = the verb reported no transport (a
@@ -95,6 +98,7 @@ impl UsageSplit {
             reasoning,
             model_served: None,
             response_id: None,
+            model_reported: None,
             attempts: None,
             waited_ms: None,
             retried_on: Vec::new(),
@@ -193,7 +197,9 @@ impl UsageSplit {
     /// A split worth carrying — a metered call with signal, a wire that
     /// named the responder, or a transport that sent a round-trip.
     pub(crate) fn carried(self) -> Option<Box<Self>> {
-        let named = self.model_served.is_some() || self.response_id.is_some();
+        let named = self.model_served.is_some()
+            || self.response_id.is_some()
+            || self.model_reported.is_some();
         (self.has_signal() || named || self.attempts.is_some() || !self.inference_calls.is_empty())
             .then(|| Box::new(self))
     }
@@ -245,6 +251,10 @@ pub(crate) fn push_usage_fields(
     }
     if let Some(id) = &split.response_id {
         fields.push(("response_id", s(id)));
+    }
+    if let Some((model, source)) = &split.model_reported {
+        fields.push(("model_reported", s(model)));
+        fields.push(("model_reported_source", s(source)));
     }
     if let Some(attempts) = split.attempts {
         fields.push(("attempts", i(i64::from(attempts))));

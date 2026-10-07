@@ -290,6 +290,27 @@ impl FsWriteDyn for RootedFs {
         })
         .await
     }
+
+    /// Remove a contained regular file and nothing else: the room's own path
+    /// law first (absolute, `..` and non-UTF-8 refused), a raw spelling that
+    /// names no final file refused before `.` is dropped, every parent opened
+    /// without following it (nothing created), then the final name classified
+    /// without following it and unlinked in that held parent. A write:
+    /// refused outside the writing phases. Nothing is refunded and the write
+    /// history is kept.
+    ///
+    /// CANCEL SAFETY: the registered removal runs to completion and a drain
+    /// waits for it; a dropped future does not prove it did not happen.
+    async fn remove_regular_file(&self, path: &Path) -> Result<(), FsError> {
+        let relative = room_relative(path)?;
+        crate::remove::final_name(path)?;
+        let phase = self.write_phase(path)?;
+        let (room, shown) = (Arc::clone(&self.room), path.to_path_buf());
+        self.blocking(Some(phase), path, move || {
+            remove_regular_contained(&room, &relative, &shown)
+        })
+        .await
+    }
 }
 
 impl FsMetaDyn for RootedFs {
@@ -651,6 +672,14 @@ fn remove_contained(room: &OwnedDir, relative: &Path, path: &Path) -> Result<(),
     let (parents, name) = split_leaf(relative, path)?;
     let dir = open_dirs(room, parents, path)?;
     unlinkat(&dir, name, UnlinkatFlags::NoRemoveDir).map_err(|errno| errno_error(errno, path))
+}
+
+/// The regular-only removal: the same parent walk as [`remove_contained`],
+/// then the shared helper on the held parent.
+fn remove_regular_contained(room: &OwnedDir, relative: &Path, path: &Path) -> Result<(), FsError> {
+    let (parents, name) = split_leaf(relative, path)?;
+    let dir = open_dirs(room, parents, path)?;
+    crate::remove::remove_regular_at(&dir, name, path)
 }
 
 /// The entries of `dir` other than `.` and `..`, each with the type the

@@ -19,6 +19,7 @@ blake3      = { workspace = true }   # content-addressed hashing (the CAS key)
 tokio       = { workspace = true, features = ["fs"] }
 
 [dev-dependencies]
+nika-fs = { path = "../nika-fs", version = "0.122.0" }
 proptest = { workspace = true }
 tempfile = { workspace = true }
 tokio    = { workspace = true, features = ["rt", "macros", "fs"] }

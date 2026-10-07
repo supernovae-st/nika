@@ -104,15 +104,15 @@ fn probes(example: &[Value]) -> impl Iterator<Item = Value> + '_ {
         .chain(example.iter().map(|row| json!({"records": [row]})))
 }
 
-/// The repairs a request may buy, the policy's own (at most five): one allowance serves every
+/// The repairs a request may buy, the policy's own as typed: one allowance serves every
 /// transform step and the field-answer replay of a request, never one per clause, and zero buys
 /// no call (R4 A11). The physical call ceiling still bounds each call.
-pub(super) struct Repairs(u32);
+pub(super) struct Repairs(Option<u32>);
 
 impl Repairs {
     /// What the policy still grants this request: its repairs, less the attempts the request
     /// already recorded (a synthesis re-entered after a verifier repair spends the same
-    /// allowance, never a new one).
+    /// allowance, never a new one); no count under a policy that states none.
     pub(super) fn granted(policy: &AuthoringPolicy, out: &CompileOutcome) -> Self {
         let spent = out
             .provenance
@@ -121,7 +121,7 @@ impl Repairs {
             .and_then(|d| d["transform_repairs"].as_array())
             .map_or(0, Vec::len);
         let spent = u32::try_from(spent).unwrap_or(u32::MAX);
-        Self(policy.repairs.min(5).saturating_sub(spent))
+        Self(policy.repairs.map(|repairs| repairs.saturating_sub(spent)))
     }
 
     /// A program a domain law or the spelling law refused is repaired from once while the
@@ -140,10 +140,12 @@ impl Repairs {
         out: &mut CompileOutcome,
     ) -> Result<ProposedTransform, Refusal> {
         let (program, Refusal(why)) = refused;
-        if self.0 == 0 || !repairable(&why) {
+        if self.0 == Some(0) || !repairable(&why) {
             return Err(Refusal(why));
         }
-        self.0 -= 1;
+        if let Some(left) = self.0.as_mut() {
+            *left -= 1;
+        }
         let journaled = journal(out).len();
         let mut asked = state.clone();
         asked["verifier"] = json!({"your_program": program, "refused": why});

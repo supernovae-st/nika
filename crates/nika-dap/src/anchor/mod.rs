@@ -125,6 +125,11 @@ pub fn sidecar_path(trace: &str) -> PathBuf {
     PathBuf::from(format!("{trace}.anchor.json"))
 }
 
+// The doors of the verifier's side inputs (custody keys, this sidecar, the
+// writer lease), owned by the filesystem crate: the selected parent resolved
+// once, the final name never followed, nothing created, absence apart.
+pub(crate) use nika_fs::{open_owned, read_owned};
+
 /// Load + validate a sidecar (version gate included) — every parse
 /// failure is a reason string, never a panic.
 ///
@@ -133,13 +138,20 @@ pub fn sidecar_path(trace: &str) -> PathBuf {
 /// A reason string when the file cannot be read, does not parse, or
 /// speaks a newer `anchor_format`.
 pub fn load_sidecar(path: &Path) -> Result<AnchorSidecar, String> {
-    let raw = std::fs::read_to_string(path) // seam-bypass-ok: L4 verb reading its own sidecar (same idiom as trace_verify's journal read)
-        .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    match read_owned(path, crate::bounded::MAX_ARTIFACT_BYTES as u64) {
+        Ok(Some(raw)) => parse_sidecar(path, &raw),
+        Ok(None) => Err(format!("cannot read {}: no such file", path.display())),
+        Err(e) => Err(format!("cannot read {}: {e}", path.display())),
+    }
+}
+
+/// Validate a sidecar's bytes `raw` read from `path` (the version gate included).
+pub(crate) fn parse_sidecar(path: &Path, raw: &str) -> Result<AnchorSidecar, String> {
     // The fortress gate (F-P1 · NEP-0012): the sidecar is UNTRUSTED
     // input — size + depth + structural bounds refuse typed BEFORE the
     // shape parse (the unbounded-recursion class dies at the door).
-    crate::bounded::decode_untrusted_json(&raw).map_err(|e| format!("{}: {e}", path.display()))?;
-    let sidecar: AnchorSidecar = serde_json::from_str(&raw)
+    crate::bounded::decode_untrusted_json(raw).map_err(|e| format!("{}: {e}", path.display()))?;
+    let sidecar: AnchorSidecar = serde_json::from_str(raw)
         .map_err(|e| format!("{}: not an anchor sidecar: {e}", path.display()))?;
     if sidecar.anchor_format != 1 {
         return Err(format!(

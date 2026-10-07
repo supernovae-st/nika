@@ -24,6 +24,8 @@ mod heads;
 mod it;
 mod lines;
 mod literals;
+#[cfg(test)]
+mod retrieval_residue_tests;
 mod slugs;
 
 use super::paths::{self, Structured};
@@ -126,6 +128,15 @@ fn defer_residue(detail: &str, path: &str, reading: &mut Reading) {
     if !clause.is_empty() {
         reading.pending.push(clause.to_owned());
     }
+}
+
+/// Where a retrieval's object ends when its clause continues past the stated source after a
+/// comma or semicolon (« …in ./clients.json, keep only its phone field »): right after it.
+fn continued_at(detail: &str, path: &str) -> Option<usize> {
+    let end = detail.find(path)? + path.len();
+    let continued = detail.get(end..)?.trim_start().starts_with([',', ';']);
+    let residue = objects::residue_after_path(detail, path);
+    (continued && !objects::as_clause(&residue).is_empty()).then_some(end)
 }
 
 /// The object a write names before its destination (`write a 3-bullet summary to ./out/x.md`)
@@ -312,6 +323,13 @@ pub(crate) fn compute_head(phrase: &str) -> bool {
     let lower = phrase.to_lowercase();
     head_of_exact(&lower)
         .is_some_and(|(p, head)| p.len() == lower.len() && matches!(head, Head::Op(Op::Compute)))
+}
+
+/// Whether a word (as written, or folded) opens with a head the reader reads (« write »,
+/// « send »): the clause readings above the reader ask it without its head table.
+#[must_use]
+pub fn reads_a_head(word: &str) -> bool {
+    head_of_exact(word).is_some()
 }
 
 pub(crate) fn head_of_exact(lower: &str) -> Option<(&'static str, &'static Head)> {
@@ -1211,6 +1229,18 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
                 categories: Vec::new(),
             });
             if listed.is_none() {
+                // « Read the stock of item Z-31 from ./inventory.json »: an identifier named
+                // before a structured source selects a part of it, which a read cannot carry.
+                // The plan keeps it as unknown work (a replay refuses it too); the read still
+                // opens the source.
+                let before = detail.find(path.as_str()).and_then(|at| detail.get(..at));
+                if Structured::of(path).is_some()
+                    && let Some(id) = before.and_then(super::shape::identifier)
+                {
+                    reading.plan.unknowns.push(format!(
+                        "« {original} » names `{id}` in `{path}`: a part of that source, which reading the whole file cannot carry."
+                    ));
+                }
                 defer_residue(&detail, path, reading);
             }
             return true;
@@ -1346,6 +1376,23 @@ fn read_clause(lower: &str, original: &str, reading: &mut Reading, money: &mut [
             });
         }
         Head::Choice(options) => {
+            // « Find entry Q-12 in ./clients.json, keep only its phone field »: a retrieval
+            // continued past its source after a comma states a clause of its own. It re-enters
+            // as the read branch defers it, never riding inside the retrieval's object.
+            let mut detail_lower = detail_lower;
+            if let Some(path) = &path
+                && options
+                    .iter()
+                    .all(|op| matches!(op, Op::Read | Op::Lookup | Op::Search))
+                && let Some(end) = continued_at(&detail, path)
+                && let Some(at) = detail_lower.find(&path.to_lowercase())
+            {
+                defer_residue(&detail, path, reading);
+                detail.truncate(end);
+                detail_lower = detail_lower
+                    .get(..at + path.to_lowercase().len())
+                    .unwrap_or(detail_lower);
+            }
             let prose = [
                 "source",
                 "texte",

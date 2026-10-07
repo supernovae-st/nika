@@ -16,7 +16,7 @@ fn outcome() -> CompileOutcome {
 }
 
 #[test]
-fn only_the_native_doors_calls_read_knowledge() {
+fn only_the_authoring_doors_calls_read_knowledge() {
     for call in [
         "native",
         "native-repair",
@@ -24,12 +24,50 @@ fn only_the_native_doors_calls_read_knowledge() {
         "sketch-repair",
         "fill",
         "fill-repair",
+        "revision",
+        "revision-repair",
     ] {
         assert!(reads_knowledge(call), "{call}");
     }
-    for call in ["plan", "repair", "transform", "natives"] {
+    for call in ["plan", "repair", "transform", "natives", "revisions"] {
         assert!(!reads_knowledge(call), "{call}");
     }
+}
+
+/// A typed revision uses the same admitted pack as creation; its host receipt must name
+/// the actual revision call, not report zero calls or count the final judge as knowledge.
+#[test]
+fn a_revision_call_is_named_in_the_presented_pack_receipt() {
+    let pin = KnowledgePin::embedded(None).expect("pinned");
+    let pack = pin
+        .reopen()
+        .expect("admitted")
+        .pack(PLAN_INTENT, None)
+        .expect("composed");
+    let digest = pack.identity["door"]["pack_sha256"]
+        .as_str()
+        .map_or_else(|| pack_sha256(&pack), str::to_owned);
+    let mut out = outcome();
+    out.provenance.decision = Some(json!({"native": {"knowledge": {
+        "identity": {"door": {"pack_sha256": digest}}
+    }}}));
+    let mut receipt = crate::compile::AuthoringReceipt::new("mock/revision");
+    receipt.calls = 2;
+    receipt.context = vec![
+        json!({"call": "revision", "instruction_sha256": "revision-instruction"}),
+        json!({"call": "verify", "instruction_sha256": "judge-instruction"}),
+    ];
+    out.provenance.authoring = Some(receipt);
+    let record = composed_record(&pin, &pack, &out);
+    assert_eq!(record["presented"], true);
+    assert_eq!(
+        record["calls"],
+        json!([
+            {"call": "revision", "instruction_sha256": "revision-instruction"}
+        ])
+    );
+    assert_eq!(record["seat"]["model"], "mock/revision");
+    assert_eq!(record["seat"]["calls"], 2);
 }
 
 #[test]
@@ -223,9 +261,12 @@ fn an_embedded_pin_reopens_from_memory_with_the_same_identity_and_record() {
     assert_eq!(pin.origin, KnowledgeOrigin::Embedded);
     assert_eq!(
         pin.manifest_sha256,
-        "b787fc53d6858db43d55958daaf02539fadcad4feeacc17b63c5aefcb92cc32b"
+        "b7f3861c55c785ba78fbf3fcfbb495ab79154b30f1bcb8483ce66018cc4659a9"
     );
-    assert_eq!(pin.version.as_deref(), Some("knowledge-0.122.0-r3"));
+    assert_eq!(
+        pin.version.as_deref(),
+        Some("knowledge-0.123.0-candidate-a8-r2")
+    );
     let reopened = pin.reopen().expect("admitted again in memory");
     assert_eq!(pin.moved(&reopened), None, "the same release has not moved");
     let again = KnowledgePin::embedded(Some("heldout".to_owned())).expect("pinned again");
@@ -382,4 +423,202 @@ fn the_knowledge_lines_read_each_branch_as_the_session_read_it() {
         knowledge_lines(&record, &mut text);
         assert_eq!(text, words, "{name}");
     }
+}
+
+/// The private Plan door's seat for the tests below: every call answered with `reply` (any
+/// text: a malformed or empty return is still a return), or failed when `reply` is `None`.
+struct PlanSeat {
+    reply: Option<&'static str>,
+}
+
+impl nika_kernel::ai::provider::ProviderInferDyn for PlanSeat {
+    async fn infer(
+        &self,
+        _request: nika_kernel::ai::provider::InferRequest,
+    ) -> Result<nika_kernel::ai::provider::InferResponse, nika_kernel::ai::provider::ProviderError>
+    {
+        use nika_kernel::ai::provider::{
+            ContentBlock, InferResponse, ProviderError, StopReason, TokenUsage,
+        };
+        let Some(text) = self.reply else {
+            return Err(ProviderError::Other {
+                reason: "unavailable".to_owned(),
+            });
+        };
+        Ok(InferResponse::new(
+            vec![ContentBlock::Text {
+                text: text.to_owned(),
+            }],
+            TokenUsage::new(1, 1),
+            StopReason::EndTurn,
+        ))
+    }
+}
+
+const PLAN_INTENT: &str = fixture::INTENT;
+
+/// A pinned release on disk, the pack it composes for the request as the session composes it
+/// (reopened under the pin), the world a host attached, and a real compile through the private
+/// Plan door (`NativeMode::Off`, an explicit provider) with both attached.
+async fn planned(
+    reply: Option<&'static str>,
+) -> (KnowledgePin, AuthoringKnowledge, Value, CompileOutcome) {
+    use crate::compile::{AuthoringPolicy, NativeMode, compile_with_provider};
+    let dir = tempfile::tempdir().expect("a release");
+    let root = dir.path().join("release");
+    Payload::minimal().write(&root).expect("written");
+    let identity = Payload::minimal()
+        .identity()
+        .expect("the fixture's identity");
+    let pin = KnowledgePin::open(root, None, Some(identity)).expect("pinned");
+    let pack = (pin.reopen().expect("admitted"))
+        .pack(PLAN_INTENT, None)
+        .expect("composed");
+    assert!(
+        !pack.references.is_empty(),
+        "the release recalls references"
+    );
+    let world = json!({"observed": [{"path": "./tickets.json", "state": "present", "kind": "json",
+        "columns": ["id", "body"]}]});
+    let policy = AuthoringPolicy::new("mock/authoring", 1024, std::time::Duration::from_secs(2))
+        .with_native(NativeMode::Off);
+    let request = CompileRequest::create(PLAN_INTENT)
+        .with_authoring_policy(policy)
+        .with_authoring_knowledge(pack.clone())
+        .with_knowledge(world.clone());
+    let out = compile_with_provider(&request, &PlanSeat { reply })
+        .await
+        .expect("compiles");
+    (pin, pack, world, out)
+}
+
+fn plan_calls(out: &mut CompileOutcome) -> Vec<&mut Value> {
+    (out.provenance
+        .authoring
+        .as_mut()
+        .expect("journaled")
+        .context
+        .iter_mut())
+    .filter(|call| call["call"] == "plan" || call["call"] == "repair")
+    .collect()
+}
+
+/// The Plan door's attested return of this very pack is what Onboard records as
+/// presented, and the world it was prepared over is observed as presented; the call is named.
+/// A malformed or empty return is a return: it never means a candidate.
+#[tokio::test]
+#[cfg(unix)] // the disk form is defined for Unix descriptors only
+async fn a_returned_plan_call_carrying_this_pack_is_recorded_as_presented() {
+    for reply in ["not json at all", ""] {
+        let (pin, pack, world, out) = planned(Some(reply)).await;
+        let record = composed_record(&pin, &pack, &out);
+        assert_eq!(record["presented"], true, "{reply:?}: {record:#}");
+        assert!(record.get("why").is_none_or(Value::is_null), "{record:#}");
+        let calls = record["calls"].as_array().expect("calls");
+        assert!(calls.iter().any(|c| c["call"] == "plan"), "{record:#}");
+        let observed = observed_in(out, Some(&world));
+        let decision = observed.provenance.decision.expect("decision");
+        assert_eq!(decision["session"]["observed"]["presented"], true);
+    }
+}
+
+/// Negatives: every mutation of the receipt that removes the attestation of this pack,
+/// this world or the return leaves the pack not presented, in words that never claim delivery.
+#[tokio::test]
+#[cfg(unix)] // the disk form is defined for Unix descriptors only
+async fn a_plan_call_without_an_attested_return_of_this_pack_presents_nothing() {
+    type Mutation = fn(&mut Value);
+    let (pin, pack, world, base) = planned(Some("{}")).await;
+    let cases: [(&str, Mutation, &str); 7] = [
+        (
+            "marker removed",
+            |c| drop(c.as_object_mut().map(|m| m.remove("semantic_context"))),
+            "native door",
+        ),
+        (
+            "pack digest changed",
+            |c| c["semantic_context"]["pack_sha256"] = json!("0".repeat(64)),
+            "expected context is not attested",
+        ),
+        (
+            "references dropped",
+            |c| c["references"] = json!([]),
+            "expected context is not attested",
+        ),
+        (
+            "result stripped",
+            |c| drop(c.as_object_mut().map(|m| m.remove("result"))),
+            "return is not attested",
+        ),
+        (
+            "result contradictory",
+            |c| c["result"]["failure_kind"] = json!("timeout"),
+            "return is not attested",
+        ),
+        (
+            "admission refused",
+            |c| c["result"] = json!({"failure_kind": "admission_refused"}),
+            "admission refused, no response observed",
+        ),
+        (
+            "timeout",
+            |c| c["result"] = json!({"failure_kind": "timeout"}),
+            "delivery and cost unknown",
+        ),
+    ];
+    for (name, mutate, why) in cases {
+        let mut out = base.clone();
+        for call in plan_calls(&mut out) {
+            mutate(call);
+        }
+        let record = composed_record(&pin, &pack, &out);
+        assert_eq!(record["presented"], false, "{name}: {record:#}");
+        let said = record["why"].as_str().unwrap_or_default();
+        assert!(said.contains(why), "{name}: {said}");
+        assert!(
+            record["calls"].as_array().is_none_or(Vec::is_empty),
+            "{name}: {record:#}"
+        );
+    }
+    // A world other than the one the call was prepared over is not observed as presented.
+    let mut other = world.clone();
+    other["observed"][0]["path"] = json!("./other.json");
+    let decision = observed_in(base, Some(&other))
+        .provenance
+        .decision
+        .expect("decision");
+    assert_eq!(decision["session"]["observed"]["presented"], false);
+    // A real provider failure: the context was prepared, no response observed.
+    let (pin, pack, world, failed) = planned(None).await;
+    let record = composed_record(&pin, &pack, &failed);
+    assert_eq!(record["presented"], false, "{record:#}");
+    let said = record["why"].as_str().unwrap_or_default();
+    assert!(
+        said.contains("no response observed, delivery and cost unknown"),
+        "{said}"
+    );
+    let decision = observed_in(failed, Some(&world))
+        .provenance
+        .decision
+        .expect("decision");
+    assert_eq!(decision["session"]["observed"]["presented"], false);
+}
+
+/// A semantic record is closed and keeps no observation: for it alone the session's record
+/// discloses the exact observation attached, beside its identity; any other outcome keeps only
+/// the names-free summary and the identity.
+#[test]
+fn only_a_semantic_outcome_discloses_the_exact_observation_it_read() {
+    let world = json!({"observed": [{"path": "inventory.json", "state": "observed",
+        "kind": "json", "columns": ["sku", "stock"]}]});
+    let mut semantic = outcome();
+    semantic.provenance.plan = Some(json!({"semantic_record": 1}));
+    let out = observed_in(semantic, Some(&world));
+    let record = &out.provenance.decision.expect("decision")["session"]["observed"];
+    assert_eq!(record["world"], world);
+    assert_eq!(record["world_sha256"], json!(world_sha256(&world)));
+    let out = observed_in(outcome(), Some(&world));
+    let record = &out.provenance.decision.expect("decision")["session"]["observed"];
+    assert!(record.get("world").is_none(), "{record}");
+    assert!(!record.to_string().contains("stock"), "{record}");
 }

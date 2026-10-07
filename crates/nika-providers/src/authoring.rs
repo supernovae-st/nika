@@ -5,6 +5,11 @@
 
 use nika_kernel::http::HttpPostDyn;
 
+pub mod observe;
+pub mod policy;
+pub mod preparation;
+pub mod requests;
+
 /// The configured endpoint's host and optional nondefault port, without user info,
 /// path, query or fragment. Bare local host:port values use the same HTTP spelling
 /// as the local provider door. This is configuration evidence, not a remote identity.
@@ -22,6 +27,31 @@ pub fn authoring_host(raw: &str) -> Option<String> {
             .port()
             .map_or(host.clone(), |port| format!("{host}:{port}")),
     )
+}
+
+/// The host part of a URL (`https://api.scaleway.ai/v1` → `api.scaleway.ai`).
+#[must_use]
+pub fn host_of(url: &str) -> String {
+    authoring_host(url).unwrap_or_else(|| "unknown endpoint".to_owned())
+}
+
+/// The effective host when it differs from the provider profile's host. The caller
+/// supplies its HTTP effect and configuration; this projection reads no environment,
+/// sends no request and claims no served identity.
+#[must_use]
+pub fn configured_gateway_host<H: HttpPostDyn + Send + Sync + 'static>(
+    http: H,
+    config: crate::ProvidersConfig,
+    provider: &str,
+) -> Option<String> {
+    let registry = crate::ProviderRegistry::new(std::sync::Arc::new(http), config);
+    let effective = host_of(registry.effective_base_url(provider)?);
+    let seed = registry
+        .profiles()
+        .iter()
+        .find(|p| p.id == crate::canonical_provider(provider))
+        .map(|p| host_of(p.base_url))?;
+    (effective != seed).then_some(effective)
 }
 
 /// Describe the exact registry configuration seated by an authoring door, without
@@ -78,6 +108,29 @@ pub fn redact_authoring_error(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gateway_projection_keeps_host_semantics_without_endpoint_secrets() {
+        let project = |config, provider| configured_gateway_host(crate::NoHttp, config, provider);
+        assert_eq!(project(crate::ProvidersConfig::new(), "openai"), None);
+        assert_eq!(
+            project(crate::ProvidersConfig::new(), "unknown-provider"),
+            None
+        );
+        let same =
+            crate::ProvidersConfig::new().with_base_url("openai", "https://api.openai.com/other");
+        assert_eq!(project(same, "openai"), None);
+        let gateway = crate::ProvidersConfig::new().with_base_url(
+            "openai",
+            "https://test-user:test-secret@gateway.invalid:8443/private?key=test-secret",
+        );
+        assert_eq!(
+            project(gateway, "openai").as_deref(),
+            Some("gateway.invalid:8443")
+        );
+        assert_eq!(host_of("http://127.0.0.1:11434/v1"), "127.0.0.1:11434");
+        assert_eq!(host_of("https://bad host/private"), "unknown endpoint");
+    }
 
     #[test]
     fn authoring_redaction_keeps_local_refusal_type_without_provider_text() {

@@ -14,6 +14,9 @@ use bytes::Bytes;
 mod legacy_write_tests;
 
 #[cfg(test)]
+mod remove_default_tests;
+
+#[cfg(test)]
 mod pin_default_tests;
 
 /// Metadata about a filesystem entry.
@@ -211,6 +214,37 @@ pub trait FsWrite: Send + Sync {
         async {
             Err(FsError::Io {
                 reason: "exclusive publication unsupported by this filesystem backend".to_owned(),
+            })
+        }
+    }
+
+    /// Remove the regular file `path` names, and nothing else. An absent
+    /// name answers `NotFound`, a symlink as the final name `SymlinkRefused`
+    /// (neither the link nor its target is touched), and a directory, a
+    /// special node or a path that names no final file (empty, root, `.`,
+    /// `..`, a trailing separator) `InvalidData`. The file's content is never
+    /// opened or read, and no parent is created. This is a separate operation
+    /// from [`Self::remove_file`], whose raw unlink of any non-directory name
+    /// stays as it was.
+    ///
+    /// Existing backends remain source-compatible but must implement this
+    /// operation before serving regular-only removals. The default refuses
+    /// without I/O; it must never approximate the check with `metadata` (which
+    /// follows links) followed by `remove_file`.
+    ///
+    /// CANCEL SAFETY: the check and the unlink are two steps, not an atomic
+    /// compare-and-remove of one inode: a name replaced between them may be
+    /// removed in its place (a substituted link is unlinked, never followed).
+    /// Dropping the future does not prove the removal stopped: a detached
+    /// blocking operation can still finish in the background.
+    fn remove_regular_file(
+        &self,
+        path: &Path,
+    ) -> impl std::future::Future<Output = Result<(), FsError>> + Send {
+        let _ = path;
+        async {
+            Err(FsError::Io {
+                reason: "regular-file removal unsupported by this filesystem backend".to_owned(),
             })
         }
     }

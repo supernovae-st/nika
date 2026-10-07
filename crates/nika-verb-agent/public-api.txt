@@ -213,6 +213,13 @@ pub nika_verb_agent::observe::AgentEvent::EffectReplayRefused::turn: u32
 pub nika_verb_agent::observe::AgentEvent::Finished
 pub nika_verb_agent::observe::AgentEvent::Finished::total_tokens: u64
 pub nika_verb_agent::observe::AgentEvent::Finished::turns: u32
+pub nika_verb_agent::observe::AgentEvent::HarnessImageActivity
+pub nika_verb_agent::observe::AgentEvent::HarnessImageActivity::tool_call_id: alloc::string::String
+pub nika_verb_agent::observe::AgentEvent::HarnessImageObserved
+pub nika_verb_agent::observe::AgentEvent::HarnessImageObserved::image: nika_kernel_ai::harness::HarnessImage
+pub nika_verb_agent::observe::AgentEvent::HarnessImageStored
+pub nika_verb_agent::observe::AgentEvent::HarnessImageStored::stored: core::result::Result<nika_kernel_core::io::blob::BlobMetadata, alloc::string::String>
+pub nika_verb_agent::observe::AgentEvent::HarnessImageStored::tool_call_id: alloc::string::String
 pub nika_verb_agent::observe::AgentEvent::Nudged
 pub nika_verb_agent::observe::AgentEvent::Nudged::period: u32
 pub nika_verb_agent::observe::AgentEvent::Nudged::reason: nika_verb_agent::observe::NudgeReason
@@ -241,6 +248,12 @@ pub nika_verb_agent::observe::AgentEvent::ToolsSelected::turn: u32
 pub nika_verb_agent::observe::AgentEvent::ToolsSelected::universe: u32
 pub nika_verb_agent::observe::AgentEvent::TurnStarted
 pub nika_verb_agent::observe::AgentEvent::TurnStarted::turn: u32
+impl nika_verb_agent::observe::AgentEvent
+pub fn nika_verb_agent::observe::AgentEvent::harness_image(&self) -> core::option::Option<&nika_kernel_ai::harness::HarnessImage>
+pub fn nika_verb_agent::observe::AgentEvent::image_row(&self, attempt: u32, iteration: core::option::Option<u32>) -> core::option::Option<serde_json::value::Value>
+pub fn nika_verb_agent::observe::AgentEvent::is_harness_image(&self) -> bool
+pub fn nika_verb_agent::observe::AgentEvent::record_into(log: &mut alloc::vec::Vec<Self>, event: &Self)
+pub fn nika_verb_agent::observe::AgentEvent::settle_image(&mut self, later: &Self) -> bool
 impl core::clone::Clone for nika_verb_agent::observe::AgentEvent
 pub fn nika_verb_agent::observe::AgentEvent::clone(&self) -> nika_verb_agent::observe::AgentEvent
 impl core::cmp::PartialEq for nika_verb_agent::observe::AgentEvent
@@ -516,6 +529,13 @@ pub nika_verb_agent::AgentEvent::EffectReplayRefused::turn: u32
 pub nika_verb_agent::AgentEvent::Finished
 pub nika_verb_agent::AgentEvent::Finished::total_tokens: u64
 pub nika_verb_agent::AgentEvent::Finished::turns: u32
+pub nika_verb_agent::AgentEvent::HarnessImageActivity
+pub nika_verb_agent::AgentEvent::HarnessImageActivity::tool_call_id: alloc::string::String
+pub nika_verb_agent::AgentEvent::HarnessImageObserved
+pub nika_verb_agent::AgentEvent::HarnessImageObserved::image: nika_kernel_ai::harness::HarnessImage
+pub nika_verb_agent::AgentEvent::HarnessImageStored
+pub nika_verb_agent::AgentEvent::HarnessImageStored::stored: core::result::Result<nika_kernel_core::io::blob::BlobMetadata, alloc::string::String>
+pub nika_verb_agent::AgentEvent::HarnessImageStored::tool_call_id: alloc::string::String
 pub nika_verb_agent::AgentEvent::Nudged
 pub nika_verb_agent::AgentEvent::Nudged::period: u32
 pub nika_verb_agent::AgentEvent::Nudged::reason: nika_verb_agent::observe::NudgeReason
@@ -544,6 +564,12 @@ pub nika_verb_agent::AgentEvent::ToolsSelected::turn: u32
 pub nika_verb_agent::AgentEvent::ToolsSelected::universe: u32
 pub nika_verb_agent::AgentEvent::TurnStarted
 pub nika_verb_agent::AgentEvent::TurnStarted::turn: u32
+impl nika_verb_agent::observe::AgentEvent
+pub fn nika_verb_agent::observe::AgentEvent::harness_image(&self) -> core::option::Option<&nika_kernel_ai::harness::HarnessImage>
+pub fn nika_verb_agent::observe::AgentEvent::image_row(&self, attempt: u32, iteration: core::option::Option<u32>) -> core::option::Option<serde_json::value::Value>
+pub fn nika_verb_agent::observe::AgentEvent::is_harness_image(&self) -> bool
+pub fn nika_verb_agent::observe::AgentEvent::record_into(log: &mut alloc::vec::Vec<Self>, event: &Self)
+pub fn nika_verb_agent::observe::AgentEvent::settle_image(&mut self, later: &Self) -> bool
 impl core::clone::Clone for nika_verb_agent::observe::AgentEvent
 pub fn nika_verb_agent::observe::AgentEvent::clone(&self) -> nika_verb_agent::observe::AgentEvent
 impl core::cmp::PartialEq for nika_verb_agent::observe::AgentEvent
@@ -874,6 +900,8 @@ impl<T> nika_error::traits::AsAny for nika_verb_agent::AgentInput where T: 'stat
 pub fn nika_verb_agent::AgentInput::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_verb_agent::AgentOutput
 pub nika_verb_agent::AgentOutput::inference_calls: alloc::vec::Vec<nika_types::cost::inference::InferenceCall>
+pub nika_verb_agent::AgentOutput::model_reported: core::option::Option<alloc::string::String>
+pub nika_verb_agent::AgentOutput::model_reported_source: core::option::Option<nika_kernel_ai::harness::ModelProvenance>
 pub nika_verb_agent::AgentOutput::model_resolved: core::option::Option<alloc::string::String>
 pub nika_verb_agent::AgentOutput::output: nika_verb_agent::AgentValue
 pub nika_verb_agent::AgentOutput::stop_reason: nika_kernel_runtime::agent::AgentStopReason

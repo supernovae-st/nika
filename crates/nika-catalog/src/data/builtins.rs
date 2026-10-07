@@ -193,6 +193,10 @@ pub static ALL_BUILTINS: &[Builtin] = &[
         &["message"],
     ),
     Builtin::with_required("read", File, &["path", "binary"], &["path"]),
+    // `remove_file` (builtins-v0.1.md §nika:remove_file) · exactly
+    // `{ path: string }` · no recursive, glob, force, missing-ok or
+    // destination option · no `delete` alias.
+    Builtin::with_required("remove_file", File, &["path"], &["path"]),
     // `tts_generate` (stdlib §Audio · the second Media-class builtin ·
     // local/openai/elevenlabs/mock — sovereign-first · ONE audio file on
     // disk, output carries path+sha256+duration, never bytes ·
@@ -254,7 +258,7 @@ mod tests {
 
     #[test]
     fn builtin_count() {
-        assert_eq!(ALL_BUILTINS.len(), 28);
+        assert_eq!(ALL_BUILTINS.len(), 29);
     }
 
     #[test]
@@ -267,6 +271,15 @@ mod tests {
                 pair[1].name
             );
         }
+    }
+
+    #[test]
+    fn remove_file_is_one_sorted_row_with_only_its_path() {
+        let row = find_builtin("remove_file").expect("remove_file is a builtin");
+        assert_eq!(row.category, File);
+        assert_eq!(row.args, &["path"]);
+        assert_eq!(row.required, &["path"]);
+        assert!(find_builtin("delete").is_none(), "no destructive alias");
     }
 
     #[test]
@@ -347,7 +360,7 @@ mod tests {
             core, 6,
             "expected 6 core builtins (post-ADR-087 wait merge)"
         );
-        assert_eq!(file, 5, "expected 5 file builtins");
+        assert_eq!(file, 6, "expected 6 file builtins (remove_file joins)");
         assert_eq!(
             data, 9,
             "expected 9 data builtins (decide joins per spec 11 W-DEC)"
@@ -363,8 +376,8 @@ mod tests {
         );
         assert_eq!(
             core + file + data + network + intro + media,
-            28,
-            "total must equal 28"
+            29,
+            "total must equal 29"
         );
     }
 

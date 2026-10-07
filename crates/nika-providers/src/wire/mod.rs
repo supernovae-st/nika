@@ -14,6 +14,7 @@ pub(crate) mod gemini;
 pub(crate) mod json_mode;
 pub(crate) mod mock;
 mod mock_schema;
+mod ollama;
 pub(crate) mod openai_compat;
 #[cfg(test)]
 mod openai_compat_usage_tests;
@@ -233,8 +234,8 @@ pub(crate) fn gen_ai_system(provider_id: &str) -> GenAiSystem {
         // groq · openrouter · huggingface (Inference Providers router) ·
         // nvidia (integrate.api.nvidia.com / NIM) · the 5 local servers all
         // speak the OpenAI-compatible dialect; mock is Unknown by design.
-        "groq" | "openrouter" | "huggingface" | "nvidia" | "moonshot" | "ollama" | "lmstudio"
-        | "llamacpp" | "localai" | "vllm" => GenAiSystem::OpenAiCompatible,
+        "groq" | "openrouter" | "huggingface" | "nvidia" | "moonshot" | "scaleway" | "ollama"
+        | "lmstudio" | "llamacpp" | "localai" | "vllm" => GenAiSystem::OpenAiCompatible,
         _ => GenAiSystem::Unknown,
     }
 }

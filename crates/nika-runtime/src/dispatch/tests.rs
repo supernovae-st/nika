@@ -52,7 +52,9 @@ async fn infer_model_input_template_resolves_before_the_wire() {
             .as_ref()
             .expect("the infer wire has a body"),
     )
-    .expect("the openai-compat body is json");
+    .expect("the native Ollama body is json");
+    assert!(captured[0].url.ends_with("/api/chat"));
+    assert_eq!(body["options"]["num_predict"], 32);
     assert_eq!(
         body["model"], "llama3.2:3b",
         "the RESOLVED input default reaches the provider, never the raw `${{{{ }}}}`"
@@ -151,10 +153,11 @@ fn invoke_meters_a_top_level_cost_usd_from_structured_output() {
 async fn url_vision_reaches_the_openai_compat_image_url_part() {
     let captured = super::infer_deadline_tests::run_and_capture(
         "nika: vision-wire-probe\n\
-         model: ollama/llama3.2\n\
+         model: openai/gpt-4o-mini\n\
          tasks:\n  \
          look:\n    \
          infer:\n      \
+         model: openai/gpt-4o-mini\n      \
          prompt: \"MARKER-PROMPT-XYZ\"\n      \
          max_tokens: 16\n      \
          vision:\n        \
@@ -165,6 +168,10 @@ async fn url_vision_reaches_the_openai_compat_image_url_part() {
     assert_eq!(captured.len(), 1, "one provider round-trip");
     let body: serde_json::Value =
         serde_json::from_slice(captured[0].body.as_ref().expect("body")).expect("json");
+    assert_eq!(
+        captured[0].url,
+        "https://api.openai.com/v1/chat/completions"
+    );
     let content = &body["messages"][0]["content"];
     assert!(
         content.is_array(),
@@ -263,6 +270,36 @@ fn seated_infer_records_quota_without_any_numeric_meter_or_responder_claim() {
         ok.cost_source, None,
         "the receipt never claims which model responded"
     );
+    assert_eq!(
+        ok.cost_unpriced,
+        Some(nika_types::cost::UnpricedReason::SubscriptionQuota)
+    );
+    // A harness's report of its model keeps the requested name and says it was
+    // reported: it never claims who answered, and no responder field or price.
+    let reported = super::verb_outcome::harness_infer_success(
+        "claude-code",
+        nika_verb_infer::HarnessInferOutput::new(
+            serde_json::Value::String("answer".to_owned()),
+            "anthropic/claude-sonnet-4-6",
+        )
+        .with_observed_model(Some("claude-fable-5-1".to_owned())),
+        None,
+    );
+    let note = &reported.note;
+    assert!(
+        note.contains("requested anthropic/claude-sonnet-4-6"),
+        "{note}"
+    );
+    assert!(note.contains("harness reported claude-fable-5-1"), "{note}");
+    assert!(
+        !note.contains("answered"),
+        "no response attestation: {note}"
+    );
+    let Ok(ok) = reported.result else {
+        panic!("the synthetic seated inference must succeed");
+    };
+    assert!(ok.usage.is_none(), "no model_served frame field");
+    assert_eq!((ok.cost_usd, ok.cost_source), (None, None));
     assert_eq!(
         ok.cost_unpriced,
         Some(nika_types::cost::UnpricedReason::SubscriptionQuota)

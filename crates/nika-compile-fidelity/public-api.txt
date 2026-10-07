@@ -48,6 +48,53 @@ impl<T> outref::AsOut<T> for nika_compile_fidelity::behavior::Admission where T:
 pub fn nika_compile_fidelity::behavior::Admission::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> typenum::type_operators::Same for nika_compile_fidelity::behavior::Admission
 pub type nika_compile_fidelity::behavior::Admission::Output = T
+#[non_exhaustive] pub enum nika_compile_fidelity::behavior::Arith
+pub nika_compile_fidelity::behavior::Arith::Add
+pub nika_compile_fidelity::behavior::Arith::Sub
+impl core::clone::Clone for nika_compile_fidelity::behavior::Arith
+pub fn nika_compile_fidelity::behavior::Arith::clone(&self) -> nika_compile_fidelity::behavior::Arith
+impl core::cmp::Eq for nika_compile_fidelity::behavior::Arith
+impl core::cmp::PartialEq for nika_compile_fidelity::behavior::Arith
+pub fn nika_compile_fidelity::behavior::Arith::eq(&self, other: &nika_compile_fidelity::behavior::Arith) -> bool
+impl core::fmt::Debug for nika_compile_fidelity::behavior::Arith
+pub fn nika_compile_fidelity::behavior::Arith::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_fidelity::behavior::Arith
+impl core::marker::StructuralPartialEq for nika_compile_fidelity::behavior::Arith
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::behavior::Arith
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_fidelity::behavior::Arith where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::behavior::Arith::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_fidelity::behavior::Arith where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::behavior::Arith::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::behavior::Arith where U: core::convert::From<T>
+pub fn nika_compile_fidelity::behavior::Arith::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::behavior::Arith where U: core::convert::Into<T>
+pub type nika_compile_fidelity::behavior::Arith::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::behavior::Arith::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::behavior::Arith where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::behavior::Arith::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::behavior::Arith::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_fidelity::behavior::Arith where T: core::clone::Clone
+pub type nika_compile_fidelity::behavior::Arith::Owned = T
+pub fn nika_compile_fidelity::behavior::Arith::clone_into(&self, target: &mut T)
+pub fn nika_compile_fidelity::behavior::Arith::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_fidelity::behavior::Arith where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::behavior::Arith::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::behavior::Arith where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::behavior::Arith::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::behavior::Arith where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::behavior::Arith::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_fidelity::behavior::Arith where T: core::clone::Clone
+pub unsafe fn nika_compile_fidelity::behavior::Arith::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_fidelity::behavior::Arith
+pub fn nika_compile_fidelity::behavior::Arith::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_fidelity::behavior::Arith where T: core::clone::Clone
+pub fn nika_compile_fidelity::behavior::Arith::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::behavior::Arith where T: 'static
+pub fn nika_compile_fidelity::behavior::Arith::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile_fidelity::behavior::Arith where T: core::marker::Copy
+pub fn nika_compile_fidelity::behavior::Arith::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::behavior::Arith
+pub type nika_compile_fidelity::behavior::Arith::Output = T
 #[non_exhaustive] pub enum nika_compile_fidelity::behavior::Axis
 pub nika_compile_fidelity::behavior::Axis::Attempts
 pub nika_compile_fidelity::behavior::Axis::Bytes
@@ -783,6 +830,50 @@ impl<T> nika_error::traits::AsAny for nika_compile_fidelity::behavior::StopReaso
 pub fn nika_compile_fidelity::behavior::StopReason::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_fidelity::behavior::StopReason
 pub type nika_compile_fidelity::behavior::StopReason::Output = T
+#[non_exhaustive] pub enum nika_compile_fidelity::behavior::Term
+pub nika_compile_fidelity::behavior::Term::Column(alloc::string::String)
+pub nika_compile_fidelity::behavior::Term::Number(nika_compile_fidelity::behavior::Decimal)
+impl core::clone::Clone for nika_compile_fidelity::behavior::Term
+pub fn nika_compile_fidelity::behavior::Term::clone(&self) -> nika_compile_fidelity::behavior::Term
+impl core::cmp::Eq for nika_compile_fidelity::behavior::Term
+impl core::cmp::PartialEq for nika_compile_fidelity::behavior::Term
+pub fn nika_compile_fidelity::behavior::Term::eq(&self, other: &nika_compile_fidelity::behavior::Term) -> bool
+impl core::fmt::Debug for nika_compile_fidelity::behavior::Term
+pub fn nika_compile_fidelity::behavior::Term::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_fidelity::behavior::Term
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::behavior::Term
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_fidelity::behavior::Term where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::behavior::Term::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_fidelity::behavior::Term where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::behavior::Term::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::behavior::Term where U: core::convert::From<T>
+pub fn nika_compile_fidelity::behavior::Term::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::behavior::Term where U: core::convert::Into<T>
+pub type nika_compile_fidelity::behavior::Term::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::behavior::Term::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::behavior::Term where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::behavior::Term::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::behavior::Term::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_fidelity::behavior::Term where T: core::clone::Clone
+pub type nika_compile_fidelity::behavior::Term::Owned = T
+pub fn nika_compile_fidelity::behavior::Term::clone_into(&self, target: &mut T)
+pub fn nika_compile_fidelity::behavior::Term::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_fidelity::behavior::Term where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::behavior::Term::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::behavior::Term where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::behavior::Term::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::behavior::Term where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::behavior::Term::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_fidelity::behavior::Term where T: core::clone::Clone
+pub unsafe fn nika_compile_fidelity::behavior::Term::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_fidelity::behavior::Term
+pub fn nika_compile_fidelity::behavior::Term::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_fidelity::behavior::Term where T: core::clone::Clone
+pub fn nika_compile_fidelity::behavior::Term::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::behavior::Term where T: 'static
+pub fn nika_compile_fidelity::behavior::Term::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::behavior::Term
+pub type nika_compile_fidelity::behavior::Term::Output = T
 #[non_exhaustive] pub enum nika_compile_fidelity::behavior::Verdict
 pub nika_compile_fidelity::behavior::Verdict::Certified
 pub nika_compile_fidelity::behavior::Verdict::Defective
@@ -1175,6 +1266,7 @@ pub fn nika_compile_fidelity::behavior::Decimal::divided(&self, divisor: u64, pl
 pub fn nika_compile_fidelity::behavior::Decimal::from_count(count: u64) -> Self
 pub fn nika_compile_fidelity::behavior::Decimal::from_law(text: &str) -> core::option::Option<Self>
 pub fn nika_compile_fidelity::behavior::Decimal::is_zero(&self) -> bool
+pub fn nika_compile_fidelity::behavior::Decimal::negated(&self) -> Self
 pub fn nika_compile_fidelity::behavior::Decimal::plus(&self, other: &Self) -> Self
 pub fn nika_compile_fidelity::behavior::Decimal::rounded(&self, places: u32) -> Self
 pub fn nika_compile_fidelity::behavior::Decimal::zero() -> Self
@@ -1229,6 +1321,54 @@ impl<T> nika_error::traits::AsAny for nika_compile_fidelity::behavior::Decimal w
 pub fn nika_compile_fidelity::behavior::Decimal::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_fidelity::behavior::Decimal
 pub type nika_compile_fidelity::behavior::Decimal::Output = T
+#[non_exhaustive] pub struct nika_compile_fidelity::behavior::Derived
+pub nika_compile_fidelity::behavior::Derived::arith: nika_compile_fidelity::behavior::Arith
+pub nika_compile_fidelity::behavior::Derived::left: nika_compile_fidelity::behavior::Term
+pub nika_compile_fidelity::behavior::Derived::name: alloc::string::String
+pub nika_compile_fidelity::behavior::Derived::right: nika_compile_fidelity::behavior::Term
+impl nika_compile_fidelity::behavior::Derived
+pub fn nika_compile_fidelity::behavior::Derived::new(name: impl core::convert::Into<alloc::string::String>, left: nika_compile_fidelity::behavior::Term, arith: nika_compile_fidelity::behavior::Arith, right: nika_compile_fidelity::behavior::Term) -> Self
+impl core::clone::Clone for nika_compile_fidelity::behavior::Derived
+pub fn nika_compile_fidelity::behavior::Derived::clone(&self) -> nika_compile_fidelity::behavior::Derived
+impl core::cmp::Eq for nika_compile_fidelity::behavior::Derived
+impl core::cmp::PartialEq for nika_compile_fidelity::behavior::Derived
+pub fn nika_compile_fidelity::behavior::Derived::eq(&self, other: &nika_compile_fidelity::behavior::Derived) -> bool
+impl core::fmt::Debug for nika_compile_fidelity::behavior::Derived
+pub fn nika_compile_fidelity::behavior::Derived::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_fidelity::behavior::Derived
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::behavior::Derived
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_fidelity::behavior::Derived where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::behavior::Derived::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_fidelity::behavior::Derived where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::behavior::Derived::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::behavior::Derived where U: core::convert::From<T>
+pub fn nika_compile_fidelity::behavior::Derived::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::behavior::Derived where U: core::convert::Into<T>
+pub type nika_compile_fidelity::behavior::Derived::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::behavior::Derived::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::behavior::Derived where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::behavior::Derived::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::behavior::Derived::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_fidelity::behavior::Derived where T: core::clone::Clone
+pub type nika_compile_fidelity::behavior::Derived::Owned = T
+pub fn nika_compile_fidelity::behavior::Derived::clone_into(&self, target: &mut T)
+pub fn nika_compile_fidelity::behavior::Derived::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_fidelity::behavior::Derived where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::behavior::Derived::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::behavior::Derived where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::behavior::Derived::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::behavior::Derived where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::behavior::Derived::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_fidelity::behavior::Derived where T: core::clone::Clone
+pub unsafe fn nika_compile_fidelity::behavior::Derived::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_fidelity::behavior::Derived
+pub fn nika_compile_fidelity::behavior::Derived::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_fidelity::behavior::Derived where T: core::clone::Clone
+pub fn nika_compile_fidelity::behavior::Derived::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::behavior::Derived where T: 'static
+pub fn nika_compile_fidelity::behavior::Derived::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::behavior::Derived
+pub type nika_compile_fidelity::behavior::Derived::Output = T
 #[non_exhaustive] pub struct nika_compile_fidelity::behavior::Failure
 pub nika_compile_fidelity::behavior::Failure::cause: nika_compile_fidelity::behavior::Cause
 pub nika_compile_fidelity::behavior::Failure::code: alloc::string::String
@@ -1965,6 +2105,7 @@ pub type nika_compile_fidelity::behavior::Sort::Output = T
 #[non_exhaustive] pub struct nika_compile_fidelity::behavior::Stages
 pub nika_compile_fidelity::behavior::Stages::aggregates: alloc::vec::Vec<nika_compile_fidelity::behavior::Aggregate>
 pub nika_compile_fidelity::behavior::Stages::columns: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_fidelity::behavior::Stages::derived: alloc::vec::Vec<nika_compile_fidelity::behavior::Derived>
 pub nika_compile_fidelity::behavior::Stages::distinct: bool
 pub nika_compile_fidelity::behavior::Stages::distinct_by: alloc::vec::Vec<alloc::string::String>
 pub nika_compile_fidelity::behavior::Stages::group_by: core::option::Option<alloc::string::String>
@@ -2326,9 +2467,14 @@ pub fn nika_compile_fidelity::behavior::pipeline_of(rule: &nika_compile_reader::
 pub fn nika_compile_fidelity::behavior::read_request(intent: &str) -> (nika_compile_reader::plan::Plan, nika_compile_fidelity::behavior::Provenance)
 pub fn nika_compile_fidelity::behavior::select(contract: &nika_compile_fidelity::behavior::Contract, candidates: &[nika_compile_fidelity::behavior::Candidate], round: nika_compile_fidelity::behavior::Limits, turn: nika_compile_fidelity::behavior::Limits, before: nika_compile_fidelity::behavior::Usage) -> nika_compile_fidelity::behavior::Ruling
 pub fn nika_compile_fidelity::behavior::targets(contract: &nika_compile_fidelity::behavior::Contract) -> impl core::iter::traits::iterator::Iterator<Item = alloc::string::String>
+pub mod nika_compile_fidelity::binding
+pub fn nika_compile_fidelity::binding::unbound(plan: &nika_compile_reader::plan::Plan, intent: &str, observed: core::option::Option<alloc::vec::Vec<alloc::string::String>>) -> core::option::Option<alloc::string::String>
 pub mod nika_compile_fidelity::candidate
 pub fn nika_compile_fidelity::candidate::delta(base: &serde_json::value::Value, revised: &serde_json::value::Value) -> serde_json::value::Value
 pub fn nika_compile_fidelity::candidate::plan_of_document(doc: &serde_json::value::Value) -> nika_compile_reader::plan::Plan
+pub mod nika_compile_fidelity::decimal
+pub const nika_compile_fidelity::decimal::ARITHMETIC: &str
+pub const nika_compile_fidelity::decimal::ORDER: &str
 pub mod nika_compile_fidelity::fidelity
 pub struct nika_compile_fidelity::fidelity::Diagnostic
 pub nika_compile_fidelity::fidelity::Diagnostic::kind: &'static str
@@ -2394,10 +2540,476 @@ pub fn nika_compile_fidelity::fidelity::strings(value: &serde_json::value::Value
 pub fn nika_compile_fidelity::fidelity::tool_of<'a>(doc: &'a serde_json::value::Value, task: &str) -> &'a str
 pub fn nika_compile_fidelity::fidelity::unbound_final_gate(plan: &nika_compile_reader::plan::Plan) -> bool
 pub fn nika_compile_fidelity::fidelity::unsettled_performed(plan: &nika_compile_reader::plan::Plan, doc: &serde_json::value::Value) -> alloc::vec::Vec<alloc::string::String>
+pub mod nika_compile_fidelity::grounding
+pub mod nika_compile_fidelity::grounding::semantic
+pub const nika_compile_fidelity::grounding::semantic::BOUND_BY: &str
+pub fn nika_compile_fidelity::grounding::semantic::facts(record: &serde_json::value::Value, world: core::option::Option<&serde_json::value::Value>) -> alloc::vec::Vec<serde_json::value::Value>
+pub enum nika_compile_fidelity::grounding::Grade
+pub nika_compile_fidelity::grounding::Grade::Declared
+pub nika_compile_fidelity::grounding::Grade::Inferred
+pub nika_compile_fidelity::grounding::Grade::ObservedComplete
+pub nika_compile_fidelity::grounding::Grade::ObservedPartial
+pub nika_compile_fidelity::grounding::Grade::UserAsserted
+impl nika_compile_fidelity::grounding::Grade
+pub const fn nika_compile_fidelity::grounding::Grade::word(self) -> &'static str
+impl core::clone::Clone for nika_compile_fidelity::grounding::Grade
+pub fn nika_compile_fidelity::grounding::Grade::clone(&self) -> nika_compile_fidelity::grounding::Grade
+impl core::cmp::Eq for nika_compile_fidelity::grounding::Grade
+impl core::cmp::PartialEq for nika_compile_fidelity::grounding::Grade
+pub fn nika_compile_fidelity::grounding::Grade::eq(&self, other: &nika_compile_fidelity::grounding::Grade) -> bool
+impl core::fmt::Debug for nika_compile_fidelity::grounding::Grade
+pub fn nika_compile_fidelity::grounding::Grade::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_compile_fidelity::grounding::Grade
+impl core::marker::StructuralPartialEq for nika_compile_fidelity::grounding::Grade
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::grounding::Grade
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_fidelity::grounding::Grade where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Grade::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_fidelity::grounding::Grade where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Grade::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::grounding::Grade where U: core::convert::From<T>
+pub fn nika_compile_fidelity::grounding::Grade::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::grounding::Grade where U: core::convert::Into<T>
+pub type nika_compile_fidelity::grounding::Grade::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::grounding::Grade::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::grounding::Grade where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::grounding::Grade::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::grounding::Grade::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_fidelity::grounding::Grade where T: core::clone::Clone
+pub type nika_compile_fidelity::grounding::Grade::Owned = T
+pub fn nika_compile_fidelity::grounding::Grade::clone_into(&self, target: &mut T)
+pub fn nika_compile_fidelity::grounding::Grade::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_fidelity::grounding::Grade where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Grade::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::grounding::Grade where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Grade::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::grounding::Grade where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Grade::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_fidelity::grounding::Grade where T: core::clone::Clone
+pub unsafe fn nika_compile_fidelity::grounding::Grade::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_fidelity::grounding::Grade
+pub fn nika_compile_fidelity::grounding::Grade::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_fidelity::grounding::Grade where T: core::clone::Clone
+pub fn nika_compile_fidelity::grounding::Grade::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::grounding::Grade where T: 'static
+pub fn nika_compile_fidelity::grounding::Grade::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile_fidelity::grounding::Grade where T: core::marker::Copy
+pub fn nika_compile_fidelity::grounding::Grade::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::grounding::Grade
+pub type nika_compile_fidelity::grounding::Grade::Output = T
+pub struct nika_compile_fidelity::grounding::Entry<'a>
+pub nika_compile_fidelity::grounding::Entry::bound_by: core::option::Option<&'static str>
+pub nika_compile_fidelity::grounding::Entry::everywhere: bool
+pub nika_compile_fidelity::grounding::Entry::grade: nika_compile_fidelity::grounding::Grade
+pub nika_compile_fidelity::grounding::Entry::key: &'a str
+pub nika_compile_fidelity::grounding::Entry::row: core::option::Option<&'a serde_json::value::Value>
+pub nika_compile_fidelity::grounding::Entry::rule: &'a str
+pub nika_compile_fidelity::grounding::Entry::source: &'a str
+impl nika_compile_fidelity::grounding::Entry<'_>
+pub fn nika_compile_fidelity::grounding::Entry<'_>::admissible(&self) -> bool
+pub fn nika_compile_fidelity::grounding::Entry<'_>::open(&self) -> bool
+pub fn nika_compile_fidelity::grounding::Entry<'_>::to_json(&self) -> serde_json::value::Value
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::grounding::Entry<'a>
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::grounding::Entry<'a> where U: core::convert::From<T>
+pub fn nika_compile_fidelity::grounding::Entry<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::grounding::Entry<'a> where U: core::convert::Into<T>
+pub type nika_compile_fidelity::grounding::Entry<'a>::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::grounding::Entry<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::grounding::Entry<'a> where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::grounding::Entry<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::grounding::Entry<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_compile_fidelity::grounding::Entry<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Entry<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::grounding::Entry<'a> where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Entry<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::grounding::Entry<'a> where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Entry<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_compile_fidelity::grounding::Entry<'a>
+pub fn nika_compile_fidelity::grounding::Entry<'a>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::grounding::Entry<'a> where T: 'static
+pub fn nika_compile_fidelity::grounding::Entry<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::grounding::Entry<'a>
+pub type nika_compile_fidelity::grounding::Entry<'a>::Output = T
+pub struct nika_compile_fidelity::grounding::Seen
+pub nika_compile_fidelity::grounding::Seen::all: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_fidelity::grounding::Seen::complete: bool
+pub nika_compile_fidelity::grounding::Seen::declared: bool
+pub nika_compile_fidelity::grounding::Seen::everywhere: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_fidelity::grounding::Seen::nested: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_fidelity::grounding::Seen::nested_complete: bool
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::grounding::Seen
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::grounding::Seen where U: core::convert::From<T>
+pub fn nika_compile_fidelity::grounding::Seen::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::grounding::Seen where U: core::convert::Into<T>
+pub type nika_compile_fidelity::grounding::Seen::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::grounding::Seen::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::grounding::Seen where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::grounding::Seen::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::grounding::Seen::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_compile_fidelity::grounding::Seen where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Seen::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::grounding::Seen where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Seen::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::grounding::Seen where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::grounding::Seen::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_compile_fidelity::grounding::Seen
+pub fn nika_compile_fidelity::grounding::Seen::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::grounding::Seen where T: 'static
+pub fn nika_compile_fidelity::grounding::Seen::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::grounding::Seen
+pub type nika_compile_fidelity::grounding::Seen::Output = T
+pub fn nika_compile_fidelity::grounding::compares(jq: &str, field: &str, literal: &str) -> bool
+pub fn nika_compile_fidelity::grounding::grade(key: &str, seen: core::option::Option<&nika_compile_fidelity::grounding::Seen>, stated_columns: &[alloc::string::String]) -> (nika_compile_fidelity::grounding::Grade, bool)
+pub fn nika_compile_fidelity::grounding::revision(row: core::option::Option<&serde_json::value::Value>) -> alloc::string::String
+pub fn nika_compile_fidelity::grounding::row<'a>(world: core::option::Option<&'a serde_json::value::Value>, path: &str) -> core::option::Option<&'a serde_json::value::Value>
+pub fn nika_compile_fidelity::grounding::seen(row: core::option::Option<&serde_json::value::Value>) -> core::option::Option<nika_compile_fidelity::grounding::Seen>
+pub fn nika_compile_fidelity::grounding::seen_in(world: core::option::Option<&serde_json::value::Value>, row: core::option::Option<&serde_json::value::Value>) -> core::option::Option<nika_compile_fidelity::grounding::Seen>
+pub mod nika_compile_fidelity::literal
+pub mod nika_compile_fidelity::literal::answered
+pub fn nika_compile_fidelity::literal::answered::grant_host(after: &mut serde_json::value::Value, slug: &str, value: &serde_json::value::Value) -> bool
+pub fn nika_compile_fidelity::literal::fill_slot(node: &mut serde_json::value::Value, answer: serde_json::value::Value) -> bool
+pub fn nika_compile_fidelity::literal::has_expression(value: &serde_json::value::Value) -> bool
+pub fn nika_compile_fidelity::literal::inexact_integer(json: &str) -> core::option::Option<&str>
+pub fn nika_compile_fidelity::literal::literal_at<'a>(doc: &'a mut serde_json::value::Value, path: &str) -> core::option::Option<&'a mut serde_json::value::Value>
+pub mod nika_compile_fidelity::observed
+pub mod nika_compile_fidelity::observed::basis
+pub fn nika_compile_fidelity::observed::basis::for_base(world: core::option::Option<&serde_json::value::Value>, words: &str, graph: &serde_json::value::Value, basis: &serde_json::value::Value) -> core::option::Option<serde_json::value::Value>
+pub fn nika_compile_fidelity::observed::basis::identity(world: core::option::Option<&serde_json::value::Value>, paths: &[alloc::string::String]) -> alloc::string::String
+pub fn nika_compile_fidelity::observed::basis::keep(world: core::option::Option<&serde_json::value::Value>) -> serde_json::value::Value
+pub fn nika_compile_fidelity::observed::basis::number_text(text: &str) -> bool
+pub fn nika_compile_fidelity::observed::basis::of_request(world: core::option::Option<&serde_json::value::Value>, words: &str) -> alloc::string::String
+pub const nika_compile_fidelity::observed::MAX_DEPTH: usize
+pub const nika_compile_fidelity::observed::MAX_ELEMENTS: usize
+pub const nika_compile_fidelity::observed::MAX_PATHS: usize
+pub fn nika_compile_fidelity::observed::names(kinds: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
+pub fn nika_compile_fidelity::observed::nested(rows: &[serde_json::value::Value], kind: &dyn core::ops::function::Fn(&serde_json::value::Value) -> &'static str) -> serde_json::value::Value
+pub fn nika_compile_fidelity::observed::temporal_shapes<'a>(values: impl core::iter::traits::collect::IntoIterator<Item = core::option::Option<&'a str>>) -> serde_json::value::Value
+pub fn nika_compile_fidelity::observed::uncovered(kinds: &serde_json::value::Value) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_compile_fidelity::predicate
 pub fn nika_compile_fidelity::predicate::rederives(rule: &nika_compile_reader::rules::Rule, intent: &str, slots: &[nika_compile_reader::plan::Slot], columns: &[alloc::string::String]) -> bool
 pub fn nika_compile_fidelity::predicate::typed_rule(intent: &str, evidence: &str, computation: &serde_json::value::Value, unknowns: &[alloc::string::String], columns: &[alloc::string::String]) -> core::option::Option<(nika_compile_reader::rules::Rule, alloc::vec::Vec<nika_compile_reader::plan::Slot>)>
 pub mod nika_compile_fidelity::sketch
+pub mod nika_compile_fidelity::sketch::import
+pub mod nika_compile_fidelity::sketch::import::record
+#[non_exhaustive] pub enum nika_compile_fidelity::sketch::import::record::Step
+pub nika_compile_fidelity::sketch::import::record::Step::Ask(serde_json::value::Value, alloc::vec::Vec<serde_json::value::Value>)
+pub nika_compile_fidelity::sketch::import::record::Step::Done(serde_json::value::Value)
+impl core::fmt::Debug for nika_compile_fidelity::sketch::import::record::Step
+pub fn nika_compile_fidelity::sketch::import::record::Step::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::sketch::import::record::Step
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::sketch::import::record::Step where U: core::convert::From<T>
+pub fn nika_compile_fidelity::sketch::import::record::Step::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::sketch::import::record::Step where U: core::convert::Into<T>
+pub type nika_compile_fidelity::sketch::import::record::Step::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::sketch::import::record::Step::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::sketch::import::record::Step where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::sketch::import::record::Step::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::sketch::import::record::Step::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_compile_fidelity::sketch::import::record::Step where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::record::Step::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::sketch::import::record::Step where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::record::Step::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::sketch::import::record::Step where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::record::Step::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_compile_fidelity::sketch::import::record::Step
+pub fn nika_compile_fidelity::sketch::import::record::Step::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::sketch::import::record::Step where T: 'static
+pub fn nika_compile_fidelity::sketch::import::record::Step::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::sketch::import::record::Step
+pub type nika_compile_fidelity::sketch::import::record::Step::Output = T
+#[non_exhaustive] pub struct nika_compile_fidelity::sketch::import::record::Request<'a>
+pub nika_compile_fidelity::sketch::import::record::Request::answers: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub nika_compile_fidelity::sketch::import::record::Request::change: core::option::Option<&'a str>
+pub nika_compile_fidelity::sketch::import::record::Request::intent_sha256: alloc::string::String
+pub nika_compile_fidelity::sketch::import::record::Request::original: core::option::Option<&'a str>
+pub nika_compile_fidelity::sketch::import::record::Request::plan: core::option::Option<&'a serde_json::value::Value>
+pub nika_compile_fidelity::sketch::import::record::Request::source: core::option::Option<&'a str>
+impl<'a> nika_compile_fidelity::sketch::import::record::Request<'a>
+pub fn nika_compile_fidelity::sketch::import::record::Request<'a>::new(source: core::option::Option<&'a str>, change: core::option::Option<&'a str>, original: core::option::Option<&'a str>, plan: core::option::Option<&'a serde_json::value::Value>, answers: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, intent_sha256: alloc::string::String) -> Self
+impl<'a> core::fmt::Debug for nika_compile_fidelity::sketch::import::record::Request<'a>
+pub fn nika_compile_fidelity::sketch::import::record::Request<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::sketch::import::record::Request<'a>
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::sketch::import::record::Request<'a> where U: core::convert::From<T>
+pub fn nika_compile_fidelity::sketch::import::record::Request<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::sketch::import::record::Request<'a> where U: core::convert::Into<T>
+pub type nika_compile_fidelity::sketch::import::record::Request<'a>::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::sketch::import::record::Request<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::sketch::import::record::Request<'a> where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::sketch::import::record::Request<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::sketch::import::record::Request<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_compile_fidelity::sketch::import::record::Request<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::record::Request<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::sketch::import::record::Request<'a> where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::record::Request<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::sketch::import::record::Request<'a> where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::record::Request<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_compile_fidelity::sketch::import::record::Request<'a>
+pub fn nika_compile_fidelity::sketch::import::record::Request<'a>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::sketch::import::record::Request<'a> where T: 'static
+pub fn nika_compile_fidelity::sketch::import::record::Request<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::sketch::import::record::Request<'a>
+pub type nika_compile_fidelity::sketch::import::record::Request<'a>::Output = T
+pub fn nika_compile_fidelity::sketch::import::record::answered(intent_sha256: &str, record: &serde_json::value::Value, request: &nika_compile_fidelity::sketch::import::record::Request<'_>, ledger: &dyn core::ops::function::Fn(&str) -> serde_json::value::Value, parse: nika_compile_fidelity::sketch::import::Parse<'_>) -> core::result::Result<nika_compile_fidelity::sketch::import::record::Step, alloc::string::String>
+pub fn nika_compile_fidelity::sketch::import::record::applied(record: &serde_json::value::Value) -> alloc::string::String
+pub fn nika_compile_fidelity::sketch::import::record::rebound(record: &serde_json::value::Value, source: core::option::Option<&str>, parse: nika_compile_fidelity::sketch::import::Parse<'_>) -> core::result::Result<(), alloc::string::String>
+pub fn nika_compile_fidelity::sketch::import::record::revise(request: &nika_compile_fidelity::sketch::import::record::Request<'_>, stated: &serde_json::value::Value, ledger: &dyn core::ops::function::Fn(&str) -> serde_json::value::Value, parse: nika_compile_fidelity::sketch::import::Parse<'_>) -> core::result::Result<nika_compile_fidelity::sketch::import::record::Step, alloc::string::String>
+#[non_exhaustive] pub enum nika_compile_fidelity::sketch::import::Decided
+pub nika_compile_fidelity::sketch::import::Decided::Ask(alloc::vec::Vec<(&'static str, alloc::vec::Vec<alloc::string::String>)>)
+pub nika_compile_fidelity::sketch::import::Decided::Edit(nika_compile_fidelity::sketch::import::Edit)
+impl core::clone::Clone for nika_compile_fidelity::sketch::import::Decided
+pub fn nika_compile_fidelity::sketch::import::Decided::clone(&self) -> nika_compile_fidelity::sketch::import::Decided
+impl core::cmp::Eq for nika_compile_fidelity::sketch::import::Decided
+impl core::cmp::PartialEq for nika_compile_fidelity::sketch::import::Decided
+pub fn nika_compile_fidelity::sketch::import::Decided::eq(&self, other: &nika_compile_fidelity::sketch::import::Decided) -> bool
+impl core::fmt::Debug for nika_compile_fidelity::sketch::import::Decided
+pub fn nika_compile_fidelity::sketch::import::Decided::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_fidelity::sketch::import::Decided
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::sketch::import::Decided
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_fidelity::sketch::import::Decided where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::Decided::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_fidelity::sketch::import::Decided where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::Decided::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::sketch::import::Decided where U: core::convert::From<T>
+pub fn nika_compile_fidelity::sketch::import::Decided::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::sketch::import::Decided where U: core::convert::Into<T>
+pub type nika_compile_fidelity::sketch::import::Decided::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::sketch::import::Decided::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::sketch::import::Decided where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::sketch::import::Decided::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::sketch::import::Decided::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_fidelity::sketch::import::Decided where T: core::clone::Clone
+pub type nika_compile_fidelity::sketch::import::Decided::Owned = T
+pub fn nika_compile_fidelity::sketch::import::Decided::clone_into(&self, target: &mut T)
+pub fn nika_compile_fidelity::sketch::import::Decided::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_fidelity::sketch::import::Decided where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::Decided::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::sketch::import::Decided where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::Decided::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::sketch::import::Decided where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::Decided::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_fidelity::sketch::import::Decided where T: core::clone::Clone
+pub unsafe fn nika_compile_fidelity::sketch::import::Decided::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_fidelity::sketch::import::Decided
+pub fn nika_compile_fidelity::sketch::import::Decided::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_fidelity::sketch::import::Decided where T: core::clone::Clone
+pub fn nika_compile_fidelity::sketch::import::Decided::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::sketch::import::Decided where T: 'static
+pub fn nika_compile_fidelity::sketch::import::Decided::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::sketch::import::Decided
+pub type nika_compile_fidelity::sketch::import::Decided::Output = T
+#[non_exhaustive] pub enum nika_compile_fidelity::sketch::import::Edit
+pub nika_compile_fidelity::sketch::import::Edit::Add
+pub nika_compile_fidelity::sketch::import::Edit::Add::like: alloc::string::String
+pub nika_compile_fidelity::sketch::import::Edit::Add::new: alloc::string::String
+pub nika_compile_fidelity::sketch::import::Edit::Replace
+pub nika_compile_fidelity::sketch::import::Edit::Replace::new: alloc::string::String
+pub nika_compile_fidelity::sketch::import::Edit::Replace::old: alloc::string::String
+impl core::clone::Clone for nika_compile_fidelity::sketch::import::Edit
+pub fn nika_compile_fidelity::sketch::import::Edit::clone(&self) -> nika_compile_fidelity::sketch::import::Edit
+impl core::cmp::Eq for nika_compile_fidelity::sketch::import::Edit
+impl core::cmp::PartialEq for nika_compile_fidelity::sketch::import::Edit
+pub fn nika_compile_fidelity::sketch::import::Edit::eq(&self, other: &nika_compile_fidelity::sketch::import::Edit) -> bool
+impl core::fmt::Debug for nika_compile_fidelity::sketch::import::Edit
+pub fn nika_compile_fidelity::sketch::import::Edit::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_fidelity::sketch::import::Edit
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::sketch::import::Edit
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_fidelity::sketch::import::Edit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::Edit::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_fidelity::sketch::import::Edit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::Edit::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::sketch::import::Edit where U: core::convert::From<T>
+pub fn nika_compile_fidelity::sketch::import::Edit::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::sketch::import::Edit where U: core::convert::Into<T>
+pub type nika_compile_fidelity::sketch::import::Edit::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::sketch::import::Edit::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::sketch::import::Edit where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::sketch::import::Edit::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::sketch::import::Edit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_fidelity::sketch::import::Edit where T: core::clone::Clone
+pub type nika_compile_fidelity::sketch::import::Edit::Owned = T
+pub fn nika_compile_fidelity::sketch::import::Edit::clone_into(&self, target: &mut T)
+pub fn nika_compile_fidelity::sketch::import::Edit::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_fidelity::sketch::import::Edit where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::Edit::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::sketch::import::Edit where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::Edit::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::sketch::import::Edit where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::Edit::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_fidelity::sketch::import::Edit where T: core::clone::Clone
+pub unsafe fn nika_compile_fidelity::sketch::import::Edit::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_fidelity::sketch::import::Edit
+pub fn nika_compile_fidelity::sketch::import::Edit::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_fidelity::sketch::import::Edit where T: core::clone::Clone
+pub fn nika_compile_fidelity::sketch::import::Edit::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::sketch::import::Edit where T: 'static
+pub fn nika_compile_fidelity::sketch::import::Edit::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::sketch::import::Edit
+pub type nika_compile_fidelity::sketch::import::Edit::Output = T
+#[non_exhaustive] pub enum nika_compile_fidelity::sketch::import::Settled
+pub nika_compile_fidelity::sketch::import::Settled::One(alloc::string::String)
+pub nika_compile_fidelity::sketch::import::Settled::Several(alloc::vec::Vec<alloc::string::String>)
+impl nika_compile_fidelity::sketch::import::Settled
+pub fn nika_compile_fidelity::sketch::import::Settled::chosen(self, answer: core::option::Option<&str>) -> core::result::Result<core::option::Option<alloc::string::String>, alloc::string::String>
+impl core::clone::Clone for nika_compile_fidelity::sketch::import::Settled
+pub fn nika_compile_fidelity::sketch::import::Settled::clone(&self) -> nika_compile_fidelity::sketch::import::Settled
+impl core::cmp::Eq for nika_compile_fidelity::sketch::import::Settled
+impl core::cmp::PartialEq for nika_compile_fidelity::sketch::import::Settled
+pub fn nika_compile_fidelity::sketch::import::Settled::eq(&self, other: &nika_compile_fidelity::sketch::import::Settled) -> bool
+impl core::fmt::Debug for nika_compile_fidelity::sketch::import::Settled
+pub fn nika_compile_fidelity::sketch::import::Settled::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_fidelity::sketch::import::Settled
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::sketch::import::Settled
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_fidelity::sketch::import::Settled where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::Settled::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_fidelity::sketch::import::Settled where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::Settled::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::sketch::import::Settled where U: core::convert::From<T>
+pub fn nika_compile_fidelity::sketch::import::Settled::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::sketch::import::Settled where U: core::convert::Into<T>
+pub type nika_compile_fidelity::sketch::import::Settled::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::sketch::import::Settled::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::sketch::import::Settled where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::sketch::import::Settled::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::sketch::import::Settled::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_fidelity::sketch::import::Settled where T: core::clone::Clone
+pub type nika_compile_fidelity::sketch::import::Settled::Owned = T
+pub fn nika_compile_fidelity::sketch::import::Settled::clone_into(&self, target: &mut T)
+pub fn nika_compile_fidelity::sketch::import::Settled::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_fidelity::sketch::import::Settled where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::Settled::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::sketch::import::Settled where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::Settled::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::sketch::import::Settled where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::Settled::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_fidelity::sketch::import::Settled where T: core::clone::Clone
+pub unsafe fn nika_compile_fidelity::sketch::import::Settled::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_fidelity::sketch::import::Settled
+pub fn nika_compile_fidelity::sketch::import::Settled::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_fidelity::sketch::import::Settled where T: core::clone::Clone
+pub fn nika_compile_fidelity::sketch::import::Settled::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::sketch::import::Settled where T: 'static
+pub fn nika_compile_fidelity::sketch::import::Settled::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::sketch::import::Settled
+pub type nika_compile_fidelity::sketch::import::Settled::Output = T
+#[non_exhaustive] pub struct nika_compile_fidelity::sketch::import::Substituted
+pub nika_compile_fidelity::sketch::import::Substituted::slots: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_fidelity::sketch::import::Substituted::source: alloc::string::String
+impl core::clone::Clone for nika_compile_fidelity::sketch::import::Substituted
+pub fn nika_compile_fidelity::sketch::import::Substituted::clone(&self) -> nika_compile_fidelity::sketch::import::Substituted
+impl core::cmp::Eq for nika_compile_fidelity::sketch::import::Substituted
+impl core::cmp::PartialEq for nika_compile_fidelity::sketch::import::Substituted
+pub fn nika_compile_fidelity::sketch::import::Substituted::eq(&self, other: &nika_compile_fidelity::sketch::import::Substituted) -> bool
+impl core::fmt::Debug for nika_compile_fidelity::sketch::import::Substituted
+pub fn nika_compile_fidelity::sketch::import::Substituted::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_compile_fidelity::sketch::import::Substituted
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::sketch::import::Substituted
+impl<Q, K> equivalent::Equivalent<K> for nika_compile_fidelity::sketch::import::Substituted where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::Substituted::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_compile_fidelity::sketch::import::Substituted where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::Substituted::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::sketch::import::Substituted where U: core::convert::From<T>
+pub fn nika_compile_fidelity::sketch::import::Substituted::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::sketch::import::Substituted where U: core::convert::Into<T>
+pub type nika_compile_fidelity::sketch::import::Substituted::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::sketch::import::Substituted::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::sketch::import::Substituted where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::sketch::import::Substituted::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::sketch::import::Substituted::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_fidelity::sketch::import::Substituted where T: core::clone::Clone
+pub type nika_compile_fidelity::sketch::import::Substituted::Owned = T
+pub fn nika_compile_fidelity::sketch::import::Substituted::clone_into(&self, target: &mut T)
+pub fn nika_compile_fidelity::sketch::import::Substituted::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_fidelity::sketch::import::Substituted where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::Substituted::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::sketch::import::Substituted where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::Substituted::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::sketch::import::Substituted where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::import::Substituted::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_fidelity::sketch::import::Substituted where T: core::clone::Clone
+pub unsafe fn nika_compile_fidelity::sketch::import::Substituted::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_fidelity::sketch::import::Substituted
+pub fn nika_compile_fidelity::sketch::import::Substituted::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_fidelity::sketch::import::Substituted where T: core::clone::Clone
+pub fn nika_compile_fidelity::sketch::import::Substituted::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::sketch::import::Substituted where T: 'static
+pub fn nika_compile_fidelity::sketch::import::Substituted::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::sketch::import::Substituted
+pub type nika_compile_fidelity::sketch::import::Substituted::Output = T
+pub const nika_compile_fidelity::sketch::import::ASK_DESTINATION: &str
+pub const nika_compile_fidelity::sketch::import::ASK_LIKE: &str
+pub const nika_compile_fidelity::sketch::import::ASK_PATH: &str
+pub fn nika_compile_fidelity::sketch::import::add_destination(base: &str, like: &str, path: &str, parse: nika_compile_fidelity::sketch::import::Parse<'_>) -> core::result::Result<nika_compile_fidelity::sketch::import::Substituted, alloc::string::String>
+pub fn nika_compile_fidelity::sketch::import::apply(base: &str, edit: &nika_compile_fidelity::sketch::import::Edit, parse: nika_compile_fidelity::sketch::import::Parse<'_>) -> core::result::Result<nika_compile_fidelity::sketch::import::Substituted, alloc::string::String>
+pub fn nika_compile_fidelity::sketch::import::decide(document: &serde_json::value::Value, original: &str, ledgers: (&serde_json::value::Value, &serde_json::value::Value), stated: &serde_json::value::Value, answer: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> core::result::Result<(nika_compile_fidelity::sketch::import::Decided, alloc::vec::Vec<alloc::string::String>), alloc::string::String>
+pub fn nika_compile_fidelity::sketch::import::differences(a: &serde_json::value::Value, b: &serde_json::value::Value) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_fidelity::sketch::import::names(doc: &serde_json::value::Value, path: &str) -> bool
+pub fn nika_compile_fidelity::sketch::import::new_path(answer: &str, named: impl core::ops::function::Fn(&str) -> bool) -> core::result::Result<alloc::string::String, alloc::string::String>
+pub fn nika_compile_fidelity::sketch::import::proven(base: &serde_json::value::Value, revised: &serde_json::value::Value, changed: &[(alloc::string::String, alloc::string::String)]) -> core::result::Result<(), alloc::vec::Vec<alloc::string::String>>
+pub fn nika_compile_fidelity::sketch::import::replaced(written: &[alloc::string::String], in_replaced: &[alloc::string::String], retained: &[alloc::string::String], in_by: &[alloc::string::String]) -> core::result::Result<alloc::string::String, alloc::string::String>
+pub fn nika_compile_fidelity::sketch::import::replaced_options(written: &[alloc::string::String], in_replaced: &[alloc::string::String], retained: &[alloc::string::String], in_by: &[alloc::string::String]) -> core::result::Result<nika_compile_fidelity::sketch::import::Settled, alloc::string::String>
+pub fn nika_compile_fidelity::sketch::import::replacing(in_by: &[alloc::string::String], named: impl core::ops::function::Fn(&str) -> bool) -> core::result::Result<alloc::string::String, alloc::string::String>
+pub fn nika_compile_fidelity::sketch::import::replacing_options(in_by: &[alloc::string::String], named: impl core::ops::function::Fn(&str) -> bool) -> core::result::Result<nika_compile_fidelity::sketch::import::Settled, alloc::string::String>
+pub fn nika_compile_fidelity::sketch::import::resolved(original: &str, links: &serde_json::value::Value, added: &[alloc::string::String], edit: &nika_compile_fidelity::sketch::import::Edit) -> core::result::Result<alloc::string::String, alloc::vec::Vec<alloc::string::String>>
+pub fn nika_compile_fidelity::sketch::import::same(a: &str, b: &str) -> bool
+pub fn nika_compile_fidelity::sketch::import::slots(doc: &serde_json::value::Value, path: &str) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, alloc::string::String>
+pub fn nika_compile_fidelity::sketch::import::stated(text: &str) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_fidelity::sketch::import::substitute(base: &str, path: &str, by: &str, parse: nika_compile_fidelity::sketch::import::Parse<'_>) -> core::result::Result<nika_compile_fidelity::sketch::import::Substituted, alloc::string::String>
+pub fn nika_compile_fidelity::sketch::import::written(doc: &serde_json::value::Value) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, alloc::string::String>
+pub type nika_compile_fidelity::sketch::import::Parse<'a> = &'a dyn core::ops::function::Fn(&str) -> core::option::Option<serde_json::value::Value>
+pub mod nika_compile_fidelity::sketch::kept
+#[non_exhaustive] pub enum nika_compile_fidelity::sketch::kept::Place<'a>
+pub nika_compile_fidelity::sketch::kept::Place::Proposal(&'a str)
+pub nika_compile_fidelity::sketch::kept::Place::Saved(&'a str)
+impl<'a> core::clone::Clone for nika_compile_fidelity::sketch::kept::Place<'a>
+pub fn nika_compile_fidelity::sketch::kept::Place<'a>::clone(&self) -> nika_compile_fidelity::sketch::kept::Place<'a>
+impl<'a> core::fmt::Debug for nika_compile_fidelity::sketch::kept::Place<'a>
+pub fn nika_compile_fidelity::sketch::kept::Place<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> core::marker::Copy for nika_compile_fidelity::sketch::kept::Place<'a>
+impl<D> owo_colors::OwoColorize for nika_compile_fidelity::sketch::kept::Place<'a>
+impl<T, U> core::convert::Into<U> for nika_compile_fidelity::sketch::kept::Place<'a> where U: core::convert::From<T>
+pub fn nika_compile_fidelity::sketch::kept::Place<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_compile_fidelity::sketch::kept::Place<'a> where U: core::convert::Into<T>
+pub type nika_compile_fidelity::sketch::kept::Place<'a>::Error = core::convert::Infallible
+pub fn nika_compile_fidelity::sketch::kept::Place<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_compile_fidelity::sketch::kept::Place<'a> where U: core::convert::TryFrom<T>
+pub type nika_compile_fidelity::sketch::kept::Place<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_compile_fidelity::sketch::kept::Place<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_compile_fidelity::sketch::kept::Place<'a> where T: core::clone::Clone
+pub type nika_compile_fidelity::sketch::kept::Place<'a>::Owned = T
+pub fn nika_compile_fidelity::sketch::kept::Place<'a>::clone_into(&self, target: &mut T)
+pub fn nika_compile_fidelity::sketch::kept::Place<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_compile_fidelity::sketch::kept::Place<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::kept::Place<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_compile_fidelity::sketch::kept::Place<'a> where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::kept::Place<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_compile_fidelity::sketch::kept::Place<'a> where T: ?core::marker::Sized
+pub fn nika_compile_fidelity::sketch::kept::Place<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_compile_fidelity::sketch::kept::Place<'a> where T: core::clone::Clone
+pub unsafe fn nika_compile_fidelity::sketch::kept::Place<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_compile_fidelity::sketch::kept::Place<'a>
+pub fn nika_compile_fidelity::sketch::kept::Place<'a>::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_compile_fidelity::sketch::kept::Place<'a> where T: core::clone::Clone
+pub fn nika_compile_fidelity::sketch::kept::Place<'a>::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_compile_fidelity::sketch::kept::Place<'a> where T: 'static
+pub fn nika_compile_fidelity::sketch::kept::Place<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_compile_fidelity::sketch::kept::Place<'a> where T: core::marker::Copy
+pub fn nika_compile_fidelity::sketch::kept::Place<'a>::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_compile_fidelity::sketch::kept::Place<'a>
+pub type nika_compile_fidelity::sketch::kept::Place<'a>::Output = T
+pub fn nika_compile_fidelity::sketch::kept::binds(plan: &serde_json::value::Value, source: &str) -> bool
+pub fn nika_compile_fidelity::sketch::kept::last_saved(raw: core::option::Option<&serde_json::value::Value>) -> core::option::Option<&str>
+pub fn nika_compile_fidelity::sketch::kept::original(plan: &serde_json::value::Value) -> core::option::Option<&str>
+pub fn nika_compile_fidelity::sketch::kept::plan(raw: core::option::Option<&serde_json::value::Value>, place: nika_compile_fidelity::sketch::kept::Place<'_>, source: &str) -> core::option::Option<serde_json::value::Value>
+pub fn nika_compile_fidelity::sketch::kept::remember(raw: &mut core::option::Option<serde_json::value::Value>, place: nika_compile_fidelity::sketch::kept::Place<'_>, source: &str, candidate_plan: core::option::Option<&serde_json::value::Value>, redact: &dyn core::ops::function::Fn(&str) -> alloc::string::String)
+pub fn nika_compile_fidelity::sketch::kept::saved(raw: &mut core::option::Option<serde_json::value::Value>, path: &str, source: &str, proposal: &str, redact: &dyn core::ops::function::Fn(&str) -> alloc::string::String)
+pub mod nika_compile_fidelity::sketch::revision
+pub fn nika_compile_fidelity::sketch::revision::accounted(change_ledger: &serde_json::value::Value, stated: &serde_json::value::Value) -> core::result::Result<alloc::vec::Vec<(alloc::string::String, core::option::Option<&'static str>)>, alloc::vec::Vec<alloc::string::String>>
+pub fn nika_compile_fidelity::sketch::revision::additions(change_ledger: &serde_json::value::Value, stated: &serde_json::value::Value) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<alloc::string::String>>
+pub fn nika_compile_fidelity::sketch::revision::clauses(ledger: &serde_json::value::Value) -> alloc::vec::Vec<serde_json::value::Value>
+pub fn nika_compile_fidelity::sketch::revision::delta(original: &str, original_ledger: &serde_json::value::Value, change: &str, change_ledger: &serde_json::value::Value, resolved: &str, stated: &serde_json::value::Value, changed: &[alloc::string::String]) -> core::result::Result<serde_json::value::Value, alloc::vec::Vec<alloc::string::String>>
+pub fn nika_compile_fidelity::sketch::revision::linked(original: &str, original_ledger: &serde_json::value::Value, change: &str, change_ledger: &serde_json::value::Value, stated: &serde_json::value::Value) -> core::result::Result<(), alloc::vec::Vec<alloc::string::String>>
+pub fn nika_compile_fidelity::sketch::revision::links_schema() -> serde_json::value::Value
+pub fn nika_compile_fidelity::sketch::revision::preserved(base: &serde_json::value::Value, revised: &serde_json::value::Value) -> core::result::Result<alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<alloc::string::String>>
+pub fn nika_compile_fidelity::sketch::revision::resolved(original: &str, links: &serde_json::value::Value, added: &[alloc::string::String]) -> core::result::Result<alloc::string::String, alloc::vec::Vec<alloc::string::String>>
 pub enum nika_compile_fidelity::sketch::Verb
 pub nika_compile_fidelity::sketch::Verb::Agent
 pub nika_compile_fidelity::sketch::Verb::Exec
@@ -2580,11 +3192,14 @@ impl<T> nika_error::traits::AsAny for nika_compile_fidelity::sketch::Hole where 
 pub fn nika_compile_fidelity::sketch::Hole::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_fidelity::sketch::Hole
 pub type nika_compile_fidelity::sketch::Hole::Output = T
-pub struct nika_compile_fidelity::sketch::Sketch
+#[non_exhaustive] pub struct nika_compile_fidelity::sketch::Sketch
 pub nika_compile_fidelity::sketch::Sketch::name: alloc::string::String
+pub nika_compile_fidelity::sketch::Sketch::outputs: core::option::Option<alloc::vec::Vec<nika_compile_fidelity::sketch::Edge>>
 pub nika_compile_fidelity::sketch::Sketch::tasks: alloc::vec::Vec<nika_compile_fidelity::sketch::SketchTask>
 impl nika_compile_fidelity::sketch::Sketch
 pub fn nika_compile_fidelity::sketch::Sketch::from_json(record: &serde_json::value::Value) -> core::result::Result<Self, alloc::string::String>
+impl nika_compile_fidelity::sketch::Sketch
+pub fn nika_compile_fidelity::sketch::Sketch::new(name: impl core::convert::Into<alloc::string::String>, tasks: alloc::vec::Vec<nika_compile_fidelity::sketch::SketchTask>) -> Self
 impl core::clone::Clone for nika_compile_fidelity::sketch::Sketch
 pub fn nika_compile_fidelity::sketch::Sketch::clone(&self) -> nika_compile_fidelity::sketch::Sketch
 impl core::cmp::Eq for nika_compile_fidelity::sketch::Sketch
@@ -2626,18 +3241,23 @@ impl<T> nika_error::traits::AsAny for nika_compile_fidelity::sketch::Sketch wher
 pub fn nika_compile_fidelity::sketch::Sketch::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_fidelity::sketch::Sketch
 pub type nika_compile_fidelity::sketch::Sketch::Output = T
-pub struct nika_compile_fidelity::sketch::SketchTask
+#[non_exhaustive] pub struct nika_compile_fidelity::sketch::SketchTask
 pub nika_compile_fidelity::sketch::SketchTask::after: alloc::vec::Vec<alloc::string::String>
+pub nika_compile_fidelity::sketch::SketchTask::fail_fast: core::option::Option<bool>
 pub nika_compile_fidelity::sketch::SketchTask::for_each: core::option::Option<alloc::string::String>
 pub nika_compile_fidelity::sketch::SketchTask::gated_by: core::option::Option<alloc::string::String>
 pub nika_compile_fidelity::sketch::SketchTask::hosts: alloc::vec::Vec<alloc::string::String>
 pub nika_compile_fidelity::sketch::SketchTask::id: alloc::string::String
+pub nika_compile_fidelity::sketch::SketchTask::max_turns: core::option::Option<u32>
 pub nika_compile_fidelity::sketch::SketchTask::purpose: alloc::string::String
 pub nika_compile_fidelity::sketch::SketchTask::reads: alloc::vec::Vec<alloc::string::String>
 pub nika_compile_fidelity::sketch::SketchTask::tool: core::option::Option<alloc::string::String>
+pub nika_compile_fidelity::sketch::SketchTask::tools: core::option::Option<alloc::vec::Vec<alloc::string::String>>
 pub nika_compile_fidelity::sketch::SketchTask::verb: nika_compile_fidelity::sketch::Verb
 pub nika_compile_fidelity::sketch::SketchTask::with: alloc::vec::Vec<nika_compile_fidelity::sketch::Edge>
 pub nika_compile_fidelity::sketch::SketchTask::writes: alloc::vec::Vec<alloc::string::String>
+impl nika_compile_fidelity::sketch::SketchTask
+pub fn nika_compile_fidelity::sketch::SketchTask::new(id: impl core::convert::Into<alloc::string::String>, verb: nika_compile_fidelity::sketch::Verb, purpose: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_compile_fidelity::sketch::SketchTask
 pub fn nika_compile_fidelity::sketch::SketchTask::clone(&self) -> nika_compile_fidelity::sketch::SketchTask
 impl core::cmp::Eq for nika_compile_fidelity::sketch::SketchTask
@@ -2679,7 +3299,19 @@ impl<T> nika_error::traits::AsAny for nika_compile_fidelity::sketch::SketchTask 
 pub fn nika_compile_fidelity::sketch::SketchTask::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_compile_fidelity::sketch::SketchTask
 pub type nika_compile_fidelity::sketch::SketchTask::Output = T
+pub fn nika_compile_fidelity::sketch::bound_answers(record: &serde_json::value::Value, current: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> core::result::Result<(alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>), &'static str>
+pub fn nika_compile_fidelity::sketch::bound_base<'a>(record: &'a serde_json::value::Value, base: &str, world: core::option::Option<&serde_json::value::Value>) -> core::result::Result<(&'a str, alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>), &'static str>
+pub fn nika_compile_fidelity::sketch::complete_document(sketch: &nika_compile_fidelity::sketch::Sketch, fills: &[nika_compile_fidelity::sketch::Fill]) -> core::result::Result<serde_json::value::Value, alloc::vec::Vec<alloc::string::String>>
+pub fn nika_compile_fidelity::sketch::contract_projection(contract: &nika_compile_fidelity::behavior::Contract) -> serde_json::value::Value
 pub fn nika_compile_fidelity::sketch::document(sketch: &nika_compile_fidelity::sketch::Sketch, fills: &[nika_compile_fidelity::sketch::Fill]) -> serde_json::value::Value
 pub fn nika_compile_fidelity::sketch::fills_from_json(record: &serde_json::value::Value) -> core::result::Result<alloc::vec::Vec<nika_compile_fidelity::sketch::Fill>, alloc::string::String>
 pub fn nika_compile_fidelity::sketch::holes(sketch: &nika_compile_fidelity::sketch::Sketch) -> alloc::vec::Vec<nika_compile_fidelity::sketch::Hole>
+pub fn nika_compile_fidelity::sketch::judge_sketch(intent: &str, reading: &nika_compile_reader::lexicon::Reading, sketch: &nika_compile_fidelity::sketch::Sketch, (allowed, clarified): (&[alloc::string::String], &[alloc::string::String]), observed: core::option::Option<&serde_json::value::Value>) -> alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>
+pub fn nika_compile_fidelity::sketch::reach_laws(sketch: &nika_compile_fidelity::sketch::Sketch) -> alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>
+pub fn nika_compile_fidelity::sketch::read_basis(intent: &str, initial: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> serde_json::value::Value
+pub fn nika_compile_fidelity::sketch::replayed(record: &serde_json::value::Value, intent: &str, allowed: &[alloc::string::String]) -> core::result::Result<serde_json::value::Value, &'static str>
+pub fn nika_compile_fidelity::sketch::replayed_observed(record: &serde_json::value::Value, intent: &str, allowed: &[alloc::string::String], observed: core::option::Option<&serde_json::value::Value>) -> core::result::Result<serde_json::value::Value, &'static str>
+pub fn nika_compile_fidelity::sketch::same_caller(stored: &serde_json::value::Value, now: &serde_json::value::Value, current: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> bool
 pub fn nika_compile_fidelity::sketch::structural_laws(sketch: &nika_compile_fidelity::sketch::Sketch, intent: &str, allowed: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_fidelity::sketch::structural_laws_observed(sketch: &nika_compile_fidelity::sketch::Sketch, intent: &str, allowed: &[alloc::string::String], observed: core::option::Option<&serde_json::value::Value>) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_fidelity::sketch::validated(sketch: &nika_compile_fidelity::sketch::Sketch, raw: &[serde_json::value::Value]) -> core::result::Result<(alloc::vec::Vec<nika_compile_fidelity::sketch::Fill>, serde_json::value::Value), alloc::vec::Vec<nika_compile_fidelity::fidelity::Diagnostic>>

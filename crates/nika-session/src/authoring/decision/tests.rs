@@ -17,6 +17,7 @@ use nika_onboard::compile::decide::{ChoiceOption, ChoiceQuestion, DecisionSeat, 
 use nika_onboard::compile::{
     Cognition, CompileRequest, CompileStatus, NoProvider, Strategy, compile_with_cognition,
 };
+use nika_providers::InferenceAdmission;
 use nika_types::cost::Cost;
 use serde_json::{Value, json};
 use std::io::{Read, Write};
@@ -212,8 +213,12 @@ fn a_chosen_option_through_the_session_door_shapes_the_candidate_and_is_journale
         &account,
     )
     .expect("seated compile");
-    // The decision settled the clause: WARM, one bound value left to ask (the id field).
-    assert_eq!(out.provenance.strategy, Some(Strategy::Warm), "{out:#?}");
+    // The decision settled the clause (WARM), the settled plan held for the check with the
+    // author repairing (a judged plan's record): one bound value left to ask (the id field).
+    assert_eq!(out.provenance.strategy, Some(Strategy::Cold), "{out:#?}");
+    let route = &out.provenance.decision.as_ref().unwrap()["route"];
+    assert_eq!(route[1], "warm", "{out:#?}");
+    assert_eq!(route[2], "check: the settled plan, the author repairing");
     assert_eq!(keys(&out), vec!["const.ticket_id_field"], "{out:#?}");
     // Exactly one physical request, to the one endpoint, the key only in its header.
     let seen = peer.requests();
@@ -244,7 +249,7 @@ fn a_chosen_option_through_the_session_door_shapes_the_candidate_and_is_journale
     assert_eq!(receipt["retries"], 0);
     let role = receipt["role"].as_str().unwrap();
     assert!(
-        role.starts_with("compiler routing") && role.contains("never Foundry"),
+        role.starts_with("typed compiler decisions") && role.contains("never Foundry"),
         "{role}"
     );
     assert_eq!(receipt["attempts"][0]["outcome"], "chosen");
@@ -256,7 +261,8 @@ fn a_chosen_option_through_the_session_door_shapes_the_candidate_and_is_journale
     );
     assert_eq!(receipt["endpoint_host"], "127.0.0.1");
     assert!(receipt["cost"].as_str().unwrap().starts_with("unknown"));
-    assert_eq!(receipt["state"], "Open");
+    assert_eq!(receipt["state"], "Closed");
+    assert_eq!(receipt["scope_ended"], true);
     let journal = context.decision().unwrap().observations();
     assert_eq!(journal.len(), 1);
     assert_eq!(journal[0]["unbudgeted"], true);
@@ -291,8 +297,10 @@ fn an_answer_outside_the_options_is_refused_by_the_compiler_and_recorded() {
     );
 }
 
+/// A readable request is composed by the reader and held for the seat's check (R1): the
+/// record is a judged plan's, and no seat question is asked while its own questions are open.
 #[test]
-fn a_settled_readable_request_never_calls_the_seat() {
+fn a_settled_readable_request_is_held_for_the_seats_check() {
     let peer = Peer::start(vec![Reply::Json(200, answer("lookup"))]);
     let context = AuthoringContext::default().with_decision(Some(setup(&peer)));
     let seat = AuthoringSeat::Provider {
@@ -307,7 +315,9 @@ fn a_settled_readable_request_never_calls_the_seat() {
         &account,
     )
     .expect("seated compile");
-    assert_eq!(out.provenance.strategy, Some(Strategy::Hot), "{out:#?}");
+    assert_eq!(out.provenance.strategy, Some(Strategy::Cold), "{out:#?}");
+    let route = &out.provenance.decision.as_ref().unwrap()["route"];
+    assert_eq!(route[1], "check: the reader's own plan", "{out:#?}");
     assert!(peer.requests().is_empty());
     assert!(context.decision().unwrap().observations().is_empty());
 }
@@ -346,8 +356,8 @@ fn a_numeric_zero_or_closed_account_is_never_charged_and_the_need_stays_visible(
         assert!(receipt["refused"].is_string());
     }
     assert!(
-        admit(None).is_err(),
-        "a local or unpriced route never consults the service"
+        admit(None).is_ok(),
+        "an explicitly selected decision service is separately observed"
     );
     assert!(admit(Some(&InferenceAdmission::unbudgeted())).is_ok());
 }
@@ -382,18 +392,30 @@ fn missing_credentials_or_another_vendor_are_a_visible_configuration_refusal() {
 }
 
 #[test]
-fn the_fourth_need_of_one_request_is_refused_unsent_by_the_cap() {
-    let peer = Peer::start((0..4).map(|_| Reply::Json(200, answer("lookup"))).collect());
-    let seat = setup(&peer).consult(Ok(()));
+fn continuous_conception_does_not_stop_at_the_fourth_finite_question() {
+    let mut response = answer("lookup");
+    response["usage"]["billing_units"] = json!(7);
+    let peer = Peer::start((0..6).map(|_| Reply::Json(200, response.clone())).collect());
+    let setup = setup(&peer);
+    let seat = setup.consult(Ok(()));
     let question = question();
-    let results: Vec<_> = (0..4).map(|_| block_on(seat.choose(&question))).collect();
-    assert!(results[..3].iter().all(Result::is_ok));
-    assert!(results[3].as_ref().unwrap_err().0.contains("cap"));
-    assert_eq!(peer.requests().len(), MAX_DECISION_CALLS);
-    let receipt = seat.receipt().unwrap();
-    assert_eq!(receipt["calls_sent"], 3);
-    assert_eq!(receipt["attempts"][3]["outcome"], "capped");
-    assert_eq!(receipt["attempts"][3]["sent"], false);
+    for _ in 0..6 {
+        assert!(block_on(seat.choose(&question)).is_ok());
+    }
+    assert_eq!(seat.receipt().unwrap()["state"], "Open");
+    let receipt = seat.finish().unwrap();
+    assert_eq!(peer.requests().len(), 6);
+    assert_eq!(receipt["calls_sent"], 6);
+    assert_eq!(receipt["attempts"][5]["usage"]["billing_units"], 7);
+    assert_eq!(receipt["attempts"][5]["usage"]["input_tokens"], 40);
+    assert_eq!(
+        receipt["unknown_calls"], 6,
+        "responses do not establish a tariff"
+    );
+    assert_eq!(receipt["state"], "Closed");
+    assert_eq!(receipt["scope_ended"], true);
+    assert!(receipt["max_calls"].is_null());
+    assert_eq!(setup.observations(), vec![receipt]);
 }
 
 #[test]
@@ -432,7 +454,112 @@ fn the_status_line_names_the_seat_its_bounds_and_its_unknown_cost() {
         .with_decision(Some(setup(&peer)))
         .line();
     assert!(line.contains(SEAT), "{line}");
-    assert!(line.contains("at most 3 call(s)"), "{line}");
+    assert!(line.contains("no retry or default call cap"), "{line}");
     assert!(line.contains("cost unknown"), "{line}");
     assert!(!line.contains(KEY));
+}
+
+#[test]
+fn completed_scopes_survive_serialization_beside_unknown_exposure_and_fresh_scopes() {
+    let peer = Peer::start(vec![
+        Reply::Json(200, answer("lookup")),
+        Reply::Close,
+        Reply::Json(200, answer(NONE_OPTION)),
+    ]);
+    let setup = setup(&peer);
+    let question = question();
+    let first = setup.consult(admit(None));
+    assert!(block_on(first.choose(&question)).is_ok());
+    let closed = first.finish().unwrap();
+    let second = setup.consult(admit(None));
+    assert!(block_on(second.choose(&question)).is_err());
+    drop(second);
+    let prior = setup.observations();
+    assert_eq!(prior[0], closed);
+    assert_eq!(prior[1]["state"], "Uncertain");
+    assert_eq!(prior[1]["scope_ended"], true);
+    let third = setup.consult(admit(None));
+    assert!(block_on(third.choose(&question)).is_ok());
+    assert_eq!(third.finish().unwrap()["state"], "Closed");
+    let bytes = serde_json::to_vec(&setup.observations()).unwrap();
+    let restored: Vec<Value> = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(
+        &restored[..2],
+        prior.as_slice(),
+        "a new scope did not settle old debt"
+    );
+    assert_eq!(restored.len(), 3);
+    assert_eq!(
+        restored
+            .iter()
+            .map(|v| v["unknown_calls"].as_u64().unwrap())
+            .sum::<u64>(),
+        3
+    );
+    assert_eq!(peer.requests().len(), 3, "reading history did not dispatch");
+}
+
+#[test]
+fn a_cancelled_choice_is_not_closed_as_settled_even_if_the_peer_answered() {
+    let (notify, reached) = tokio::sync::oneshot::channel();
+    let sender = Mutex::new(Some(notify));
+    let peer = Peer::start_with(vec![Reply::Json(200, answer("lookup"))], move || {
+        if let Some(sent) = sender.lock().unwrap().take() {
+            let _ = sent.send(());
+        }
+    });
+    let setup = setup(&peer);
+    let seat = setup.consult(admit(None));
+    let question = question();
+    block_on(async {
+        tokio::select! {
+            biased;
+            reached = reached => reached.expect("request reached the peer"),
+            _ = seat.choose(&question) => panic!("the receipt was consumed before cancellation"),
+        }
+    });
+    drop(seat);
+    assert_eq!(peer.requests().len(), 1);
+    let kept = setup.observations();
+    assert_eq!(kept[0]["state"], "Uncertain");
+    assert_eq!(kept[0]["scope_ended"], true);
+    assert_eq!(kept[0]["attempts"][0]["outcome"], "in_flight");
+    assert_eq!(kept[0]["unknown_calls"], 1);
+}
+
+#[test]
+fn an_unused_scope_does_not_invent_an_observation_or_request() {
+    let peer = Peer::start(vec![]);
+    let setup = setup(&peer);
+    assert!(setup.consult(admit(None)).finish().is_none());
+    assert!(setup.observations().is_empty());
+    assert!(peer.requests().is_empty());
+}
+
+#[test]
+fn selected_jev_works_without_borrowing_an_authoring_account() {
+    let peer = Peer::start(vec![Reply::Json(200, answer("lookup"))]);
+    let setup = setup(&peer);
+    let context = AuthoringContext::default().with_decision(Some(setup.clone()));
+    let out = crate::authoring::compile_in(
+        &AuthoringSeat::Provider {
+            model: "mock/echo".into(),
+        },
+        &context,
+        &CompileRequest::create(TICKETS),
+        TICKETS,
+    )
+    .expect("separate observed decision service");
+    // Settled by the seat, held for the check the author repairs under (a judged plan's record).
+    assert_eq!(out.provenance.strategy, Some(Strategy::Cold));
+    assert_eq!(keys(&out), vec!["const.ticket_id_field"]);
+    assert_eq!(peer.requests().len(), 1);
+    assert_eq!(setup.observations()[0]["state"], "Closed");
+    assert_eq!(setup.observations()[0]["unknown_calls"], 1);
+    assert!(
+        setup.observations()[0]["cost"]
+            .as_str()
+            .unwrap()
+            .contains("never priced as zero")
+    );
 }

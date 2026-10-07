@@ -1665,5 +1665,53 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-144",
+      "title": "nika-session size-cap member split: the change set, its review, its outcome and the consent record descend to nika-session-change",
+      "status": "accepted",
+      "date": "2026-10-06",
+      "filename": "adr-144-nika-session-change-member-split.md",
+      "tags": ["architecture","crates","split","size-cap","session"],
+      "affects_crates": ["nika-session","nika-session-change"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-125","ADR-126","ADR-133","ADR-110","ADR-137","ADR-138","ADR-140","ADR-141","ADR-142","ADR-143"],
+      "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-145",
+      "title": "nika-compile-clauses size-cap member: how one clause of a request reads ascends from the reader, the verifier and the core's surface",
+      "status": "accepted",
+      "date": "2026-10-07",
+      "filename": "adr-145-nika-compile-clauses-member-split.md",
+      "tags": ["architecture","crates","split","size-cap","compile"],
+      "affects_crates": ["nika-compile-clauses","nika-compile-reader","nika-compile-cognition","nika-compile"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-137","ADR-138","ADR-140","ADR-141","ADR-142","ADR-144"],
+      "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-146",
+      "title": "nika-compile-cognition size-cap member split: the decision seats and the rehearsal port descend to nika-compile-seats",
+      "status": "accepted",
+      "date": "2026-10-07",
+      "filename": "adr-146-nika-compile-seats-member-split.md",
+      "tags": ["architecture","crates","split","size-cap","compile"],
+      "affects_crates": ["nika-compile-cognition","nika-compile-seats"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-137","ADR-140","ADR-141","ADR-142","ADR-144","ADR-145"],
+      "requires": [],
+      "enables": []
+    }
   ]
 }

@@ -5,7 +5,8 @@
 //! which dispatches a task (ADR-127 · the nika-runtime size-cap member
 //! split): the one-voice error, the typed contracts, the public record
 //! mirror, the input origins, the engine identity, the record integrity,
-//! the secret custody, the sandbox verdict and the event stamp seams. `nika-runtime` re-exports every item
+//! the retry backoff arithmetic, the secret custody, the sandbox verdict, the
+//! received-image room and the event stamp seams. `nika-runtime` re-exports every item
 //! at its historical path; this crate is the `nika-runtime` unit's second
 //! member, never a new architectural unit.
 
@@ -17,9 +18,11 @@ mod build_support;
 pub mod contract;
 pub mod errors;
 pub mod identity;
+pub mod image_room;
 pub mod integrity;
 pub mod origins;
 pub mod resume_fields;
+pub mod retry;
 pub mod sandbox_select;
 pub mod secret;
 pub mod stamp;

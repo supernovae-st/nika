@@ -1,0 +1,1 @@
+- **Intelligence choices and preparation models stay visible.** The terminal intelligence chooser keeps all four numbered routes beside the composer on small screens. The `Prepare:` heading names the already resolved API or local authoring model when no model was explicitly configured; it does not claim that model answered a turn.

@@ -29,7 +29,12 @@ use nika_compile_cognition::rehearse::{
 };
 use nika_execution::ExecutionService;
 use nika_fs::{EffectLedger, OwnedDir, RoomLimits, RootedFs};
-use nika_service_execution::{DeniedTally, ExecutionAccessPlan, ServiceExecutionDriver};
+use nika_service_execution::{
+    DeniedTally, ExecutionAccessPlan, IsolatedJq, ServiceExecutionDriver,
+};
+
+/// The program a room starts to evaluate `nika:jq` (see [`ObservedRoom::with_jq_helper`]).
+pub use nika_service_execution::JqHelper;
 
 use record::{Ran, Record};
 use screen::{Refused, Screened};
@@ -41,6 +46,7 @@ pub struct ObservedRoom {
     root: PathBuf,
     bound: Duration,
     scratch_parent: Option<PathBuf>,
+    jq: Option<JqHelper>,
 }
 
 impl ObservedRoom {
@@ -67,7 +73,23 @@ impl ObservedRoom {
             root: root.into(),
             bound: Self::BOUND,
             scratch_parent: None,
+            jq: None,
         }
+    }
+
+    /// The same room, its candidates' `nika:jq` steps run by `helper`: one bounded process of
+    /// the engine's own per evaluation, within the run's time bound. Without one, a candidate
+    /// holding a jq step is screened before any room.
+    #[must_use]
+    pub fn with_jq_helper(mut self, helper: JqHelper) -> Self {
+        self.jq = Some(helper);
+        self
+    }
+
+    /// The helper that evaluates `nika:jq`, when the host named one.
+    #[must_use]
+    pub fn jq_helper(&self) -> Option<&JqHelper> {
+        self.jq.as_ref()
     }
 
     /// The same room with another runtime timeout; setup and drainage stay outside it.
@@ -123,6 +145,7 @@ impl Rehearse for ObservedRoom {
             inputs: inputs.to_vec(),
             targets: targets.to_vec(),
             candidate_sha256: sha256(candidate),
+            jq: self.jq.clone(),
         };
         Box::pin(async move {
             let candidate_sha256 = job.candidate_sha256.clone();
@@ -159,6 +182,7 @@ struct Job {
     inputs: Vec<String>,
     targets: Vec<String>,
     candidate_sha256: String,
+    jq: Option<JqHelper>,
 }
 
 /// The admitted candidate, ready to run in its prepared room.
@@ -172,7 +196,7 @@ struct Ready {
 impl Job {
     /// Screen the candidate, then rehearse it on an executor of this worker's own.
     fn run(self) -> RehearsalReport {
-        let screened = match screen::screen(&self.candidate, &self.inputs) {
+        let screened = match screen::screen_with(&self.candidate, &self.inputs, self.jq.is_some()) {
             Ok(screened) => screened,
             Err(refused) => return record::refused(self.candidate_sha256, refused),
         };
@@ -221,11 +245,21 @@ impl Job {
         };
         let started = Instant::now();
         let tally = Arc::new(DeniedTally::default());
-        let run = ready
-            .driver
-            .rehearse_over(Arc::clone(&room), ready.plan, Arc::clone(&tally));
+        // The evaluations end a fifth of the bound before the run does: a helper killed at its
+        // deadline is drained and reaped while the run still stands, never dropped by its bound.
+        let jq_deadline = started + self.bound.saturating_sub(self.bound / 5);
+        let jq = (self.jq.clone()).map(|helper| Arc::new(IsolatedJq::new(helper, jq_deadline)));
+        let run = ready.driver.rehearse_over_with(
+            Arc::clone(&room),
+            ready.plan,
+            Arc::clone(&tally),
+            jq.clone(),
+        );
         let settled = tokio::time::timeout(self.bound, run).await.ok();
         drained &= world::next_phase(&ledger).await.is_ok();
+        // A jq helper the collection could not reap leaves the drain unverified.
+        let bound = jq.as_ref().and_then(|jq| jq.bound());
+        drained &= bound.as_ref().is_none_or(|bound| bound.reaped);
         let elapsed_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
         let ran = Ran {
             settled,
@@ -236,7 +270,17 @@ impl Job {
         drained &= world::next_phase(&ledger).await.is_ok();
         let mut record = self.close(scratch, room, &ledger, ready.copies, finals, drained);
         record.admitted_digest = ready.admitted_digest;
-        record.ran(&ran, screened)
+        let mut report = record.ran(&ran, screened);
+        // A bounded evaluation is no failure of the program: the run was stopped by a bound.
+        if let Some(bound) = bound {
+            report.outcome = Rehearsal::NotRun {
+                reason: format!("a jq step was stopped by its bound: {}", bound.reason),
+            };
+            report.attempt = Attempt::Stopped { elapsed_ms };
+            report.observation.failure = None;
+            report.observation.refusal = Some(Refusal::DataBounds);
+        }
+        report
     }
 
     /// Copy the observed world into the room, then admit the candidate from its bytes alone over

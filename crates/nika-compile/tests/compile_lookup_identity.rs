@@ -10,7 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 use std::collections::BTreeSet;
 
-use nika_compile::{CompileRequest, CompileStatus, compile};
+use nika_compile::{CompileOutcome, CompileRequest, CompileStatus, compile};
 use serde_json::{Map, Value, json};
 
 mod common;
@@ -18,21 +18,26 @@ mod common;
 const LOOK_UP: &str = "Look up ticket 42 in ./tickets.json and write it to ./ticket-42.json";
 const LOOK_UP_POST: &str = "Look up ticket 42 in ./tickets.json, write it to ./ticket-42.json and post it to http://127.0.0.1:18471/hook";
 
-/// The workflow a request compiles to over the observed ticket file, its identifier field
-/// answered `id` (the question the lookup asks), with an optional recorded plan replayed.
-fn workflow(intent: &str, plan: Option<Value>) -> Value {
-    let mut request = CompileRequest::create(intent)
+/// The request over the observed ticket file, its identifier field answered `id` (the question
+/// the lookup asks).
+fn request(intent: &str) -> CompileRequest {
+    CompileRequest::create(intent)
         .with_knowledge(common::observed(&[(
             "./tickets.json",
             &["id", "status", "title"],
         )]))
-        .answer("const.ticket_id_field", "\"id\"");
-    if let Some(plan) = plan {
-        request = request.with_plan(plan);
-    }
-    let out = compile(&request).unwrap();
+        .answer("const.ticket_id_field", "\"id\"")
+}
+
+/// The READY workflow of an outcome, as a document.
+fn document(out: &CompileOutcome) -> Value {
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     serde_yaml_bw::from_str(out.candidate.as_deref().unwrap()).unwrap()
+}
+
+/// The workflow the deterministic reader compiles a request to.
+fn workflow(intent: &str) -> Value {
+    document(&compile(&request(intent)).unwrap())
 }
 
 fn tasks(doc: &Value) -> &Map<String, Value> {
@@ -72,7 +77,7 @@ fn ancestors(doc: &Value, name: &str) -> BTreeSet<String> {
 
 #[test]
 fn a_literal_lookup_selects_through_the_one_record_law() {
-    let doc = workflow(LOOK_UP, None);
+    let doc = workflow(LOOK_UP);
     let record = &tasks(&doc)["lookup_record"]["invoke"]["args"];
     let expression = record["expression"].as_str().unwrap();
     // The one-record law, and the record it selects keeps every number exact (R4 A8).
@@ -102,7 +107,7 @@ fn a_literal_lookup_selects_through_the_one_record_law() {
 /// the one record resolved and the admit passed: an ambiguity stops the run before any of them.
 #[test]
 fn every_effect_waits_for_the_one_record() {
-    let doc = workflow(LOOK_UP_POST, None);
+    let doc = workflow(LOOK_UP_POST);
     let effects: Vec<(&String, &Value)> = tasks(&doc)
         .iter()
         .filter(|(_, t)| {
@@ -128,9 +133,12 @@ fn every_effect_waits_for_the_one_record() {
 }
 
 /// Root's recorded decision-seat plan (three fresh decisions chose `lookup` for « find ticket 42 »),
-/// replayed with the predeclared answer: the same READY workflow, now through the one-record law.
-#[test]
-fn roots_recorded_decision_replays_through_the_one_record_law() {
+/// replayed with the predeclared answer: the same workflow, now through the one-record law. A
+/// seat's plan (WARM) is READY only once the round's judge carries its whole request over the
+/// replayed bytes (R4 A11): with no judge the round holds those bytes for it, and the approving
+/// double's round reads them READY.
+#[tokio::test]
+async fn roots_recorded_decision_replays_through_the_one_record_law() {
     let plan = json!({
         "bindings": [{"literal": "./ticket-42.json", "role": "path"},
                      {"literal": "./tickets.json", "role": "path"},
@@ -143,10 +151,13 @@ fn roots_recorded_decision_replays_through_the_one_record_law() {
                        {"categories": [], "detail": "ticket 42", "evidence": "find ticket 42", "op": "lookup"}],
         "rules": [], "slots": [], "strategy": "warm", "trigger": null, "unknowns": []
     });
-    let doc = workflow(
-        "Read ./tickets.json, find ticket 42 and write it to ./ticket-42.json",
-        Some(plan),
-    );
+    let intent = "Read ./tickets.json, find ticket 42 and write it to ./ticket-42.json";
+    let replayed = request(intent).with_plan(plan);
+    let held = compile(&replayed).unwrap();
+    common::assert_waits_for_its_judge(&held, intent);
+    let judged = common::approved_round(&replayed).await;
+    assert_eq!(judged.candidate, held.candidate, "{judged:#?}");
+    let doc = document(&judged);
     let expression = tasks(&doc)["lookup_record"]["invoke"]["args"]["expression"]
         .as_str()
         .unwrap();

@@ -285,6 +285,14 @@ impl Decimal {
         }
     }
 
+    /// The opposite number: zero stays zero.
+    #[must_use]
+    pub fn negated(&self) -> Self {
+        let mut out = self.clone();
+        out.negative = !self.is_zero() && !self.negative;
+        out
+    }
+
     /// `floor(|self| × 10^shift / divisor)` as digits, and whether no remainder was dropped.
     fn scaled_quotient(&self, shift: i64, divisor: u64) -> (Vec<u8>, bool) {
         let scale = self.exponent.saturating_add(shift);

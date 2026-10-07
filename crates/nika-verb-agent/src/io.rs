@@ -146,6 +146,12 @@ pub struct AgentOutput {
     pub usage: TokenUsage,
     /// The model the loop requested (`provider/name`), not a billing route. `None` on harness-built outputs.
     pub model_resolved: Option<String>,
+    /// The session model a delegated harness REPORTED (configured, selected or
+    /// accepted — see `model_reported_source`). Not a response attestation, never
+    /// the served model and never a pricing key.
+    pub model_reported: Option<String>,
+    /// How `model_reported` was learned; `None` when the harness did not say.
+    pub model_reported_source: Option<nika_kernel::ai::harness::ModelProvenance>,
 }
 
 impl AgentOutput {
@@ -167,6 +173,8 @@ impl AgentOutput {
             tools_cost_usd: None,
             usage: TokenUsage::default(),
             model_resolved: None,
+            model_reported: None,
+            model_reported_source: None,
         }
     }
 

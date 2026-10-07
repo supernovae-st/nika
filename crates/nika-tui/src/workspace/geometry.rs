@@ -84,11 +84,11 @@ impl Geometry {
                 Rect::new(work.x, work.y + seen, work.width, talk),
             )
         } else {
-            let talk = clamp_share(work.width, 38, 36, 56);
+            let talk = clamp_share(work.width, 48, 42, 92);
             let seen = work.width - talk;
             (
-                Rect::new(work.x, work.y, seen, work.height),
-                Rect::new(work.x + seen, work.y, talk, work.height),
+                Rect::new(work.x + talk, work.y, seen, work.height),
+                Rect::new(work.x, work.y, talk, work.height),
             )
         };
         Some(Self {
@@ -106,8 +106,13 @@ impl Geometry {
     pub fn regions(&self) -> Vec<Rect> {
         let mut regions = vec![self.header];
         regions.extend(self.aside);
-        regions.push(self.object);
-        regions.push(self.conversation);
+        if self.stacked {
+            regions.push(self.object);
+            regions.push(self.conversation);
+        } else {
+            regions.push(self.conversation);
+            regions.push(self.object);
+        }
         regions.extend(self.pinned);
         regions
     }
@@ -175,13 +180,27 @@ mod tests {
         assert!(!medium.stacked);
         assert_eq!(medium.aside, None);
         assert_eq!(medium.header.height, 2);
-        assert!(medium.conversation.width >= 36);
+        assert_eq!(medium.conversation.width, 48);
         let large = at(120, 40, false);
         let aside = large.aside.expect("aside at 120 columns");
         assert!((20..=32).contains(&aside.width));
-        assert!(large.object.width >= 40, "{large:?}");
+        assert_eq!(
+            (aside.width, large.conversation.width, large.object.width),
+            (21, 47, 52)
+        );
+        assert_eq!(aside.right(), large.conversation.x);
+        assert_eq!(large.conversation.right(), large.object.x);
+        assert_eq!(large.object.right(), 120);
         let wide = at(160, 48, false);
-        assert!(wide.conversation.width <= 56 && wide.object.width > wide.conversation.width);
+        assert_eq!((wide.conversation.width, wide.object.width), (63, 69));
+        assert_eq!(wide.conversation.right(), wide.object.x);
+        let roomy = at(190, 48, false);
+        assert_eq!((roomy.conversation.width, roomy.object.width), (75, 83));
+        let huge = at(300, 48, false);
+        assert_eq!(huge.conversation.width, 92);
+        let regions = large.regions();
+        assert_eq!(regions[2], large.conversation);
+        assert_eq!(regions[3], large.object);
     }
 
     #[test]

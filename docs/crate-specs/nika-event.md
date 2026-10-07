@@ -172,6 +172,7 @@ kinds 1:1 (INV-024 — the adapter is the ONE emission site). Per AgentOps
 | `AgentStalled` | `agent_stalled` | the no-progress stop's evidence (`period`/`repeats` — the TRAIL repetitive-action class) rides IN the trace; diagnostic, NOT `is_failure` (the task event carries the verdict) |
 | `AgentComposeChecked` | `agent_compose_checked` | an `agent:compose` draft got its static verdict (`valid`/`violations` — generation is not permission) |
 | `AgentBudgetCheckpoint` | `agent_budget_checkpoint` | per-turn spend snapshot — the curve is observable mid-run, not just at the end |
+| `AgentImageObserved` | `agent_image_observed` | one received harness image as bounded metadata (`harness_image`) — never inline bytes, permission evidence or a verified peer file |
 
 ## 5. Consumers (downstream)
 
@@ -181,3 +182,21 @@ kinds 1:1 (INV-024 — the adapter is the ONE emission site). Per AgentOps
 - **Future `nika-connectome`** — ingests events for the chronicle/recall split
   (the engine chronicle projects into the Connectome's RDF substrate; raw
   payloads stay hashed per sovereignty Rule 1).
+
+## Terminal outputs companion fields
+
+`settlement::{OUTPUTS_FIELD, OUTPUTS_BYTES_FIELD, OUTPUTS_WITHHELD_FIELD,
+OUTPUTS_KEPT}` name the bounded resolved-output projection beside the terminal
+settlement. Exactly one companion is emitted by the normal close: `outputs`
+is a complete compact JSON object up to 65,536 bytes; `outputs_bytes` records
+the exact larger size without payload; `outputs_withheld: true` withholds the
+whole map. An older terminal may have none. These fields do not alter
+`RunSettlement`, the run state, ledger or authority.
+
+## Harness image observation cohort
+
+`AgentImageObserved` / `agent_image_observed` adds a diagnostic Agent-class kind
+for bounded received-image metadata. It is neither terminal nor a failure and
+never substitutes for permission evidence. The serde/slug mapping, ALL census
+and class partition include it. The runtime's existing agent observer adapter
+owns emission; spec 17 defines its attempt/iteration and terminal-count contract.

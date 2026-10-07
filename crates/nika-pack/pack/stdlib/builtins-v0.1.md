@@ -1,6 +1,6 @@
 # Stdlib v0.1 · Builtins
 
-> **<!-- canon:builtins -->28<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
+> **<!-- canon:builtins -->29<!-- /canon --> canonical builtins** shipped with Stdlib v0.1-compliant engines.
 > Invoked via `invoke: tool: "nika:<name>"`. Plus the remaining media
 > builtins deferred to stdlib v0.x (opt-in feature flag).
 >
@@ -36,14 +36,14 @@
 | Category | Count | Status |
 |---|---|---|
 | Core | 6 | Required for execution (log · emit · assert · prompt · done · wait) |
-| File | 5 | I/O primitives (read · write · edit · glob · grep) |
+| File | the `category: file` rows of [`canon/builtins.yaml`](../canon/builtins.yaml) | I/O primitives (read · write · edit · remove_file · glob · grep) |
 | Data | 8 | `jq` (THE data language) + 7 capabilities jq can't express (json_diff · validate · json_merge_patch · convert · uuid · date · hash) |
 | Introspection | 2 | Self-awareness · `inspect` (runtime state · 4 views) · `compose` (static check of a drafted workflow · agent loops only) |
 | Network | 2 | fetch (HTTP+extraction) · notify (alerts out) |
 | Media | 4 | `chart` (§Media #4 · deterministic/attested · 2026-07-09) · `image_generate` (§Media · 2026-07-05) · `image_fx` (§Media #3 · deterministic ops chain · 2026-07-09) · `tts_generate` (§Audio · 2026-07-05) — the REST of the media class stays deferred to stdlib v0.x |
-| **Total v0.1** | **<!-- canon:builtins -->28<!-- /canon -->** | |
+| **Total v0.1** | **<!-- canon:builtins -->29<!-- /canon -->** | |
 
-A Stdlib v0.1-compliant engine MUST ship these <!-- canon:builtins -->28<!-- /canon -->.
+A Stdlib v0.1-compliant engine MUST ship these <!-- canon:builtins -->29<!-- /canon -->.
 
 ---
 
@@ -144,7 +144,7 @@ Throws · `NIKA-BUILTIN-WAIT-001` on absolute timeout · `-002` if the timestamp
 
 ---
 
-## File builtins (5)
+## File builtins
 
 ### `nika:read`
 ```yaml
@@ -170,7 +170,7 @@ The reference engine serializes object keys in sorted order, including nested ob
 
 A present null `content:` is refused with `NIKA-BUILTIN-WRITE-001`; pass the string `"null"` to write that literal text. In a checked workflow, an absent required `content:` argument is refused by `check` with `NIKA-BUILTIN-001`; a reference to a missing upstream value fails before the write with `NIKA-VAR-001`. A direct builtin call without `content:` is also refused with `NIKA-BUILTIN-WRITE-001`.
 
-`overwrite:` defaults **true** · `create_dirs:` defaults **false** — and a false `create_dirs:` is ENFORCED, not ignored: a missing parent directory is refused loudly (a typo'd path surfaces rather than silently materializing a directory tree), so pass `create_dirs: true` to create the parent. **One carve-out, by decision (engine #433 option C): a declared `permits.fs.write` entry covering the target path IS the intent** — the boundary creates the parent tree before the builtin's gate, and the write lands without `create_dirs:` (measured on the reference engine: a literal grant `deep/dir/new.txt` and a glob grant `out/**` both materialize their tree · run green). The refusal keeps its teeth where no declared grant covers the path — and there the boundary itself speaks first: an uncovered write is `NIKA-SEC-004` before the parent gate can. A typo'd path under a *narrow* grant still surfaces (it falls outside the grant → SEC-004); the tree-scatter the enforcement exists to catch cannot hide inside a boundary the author drew. Throws · `NIKA-BUILTIN-WRITE-001` (IO failure, or a missing parent while `create_dirs: false` outside a covering grant · a directory-shaped `path:` — a trailing `/` is `write failed: path not found`, an existing directory is `filesystem I/O error: Is a directory` · a file in the way of `create_dirs:` — `create_dirs failed: path already exists`, the mark an earlier empty write at the directory's path leaves behind, and nothing deletes it; all three measured on the reference engine 0.118.7) · `-002` (`overwrite: false` and the path exists). Both `tool_error` · `transient: false`.
+`overwrite:` defaults **true** · `create_dirs:` defaults **false** — and a false `create_dirs:` is ENFORCED, not ignored: a missing parent directory is refused loudly (a typo'd path surfaces rather than silently materializing a directory tree), so pass `create_dirs: true` to create the parent. **One carve-out, by decision (engine #433 option C): a declared `permits.fs.write` entry covering the target path IS the intent** — the boundary creates the parent tree before the builtin's gate, and the write lands without `create_dirs:` (measured on the reference engine: a literal grant `deep/dir/new.txt` and a glob grant `out/**` both materialize their tree · run green). The refusal keeps its teeth where no declared grant covers the path — and there the boundary itself speaks first: an uncovered write is `NIKA-SEC-004` before the parent gate can. A typo'd path under a *narrow* grant still surfaces (it falls outside the grant → SEC-004); the tree-scatter the enforcement exists to catch cannot hide inside a boundary the author drew. Throws · `NIKA-BUILTIN-WRITE-001` (IO failure, or a missing parent while `create_dirs: false` outside a covering grant · a directory-shaped `path:` — a trailing `/` is `write failed: path not found`, an existing directory is `filesystem I/O error: Is a directory` · a file in the way of `create_dirs:` — `create_dirs failed: path already exists`, the mark an earlier empty write at the directory's path leaves behind, which `nika:write` never removes; all three measured on the reference engine 0.118.7) · `-002` (`overwrite: false` and the path exists). Both `tool_error` · `transient: false`.
 
 ### `nika:edit`
 ```yaml
@@ -186,6 +186,75 @@ intent-inversion footgun class). Throws ·
 `NIKA-BUILTIN-EDIT-001` (`find:` matched nothing: an edit that edits
 nothing is an authoring bug · `tool_error` · also a non-integer `count:`) ·
 `-002` (IO failure).
+
+### `nika:remove_file` · exact regular-file removal
+```yaml
+invoke: { tool: "nika:remove_file", args: { path: "./out/scratch.txt" } }
+```
+Remove ONE existing regular file named by `path:` · returns the requested
+path string. The arguments are exactly `{ path: string }`: there is no
+recursive, glob, force, missing-ok or destination option, no alias and no
+`nika:delete`.
+
+**Authority.** Removal is an external filesystem **write** effect. It needs
+the callable's tool grant (`permits.tools`) AND a `permits.fs.write` bound
+containing the exact resolved path. It needs no read grant: no content is
+read, and no parent directory is created. A preceding copy (`nika:read` →
+`nika:write`) needs its own independent read and write grants. Removal joins
+the ordinary authority, taint, consent and composition laws exactly like
+`nika:write`, and the same-path mutation law (`NIKA-SEC-012`): ordered
+mutations of one path are permitted; an incomparable write/remove or
+remove/remove pair on one path, or a `for_each` fan onto one constant path,
+is refused. There is no global one-writer rule.
+
+**Path shape** (judged on the RAW spelling, before any normalization). The
+components are delimited by `/` and the target platform's main separator.
+The path MUST be a non-empty string; it is not trimmed (a single-space file
+name is a name). A trailing separator, a final `.` or `..` component, or a
+root or platform prefix with no file name names a directory and is refused —
+`out/.` is refused even though a pure path API normalizes the final dot
+away. On POSIX a backslash is an ordinary file-name character, never
+silently turned into a separator. `out/./note`, `out/part/../note`,
+`out/...` and ` ` pass the shape rule; the boundary judges them next.
+Wildcard-looking characters (`*` · `?` · `[`) are literal file-name
+characters: one path names one target and is never expanded.
+
+**Execution.** The engine validates, without following links, that an
+existing **regular** entry sits at the resolved path. A missing entry, a
+directory, a symlink (dangling or not), a FIFO or any other special entry
+fails; there is no recursive removal, no content-opening probe and no
+link-following metadata fallback. Confinement to the granted boundary is
+descriptor-relative or carries an equivalent guarantee; a backend that cannot
+provide it refuses. Success reports the requested path only after the backend
+reports the removal. That returned path, or a permit allow, is not
+independent proof of disk state. No atomic inode comparison is promised: the
+leaf may change between validation and unlink, but a substituted symlink
+never redirects the removal to its target.
+
+**Not a transaction.** Copy-then-remove is two effects. A failed publication
+prevents a dependent removal; a removal that fails after a successful
+publication leaves a visible copy. There is no rollback, inode-preserving
+rename, whole-batch atomicity or automatic cleanup, and a cancellation
+without a settled backend result does not prove that nothing was removed.
+
+| Condition | Code | Category · transient |
+|---|---|---|
+| invalid argument object, keys or types, or an invalid **literal** path shape | `NIKA-BUILTIN-001` | `validation_error` · false |
+| invalid resolved args or path shape | `NIKA-BUILTIN-REMOVE_FILE-001` | `validation_error` · false |
+| the permitted operation fails: absent or nonregular entry, unsupported backend, ordinary OS error | `NIKA-BUILTIN-REMOVE_FILE-002` | `tool_error` · false |
+| tool grant or write boundary escaped | `NIKA-SEC-004` | `security_error` · false |
+| the whole `permits:` block absent | `NIKA-AUTH-006` | `security_error` · false |
+| a statically resolved untrusted value escapes | `NIKA-AUTH-008` | `security_error` · false |
+| unordered shared mutation or constant-target fan | `NIKA-SEC-012` | `security_error` · false |
+
+The static path-shape judgment covers literal paths only. The shape of a
+templated path string is deferred whole to the judgment of its resolved
+value, even when a trailing `/` or a final `/.` is visible in the template
+(`REMOVE_FILE-001` then refuses it); deferral never means the path is safe
+or runnable. A missing or non-string `path`, a non-object `args` and any
+extra argument key stay static refusals, even beside a templated path.
+
+An authority refusal is never reported as `REMOVE_FILE-002`.
 
 ### `nika:glob`
 ```yaml
@@ -973,4 +1042,4 @@ external users · before the forever-clock).
 
 ---
 
-🦋 *<!-- canon:builtins -->28<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · assets land on disk, never inline · clear forever.*
+🦋 *<!-- canon:builtins -->29<!-- /canon --> builtins canonical · jq = the data language · 5-layer Rams symmetry (fetch+extract · jq · convert · wait · inspect) · assets land on disk, never inline · clear forever.*

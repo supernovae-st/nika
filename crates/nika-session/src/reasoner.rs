@@ -13,19 +13,27 @@ mod label_tests;
 #[cfg(test)]
 pub(crate) mod test_transport;
 #[cfg(test)]
-pub(crate) type ProviderHttp = test_transport::Client;
+pub(crate) type ProviderHttp = Wire<test_transport::Client>;
 #[cfg(not(test))]
-pub(crate) type ProviderHttp = nika_http::ReqwestHttp;
+pub(crate) type ProviderHttp = Wire<nika_http::ReqwestHttp>;
 
 use std::collections::VecDeque;
 use std::sync::Arc;
 
 use nika_onboard::compile::AuthoringReasoning;
+use nika_providers::authoring::{
+    policy::{completion_bounds, label_ceiling},
+    preparation::PreparationCosts,
+    requests::{Envelope, Wire},
+};
 
 /// Why a reasoner could not answer.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum ReasonError {
+    /// The operator stopped preparation; the conversation and costs remain available.
+    #[error("preparation stopped; conversation kept; any sent request may still be billed")]
+    Cancelled,
     /// No conversational intelligence was chosen.
     #[error("no conversational intelligence — the facts stay (`/intelligence` chooses a path)")]
     NoIntelligence,
@@ -80,6 +88,11 @@ pub trait SessionReasoner: Send {
     /// This is independent of billed-provider catalog admission.
     fn authoring_harness(&self) -> Option<String> {
         None
+    }
+
+    /// The connection granted by this reasoner; wrappers preserve an explicit ACP choice.
+    fn harness_transport(&self) -> nika_types::access::HarnessTransport {
+        nika_types::access::HarnessTransport::Native
     }
 
     /// Whether this implementation opts into the shared admission seam.
@@ -200,7 +213,7 @@ impl SessionReasoner for NoReasoner {
 /// A harness seat (an AI app the human already has) — the SAME
 /// infer-grade adapter `nika run` dispatches an `infer:` through.
 #[cfg(feature = "access-harness")]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HarnessReasoner {
     /// The seat id.
     pub seat: String,
@@ -212,9 +225,19 @@ impl HarnessReasoner {
     /// clarification as well as authoring; the original struct stays compatible.
     #[must_use]
     pub fn with_model(self, model: Option<String>) -> impl SessionReasoner {
+        self.with_transport(model, nika_types::access::HarnessTransport::Native)
+    }
+    /// Select the connection explicitly for every conversational and authoring call.
+    #[must_use]
+    pub fn with_transport(
+        self,
+        model: Option<String>,
+        transport: nika_types::access::HarnessTransport,
+    ) -> impl SessionReasoner {
         SelectedHarnessReasoner {
             harness: self,
             model,
+            transport,
         }
     }
 }
@@ -223,6 +246,7 @@ impl HarnessReasoner {
 struct SelectedHarnessReasoner {
     harness: HarnessReasoner,
     model: Option<String>,
+    transport: nika_types::access::HarnessTransport,
 }
 
 #[cfg(feature = "access-harness")]
@@ -233,21 +257,20 @@ impl SessionReasoner for SelectedHarnessReasoner {
     fn authoring_harness(&self) -> Option<String> {
         self.harness.authoring_harness()
     }
+    fn harness_transport(&self) -> nika_types::access::HarnessTransport {
+        self.transport
+    }
     fn reason(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
-        let model =
-            nika_harness::authoring::model_argument(&self.harness.seat, self.model.as_deref())
-                .map_err(ReasonError::Seat)?;
-        let seat = nika_harness::meet_infer_grade(
+        let (text, usage_observed) = block_on(nika_harness::authoring::reason(
             &self.harness.seat,
-            nika_harness::StructuredOutputGrade::Text,
-        )
-        .map_err(|e| ReasonError::Seat(e.to_string()))?;
-        let request = nika_harness::HarnessInferRequest::new(prompt, model);
-        let outcome = block_on(async { seat.run(request).await })?
-            .map_err(|e| ReasonError::Seat(e.to_string()))?;
+            self.model.as_deref(),
+            self.transport,
+            prompt,
+        ))?
+        .map_err(ReasonError::Seat)?;
         Ok(Reply {
-            text: outcome.output,
-            usage_observed: outcome.usage_observed,
+            text,
+            usage_observed,
         })
     }
 }
@@ -262,16 +285,7 @@ impl SessionReasoner for HarnessReasoner {
     }
 
     fn reason(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
-        let seat =
-            nika_harness::meet_infer_grade(&self.seat, nika_harness::StructuredOutputGrade::Text)
-                .map_err(|e| ReasonError::Seat(e.to_string()))?;
-        let request = nika_harness::HarnessInferRequest::new(prompt, "session");
-        let outcome = block_on(async { seat.run(request).await })?
-            .map_err(|e| ReasonError::Seat(e.to_string()))?;
-        Ok(Reply {
-            text: outcome.output,
-            usage_observed: outcome.usage_observed,
-        })
+        self.clone().with_model(None).reason(prompt)
     }
 }
 
@@ -286,6 +300,13 @@ pub struct ProviderReasoner {
     pub label: String,
 }
 
+/// A classifier consumes a complete label, never a user-facing status notice.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ReplyPurpose {
+    Chat,
+    Label,
+}
+
 impl SessionReasoner for ProviderReasoner {
     fn supports_admission(&self) -> bool {
         true
@@ -295,14 +316,21 @@ impl SessionReasoner for ProviderReasoner {
         prompt: &str,
         account: &nika_providers::InferenceAdmission,
     ) -> Result<Reply, ReasonError> {
-        self.infer(prompt, Some(8192), Some(account), None)
+        let ceiling = allowance_ceiling(8192);
+        self.infer(prompt, ceiling, Some(account), None, ReplyPurpose::Chat)
     }
     fn reason_label_with_admission(
         &mut self,
         prompt: &str,
         account: &nika_providers::InferenceAdmission,
     ) -> Result<Reply, ReasonError> {
-        self.infer(prompt, Some(self.label_ceiling()), Some(account), None)
+        self.infer(
+            prompt,
+            allowance_ceiling(label_ceiling(&self.model)),
+            Some(account),
+            None,
+            ReplyPurpose::Label,
+        )
     }
 
     fn name(&self) -> String {
@@ -314,11 +342,17 @@ impl SessionReasoner for ProviderReasoner {
     }
 
     fn reason(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
-        self.infer(prompt, None, None, None)
+        self.infer(prompt, None, None, None, ReplyPurpose::Chat)
     }
 
     fn reason_label(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
-        self.infer(prompt, Some(self.label_ceiling()), None, None)
+        self.infer(
+            prompt,
+            allowance_ceiling(label_ceiling(&self.model)),
+            None,
+            None,
+            ReplyPurpose::Label,
+        )
     }
 
     /// The same call, the same ceiling, asking the level (R4 B16): the effort never moves a cap.
@@ -330,36 +364,33 @@ impl SessionReasoner for ProviderReasoner {
         effort: AuthoringReasoning,
     ) -> Result<Reply, ReasonError> {
         let ceiling = if label {
-            Some(self.label_ceiling())
+            allowance_ceiling(label_ceiling(&self.model))
         } else {
-            account.map(|_| 8192)
+            account.and_then(|_| allowance_ceiling(8192))
         };
-        self.infer(prompt, ceiling, account, Some(effort))
+        self.infer(
+            prompt,
+            ceiling,
+            account,
+            Some(effort),
+            if label {
+                ReplyPurpose::Label
+            } else {
+                ReplyPurpose::Chat
+            },
+        )
     }
 }
 
-/// Ordinary labels retain their existing finite ceiling.
-const LABEL_CEILING_TOKENS: u32 = 1024;
-/// Catalog-known reasoning shares output tokens with the visible label.
-/// This finite first-call ceiling matches the compiler's reasoning draft
-/// floor; it does not guarantee an answer and never triggers a larger retry.
-const REASONING_LABEL_CEILING_TOKENS: u32 = 4096;
+/// The historical output ceiling of a call made under an explicit Session allowance; none in
+/// continuous preparation, where every call asks its route's real capacity (a fixed label
+/// ceiling cut a reasoning model's answer before it said one word). A ceiling a caller passes
+/// explicitly is never this default and is always kept.
+fn allowance_ceiling(historical: u32) -> Option<u32> {
+    (!PreparationCosts::active()).then_some(historical)
+}
 
 impl ProviderReasoner {
-    /// Select the label default only; caller-supplied infer limits stay intact.
-    fn label_ceiling(&self) -> u32 {
-        let reasoning = self.model.split_once('/').is_some_and(|(provider, model)| {
-            // The mock catalog row claims every capability for fixtures.
-            !provider.eq_ignore_ascii_case("mock")
-                && nika_catalog::model_capabilities(provider, model).reasoning
-        });
-        if reasoning {
-            REASONING_LABEL_CEILING_TOKENS
-        } else {
-            LABEL_CEILING_TOKENS
-        }
-    }
-
     /// The one-shot infer verb over the provider registry; a label call
     /// carries its ceiling and a zero temperature, and any call the explicit effort it asks.
     fn infer(
@@ -368,6 +399,7 @@ impl ProviderReasoner {
         ceiling: Option<u32>,
         admission: Option<&nika_providers::InferenceAdmission>,
         effort: Option<AuthoringReasoning>,
+        purpose: ReplyPurpose,
     ) -> Result<Reply, ReasonError> {
         let reasoning_effort = effort
             .map(|level| {
@@ -387,15 +419,34 @@ impl ProviderReasoner {
         let registry = Arc::new(registry);
         let verb = nika_verb_infer::InferVerb::new(registry, self.model.clone());
         let mut input = nika_verb_infer::InferInput::new(prompt);
-        input.max_tokens = ceiling.or_else(|| admission.map(|_| 8192));
+        input.max_tokens = ceiling.or_else(|| admission.and_then(|_| allowance_ceiling(8192)));
         if ceiling.is_some() {
             input.temperature = Some(0.0);
         }
         input.reasoning_effort = reasoning_effort;
+        if PreparationCosts::active() {
+            let limits = completion_bounds(&self.model, false, provider_config());
+            // Unbounded chat uses the route's full capacity. A label or an explicit
+            // allowance keeps the ceiling its caller passed, including in this scope.
+            input.max_tokens = Some(input.max_tokens.unwrap_or(limits.max_tokens));
+            input.timeout = Some(limits.timeout);
+        }
         let out = block_on(async { verb.run(input).await })?
             .map_err(|e| ReasonError::Provider(e.to_string()))?;
+        let mut text = infer_text(&out.output);
+        if matches!(
+            out.response.stop_reason,
+            nika_kernel::ai::provider::StopReason::MaxTokens
+        ) {
+            if purpose == ReplyPurpose::Label {
+                return Err(ReasonError::Provider(
+                    "classification response was truncated at its output limit; no label was accepted".to_owned(),
+                ));
+            }
+            text.push_str("\n\n[Incomplete response: the output limit for this response was reached. The conversation remains open; this is not a completed answer.]");
+        }
         Ok(Reply {
-            text: infer_text(&out.output),
+            text,
             usage_observed: out.response.usage_reported,
         })
     }
@@ -431,12 +482,12 @@ pub(crate) fn provider_config() -> nika_providers::ProvidersConfig {
 pub(crate) fn provider_http_for(bounded: bool) -> Result<ProviderHttp, String> {
     let mut config = nika_http::HttpConfig::default();
     config.ssrf = nika_http::SsrfMode::Disabled;
-    config.retry_protocol_nacks = !bounded;
+    config.retry_protocol_nacks = !bounded && !PreparationCosts::active();
     config.timeout = PROVIDER_TRANSPORT_CEILING;
     let http = nika_http::ReqwestHttp::with_config(config).map_err(|e| e.to_string())?;
     #[cfg(test)]
     let http = test_transport::Client::new(http);
-    Ok(http)
+    Ok(Wire::new(http, Arc::new(Envelope::uncapped(""))))
 }
 
 /// The text of an infer output — the text as is, a structured answer as JSON.
@@ -449,12 +500,14 @@ fn infer_text(value: &nika_verb_infer::InferValue) -> String {
 }
 
 /// Block on one future from the session's synchronous loop.
-fn block_on<F: std::future::Future>(fut: F) -> Result<F::Output, ReasonError> {
+pub(crate) fn block_on<F: std::future::Future>(fut: F) -> Result<F::Output, ReasonError> {
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .map_err(|e| ReasonError::Runtime(e.to_string()))?;
-    Ok(runtime.block_on(fut))
+    runtime
+        .block_on(PreparationCosts::while_active(fut))
+        .ok_or(ReasonError::Cancelled)
 }
 
 #[cfg(test)]

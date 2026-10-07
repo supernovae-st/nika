@@ -34,8 +34,16 @@ if "--version" in sys.argv:
 init = recv()
 send({"jsonrpc":"2.0","id":init["id"],"result":{"protocolVersion":1}})
 new = recv()
-send({"jsonrpc":"2.0","id":new["id"],"result":{"sessionId":"s-e2e"}})
+# The verb inherits mock/echo; advertise and confirm its wire model before a prompt.
+config = [{"id":"model","name":"Model","category":"model","type":"select",
+           "currentValue":"echo","options":[{"value":"echo","name":"Echo"}]}]
+send({"jsonrpc":"2.0","id":new["id"],"result":{"sessionId":"s-e2e","configOptions":config}})
+selection = recv()
+assert selection["method"] == "session/set_config_option"
+assert selection["params"] == {"sessionId":"s-e2e","configId":"model","value":"echo"}
+send({"jsonrpc":"2.0","id":selection["id"],"result":{"configOptions":config}})
 prompt = recv()
+assert prompt["method"] == "session/prompt"
 # Echo the user's own text back so the test proves the PROMPT crossed
 # the whole chain, not just that some string came home.
 asked = prompt["params"]["prompt"][0]["text"]
@@ -122,6 +130,11 @@ async fn an_agent_task_runs_on_a_real_spawned_harness_end_to_end() {
     // Honesty: no usage reported by this harness, so none is invented.
     assert_eq!(out.total_tokens, 0);
     assert!(out.model_resolved.is_none());
+    assert_eq!(out.model_reported.as_deref(), Some("echo"));
+    assert_eq!(
+        out.model_reported_source,
+        Some(nika_kernel::ai::harness::ModelProvenance::ConfirmedSelection)
+    );
 }
 
 #[tokio::test]

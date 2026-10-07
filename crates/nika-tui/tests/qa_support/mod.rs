@@ -46,7 +46,7 @@ pub(crate) const ALT_OFF: &str = "\x1b[?1049l";
 /// The prompts of the four waiting states the demo fixture walks through.
 pub(crate) const FREE: &str = "nika ›";
 pub(crate) const REPLY: &str = "reply ›";
-pub(crate) const APPLY: &str = "apply? ›";
+pub(crate) const APPLY: &str = "Save? ›";
 pub(crate) const ANSWER: &str = "answer ›";
 /// What each turn of `Script::demo` prints, by a phrase that turn alone says.
 pub(crate) const QUESTION: &str = "Which file holds the notes to digest?";

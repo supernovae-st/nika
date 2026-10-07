@@ -222,7 +222,12 @@ fn observe(root: &Path, stated: &str) -> Option<(Value, Option<Value>)> {
     if !sample.values.is_empty() {
         row["values"] = Value::Object(sample.values.into_iter().collect());
     }
-    Some((row, Some(sample.kinds)))
+    // The nested key paths ride with the kinds, beside the row: the row's identity is unchanged.
+    let mut kinds = sample.kinds;
+    if !sample.nested.is_null() {
+        kinds["nested"] = sample.nested;
+    }
+    Some((row, Some(kinds)))
 }
 
 /// The first bytes of the file, as text (invalid UTF-8 cut at the last valid boundary).
@@ -297,6 +302,24 @@ mod tests {
         assert!(!kinds.to_string().contains("x.org"), "counts only: {kinds}");
         let absent = super::world(dir.path(), "read ./data/missing.json").unwrap();
         assert!(absent.get("kinds").is_none(), "{absent}");
+    }
+
+    /// A whole JSON object holding collections: the row keeps its identity (its own keys only);
+    /// the nested key paths and kinds ride beside it with the kinds, never a value.
+    #[test]
+    fn nested_collections_ride_with_the_kinds_and_the_row_keeps_its_identity() {
+        let dir = tempfile::tempdir().unwrap();
+        let supplies = r#"{"stock": [{"part": "P-SENTINEL", "on_hand": 3}], "movements": [{"kind": "issue", "qty": 1}]}"#;
+        std::fs::write(dir.path().join("supplies.json"), supplies).unwrap();
+        let seen = super::world(dir.path(), "read ./supplies.json").expect("observed");
+        let row = &seen["observed"][0];
+        assert_eq!(row["columns"], json!(["movements", "stock"]));
+        assert!(row.get("nested").is_none(), "{row}");
+        let nested = &seen["kinds"]["./supplies.json"]["nested"];
+        assert_eq!(nested["complete"], true, "{nested}");
+        assert_eq!(nested["paths"]["stock[].on_hand"], json!({"number": 1}));
+        assert_eq!(nested["paths"]["movements[].kind"], json!({"text": 1}));
+        assert!(!seen.to_string().contains("P-SENTINEL"), "{seen}");
     }
 
     #[test]

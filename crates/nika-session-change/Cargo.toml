@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#
+# nika-session-change · L4 · the project change a session proposal writes,
+# its review, its outcome and the record of its consent. Size-cap member of
+# the nika-session unit (D-2026-07-09-N1 · ADR-144), split from nika-session
+# at the 15k prod-LOC wall: nika-session → nika-session-change, never back.
+# WIP with its unit.
+[package]
+name        = "nika-session-change"
+description = "L4 interface — the project change a session proposal writes (typed, previewed from the exact bytes the apply consumes, witnessed against stale targets, audited by the check facade), its factual review, the typed outcome a host renders and the append-only consent record; a size-cap member of the nika-session unit (ADR-144)"
+
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Interface crate — a member of the nika-session unit; the `nika` binary is the only consumer.
+
+[lints]
+workspace = true
+
+[dependencies]
+nika-cli-host = { path = "../nika-cli-host", version = "0.122.0", default-features = false }  # oracle::audit_source — the ONE check facade a preview and a landed workflow are judged by (lateral L4→L4)
+nika-display  = { path = "../nika-display", version = "0.122.0" }     # check_render::review — the effect, finding and hint rows of a report, the plan lines and task faces (lateral L4→L4 · never back)
+nika-onboard  = { path = "../nika-onboard", version = "0.122.0" }     # compile::{CompileOutcome, TriggerRequirement, …} — the compiler's outcome a review reads (lateral L4→L4)
+nika-trace    = { path = "../nika-trace", version = "0.122.0" }       # run_view::{RunFacts, live_again} — the gate a paused trace carries and the tasks a resume runs again (lateral L4→L4 · never back)
+nika-schema   = { path = "../nika-schema", version = "0.122.0" }      # the parser — the review reads a candidate's tasks from the AST, never from prose
+nika-fs       = { path = "../nika-fs", version = "0.122.0" }          # OwnedDir — a change is witnessed and lands by temp + rename below the root's descriptor; the consent journal appends there
+nika-source   = { path = "../nika-source", version = "0.122.0" }      # lexical program-source naming (#1684) — a change lands only at a canonical program name
+
+blake3      = { workspace = true }   # the witness of the bytes a preview was built over
+serde       = { workspace = true }   # the consent record's line format
+serde_json  = { workspace = true }
+thiserror   = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

@@ -163,6 +163,9 @@ const SCHEDULE_CAPABILITY: &str = "schedule";
 // speaks generation 2 (explicitProvider · kept-round replay). It names no model, bound,
 // snapshot or endpoint — those are the operator's, never public.
 const NATIVE_COMPILE_CAPABILITY: &str = "compileNativeV2";
+// Beside it: `explicitProvider` with a kept round's `replay_token` is that round's judged
+// answer round (the kept plan replayed with the answers, the seat asked only to judge it).
+const JUDGED_ANSWER_CAPABILITY: &str = "compileJudgedAnswerRound";
 // Only on a server the operator started with `--cost-review` (C6): the cost-review door,
 // version 2 (B12: a finite fan or authored retry with its typed bound) beside version 1.
 const COST_REVIEW_CAPABILITIES: [&str; 2] = ["costReviewV1", "costReviewV2"];
@@ -214,6 +217,7 @@ impl HttpAdapterIdentity {
                 .copied()
                 .chain(schedule_live.then_some(SCHEDULE_CAPABILITY))
                 .chain(native.then_some(NATIVE_COMPILE_CAPABILITY))
+                .chain(native.then_some(JUDGED_ANSWER_CAPABILITY))
                 .chain(COST_REVIEW_CAPABILITIES.into_iter().filter(|_| cost_review))
                 .collect(),
         }

@@ -36,13 +36,8 @@ const UNBOUND: &str = "Lis ./note.txt et prépare son envoi à https://hooks.exa
 
 fn policy(repairs: u32) -> AuthoringPolicy {
     AuthoringPolicy::new("mock/authoring", 4096, Duration::from_secs(2))
-        .with_native(NativeMode::Only)
+        .with_native(NativeMode::Sketch)
         .with_repairs(repairs)
-}
-
-fn answer(candidate: &str) -> String {
-    json!({"candidate": candidate, "questions": [], "gaps": [], "notes": "read → review → send"})
-        .to_string()
 }
 
 fn native(out: &CompileOutcome) -> Value {
@@ -67,44 +62,6 @@ fn rounds(out: &CompileOutcome) -> Vec<Vec<String>> {
         .collect()
 }
 
-fn send_note(guard: &str) -> String {
-    format!(
-        r#"nika: send-note
-permits:
-  tools: ["nika:read", "nika:prompt", "nika:fetch"]
-  fs:
-    read: ["./note.txt"]
-  net:
-    http: ["hooks.example.test"]
-tasks:
-  read_note:
-    invoke:
-      tool: "nika:read"
-      args: {{ path: "./note.txt" }}
-{guard}"#
-    )
-}
-
-const GATED: &str = r#"  review:
-    with: { note: "${{ tasks.read_note.output }}" }
-    invoke:
-      tool: "nika:prompt"
-      args: { message: "Envoyer cette note ? ${{ with.note }}" }
-  send:
-    with: { approved: "${{ tasks.review.output }}", note: "${{ tasks.read_note.output }}" }
-    when: "${{ with.approved == true }}"
-    invoke:
-      tool: "nika:fetch"
-      args: { url: "https://hooks.example.test/in", method: POST, body: "${{ with.note }}" }
-"#;
-
-const UNGATED: &str = r#"  send:
-    with: { note: "${{ tasks.read_note.output }}" }
-    invoke:
-      tool: "nika:fetch"
-      args: { url: "https://hooks.example.test/in", method: POST, body: "${{ with.note }}" }
-"#;
-
 #[test]
 fn the_approval_request_reads_as_a_final_gate_the_reader_cannot_bind() {
     // The premise of the two tests below: if the reader learns this effect, Law 3 judges it and
@@ -121,23 +78,23 @@ fn the_approval_request_reads_as_a_final_gate_the_reader_cannot_bind() {
 #[tokio::test]
 async fn a_stated_final_gate_the_seat_writes_is_accepted_not_refused_as_invented() {
     // Red at 4a06aa3a: round 0 « INVENTED GATE » for `send`, the same answer again, no progress.
-    let provider = Rotating::new(vec![answer(&send_note(GATED))]);
+    let provider = Rotating::new(send_graph(Some(&json!({"gated_by": "review"}))));
     let req = CompileRequest::create(UNBOUND).with_authoring_policy(policy(1));
     let out = compile_with_provider(&req, &provider).await.unwrap();
     assert_eq!(native(&out)["accepted"], true, "{out:#?}");
     let rounds = rounds(&out);
-    assert_eq!(rounds.len(), 1, "{rounds:?}");
-    assert!(rounds[0].is_empty(), "{rounds:?}");
+    assert_eq!(rounds.len(), 2, "the sketch and its fills: {rounds:?}");
+    assert!(rounds.iter().all(Vec::is_empty), "{rounds:?}");
     assert_ne!(out.status, CompileStatus::Refused, "{out:#?}");
 }
 
 #[tokio::test]
 async fn a_final_send_without_the_stated_approval_never_passes() {
     // Red at 4a06aa3a: no law fires and the ungated send is accepted.
-    let provider = Rotating::new(vec![answer(&send_note(UNGATED))]);
+    let provider = Rotating::new(send_graph(None));
     let req = CompileRequest::create(UNBOUND).with_authoring_policy(policy(1));
     let out = compile_with_provider(&req, &provider).await.unwrap();
-    assert_eq!(native(&out)["accepted"], false, "{out:#?}");
+    assert_ne!(native(&out)["accepted"], true, "{out:#?}");
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(out.candidate.is_none(), "{out:#?}");
     assert!(
@@ -151,25 +108,17 @@ async fn a_final_send_without_the_stated_approval_never_passes() {
 
 #[tokio::test]
 async fn a_final_send_that_only_waits_for_the_prompt_is_the_wrong_order() {
-    // Bypass attempt: the prompt exists, the send waits for it (`after:`) but ignores the answer.
-    let waits = GATED.replace(
-        "    when: \"${{ with.approved == true }}\"\n",
-        "    after: { review: success }\n",
-    );
-    let waits = waits.replace(
-        "with: { approved: \"${{ tasks.review.output }}\", note:",
-        "with: { note:",
-    );
-    let provider = Rotating::new(vec![answer(&send_note(&waits))]);
+    // Bypass attempt: the prompt exists, the send waits for it (`after`) but ignores the answer.
+    let provider = Rotating::new(send_graph(Some(&json!({"after": ["review"]}))));
     let req = CompileRequest::create(UNBOUND).with_authoring_policy(policy(1));
     let out = compile_with_provider(&req, &provider).await.unwrap();
-    assert_eq!(native(&out)["accepted"], false, "{out:#?}");
+    assert_ne!(native(&out)["accepted"], true, "{out:#?}");
+    assert!(out.candidate.is_none(), "{out:#?}");
     let first = &rounds(&out)[0];
     assert!(
-        first
-            .iter()
-            .any(|m| m.starts_with("APPROVAL ORDER") && m.contains("`send`")),
-        "{first:?}"
+        first.iter().any(|m| m.contains("`send`")
+            && (m.starts_with("APPROVAL ORDER") || m.starts_with("MISSING APPROVAL"))),
+        "the unguarded send is named: {first:?}"
     );
     assert!(
         !first.iter().any(|m| m.starts_with("INVENTED GATE")),
@@ -181,134 +130,87 @@ async fn a_final_send_that_only_waits_for_the_prompt_is_the_wrong_order() {
 const DRAFT: &str =
     "Lis ./draft.md et écris-le dans ./out/final.md, mais demande-moi avant d'écrire.";
 
-fn write_draft(review_args: &str) -> String {
-    format!(
-        r#"nika: write-draft
-permits:
-  tools: ["nika:read", "nika:prompt", "nika:write"]
-  fs:
-    read: ["./draft.md"]
-    write: ["./out/final.md"]
-tasks:
-  read_draft:
-    invoke:
-      tool: "nika:read"
-      args: {{ path: "./draft.md" }}
-  review:
-    with: {{ draft: "${{{{ tasks.read_draft.output }}}}" }}
-    invoke:
-      tool: "nika:prompt"
-      args: {{ message: "Écrire ce brouillon ? ${{{{ with.draft }}}}"{review_args} }}
-  write_final:
-    with: {{ approved: "${{{{ tasks.review.output }}}}", draft: "${{{{ tasks.read_draft.output }}}}" }}
-    when: "${{{{ with.approved == true }}}}"
-    invoke:
-      tool: "nika:write"
-      args: {{ path: "./out/final.md", content: "${{{{ with.draft }}}}", overwrite: true, create_dirs: true }}
-"#
-    )
-}
-
 #[tokio::test]
 async fn a_bound_write_approved_by_a_defaulted_gate_is_refused_and_the_human_confirm_passes() {
-    // Red at 4a06aa3a: Check is clean (the affirmative-consent lane judges the answer, not who
-    // gives it) and Law 3 accepted any dependency on the prompt, so a `default: true` that says
-    // yes with nobody there reached the write. Red at e6bc576b for `default: false` (AUTH-01/02/06):
-    // the gate answers « no » unattended, the run exits 0 without ever asking. The repair drops
-    // the default, and the run asks a human.
-    for defaulted in [", default: true", ", default: false"] {
+    // Red at 4a06aa3a (native door): a `default: true` said yes with nobody there; `default:
+    // false` answered no unattended. A sketch's prompt states its message only: a fill that adds
+    // a default is refused by its name, and the repaired fill asks a human.
+    let draft = json!([{"name": "draft", "from": "read_draft"}]);
+    let graph = sketch_of(&json!([
+        node("read_draft", "nika:read", &json!({"reads": ["./draft.md"]})),
+        node("review", "nika:prompt", &json!({"with": draft})),
+        node(
+            "write_final",
+            "nika:write",
+            &json!({"writes": ["./out/final.md"], "with": draft, "gated_by": "review"})
+        ),
+    ]));
+    let message = json!({"task": "review", "field": "args.message", "value": "Écrire ce brouillon ? ${{ with.draft }}"});
+    for defaulted in [true, false] {
+        let hostile =
+            json!([message, {"task": "review", "field": "args.default", "value": defaulted}]);
         let provider = Rotating::new(vec![
-            answer(&write_draft(defaulted)),
-            answer(&write_draft("")),
+            graph.clone(),
+            fills_of(&hostile),
+            fills_of(&json!([message])),
         ]);
         let req = CompileRequest::create(DRAFT).with_authoring_policy(policy(1));
         let out = compile_with_provider(&req, &provider).await.unwrap();
         let rounds = rounds(&out);
-        assert_eq!(rounds.len(), 2, "{defaulted}: {rounds:?}");
+        assert_eq!(rounds.len(), 3, "{defaulted}: {rounds:?}");
         assert!(
-            rounds[0]
+            rounds[1]
                 .iter()
-                .any(|m| m.starts_with("APPROVAL ORDER") && m.contains("`write_final`")),
-            "{defaulted}: {rounds:?}"
+                .any(|m| m.contains("names no hole of `review`")),
+            "the defaulted gate is refused by name: {defaulted}: {rounds:?}"
         );
-        assert!(rounds[1].is_empty(), "{defaulted}: {rounds:?}");
+        assert!(rounds[2].is_empty(), "{defaulted}: {rounds:?}");
         assert_eq!(native(&out)["accepted"], true, "{defaulted}: {out:#?}");
-        assert!(
-            !out.candidate
-                .as_deref()
-                .unwrap_or_default()
-                .contains("default:"),
-            "{defaulted}: {out:#?}"
-        );
+        let source =
+            native(&out)["rounds"][2].to_string() + out.candidate.as_deref().unwrap_or_default();
+        assert!(!source.contains("default:"), "{defaulted}: {out:#?}");
     }
 }
 
 const TICKETS: &str = "Lis ./tickets.json et écris le ticket 42 dans ./out/ticket.json.";
 
-fn find_ticket(expression: &str) -> String {
-    format!(
-        r#"nika: find-ticket
-permits:
-  tools: ["nika:read", "nika:jq", "nika:write"]
-  fs:
-    read: ["./tickets.json"]
-    write: ["./out/ticket.json"]
-tasks:
-  read_tickets:
-    invoke:
-      tool: "nika:read"
-      args: {{ path: "./tickets.json" }}
-  find_ticket:
-    with: {{ text: "${{{{ tasks.read_tickets.output }}}}" }}
-    invoke:
-      tool: "nika:jq"
-      args: {{ input: "${{{{ with.text }}}}", expression: '{expression}' }}
-  write_ticket:
-    with: {{ ticket: "${{{{ tasks.find_ticket.output }}}}" }}
-    invoke:
-      tool: "nika:write"
-      args: {{ path: "./out/ticket.json", content: "${{{{ with.ticket }}}}", overwrite: true, create_dirs: true }}
-"#
-    )
-}
-
 #[tokio::test]
 async fn records_read_from_raw_text_are_refused_before_ready_and_the_parsed_repair_passes() {
     // Red at 4a06aa3a: round 0 is accepted (Check-clean) and the Run fails NIKA-BUILTIN-JQ-001.
-    let provider = Rotating::new(vec![
-        answer(&find_ticket("[.[] | select(.id == 42)] | first | tojson")),
-        answer(&find_ticket(
-            "fromjson | [.[] | select(.id == 42)] | first | tojson",
-        )),
-    ]);
+    let raw = find_graph("[.[] | select(.id == 42)] | first | tojson");
+    let parsed = find_graph("fromjson | [.[] | select(.id == 42)] | first | tojson");
+    let provider = Rotating::new(vec![raw[0].clone(), raw[1].clone(), parsed[1].clone()]);
     let req = CompileRequest::create(TICKETS).with_authoring_policy(policy(1));
     let out = compile_with_provider(&req, &provider).await.unwrap();
     let rounds = rounds(&out);
-    assert_eq!(rounds.len(), 2, "{rounds:?}");
+    assert_eq!(rounds.len(), 3, "{rounds:?}");
+    assert!(rounds[0].is_empty(), "the sketch: {rounds:?}");
     assert!(
-        rounds[0]
+        rounds[1]
             .iter()
             .any(|m| m.starts_with("RAW TEXT AS RECORDS")
                 && m.contains("`find_ticket`")
                 && m.contains("`read_tickets`")),
         "{rounds:?}"
     );
-    assert!(rounds[1].is_empty(), "{rounds:?}");
+    assert!(rounds[2].is_empty(), "{rounds:?}");
     assert_eq!(native(&out)["accepted"], true, "{out:#?}");
 }
 
 #[tokio::test]
 async fn string_operations_on_a_reads_text_stay_admissible() {
     // Control: a line transform over the read's text is the proper use of the text.
-    let provider = Rotating::new(vec![answer(&find_ticket(
+    let provider = Rotating::new(find_graph(
         r#"split("\n") | map(rtrimstr("\r")) | if .[-1] == "" then .[:-1] else . end | map(select(test("42"))) | first"#,
-    ))]);
+    ));
     let req = CompileRequest::create(TICKETS).with_authoring_policy(policy(1));
     let out = compile_with_provider(&req, &provider).await.unwrap();
     let rounds = rounds(&out);
+    assert_eq!(rounds.len(), 2, "{rounds:?}");
     assert!(
-        !rounds[0]
+        !rounds
             .iter()
+            .flatten()
             .any(|m| m.starts_with("RAW TEXT AS RECORDS")),
         "{rounds:?}"
     );
@@ -316,45 +218,36 @@ async fn string_operations_on_a_reads_text_stay_admissible() {
 
 #[tokio::test]
 async fn a_wrapped_read_is_not_json_text_and_native_repair_can_select_the_field() {
-    let bad = find_ticket("fromjson | [.[] | select(.id == 42)] | first").replace(
-        "input: \"${{ with.text }}\"",
-        "input: { content: \"${{ with.text }}\" }",
-    );
-    let fixed = bad.replace("expression: 'fromjson", "expression: '.content | fromjson");
-    let provider = Rotating::new(vec![answer(&bad), answer(&fixed)]);
+    // The native door refused `fromjson` over an object-wrapped read (NON-TEXT AS JSON). The sketch
+    // binds a jq task's input itself, so a fill that wraps it names no hole and is refused by
+    // name; the non-text shape never forms, and the repaired fill parses the read's text.
+    let [graph, parsed] = find_graph("fromjson | [.[] | select(.id == 42)] | first")
+        .try_into()
+        .unwrap();
+    let wrapped = fills_of(&json!([
+        {"task": "find_ticket", "field": "args", "value": {"input": {"content": "${{ with.text }}"}}},
+        {"task": "find_ticket", "field": "expression", "value": ".content | fromjson | [.[] | select(.id == 42)] | first"}
+    ]));
+    let provider = Rotating::new(vec![graph.clone(), wrapped.clone(), parsed]);
     let req = CompileRequest::create(TICKETS).with_authoring_policy(policy(1));
     let out = compile_with_provider(&req, &provider).await.unwrap();
     let judged = rounds(&out);
-    assert_eq!(judged.len(), 2, "{out:#?}");
+    assert_eq!(judged.len(), 3, "{out:#?}");
     assert!(
-        judged[0].iter().any(|m| m.starts_with("NON-TEXT AS JSON")),
+        judged[1]
+            .iter()
+            .any(|m| m.contains("`find_ticket.args` is owned by the sketch")),
         "{judged:?}"
     );
-    assert!(judged[1].is_empty(), "{judged:?}");
+    assert!(judged[2].is_empty(), "{judged:?}");
     assert_eq!(native(&out)["accepted"], true, "{out:#?}");
 
-    let provider = Rotating::new(vec![answer(&bad)]);
+    let provider = Rotating::new(vec![graph, wrapped]);
     let req = CompileRequest::create(TICKETS).with_authoring_policy(policy(0));
     let out = compile_with_provider(&req, &provider).await.unwrap();
-    assert_eq!(native(&out)["accepted"], false, "{out:#?}");
+    assert_ne!(native(&out)["accepted"], true, "{out:#?}");
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(out.candidate.is_none(), "{out:#?}");
-}
-
-fn literal_copy(source: &str, destination: &str) -> String {
-    serde_json::to_string_pretty(&json!({
-        "nika": "copy-literal-path",
-        "permits": {"tools": ["nika:read", "nika:write"],
-                    "fs": {"read": [source], "write": [destination]}},
-        "tasks": {
-            "read_source": {"invoke": {"tool": "nika:read", "args": {"path": source}}},
-            "write_copy": {"with": {"text": "${{ tasks.read_source.output }}"},
-                "invoke": {"tool": "nika:write", "args": {
-                    "path": destination, "content": "${{ with.text }}",
-                    "overwrite": true, "create_dirs": true}}}
-        }
-    }))
-    .unwrap()
 }
 
 #[tokio::test]
@@ -375,16 +268,16 @@ async fn native_fidelity_keeps_relative_multiword_paths_whole_before_ready() {
             "notes/output.json",
         ),
     ] {
-        let bad = literal_copy(shortened_source, shortened_destination);
-        let fixed = literal_copy(source, destination);
-        let provider = Rotating::new(vec![answer(&bad), answer(&fixed)]);
+        let bad = copy_graph(shortened_source, shortened_destination);
+        let fixed = copy_graph(source, destination);
+        let provider = Rotating::new(vec![bad.clone(), fixed, NO_FILLS.to_owned()]);
         let req = CompileRequest::create(intent).with_authoring_policy(policy(1));
         // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
         let out = compile_with_provider(&req, &Judged::approving(&provider))
             .await
             .unwrap();
         let judged = rounds(&out);
-        assert_eq!(judged.len(), 2, "{intent}: {out:#?}");
+        assert_eq!(judged.len(), 3, "{intent}: {out:#?}");
         for path in [source, destination] {
             assert!(
                 judged[0]
@@ -393,14 +286,16 @@ async fn native_fidelity_keeps_relative_multiword_paths_whole_before_ready() {
                 "{judged:?}"
             );
         }
-        assert!(judged[1].is_empty(), "{judged:?}");
+        assert!(judged[1].is_empty() && judged[2].is_empty(), "{judged:?}");
         assert_eq!(native(&out)["accepted"], true, "{out:#?}");
-        assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+        let doc = document(&out);
+        assert_eq!(doc["permits"]["fs"]["read"], json!([source]));
+        assert_eq!(doc["permits"]["fs"]["write"], json!([destination]));
 
-        let provider = Rotating::new(vec![answer(&bad)]);
+        let provider = Rotating::new(vec![bad]);
         let req = CompileRequest::create(intent).with_authoring_policy(policy(0));
         let out = compile_with_provider(&req, &provider).await.unwrap();
-        assert_eq!(native(&out)["accepted"], false, "{out:#?}");
+        assert_ne!(native(&out)["accepted"], true, "{out:#?}");
         assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
         assert!(out.candidate.is_none(), "{out:#?}");
     }
@@ -439,9 +334,7 @@ impl ProviderInferDyn for Recording {
 async fn the_seat_reads_the_output_conventions_and_the_receipt_names_them() {
     // Red at 4a06aa3a: the system message carries the card only; no conventions digest.
     let provider = Recording {
-        answer: answer(&find_ticket(
-            "fromjson | [.[] | select(.id == 42)] | first | tojson",
-        )),
+        answer: find_graph("fromjson | [.[] | select(.id == 42)] | first | tojson")[0].clone(),
         systems: Mutex::new(Vec::new()),
     };
     let req = CompileRequest::create(TICKETS).with_authoring_policy(policy(0));
@@ -484,46 +377,6 @@ const BESIDE: &str =
 /// carries every answer of the conversation.
 const TYPED: &str = r#"["Notes équipe.txt"]"#;
 
-const COPY_WHOLE: &str = r#"nika: copy-notes
-permits:
-  tools: ["nika:read", "nika:write"]
-  fs:
-    read: ["Notes équipe.txt"]
-    write: ["sortie.txt"]
-tasks:
-  read_notes:
-    invoke:
-      tool: "nika:read"
-      args: { path: "Notes équipe.txt" }
-  write_copy:
-    with: { notes: "${{ tasks.read_notes.output }}" }
-    invoke:
-      tool: "nika:write"
-      args: { path: "sortie.txt", content: "${{ with.notes }}", overwrite: true, create_dirs: true }
-"#;
-
-const MERGE_BOTH: &str = r#"nika: merge-notes
-permits:
-  tools: ["nika:read", "nika:write"]
-  fs:
-    read: ["Notes équipe.txt", "équipe.txt"]
-    write: ["sortie.txt"]
-tasks:
-  read_notes:
-    invoke:
-      tool: "nika:read"
-      args: { path: "Notes équipe.txt" }
-  read_team:
-    invoke:
-      tool: "nika:read"
-      args: { path: "équipe.txt" }
-  write_merge:
-    with: { notes: "${{ tasks.read_notes.output }}", team: "${{ tasks.read_team.output }}" }
-    invoke:
-      tool: "nika:write"
-      args: { path: "sortie.txt", content: "${{ with.notes }}\n${{ with.team }}", overwrite: true, create_dirs: true }
-"#;
-
 /// The copy as a sketch: the read of the whole name, the write of its text. The compiler
 /// emits the document and derives its permits; the write's only hole, its content, is its edge.
 fn copy_sketch() -> String {
@@ -564,9 +417,9 @@ fn document(out: &CompileOutcome) -> Value {
 
 #[tokio::test]
 async fn a_typed_whole_source_name_is_read_whole_at_the_native_door() {
-    // One call each, the same candidate: the human's typed answer is the only difference, never
-    // the literal the seat wrote.
-    let provider = Rotating::new(vec![answer(COPY_WHOLE)]);
+    // The same graph each time: the human's typed answer is the only difference, never the
+    // literal the seat wrote. Without it the whole name is not the request's.
+    let provider = Rotating::new(vec![copy_sketch(), NO_FILLS.to_owned()]);
     let req = CompileRequest::create(OPENING)
         .with_authoring_policy(policy(0))
         .answer("const.source_paths", TYPED);
@@ -574,20 +427,24 @@ async fn a_typed_whole_source_name_is_read_whole_at_the_native_door() {
     let out = compile_with_provider(&req, &Judged::approving(&provider))
         .await
         .unwrap();
-    assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
-    // The candidate and the whole-request judgment.
-    assert_eq!(out.provenance.authoring.as_ref().unwrap().calls, 2);
-    assert_eq!(rounds(&out), [Vec::<String>::new()], "{out:#?}");
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
+    // The sketch, its fills and the whole-request judgment.
+    assert_eq!(out.provenance.authoring.as_ref().unwrap().calls, 3);
+    assert!(rounds(&out).iter().all(Vec::is_empty), "{out:#?}");
     assert_eq!(native(&out)["accepted"], true, "{out:#?}");
     assert_eq!(intent_of(&out), intent_sha256(OPENING));
     let doc = document(&out);
     assert_eq!(doc["permits"]["fs"]["read"], json!(["Notes équipe.txt"]));
     assert_eq!(doc["permits"]["fs"]["write"], json!(["sortie.txt"]));
-    let provider = Rotating::new(vec![answer(COPY_WHOLE)]);
+    let provider = Rotating::new(vec![copy_sketch(), NO_FILLS.to_owned()]);
     let req = CompileRequest::create(OPENING).with_authoring_policy(policy(0));
     let out = compile_with_provider(&req, &provider).await.unwrap();
-    assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
-    assert_eq!(native(&out)["accepted"], false, "{out:#?}");
+    assert_eq!(
+        provider.calls.load(Ordering::SeqCst),
+        1,
+        "no fill after a refused sketch"
+    );
+    assert_ne!(native(&out)["accepted"], true, "{out:#?}");
     assert!(out.candidate.is_none(), "{out:#?}");
     let rounds = rounds(&out);
     assert_eq!(unrealized(&rounds[0]), ["équipe.txt"], "{rounds:?}");
@@ -602,23 +459,38 @@ async fn a_separately_stated_suffix_stays_owed_at_the_native_door() {
             .with_authoring_policy(policy(repairs))
             .answer("const.source_paths", TYPED)
     };
-    let provider = Rotating::new(vec![answer(COPY_WHOLE)]);
+    let provider = Rotating::new(vec![copy_sketch(), NO_FILLS.to_owned()]);
     let out = compile_with_provider(&typed(0), &provider).await.unwrap();
     assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
     assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
     assert!(out.candidate.is_none(), "{out:#?}");
     assert_eq!(unrealized(&rounds(&out)[0]), ["équipe.txt"], "{out:#?}");
-    let provider = Rotating::new(vec![answer(COPY_WHOLE), answer(MERGE_BOTH)]);
+    let merge = sketch_of(&json!([
+        node(
+            "read_notes",
+            "nika:read",
+            &json!({"reads": ["Notes équipe.txt"]})
+        ),
+        node("read_team", "nika:read", &json!({"reads": ["équipe.txt"]})),
+        node(
+            "write_merge",
+            "nika:write",
+            &json!({"writes": ["sortie.txt"],
+            "with": [{"name": "notes", "from": "read_notes"}, {"name": "team", "from": "read_team"}]})
+        ),
+    ]));
+    let content = json!([{"task": "write_merge", "field": "args.content", "value": "${{ with.notes }}\n${{ with.team }}"}]);
+    let provider = Rotating::new(vec![copy_sketch(), merge, fills_of(&content)]);
     // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
     let out = compile_with_provider(&typed(1), &Judged::approving(&provider))
         .await
         .unwrap();
-    assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
-    // The candidate, its repair and the whole-request judgment.
-    assert_eq!(out.provenance.authoring.as_ref().unwrap().calls, 3);
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 3);
+    // The sketch, its repair, its fills and the whole-request judgment.
+    assert_eq!(out.provenance.authoring.as_ref().unwrap().calls, 4);
     let rounds = rounds(&out);
     assert_eq!(unrealized(&rounds[0]), ["équipe.txt"], "{rounds:?}");
-    assert!(rounds[1].is_empty(), "{rounds:?}");
+    assert!(rounds[1].is_empty() && rounds[2].is_empty(), "{rounds:?}");
     assert_eq!(intent_of(&out), intent_sha256(BESIDE));
     let doc = document(&out);
     assert_eq!(
@@ -683,107 +555,146 @@ const BOTH_TYPED: &str = r#"["Notes équipe.txt", "Copie équipe.txt"]"#;
 /// The opening name's last word also ends a separately stated rooted path.
 const ARCHIVED: &str = "Notes équipe.txt doit être comparé avec ./archive/équipe.txt.";
 
-const READ_BOTH: &str = r#"nika: read-notes
-permits:
-  tools: ["nika:read"]
-  fs:
-    read: ["Notes équipe.txt", "Copie équipe.txt"]
-tasks:
-  read_notes:
-    invoke:
-      tool: "nika:read"
-      args: { path: "Notes équipe.txt" }
-  read_copy:
-    invoke:
-      tool: "nika:read"
-      args: { path: "Copie équipe.txt" }
-outputs:
-  notes: ${{ tasks.read_notes.output }}
-  copy: ${{ tasks.read_copy.output }}
-"#;
-
-const WRITE_COPIE: &str = r#"nika: copy-notes
-permits:
-  tools: ["nika:read", "nika:write"]
-  fs:
-    read: ["Notes équipe.txt"]
-    write: ["Copie équipe.txt"]
-tasks:
-  read_notes:
-    invoke:
-      tool: "nika:read"
-      args: { path: "Notes équipe.txt" }
-  write_copy:
-    with: { notes: "${{ tasks.read_notes.output }}" }
-    invoke:
-      tool: "nika:write"
-      args: { path: "Copie équipe.txt", content: "${{ with.notes }}", overwrite: true, create_dirs: true }
-"#;
-
-const READ_ARCHIVE: &str = r#"nika: read-archive
-permits:
-  tools: ["nika:read"]
-  fs:
-    read: ["Notes équipe.txt", "./archive/équipe.txt"]
-tasks:
-  read_notes:
-    invoke:
-      tool: "nika:read"
-      args: { path: "Notes équipe.txt" }
-  read_archive:
-    invoke:
-      tool: "nika:read"
-      args: { path: "./archive/équipe.txt" }
-outputs:
-  notes: ${{ tasks.read_notes.output }}
-  archive: ${{ tasks.read_archive.output }}
-"#;
-
-const READ_NOTES: &str = r#"nika: read-notes
-permits:
-  tools: ["nika:read"]
-  fs:
-    read: ["Notes équipe.txt"]
-tasks:
-  read_notes:
-    invoke:
-      tool: "nika:read"
-      args: { path: "Notes équipe.txt" }
-outputs:
-  notes: ${{ tasks.read_notes.output }}
-"#;
-
 /// A sketch of `tasks`, nothing else.
 fn sketch_of(tasks: &Value) -> String {
     json!({"name": "notes-copy", "tasks": tasks, "questions": [], "gaps": [], "notes": "sketch"})
         .to_string()
 }
 
+fn route(out: &CompileOutcome) -> String {
+    out.provenance.decision.as_ref().unwrap()["route"].to_string()
+}
+
+/// One sketch task, its extra fields merged.
+fn node(id: &str, tool: &str, extra: &Value) -> Value {
+    let mut t = json!({"id": id, "verb": "invoke", "tool": tool, "purpose": id});
+    for (k, v) in extra.as_object().unwrap() {
+        t[k] = v.clone();
+    }
+    t
+}
+
+fn fills_of(fills: &Value) -> String {
+    json!({"fills": fills, "notes": "fills"}).to_string()
+}
+
+/// The note sent to the stated hook as a sketch: read, then (behind a review when `gate` names
+/// how) the send; its fills.
+fn send_graph(gate: Option<&Value>) -> Vec<String> {
+    let note = json!([{"name": "note", "from": "read_note"}]);
+    let mut tasks = vec![node(
+        "read_note",
+        "nika:read",
+        &json!({"reads": ["./note.txt"]}),
+    )];
+    let mut send = node(
+        "send",
+        "nika:notify",
+        &json!({"hosts": ["hooks.example.test"], "with": note}),
+    );
+    let mut fills = vec![
+        json!({"task": "send", "field": "args.target", "value": "https://hooks.example.test/in"}),
+        json!({"task": "send", "field": "args.message", "value": "${{ with.note }}"}),
+    ];
+    if let Some(gate) = gate {
+        tasks.push(node("review", "nika:prompt", &json!({"with": note})));
+        for (k, v) in gate.as_object().unwrap() {
+            send[k] = v.clone();
+        }
+        fills.push(json!({"task": "review", "field": "args.message", "value": "Envoyer cette note ? ${{ with.note }}"}));
+    }
+    tasks.push(send);
+    vec![sketch_of(&json!(tasks)), fills_of(&json!(fills))]
+}
+
+/// The ticket finder as a sketch (read, jq, write) and its expression fill.
+fn find_graph(expression: &str) -> Vec<String> {
+    let tasks = json!([
+        node(
+            "read_tickets",
+            "nika:read",
+            &json!({"reads": ["./tickets.json"]})
+        ),
+        node(
+            "find_ticket",
+            "nika:jq",
+            &json!({"with": [{"name": "text", "from": "read_tickets"}]})
+        ),
+        node(
+            "write_ticket",
+            "nika:write",
+            &json!({"writes": ["./out/ticket.json"], "with": [{"name": "ticket", "from": "find_ticket"}]})
+        ),
+    ]);
+    let fills = json!([{"task": "find_ticket", "field": "expression", "value": expression}]);
+    vec![sketch_of(&tasks), fills_of(&fills)]
+}
+
+/// A copy as a sketch: the read of `source`, the write of its text at `destination`.
+fn copy_graph(source: &str, destination: &str) -> String {
+    sketch_of(&json!([
+        node("read_source", "nika:read", &json!({"reads": [source]})),
+        node(
+            "write_copy",
+            "nika:write",
+            &json!({"writes": [destination], "with": [{"name": "text", "from": "read_source"}]})
+        ),
+    ]))
+}
+
 #[tokio::test]
 async fn a_source_answer_never_stands_for_the_destination_at_the_native_door() {
-    // Both names typed as sources and read, nothing written: the `équipe.txt` after `dans` is
-    // owed, whatever the source answer says.
-    let provider = Rotating::new(vec![answer(READ_BOTH)]);
-    let req = CompileRequest::create(DESTINED)
-        .with_authoring_policy(policy(0))
-        .answer("const.source_paths", BOTH_TYPED);
-    let out = compile_with_provider(&req, &provider).await.unwrap();
-    assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
-    assert_ne!(out.status, CompileStatus::Ready, "{out:#?}");
-    assert!(out.candidate.is_none(), "{out:#?}");
-    assert_eq!(unrealized(&rounds(&out)[0]), ["équipe.txt"], "{out:#?}");
-    assert_eq!(intent_of(&out), intent_sha256(DESTINED));
-    // The source typed, the destination actually written: Ready under exactly those grants.
-    let provider = Rotating::new(vec![answer(WRITE_COPIE)]);
-    let req = CompileRequest::create(DESTINED)
-        .with_authoring_policy(policy(0))
-        .answer("const.source_paths", TYPED);
-    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
-    let out = compile_with_provider(&req, &Judged::approving(&provider))
+    // The same law on the default route: the plan cannot carry the request, the escalation
+    // reaches the sketch door, and the `équipe.txt` after `dans` stays owed whatever the source
+    // answer says; the destination actually written is Ready under exactly those grants.
+    let read = |path: &str, id: &str| node(id, "nika:read", &json!({"reads": [path]}));
+    let read_both = sketch_of(&json!([
+        read("Notes équipe.txt", "read_notes"),
+        read("Copie équipe.txt", "read_copy")
+    ]));
+    let escalate = |answer: &str| {
+        CompileRequest::create(DESTINED)
+            .with_authoring_policy(policy(1).with_native(NativeMode::Escalate))
+            .answer("const.source_paths", answer)
+    };
+    let provider = Rotating::new(vec![
+        "no plan here".to_owned(),
+        read_both,
+        NO_FILLS.to_owned(),
+    ]);
+    let out = compile_with_provider(&escalate(BOTH_TYPED), &provider)
         .await
         .unwrap();
-    assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
-    assert_eq!(rounds(&out), [Vec::<String>::new()], "{out:#?}");
+    assert!(
+        route(&out).contains("native: sketch after the plan"),
+        "{}",
+        route(&out)
+    );
+    assert_eq!(native(&out)["sketch"]["accepted"], false, "{out:#?}");
+    assert_eq!(unrealized(&rounds(&out)[0]), ["équipe.txt"], "{out:#?}");
+    assert!(out.candidate.is_none(), "{out:#?}");
+    let write_copie = sketch_of(&json!([
+        read("Notes équipe.txt", "read_notes"),
+        node(
+            "write_copy",
+            "nika:write",
+            &json!({"writes": ["Copie équipe.txt"], "with": [{"name": "notes", "from": "read_notes"}]})
+        )
+    ]));
+    let provider = Rotating::new(vec![
+        "no plan here".to_owned(),
+        write_copie,
+        NO_FILLS.to_owned(),
+    ]);
+    // Judged by the explicit approving double (R4 A11): this test reads the emitted workflow.
+    let out = compile_with_provider(&escalate(TYPED), &Judged::approving(&provider))
+        .await
+        .unwrap();
+    assert_eq!(
+        provider.calls.load(Ordering::SeqCst),
+        3,
+        "the plan, the sketch, its fills"
+    );
     assert_eq!(intent_of(&out), intent_sha256(DESTINED));
     let doc = document(&out);
     assert_eq!(doc["permits"]["fs"]["read"], json!(["Notes équipe.txt"]));
@@ -834,7 +745,12 @@ async fn a_source_answer_never_stands_for_the_destination_at_the_sketch_door() {
 async fn a_rooted_path_keeps_its_own_suffix_at_the_native_door() {
     // The `équipe.txt` that ends `./archive/équipe.txt` is that path's: the opening name typed
     // and both files read, nothing more is owed and no write is granted.
-    let provider = Rotating::new(vec![answer(READ_ARCHIVE)]);
+    let read = |path: &str, id: &str| node(id, "nika:read", &json!({"reads": [path]}));
+    let both = sketch_of(&json!([
+        read("Notes équipe.txt", "read_notes"),
+        read("./archive/équipe.txt", "read_archive")
+    ]));
+    let provider = Rotating::new(vec![both, NO_FILLS.to_owned()]);
     let req = CompileRequest::create(ARCHIVED)
         .with_authoring_policy(policy(0))
         .answer("const.source_paths", TYPED);
@@ -842,8 +758,8 @@ async fn a_rooted_path_keeps_its_own_suffix_at_the_native_door() {
     let out = compile_with_provider(&req, &Judged::approving(&provider))
         .await
         .unwrap();
-    assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
-    assert_eq!(rounds(&out), [Vec::<String>::new()], "{out:#?}");
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
+    assert!(rounds(&out).iter().all(Vec::is_empty), "{out:#?}");
     assert_eq!(intent_of(&out), intent_sha256(ARCHIVED));
     let doc = document(&out);
     assert_eq!(
@@ -852,7 +768,10 @@ async fn a_rooted_path_keeps_its_own_suffix_at_the_native_door() {
     );
     assert!(doc["permits"]["fs"].get("write").is_none(), "{doc:#}");
     // Unread, the rooted path is owed on its own, and only it.
-    let provider = Rotating::new(vec![answer(READ_NOTES)]);
+    let provider = Rotating::new(vec![sketch_of(&json!([read(
+        "Notes équipe.txt",
+        "read_notes"
+    )]))]);
     let out = compile_with_provider(&req, &provider).await.unwrap();
     assert_eq!(provider.calls.load(Ordering::SeqCst), 1);
     assert!(out.candidate.is_none(), "{out:#?}");

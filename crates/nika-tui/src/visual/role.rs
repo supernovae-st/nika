@@ -1,41 +1,57 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The one way a widget gets colour: a semantic [`Role`] resolved at paint
-//! time (crate spec §2). The roles are the engine's closed set,
-//! [`nika_display::theme::Role`]; each maps to the Ratatui colour of the same
-//! ANSI-16 slot the CLI frames paint, so the renderer and the run frames never
-//! disagree about a meaning's hue, and both stay the user's terminal hues.
+//! Semantic roles resolved to the workspace's product palette. The roles
+//! still belong to `nika_display`, while these RGB hues belong only to the
+//! TUI and its viewer member; the CLI keeps its own terminal-theme mapping.
+//! The two members pin the same palette values. `NO_COLOR` carries no hue.
 
 use nika_display::theme::Role;
 use ratatui::style::{Color, Modifier, Style};
 
-/// The style of `role`. A hue appears only when colour is on; dim and strong
-/// are weights, not hues, and stay under `NO_COLOR` like the renderer's chrome.
+/// The style of `role`. The secondary RGB text stays legible on dark
+/// surfaces. Without colour, dim and strong retain only their text weights.
 #[must_use]
 pub fn style(role: Role, color: bool) -> Style {
-    let hue = |c: Color| {
-        if color {
-            Style::default().fg(c)
-        } else {
-            Style::default()
-        }
-    };
-    match role {
-        Role::Accent => hue(Color::Cyan),
-        Role::Good => hue(Color::Green),
-        Role::Bad => hue(Color::Red),
-        Role::Warn => hue(Color::Yellow),
-        Role::Dim => Style::default().add_modifier(Modifier::DIM),
+    let plain = match role {
+        Role::Dim if !color => Style::default().add_modifier(Modifier::DIM),
         Role::Strong => Style::default().add_modifier(Modifier::BOLD),
-        Role::VerbInfer => hue(Color::LightBlue),
-        Role::VerbExec => hue(Color::LightYellow),
-        Role::VerbInvoke => hue(Color::LightCyan),
-        Role::VerbAgent => hue(Color::LightMagenta),
+        _ => Style::default(),
+    };
+    if !color {
+        return plain;
+    }
+    let hue = match role {
+        Role::Accent | Role::VerbInfer => Color::Rgb(140, 177, 255),
+        Role::Good => Color::Rgb(123, 210, 167),
+        Role::Bad => Color::Rgb(255, 145, 162),
+        Role::Warn | Role::VerbExec => Color::Rgb(242, 193, 125),
+        Role::Dim => Color::Rgb(148, 165, 191),
+        Role::Strong => Color::Rgb(224, 233, 247),
+        Role::VerbInvoke => Color::Rgb(106, 216, 226),
+        Role::VerbAgent => Color::Rgb(194, 163, 242),
+    };
+    plain.fg(hue)
+}
+
+/// Neutral workspace surfaces from the product palette. Semantic hues still
+/// come from [`style`]; without colour the terminal supplies both foreground
+/// and background.
+pub(crate) fn surface(color: bool, raised: bool) -> Style {
+    if color {
+        Style::default()
+            .fg(Color::Rgb(224, 233, 247))
+            .bg(if raised {
+                Color::Rgb(23, 33, 53)
+            } else {
+                Color::Rgb(12, 17, 28)
+            })
+    } else {
+        Style::default()
     }
 }
 
-/// The style of a verb chip: the verb's bright slot for the locked four, dim
+/// The style of a verb chip: the verb's identity hue for the locked four, secondary
 /// for any other word, never a guessed identity.
 #[must_use]
 pub fn verb(word: &str, color: bool) -> Style {
@@ -46,7 +62,6 @@ pub fn verb(word: &str, color: bool) -> Style {
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use nika_display::theme::Theme;
 
     const ROLES: [Role; 10] = [
         Role::Accent,
@@ -61,38 +76,23 @@ mod tests {
         Role::VerbAgent,
     ];
 
-    /// The SGR parameter of a style this module builds (one colour or one weight).
-    fn sgr(style: Style) -> u8 {
-        match (style.fg, style.add_modifier) {
-            (Some(Color::Red), _) => 31,
-            (Some(Color::Green), _) => 32,
-            (Some(Color::Yellow), _) => 33,
-            (Some(Color::Cyan), _) => 36,
-            (Some(Color::LightYellow), _) => 93,
-            (Some(Color::LightBlue), _) => 94,
-            (Some(Color::LightMagenta), _) => 95,
-            (Some(Color::LightCyan), _) => 96,
-            (None, m) if m == Modifier::BOLD => 1,
-            (None, m) if m == Modifier::DIM => 2,
-            other => panic!("unmapped style {other:?}"),
-        }
-    }
-
-    /// The SGR parameter the CLI theme paints for `role`.
-    fn painted(role: Role) -> u8 {
-        let text = Theme::new(true, false, false).paint(role, "x");
-        let code = text
-            .strip_prefix("\x1b[")
-            .and_then(|rest| rest.split('m').next())
-            .expect("an SGR prefix");
-        code.parse().expect("one numeric SGR parameter")
-    }
-
     #[test]
-    fn every_role_paints_the_slot_the_cli_theme_paints() {
-        for role in ROLES {
-            assert_eq!(sgr(style(role, true)), painted(role), "{role:?}");
+    fn semantic_roles_use_the_product_palette_with_readable_secondary_text() {
+        for (role, color) in [
+            (Role::Accent, Color::Rgb(140, 177, 255)),
+            (Role::Good, Color::Rgb(123, 210, 167)),
+            (Role::Bad, Color::Rgb(255, 145, 162)),
+            (Role::Warn, Color::Rgb(242, 193, 125)),
+            (Role::Dim, Color::Rgb(148, 165, 191)),
+            (Role::Strong, Color::Rgb(224, 233, 247)),
+            (Role::VerbInfer, Color::Rgb(140, 177, 255)),
+            (Role::VerbExec, Color::Rgb(242, 193, 125)),
+            (Role::VerbInvoke, Color::Rgb(106, 216, 226)),
+            (Role::VerbAgent, Color::Rgb(194, 163, 242)),
+        ] {
+            assert_eq!(style(role, true).fg, Some(color), "{role:?}");
         }
+        assert!(!style(Role::Dim, true).add_modifier.contains(Modifier::DIM));
     }
 
     #[test]
@@ -113,8 +113,7 @@ mod tests {
         assert_eq!(verb("invoke", true), style(Role::VerbInvoke, true));
         assert_eq!(verb("agent", true), style(Role::VerbAgent, true));
         assert_eq!(verb("fetch", true), style(Role::Dim, true));
-        // The verb band never collides with a verdict: bright cyan invoke is
-        // not the accent's normal cyan.
+        // Invoke keeps its cyan identity beside the blue activity accent.
         assert_ne!(verb("invoke", true), style(Role::Accent, true));
     }
 }

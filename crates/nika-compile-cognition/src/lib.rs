@@ -17,8 +17,11 @@
 
 use nika_compile_reader::{
     cardinality, columns, gates, hot, lexicon, objects, paths, plan, rule_tokens, rules, shape,
-    structure, text, unknowns, words,
+    structure, text, unknowns,
 };
+
+// The proposal merge's word tables, at the path the merge has always read them (ADR-145).
+use nika_compile_clauses::words;
 
 use nika_compile_fidelity::{fidelity, sketch};
 
@@ -51,7 +54,9 @@ mod support {
 }
 /// The core's retrieval index.
 mod retrieve {
-    pub(crate) use nika_compile::{Hit, HitKind, retrieve};
+    #[cfg(test)]
+    pub(crate) use nika_compile::HitKind;
+    pub(crate) use nika_compile::{Hit, retrieve};
 }
 /// The core's request input shape.
 mod types {
@@ -66,11 +71,23 @@ mod laws {
 pub mod authority;
 mod cognition;
 mod compose;
-pub mod decide;
+/// The bounded decision seats ([`decide`]) and the rehearsal port ([`rehearse`]), the two
+/// capabilities a host lends a preparation, are owned by the size-cap member below the seats'
+/// doors since 2026-10-07 (ADR-146): `nika_compile_seats::{decide, rehearse}`. These paths are
+/// kept and name the very same items (types, traits, functions, constants).
+#[doc(inline)]
+pub use nika_compile_seats::{decide, rehearse};
 mod predicate;
-pub mod rehearse;
 
 pub use cognition::{
     Cognition, NoProvider, compile_with_cognition, compile_with_cognition_rehearsed,
     compile_with_provider,
 };
+
+/// A host's scoped observation of its compile's authoring answers as received (slice C).
+pub mod observe {
+    pub use nika_providers::authoring::observe::{
+        ActivitySink, Answered, AuthoringObservation, CallActivity, CallState, Failure, Sink,
+        TextBlocks, observe_activity, observe_authoring,
+    };
+}

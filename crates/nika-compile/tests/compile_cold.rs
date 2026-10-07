@@ -26,6 +26,70 @@ use std::sync::{
 
 // ── COLD best-of-N: agreement, never a vote that hides a dropped effect ───────
 #[tokio::test]
+async fn cold_uses_all_six_selected_samples_without_a_hidden_five_sample_ceiling() {
+    let provider = Rotating::new(vec![plan().to_string()]);
+    let judged = Judged::approving(&provider);
+    let req = request()
+        .with_authoring_policy(policy().with_samples(6))
+        .answer("model", r#""mock/echo""#)
+        .answer("const.customer_directory", r#""customers.json""#)
+        .answer("const.refund_policy", r#"{"cap":100,"currency":"EUR"}"#)
+        .answer(
+            "const.refund_endpoint",
+            r#""https://refund.example.invalid/refunds""#,
+        );
+    let out = compile_with_provider(&req, &judged).await.unwrap();
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 6);
+    assert_eq!(judged.judged.load(Ordering::SeqCst), 1);
+    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert_eq!(out.provenance.authoring.as_ref().unwrap().calls, 7);
+    let samples = &out.provenance.decision.as_ref().unwrap()["cold_samples"];
+    assert_eq!(samples["requested"], 6);
+    assert_eq!(samples["accepted"], 6);
+    assert_eq!(samples["samples"].as_array().unwrap().len(), 6);
+}
+
+#[tokio::test]
+async fn zero_samples_is_refused_without_a_provider_call() {
+    let provider = Rotating::new(vec![plan().to_string()]);
+    let req = request().with_authoring_policy(policy().with_samples(0));
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 0);
+    assert_eq!(out.status, CompileStatus::Incomplete);
+    assert!(out.candidate.is_none());
+    assert!(
+        out.diagnostics
+            .iter()
+            .any(|finding| finding.target == "authoring_policy"
+                && finding.message.contains("positive sample count"))
+    );
+}
+
+#[tokio::test]
+async fn sampling_stops_when_the_explicit_authority_refuses_the_next_sample() {
+    use nika_compile_cognition::authority::{Envelope, Seat};
+    let envelope = std::sync::Arc::new(Envelope::new(2, "test authority"));
+    let provider = Seat::new(Rotating::new(vec![plan().to_string()]), envelope.clone());
+    let req = request().with_authoring_policy(policy().with_samples(6));
+    let out = compile_with_provider(&req, &provider).await.unwrap();
+    assert_eq!(provider.inner().calls.load(Ordering::SeqCst), 2);
+    assert_eq!(envelope.account()["sent"], 2);
+    assert!(envelope.account()["refused"].as_u64().unwrap() > 0);
+    assert_ne!(out.status, CompileStatus::Ready);
+    let samples = &out.provenance.decision.as_ref().unwrap()["cold_samples"];
+    assert_eq!(samples["requested"], 6);
+    assert_eq!(samples["samples"].as_array().unwrap().len(), 3);
+    let receipt = out.provenance.authoring.as_ref().unwrap();
+    let plans: Vec<&Value> = receipt
+        .context
+        .iter()
+        .filter(|call| call["call"] == "plan")
+        .collect();
+    assert_eq!(plans.len(), 3);
+    assert_eq!(plans[2]["result"]["failure_kind"], "admission_refused");
+}
+
+#[tokio::test]
 async fn cold_best_of_three_keeps_the_plan_the_others_agree_with() {
     // Sample 1 reads "classe le problème" as a code rule the request never asked; samples 2 and 3 agree.
     let mut invented = plan();

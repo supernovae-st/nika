@@ -417,6 +417,8 @@ where
             "read" => Ok(self.guarded_read(args).await),
             "write" => Ok(self.guarded_write(args).await),
             "edit" => Ok(self.guarded_edit(args).await),
+            // A write of its exact path: args, boundary, judged removal (no mkdir).
+            "remove_file" => Ok(file::remove(self.fs.as_ref(), &self.fs_boundary, args).await),
             // grep is a recursive READER rooted at `path:` (default `.`).
             "grep" => Ok(self.guarded_grep(args).await),
             // glob walks descendants of `.` (the kernel walk never crosses
@@ -1010,10 +1012,10 @@ mod tests {
             let outcome = rig.execute(call(&def.name, serde_json::json!({}))).await;
             assert!(outcome.is_ok(), "{} must route (got {outcome:?})", def.name);
         }
-        // …and the count is the canonical 28 (stdlib v0.1 · +compose per
+        // …and the count is the canonical 29 (stdlib v0.1 · +compose per
         // ADR-096 · +image_generate stdlib §Media · +tts_generate §Audio ·
-        // +decide spec 11 W-DEC).
-        assert_eq!(tool_defs().len(), 28);
+        // +decide spec 11 W-DEC · +remove_file §nika:remove_file).
+        assert_eq!(tool_defs().len(), 29);
     }
 
     #[tokio::test]
@@ -1073,7 +1075,7 @@ mod tests {
         let defs = ToolDefinitionProviderDyn::tool_defs(&rig())
             .await
             .expect("enumerates");
-        assert_eq!(defs.len(), 28);
+        assert_eq!(defs.len(), 29);
         assert!(defs.iter().all(|d| d.name.starts_with(NAMESPACE)));
         assert!(defs.iter().all(|d| !d.description.is_empty()));
         assert!(

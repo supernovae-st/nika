@@ -190,7 +190,7 @@ impl ArithOp {
     #[must_use]
     pub fn from_word(word: &str) -> Option<Self> {
         match word.trim().to_ascii_lowercase().as_str() {
-            "sub" | "minus" | "-" => Some(Self::Sub),
+            "sub" | "minus" | "moins" | "-" => Some(Self::Sub),
             "add" | "plus" | "+" => Some(Self::Add),
             "mul" | "times" | "*" => Some(Self::Mul),
             "div" | "over" | "/" => Some(Self::Div),

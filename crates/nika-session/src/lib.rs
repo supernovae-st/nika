@@ -37,8 +37,13 @@
 pub use nika_onboard::{activity, identity};
 pub mod authoring;
 pub mod broker;
-pub mod change;
-pub mod consent;
+/// The project change a proposal writes ([`change`]), its factual review ([`review`]), the
+/// typed outcome a host renders ([`outcome`]) and the consent record ([`consent`]) are owned
+/// by the size-cap member below the session since 2026-10-06 (ADR-144):
+/// `nika_session_change::{change, consent, outcome, review}`. These paths are kept and name
+/// the very same items (types, functions, constants).
+#[doc(inline)]
+pub use nika_session_change::{change, consent, outcome, review};
 pub mod facts;
 /// The hallucination guard (a reply's named builtins, models, codes, MCP servers, verbs
 /// and fields checked against what this engine carries) is owned beside the other
@@ -47,12 +52,10 @@ pub mod facts;
 #[doc(inline)]
 pub use nika_onboard::guard;
 pub mod intelligence;
-/// The Meaning view — what survived of a request, clause by clause, read from
-/// the compiler's obligation ledger — is owned beside that ledger since
-/// 2026-09-28: `nika_onboard::compile::meaning`. This path is kept for source
-/// compatibility and names the very same items (types, functions, constant).
-#[doc(inline)]
-pub use nika_onboard::compile::meaning;
+/// The Meaning view: what survived of a request, clause by clause, read from the
+/// compiler's obligation ledger. Owned here again since 2026-10-07, the session being its
+/// only reader (it sat in `nika_onboard::compile::meaning` from 2026-09-28).
+pub mod meaning;
 /// The automation rail (DRAFT · SAVED · CHECKED · ACTIVE · RUN, each at its own stage) is
 /// owned beside the other engine-knowledge words since 2026-09-29: `nika_onboard::lifecycle`.
 /// This path is kept for source compatibility and names the very same items (types,
@@ -60,9 +63,7 @@ pub use nika_onboard::compile::meaning;
 #[doc(inline)]
 pub use nika_onboard::lifecycle;
 pub mod money;
-pub mod outcome;
 pub mod reasoner;
-pub mod review;
 pub mod runtime;
 pub mod snapshot;
 pub mod state;
@@ -72,14 +73,11 @@ pub mod turn;
 // here, never owned: the flight-recorder reader holds it, and
 // `crate::run_view` stays the session's one path to it.
 use nika_trace::run_view;
+pub use nika_trace::run_view::KeptRun;
 
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod episode_tests;
-
-#[cfg(test)]
-#[allow(clippy::expect_used, clippy::panic)]
-mod change_fs_tests;
 
 pub use authoring::{AuthoringRound, AuthoringSeat, Reading};
 pub use broker::{ContextBroker, SessionContextBundle, Snippet};
@@ -94,6 +92,8 @@ pub use intelligence::{
     UserIntelligencePreference,
 };
 pub use lifecycle::{Lifecycle, LifecycleFacts, RunFact, Stage};
+/// The program a host names to run the observed room's `nika:jq` steps.
+pub use nika_onboard::compile::room::JqHelper;
 pub use nika_runtime::cost_choice::{CapEvidence, CostHostEvidence};
 pub use outcome::{GateId, ProposalId, QuestionId, Refusal, RefusalClass};
 pub use reasoner::{ReasonError, Reply, ScriptedReasoner, SessionReasoner};

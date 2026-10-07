@@ -1,0 +1,638 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! What a run left, acquired by the Live host adapter when the human opens
+//! it (never while drawing), only below the project's root and only for a
+//! path the host itself observed the run name:
+//!
+//! - a file the run reported writing, read NOW through an owned directory
+//!   (no symlink at any component, regular files only), at most
+//!   [`FILE_CAP`] bytes, witnessed. The run left no digest of what it wrote,
+//!   so these are today's bytes at that path, never called the run's own,
+//!   never « unchanged » nor « changed » since the run.
+//! - the Proof of the trace its settlement named: the journal is captured
+//!   ONCE (relative, under `.nika/traces/`, a regular file, at most
+//!   [`JOURNAL_CAP`] bytes, witnessed), then the one verifier judges those
+//!   very bytes (`trace_verify::verify_captured`, its `--json` document) and
+//!   the run's fold reads the same bytes (`RunFacts::of`). The verdict is
+//!   bound to the run only when the journal names exactly that execution,
+//!   one start naming the run's own source hash, and the head and length
+//!   its receipt named. The keys, the anchor sidecar and the writer lease
+//!   are the verifier's own context, read by their owners when it judges;
+//!   the witness covers the journal only. A verified journal records what
+//!   happened; it never proves the work was right.
+//!
+//! - the journal of a child run a task called, by the whole file name its
+//!   parent's settle frame named and this host kept (one name, under
+//!   `.nika/traces/`, nothing else; never the call site's target): captured
+//!   once like a run's journal, judged by the same verifier, folded, and
+//!   compared with each engagement that frame made (the head the verifier
+//!   computes, the source its one start names, the outcome its terminal
+//!   says). The frame names no child execution and no length: those stay
+//!   not compared, so such a journal is never called bound whole.
+//!
+//! A verified journal that is exactly the run's (verdict exit 0, bound to its
+//! execution, source, head and length) is also decoded, every non-empty line
+//! an event, into the run's own observations: the fold and the host's
+//! ledger read those, never a second read of the journal. Anything less
+//! keeps the verdict readable and the observations refused, with the reason.
+//!
+//! A path that leaves the root, a symlink, a special file, a missing file or
+//! one over its cap is refused with its reason, never read.
+
+use std::path::{Component, Path, PathBuf};
+use std::sync::Arc;
+
+use nika_display::run_story::{ChildOutcome, ChildRun, Event, ExecutionId, RunFrame};
+use nika_display::state::{RunView, TaskRow};
+use nika_session::change::Witness;
+use nika_trace::run_view::RunFacts;
+use nika_trace::trace_verify::{VerifyOptions, verify_captured};
+use serde_json::Value;
+
+/// The most bytes one produced file is read.
+pub const FILE_CAP: u64 = 1 << 20;
+/// The most bytes of a journal the Proof face captures: an interactive
+/// bound, below the verifier's own (`JOURNAL_BOUND`); a larger journal is
+/// refused here, `nika trace verify` judges it whole.
+pub const JOURNAL_CAP: u64 = 8 << 20;
+
+/// A file the run reported writing, as read now.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Fetched {
+    path: String,
+    bytes: Option<Vec<u8>>,
+    witness: Option<String>,
+    missing: bool,
+    why: Option<String>,
+}
+
+impl Fetched {
+    pub(crate) fn refused(path: &str, why: impl Into<String>) -> Self {
+        Self {
+            path: path.to_owned(),
+            bytes: None,
+            witness: None,
+            missing: false,
+            why: Some(why.into()),
+        }
+    }
+
+    /// The path the run named.
+    #[must_use]
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    /// The bytes read now, when they could be read.
+    #[must_use]
+    pub fn bytes(&self) -> Option<&[u8]> {
+        self.bytes.as_deref()
+    }
+
+    /// Their witness (blake3, hex).
+    #[must_use]
+    pub fn witness(&self) -> Option<&str> {
+        self.witness.as_deref()
+    }
+
+    /// Nothing is at that path now.
+    #[must_use]
+    pub fn missing(&self) -> bool {
+        self.missing
+    }
+
+    /// Why the bytes were not read, when they were not.
+    #[must_use]
+    pub fn why(&self) -> Option<&str> {
+        self.why.as_deref()
+    }
+}
+
+/// What the host observed of the run whose journal it captures.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Expect {
+    pub execution: ExecutionId,
+    pub workflow_sha256: Option<String>,
+    pub chain_head: Option<String>,
+    pub chain_len: Option<u64>,
+}
+
+/// The Proof of one captured journal: the verifier's verdict over its bytes
+/// and whether that journal is the run's own.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct Proven {
+    trace: String,
+    witness: Option<String>,
+    doc: Option<Value>,
+    terminal: Option<String>,
+    unbound: Vec<String>,
+    why: Option<String>,
+    /// The run's events from these very bytes, when they are its verified
+    /// journal; else why nothing historical is shown.
+    events: Option<Arc<[Event]>>,
+    projection_why: Option<String>,
+}
+
+impl Proven {
+    pub(crate) fn refused(trace: &str, why: impl Into<String>) -> Self {
+        Self {
+            trace: trace.to_owned(),
+            witness: None,
+            doc: None,
+            terminal: None,
+            unbound: Vec::new(),
+            why: Some(why.into()),
+            events: None,
+            projection_why: None,
+        }
+    }
+
+    /// The run's events decoded from the captured bytes, only when they are
+    /// its verified journal (the fold and the ledger read these).
+    pub(crate) fn events(&self) -> Option<&[Event]> {
+        self.events.as_deref()
+    }
+
+    /// Why the captured journal lends no event, when it was read but lends none.
+    pub(crate) fn projection_why(&self) -> Option<&str> {
+        self.projection_why.as_deref()
+    }
+
+    /// This Proof lending nothing: its verdict, witness and reasons kept,
+    /// `why` said for its projection (a reading the host did not adopt).
+    pub(crate) fn without_lending(mut self, why: impl Into<String>) -> Self {
+        self.events = None;
+        self.projection_why = Some(why.into());
+        self
+    }
+
+    /// The trace the settlement named.
+    #[must_use]
+    pub fn trace(&self) -> &str {
+        &self.trace
+    }
+
+    /// The witness of the captured journal bytes (blake3, hex).
+    #[must_use]
+    pub fn witness(&self) -> Option<&str> {
+        self.witness.as_deref()
+    }
+
+    /// The verifier's versioned `--json` verdict over those bytes.
+    #[must_use]
+    pub fn verdict(&self) -> Option<&Value> {
+        self.doc.as_ref()
+    }
+
+    /// The attained tier the verdict names (`ok` · `sealed` · …, or a refusal class).
+    #[must_use]
+    pub fn tier(&self) -> Option<&str> {
+        self.doc.as_ref()?.get("tier")?.as_str()
+    }
+
+    /// The exit class the verdict names (0 = the reported tier holds).
+    #[must_use]
+    pub fn exit(&self) -> Option<u64> {
+        self.doc.as_ref()?.get("exit")?.as_u64()
+    }
+
+    /// The journal's terminal word, when it holds a terminal frame.
+    #[must_use]
+    pub fn terminal(&self) -> Option<&str> {
+        self.terminal.as_deref()
+    }
+
+    /// Why the verdict is not the run's own (empty: it is).
+    #[must_use]
+    pub fn unbound(&self) -> &[String] {
+        &self.unbound
+    }
+
+    /// Why nothing was judged, when nothing was.
+    #[must_use]
+    pub fn why(&self) -> Option<&str> {
+        self.why.as_deref()
+    }
+}
+
+/// A child journal captured from the relation its parent's settle named,
+/// judged, folded and compared with each engagement of that relation.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct ChildRead {
+    proven: Proven,
+    compared: Vec<(bool, String)>,
+    rows: Vec<TaskRow>,
+}
+
+impl ChildRead {
+    pub(crate) fn refused(trace: &str, why: impl Into<String>) -> Self {
+        Self {
+            proven: Proven::refused(trace, why),
+            compared: Vec::new(),
+            rows: Vec::new(),
+        }
+    }
+
+    /// The verifier's verdict over the captured bytes, or why none was read;
+    /// its `unbound` lists every engagement that does not hold.
+    #[must_use]
+    pub fn proven(&self) -> &Proven {
+        &self.proven
+    }
+
+    /// Each engagement, compared: `true` only when it holds; otherwise the
+    /// words say whether it differs or was not compared.
+    #[must_use]
+    pub fn compared(&self) -> &[(bool, String)] {
+        &self.compared
+    }
+
+    /// The child's tasks, folded from the same captured bytes.
+    #[must_use]
+    pub fn rows(&self) -> &[TaskRow] {
+        &self.rows
+    }
+}
+
+#[cfg(test)]
+impl Proven {
+    /// This Proof lending `events`, as a verified journal of the run does.
+    pub(crate) fn lending(mut self, events: Vec<Event>) -> Self {
+        self.events = Some(events.into());
+        self
+    }
+
+    /// A Proof as the verifier judged it, for the faces' tests.
+    pub(crate) fn judged(trace: &str, doc: Value, unbound: Vec<String>) -> Self {
+        Self {
+            trace: trace.to_owned(),
+            witness: Some("ab".repeat(32)),
+            doc: Some(doc),
+            terminal: Some("succeeded".to_owned()),
+            unbound,
+            why: None,
+            events: None,
+            projection_why: None,
+        }
+    }
+}
+
+/// `path` as a relative path inside the root: `./` dropped, nothing absolute,
+/// no `..`, not empty.
+fn inside(path: &str) -> Option<PathBuf> {
+    let mut out = PathBuf::new();
+    for part in Path::new(path).components() {
+        match part {
+            Component::Normal(name) => out.push(name),
+            Component::CurDir => {}
+            _ => return None,
+        }
+    }
+    (!out.as_os_str().is_empty()).then_some(out)
+}
+
+/// At most `cap` bytes of `rel` below `root`: `Ok(None)` when absent, an
+/// error when refused or over the cap.
+fn capture(root: &Path, rel: &Path, cap: u64) -> Result<Option<Vec<u8>>, String> {
+    // The selected project root may be reached through a link (the
+    // operator's own): resolved once, then held; below it nothing is followed.
+    let root = std::fs::canonicalize(root).map_err(|e| format!("the project root: {e}"))?;
+    let opened = nika_fs::OwnedDir::open(&root).and_then(|dir| dir.open_relative(rel));
+    let read = opened.and_then(|mut file| nika_fs::read_capped(&mut file, cap));
+    match read {
+        Ok(capped) if capped.over => Err(format!("larger than {cap} bytes")),
+        Ok(capped) => Ok(Some(capped.bytes.to_vec())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// The file at `path` below `root`, read now within [`FILE_CAP`].
+pub(crate) fn fetch(root: &Path, path: &str) -> Fetched {
+    let Some(rel) = inside(path) else {
+        return Fetched::refused(path, "not a path inside the project");
+    };
+    match capture(root, &rel, FILE_CAP) {
+        Ok(Some(bytes)) => Fetched {
+            path: path.to_owned(),
+            witness: Some(Witness::of(&bytes).0),
+            bytes: Some(bytes),
+            missing: false,
+            why: None,
+        },
+        Ok(None) => Fetched {
+            missing: true,
+            ..Fetched::refused(path, "nothing is at this path now")
+        },
+        Err(why) => Fetched::refused(path, why),
+    }
+}
+
+/// The Proof of the journal at `trace` below `root`: captured once, judged
+/// and folded over the same bytes, bound to `expect` or said why not.
+pub(crate) fn prove(root: &Path, trace: &str, expect: &Expect) -> Proven {
+    let Some(rel) = inside(trace).filter(|r| r.starts_with(".nika/traces")) else {
+        return Proven::refused(trace, "not a trace under .nika/traces/ of this project");
+    };
+    let raw = match capture(root, &rel, JOURNAL_CAP) {
+        Ok(Some(bytes)) => bytes,
+        Ok(None) => return Proven::refused(trace, "no journal is at this path now"),
+        Err(why) => return Proven::refused(trace, why),
+    };
+    let witness = Witness::of(&raw).0;
+    let Ok(raw) = String::from_utf8(raw) else {
+        return Proven::refused(trace, "the journal is not UTF-8");
+    };
+    let original = root.join(&rel);
+    let opts = VerifyOptions {
+        json: true,
+        ..VerifyOptions::default()
+    };
+    let judged = verify_captured(&original.to_string_lossy(), &raw, &opts);
+    let doc = judged
+        .text
+        .lines()
+        .last()
+        .and_then(|l| serde_json::from_str(l).ok());
+    let facts = RunFacts::of(&original, &raw);
+    let unbound = binding(facts.as_ref(), doc.as_ref(), expect);
+    let (events, projection_why) = project(&raw, doc.as_ref(), &unbound);
+    Proven {
+        trace: trace.to_owned(),
+        witness: Some(witness),
+        terminal: facts.as_ref().and_then(|f| f.terminal().map(str::to_owned)),
+        doc,
+        unbound,
+        why: None,
+        events,
+        projection_why,
+    }
+}
+
+/// The run's events from the captured bytes, when the verifier passed them
+/// (exit 0) and they are exactly the run's: every non-empty line decoded as
+/// an event, at most the fold's bound; otherwise why none is lent.
+fn project(
+    raw: &str,
+    doc: Option<&Value>,
+    unbound: &[String],
+) -> (Option<Arc<[Event]>>, Option<String>) {
+    let refused = |why: String| (None, Some(why));
+    if doc.and_then(|d| d.get("exit")).and_then(Value::as_u64) != Some(0) {
+        return refused(
+            "the verifier did not pass this journal: nothing it records is shown".to_owned(),
+        );
+    }
+    if !unbound.is_empty() {
+        return refused(
+            "the journal is not exactly this run's: nothing it records is shown".to_owned(),
+        );
+    }
+    let mut events = Vec::new();
+    for (n, line) in raw
+        .lines()
+        .enumerate()
+        .filter(|(_, l)| !l.trim().is_empty())
+    {
+        let Some(RunFrame::Event(event)) = RunFrame::decode(line) else {
+            return refused(format!("line {} is not an event the fold reads", n + 1));
+        };
+        if events.len() == crate::workspace::live::EVENTS_KEPT {
+            return refused("the journal holds more events than the fold keeps".to_owned());
+        }
+        events.push(*event);
+    }
+    (Some(events.into()), None)
+}
+
+/// The child journal `relation` names, read once below `.nika/traces/` of
+/// `root` by its whole file name: judged, folded and compared, the same
+/// captured bytes for each, never bound to anything the frame did not name.
+pub(crate) fn read_child(root: &Path, relation: &ChildRun) -> ChildRead {
+    let name = relation.trace_id.as_deref().unwrap_or_default();
+    let trace = format!(".nika/traces/{name}");
+    let one = Path::new(name).components().collect::<Vec<_>>();
+    if !matches!(one.as_slice(), [Component::Normal(_)]) {
+        return ChildRead::refused(&trace, "not one journal name of this project's traces");
+    }
+    let rel = Path::new(".nika/traces").join(name);
+    let raw = match capture(root, &rel, JOURNAL_CAP) {
+        Ok(Some(bytes)) => bytes,
+        Ok(None) => return ChildRead::refused(&trace, "no journal is at this path now"),
+        Err(why) => return ChildRead::refused(&trace, why),
+    };
+    let witness = Witness::of(&raw).0;
+    let Ok(raw) = String::from_utf8(raw) else {
+        return ChildRead::refused(&trace, "the journal is not UTF-8");
+    };
+    let original = root.join(&rel);
+    let opts = VerifyOptions {
+        json: true,
+        ..VerifyOptions::default()
+    };
+    let judged = verify_captured(&original.to_string_lossy(), &raw, &opts);
+    let doc: Option<Value> =
+        (judged.text.lines().last()).and_then(|l| serde_json::from_str(l).ok());
+    let facts = RunFacts::of(&original, &raw);
+    let compared = engagements(facts.as_ref(), doc.as_ref(), relation);
+    let mut view = RunView::new();
+    for line in raw.lines() {
+        if let Some(RunFrame::Event(event)) = RunFrame::decode(line) {
+            view.apply(&event);
+        }
+    }
+    ChildRead {
+        proven: Proven {
+            trace,
+            witness: Some(witness),
+            terminal: facts.as_ref().and_then(|f| f.terminal().map(str::to_owned)),
+            doc,
+            unbound: (compared.iter())
+                .filter(|(holds, _)| !holds)
+                .map(|(_, why)| why.clone())
+                .collect(),
+            why: None,
+            events: None,
+            projection_why: None,
+        },
+        compared,
+        rows: view.rows().to_vec(),
+    }
+}
+
+/// Each engagement of the parent's frame against the captured journal.
+/// The frame names no child execution and no length: both are said, never
+/// compared, so the relation is never bound whole by their absence.
+fn engagements(
+    facts: Option<&RunFacts>,
+    doc: Option<&Value>,
+    relation: &ChildRun,
+) -> Vec<(bool, String)> {
+    let Some(facts) = facts else {
+        return vec![(
+            false,
+            "not compared: the journal holds no frame the fold reads".to_owned(),
+        )];
+    };
+    let identity = match (facts.executions(), facts.unidentified()) {
+        ([], _) => "its execution is not recorded on its frames".to_owned(),
+        ([one], 0) => format!("it records execution {one}"),
+        (all, n) => format!(
+            "it records {} and {n} frame(s) naming none",
+            nika_display::vocab::count(all.len(), "execution")
+        ),
+    };
+    let computed = (doc.and_then(|d| d.get("chain")))
+        .and_then(|c| c.get("head"))
+        .and_then(Value::as_str);
+    let head = match (relation.chain_head.as_deref(), computed) {
+        (None, _) => (
+            false,
+            "head not compared: the parent's frame named no head".to_owned(),
+        ),
+        (Some(_), None) => (
+            false,
+            "head not compared: the verifier computed no chain".to_owned(),
+        ),
+        (Some(named), Some(head)) if named == head => (
+            true,
+            "head holds: the chain the verifier computed ends where the parent's frame named"
+                .to_owned(),
+        ),
+        (Some(_), Some(_)) => (
+            false,
+            "head differs: the journal ends elsewhere than the parent's frame named".to_owned(),
+        ),
+    };
+    let source = match (facts.starts(), relation.def_hash.as_deref()) {
+        (_, None) => (
+            false,
+            "source not compared: the parent's frame named none".to_owned(),
+        ),
+        ([Some(named)], Some(sha)) if named == sha => (
+            true,
+            "source holds: its one start names the bytes the parent's frame named".to_owned(),
+        ),
+        ([None], Some(_)) => (
+            false,
+            "source not compared: its start names no source hash".to_owned(),
+        ),
+        ([_], Some(_)) => (
+            false,
+            "source differs: its start names other bytes than the parent's frame".to_owned(),
+        ),
+        (starts, Some(_)) => (
+            false,
+            format!(
+                "source not compared: the journal holds {} starts, not one",
+                starts.len()
+            ),
+        ),
+    };
+    vec![
+        head,
+        source,
+        outcome(relation.outcome, facts.terminal()),
+        (
+            false,
+            format!(
+                "identity not compared: {identity}; the parent's frame names no child execution"
+            ),
+        ),
+        (
+            false,
+            "length not compared: the parent's frame names none".to_owned(),
+        ),
+    ]
+}
+
+/// The outcome the parent's frame named against the journal's terminal. The
+/// producer calls a child successful only when its run settled succeeded,
+/// and a failure otherwise (failed, cancelled, paused); any other word, or
+/// none, is not compared.
+fn outcome(named: Option<ChildOutcome>, terminal: Option<&str>) -> (bool, String) {
+    let ended = terminal.unwrap_or_default();
+    match (named, terminal) {
+        (None, _) => (
+            false,
+            "outcome not compared: the parent's frame names none recognized".to_owned(),
+        ),
+        (Some(_), None) => (
+            false,
+            "outcome not compared: the journal holds no terminal frame".to_owned(),
+        ),
+        (Some(ChildOutcome::Success), Some("succeeded"))
+        | (Some(ChildOutcome::Failure), Some("failed" | "cancelled" | "paused")) => (
+            true,
+            format!("outcome holds: the journal ends {ended}, as the parent's frame named"),
+        ),
+        (Some(ChildOutcome::Success), Some("failed" | "cancelled" | "paused"))
+        | (Some(ChildOutcome::Failure), Some("succeeded")) => (
+            false,
+            format!("outcome differs: the journal ends {ended}, the parent's frame named another"),
+        ),
+        (Some(_), Some(_)) => (
+            false,
+            format!("outcome not compared: the journal ends `{ended}`"),
+        ),
+    }
+}
+
+/// Every reason the captured journal is not exactly the observed run's.
+fn binding(facts: Option<&RunFacts>, doc: Option<&Value>, expect: &Expect) -> Vec<String> {
+    let mut why = Vec::new();
+    let Some(facts) = facts else {
+        return vec!["the journal holds no frame the fold reads".to_owned()];
+    };
+    match (facts.executions(), facts.unidentified()) {
+        ([one], 0) if *one == expect.execution => {}
+        ([one], 0) => why.push(format!("the journal records another execution ({one})")),
+        (all, 0) => why.push(format!(
+            "the journal records {} executions, not one",
+            all.len()
+        )),
+        (_, n) => why.push(format!("{n} frame(s) of the journal name no execution")),
+    }
+    match (facts.starts(), expect.workflow_sha256.as_deref()) {
+        ([Some(named)], Some(seen)) if named == seen => {}
+        ([_], None) => {
+            why.push("the run's own start was not observed: its source is not compared".to_owned());
+        }
+        ([None], Some(_)) => {
+            why.push(
+                "the journal's start names no source hash: its source is not compared".to_owned(),
+            );
+        }
+        ([_], Some(_)) => {
+            why.push("the journal's start names other bytes than the run's start".to_owned());
+        }
+        (starts, _) => why.push(format!(
+            "the journal holds {} starts, not one",
+            starts.len()
+        )),
+    }
+    let chain = doc.and_then(|d| d.get("chain"));
+    let head = chain.and_then(|c| c.get("head")).and_then(Value::as_str);
+    let events = chain.and_then(|c| c.get("events")).and_then(Value::as_u64);
+    match (expect.chain_head.as_deref(), expect.chain_len) {
+        (Some(h), Some(n)) if head == Some(h) && events == Some(n) => {}
+        (Some(_), Some(_)) if head.is_none() => why.push(
+            "the verifier judged no chain: the end its receipt named is not compared".to_owned(),
+        ),
+        (Some(_), Some(_)) => {
+            why.push("the journal ends elsewhere than its receipt named".to_owned());
+        }
+        _ => why
+            .push("the settlement named no receipt: the journal's end is not compared".to_owned()),
+    }
+    why
+}
+
+#[cfg(test)]
+#[cfg(unix)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod acquire_tests;

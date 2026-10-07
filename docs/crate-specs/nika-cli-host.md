@@ -29,6 +29,8 @@ what is wired, what is honestly active":
 - `clients_registry` + `data/clients.registry.yaml` — the vendored
   byte-copy of the agents-repo matrix (H6: one truth, machine-checked)
 - `context_envelope` — the single workspace resolution (chat_only law)
+- `context_redaction` — the pure text filter for secrets in model context;
+  Session retains its historical `broker::redact` path through a re-export.
 - `retention` · `metrics` · `text` · `output` (spec §4 exit codes ·
   `VerbOutput` · the OSC-8 link seam)
 
@@ -107,6 +109,50 @@ transport with the resident door.
 `nika_onboard::compile_config`. The shared parser, constants, typed errors and
 their tests have one owner beside the authoring facade; existing import paths
 and resolution behavior remain available without a reverse dependency.
+
+## Private authoring capture
+
+`nika compile --private-authoring-capture --authoring-model ...` opts into
+bounded diagnostic capture of application Text returned by the authoring
+seat. The default is off. The CLI selects `.nika/compile/capture` below its
+process working directory; this is not a project-root resolution contract.
+The model and HTTP callers cannot select a capture directory. The existing
+`CompileArgs` literal remains unchanged; `CompileCommand` carries the new
+`CaptureFlags` field. Its existing `new(args, authority)` constructor keeps
+capture off; the command remains `non_exhaustive`.
+
+The host checks its held container's ownership and private mode, then creates
+or verifies an exact `*\n` ignore marker before reserving a round. It uses
+`nika-fs::ReservedLog`: 1 MiB per round, with 16 KiB reserved for closing
+metadata, a container allowance below 16 MiB and a 256-entry inventory bound.
+Finished and failed reservations remain charged until operator removal.
+Concurrent cooperating reservations share the filesystem mechanism's lock.
+Storage refusal does not refuse compilation or discard its normal outcome.
+
+A `CapturePolicy` combines explicit context admission with withheld values.
+It refuses oversized policy input: at most 128 initial values, 32 KiB per
+value, 256 retained raw/escaped needles and 512 KiB aggregate under the
+constructor's documented counting law. Known resolved authoring and TypeSafe
+credentials are withheld in raw and JSON-escaped forms. The CLI does not
+admit a harness seat's Text merely because capture was requested. This is an
+explicit host policy, not a claim to recognize every possible secret.
+
+`CaptureContext` carries a trusted held directory, policy and local report;
+`fresh` gives another round its own status. The observer runs around the
+actual compile future. The capture holds response framing, counts, digests
+and bounded selected metadata; withheld payloads retain their disposition.
+An `outcome_returned` flag distinguishes a returned compile result from a
+best-effort close on interruption. Capture observes returned authoring work,
+not all physical provider sends. It is never a workflow, permit, semantic
+record or replay input. Public status contains bounded facts, not raw Text
+or paths. Separate cognition diagnostics remain subject to their own
+contracts; capture does not sanitize those pre-existing public paths.
+
+The CLI process tests in `tests/compile_cli/capture.rs` cover explicit opt-in,
+public-output parity, marker refusals and resolved-key withholding with local
+synthetic seats. Host and filesystem unit tests cover the shared mechanisms.
+These results do not establish paid-provider, native TUI or Serve consumption
+of the context seam, or program-wide private-capture qualification.
 
 ## Knowledge door
 
@@ -365,13 +411,61 @@ configured level from the keys read back from the dispatched body.
 re-anchors the plan to a changed source (its observation or the keys asked again moved, R4 A6)
 replaces the record atomically once the compile succeeded, so the next `--answer` binds against
 the observation the question showed; a write failure keeps the old record and names the error,
-and a verified or pending transform is never re-recorded over another source.
+and a verified or pending transform is never re-recorded over another source. A round whose
+candidate its judge could not judge (the core's Applied `verify_resume` finding) is recorded
+with `resume: true`, and a plain re-run replays it, so the judge is asked again on the same
+bytes with no authoring call; once such a round is judged and leaves nothing to record, its
+record is removed. An outcome carrying the core's Applied `verify_held` finding (its judge
+answered the candidate and did not accept it) is never recorded, and this intent's record is
+removed whether this invocation replayed it, resumed it or left it unread, so no later
+`--answer` round replays those bytes to that judge. The human text says « plan record removed ·
+`<path>` · its judge did not accept the candidate: no later round replays it, the next compile
+authors again »; a removal that fails is named (« plan record not removed · `<path>` ·
+`<error>` · a later --answer round would replay the candidate its judge did not accept: remove
+the file, or compile with --fresh ») and carried in the machine document's
+`plan_record_error`. A held outcome is INCOMPLETE: as for any outcome that is not READY,
+nothing is written to the destination and the compile exits 2. An answer round with neither
+`--authoring-model` nor `--decision-model` replays the record through the core alone: every
+record but the reader's own HOT plan keeps its whole request pending, so such a round is
+INCOMPLETE with the core's pending-clause finding, never READY on bytes no judge of that round
+carried.
 
-`compile::typesafe::session` carries the bounded operator-selected decision
-adapter and its observation journal beside the one TypeSafe transport. Session
-still decides whether its current monetary account admits a call and persists
-observations; the host helper accepts that explicit verdict, not conversation text.
-The existing Session public selection path remains a compatibility re-export.
+Beside the plan record, `.nika/compile/<intent sha256>.declined.json` keeps the verdicts that
+rejected candidate bytes of the intent in earlier rounds: each `semantic_verification` attempt
+`nika_onboard::compile::round::rejections` lists (declined, rejected and not settled, never a
+repeat; an abstention is never kept), the latest per candidate digest, judge, request and
+context (`keep_rejections`), with the
+same `compile_version`, `engine` and `intent_sha256` guard as the plan record (an absent,
+unreadable, foreign-engine or foreign-intent file is not read, and the next rejection rewrites
+it). Every compile of the intent carries them, `--fresh` or not
+(`CompileRequest::with_declined`), so a round that authors those bytes again for the same
+request never asks the same judge on them: its rejection stands with no call, and the human
+text says « declined verdicts · `<path>` · its judge rejected these bytes in an earlier round:
+it was not asked again (--fresh keeps them) ». A compile that adds a rejection rewrites the
+file atomically in the same self-ignoring directory; a write that fails is named (« declined
+verdicts not kept · `<path>` · `<error>` · a later round could ask a judge again on bytes it
+rejected ») and carried in the machine document's `declined_record_error`.
+
+`compile::typesafe::session` owns the operator-selected typed decision adapter
+and its observation journal beside the one TypeSafe transport. Session supplies
+an explicit admission verdict and persists the observations; conversation text
+is never such a verdict. Each finite compiler need makes one attempt, with no
+implicit call-count cap or transport retry. The observation's `role` states what
+the seat decides: clause reading, feasible-plan ranking and semantic verification
+(the whole request, then each part alone, the task a missing part points to, extra
+operations and the questions over a trial run), NONE allowed, never Foundry or knowledge
+selection, never authority. Each attempt records the question id and its offered keys
+(`task-<id>`, `part-<k>`), never the question's state, so a trial run's texts sent to the
+seat are not journaled here. `SessionSeat::finish` consumes the
+scope; Drop performs the same conservative closure on errors or cancellation.
+The @2 observation records `scope_ended`; only fully answered or unsent attempts
+close as Closed. A send with no observed result stays Uncertain. Cost remains
+unknown after either state, never assigned to the author's account or priced0.
+An unavailable journal refuses before transport. Old @1 observations are retained
+unchanged. Pure status wording is projected by `nika-display::model_scope`.
+The Session public selection path remains a compatibility re-export; the former
+implicit-cap constant `MAX_DECISION_CALLS` no longer describes this behavior and
+is removed. Explicit CLI Compile and workflow limits are unchanged.
 
 ## Doctor local protocol evidence
 
@@ -396,3 +490,15 @@ and its login name when the account database names one. It never reads a
 flag or the environment. This is the principal `nika trace cost reconcile`
 records: attributable, not authenticated, through the existing `nix` user
 feature.
+
+## Passive views and the repair prepass
+
+The welcome and choice views render through `nika_display::front_door`; the host
+still collects facts, resolves the context envelope, redacts endpoints and selects
+next actions. Doctor keeps diagnosis, row visibility, link preparation, receipt
+projection and exit codes here; `Finding` and `Level` remain compatibility
+re-exports of the passive human/JSON view types.
+
+`fix_ladder` calls the four pure prepass helpers in `nika_migrate` and re-exports
+the repair records and renderers from `nika_display::repair_render`. Applying,
+judging and rolling back repair rounds remain host responsibilities.

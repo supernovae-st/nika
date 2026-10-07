@@ -47,3 +47,26 @@ cap does not imply a level. `InferResponse.reasoning_wire` optionally records
 the thinking and effort words read back from the serialized request body by
 the adapter. It is transmitted-configuration evidence, not a server attestation
 of internal reasoning effort. An absent read-back stays unobserved.
+
+## Harness image observations
+
+`HarnessImage` carries a peer-local tool-call id, optional received decoded bytes,
+MIME, received size and SHA-256, and an optional **reported** saved path. The bytes
+are transient `Bytes`; after the verb persists them, `stored_blob` contains the
+local CAS metadata and the observer carries no raw data. `observation()` emits a
+small `nika/harness-image-observation@1` receipt, never inline image bytes. This
+is received-content evidence, not a receipt for the peer's filesystem, an image-
+generation model identity, invoice or permission. `HarnessEvent::ImageActivityObserved`
+precedes `ImageObserved`; `HarnessOutcome.images` retains the received facts.
+Paths must not be opened, copied or fetched merely because the peer named them.
+
+`HarnessImage::storage()` (and the observation's `storage` key) names what
+happened to received bytes: `none` (path-only), `stored` (`stored_blob`),
+`failed` (`storage_failure`, the store's refusal) or `unconfirmed` (received,
+no store answer observed — pending or cancelled; a blob may or may not exist).
+
+`HarnessOutcome.observed_model_source` says how `observed_model` was learned:
+`ModelProvenance::{SessionConfig, ConfirmedSelection, AcceptedRequest}`
+(`session_config` · `confirmed_selection` · `accepted_request`). None of these
+is a response attestation: ACP prompt results name no model. `None` means the
+source is unspecified and is never treated as attested.

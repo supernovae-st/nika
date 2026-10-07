@@ -54,6 +54,16 @@ Agent whitelist exclusions restrict the offered tools. They contribute no
 required authority to permit checks, inference or task capability projections;
 positive whitelist rules still require their declared boundary.
 
+Same-path mutations (`NIKA-SEC-012`) key `nika:write`, `nika:edit` and
+`nika:remove_file` by their static path under lexical normalization. Two
+mutations of one key must be ordered by the precedence graph `G_p`: the
+scheduling edges of `analyzer::edges::derive_edges` (`with:` references,
+group folds and `after:` predicates, transitively), never an `unwind` edge,
+which attaches cleanup and orders nothing. A constant `for_each` mutation
+races its own iterations. Quoted text that only looks like a reference is
+not an edge. The judgment is lexical and static: it does not resolve
+symlinks, and a dynamic path makes no claim.
+
 ## Why L0, not L1
 
 The registry's mechanical sort (< 10 s): not the binary, not a

@@ -267,6 +267,7 @@ pub struct CostReview {
     candidate: String,
     invocation: String,
     route: CostRoute,
+    prior_report: Option<(String, String)>,
     evidence: CostHostEvidence,
     defaults: [Option<Cost>; 2],
     max_requests: u32,
@@ -317,6 +318,7 @@ impl CostReview {
             candidate,
             invocation,
             route,
+            prior_report: None,
             evidence,
             defaults: [invocation_default, project_default],
             max_requests: 1,
@@ -344,6 +346,57 @@ impl CostReview {
         self.max_requests = SESSION_REVIEW_MAX_REQUESTS;
         self.max_output_tokens = SESSION_REVIEW_MAX_OUTPUT_TOKENS;
         self.request_timeout = SESSION_REVIEW_TIMEOUT;
+        self
+    }
+
+    /// Reserve `requests` more in this same review and account for an explicit source recovery
+    /// the operator configured (the compiler's `recovery_requests`). The question states the
+    /// allowance they are added to and `worst_case`, the configuration's theoretical bound; none
+    /// reserved changes nothing, never a second account and never a retry.
+    #[must_use]
+    pub fn with_recovery_requests(self, requests: u32, worst_case: u32) -> Self {
+        self.with_optional_recovery_requests(requests, Some(worst_case))
+    }
+
+    /// Reserve explicit recovery requests without inventing a total for request-dependent
+    /// work. `None` states that no finite upper bound can be calculated from the configuration;
+    /// the review's actual request allowance is unchanged except for `requests` reserved here.
+    #[must_use]
+    pub fn with_optional_recovery_requests(
+        mut self,
+        requests: u32,
+        worst_case: Option<u32>,
+    ) -> Self {
+        let estimate = worst_case.map_or_else(
+            || "no finite upper bound can be calculated for the work from this configuration; the request allowance still applies and may stop it first.".to_owned(),
+            |worst| format!("this configuration's theoretical worst case is {worst} requests, so this bound may stop it first."),
+        );
+        if requests > 0 {
+            self.breakdown.push(format!(
+                "Allowance {} + {requests} reserved for the explicit source recovery the operator configured; {estimate}",
+                self.max_requests
+            ));
+            self.max_requests = self.max_requests.saturating_add(requests);
+        } else if worst_case.is_none() {
+            self.breakdown.push(estimate);
+        }
+        self
+    }
+
+    /// Display retained legacy exposure beside this fresh invocation. The host must bind
+    /// the report and durable record to the candidate and re-observe both before confirming.
+    /// This never restores a numeric account or settles an earlier charge.
+    #[must_use]
+    pub fn after_legacy(mut self, report: super::LegacyCostReport) -> Self {
+        self.prior_report = Some(report.into_display());
+        self
+    }
+
+    /// Show completed prior scopes without reusing their authority or reconciling their price.
+    /// The host binds the report/project witness and observes them again before confirmation.
+    #[must_use]
+    pub fn after_completed(mut self, report: super::CompletedCostReport) -> Self {
+        self.prior_report = Some(report.into_display());
         self
     }
 
@@ -477,8 +530,11 @@ impl CostReview {
             multiplicity.push('\n');
             multiplicity.push_str(&line);
         }
+        let prior = self.prior_report.as_ref().map_or_else(String::new, |report| {
+            format!("{}\nThis choice authorizes only the NEW invocation described below; no ceiling covers the earlier unknown charge. A stated budget is not this authorization.\n", report.1)
+        });
         format!(
-            "USD cost is unknown; a charge is possible on {}/{}.\nAt most {} requests; each at most {} output tokens and {} seconds (at most {} seconds of model wait). Any schema re-asks consume this same request bound. No automatic transport retry.{multiplicity}\nOverrides only the shown defaults (invocation: {}; project: {}); no hard cap is overridden.\nContinue once? yes / no",
+            "{prior}USD cost is unknown; a charge is possible on {}/{}.\nAt most {} requests; each at most {} output tokens and {} seconds (at most {} seconds of model wait). Any schema re-asks consume this same request bound. No automatic transport retry.{multiplicity}\nOverrides only the shown defaults (invocation: {}; project: {}); no hard cap is overridden.\nContinue once? yes / no",
             self.route.provider,
             self.route.model,
             self.max_requests,
@@ -494,8 +550,14 @@ impl CostReview {
     /// public view (each layer's class, origin and cap), never a debug dump.
     #[must_use]
     pub fn details(&self) -> String {
+        let prior = self
+            .prior_report
+            .as_ref()
+            .map_or_else(String::new, |report| {
+                format!(" · prior report {}", report.0)
+            });
         format!(
-            "candidate {} · invocation {} · origin {} · host {}",
+            "candidate {} · invocation {} · origin {} · host {}{prior}",
             self.candidate,
             self.invocation,
             self.route.origin(),
@@ -587,6 +649,60 @@ mod tests {
     fn route() -> CostRoute {
         CostRoute::observe("deepseek/deepseek-v4-pro", ProvidersConfig::new())
             .expect("native route")
+    }
+    /// An explicit source recovery reserves its requests in the same Session review: the bound
+    /// shown before confirmation grows by exactly them, and none are reserved without it.
+    #[test]
+    fn a_recovery_reservation_extends_the_same_session_review() {
+        let session = review().for_session();
+        assert_eq!(session.max_requests(), SESSION_REVIEW_MAX_REQUESTS);
+        let plain = session.question();
+        let reserved = session.with_recovery_requests(3, 70);
+        assert_eq!(reserved.max_requests(), SESSION_REVIEW_MAX_REQUESTS + 3);
+        let asked = reserved.question();
+        assert!(asked.contains("Allowance 7 + 3 reserved"), "{asked}");
+        assert!(
+            asked.contains("theoretical worst case is 70 requests"),
+            "{asked}"
+        );
+        assert!(asked.contains("At most 10 requests"), "{asked}");
+        let none = review().for_session().with_recovery_requests(0, 66);
+        assert_eq!(none.max_requests(), SESSION_REVIEW_MAX_REQUESTS);
+        assert_eq!(
+            none.question(),
+            plain,
+            "no reservation: the question is unchanged"
+        );
+    }
+    #[test]
+    fn an_unknown_work_estimate_never_becomes_zero_or_an_extra_allowance() {
+        for requests in [0, 3] {
+            let reviewed = review()
+                .for_session()
+                .with_optional_recovery_requests(requests, None);
+            let allowed = SESSION_REVIEW_MAX_REQUESTS + requests;
+            assert_eq!(reviewed.max_requests(), allowed);
+            let asked = reviewed.question();
+            assert!(
+                asked.contains("no finite upper bound can be calculated"),
+                "{asked}"
+            );
+            assert!(!asked.contains("theoretical worst case is"), "{asked}");
+            assert!(
+                asked.contains(&format!("At most {allowed} requests")),
+                "{asked}"
+            );
+            assert_eq!(
+                asked.contains("reserved for the explicit source recovery"),
+                requests > 0
+            );
+            let account = reviewed
+                .confirm("candidate-a", &route())
+                .expect("fresh review");
+            let snapshot = account.snapshot().expect("observed account");
+            let choice = serde_json::to_value(snapshot.unknown_cost).expect("choice");
+            assert_eq!(choice["max_requests"], allowed);
+        }
     }
     fn review() -> CostReview {
         CostReview::new(

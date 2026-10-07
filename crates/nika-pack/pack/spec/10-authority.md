@@ -27,7 +27,7 @@ never a parallel list):
 
 | Effect category | Carried by | Granted by |
 |---|---|---|
-| `fs` (read · write) | `nika:read` · `nika:grep` · `nika:write` · `nika:edit` · file-writing media builtins | `permits.fs.read` / `permits.fs.write` (path globs) |
+| `fs` (read · write) | `nika:read` · `nika:grep` · `nika:write` · `nika:edit` · `nika:remove_file` (write · no read) · file-writing media builtins | `permits.fs.read` / `permits.fs.write` (path globs) |
 | `net` | `nika:fetch` · `nika:notify` (webhook) · any URL-reaching builtin | `permits.net.http` (host allowlist · SSRF floor beneath) |
 | `exec` | the `exec:` verb | `permits.exec` (`false` · `true` · program allowlist) |
 | `tools` | the `invoke:` verb surface | `permits.tools` (id globs) |
@@ -59,6 +59,35 @@ Two derived facts the engine computes and no author writes:
 **Required ⊆ permitted is judged twice** (per 01 §permits): statically
 at `nika check` (an escape = refusal before any token) and at run time
 (`NIKA-SEC-004` — the dynamic cases a static check cannot see).
+
+**Removal is a write.** `nika:remove_file` carries the `fs` write effect on
+its exact `path:` and nothing else: it needs `permits.fs.write` for that
+path and the tool grant, never `permits.fs.read`, and it rides every law
+a write rides — the taint re-gate, the affirmative-consent law, the
+composition containment, the lethal-trifecta egress leg. The static check
+judges a literal path, or a whole bare `const` reference to a declared
+string, against `permits.fs.write`; a caller-replaceable `inputs` default is
+the taint re-gate's ground, and any other template is judged on its resolved
+value at run time.
+
+**Same-path mutations.** `nika:write`, `nika:edit` and `nika:remove_file`
+mutate their path. Two such tasks on one known target MUST be ordered by a
+precedence path (`with:` · a `group` fold · `after:` other than `unwind`),
+and a `for_each` task MUST NOT fan onto one known target; otherwise the
+check refuses `NIKA-SEC-012`. A target is known in two forms. A literal
+path is keyed by its lexical normal form. A whole bare `const`/`inputs`
+reference whose declaration gives a string — a constant's string value or
+an input's string default — is keyed by that string's lexical normal form
+too, so it collides with an equal literal or with a different binding that
+resolves to it. A reference with no resolvable string keeps the identity of
+its own immutable binding, distinct from every file name and equal only to
+another reference to that binding (resolution and declaration rules still
+judge the reference itself). Every other expression form is unknown and
+never compared. This key is not the write fit: the static fit judges a
+literal or a bare `const` value only, never a caller-replaceable `inputs`
+default, which remains the taint re-gate's ground. Ordered mutations of one path
+are permitted — there is no one-writer rule — and graph order is a
+scheduling fact, never a proof of the filesystem state that results.
 
 ## The unconditional laws · *normative · the `policy:` block is dead*
 

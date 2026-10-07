@@ -6,8 +6,8 @@
 //!
 //! A fresh round takes a compile slot, then a place for the round it may leave, before any
 //! provider call; both live inside the blocking work, so a caller that disconnected or timed
-//! out never frees a slot or a place still in use. Its deadline is ABSOLUTE, fixed when it is
-//! admitted: a round that starts late (a busy blocking pool) never gets a fresh window, and a
+//! out never frees a slot or a place still in use. An explicit deadline is absolute, fixed at
+//! admission: a round that starts late (a busy blocking pool) never gets a fresh window, and a
 //! round that must already stop never begins. The stop — that deadline, or the server stopping
 //! — is checked before the work begins, raced against it, and checked again before every
 //! provider call; an outcome that arrives once the round must stop is never answered or kept.
@@ -66,11 +66,11 @@ impl From<ContextChanged> for Refusal {
     }
 }
 
-/// When a round must stop: at the absolute deadline it was admitted with, or when its server
-/// stops.
+/// When a round must stop: at any explicit absolute deadline it was admitted with, or when
+/// its server stops.
 #[derive(Clone)]
 struct Stop {
-    deadline: Instant,
+    deadline: Option<Instant>,
     halt: tokio::sync::watch::Receiver<bool>,
 }
 
@@ -79,7 +79,10 @@ impl Stop {
     fn now(&self) -> Option<Refusal> {
         if *self.halt.borrow() {
             Some(Refusal::Stopping)
-        } else if Instant::now() >= self.deadline {
+        } else if self
+            .deadline
+            .is_some_and(|deadline| Instant::now() >= deadline)
+        {
             Some(Refusal::Deadline)
         } else {
             None
@@ -93,7 +96,12 @@ impl Stop {
             return refusal;
         }
         tokio::select! {
-            () = tokio::time::sleep_until(self.deadline) => Refusal::Deadline,
+            () = async {
+                match self.deadline {
+                    Some(deadline) => tokio::time::sleep_until(deadline).await,
+                    None => std::future::pending().await,
+                }
+            } => Refusal::Deadline,
             _ = self.halt.wait_for(|halted| *halted) => Refusal::Stopping,
         }
     }
@@ -155,7 +163,20 @@ pub(super) async fn handle(
         Err(error) => return error.into_response(),
     };
     match request.action {
-        Action::Author(bounds) => fresh(&state, seat, request.input, request.answers, bounds).await,
+        Action::Author(bounds) => {
+            let round = (request.input, request.answers, bounds);
+            fresh(&state, seat, round, None).await
+        }
+        Action::Judge(token, bounds) => {
+            let Some(kept) = seat.replays.get(&token) else {
+                return replay_unavailable().into_response();
+            };
+            if kept.input != request.input {
+                return input_changed().into_response();
+            }
+            let round = (request.input, request.answers, bounds);
+            fresh(&state, seat, round, Some((token, kept.plan.clone()))).await
+        }
         Action::Replay(token) => {
             replay(
                 &state,
@@ -170,12 +191,14 @@ pub(super) async fn handle(
     }
 }
 
+/// A round under the operator's seat: a fresh authoring round, or, with `kept` (a kept round's
+/// token and plan), that plan replayed with these answers and judged by the seat, with no
+/// authoring call. A judged candidate the seat did not accept forgets that token.
 async fn fresh(
     state: &Arc<AppState>,
     seat: Arc<Seat>,
-    input: Input,
-    answers: Answers,
-    bounds: Bounds,
+    (input, answers, bounds): (Input, Answers, Bounds),
+    kept: Option<(String, serde_json::Value)>,
 ) -> Response<ResponseBody> {
     let Ok(permit) = Arc::clone(&state.compile_slots).try_acquire_owned() else {
         return super::busy().into_response();
@@ -184,11 +207,18 @@ async fn fresh(
         return replay_capacity().into_response();
     };
     // One absolute deadline, fixed at admission: a late start never gets a fresh window.
+    let deadline = match bounds.deadline {
+        Some(wait) => match Instant::now().checked_add(wait) {
+            Some(deadline) => Some(deadline),
+            None => return super::limit().into_response(),
+        },
+        None => None,
+    };
     let stop = Stop {
-        deadline: Instant::now() + bounds.deadline,
+        deadline,
         halt: seat.halted(),
     };
-    let handoff = stop.deadline + HANDOFF;
+    let handoff = deadline.map(|deadline| deadline.checked_add(HANDOFF).unwrap_or(deadline));
     #[cfg(test)]
     let before_compile = Arc::clone(&state.before_compile);
     let runtime = tokio::runtime::Handle::current();
@@ -197,39 +227,65 @@ async fn fresh(
         let _permit = permit;
         #[cfg(test)]
         super::super::test_support::before_compile(&before_compile);
+        let (judged, plan) = kept.unzip();
         let authored = run(
             &runtime,
             &stop,
-            author(&seat, &input, &answers, bounds, &stop),
+            author(&seat, (&input, &answers, plan.as_ref()), bounds, &stop),
         );
+        if let Some(judged) = judged.as_deref()
+            && authored.as_ref().is_ok_and(held)
+        {
+            seat.replays.forget(judged);
+        }
         conclude(&seat, authored, input, place)
     });
     // Past the deadline and its handoff the caller hears « stopped »: the work, if it has not
     // begun, never will (its stop is absolute), and nothing it produces is answered or kept.
-    match tokio::time::timeout_at(handoff, work).await {
+    let joined = match handoff {
+        Some(deadline) => tokio::time::timeout_at(deadline, work)
+            .await
+            .map_err(|_| ()),
+        None => Ok(work.await),
+    };
+    match joined {
         Ok(Ok(response)) => response,
         Ok(Err(_)) => ApiError::internal().into_response(),
-        Err(_) => deadline_exceeded().into_response(),
+        Err(()) => deadline_exceeded().into_response(),
     }
 }
 
-/// The fresh round itself: the core under the seat's policy, the pack beside the card.
+/// Whether the round's judge did not accept its candidate (the core's `verify_held` finding).
+fn held(outcome: &CompileOutcome) -> bool {
+    (outcome.diagnostics.iter()).any(|d| {
+        d.kind == nika_onboard::compile::DiagnosticKind::Applied && d.target == "verify_held"
+    })
+}
+
+/// The round itself: the core under the seat's policy, the pack beside the card; with a kept
+/// `plan`, that plan replayed and judged, no pack read (no authoring call reads one).
 async fn author(
     seat: &Seat,
-    input: &Input,
-    answers: &Answers,
+    (input, answers, plan): (&Input, &Answers, Option<&serde_json::Value>),
     bounds: Bounds,
     stop: &Stop,
 ) -> Result<CompileOutcome, Refusal> {
-    // The shared producer: the seat's strategy `only` and its reasoning effort (R4 B16).
+    // The shared producer: the seat's default strategy and its reasoning effort (R4 B16).
     let policy = seat
         .authoring
         .policy(&seat.model, bounds.max_tokens, bounds.call_timeout);
-    let policy = policy.map_err(|_| Refusal::Machinery)?;
-    let mut request = input
-        .request(answers)
-        .with_authoring_policy(policy.with_repairs(bounds.repairs));
-    if let Some((snapshot, exclude)) = seat.context()? {
+    let policy = policy
+        .map_err(|_| Refusal::Machinery)?
+        .with_initial_max_tokens(bounds.initial_tokens.min(bounds.max_tokens));
+    let policy = match bounds.repairs {
+        Some(repairs) => policy.with_repairs(repairs),
+        None => policy.with_unbounded_repairs(),
+    };
+    let mut request = input.request(answers).with_authoring_policy(policy);
+    if let Some(plan) = plan {
+        seat.context()?;
+        request = request.with_plan(plan.clone());
+    } else if let Some((snapshot, exclude)) = seat.context()? {
         let intent = match input {
             Input::Create { intent, .. } => Some(intent.clone()),
             Input::Revise { .. } => revise_intent(&request),
@@ -246,7 +302,8 @@ async fn author(
     let authority = bounds.authority().map_err(|_| Refusal::Machinery)?;
     let invocations = authority.envelope();
     let requests = authority.envelope();
-    let http = nika_cli_host::compile::authoring_http().map_err(|_| Refusal::Machinery)?;
+    let http = nika_cli_host::compile::authoring_http_with_deadline(bounds.call_timeout)
+        .map_err(|_| Refusal::Machinery)?;
     let wire = Wire::new(http, Arc::clone(&requests));
     let registry = ProviderRegistry::new(Arc::new(wire), seat.providers.clone());
     let mut backend = nika_cli_host::compile::authoring_backend(&registry, &seat.model);
@@ -319,7 +376,7 @@ async fn replay(
         return super::busy().into_response();
     };
     let stop = Stop {
-        deadline,
+        deadline: Some(deadline),
         halt: seat.halted(),
     };
     #[cfg(test)]
@@ -407,7 +464,7 @@ fn replay_capacity() -> ApiError {
     ApiError::new(
         StatusCode::SERVICE_UNAVAILABLE,
         "compile_replay_capacity",
-        "every kept answer round is in use; nothing was authored or spent — retry later",
+        "the operator's explicit kept-round capacity is full; nothing was authored or spent",
     )
 }
 
@@ -415,7 +472,7 @@ fn replay_unavailable() -> ApiError {
     ApiError::new(
         StatusCode::CONFLICT,
         "compile_replay_unavailable",
-        "this server keeps no round under that token (unknown, expired, or kept by another server run); author again with explicitProvider",
+        "this server run keeps no round under that token (unknown, past an explicit lifetime, or kept by another server run); author again with explicitProvider",
     )
 }
 

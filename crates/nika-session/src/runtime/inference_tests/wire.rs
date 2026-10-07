@@ -45,7 +45,7 @@ impl Peer {
                 let i = requests.lock().expect("seen").len();
                 requests.lock().expect("seen").push(body);
                 let (status, value) = script.get(i).or_else(|| script.last()).expect("script");
-                let data = value.to_string();
+                let data = approved(&requests.lock().expect("seen")[i], value).to_string();
                 write!(stream,"HTTP/1.1 {status} Fixture\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{data}",data.len()).expect("reply");
             }
         });
@@ -74,6 +74,24 @@ impl Drop for Peer {
             t.join().expect("peer");
         }
     }
+}
+/// What a scripted judge approval (`JUDGE_APPROVES`) answers: the whole request `faithful`, and
+/// a part asked alone (over a trial run of the bytes too) `carried`, whichever the question
+/// offers. Every other reply is sent as scripted.
+fn approved(body: &Value, scripted: &Value) -> Value {
+    let approval = scripted["choices"][0]["message"]["content"] == super::JUDGE_APPROVES;
+    let offered = |key: &str| {
+        let line = format!("\n- {key}: ");
+        (body["messages"].as_array().into_iter().flatten()).any(|message| {
+            message["content"]
+                .as_str()
+                .is_some_and(|c| c.contains(&line))
+        })
+    };
+    if approval && !offered("faithful") && offered("carried") {
+        return response(r#"{"choice":"carried"}"#);
+    }
+    scripted.clone()
 }
 fn read(stream: &mut TcpStream) -> Option<Value> {
     let mut data = vec![];

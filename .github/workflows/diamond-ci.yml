@@ -213,6 +213,13 @@ jobs:
         run: |
           python3 -m venv "$RUNNER_TEMP/authoring-python"
           "$RUNNER_TEMP/authoring-python/bin/pip" install -r nika-spec/conformance/requirements.txt
+          # The full battery leaves its test executables in target/debug/deps; this build relinks
+          # `nika` for its own feature set and needs the disk they hold (ld died with SIGBUS on a
+          # full runner disk). They have run: only extension-less executables go, never a
+          # proc-macro library or a build script.
+          df -h . | tail -1
+          find target/debug/deps -maxdepth 1 -type f -perm -u+x ! -name '*.*' -delete
+          df -h . | tail -1
           cargo build --locked -p nika-cli --bin nika
           "$RUNNER_TEMP/authoring-python/bin/python" scripts/ci/test-project-schema.py \
             --binary target/debug/nika --out "$RUNNER_TEMP/authoring-gauntlet/project-schema.json"

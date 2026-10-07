@@ -32,7 +32,11 @@ extend-ignore-identifiers-re = [
 # `"wdth"` (quoted, beside `"wght"`) in its font build, and the per-plane
 # thresholds `1thr=`/`2thr=`/`3thr=` of ffmpeg's deband filter in its encode.
 # Only those shapes are ignored; the same letters elsewhere stay checked.
-extend-ignore-re = ["« [^»]* »", "\"highlihgts\"", "\"chek\"", "view: recods", "classe le problème", "datos del cliente", "\"columnas\"", "\"limite\"", "\"limite \"", "pas de seconde action", "größer als", "o / oder", "\"falso\"", "`falso`", "Copie entree", "Copie\\ \\./data/input\\.csv\\ vers\\ \\./out/copy\\.csv\\.\\ Le\\ budget\\ est\\ de\\ 2\\ dollars\\.", "la copie", "copie-2\\.md", "copie\\.csv", "pas maintenant", "\"quantite\"", "colonne quantite", "\"remplace\"", "remplace explicitement", "salaire_confidentiel", "aout\\.csv", "\"wdth\"", "[123]thr=", "\\\\u\\{7f\\}ect", "\"thre\""]
+# French conversational fixtures: only this file name and the exact preservation
+# and revision phrases. Their component words remain checked everywhere else.
+# The Session's French cue for asking what examples exist (`modèles|exemples|templates`,
+# an alternation in nika-session's question patterns): only that alternation.
+extend-ignore-re = ["Remplace \\./sortie\\.txt par \\./revised\\.txt ou \\./reviewed\\.txt", "\\bcopie\\.txt\\b", "\\bgarde tout le reste\\b", "\\bcopie les octets dans autre\\.txt\\b", "« [^»]* »", "\"highlihgts\"", "\"chek\"", "view: recods", "classe le problème", "datos del cliente", "\"columnas\"", "\"limite\"", "\"limite \"", "pas de seconde action", "größer als", "o / oder", "\"falso\"", "`falso`", "Copie entree", "Copie\\ \\./data/input\\.csv\\ vers\\ \\./out/copy\\.csv\\.\\ Le\\ budget\\ est\\ de\\ 2\\ dollars\\.", "la copie", "copie-2\\.md", "copie\\.csv", "pas maintenant", "\"quantite\"", "colonne quantite", "\"remplace\"", "remplace explicitement", "salaire_confidentiel", "aout\\.csv", "\"wdth\"", "[123]thr=", "modèles\\|exemples\\|templates", "\\\\u\\{7f\\}ect", "\"thre\""]
 
 [default.extend-words]
 # Speaches is a real project (speaches.ai · OpenAI-compat speech server), not a typo of "Speeches".
@@ -165,7 +169,7 @@ extend-exclude = [
   # ADR-140: the prior Compile multilingual exclusion follows only moved files.
   "crates/nika-compile-cognition/src/cognition.rs",
   "crates/nika-compile-cognition/src/compose.rs",
-  "crates/nika-compile-cognition/src/decide.rs",
+  "crates/nika-compile-seats/src/decide.rs",
   "crates/nika-compile-cognition/src/predicate.rs",
   "crates/nika-compile-cognition/src/cognition/backstops.rs",
   "crates/nika-compile-cognition/src/cognition/instructions.rs",
@@ -192,6 +196,9 @@ extend-exclude = [
   # The trigger reading ascended from the compiler with the six-language tables the reader never
   # read on 2026-09-30 (ADR-142); the same exclusion follows them.
   "crates/nika-compile-trigger/",
+  # The prohibition reading and the proposal merge's words ascended from the reader with their
+  # six-language tables on 2026-10-07 (ADR-145); the same exclusion follows them.
+  "crates/nika-compile-clauses/",
   # cargo public-api baselines — generated symbol dumps, not prose. Real
   # source typos are still caught in the .rs files they derive from.
   "**/public-api.txt",

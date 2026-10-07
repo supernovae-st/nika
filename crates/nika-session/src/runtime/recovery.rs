@@ -8,8 +8,6 @@
 //! card from memory: never through another call, never a retry the human
 //! did not ask for. The goal is never erased by a failure.
 
-use std::fmt::Write as _;
-
 use super::{SessionRuntime, TurnOutcome};
 use crate::authoring::AuthoringSeat;
 use crate::intelligence::DataLocus;
@@ -21,8 +19,6 @@ const HARNESS_NOT_DONE: &str = "No workflow was written or Run requested; the se
 const NOTHING_SENT: &str = "Nothing was written and nothing was sent elsewhere.";
 /// How many decisions the card lists before « … ».
 const KEPT_DECISIONS: usize = 3;
-/// The longest request line the card quotes before an ellipsis.
-const QUOTE_CHARS: usize = 140;
 
 impl SessionRuntime {
     /// The recovery card under the caller's own `headline` (« I couldn't
@@ -52,20 +48,12 @@ impl SessionRuntime {
         headline: &str,
         reason: &str,
     ) -> TurnOutcome {
-        let mut text = format!("{headline} — {reason}");
-        if let Some(seat) = self.seat_line() {
-            let _ = write!(text, "\n  {seat}");
-        }
-        let kept = self.kept_lines(request);
-        if !kept.is_empty() {
-            text.push_str("\n  I still have:");
-            for line in kept {
-                let _ = write!(text, "\n    ✓ {line}");
-            }
-        }
-        let _ = write!(text, "\n  {}", self.not_done_line());
-        text.push_str(
-            "\n  To continue:\n    · say it again to try once more with the same intelligence\n    · `/intelligence` to choose another one\n    · keep going without it: the facts still answer, and work Nika reads on its own compiles\n  « what happened? » repeats this card",
+        let text = nika_cli_host::display::front_door::recovery::card(
+            headline,
+            reason,
+            self.seat_line().as_deref(),
+            &self.kept_lines(request),
+            &self.not_done_line(),
         );
         self.last_recovery = Some(text.clone());
         match class {
@@ -153,25 +141,12 @@ impl SessionRuntime {
     }
 }
 
-/// What the legacy monetary marker means today. The records keep its exact bytes (it is
-/// matched by equality), but its words promised a reconfirmation no restart accepts.
-const RECONFIRM_SHOWN: &str = "monetary constraint recorded · after a restart, Session inference stays blocked while an earlier charge may be unknown (no ceiling can cover it) · a saved workflow still runs under its own Run ceiling";
-
-/// A decision as a human reads it.
+/// A durable decision's presentation; identity stays with the admission owner.
 pub(super) fn decision_for_display(decision: &str) -> String {
-    if decision == super::inference::RECONFIRM {
-        RECONFIRM_SHOWN.to_owned()
-    } else {
-        decision.to_owned()
-    }
+    nika_cli_host::display::front_door::recovery::decision(
+        decision,
+        decision == super::inference::RECONFIRM,
+    )
 }
 
-/// A request quoted on one line, cut with an ellipsis past a bound.
-fn quote(text: &str) -> String {
-    let one_line: String = text.split_whitespace().collect::<Vec<_>>().join(" ");
-    if one_line.chars().count() <= QUOTE_CHARS {
-        return one_line;
-    }
-    let cut: String = one_line.chars().take(QUOTE_CHARS).collect();
-    format!("{cut}…")
-}
+use nika_cli_host::display::front_door::recovery::quote;

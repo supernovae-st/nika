@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The object in view: the centre of the workspace. An opened workflow shows
+//! The object in view: the preview on the right of the workspace. An opened workflow shows
 //! one face of the look its Session took (its source, its plan, its graph or
 //! its check), as the viewers rendered it before the frame
 //! ([`super::inspect::Inspected::face_lines`]). Any
 //! other object is named by its kind's icon and its name with the lines it is
 //! given, cut at the edge, never wrapped into a shape the object does not
-//! have. With nothing open it welcomes: the butterfly, the largest rendition
-//! that fits whole above the Session's first words.
+//! have. With nothing open it welcomes with a compact butterfly above the
+//! Session's first words; the conversation keeps the prominent region.
 
 use std::time::Duration;
 
@@ -19,12 +19,12 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Widget};
 use unicode_width::UnicodeWidthStr;
 
-use super::text::{fit_head, marks};
+use super::text::{fit_head, marks, wrap};
 use crate::visual::icon::Icon;
 use crate::visual::logomark::Size;
 use crate::visual::role;
 
-/// What the centre shows, as the Session projects it.
+/// What the preview shows, as the Session projects it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Object {
@@ -125,6 +125,7 @@ pub fn length(object: &Object) -> usize {
 /// The welcome: the mark (when one fits) then the words, the block centred.
 fn welcome(words: &[String], width: u16, height: u16, paint: Paint) -> Vec<Line<'static>> {
     let (_, cut) = marks(paint.ascii);
+    let words = welcome_words(words, width, height, cut);
     let mark = welcome_mark(width, height, words.len())
         .map(|size| size.at(paint.elapsed, paint.reduced_motion))
         .unwrap_or_default();
@@ -132,16 +133,70 @@ fn welcome(words: &[String], width: u16, height: u16, paint: Paint) -> Vec<Line<
     let used = mark.len() + gap + words.len();
     let top = usize::from(height).saturating_sub(used) / 2;
     let mut out = vec![Line::default(); top];
-    out.extend(mark.into_iter().map(|row| Line::from(row.to_owned())));
+    out.extend(
+        mark.into_iter()
+            .map(|row| Line::styled(row.to_owned(), role::style(Role::Accent, paint.color))),
+    );
     out.extend(std::iter::repeat_n(Line::default(), gap));
     // The words are what the human reads: the default foreground, no role.
-    out.extend(
-        words
-            .iter()
-            .map(|w| Line::from(fit_head(w, usize::from(width), cut))),
-    );
+    out.extend(words.iter().map(|word| {
+        let hue = if word == "N I K A" {
+            Role::Strong
+        } else if word.starts_with(['1', '2', '3']) {
+            Role::Accent
+        } else if word.starts_with("Try:") {
+            Role::VerbInvoke
+        } else {
+            Role::Dim
+        };
+        Line::styled(
+            fit_head(word, usize::from(width), cut),
+            role::style(hue, paint.color),
+        )
+    }));
     out.truncate(usize::from(height));
     out
+}
+
+/// In a short viewport the launch guide keeps its actions ahead of decoration.
+/// Other Welcome objects keep their supplied words; no project is observed here.
+fn welcome_words(words: &[String], width: u16, height: u16, cut: &str) -> Vec<String> {
+    let width = usize::from(width);
+    let full: Vec<_> = words
+        .iter()
+        .flat_map(|word| wrap(word, width, cut))
+        .collect();
+    if full.len() <= usize::from(height) {
+        return full;
+    }
+    let mut steps: Vec<_> = words
+        .iter()
+        .filter(|word| {
+            ["1  ", "2  ", "3  "]
+                .iter()
+                .any(|prefix| word.starts_with(*prefix))
+        })
+        .map(|word| fit_head(word, width, cut))
+        .collect();
+    if steps.len() != 3 {
+        return full;
+    }
+    for prefix in ["To prepare", "Ways:"] {
+        if let Some(word) = words.iter().find(|word| word.starts_with(prefix)) {
+            steps.push(fit_head(word, width, cut));
+        }
+    }
+    steps.push(fit_head(
+        "/intelligence: change anytime  /help: commands",
+        width,
+        cut,
+    ));
+    steps.push(fit_head(
+        "Click/F6: panel | wheel: scroll | chat End: latest",
+        width,
+        cut,
+    ));
+    steps
 }
 
 /// An open object: its title row, then as many of its lines as fit.
@@ -215,11 +270,11 @@ mod tests {
     }
 
     #[test]
-    fn the_welcome_takes_the_largest_mark_that_leaves_room_for_the_words() {
+    fn the_welcome_stays_compact_and_leaves_room_for_the_words() {
         // 80x24 stacked: the object keeps 11 rows; the composer comes first.
         assert_eq!(welcome_mark(80, 11, 1), Some(Size::Compact));
-        // 120x40: 62 columns by 38 rows hold the largest mark.
-        assert_eq!(welcome_mark(62, 38, 1), Some(Size::Board));
+        // Extra preview space belongs to the content, never a larger brand mark.
+        assert_eq!(welcome_mark(37, 38, 1), Some(Size::Launch));
         assert_eq!(welcome_mark(40, 20, 2), Some(Size::Launch));
         assert_eq!(welcome_mark(13, 9, 1), None);
         let rows = text(&lines(&hello(), 80, 11, paint(false)));
@@ -232,6 +287,89 @@ mod tests {
             rows[first + mark.len() + 1],
             "Describe the work you want to automate."
         );
+    }
+
+    #[test]
+    fn the_real_project_welcome_keeps_the_path_model_and_help_in_small_terminals() {
+        use crate::workspace::{
+            geometry::Geometry,
+            project::{self, ProjectView},
+        };
+        for ascii in [false, true] {
+            for (width, height) in [(60, 18), (80, 24)] {
+                let view = ProjectView::new("local", "first project", "/project")
+                    .listing(Vec::new(), true)
+                    .seated("deepseek/chosen - deepseek API, metered");
+                let object = project::welcome(Some(&view), ascii);
+                let area = Geometry::of(Rect::new(0, 0, width, height), false)
+                    .expect("fits")
+                    .object;
+                let rows = text(&lines(&object, area.width, area.height, paint(ascii)));
+                let all = rows.join("\n");
+                for expected in [
+                    "1  Describe",
+                    "2  Answer",
+                    "3  Save, then Run with the workflow's models.",
+                    "To prepare",
+                    "Ways: app account / API / local / no AI",
+                    "deepseek/chosen",
+                    "/intelligence: change anytime",
+                    "/help: commands",
+                    "Click/F6: panel",
+                    "wheel: scroll",
+                    "chat End: latest",
+                ] {
+                    assert!(
+                        all.contains(expected),
+                        "{width}x{height}: missing {expected}: {all}"
+                    );
+                }
+                assert!(rows.len() <= usize::from(area.height));
+                if ascii {
+                    assert!(all.is_ascii(), "{all}");
+                }
+                let missing =
+                    project::welcome(Some(&ProjectView::new("local", "first", "/project")), ascii);
+                let all = text(&lines(&missing, area.width, area.height, paint(ascii))).join("\n");
+                assert!(
+                    all.contains("not chosen yet") && all.contains("Click/F6: panel"),
+                    "{all}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_compact_guide_keeps_each_selected_connection_and_its_model() {
+        use crate::workspace::project::{self, ProjectView};
+        for (seat, expected) in [
+            ("deepseek/chosen - deepseek API, metered", "deepseek/chosen"),
+            (
+                "claude-code/chosen - through your account",
+                "claude-code/chosen",
+            ),
+            ("ollama/chosen - on this machine", "ollama/chosen"),
+            (
+                "none, the engine facts answer",
+                "none, the engine facts answer",
+            ),
+        ] {
+            let view = ProjectView::new("local", "first", "/project").seated(seat);
+            let object = project::welcome(Some(&view), true);
+            let rows = text(&lines(&object, 60, 8, paint(true)));
+            let all = rows.join("\n");
+            for required in [
+                expected,
+                "To prepare",
+                "workflow's models",
+                "change anytime",
+                "no AI",
+            ] {
+                assert!(all.contains(required), "missing {required}: {all}");
+            }
+            assert!(rows.len() <= 8 && rows.iter().all(|row| row.width() <= 60));
+            assert!(all.is_ascii());
+        }
     }
 
     #[test]
@@ -255,7 +393,8 @@ mod tests {
     #[test]
     fn a_region_too_small_for_any_mark_keeps_the_words() {
         let rows = text(&lines(&hello(), 30, 3, paint(true)));
-        assert_eq!(rows, ["", "Describe the work you want ..."]);
+        assert_eq!(rows.join(" "), "Describe the work you want to automate.");
+        assert!(rows.iter().all(|row| row.width() <= 30));
     }
 
     #[test]

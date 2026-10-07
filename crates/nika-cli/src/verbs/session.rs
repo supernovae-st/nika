@@ -29,16 +29,16 @@ use nika_dap::resume::ResumeRequest;
 
 use crate::Theme;
 use crate::verbs::exit;
-use nika_cli_host::lane::{ChildSlot, drive_child};
+use nika_cli_host::lane::{ChildSlot, RunSink, drive_child_observed};
 use nika_cli_host::lines::{PerCallLines, read_burst};
 
 /// The reasoner for a resolved choice — the seat, the provider, or none.
 fn reasoner_for(resolved: &ResolvedSessionIntelligence) -> Box<dyn SessionReasoner> {
     match &resolved.kind {
         #[cfg(feature = "access-harness")]
-        IntelligenceKind::Harness { seat } => Box::new(
+        IntelligenceKind::Harness { seat, transport } => Box::new(
             nika_session::reasoner::HarnessReasoner { seat: seat.clone() }
-                .with_model(resolved.model.clone()),
+                .with_transport(resolved.model.clone(), *transport),
         ),
         #[cfg(not(feature = "access-harness"))]
         IntelligenceKind::Harness { .. } => Box::new(NoReasoner),
@@ -71,8 +71,9 @@ fn default_model(provider: &str) -> String {
         )
 }
 
-/// The session loop over any reader and writer (the tests drive it with
-/// a cursor; `run` drives it with the terminal).
+/// The session loop over any reader and writer, with no jq helper (the tests drive it with a
+/// cursor).
+#[cfg(test)]
 fn drive<R: BufRead, W: Write>(
     input: &mut R,
     output: &mut W,
@@ -82,6 +83,20 @@ fn drive<R: BufRead, W: Write>(
     theme: Theme,
     factory: nika_session::runtime::ReasonerFactory,
 ) -> std::io::Result<u8> {
+    drive_with(input, output, census, home, cwd, (theme, None), factory)
+}
+
+/// The session loop over any reader and writer; `run` drives it with the terminal and the jq
+/// helper its binary names.
+fn drive_with<R: BufRead, W: Write>(
+    input: &mut R,
+    output: &mut W,
+    census: &IntelligenceCensus,
+    home: Option<&std::path::Path>,
+    cwd: &std::path::Path,
+    (theme, jq): (Theme, Option<nika_onboard::compile::room::JqHelper>),
+    factory: nika_session::runtime::ReasonerFactory,
+) -> std::io::Result<u8> {
     // The kept choice opens the session as chosen; without one the session
     // opens all the same and asks the first screen in context, the first
     // time a turn needs an intelligence.
@@ -89,6 +104,10 @@ fn drive<R: BufRead, W: Write>(
         Some(pref) => SessionRuntime::open_with(cwd, census.clone(), &pref, home, factory),
         None => SessionRuntime::open_unchosen(cwd, census.clone(), home, factory),
     };
+    session.enable_continuous_preparation();
+    if let Some(helper) = jq {
+        session.with_jq_helper(helper);
+    }
     // This unmanaged interactive host has no configured hard-cap source.
     // Project discovery is re-read by Session on review and confirmation.
     if std::io::IsTerminal::is_terminal(&std::io::stdin())
@@ -310,7 +329,7 @@ fn run_once(
         RenderMode::Thread,
         false,
         None,
-        None,
+        run.access_pin.as_deref(),
         crate::verbs::run::inputs::InputBindings::Operator(&run.vars),
         None,
         false,
@@ -357,21 +376,25 @@ fn term_name() -> Option<String> {
 /// The run inside the renderer's turn: this binary's own machine lane
 /// (`nika run --json`) as a child whose pipes never touch the terminal
 /// the viewport owns. Each frame the lane prints becomes one line of the
-/// run's story, handed to the busy sink as it happens and kept for the
-/// block the transcript commits; the exit code is the child's, the trace
+/// run's story and one typed frame, told to the sink as it happens, the
+/// story kept for the block the transcript commits; the exit code is the child's, the trace
 /// the settle frame names. A human gate pauses headless (exit 4): the
 /// session asks it in the viewport and the answer resumes through here.
 fn run_tapped(
     root: &std::path::Path,
     work: &nika_tui::session::Work,
-    busy: &std::sync::mpsc::Sender<String>,
+    busy: &dyn RunSink,
     slot: &ChildSlot,
 ) -> (u8, Option<std::path::PathBuf>, Vec<String>) {
     use nika_tui::session::Work;
     let args = match work {
-        Work::Run(run) => {
-            nika_cli_host::lane::run_args(root, &run.workflow, run.max_cost_usd, &run.vars)
-        }
+        Work::Run(run) => nika_cli_host::lane::run_args_with_access(
+            root,
+            &run.workflow,
+            run.max_cost_usd,
+            &run.vars,
+            run.access_pin.as_deref(),
+        ),
         Work::Resume {
             workflow,
             trace,
@@ -392,7 +415,7 @@ fn run_tapped(
             vec!["this binary cannot name itself".to_owned()],
         );
     };
-    drive_child(&exe, &args, root, busy, slot)
+    drive_child_observed(&exe, &args, root, busy, slot)
 }
 
 /// Open the native session behind the terminal renderer (bare `nika` on a terminal ·
@@ -406,7 +429,8 @@ fn run_tapped(
 /// gets the plain session instead — the same session, said once on
 /// stderr, never a dead door (UX-2 · the terminal matrix).
 #[must_use]
-pub fn run_tui(theme: Theme) -> u8 {
+/// `jq` is the helper the binary names to run a rehearsal's `nika:jq` steps (itself), if any.
+pub fn run_tui(theme: Theme, jq: Option<nika_onboard::compile::room::JqHelper>) -> u8 {
     use nika_tui::session::{Live, Runners};
     let mut options = nika_tui::app::Options::new(presentation());
     options.color = theme.color;
@@ -429,7 +453,7 @@ pub fn run_tui(theme: Theme) -> u8 {
                 std::io::stderr(),
                 "nika: the renderer cannot take this terminal ({error}) · the plain session opens instead"
             );
-            return run(theme);
+            return run(theme, jq);
         }
     };
     let census = IntelligenceCensus::take();
@@ -442,20 +466,30 @@ pub fn run_tui(theme: Theme) -> u8 {
         run_resume: Box::new(move |root, workflow, trace, answer| {
             run_resume(root, workflow, trace, answer, theme)
         }),
-        run_tapped: Some(Box::new(move |root, work, busy| {
-            run_tapped(root, work, busy, &slot)
-        })),
+        run_tapped: None,
     };
-    let slot = std::sync::Arc::clone(&child);
-    let live = Live::new(cwd, census, kept, home, Box::new(reasoner_for), runners)
-        .with_cost_host_evidence(nika_session::CostHostEvidence::unmanaged_interactive_local())
-        .with_run_review(Box::new(move |root, run, busy| {
-            let args =
-                nika_cli_host::lane::run_args(root, &run.workflow, run.max_cost_usd, &run.vars);
+    let tapped = std::sync::Arc::clone(&child);
+    let mut live = Live::new(cwd, census, kept, home, Box::new(reasoner_for), runners)
+        .with_cost_host_evidence(nika_session::CostHostEvidence::unmanaged_interactive_local());
+    if let Some(helper) = jq {
+        live = live.with_jq_helper(helper);
+    }
+    let live = live
+        .with_run_tapped_observed(Box::new(move |root, work, busy| {
+            run_tapped(root, work, busy, &tapped)
+        }))
+        .with_run_review_observed(Box::new(move |root, run, busy| {
+            let args = nika_cli_host::lane::run_args_with_access(
+                root,
+                &run.workflow,
+                run.max_cost_usd,
+                &run.vars,
+                run.access_pin.as_deref(),
+            );
             match std::env::current_exe() {
-                Ok(exe) => {
-                    nika_cli_host::lane::drive_reviewed_child(&exe, &args, root, busy, &slot)
-                }
+                Ok(exe) => nika_cli_host::lane::drive_reviewed_child_observed(
+                    &exe, &args, root, busy, &slot,
+                ),
                 Err(e) => nika_cli_host::lane::RunProgress::Complete((
                     exit::ENV,
                     None,
@@ -485,19 +519,20 @@ pub fn run_tui(theme: Theme) -> u8 {
 
 /// Open the native session on this terminal.
 #[must_use]
-pub fn run(theme: Theme) -> u8 {
+/// `jq` is the helper the binary names to run a rehearsal's `nika:jq` steps (itself), if any.
+pub fn run(theme: Theme, jq: Option<nika_onboard::compile::room::JqHelper>) -> u8 {
     let mut input = PerCallLines::new(read_burst);
     let mut output = std::io::stdout();
     let census = IntelligenceCensus::take();
     let home = nika_cli_host::probe::home_dir();
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    match drive(
+    match drive_with(
         &mut input,
         &mut output,
         &census,
         home.as_deref(),
         &cwd,
-        theme,
+        (theme, jq),
         Box::new(reasoner_for),
     ) {
         Ok(code) => code,
@@ -691,7 +726,7 @@ mod tests {
         assert_eq!(code, exit::OK);
         let text = String::from_utf8(output).expect("utf8");
         assert!(
-            text.contains("Choose which AI answers"),
+            text.contains("Choose a connection for this conversation"),
             "asks again: {text}"
         );
         assert!(text.contains("kept"), "the new choice is kept: {text}");

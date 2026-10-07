@@ -63,6 +63,10 @@ fn corpus() -> Scripted {
             TurnAct::Modify,
         ),
         ("En fait écris-le dans ./out/report.md", TurnAct::Modify),
+        (
+            "Fill the template with the revised title instead",
+            TurnAct::Modify,
+        ),
         ("Looks good except don't send it.", TurnAct::Modify),
         (
             "Ça a l'air bon sauf que je veux rien envoyer",
@@ -109,6 +113,7 @@ fn a_none_factory_is_not_called_to_classify_a_typed_model_answer() {
             seats: vec![],
             api_keys: vec![],
             locals: vec![],
+            provider_context: Vec::new(),
         },
         &pref,
         None,
@@ -214,6 +219,7 @@ fn the_route_tells_a_question_from_a_change_whatever_the_first_word() {
         "what I actually want is ./out/final.md",
         "can you write it to ./out/final.md instead?",
         "Can you change the output to ./out/report.md?",
+        "Fill the template with the revised title instead",
         "Looks good except don't send it.",
     ] {
         let TurnOutcome::Held { id: held, preview } = s.consent(change) else {
@@ -416,6 +422,7 @@ fn new_work_the_reader_missed_asks_for_an_intelligence_and_keeps_the_line() {
             seats: vec![],
             api_keys: vec![],
             locals: vec![],
+            provider_context: Vec::new(),
         },
         None,
         Box::new(|_| Box::new(NoReasoner)),
@@ -428,6 +435,55 @@ fn new_work_the_reader_missed_asks_for_an_intelligence_and_keeps_the_line() {
     assert!(
         s.pending_choice(),
         "the first screen is asked in context: {out:?}"
+    );
+}
+
+/// A business request mentioning a template is the compiler's whole request.
+/// Without a selected intelligence it asks for one; it never substitutes a
+/// gallery suggestion, never drops an obligation and never runs.
+#[test]
+fn a_template_inside_a_business_request_reaches_authoring_intact() {
+    let dir = tempfile::tempdir().expect("tmp");
+    let source = r#"{
+  "template": "Certificate of completion. This certifies that {{name}} completed the safety course on {{date}}.",
+  "submissions": [
+    { "id": "S1", "name": "Ama Owusu", "email": "ama@example.test", "submitted": "2026-09-30T14:02" },
+    { "id": "S2", "name": "Bruno Díaz", "email": "bruno@example.test", "submitted": "2026-10-01T09:45" }
+  ]
+}"#;
+    std::fs::write(dir.path().join("submissions.json"), source).expect("input");
+    let line = "Each training form submission in ./submissions.json should produce a personal completion certificate for the person who submitted it. Fill the template in the same file with the submitter's name and the date part of their submission time. PDF rendering and email delivery are not available in this environment: prepare the certificate texts only and do not send anything. Save ./out/certificates.json as a list of {submission, to, text} in submission order, `to` being the submitter's own email. The submission field in each output row must be the submission id string, not the complete submission object.";
+    let mut s = SessionRuntime::open_unchosen(
+        dir.path(),
+        crate::intelligence::IntelligenceCensus {
+            seats: vec![],
+            api_keys: vec![],
+            locals: vec![],
+            provider_context: Vec::new(),
+        },
+        None,
+        Box::new(|_| Box::new(NoReasoner)),
+    );
+    assert!(crate::facts::answer(line, &s.snapshot, dir.path()).is_none());
+    s.with_classifier(Box::new(Scripted(BTreeMap::from([(
+        line,
+        TurnAct::NewWork,
+    )]))));
+    let out = s.turn(line);
+    assert!(
+        s.pending_choice(),
+        "authoring needs an intelligence: {out:?}"
+    );
+    assert_eq!(
+        s.intent.goal.as_deref(),
+        Some(line),
+        "keep every obligation"
+    );
+    assert!(s.pending.is_none(), "nothing is ready to save");
+    assert!(!dir.path().join("out").exists(), "nothing ran");
+    assert_eq!(
+        std::fs::read_to_string(dir.path().join("submissions.json")).expect("input remains"),
+        source
     );
 }
 
@@ -863,8 +919,73 @@ fn a_declined_run_is_typed_not_run_and_130_is_an_interruption() {
     let _ = s.observe_run(130, None);
     assert!(
         s.status_line()
-            .starts_with("Stopped · the run was interrupted"),
+            .starts_with("Last Run · Stopped · the run was interrupted"),
         "{}",
         s.status_line()
     );
+}
+
+/// A request typed before any intelligence was chosen, or typed again after a reopening that
+/// restored it, IS the goal: it is compiled under the seat, never routed as a change beside
+/// itself (where a classifier sees the same text twice and answers UNKNOWN — « that line is not
+/// work I can read »). Observed in the TUI on 2026-10-06 with an API and an ACP seat.
+#[test]
+fn the_current_request_is_never_routed_beside_itself() {
+    let dir = tree();
+    std::fs::write(dir.path().join("a.md"), "alpha").expect("a");
+    let calls = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let mut s = super::tests::ready_with(dir.path(), vec![]);
+    s.with_classifier(Box::new(Counting(std::sync::Arc::clone(&calls))));
+    s.seat = crate::authoring::AuthoringSeat::Provider {
+        model: "mock/echo".to_owned(),
+    };
+    // What the first pass (or a restored session record) leaves: the request is the goal.
+    s.intent.goal = Some(super::tests::UNSETTLED.to_owned());
+    let out = s.turn(super::tests::UNSETTLED);
+    assert_eq!(
+        calls.load(std::sync::atomic::Ordering::SeqCst),
+        0,
+        "the same request is not read beside itself: {out:?}"
+    );
+    assert!(
+        !format!("{out:?}").contains("not work I can read"),
+        "the request reaches the seat: {out:?}"
+    );
+    // A different request beside that goal is still a decision the route reads.
+    s.intent.goal = Some("Read ./a.md and write its first line to ./c.md".to_owned());
+    s.last_outcome = None;
+    let _ = s.turn(super::tests::UNSETTLED);
+    assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+}
+
+/// A line that is the open question's answer by its shape alone — one `provider/name` token at
+/// the model question — binds without any route reading it: it cannot change the request, ask
+/// about the question, run or cancel. Observed in the TUI on 2026-10-06: the answer
+/// `deepseek/deepseek-v4-pro` cost a classification call before it bound. A sentence around the
+/// same identity is still read.
+#[test]
+fn an_answer_by_its_shape_alone_is_never_classified() {
+    let (calls, _dir, mut s) = counted();
+    let draft = "Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md";
+    assert!(matches!(s.turn(draft), TurnOutcome::Question { .. }));
+    assert_eq!(s.pending_question().map(|q| q.key.as_str()), Some("model"));
+    let before = classified(&calls);
+    let sentence = s.turn("use mock/echo for that please");
+    assert_eq!(
+        classified(&calls),
+        before + 1,
+        "a sentence is read: {sentence:?}"
+    );
+    assert_eq!(s.pending_question().map(|q| q.key.as_str()), Some("model"));
+    let answer = s.turn("mock/echo");
+    assert!(
+        matches!(answer, TurnOutcome::Proposal { ref preview, .. } if preview.contains("infer · mock/echo")),
+        "{answer:?}"
+    );
+    assert_eq!(
+        classified(&calls),
+        before + 1,
+        "the identity alone is not read"
+    );
+    assert!(s.routes.iter().any(|r| r.method == RoutingMethod::Protocol));
 }

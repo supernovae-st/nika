@@ -57,10 +57,18 @@ use crate::model::{
 };
 use crate::render;
 use crate::terminal::{self, Owner, Screen};
-use crate::visual::logomark;
 use crate::workspace::desk::{self, Desk, Route};
 use crate::workspace::object::Paint;
+
+mod pointer;
 use crate::workspace::{conversation, project};
+
+mod acquire;
+mod opening;
+mod progress;
+mod stop;
+mod welcome;
+mod worker;
 
 /// How the shell runs.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -80,7 +88,7 @@ pub struct Options {
     pub term: Option<String>,
     /// Reduced motion (the caller's reading of `NIKA_REDUCED_MOTION`): the
     /// busy row changes only when the turn says something new — no
-    /// seconds tick, no bell.
+    /// seconds tick, no bell; the welcome mark is final at once.
     pub reduced_motion: bool,
     /// The terminal's title while the door is open (`nika · <project>`);
     /// `None` leaves the title alone.
@@ -158,6 +166,10 @@ struct Shell<C: Conversation> {
     /// The composer's placeholder in effect: the workspace names the
     /// recipient there; the other presentations show none.
     placeholder: String,
+    /// One reveal per shell, never an idle animation.
+    welcome: welcome::Reveal,
+    /// The running turn's stop and the correction queued during it.
+    hold: stop::Hold,
 }
 
 /// What one key press decides, before anything is done about it.
@@ -239,7 +251,7 @@ pub fn run<C: Conversation + 'static>(conversation: C, options: Options) -> io::
 ///
 /// # Errors
 ///
-/// A draw failed.
+/// The conversation refused to open, or a draw failed.
 pub fn run_on<C: Conversation + 'static>(
     taken: Taken,
     conversation: C,
@@ -262,6 +274,8 @@ pub fn run_on<C: Conversation + 'static>(
         typed_live: false,
         desk: Desk::new(),
         placeholder: String::new(),
+        welcome: welcome::Reveal::default(),
+        hold: stop::Hold::default(),
     };
     if let Some(title) = shell.options.title.as_deref() {
         // The previous title rides the terminal's stack; the restore pops it.
@@ -371,6 +385,8 @@ fn defuse(event: UiEvent) -> Defused {
     let key = match event {
         UiEvent::Key(key) => key,
         UiEvent::Paste(text) => return Defused::Text(text),
+        // Pointer coordinates from the previous frame never act on a fresh review.
+        UiEvent::Mouse(_) => return Defused::Drop,
         other => return Defused::Keep(other),
     };
     let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
@@ -417,6 +433,8 @@ enum Heard {
     Leave(Exit),
     /// The draft, the hint or the scroll changed: draw.
     Redraw,
+    /// The terminal may have discarded cells, even if its size returned.
+    Repaint,
     /// Nothing to draw now.
     Nothing,
 }
@@ -429,9 +447,9 @@ enum Busy {
     Edit,
     /// A bare `Enter`: nothing is sent while Nika works.
     Hold,
-    /// Scroll the transcript one block back (a full screen).
+    /// Scroll the transcript one page back (a full screen).
     Older,
-    /// Scroll the transcript one block forward (a full screen).
+    /// Scroll the transcript one page forward (a full screen).
     Newer,
     /// Anything else: it waits for the turn.
     Later,
@@ -540,15 +558,23 @@ impl<C: Conversation + 'static> Shell<C> {
     fn drive(&mut self, mut broker: Broker) -> io::Result<Exit> {
         self.commands = self.conversation()?.commands();
         let opening = self.conversation()?.open();
+        if let Some(refusal) = opening::refusal(&opening) {
+            broker.stop();
+            return Err(refusal);
+        }
         self.apply_all(opening)?;
         self.draw()?;
         loop {
-            let Some(event) = self.deferred.pop_front().or_else(|| broker.recv()) else {
+            let Some(event) = self.next_event(&mut broker)? else {
                 broker.stop();
                 return Ok(Exit::Closed);
             };
             let step = match event {
                 UiEvent::Key(key) => self.on_key(key, &mut broker)?,
+                UiEvent::Mouse(mouse) => {
+                    self.on_mouse(mouse);
+                    Step::Stay
+                }
                 UiEvent::Paste(text) => {
                     self.composer.paste(&text);
                     Step::Stay
@@ -562,7 +588,11 @@ impl<C: Conversation + 'static> Shell<C> {
                     let resized = self.screen.autoresize();
                     broker.resume();
                     resized?;
-                    Step::Stay
+                    if self.state.presentation == Presentation::Inline {
+                        Step::Stay
+                    } else {
+                        Step::Repaint
+                    }
                 }
                 UiEvent::FocusGained | UiEvent::FocusLost => Step::Stay,
                 UiEvent::Signal(Signal::Terminate) => Step::Leave(Exit::Terminated),
@@ -588,7 +618,7 @@ impl<C: Conversation + 'static> Shell<C> {
                     self.apply_all(beats)?;
                 }
                 // The next draw writes every cell again.
-                Step::Repaint => self.screen.clear()?,
+                Step::Repaint => self.repaint(&broker)?,
                 Step::Stay => {}
             }
             // The last blocks are drawn before the door closes: a result the
@@ -598,10 +628,17 @@ impl<C: Conversation + 'static> Shell<C> {
                 broker.stop();
                 return Ok(Exit::Quit);
             }
+            if let Some(exit) = self.acquire_wanted(&mut broker)? {
+                broker.stop();
+                return Ok(exit);
+            }
         }
     }
 
     fn on_key(&mut self, key: KeyEvent, broker: &mut Broker) -> io::Result<Step> {
+        if crate::scroll::end(&mut self.state, &self.desk, key) {
+            return Ok(Step::Stay);
+        }
         let decision = decide(&self.state, &mut self.desk, key);
         if decision == KeyDecision::Interrupt {
             return self.interrupt();
@@ -616,12 +653,11 @@ impl<C: Conversation + 'static> Shell<C> {
             KeyDecision::Present(to) => return Ok(Step::Switch(to)),
             KeyDecision::Route(Route::Leave) => return Ok(Step::Switch(Presentation::Inline)),
             KeyDecision::Route(Route::Older) => {
-                let max = self.state.transcript.len().saturating_sub(1);
-                self.state.focus_scroll = (self.state.focus_scroll + 1).min(max);
+                crate::scroll::page(&mut self.state, &self.desk, &self.composer, true);
                 return Ok(Step::Stay);
             }
             KeyDecision::Route(Route::Newer) => {
-                self.state.focus_scroll = self.state.focus_scroll.saturating_sub(1);
+                crate::scroll::page(&mut self.state, &self.desk, &self.composer, false);
                 return Ok(Step::Stay);
             }
             KeyDecision::Route(Route::Inspect) => {
@@ -675,14 +711,13 @@ impl<C: Conversation + 'static> Shell<C> {
         Ok(Step::Stay)
     }
 
-    /// The human sent a line: echo it, let the conversation answer, and
-    /// report the handoff it asks for, if any.
-    fn submit(&mut self, line: &str, broker: &mut Broker) -> io::Result<Submitted> {
+    /// One line sent: echo it, let the conversation answer, and report the
+    /// handoff it asks for, if any ([`Self::submit`] sends what it queued).
+    fn submit_one(&mut self, line: &str, broker: &mut Broker) -> io::Result<Submitted> {
         self.submitted += 1;
         let echo = format!("{}{}", self.state.waiting.prompt(), line.trim_end());
-        self.state
-            .transcript
-            .push(Committed::new(Kind::Human, echo));
+        // A line sent from a scrolled transcript (a queued correction) keeps the reading position.
+        self.keep_reading(|state, _| state.transcript.push(Committed::new(Kind::Human, echo)));
         self.commit_inline()?;
         // The proof hook of the PTY suite: a panic inside the loop must
         // leave the terminal restored (the hook restores before the message
@@ -698,20 +733,26 @@ impl<C: Conversation + 'static> Shell<C> {
         // turn emits (« Working through this workflow… »). The turn's first
         // word clears the busy state.
         if let Some(label) = self.conversation()?.busy_label(line) {
-            self.state.busy = Some(label);
+            self.set_busy(label);
             self.draw()?;
         }
         let started = std::time::Instant::now();
-        let turn = match self.run_turn(line, broker)? {
+        let mut turn = match self.run_turn(line, broker)? {
             TurnEnd::Done(turn) => turn,
             TurnEnd::Left(exit) => return Ok(Submitted::Left(exit)),
         };
-        self.state.busy = None;
-        // The turn is over: a hint about it (« Enter sends when it is your
-        // turn ») goes with it, and a transcript scrolled back while Nika
-        // worked returns to its end, where the answer is.
-        self.state.completion = None;
-        self.state.focus_scroll = 0;
+        crate::scroll::preserve_reading(&mut self.state, &self.desk, &self.composer, |state| {
+            state.busy = None;
+            state.settle_activity(started.elapsed());
+            state.completion = None;
+        });
+        // A stop that raced the result: what the stopped preparation left is withdrawn first.
+        let (stopped, queued) = (self.hold.stopping(), self.hold.release());
+        if stopped {
+            turn.beats.extend(self.conversation()?.withdraw_stopped());
+        }
+        // Completing a turn keeps the reader's position. The live decision
+        // remains visible; End returns the transcript to the new answer.
         if started.elapsed() >= BELL_AFTER && !self.options.reduced_motion {
             // One bell: the human who looked away during a long turn is
             // called back; never for a short one, never under reduced motion.
@@ -741,6 +782,7 @@ impl<C: Conversation + 'static> Shell<C> {
         if self.options.exit_after == Some(self.submitted) {
             self.state.quit = true;
         }
+        self.next_correction(queued, fresh, turn.handoff.is_some())?;
         Ok(Submitted::Handoff(turn.handoff))
     }
 
@@ -750,11 +792,11 @@ impl<C: Conversation + 'static> Shell<C> {
         // what was typed while Nika worked is cleared, and a notice says so.
         let draft = self.composer.text();
         if !draft.trim().is_empty() {
-            self.composer.clear();
             let notice = cleared_notice(&draft, self.state.ascii);
-            self.state
-                .transcript
-                .push(Committed::new(Kind::Notice, notice));
+            self.keep_reading(|state, composer| {
+                composer.clear();
+                state.transcript.push(Committed::new(Kind::Notice, notice));
+            });
             self.commit_inline()?;
         }
         // Paint the question before accepting input; reveal its reply prompt
@@ -818,17 +860,19 @@ impl<C: Conversation + 'static> Shell<C> {
     /// reader, a resize). One dim notice says what is in the box. The two
     /// spending questions keep their stricter discard ([`Self::fresh_input`]).
     fn set_aside_typeahead(&mut self, typed: Vec<UiEvent>) -> io::Result<()> {
-        let kept = set_aside(&mut self.composer, typed);
+        // A scrolled transcript keeps its reading position: the draft's rows
+        // and the notice land below it.
+        let kept = self.keep_reading(|state, composer| {
+            let kept = set_aside(composer, typed);
+            let draft = composer.text();
+            if !draft.trim().is_empty() {
+                let notice = typed_notice(&draft, state.ascii);
+                state.transcript.push(Committed::new(Kind::Notice, notice));
+            }
+            kept
+        });
         self.deferred.extend(kept);
-        let draft = self.composer.text();
-        if !draft.trim().is_empty() {
-            let notice = typed_notice(&draft, self.state.ascii);
-            self.state
-                .transcript
-                .push(Committed::new(Kind::Notice, notice));
-            self.commit_inline()?;
-        }
-        Ok(())
+        self.commit_inline()
     }
 
     /// Hand the terminal back for one piece of work and take it again. The
@@ -861,7 +905,8 @@ impl<C: Conversation + 'static> Shell<C> {
 
     /// Take the look the opened workflow needs from the conversation, on this
     /// thread and never while drawing; while a turn holds the conversation it
-    /// waits for the turn's end ([`Self::apply_all`]).
+    /// waits for the turn's end ([`Self::apply_all`]). What a run's face needs
+    /// is acquired apart, on a worker ([`Self::acquire_wanted`]).
     fn look(&mut self) {
         let Some(path) = self.desk.opened_workflow().map(str::to_owned) else {
             self.desk.wants_look = false;
@@ -880,16 +925,21 @@ impl<C: Conversation + 'static> Shell<C> {
         // The project the conversation lends, read once per batch of beats
         // (the opening, a turn, a performed work, a cancellation), never
         // while drawing: a projection of what it already holds. The opened
-        // workflow is looked at again: a turn may have replaced its bytes.
+        // workflow is looked at again: a turn may have replaced its bytes. The
+        // candidate it proposes is the one it folded when the turn ended.
         if let Some(conversation) = self.conversation.as_ref() {
             self.desk.view = conversation.project();
+            self.desk.proposed(conversation.candidate());
+            self.desk.kept(conversation.kept_run());
         }
         if self.desk.wants_look || self.desk.opened_workflow().is_some() {
             self.look();
         }
         for beat in beats {
             let busy = matches!(beat, Beat::Busy(_));
-            self.state.apply(beat);
+            crate::scroll::preserve_reading(&mut self.state, &self.desk, &self.composer, |state| {
+                state.apply(beat);
+            });
             if busy {
                 // A busy label is a state, not a block: draw it now so the
                 // human sees work is active before the next beat lands.
@@ -928,9 +978,12 @@ impl<C: Conversation + 'static> Shell<C> {
         let (color, ascii) = (self.state.color, self.state.ascii);
         let pending: Vec<Committed> = self.state.uncommitted().to_vec();
         for block in &pending {
-            let rows = render::wrapped_rows(&render::block_lines(block, color, ascii), width);
-            self.screen
-                .insert_before(rows, |buf| render::render_block(block, color, ascii, buf))?;
+            let lines = render::block_lines(block, color, ascii);
+            render::pages(&lines, width, self.state.size.1.max(1), |page| {
+                let rows = u16::try_from(page.len()).unwrap_or(self.state.size.1.max(1));
+                self.screen
+                    .insert_before(rows, |buf| render::paint_page(page, buf))
+            })?;
         }
         self.state.committed_inline = self.state.transcript.len();
         Ok(())
@@ -984,23 +1037,29 @@ impl<C: Conversation + 'static> Shell<C> {
     /// count in the row, and an interruption is HEARD while the turn runs.
     /// A call to a seat cannot be recalled: one `Ctrl+C` warns (« again
     /// leaves now »), a second one or `SIGTERM` leaves at once with the
-    /// terminal restored, the call left to die with the process. The
-    /// composer stays usable meanwhile ([`Self::hear`]). A panic in the turn
-    /// resumes here (the panic hook has restored the terminal).
+    /// terminal restored, the call left to die with the process; a turn
+    /// that ends between the two presses keeps the warning
+    /// ([`Self::end_turn`]). The composer stays usable meanwhile
+    /// ([`Self::hear`]). A panic in the turn resumes here (the panic hook
+    /// has restored the terminal).
     fn run_turn(&mut self, line: &str, broker: &mut Broker) -> io::Result<TurnEnd> {
         let (tx, rx) = mpsc::channel::<String>();
         let (done_tx, done_rx) = mpsc::channel::<(C, Turn)>();
+        // What the shell observes of a run the turn drives: a bounded queue
+        // drained each tick, its losses counted beside it (`session::feed`).
+        let (seen_tx, seen_rx) = mpsc::sync_channel(crate::session::feed::QUEUE);
+        let gap = std::sync::Arc::new(crate::session::feed::Gap::default());
+        let seen = crate::session::feed::Seen::new(seen_tx, std::sync::Arc::clone(&gap));
         let mut conversation = self.conversation.take().ok_or_else(conversation_left)?;
+        self.hold.arm(conversation.stopper());
         let line = line.to_owned();
         // The shell keeps one sender: the busy channel never disconnects,
         // so each wait below is one poll slice, never a spin.
         let _pace = tx.clone();
-        let worker = std::thread::Builder::new()
-            .name("nika-tui-turn".to_owned())
-            .spawn(move || {
-                let turn = conversation.submit_with(&line, &tx);
-                let _ = done_tx.send((conversation, turn));
-            })?;
+        let worker = worker::turn().spawn(move || {
+            let turn = conversation.submit_observed(&line, &tx, &seen);
+            let _ = done_tx.send((conversation, turn));
+        })?;
         self.typed_live = false;
         let started = std::time::Instant::now();
         let mut base = self.state.busy.clone();
@@ -1009,6 +1068,12 @@ impl<C: Conversation + 'static> Shell<C> {
         let mut shown = u64::MAX;
         loop {
             if let Ok(label) = rx.recv_timeout(BUSY_POLL) {
+                crate::scroll::preserve_reading(
+                    &mut self.state,
+                    &self.desk,
+                    &self.composer,
+                    |state| state.observe_activity(&label),
+                );
                 // A finished phase (the session's ✓ line) stays beside the
                 // next current one; a current one replaces the previous.
                 if label.starts_with("✓ ") {
@@ -1018,32 +1083,17 @@ impl<C: Conversation + 'static> Shell<C> {
                 }
                 shown = u64::MAX;
             }
+            if self.drain(&seen_rx, started, &mut base, &mut last_done) {
+                shown = u64::MAX;
+            }
             match done_rx.try_recv() {
-                Ok((mut conversation, mut turn)) => {
-                    if conversation.fresh_input_required() {
-                        let buffered: Vec<_> = self
-                            .deferred
-                            .drain(..)
-                            .chain(std::iter::from_fn(|| broker.try_recv()))
-                            .collect();
-                        for event in buffered {
-                            match event {
-                                UiEvent::Signal(Signal::Terminate) => {
-                                    return Ok(TurnEnd::Left(Exit::Terminated));
-                                }
-                                UiEvent::Closed => return Ok(TurnEnd::Left(Exit::Closed)),
-                                UiEvent::Signal(Signal::Interrupt) => armed = true,
-                                UiEvent::Key(ref key) if is_ctrl_c(key) => armed = true,
-                                UiEvent::Resize(_, _) => self.deferred.push_back(event),
-                                _ => {}
-                            }
-                        }
-                        if armed {
-                            turn.beats = conversation.cancel_pending();
-                        }
-                    }
-                    self.conversation = Some(conversation);
-                    return Ok(TurnEnd::Done(turn));
+                Ok((conversation, turn)) => {
+                    // The last frames before the result, then what was lost.
+                    self.drain(&seen_rx, started, &mut base, &mut last_done);
+                    self.desk.close_turn(&seen_rx, &gap);
+                    // A press that stopped the preparation is spent with it.
+                    let armed = armed && !self.hold.stopping();
+                    return Ok(self.end_turn(conversation, turn, broker, armed));
                 }
                 Err(mpsc::TryRecvError::Disconnected) => {
                     return match worker.join() {
@@ -1058,6 +1108,10 @@ impl<C: Conversation + 'static> Shell<C> {
                 match self.hear(event, &mut armed) {
                     Heard::Leave(exit) => return Ok(TurnEnd::Left(exit)),
                     Heard::Redraw => shown = u64::MAX,
+                    Heard::Repaint => {
+                        self.repaint(broker)?;
+                        shown = u64::MAX;
+                    }
                     Heard::Nothing => {}
                 }
             }
@@ -1073,7 +1127,7 @@ impl<C: Conversation + 'static> Shell<C> {
             if secs != shown || frame != self.state.spinner {
                 shown = secs;
                 self.state.spinner = frame;
-                self.state.busy = Some(busy_text_with(
+                self.set_busy(busy_text_with(
                     last_done.as_deref(),
                     base.as_deref(),
                     secs,
@@ -1084,80 +1138,58 @@ impl<C: Conversation + 'static> Shell<C> {
         }
     }
 
-    /// One event heard while a turn runs. An interruption acts now (the
-    /// exit to leave with, once armed). The composer stays usable: words,
-    /// pastes and edits land in the draft as they are typed, a bare `Enter`
-    /// sends nothing and the hint row says when it will, and in a full
-    /// screen the page keys scroll the transcript. Every other event waits
-    /// for the turn. Once the turn ends on a decision, the typeahead law
-    /// keeps the draft unsent ([`Self::set_aside_typeahead`]).
-    fn hear(&mut self, event: UiEvent, armed: &mut bool) -> Heard {
-        let key = match event {
-            UiEvent::Signal(Signal::Terminate) => return Heard::Leave(Exit::Terminated),
-            UiEvent::Closed => return Heard::Leave(Exit::Closed),
-            UiEvent::Signal(Signal::Interrupt) => {
-                return Self::arm(armed).map_or(Heard::Nothing, Heard::Leave);
+    /// A turn that ends on a fresh spending question: what was typed while it
+    /// ran is read now, never as its answer; a termination or a closed reader
+    /// leaves, an interruption (`armed` already, or heard now) cancels it.
+    fn fresh_end(
+        &mut self,
+        conversation: &mut C,
+        turn: &mut Turn,
+        broker: &mut Broker,
+        mut armed: bool,
+    ) -> Option<Exit> {
+        let buffered: Vec<_> = self
+            .deferred
+            .drain(..)
+            .chain(std::iter::from_fn(|| broker.try_recv()))
+            .collect();
+        for event in buffered {
+            match event {
+                UiEvent::Signal(Signal::Terminate) => return Some(Exit::Terminated),
+                UiEvent::Closed => return Some(Exit::Closed),
+                UiEvent::Signal(Signal::Interrupt) => armed = true,
+                UiEvent::Key(ref key) if is_ctrl_c(key) => armed = true,
+                UiEvent::Resize(_, _) => self.deferred.push_back(event),
+                _ => {}
             }
-            UiEvent::Key(key) if is_ctrl_c(&key) => {
-                return Self::arm(armed).map_or(Heard::Nothing, Heard::Leave);
-            }
-            UiEvent::Paste(text) => {
-                self.state.completion = None;
-                self.composer.paste(&text);
-                self.typed_live = true;
-                return Heard::Redraw;
-            }
-            UiEvent::Key(key) => key,
-            UiEvent::Resize(cols, rows) if self.state.presentation != Presentation::Inline => {
-                // A full screen reads its size without asking the terminal:
-                // the frames drawn while the turn runs, and the keys the
-                // workspace routes meanwhile, follow the new size at once.
-                // The resize is still replayed once the turn ends.
-                self.state.size = (cols, rows);
-                self.deferred.push_back(event);
-                return Heard::Redraw;
-            }
-            other => {
-                self.deferred.push_back(other);
-                return Heard::Nothing;
-            }
-        };
-        match busy_key(&self.state, &mut self.desk, key) {
-            Busy::Edit => {
-                self.state.completion = None;
-                self.typed_live = true;
-                if self.composer.handle(key) == ComposerAction::Complete
-                    && let crate::composer::Completion::Several(list) =
-                        self.composer.complete(&self.commands)
-                {
-                    self.state.completion = Some(list.join("  "));
-                }
-                Heard::Redraw
-            }
-            Busy::Hold => {
-                self.state.completion = Some(ENTER_WAITS.to_owned());
-                Heard::Redraw
-            }
-            Busy::Older => {
-                let max = self.state.transcript.len().saturating_sub(1);
-                self.state.focus_scroll = (self.state.focus_scroll + 1).min(max);
-                Heard::Redraw
-            }
-            Busy::Newer => {
-                self.state.focus_scroll = self.state.focus_scroll.saturating_sub(1);
-                Heard::Redraw
-            }
-            Busy::Later => {
-                self.deferred.push_back(UiEvent::Key(key));
-                Heard::Nothing
-            }
-            Busy::Leave => {
-                self.state.completion = Some(LEAVE_WAITS.to_owned());
-                self.deferred.push_back(UiEvent::Key(key));
-                Heard::Redraw
-            }
-            Busy::Region => Heard::Redraw,
         }
+        if armed {
+            turn.beats = conversation.cancel_pending();
+        }
+        None
+    }
+
+    /// The turn's result is back. A fresh spending question reads what was
+    /// typed meanwhile ([`Self::fresh_end`]). Any other end keeps a press
+    /// heard while the turn ran: the busy row said « Ctrl+C again leaves
+    /// now », so the idle row says a second press leaves and it does (any
+    /// other key disarms, as at an idle prompt).
+    fn end_turn(
+        &mut self,
+        mut conversation: C,
+        mut turn: Turn,
+        broker: &mut Broker,
+        armed: bool,
+    ) -> TurnEnd {
+        if conversation.fresh_input_required() {
+            if let Some(exit) = self.fresh_end(&mut conversation, &mut turn, broker, armed) {
+                return TurnEnd::Left(exit);
+            }
+        } else if armed {
+            self.state.interrupt_armed = true;
+        }
+        self.conversation = Some(conversation);
+        TurnEnd::Done(turn)
     }
 
     fn arm(armed: &mut bool) -> Option<Exit> {
@@ -1186,9 +1218,10 @@ impl<C: Conversation + 'static> Shell<C> {
             let (ascii, color) = (self.state.ascii, self.state.color);
             self.desk.prepare(self.state.size, ascii, color);
         }
+        let paint = self.welcome_paint();
         let (state, composer, desk) = (&self.state, &self.composer, &self.desk);
         self.screen
-            .draw(|frame| draw_frame(frame, state, composer, desk))?;
+            .draw(|frame| draw_frame(frame, state, composer, desk, paint))?;
         Ok(())
     }
 }
@@ -1205,19 +1238,18 @@ fn spinner_frame(elapsed: std::time::Duration) -> u8 {
 
 /// Draw one frame of the presentation in effect. Below the workspace's
 /// minimum the focus view stands in, whole, until the size allows the
-/// workspace again. The welcome's butterfly is drawn final at once: no cue
-/// plays in this presentation.
-fn draw_frame(frame: &mut Frame<'_>, state: &UiState, composer: &Composer, desk: &Desk) {
+/// workspace again. The shell supplies the welcome clock; painting reads none.
+fn draw_frame(
+    frame: &mut Frame<'_>,
+    state: &UiState,
+    composer: &Composer,
+    desk: &Desk,
+    paint: Paint,
+) {
     match state.presentation {
         Presentation::Inline => render::draw_inline(frame, state, composer),
         Presentation::Focus => render::draw_focus(frame, state, composer),
         Presentation::Workspace => {
-            let paint = Paint {
-                ascii: state.ascii,
-                color: state.color,
-                elapsed: logomark::REVEAL_ENDS,
-                reduced_motion: true,
-            };
             if !desk::draw(frame, desk, paint, state, composer) {
                 render::draw_focus(frame, state, composer);
             }

@@ -41,15 +41,13 @@ pub mod compile {
     };
     pub use nika_compile_cognition::{
         Cognition, NoProvider, authority, compile_with_cognition, compile_with_cognition_rehearsed,
-        compile_with_provider, decide, rehearse,
+        compile_with_provider, decide, observe, rehearse,
     };
+    pub use nika_compile_fidelity::sketch::kept as program_records;
     /// The closed copy door: a request that is exactly a text file copied as is, qualified by
     /// what the assembler's two exact copies did when rehearsed in the observed room (the session
     /// calls it before it proposes).
     pub mod copy;
-    /// The Meaning view of an outcome's obligation ledger — what survived of the request,
-    /// clause by clause — owned beside the ledger it reads (the session re-exports it).
-    pub mod meaning;
     /// What one outcome means for a conversation, and the literal a line is at one of its
     /// questions (the session re-exports it).
     pub mod reading;

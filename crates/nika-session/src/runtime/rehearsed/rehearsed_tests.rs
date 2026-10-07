@@ -736,6 +736,93 @@ fn a_copy_turn_previews_the_rehearsal_of_the_users_own_files() {
     );
 }
 
+/// The output path the copy fixture's candidate writes, as a run's completed write names it.
+const COPIED: &str = "./out/copied.txt";
+
+/// A settled run's own write advances the saved proof: the next run line is requested again with
+/// nothing rehearsed or asked anew, and a source edit or a foreign target after it still refuses.
+#[test]
+fn a_settled_run_advances_the_proof_over_its_own_destination() {
+    for after in ["nothing", "source", "target"] {
+        let root = project();
+        let (mut s, prompts, calls) = open(root.path(), false);
+        proposal(s.turn(INTENT));
+        let sha = sha256_hex(pending_bytes(&s).as_bytes());
+        facts(s.consent("yes"));
+        write(root.path(), COPIED, USER);
+        let asked = (
+            prompts.lock().expect("prompts").len(),
+            calls.load(Ordering::SeqCst),
+        );
+        s.advance_rehearsal(Path::new(LANDED), &sha, &[COPIED.to_owned()])
+            .expect("the run's own write advances");
+        match after {
+            "source" => write(root.path(), SOURCE, EDITED),
+            "target" => write(root.path(), COPIED, EDITED),
+            _ => {}
+        }
+        let outcome = s.turn(RUN);
+        if after == "nothing" {
+            assert!(
+                matches!(outcome, TurnOutcome::RunRequested { .. }),
+                "{outcome:?}"
+            );
+        } else {
+            let why = refused(outcome);
+            assert_eq!(
+                why.class,
+                RefusalClass::StaleRevision,
+                "{after}: {}",
+                why.text
+            );
+            assert!(why.text.contains("changed"), "{after}: {}", why.text);
+        }
+        let now = (
+            prompts.lock().expect("prompts").len(),
+            calls.load(Ordering::SeqCst),
+        );
+        assert_eq!(now, asked, "{after}: nothing rehearsed or asked again");
+    }
+}
+
+/// Another file, other bytes, a source or no write: the advance is refused and the previous proof
+/// stays, so the run's own output is still drift at the next run line; a withdrawn proof never
+/// advances.
+#[test]
+fn a_refused_advance_keeps_the_previous_proof() {
+    let root = project();
+    let (mut s, _, _) = open(root.path(), false);
+    proposal(s.turn(INTENT));
+    let sha = sha256_hex(pending_bytes(&s).as_bytes());
+    facts(s.consent("yes"));
+    write(root.path(), COPIED, USER);
+    let target = [COPIED.to_owned()];
+    assert!(
+        s.advance_rehearsal(Path::new("other.nika"), &sha, &target)
+            .is_err()
+    );
+    let other = sha256_hex(b"other bytes");
+    assert!(
+        s.advance_rehearsal(Path::new(LANDED), &other, &target)
+            .is_err()
+    );
+    assert!(
+        s.advance_rehearsal(Path::new(LANDED), &sha, &[SOURCE.to_owned()])
+            .is_err()
+    );
+    assert!(s.advance_rehearsal(Path::new(LANDED), &sha, &[]).is_err());
+    let why = refused(s.turn(RUN));
+    assert!(
+        why.text.contains("appeared"),
+        "the refused advance must report the output that appeared"
+    );
+    assert!(
+        s.advance_rehearsal(Path::new(LANDED), &sha, &target)
+            .is_err()
+    );
+}
+
 mod native_real;
 mod native_tests;
 mod native_transport;
+mod rerun;

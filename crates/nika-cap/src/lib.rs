@@ -50,7 +50,7 @@ mod witness;
 pub use effect::{
     BuiltinEffect, PURE_INTERNAL_TOOLS, builtin_effect, builtin_egresses, chart_vl_sibling,
     glob_walk_root, is_pure_internal, is_pure_internal_call, is_pure_internal_call_proven,
-    pure_internal_for_all_calls, required_fs_directions,
+    pure_internal_for_all_calls, required_fs_directions, unbound_fs_args,
 };
 pub use env::{
     DANGEROUS_ENV_VARS, RUNNER_FLOOR_ENV_VARS, compose_child_env, is_dangerous_env_name,

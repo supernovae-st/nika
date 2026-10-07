@@ -450,3 +450,10 @@ the 90% floor. The privacy-sanitized `outcomes.json` has SHA-256
 the [machine-verifiable manifest](../testimonials/arm-w7-ledger-salvage/manifest.json)
 binds it to the raw artifact hash, full accounting, invocation, tools,
 inputs, and clean tested tree.
+
+## Schedule value projections
+
+`schedule::when_json` and `schedule_plan::{due_json, slot_json}` project the
+existing schedule domain values into the JSON shapes consumed by Serve. They
+perform no I/O, read no clock and grant no authority; HTTP envelopes, request
+admission and persistence remain with the server.

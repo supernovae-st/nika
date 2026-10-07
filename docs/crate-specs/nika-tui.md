@@ -12,7 +12,7 @@
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 (workspace-inherited) |
 | Publish | `false` |
-| Dependencies | **read from `Cargo.toml`, which is authoritative** · `ratatui` 0.30 (features `scrolling-regions` · `unstable-rendered-line-info`) · `crossterm` 0.29 (`event-stream` · `bracketed-paste`) · `ratatui-textarea` 0.9 · `tokio` · `unicode-width` · `nika-fs` (bounded Live inspection) · lateral L4 `nika-session` (the live conversation), `nika-cli-host` (the one-use Run child, no admission authority), `nika-tui-view` (pure workflow faces), and `nika-display` (the theme seam: roles, verb and state glyphs, motion frames; already under the other two) · dev: `expectrl` (the PTY proof), `sha2` (the logomark provenance proof). `tachyonfx` and `nika-tui-core` are not dependencies yet; ADR-139 §Consequences leaves tachyonfx and the web-studio port out of the first product. |
+| Dependencies | **read from `Cargo.toml`, which is authoritative** · `ratatui` 0.30 (features `scrolling-regions` · `unstable-rendered-line-info`) · `crossterm` 0.29 (`event-stream` · `bracketed-paste`) · `ratatui-textarea` 0.9 · `tokio` · `unicode-width` · `nika-fs` (bounded Live inspection) · lateral L4 `nika-session` (the live conversation), `nika-cli-host` (the one-use Run child, no admission authority), `nika-tui-view` (pure workflow and artifact faces), `nika-trace` (the canonical verifier and captured-journal fold, never back), and `nika-display` (the theme seam: roles, verb and state glyphs, motion frames; already under the other two) · dev: `expectrl` (the PTY proof), `sha2` (the logomark provenance proof). `tachyonfx` and `nika-tui-core` are not dependencies yet; ADR-139 §Consequences leaves tachyonfx and the web-studio port out of the first product. |
 | NIKA codes | none owed — the renderer refuses nothing · it displays the refusal the engine rendered |
 | Depends on | **T28 admitted** (`nika-tui-core` out of wip, done 2026-08-14) · ADR-139 records the original renderer milestone and the 2026-10-03 workspace amendment |
 
@@ -40,17 +40,17 @@ become typed beats, and the CLI door injects the runners. The
 
 ## 2. The semantic layer becomes enforceable here
 
-The known hole in the porting map (§4) closes in this crate, without a second
-palette: the roles are the engine's closed set, `nika_display::theme::Role`
-(the accent, the three verdicts, dim, strong and the four verb chips), and
-`visual::role::style` resolves each at paint time to the Ratatui colour of the
-same ANSI-16 slot the CLI frames paint (a test pins the ten slots to the
-theme's own SGR codes). Hues stay the user's terminal theme's; without colour
-no role carries a hue, and dim and strong remain weights. The renderer's block
-faces, status marker and prompt marker ask for a role, never a colour: the busy
-marker wears the accent (cyan), a gate or a proposal the warning slot, a
-refusal the failure slot. The studio's palette-extent gate and the board roles
-(`BarWork`, `BarIdle`, `BarCritical`) arrive with the board.
+The roles remain the engine's closed set, `nika_display::theme::Role`
+(the accent, the three verdicts, dim, strong and the four verb chips).
+`visual::role::style` resolves them to the workspace's RGB product palette:
+blue activity, green success, amber attention, red failure, and readable
+secondary text. The viewer member pins the same RGB values. The CLI retains
+its terminal-theme palette. Under `NO_COLOR` no role carries a hue; dim and
+strong remain weights. Roles and words still carry meaning without colour.
+The existing 100ms busy tick drives the native orbit and its blue/cyan/purple
+accent only while work is active. Reduced motion keeps a still marker; idle
+views do not animate. A working phase may occupy up to three wrapped rows so
+its model and completed phase remain visible without an invented percentage.
 
 The rest of the visual vocabulary (`visual`, task T-nika-tui-assets) is the
 same kind of borrowing:
@@ -66,12 +66,21 @@ same kind of borrowing:
   five renditions (12×6 to 48×20) sampled from `media/brand/nika-logomark.svg`
   (a test pins its sha256, so a changed mark flags stale renditions), chosen
   whole by `Size::largest_within`, revealed once through five ordered-dither
-  frames between 0 and 600 ms and final at 760 ms, shown final at once under
+  frames between 0 and 1,400 ms, holding the final mark without another wake, shown final at once under
   reduced motion. It never loops and never stands for work in progress.
 
 Nothing in `visual` reads the clock, the environment or a file; the caller
 passes the elapsed time, the colour and ASCII choices and reduced motion. Where
 the layout places the mark and the icons is UI-LAYOUT's work.
+
+The workspace keeps a bounded activity card from the progress updates actually
+reported by Session. Consecutive repeats collapse; the latest twelve updates
+remain with an explicit omission count. This is a presentation projection, not
+an invented completion percentage or a replacement for the canonical receipts.
+When a run's own task lines are said, the card that showed them live gives way
+(unless the inline view already printed it), so each step reads once, after the
+run's check and announcement; any other block leaves the card in place, settled.
+Run, result, questions and the brand use the existing semantic color roles.
 
 ### The workspace screen (native entry and parent workflow inspection)
 
@@ -79,7 +88,8 @@ Bare `nika` on an interactive terminal opens the workspace. `NIKA_TUI=inline`
 selects the earlier inline presentation; plain and pipe behavior stay available.
 Below 60×16, focus presentation preserves the conversation. The Live host adapter
 lists the Session project, opens only a listed workflow below its owned root,
-and reads at most 1 MiB of UTF-8 without following symlinks. Source, Plan, Graph
+and resolves that selected project root once. Below the held root it reads at
+most 1 MiB of UTF-8, refusing child symlinks. Source, Plan, Graph
 and Check share the same byte witness and one `audit_source` result. Inspection
 runs before drawing and opens no consent, Save or Run authority. For a workflow with
 `infer:`/`agent:` tasks, the readiness judgement may observe provider key presence and,
@@ -95,15 +105,72 @@ changes neither the conversation nor its attached context.
 The real CLI PTY suite `workspace_pty` covers startup, the four faces and witness,
 re-read after edits, resize, ASCII/no-color/reduced motion, focus and typeahead,
 terminal restoration, inline/plain/pipe, inspection without effects, and Save
-without Run. These proofs cover this inspection slice. Live run hierarchy,
-output viewers and Proof, project/conversation switching and complete execution
-closure are not implemented by this slice.
+without Run. These proofs cover workflow inspection; the run faces below add a
+separate result and evidence slice, not complete workspace qualification.
+
+The run object offers Run, Outputs, Files and Proof. Outputs come from the
+resolved map recorded beside that leg's terminal settlement. Files show at most eight reported writes, read now at up to
+1 MiB each; without a digest of the bytes written, the view claims neither
+unchanged nor changed since the run. The host acquires files and Proof on its
+worker, outside drawing, and applies a result only to the same execution and
+reading generation. Typing and drawing remain available during acquisition.
+
+Proof captures at most 8 MiB of the named journal once. `RunFacts::of` and
+`trace_verify::verify_captured` consume those same bytes. Binding requires exactly
+the observed execution, one start naming its source hash, and the receipt head
+and length; missing or conflicting identities remain unbound. The journal
+witness does not cover the verifier's separately acquired custody keys, anchor
+sidecar or writer lease. Run status, a declared seal and a verified verdict are
+separate observations; none proves the requested business result correct.
+
+The Run face lets the user select a task, open its detail and return to the
+list. Selection is bound to the execution and task id, and stays visible after
+a height-only resize. Detail distinguishes observed state, failures, measured
+usage and output from missing observations. Graph facts are added only when
+the run names the exact source shown; a declared task without an event stays
+not observed. Inspection adds no file access, execution or consent.
+
+From a task whose admitted settle frame names a child, Enter opens that child's
+journal one level down. The host reads at most 8 MiB through the held project
+root; the target's displayed words are never a fallback path. Verification and
+the child view consume the same captured bytes. Head, source and outcome are
+compared only with the parent's recorded commitments; absent or contradictory
+facts stay explicit. The child's execution identity and length stay not
+compared. Each opening asks its own read; a late answer from an earlier opening
+is discarded. Keys remain available during acquisition, and Backspace returns
+to the parent with its selection and scroll. This view starts no child work and
+adds no child usage to the parent's measurements. Live child frames, a produced
+child execution identity and a failed-child summary remain outside this slice.
+
+Reopening repaints retained turns as history and exposes the last observed run.
+Until this session observes a run or a gate, and while only a choice waits, the
+footer tells that kept run apart from this session's facts: the rail's Run field
+adds its stage (`Run ○ (earlier ✓)`) and the status row opens with it
+(`last run ✓ exit 0 in an earlier session`, then the Session's own words), first
+so a narrow row keeps it. Checked and Run stay this session's facts; nothing is
+replayed, and a record without an exit adds nothing.
+Opening Run, Outputs or Files first captures and verifies its journal once.
+Only a bound, verified reading accepted by the Desk and adopted by the host
+lends its task rows, terminal outputs, reported write names and child relations.
+These observations come from the captured bytes, never from today's workflow.
+An older terminal without an outputs map stays absent, not an empty map. A
+refused capture revokes the earlier lending even for the same journal bytes.
+If the host declines adoption, the historical projection is withdrawn while
+Proof keeps its verdict, witness and reason; it does not trigger a refresh
+loop. Two admitted captures of identical bytes share a witness. Revocation
+bounds later reads; a read already in flight is not cancelled. It calls no
+model, starts no run and restores no consent. Full child
+hierarchy, project/conversation switching, concurrent
+revision during a run and the complete paid journey remain outside this slice's
+qualification. The workspace PTYs use cargo-test binaries; they do not qualify
+a stamped integrated build or a paid model route.
 
 - `workspace::geometry::Geometry::of` places the header, the project aside,
   the object in view, the conversation with its composer and the pinned
   activity row. The composer and the object come first: below 100 columns the
   conversation sits under the object and keeps at least half the rows; from 100
-  columns it stands beside the object (36 to 56 columns); from 120 columns the
+  columns it stands to the left of the preview (48% of the available work area,
+  bounded to 42–92 columns); from 120 columns the
   project aside appears (20 to 32 columns); from 30 rows the header takes a
   second row. Below 60×16 there is no workspace and the caller keeps the focus
   presentation. The regions cover the screen exactly without overlap at 80×24,
@@ -125,18 +192,34 @@ closure are not implemented by this slice.
 - `visual::state` re-reads the theme's task-state column (glyph and role, both
   glyph columns) as data for Ratatui; a test pins every state to what
   `nika_display::theme::Theme::glyph` paints.
-- `workspace::object` paints the centre. An open object is named by its kind's
+- `workspace::object` paints the preview on the right. An open object is named by its kind's
   icon and its name, and its given lines are cut at the edge, never wrapped
-  (workflow faces use `nika-tui-view`; result and Proof wiring remain pending). With nothing open it welcomes: the largest
-  butterfly that fits whole above the Session's first words (16×8 in the 80×24
-  object rows, 48×20 from 120×40), revealed once from the caller's clock, final
-  at once under reduced motion.
+  (workflow faces use `nika-tui-view`; observed run faces use `workspace::live`). With nothing open it welcomes: the largest
+  butterfly that fits whole above the onboarding words, up to 48×20 when both
+  the mark and the instructions fit. The instructions explain describing an
+  outcome, answering questions, reviewing, saving and then running; they give
+  a concrete example and navigation keys. The mark reveals once from the
+  caller's clock and appears final at once under reduced motion.
 - `workspace::conversation` names who the next message goes to: the title row
   gives the thread and its project, the composer's placeholder the full
   recipient (`Message to studio / release checklist`), and the context row
   keeps apart what is only on screen and what is attached. What the next
   message carries keeps priority on a narrow panel; the on-screen part is cut
-  first, then dropped.
+  first, then dropped. The heading identifies the Session's selection as
+  `Prepare with:`; it does not attribute a local action or a reply to that model.
+  It names the explicitly configured model, or the authoring seat's resolved
+  provider model when no model was named; an unresolved default stays explicit.
+  During intelligence selection the fixed composer hint names all four numbered
+  routes (account, API, local, no AI), even when the menu is above the viewport.
+  A selected model also receives wrapped heading space in short panels while
+  the existing activity/composer area stays fixed. The header and scroll bounds
+  use the same measurement; one transcript row remains. An unknown selection
+  stays explicit; the renderer makes no provider call.
+  The idle hint keeps intelligence selection and panel navigation visible after
+  the welcome closes. While scrolled back, it asks the user to click the
+  conversation, then press End for the latest messages: the wheel does not move
+  keyboard focus. The hint fits one row at the available width; Stop, Save,
+  cost questions and completion keep their own instructions.
 - `workspace::screen::draw` composes one frame from a `Screen` (place, aside,
   object, thread, pinned run): the transcript, status, composer and hint are
   painted by the same functions as the focus presentation. Beside the object
@@ -151,8 +234,19 @@ closure are not implemented by this slice.
   the listing always shows, and `Enter` opens the entry: the object in view
   changes, the conversation does not, and nothing is attached to the next
   message. In the object the arrows and page keys scroll its lines under a
-  title row that stays. `screen::extent` gives the key handler what the
-  regions hold at the current size.
+  title row that stays. On the Run face, Up/Down select a task and Enter opens
+  its detail; Enter there opens a recorded child relation, and Backspace
+  returns one level. `screen::extent` gives the key handler what the regions
+  hold at the current size.
+- Full-screen mouse capture belongs to the same terminal Owner as raw mode,
+  paste and the alternate screen, and is restored on inline, exit and panic.
+  The broker forwards pointer events. The wheel scrolls the actual pane under
+  the pointer without taking keyboard focus; a click focuses that pane or
+  opens its listed object/tab through the existing Desk route. It never submits
+  text or answers consent. Shift-drag remains terminal selection where the
+  terminal supports it; the complete keyboard route remains available.
+  Observed activity and finished replies preserve a scrolled reading position;
+  offset zero follows new content and End returns to the latest messages.
 - The ASCII glyph column is the theme's decision (`--ascii`, CI logs, a legacy
   console), passed by the CLI door as `app::Options::ascii` and held in
   `UiState::ascii`: bare `nika --ascii` keeps the renderer, `--plain` and
@@ -257,3 +351,38 @@ Session's own answer path (nothing sent), and `details` reads
 decision that never approves a Save or a Run; the Run question approves one Run
 that no authoring or Save approval does. Both first screens close on
 `yes / no / details`, and the hint row names the same choices in words.
+
+Other question hints ask for an answer or cancellation without promising a
+blank-line default: the question's key alone cannot establish one. Before a
+proposal response is interpreted, its busy label remains neutral (`reviewing
+your reply`); cancellation, inspection and revision are not announced as Save.
+Only the existing observed progress reports describe the work actually begun.
+
+## Opening refusal and terminal restoration
+
+A conversation that refuses and quits while opening (for example, another
+instance owns the history lease) is an error, not a normal user quit. The shell
+stops its input broker and returns that refusal through the existing error path.
+The terminal owner restores all modes before the CLI prints the diagnostic on
+stderr and returns its environment-error exit code. The message therefore stays
+visible after a fullscreen launch closes. This path never steals a lease, clears
+history, submits a draft or signals the existing instance. An ordinary refusal
+inside an open conversation remains a card; a normal user quit remains successful.
+
+## Reported harness images
+
+The run fold counts every `agent_image_observed` frame of a task's current leg
+beside its unchanged text output and keeps at most four detail rows; the
+terminal's `harness_media_count` closes the sequence. A new attempt or cache
+hit clears the leg's media. Task details distinguish locally stored received
+bytes, bytes with unconfirmed storage, and reported-path-only observations,
+naming MIME, received size, the blob locator when present and the harness
+source; the peer's file remains unverified. When more frames exist than rows
+shown, the detail says `Showing N of TOTAL` and points to the trace; a count
+mismatch, a missing count or a malformed frame is reported as incomplete
+evidence, never as a complete result. Reading these details performs no file
+read, copy, fetch or image generation. Inline raster display is not implied.
+
+### Turn worker stack
+
+The shell's `nika-tui-turn` worker explicitly reserves 8 MiB of stack for the complete synchronous Session entry point and the nested Compiler/provider future it polls. The UI input owner stays separate. This addresses ordinary nested authoring frames overflowing the smaller platform worker stack; it does not add a preparation limit, alter Stop semantics, grant authority, or change the provider. The hermetic regression exercises the same worker constructor with more than 3 MiB live and checks return of its owned conversation across consecutive turns. A real ACP replay remains a separate integration check.

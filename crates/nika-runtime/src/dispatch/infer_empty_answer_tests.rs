@@ -38,6 +38,7 @@ impl ScriptedHttp {
 
 impl HttpPostDyn for ScriptedHttp {
     async fn post(&self, request: HttpRequest) -> Result<HttpResponse, HttpError> {
+        assert!(request.url.ends_with("/api/chat"), "native Ollama request");
         *self.calls.lock().expect("test mutex") += 1;
         let body = self
             .bodies
@@ -80,7 +81,7 @@ fn spawn_stub_server() -> u16 {
 
 /// The blank-answer repro body: empty visible content · real billed
 /// output tokens (the reasoning trace ate the budget).
-const EMPTY_WITH_SPEND: &str = r#"{"choices":[{"message":{"content":""},"finish_reason":"length"}],"usage":{"prompt_tokens":7,"completion_tokens":512}}"#;
+const EMPTY_WITH_SPEND: &str = r#"{"model":"llama3.2","message":{"role":"assistant","content":""},"done":true,"done_reason":"length","prompt_eval_count":7,"eval_count":512}"#;
 
 async fn run_workflow(yaml: &str, http: Arc<ScriptedHttp>) -> RunOutcome {
     let wf = nika_schema::parse(
@@ -186,7 +187,7 @@ async fn empty_answer_retry_is_opt_in_and_bounded() {
 #[tokio::test]
 async fn a_real_answer_still_settles_green() {
     let http = ScriptedHttp::serving(&[
-        r#"{"choices":[{"message":{"content":"Paris"},"finish_reason":"stop"}],"usage":{"prompt_tokens":7,"completion_tokens":50}}"#,
+        r#"{"model":"llama3.2","message":{"role":"assistant","content":"Paris"},"done":true,"done_reason":"stop","prompt_eval_count":7,"eval_count":50}"#,
     ]);
     let outcome = run_workflow(
         "nika: w\nmodel: ollama/llama3.2\ntasks:\n  ask:\n    infer: { prompt: \"capital of France?\" }\n",
@@ -196,6 +197,7 @@ async fn a_real_answer_still_settles_green() {
     assert!(outcome.ok, "a non-empty answer stays green");
     let rec = &outcome.records["ask"];
     assert_eq!(rec.status, TaskStatus::Success);
+    assert_eq!(rec.output, "Paris");
     assert!(rec.error.is_none(), "no failure rides a real answer");
     assert_eq!(http.calls(), 1);
 }

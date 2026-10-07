@@ -17,6 +17,8 @@ use std::collections::BTreeMap;
 use nika_event::{Event, EventKind};
 use nika_types::resource::Value;
 
+mod harness_media;
+
 /// What the stream has said about one task so far.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TaskState {
@@ -268,6 +270,9 @@ pub struct RunView {
     rows: Vec<TaskRow>,
     item_pages: BTreeMap<String, crate::item_pages::Pages>,
     index: BTreeMap<String, usize>,
+    children: BTreeMap<String, crate::run_story::ChildRun>,
+    workflow_outputs: Option<crate::run_story::Outputs>,
+    harness_media: BTreeMap<String, harness_media::Images>,
     blocked_by: BTreeMap<String, String>,
     cleanup: BTreeMap<String, Vec<cleanup::Attachment>>,
 }
@@ -285,6 +290,70 @@ impl RunView {
     #[must_use]
     pub fn rows(&self) -> &[TaskRow] {
         &self.rows
+    }
+
+    /// The workflow `outputs:` map the run's terminal frame recorded: `None`
+    /// before a terminal frame (and again from a new start), `Some(Absent)`
+    /// for a terminal that recorded none.
+    #[must_use]
+    pub fn workflow_outputs(&self) -> Option<&crate::run_story::Outputs> {
+        self.workflow_outputs.as_ref()
+    }
+
+    /// The child run task `id` called, as its latest settle frame named it.
+    /// A new attempt (its start) or a settle naming none leaves none: a
+    /// relation is never inherited from an earlier attempt.
+    #[must_use]
+    pub fn child(&self, id: &str) -> Option<&crate::run_story::ChildRun> {
+        self.children.get(id)
+    }
+
+    /// Keep the workflow outputs map a terminal frame records: a new start
+    /// forgets the earlier one.
+    fn keep_outputs(&mut self, event: &Event) {
+        match event.kind {
+            EventKind::WorkflowStarted => self.workflow_outputs = None,
+            EventKind::WorkflowCompleted
+            | EventKind::WorkflowFailed
+            | EventKind::WorkflowCancelled => {
+                self.workflow_outputs = Some(crate::run_story::Outputs::from_event(event));
+            }
+            _ => {}
+        }
+    }
+
+    /// Peer-reported image receipt of a task; output remains the original text.
+    #[must_use]
+    pub fn harness_media(&self, task: &str) -> Option<&str> {
+        self.harness_media
+            .get(task)
+            .map(|images| images.json.as_str())
+    }
+    fn keep_harness_media(&mut self, event: &Event) {
+        harness_media::apply(&mut self.harness_media, event);
+    }
+
+    /// Keep the child relation a task's settle names. Its start (a new
+    /// attempt), a settle naming none and a cache hit (a resume, never
+    /// run here) leave none.
+    fn relate(&mut self, event: &Event) {
+        if !matches!(
+            event.kind,
+            EventKind::TaskStarted | EventKind::TaskCompleted | EventKind::TaskCacheHit
+        ) {
+            return;
+        }
+        let Some(task) = str_field(event, "task") else {
+            return;
+        };
+        match crate::run_story::ChildRun::of(event) {
+            Some(child) => {
+                self.children.insert(task.to_owned(), child);
+            }
+            None => {
+                self.children.remove(task);
+            }
+        }
     }
 
     /// The upstream whose settle kept `task_id`'s gate closed.
@@ -375,6 +444,9 @@ impl RunView {
         let first = *self.first_ts_ms.get_or_insert(ts);
         self.last_ts_ms = Some(ts);
         self.elapsed_ms = u64::try_from(ts.saturating_sub(first)).unwrap_or(0);
+        self.relate(event);
+        self.keep_outputs(event);
+        self.keep_harness_media(event);
 
         match event.kind {
             EventKind::WorkflowStarted => {
@@ -806,6 +878,7 @@ fn recovered_items(row: &TaskRow) -> usize {
 
 #[cfg(test)]
 mod tests {
+    mod media_tests;
 
     use super::*;
     use crate::demo;
@@ -1300,5 +1373,88 @@ mod tests {
             &[("task", s("ask")), ("tokens", Value::Int(4))],
         ));
         assert!(view.rows()[0].meters().is_empty(), "no split, no meters");
+    }
+
+    /// The relation a task's settle named is the fold's, for that task: a
+    /// new attempt drops it, the next settle replaces it, and a row on any
+    /// other frame names none.
+    #[test]
+    fn the_fold_keeps_the_child_relation_of_the_latest_settle() {
+        let row = |trace: &str| {
+            s(&serde_json::json!({"target": "./child.nika", "trace_id": trace, "outcome": "success"})
+                .to_string())
+        };
+        let trace = |view: &RunView| view.child("call").and_then(|c| c.trace_id.clone());
+        let mut view = RunView::new();
+        view.apply(&ev_at(
+            EventKind::TaskStarted,
+            1,
+            &[("task", s("call")), ("child", row("a.ndjson"))],
+        ));
+        assert_eq!(trace(&view), None, "a start names no relation");
+        view.apply(&ev_at(
+            EventKind::TaskCompleted,
+            2,
+            &[("task", s("call")), ("child", row("a.ndjson"))],
+        ));
+        assert_eq!(trace(&view).as_deref(), Some("a.ndjson"));
+        view.apply(&ev_at(EventKind::TaskStarted, 3, &[("task", s("call"))]));
+        assert_eq!(trace(&view), None, "a new attempt drops it");
+        view.apply(&ev_at(
+            EventKind::TaskCompleted,
+            4,
+            &[("task", s("call")), ("child", row("b.ndjson"))],
+        ));
+        assert_eq!(trace(&view).as_deref(), Some("b.ndjson"));
+        view.apply(&ev_at(EventKind::TaskCompleted, 5, &[("task", s("call"))]));
+        assert_eq!(trace(&view), None, "a settle naming none leaves none");
+        assert!(view.child("other").is_none());
+    }
+
+    /// The fold keeps the workflow outputs map of the run's terminal frame:
+    /// none before it, Absent for a terminal that recorded none, a new start
+    /// forgets it, and a failed run's map never turns its verdict.
+    #[test]
+    fn the_fold_keeps_the_terminal_outputs_map() {
+        use crate::run_story::Outputs;
+        let mut view = RunView::new();
+        view.apply(&ev_at(
+            EventKind::WorkflowStarted,
+            1,
+            &[("workflow", s("w"))],
+        ));
+        assert_eq!(view.workflow_outputs(), None);
+        view.apply(&ev_at(
+            EventKind::TaskCompleted,
+            2,
+            &[("task", s("a")), ("outputs", s("{\"x\":1}"))],
+        ));
+        assert_eq!(
+            view.workflow_outputs(),
+            None,
+            "a task's homonym is no workflow output"
+        );
+        view.apply(&ev_at(
+            EventKind::WorkflowFailed,
+            3,
+            &[("outputs", s("{\"total\":5}"))],
+        ));
+        assert_eq!(
+            view.workflow_outputs(),
+            Some(&Outputs::Kept(serde_json::json!({"total": 5})))
+        );
+        assert_eq!(view.verdict, Some(false), "still failed");
+        view.apply(&ev_at(
+            EventKind::WorkflowStarted,
+            4,
+            &[("workflow", s("w"))],
+        ));
+        assert_eq!(view.workflow_outputs(), None, "a new start forgets it");
+        view.apply(&ev_at(EventKind::WorkflowCompleted, 5, &[]));
+        assert_eq!(
+            view.workflow_outputs(),
+            Some(&Outputs::Absent),
+            "an older terminal"
+        );
     }
 }

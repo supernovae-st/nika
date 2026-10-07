@@ -13,8 +13,9 @@
 use jaq_core::load::{Arena, File, Loader};
 use jaq_core::{Compiler, Ctx, Vars, data as jaq_data};
 use jaq_json::{Val, read};
-use nika_compile::surface::observed::{equivalent_spellings, stated_spellings};
+use nika_compile::surface::observed::equivalent_spellings;
 use nika_compile::{AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, HotPolicy};
+use nika_compile_clauses::spellings::stated_spellings;
 use nika_compile_cognition::compile_with_provider;
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, ResponseFormat,
@@ -23,6 +24,9 @@ use nika_kernel::ai::provider::{
 use serde_json::{Value, json};
 use std::sync::Mutex;
 use std::time::Duration;
+
+mod common;
+use common::{approval, refusal, verifier};
 
 /// « livré » as the request states it (precomposed) and as a file may spell it (e + U+0301).
 const LIVRE_NFC: &str = "livr\u{e9}";
@@ -47,8 +51,8 @@ impl Seat {
             refuses: false,
         }
     }
-    /// The same double refusing every verifier question: each clause missing, the request
-    /// unfaithful, no part located.
+    /// The same double refusing every verifier question: the request unfaithful, each clause and
+    /// each part asked alone missing, a task question answered with the first task it offers.
     fn refusing(answers: Vec<String>) -> Self {
         Self {
             refuses: true,
@@ -92,9 +96,7 @@ impl ProviderInferDyn for Seat {
                 .unwrap_or_default(),
             _ => Vec::new(),
         };
-        let offers = |key: &str| keys.iter().any(|k| k == key);
-        let verifier = offers("faithful") || offers("carried") || offers("another_part");
-        let text = if verifier {
+        let text = if verifier(&keys) {
             let said = last_text(&request);
             let state = said
                 .strip_prefix("STATE:\n")
@@ -102,12 +104,10 @@ impl ProviderInferDyn for Seat {
                 .and_then(|json| serde_json::from_str(json).ok())
                 .unwrap_or(Value::Null);
             self.judged.lock().unwrap().push(state);
-            let choice = match (self.refuses, offers("faithful"), offers("carried")) {
-                (false, true, _) => "faithful",
-                (false, false, true) => "carried",
-                (true, true, _) => "unfaithful",
-                (true, false, true) => "missing",
-                _ => "another_part",
+            let choice = if self.refuses {
+                refusal(&keys)
+            } else {
+                approval(&keys)
             };
             json!({"choice": choice}).to_string()
         } else {
@@ -1146,10 +1146,11 @@ async fn a_line_format_in_a_program_clause_goes_to_the_judges() {
         .filter(|d| d.target == "semantic_verification")
         .map(|d| d.message.as_str())
         .collect();
-    assert!(
-        told.iter().any(|m| m.contains("does not carry")),
-        "{told:?}"
-    );
+    // Found missing, the clause's task question names the task the refusing double offers first.
+    let defect = format!("it does not carry « {clause} (the judge points to the task compute) »");
+    assert!(told.iter().any(|m| m.contains(&defect)), "{told:?}");
+    let attempt = &refused.provenance.decision.as_ref().unwrap()["semantic_verification"][0];
+    assert_eq!(attempt["defects"][0], json!(clause), "{attempt:#}");
 }
 
 /// The request of `clause` writing `what`, and the seat's plan of it (treatment B).

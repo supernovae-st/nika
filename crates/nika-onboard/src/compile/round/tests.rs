@@ -247,23 +247,57 @@ fn a_text_altered_after_it_was_kept_is_never_continued() {
 }
 
 #[test]
-fn an_oversized_round_withholds_its_plan_and_a_huge_request_is_not_kept() {
-    let plan = json!({"observed_world": {"blob": "x".repeat(ROUND_LIMIT + 1)}});
-    let kept = Capture::new("post the totals", &redact)
+fn a_large_round_preserves_its_request_plan_knowledge_and_receipt_after_reopen() {
+    let huge = "y".repeat(ROUND_LIMIT + 1);
+    let plan = json!({"observed_world": {"blob": huge}});
+    let knowledge = json!({"evidence": huge});
+    let mut receipt = AuthoringReceipt::new("mock/echo");
+    receipt.calls = 1;
+    receipt.context = vec![json!({"evidence": huge})];
+    let kept = Capture::new(&huge, &redact)
+        .edit(
+            Some("workflow.nika"),
+            &huge,
+            "keep its meaning",
+            Some(&huge),
+        )
         .questions(&questions())
         .continuation(Some(&plan))
-        .knowledge(Some(&json!({"k": 1})))
+        .knowledge(Some(&knowledge))
+        .authoring_receipt(Some(&receipt))
         .finish()
-        .expect("kept without its plan");
-    assert!(kept.to_string().len() <= ROUND_LIMIT);
-    let record = usable(kept);
+        .expect("the complete record is kept");
+    let encoded = kept.to_string();
+    assert!(encoded.len() > ROUND_LIMIT);
+    let reopened: Value = serde_json::from_str(&encoded).expect("schema-1 JSON");
+    assert_eq!(reopened, kept, "no field is dropped on the wire");
+    let record = usable(reopened);
+    assert_eq!(record.continuable(), Ok(()));
+    assert_eq!(record.request.text, huge);
+    assert_eq!(record.knowledge, Some(knowledge));
+    assert_eq!(record.authoring_receipt(), Some(receipt));
+    let continuation = record.continuation.expect("kept continuation");
+    assert_eq!(continuation.value, Some(plan));
+    assert_eq!(continuation.withheld, None);
+    let edit = record.edit.expect("kept edit");
+    assert_eq!(edit.base.text, huge);
+    assert_eq!(edit.original.expect("original request").text, huge);
+}
+
+#[test]
+fn a_historical_over_bound_continuation_stays_unavailable() {
+    let mut kept = plain();
+    kept["continuation"] = json!({
+        "sha256": sha256_hex(b"historical plan that was not saved"),
+        "value": null,
+        "withheld": "over_bound",
+    });
+    let reading = RoundReading::from_raw(kept.clone());
+    assert_eq!(reading.raw(), &kept, "historical evidence stays unchanged");
     assert_eq!(
-        record.continuable(),
+        reading.record().expect("known schema").continuable(),
         Err(Unusable::Withheld("over_bound".to_owned()))
     );
-    assert_eq!(record.knowledge, None);
-    let huge = "y".repeat(ROUND_LIMIT + 1);
-    assert_eq!(Capture::new(&huge, &redact).finish(), None);
 }
 
 #[test]
@@ -299,19 +333,37 @@ fn unreadable_values_are_named_kept_and_never_used() {
 }
 
 #[test]
-fn a_round_with_too_many_answers_or_no_question_is_not_continued() {
-    let many: BTreeMap<String, String> = (0..=MAX_ANSWERS)
-        .map(|i| (format!("k{i:03}"), "1".to_owned()))
-        .collect();
-    let kept = Capture::new("x", &redact)
-        .answers(&many)
-        .questions(&questions())
-        .finish()
-        .expect("kept");
-    assert_eq!(
-        usable(kept).continuable(),
-        Err(Unusable::TooManyAnswers(MAX_ANSWERS + 1))
-    );
+fn every_answer_survives_reopen_beyond_the_historical_count_and_the_last_is_validated() {
+    for count in [MAX_ANSWERS, MAX_ANSWERS + 1, MAX_ANSWERS * 2 + 1] {
+        let many: BTreeMap<String, String> = (0..count)
+            .map(|i| (format!("k{i:03}"), format!(r#"{{"answer":{i}}}"#)))
+            .collect();
+        let kept = Capture::new("x", &redact)
+            .answers(&many)
+            .questions(&questions())
+            .finish()
+            .expect("kept");
+        let reopened: Value = serde_json::from_str(&kept.to_string()).expect("JSON");
+        let record = usable(reopened);
+        assert_eq!(record.continuable(), Ok(()));
+        assert_eq!(record.answers.len(), count);
+        assert_eq!(record.answer_map(), many);
+
+        let mut altered = kept.clone();
+        altered["answers"][count - 1]["literal"]["text"] = json!("false");
+        assert_eq!(
+            usable(altered).continuable(),
+            Err(Unusable::Redacted("answer")),
+            "the last answer's digest is checked among all {count} answers"
+        );
+        let mut malformed = kept;
+        malformed["answers"][count - 1]["literal"]["text"] = json!(false);
+        assert!(unreadable(&malformed).contains(&format!("answers[{}]", count - 1)));
+    }
+}
+
+#[test]
+fn a_round_with_no_question_or_continuation_is_not_continued() {
     let kept = Capture::new("x", &redact).finish().expect("kept");
     assert_eq!(usable(kept).continuable(), Err(Unusable::NoQuestion));
 }
@@ -741,4 +793,289 @@ fn a_same_shape_world_is_never_taken_for_the_one_the_host_attached() {
         .expect("the host's record");
     assert!(observed.remove("world_sha256").is_some());
     assert!(compiled(request, &legacy).is_none());
+}
+
+/// A semantic record keeps no observation of its own: its request is rebuilt from the one the
+/// host's record discloses only when its full identity matches the host receipt and its scoped
+/// identity matches the reading. A changed relevant fact or missing identity rebuilds nothing.
+#[test]
+fn a_semantic_record_requires_both_the_full_receipt_and_the_scoped_reading_identity() {
+    fn observed(out: &mut CompileOutcome) -> &mut Value {
+        &mut out.provenance.decision.as_mut().expect("a decision record")["session"]["observed"]
+    }
+    let intent = "read ./inventory.json, keep the items whose stock is under 8";
+    let world = json!({"observed": [{"path": "./inventory.json", "state": "observed",
+        "complete": false, "kind": "json", "columns": ["sku", "stock"]}]});
+    let identity = nika_compile_fidelity::observed::basis::of_request(Some(&world), intent);
+    let request = CompileRequest::create(intent);
+    let mut out = compile(&request.clone().with_knowledge(world.clone())).expect("compiles");
+    out.provenance.plan = Some(json!({"semantic_record": 1,
+        "basis": {"read": {"world_sha256": identity, "effective": intent}}}));
+    let stamped = crate::knowledge::pin::observed_in(out, Some(&world));
+    let kept = compiled(request.clone(), &stamped).expect("the attached world is kept");
+    assert_eq!(kept.knowledge.as_ref(), Some(&world));
+    // An extra destination is irrelevant to the original reading but belongs to the host's
+    // complete receipt. The rebuilt request retains that full observation, never a summary.
+    let mut expanded = world.clone();
+    expanded["observed"]
+        .as_array_mut()
+        .expect("rows")
+        .push(json!({"path": "./next.json", "state": "absent"}));
+    let restamped = crate::knowledge::pin::observed_in(stamped.clone(), Some(&expanded));
+    assert_eq!(
+        compiled(request.clone(), &restamped)
+            .expect("same reading")
+            .knowledge,
+        Some(expanded)
+    );
+    let mut unnamed = stamped.clone();
+    unnamed.provenance.plan.as_mut().expect("a plan")["basis"]["read"]
+        .as_object_mut()
+        .expect("reading")
+        .remove("effective");
+    assert!(compiled(request.clone(), &unnamed).is_none());
+    // Read under another world.
+    let mut other = stamped.clone();
+    other.provenance.plan.as_mut().expect("a plan")["basis"]["read"]["world_sha256"] =
+        json!("0".repeat(64));
+    assert!(compiled(request.clone(), &other).is_none());
+    // A disclosed world of the same shape, or none at all.
+    let mut same_shape = stamped.clone();
+    observed(&mut same_shape)["world"]["observed"][0]["columns"] = json!(["sku", "qty"]);
+    assert!(compiled(request.clone(), &same_shape).is_none());
+    let mut missing = stamped.clone();
+    let record = observed(&mut missing).as_object_mut().expect("an object");
+    assert!(record.remove("world").is_some());
+    assert!(compiled(request.clone(), &missing).is_none());
+    // A semantic record never falls back to an `observed_world` it does not keep.
+    let mut decorated = stamped;
+    decorated.provenance.plan.as_mut().expect("a plan")["observed_world"] = world;
+    let record = observed(&mut decorated).as_object_mut().expect("an object");
+    assert!(record.remove("world").is_some());
+    assert!(compiled(request, &decorated).is_none());
+}
+
+#[test]
+fn a_questionless_kept_plan_is_continuable_but_tamper_and_withholding_still_refuse() {
+    let plan = json!({"semantic_record":{"opaque":"compiler owns its validity"},"final":{"candidate_sha256":"evidence"}});
+    let kept = Capture::new("same request", &redact)
+        .continuation(Some(&plan))
+        .finish()
+        .unwrap();
+    assert_eq!(usable(kept.clone()).continuable(), Ok(()));
+    let mut altered = kept;
+    altered["continuation"]["value"]["final"]["candidate_sha256"] = json!("changed");
+    assert!(matches!(
+        usable(altered).continuable(),
+        Err(Unusable::Altered(_))
+    ));
+    let hidden = Capture::new("same request", &redact)
+        .continuation(Some(&json!({"semantic_record":SENTINEL})))
+        .finish()
+        .unwrap();
+    assert!(matches!(
+        usable(hidden).continuable(),
+        Err(Unusable::Withheld(_))
+    ));
+}
+#[test]
+fn only_the_compiler_resume_finding_retains_an_unjudged_slot() {
+    let mut out = compile(&CompileRequest::create("bounded-batch")).unwrap();
+    out.questions.clear();
+    out.candidate = None;
+    out.status = super::super::CompileStatus::Incomplete;
+    out.provenance.strategy = Some(super::super::Strategy::Native);
+    out.provenance.plan = Some(json!({"semantic_record":{}}));
+    assert!(
+        !awaiting_judge(&out),
+        "a plan is not permission to bypass its reading"
+    );
+    nika_compile::finding(
+        &mut out,
+        DiagnosticKind::Applied,
+        "verify_resume",
+        "kept by compiler",
+    );
+    assert!(awaiting_judge(&out));
+    out.diagnostics.last_mut().unwrap().kind = DiagnosticKind::Unknown;
+    assert!(
+        !awaiting_judge(&out),
+        "prose and unknown findings are not the resume signal"
+    );
+}
+
+/// A kept candidate is contested (R6) only when the LAST verification attempt names what the
+/// judge contested and located no defect: an earlier attempt's dispute, an empty list, a defect
+/// or an unknown alone, a contested part beside a located defect, a malformed list or no
+/// verification at all is not.
+#[test]
+fn only_the_last_verification_attempt_contesting_makes_a_judgment_contested() {
+    let mut out = compile(&CompileRequest::create("bounded-batch")).unwrap();
+    out.provenance.decision = None;
+    assert!(!contested_judgment(&out), "no decision, no judgment");
+    out.provenance.decision = Some(json!({"route": ["verify: not ready"]}));
+    assert!(!contested_judgment(&out), "no verification attempt");
+    let request = "Read ./a.md and write ./b.md";
+    for (attempts, contested) in [
+        (json!([]), false),
+        (json!([{"attempt": 0, "contested": []}]), false),
+        (
+            json!([{"attempt": 0, "defects": ["write ./b.md"], "contested": []}]),
+            false,
+        ),
+        (json!([{"attempt": 0, "unknown": [request]}]), false),
+        (json!([{"attempt": 0, "contested": request}]), false),
+        (json!([{"attempt": 0, "contested": [request]}]), true),
+        (
+            json!([{"attempt": 0, "contested": [request]}, {"attempt": 1, "contested": []}]),
+            false,
+        ),
+        (
+            json!([
+                {"attempt": 0, "defects": ["write ./b.md"], "contested": []},
+                {"attempt": 1, "contested": [request]},
+            ]),
+            true,
+        ),
+        (
+            json!([{"attempt": 0, "defects": [], "contested": [request]}]),
+            true,
+        ),
+        (
+            json!([{"attempt": 0, "defects": ["write ./b.md"], "contested": [request]}]),
+            false,
+        ),
+        (
+            json!([
+                {"attempt": 0, "contested": [request]},
+                {"attempt": 1, "defects": ["write ./b.md"], "contested": [request]},
+            ]),
+            false,
+        ),
+    ] {
+        let decision =
+            json!({"route": ["verify: not ready"], "semantic_verification": attempts.clone()});
+        out.provenance.decision = Some(decision);
+        assert_eq!(contested_judgment(&out), contested, "{attempts}");
+    }
+}
+
+/// A candidate is held for its verifier only by the compiler's applied `verify_held` finding:
+/// the same target under another kind, another applied target, or a contested verification alone
+/// is not.
+#[test]
+fn only_the_compilers_applied_held_finding_holds_a_candidate() {
+    let mut out = compile(&CompileRequest::create("bounded-batch")).unwrap();
+    out.diagnostics.clear();
+    out.provenance.decision = Some(json!({"semantic_verification": [
+        {"attempt": 0, "defects": [], "contested": ["Read ./a.md and write ./b.md"]}
+    ]}));
+    assert!(!verify_held(&out), "a contested verification alone");
+    nika_compile::finding(
+        &mut out,
+        DiagnosticKind::Applied,
+        "verify_resume",
+        "kept by compiler",
+    );
+    assert!(!verify_held(&out), "another applied target");
+    nika_compile::finding(
+        &mut out,
+        DiagnosticKind::Unknown,
+        "verify_held",
+        "named, not applied",
+    );
+    assert!(!verify_held(&out), "another kind");
+    nika_compile::finding(
+        &mut out,
+        DiagnosticKind::Applied,
+        "verify_held",
+        "held after a doubt",
+    );
+    assert!(verify_held(&out));
+}
+
+/// The verdicts an outcome carries for later compiles are every attempt that rejected candidate
+/// bytes it names (declined, rejected, not settled) and judged them, in order: never an
+/// abstention, an accepted or settled verdict, an older record that says nothing of settling, an
+/// attempt naming no bytes, or a repeat with no call (of this compile's attempt, or carried).
+/// Kept verdicts hold one per bytes, judge (seat and kind), request and context, the latest
+/// found replacing an earlier one (it resumed what that one left unfinished), in order; keeping
+/// the same ones again changes nothing.
+#[test]
+fn the_rejections_an_outcome_carries_are_its_rejecting_attempts_one_per_bytes_and_judge() {
+    let mut out = compile(&CompileRequest::create("bounded-batch")).unwrap();
+    out.provenance.decision = None;
+    assert_eq!(rejections(&out), Vec::<Value>::new(), "no decision");
+    let attempt =
+        |n: u64, sha: Value, (seat, kind): (&str, &str), declined: bool, rejected: bool| {
+            json!({"attempt": n, "candidate_sha256": sha, "judge": {"seat": seat, "kind": kind},
+            "declined": declined, "rejected": rejected, "settled": !declined})
+        };
+    let jev = ("typesafe/jev", "decision_seat");
+    let provider = ("typesafe/jev", "authoring_provider");
+    let mut older = attempt(5, json!("b5"), jev, true, true);
+    older.as_object_mut().expect("an attempt").remove("settled");
+    let mut settled = attempt(3, json!("b4"), jev, true, true);
+    settled["settled"] = json!(true);
+    let attempts = [
+        attempt(0, json!("b1"), jev, true, true),
+        attempt(1, json!("b2"), jev, true, false),
+        attempt(2, json!("b3"), jev, false, false),
+        settled,
+        attempt(4, Value::Null, jev, true, true),
+        older,
+        attempt(6, json!("b1"), jev, true, true),
+        attempt(7, json!("b1"), provider, true, true),
+        attempt(
+            8,
+            json!("b1"),
+            ("deepseek/deepseek-flash", "authoring_provider"),
+            true,
+            true,
+        ),
+        repeat(
+            attempt(9, json!("b1"), jev, true, true),
+            "same_bytes_as",
+            json!(0),
+        ),
+        repeat(
+            attempt(10, json!("b1"), jev, true, true),
+            "carried",
+            json!(true),
+        ),
+        repeat(
+            attempt(11, json!("b1"), jev, true, true),
+            "context_sha256",
+            json!("c2"),
+        ),
+    ];
+    out.provenance.decision = Some(json!({"semantic_verification": attempts}));
+    let found = rejections(&out);
+    let expected = [
+        &attempts[0],
+        &attempts[6],
+        &attempts[7],
+        &attempts[8],
+        &attempts[11],
+    ];
+    assert_eq!(found.iter().collect::<Vec<_>>(), expected);
+    let mut kept = vec![attempts[8].clone()];
+    assert!(keep_rejections(&mut kept, found.clone()));
+    // The latest verdict of the same bytes, judge, request and context replaces the first; one
+    // judged beside another context is its own.
+    assert_eq!(
+        kept,
+        [&attempts[8], &attempts[6], &attempts[7], &attempts[11]].map(Value::clone)
+    );
+    assert!(
+        !keep_rejections(&mut kept, found),
+        "the same verdicts again"
+    );
+    assert_eq!(kept.len(), 4);
+}
+
+/// `attempt` with `key` set to `value`.
+fn repeat(mut attempt: Value, key: &str, value: Value) -> Value {
+    attempt[key] = value;
+    attempt
 }

@@ -5,7 +5,6 @@
 //! the record of the whole conversation and the line a human reads. Data, never authority.
 
 use super::{Answer, Cold, Talk, knowledge};
-use crate::fidelity::Diagnostic;
 use crate::{CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind};
 use serde_json::{Value, json};
 
@@ -22,24 +21,6 @@ pub(super) fn cold_report(out: &CompileOutcome) -> Value {
         "questions": out.questions.iter().map(|q| q.key.clone()).collect::<Vec<_>>(),
         "diagnostics": out.diagnostics.iter().filter(|d| d.kind != DiagnosticKind::Applied).map(|d| d.message.clone()).collect::<Vec<_>>(),
     })
-}
-
-/// One judged round: the candidate by digest and in full, what the seat asked and left out, the
-/// judge's diagnostics, and both texts of a dual answer apart from the judged source.
-pub(super) fn judged(round: u32, answer: &Answer, diagnostics: &[Diagnostic]) -> Value {
-    let mut entry = json!({
-        "round": round,
-        "candidate_sha256": knowledge::sha256(&answer.candidate),
-        "candidate": answer.candidate,
-        "questions": answer.questions.iter().map(|q| q.key.clone()).collect::<Vec<_>>(),
-        "gaps": answer.gaps.clone(),
-        "notes": answer.notes.clone(),
-        "diagnostics": diagnostics.iter().map(|d| json!({"kind": d.kind, "message": d.message})).collect::<Vec<_>>(),
-    });
-    if let Some(dual) = &answer.dual {
-        entry["transport"] = dual.record();
-    }
-    entry
 }
 
 /// The native record of a conversation: the identity, the knowledge pack, the references sent,

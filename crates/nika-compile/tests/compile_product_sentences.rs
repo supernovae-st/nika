@@ -226,7 +226,8 @@ fn a_seated_plan_with_only_a_draft_over_nothing_is_never_a_candidate() {
         "{out:#?}"
     );
     // The same draft over material an invocation supplies, or per incoming request, is
-    // fed: a candidate whose item is real.
+    // fed: a candidate whose item is real. A seat's recorded plan replays with its whole
+    // request pending (R4 A11): with no judge in the round, it stays INCOMPLETE, never READY.
     let mut supplied = record.clone();
     supplied["operations"][0]["evidence"] = serde_json::json!("summarize the supplied text");
     let out = compile(
@@ -235,7 +236,8 @@ fn a_seated_plan_with_only_a_draft_over_nothing_is_never_a_candidate() {
             .answer("model", r#""mock/echo""#),
     )
     .unwrap();
-    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(out.candidate.is_some(), "{out:#?}");
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
     let mut triggered = record;
     triggered["trigger"] = serde_json::json!("for each request");
     triggered["operations"][0]["evidence"] = serde_json::json!("draft a digest of the docs");
@@ -245,7 +247,8 @@ fn a_seated_plan_with_only_a_draft_over_nothing_is_never_a_candidate() {
             .answer("model", r#""mock/echo""#),
     )
     .unwrap();
-    assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
+    assert!(out.candidate.is_some(), "{out:#?}");
+    assert_eq!(out.status, CompileStatus::Incomplete, "{out:#?}");
 }
 
 #[test]

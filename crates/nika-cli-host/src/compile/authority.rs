@@ -3,7 +3,7 @@
 
 //! The authoring authority of one CLI compile: how many requests the authoring seat may be sent.
 //! A repair count is not an authority (pack 94); `--authoring-max-calls` is, and its absence is
-//! exactly one request. Every seat is counted in invocations; a direct API seat is also counted
+//! no request bound. Every seat is counted in invocations; a direct API seat is also counted
 //! where its bytes leave, on a single-attempt transport, so a transport retry or a
 //! structured-output fallback inside one invocation is a request too. A request past the
 //! authority is refused before any byte leaves; an ACP harness is counted in invocations, its own
@@ -76,18 +76,31 @@ pub(super) fn resolve(
 
 /// The transport every door that seats a direct API authoring model sends through (the CLI's
 /// compile, Serve's native seat): the runtime's provider composition (no SSRF floor, so a local
-/// seat binds; its 600 s transport ceiling above every per-call deadline) with protocol-NACK
-/// retries off and no redirect followed, so one POST is one request. Wrap it in the core's
-/// `authority::Wire` to count and bound those requests.
+/// seat binds) with protocol-NACK retries off and no redirect followed, so one POST is one
+/// request, its idle-read guard the legacy fixed 600 s. Wrap it in the core's
+/// `authority::Wire` to count and bound those requests. A door that knows its per-call deadline
+/// uses [`authoring_http_with_deadline`], so no fixed guard cuts a longer silent call.
+///
+/// # Errors
+/// [`HttpError`] when the client cannot be built, or when it would retry on its own.
+pub fn authoring_http() -> Result<impl HttpPostDyn, HttpError> {
+    authoring_http_with_deadline(std::time::Duration::from_secs(600))
+}
+
+/// The same authoring transport, its idle-read guard the caller's own per-call `deadline` (the
+/// per-request total deadline already is): a silent reasoning call lives as long as its door
+/// allows, never cut by a fixed guard under it.
 ///
 /// # Errors
 /// [`HttpError`] when the client cannot be built, or when it would retry on its own.
 // `HttpConfig` is `#[non_exhaustive]`: field assignment, not a struct literal.
 #[allow(clippy::field_reassign_with_default)]
-pub fn authoring_http() -> Result<impl HttpPostDyn, HttpError> {
+pub fn authoring_http_with_deadline(
+    deadline: std::time::Duration,
+) -> Result<impl HttpPostDyn, HttpError> {
     let mut config = nika_http::HttpConfig::default();
     config.ssrf = nika_http::SsrfMode::Disabled;
-    config.timeout = std::time::Duration::from_secs(600);
+    config.timeout = deadline;
     config.retry_protocol_nacks = false;
     config.max_redirects = 0;
     let http = nika_http::ReqwestHttp::with_config(config)?;
@@ -151,31 +164,60 @@ mod tests {
 
     #[test]
     fn an_explicit_multiplicity_is_refused_only_when_the_authority_cannot_honor_it() {
-        // No flag: one request, and the implicit defaults run within it.
-        let default = resolve(&[], NativeMode::Escalate).expect("one request");
+        // No flag: no request bound, and the core's defaults (no repair count) run under it.
+        let default = resolve(&[], NativeMode::Escalate).expect("no bound");
         let record = default.record(&default.envelope(), None);
-        assert_eq!(default.max_calls(), 1);
-        assert_eq!(record["source"], "default: one request");
-        assert_eq!(record["configured"]["worst_case"], 62);
-        // Typed repairs under escalate can need sixty-two: refused, with the number to authorize.
-        let refused = resolve(&["--authoring-repairs", "3"], NativeMode::Escalate).unwrap_err();
+        assert_eq!(default.max_calls(), None);
+        assert_eq!(record["source"], "default: no request bound");
+        assert_eq!(record["configured"]["worst_case"], serde_json::Value::Null);
+        // Typed repairs under no bound run as typed.
+        assert!(resolve(&["--authoring-repairs", "3"], NativeMode::Escalate).is_ok());
+        // COLD creation follows every unstated computation: its count is unknown, so a typed
+        // bound is never refused up front, and the counters refuse each request past it.
+        let one = ["--authoring-repairs", "3", "--authoring-max-calls", "1"];
+        assert!(resolve(&one, NativeMode::Escalate).is_ok());
+        // The sketch door's judgment asks each part of a doubted request alone: its count
+        // depends on the request, so typed repairs are never refused up front under it either,
+        // and the counters refuse each request past the bound.
+        let sketched = resolve(&one, NativeMode::Sketch).expect("no request-independent count");
+        let record = sketched.record(&sketched.envelope(), None);
+        assert_eq!(sketched.max_calls(), Some(1));
+        assert_eq!(record["configured"]["repairs"], 3);
+        assert_eq!(record["configured"]["worst_case"], serde_json::Value::Null);
+        // A typed sketch strategy under that bound is refused for what the strategy needs before
+        // its READY can be judged, never for a count of its repairs.
+        let typed = [
+            "--authoring-strategy",
+            "sketch",
+            "--authoring-repairs",
+            "3",
+            "--authoring-max-calls",
+            "1",
+        ];
         assert_eq!(
-            refused,
-            "the repairs or samples typed can need 62 authoring requests under the escalate strategy, and 1 is authorized: authorize them with --authoring-max-calls 62, or ask for fewer"
+            resolve(&typed, NativeMode::Sketch).expect_err("three requests at least"),
+            "the sketch strategy needs at least 3 authoring requests (the sketch, its fills, then their judgment): authorize --authoring-max-calls 3 or more"
         );
-        let typed = ["--authoring-repairs", "3", "--authoring-max-calls", "62"];
-        assert!(resolve(&typed, NativeMode::Escalate).is_ok());
         // Nothing extra asked, and a typed only granted its judgment: never refused.
         let only = ["--authoring-strategy", "only", "--authoring-max-calls", "2"];
         assert!(resolve(&only, NativeMode::Only).is_ok());
-        assert!(resolve(&["--authoring-repairs", "0"], NativeMode::Escalate).is_ok());
-        // Samples: twenty-one under escalate for three of them.
-        assert!(resolve(&["--authoring-samples", "3"], NativeMode::Escalate).is_err());
-        let sampled = ["--authoring-samples", "3", "--authoring-max-calls", "21"];
-        assert!(resolve(&sampled, NativeMode::Escalate).is_ok());
-        // A typed escalation needs the plan and its judgment; the implicit one runs.
-        let escalate = resolve(&["--authoring-strategy", "escalate"], NativeMode::Escalate);
-        let refused = escalate.expect_err("two requests at least");
+        let none = ["--authoring-repairs", "0", "--authoring-max-calls", "1"];
+        assert!(resolve(&none, NativeMode::Escalate).is_ok());
+        // Samples add requests only where the count is already unknown: never refused up front.
+        let short = ["--authoring-samples", "3", "--authoring-max-calls", "1"];
+        assert!(resolve(&short, NativeMode::Escalate).is_ok());
+        assert!(resolve(&["--authoring-samples", "3"], NativeMode::Escalate).is_ok());
+        // A typed escalation needs the plan and its judgment under a typed bound; the implicit
+        // one runs, and no bound refuses neither.
+        let escalate = ["--authoring-strategy", "escalate"];
+        assert!(resolve(&escalate, NativeMode::Escalate).is_ok());
+        let one = [
+            "--authoring-strategy",
+            "escalate",
+            "--authoring-max-calls",
+            "1",
+        ];
+        let refused = resolve(&one, NativeMode::Escalate).expect_err("two requests at least");
         assert_eq!(
             refused,
             "the escalate strategy needs at least 2 authoring requests (the plan, then its judgment): authorize --authoring-max-calls 2 or more"
@@ -188,7 +230,13 @@ mod tests {
         ];
         assert!(resolve(&escalate, NativeMode::Escalate).is_ok());
         // A typed sketch needs the sketch, its fills and their judgment.
-        let refused = resolve(&["--authoring-strategy", "sketch"], NativeMode::Sketch);
+        let two = [
+            "--authoring-strategy",
+            "sketch",
+            "--authoring-max-calls",
+            "2",
+        ];
+        let refused = resolve(&two, NativeMode::Sketch);
         assert_eq!(
             refused.expect_err("three requests at least"),
             "the sketch strategy needs at least 3 authoring requests (the sketch, its fills, then their judgment): authorize --authoring-max-calls 3 or more"
@@ -216,7 +264,7 @@ mod tests {
     #[test]
     fn a_count_the_compiler_would_run_as_another_is_refused_never_clamped() {
         // The flags refuse counts outside what the compiler runs.
-        for typed in [["--authoring-repairs", "9"], ["--authoring-samples", "0"]] {
+        for typed in [["--authoring-repairs", "-1"], ["--authoring-samples", "0"]] {
             let argv = [
                 "compile",
                 "x",
@@ -236,25 +284,54 @@ mod tests {
             refused.expect_err("zero"),
             "--authoring-max-calls 0 authorizes no authoring request: authorize 1 or more, or drop --authoring-model"
         );
-        let mut args = door.args;
-        args.authoring_repairs = Some(9);
-        let refused = super::resolve(&args, None, NativeMode::Escalate).expect_err("nine");
-        assert!(
-            refused.starts_with("--authoring-repairs 9 is outside 0..=5"),
-            "{refused}"
-        );
+        // The core runs any typed repair count as typed, never clamped: no creating strategy
+        // states a request-independent count for it (the sketch door's judgment depends on the
+        // request too), so a typed bound never refuses it up front; the counters bound it.
+        let parsed = Door::try_parse_from([
+            "compile",
+            "x",
+            "--authoring-model",
+            "vllm/m",
+            "--authoring-repairs",
+            "9",
+        ])
+        .expect("any u32 repair count parses");
+        let args = parsed.args;
+        assert_eq!(args.authoring_repairs, Some(9));
+        assert!(super::resolve(&args, None, NativeMode::Escalate).is_ok());
+        for strategy in [NativeMode::Escalate, NativeMode::Sketch] {
+            let authority = super::resolve(&args, Some(1), strategy).expect("nine, as typed");
+            let record = authority.record(&authority.envelope(), None);
+            assert_eq!(authority.max_calls(), Some(1), "{}", strategy.word());
+            assert_eq!(record["configured"]["repairs"], 9, "{}", strategy.word());
+            assert_eq!(
+                record["configured"]["worst_case"],
+                serde_json::Value::Null,
+                "{}",
+                strategy.word()
+            );
+        }
     }
 
     #[test]
     fn the_shared_authoring_transport_makes_one_attempt_per_post() {
         let http = super::authoring_http().expect("the authoring transport builds");
         assert!(http.supports_single_attempt());
+        // Any positive per-call deadline builds it too, past the legacy fixed 600 s guard.
+        for seconds in [120, 600, 3_600] {
+            let deadline = std::time::Duration::from_secs(seconds);
+            let http = super::authoring_http_with_deadline(deadline).expect("builds");
+            assert!(http.supports_single_attempt(), "{seconds}");
+        }
     }
 
     #[test]
     fn a_library_caller_builds_the_command_and_its_authority_without_literals() {
         let default = super::super::AuthoringAuthority::new();
-        assert_eq!(default.authoring_max_calls, None, "one request by default");
+        assert_eq!(
+            default.authoring_max_calls, None,
+            "no request count by default"
+        );
         let door = Door::try_parse_from(["compile", "x"]).expect("parses");
         let two = default.with_max_calls(2);
         let command = super::super::CompileCommand::new(door.args, two);

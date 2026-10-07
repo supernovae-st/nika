@@ -6,11 +6,13 @@
 //! A [`Beat`] is one typed thing the session did in a turn: it said a block
 //! (a reply, a proposal preview, a run line, a result), it now waits for a
 //! particular kind of line (the prompt names which: `nika ›` · `reply ›` ·
-//! `apply? ›` · `answer ›`), or it is busy under a seat. The shapes mirror
+//! `Save? ›` · `answer ›`), or it is busy under a seat. The shapes mirror
 //! `nika_session::runtime::TurnOutcome` one to one so the adapter of the next
 //! wave is a match, never a parse. The UX-1 fixture ([`Script`]) emits the
 //! same beats from a canned conversation so both presentations are judged
 //! on identical input.
+
+use nika_display::activity_card::{ActivityCard, Ending, Update};
 
 /// Where the session is drawn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -78,6 +80,9 @@ pub enum Kind {
     Refusal,
     /// A notice of the shell itself (interrupted, mode switched).
     Notice,
+    /// The workspace's one card of what the Session reported while a turn
+    /// worked: kept up to date while the turn runs, settled when it ends.
+    Activity,
 }
 
 /// One finished block: it may span several lines.
@@ -124,14 +129,14 @@ pub enum Waiting {
 }
 
 impl Waiting {
-    /// The prompt the plain loop prints for the same state.
+    /// The prompt naming the same waiting state as the plain loop.
     #[must_use]
     pub fn prompt(&self) -> &'static str {
         match self {
             Self::Free => "nika › ",
             Self::Choosing => "› ",
             Self::Question { .. } => "reply › ",
-            Self::Proposal => "apply? › ",
+            Self::Proposal => "Save? › ",
             Self::Gate => "answer › ",
         }
     }
@@ -142,15 +147,13 @@ impl Waiting {
     #[must_use]
     pub fn hint(&self) -> &'static str {
         match self {
-            Self::Free => {
-                "describe work · /help · Ctrl+T switches the view · Ctrl+C twice to leave"
-            }
-            Self::Choosing => "type a number · `cancel` continues without a choice",
+            Self::Free => "describe work · /help · Run: run <file>.nika",
+            Self::Choosing => "1 account · 2 API · 3 local · 4 no AI · cancel",
             Self::Question { key } if key == "unknown_cost" || key == "run_cost" => {
                 "yes approves once · no or Ctrl+C cancels · details shows the full evidence"
             }
-            Self::Question { .. } => "answer the question · an empty line takes the default",
-            Self::Proposal => "yes applies these exact bytes · no keeps the file untouched · /show",
+            Self::Question { .. } => "answer the question above · cancel to stop",
+            Self::Proposal => "yes + Enter: Save · no: cancel · /show: inspect",
             Self::Gate => "approve or refuse · nothing else answers a gate",
         }
     }
@@ -175,6 +178,9 @@ pub enum Beat {
     /// · Checked ✓ · Active ○ · Run ○ »): the lifecycle rail on the row
     /// above the status, replaced at every turn — declared is never active.
     Rail(String),
+    /// The Session stopped the turn's preparation at the human's request, in
+    /// its own words: the activity card says so, and no proposal came of it.
+    Cancelled(String),
     /// The session closed the door.
     Quit,
 }
@@ -213,12 +219,13 @@ pub struct UiState {
     /// The ASCII glyph column (the theme's decision: `--ascii`, CI logs, a
     /// legacy console): the renderer's own glyphs take their twins.
     pub ascii: bool,
-    /// Scroll offset of the focus transcript, in blocks from the end.
+    /// Scroll offset of the full-screen transcript, in rendered rows from the end.
     pub focus_scroll: usize,
     /// Terminal size as last reported.
     pub size: (u16, u16),
     /// The session asked to close.
     pub quit: bool,
+    activity: Option<Activity>,
 }
 
 impl UiState {
@@ -241,6 +248,7 @@ impl UiState {
             focus_scroll: 0,
             size,
             quit: false,
+            activity: None,
         }
     }
 
@@ -249,16 +257,91 @@ impl UiState {
         match beat {
             Beat::Say(block) => {
                 self.busy = None;
+                // A run's own task lines repeat the steps its live card observed: the card
+                // gives way (unless already in scrollback), so each step reads once, after
+                // the run's check and announcement. Any other block only settles the card.
+                if block.kind == Kind::Run {
+                    if let Some(mut card) = self.activity.take() {
+                        if card.index >= self.committed_inline {
+                            self.transcript.remove(card.index);
+                        } else {
+                            card.card.settle(Ending::Completed, None);
+                            card.paint(&mut self.transcript, self.ascii);
+                        }
+                    }
+                } else if block.kind == Kind::Refusal {
+                    self.settle_card(Ending::Failed, None);
+                } else {
+                    self.settle_card(Ending::Completed, None);
+                }
                 self.transcript.push(block);
             }
             Beat::Wait(waiting) => {
+                self.settle_card(Ending::Completed, None);
+                self.activity = None;
                 self.busy = None;
                 self.waiting = waiting;
+            }
+            Beat::Cancelled(note) => {
+                self.busy = None;
+                self.settle_card(Ending::Stopped, None);
+                self.transcript.push(Committed::new(Kind::Notice, note));
             }
             Beat::Busy(label) => self.busy = Some(label),
             Beat::Status(line) => self.status = line,
             Beat::Rail(line) => self.rail = line,
             Beat::Quit => self.quit = true,
+        }
+    }
+
+    /// A line said while the turn works (a run's story), kept as a step.
+    pub(crate) fn observe_activity(&mut self, label: &str) {
+        if !label.trim().is_empty() {
+            self.observe(Update::Step(label));
+        }
+    }
+
+    /// Retain what the Session reported, typed, in one compact card
+    /// ([`ActivityCard`]). The workspace keeps the card; inline and focus keep
+    /// their transcript behavior.
+    pub(crate) fn observe(&mut self, update: Update<'_>) {
+        if self.presentation != Presentation::Workspace {
+            return;
+        }
+        // A settled card stays as it was; a later update opens a new one below.
+        if self
+            .activity
+            .as_ref()
+            .is_some_and(|card| !card.card.is_live())
+        {
+            self.activity = None;
+        }
+        let activity = self.activity.get_or_insert_with(|| {
+            let index = self.transcript.len();
+            self.transcript.push(Committed::new(Kind::Activity, ""));
+            Activity {
+                index,
+                card: ActivityCard::new(),
+            }
+        });
+        if activity.card.observe(update) {
+            activity.paint(&mut self.transcript, self.ascii);
+        }
+    }
+
+    /// The turn that fed the live card ended after `took` (the shell's own
+    /// clock, from the line sent to the answer back): the card settles and
+    /// says so. A stop or a refusal the turn's beats tell later still names
+    /// how it ended ([`ActivityCard::settle`]).
+    pub(crate) fn settle_activity(&mut self, took: std::time::Duration) {
+        self.settle_card(Ending::Completed, Some(took));
+    }
+
+    fn settle_card(&mut self, ending: Ending, took: Option<std::time::Duration>) {
+        if let Some(card) = self.activity.as_mut()
+            && card.card.settle(ending, took)
+        {
+            card.paint(&mut self.transcript, self.ascii);
         }
     }
 
@@ -268,6 +351,22 @@ impl UiState {
         self.transcript
             .get(self.committed_inline..)
             .unwrap_or_default()
+    }
+}
+
+/// The live card in the transcript: where its block is, and what it folded.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Activity {
+    index: usize,
+    card: ActivityCard,
+}
+
+impl Activity {
+    /// Write the card's words into its block.
+    fn paint(&self, transcript: &mut [Committed], ascii: bool) {
+        if let Some(block) = transcript.get_mut(self.index) {
+            block.text = self.card.lines(ascii).join("\n");
+        }
     }
 }
 
@@ -407,6 +506,22 @@ pub struct Turn {
     pub handoff: Option<Handoff>,
 }
 
+/// What one stop request found ([`Conversation::stopper`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Stopping {
+    /// The turn's preparation was asked to stop: the Session admits no
+    /// further call for it and answers the turn itself (stopped, or what it
+    /// had already settled).
+    Requested,
+    /// A Run is under way: it keeps its own doors and is never stopped here.
+    RunUnderway,
+}
+
+/// The shell's hold on one turn's preparation: armed before the turn moves
+/// to its worker, called from the shell's thread while the turn runs.
+pub type Stopper = Box<dyn Fn() -> Stopping + Send>;
+
 /// Whatever answers the composer: the live session runtime, or a fixture.
 /// `Send`: the shell computes a turn on a worker thread so the terminal
 /// stays live (the busy state changes while a seat is called).
@@ -419,6 +534,19 @@ pub trait Conversation: Send {
     fn cancel_pending(&mut self) -> Vec<Beat> {
         Vec::new()
     }
+    /// Arm a stop for the turn about to start, BEFORE the conversation moves
+    /// to the worker thread. The default arms none: `Ctrl+C` then warns and
+    /// leaves, as it always did. Stopping a preparation never stops a Run.
+    fn stopper(&mut self) -> Option<Stopper> {
+        None
+    }
+    /// The human stopped this turn's preparation and the turn ended anyway:
+    /// what the stopped preparation left pending is withdrawn, so no obsolete
+    /// result stays actionable. It answers nothing: no Save, Run, gate or cost
+    /// decision is answered or declined. The default withdraws nothing.
+    fn withdraw_stopped(&mut self) -> Vec<Beat> {
+        Vec::new()
+    }
     /// The beats of the opening (banner, restored state, first prompt).
     fn open(&mut self) -> Vec<Beat>;
     /// The beats of one submitted line, and the handoff it asks for.
@@ -429,6 +557,19 @@ pub trait Conversation: Send {
     fn submit_with(&mut self, line: &str, busy: &std::sync::mpsc::Sender<String>) -> Turn {
         let _ = busy;
         self.submit(line)
+    }
+    /// [`Conversation::submit_with`], with the shell's queue for what it
+    /// observes of a run the turn drives ([`crate::session::feed::Seen`]): the
+    /// request, then each typed frame of the run's stream. The default
+    /// observes none.
+    fn submit_observed(
+        &mut self,
+        line: &str,
+        busy: &std::sync::mpsc::Sender<String>,
+        seen: &crate::session::feed::Seen,
+    ) -> Turn {
+        let _ = seen;
+        self.submit_with(line, busy)
     }
     /// Perform the handed-off work with the terminal handed back; the beats
     /// that follow it (the observation, the next prompt).
@@ -460,6 +601,63 @@ pub trait Conversation: Send {
     /// grants nothing and is never sent to a model. The default takes none,
     /// and the object then shows what the listing judged.
     fn inspect(&mut self, _path: &str) -> Option<crate::workspace::inspect::Inspected> {
+        None
+    }
+    /// The candidate under review, as the conversation's Session lends it:
+    /// the identity a consent names, the changes a yes lands, what its
+    /// workflow reaches, its rehearsal and the look of its exact pending
+    /// bytes, folded when the turn that proposed it ended. The shell asks
+    /// after every batch of beats, never while it draws; showing it grants
+    /// nothing. The default lends none.
+    fn candidate(&self) -> Option<crate::workspace::candidate::Proposed> {
+        None
+    }
+    /// A file the run `execution` reported writing, read now by the
+    /// conversation's host below its project (never while drawing): today's
+    /// bytes at that path, never called the run's own. The default reads none.
+    fn fetch(
+        &mut self,
+        _execution: &nika_display::run_story::ExecutionId,
+        _path: &str,
+    ) -> Option<crate::session::acquire::Fetched> {
+        None
+    }
+    /// The Proof of the journal the run `execution` settled with, captured
+    /// and verified by the host (never while drawing). The default proves none.
+    fn prove(
+        &mut self,
+        _execution: &nika_display::run_story::ExecutionId,
+    ) -> Option<crate::session::acquire::Proven> {
+        None
+    }
+    /// Adopt what `proven` (the verified journal of the kept run
+    /// `execution`, the reading the shell has just accepted as current)
+    /// records: its written names and child relations, for reading only.
+    /// Called once per accepted reading; `false` when nothing is adopted.
+    /// The default adopts nothing.
+    fn adopt(
+        &mut self,
+        _execution: &nika_display::run_story::ExecutionId,
+        _proven: &crate::session::acquire::Proven,
+    ) -> bool {
+        false
+    }
+    /// The journal of the child run task `task` of the run `execution`
+    /// called, as the relation `relation` its settle frame named: read by
+    /// the host only when it kept that very relation itself (never a path
+    /// the renderer names), captured once and verified, never while
+    /// drawing. The default reads none.
+    fn child(
+        &mut self,
+        _execution: &nika_display::run_story::ExecutionId,
+        _task: &str,
+        _relation: &nika_display::run_story::ChildRun,
+    ) -> Option<crate::session::acquire::ChildRead> {
+        None
+    }
+    /// The last run an earlier session kept, as HOME history recorded it:
+    /// evidence, never authority. The default keeps none.
+    fn kept_run(&self) -> Option<Result<nika_session::KeptRun, String>> {
         None
     }
 }
@@ -515,7 +713,7 @@ mod tests {
     #[test]
     fn the_prompt_names_what_waits_and_never_crosses() {
         assert_eq!(Waiting::Free.prompt(), "nika › ");
-        assert_eq!(Waiting::Proposal.prompt(), "apply? › ");
+        assert_eq!(Waiting::Proposal.prompt(), "Save? › ");
         assert_eq!(Waiting::Gate.prompt(), "answer › ");
         assert_eq!(
             Waiting::Question {
@@ -540,13 +738,231 @@ mod tests {
                 assert!(hint.contains(choice), "{key}: {hint}");
             }
         }
+        // The key alone does not prove that an actual default was offered.
+        for key in ["model", "revision.new_path", "", "required_input"] {
+            assert_eq!(
+                Waiting::Question {
+                    key: key.to_owned()
+                }
+                .hint(),
+                "answer the question above · cancel to stop"
+            );
+        }
+    }
+
+    #[test]
+    fn observed_activity_is_bounded_deduplicated_and_stops_at_a_reply() {
+        let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
+        state.observe_activity("reading the request");
+        state.observe_activity("reading the request");
+        assert_eq!(state.transcript.len(), 1);
         assert_eq!(
-            Waiting::Question {
-                key: "model".to_owned()
-            }
-            .hint(),
-            "answer the question · an empty line takes the default"
+            state.transcript[0]
+                .text
+                .matches("reading the request")
+                .count(),
+            1
         );
+        for n in 0..15 {
+            state.observe_activity(&format!("repair {n}"));
+        }
+        assert_eq!(state.transcript.len(), 1);
+        assert!(
+            state.transcript[0]
+                .text
+                .contains("4 earlier updates omitted")
+        );
+        assert!(state.transcript[0].text.ends_with("repair 14"));
+        assert_eq!(state.transcript[0].text.lines().count(), 13);
+        state.apply(Beat::Say(Committed::new(Kind::Question, "Which source?")));
+        let finished = state.transcript[0].clone();
+        assert!(
+            finished
+                .text
+                .starts_with("Settled · 4 earlier updates omitted")
+        );
+        assert!(finished.text.ends_with("repair 14"));
+        state.observe_activity("reading the answer");
+        assert_eq!(state.transcript.len(), 3);
+        assert_eq!(state.transcript[0], finished);
+        for presentation in [Presentation::Inline, Presentation::Focus] {
+            let mut state = UiState::new(presentation, false, (80, 24));
+            state.observe_activity("reading");
+            assert!(state.transcript.is_empty());
+        }
+    }
+
+    #[test]
+    fn activity_chrome_is_ascii_without_rewriting_observed_content() {
+        let mut state = UiState::new(Presentation::Workspace, false, (80, 24));
+        state.ascii = true;
+        state.observe_activity("reading the request");
+        assert!(state.transcript[0].text.is_ascii());
+        for n in 0..13 {
+            state.observe_activity(&format!("step {n}"));
+        }
+        assert!(state.transcript[0].text.is_ascii());
+        state.observe_activity("using private/été·beta");
+        assert!(state.transcript[0].text.ends_with("using private/été·beta"));
+    }
+
+    /// A run's steps read once and in order: its check, its announcement, then its own task
+    /// lines. The card that showed them live gives way instead of repeating them above.
+    #[test]
+    fn a_run_block_replaces_its_observed_card_so_steps_read_once_in_order() {
+        let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
+        state.apply(Beat::Say(Committed::new(Kind::Human, "run reorder.nika")));
+        for label in [
+            "▶ read_stock",
+            "✔ read_stock · 2 ms · 1/2",
+            "✔ write_order · 1 ms · 2/2",
+        ] {
+            state.observe_activity(label);
+        }
+        assert_eq!(
+            state.transcript.len(),
+            2,
+            "progress shows while the run works"
+        );
+        let story = "running · reorder\n  ✔ read_stock · 2 ms\n  ✔ write_order · 1 ms\nsucceeded · 2/2 tasks";
+        for beat in [
+            Beat::Say(Committed::new(
+                Kind::Report,
+                "check · `reorder.nika` · clean ✔",
+            )),
+            Beat::Say(Committed::new(
+                Kind::Report,
+                "running `reorder.nika` once · ceiling $0.00",
+            )),
+            Beat::Say(Committed::new(Kind::Run, story)),
+            Beat::Say(Committed::new(Kind::Result, "Done · ./order.json (24 B)")),
+            Beat::Wait(Waiting::Free),
+        ] {
+            state.apply(beat);
+        }
+        let kinds: Vec<Kind> = state.transcript.iter().map(|block| block.kind).collect();
+        assert_eq!(
+            kinds,
+            [
+                Kind::Human,
+                Kind::Report,
+                Kind::Report,
+                Kind::Run,
+                Kind::Result
+            ]
+        );
+        assert!(state.transcript[1].text.starts_with("check"));
+        assert_eq!(state.transcript[3].text, story);
+        let seen: usize = (state.transcript.iter())
+            .map(|block| block.text.matches("write_order").count())
+            .sum();
+        assert_eq!(seen, 1, "each step reads once");
+        state.observe_activity("reading the request");
+        assert_eq!(state.transcript.len(), 6);
+        assert_eq!(state.transcript[5].kind, Kind::Activity);
+        assert!(state.transcript[5].text.starts_with("Working"));
+    }
+
+    /// A card already handed to the terminal's scrollback is never unprinted, and a card of a
+    /// turn that said no run (or of an earlier turn) stays where it was, settled.
+    #[test]
+    fn a_printed_or_unrelated_activity_card_stays_where_it_was() {
+        let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
+        state.observe_activity("✔ write_order · 1 ms · 2/2");
+        state.committed_inline = state.transcript.len();
+        state.apply(Beat::Say(Committed::new(
+            Kind::Run,
+            "succeeded · 2/2 tasks",
+        )));
+        assert_eq!(state.transcript.len(), 2);
+        assert_eq!(
+            state.transcript[0].text, "Settled\n✔ write_order · 1 ms · 2/2",
+            "a printed card is kept, settled, never left saying work is under way"
+        );
+        let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
+        state.observe_activity("reading the request");
+        state.apply(Beat::Say(Committed::new(
+            Kind::Proposal,
+            "proposed workflow",
+        )));
+        let first = state.transcript[0].clone();
+        assert_eq!(first.text, "Settled\nreading the request");
+        state.observe_activity("checking the proposal");
+        state.apply(Beat::Wait(Waiting::Proposal));
+        let cards = state.transcript.clone();
+        state.apply(Beat::Say(Committed::new(
+            Kind::Run,
+            "succeeded · 2/2 tasks",
+        )));
+        assert_eq!(state.transcript[0], first);
+        assert_eq!(state.transcript[..3], cards[..]);
+        assert_eq!(state.transcript.len(), 4);
+    }
+
+    /// The typed reports fill one card the turn keeps; the turn's end settles it with the
+    /// shell's time, a stop the Session confirmed says so, and a later turn opens its own.
+    /// A string line (a run's story) is a step, never read for a phase.
+    #[test]
+    fn typed_reports_fill_one_card_that_settles_or_says_it_was_stopped() {
+        use nika_display::activity::{CallState, Phase};
+        use std::time::Duration;
+        let mut state = UiState::new(Presentation::Workspace, false, (120, 40));
+        state.observe(Update::phase(Phase::Authoring, "authoring", false));
+        let at = Duration::from_secs(3);
+        let started = CallState::Started;
+        state.observe(Update::call(1, "fill", "m", Phase::Authoring, started, at));
+        assert_eq!(state.transcript.len(), 1);
+        assert_eq!(state.transcript[0].kind, Kind::Activity);
+        assert_eq!(
+            state.transcript[0].text,
+            "Generating · 1 author call · conversation routing and decision-service calls not counted\n● Generating · authoring\n● call 1 · write a step · requested m · running"
+        );
+        state.observe_activity("✓ looks like a phase");
+        assert!(
+            state.transcript[0]
+                .text
+                .ends_with("✓ looks like a phase\n● call 1 · write a step · requested m · running"),
+            "a string is a step: {}",
+            state.transcript[0].text
+        );
+        state.settle_activity(Duration::from_secs(42));
+        assert!(
+            state.transcript[0]
+                .text
+                .starts_with("Settled · took 42 s · 1 author call · ")
+        );
+        state.apply(Beat::Cancelled("Stopped · nothing was proposed".to_owned()));
+        assert!(
+            state.transcript[0]
+                .text
+                .starts_with("Stopped by you · took 42 s · 1 author call · ")
+        );
+        assert_eq!(state.transcript[1].kind, Kind::Notice);
+        state.apply(Beat::Wait(Waiting::Free));
+        state.observe(Update::phase(
+            Phase::Understanding,
+            "reading your line",
+            false,
+        ));
+        assert_eq!(state.transcript.len(), 3, "a later turn opens its own card");
+        state.apply(Beat::Wait(Waiting::Proposal));
+        assert_eq!(
+            state.transcript[2].text,
+            "Settled\n● Understanding · reading your line"
+        );
+        // A turn that ends on a refusal did not complete, and says so.
+        state.observe(Update::phase(Phase::Checking, "checking", false));
+        state.settle_activity(Duration::from_secs(5));
+        state.apply(Beat::Say(Committed::new(Kind::Refusal, "not allowed")));
+        assert!(
+            state.transcript[3]
+                .text
+                .starts_with("Not completed · took 5 s\n")
+        );
+        let mut inline = UiState::new(Presentation::Inline, false, (80, 24));
+        inline.observe(Update::phase(Phase::Checking, "checking", false));
+        inline.apply(Beat::Cancelled("stopped".to_owned()));
+        assert_eq!(inline.transcript.len(), 1, "inline keeps only the notice");
     }
 
     #[test]

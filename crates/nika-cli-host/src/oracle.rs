@@ -28,8 +28,7 @@ use nika_schema::{ParseMode, ResolvedSkills};
 use serde_json::{Map, Value};
 
 use crate::models_rung::{
-    capacity_findings, dials_a_model, pricing_section, thinking_findings, unresolvable_models,
-    verdict_layers_for,
+    capacity_findings, dials_a_model, pricing_section, thinking_findings, verdict_layers_for,
 };
 
 /// The filesystem edge an audit may be given — composition
@@ -401,12 +400,18 @@ pub fn judge(
     judged: Judged,
     access_pin: Option<&str>,
 ) -> Verdict {
-    let mut models = unresolvable_models(report, wf);
+    let probes = if dials_a_model(wf) || access_pin.is_some() {
+        nika_service_execution::access::access_probes_env()
+    } else {
+        Vec::new()
+    };
+    let plan = crate::access::resolve_plan_over(wf, report, None, access_pin, &probes);
+    let mut models =
+        crate::models_rung::unresolvable_models_for_plan(report, wf, &probes, Some(&plan));
     let valid = report.is_clean() && models.findings.is_empty() && skills.findings.is_empty();
     let mut capacity = thinking_findings(wf);
     capacity.extend(capacity_findings(wf));
     models.findings.extend(capacity.iter().cloned());
-    let plan = crate::access::resolve_plan(wf, report, None, access_pin);
     // The effective workflow already carries any audit_source override.
     // An unrelated static lane does not supply a missing task model.
     let modelless = nika_service_execution::access::first_modelless_task(wf);

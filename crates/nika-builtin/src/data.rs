@@ -12,6 +12,7 @@ use jaq_core::load::{Arena, Error as JqLoadError, File, Loader};
 use jaq_core::{Compiler, Ctx, Vars, data as jaq_data};
 use jaq_json::{Val, read};
 use nika_cap::{HashAlgorithm, HashEncoding, JqClock};
+use nika_kernel::runtime::tool_executor::ToolResult;
 use sha2::Digest;
 
 use crate::{Args, BuiltinFailure, BuiltinOutcome, opt_str, req_str, strict_bool};
@@ -314,6 +315,124 @@ fn jq_render_failure(text: &str, e: &serde_json::Error) -> BuiltinFailure {
         ""
     };
     BuiltinFailure::new(C, format!("output is not valid JSON: {e}{hint}"))
+}
+
+// ─── nika:jq · one isolated evaluation, bytes in and bytes out ──────────
+//
+// A host that cannot bound jq's work in process (a rehearsal room) asks a
+// process of its own instead. These are pure: the request carries the call's
+// args and its run-start instant, the answer the outcome; the evaluator is
+// `jq_with_clock` itself, and the answer renders exactly as the dispatcher
+// renders an in-process outcome. Physical I/O stays with that host.
+
+/// The first argument that starts the engine's binary as the isolated jq evaluator.
+pub const JQ_HELPER_WORD: &str = "__nika-jq-eval";
+
+/// The bytes of a frame's length, big-endian, before its payload.
+pub const JQ_FRAME_HEADER: usize = 8;
+
+/// `payload` behind its length.
+#[must_use]
+pub fn jq_frame(payload: &[u8]) -> Vec<u8> {
+    let length = u64::try_from(payload.len()).unwrap_or(u64::MAX);
+    let mut frame = length.to_be_bytes().to_vec();
+    frame.extend_from_slice(payload);
+    frame
+}
+
+/// The payload a frame header announces, when `header` is one.
+#[must_use]
+pub fn jq_frame_length(header: [u8; JQ_FRAME_HEADER]) -> u64 {
+    u64::from_be_bytes(header)
+}
+
+/// The payload of `frame` when it is exactly one whole frame.
+#[must_use]
+pub fn jq_unframe(frame: &[u8]) -> Option<&[u8]> {
+    let (header, payload) = frame.split_at_checked(JQ_FRAME_HEADER)?;
+    let length = jq_frame_length(header.try_into().ok()?);
+    (u64::try_from(payload.len()).ok()? == length).then_some(payload)
+}
+
+/// Serve one framed request read from `input` with [`jq_request`], its framed answer written to
+/// `output`. A request is read exactly, never to the end of `input`; one announcing more than
+/// `max_request` bytes is refused before its payload is allocated. The handles are the caller's.
+///
+/// # Errors
+/// `input` ended early or announced more than `max_request` bytes (`InvalidData`), or `output`
+/// could not take the answer.
+pub fn jq_serve(
+    input: &mut dyn std::io::Read,
+    output: &mut dyn std::io::Write,
+    max_request: u64,
+) -> std::io::Result<()> {
+    let mut header = [0_u8; JQ_FRAME_HEADER];
+    input.read_exact(&mut header)?;
+    let length = jq_frame_length(header);
+    let length = (length <= max_request)
+        .then(|| usize::try_from(length).ok())
+        .flatten()
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "request too long"))?;
+    let mut request = vec![0_u8; length];
+    input.read_exact(&mut request)?;
+    output.write_all(&jq_frame(&jq_request(&request)))?;
+    output.flush()
+}
+
+/// The request one isolated evaluation answers: the call's `args` and the run-start instant
+/// (`run_start_ns`, nanoseconds since the epoch) its clock forms read.
+#[must_use]
+pub fn jq_request_bytes(args: &serde_json::Value, run_start_ns: i64) -> Vec<u8> {
+    let request = serde_json::json!({"args": args, "run_start_ns": run_start_ns});
+    serde_json::to_vec(&request).unwrap_or_default()
+}
+
+/// Answer one isolated request with the in-process evaluator, over the request's own clock.
+/// Bytes that are no request are answered with the builtin's own failure.
+#[must_use]
+pub fn jq_request(request: &[u8]) -> Vec<u8> {
+    const C: &str = "NIKA-BUILTIN-JQ-001";
+    let parsed = serde_json::from_slice::<serde_json::Value>(request)
+        .ok()
+        .and_then(|request| {
+            let args = request.get("args")?.as_object()?.clone();
+            Some((args, request.get("run_start_ns")?.as_i64()?))
+        });
+    let outcome = match parsed {
+        Some((args, ns)) => {
+            let at = nika_types::timestamp::Timestamp::from_unix_ns(ns);
+            jq_with_clock(&args, JqClock::at(at))
+        }
+        None => Err(BuiltinFailure::new(C, "the isolated request is malformed")),
+    };
+    let answer = match outcome {
+        Ok(value) => serde_json::json!({"value": value}),
+        Err(failure) => serde_json::json!({
+            "code": failure.code, "message": failure.message,
+            "transient": failure.transient, "details": failure.details,
+        }),
+    };
+    serde_json::to_vec(&answer).unwrap_or_default()
+}
+
+/// The tool result an isolated `answer` stands for, rendered as the dispatcher renders the same
+/// outcome in process; `None` when the bytes are no answer [`jq_request`] gives.
+#[must_use]
+pub fn jq_answer(call_id: &str, answer: &[u8]) -> Option<ToolResult> {
+    const C: &str = "NIKA-BUILTIN-JQ-001";
+    let answer: serde_json::Value = serde_json::from_slice(answer).ok()?;
+    if let Some(value) = answer.get("value") {
+        return Some(crate::render(call_id, Ok(value.clone())));
+    }
+    (answer.get("code")?.as_str()? == C).then_some(())?;
+    let message = answer.get("message")?.as_str()?;
+    let failure =
+        BuiltinFailure::new(C, message).with_transient(answer.get("transient")?.as_bool()?);
+    let failure = match answer.get("details").filter(|details| !details.is_null()) {
+        Some(details) => failure.with_details(details.clone()),
+        None => failure,
+    };
+    Some(crate::render(call_id, Err(failure)))
 }
 
 // ─── nika:json_diff · RFC 6902 ──────────────────────────────────────────

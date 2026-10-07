@@ -15,9 +15,10 @@ use std::collections::BTreeMap;
 use nika_compile_reader::aggregate::AggOp;
 use nika_compile_reader::plan::{Effect, EffectPolicy, EffectVerb, Op, Plan};
 use nika_compile_reader::rules::{Comparator, Junction, NumberPolicy, Rule, keeps_order};
-use nika_compile_reader::{hot, paths};
+use nika_compile_reader::{hot, paths, shape, structure};
 use serde_json::Value;
 
+use super::composed::{Composed, composable, composed, neutral};
 use super::formats::{Format, json_document};
 use super::numbers::{Decimal, Law};
 use super::pipeline::{Aggregate, Filter, OnEmpty, Operand, Pipeline, Sort, Stages, Step, Test};
@@ -35,15 +36,19 @@ type Policies = BTreeMap<String, NumberPolicy>;
 #[must_use]
 pub fn contract_of(plan: &Plan, intent: &str, answers: &BTreeMap<String, String>) -> Contract {
     let mut obligations = Vec::new();
-    unverified_work(plan, &mut obligations);
+    let composed = composed(plan, answers);
+    unverified_work(plan, composed.as_ref(), &mut obligations);
     let writes: Vec<&Effect> = plan
         .effects
         .iter()
         .filter(|e| e.verb == EffectVerb::Write)
         .collect();
-    let computation = computation(plan, intent, answers, &writes);
+    let computation = computation(plan, intent, answers, &writes, composed.as_ref());
     for effect in &writes {
         obligations.push(write_obligation(effect, computation.as_ref()));
+        if composed.is_some() {
+            beyond_the_write(effect, &mut obligations);
+        }
     }
     if writes.is_empty() {
         for rule in &plan.rules {
@@ -76,18 +81,84 @@ pub fn contract_of(plan: &Plan, intent: &str, answers: &BTreeMap<String, String>
         .iter()
         .filter_map(|effect| paths::single_file(&effect.target))
         .collect();
-    let sources = hot::stated_sources(intent)
+    let sources: Vec<String> = hot::stated_sources(intent)
         .into_iter()
         .filter(|source| !written.iter().any(|path| same_path(source, path)))
         .collect();
+    kept_sources(plan, &sources, &mut obligations);
     Contract::new(obligations).with_sources(sources)
+}
+
+/// A composed computation reads its write's words up to its file: the words after it (another
+/// result, a rule of the write) stay an explicit unsupported obligation with the whole sentence,
+/// never absorbed into the computed file.
+fn beyond_the_write(effect: &Effect, out: &mut Vec<Obligation>) {
+    let rest = effect
+        .evidence
+        .find(effect.target.as_str())
+        .and_then(|at| effect.evidence.get(at + effect.target.len()..));
+    let rest =
+        rest.map(|rest| rest.trim_matches(|c: char| c.is_whitespace() || ",;:.".contains(c)));
+    if rest.is_some_and(|rest| rest.is_empty() || structure::only_function_words(rest)) {
+        return;
+    }
+    out.push(Obligation::new(
+        format!("beyond write {}", effect.target),
+        None,
+        Presence::Unproven,
+        Requirement::Unsupported(
+            "words of this sentence beyond the file it writes, which this component does not \
+             verify"
+                .to_owned(),
+        ),
+        effect.evidence.clone(),
+    ));
+}
+
+/// A prohibition naming a source the request reads (the path as one of its words): that file
+/// is never written, judged as any forbidden write (the rehearsal reads it back).
+fn kept_sources(plan: &Plan, sources: &[String], out: &mut Vec<Obligation>) {
+    for constraint in plan.constraints.iter().filter(|c| shape::prohibits(c)) {
+        let words: Vec<&str> = constraint
+            .split_whitespace()
+            .map(|word| word.trim_matches(|c: char| ",;:!?»«\"'`()".contains(c)))
+            .map(|word| word.strip_suffix('.').unwrap_or(word))
+            .collect();
+        for source in sources {
+            if !words.iter().any(|word| same_path(word, source)) {
+                continue;
+            }
+            let format = Format::of_path(source).unwrap_or(Format::Text);
+            out.push(Obligation::new(
+                format!("keep {source}"),
+                Some(Target::new(source.clone(), format)),
+                Presence::Forbidden,
+                Requirement::PresenceOnly,
+                constraint.clone(),
+            ));
+        }
+    }
 }
 
 /// The requested work this component never verifies, each as an explicit unsupported
 /// obligation: a retrieval, a model's or a person's work, an unknown, an obligation over
 /// effects across runs, an effect beyond the files a rehearsal observes.
-fn unverified_work(plan: &Plan, out: &mut Vec<Obligation>) {
-    for step in &plan.steps {
+fn unverified_work(plan: &Plan, composed: Option<&Composed>, out: &mut Vec<Obligation>) {
+    for (at, step) in plan.steps.iter().enumerate() {
+        if let Some(composed) = composed.filter(|_| composable(step.op)) {
+            for (_, heading) in composed.headings.iter().filter(|(of, _)| *of == at) {
+                out.push(Obligation::new(
+                    format!("operation {}", step.op.word()),
+                    None,
+                    Presence::Unproven,
+                    Requirement::Unsupported(
+                        "the heading of a computation, which states no rule of it".to_owned(),
+                    ),
+                    heading.clone(),
+                ));
+            }
+            continue;
+        }
         let why = match step.op {
             Op::Read => continue,
             Op::Compute if !plan.rules.is_empty() => continue,
@@ -162,10 +233,17 @@ fn computation(
     intent: &str,
     answers: &Answers,
     writes: &[&Effect],
+    composed: Option<&Composed>,
 ) -> Option<Result<Computed, String>> {
-    let rule = match plan.rules.as_slice() {
-        [] => return None,
-        [rule] => rule,
+    let (pipeline, stated) = match (plan.rules.as_slice(), composed) {
+        (_, Some(composed)) => (Ok(composed.pipeline.clone()), composed.text.as_str()),
+        ([], None) => return None,
+        ([_], None) if plan.constraints.iter().any(|c| !neutral(c)) => {
+            return Some(Err(
+                "a constraint beside the rule may shape its rows and is not read".to_owned(),
+            ));
+        }
+        ([rule], None) => (pipeline_of(rule, answers), rule.text()),
         _ => {
             return Some(Err(
                 "several rules: which result lands in which file is not a stated fact".to_owned(),
@@ -177,7 +255,7 @@ fn computation(
             "several writes: which one holds the result is not a stated fact".to_owned(),
         ));
     };
-    Some(computed_from(plan, rule, intent, answers, write))
+    Some(computed_from(plan, pipeline, stated, intent, write))
 }
 
 /// Whether a path names several files: a pattern or a directory.
@@ -187,9 +265,9 @@ fn several_files(path: &str) -> bool {
 
 fn computed_from(
     plan: &Plan,
-    rule: &Rule,
+    pipeline: Result<Pipeline, String>,
+    stated: &str,
     intent: &str,
-    answers: &Answers,
     write: &Effect,
 ) -> Result<Computed, String> {
     let destination = paths::single_file(&write.target);
@@ -212,8 +290,8 @@ fn computed_from(
     let format = Format::of_path(&source)
         .filter(|format| *format != Format::Text)
         .ok_or_else(|| format!("{source} has a format this component does not read"))?;
-    let mut pipeline = pipeline_of(rule, answers)?;
-    pipeline.keep_order = keeps_order(rule.text())
+    let mut pipeline = pipeline?;
+    pipeline.keep_order = keeps_order(stated)
         || plan
             .constraints
             .iter()
@@ -563,6 +641,7 @@ fn stages_of(shape: Option<&Value>, policies: &Policies) -> Result<Stages, Strin
         }
     }
     Ok(Stages {
+        derived: Vec::new(),
         distinct_by: texts(shape, "distinct_by"),
         group_by,
         aggregates,

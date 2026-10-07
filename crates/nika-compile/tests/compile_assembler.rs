@@ -8,9 +8,7 @@
 use nika_compile::{
     AuthoringPolicy, CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind,
 };
-use nika_compile_cognition::{
-    Cognition, NoProvider, compile_with_cognition, compile_with_provider,
-};
+use nika_compile_cognition::compile_with_provider;
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, StopReason,
     TokenUsage,
@@ -68,32 +66,26 @@ async fn compile_approved(intent: &str, plan: &Value, answers: &[(&str, &str)]) 
         .unwrap()
 }
 
-/// The answer-round door the CLI control uses: a trusted recorded plan replayed for its
-/// intent, zero provider calls.
-fn replay(intent: &str, record: &Value, answers: &[(&str, &str)]) -> CompileOutcome {
+/// The answer round of a trusted recorded plan for its intent, over the observed world.
+fn answered(intent: &str, record: &Value, answers: &[(&str, &str)]) -> CompileRequest {
     let mut request =
         (CompileRequest::create(intent).with_plan(record.clone())).with_knowledge(world());
     for (key, literal) in answers {
         request = request.answer(*key, *literal);
     }
-    nika_compile::compile(&request).unwrap()
+    request
 }
 
-/// The same answer round under this round's judge, the explicit approving double over a seat
-/// that settles no other choice (R4 A11): the record's unverified remainder is judged, its
-/// closed duties replay as they are.
+/// The answer-round door the CLI control uses, zero provider calls. It permits no judge, so a
+/// model's plan (COLD, WARM) stays INCOMPLETE on its whole request (R4 A11): it asks, or holds.
+fn replay(intent: &str, record: &Value, answers: &[(&str, &str)]) -> CompileOutcome {
+    nika_compile::compile(&answered(intent, record, answers)).unwrap()
+}
+
+/// The same answer round under this round's approving judge (R4 A11): the record's pending
+/// remainder (a model plan's whole request among it) is judged, its closed duties replay as is.
 async fn replay_approved(intent: &str, record: &Value, answers: &[(&str, &str)]) -> CompileOutcome {
-    let mut request =
-        (CompileRequest::create(intent).with_plan(record.clone())).with_knowledge(world());
-    for (key, literal) in answers {
-        request = request.answer(*key, *literal);
-    }
-    let judge = common::JudgedSeat::approving(&common::NoChoice);
-    let cognition = Cognition::<NoProvider> {
-        provider: None,
-        seat: Some(&judge),
-    };
-    compile_with_cognition(&request, cognition).await.unwrap()
+    common::approved_round(&answered(intent, record, answers)).await
 }
 
 fn keys(out: &CompileOutcome) -> Vec<&str> {
@@ -276,8 +268,8 @@ const TICKET_ANSWERS: [(&str, &str); 4] = [
 // `cannot index [array] with "T-4471"`. A lookup detail naming one JSON file and an
 // identifier binds the file, keeps the identifier as a constant, asks only which field
 // holds it, and selects the one record so later steps see the record alone.
-#[test]
-fn a_lookup_by_identifier_in_a_json_file_selects_the_one_record() {
+#[tokio::test]
+async fn a_lookup_by_identifier_in_a_json_file_selects_the_one_record() {
     let asked = replay(TICKET, &ticket_record(), &TICKET_ANSWERS);
     assert_eq!(keys(&asked), ["const.ticket_id_field"], "{asked:#?}");
     let text = label(&asked, "const.ticket_id_field");
@@ -285,7 +277,7 @@ fn a_lookup_by_identifier_in_a_json_file_selects_the_one_record() {
     assert!(text.contains("T-4471"), "{text}");
     let mut answers = TICKET_ANSWERS.to_vec();
     answers.push(("const.ticket_id_field", r#""id""#));
-    let out = replay(TICKET, &ticket_record(), &answers);
+    let out = replay_approved(TICKET, &ticket_record(), &answers).await;
     let doc = document(&out);
     assert_eq!(
         doc["const"]["ticket_directory"], "./data/tickets.json",
@@ -489,14 +481,18 @@ fn filter_record(source: &str, rule: &str, target: &str) -> Value {
       "constraints":[],"unknowns":[],"trigger":null,"strategy":"cold"})
 }
 
-#[test]
-fn an_equality_rule_on_a_status_column_is_synthesized() {
+#[tokio::test]
+async fn an_equality_rule_on_a_status_column_is_synthesized() {
     let record = filter_record(
         "./data/orders.csv",
         "keep only the rows whose status is refunded",
         "./out/refunded.csv",
     );
-    let out = replay(REFUNDED, &record, &[]);
+    // With no judge, the same bytes wait for the round's judge (R4 A11).
+    let plain = replay(REFUNDED, &record, &[]);
+    common::assert_waits_for_its_judge(&plain, REFUNDED);
+    let out = replay_approved(REFUNDED, &record, &[]).await;
+    assert_eq!(out.candidate, plain.candidate, "{out:#?}");
     assert_eq!(keys(&out), Vec::<&str>::new(), "{out:#?}");
     let doc = document(&out);
     assert_eq!(
@@ -523,7 +519,7 @@ fn an_equality_rule_on_a_status_column_is_synthesized() {
         "keep only the rows whose status is \"Shipped\" and whose amount_eur is at least 120",
         "./out/shipped.csv",
     );
-    let out = replay(intent, &record, &[]);
+    let out = replay_approved(intent, &record, &[]).await;
     let doc = document(&out);
     assert_eq!(
         compute_rule(&doc),
@@ -543,8 +539,8 @@ const FOLDED: &str = "Read ./data/orders.csv (columns order_id,customer,amount,s
 // what the summary stage computes: the rule is still synthesized, the summary becomes an
 // output, and no question is asked. The one-line note itself needs the draft the seat
 // dropped; that is the reader's fidelity, not a rule question.
-#[test]
-fn a_count_and_total_folded_into_the_rule_is_the_summary_stage() {
+#[tokio::test]
+async fn a_count_and_total_folded_into_the_rule_is_the_summary_stage() {
     let mut record = filter_record(
         "./data/orders.csv",
         "keep only the rows whose amount is strictly greater than 100 and how many rows were kept and the total of their amounts",
@@ -557,7 +553,7 @@ fn a_count_and_total_folded_into_the_rule_is_the_summary_stage() {
         .as_array_mut()
         .unwrap()
         .push(json!({"role":"path","literal":"./out/note.md"}));
-    let out = replay(FOLDED, &record, &[]);
+    let out = replay_approved(FOLDED, &record, &[]).await;
     assert_eq!(keys(&out), Vec::<&str>::new(), "{out:#?}");
     let doc = document(&out);
     assert_eq!(
@@ -600,17 +596,21 @@ fn a_count_and_total_folded_into_the_rule_is_the_summary_stage() {
         "keep only the rows whose amount is strictly greater than 100",
         "./out/big.csv",
     );
-    let doc = document(&replay(PLAIN, &plain, &[]));
+    let doc = document(&replay_approved(PLAIN, &plain, &[]).await);
     assert!(tasks(&doc).get("compute_summary").is_none(), "{doc:#}");
+    // Refused with no judge and under an approving judge alike.
     let refused = replay(FOLDED, &plain, &[]);
-    assert_ne!(refused.status, CompileStatus::Ready, "{refused:#?}");
-    assert!(
-        refused
-            .diagnostics
-            .iter()
-            .any(|d| d.target == "fidelity" && d.message.contains("./out/note.md")),
-        "{refused:#?}"
-    );
+    let judged = replay_approved(FOLDED, &plain, &[]).await;
+    for refused in [refused, judged] {
+        assert_ne!(refused.status, CompileStatus::Ready, "{refused:#?}");
+        assert!(
+            refused
+                .diagnostics
+                .iter()
+                .any(|d| d.target == "fidelity" && d.message.contains("./out/note.md")),
+            "{refused:#?}"
+        );
+    }
 }
 
 /// The folded request without its note clause: what the plain record answers.
@@ -649,9 +649,9 @@ async fn an_unresolvable_rule_still_asks_for_the_expression() {
 // chapters missing. A request that distributes its draft over the files is a for_each
 // draft per item, a per-item law, and a fold in item order; the order and heading
 // instructions are structure now, not prompt text.
-#[test]
-fn per_file_summaries_become_a_for_each_draft_folded_with_one_heading_per_file() {
-    let out = replay(CHAPTERS, &chapters_record(), &[MODEL]);
+#[tokio::test]
+async fn per_file_summaries_become_a_for_each_draft_folded_with_one_heading_per_file() {
+    let out = replay_approved(CHAPTERS, &chapters_record(), &[MODEL]).await;
     let doc = document(&out);
     assert_eq!(
         doc["const"]["source_paths"],
@@ -836,7 +836,7 @@ async fn a_body_whose_keys_the_request_states_is_those_keys_over_produced_values
       "effects":[{"verb":"send","target":"POST it to http://127.0.0.1:18471/hooks/digest with the JSON body {digest}","policy":"automatic","evidence":"POST it to http://127.0.0.1:18471/hooks/digest with the JSON body {digest}","policy_literal":null}],
       "obligations":[],"bindings":[{"role":"path","literal":"./notes.md"},{"role":"url","literal":"http://127.0.0.1:18471/hooks/digest"}],
       "constraints":[],"unknowns":[],"trigger":null,"strategy":"cold"});
-    let out = replay(intent, &record, &[MODEL]);
+    let out = replay_approved(intent, &record, &[MODEL]).await;
     assert_eq!(out.status, CompileStatus::Ready, "{out:#?}");
     assert_eq!(
         document(&out)["tasks"]["send_payload"]["invoke"]["args"]["expression"],
@@ -1292,17 +1292,17 @@ async fn a_directory_is_never_read_as_one_file_it_asks_for_a_glob_then_fans_out(
 
 #[tokio::test]
 async fn a_placeholder_path_asks_for_the_exact_files() {
-    // Explicit enough for the deterministic reader: zero model calls, one placeholder.
+    // Read without a plan call, one placeholder; the author's judge checks it before READY (R1).
     let intent = "Read ./catalog/<slug>.md and write the text to ./out/blurbs.md.";
     let plan = json!({"steps":[
         {"op":"read","detail":"./catalog/<slug>.md","evidence":"Read ./catalog/<slug>.md"}],
       "effects":[{"verb":"write","target":"./out/blurbs.md","policy":"automatic","evidence":"write the text to ./out/blurbs.md"}],
       "obligations":[],"constraints":[],"unknowns":[]});
-    let asked = compile(intent, &plan, &[]).await;
+    let asked = compile_approved(intent, &plan, &[]).await;
     assert_eq!(keys(&asked), ["const.source_paths"], "{asked:#?}");
-    let rejected = compile(intent, &plan, &[("const.source_paths", r#"["./catalog"]"#)]).await;
-    assert_eq!(keys(&rejected), ["const.source_paths"], "{rejected:#?}");
-    let out = compile(
+    let dir = compile_approved(intent, &plan, &[("const.source_paths", r#"["./catalog"]"#)]).await;
+    assert_eq!(keys(&dir), ["const.source_paths"], "{dir:#?}");
+    let out = compile_approved(
         intent,
         &plan,
         &[(

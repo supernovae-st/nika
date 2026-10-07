@@ -122,7 +122,7 @@ fn authenticated_harness_takes_the_arrow_with_zero_key_zero_download() {
         "{choice:?}"
     );
     let dir = tempfile::tempdir().expect("tmp");
-    let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
+    let human = render_human_at(&choice, Theme::new(false, false, false), Some(dir.path()));
     assert!(human.contains("Claude Code"), "{human}");
     assert!(human.contains("nika compile hello hello.nika"), "{human}");
     assert!(!human.contains("xai/grok-4"), "{human}");
@@ -170,7 +170,7 @@ fn a_signed_in_app_without_its_acp_adapter_is_not_ready() {
     // Still SHOWN, and still useful — hiding Claude Code from someone who
     // has it would trade one lie for another.
     assert!(harness.available, "the app is here: {choice:?}");
-    let human = choice.render_human_at(Theme::new(false, false, false), None);
+    let human = render_human_at(&choice, Theme::new(false, false, false), None);
     assert!(human.contains("Claude Code"), "{human}");
     // R4 — the row names the wall (the ACP adapter) and the door
     // (`nika doctor` carries the install line); it no longer teaches
@@ -250,7 +250,7 @@ fn doctor_json_names_env_vars_never_values() {
         &["ANTHROPIC_API_KEY"],
         true,
     ));
-    let json = choice.doctor_cascade_json();
+    let json = doctor_cascade_json(&choice);
     let dumped = json.to_string();
     assert!(dumped.contains("ANTHROPIC_API_KEY"));
     assert!(!dumped.contains("sk-"));
@@ -264,8 +264,8 @@ fn doctor_json_names_env_vars_never_values() {
 fn tty_and_pipe_project_the_same_product() {
     let choice = collect_from(&machine(Some(8), vec![], false, &[], false));
     let dir = tempfile::tempdir().expect("tmp");
-    let a = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
-    let b = choice.render_human_at(Theme::new(false, true, false), Some(dir.path()));
+    let a = render_human_at(&choice, Theme::new(false, false, false), Some(dir.path()));
+    let b = render_human_at(&choice, Theme::new(false, true, false), Some(dir.path()));
     assert!(a.contains("Local first"));
     assert!(b.contains("Local first"));
     assert!(a.contains("Next:"));
@@ -406,7 +406,7 @@ fn pull_repo_dir_strips_the_quant() {
 fn chosen_access_is_the_seat_when_harness_has_the_arrow() {
     let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
     assert_eq!(choice.chosen_access.as_deref(), Some("claude-code"));
-    let json = choice.doctor_cascade_json();
+    let json = doctor_cascade_json(&choice);
     assert_eq!(json["chosen_access"], "claude-code");
 }
 
@@ -414,7 +414,7 @@ fn chosen_access_is_the_seat_when_harness_has_the_arrow() {
 fn next_for_a_ready_harness_is_new_hello() {
     let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
     let dir = tempfile::tempdir().expect("tmp");
-    let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
+    let human = render_human_at(&choice, Theme::new(false, false, false), Some(dir.path()));
     assert!(human.contains("nika compile hello hello.nika"), "{human}");
     // « this hardware », not « this machine »: the mirror body's
     // `this machine` section is the environment one, and the same two
@@ -464,7 +464,7 @@ fn unready_local_next_is_new_hello_not_a_seven_gb_pull() {
     let choice = collect_from(&machine(Some(18), vec![], false, &[], true));
     assert_eq!(choice.arrow, "local");
     let dir = tempfile::tempdir().expect("tmp");
-    let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
+    let human = render_human_at(&choice, Theme::new(false, false, false), Some(dir.path()));
     let after = human.split("Next:").nth(1).expect("Next: block");
     assert!(
         after.contains("nika compile hello hello.nika"),
@@ -489,7 +489,7 @@ fn next_after_hello_exists_is_run_not_new() {
     let choice = collect_from(&machine(Some(18), vec![], false, &[], true));
     let dir = tempfile::tempdir().expect("tmp");
     std::fs::write(dir.path().join("hello.nika"), "nika: hello\n").expect("seed");
-    let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
+    let human = render_human_at(&choice, Theme::new(false, false, false), Some(dir.path()));
     let after = next_block(&human);
     assert!(
         after.contains("nika run hello.nika"),
@@ -506,7 +506,7 @@ fn next_after_hello_with_harness_is_run_not_a_pin() {
     let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
     let dir = tempfile::tempdir().expect("tmp");
     std::fs::write(dir.path().join("hello.nika"), "nika: hello\n").expect("seed");
-    let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
+    let human = render_human_at(&choice, Theme::new(false, false, false), Some(dir.path()));
     let after = next_block(&human);
     assert!(
         after.contains("nika run hello.nika"),
@@ -529,7 +529,7 @@ fn next_prefers_hello_when_other_workflows_sit_beside_it() {
     let dir = tempfile::tempdir().expect("tmp");
     std::fs::write(dir.path().join("hello.nika"), "nika: hello\n").expect("hello");
     std::fs::write(dir.path().join("other.nika"), "nika: other\n").expect("other");
-    let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
+    let human = render_human_at(&choice, Theme::new(false, false, false), Some(dir.path()));
     let after = next_block(&human);
     assert!(
         after.contains("nika run hello.nika"),
@@ -543,11 +543,451 @@ fn next_with_two_non_hello_files_is_bare_run() {
     let dir = tempfile::tempdir().expect("tmp");
     std::fs::write(dir.path().join("a.nika"), "nika: a\n").expect("a");
     std::fs::write(dir.path().join("b.nika"), "nika: b\n").expect("b");
-    let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
+    let human = render_human_at(&choice, Theme::new(false, false, false), Some(dir.path()));
     let after = next_block(&human);
     assert!(
         after.contains("nika run"),
         "several files → the lazy door, not another scaffold:\n{human}"
     );
     assert!(!after.contains("nika compile hello hello.nika"), "{human}");
+}
+
+/// The seat-cascade byte oracle: every expected digest below was captured
+/// by running the immutable pre-move renderer on these
+/// same inputs, never by the renderer under test. The doctor cascade case
+/// composes the doctor machine report with this cascade exactly as the
+/// doctor `--json` lane does (`v["cascade"] = …`, pretty-printed).
+mod cascade_oracle {
+    use super::*;
+    use crate::doctor::{Finding, Level};
+    use crate::probe::AdoptionState;
+    use nika_providers::census::AccessCensus;
+    use nika_providers::probe::{AccessClass, ExecutionLocus, ProviderProbe, ProviderReadiness};
+    use sha2::{Digest as _, Sha256};
+
+    fn themes() -> [(&'static str, Theme); 5] {
+        [
+            ("plain", Theme::new(false, false, false)),
+            ("color", Theme::new(true, false, false)),
+            ("ascii", Theme::new(false, true, false)),
+            ("color_ascii", Theme::new(true, true, false)),
+            ("animate", Theme::new(true, false, true)),
+        ]
+    }
+
+    fn machines() -> Vec<(&'static str, Machine)> {
+        vec![
+            ("bare8", machine(Some(8), vec![], false, &[], false)),
+            ("unknown_ram", machine(None, vec![], false, &[], false)),
+            (
+                "seat18",
+                machine(Some(18), vec![claude()], false, &[], true),
+            ),
+            (
+                "no_adapter",
+                machine(
+                    Some(18),
+                    vec![claude_without_its_adapter()],
+                    false,
+                    &["ANTHROPIC_API_KEY"],
+                    true,
+                ),
+            ),
+            (
+                "keys64",
+                machine(
+                    Some(64),
+                    vec![],
+                    true,
+                    &["MISTRAL_API_KEY", "OPENAI_API_KEY"],
+                    false,
+                ),
+            ),
+            (
+                "seat_pulled32",
+                machine(Some(32), vec![claude()], true, &["XAI_API_KEY"], false),
+            ),
+        ]
+    }
+
+    fn findings() -> Vec<Finding> {
+        let row = |level, label: &str, detail: &str, fix: Option<&str>| Finding {
+            level,
+            label: label.to_owned(),
+            detail: detail.to_owned(),
+            fix: fix.map(str::to_owned),
+        };
+        vec![
+            row(Level::Ok, "binary", "v0.0.0-tëst ✨", None),
+            row(
+                Level::Warn,
+                "keys",
+                "a \"quoted\" \\ detail",
+                Some("export X=1"),
+            ),
+            row(
+                Level::Fail,
+                "config",
+                "broken\nsecond line",
+                Some("nika wire claude"),
+            ),
+        ]
+    }
+
+    fn census() -> AccessCensus {
+        let probe = |id: &str, var: &str, present: bool, locus| {
+            ProviderProbe::new(
+                id,
+                !var.is_empty(),
+                present,
+                var,
+                true,
+                ProviderReadiness::new(
+                    true,
+                    present || var.is_empty(),
+                    None,
+                    None,
+                    false,
+                    locus,
+                    if var.is_empty() {
+                        AccessClass::Local
+                    } else {
+                        AccessClass::Api
+                    },
+                ),
+                format!("https://{id}.example/v1"),
+            )
+        };
+        AccessCensus::from_parts(
+            &[
+                probe("mistral", "MISTRAL_API_KEY", true, ExecutionLocus::Cloud),
+                probe("deepseek", "DEEPSEEK_API_KEY", false, ExecutionLocus::Cloud),
+                probe("ollama", "", false, ExecutionLocus::Loopback),
+            ],
+            vec![],
+        )
+    }
+
+    pub(super) fn cases(
+        cascade: &dyn Fn(&InferenceChoice) -> serde_json::Value,
+    ) -> Vec<(String, String)> {
+        let nexts = [
+            ("hello", "nika compile hello hello.nika"),
+            ("quoted", "nika run \"é.nika\" --var x=\\\\"),
+            ("try", "nika try 01-hello"),
+        ];
+        let states = [
+            ("installed", AdoptionState::Installed),
+            ("local_detected", AdoptionState::LocalDetected),
+            ("local_reachable", AdoptionState::LocalReachable),
+            ("key_present", AdoptionState::KeyPresent),
+            ("seat_ready", AdoptionState::SeatReady),
+            ("real_ready", AdoptionState::RealReady),
+        ];
+        let mut out = Vec::new();
+        for (m, machine) in machines() {
+            let choice = collect_from(&machine);
+            for (n, next) in nexts {
+                for (t, theme) in themes() {
+                    let text = choice.render_human_next(theme, next);
+                    let sober = crate::display::vocab::sober(theme, &text);
+                    out.push((format!("{m}/human/{n}/{t}/raw"), text));
+                    out.push((format!("{m}/human/{n}/{t}/sober"), sober));
+                }
+                let v = choice.welcome_json(next);
+                out.push((format!("{m}/welcome/{n}/compact"), v.to_string()));
+                out.push((format!("{m}/welcome/{n}/pretty"), format!("{v:#}")));
+            }
+            let v = cascade(&choice);
+            out.push((format!("{m}/cascade/compact"), v.to_string()));
+            out.push((format!("{m}/cascade/pretty"), format!("{v:#}")));
+            for (s, state) in states {
+                for (c, census) in [("empty", AccessCensus::default()), ("paths", census())] {
+                    let raw = crate::doctor::render_json(&findings(), state, &[], &census);
+                    let mut v: serde_json::Value =
+                        serde_json::from_str(&raw).expect("doctor JSON parses");
+                    v["cascade"] = cascade(&choice);
+                    out.push((format!("{m}/doctor/{s}/{c}/raw"), raw));
+                    out.push((format!("{m}/doctor/{s}/{c}/cascade"), format!("{v:#}")));
+                }
+            }
+        }
+        out
+    }
+
+    /// `(group, cases, sha256)` per leading two name segments, in order.
+    pub(super) fn groups(cases: &[(String, String)]) -> Vec<(String, usize, String)> {
+        let mut out: Vec<(String, usize, Sha256)> = Vec::new();
+        for (name, text) in cases {
+            let key = name.splitn(3, '/').take(2).collect::<Vec<_>>().join("/");
+            if out.last().is_none_or(|(k, _, _)| *k != key) {
+                out.push((key, 0, Sha256::new()));
+            }
+            if let Some((_, n, hasher)) = out.last_mut() {
+                *n += 1;
+                hasher.update(name.as_bytes());
+                hasher.update([0]);
+                hasher.update(text.len().to_string().as_bytes());
+                hasher.update([0]);
+                hasher.update(text.as_bytes());
+            }
+        }
+        out.into_iter()
+            .map(|(k, n, h)| (k, n, format!("{:x}", h.finalize())))
+            .collect()
+    }
+
+    /// `(group, cases, sha256)` captured from the pre-move code; never recomputed by the code under test.
+    const EXPECTED: &[(&str, usize, &str)] = &[
+        (
+            "bare8/human",
+            10,
+            "abe8048e811b958d227f3d943933c8f1e7f30abaa7830f1b5594bf543415bbd8",
+        ),
+        (
+            "bare8/welcome",
+            2,
+            "1d718afb4718bc54152a43a4a5512214a61110b7666e7c135febbeb172cbe6c8",
+        ),
+        (
+            "bare8/human",
+            10,
+            "d3b29c0aa64830b2cee2232af1f03a164c92823368f29020f85c8bec8c80886c",
+        ),
+        (
+            "bare8/welcome",
+            2,
+            "171b3d26341151b37c0a916aec87da25c33ecf58ac6358b6dac9dc6297ce8e6e",
+        ),
+        (
+            "bare8/human",
+            10,
+            "9a87362a3431f143e4891a0b034e714c54caa59dde79ac7ba7f8afde56e889f1",
+        ),
+        (
+            "bare8/welcome",
+            2,
+            "26ac933b7f71f7828485b342907a6cfbdd9fea781cef706e58a7519a94c82725",
+        ),
+        (
+            "bare8/cascade",
+            2,
+            "d8927ab11f59c7a1e53f89c3d86de0768954107b57f00add9dbf9e3015314621",
+        ),
+        (
+            "bare8/doctor",
+            24,
+            "c29a390f4d8d224c7f0285f7b45bd204550bb5f6f89f51a70fed397441f9eea9",
+        ),
+        (
+            "unknown_ram/human",
+            10,
+            "f90913995cb80bcddf530faf110c07b8e5369e8c19dd5341974b72ac2de8cb22",
+        ),
+        (
+            "unknown_ram/welcome",
+            2,
+            "bdcedc09ba2b65f5dc2ef7d9f9cb6217f37d3a33abe135956412e829e987f42a",
+        ),
+        (
+            "unknown_ram/human",
+            10,
+            "4c9573e06e82ef8158547d10e161c0c046e502c4582f210f923d86987481394d",
+        ),
+        (
+            "unknown_ram/welcome",
+            2,
+            "84e6adbdc0bfad780758952bee7495427dfac560ec2a751febee7669446de33e",
+        ),
+        (
+            "unknown_ram/human",
+            10,
+            "e7e57f0e5a255e83e359b1cd64d9197acdfc93f3c35ccb721e887f4b67c854be",
+        ),
+        (
+            "unknown_ram/welcome",
+            2,
+            "28cf56955bde84117d621fc2233d005d3bcd5f6f4f54c859b8f9ee4a8f9765b3",
+        ),
+        (
+            "unknown_ram/cascade",
+            2,
+            "5bbfe309ac624c30b3fdff3e3bd8f63a4dade305dfdba0acc29b1a093b570e9c",
+        ),
+        (
+            "unknown_ram/doctor",
+            24,
+            "42002eb979a8d22d6b4c5e85061e89dd54348bb1a9a4b230a2a0577c473f8465",
+        ),
+        (
+            "seat18/human",
+            10,
+            "6510d1b3a4b4e9714747854bdd5979e209084becaa598d5515eb71c58aae483a",
+        ),
+        (
+            "seat18/welcome",
+            2,
+            "8509d85a81a6aebb84a3b92e02407b69a568717b338f39b57832475ea42e2a6c",
+        ),
+        (
+            "seat18/human",
+            10,
+            "48558be399bd80405a0b6c7fc6a478da82736410367b3561b2a140a935ba2715",
+        ),
+        (
+            "seat18/welcome",
+            2,
+            "659ef7ad867372f70cf197d346397d194f271ecfe4d6389b908c347cd5c014b3",
+        ),
+        (
+            "seat18/human",
+            10,
+            "ade9ca06dc780bf9c76bb4ea65d15b0087dca7535603a3583be1e0fed6a1b707",
+        ),
+        (
+            "seat18/welcome",
+            2,
+            "ee34da49fa8e76afdf75d30872901dded6dedf57dac1246b2fae771a9ae847d0",
+        ),
+        (
+            "seat18/cascade",
+            2,
+            "8b19e621fd6cd5c11d9782ef8737a0b3021b06ed75a48baa3f52f25861233e92",
+        ),
+        (
+            "seat18/doctor",
+            24,
+            "48f41d9f4cef44b54b1175fd9d3f640423e53a5f9026cc7bc92588740289d8fb",
+        ),
+        (
+            "no_adapter/human",
+            10,
+            "c7fc427e0027f45b0b867ce686583f130f29bd75d6fb7148d77fd8046af81eac",
+        ),
+        (
+            "no_adapter/welcome",
+            2,
+            "c2dd0494803b92e075de4cad9bbcdb29d786c95bad00c51966b271c5c8fb49dc",
+        ),
+        (
+            "no_adapter/human",
+            10,
+            "f50a1c0f03339c2c6e9d535913a0ef9ed74525a2384a27b0f2c0a2a71c939f2c",
+        ),
+        (
+            "no_adapter/welcome",
+            2,
+            "9c13a572f1c721454b923a0da0908d3a199c6cf63cadb12beb68f5de952449a7",
+        ),
+        (
+            "no_adapter/human",
+            10,
+            "93ce891fbcf0735f580f3c967368d19bc006db8dfc3aec2dc22f1d01eb69b27c",
+        ),
+        (
+            "no_adapter/welcome",
+            2,
+            "2cb53dd853d417d9612053d4d04582ae87b77400a3e26f69be9e193c17ed68ea",
+        ),
+        (
+            "no_adapter/cascade",
+            2,
+            "4e2aa9d9f60b54872d68cbd18e6fe8262ed9dade5fd54b8b31caa0989ed0b3e9",
+        ),
+        (
+            "no_adapter/doctor",
+            24,
+            "69fcd84c8ae0075b61bedc1fa4951f8d89f901e8dd33a2907a91ada81bceb5a2",
+        ),
+        (
+            "keys64/human",
+            10,
+            "0c18d625c483bd5b0f5c5dafb35b0f0d313c0516c0c96420f15450a10294cdc3",
+        ),
+        (
+            "keys64/welcome",
+            2,
+            "ebc2e3544e1e7ef9f008c56e96581e2f1710cffec3d1decda6e10edc5045146e",
+        ),
+        (
+            "keys64/human",
+            10,
+            "496e357b178dc4019bc93ccfe98fdb7d3d59d689575bc44763dc69b3cdf82e3a",
+        ),
+        (
+            "keys64/welcome",
+            2,
+            "ae62723589d6c5a1998c5f021d987d818b32f82619bf6fa6836e3dea450da37e",
+        ),
+        (
+            "keys64/human",
+            10,
+            "3333e6f6610259dfeece6635b9251df236268825622b56595c098a364ad42cd0",
+        ),
+        (
+            "keys64/welcome",
+            2,
+            "de035d3219473c5d47fd15010ded297328337e7395152600470efa83ba1ae5ce",
+        ),
+        (
+            "keys64/cascade",
+            2,
+            "d203166e929c4ab00441f29e19de1858c26911249c264565506a6316732d83dd",
+        ),
+        (
+            "keys64/doctor",
+            24,
+            "e7cc6560cb2c4d917f5b74fe5b8e406e19dcb1c1ba5317fe07db8891416f923e",
+        ),
+        (
+            "seat_pulled32/human",
+            10,
+            "c904f61a4c6229f9842da3b38585bae53165a2e210ccd4d68e15c94bc84ccced",
+        ),
+        (
+            "seat_pulled32/welcome",
+            2,
+            "55ea426cedb0cddbc46fa922baaa42fe3fec89c6a3e5153379fd8a09c4e4aae5",
+        ),
+        (
+            "seat_pulled32/human",
+            10,
+            "99de1f120bf66f518f8913bd8584c909602888ca6997de63d59360f04ca9b09d",
+        ),
+        (
+            "seat_pulled32/welcome",
+            2,
+            "d1e731de7c6c49936ed54433071efc51a65ba4e5a2ea9f02b472976bee22ddca",
+        ),
+        (
+            "seat_pulled32/human",
+            10,
+            "9665e5bb770f392cf0d12d060248f9d2e0dd21a5ffd425c097c6f192e77544e2",
+        ),
+        (
+            "seat_pulled32/welcome",
+            2,
+            "0b9899f1d946f93972774a6b77a0bfbcd5133e8aee04fa6a2c7dbdf65f793306",
+        ),
+        (
+            "seat_pulled32/cascade",
+            2,
+            "da4d432a390739b0393eeb12a09644bbc75b61ff6025687789791a0d50ff168d",
+        ),
+        (
+            "seat_pulled32/doctor",
+            24,
+            "ebfcf42461773d39a5451de1374fe8aa935ec3e12ed90e9854241651fae4aa66",
+        ),
+    ];
+
+    #[test]
+    fn the_cascade_renders_the_pre_move_bytes() {
+        let cases = cases(&doctor_cascade_json);
+        let want: Vec<(String, usize, String)> = EXPECTED
+            .iter()
+            .map(|(g, n, s)| ((*g).to_owned(), *n, (*s).to_owned()))
+            .collect();
+        assert_eq!(groups(&cases), want);
+    }
 }

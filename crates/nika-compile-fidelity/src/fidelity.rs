@@ -395,7 +395,7 @@ fn occurrences(text: &str, literal: &str) -> Vec<usize> {
 /// directory, home, glob or placeholder): the path of the single positive observation (state
 /// `observed`) whose last component is that name, byte for byte. `None` without one, for
 /// another name, and when two observed files share it: the request does not say which.
-fn placed(world: Option<&Value>, name: &str) -> Option<String> {
+pub(crate) fn placed(world: Option<&Value>, name: &str) -> Option<String> {
     if matches!(name, "" | "." | "..")
         || name.starts_with('~')
         || name.contains(['/', '\\', '*', '?', '[', '{', '<', '>', '$'])

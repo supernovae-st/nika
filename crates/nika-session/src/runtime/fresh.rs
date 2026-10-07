@@ -52,6 +52,15 @@ impl SessionRuntime {
         request: Option<CompileRequest>,
         out: &CompileOutcome,
     ) {
+        if let Some(source) = out.candidate.as_deref() {
+            nika_onboard::compile::program_records::remember(
+                &mut self.programs,
+                nika_onboard::compile::program_records::Place::Proposal(&id.to_string()),
+                source,
+                out.provenance.plan.as_ref(),
+                &|text| crate::broker::redact(text).0,
+            );
+        }
         self.basis = request.map(|request| ProposalBasis {
             id: id.clone(),
             bytes: witnesses(set),

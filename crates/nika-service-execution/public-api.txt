@@ -6,6 +6,7 @@ pub fn nika_service_execution::access::access_probes_env() -> alloc::vec::Vec<ni
 pub fn nika_service_execution::access::boot_access_fields(plan: &nika_providers::plan::ExecutionAccessPlan) -> alloc::vec::Vec<(&'static str, nika_types::resource::Value)>
 pub fn nika_service_execution::access::lane_rows(plan: &nika_providers::plan::ExecutionAccessPlan) -> alloc::vec::Vec<serde_json::value::Value>
 pub fn nika_service_execution::access::model_needs(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport) -> alloc::vec::Vec<nika_providers::plan::ModelNeed>
+pub fn nika_service_execution::access::provider_probes_env() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
 pub fn nika_service_execution::access::resolve_plan(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, model_override: core::option::Option<&str>, pin: core::option::Option<&str>) -> nika_providers::plan::ExecutionAccessPlan
 pub fn nika_service_execution::access::resolve_plan_over(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, model_override: core::option::Option<&str>, pin: core::option::Option<&str>, probes: &[nika_providers::probe::ProviderProbe]) -> nika_providers::plan::ExecutionAccessPlan
 pub fn nika_service_execution::access::verb_needs(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_providers::resolve_access::VerbNeeds
@@ -1021,6 +1022,137 @@ impl<T> tracing::instrument::Instrument for nika_service_execution::DeniedTally
 impl<T> tracing::instrument::WithSubscriber for nika_service_execution::DeniedTally
 impl<T> typenum::type_operators::Same for nika_service_execution::DeniedTally
 pub type nika_service_execution::DeniedTally::Output = T
+#[non_exhaustive] pub struct nika_service_execution::IsolatedJq
+impl nika_service_execution::IsolatedJq
+pub fn nika_service_execution::IsolatedJq::bound(&self) -> core::option::Option<nika_service_execution::JqBound>
+pub fn nika_service_execution::IsolatedJq::new(helper: nika_service_execution::JqHelper, deadline: std::time::Instant) -> Self
+impl core::fmt::Debug for nika_service_execution::IsolatedJq
+pub fn nika_service_execution::IsolatedJq::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_service_execution::IsolatedJq
+impl<T, U> core::convert::Into<U> for nika_service_execution::IsolatedJq where U: core::convert::From<T>
+pub fn nika_service_execution::IsolatedJq::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::IsolatedJq where U: core::convert::Into<T>
+pub type nika_service_execution::IsolatedJq::Error = core::convert::Infallible
+pub fn nika_service_execution::IsolatedJq::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::IsolatedJq where U: core::convert::TryFrom<T>
+pub type nika_service_execution::IsolatedJq::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::IsolatedJq::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_service_execution::IsolatedJq where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::IsolatedJq::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::IsolatedJq where T: ?core::marker::Sized
+pub fn nika_service_execution::IsolatedJq::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::IsolatedJq where T: ?core::marker::Sized
+pub fn nika_service_execution::IsolatedJq::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_service_execution::IsolatedJq
+pub fn nika_service_execution::IsolatedJq::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_service_execution::IsolatedJq where T: 'static
+pub fn nika_service_execution::IsolatedJq::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::IsolatedJq where T: ?core::marker::Sized
+pub fn nika_service_execution::IsolatedJq::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::IsolatedJq::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::IsolatedJq
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::IsolatedJq
+impl<T> typenum::type_operators::Same for nika_service_execution::IsolatedJq
+pub type nika_service_execution::IsolatedJq::Output = T
+#[non_exhaustive] pub struct nika_service_execution::JqBound
+pub nika_service_execution::JqBound::reaped: bool
+pub nika_service_execution::JqBound::reason: alloc::string::String
+impl core::clone::Clone for nika_service_execution::JqBound
+pub fn nika_service_execution::JqBound::clone(&self) -> nika_service_execution::JqBound
+impl core::cmp::Eq for nika_service_execution::JqBound
+impl core::cmp::PartialEq for nika_service_execution::JqBound
+pub fn nika_service_execution::JqBound::eq(&self, other: &nika_service_execution::JqBound) -> bool
+impl core::fmt::Debug for nika_service_execution::JqBound
+pub fn nika_service_execution::JqBound::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_service_execution::JqBound
+impl<D> owo_colors::OwoColorize for nika_service_execution::JqBound
+impl<Q, K> equivalent::Equivalent<K> for nika_service_execution::JqBound where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::JqBound::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_service_execution::JqBound where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::JqBound::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_service_execution::JqBound where U: core::convert::From<T>
+pub fn nika_service_execution::JqBound::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::JqBound where U: core::convert::Into<T>
+pub type nika_service_execution::JqBound::Error = core::convert::Infallible
+pub fn nika_service_execution::JqBound::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::JqBound where U: core::convert::TryFrom<T>
+pub type nika_service_execution::JqBound::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::JqBound::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_service_execution::JqBound where T: core::clone::Clone
+pub type nika_service_execution::JqBound::Owned = T
+pub fn nika_service_execution::JqBound::clone_into(&self, target: &mut T)
+pub fn nika_service_execution::JqBound::to_owned(&self) -> T
+impl<T> core::any::Any for nika_service_execution::JqBound where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::JqBound::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::JqBound where T: ?core::marker::Sized
+pub fn nika_service_execution::JqBound::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::JqBound where T: ?core::marker::Sized
+pub fn nika_service_execution::JqBound::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_service_execution::JqBound where T: core::clone::Clone
+pub unsafe fn nika_service_execution::JqBound::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_service_execution::JqBound
+pub fn nika_service_execution::JqBound::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_service_execution::JqBound where T: core::clone::Clone
+pub fn nika_service_execution::JqBound::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_service_execution::JqBound where T: 'static
+pub fn nika_service_execution::JqBound::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::JqBound where T: ?core::marker::Sized
+pub fn nika_service_execution::JqBound::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::JqBound::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::JqBound
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::JqBound
+impl<T> typenum::type_operators::Same for nika_service_execution::JqBound
+pub type nika_service_execution::JqBound::Output = T
+#[non_exhaustive] pub struct nika_service_execution::JqHelper
+impl nika_service_execution::JqHelper
+pub fn nika_service_execution::JqHelper::new(program: impl core::convert::Into<std::path::PathBuf>) -> Self
+pub fn nika_service_execution::JqHelper::program(&self) -> &std::path::Path
+impl core::clone::Clone for nika_service_execution::JqHelper
+pub fn nika_service_execution::JqHelper::clone(&self) -> nika_service_execution::JqHelper
+impl core::cmp::Eq for nika_service_execution::JqHelper
+impl core::cmp::PartialEq for nika_service_execution::JqHelper
+pub fn nika_service_execution::JqHelper::eq(&self, other: &nika_service_execution::JqHelper) -> bool
+impl core::fmt::Debug for nika_service_execution::JqHelper
+pub fn nika_service_execution::JqHelper::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_service_execution::JqHelper
+impl<D> owo_colors::OwoColorize for nika_service_execution::JqHelper
+impl<Q, K> equivalent::Equivalent<K> for nika_service_execution::JqHelper where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::JqHelper::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_service_execution::JqHelper where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_service_execution::JqHelper::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_service_execution::JqHelper where U: core::convert::From<T>
+pub fn nika_service_execution::JqHelper::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_service_execution::JqHelper where U: core::convert::Into<T>
+pub type nika_service_execution::JqHelper::Error = core::convert::Infallible
+pub fn nika_service_execution::JqHelper::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_service_execution::JqHelper where U: core::convert::TryFrom<T>
+pub type nika_service_execution::JqHelper::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_service_execution::JqHelper::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_service_execution::JqHelper where T: core::clone::Clone
+pub type nika_service_execution::JqHelper::Owned = T
+pub fn nika_service_execution::JqHelper::clone_into(&self, target: &mut T)
+pub fn nika_service_execution::JqHelper::to_owned(&self) -> T
+impl<T> core::any::Any for nika_service_execution::JqHelper where T: 'static + ?core::marker::Sized
+pub fn nika_service_execution::JqHelper::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_service_execution::JqHelper where T: ?core::marker::Sized
+pub fn nika_service_execution::JqHelper::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_service_execution::JqHelper where T: ?core::marker::Sized
+pub fn nika_service_execution::JqHelper::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_service_execution::JqHelper where T: core::clone::Clone
+pub unsafe fn nika_service_execution::JqHelper::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_service_execution::JqHelper
+pub fn nika_service_execution::JqHelper::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_service_execution::JqHelper where T: core::clone::Clone
+pub fn nika_service_execution::JqHelper::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_service_execution::JqHelper where T: 'static
+pub fn nika_service_execution::JqHelper::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_service_execution::JqHelper where T: ?core::marker::Sized
+pub fn nika_service_execution::JqHelper::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_service_execution::JqHelper::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_service_execution::JqHelper
+impl<T> tracing::instrument::WithSubscriber for nika_service_execution::JqHelper
+impl<T> typenum::type_operators::Same for nika_service_execution::JqHelper
+pub type nika_service_execution::JqHelper::Output = T
 #[non_exhaustive] pub struct nika_service_execution::ServiceEvent
 impl nika_service_execution::ServiceEvent
 pub const fn nika_service_execution::ServiceEvent::correlation(&self) -> core::option::Option<nika_types::id::CorrelationId>
@@ -1098,6 +1230,7 @@ impl nika_service_execution::ServiceExecutionDriver
 pub fn nika_service_execution::ServiceExecutionDriver::rehearsal_plan(&self, pin: core::option::Option<&str>) -> core::result::Result<nika_providers::plan::ExecutionAccessPlan, nika_service_execution::RehearsalPlanRefusal>
 impl nika_service_execution::ServiceExecutionDriver
 pub async fn nika_service_execution::ServiceExecutionDriver::rehearse_over<F>(&self, fs: alloc::sync::Arc<F>, plan: nika_providers::plan::ExecutionAccessPlan, tally: alloc::sync::Arc<nika_service_execution::DeniedTally>) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime_laws::errors::RuntimeError> where F: nika_kernel_core::io::fs::FsReadDyn + nika_kernel_core::io::fs::FsWriteDyn + nika_kernel_core::io::fs::FsListDyn + nika_kernel_core::io::fs::FsMetaDyn + core::marker::Send + core::marker::Sync + 'static
+pub async fn nika_service_execution::ServiceExecutionDriver::rehearse_over_with<F>(&self, fs: alloc::sync::Arc<F>, plan: nika_providers::plan::ExecutionAccessPlan, tally: alloc::sync::Arc<nika_service_execution::DeniedTally>, jq: core::option::Option<alloc::sync::Arc<nika_service_execution::IsolatedJq>>) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime_laws::errors::RuntimeError> where F: nika_kernel_core::io::fs::FsReadDyn + nika_kernel_core::io::fs::FsWriteDyn + nika_kernel_core::io::fs::FsListDyn + nika_kernel_core::io::fs::FsMetaDyn + core::marker::Send + core::marker::Sync + 'static
 impl core::clone::Clone for nika_service_execution::ServiceExecutionDriver
 pub fn nika_service_execution::ServiceExecutionDriver::clone(&self) -> Self
 impl core::fmt::Debug for nika_service_execution::ServiceExecutionDriver

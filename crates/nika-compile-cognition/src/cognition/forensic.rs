@@ -21,23 +21,18 @@ use crate::{CompileOutcome, CompileRequest, CompileStatus, Strategy};
 /// The generation of this summary. Only a change of a field's meaning bumps it.
 const VERSION: u32 = 1;
 
-/// The route step of the policy that sends CREATE straight to the native source door.
-pub(super) const NATIVE_ONLY: &str = "native: only";
+/// The route step of a fresh CREATE refused because source-only authoring is retired.
+pub(super) const ONLY_RETIRED: &str = "native: only is retired for creation";
 /// The route step of the policy that sends CREATE straight to the sketch door.
 pub(super) const NATIVE_SKETCH: &str = "native: sketch";
-/// The route step of an escalating policy whose request carries attached Foundry references.
-pub(super) const NATIVE_INFORMED: &str = "native: informed generation";
-/// The route step of a plan round that escalated to the native source door.
-pub(super) const NATIVE_ESCALATED: &str = "native: escalated";
-/// The route step of a revision the constant door could not settle.
-pub(super) const EDIT_NATIVE: &str =
-    "edit: the constant door could not settle the change; the seat revises the base";
+/// The route step of a change in words to a base no semantic record binds: kept as it is.
+pub(super) const EDIT_KEPT: &str =
+    "edit: no semantic record binds this base; it is kept as it is and no seat is asked";
 
 /// What this summary cannot observe at all in this version: named, never inferred.
 const NOT_CAPTURED: &[&str] = &[
     "transform_program_proposals: the verified-transform calls keep their journal entries, not their decoded programs",
     "decision_seat_usage: a caller's seat reports usage in its own receipt, outside this compile",
-    "semantic_judge_candidate_binding: verification records do not name the candidate digest they judged",
     "behavioral_satisfaction: no behavioral judge compares observations with the request's obligations",
 ];
 
@@ -121,31 +116,46 @@ fn door(
     route: &[String],
 ) -> Value {
     let has = |step: &str| route.iter().any(|s| s == step);
-    // The sketch door's own route step names it before any record (a floor refusal has none).
-    let sketch = decision["native"].get("sketch").is_some() || has(NATIVE_SKETCH);
+    // The sketch door's own route steps name it before any record (a floor refusal has none):
+    // the policy door before HOT, or a COLD round's composition or escalation. One stopped before
+    // any sketch call (native off, no repair allowance) has no such step and stays the plan
+    // round's own record.
+    let composition = has(super::sketch::COMPOSITION);
+    let escalated = has(super::sketch::ESCALATED);
+    let sketch = decision["native"].get("sketch").is_some()
+        || has(NATIVE_SKETCH)
+        || composition
+        || escalated;
     let (name, reason) = match out.provenance.strategy {
+        // A revision names its own door before any record it binds is read as a replay.
+        _ if has(EDIT_KEPT) => ("none", "record_less_base_kept"),
+        _ if has(super::sketch::revise::ROUTE) => ("sketch", "nonconstant_revision"),
+        _ if has(super::sketch::revise::SOURCE_ROUTE) => {
+            ("source_revision", "record_less_source_revision")
+        }
         _ if request.plan.is_some() => ("replay", "answer_round_replays_a_recorded_plan"),
+        _ if has(super::agenda::READER_CHECKED) => ("hot", "every_clause_read_then_checked"),
+        _ if has(super::agenda::SETTLED_CHECKED) => ("warm", "readings_settled_then_checked"),
         Some(Strategy::Skeleton) => ("skeleton", "exact_skeleton_name"),
         Some(Strategy::Support) => ("support", "exact_support_grammar"),
         Some(Strategy::Hot) => ("hot", "every_clause_read_and_admitted"),
         Some(Strategy::Warm) => ("warm", "finite_ambiguity_settled_by_the_seat"),
         Some(Strategy::Cold) => ("cold_plan", "hot_rejected_and_warm_not_settling"),
         Some(Strategy::Native) => {
-            let reason = if has(EDIT_NATIVE) {
-                "nonconstant_revision"
-            } else if has(NATIVE_SKETCH) {
+            let reason = if has(NATIVE_SKETCH) {
                 "policy_sketch_before_hot"
-            } else if has(NATIVE_ONLY) {
-                "policy_native_only_before_hot"
-            } else if has(NATIVE_INFORMED) {
-                "escalate_with_attached_foundry_references"
-            } else if has(NATIVE_ESCALATED) {
-                "plan_round_escalated"
+            } else if composition {
+                "plan_composition_requires_sketch"
+            } else if has(super::agenda::PLAN_LIMIT) {
+                "plan_computation_needs_the_sketch_door"
+            } else if escalated {
+                "plan_round_escalated_to_sketch"
             } else {
                 "UNKNOWN"
             };
             (if sketch { "sketch" } else { "native_source" }, reason)
         }
+        _ if has(ONLY_RETIRED) => ("none", "native_only_retired_for_creation"),
         _ if route.iter().any(|s| s == "needs cognition") => ("none", "needs_cognition"),
         _ if route.iter().any(|s| s.starts_with("cold: ")) => {
             ("none", "cold_plan_without_candidate")
@@ -159,6 +169,7 @@ fn door(
         (false, _) | (_, "none") => "none",
         (_, "native_source") => "model",
         (_, "sketch") => "compiler_from_model_sketch_and_fills",
+        (_, "source_revision") => "compiler_substitution_of_the_base",
         // A sketch concludes under the native strategy word: its record cannot say whether a
         // model or the compiler wrote the replayed bytes.
         (_, "replay") => match request.plan.as_ref().and_then(|p| p["strategy"].as_str()) {
@@ -213,6 +224,13 @@ fn proposal(request: &CompileRequest, out: &CompileOutcome, decision: &Value) ->
             "why": "source-direct generation: the model wrote the candidate itself and no private semantic plan exists",
             "payload": "decision.native.rounds[*].candidate",
         }),
+        // A reader's or a seat-settled plan the judge passed unrepaired: no model proposed it.
+        Some(Strategy::Cold) if reader_checked(decision) => json!({
+            "author": "reader",
+            "kind": "plan",
+            "state": "deterministic",
+            "assembled_plan_sha256": out.provenance.plan.as_ref().map(plan_sha),
+        }),
         Some(Strategy::Cold) => json!({
             "author": "model",
             "kind": "plan",
@@ -232,6 +250,18 @@ fn proposal(request: &CompileRequest, out: &CompileOutcome, decision: &Value) ->
         }),
         _ => json!({"state": "none"}),
     }
+}
+
+/// Whether the route checked the reader's own (or a seat-settled) plan and no repair rewrote it.
+fn reader_checked(decision: &Value) -> bool {
+    let steps = decision["route"].as_array().into_iter().flatten();
+    let steps: Vec<&str> = steps.filter_map(Value::as_str).collect();
+    let checked = [
+        super::agenda::READER_CHECKED,
+        super::agenda::SETTLED_CHECKED,
+    ];
+    steps.iter().any(|s| checked.contains(s))
+        && !steps.iter().any(|s| s.starts_with("verify: repair"))
 }
 
 /// The finite candidate universe a route built and where it is kept, or that this route built
@@ -409,12 +439,22 @@ fn evidence(out: &CompileOutcome, decision: &Value) -> Value {
         || json!({"state": "not_run"}),
         |attempts| {
             let last = attempts.last().cloned().unwrap_or(Value::Null);
+            let count = |key: &str| last[key].as_array().map_or(0, Vec::len);
+            // Whether the last verdict judged the final candidate's very bytes.
+            let binding = match (last["candidate_sha256"].as_str(), candidate.as_deref()) {
+                (Some(judged), Some(final_bytes)) if judged == final_bytes => "bound",
+                (Some(_), Some(_)) => "other_bytes",
+                _ => "NOT_CAPTURED",
+            };
             json!({
                 "state": "recorded",
                 "attempts": attempts.len(),
-                "last_defects": last["defects"].as_array().map_or(0, Vec::len),
-                "last_unknown": last["unknown"].as_array().map_or(0, Vec::len),
-                "candidate_binding": "NOT_CAPTURED",
+                "last_defects": count("defects"),
+                "last_unknown": count("unknown"),
+                "last_contested": count("contested"),
+                "last_declined": last["declined"] == Value::Bool(true),
+                "last_settled_by": last["settled_by"],
+                "candidate_binding": binding,
             })
         },
     );

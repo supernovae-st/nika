@@ -69,13 +69,15 @@ fn public_turn_zero_http_before_confirmation_one_after_and_observation_survives_
     let _ = restored.turn("hello");
     assert_eq!(peer.bodies().len(), 1);
 }
+/// The classifier's route, then one semantic CREATE of `WORK` (plan, sketch, fills, judge).
+fn created() -> Vec<(u16, Value)> {
+    let mut script = vec![(200, unpriced_response("NEW_WORK"))];
+    script.extend(authored(unpriced_response));
+    script
+}
 #[test]
 fn native_compiler_candidate_requires_separate_save_review() {
-    let peer = Peer::start(vec![
-        (200, unpriced_response("NEW_WORK")),
-        (200, unpriced_response(&native())),
-        (200, unpriced_response(JUDGE_APPROVES)),
-    ]);
+    let peer = Peer::start(created());
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
     let mut s = open_unknown(dir.path());
@@ -85,11 +87,11 @@ fn native_compiler_candidate_requires_separate_save_review() {
     let TurnOutcome::Proposal { id, .. } = out else {
         panic!("native Compiler: {out:?}");
     };
-    assert_eq!(peer.bodies().len(), 3);
+    assert_eq!(peer.bodies().len(), 1 + CREATE_CALLS);
     assert!(!dir.path().join("sortie.txt").exists());
     assert_eq!(s.pending_proposal(), Some(id.clone()));
     assert!(matches!(s.consent_to(&id, "yes"), TurnOutcome::Facts(_)));
-    assert_eq!(peer.bodies().len(), 3);
+    assert_eq!(peer.bodies().len(), 1 + CREATE_CALLS);
 }
 #[test]
 fn defaults_need_explicit_override_and_hard_or_unknown_caps_never_send() {
@@ -270,11 +272,7 @@ fn changed_endpoint_after_review_refuses_before_transport() {
 
 #[test]
 fn revision_has_a_new_cost_question_and_cannot_apply_old_candidate_identity() {
-    let peer = Peer::start(vec![
-        (200, unpriced_response("NEW_WORK")),
-        (200, unpriced_response(&native())),
-        (200, unpriced_response(JUDGE_APPROVES)),
-    ]);
+    let peer = Peer::start(created());
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
     let mut s = open_unknown(dir.path());
@@ -299,18 +297,19 @@ fn revision_has_a_new_cost_question_and_cannot_apply_old_candidate_identity() {
 
 #[test]
 fn confirmed_revision_produces_new_candidate_and_new_save_review() {
-    let mut revised: Value =
-        serde_json::from_str(&native().replace("./sortie.txt", "./revised.txt")).unwrap();
-    revised["gaps"] = json!(["./sortie.txt is superseded by the requested ./revised.txt"]);
-    let revised = revised.to_string();
-    let peer = Peer::start(vec![
-        (200, unpriced_response("NEW_WORK")),
-        (200, unpriced_response(&native())),
-        (200, unpriced_response(JUDGE_APPROVES)),
+    // F01 names the clause replacement; the compiler writes and proves the changed bytes.
+    let revised = json!({"supersedes": [{
+        "replaces": WORK.trim_end_matches('.'),
+        "by": "Change the destination to ./revised.txt"
+    }], "adds": [], "notes": "only the destination changes"})
+    .to_string();
+    let mut script = created();
+    script.extend([
         (200, unpriced_response("MODIFY")),
         (200, unpriced_response(&revised)),
         (200, unpriced_response(JUDGE_APPROVES)),
     ]);
+    let peer = Peer::start(script);
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
     let mut s = open_unknown(dir.path());
@@ -319,14 +318,14 @@ fn confirmed_revision_produces_new_candidate_and_new_save_review() {
         panic!("initial candidate");
     };
     asked(&s.consent("Change the destination to ./revised.txt"));
-    assert_eq!(peer.bodies().len(), 3);
+    assert_eq!(peer.bodies().len(), 1 + CREATE_CALLS);
     assert!(matches!(s.consent_to(&old, "yes"), TurnOutcome::Refusal(_)));
     let out = s.turn("yes");
     let TurnOutcome::Proposal { id: revised_id, .. } = out else {
         panic!("revised candidate: {out:?}");
     };
     assert_ne!(old, revised_id);
-    assert_eq!(peer.bodies().len(), 6);
+    assert_eq!(peer.bodies().len(), 1 + CREATE_CALLS + 3);
     assert!(matches!(s.consent_to(&old, "yes"), TurnOutcome::Refusal(_)));
     assert!(matches!(
         s.consent_to(&revised_id, "yes"),

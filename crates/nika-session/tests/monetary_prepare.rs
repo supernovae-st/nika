@@ -279,6 +279,7 @@ fn zero_and_invalid_money_call_neither_classifier_nor_selected_reasoner() {
         // is explicitly a protocol double, never a real subscription fixture.
         runtime.intelligence.kind = IntelligenceKind::Harness {
             seat: "test-subscription".to_owned(),
+            transport: nika_types::access::HarnessTransport::Native,
         };
         let calls = Arc::new(AtomicUsize::new(0));
         let mut runtime = SessionRuntime::open(
@@ -308,6 +309,7 @@ fn budget_10_subscription_protocol_keeps_unknown_cost_unknown() {
     let mut selected = runtime.intelligence;
     selected.kind = IntelligenceKind::Harness {
         seat: "test-subscription".to_owned(),
+        transport: nika_types::access::HarnessTransport::Native,
     };
     let calls = Arc::new(AtomicUsize::new(0));
     let mut runtime = SessionRuntime::open(dir.path(), selected, Box::new(ReasonCalls(calls)));

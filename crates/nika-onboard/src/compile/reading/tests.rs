@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::compile::{CompileRequest, compile};
+use serde_json::json;
 
 fn read(intent: &str) -> Reading {
     Reading::of(compile(&CompileRequest::create(intent)).expect("compiles"))
@@ -390,4 +391,308 @@ fn a_receipt_with_no_call_says_nothing_was_sent() {
         receipt_words(&receipt, "run"),
         "\n  authoring backend: deepseek/deepseek-v4-pro · 0 calls · 3 ms\n  nothing was sent to: deepseek · host api.deepseek.com\n  cost: the compiler meters tokens, not money · run"
     );
+}
+
+const TIME_HEAD: &str = "The authoring model did not answer within the call's time limit";
+
+fn outcome(target: &str, message: &str, context: Vec<Value>) -> CompileOutcome {
+    let mut out = compile(&CompileRequest::create(
+        "Read ./a.md and do something clever with it, then write ./b.md",
+    ))
+    .expect("outcome");
+    out.status = CompileStatus::Incomplete;
+    out.candidate = None;
+    out.questions.clear();
+    let mut diagnostic = out.diagnostics.first().expect("unsettled finding").clone();
+    diagnostic.kind = DiagnosticKind::Unknown;
+    diagnostic.target = target.to_owned();
+    diagnostic.message = message.to_owned();
+    out.diagnostics = vec![diagnostic];
+    let mut receipt = AuthoringReceipt::new("ollama/qwen3.5:4b".to_owned());
+    receipt.calls = u32::try_from(context.len()).expect("small fixture");
+    receipt.context = context;
+    out.provenance.authoring = Some(receipt);
+    out
+}
+
+fn call(result: &Value) -> Value {
+    json!({"call": "plan", "result": result})
+}
+
+/// The legacy reader recognizes provider prose, which can quote a past timeout during a
+/// present monetary/admission refusal. That phrase alone must not assert a current deadline.
+#[test]
+fn timeout_words_without_a_last_timeout_record_keep_the_budget_headline() {
+    let reason = "the previous call timed out; this request was refused before any byte left";
+    for context in [
+        vec![],
+        vec![call(&json!({"failure_kind": "admission_refused"}))],
+        vec![call(&json!({"failure_kind": "provider_error"}))],
+        vec![call(&json!({"stop_reason": "MaxTokens"}))],
+        vec![
+            call(&json!({"failure_kind": "timeout"})),
+            call(&json!({"failure_kind": "admission_refused"})),
+        ],
+        vec![
+            call(&json!({"failure_kind": "timeout"})),
+            json!({"call": "repair"}),
+        ],
+    ] {
+        let reading = Reading::of(outcome("authoring_provider", reason, context));
+        assert!(matches!(&reading, Reading::BudgetExhausted(_)));
+        assert_eq!(
+            authoring_budget_headline(reading.outcome().provenance.authoring.as_ref()),
+            "I couldn't finish a workflow I trust within the authoring budget"
+        );
+        assert_eq!(reasons(reading.outcome()), [reason]);
+    }
+    let mut absent = outcome("authoring_provider", reason, vec![]);
+    absent.provenance.authoring = None;
+    assert!(!authoring_budget_headline(absent.provenance.authoring.as_ref()).contains(TIME_HEAD));
+}
+
+/// Ordinary output, request, money and repair limits do not enter the timeout branch.
+/// These are their existing structured fates; no limit, retry or classifier is changed.
+#[test]
+fn non_time_authoring_limits_are_not_relabelled_as_deadlines() {
+    for (target, reason, result) in [
+        (
+            "authoring_provider",
+            "The seat stopped at its output cap before the plan was complete",
+            json!({"stop_reason": "MaxTokens"}),
+        ),
+        (
+            "authoring_provider",
+            "the authoring authority is spent (1 of 1 sent): this request was refused before any byte left; authorize more with --authoring-max-calls",
+            json!({"failure_kind": "admission_refused"}),
+        ),
+        (
+            "authoring_provider",
+            "the authorized monetary allowance cannot cover this request",
+            json!({"failure_kind": "admission_refused"}),
+        ),
+        (
+            "authoring_plan",
+            "No candidate settled within the permitted repair rounds",
+            json!({"stop_reason": "EndTurn"}),
+        ),
+    ] {
+        let reading = Reading::of(outcome(target, reason, vec![call(&result)]));
+        assert!(
+            !matches!(&reading, Reading::BudgetExhausted(_)),
+            "{reading:?}"
+        );
+        assert!(
+            !authoring_budget_headline(reading.outcome().provenance.authoring.as_ref())
+                .contains(TIME_HEAD)
+        );
+        assert_eq!(reasons(reading.outcome()), [reason]);
+    }
+}
+
+#[test]
+fn decision_words_preserve_routes_seat_ledger_and_absence_as_recorded() {
+    for (decision, expected) in [
+        (json!({}), "\n  decision: route none recorded"),
+        (json!({"route":"HOT"}), "\n  decision: route HOT"),
+        (
+            json!({"route":["HOT", null, "COLD"],"seat":{"model":"fixture/model"},"ledger":[{},{}]}),
+            "\n  decision: route HOT → COLD · seat fixture/model · ledger 2 clauses",
+        ),
+        (
+            json!({"route":false,"ledger":[{}]}),
+            "\n  decision: route none recorded · ledger 1 clause",
+        ),
+    ] {
+        let mut text = String::new();
+        decision_words(&decision, &mut text);
+        assert_eq!(text, expected);
+    }
+}
+
+/// The ways on every candidate its verifier did not accept offers.
+const NEXT: &str = "\n  describe a correction, or `/intelligence` for another authoring model (it also judges unless a decision model is set) · `/meaning` shows what was understood";
+
+/// A candidate kept as the preview, its decision as given, and a `verify_held` finding of `kind`
+/// when one is named.
+fn held(decision: &Value, finding: Option<DiagnosticKind>) -> CompileOutcome {
+    let mut out = compile(&CompileRequest::create("bounded-batch")).expect("compiles");
+    out.candidate = Some("nika: held\ntasks: {}\n".to_owned());
+    out.diagnostics.clear();
+    out.provenance.decision = Some(decision.clone());
+    if let Some(kind) = finding {
+        nika_compile::finding(&mut out, kind, "verify_held", "held after a doubt");
+    }
+    out
+}
+
+/// What a held candidate says, by what the verifier's last verification found, model or not:
+/// parts it found missing that the repairs did not settle (the first named, an ellipsis when
+/// there are more), a rejection with no defect located (the request contested, or a held
+/// candidate whose attempt reads no cause), or an abstention. Each offers a correction and
+/// another authoring model, which also judges unless a decision model is set; none asks for the
+/// request again, and nothing is held without a candidate.
+#[test]
+fn a_candidate_its_verifier_did_not_accept_says_what_the_verifier_found() {
+    const DOUBTED: &str = "The workflow is built but not proposed: the verifier did not accept it and located no defect a repair could start from; nothing was written.";
+    const ABSTAINED: &str = "The workflow is built but not proposed: the verifier read it and abstained (it neither accepted nor rejected it); nothing was written.";
+    const ONE: &str = "The workflow is built but not proposed: the verifier found a part missing that the repairs did not settle: « write ./b.md »; nothing was written.";
+    const SEVERAL: &str = "The workflow is built but not proposed: the verifier found parts missing that the repairs did not settle: « read ./a.md »…; nothing was written.";
+    let request = "Read ./a.md and write ./b.md";
+    let open = json!({"pending": {"open": [request]}});
+    let attempts = |attempts: Value| {
+        let mut decision = open.clone();
+        decision["semantic_verification"] = attempts;
+        decision
+    };
+    let applied = Some(DiagnosticKind::Applied);
+    let rejected = json!([{"attempt": 0, "defects": [], "contested": [request], "unknown": [],
+        "declined": true, "rejected": true}]);
+    let abstained = json!([{"attempt": 0, "defects": [], "contested": [], "unknown": [request],
+        "declined": true, "rejected": false}]);
+    let one = json!([{"attempt": 0, "defects": ["write ./b.md"], "contested": [],
+        "declined": true, "rejected": true}]);
+    let several = json!([{"attempt": 1, "defects": ["read ./a.md", "write ./b.md"],
+        "contested": [request], "declined": true, "rejected": true}]);
+    let earlier_doubt = json!([{"attempt": 0, "defects": [], "contested": [request],
+        "declined": true, "rejected": true},
+        {"attempt": 1, "defects": [], "contested": [], "unknown": [request],
+        "declined": true, "rejected": false}]);
+    for (case, decision, finding, said) in [
+        ("rejected", attempts(rejected.clone()), applied, DOUBTED),
+        ("contested", attempts(rejected), None, DOUBTED),
+        ("no attempt", json!({}), applied, DOUBTED),
+        (
+            "no cause",
+            attempts(json!([{"attempt": 0}])),
+            applied,
+            DOUBTED,
+        ),
+        ("abstained", attempts(abstained), applied, ABSTAINED),
+        ("one part", attempts(one), applied, ONE),
+        ("several", attempts(several), applied, SEVERAL),
+        ("the last", attempts(earlier_doubt), applied, ABSTAINED),
+    ] {
+        let out = held(&decision, finding);
+        for has_model in [true, false] {
+            let words = held_words(&out, has_model);
+            assert_eq!(words, Some(format!("{said}{NEXT}")), "{case}");
+        }
+        let mut gone = out;
+        gone.candidate = None;
+        assert_eq!(held_words(&gone, true), None, "{case}: no candidate");
+    }
+}
+
+/// Any other held finish keeps the words of a judge still to come: a pending whole request with
+/// no applied `verify_held` and no last verification contested with no defect (an earlier
+/// attempt's dispute, a defect alone, a contested part beside a defect); nothing open, nothing
+/// held.
+#[test]
+fn a_candidate_no_verifier_declined_keeps_the_words_of_a_judge_to_come() {
+    const AWAITED: &str = "The workflow is built but not proposed: the seat wrote this program, and only a judge this round can permit settles it against your whole request — no judgment made in this round settled it; nothing was written.\n  state the request again for another attempt, or `/intelligence` for another model · `/meaning` shows what was understood";
+    const UNSEATED: &str = "The workflow is built but not proposed: the seat wrote this program, and only a judge this round can permit settles it against your whole request — this session has no authoring model to judge it; nothing was written.\n  `/intelligence` chooses one, then state the request again · `/meaning` shows what was understood";
+    let request = "Read ./a.md and write ./b.md";
+    let open = json!({"pending": {"open": [request]}});
+    let attempts = |attempts: Value| {
+        let mut decision = open.clone();
+        decision["semantic_verification"] = attempts;
+        decision
+    };
+    for awaited in [
+        held(&open, None),
+        held(&open, Some(DiagnosticKind::Unknown)),
+        held(
+            &attempts(
+                json!([{"attempt": 0, "contested": [request]}, {"attempt": 1, "contested": []}]),
+            ),
+            None,
+        ),
+        held(
+            &attempts(json!([{"attempt": 0, "defects": ["write ./b.md"], "contested": []}])),
+            None,
+        ),
+        held(
+            &attempts(
+                json!([{"attempt": 0, "defects": ["write ./b.md"], "contested": ["read ./a.md"]}]),
+            ),
+            None,
+        ),
+    ] {
+        assert_eq!(held_words(&awaited, true).as_deref(), Some(AWAITED));
+        assert_eq!(held_words(&awaited, false).as_deref(), Some(UNSEATED));
+    }
+    assert_eq!(
+        held_words(&held(&json!({}), None), true),
+        None,
+        "nothing is open"
+    );
+}
+
+/// A candidate the compiler held for its verifier is read as held before any provider finding
+/// or question: a judge call that timed out, or was refused, while the verifier located what the
+/// bytes lack stopped that localization and settles nothing, so the reading is `Unsettled` and
+/// its words are the held ones, never the recovery card nor a question about rejected bytes.
+/// The same outcome without the compiler's applied `verify_held` finding keeps its question,
+/// budget and provider readings.
+#[test]
+fn a_held_candidate_is_read_as_held_before_any_provider_finding_or_question() {
+    const DOUBTED: &str = "The workflow is built but not proposed: the verifier did not accept it and located no defect a repair could start from; nothing was written.";
+    let request = "Read ./a.md and write ./b.md";
+    let decision = json!({"pending": {"open": [request]}, "semantic_verification": [
+        {"attempt": 0, "defects": [], "contested": [request], "unknown": [request],
+         "declined": true, "rejected": true, "settled": false, "stopped": true}]});
+    let timed_out = "the judge call timed out after 120 s";
+    let refused = "the authoring authority is spent (7 of 7 sent): this request was refused before any byte left";
+    let provider = |marked: bool, message: &str| {
+        let mut out = held_or_not(&decision, marked);
+        out.questions.clear();
+        nika_compile::finding(
+            &mut out,
+            DiagnosticKind::Unknown,
+            "authoring_provider",
+            message,
+        );
+        out
+    };
+    // Held: the question a skeleton leaves, a timeout, a refusal all read as held.
+    let asking = held_or_not(&decision, true);
+    assert!(
+        asking.questions.iter().any(|q| q.mandatory),
+        "the fixture asks"
+    );
+    for (case, out) in [
+        ("a question", asking),
+        ("a timeout", provider(true, timed_out)),
+        ("a refusal", provider(true, refused)),
+    ] {
+        let reading = Reading::of(out);
+        assert!(
+            matches!(&reading, Reading::Unsettled(_)),
+            "{case}: {reading:?}"
+        );
+        let words = held_words(reading.outcome(), true);
+        assert_eq!(words, Some(format!("{DOUBTED}{NEXT}")), "{case}");
+    }
+    // Not held: the same outcomes keep their own readings.
+    assert!(matches!(
+        Reading::of(held_or_not(&decision, false)),
+        Reading::Questions(_)
+    ));
+    assert!(matches!(
+        Reading::of(provider(false, timed_out)),
+        Reading::BudgetExhausted(_)
+    ));
+    assert!(matches!(
+        Reading::of(provider(false, refused)),
+        Reading::ProviderFailed(_)
+    ));
+}
+
+/// [`held`]'s candidate with the compiler's applied `verify_held` finding when `marked`, else
+/// with none: the bounded-batch skeleton's mandatory questions left as they are.
+fn held_or_not(decision: &Value, marked: bool) -> CompileOutcome {
+    let out = held(decision, marked.then_some(DiagnosticKind::Applied));
+    assert_eq!(out.status, CompileStatus::Incomplete);
+    out
 }

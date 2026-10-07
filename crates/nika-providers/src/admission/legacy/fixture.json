@@ -1,0 +1,67 @@
+{
+  "attempts": [
+    {
+      "as_of": "2026-09-24",
+      "billing_provider": "deepseek",
+      "currency": "USD",
+      "estimated_nano_usd": "18531392",
+      "id": 0,
+      "model": "deepseek-v4-pro",
+      "note": "complete usage priced at pinned catalog tariff; invoice unknown",
+      "origin": "https://api.deepseek.com:443",
+      "reserved_nano_usd": "1513881600",
+      "sent": true,
+      "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+      "source_sha256": "2fecee48bf6ad791bce38d1d5504d8ad5c8b0fd4da93e6dc198ae88ff1a4506a",
+      "usage": {
+        "accepted_prediction_tokens": null,
+        "audio_input_tokens": null,
+        "audio_output_tokens": null,
+        "cache_creation_tokens": null,
+        "cache_read_tokens": 9088,
+        "cache_write_tokens": null,
+        "citation_tokens": null,
+        "image_input_tokens": null,
+        "image_output_tokens": null,
+        "input_tokens": 9204,
+        "num_requests": null,
+        "output_tokens": 4540,
+        "reasoning_tokens": 3878,
+        "rejected_prediction_tokens": null,
+        "search_context_tokens": null,
+        "thinking_tokens": null,
+        "total_tokens": 13744,
+        "video_input_tokens": null
+      }
+    },
+    {
+      "as_of": "2026-09-24",
+      "billing_provider": "deepseek",
+      "currency": "USD",
+      "estimated_nano_usd": null,
+      "id": 1,
+      "model": "deepseek-v4-pro",
+      "note": "charge unknown; reservation retained",
+      "origin": "https://api.deepseek.com:443",
+      "reserved_nano_usd": "1400340480",
+      "sent": true,
+      "source": "https://api-docs.deepseek.com/quick_start/pricing/",
+      "source_sha256": "2fecee48bf6ad791bce38d1d5504d8ad5c8b0fd4da93e6dc198ae88ff1a4506a",
+      "usage": null
+    }
+  ],
+  "billed_nano_usd": null,
+  "known_subtotal_nano_usd": "18531392",
+  "limit_nano_usd": "15000000000",
+  "overridden_defaults": [
+    null,
+    null
+  ],
+  "refusal": "dispatched request ended without complete usage; charge unknown",
+  "schema": "nika/inference-cost-observation@2",
+  "state": "Uncertain",
+  "unknown_attempts": [],
+  "unknown_calls": 1,
+  "unknown_cost": null,
+  "withheld": []
+}

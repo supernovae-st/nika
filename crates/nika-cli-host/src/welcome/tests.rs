@@ -854,8 +854,10 @@ fn the_experience_block_routes_from_the_concierge_facts() {
 
 #[test]
 fn json_mirror_is_versioned_additive_and_value_free() {
-    let v = render_json(
-        &synthetic_probe(),
+    let probe = synthetic_probe();
+    let v = front_door::render_json(
+        &probe.version,
+        machine_json(&probe),
         Glance {
             git: false,
             workflows: 0,
@@ -911,8 +913,10 @@ fn a_partial_scan_never_renders_the_strangers_zero() {
         !text.contains("a whole workflow is one file"),
         "the sample is the COMPLETE stranger's moment only:\n{text}"
     );
-    let v = render_json(
-        &synthetic_probe(),
+    let probe = synthetic_probe();
+    let v = front_door::render_json(
+        &probe.version,
+        machine_json(&probe),
         g,
         counts(),
         serde_json::Value::Null,
@@ -1093,4 +1097,306 @@ fn the_editor_roster_wraps_instead_of_running_off_the_terminal() {
         text.contains("unwired · one command each → nika wire"),
         "several gaps must say how many:\n{text}"
     );
+}
+
+/// The front-door byte oracle: every expected digest below was captured by
+/// running the immutable pre-move renderer on these same
+/// inputs, never by the renderer under test. One group digest frames each
+/// case as `name NUL len NUL bytes`, in this exact order.
+mod front_door_oracle {
+    use super::*;
+    use crate::probe::KitProbe;
+    use sha2::{Digest as _, Sha256};
+
+    pub(super) enum Ctx {
+        Legacy,
+        Chat,
+        Root(&'static str, Option<&'static str>),
+    }
+
+    const ROOT: &str = "/srv/équipe/projet ✨";
+    const FROM: &str = "/srv/équipe/projet ✨/crates/a \"b\" \\ c";
+
+    fn themes() -> [(&'static str, Theme); 5] {
+        [
+            ("plain", Theme::new(false, false, false)),
+            ("color", Theme::new(true, false, false)),
+            ("ascii", Theme::new(false, true, false)),
+            ("color_ascii", Theme::new(true, true, false)),
+            ("animate", Theme::new(true, false, true)),
+        ]
+    }
+
+    fn glances() -> [(&'static str, Glance); 4] {
+        let glance = |git, workflows, agents_md, complete| Glance {
+            git,
+            workflows,
+            agents_md,
+            complete,
+        };
+        [
+            ("empty", glance(false, 0, false, true)),
+            ("one", glance(true, 1, false, true)),
+            ("mixed", glance(true, 3, true, true)),
+            ("partial", glance(true, 0, false, false)),
+        ]
+    }
+
+    /// Escaping, multibyte, LAN userinfo, kit drift, pulled models and
+    /// stale wiring on one machine.
+    fn unicode_probe() -> Probe {
+        let mut probe = synthetic_probe();
+        "0.0.0-tëst ✨".clone_into(&mut probe.version);
+        probe.clients.push(ClientProbe {
+            id: "édi\"teur".to_owned(),
+            path: "~/édi/mcp.json".to_owned(),
+            present: true,
+            current: false,
+            stale: true,
+        });
+        probe.kits.push(KitProbe {
+            client: "cursor".to_owned(),
+            version: "0.1.0".to_owned(),
+        });
+        probe.providers.push(ProviderProbe::new(
+            "vllm",
+            false,
+            false,
+            "",
+            true,
+            readiness(true, ExecutionLocus::Lan),
+            "http://user:pw@10.0.0.5:8000/v1",
+        ));
+        probe.models.count = 2;
+        probe.models.bytes = 7_340_032;
+        probe.recorded_runs = 3;
+        probe
+    }
+
+    fn probes() -> [(&'static str, Probe); 3] {
+        [
+            ("synthetic", synthetic_probe()),
+            ("shipped", shipped_shape_probe()),
+            ("unicode", unicode_probe()),
+        ]
+    }
+
+    pub(super) fn human_cases(
+        human: &dyn Fn(&Probe, Glance, &Ctx, Theme) -> String,
+    ) -> Vec<(String, String)> {
+        let ctxs = [
+            ("legacy", Ctx::Legacy),
+            ("chat", Ctx::Chat),
+            ("root", Ctx::Root(ROOT, None)),
+            ("expanded", Ctx::Root(ROOT, Some(FROM))),
+        ];
+        let mut out = Vec::new();
+        for (p, probe) in probes() {
+            for (g, glance) in glances() {
+                for (c, ctx) in &ctxs {
+                    for (t, theme) in themes() {
+                        let text = human(&probe, glance, ctx, theme);
+                        let sober = crate::display::vocab::sober(theme, &text);
+                        out.push((format!("{p}/{g}/{c}/{t}/raw"), text));
+                        out.push((format!("{p}/{g}/{c}/{t}/sober"), sober));
+                    }
+                }
+            }
+        }
+        out
+    }
+
+    pub(super) fn json_cases(
+        json: &dyn Fn(&Probe, Glance, serde_json::Value, &str) -> serde_json::Value,
+        chat: &dyn Fn(&Probe, serde_json::Value, &str) -> serde_json::Value,
+    ) -> Vec<(String, String)> {
+        let experiences = [
+            ("null", serde_json::Value::Null),
+            (
+                "block",
+                serde_json::json!({"state": {"schema_version": 1, "workflow": "clean ✨"},
+                    "why": "a \"quoted\" \\ path\nline"}),
+            ),
+        ];
+        let nexts = [
+            ("hello", "nika compile hello hello.nika"),
+            ("quoted", "nika run \"é.nika\" --var x=\\\\"),
+        ];
+        let mut out = Vec::new();
+        for (p, probe) in probes() {
+            for (e, experience) in &experiences {
+                for (n, next) in nexts {
+                    for (g, glance) in glances() {
+                        let v = json(&probe, glance, experience.clone(), next);
+                        out.push((format!("json/{p}/{e}/{n}/{g}/compact"), v.to_string()));
+                        out.push((format!("json/{p}/{e}/{n}/{g}/pretty"), format!("{v:#}")));
+                    }
+                    let v = chat(&probe, experience.clone(), next);
+                    out.push((format!("json/{p}/{e}/{n}/chat/compact"), v.to_string()));
+                    out.push((format!("json/{p}/{e}/{n}/chat/pretty"), format!("{v:#}")));
+                }
+            }
+        }
+        out
+    }
+
+    /// `(group, cases, sha256)` per leading two name segments, in order.
+    pub(super) fn groups(cases: &[(String, String)]) -> Vec<(String, usize, String)> {
+        let mut out: Vec<(String, usize, Sha256)> = Vec::new();
+        for (name, text) in cases {
+            let key = name.splitn(3, '/').take(2).collect::<Vec<_>>().join("/");
+            if out.last().is_none_or(|(k, _, _)| *k != key) {
+                out.push((key, 0, Sha256::new()));
+            }
+            if let Some((_, n, hasher)) = out.last_mut() {
+                *n += 1;
+                hasher.update(name.as_bytes());
+                hasher.update([0]);
+                hasher.update(text.len().to_string().as_bytes());
+                hasher.update([0]);
+                hasher.update(text.as_bytes());
+            }
+        }
+        out.into_iter()
+            .map(|(k, n, h)| (k, n, format!("{:x}", h.finalize())))
+            .collect()
+    }
+
+    fn human(probe: &Probe, glance: Glance, ctx: &Ctx, theme: Theme) -> String {
+        let view = match ctx {
+            Ctx::Legacy => ContextView::legacy(),
+            Ctx::Chat => ContextView {
+                chat_only: true,
+                ..ContextView::legacy()
+            },
+            Ctx::Root(root, from) => ContextView {
+                chat_only: false,
+                root: (*root).to_owned(),
+                expanded_from: from.map(under_home),
+            },
+        };
+        front_door::render_with_context(
+            &machine_view(probe, counts()),
+            glance,
+            counts(),
+            &view,
+            theme,
+        )
+    }
+
+    fn json(
+        probe: &Probe,
+        glance: Glance,
+        experience: serde_json::Value,
+        next: &str,
+    ) -> serde_json::Value {
+        front_door::render_json(
+            &probe.version,
+            machine_json(probe),
+            glance,
+            counts(),
+            experience,
+            next,
+        )
+    }
+
+    fn chat(probe: &Probe, experience: serde_json::Value, next: &str) -> serde_json::Value {
+        front_door::render_chat_only_json(
+            &probe.version,
+            machine_json(probe),
+            counts(),
+            experience,
+            next,
+        )
+    }
+
+    /// `(group, cases, sha256)` captured from the pre-move code; never recomputed by the code under test.
+    const EXPECTED: &[(&str, usize, &str)] = &[
+        (
+            "synthetic/empty",
+            40,
+            "c923bc2e7608b02cca95fcd13bb353af16c822669d2f653f643898c9b1d92a71",
+        ),
+        (
+            "synthetic/one",
+            40,
+            "42a8a32c817664fd0e7b68b93eebd52aa470125893deab589204e28431e44f90",
+        ),
+        (
+            "synthetic/mixed",
+            40,
+            "f5e3ba4f042def3d612589774736010cb5ad0de85291c28f4aa66349691eb076",
+        ),
+        (
+            "synthetic/partial",
+            40,
+            "ce408adbc33db37abadfe9f0ef830329883b460377abe4cf3c4bfc020db06169",
+        ),
+        (
+            "shipped/empty",
+            40,
+            "7e4e0a94872b96b65fc822cfdd9b478fbe6bd818998db61174d2585debb29207",
+        ),
+        (
+            "shipped/one",
+            40,
+            "e8ecfacd5aae8a44c9eb167e0aa2c386a068c75539cee5908e08083167c76252",
+        ),
+        (
+            "shipped/mixed",
+            40,
+            "0c692dac93467323d4520d38abf65fb57f921b83e547ab5266ccc4af00ba55c7",
+        ),
+        (
+            "shipped/partial",
+            40,
+            "4926f066aad7a91839c160ed7c31a0de9f1ea83237c9d766d38d22f667a23461",
+        ),
+        (
+            "unicode/empty",
+            40,
+            "e74089150e15fbcdb6ebe66faaccffbd57fdc0c993eb198482464cde28c72f6e",
+        ),
+        (
+            "unicode/one",
+            40,
+            "dfcd9f4078eec10d728e4c8f0c3198bf1b1fed10a7a9fc1ed82c317efcc7d83b",
+        ),
+        (
+            "unicode/mixed",
+            40,
+            "9c72f254c9db1a6008fbb3069281b28a4b7756738a76f3433b79109ade6b3f9e",
+        ),
+        (
+            "unicode/partial",
+            40,
+            "8bec435f9c230f2550cf7228552d03416418d5125bd9705c0ab022881df7df27",
+        ),
+        (
+            "json/synthetic",
+            40,
+            "aca0ce34eb4722007637c49e6f39979d67db0cddabd0dd86398223cfa75c0e1c",
+        ),
+        (
+            "json/shipped",
+            40,
+            "aa7e56bb12bbd502ae3a6daf51bcc01b790721a6aa993daac939c7ffd0978573",
+        ),
+        (
+            "json/unicode",
+            40,
+            "44550a291a9a7f8daf1b7991c4e5fd27bde55cfba8c06b026116696e1fac5ee6",
+        ),
+    ];
+
+    #[test]
+    fn the_front_door_renders_the_pre_move_bytes() {
+        let mut cases = human_cases(&human);
+        cases.extend(json_cases(&json, &chat));
+        let want: Vec<(String, usize, String)> = EXPECTED
+            .iter()
+            .map(|(g, n, s)| ((*g).to_owned(), *n, (*s).to_owned()))
+            .collect();
+        assert_eq!(groups(&cases), want);
+    }
 }

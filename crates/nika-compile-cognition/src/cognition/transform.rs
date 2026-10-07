@@ -36,7 +36,7 @@ pub(super) struct Refusal(pub(super) String);
 use super::{AuthoringPolicy, CompileOutcome, DiagnosticKind};
 use crate::plan::{Op, Plan, Step};
 use nika_compile::surface::pending_transform::PendingTransform;
-use nika_kernel::ai::provider::{ContentBlock, Message, ProviderInferDyn, Role, StopReason};
+use nika_kernel::ai::provider::{Message, ProviderInferDyn, Role};
 use serde_json::json;
 mod domain;
 mod engine;
@@ -44,9 +44,6 @@ mod pending;
 mod spelling;
 use engine::run;
 pub(super) use pending::resume;
-
-/// The most transform calls one request may buy: two clauses the typed stages cannot state.
-pub(crate) const MAX_CALLS: usize = 2;
 
 /// The instruction of the transform call: the input shape, the closed rules, the answer.
 const INSTRUCTION: &str = "You write ONE jq program for a workflow compiler. The program receives {records: [...]}: the parsed rows of the source file, JSON objects keyed by the request's own column names exactly as the file spells them (a CSV cell is text). It must return exactly one JSON value: the rows or the result the clause asks for, in the source order unless the request states a sort. Use only the supplied columns, and honor explicit field_choices when supplied; never invent a column, a literal, a default or an ordering; never use env, input, now, halt, any I/O, and never call a model. Return only one JSON object {jq, columns_read, example_input, expected_output}: jq is the program; columns_read lists every column it reads, as the file spells them; example_input is an array of 3 to 5 example records exercising the clause (duplicates, boundary values, the order kept) using those columns; expected_output is exactly what the program returns on example_input. observed_values, when present, holds the categorical values the host observed in the source, as it spells them: compare text exactly as the source spells it.";
@@ -58,6 +55,15 @@ fn schema() -> serde_json::Value {
         "columns_read":{"type":"array","items":{"type":"string"}},
         "example_input":{"type":"array","items":{"type":"object"}},
         "expected_output":{}}})
+}
+
+/// Whether `plan` holds a computation its typed stages cannot state and no answer settles: the
+/// plan's own observed limit (R5), read before any program round is paid for.
+pub(super) fn unstated(intent: &str, plan: &Plan, request: &crate::CompileRequest) -> bool {
+    let observed = nika_compile::surface::observed::for_intent(request.knowledge.as_ref(), intent);
+    let hint = observed.unwrap_or_else(|| crate::columns::columns_hint(intent));
+    !request.answers.contains_key("const.rule_expression")
+        && !unstated_computations(plan, &hint).is_empty()
 }
 
 /// The compute steps of a plan whose computation no rule states: the typed stages could not
@@ -78,7 +84,7 @@ fn unstated_computations<'a>(plan: &'a Plan, hint: &[String]) -> Vec<&'a Step> {
 }
 
 /// Ask the seat for a verified program on every computation the typed stages could not
-/// state, at most [`MAX_CALLS`] per request; a verified program joins the plan's rules, a
+/// state, under the caller's request authority; a verified program joins the plan's rules, a
 /// refused one is recorded with its counterexample and leaves the assembler's own question.
 /// After a verifier repair the seat also reads the parts the judge found missing
 /// (`verifier_defects`, R4 A11): a repaired plan never keeps the program of the plan it replaced.
@@ -102,7 +108,6 @@ pub(super) async fn synthesize<P: ProviderInferDyn>(
     let observed = observed.as_deref();
     let pending: Vec<Step> = unstated_computations(plan, &hint)
         .into_iter()
-        .take(MAX_CALLS)
         .cloned()
         .collect();
     let mut records = Vec::new();
@@ -203,13 +208,10 @@ async fn propose_as<P: ProviderInferDyn>(
     super::call_with_schema(policy, provider, role, messages, schema(), out)
         .await
         .ok_or_else(|| Refusal("the seat returned no transform".to_owned()))
-        .and_then(|response| match response.content.as_slice() {
-            [ContentBlock::Text { text }] if response.stop_reason == StopReason::EndTurn => {
-                Ok(text.clone())
-            }
-            _ => Err(Refusal(
-                "the seat did not return one complete JSON text".to_owned(),
-            )),
+        .and_then(|response| {
+            crate::decide::answer_text(&response)
+                .map(str::to_owned)
+                .ok_or_else(|| Refusal("the seat did not return one complete JSON text".to_owned()))
         })
         .and_then(|text| {
             serde_json::from_str::<ProposedTransform>(&text)
@@ -456,6 +458,7 @@ fn number_literals(program: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nika_kernel::ai::provider::{ContentBlock, StopReason};
 
     #[test]
     fn literal_lookup_matches_numeric_identifiers_without_rewriting_string_ids() {
@@ -579,6 +582,38 @@ mod tests {
                 .contains("more than one value")
         );
         assert!(run("empty", &records).unwrap_err().0.contains("no value"));
+    }
+
+    #[test]
+    fn the_temporal_prompt_conventions_match_the_runtime_jq_language() {
+        let local = json!("2042-11-28T07:36");
+        assert!(
+            run("fromdateiso8601", &local).is_err(),
+            "no offset is not an instant"
+        );
+        assert_eq!(
+            run(r#"strptime("%Y-%m-%dT%H:%M") | .[:6]"#, &local).unwrap(),
+            json!([2042, 10, 28, 7, 36, 0])
+        );
+        // UTC is explicitly part of these fixtures; never inferred from the local shape above.
+        let z = json!("2042-11-28T07:36:00Z");
+        let offset = json!("2042-11-28T11:36:00+04:00");
+        assert_eq!(
+            run("fromdateiso8601", &z).unwrap(),
+            run("fromdateiso8601", &offset).unwrap()
+        );
+        assert_eq!(
+            run("fromdateiso8601 | gmtime | mktime", &z).unwrap(),
+            run("fromdateiso8601", &z).unwrap()
+        );
+        assert_eq!(
+            run(r#"fromdateiso8601 | strftime("%Y-%m-%dT%H:%M:%SZ")"#, &z).unwrap(),
+            z
+        );
+        assert!(
+            run("mktime(.)", &json!([2042, 10, 28, 7, 36, 0, 0, 0])).is_err(),
+            "mktime takes input, not an argument"
+        );
     }
 
     /// The expression the compile EMITS at `task` for `intent` over the observed JSON `files`
@@ -1342,3 +1377,6 @@ mod tests {
 
 #[cfg(test)]
 mod tests_number;
+
+#[cfg(test)]
+mod tests_synthesis;

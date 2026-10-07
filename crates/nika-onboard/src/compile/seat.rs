@@ -76,5 +76,31 @@ pub fn priced_words(row: &str, priced: &[String]) -> String {
     }
 }
 
+/// Build the selected route's preparation policy; the host owns configuration and mode.
+/// Explicit bounded callers retain the historical repair law. No model or transport is selected.
+#[must_use]
+pub fn preparation_policy(
+    model: &str,
+    harness: bool,
+    strategy: crate::compile::NativeMode,
+    config: nika_providers::ProvidersConfig,
+    continuous: bool,
+) -> crate::compile::AuthoringPolicy {
+    use nika_providers::authoring::policy;
+    let limits = if continuous {
+        policy::completion_bounds(model, harness, config)
+    } else {
+        policy::legacy_completion_bounds(harness)
+    };
+    let policy = crate::compile::AuthoringPolicy::new(model, limits.max_tokens, limits.timeout)
+        .with_initial_max_tokens(limits.initial_tokens)
+        .with_native(strategy);
+    if continuous {
+        policy.with_unbounded_repairs()
+    } else {
+        policy.with_repairs(policy::AUTHORING_REPAIRS)
+    }
+}
+
 #[cfg(test)]
 mod tests;

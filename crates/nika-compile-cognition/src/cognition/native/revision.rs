@@ -10,7 +10,6 @@
 use serde_json::Value;
 
 use crate::CompileRequest;
-use crate::fidelity::Diagnostic;
 use crate::types::{EditChange, Input};
 
 /// Words that state a change as a replacement (FR · EN, folded, whole words).
@@ -58,10 +57,6 @@ const ADDING: &[&str] = &[
     "append",
 ];
 
-/// How many gaps an accepted candidate's record keeps: a path is waived only through a gap the
-/// record keeps, so the human always sees what the candidate leaves behind.
-pub(super) const KEPT_GAPS: usize = 8;
-
 /// The base and the change words of a revision in words; none for a creation or a structured
 /// edit.
 pub(super) fn of(request: &CompileRequest) -> Option<(String, String)> {
@@ -91,7 +86,6 @@ pub(super) fn waivable(
         .iter()
         .map(|gap| gap.trim())
         .filter(|gap| !gap.is_empty())
-        .take(KEPT_GAPS)
         .collect();
     stated(intent)
         .into_iter()
@@ -179,36 +173,6 @@ fn substitution(base: &str, words: &str, candidate: &str, path: &str) -> Option<
     (expected == revised).then_some(by)
 }
 
-/// Journal compiler-observed substitutions even when the model supplied no gap.
-/// An old path named by the change stays pending; literal equality cannot establish
-/// whether those words asked to retain it. This never rewrites the candidate.
-pub(super) fn record_path_changes(
-    intent: &str,
-    revision: Option<&(String, String)>,
-    candidate: &str,
-    gaps: &mut Vec<String>,
-) {
-    let Some((base, words)) = revision else {
-        return;
-    };
-    for path in stated(intent) {
-        if gaps.len() >= KEPT_GAPS {
-            break;
-        }
-        if gaps.iter().any(|gap| names(gap, &path)) {
-            continue;
-        }
-        if let Some(by) = substitution(base, words, candidate, &path) {
-            let qualifier = if names(words, &path) {
-                "compiler-observed substitution; this recalled path requires your decision"
-            } else {
-                "compiler-proven substitution under the revision rule"
-            };
-            gaps.push(format!("`{path}` becomes `{by}` ({qualifier})."));
-        }
-    }
-}
-
 /// A literal path already present in the base, including a retained source or
 /// secondary destination mentioned again in the change.
 fn contains_path(value: &Value, path: &str) -> bool {
@@ -218,88 +182,6 @@ fn contains_path(value: &Value, path: &str) -> bool {
         Value::Object(map) => map.values().any(|item| contains_path(item, path)),
         _ => false,
     }
-}
-
-/// A replacement that duplicates a known write to the new destination is a repair,
-/// not a faithful substitution. This bounded check compares literal paths and the
-/// same content producer; it makes no claim about arbitrary equivalent programs.
-pub(super) fn duplicate_write(
-    revision: Option<&(String, String)>,
-    candidate: &str,
-) -> Option<Diagnostic> {
-    let (base, words) = revision?;
-    if !says(words, REPLACING) || says(words, ADDING) {
-        return None;
-    }
-    let base = crate::edit::literal_projection(base)?;
-    let new: Vec<_> = stated(words)
-        .into_iter()
-        .filter(|path| !contains_path(&base, path))
-        .collect();
-    let [new]: [String; 1] = new.try_into().ok()?;
-    let candidate = crate::edit::literal_projection(candidate)?;
-    let writes = writes(&candidate);
-    let prior = writes_of_base(&base);
-    for (_, content) in writes.iter().filter(|(path, _)| same(path, &new)) {
-        if let Some((old, _)) = writes.iter().find(|(path, other)| {
-            !same(path, &new) && prior.iter().any(|p| same(p, path)) && other == content
-        }) {
-            return Some(Diagnostic {
-                kind: "revision",
-                message: format!(
-                    "REVISION DUPLICATES DESTINATION: the change states a replacement, but the same content is written to both `{old}` and `{new}`. Revise the existing destination and its permit; preserve the other computations and outputs. If both destinations are really needed, ask for that business decision instead of silently adding a write."
-                ),
-            });
-        }
-    }
-    None
-}
-
-fn writes_of_base(doc: &Value) -> Vec<String> {
-    writes(doc).into_iter().map(|(path, _)| path).collect()
-}
-
-/// Resolve only bare constants and task-local bindings, with a fixed depth bound.
-/// Task-output expressions stay as producer identities; no expression is evaluated.
-fn bound<'a>(doc: &'a Value, task: &'a Value, value: &'a Value) -> &'a Value {
-    let mut value = value;
-    for _ in 0..4 {
-        let Some(inner) = value
-            .as_str()
-            .and_then(|s| s.trim().strip_prefix("${{"))
-            .and_then(|s| s.strip_suffix("}}"))
-        else {
-            break;
-        };
-        let inner = inner.trim();
-        let next = inner
-            .strip_prefix("const.")
-            .and_then(|key| doc.get("const")?.get(key))
-            .or_else(|| {
-                inner
-                    .strip_prefix("with.")
-                    .and_then(|key| task.get("with")?.get(key))
-            });
-        let Some(next) = next else { break };
-        value = next;
-    }
-    value
-}
-
-fn writes(doc: &Value) -> Vec<(String, Value)> {
-    doc.get("tasks")
-        .and_then(Value::as_object)
-        .into_iter()
-        .flat_map(|tasks| tasks.values())
-        .filter_map(|task| {
-            if task.pointer("/invoke/tool")?.as_str()? != "nika:write" {
-                return None;
-            }
-            let path = bound(doc, task, task.pointer("/invoke/args/path")?).as_str()?;
-            let content = bound(doc, task, task.pointer("/invoke/args/content")?).clone();
-            Some((path.to_owned(), content))
-        })
-        .collect()
 }
 
 /// The paths a text states, as the path law reads them: its sources, then its destinations.
@@ -393,7 +275,36 @@ fn unrooted(value: &mut Value) {
 
 #[cfg(test)]
 mod tests {
-    use super::{ADDING, REPLACING, names, says};
+    use super::{ADDING, REPLACING, names, says, waivable};
+
+    #[test]
+    fn a_ninth_named_gap_uses_the_same_path_proof_and_never_waives_an_unproven_change() {
+        let base = "nika: copy\ntasks: {save: {invoke: {tool: 'nika:write', args: {path: a.txt, content: hello}}}}";
+        let candidate = base.replace("a.txt", "b.txt");
+        let mut gaps: Vec<String> = (1..=8)
+            .map(|n| format!("Business requirement {n}"))
+            .collect();
+        gaps.push("a.txt is replaced by the change".to_owned());
+        let intent = "Write hello to a.txt.";
+        let revision = (base.to_owned(), "Use b.txt instead.".to_owned());
+        assert_eq!(
+            waivable(intent, Some(&revision), &gaps, &candidate),
+            vec!["a.txt"]
+        );
+        assert!(waivable(intent, None, &gaps, &candidate).is_empty());
+        assert!(waivable(intent, Some(&revision), &gaps[..8], &candidate).is_empty());
+
+        // When the change recalls the old path, only an exact substitution can waive it.
+        let revision = (base.to_owned(), "Replace a.txt with b.txt.".to_owned());
+        assert_eq!(
+            waivable(intent, Some(&revision), &gaps, &candidate),
+            vec!["a.txt"]
+        );
+        let changed_work = candidate.replace("hello", "different content");
+        assert!(waivable(intent, Some(&revision), &gaps, &changed_work).is_empty());
+        let addition = (base.to_owned(), "Also write to a.txt and b.txt.".to_owned());
+        assert!(waivable(intent, Some(&addition), &gaps, &candidate).is_empty());
+    }
 
     #[test]
     fn a_path_is_named_whole_and_never_as_a_piece_of_another() {

@@ -4,11 +4,13 @@
 //! One compile's rehearsal journal. Only reports produced in this call can discharge its
 //! final barrier. Replayed provenance is data, never evidence that the present world ran.
 
-use nika_compile_fidelity::behavior::{Cause, RunEnd, Usage};
+use nika_compile_fidelity::behavior::{
+    Budget, Cause, Contract, Limits, Report, Run, RunEnd, Usage, judge,
+};
 use serde_json::{Value, json};
 
 use crate::fidelity::Diagnostic;
-use crate::rehearse::{Attempt, Rehearsal, RehearsalReport, Rehearse, judged_run};
+use crate::rehearse::{Attempt, Rehearsal, RehearsalReport, Rehearse, judged_run, trial_shown};
 use crate::{CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind};
 
 mod record;
@@ -23,11 +25,11 @@ pub(super) enum Result {
     Stop(String),
 }
 
-/// The same decision beside its structured, source-bound report.
+/// The decision on a checked report (its structured, source-bound report is journaled in
+/// `records`).
 #[derive(Clone, Debug)]
 pub(super) struct Verdict {
     pub result: Result,
-    pub record: Value,
 }
 
 /// A last accepted report from this invocation, never a persisted cache.
@@ -36,6 +38,10 @@ struct Checked {
     inputs: Vec<String>,
     targets: Vec<String>,
     verdict: Verdict,
+    /// The judged run of that report, what this call had spent before it, and the room's bounds.
+    run: Run,
+    spent_before: Usage,
+    room_bytes: u64,
 }
 
 /// The journal and consumption of one invocation. The native loop owns its repair limit;
@@ -45,6 +51,16 @@ pub(super) struct Rehearsals<'a> {
     last: Option<Checked>,
     records: Vec<Value>,
     usage: Usage,
+    /// The compile this journal serves: the caller's own basis and request, which bind a
+    /// semantic record before its paths are read, and the request the final barrier reads.
+    serves: Option<Serves>,
+}
+
+/// The compile a journal serves (slice C): what binds a semantic record, what the barrier reads.
+pub(super) struct Serves {
+    pub(super) caller: Value,
+    pub(super) raw: CompileRequest,
+    pub(super) reading: CompileRequest,
 }
 
 impl<'a> Rehearsals<'a> {
@@ -54,7 +70,19 @@ impl<'a> Rehearsals<'a> {
             last: None,
             records: Vec::new(),
             usage: Usage::default(),
+            serves: None,
         }
+    }
+
+    /// The same journal, serving this compile.
+    pub(super) fn serving(mut self, serves: Serves) -> Self {
+        self.serves = Some(serves);
+        self
+    }
+
+    /// The compile this journal serves, when its entry named one.
+    pub(super) fn serves(&self) -> Option<&Serves> {
+        self.serves.as_ref()
     }
 
     pub(super) fn offered(&self) -> bool {
@@ -70,7 +98,6 @@ impl<'a> Rehearsals<'a> {
         if !self.offered() {
             return Verdict {
                 result: Result::Proceed,
-                record: Value::Null,
             };
         }
         let (inputs, targets) = match effective_paths(request, out) {
@@ -78,7 +105,6 @@ impl<'a> Rehearsals<'a> {
             Err(why) => {
                 return Verdict {
                     result: Result::Stop(why),
-                    record: Value::Null,
                 };
             }
         };
@@ -99,7 +125,6 @@ impl<'a> Rehearsals<'a> {
         let Some(host) = self.host else {
             return Verdict {
                 result: Result::Proceed,
-                record: Value::Null,
             };
         };
         let bound = host.bound();
@@ -110,19 +135,94 @@ impl<'a> Rehearsals<'a> {
         let run = judged_run("observed", &report, &inputs, &targets, &declared);
         let result = classify(candidate, &report, &run.end);
         let entry = record::report(&report, bound, &run, &result);
+        let spent_before = self.usage;
         self.usage = self.usage.plus(&run.usage);
-        self.records.push(entry.clone());
-        let verdict = Verdict {
-            result,
-            record: entry,
-        };
+        self.records.push(entry);
+        let verdict = Verdict { result };
         self.last = Some(Checked {
             candidate: candidate.to_owned(),
             inputs,
             targets,
             verdict: verdict.clone(),
+            run,
+            spent_before,
+            room_bytes: report.observation.bounds.room_bytes,
         });
         verdict
+    }
+
+    /// Whether this call may rehearse once more under `attempts` rehearsals in all: checked
+    /// before the host is asked, never after.
+    pub(super) fn admits(&self, attempts: u32) -> bool {
+        self.usage.fixtures < attempts
+    }
+
+    /// The behavioural judgment of this call's last run against `contract` (the request's own,
+    /// never one the candidate states). The round admits that one run within the host's own
+    /// bounds (its time bound, twice its room); the turn admits `attempts` such runs (`None`:
+    /// the runs spent before it and this one). The run was charged once when it ran: the turn
+    /// resumes from what was spent before it.
+    pub(super) fn judged(&self, contract: &Contract, attempts: Option<u32>) -> Option<Report> {
+        let last = self.last.as_ref()?;
+        let host = self.host?;
+        let attempts = attempts.unwrap_or_else(|| last.spent_before.fixtures.saturating_add(1));
+        let time = u64::try_from(host.bound().as_millis()).unwrap_or(u64::MAX);
+        let bytes = last.room_bytes.saturating_mul(2);
+        let round = Limits::new(1, 1, bytes, time);
+        let turn = Limits::new(
+            attempts,
+            attempts,
+            bytes.saturating_mul(u64::from(attempts)),
+            time.saturating_mul(u64::from(attempts)),
+        );
+        let mut budget = Budget::new(round, turn, last.spent_before);
+        Some(judge(
+            contract,
+            std::slice::from_ref(&last.run),
+            &mut budget,
+        ))
+    }
+
+    /// What this call's last run of exactly `candidate` read and wrote, as a judge may read it:
+    /// only a completed run the room vouched for (`Proceed`), bound to the candidate's sha256,
+    /// each text with whether it was read whole and whether the run wrote it. These observations
+    /// belong to preparation context, with no separate sharing gate. `None` for another
+    /// candidate's run, a run that did not complete, or no run.
+    pub(super) fn observed(&self, candidate: &str) -> Option<Value> {
+        let last = self.last.as_ref()?;
+        let completed = matches!(last.run.end, RunEnd::Completed);
+        let proceeded = matches!(last.verdict.result, Result::Proceed);
+        let shown = last.candidate == candidate && completed && proceeded;
+        shown.then(|| trial_shown(&super::knowledge::sha256(candidate), &last.run))
+    }
+
+    /// The trial an answer round judges over (R6, A1): bytes READY but for that judgment run once
+    /// (the run the final barrier reuses), shown only as [`Self::observed`] vouches for it.
+    pub(super) async fn trial(
+        &mut self,
+        req: &CompileRequest,
+        out: &CompileOutcome,
+    ) -> Option<Value> {
+        let held = (out.diagnostics.iter())
+            .any(|d| d.kind != DiagnosticKind::Applied && d.target != "semantic_verification");
+        let clean = (out.check_preview.as_ref()).is_some_and(|p| p.report.is_clean());
+        let asks = out.questions.iter().any(|question| question.mandatory);
+        let runs = self.offered() && clean && !asks && !held;
+        let candidate = out.candidate.as_deref().filter(|_| runs)?;
+        self.served(req, out).await;
+        self.observed(candidate)
+    }
+
+    /// One rehearsal of `out`'s candidate as the compile returns it: bound to the caller, its
+    /// paths read through the request the final barrier reads (else `req`).
+    pub(super) async fn served(&mut self, req: &CompileRequest, out: &CompileOutcome) -> Verdict {
+        let mut view = out.clone();
+        let mut read = req.clone();
+        if let Some(serves) = self.serves() {
+            super::sketch::bind_caller(serves.caller.clone(), &serves.raw, &mut view);
+            read = serves.reading.clone();
+        }
+        self.inspect(&read, &view).await
     }
 
     /// Every returned Ready candidate, including COLD and replay, faces the same barrier on
@@ -155,7 +255,6 @@ impl<'a> Rehearsals<'a> {
                 }
                 Err(why) => Verdict {
                     result: Result::Stop(why),
-                    record: Value::Null,
                 },
             };
             match verdict.result {
@@ -195,11 +294,9 @@ fn effective_paths(
     let mut inputs = nika_compile::stated_sources(&intent);
     let mut targets = nika_compile::stated_destinations(&intent);
     if matches!(&request.input, crate::types::Input::Create(_)) {
-        let native = out
-            .provenance
-            .plan
-            .as_ref()
-            .filter(|record| record["strategy"] == "native");
+        let native = out.provenance.plan.as_ref().filter(|record| {
+            record["strategy"] == "native" || record.get("semantic_record").is_some()
+        });
         if let Some(record) = native {
             let paths = nika_compile::surface::native_answered_paths(
                 record,
@@ -213,9 +310,96 @@ fn effective_paths(
             extend_paths(&mut targets, paths.writes());
         } else if out.provenance.strategy == Some(crate::Strategy::Native) {
             return Err("The native candidate has no current answer record.".to_owned());
+        } else if let Some(record) = (out.provenance.plan.as_ref())
+            .filter(|record| record["strategy"] == "cold" && !request.answers.is_empty())
+        {
+            let candidate = out.candidate.as_deref().unwrap_or_default();
+            let (reads, writes) =
+                cold_answered_paths(record, request, candidate).ok_or_else(|| {
+                    "The current answers do not rebuild these candidate bytes and their paths."
+                        .to_owned()
+                })?;
+            extend_paths(&mut inputs, &reads);
+            extend_paths(&mut targets, &writes);
         }
     }
+    // A path the request names that the candidate writes and never reads (« Save ./out/x.json
+    // as … ») is its output, never an input the room must find.
+    let fs = (nika_compile::parse(out.candidate.as_deref().unwrap_or_default()).ok())
+        .and_then(|workflow| nika_check::infer_permits(&workflow).permits.fs);
+    if let Some(fs) = fs {
+        let output = |path: &String| fs.write.contains(path) && !fs.read.contains(path);
+        let outputs: Vec<String> = inputs.iter().filter(|path| output(path)).cloned().collect();
+        inputs.retain(|path| !output(path));
+        extend_paths(&mut targets, &outputs);
+    }
     Ok((inputs, targets))
+}
+
+/// The answers a COLD plan's candidate uses as file paths, by role (reads, writes). The
+/// deterministic compiler must rebuild exactly these clean-checked bytes from the plan and the
+/// answers (the barrier holds the final outcome Ready; a clause this round's judge settled
+/// leaves the rebuild pending, never other bytes). An answer is a path only where the inferred
+/// permits move with it (the same rebuild with that answer replaced reads or writes elsewhere),
+/// in each role it moves. A saved path list, a constant merely present and a content answer that
+/// equals a path grant nothing; an empty, glob, absolute or escaping path refuses.
+fn cold_answered_paths(
+    record: &Value,
+    request: &CompileRequest,
+    candidate: &str,
+) -> Option<(Vec<String>, Vec<String>)> {
+    let rebuild = |request: CompileRequest| {
+        let out = nika_compile::compile(&request.with_plan(record.clone())).ok()?;
+        let clean = (out.check_preview.as_ref()).is_some_and(|p| p.report.is_clean());
+        let source = out
+            .candidate
+            .filter(|_| out.status != CompileStatus::Refused && clean)?;
+        let fs = nika_check::infer_permits(&nika_compile::parse(&source).ok()?)
+            .permits
+            .fs;
+        Some((source, fs.map(|fs| (fs.read, fs.write)).unwrap_or_default()))
+    };
+    let (source, (reads, writes)) = rebuild(request.clone())?;
+    if source != candidate {
+        return None;
+    }
+    let (mut read, mut write) = (Vec::new(), Vec::new());
+    for (key, answer) in &request.answers {
+        if !key.starts_with("const.") || serde_json::from_str::<String>(answer).is_err() {
+            continue;
+        }
+        // An answer the probe cannot replace (a rebuild that no longer settles) binds no path.
+        let probe = json!("./nika-rehearsal-answer-probe.txt").to_string();
+        let Some((_, (moved_reads, moved_writes))) = rebuild(request.clone().answer(key, probe))
+        else {
+            continue;
+        };
+        for (paths, moved, side) in [
+            (&reads, moved_reads, &mut read),
+            (&writes, moved_writes, &mut write),
+        ] {
+            let bound: Vec<String> = (paths.iter())
+                .filter(|path| !moved.contains(path))
+                .cloned()
+                .collect();
+            // Bound as a path the survey cannot name (an absolute one): refused, never dropped.
+            if bound.is_empty() && moved.iter().any(|path| !paths.contains(path)) {
+                return None;
+            }
+            side.extend(bound);
+        }
+    }
+    let unsafe_path = |path: &String| {
+        path.is_empty()
+            || path.contains(['*', '?', '['])
+            || std::path::Path::new(path).components().any(|c| {
+                !matches!(
+                    c,
+                    std::path::Component::Normal(_) | std::path::Component::CurDir
+                )
+            })
+    };
+    (!read.iter().chain(&write).any(unsafe_path)).then_some((read, write))
 }
 
 fn extend_paths(paths: &mut Vec<String>, added: &[String]) {
@@ -305,6 +489,11 @@ fn classify(candidate: &str, report: &RehearsalReport, end: &RunEnd) -> Result {
         Rehearsal::Passed { .. } => Result::Stop(
             "The rehearsal claimed success without a completed, effect-free observation."
                 .to_owned(),
+        ),
+        // Non-exhaustive across the member boundary (ADR-146): an outcome this door does not
+        // know proves nothing, so it stops, never proceeds.
+        _ => Result::Stop(
+            "The rehearsal reported an outcome this compiler does not read.".to_owned(),
         ),
     }
 }

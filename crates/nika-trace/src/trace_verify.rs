@@ -61,7 +61,12 @@ use nika_dap::anchor::tier;
 
 use super::VerbOutput;
 
+mod captured;
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used)]
+mod captured_tests;
 mod json;
+pub use captured::{JOURNAL_BOUND, verify_captured};
 pub use json::VERIFY_VERSION;
 use json::{finish, ladder_doc};
 
@@ -106,95 +111,7 @@ pub fn verify_with(trace: &str, opts: &VerifyOptions) -> VerbOutput {
         Ok(raw) => raw,
         Err(refusal) => return refusal,
     };
-    match walk(&raw) {
-        Verdict::Intact { events, head, .. } => tiered(
-            trace,
-            &raw,
-            events,
-            &head,
-            ChainHeadline::Intact,
-            opts,
-            &candidates,
-        ),
-        Verdict::Incomplete { events, head, .. } => tiered(
-            trace,
-            &raw,
-            events,
-            &head,
-            ChainHeadline::Incomplete,
-            opts,
-            &candidates,
-        ),
-        Verdict::TornTail { events, head, .. } => tiered(
-            trace,
-            &raw,
-            events,
-            &head,
-            ChainHeadline::Torn,
-            opts,
-            &candidates,
-        ),
-        Verdict::Broken {
-            line,
-            recorded,
-            computed,
-            ..
-        } => finish(
-            opts,
-            trace,
-            "broken",
-            VerbOutput::file(format!(
-                "BROKEN at line {line} — recorded chain {} · computed {}\n  every line from here on is unverified (edited, inserted, dropped or reordered)",
-                short(&recorded),
-                short(&computed),
-            )),
-        ),
-        // F-P1 · the fortress line bound: beyond the verifier's bounds
-        // is a FILE refusal (a 100 MB line is a DoS vector, never a
-        // journal line — recognized, never partially read).
-        Verdict::LineOverLong { line, got, .. } => finish(
-            opts,
-            trace,
-            "line-over-long",
-            VerbOutput::file(format!(
-                "line {line} is {got} bytes — beyond the verifier's line bound ({} bytes)\n  a journal line is small (the seal's covers included); an oversized line is\n  the DoS class, refused before any parse (F-P1)",
-                nika_dap::chain::MAX_LINE_BYTES,
-            )),
-        ),
-        Verdict::Unchained => finish(
-            opts,
-            trace,
-            "unchained",
-            VerbOutput::env(format!(
-                "unchained — {trace} predates the chain (pre-0.96 journal): nothing to verify, nothing to distrust"
-            )),
-        ),
-        Verdict::Empty => finish(
-            opts,
-            trace,
-            "empty",
-            VerbOutput::env(format!("{trace}: no events")),
-        ),
-        Verdict::Unreadable { line, .. } => finish(
-            opts,
-            trace,
-            "unreadable",
-            VerbOutput::env(format!(
-                "{trace}:{line}: not a journal — the line is not valid JSON"
-            )),
-        ),
-        // The verdict is #[non_exhaustive]: a NEWER forensics crate may
-        // learn classes this CLI cannot render — refuse honestly,
-        // never mis-render one.
-        _ => finish(
-            opts,
-            trace,
-            "unknown",
-            VerbOutput::env(format!(
-                "{trace}: unknown verdict class — the forensics library is newer than this CLI"
-            )),
-        ),
-    }
+    captured::judge(trace, &raw, opts, &candidates)
 }
 
 /// The chain-intact headline the verify surface prints (F-P2): the same
@@ -261,18 +178,9 @@ fn liveness_line(liveness: nika_dap::liveness::Liveness) -> String {
 /// already the verb's output (the `--json` envelope included).
 fn read_journal(trace: &str, opts: &VerifyOptions) -> Result<String, VerbOutput> {
     if let Ok(meta) = std::fs::metadata(trace)
-        && meta.len() > nika_dap::bounded::MAX_JOURNAL_BYTES as u64
+        && meta.len() > JOURNAL_BOUND as u64
     {
-        return Err(finish(
-            opts,
-            trace,
-            "refused",
-            VerbOutput::env(format!(
-                "{trace}: {} bytes — over the journal bound ({} bytes · NEP-0012 law 1 · a file beyond it is not a run this engine produced)",
-                meta.len(),
-                nika_dap::bounded::MAX_JOURNAL_BYTES
-            )),
-        ));
+        return Err(captured::over_bound(opts, trace, meta.len()));
     }
     std::fs::read_to_string(trace).map_err(|e| {
         finish(
@@ -1054,6 +962,37 @@ mod tests {
         assert!(out.text.contains("ANCHOR FORGED"), "{}", out.text);
         assert!(out.text.contains("reported tier: SEALED"), "{}", out.text);
         assert!(!out.text.contains("ANCHORED — rekor"), "{}", out.text);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A sidecar that cannot be acquired (here, its final name is a link)
+    /// over a GOOD seal is UNAVAILABLE: reported SEALED, the ENV class,
+    /// never « forged »; the JSON names the same outcome.
+    #[test]
+    fn an_unacquirable_sidecar_is_unavailable_never_forged() {
+        let dir = std::env::temp_dir().join(format!("nika-q17-unavailable-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("dir");
+        let trace = dir.join("fixture.ndjson");
+        std::fs::write(&trace, FIXTURE_JOURNAL).expect("journal");
+        let elsewhere = dir.join("elsewhere.json");
+        std::fs::write(&elsewhere, FIXTURE_SIDECAR).expect("sidecar elsewhere");
+        let sidecar = crate::anchor::sidecar_path(&trace.to_string_lossy());
+        std::os::unix::fs::symlink(&elsewhere, &sidecar).expect("a final link");
+        let key = dir.join("run.pub");
+        std::fs::write(&key, FIXTURE_PUBLIC_BOX).expect("key");
+        let out = verify_with(&trace.to_string_lossy(), &opts_with_key(key.clone()));
+        assert_eq!(out.code, super::super::exit::ENV, "{}", out.text);
+        assert!(out.text.contains("ANCHOR UNAVAILABLE"), "{}", out.text);
+        assert!(!out.text.contains("FORGED"), "{}", out.text);
+        assert!(out.text.contains("reported tier: SEALED"), "{}", out.text);
+        let json = VerifyOptions {
+            json: true,
+            ..opts_with_key(key)
+        };
+        let doc: serde_json::Value =
+            serde_json::from_str(verify_with(&trace.to_string_lossy(), &json).text.trim())
+                .expect("doc");
+        assert_eq!(doc["anchor"]["tier"], "unavailable", "{doc}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

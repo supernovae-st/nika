@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Question identities over real Session → Compiler clarifications: the deterministic
-//! compiler's `model` question (zero calls), and a native destination question through the
+//! compiler's `model` question (zero calls), and a semantic destination question through the
 //! loopback seat in DIALOG-11's shape (« Copie entree.txt vers une destination à préciser. »,
 //! the destination changed before the old question is answered). The identity is the one
 //! the session hands out; an answer naming an old, answered, re-read, re-seated or restarted
@@ -23,34 +23,14 @@ const DIALOG_11: &str = "Copie entree.txt vers une destination à préciser.";
 /// The human changes the destination while its question waits.
 const CHANGE: &str = "Finalement la destination change : je te la redonne tout de suite.";
 
-/// The native seat's draft for DIALOG-11: the destination a declared placeholder the seat
-/// asks for, the write boundary the one narrow form the judge admits while it is asked.
-const DESTINATION_DRAFT: &str = r#"nika: copy-to-chosen-file
-const:
-  destination_path: ""
-permits:
-  fs:
-    read: ["./entree.txt"]
-    write: [""]
-  tools: ["nika:read", "nika:write"]
-tasks:
-  read_source:
-    invoke:
-      tool: "nika:read"
-      args: { path: "./entree.txt" }
-  write_destination:
-    with: { text: "${{ tasks.read_source.output }}" }
-    invoke:
-      tool: "nika:write"
-      args: { path: "${{ const.destination_path }}", content: "${{ with.text }}" }
-"#;
-
-/// The seat's answer: the draft, and the destination asked in the same words every time.
-fn asks_destination() -> String {
-    json!({"candidate": DESTINATION_DRAFT, "questions": [{"key": "const.destination_path",
-        "label": "Destination file path", "answer_type": "text",
-        "why": "The request leaves the destination to be specified."}],
-        "gaps": [], "notes": "copy the exact bytes; the destination is asked"})
+/// The private plan for DIALOG-11, the same every time: read the stated source, write to the
+/// destination the request leaves open, which the compiler asks (`const.output_path`).
+fn plans_destination() -> String {
+    json!({"steps":[{"op":"read","detail":"entree.txt","evidence":"Copie entree.txt"}],
+        "effects":[{"verb":"write","target":"une destination à préciser","policy":"automatic",
+            "evidence":"vers une destination à préciser"}],
+        "obligations":[],"constraints":[],"unknowns":[],"regions":[],
+        "approval_bypass":{"present":false}})
     .to_string()
 }
 
@@ -211,11 +191,8 @@ fn a_new_request_is_a_new_question_and_an_old_answer_reads_nothing() -> Result<(
     let TurnOutcome::Proposal { id, .. } = &out else {
         return Err(format!("the current answer proceeds: {out:?}"));
     };
-    assert_eq!(
-        calls.load(Ordering::SeqCst),
-        spent + 1,
-        "one route, no reading"
-    );
+    // A `provider/name` alone answers the model question by its shape: no route, no reading.
+    assert_eq!(calls.load(Ordering::SeqCst), spent, "no route, no reading");
     let out = s.answer_question_for(&current, "mock/echo");
     assert!(refused(&out, RefusalClass::AlreadyConsumed), "{out:?}");
     assert_eq!(
@@ -223,7 +200,7 @@ fn a_new_request_is_a_new_question_and_an_old_answer_reads_nothing() -> Result<(
         Some(id),
         "the proposal is untouched"
     );
-    assert_eq!(calls.load(Ordering::SeqCst), spent + 1);
+    assert_eq!(calls.load(Ordering::SeqCst), spent);
     assert!(matches!(s.consent("no"), TurnOutcome::Facts(_)));
     assert!(matches!(s.turn(REDRAFT), TurnOutcome::Question { .. }));
     let again = s.pending_question_id().ok_or("asked again")?;
@@ -289,8 +266,8 @@ fn another_intelligence_asks_another_question() -> Result<(), String> {
     assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
     assert_eq!(
         calls.load(Ordering::SeqCst),
-        1,
-        "one route under the chosen model"
+        0,
+        "an identity alone is the answer: no route under the chosen model"
     );
     Ok(())
 }
@@ -354,29 +331,55 @@ fn a_restarted_session_never_takes_an_earlier_answer() -> Result<(), String> {
         assert_eq!(s.pending_question_id().as_ref(), Some(&current));
         let out = s.answer_question_for(&current, "mock/echo");
         assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
-        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            0,
+            "an identity alone: no route"
+        );
     }
     Ok(())
 }
 
 /// Whether a request the seat received is its round's judge over the bytes that round finished:
-/// the closed choice (faithful · unfaithful) carrying the bound answer.
+/// the closed clause choice (carried · missing) carrying the bound answer.
 fn judged_over(body: &serde_json::Value, bound: &str) -> bool {
     let body = body.to_string();
-    body.contains("unfaithful") && body.contains(bound)
+    body.contains("carried") && body.contains("missing") && body.contains(bound)
 }
 
-/// DIALOG-11's shape through the real native door: the seat asks the destination; the
-/// destination changes before any answer, the request is read again, and the seat asks the
-/// SAME key in the SAME words for the revised request. The old answer names the old
-/// question: refused with no route, no call and nothing changed; the current answer binds
-/// and the recorded plan replays, its one call the judge the seat is permitted as when the
-/// round finishes (native step 2); only the durable money record changes before consent,
-/// never a workflow or an output file.
+/// Whether a request the seat received is its round's judge of the whole request over the bytes
+/// that round finished: the closed whole-request choice over a candidate carrying `bound`.
+fn judged_whole_over(body: &serde_json::Value, bound: &str) -> bool {
+    super::unjudged::asked(body).is_some_and(|(state, verdicts)| {
+        verdicts == ["faithful", "unfaithful", "none"]
+            && (state["candidate_nika"].as_str()).is_some_and(|c| c.contains(bound))
+    })
+}
+
+/// The round's judge settles the change the request now carries: the asked destination does it.
+const JUDGE_CARRIES: &str = r#"{"choice":"carried"}"#;
+
+/// The seat's answers in DIALOG-11, in call order: the private plan of the request, the plan of
+/// the request read again, then the answer round's judge, the clause the change added carried
+/// and the whole request faithful.
+fn dialog_11_script() -> Vec<(u16, serde_json::Value)> {
+    let asks = || (200, response(&plans_destination()));
+    let says = |text: &str| (200, response(text));
+    vec![asks(), asks(), says(JUDGE_CARRIES), says(JUDGE_APPROVES)]
+}
+
+/// DIALOG-11's shape through semantic CREATE: the private plan leaves the destination open and
+/// the compiler asks it; the destination changes before any answer, the request is read again,
+/// and the SAME key is asked in the SAME words for the revised request. The old answer names the
+/// old question: refused with no route, no call and nothing changed; the current answer binds
+/// and the recorded plan replays, its calls the judge the seat is permitted as when the round
+/// finishes, over the bound bytes: the clause the change added, then the whole request (a
+/// replayed model plan is judged whole in the round, C3), whose faithful verdict is weighed
+/// against the round's trial run of those bytes, each part asked over it; only the durable money
+/// record changes before consent, never a workflow or an output file.
 #[test]
 fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String> {
-    let asks = || (200, response(&asks_destination()));
-    let peer = Peer::start(vec![asks(), asks(), (200, response(JUDGE_APPROVES))]);
+    let peer = Peer::start(dialog_11_script());
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().map_err(|e| e.to_string())?;
     let mut s = open(dir.path());
@@ -390,9 +393,9 @@ fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String
         .map_err(|out| format!("{out:?}"))?;
     let out = s.turn(DIALOG_11);
     let TurnOutcome::Question { key, .. } = &out else {
-        return Err(format!("the seat asks the destination: {out:?}"));
+        return Err(format!("the compiler asks the destination: {out:?}"));
     };
-    assert_eq!(key, "const.destination_path");
+    assert_eq!(key, "const.output_path");
     let old = s
         .pending_question_id()
         .ok_or("the emitted question has an identity")?;
@@ -404,7 +407,7 @@ fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String
     let words = s.pending_question().cloned();
     let out = s.turn(CHANGE);
     assert!(
-        matches!(&out, TurnOutcome::Question { key, .. } if key == "const.destination_path"),
+        matches!(&out, TurnOutcome::Question { key, .. } if key == "const.output_path"),
         "{out:?}"
     );
     assert_eq!(peer.bodies().len(), 2, "the revised request was read again");
@@ -416,13 +419,12 @@ fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String
     let current = s.pending_question_id().ok_or("asked again")?;
     assert_ne!(current, old, "another revision is another question");
     let untouched = world(dir.path())?;
-    let routed = routings.load(Ordering::SeqCst);
+    // The requests the seat received and the turns routed so far.
+    let calls = || (peer.bodies().len(), routings.load(Ordering::SeqCst));
+    let routed = calls().1;
     let out = s.answer_question_for(&old, "sortie.txt");
     assert!(refused(&out, RefusalClass::StaleRevision), "{out:?}");
-    assert_eq!(
-        (peer.bodies().len(), routings.load(Ordering::SeqCst)),
-        (2, routed)
-    );
+    assert_eq!(calls(), (2, routed));
     assert_eq!(s.pending_question_id().as_ref(), Some(&current));
     assert_eq!(s.pending_question().cloned(), words);
     assert_eq!(world(dir.path())?, untouched);
@@ -431,23 +433,26 @@ fn dialog_11_the_same_key_asked_again_is_another_question() -> Result<(), String
         return Err(format!("the current answer binds: {out:?}"));
     };
     assert!(preview.contains("archive/copie.txt"), "{preview}");
-    assert_eq!(
-        (peer.bodies().len(), routings.load(Ordering::SeqCst)),
-        (3, routed + 1)
+    assert_eq!(calls(), (6, routed + 1));
+    let over_the_run = |body: &serde_json::Value| body.to_string().contains("unexercised");
+    assert!(
+        peer.bodies()[4..].iter().all(over_the_run),
+        "its parts over the trial run"
     );
     assert!(
         judged_over(&peer.bodies()[2], "archive/copie.txt"),
         "the round's judge"
+    );
+    assert!(
+        judged_whole_over(&peer.bodies()[3], "archive/copie.txt"),
+        "the round's judge of the whole request"
     );
     let out = s.answer_question_for(&current, "autre.txt");
     assert!(refused(&out, RefusalClass::AlreadyConsumed), "{out:?}");
     let out = s.answer_question_for(&old, "sortie.txt");
     assert!(refused(&out, RefusalClass::WrongState), "{out:?}");
     assert_eq!(s.pending_proposal().as_ref(), Some(id));
-    assert_eq!(
-        (peer.bodies().len(), routings.load(Ordering::SeqCst)),
-        (3, routed + 1)
-    );
+    assert_eq!(calls(), (6, routed + 1));
     let state_path = dir
         .path()
         .join(".nika/session-state.json")

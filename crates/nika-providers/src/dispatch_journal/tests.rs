@@ -54,7 +54,7 @@ fn a_returned_dispatch_never_reports_its_requests() {
         async {
             let entry = open().expect("scoped");
             sent(Some(&requested("https://a.example/v1")));
-            entry.settle(Some(&answered("https://a.example/v1")));
+            entry.settle(Some(&answered("https://a.example/v1")), true);
             7
         },
         |lost| panic!("a returned dispatch carries its own evidence: {lost:?}"),
@@ -98,7 +98,7 @@ fn returned_evidence_and_the_unanswered_request_are_both_reported() {
     let lost = lost_of(|| async {
         let first = open().expect("scoped");
         sent(Some(&requested("https://a.example/v1")));
-        first.settle(Some(&answered("https://a.example/v1")));
+        first.settle(Some(&answered("https://a.example/v1")), true);
         let _second = open().expect("scoped");
         sent(Some(&requested("https://a.example/v1")));
         std::future::pending::<()>().await;
@@ -113,7 +113,7 @@ fn returned_evidence_and_the_unanswered_request_are_both_reported() {
 fn a_withdrawn_request_is_not_reported() {
     let lost = lost_of(|| async {
         let refused = open().expect("scoped");
-        refused.settle(None);
+        refused.settle(None, false);
         let _entry = open().expect("scoped");
         sent(Some(&requested("https://b.example/v1")));
         std::future::pending::<()>().await;
@@ -131,7 +131,7 @@ fn a_sent_request_without_evidence_stays_sent() {
     let lost = lost_of(|| async {
         let entry = open().expect("scoped");
         sent(Some(&requested("https://a.example/v1")));
-        entry.settle(None);
+        entry.settle(None, false);
         std::future::pending::<()>().await;
     });
     assert_eq!(lost.len(), 1);

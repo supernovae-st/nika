@@ -28,6 +28,8 @@ pub struct Thread {
     pub on_screen: Option<String>,
     /// The references attached to the next message, in the order joined.
     pub attached: Vec<String>,
+    /// The selected intelligence, as observed by Session.
+    pub intelligence: Option<String>,
 }
 
 impl Thread {
@@ -39,7 +41,15 @@ impl Thread {
             name: name.into(),
             on_screen: None,
             attached: Vec::new(),
+            intelligence: None,
         }
+    }
+
+    /// The selected model and access, without changing this conversation's recipient.
+    #[must_use]
+    pub fn seated(mut self, intelligence: Option<String>) -> Self {
+        self.intelligence = intelligence;
+        self
     }
 
     /// This conversation with `object` in view.
@@ -102,8 +112,11 @@ pub fn title(thread: &Thread, width: u16, ascii: bool, color: bool, rule: bool) 
         String::new()
     };
     Line::from(vec![
-        Span::styled(head, dim),
-        Span::styled(name, role::style(Role::Strong, color)),
+        Span::styled(head, role::style(Role::Accent, color)),
+        Span::styled(
+            name,
+            role::style(Role::Accent, color).patch(role::style(Role::Strong, color)),
+        ),
         Span::styled(project, dim),
         Span::styled(tail, dim),
     ])

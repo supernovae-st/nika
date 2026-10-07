@@ -6,6 +6,21 @@ use nika_kernel::ai::provider::{InferResponse, ProviderError, TokenUsage, UsageC
 use nika_types::cost::Cost;
 use std::sync::{Arc, Mutex, MutexGuard};
 
+mod amount;
+mod checkpoint;
+mod companion;
+pub use companion::admit_unpriced_companion;
+mod completed;
+pub use completed::CompletedCostReport;
+mod legacy;
+pub use legacy::LegacyCostReport;
+mod summary;
+pub use amount::allowance;
+pub use summary::{
+    account_status, accounting_checkpoint, decision_summary, inference_summary, interrupted_note,
+    is_decision_observation, observation_details, unadmitted_summary, unbudgeted_dispatch_note,
+    unbudgeted_observation_summary, unbudgeted_summary,
+};
 mod declared;
 mod observation;
 mod review;
@@ -58,6 +73,8 @@ pub struct AttemptReceipt {
     pub tariff: InferenceTariff,
     /// Reserved worst-case catalog cost.
     pub reserved: Cost,
+    /// Exact output bound admitted for this physical request.
+    pub max_output_tokens: u32,
     /// Whether the request crossed the transport boundary.
     pub sent: bool,
     /// Complete or partial observed meters; absent stays absent.
@@ -122,6 +139,7 @@ pub struct InferenceReceipt {
 }
 #[derive(Debug)]
 struct State {
+    identity: String,
     unknown: Option<UnknownCostChoice>,
     unknown_in_flight: u32,
     unknown_attempts: Vec<UnknownAttemptReceipt>,
@@ -181,6 +199,7 @@ impl InferenceAdmission {
     fn open(limit: Cost, unbudgeted: bool) -> Self {
         Self(
             Arc::new(Mutex::new(State {
+                identity: nika_types::id::CorrelationId::generate().to_string(),
                 unknown: None,
                 unknown_in_flight: 0,
                 unknown_attempts: Vec::new(),
@@ -250,6 +269,9 @@ impl InferenceAdmission {
     /// An unavailable lock fails closed.
     pub fn snapshot(&self) -> Result<InferenceReceipt, ProviderError> {
         let s = self.lock()?;
+        self.snapshot_locked(&s)
+    }
+    fn snapshot_locked(&self, s: &State) -> Result<InferenceReceipt, ProviderError> {
         Ok(InferenceReceipt {
             scoped_to_declared_free: self.observes_declared_free_only(),
             unknown_cost: s.unknown.clone(),
@@ -281,6 +303,21 @@ impl InferenceAdmission {
             attempts: s.attempts.clone(),
         })
     }
+    /// Qualify the selected provider/model at the registry's effective endpoint, without I/O.
+    /// # Errors
+    /// Missing provider namespace, endpoint or exact catalog admission tariff.
+    pub fn qualify_selected(model: &str, config: crate::ProvidersConfig) -> Result<(), String> {
+        let (provider, name) = model
+            .split_once('/')
+            .ok_or("model must be provider-qualified")?;
+        let registry = crate::ProviderRegistry::without_http(config);
+        let endpoint = registry
+            .effective_base_url(provider)
+            .ok_or("unknown provider endpoint")?;
+        Self::qualify(provider, name, endpoint).map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
     /// Qualify the ACTUAL selected endpoint and exact model; never a gateway
     /// alias or an unpriced local/subscription lane. No network is performed.
     /// # Errors
@@ -341,6 +378,7 @@ impl InferenceAdmission {
             endpoint: endpoint.to_owned(),
             tariff,
             reserved: quote,
+            max_output_tokens: output,
             sent: false,
             usage: None,
             estimated: None,

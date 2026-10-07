@@ -11,6 +11,21 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_COMMON_DIR \
   GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_NAMESPACE \
   GIT_QUARANTINE_PATH
 
+# The same holds for cargo: the CALLER'S `cargo` must not decide where this
+# test may run it. Every cargo below (and in the release scripts it drives)
+# works inside this test's own temporary fixtures, and a session hook puts a
+# `cargo` shim first on PATH that refuses any directory without a claimed
+# lane — measured as a FAIL under the pre-push hook while the very same test
+# passed when run alone. Resolve the toolchain's real cargo once and put its
+# directory first, so the fixtures see the toolchain itself, never a shim.
+if command -v rustup >/dev/null 2>&1; then
+  TOOLCHAIN_CARGO="$(rustup which cargo)"
+else
+  TOOLCHAIN_CARGO="$(command -v cargo)"
+fi
+PATH="$(dirname "$TOOLCHAIN_CARGO"):$PATH"
+export PATH
+
 # Snapshot the repository the test was invoked from, if any, so the exit trap
 # can prove the run never touched it. The tree may legitimately be dirty
 # before the run; the contract is equality, not emptiness.

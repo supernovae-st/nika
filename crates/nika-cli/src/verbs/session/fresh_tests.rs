@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 //! Real PTY → the plain session door (`drive` over the real `read_burst` line source)
-//! → the actual Session one-time unknown-cost question → the production provider
-//! registry and the Session's admission account → an INJECTED fixture transport that
-//! logs each request. Hermetic mechanics only: no provider socket, and no model,
-//! billing or UX qualification. Only greetings are sent: work would reach the
-//! compiler's own transport, which this fixture does not inject.
+//! → the actual Save consent boundary, and continuous preparation through the
+//! production provider registry into an INJECTED fixture transport. Hermetic
+//! mechanics only: no provider socket, model, billing or UX qualification. Save
+//! fixtures use the deterministic compiler with no intelligence; only greetings
+//! reach the injected transport, with available usage and unknown prices retained.
 #![allow(
     clippy::expect_used,
     clippy::unwrap_used,
@@ -26,6 +26,9 @@ use std::time::Duration;
 
 const MODEL: &str = "deepseek/s94-unpriced-fixture";
 const MARKER: &str = ".s94-plain-fixture";
+const SAVE_MARKER: &str = ".s94-save-fixture";
+const COPY: &str = "Read ./notes/brief.md and write it to ./out/copy.md";
+const WORKFLOW: &str = "compiled-workflow.nika";
 
 /// The injected fixture transport (never a provider): one line per request.
 struct FixtureHttp {
@@ -58,23 +61,29 @@ impl HttpPostDyn for FixtureHttp {
     }
 }
 
-/// The selected unpriced route: every call rides the Session's admission account
-/// through the production registry into the fixture transport; words are scripted.
+/// The selected unpriced route observes continuous calls through the real journal;
+/// explicitly bounded callers still use their admission account. Words are scripted.
 struct FixtureRoute {
     words: ScriptedReasoner,
 }
 
 impl FixtureRoute {
-    fn send(&mut self, prompt: &str, account: &InferenceAdmission) -> Result<Reply, ReasonError> {
+    fn send(
+        &mut self,
+        prompt: &str,
+        account: Option<&InferenceAdmission>,
+    ) -> Result<Reply, ReasonError> {
         let root = std::env::current_dir().map_err(|e| ReasonError::Provider(e.to_string()))?;
-        let registry = ProviderRegistry::new(
+        let mut registry = ProviderRegistry::new(
             Arc::new(FixtureHttp { root }),
             ProvidersConfig::new().with_key(
                 "deepseek",
                 nika_kernel::secret::Secret::new("fixture-not-a-key"),
             ),
-        )
-        .with_inference_admission(account.clone());
+        );
+        if let Some(account) = account {
+            registry = registry.with_inference_admission(account.clone());
+        }
         let provider = registry
             .resolve(MODEL)
             .map_err(|e| ReasonError::Provider(e.to_string()))?;
@@ -84,10 +93,16 @@ impl FixtureRoute {
             .map_err(|e| ReasonError::Runtime(e.to_string()))?;
         let mut request = InferRequest::new(MODEL, vec![Message::text(Role::User, prompt)]);
         request.max_tokens = Some(32);
-        let _sent = runtime
-            .block_on(provider.infer_reported(request))
+        let sent = runtime
+            .block_on(
+                nika_providers::authoring::preparation::PreparationCosts::capture(
+                    provider.infer_reported(request),
+                ),
+            )
             .map_err(|(e, _)| ReasonError::Provider(e.to_string()))?;
-        self.words.reason(prompt)
+        let mut reply = self.words.reason(prompt)?;
+        reply.usage_observed = sent.0.usage_reported;
+        Ok(reply)
     }
 }
 
@@ -95,10 +110,8 @@ impl SessionReasoner for FixtureRoute {
     fn name(&self) -> String {
         "S94 fixture route".to_owned()
     }
-    fn reason(&mut self, _prompt: &str) -> Result<Reply, ReasonError> {
-        Err(ReasonError::Provider(
-            "an unknown-cost route never answers unmetered".to_owned(),
-        ))
+    fn reason(&mut self, prompt: &str) -> Result<Reply, ReasonError> {
+        self.send(prompt, None)
     }
     fn supports_admission(&self) -> bool {
         true
@@ -108,21 +121,24 @@ impl SessionReasoner for FixtureRoute {
         prompt: &str,
         account: &InferenceAdmission,
     ) -> Result<Reply, ReasonError> {
-        self.send(prompt, account)
+        self.send(prompt, Some(account))
     }
     fn reason_label_with_admission(
         &mut self,
         prompt: &str,
         account: &InferenceAdmission,
     ) -> Result<Reply, ReasonError> {
-        self.send(prompt, account)
+        self.send(prompt, Some(account))
     }
     fn authoring_model(&self) -> Option<String> {
         Some(MODEL.to_owned())
     }
 }
 
-fn fixture_route(_: &ResolvedSessionIntelligence) -> Box<dyn SessionReasoner> {
+fn fixture_route(choice: &ResolvedSessionIntelligence) -> Box<dyn SessionReasoner> {
+    if matches!(choice.kind, IntelligenceKind::None) {
+        return Box::new(NoReasoner);
+    }
     Box::new(FixtureRoute {
         words: ScriptedReasoner::new(vec!["Hello from the S94 fixture route.".to_owned()]),
     })
@@ -138,10 +154,17 @@ fn plain_cost_parent() {
     }
     let mut census = IntelligenceCensus::empty();
     census.api_keys.push("deepseek".to_owned());
-    let api = IntelligenceKind::Api {
-        provider: "deepseek".to_owned(),
+    let (kind, model) = if root.join(SAVE_MARKER).is_file() {
+        (IntelligenceKind::None, None)
+    } else {
+        (
+            IntelligenceKind::Api {
+                provider: "deepseek".to_owned(),
+            },
+            Some(MODEL.to_owned()),
+        )
     };
-    UserIntelligencePreference::new(api, Some(MODEL.to_owned()))
+    UserIntelligencePreference::new(kind, model)
         .save(&root)
         .unwrap();
     let mut input = PerCallLines::new(read_burst);
@@ -199,75 +222,174 @@ fn calls(root: &Path) -> usize {
         .count()
 }
 
-/// The Session's question shows, then — only after the fresh boundary — its prompt.
+/// Save is still an explicit decision after continuous preparation finishes.
 fn asked(p: &mut LoggedPty) {
-    p.expect("USD").unwrap();
-    p.expect("once?").unwrap();
-    p.expect("continue once? ›").unwrap();
+    p.expect("Nika proposes `compiled-workflow.nika`:").unwrap();
+    p.expect("apply? ›").unwrap();
+}
+
+fn save_root() -> tempfile::TempDir {
+    let root = new_root();
+    std::fs::write(root.path().join(SAVE_MARKER), "no intelligence").unwrap();
+    std::fs::create_dir(root.path().join("notes")).unwrap();
+    std::fs::write(
+        root.path().join("notes/brief.md"),
+        "Keep the source unchanged.\n",
+    )
+    .unwrap();
+    root
+}
+
+fn nothing_saved_or_run(root: &Path) {
+    assert!(!root.join(WORKFLOW).exists(), "Save was not authorized");
+    assert!(!root.join("out/copy.md").exists(), "Run was not authorized");
+    assert_eq!(calls(root), 0, "deterministic preparation needs no model");
 }
 
 #[test]
 fn an_unterminated_prequestion_yes_then_a_bare_enter_never_approves() {
-    let root = new_root();
+    let root = save_root();
     let mut p = spawn(root.path());
-    // `yes` typed without Enter before the question exists sits in the line discipline.
-    p.send("hello\ryes").unwrap();
+    // The unterminated yes arrives before the proposal and must be drained.
+    p.send(format!("{COPY}\ryes")).unwrap();
     asked(&mut p);
-    assert_eq!(calls(root.path()), 0);
+    nothing_saved_or_run(root.path());
     p.send("\r").unwrap();
-    // An empty answer keeps the fresh review pending. The buffered pre-question
-    // `yes` must not become consent when Enter arrives after that boundary.
-    p.expect("is not a yes or a no").unwrap();
-    p.expect("continue once? ›").unwrap();
-    assert_eq!(calls(root.path()), 0);
+    p.expect("that line is not a consent").unwrap();
+    p.expect("apply? ›").unwrap();
+    nothing_saved_or_run(root.path());
     p.send("non\r").unwrap();
-    p.expect("cancelled").unwrap();
-    p.expect("nothing").unwrap();
-    p.expect("sent").unwrap();
+    p.expect("discarded · nothing was written").unwrap();
+    p.expect("nika ›").unwrap();
     p.send("yes\r").unwrap();
-    p.expect("waits").unwrap();
-    assert_eq!(calls(root.path()), 0);
+    p.expect("nothing waits for a yes or a no").unwrap();
+    p.expect("nika ›").unwrap();
+    nothing_saved_or_run(root.path());
     p.send("\x04").unwrap();
     p.expect(Eof).unwrap();
-    assert_eq!(calls(root.path()), 0);
+    nothing_saved_or_run(root.path());
 }
 
 #[test]
 fn only_a_yes_typed_after_the_prompt_approves_and_it_never_replays() {
-    let root = new_root();
+    let root = save_root();
     let mut p = spawn(root.path());
-    p.send("hello\r").unwrap();
+    p.send(format!("{COPY}\r")).unwrap();
     asked(&mut p);
-    p.send("/details\r").unwrap();
-    p.expect("invocation").unwrap();
-    p.expect("origin https://api.deepseek.com:443").unwrap();
-    p.expect("continue once? ›").unwrap();
-    assert_eq!(calls(root.path()), 0, "reading the details answered");
+    p.send("/show\r").unwrap();
+    p.expect("the proposal still waits").unwrap();
+    p.expect("apply? ›").unwrap();
+    nothing_saved_or_run(root.path());
     p.send("yes\r").unwrap();
+    p.expect("applied · wrote `compiled-workflow.nika`")
+        .unwrap();
+    p.expect("check · `compiled-workflow.nika` · clean")
+        .unwrap();
     p.expect("nika ›").unwrap();
-    assert_eq!(calls(root.path()), 1);
+    let saved = std::fs::read(root.path().join(WORKFLOW)).unwrap();
+    assert!(!saved.is_empty());
     p.send("yes\r").unwrap();
-    p.expect("waits").unwrap();
-    assert_eq!(calls(root.path()), 1);
+    p.expect("nothing waits for a yes or a no").unwrap();
+    p.expect("nika ›").unwrap();
     p.send("\x04").unwrap();
     p.expect(Eof).unwrap();
+    assert!(
+        std::fs::read(root.path().join(WORKFLOW)).unwrap() == saved,
+        "a second yes must not change the saved workflow"
+    );
+    assert!(
+        !root.path().join("out/copy.md").exists(),
+        "Save never grants Run"
+    );
+    assert_eq!(calls(root.path()), 0);
 }
 
 #[test]
-fn end_of_input_and_an_interrupt_at_the_prompt_send_nothing() {
-    for (key, what) in [("\x04", "EOF"), ("\x03", "Ctrl+C")] {
-        let root = new_root();
+fn end_of_input_and_an_interrupt_at_the_prompt_save_nothing() {
+    for key in ["\x04", "\x03"] {
+        let root = save_root();
         let mut p = spawn(root.path());
-        p.send("hello\r").unwrap();
+        p.send(format!("{COPY}\r")).unwrap();
         asked(&mut p);
         p.send(key).unwrap();
         p.expect(Eof).unwrap();
-        assert_eq!(calls(root.path()), 0, "{what}");
+        nothing_saved_or_run(root.path());
     }
 }
 
+/// Complete usage is evidence, not a price: this fixture has no catalog tariff.
+fn assert_unknown_observed(root: &Path) {
+    let state = nika_session::SessionState::load(root).unwrap().unwrap();
+    let observation = state
+        .inference_observations
+        .iter()
+        .find(|o| o["schema"] == "nika/preparation-cost-observation@1")
+        .expect("the real plain door must persist its preparation observation");
+    assert!(
+        observation["calls"].as_array().unwrap().len() == 1,
+        "one dispatch must be retained"
+    );
+    assert!(
+        observation["unknown_calls"] == 1,
+        "the unpriced call must remain unknown"
+    );
+    assert!(
+        observation["billing"] == "unknown",
+        "usage does not establish a bill"
+    );
+    assert!(
+        observation["authority"] == "observation_only",
+        "observation grants no authority"
+    );
+    assert!(
+        observation["state"] == "Closed",
+        "the fixture response must settle its scope"
+    );
+    let call = &observation["calls"][0];
+    assert!(
+        call["estimated_usd"].is_null(),
+        "the fixture has no catalog tariff"
+    );
+    assert!(
+        call["usage"]["input_tokens"] == 10,
+        "reported input usage must survive"
+    );
+    assert!(
+        call["usage"]["output_tokens"] == 2,
+        "reported output usage must survive"
+    );
+    assert!(
+        call["usage_complete"] == true,
+        "the reported usage is complete"
+    );
+}
+
 #[test]
-fn a_non_terminal_stdin_never_gets_the_plain_question() {
+fn continuous_preparation_observes_an_unpriced_call_without_a_cost_question_or_replay() {
+    let root = new_root();
+    let mut p = spawn(root.path());
+    p.send("hello\r").unwrap();
+    p.expect("Hello from the S94 fixture route.").unwrap();
+    p.expect("nika ›").unwrap();
+    assert_eq!(calls(root.path()), 1);
+    assert_unknown_observed(root.path());
+    p.send("yes\r").unwrap();
+    p.expect("nothing waits for a yes or a no").unwrap();
+    p.expect("nika ›").unwrap();
+    p.send("\x04").unwrap();
+    p.expect(Eof).unwrap();
+    let mut reopened = spawn(root.path());
+    assert_eq!(calls(root.path()), 1, "reopening cannot replay the call");
+    assert_unknown_observed(root.path());
+    reopened.send("\x04").unwrap();
+    reopened.expect(Eof).unwrap();
+    assert_eq!(calls(root.path()), 1);
+}
+
+#[test]
+fn the_plain_driver_with_piped_input_keeps_continuous_observations() {
+    // This invokes drive directly. The public binary's pipe concierge is tested
+    // separately in session_pty; it does not open this plain Session driver.
     let root = new_root();
     let mut child = std::process::Command::new(std::env::current_exe().unwrap())
         .args([
@@ -285,7 +407,15 @@ fn a_non_terminal_stdin_never_gets_the_plain_question() {
     child.stdin.take().unwrap().write_all(b"hello\n").unwrap();
     let out = child.wait_with_output().unwrap();
     let text = String::from_utf8_lossy(&out.stdout);
-    assert!(out.status.success(), "{text}");
-    assert!(!text.contains("continue once?"), "{text}");
-    assert_eq!(calls(root.path()), 0);
+    assert!(
+        out.status.success(),
+        "the injected plain driver must finish"
+    );
+    assert!(
+        !text.contains("continue once?"),
+        "continuous preparation must not ask a cost question"
+    );
+    assert!(text.contains("Hello from the S94 fixture route."));
+    assert_eq!(calls(root.path()), 1);
+    assert_unknown_observed(root.path());
 }

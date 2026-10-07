@@ -22,6 +22,7 @@ fn request(workflow: &str) -> RunRequest {
         workflow: PathBuf::from(workflow),
         vars: Vec::new(),
         max_cost_usd: 0.1,
+        access_pin: None,
     }
 }
 
@@ -198,4 +199,32 @@ fn durable_conversation_runs_a_real_effect_and_reopens_without_replaying_it() {
                 .expect("UTF-8")
         )
     );
+}
+
+#[test]
+fn the_plain_session_runner_refuses_an_explicit_bad_pin_without_a_fallback() {
+    let root = tempfile::tempdir().expect("project");
+    let _cwd = crate::cwd::enter(root.path()).expect("isolated cwd");
+    let foreign = foreign_latest(root.path());
+    std::fs::write(root.path().join("pinned.nika"), ECHO).expect("workflow");
+    let mut run = request("pinned.nika");
+    run.access_pin = Some("not-a-real-access-pin".into());
+    let (code, trace) = run_once(root.path(), &run, theme());
+    assert_ne!(
+        code,
+        exit::OK,
+        "a pin never disappears into the available mock backend"
+    );
+    assert_eq!(nika_trace::trace::manage::latest(), Some(foreign.clone()));
+    // Admission emits no runtime event; local signing custody may still seal an empty journal.
+    let Some(trace) = trace else {
+        return;
+    };
+    assert_ne!(trace, foreign, "never borrow an earlier execution's trace");
+    let raw = std::fs::read_to_string(&trace).expect("refusal trace");
+    let recovered = nika_dap::recover::recover_events(&raw, "access refusal")
+        .expect("read the actual refusal events");
+    assert!(recovered.truncated_note.is_none());
+    assert_eq!(recovered.events.len(), 1, "no task may start: {raw}");
+    assert_eq!(recovered.events[0].kind, nika_event::EventKind::RunSealed);
 }

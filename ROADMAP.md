@@ -1,5 +1,10 @@
 # Nika Roadmap
 
+The accepted [0.123 cooperative intent direction](docs/architecture/ARCHITECTURE-0.123.md),
+amended 6 October 2026, governs this convergence. Historical routing descriptions
+below do not override it. Implementation, measured qualification and release
+remain separate from accepting that direction.
+
 > **⚠️ VERSION POLICY AMENDED 2026-06-20 (D-2026-06-20-N1) · "forever-v0.x" RETIRED.**
 > Nika now follows real semver toward a **1.0** public launch. The latest
 > tagged public release lives on the
@@ -107,16 +112,16 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 |------------------|------------------------------------------------|
 | HEAD             | `0695db637` (`0695db637d52e044efccd3761f80935cf9e2c579`)             |
 | workspace        | v0.122.0                                  |
-| crates (workspace)| 80                                              |
-| crates (admitted)| 69                                             |
-| crates (WIP)     | 11 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-service-execution nika-serve nika-session nika-tui nika-tui-view                                  |
+| crates (workspace)| 83                                              |
+| crates (admitted)| 71                                             |
+| crates (WIP)     | 12 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-service-execution nika-serve nika-session nika-session-change nika-tui nika-tui-view                                  |
 | L0               | 22                                              |
 | L0.5             | 6                                              |
 | L1               | 17                                              |
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 4                                              |
-| L4               | 22                                              |
+| L4               | 25                                              |
 | lib tests        | (skipped — pass --no-quick to compute)                              |
 | clippy           | (skipped)                              |
 

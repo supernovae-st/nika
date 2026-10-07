@@ -1,0 +1,1 @@
+- **Continue a conversation after a completed unpriced preparation.** Reopening keeps the observed costs and completed calls visible while allowing a fresh preparation choice. It never restores spending authority from the previous session or treats missing usage as free.

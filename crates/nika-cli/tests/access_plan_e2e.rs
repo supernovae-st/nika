@@ -43,13 +43,50 @@ outputs:
 
 /// A `codex exec --json` that answers one turn and never reads a key.
 /// #1253 · spawn-time attestation asks `--version` before any stdin: the
-/// shim must prove itself (product + pinned version) like the real seat.
+/// shim must prove itself (product + a minor where the pre-execution
+/// empty-tools profile was measured) and read every disabled feature back
+/// as `false` under that profile, like the real seat.
 const FAKE_CODEX: &str = r#"#!/bin/sh
 set -eu
 if [ "${1-}" = "--version" ]; then
-    printf '%s\n' 'codex-cli 0.153.4'
+    printf '%s\n' 'codex-cli 0.160.1'
     exit 0
 fi
+case " $* " in *" features list "*)
+    cat <<'FEATURES'
+shell_tool stable false
+apps stable false
+plugins stable false
+remote_plugin stable false
+browser_use stable false
+browser_use_external stable false
+browser_use_full_cdp_access stable false
+computer_use stable false
+in_app_browser stable false
+in_app_local_automation stable false
+image_generation stable false
+view_image stable false
+multi_agent stable false
+multi_agent_v2 stable false
+skill_search stable false
+skill_mcp_dependency_install stable false
+tool_suggest stable false
+sleep_tool stable false
+hooks stable false
+goals stable false
+code_mode stable false
+code_mode_only stable false
+code_mode_host stable false
+workspace_dependencies stable false
+tool_call_mcp_elicitation stable false
+memories stable false
+request_permissions_tool stable false
+standalone_web_search stable false
+worktrees stable false
+realtime_conversation stable false
+FEATURES
+    exit 0;;
+esac
 if [ "${1-}" = login ] && [ "${2-}" = status ]; then
     exit 0
 fi
@@ -902,4 +939,55 @@ fn a_model_less_infer_needs_a_model_or_a_seat() {
         text(&run.stderr)
     );
     assert_eq!(last_frame(&stdout)["status"], "succeeded", "{stdout}");
+}
+
+/// The SDK export keeps the same explicit OpenAI-compatible endpoint as Check.
+/// This is admission only: the owned canary must receive no request.
+#[test]
+fn sdk_snapshot_admits_the_explicit_compat_endpoint_without_dialing_it() {
+    let rig = Rig::new("sdk-custom-endpoint", false);
+    let source = "nika: lane\nmodel: openai/deepseek-v4-flash-0731\ntasks:\n  answer:\n    infer: { prompt: hi, max_tokens: 16 }\n";
+    std::fs::write(rig.root.join("work/lane.nika"), source).expect("workflow");
+    let canary = TcpListener::bind("127.0.0.1:0").expect("owned endpoint");
+    canary.set_nonblocking(true).expect("nonblocking canary");
+    let endpoint = format!(
+        "http://{}/v1/chat/completions",
+        canary.local_addr().expect("address")
+    );
+    let default = rig.nika(&["check", "lane.nika", "--json", "--sdk-snapshot"], false);
+    assert_eq!(default.status.code(), Some(2), "{}", text(&default.stdout));
+    let refused: serde_json::Value = serde_json::from_slice(&default.stdout).expect("refusal json");
+    assert!(refused.get("execution_snapshot").is_none());
+    let custom = rig.nika_with(
+        &["check", "lane.nika", "--json", "--sdk-snapshot"],
+        false,
+        &[
+            ("NIKA_OPENAI_BASE_URL", endpoint.as_str()),
+            ("NIKA_OPENAI_API_KEY", "fake-sdk-key"),
+        ],
+    );
+    assert_eq!(
+        custom.status.code(),
+        Some(0),
+        "{}\n{}",
+        text(&custom.stdout),
+        text(&custom.stderr)
+    );
+    let payload: serde_json::Value = serde_json::from_slice(&custom.stdout).expect("machine json");
+    let snapshot = nika_execution::ExecutionSnapshot::decode(
+        payload["execution_snapshot"]
+            .as_str()
+            .expect("snapshot string"),
+    )
+    .expect("snapshot decodes");
+    assert_eq!(snapshot.text(snapshot.root()), Some(source));
+    assert_eq!(
+        canary
+            .accept()
+            .expect_err("export must not call a model")
+            .kind(),
+        std::io::ErrorKind::WouldBlock
+    );
+    assert!(!rig.root.join("home/seat-invocations").exists());
+    assert!(!rig.root.join("work/.nika/traces").exists());
 }

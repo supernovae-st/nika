@@ -264,7 +264,10 @@ fn a_fan_out_over_a_folder_lands_one_combined_file() {
     let all = std::fs::read_to_string(project.path().join("all.md")).expect("the artefact");
     assert!(all.contains("ALPHA-BODY"), "{all}");
     assert!(all.contains("BETA-BODY"), "{all}");
-    assert!(all.contains("## "), "one heading per source file: {all}");
+    assert_eq!(
+        all, "ALPHA-BODY\nBETA-BODY\n",
+        "the sources one after the other, nothing added: {all}"
+    );
     assert!(
         all.find("ALPHA-BODY") < all.find("BETA-BODY"),
         "sources fold in order: {all}"
@@ -827,6 +830,8 @@ fn ctrl_c_during_a_stalled_seat_call_leaves_the_plain_session() {
     session
         .expect("4  No AI in this conversation")
         .expect("the choices");
+    // The choice's own prompt: a line typed before it is shown is discarded (C11 · typeahead).
+    session.expect("› ").expect("the choice prompt");
     session
         .send_line("2 openai")
         .expect("a metered seat on the stalling endpoint");

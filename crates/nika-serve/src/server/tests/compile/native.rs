@@ -20,10 +20,12 @@ use super::*;
 use crate::NativeAuthoring;
 
 mod authority;
+mod judged;
 mod lifecycle;
 mod openapi;
 mod reasoning;
 mod refusals;
+mod replayed;
 mod withheld;
 
 /// Work the deterministic reader reads but cannot settle.
@@ -221,10 +223,90 @@ pub(super) fn candidate(model: &str, copy: bool) -> String {
     )
 }
 
-/// The native answer the seat returns for a candidate.
+/// A legacy whole-source reply retained for refused or interrupted rounds. Successful
+/// creation and source revision use typed answers, never this form.
 pub(super) fn native_answer(candidate: &str) -> String {
     json!({"candidate": candidate, "questions": [], "gaps": [], "notes": "read, transform, write"})
         .to_string()
+}
+
+/// A source revision states an addition and the exact base write it copies; the compiler
+/// owns the resulting source. The separate judge answer is scripted at its own call.
+fn copy_revision_answer() -> String {
+    json!({"supersedes": [], "adds": [CHANGE], "like": "./b.md", "notes": "copy the result"})
+        .to_string()
+}
+
+/// The revision seat reads the exact base and both requests, not a changed run model.
+fn assert_revision_opening(
+    received: &Value,
+    document: &Value,
+    base: &str,
+    original: &str,
+    change: &str,
+) {
+    assert_eq!(
+        document["provenance"]["decision"]["native"]["revision"]["base_sha256"],
+        sha256_hex(base.as_bytes())
+    );
+    let opening: Value = serde_json::from_str(&message(received, "user")).expect("opening");
+    let revised = revise_intent(&CompileRequest::edit(base, change).with_original_intent(original))
+        .expect("a revision in words");
+    assert_eq!(opening["request"], revised.as_str(), "the whole meaning");
+    assert_eq!(opening["change"], change);
+    assert_eq!(opening["base_candidate"], base);
+}
+
+/// The words of [`INTENT`] its draft step cites.
+pub(super) const DRAFT: &str = "do something clever with it";
+/// A part of [`INTENT`] the plan leaves open: the private plan hands the request to the sketch
+/// door.
+pub(super) const OPEN: &str = "which model runs the rewrite";
+
+/// The private plan's answer for [`INTENT`] (its closed schema): the stated read, a draft whose
+/// detail is `draft`, the stated write, and the parts the plan leaves open. The compiler, never
+/// the seat, assembles the candidate from it.
+pub(super) fn plan_answer(draft: &str, unknowns: &[&str]) -> String {
+    json!({"steps": [
+        {"op": "read", "detail": "./a.md", "evidence": "Read ./a.md"},
+        {"op": "draft", "detail": draft, "evidence": DRAFT},
+    ], "effects": [
+        {"verb": "write", "target": "./b.md", "policy": "automatic", "evidence": "then write ./b.md"},
+    ], "obligations": [], "constraints": [], "unknowns": unknowns, "regions": [],
+       "approval_bypass": {"present": false}})
+    .to_string()
+}
+
+/// The sketch door's graph for [`INTENT`]: read the stated source, one infer, write the stated
+/// destination. Structure only; the compiler emits the document and derives its permits.
+pub(super) fn sketch_answer() -> String {
+    json!({"name": "clever-rewrite", "tasks": [
+        {"id": "read_source", "verb": "invoke", "tool": "nika:read", "purpose": "read",
+         "reads": ["./a.md"]},
+        {"id": "transform", "verb": "infer", "purpose": "rewrite cleverly",
+         "with": [{"name": "text", "from": "read_source"}]},
+        {"id": "write_result", "verb": "invoke", "tool": "nika:write", "purpose": "write",
+         "writes": ["./b.md"], "with": [{"name": "text", "from": "transform"}]},
+    ], "questions": [], "gaps": [], "notes": "read, transform, write"})
+    .to_string()
+}
+
+/// The sketch's one typed hole, filled.
+pub(super) fn fills_answer() -> String {
+    json!({"fills": [{"task": "transform", "field": "prompt",
+        "value": "Rewrite this text in a clever way, inventing nothing: ${{ with.text }}"}],
+        "notes": "one hole"})
+    .to_string()
+}
+
+/// A kept native question round: the plan leaves a part open, the sketch and its fill follow,
+/// and the compiler asks for the run model — three requests, the round and its token kept.
+pub(super) fn question_round() -> Vec<Reply> {
+    vec![
+        Reply::Text(plan_answer(DRAFT, &[OPEN])),
+        Reply::Text(sketch_answer()),
+        Reply::Text(fills_answer()),
+    ]
 }
 
 /// A Foundry knowledge release on disk: its root, which is the directory the operator names
@@ -513,9 +595,15 @@ fn message(body: &Value, role: &str) -> String {
 
 /// The first round: the seat received the operator's model and bound, the pack composed for
 /// the request byte for byte, and the receipt names that instruction and that pack — with
-/// the snapshot's hashes and none of its host paths.
+/// the snapshot's hashes and none of its host paths. `sent` is the round's first request (the
+/// private plan's), `calls` the requests the round sent.
 #[cfg(unix)] // the disk form is defined for Unix descriptors only
-fn assert_first_round(foundry: &Foundry, world: &TestWorld, sent: &Value, document: &Value) {
+fn assert_first_round(
+    foundry: &Foundry,
+    world: &TestWorld,
+    (sent, calls): (&Value, u64),
+    document: &Value,
+) {
     assert_eq!(
         sent["model"], "s06-seat",
         "the operator's model, never another"
@@ -535,16 +623,17 @@ fn assert_first_round(foundry: &Foundry, world: &TestWorld, sent: &Value, docume
     for reference in &pack.references {
         assert!(system.contains(&reference.text), "{} is sent", reference.id);
     }
-    let opening: Value = serde_json::from_str(&message(sent, "user")).expect("opening");
-    assert_eq!(opening["request"], INTENT);
+    // The private plan's opening: the request itself, byte for byte.
+    assert_eq!(message(sent, "user"), INTENT);
     let provenance = &document["provenance"];
     assert_eq!(provenance["cognition"], "explicitProvider");
     assert_eq!(provenance["strategy"], "native");
     let receipt = &provenance["authoring"];
     assert_eq!(receipt["model"], SEAT);
-    assert_eq!(receipt["calls"], 1);
-    assert_eq!(receipt["input_tokens"], 1000);
-    assert_eq!(receipt["output_tokens"], 200);
+    assert_eq!(receipt["calls"], calls);
+    // Each completion reports 1000 in and 200 out: the receipt sums what was sent.
+    assert_eq!(receipt["input_tokens"], 1000 * calls);
+    assert_eq!(receipt["output_tokens"], 200 * calls);
     assert_eq!(
         receipt["context"][0]["instruction_sha256"],
         sha256_hex(system.as_bytes()),
@@ -553,7 +642,10 @@ fn assert_first_round(foundry: &Foundry, world: &TestWorld, sent: &Value, docume
     assert_eq!(receipt["backend"]["kind"], "direct_api");
     assert_eq!(receipt["backend"]["provider"], "vllm");
     assert_eq!(receipt["backend"]["requested_model"], SEAT);
-    assert_eq!(receipt["backend"]["authority"]["http_requests"]["sent"], 1);
+    assert_eq!(
+        receipt["backend"]["authority"]["http_requests"]["sent"],
+        calls
+    );
     assert_eq!(
         receipt["backend"]["cost_basis"],
         "unpriced; billing_unverified"
@@ -595,17 +687,12 @@ async fn a_native_round_reads_the_pinned_pack_under_the_operators_seat_and_its_a
  {
     let world = TestWorld::new();
     let foundry = Foundry::create(&world.root.path().join("knowledge"));
-    let seat = Seat::start(vec![Reply::Text(native_answer(&candidate(
-        "mock/echo",
-        false,
-    )))]);
+    let seat = Seat::start(question_round());
     let authoring = NativeAuthoring::new(SEAT, seat.providers())
         .with_knowledge_release(&foundry.snapshot, foundry.identity())
         .with_max_tokens(4096)
-        // 3 + repairs (nv1b): the candidate, its repair and the judge's two whole-request
-        // questions.
-        .with_max_calls(4)
-        .with_repairs(1);
+        // The plan, the sketch, its fill and the judgment; repairs stay the default preference.
+        .with_max_calls(4);
     let (server, backend) = start_native(&world, compile_limits(), authoring).await;
     let health = server
         .request("GET /health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
@@ -634,8 +721,9 @@ async fn a_native_round_reads_the_pinned_pack_under_the_operators_seat_and_its_a
             .any(|q| q["key"] == "model"),
         "the candidate asks for its run model: {document:#}"
     );
-    assert_eq!(seat.calls(), 1);
-    assert_first_round(&foundry, &world, &seat.bodies()[0], &document);
+    // The plan, the sketch and its fill: a question round, its judgment not yet due.
+    assert_eq!(seat.calls(), 3);
+    assert_first_round(&foundry, &world, (&seat.bodies()[0], 3), &document);
 
     // The answer round: the kept plan, this round's answers, zero calls — the same plan the
     // paid round produced, now baked and held: a deterministicOnly round permits no judge
@@ -670,7 +758,7 @@ async fn a_native_round_reads_the_pinned_pack_under_the_operators_seat_and_its_a
         .request(&compile_request(&replay(&token, &answers)))
         .await;
     assert_eq!(again.body, second.body);
-    assert_eq!(seat.calls(), 1, "the answer rounds called no one");
+    assert_eq!(seat.calls(), 3, "the answer rounds called no one");
 
     // Review material only: no job, run, trace, file or registry entry.
     let after = tree(world.root.path());
@@ -688,11 +776,13 @@ async fn a_native_round_reads_the_pinned_pack_under_the_operators_seat_and_its_a
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_revision_in_words_reads_its_base_beside_the_original_intent_and_replays_exactly() {
+    // Leave the new destination open, rather than changing the base's already chosen model.
+    const ORIGINAL: &str = "Read ./a.md and do something clever with it. Write ./b.md.";
+    const CHANGE_PATH: &str = "Change the destination file.";
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Text(native_answer(&candidate(
-        "mock/echo",
-        true,
-    )))]);
+    let links = json!({"supersedes": [{"replaces": "Write ./b.md",
+        "by": "Change the destination file"}], "adds": [], "notes": "ask the new path"});
+    let seat = Seat::start(vec![Reply::Text(links.to_string())]);
     let authoring = NativeAuthoring::new(SEAT, seat.providers()).with_repairs(0);
     let (server, _backend) = start_native(&world, compile_limits(), authoring).await;
     let base = candidate(RUN_MODEL, false);
@@ -702,8 +792,8 @@ async fn a_revision_in_words_reads_its_base_beside_the_original_intent_and_repla
             "mode": "edit",
             "cognition": cognition,
             "source": base,
-            "change": {"text": CHANGE},
-            "original_intent": INTENT,
+            "change": {"text": CHANGE_PATH},
+            "original_intent": ORIGINAL,
         });
         merge(&mut body, fields);
         body.to_string()
@@ -716,20 +806,15 @@ async fn a_revision_in_words_reads_its_base_beside_the_original_intent_and_repla
     let token = token_of(&first);
     let document = first.json();
     assert_eq!(document["compile_version"], 2);
-    assert_eq!(
-        document["provenance"]["decision"]["native"]["revision"]["base_sha256"],
-        sha256_hex(base.as_bytes())
-    );
-    let received = &seat.bodies()[0];
-    let opening: Value = serde_json::from_str(&message(received, "user")).expect("opening");
-    let revised =
-        revise_intent(&CompileRequest::edit(base.as_str(), CHANGE).with_original_intent(INTENT))
-            .expect("a revision in words");
-    assert_eq!(opening["request"], revised.as_str(), "the whole meaning");
-    assert_eq!(opening["change"], CHANGE);
-    assert_eq!(opening["base_candidate"], base.as_str());
+    assert_eq!(document["status"], "incomplete", "{document:#}");
+    assert!(document["candidate"].is_null(), "{document:#}");
+    let questions = document["questions"].as_array().expect("questions");
+    assert_eq!(questions.len(), 1, "{questions:#?}");
+    assert_eq!(questions[0]["key"], "revision.path");
+    assert_revision_opening(&seat.bodies()[0], &document, &base, ORIGINAL, CHANGE_PATH);
+    assert_eq!(seat.calls(), 1, "only the typed links are requested");
 
-    let answers = json!({"answers": {"model": RUN_MODEL}});
+    let answers = json!({"answers": {"revision.path": "./c.md"}});
     let token_field = json!({"replay_token": token});
     let mut replay_fields = answers.clone();
     merge(&mut replay_fields, &token_field);
@@ -743,13 +828,23 @@ async fn a_revision_in_words_reads_its_base_beside_the_original_intent_and_repla
     assert_eq!(replayed["status"], "incomplete", "{replayed:#}");
     assert_held(&replayed);
     let candidate_text = replayed["candidate"].as_str().expect("candidate");
-    assert!(candidate_text.contains("./c.md") && candidate_text.contains(RUN_MODEL));
+    assert_eq!(candidate_text, base.replace("./b.md", "./c.md"));
+    assert!(
+        candidate_text.contains(RUN_MODEL),
+        "the base model is unchanged"
+    );
+    let again = server
+        .request(&compile_request(&edit("deterministicOnly", &replay_fields)))
+        .await;
+    assert_eq!(again.status, 200, "{}", again.body);
+    assert_eq!(again.body, second.body, "exact replay, no new round");
+    assert_eq!(seat.calls(), 1, "both answer rounds are zero-call replays");
 
     // A replay repeats its round's input exactly: another base byte, another original intent,
     // another change — each a conflict, never a substitute round.
     for changed in [
         json!({"source": format!("{base}# one more byte\n")}),
-        json!({"original_intent": format!("{INTENT} today")}),
+        json!({"original_intent": format!("{ORIGINAL} today")}),
         json!({"change": {"text": "also keep a copy in ./d.md"}}),
     ] {
         let mut fields = replay_fields.clone();

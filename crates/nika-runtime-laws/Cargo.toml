@@ -21,6 +21,9 @@ nika-check       = { path = "../nika-check", version = "0.122.0" }
 nika-cap         = { path = "../nika-cap", version = "0.122.0" }
 nika-cel         = { path = "../nika-cel", version = "0.122.0" }
 nika-kernel      = { path = "../nika-kernel", version = "0.122.0" }
+nika-fs          = { path = "../nika-fs", version = "0.122.0" }      # OwnedDir · RootedFs · EffectLedger — the received-image room
+nika-blob        = { path = "../nika-blob", version = "0.122.0" }    # FsBlobStore over that room
+bytes            = { workspace = true }
 nika-sandbox-seatbelt = { path = "../nika-sandbox-seatbelt", version = "0.122.0" }
 nika-sandbox-landlock = { path = "../nika-sandbox-landlock", version = "0.122.0" }
 serde            = { workspace = true }

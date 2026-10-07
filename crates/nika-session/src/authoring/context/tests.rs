@@ -20,12 +20,23 @@ use crate::authoring::{
 use crate::reasoner::test_transport;
 use crate::runtime::inference_tests::wire::{Peer, response};
 
-/// The one route whose catalog lists the three levels (`low` · `high` · `max`).
+/// A route whose catalog lists the three levels (`low` · `high` · `max`).
 const QUALIFIED: &str = "deepseek/deepseek-v4-pro";
-/// A route that asks efforts but lists no level of its own: an explicit level is refused there.
-const UNLISTED: &str = "deepseek/deepseek-flash";
+/// The exact Flash ID, whose catalog lists the three levels of its own (CALIBRATION-01).
+const FLASH: &str = "deepseek/deepseek-flash";
+/// A route that lists no level of its own (a suffixed Flash name the catalog never qualifies): an
+/// explicit level is refused there.
+const UNLISTED: &str = "deepseek/deepseek-flash-0731";
 const REQUEST: &str = "Read ./orders.csv, keep the rows whose status is paid, write them to ./paid.csv with the same header and write their total amount as a number to ./paid-total.txt.";
 const ORDERS: &str = "id,date,customer,status,amount,currency,ref\n1,2026-09-01,Acme,paid,120.50,EUR,A-1\n2,2026-09-02,Bolt,due,80,EUR,A-2\n";
+
+/// The loopback's answer `text` on `model`'s route, naming that route's own model as the provider
+/// does (a Flash call answered as Pro would be contradictory usage, rightly refused).
+fn answer(model: &str, text: &str) -> Value {
+    let mut answer = response(text);
+    answer["model"] = Value::from(model.rsplit('/').next().unwrap_or(model));
+    answer
+}
 
 /// A context a host names: its own words over an empty environment.
 fn host(settings: &AuthoringSettings) -> AuthoringContext {
@@ -39,7 +50,7 @@ fn dispatched(
     model: &str,
     round: &AuthoringRound,
 ) -> (Result<CompileOutcome, AuthoringError>, Vec<Value>) {
-    let peer = Peer::start(vec![(200, response("{}"))]);
+    let peer = Peer::start(vec![(200, answer(model, "{}"))]);
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().expect("project");
     std::fs::write(dir.path().join("orders.csv"), ORDERS).expect("fixture");
@@ -206,7 +217,7 @@ fn every_seated_authoring_and_repair_call_sends_the_named_effort() {
 fn the_native_door_sends_the_named_effort_with_the_request_and_its_observation() {
     let context = host(
         &AuthoringSettings::none()
-            .with_strategy("only")
+            .with_strategy("sketch")
             .with_reasoning("max"),
     );
     let (out, bodies) = dispatched(&context, QUALIFIED, &AuthoringRound::new(REQUEST));
@@ -225,7 +236,7 @@ fn the_native_door_sends_the_named_effort_with_the_request_and_its_observation()
 fn a_later_round_sends_its_answers_and_the_named_effort() {
     let context = host(
         &AuthoringSettings::none()
-            .with_strategy("only")
+            .with_strategy("sketch")
             .with_reasoning("max"),
     );
     // The first words named no file; the answered clarification replaces the request.
@@ -238,6 +249,96 @@ fn a_later_round_sends_its_answers_and_the_named_effort() {
     assert!(!bodies.is_empty(), "the answer round asked the seat");
     for body in &bodies {
         asks_max_for_the_whole_request(body);
+        carries_the_observation(body);
+    }
+}
+
+/// A body asks `low` as the exact Flash model's two keys, on that model, and carries the request
+/// whole.
+fn asks_flash_low_for_the_whole_request(body: &Value) {
+    assert_eq!(body["model"], "deepseek-flash", "{body}");
+    assert_eq!(body["thinking"]["type"], "enabled", "{body}");
+    assert_eq!(body["reasoning_effort"], "low", "{body}");
+    assert!(
+        body.to_string().contains(REQUEST),
+        "the request whole: {body}"
+    );
+}
+
+/// CALIBRATION-01 · every seated authoring and repair call on the exact Flash ID asks `low`, under
+/// the ceilings and in the number of calls of the same round naming none; each call's record says
+/// configured `low`, the keys read back from the bytes sent, and the effort served unknown.
+#[test]
+fn flash_low_rides_every_authoring_and_repair_call_with_the_same_caps() {
+    let context = host(&AuthoringSettings::none().with_reasoning("low"));
+    let (out, bodies) = dispatched(&context, FLASH, &AuthoringRound::new(REQUEST));
+    let calls = recorded(&out.expect("an outcome"));
+    assert!(
+        bodies.len() >= 2 && bodies.len() == calls.len(),
+        "a first call and its repair, each recorded: {} bodies · {calls:?}",
+        bodies.len()
+    );
+    bodies.iter().for_each(asks_flash_low_for_the_whole_request);
+    for (call, reasoning) in &calls {
+        assert_eq!(reasoning["configured"], "low", "{call}");
+        assert_eq!(
+            reasoning["transmitted"],
+            json!({"thinking": "enabled", "effort": "low"}),
+            "{call}: the keys read back from the bytes sent"
+        );
+        assert_eq!(reasoning["served"], "unknown", "{call}");
+    }
+    assert!(
+        calls.iter().any(|(call, _)| call.contains("repair")),
+        "a repair call is covered: {calls:?}"
+    );
+    let (_, before) = dispatched(
+        &AuthoringContext::default(),
+        FLASH,
+        &AuthoringRound::new(REQUEST),
+    );
+    let caps = |bodies: &[Value]| {
+        bodies
+            .iter()
+            .map(|b| b["max_tokens"].clone())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        caps(&bodies),
+        caps(&before),
+        "the same calls under the same ceilings"
+    );
+}
+
+/// CALIBRATION-01 · on the exact Flash ID, the sketch door (the explicit semantic door that
+/// authors the structure) and the round that answers its question ask `low` with the request and
+/// the project observed for it.
+#[test]
+fn flash_low_rides_the_native_door_and_the_next_round_with_their_context() {
+    let context = host(
+        &AuthoringSettings::none()
+            .with_strategy("sketch")
+            .with_reasoning("low"),
+    );
+    let (out, bodies) = dispatched(&context, FLASH, &AuthoringRound::new(REQUEST));
+    let calls = recorded(&out.expect("an outcome"));
+    assert!(
+        !bodies.is_empty() && bodies.len() == calls.len(),
+        "{calls:?}"
+    );
+    for body in &bodies {
+        asks_flash_low_for_the_whole_request(body);
+        carries_the_observation(body);
+    }
+    let mut round = AuthoringRound::new("Sort the payments.");
+    round.answers.insert(
+        "intent.clarification".to_owned(),
+        serde_json::to_string(REQUEST).expect("literal"),
+    );
+    let (_, bodies) = dispatched(&context, FLASH, &round);
+    assert!(!bodies.is_empty(), "the answer round asked the seat");
+    for body in &bodies {
+        asks_flash_low_for_the_whole_request(body);
         carries_the_observation(body);
     }
 }
@@ -283,8 +384,9 @@ fn wire_message<'a>(body: &'a Value, role: &str) -> &'a str {
         .expect("text message")
 }
 
-/// The receipt identifies the native instruction; classification calls do not read the pack.
-fn native_body<'a>(out: &CompileOutcome, bodies: &'a [Value]) -> &'a Value {
+/// The receipt identifies the private plan's instruction (the call the semantic route opens
+/// with); classification calls do not read the pack.
+fn plan_body<'a>(out: &CompileOutcome, bodies: &'a [Value]) -> &'a Value {
     let call = out
         .provenance
         .authoring
@@ -292,8 +394,8 @@ fn native_body<'a>(out: &CompileOutcome, bodies: &'a [Value]) -> &'a Value {
         .expect("authoring receipt")
         .context
         .iter()
-        .find(|call| call["call"] == "native")
-        .expect("a native authoring call");
+        .find(|call| call["call"] == "plan")
+        .expect("a plan authoring call");
     let digest = call["instruction_sha256"]
         .as_str()
         .expect("instruction digest");
@@ -302,16 +404,17 @@ fn native_body<'a>(out: &CompileOutcome, bodies: &'a [Value]) -> &'a Value {
         .find(|body| {
             nika_event::source_id::sha256_hex(wire_message(body, "system").as_bytes()) == digest
         })
-        .expect("the local server received that native instruction")
+        .expect("the local server received that plan instruction")
 }
 
 fn knowledge_record(out: &CompileOutcome) -> &Value {
     &out.provenance.decision.as_ref().expect("stamped")["session"]["authoring"]["knowledge"]
 }
 
-/// This provider's JSON-object route appends the answer schema to the original user JSON.
-/// Validate both frames, including the schema's receipt, rather than ignoring trailing text.
-fn assert_native_request(out: &CompileOutcome, body: &Value, intent: &str) {
+/// This provider's JSON-object route appends the answer schema to the plan's user words (the
+/// request alone). Validate both frames, including the schema's receipt, rather than ignoring
+/// trailing text.
+fn assert_plan_request(out: &CompileOutcome, body: &Value, intent: &str) {
     let separator = concat!(
         "\n\nReply with ONLY a JSON value that satisfies this JSON Schema, no prose, no code ",
         "fences. Every property that lists an enum takes exactly one of the listed values, ",
@@ -321,11 +424,7 @@ fn assert_native_request(out: &CompileOutcome, body: &Value, intent: &str) {
     let (opening, schema_text) = wire_message(body, "user")
         .split_once(separator)
         .expect("the JSON-object provider's complete schema instruction");
-    let request: Value = serde_json::from_str(opening).expect("opening JSON");
-    assert_eq!(
-        request["request"], intent,
-        "the original intention is retained"
-    );
+    assert_eq!(opening, intent, "the original intention is retained, alone");
     let schema: Value = serde_json::from_str(schema_text).expect("complete schema JSON");
     assert!(schema.is_object());
     assert_eq!(body["response_format"]["type"], "json_object");
@@ -336,16 +435,17 @@ fn assert_native_request(out: &CompileOutcome, body: &Value, intent: &str) {
         .expect("authoring receipt")
         .context
         .iter()
-        .find(|call| call["call"] == "native")
-        .expect("native call");
+        .find(|call| call["call"] == "plan")
+        .expect("plan call");
     assert_eq!(
         call["schema_sha256"],
         nika_event::source_id::sha256_hex(schema_text.as_bytes())
     );
 }
 
-/// A default session presents the recalled material in its native request. The off control
-/// sends the same intention without those references. A canned answer proves delivery only.
+/// A default session presents the recalled material in the instruction of its private plan,
+/// the semantic call that opens the round. The off control sends the same intention without those
+/// references. A canned answer proves delivery only.
 #[test]
 fn a_default_session_presents_recalled_references_in_the_native_instruction() {
     let intent = format!(
@@ -375,12 +475,12 @@ fn a_default_session_presents_recalled_references_in_the_native_instruction() {
     assert_eq!(record["identity"]["source"], "embedded");
     assert_eq!(
         record["identity"]["snapshot_sha256"],
-        "b787fc53d6858db43d55958daaf02539fadcad4feeacc17b63c5aefcb92cc32b"
+        "b7f3861c55c785ba78fbf3fcfbb495ab79154b30f1bcb8483ce66018cc4659a9"
     );
     assert!(record["identity"].get("dir").is_none());
     assert_eq!(record["presented"], true);
     assert_eq!(record["pack_sha256"], pack.identity["door"]["pack_sha256"]);
-    let body = native_body(&out, &bodies);
+    let body = plan_body(&out, &bodies);
     let system = wire_message(body, "system");
     let digest = nika_event::source_id::sha256_hex(system.as_bytes());
     assert!(
@@ -388,7 +488,7 @@ fn a_default_session_presents_recalled_references_in_the_native_instruction() {
             .as_array()
             .expect("calls")
             .iter()
-            .any(|call| { call["call"] == "native" && call["instruction_sha256"] == digest })
+            .any(|call| { call["call"] == "plan" && call["instruction_sha256"] == digest })
     );
     let off = host(&AuthoringSettings::none().with_knowledge_off());
     let (unread, unread_bodies) = dispatched(&off, QUALIFIED, &round);
@@ -397,11 +497,11 @@ fn a_default_session_presents_recalled_references_in_the_native_instruction() {
         knowledge_record(&unread).is_null(),
         "knowledge off attaches nothing"
     );
-    let off_body = native_body(&unread, &unread_bodies);
+    let off_body = plan_body(&unread, &unread_bodies);
     for reference in expected {
         assert!(
             system.contains(&reference.text),
-            "native instruction carries {}",
+            "the plan's instruction carries {}",
             reference.id
         );
         assert!(!wire_message(off_body, "system").contains(&reference.text));
@@ -419,8 +519,8 @@ fn a_default_session_presents_recalled_references_in_the_native_instruction() {
                 })
         );
     }
-    assert_native_request(&out, body, &intent);
-    assert_native_request(&unread, off_body, &intent);
+    assert_plan_request(&out, body, &intent);
+    assert_plan_request(&unread, off_body, &intent);
 }
 
 #[test]
@@ -432,6 +532,7 @@ fn a_subscription_seat_refuses_a_named_effort_before_any_call() {
     let seat = AuthoringSeat::Harness {
         seat: "no-such-harness".to_owned(),
         model: None,
+        transport: nika_types::access::HarnessTransport::Native,
     };
     let context = host(&AuthoringSettings::none().with_reasoning("max"));
     let refused = compile_in(&seat, &context, &CompileRequest::create(REQUEST), REQUEST);
@@ -442,4 +543,32 @@ fn a_subscription_seat_refuses_a_named_effort_before_any_call() {
         "{refused:?}"
     );
     assert!(peer.bodies().is_empty(), "no call was made");
+}
+
+/// Source recovery rides the context as resolved: absent or zero, the identity bytes every
+/// question and cost binding hashes carry nothing new; named, they carry it; a word the parser
+/// refuses is the context's refusal, never a silent zero.
+#[test]
+fn source_recovery_binds_the_identity_only_when_named() {
+    let typed = |word: &str| {
+        let mut settings = AuthoringSettings::none();
+        settings.source_recovery = Some(word.to_owned());
+        AuthoringContext::from_settings(&settings, &AuthoringSettings::none())
+    };
+    let plain =
+        AuthoringContext::from_settings(&AuthoringSettings::none(), &AuthoringSettings::none());
+    let (zero, two) = (typed("0"), typed("2"));
+    assert_eq!((plain.recovery, zero.recovery, two.recovery), (0, 0, 2));
+    assert!(
+        !format!("{plain:?}").contains("source_recovery"),
+        "{plain:?}"
+    );
+    assert!(!format!("{zero:?}").contains("source_recovery"), "{zero:?}");
+    assert!(format!("{two:?}").contains("source_recovery: 2"), "{two:?}");
+    let nine = typed("9");
+    assert_eq!(nine.recovery, 9);
+    assert!(nine.refusal().is_none());
+    let refused = typed("4294967296");
+    let error = AuthoringContextError::Config(ConfigError::SourceRecovery("4294967296".into()));
+    assert_eq!(refused.refusal(), Some(&error));
 }

@@ -32,7 +32,6 @@ use std::collections::BTreeMap;
 #[path = "authoring/money_restatement_tests.rs"]
 mod money_restatement_tests;
 use std::sync::Arc;
-use std::time::Duration;
 
 use nika_onboard::compile::{
     AuthoringPolicy, AuthoringReceipt, Cognition, CompileError, CompileOutcome, CompileQuestion,
@@ -40,9 +39,8 @@ use nika_onboard::compile::{
 };
 // The records a compile outcome carries live beside the snapshot door (C7 · D1).
 use nika_onboard::compile::rehearse::Rehearse;
-use nika_onboard::knowledge::pin::{
-    carried_record, composed_record, observed_in, stamp, stamp_seat,
-};
+use nika_onboard::knowledge::pin::{carried_record, composed_record, observed_in, stamp};
+use nika_providers::authoring::{configured_gateway_host, preparation::PreparationCosts};
 use serde_json::Value;
 
 use crate::intelligence::{IntelligenceKind, ResolvedSessionIntelligence};
@@ -52,7 +50,7 @@ mod context;
 pub(crate) mod decision;
 mod harness;
 pub use context::{AuthoringContext, AuthoringContextError};
-pub use decision::{DECISION_ENV, DECISION_SCHEMA, DecisionSetup, MAX_DECISION_CALLS};
+pub use decision::{DECISION_ENV, DECISION_SCHEMA, DecisionSetup};
 // What an outcome means and the literal a line is live beside the compile unit (C7).
 use nika_onboard::compile::reading::{CLARIFICATION_KEY, clarified};
 pub use nika_onboard::compile::reading::{Reading, literal_for, reasons};
@@ -77,57 +75,26 @@ pub fn openai_base_overridden() -> bool {
 #[must_use]
 pub fn gateway_host(provider: &str) -> Option<String> {
     let http = crate::reasoner::provider_http().ok()?;
-    let registry = nika_providers::ProviderRegistry::new(
-        Arc::new(http),
-        nika_runtime::compose::config_from_env(),
-    );
-    let effective = host_of(registry.effective_base_url(provider)?);
-    let seed = registry
-        .profiles()
-        .iter()
-        .find(|p| p.id == nika_providers::canonical_provider(provider))
-        .map(|p| host_of(p.base_url))?;
-    (effective != seed).then_some(effective)
+    configured_gateway_host(http, nika_runtime::compose::config_from_env(), provider)
 }
 
-/// The host part of a URL (`https://api.scaleway.ai/v1` → `api.scaleway.ai`).
-#[must_use]
-pub fn host_of(url: &str) -> String {
-    nika_cli_host::compile::authoring_host(url).unwrap_or_else(|| "unknown endpoint".to_owned())
-}
-/// The hard output ceiling of one Session authoring call (the compiler's own maximum: a
-/// reasoning seat spends part of it on its reasoning, and a complete candidate needs the rest).
-pub const AUTHORING_MAX_TOKENS: u32 = 32_768;
-/// The first native generation's output limit: a REPORTED truncation spends one of the native
-/// repairs to widen it, up to [`AUTHORING_MAX_TOKENS`] — never a transport retry.
-pub const AUTHORING_INITIAL_TOKENS: u32 = 16_384;
-/// Wall time one Session authoring call may take.
-pub const AUTHORING_TIMEOUT: Duration = Duration::from_secs(180);
-/// The native repair rounds one Session authoring may buy (one call each).
-pub const AUTHORING_REPAIRS: u32 = 3;
-/// The most provider calls one seated Session compile may make under the escalate strategy:
-/// the COLD plan and its one evidence repair (2), then the native candidate (1) and its repairs.
-/// The turn's classification is one more call outside the compile; a fresh unknown-cost review
-/// admits exactly those (`SESSION_REVIEW_MAX_REQUESTS`).
-pub const AUTHORING_CALLS_PER_COMPILE: u32 = 2 + 1 + AUTHORING_REPAIRS;
+pub use nika_providers::authoring::host_of;
+pub use nika_providers::authoring::policy::{
+    AUTHORING_CALLS_PER_COMPILE, AUTHORING_INITIAL_TOKENS, AUTHORING_MAX_TOKENS, AUTHORING_REPAIRS,
+    AUTHORING_TIMEOUT,
+};
 
-/// The one policy a Session seat authors under: the hard ceiling, the first native limit, the
-/// deadline (a subscription harness keeps its own longer one), the native repairs and the
-/// session's strategy.
+/// Continuous preparation uses the selected route's technical limits; no internal repair count.
+/// The effective provider configuration is the same one used by the transport.
 #[must_use]
 pub fn session_policy(model: &str, harness: bool, strategy: NativeMode) -> AuthoringPolicy {
-    AuthoringPolicy::new(
+    nika_onboard::compile::seat::preparation_policy(
         model,
-        AUTHORING_MAX_TOKENS,
-        if harness {
-            Duration::from_secs(300)
-        } else {
-            AUTHORING_TIMEOUT
-        },
+        harness,
+        strategy,
+        crate::reasoner::provider_config(),
+        PreparationCosts::active(),
     )
-    .with_initial_max_tokens(AUTHORING_INITIAL_TOKENS)
-    .with_repairs(AUTHORING_REPAIRS)
-    .with_native(strategy)
 }
 
 /// The cognition the compiler may use for this session's authoring —
@@ -153,6 +120,8 @@ pub enum AuthoringSeat {
         seat: String,
         /// Caller selection, or the harness default when absent.
         model: Option<String>,
+        /// The exact selected completion connection, never a fallback.
+        transport: nika_types::access::HarnessTransport,
     },
     /// A selected capability that this host/build cannot honor.
     Unavailable {
@@ -170,7 +139,7 @@ impl AuthoringSeat {
         reasoner: &dyn SessionReasoner,
         intelligence: &ResolvedSessionIntelligence,
     ) -> Self {
-        if let IntelligenceKind::Harness { seat } = &intelligence.kind {
+        if let IntelligenceKind::Harness { seat, transport } = &intelligence.kind {
             if !intelligence.ready {
                 return Self::Unavailable {
                     why: intelligence
@@ -180,22 +149,27 @@ impl AuthoringSeat {
                 };
             }
             #[cfg(feature = "access-harness")]
-            if let Err(why) =
-                nika_harness::authoring::HarnessAuthoring::meet(seat, intelligence.model.as_deref())
-            {
+            if let Err(why) = nika_harness::authoring::HarnessAuthoring::meet_with_transport(
+                seat,
+                intelligence.model.as_deref(),
+                *transport,
+            ) {
                 return Self::Unavailable { why };
             }
             #[cfg(not(feature = "access-harness"))]
             return Self::Unavailable {
                 why: format!(
-                    "subscription authoring `{seat}` requires access-harness in this build"
+                    "subscription {transport} authoring `{seat}` requires access-harness in this build"
                 ),
             };
             #[cfg(feature = "access-harness")]
-            return if reasoner.authoring_harness().as_deref() == Some(seat.as_str()) {
+            return if reasoner.authoring_harness().as_deref() == Some(seat.as_str())
+                && reasoner.harness_transport() == *transport
+            {
                 Self::Harness {
                     seat: seat.clone(),
                     model: intelligence.model.clone(),
+                    transport: *transport,
                 }
             } else {
                 Self::Unavailable {
@@ -231,11 +205,13 @@ impl AuthoringSeat {
             Self::Deterministic { .. } => {
                 "authoring · deterministic (exact intents only)".to_owned()
             }
-            Self::Provider { model } => {
-                format!("authoring · {model} (bounded calls per fresh intent)")
-            }
-            Self::Harness { seat, model } => format!(
-                "authoring · {seat} subscription · {} · cost unknown",
+            Self::Provider { model } => format!("authoring · {model}"),
+            Self::Harness {
+                seat,
+                model,
+                transport,
+            } => format!(
+                "authoring · {seat} {transport} subscription · {} · cost unknown",
                 model.as_deref().unwrap_or("harness default")
             ),
             Self::Unavailable { why } => format!("authoring unavailable · {why}"),
@@ -248,6 +224,9 @@ impl AuthoringSeat {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum AuthoringError {
+    /// Stop discarded the in-flight preparation result; no new proposal was accepted.
+    #[error("preparation stopped; conversation kept; any sent request may still be billed")]
+    Cancelled,
     /// The compiler's own machinery failure (a corrupt skeleton · representation).
     #[error("the compiler could not represent the candidate: {0}")]
     Compiler(#[from] CompileError),
@@ -266,7 +245,8 @@ pub enum AuthoringError {
 
 /// One authoring conversation over ONE intent: the answers the human gave
 /// by stable key, the plan the first round read (replayed on every answer
-/// round · zero provider calls), and the questions still open in order.
+/// round with no authoring call; the round's judge judges the replayed bytes),
+/// and the questions still open in order.
 #[derive(Clone, Debug, PartialEq)]
 pub struct AuthoringRound {
     /// The intent, verbatim — the compiler's own key (its sha256 is recorded).
@@ -294,6 +274,9 @@ pub struct AuthoringRound {
     /// A revision's EDIT — the exact base, the human's change, the request the base answered:
     /// every request of the round is that EDIT, never a fresh CREATE.
     pub(crate) edit: Option<(String, String, Option<String>)>,
+    /// The saved file a revision replaces and the witness of the base the round compiled: its
+    /// proposal updates exactly those bytes there, never a fresh destination beside them.
+    pub(crate) target: Option<(std::path::PathBuf, crate::change::Witness)>,
     /// The monetary directives of `intent` the money gate admitted (R4 A6): every request of the
     /// round tells the compiler they are the Session's ceiling, never business clauses.
     pub(crate) money: Vec<std::ops::Range<usize>>,
@@ -313,8 +296,29 @@ impl AuthoringRound {
             knowledge: None,
             authoring_receipt: None,
             edit: None,
+            target: None,
             money: Vec::new(),
         }
+    }
+
+    fn base_record(&self) -> bool {
+        self.edit
+            .as_ref()
+            .zip(self.continuation.as_ref())
+            .is_some_and(|((base, _, _), plan)| {
+                nika_onboard::compile::program_records::binds(plan, base)
+            })
+    }
+
+    pub(crate) fn replays(&self) -> bool {
+        self.continuation.is_some() && !self.base_record()
+    }
+
+    /// Forget the plan this round replays, and the knowledge and receipt of the call that
+    /// authored it, keeping every answer, the request and its money: the next compile writes
+    /// the workflow again instead of replaying it.
+    pub(crate) fn forget_plan(&mut self) {
+        (self.continuation, self.knowledge, self.authoring_receipt) = (None, None, None);
     }
 
     /// The intent the compiler reads for this round: a revision's original
@@ -342,29 +346,35 @@ impl AuthoringRound {
         seat: &AuthoringSeat,
         context: &AuthoringContext,
     ) -> Result<CompileOutcome, AuthoringError> {
-        self.compile_rehearsed(seat, context, None, None)
+        self.compile_rehearsed(seat, context, (None, None), Vec::new())
     }
 
     /// The Session-owned path; public callers remain source-only unless their own host opts in.
+    /// `declined` are the verdicts that rejected candidate bytes in earlier compiles of the
+    /// round's goal ([`CompileRequest::with_declined`]): no judge is asked again on those bytes.
     pub(crate) fn compile_rehearsed(
         &self,
         seat: &AuthoringSeat,
         context: &AuthoringContext,
-        account: Option<&nika_providers::InferenceAdmission>,
-        host: Option<&dyn Rehearse>,
+        (account, host): (
+            Option<&nika_providers::InferenceAdmission>,
+            Option<&dyn Rehearse>,
+        ),
+        declined: Vec<Value>,
     ) -> Result<CompileOutcome, AuthoringError> {
         let intent = self.effective_intent();
-        let attach = if self.continuation.is_some() {
+        let attach = if self.replays() {
             Attach::Carried(self.knowledge.as_ref(), &intent)
         } else {
             Attach::Compose(&intent)
         };
-        let mut out = compile_attached(seat, context, &self.request(), attach, account, host)?;
+        let request = self.request().with_declined(declined);
+        let mut out = compile_attached(seat, context, &request, attach, account, host)?;
         round::carry_receipt(
             &mut out,
-            self.continuation
-                .as_ref()
-                .and(self.authoring_receipt.as_ref()),
+            self.replays()
+                .then_some(self.authoring_receipt.as_ref())
+                .flatten(),
         );
         Ok(out)
     }
@@ -386,8 +396,18 @@ impl AuthoringRound {
     /// (a plan that still carries unknown work is never replayed) with the
     /// knowledge record of the call that authored it when the native door
     /// presented a pack, the mandatory questions in the compiler's order (a
-    /// revision's clause dispositions too), its reasons.
+    /// revision's clause dispositions too), its reasons. A candidate its verifier
+    /// answered and did not accept (`verify_held`) leaves nothing to replay: the
+    /// compiler dropped its record, and the round drops the plan it replayed with
+    /// it, so no later compile sends those bytes to the same verifier again (R6).
     pub fn absorb(&mut self, out: &CompileOutcome) {
+        // A base's record is input to a new revision, not that revision's settled plan.
+        if self.base_record() && out.provenance.plan.is_some() {
+            self.continuation = None;
+        }
+        if round::verify_held(out) && !self.base_record() {
+            self.forget_plan();
+        }
         if let Some(plan) = round::reanchored(self.continuation.as_ref(), out) {
             // The compiler re-anchored the plan to a changed source (R4 A6): the next answer
             // binds against the observation its question showed; no approval rides along.
@@ -492,7 +512,7 @@ impl AuthoringRound {
         account: &nika_providers::InferenceAdmission,
     ) -> Result<CompileOutcome, AuthoringError> {
         let intent = self.effective_intent();
-        let attach = if self.continuation.is_some() {
+        let attach = if self.replays() {
             Attach::Carried(self.knowledge.as_ref(), &intent)
         } else {
             Attach::Compose(&intent)
@@ -501,123 +521,10 @@ impl AuthoringRound {
     }
 }
 
-/// The few words that abandon an authoring round (a `no` is an ANSWER —
-/// « should each filename be a heading? » — never an abandonment).
-#[must_use]
-pub fn is_cancel(line: &str) -> bool {
-    matches!(
-        line.trim().to_lowercase().as_str(),
-        "cancel"
-            | "/cancel"
-            | "stop"
-            | "drop"
-            | "discard"
-            | "abandon"
-            | "annule"
-            | "annuler"
-            | "laisse tomber"
-            | "forget it"
-            | "never mind"
-    )
-}
-
-/// A closed line's words whatever the typography: spaces as one (a no-break
-/// space, or the narrow one French sets before `?`), the closing marks set
-/// aside, a typographic apostrophe as `'`, lower case. It adds no word.
-fn closed_words(line: &str, closing: &[char]) -> String {
-    line.split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .trim_end_matches(|c: char| c == ' ' || closing.contains(&c))
-        .replace(['\u{2018}', '\u{2019}'], "'")
-        .to_lowercase()
-}
-
-/// The few words that ask WHY beside what waits (a question, a gate) —
-/// answered from the machine's state, consuming nothing. A closed set of
-/// whole lines, punctuation aside.
-#[must_use]
-pub fn is_why(line: &str) -> bool {
-    let word = closed_words(line, &['?', '!', '.']);
-    matches!(
-        word.as_str(),
-        "why"
-            | "/why"
-            | "why this"
-            | "why this question"
-            | "why do you ask"
-            | "explain"
-            | "explain this"
-            | "pourquoi"
-            | "pourquoi cette question"
-            | "pourquoi ça"
-            | "explique"
-            | "c'est quoi"
-            | "c'est pour quoi"
-    )
-}
-
-/// The few words that ask what Nika understood of the request — the
-/// Meaning view from the compiler's ledger; beside a proposal it holds it.
-#[must_use]
-pub fn is_meaning(line: &str) -> bool {
-    let word = closed_words(line, &['?', '!', '.']);
-    matches!(
-        word.as_str(),
-        "/meaning"
-            | "meaning"
-            | "what did you understand"
-            | "what did you keep"
-            | "did you keep everything"
-            | "qu'as-tu compris"
-            | "qu'as-tu retenu"
-            | "tu as tout gardé"
-    )
-}
-
-/// The few words that ask what just went wrong — answered by the last
-/// recovery card, from memory, never by another call.
-#[must_use]
-pub fn is_what_happened(line: &str) -> bool {
-    let word = closed_words(line, &['?', '!', '.']);
-    matches!(
-        word.as_str(),
-        "what happened"
-            | "what just happened"
-            | "what went wrong"
-            | "what was that"
-            | "/last"
-            | "de quoi"
-            | "quoi"
-            | "hein"
-            | "comment ça"
-            | "qu'est-ce qui s'est passé"
-            | "qu'est-ce qui se passe"
-    )
-}
-
-/// A bare greeting or thanks — the conversation's, never the compiler's
-/// (whose exact-skeleton door would read a lone `hello` as the `hello`
-/// lesson). A closed set of whole lines, punctuation aside.
-#[must_use]
-pub fn is_greeting(input: &str) -> bool {
-    let word = closed_words(input, &['!', '.', '?', ',']);
-    matches!(
-        word.as_str(),
-        "hello"
-            | "hi"
-            | "hey"
-            | "yo"
-            | "bonjour"
-            | "salut"
-            | "coucou"
-            | "thanks"
-            | "thank you"
-            | "merci"
-            | "bye"
-            | "au revoir"
-    )
-}
+// The closed conversation grammar belongs to the shared routing surface.
+pub use nika_onboard::routing::conversation::{
+    is_cancel, is_greeting, is_meaning, is_what_happened, is_why,
+};
 
 /// Compile one request deterministically: exact skeletons, the support
 /// grammar, strictly explicit intents, and the replay of a recorded plan.
@@ -748,7 +655,7 @@ fn compile_attached(
         }
         AuthoringSeat::Unavailable { why } => return Err(AuthoringError::Seat(why.clone())),
         AuthoringSeat::Provider { model } => model.clone(),
-        AuthoringSeat::Harness { seat, model } => {
+        AuthoringSeat::Harness { seat, model, .. } => {
             if admission.is_some() {
                 return Err(AuthoringError::Seat(
                     "a subscription is not a billed-provider admission account".into(),
@@ -768,7 +675,11 @@ fn compile_attached(
         return Err(AuthoringError::Context(why.clone()));
     }
     let harness = matches!(seat, AuthoringSeat::Harness { .. });
-    let policy = session_policy(&model, harness, context.strategy());
+    let policy =
+        session_policy(&model, harness, context.strategy()).with_source_recovery(context.recovery);
+    if PreparationCosts::active() {
+        request = request.with_observed_preparation();
+    }
     // Every authoring and repair call asks the named effort; the caps stay the policy's (R4 B16).
     request = request.with_authoring_policy(match context.reasoning() {
         Some(level) => policy.with_reasoning(level),
@@ -782,9 +693,20 @@ fn compile_attached(
         request = request.with_authoring_knowledge(pack.clone());
     }
     let mut out = match seat {
-        AuthoringSeat::Harness { seat, model } => {
-            harness::compile(seat, model.as_deref(), &request, host)?
-        }
+        AuthoringSeat::Harness {
+            seat,
+            model,
+            transport,
+        } => harness::compile(
+            seat,
+            model.as_deref(),
+            *transport,
+            &request,
+            context
+                .decision()
+                .map(|s| s.consult(decision::admit(admission))),
+            host,
+        )?,
         _ => seated(&model, &request, admission, context.decision(), host)?,
     };
     let knowledge = match (attach, &pack, context.knowledge()) {
@@ -813,7 +735,7 @@ fn seated(
 ) -> Result<CompileOutcome, AuthoringError> {
     // The operator-selected decision seat for this ONE compile: consulted by the compiler only
     // for a finite ambiguity (WARM), charged only on the no-budget observation; a need met under
-    // a numeric allowance is refused and recorded, never claimed as used.
+    // A supplied monetary account keeps its strict law; interactive observations stay separate.
     let consulted = selected.map(|setup| setup.consult(decision::admit(admission)));
     // The provider plane's client (SSRF off · the transport ceiling), as
     // the conversation's reasoner and the engine's run path use.
@@ -827,13 +749,9 @@ fn seated(
     let provider = registry
         .resolve(model)
         .map_err(|e| AuthoringError::Seat(e.to_string()))?;
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .map_err(|e| AuthoringError::Runtime(e.to_string()))?;
     // The compile future carries a whole `CompileOutcome`: boxed so this
     // frame stays small (clippy::large_futures), as the CLI host does.
-    let mut out = runtime.block_on(Box::pin(compile_with_cognition_rehearsed(
+    let mut out = complete(Box::pin(compile_with_cognition_rehearsed(
         request,
         Cognition {
             provider: Some(&provider),
@@ -842,22 +760,8 @@ fn seated(
                 .map(|seat| seat as &dyn nika_onboard::compile::decide::DecisionSeat),
         },
         host,
-    )))?;
-    // What the seat was asked, sent, answered or refused, beside the compiler's own record of
-    // the same questions. A separate backend: a named level is never sent to it nor claimed (B19).
-    if let Some(mut receipt) = consulted.as_ref().and_then(decision::SessionSeat::receipt) {
-        if let Some(level) = request
-            .authoring
-            .as_ref()
-            .and_then(|policy| policy.reasoning)
-        {
-            receipt["reasoning_effort"] = Value::from(format!(
-                "not applicable · the named level `{}` rides the LLM calls only; the TypeSafe request carries no effort",
-                level.word()
-            ));
-        }
-        stamp_seat(&mut out, receipt);
-    }
+    )))??;
+    decision::finish(&mut out, request, consulted);
     // The receipt names its backend as the CLI's does, with the host the
     // calls really went to (an overridden base URL is a gateway: said).
     if let Some(receipt) = out.provenance.authoring.as_mut() {
@@ -866,6 +770,16 @@ fn seated(
             .get_or_insert_with(|| nika_cli_host::compile::authoring_backend(&registry, model));
     }
     Ok(out)
+}
+
+// Both subscription and API compilation use the Session's one async driver and Stop boundary.
+fn complete<F: std::future::Future>(future: F) -> Result<F::Output, AuthoringError> {
+    crate::reasoner::block_on(nika_onboard::activity::observe(future)).map_err(
+        |error| match error {
+            crate::reasoner::ReasonError::Cancelled => AuthoringError::Cancelled,
+            other => AuthoringError::Runtime(other.to_string()),
+        },
+    )
 }
 
 #[cfg(test)]
@@ -954,6 +868,7 @@ mod tests {
             &NoReasoner,
             &resolved(IntelligenceKind::Harness {
                 seat: "codex".to_owned(),
+                transport: nika_types::access::HarnessTransport::Native,
             }),
         );
         match harness {
@@ -987,8 +902,67 @@ mod tests {
             "no provider was contacted for an answer round"
         );
         let candidate = second.candidate.expect("candidate");
-        assert!(candidate.contains("model: mock/echo"), "{candidate}");
-        assert!(candidate.contains("nika:write"), "{candidate}");
+        assert!(candidate.contains("model: mock/echo"), "the answered model");
+        assert!(candidate.contains("nika:write"), "the requested write");
+    }
+
+    /// A candidate its verifier answered and did not accept (`verify_held`) leaves its round
+    /// nothing to replay (R6): the plan it replayed goes, with the knowledge and receipt of the
+    /// call that authored it, and every answer stays. Without the finding the record stays, and a
+    /// revision's base record, its input rather than the held candidate's, stays too.
+    #[test]
+    fn a_held_candidate_leaves_its_round_nothing_to_replay() {
+        let intent = "Read ./a.md and do something clever with it, then write ./b.md";
+        let mut held = compile_deterministic(&CompileRequest::create(intent)).expect("compiles");
+        held.provenance.plan = None;
+        let mut finding = (held.diagnostics.first().cloned()).expect("a finding to reshape");
+        finding.kind = nika_onboard::compile::DiagnosticKind::Applied;
+        "verify_held".clone_into(&mut finding.target);
+        held.diagnostics.push(finding);
+        let record = json!({"semantic_record": 1, "final": {"candidate_sha256": "abc"}});
+        let replaying = || {
+            let mut round = AuthoringRound::new(intent);
+            round.continuation = Some(record.clone());
+            round.knowledge = Some(json!({"presented": true}));
+            round.authoring_receipt = Some(AuthoringReceipt::new("fixture/model"));
+            round
+                .answers
+                .insert("const.k".to_owned(), "\"v\"".to_owned());
+            round
+        };
+        let mut round = replaying();
+        assert!(round.replays());
+        round.absorb(&held);
+        let forgotten = (
+            &round.continuation,
+            &round.knowledge,
+            &round.authoring_receipt,
+        );
+        assert_eq!(forgotten, (&None, &None, &None));
+        assert!(!round.replays());
+        assert_eq!(
+            round.answers.get("const.k").map(String::as_str),
+            Some("\"v\"")
+        );
+        // The same outcome without the finding: the replayed record stays.
+        let mut unheld = held.clone();
+        unheld.diagnostics.pop();
+        let mut round = replaying();
+        round.absorb(&unheld);
+        assert_eq!(round.continuation.as_ref(), Some(&record));
+        // A revision's base record names the base's own bytes: it stays the revision's input.
+        let base = "nika: base\n";
+        let sha = nika_event::source_id::sha256_hex(base.as_bytes());
+        let based = json!({"semantic_record": 1, "final": {"candidate_sha256": sha}});
+        let mut revision = replaying();
+        revision.edit = Some((base.to_owned(), "add a step".to_owned(), None));
+        revision.continuation = Some(based.clone());
+        assert!(
+            !revision.replays(),
+            "a base record is input, never replayed"
+        );
+        revision.absorb(&held);
+        assert_eq!(revision.continuation.as_ref(), Some(&based));
     }
 
     #[test]

@@ -1,6 +1,6 @@
 # Stdlib v0.1 · Providers
 
-> The canonical <!-- canon:providers -->17<!-- /canon --> providers shipped with v0.1-compliant engines. Each
+> The canonical <!-- canon:providers -->18<!-- /canon --> providers shipped with v0.1-compliant engines. Each
 > provider implements the same interface (LLM chat completion + optional
 > streaming + vision + structured output) against a different backend.
 > You select one with a single `model: <provider>/<name>` field.
@@ -45,7 +45,7 @@ tasks:
 
 ---
 
-## The 17 canonical providers
+## The canonical providers
 
 | Provider | Backend | Local? | Auth |
 |---|---|---|---|
@@ -55,6 +55,7 @@ tasks:
 | `localai` | LocalAI (`localhost:8080/v1` · OpenAI drop-in · multi-backend) | **local** | none |
 | `vllm` | vLLM OpenAI server (`localhost:8000/v1` · high-throughput · self-hosted) | **local** | none |
 | `mistral` | Mistral AI API (EU · sovereign-leaning) | cloud | `${{ secrets.* }}` |
+| `scaleway` | Scaleway Generative APIs (OpenAI-compatible, independent endpoint and credentials) | cloud | `${{ secrets.* }}` |
 | `anthropic` | Anthropic Claude API | cloud | `${{ secrets.* }}` |
 | `openai` | OpenAI API (+ the universal OpenAI-compat escape hatch · see below) | cloud | `${{ secrets.* }}` |
 | `openrouter` | OpenRouter gateway (one key · every major model · cross-vendor fallback) | cloud | `${{ secrets.* }}` |
@@ -67,7 +68,7 @@ tasks:
 | `xai` | xAI Grok API | cloud | `${{ secrets.* }}` |
 | `mock` | deterministic test fixture · no LLM call | test | none |
 
-A Stdlib v0.1-compliant engine MUST ship all **17** (5 local · 11 cloud · 1 test).
+A Stdlib v0.1-compliant engine MUST ship all providers listed in `canon.yaml` (local, cloud and test).
 Any *other* OpenAI-compatible local server (Jan · llamafile · KoboldCpp ·
 text-generation-webui · a custom one) routes through the **`openai` escape
 hatch** below (no new provider name needed).
@@ -79,21 +80,30 @@ hatch** below (no new provider name needed).
 > and the largest model-aggregation gateway deserves first-class one-field
 > selection. Together · Fireworks · custom gateways still use the escape hatch.
 
-## The three lists · three laws (why 17 · why the catalog knows more · why MCP never closes)
+`scaleway/<model>` uses the existing OpenAI-compatible wire with its own
+operator credentials and endpoint. It does not redirect `openai/<model>` or
+inherit a model publisher's prices. An implementation's catalog may describe
+supported models; registration of the prefix alone attests neither a live
+account nor a price. [Scaleway API](https://www.scaleway.com/en/developers/api/generative-apis)
+documents the default endpoint; [project-scoped requests](https://www.scaleway.com/en/docs/generative-apis/api-cli/using-generative-apis/)
+retain their explicit project path. Service model limits are published in
+[Scaleway's model catalog](https://www.scaleway.com/en/docs/generative-apis/reference-content/supported-models/).
+
+## The three lists · three laws (why the catalog knows more · why MCP never closes)
 
 Three different lists ride the tool/model surface, and each obeys a
 different law — naming them kills a recurring confusion:
 
-1. **The provider PREFIX list is CLOSED at <!-- canon:providers -->17<!-- /canon -->** — a
+1. **The provider PREFIX list is CLOSED at <!-- canon:providers -->18<!-- /canon -->** — a
    list may be closed in the language only because an escape hatch
    exists (§The `openai` escape hatch: any OpenAI-compatible server,
    today, without waiting for anyone). A closure with a door is a
    curation; without one it would be a wall.
 2. **The engine's CATALOG knows MORE than the language admits** (its
-   yellow-pages carry rows for endpoints beyond the 17 — reachable
+   yellow-pages carry rows for endpoints beyond the canonical registry — reachable
    through the hatch). That asymmetry is by design: the catalog records
    the world; the language admits a curated subset it can teach, test
-   and price. A provider absent from the 17 is not illegal — it is
+   and price. A provider absent from that registry is not illegal — it is
    un-blessed (no named prefix, no doc room), never unreachable.
 3. **MCP servers are OPEN, forever** — `mcp:<server>/<tool>` accepts
    any server because YOUR OWN server is the premise of the protocol.
@@ -105,7 +115,7 @@ The same rule read once more: **the spec closes only what it can refuse
 while a hatch keeps the closure honest; everything else is catalog
 knowledge.**
 
-## Registration policy · how the 17 grows (the post-freeze door)
+## Registration policy · how the registry grows (the post-freeze door)
 
 The prefix list is a **registry, not grammar**. `/spec/v1.0.0` freezes
 the FORM (`model: <provider>/<name>` · the refusal law `NIKA-PROVIDER`);
@@ -673,4 +683,4 @@ The reference engine implements `provider_options:` as best-effort pass-through.
 
 ---
 
-🦋 *<!-- canon:providers -->17<!-- /canon --> providers · 1 contract · sovereignty preserved.*
+🦋 *<!-- canon:providers -->18<!-- /canon --> providers · 1 contract · sovereignty preserved.*

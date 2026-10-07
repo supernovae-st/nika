@@ -15,6 +15,8 @@ use super::inference::{
     is_money_marker,
 };
 use super::round::KeptRound;
+use crate::run_view::KeptRun;
+use nika_providers::authoring::preparation::PreparationCosts;
 use nika_trace::lineage::{Standing, lineage_of};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -26,6 +28,15 @@ use crate::intelligence::now_rfc3339;
 use crate::outcome::ProposalId;
 use crate::state::{Pending, STATE_FILE, SessionState};
 
+/// Preparation evidence before one turn; never an execution or monetary authority snapshot.
+#[derive(Default)]
+pub(super) struct PreparationBefore {
+    goal: Option<String>,
+    reading: Option<nika_onboard::compile::CompileOutcome>,
+    proposal: Option<crate::ProposalId>,
+    question: Option<crate::authoring::AuthoringRound>,
+}
+
 impl SessionRuntime {
     /// Enable private, project-bound conversation history below `home/.nika`.
     ///
@@ -35,7 +46,7 @@ impl SessionRuntime {
     /// Call immediately after `open` or `open_with`, before the first turn.
     ///
     /// # Errors
-    /// Refuses concurrent ownership, corrupt/oversized history or failed I/O.
+    /// Refuses concurrent ownership, corrupt history or failed I/O.
     /// A failed enable also blocks this instance; ignoring the error cannot
     /// silently downgrade a requested durable session to an ephemeral one.
     pub fn enable_history(&mut self, home: &Path) -> Result<Option<String>, Refusal> {
@@ -64,7 +75,12 @@ impl SessionRuntime {
             decisions: history.state.decisions.clone(),
             unresolved: history.state.unresolved.clone(),
         });
+        self.programs.clone_from(&history.state.programs);
+        self.last_workflow =
+            nika_onboard::compile::program_records::last_saved(self.programs.as_ref())
+                .map(PathBuf::from);
         self.recent.clone_from(&history.state.recent);
+        self.kept_run.clone_from(&history.state.last_run);
         self.restored_draft = history.state.pending.clone().map(Restored::from_raw);
         self.money.reconfirm |= history.restored && history.monetary_seen;
         if self.money.reconfirm {
@@ -76,7 +92,7 @@ impl SessionRuntime {
             let mut text = "conversation restored · previous proposals and gates require fresh validation".to_owned();
             text.push_str(&expired);
             if history.uncertain {
-                text.push_str("\ninterrupted operation: its result may be unknown; inspect effects and receipts before retrying · nothing was replayed");
+                text.push_str("\nhistorical unresolved operation: an earlier result or charge remains uncertain; later success does not reconcile it · inspect its effects and receipts before retrying it · nothing was replayed");
             }
             if let Some(restored) = &self.restored_draft {
                 text.push('\n');
@@ -209,10 +225,61 @@ impl SessionRuntime {
     /// execution. Every observed run keeps the project's structured record
     /// (#1464): the gate it paused on, when it did, is what waits.
     pub fn observe_run(&mut self, exit: u8, trace: Option<&Path>) -> TurnOutcome {
+        self.observe_run_leg(exit, trace, KeptRun::new())
+    }
+
+    /// [`Self::observe_run`] with the run's observed identity (`leg`), kept in HOME
+    /// history as the last run: evidence for a later open, never authority to run.
+    pub fn observe_run_leg(&mut self, exit: u8, trace: Option<&Path>, leg: KeptRun) -> TurnOutcome {
+        self.kept_run = Some(
+            leg.ended(self.last_workflow.as_deref(), exit, trace)
+                .to_value(),
+        );
         let outcome = self.recorded(Operation::Observation, "(run observation)", |s| {
             s.observe_run_unrecorded(exit, trace)
         });
         self.keep_state(outcome)
+    }
+
+    fn restore_checkpoint(&mut self, checkpoint: Option<&serde_json::Value>, notice: &mut String) {
+        if let (Some(raw), HistoryMode::Active(history)) = (checkpoint, &self.history)
+            && self.money.account.is_none()
+            && !history.uncertain
+            && history.state.inference_checkpoint.as_ref() == Some(raw)
+            && !self
+                .intent
+                .decisions
+                .iter()
+                .any(|d| d.starts_with(DISPATCH_PREFIX))
+            && let Ok(project) = self.snapshot.root.canonicalize()
+        {
+            if let Ok(report) = nika_providers::admission::CompletedCostReport::read(
+                &self.unknown_cost.observations,
+            ) && report.matches_checkpoint(raw, project.as_os_str().as_encoded_bytes())
+            {
+                self.unknown_cost.completed_restored = true;
+                notice.push_str(if self.money.preparation.is_some() {
+                    "\nprior costs retained, including unknown charges; preparation can continue; Run is separate"
+                } else { "\ncompleted unknown-cost observations retained; a fresh one-time cost review is required; no account or consent restored" });
+                return;
+            }
+            match nika_providers::InferenceAdmission::from_checkpoint(
+                raw,
+                project.as_os_str().as_encoded_bytes(),
+            ) {
+                Ok((account, observed)) if self.unknown_cost.observations.contains(&observed) => {
+                    self.unknown_cost.observations.retain(|o| o != &observed);
+                    self.money.account = Some(account);
+                    notice.push_str(if self.money.preparation.is_some() {
+                        "\nprior expenses and reservations retained; preparation can continue; Run is separate"
+                    } else { "\nnumeric inference ledger restored closed; confirm a new TOTAL Session ceiling in its own sentence, e.g. Budget: 10 USD. (total, not additional); prior expenses and reservations remain" });
+                }
+                Ok(_) => notice.push_str("\nledger refused: project cost observation differs"),
+                Err(error) => {
+                    let _ = write!(notice, "\nledger refused: {error}");
+                }
+            }
+        }
     }
 
     /// The project's structured record, read at open (#1464) — after
@@ -235,6 +302,7 @@ impl SessionRuntime {
                 ));
             }
         };
+        self.unknown_cost.completed_restored = false;
         self.unknown_cost.observations = state.inference_observations;
         // A no-budget observation had no allowance to reconfirm: it stays
         // exposure, never a restriction. Any other observation restricts.
@@ -246,6 +314,8 @@ impl SessionRuntime {
         {
             self.money.reconfirm = true;
         }
+        let checkpoint = state.inference_checkpoint;
+        self.money.reconfirm |= checkpoint.is_some();
         let expired = self.restore_intent(IntentDraft {
             goal: state.goal,
             decisions: state.decisions,
@@ -256,6 +326,7 @@ impl SessionRuntime {
             state.updated_at
         );
         notice.push_str(&expired);
+        self.restore_checkpoint(checkpoint.as_ref(), &mut notice);
         for line in self
             .intent
             .decisions
@@ -464,6 +535,9 @@ impl SessionRuntime {
                 "proposal {id} landed partially · wrote {} · left undecided",
                 paths.join(" · ")
             ),
+            // The decision is non-exhaustive across the member boundary (ADR-144); this
+            // session records only the two above, and names nothing it did not decide.
+            _ => format!("proposal {id} · wrote {}", paths.join(" · ")),
         });
         let record = ConsentRecord::of(set, id, decision, written, now_rfc3339());
         match record.append(&self.snapshot.root) {
@@ -480,6 +554,7 @@ impl SessionRuntime {
         let redact = |s: &String| crate::broker::redact(s).0;
         let mut state = SessionState::new(now_rfc3339());
         state.inference_observations = self.cost_observations();
+        state.inference_checkpoint = self.account_checkpoint();
         state.goal = self.intent.goal.as_ref().map(redact);
         state.decisions = self.saved_decisions();
         state.unresolved = self.intent.unresolved.iter().map(redact).collect();
@@ -529,19 +604,101 @@ impl SessionRuntime {
         }
     }
 
+    pub(super) fn preparation_snapshot(&self) -> PreparationBefore {
+        PreparationBefore {
+            goal: self.intent.goal.clone(),
+            reading: self.last_outcome.clone(),
+            proposal: self.pending.as_ref().map(|set| self.proposal_id(set)),
+            question: self.authoring.clone(),
+        }
+    }
+
+    /// Withdraw only the new preparation before host presentation; retain earlier waiting work.
+    /// Gates, Run, monetary observations and the durable human intent are unchanged.
+    pub fn withdraw_cancelled_preparation(&mut self) -> Option<String> {
+        if !self
+            .money
+            .preparation
+            .as_ref()
+            .is_some_and(PreparationCosts::was_stopped)
+        {
+            return None;
+        }
+        let proposal = self.pending.as_ref().map(|set| self.proposal_id(set));
+        let changed_proposal = proposal.is_some() && proposal != self.preparation_before.proposal;
+        let changed_question =
+            self.authoring.is_some() && self.authoring != self.preparation_before.question;
+        if !changed_proposal && !changed_question {
+            return None;
+        }
+        if changed_proposal {
+            self.pending = None;
+        }
+        if changed_question {
+            self.authoring = None;
+            self.intent.unresolved.clear();
+        }
+        self.last_outcome
+            .clone_from(&self.preparation_before.reading);
+        let text = crate::authoring::AuthoringError::Cancelled.to_string();
+        let outcome = self.recorded(Operation::Turn, "(preparation stopped)", |_| {
+            TurnOutcome::Cancelled(text)
+        });
+        match outcome {
+            TurnOutcome::Cancelled(text) => Some(text),
+            _ => Some("preparation stopped; the conversation record could not be updated".into()),
+        }
+    }
+
+    fn accept_preparation(
+        &mut self,
+        operation: Operation,
+        previous: PreparationBefore,
+        outcome: TurnOutcome,
+    ) -> TurnOutcome {
+        if matches!(
+            operation,
+            Operation::Run | Operation::Gate | Operation::Observation
+        ) || matches!(
+            outcome,
+            TurnOutcome::RunRequested { .. } | TurnOutcome::ResumeRequested { .. }
+        ) || (!matches!(outcome, TurnOutcome::Cancelled(_)) && !PreparationCosts::interrupted())
+        {
+            return outcome;
+        }
+        if self.pending.as_ref().map(|set| self.proposal_id(set)) != previous.proposal {
+            self.pending = None;
+        }
+        if previous.goal.is_some() {
+            self.intent.goal = previous.goal;
+        }
+        self.last_outcome = previous.reading;
+        if self.authoring != previous.question {
+            self.authoring = None;
+            self.intent.unresolved.clear();
+        }
+        self.keep_revising(TurnOutcome::Cancelled(
+            crate::authoring::AuthoringError::Cancelled.to_string(),
+        ))
+    }
+
     pub(super) fn recorded(
         &mut self,
         operation: Operation,
         input: &str,
         perform: impl FnOnce(&mut Self) -> TurnOutcome,
     ) -> TurnOutcome {
+        let _cost_scope = self.money.preparation.as_ref().map(PreparationCosts::enter);
+        let _activity_scope = self.progress.enter();
+        let previous = self.preparation_snapshot();
         let mut history = match std::mem::replace(
             &mut self.history,
             HistoryMode::Blocked("the previous operation did not complete".to_owned()),
         ) {
             HistoryMode::Ephemeral => {
                 self.history = HistoryMode::Ephemeral;
-                return perform(self);
+                let outcome = perform(self);
+                return self.accept_preparation(operation, previous, outcome);
             }
             HistoryMode::Blocked(message) => {
                 self.history = HistoryMode::Blocked(message.clone());
@@ -554,6 +711,7 @@ impl SessionRuntime {
         }
         let charged_before = self.uncertain_charges();
         let outcome = perform(self);
+        let outcome = self.accept_preparation(operation, previous, outcome);
         // A new proposal replaces a draft kept from an earlier session.
         if self.pending.is_some() {
             self.restored_draft = None;
@@ -595,6 +753,11 @@ impl SessionRuntime {
         } else {
             AuthorityState::None
         };
+        if self.money.account.is_some()
+            && let Err(error) = self.save_cost_state()
+        {
+            return self.history_failed(error);
+        }
         let evidence = outcome_kind(&outcome).to_owned();
         if let Err(error) =
             history.complete(self.saved_conversation(), run, authority, evidence, effect)
@@ -628,6 +791,21 @@ impl SessionRuntime {
         decisions
     }
 
+    fn account_checkpoint(&self) -> Option<serde_json::Value> {
+        match self.snapshot.root.canonicalize() {
+            Ok(root) => nika_providers::admission::accounting_checkpoint(
+                self.money.account.as_ref(),
+                &self.cost_observations(),
+                root.as_os_str().as_encoded_bytes(),
+            ),
+            Err(e) => self
+                .money
+                .account
+                .as_ref()
+                .map(|_| serde_json::Value::String(e.to_string())),
+        }
+    }
+
     fn saved_conversation(&self) -> Saved {
         let redact = |s: &String| crate::broker::redact(s).0;
         Saved {
@@ -646,7 +824,22 @@ impl SessionRuntime {
                 .and_then(|set| draft::capture(&self.proposal_id(set), set))
                 .or_else(|| self.restored_draft.as_ref().map(|r| r.raw().clone())),
             round: self.round_to_keep(),
+            programs: self.programs.clone(),
+            inference_checkpoint: self.account_checkpoint(),
+            last_run: self.kept_run.clone(),
         }
+    }
+
+    /// The last observed run, read back (unreadable: its reason, its bytes kept).
+    #[must_use]
+    pub fn kept_run(&self) -> Option<Result<KeptRun, String>> {
+        self.kept_run.as_ref().map(KeptRun::from_value)
+    }
+
+    /// The recent turns kept (restored at open): what was said, never replayed.
+    #[must_use]
+    pub fn kept_turns(&self) -> &[(String, String)] {
+        &self.recent
     }
 }
 
@@ -658,6 +851,7 @@ fn outcome_kind(outcome: &TurnOutcome) -> &'static str {
     match outcome {
         TurnOutcome::Reply(_) => "reply",
         TurnOutcome::Facts(_) => "facts",
+        TurnOutcome::Cancelled(_) => "cancelled",
         TurnOutcome::Help(_) => "help",
         TurnOutcome::Quit => "quit",
         TurnOutcome::Refusal(_) => "refusal",
@@ -681,6 +875,7 @@ fn with_note(outcome: TurnOutcome, note: &str) -> TurnOutcome {
     match outcome {
         TurnOutcome::Reply(text) => TurnOutcome::Reply(text + &line),
         TurnOutcome::Facts(text) => TurnOutcome::Facts(text + &line),
+        TurnOutcome::Cancelled(text) => TurnOutcome::Cancelled(text + &line),
         TurnOutcome::Help(text) => TurnOutcome::Help(text + &line),
         TurnOutcome::Ask(text) => TurnOutcome::Ask(text + &line),
         TurnOutcome::Aside(text) => TurnOutcome::Aside(text + &line),

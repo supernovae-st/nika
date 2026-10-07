@@ -71,10 +71,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn enum_has_28_entries() {
+    fn enum_has_29_entries() {
         let schema = nika_builtin_tool_enum_schema();
         let arr = schema["enum"].as_array().expect("enum must be array");
-        assert_eq!(arr.len(), 28, "expected 28 spec-canonical builtins");
+        assert_eq!(arr.len(), 29, "expected 29 spec-canonical builtins");
     }
 
     #[test]

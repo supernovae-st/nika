@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#
+# nika-compile-seats · L4 · the two capabilities a host lends a preparation of the Compile core:
+# a bounded decision seat (a closed choice with NONE, revalidated before use) and a rehearsal
+# room (a candidate run in a safe room built from the observed world, its report and the
+# behavioural judge's run read from it). Size-cap member of the nika-onboard unit
+# (D-2026-07-09-N1 · ADR-146): nika-compile-cognition → nika-compile-seats → nika-compile, never
+# back.
+[package]
+name        = "nika-compile-seats"
+description = "The two capabilities a host lends a preparation of the Compile core: the bounded decision seat (one closed choice among admissible options or NONE, a provider seated through a JSON-schema enum, revalidated before use, with the reasoning record of its call) and the rehearsal port (a candidate run in a safe room built from the observed world, the report of what the run did, mapped to the behavioural judge's run). Layer L4 — a size-cap member of the nika-onboard unit (D-2026-07-09-N1 · ADR-146 · the ADR-144 precedent), below nika-compile-cognition, which keeps them at its historical decide and rehearse paths; never the reverse."
+
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # member of the nika-onboard unit — never on crates.io alone
+
+[dependencies]
+nika-compile          = { path = "../nika-compile", version = "0.122.0" }          # AuthoringReasoning — the reasoning level a decision call is asked for (ONE unit, several members · ADR-146)
+nika-compile-fidelity = { path = "../nika-compile-fidelity", version = "0.122.0" } # behavior — the behavioural judge's run a rehearsal report is mapped to
+nika-kernel           = { path = "../nika-kernel", version = "0.122.0" }           # the provider seam a decision seat asks through, never a vendor
+nika-pack             = { path = "../nika-pack", version = "0.122.0" }             # the skeletons and the stdlib page the shelf cuts a seat's references from
+serde      = { workspace = true } # IgnoredAny · DeserializeOwned: the answer-shape probes of a seat's text
+serde_json = { workspace = true } # the closed choice's state, schema and provenance record
+thiserror  = { workspace = true }
+tokio      = { workspace = true } # the single decision call's bound
+
+[package.metadata.lore]
+daemon        = "forgeron"
+archetype     = "compiler-smith"
+spirit_role   = "prête un siège borné ou une salle de répétition, jamais une autorité · un choix fermé, une salle sans effet"
+
+[lints]
+workspace = true

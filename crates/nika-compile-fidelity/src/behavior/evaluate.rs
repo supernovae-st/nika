@@ -18,7 +18,8 @@ use nika_compile_reader::rules::{Comparator, Junction, NumberPolicy};
 use super::Operation;
 use super::numbers::{Decimal, Law, number_like};
 use super::pipeline::{
-    Aggregate, Filter, Naming, OnEmpty, Operand, Pipeline, Sort, Stages, Step, Test,
+    Aggregate, Arith, Derived, Filter, Naming, OnEmpty, Operand, Pipeline, Sort, Stages, Step,
+    Term, Test,
 };
 use super::values::{
     Cell, Datum, Row, Same, as_text, exact_row_form, jq_order, order_is_meaningful, reading,
@@ -821,7 +822,12 @@ fn filtered(state: State, step: &Step, policies: &Policies) -> Result<State, Und
         for row in block.rows {
             let kept = keeps(&step.filter, &row, policies, Operation::Test)
                 .map_err(|undefined| widened(undefined, &read))?;
-            if kept {
+            if !kept {
+                continue;
+            }
+            if let Some(row) = with_derived(row, &step.stages.derived, policies)
+                .map_err(|undefined| widened(undefined, &read))?
+            {
                 rows.push(row);
             }
         }
@@ -839,6 +845,37 @@ fn filtered(state: State, step: &Step, policies: &Policies) -> Result<State, Und
         tie_stop: None,
         unstated: state.unstated,
     })
+}
+
+/// The number a term of a computed column reads in `row`; `None` when SKIP leaves the record
+/// out.
+fn term_at(row: &Row, term: &Term, policies: &Policies) -> Result<Option<Decimal>, Undefined> {
+    match term {
+        Term::Number(number) => Ok(Some(number.clone())),
+        Term::Column(column) => number_at(row, column, policies, Operation::Column),
+    }
+}
+
+/// `row` with the columns a step computes from its own values, in order (a later one may read
+/// an earlier one); `None` when SKIP leaves the record out.
+fn with_derived(
+    mut row: Row,
+    derived: &[Derived],
+    policies: &Policies,
+) -> Result<Option<Row>, Undefined> {
+    for column in derived {
+        let left = term_at(&row, &column.left, policies)?;
+        let right = term_at(&row, &column.right, policies)?;
+        let (Some(left), Some(right)) = (left, right) else {
+            return Ok(None);
+        };
+        let value = match column.arith {
+            Arith::Add => left.plus(&right),
+            Arith::Sub => left.plus(&right.negated()),
+        };
+        row.insert(column.name.clone(), Cell::typed(Datum::Number(value)));
+    }
+    Ok(Some(row))
 }
 
 /// The group key and the aggregates of a step, when no two of them share an output name: two

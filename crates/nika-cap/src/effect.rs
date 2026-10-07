@@ -231,7 +231,9 @@ pub fn builtin_effect(tool: &str, args: Option<&serde_json::Value>) -> Option<Bu
             recursive: true,
             walk_root: false,
         }),
-        "nika:write" => Some(BuiltinEffect::Fs {
+        // A removal is a write of its exact path (builtins-v0.1.md
+        // §nika:remove_file): no content is read, nothing below it is walked.
+        "nika:write" | "nika:remove_file" => Some(BuiltinEffect::Fs {
             path_arg: "path",
             reads: false,
             writes: true,
@@ -376,6 +378,140 @@ fn notify_webhook_channel(args: Option<&serde_json::Value>) -> bool {
     match args.and_then(|a| a.get("channel")) {
         None => true,
         Some(_) => literal_str(args, "channel").as_deref() == Some("webhook"),
+    }
+}
+
+/// Every filesystem argument of one call of `tool` with `args` that is not bound to the calling
+/// task's own stated reach. Read slots (`read`/`grep` `path`, `glob` `pattern`, `decide` `bundle`
+/// when it is a string, `image_fx` `input`, `chart` `data.path`, `image_generate` `image`, each
+/// `images[]` element and `mask`, each `fetch` `multipart[].path`) must equal one of `reads`;
+/// write slots (`write` `path`, `chart`/`image_fx` `out`, `image_generate`/`tts_generate`
+/// `output_dir`) one of `writes`; a slot whose effect both reads and writes (`edit` `path`) must
+/// be in both. Primary slots and their directions come from [`builtin_effect`]; the secondary
+/// slots it leaves out (one `path_arg` per effect) are listed here, at the same owner.
+///
+/// A present slot that is not a literal string (a `${{ }}` template, null, an empty string,
+/// another type, a malformed `images`/`multipart`/`data`) is a finding: it never disappears.
+/// Inline data (`chart` rows, a `decide` object bundle, a text multipart part) and absent optional
+/// slots need no binding. Equality is exact after folding one leading `./`; no filesystem is
+/// resolved, no permit is consulted and no grant changes. The `chart` `.vl.json` sibling stays
+/// derived from the bound `out` ([`chart_vl_sibling`]); an `output_dir` is matched as the stated
+/// directory itself. Findings name the tool and the slot, never the value.
+#[must_use]
+pub fn unbound_fs_args(
+    tool: &str,
+    args: Option<&serde_json::Value>,
+    reads: &[String],
+    writes: &[String],
+) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut findings = Vec::new();
+    let mut slot = |name: &str, value: &serde_json::Value, read: bool, write: bool| {
+        if let Some(why) = slot_refusal(value, read, write, reads, writes) {
+            findings.push(format!("`{tool}` `{name}` {why}"));
+        }
+    };
+    // A container of the wrong shape cannot be read as paths: it is refused whatever it holds.
+    let malformed = |name: &str, shape: &str| {
+        format!("`{tool}` `{name}` must be {shape} the task states in its reach")
+    };
+    let object = args.and_then(serde_json::Value::as_object);
+    let get = |key: &str| object.and_then(|map| map.get(key));
+    if let Some(BuiltinEffect::Fs {
+        path_arg,
+        reads: read,
+        writes: write,
+        ..
+    }) = builtin_effect(tool, args)
+        && let Some(value) = get(path_arg)
+    {
+        slot(path_arg, value, read, write);
+    }
+    match tool {
+        // A templated, null or malformed bundle hides a read `builtin_effect` cannot see; only an
+        // inline object needs no filesystem.
+        "nika:decide" => match get("bundle") {
+            Some(serde_json::Value::Object(_)) | None => {}
+            Some(value) if literal_str(args, "bundle").is_none() => {
+                slot("bundle", value, true, false);
+            }
+            Some(_) => {}
+        },
+        "nika:image_fx" => {
+            if let Some(value) = get("input") {
+                slot("input", value, true, false);
+            }
+        }
+        "nika:chart" => match get("data") {
+            Some(serde_json::Value::Object(data)) => match data.get("path") {
+                Some(value) => slot("data.path", value, true, false),
+                None => slot("data.path", &serde_json::Value::Null, true, false),
+            },
+            Some(serde_json::Value::Array(_)) | None => {}
+            Some(_) => out.push(malformed("data", "rows or `{ path }` with a literal path")),
+        },
+        "nika:image_generate" => {
+            for key in ["image", "mask"] {
+                if let Some(value) = get(key) {
+                    slot(key, value, true, false);
+                }
+            }
+            match get("images") {
+                Some(serde_json::Value::Array(items)) => {
+                    for (k, value) in items.iter().enumerate() {
+                        slot(&format!("images[{k}]"), value, true, false);
+                    }
+                }
+                Some(_) => out.push(malformed("images", "an array of literal paths")),
+                None => {}
+            }
+        }
+        "nika:fetch" => match get("multipart") {
+            Some(serde_json::Value::Array(parts)) => {
+                for (k, part) in parts.iter().enumerate() {
+                    match part.as_object() {
+                        Some(map) => {
+                            if let Some(value) = map.get("path") {
+                                slot(&format!("multipart[{k}].path"), value, true, false);
+                            }
+                        }
+                        None => out.push(malformed(&format!("multipart[{k}]"), "a part object")),
+                    }
+                }
+            }
+            Some(_) => out.push(malformed("multipart", "an array of parts")),
+            None => {}
+        },
+        _ => {}
+    }
+    findings.extend(out);
+    findings
+}
+
+/// Why one present filesystem slot is not bound: not a literal path, or a literal the task does
+/// not state on each side the slot reaches. The value is never repeated.
+fn slot_refusal(
+    value: &serde_json::Value,
+    read: bool,
+    write: bool,
+    reads: &[String],
+    writes: &[String],
+) -> Option<&'static str> {
+    let Some(path) = value
+        .as_str()
+        .filter(|path| !path.trim().is_empty() && !path.contains("${{"))
+    else {
+        return Some("must be a literal path the task states in its reach");
+    };
+    let fold = |p: &str| p.strip_prefix("./").unwrap_or(p).to_owned();
+    let stated = |list: &[String]| list.iter().any(|entry| fold(entry) == fold(path));
+    match (read && !stated(reads), write && !stated(writes)) {
+        (true, true) => {
+            Some("must be one of the paths the task states in both its reads and writes")
+        }
+        (true, false) => Some("must be one of the paths the task states in its reads"),
+        (false, true) => Some("must be one of the paths the task states in its writes"),
+        (false, false) => None,
     }
 }
 
@@ -585,7 +721,7 @@ mod tests {
             Some(BuiltinEffect::Net { .. })
         ));
         // write: every coarse Write member is a fine-grained Fs writer.
-        for tool in ["nika:write", "nika:edit"] {
+        for tool in ["nika:write", "nika:edit", "nika:remove_file"] {
             let coarse = EffectClass::classify("invoke", Some(tool));
             assert!(coarse.contains(&EffectClass::Write), "{tool}");
             assert!(
@@ -697,5 +833,206 @@ mod tests {
                 other => panic!("{tool} must declare an Fs write · got {other:?}"),
             }
         }
+    }
+
+    fn stated(paths: &[&str]) -> Vec<String> {
+        paths.iter().map(|p| (*p).to_owned()).collect()
+    }
+
+    #[test]
+    fn a_path_argument_is_bound_to_its_own_tasks_reach_on_each_side() {
+        let reads = stated(&[
+            "./in.png",
+            "./data.json",
+            "./bundle.json",
+            "./a.png",
+            "./m.png",
+        ]);
+        let writes = stated(&["./out/a.svg", "./out/a.png", "./out/imgs", "./notes.md"]);
+        let lawful = [
+            (
+                "nika:chart",
+                json!({"data": {"path": "data.json"}, "chart": {}, "out": "./out/a.svg"}),
+            ),
+            (
+                "nika:chart",
+                json!({"data": [{"x": 1}], "chart": {}, "out": "./out/a.svg", "compile_to": "vega_lite"}),
+            ),
+            (
+                "nika:image_fx",
+                json!({"input": "./in.png", "out": "./out/a.png", "ops": []}),
+            ),
+            (
+                "nika:image_generate",
+                json!({"prompt": "p", "output_dir": "./out/imgs", "mode": "edit", "images": ["./a.png"], "mask": "./m.png"}),
+            ),
+            (
+                "nika:tts_generate",
+                json!({"text": "t", "output_dir": "out/imgs"}),
+            ),
+            (
+                "nika:decide",
+                json!({"bundle": {"policy": {}}, "evidence": {}}),
+            ),
+            (
+                "nika:decide",
+                json!({"bundle": "./bundle.json", "evidence": {}}),
+            ),
+            (
+                "nika:fetch",
+                json!({"url": "https://h", "multipart": [{"name": "n", "value": "text with a path word"}, {"name": "f", "path": "./a.png"}]}),
+            ),
+            ("nika:hash", json!({"content": "./not/a/read.txt"})),
+            ("nika:date", json!({"input": "2026-10-03"})),
+            (
+                "nika:grep",
+                json!({"pattern": "TODO", "path": "./notes.md"}),
+            ),
+        ];
+        // grep reads `./notes.md`: state it on the read side for this one call.
+        let grep_reads = stated(&["./notes.md"]);
+        for (tool, args) in &lawful {
+            let reads = if *tool == "nika:grep" {
+                &grep_reads
+            } else {
+                &reads
+            };
+            assert_eq!(
+                unbound_fs_args(tool, Some(args), reads, &writes),
+                Vec::<String>::new(),
+                "{tool} {args}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_unbound_or_uninterpretable_slot_is_named_and_its_value_never_repeated() {
+        let reads = stated(&["./in.png", "./a.png"]);
+        let writes = stated(&["./out/a.svg", "./out/a.png", "./out/imgs"]);
+        let canary = "./zq-canary.svg";
+        let cases = [
+            ("nika:chart", json!({"data": [], "out": canary}), "`out`"),
+            (
+                "nika:chart",
+                json!({"data": {"path": canary}, "out": "./out/a.svg"}),
+                "`data.path`",
+            ),
+            (
+                "nika:chart",
+                json!({"data": {"rows": 1}, "out": "./out/a.svg"}),
+                "`data.path`",
+            ),
+            (
+                "nika:chart",
+                json!({"data": "rows", "out": "./out/a.svg"}),
+                "`data`",
+            ),
+            (
+                "nika:image_fx",
+                json!({"input": canary, "out": "./out/a.png"}),
+                "`input`",
+            ),
+            (
+                "nika:image_fx",
+                json!({"input": "./in.png", "out": "./out/b.png"}),
+                "`out`",
+            ),
+            // A read path is not a write and a write is not a read.
+            (
+                "nika:image_fx",
+                json!({"input": "./out/a.png", "out": "./in.png"}),
+                "`input`",
+            ),
+            (
+                "nika:image_generate",
+                json!({"output_dir": "./out/other"}),
+                "`output_dir`",
+            ),
+            (
+                "nika:image_generate",
+                json!({"output_dir": "./out/imgs", "images": ["./a.png", canary]}),
+                "`images[1]`",
+            ),
+            (
+                "nika:image_generate",
+                json!({"output_dir": "./out/imgs", "images": "./a.png"}),
+                "`images`",
+            ),
+            (
+                "nika:image_generate",
+                json!({"output_dir": "./out/imgs", "mask": null}),
+                "`mask`",
+            ),
+            (
+                "nika:image_generate",
+                json!({"output_dir": "./out/imgs", "image": "${{ inputs.p }}"}),
+                "`image`",
+            ),
+            (
+                "nika:tts_generate",
+                json!({"output_dir": ""}),
+                "`output_dir`",
+            ),
+            (
+                "nika:decide",
+                json!({"bundle": "${{ inputs.b }}"}),
+                "`bundle`",
+            ),
+            ("nika:decide", json!({"bundle": null}), "`bundle`"),
+            ("nika:decide", json!({"bundle": canary}), "`bundle`"),
+            (
+                "nika:fetch",
+                json!({"multipart": [{"name": "f", "path": canary}]}),
+                "`multipart[0].path`",
+            ),
+            ("nika:fetch", json!({"multipart": ["x"]}), "`multipart[0]`"),
+            (
+                "nika:fetch",
+                json!({"multipart": {"path": "./a.png"}}),
+                "`multipart`",
+            ),
+            ("nika:read", json!({"path": canary}), "`path`"),
+            ("nika:glob", json!({"pattern": "./**/*.md"}), "`pattern`"),
+        ];
+        for (tool, args, slot) in cases {
+            let findings = unbound_fs_args(tool, Some(&args), &reads, &writes).join("\n");
+            assert!(findings.contains(slot), "{tool} {args}: {findings}");
+            assert!(!findings.contains("zq-canary"), "{tool}: {findings}");
+        }
+        // `edit` reads and writes its path: one side alone does not bind it.
+        let edit = json!({"path": "./notes.md"});
+        let only_write = unbound_fs_args("nika:edit", Some(&edit), &[], &stated(&["./notes.md"]));
+        assert!(only_write.join("").contains("its reads"), "{only_write:?}");
+        let both = stated(&["./notes.md"]);
+        assert!(unbound_fs_args("nika:edit", Some(&edit), &both, &both).is_empty());
+    }
+
+    #[test]
+    fn a_removal_is_an_exact_path_write_that_reads_nothing() {
+        assert_eq!(
+            builtin_effect("nika:remove_file", None),
+            Some(BuiltinEffect::Fs {
+                path_arg: "path",
+                reads: false,
+                writes: true,
+                recursive: false,
+                walk_root: false,
+            })
+        );
+        assert_eq!(
+            required_fs_directions("nika:remove_file"),
+            Some((false, true))
+        );
+        assert!(crate::effect::builtin_egresses("nika:remove_file"));
+        assert!(!is_pure_internal("nika:remove_file"));
+        assert!(!is_pure_internal_call("nika:remove_file", None));
+        // Its one path binds to a stated write, never to a read alone.
+        let args = json!({"path": "./out/stale.txt"});
+        let written = stated(&["./out/stale.txt"]);
+        assert!(unbound_fs_args("nika:remove_file", Some(&args), &[], &written).is_empty());
+        let read_only = unbound_fs_args("nika:remove_file", Some(&args), &written, &[]);
+        assert!(read_only.join("").contains("its writes"), "{read_only:?}");
+        let dynamic = json!({"path": "${{ inputs.target }}"});
+        assert!(!unbound_fs_args("nika:remove_file", Some(&dynamic), &[], &written).is_empty());
     }
 }

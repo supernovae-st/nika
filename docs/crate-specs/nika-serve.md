@@ -139,7 +139,7 @@ absent, and exact-skeleton reuse is not a measured HOT admission.
 | request | `{compile_version: 1, mode: "create", intent, workflow_id?, answers?}` or `{compile_version: 1, mode: "edit", source, change, answers?}` where `change` is `{text}` or `{set_constant: {name, value}}` · optional `cognition: "deterministicOnly"` |
 | shape policy | unknown fields, a present `null`, duplicate keys (envelope and `answers`) and positional arrays refuse `malformed_compile_request`; foreign vocabulary is named: `compile_version_unsupported`, `compile_mode_unsupported`, `compile_cognition_unsupported` |
 | literals | `answers` values and `set_constant.value` reach the core as the exact text the caller sent (`serde_json` `RawValue`), parsed once, as the CLI's `KEY=JSON_LITERAL` is |
-| bounds | body `min(listener ceiling, 1 MiB)` → 413 · `intent`/`change.text` 4 KiB · `source` 512 KiB · `workflow_id`/`set_constant.name` 128 B · 64 answers × (256 B key, 64 KiB literal) → 422 `compile_limit` · all UTF-8 bytes |
+| transport bound | the encoded HTTP body uses the listener's configured `ServerLimits` ceiling → 413; no smaller compile-body ceiling, per-field text quota or answer-count quota is imposed. JSON syntax and duplicate-key checks still apply; the core judges the complete values |
 | custody | no path field exists; an EDIT base travels inline; the served registry is never opened; nothing is written |
 | effects | none: no job, run, approval, trace, schedule or provider contact. `check_preview` is a REVIEW of the source alone; `POST /v1/jobs` judges a candidate again |
 | concurrency | `ServerLimits::with_max_compile_requests` (default 4) compile slots; a slot lives inside the blocking closure, so a timed-out or disconnected caller does not free CPU still in use; excess → 503 `compile_busy`, nothing queues |
@@ -159,42 +159,87 @@ Off unless the operator seats it when building the server:
 `ServerConfig::with_native_authoring(NativeAuthoring::new(model, providers))`
 or `nika serve … --authoring-model provider/name` (requires `--bind`; the
 provider configuration is read from the environment only then, through
-`nika_runtime::compose::config_from_env`). A default server is byte-identical
-for every request: generation 2 there is `422 compile_version_unsupported`,
-and `/health` never lists `compileNativeV2`. On a native server generation 1
-keeps its parser, core call, slot and request deadline, byte for byte.
+`nika_runtime::compose::config_from_env`). A server without a native seat remains deterministic: generation 2 there is `422 compile_version_unsupported`,
+and `/health` never lists `compileNativeV2`, nor `compileJudgedAnswerRound` (a native
+server lists both: the second says `explicitProvider` with a kept round's `replay_token`
+is that round's judged answer round). On a native server generation 1
+keeps its parser, core call, slot and request deadline; both generations use the
+configured HTTP body ceiling.
 
 | concern | contract |
 |---|---|
-| operator seat | ONE direct provider model (a harness seat, an unknown provider or a missing key refuses startup) · strategy fixed `only`, one sample, no decision seat · bounds: output tokens per call 1..=32768 (default 8192), call timeout ≤ 600 s (120), request deadline ≤ 3600 s (300), repairs 0..=5 (3) · optional Foundry snapshot opened, verified and pinned (manifest and rows sha256) at attach through the shared `nika_cli_host::compile::{config, knowledge}` · replay store 1..=1024 rounds (32) for ≤ 24 h (30 min) · all validated in `BoundServer::attach` before bind (`ServerError::NativeAuthoring`) |
+| operator seat | ONE direct provider model (a harness seat, an unknown provider or a missing key refuses startup) · the shared default strategy `escalate`, one sample, no decision seat · completion capacity and per-call timeout follow `nika_providers::authoring::policy::completion_bounds` for the effective provider endpoint; explicit token and call-timeout values must be positive. No implicit request count, repair count or whole-round deadline; explicitly selected limits are honored, with a positive clock-representable deadline · optional Foundry snapshot opened, verified and pinned (manifest and rows sha256) at attach through the shared `nika_cli_host::compile::{config, knowledge}` · replay storage has no implicit count, size or lifetime quota; `NativeAuthoring::with_replay(entries, ttl)` selects positive explicit count and clock-representable lifetime limits · all validated in `BoundServer::attach` before bind (`ServerError::NativeAuthoring`) |
 | fresh request | `{compile_version: 2, cognition: "explicitProvider", mode: "create", intent, workflow_id?, answers?, limits?}` or `mode: "edit"` with `source` and `change` (a `change.text` requires `original_intent`; `set_constant` refuses it; `workflow_id` is create-only) · `limits: {max_calls?, repairs?, max_tokens?, call_timeout_ms?, deadline_ms?}` may only narrow the operator's bounds (above → `422 compile_limit`, never clamped) · `answers["intent.clarification"]` → `422 compile_new_intent_required` |
 | replay request | the same input repeated byte for byte with `cognition: "deterministicOnly"` and `replay_token` (64 lowercase hex); no `limits` · zero provider calls |
+| judged answer round | the same input with `cognition: "explicitProvider"`, `replay_token` and the round's `answers` (`limits` may narrow): the kept plan replayed with the answers, the operator's seat asked only to judge the replayed bytes (its judge calls, `compile_version` 2, never an authoring call); a candidate the seat does not accept is held and its token forgotten (a later request with it answers `409 compile_replay_unavailable`) |
 | shape policy | the generation-1 policy plus: a literal that repeats an object key at any depth (or nests 128 or more arrays/objects deep, the JSON parser's recursion ceiling) → `422 malformed_compile_request`; caller-named model, endpoint, credential, path, snapshot, strategy or plan fields are unknown fields |
 | answer | 200 with the core's unchanged `outcome_document` (`compile_version` 2 iff a call happened; a skeleton, a structured constant or a replay answers 1) · `Cache-Control: no-store` · a fresh round that leaves a native plan carries `Nika-Compile-Replay: <token>` |
 | knowledge | every generation-2 round reopens the pinned snapshot and compares its manifest and rows (`409 compile_context_changed` before any call); a fresh round composes the pack for its intent (a revision's `original_intent` + change) and records the identity with the snapshot directory and files root removed; `pack_sha256` and the instruction sha256 in the receipt name what the seat read |
-| provider | a per-request `ProviderRegistry` over the shared single-attempt authoring transport, with separate model-invocation and physical-request envelopes · each defaults to one; `max_calls` is the explicit grant · no redirect; provider retries consume the same request grant · no invocation once the round must stop · every `ProviderError` reaches the core as a fixed reason, never provider text · the additive backend receipt records provider, requested and observed model identities, authority counters, usage completeness and unverified billing |
-| deadlines and slots | on a native server the route leaves `/v1/compile` to bound itself: intake, generation 1 and replays keep the request deadline (`408 request_timeout`); a fresh round runs under its seat deadline, ABSOLUTE from admission (`408 compile_deadline_exceeded`: the work stopped or never began, nothing kept, a call in flight may still be billed) — a round that starts after it (a busy blocking pool) never begins, the stop is raced against the work and checked before every call, and an outcome that arrives after it is never answered or kept · the compile slot, then a replay place, are taken before any call and live inside the blocking work, so a disconnected or timed-out caller never frees them early (`503 compile_busy` · `503 compile_replay_capacity`) |
+| provider | a per-request `ProviderRegistry` over the shared single-attempt authoring transport, with separate model-invocation and physical-request envelopes · no count is imposed by default; an explicit `max_calls` limits both · no redirect; provider retries consume the same request grant · no invocation once the round must stop · every `ProviderError` reaches the core as a fixed reason, never provider text · the additive backend receipt records provider, requested and observed model identities, authority counters, usage completeness and unverified billing |
+| deadlines and slots | on a native server the route leaves `/v1/compile` to bound itself: intake, generation 1 and replays keep the request deadline (`408 request_timeout`); a fresh round has no whole-round deadline unless the operator or caller configures one; an explicit deadline is ABSOLUTE from admission (`408 compile_deadline_exceeded`: the work stopped or never began, nothing kept, a call in flight may still be billed) — a round that starts after it (a busy blocking pool) never begins, the stop is raced against the work and checked before every call, and an outcome that arrives after it is never answered or kept · the compile slot, then a replay place, are taken before any call and live inside the blocking work, so a disconnected or timed-out caller never frees them early (`503 compile_busy` · `503 compile_replay_capacity` only at an explicit operator retention limit) |
 | shutdown | a stopping server first joins its connections, then halts every native round of its seat (no further call, `503 stopping` for a round still answering) and waits — within the shutdown grace, else `ServerError::ShutdownTimeout` — until every compile slot is free before the authority drains; a round's provider request is dropped, not awaited |
-| replay store | in memory, per bound server: a restart or another instance knows no token (`409 compile_replay_unavailable`) · the exact input tuple is compared (`409 compile_replay_input_changed`) · expiry on the monotonic clock, never renewed · ≤ 2 MiB per round (larger: no token, the answer unchanged) · 256-bit `getrandom` tokens, never reflected in a refusal |
+| replay store | in memory, per bound server: a restart or another instance knows no token (`409 compile_replay_unavailable`) · the exact input tuple is compared (`409 compile_replay_input_changed`) · the whole input and plan are retained without an implicit count, size or expiry limit; only an explicitly configured lifetime expires on the monotonic clock, never renewed by use · 256-bit `getrandom` tokens, never reflected in a refusal |
 | disclosure | a document carrying a withheld value is refused whole: `500 compile_disclosure_refused` · withheld: the key the seat's provider RESOLVES (`ResolvedProvider::key` — a typed `ProvidersConfig` key or the environment's, by the configuration's own precedence), plus every `NativeAuthoring::with_withheld` value · every nonempty value counts, however short, raw or JSON-escaped |
 | effects | none beyond the seat's calls: no job, run, approval, trace, schedule, file, registry entry or permission; `POST /v1/jobs` judges any candidate again |
 
-Limits: the store is not a deduplication of paid work — a first answer lost in
+Normal CREATE proposes Plan or Sketch semantics and the compiler emits the
+source. Without an explicit limit, its requests continue through preparation,
+judgment and applicable repairs. A missing user-owned value can still produce
+a question. Native Sketch question rounds can be kept and replayed without a
+new call. Cold Plan question rounds currently carry no replay token, so
+answering them through a new fresh round spends again. Nonconstant EDIT still
+uses the historical source response; this does not establish semantic revision.
+
+The seat's whole-request verifier (the authoring provider: Serve seats no decision
+model and offers no rehearsal room) reaches the caller through the core's document,
+unchanged. A model-authored candidate is `ready` only after an admitted judgment carried
+the whole request. An `incomplete` document may still carry `candidate` as a preview: a
+candidate with unfilled holes, or one the verifier held, marked by an `applied`
+diagnostic with target `verify_held` whose message says what held it (located defects
+the repairs did not settle, a rejection with no defect located, or an abstention, and
+whether a judge call got no answer). An `applied` `verify_resume` diagnostic marks a
+candidate no admitted judgment was made of: it is withdrawn and its native plan kept.
+The `semantic_verification` findings and `provenance.decision.semantic_verification`
+carry each verification attempt as the core records it. A held outcome keeps no plan, so
+it carries no `Nika-Compile-Replay` token and no replay presents those bytes again; a
+kept round's replay (`deterministicOnly`) makes no call, so it asks no verifier either,
+and the judged answer round (`explicitProvider` with the token) asks the operator's seat to
+judge the replayed bytes with no authoring call, forgetting the token when the seat does not
+accept them.
+Serve keeps no conversation between rounds: a request sent again after a held outcome is a
+fresh compile that carries no earlier verdict (`CompileRequest::declined` stays empty), so
+nothing keeps its verifier from judging the same bytes again if the new round authors them.
+A client may author again, the same request or a correction, or stop there.
+The published `CompileOutcome` schema describes these markers; what a client shows or
+hides of them is the client's choice. A workflow that later reaches `POST /v1/jobs` by
+name is judged there by Check and admission alone, never against the request.
+
+Repair preferences and physical-request limits describe different constraints.
+A caller may select a repair or request limit where the operator left it open,
+or narrow a configured limit. Cold creation has no finite request estimate
+without knowing how many clauses will need work, nor the sketch door without
+knowing how many parts of a doubted request its judgment asks: the receipt records
+`configured.worst_case: null`, including when repairs are explicitly bounded.
+Actual invocation and HTTP-request envelopes enforce `max_calls` whenever it
+is set. No fictitious fixed worst case rejects an otherwise valid seat.
+
+Retention is process-local, not durable: default retention lasts for this server run, and a restart forgets every token. Operating-system randomness is required to issue a token. An explicit capacity refuses a fresh round before it spends; an explicit lifetime makes an expired token unavailable without regenerating its plan. Neither option imposes a per-round byte quota. The store is not a deduplication of paid work — a first answer lost in
 transit leaves no token and a new fresh round spends again. Any additional
-model request, including a repair, consumes the explicit grant. Remote billing cannot
+model request, including a repair, is counted against any explicit limit. Remote billing cannot
 be stopped by a local deadline or a shutdown. Harness seats,
 decision seats, other strategies, knowledge pack files and the observed-world
 reader are not served remotely.
 
 Published contract (S23). The compile door's generation-1 fragments live as
 data beside the handler (`src/server/compile/openapi.json`); the default
-server's document — the committed crate-root `openapi.json` — is unchanged and
-describes generation 1 only. A native server's live `GET /v1/openapi.json`
+server's document — the committed crate-root `openapi.json` — describes
+generation 1 only and publishes the same HTTP-body boundary as the handler. A native server's live `GET /v1/openapi.json`
 merges the generation-2 contract into it (RFC 7386, from
 `src/server/compile/openapi-native.json`): the request is `oneOf`
 `CompileRequest` · `CompileRequestV2` (compile_version 2; cognition
-`explicitProvider` or `deterministicOnly` + `replay_token`; `limits` bounded
-by the absolute ceilings a seat is validated against; the create/edit and
+`explicitProvider` (with a kept round's `replay_token`, its judged answer round) or
+`deterministicOnly` + `replay_token`; `limits` bounded
+by their numeric representation and narrowed dynamically against the selected seat; the create/edit and
 fresh/replay pairings as `if`/`then` rules; `additionalProperties: false`),
 the 200 answer is `oneOf` `CompileOutcome` · `CompileOutcomeV2` (its
 `provenance.authoring` receipt counts LOGICAL calls), with the
@@ -576,24 +621,34 @@ trailing punctuation is trimmed; every other path-like token is still dropped.
 
 ## Native authoring request authority
 
-The shared cognition authority bounds model invocations and physical HTTP requests separately.
-A native round permits one request by default. The operator can grant more with
+The shared cognition authority counts model invocations and physical HTTP requests separately.
+A native round has no implicit count limit. The operator can select one with
 `NativeAuthoring::with_max_calls` or `nika serve --authoring-max-calls`;
-generation-2 `limits.max_calls` can only narrow
-that ceiling. Repair preferences never grant calls. Explicit repair preferences
-that exceed the grant refuse before the provider is contacted. The transport
-follows no redirect and performs no automatic protocol-NACK retry. Provider
-retries and structured-output fallbacks each consume the same physical-request
-grant; an authorized resend can make physical requests exceed logical calls.
+generation-2 `limits.max_calls` can select a limit when the operator left it
+open, or narrow the configured ceiling. Repair preferences never widen a
+request limit. Cold creation's clause-dependent work and the sketch door's
+request-dependent judgment have no finite configured worst case; the receipt
+reports `null` while actual requests remain counted.
+The transport follows no redirect and performs no automatic protocol-NACK retry.
+Provider retries and structured-output fallbacks consume the same explicit
+physical-request limit when present; a resend can make physical requests exceed
+logical calls.
 
 The additive authoring backend receipt retains requested and provider-reported
 model identities and the authority's sent/refused counters. Provider-reported
 tokens do not prove invoiced cost. Generation-1 and deterministic replay contact
-no authoring model. This bounded request grant does not implement a USD ledger
+no authoring model. This request accounting does not implement a USD ledger
 or interrupted-run reconciliation.
 
-Authoring receipt truth: the native Gate retains a local invocation-ceiling refusal as `admission_refused`, with the operator `max_calls` remedy, instead of labeling it a provider failure. `unreported_models` counts responses that omit an identity, independently from the observed-model list. The door records `cost_basis: unpriced; billing_unverified`; token totals never establish a tariff or invoice. An explicit repair preference that conflicts with a narrowed call grant names `limits.repairs` in its refusal and still sends zero requests.
+Authoring receipt truth: the native Gate retains a local invocation-ceiling refusal as `admission_refused`, with the operator `max_calls` remedy, instead of labeling it a provider failure. `unreported_models` counts responses that omit an identity, independently from the observed-model list. The door records `cost_basis: unpriced; billing_unverified`; token totals never establish a tariff or invoice. Caller limits above an explicitly configured operator ceiling refuse before any provider request; an admitted round stops at its actual request limit even when its repair preference is larger.
 
 Direct API authoring endpoint metadata comes from the exact seated registry: `host` strips user info, path, query and fragment; `base_url_overridden` compares the effective URL with its profile seed when available. `endpoint_basis: operator_configuration` distinguishes this configuration from an authenticated remote identity or an observed model. Session host diagnostics use the same redaction.
 
 Both compile response generations describe the decision, plan, strategy and suggested file fields emitted by the shared compiler wire owner. A generation-1 replay preserves those observations without another provider call. Mixed-usage authoring counters are partial observed sums when `backend.usage_complete` is false, never totals for an unobserved round.
+
+## Schedule projection ownership
+
+`server::schedule_http` uses `nika_cadence::schedule::when_json` and
+`nika_cadence::schedule_plan::{due_json, slot_json}` for the existing schedule
+value shapes. HTTP routing, authorization, request admission, clock/store access
+and the surrounding response envelopes remain server responsibilities.

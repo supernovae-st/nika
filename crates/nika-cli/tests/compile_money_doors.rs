@@ -533,7 +533,22 @@ fn the_recorder_sees_the_request_a_named_seat_is_sent() {
     let doc = seated(room.path(), FREE, &recorder, &[]);
     let (accepts, bodies) = recorder.counts();
     assert!(accepts >= 1 && bodies >= 1, "{accepts}/{bodies}: {doc}");
-    assert_eq!(prepared(&doc), 1, "{doc}");
+    // A 503 can resend the same logical call. Every physical body stays counted;
+    // a timeout or provider failure never starts a new authoring round.
+    assert_eq!(
+        prepared(&doc),
+        bodies as u64,
+        "every received body is counted: {doc}"
+    );
+    let authority = &doc["provenance"]["authoring"]["backend"]["authority"];
+    assert_eq!(
+        authority["invocations"],
+        serde_json::json!({"sent": 1, "refused": 0})
+    );
+    assert_eq!(
+        doc["provenance"]["authoring"]["backend"]["usage_complete"],
+        false
+    );
 }
 
 /// F3: deterministic work under an explicit zero stays HOT with the seat named, and nothing is
@@ -616,15 +631,23 @@ fn a_skeleton_name_beside_a_stated_zero_sends_nothing() {
     }
 }
 
-/// A change a base's constant door cannot settle: the named seat revises the base.
-const CHANGE: &str = "also greet the reader in French";
+/// A readable base with its original request admits the typed source-revision reading.
+const REVISION_INTENT: &str = "read ./data/input.csv, keep the rows where amount_usd is over 250, write them to ./out/result.json";
+const CHANGE: &str = "write the result to ./out/revised.json instead";
 
 /// A revision of the room's `workflow.nika` with the local seat named, its base URL the
 /// recorder's.
 fn revised(room: &Path, change: &str, recorder: &Recorder) -> Value {
     let out = command(room)
         .env("NIKA_OLLAMA_BASE_URL", recorder.base())
-        .args(["compile", "--base", "workflow.nika", "--change", change])
+        .args([
+            "compile",
+            REVISION_INTENT,
+            "--base",
+            "workflow.nika",
+            "--change",
+            change,
+        ])
         .args(["--output", "revised.nika", "--json"])
         .args(["--authoring-model", SEAT, "--authoring-timeout", "5"])
         .output()
@@ -638,7 +661,11 @@ fn revised(room: &Path, change: &str, recorder: &Recorder) -> Value {
 #[test]
 fn a_revision_stating_a_zero_sends_nothing() {
     let room = room();
-    assert_eq!(compile(room.path(), "hello", &[])["status"], "ready");
+    assert_eq!(
+        compile(room.path(), REVISION_INTENT, &[])["status"],
+        "ready"
+    );
+    let base = std::fs::read(room.path().join("workflow.nika")).expect("saved base");
     let control = Recorder::start();
     let doc = revised(room.path(), CHANGE, &control);
     let (accepts, bodies) = control.counts();
@@ -649,6 +676,11 @@ fn a_revision_stating_a_zero_sends_nothing() {
     assert_eq!(prepared(&doc), 0, "{doc}");
     assert_eq!(stated(&doc), ["budget 0 USD"], "{doc}");
     assert!(says(&doc, "no request was sent"), "{doc}");
+    assert_eq!(
+        std::fs::read(room.path().join("workflow.nika")).unwrap(),
+        base
+    );
+    assert!(!room.path().join("revised.nika").exists());
 }
 
 /// The question keys an outcome asks, in order.

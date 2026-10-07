@@ -30,7 +30,6 @@ use nika_tui_view::{Canvas, Face, Finding, Verdict, Workflow};
 use ratatui::text::{Line, Span};
 
 use super::text::{fit_head, marks};
-use crate::visual::icon::Icon;
 use crate::visual::role;
 
 /// What every audited look says it left out.
@@ -115,6 +114,16 @@ impl Inspected {
         }
     }
 
+    /// The bytes of `path`, held with `witness`, that no check judged (a
+    /// project file a proposal carries): every face says nothing judged them.
+    pub(crate) fn unjudged(path: impl Into<String>, witness: String, source: String) -> Self {
+        let mut out = Self::unread(path, "");
+        out.unread = None;
+        out.witness = Some(witness);
+        out.source = source;
+        out
+    }
+
     /// The look of `path` over `source`, read once with `witness`, and the
     /// check facade's answer about those same bytes: its audit and the graph
     /// of its parse, or the parser's refusal (its code and its words).
@@ -124,10 +133,7 @@ impl Inspected {
         source: String,
         audit: Result<(&nika_cli_host::oracle::Audit, GraphDoc), (String, String)>,
     ) -> Self {
-        let mut out = Self::unread(path, "");
-        out.unread = None;
-        out.witness = Some(witness);
-        out.source = source;
+        let mut out = Self::unjudged(path, witness, source);
         match audit {
             Ok((audit, graph)) => {
                 out.graph = Some(Arc::new(graph));
@@ -206,6 +212,16 @@ impl Inspected {
         self.name.as_deref().unwrap_or(&self.path)
     }
 
+    /// The bytes read, as text (empty when unread).
+    pub(crate) fn source(&self) -> &str {
+        &self.source
+    }
+
+    /// The graph of these bytes and the check's run order, when both exist.
+    pub(crate) fn graph(&self) -> Option<(&GraphDoc, &[Vec<usize>])> {
+        Some((self.graph.as_deref()?, self.waves.as_deref()?))
+    }
+
     /// The viewer's facts for this look, borrowed for one rendering.
     fn workflow<'a>(
         &'a self,
@@ -242,22 +258,7 @@ impl Inspected {
     ) -> (Line<'static>, Vec<Line<'static>>) {
         let (sep, cut) = marks(ascii);
         let cells = usize::from(width);
-        let tabs: Vec<String> = Face::ALL
-            .iter()
-            .map(|f| {
-                if *f == face {
-                    format!("[{}]", f.label())
-                } else {
-                    f.label().to_owned()
-                }
-            })
-            .collect();
-        let glyph = Icon::Workflow.glyph(ascii);
-        let head = format!("{glyph} {}{sep}{}", self.title(), tabs.join(" "));
-        let title = Line::from(Span::styled(
-            fit_head(&head, cells, cut),
-            role::style(Role::Strong, color),
-        ));
+        let title = title_row(self.title(), face, width, ascii, color);
         let again = format!("{sep}r reads it again{sep}Left/Right change the face");
         let Some(witness) = self.witness.as_deref() else {
             let why = self.unread.as_deref().unwrap_or("unknown");
@@ -269,18 +270,82 @@ impl Inspected {
             let body = body.iter().map(|row| Line::from(fit_head(row, cells, cut)));
             return (title, body.collect());
         };
+        let short: String = witness.chars().take(12).collect();
+        let read = format!("this file's bytes {short}, as last read{again}");
+        (title, self.judged_lines(face, width, ascii, color, &read))
+    }
+
+    /// One face of these bytes as the viewers render it: their facts and
+    /// notes, then `said` (one dim row: whose bytes these are), then the
+    /// face's body. Pure: no file, no clock.
+    pub(crate) fn judged_lines(
+        &self,
+        face: Face,
+        width: u16,
+        ascii: bool,
+        color: bool,
+        said: &str,
+    ) -> Vec<Line<'static>> {
+        let (_, cut) = marks(ascii);
         let findings: Vec<Finding<'_>> = self.findings.iter().map(Said::row).collect();
         let hints: Vec<Finding<'_>> = self.hints.iter().map(Said::row).collect();
         let canvas = Canvas::new(width, ascii, color);
         let rendered = nika_tui_view::workflow(face, &self.workflow(&findings, &hints), canvas);
-        let short: String = witness.chars().take(12).collect();
         let mut body = rendered.head(canvas);
-        let read = format!("this file's bytes {short}, as last read{again}");
         body.push(Line::from(Span::styled(
-            fit_head(&read, cells, cut),
+            fit_head(said, usize::from(width), cut),
             role::style(Role::Dim, color),
         )));
         body.extend(rendered.lines);
-        (title, body)
+        body
     }
+}
+
+/// The title row of an object with faces: the icon, `name`, the faces with
+/// the one in view marked, fitted to `width` cells.
+pub(crate) fn title_row(
+    name: &str,
+    face: Face,
+    width: u16,
+    ascii: bool,
+    color: bool,
+) -> Line<'static> {
+    let (sep, cut) = marks(ascii);
+    let tabs: Vec<String> = Face::ALL
+        .iter()
+        .map(|f| {
+            if *f == face {
+                format!("[{}]", f.label())
+            } else {
+                f.label().to_owned()
+            }
+        })
+        .collect();
+    let tab_width: usize = tabs.iter().map(String::len).sum::<usize>() + tabs.len() - 1;
+    if usize::from(width) < tab_width {
+        return Line::styled(
+            fit_head(&format!("[{}]", face.label()), usize::from(width), cut),
+            role::style(Role::Accent, color),
+        );
+    }
+    let room = usize::from(width).saturating_sub(tab_width + sep.chars().count());
+    let mut spans = Vec::new();
+    for (index, (tab, item)) in tabs.into_iter().zip(Face::ALL).enumerate() {
+        if index > 0 {
+            spans.push(Span::raw(" "));
+        }
+        let style = if item == face {
+            role::style(Role::Accent, color).patch(role::style(Role::Strong, color))
+        } else {
+            role::style(Role::Dim, color)
+        };
+        spans.push(Span::styled(tab, style));
+    }
+    if room > 0 {
+        spans.push(Span::styled(
+            format!("{sep}{}", fit_head(name, room, cut)),
+            role::style(Role::Dim, color),
+        ));
+    }
+    Line::from(spans)
 }

@@ -1088,7 +1088,8 @@ fn last_relative(region: &[Token]) -> Option<(usize, usize)> {
 const EXCLUSION_LEADS: &str = include_str!("../assets/exclusion_leads.txt");
 
 /// Whether a folded word is one of the exclusion leads.
-pub(crate) fn exclusion_lead(word: &str) -> bool {
+#[must_use]
+pub fn exclusion_lead(word: &str) -> bool {
     EXCLUSION_LEADS.lines().any(|lead| lead == word)
 }
 

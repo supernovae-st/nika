@@ -59,7 +59,7 @@ const PROVIDERS: [&str; 16] = [
 /// The choice screen's own words and hint (nika-session intelligence.rs,
 /// nika-tui model.rs `Waiting::Choosing`).
 const CHOICE: &str = "No AI in this conversation";
-const CHOICE_HINT: &str = "type a number";
+const CHOICE_HINT: &str = "1 account";
 const INTENT: &str = "digest my monday notes";
 
 /// `std::env::var` for the harness switch naming the binary (not a secret).
@@ -150,7 +150,10 @@ fn first_contact_at_80x24_asks_the_intelligence_and_calls_no_provider() {
     let mut term = first_contact(&room, &listener);
     term.send(&format!("{INTENT}\r"));
     term.wait_until("the intelligence choice", |screen| {
-        screen.seen(CHOICE) && screen.contains(CHOICE_HINT)
+        screen.seen(CHOICE)
+            && [CHOICE_HINT, "2 API", "3 local", "4 no AI", "cancel"]
+                .iter()
+                .all(|choice| screen.contains(choice))
     });
     term.send("4\r");
     term.wait_until("a question, a clarification or the free prompt", |screen| {
@@ -169,16 +172,11 @@ fn first_contact_at_80x24_asks_the_intelligence_and_calls_no_provider() {
 }
 
 /// The choice screen is a decision: a `4` typed with the intent, before the
-/// screen exists, must not pick « No AI » for the human. Observed with the
-/// base binary (`nika 0.121.0 (513ca8465)`), under the choice nobody saw:
-///
-/// ```text
-/// › › 4
-/// intelligence: no conversational AI · nothing leaves this machine · the facts
-/// stay · kept
-/// ```
+/// screen exists, must not pick « No AI » for the human. This regression
+/// was first observed at 513ca8465; the candidate's decision/typeahead path
+/// is exercised here, with the same explicit binary prerequisite as J0.
 #[test]
-#[ignore = "defect: typeahead picks and keeps an intelligence on a choice screen painted after it (observed at 513ca8465) · needs NIKA_TUI_QA_NIKA · app.rs input handling"]
+#[ignore = "needs the candidate's nika binary: NIKA_TUI_QA_NIKA=<path> ... -- --ignored"]
 fn typeahead_never_picks_an_intelligence_on_a_screen_painted_after_it() {
     let room = Room::new("choice");
     let listener = listener();

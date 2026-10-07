@@ -3,8 +3,16 @@
 
 //! CLI transport and explicit materialization for the stateless Compile core.
 mod authoring;
+mod capture;
+pub use capture::{
+    Capture, CaptureContext, CaptureFlags, CaptureListener, CapturePolicy, CaptureReport,
+    CaptureState, CaptureStatus, TextAdmission,
+};
 mod authority;
-pub use authority::{authoring_backend, authoring_host, authoring_http, redact_authoring_error};
+pub use authority::{
+    authoring_backend, authoring_host, authoring_http, authoring_http_with_deadline,
+    redact_authoring_error,
+};
 pub mod config;
 #[cfg(feature = "access-harness")]
 mod harness_seat;
@@ -17,7 +25,9 @@ pub use crate::serve_args::NativeAuthoringArgs;
 pub mod typesafe;
 
 use crate::output::{VerbOutput, exit};
-use nika_onboard::compile::{CompileRequest, CompileStatus, compile, intent_sha256, revise_intent};
+use nika_onboard::compile::{
+    CompileOutcome, CompileRequest, CompileStatus, compile, intent_sha256, revise_intent,
+};
 use std::io::Write as _;
 use std::path::Path;
 
@@ -49,16 +59,18 @@ pub struct CompileArgs {
     /// Answer a stable question: `KEY=JSON_LITERAL` (repeatable).
     #[arg(long = "answer")]
     pub answers: Vec<String>,
-    /// Explicitly seat one authoring model to interpret free intent (wire generation 2): one
-    /// request unless `--authoring-max-calls` authorizes more (an ACP harness counts one
-    /// invocation, its own requests unknown).
+    /// Seat one authoring model to interpret free intent (wire generation 2). There is no
+    /// request count by default; `--authoring-max-calls` sets one explicitly. An ACP harness
+    /// counts invocations, with its own requests unknown.
     #[arg(long, conflicts_with = "list")]
     pub authoring_model: Option<String>,
-    /// Maximum authoring output tokens; requires explicit authoring model.
+    /// Maximum output tokens per completion; defaults to the selected route's technical capacity.
+    /// Requires an explicit authoring model.
     #[arg(long, requires = "authoring_model")]
     pub authoring_max_tokens: Option<u32>,
     /// Timeout of each authoring call in seconds (the private plan's and every native call
-    /// alike): 120 by default, 300 for a harness seat, at most 600; a call is never retried.
+    /// alike): the route default, else any positive value. This is a transport deadline, not a
+    /// limit on the whole creation. The transport never retries a request on its own.
     #[arg(long, requires = "authoring_model")]
     pub authoring_timeout: Option<u64>,
     /// HOT admission contract: strict (default), legacy (pre-refactor, ablation) or off (never HOT for prose).
@@ -75,9 +87,9 @@ pub struct CompileArgs {
     /// never. Requires the authoring model.
     #[arg(long, requires = "authoring_model", value_parser = ["escalate", "only", "sketch", "off"])]
     pub authoring_strategy: Option<String>,
-    /// Repair rounds a native candidate may buy from the compiler's diagnostics (0..=5, default 3),
-    /// each one call within `--authoring-max-calls`: a repair count is not an authority.
-    #[arg(long, requires = "authoring_model", value_parser = clap::value_parser!(u32).range(0..=5))]
+    /// Optional repair-round limit for a native candidate (0 disables repairs). Absent, there
+    /// is no repair count; creation ends on a result, failure, no progress or cancellation.
+    #[arg(long, requires = "authoring_model")]
     pub authoring_repairs: Option<u32>,
     /// The reasoning effort every authoring and decision call asks (low · high · max), sent only
     /// where the route qualifies it; `NIKA_AUTHORING_REASONING` names one when the flag is absent.
@@ -111,7 +123,9 @@ pub struct CompileArgs {
     #[arg(long, requires = "destination")]
     pub force: bool,
     /// Ignore the plan recorded for this intent (`.nika/compile/<sha256>.plan.json`) and read or
-    /// sample it again. An answer round otherwise replays that plan: zero provider calls.
+    /// sample it again. An answer round otherwise replays that plan: no authoring call (a judge
+    /// the round asks makes its own calls). The verdicts kept beside it
+    /// (`<sha256>.declined.json`) still apply: a judge is never asked again on bytes it rejected.
     #[arg(long, conflicts_with_all = ["base", "list"])]
     pub fresh: bool,
     /// Print the versioned structured result, including incomplete questions.
@@ -123,20 +137,20 @@ pub struct CompileArgs {
 }
 
 /// The authoring authority a CLI compile runs under: how many requests the authoring seat may
-/// be sent. Absent, exactly one.
+/// be sent. Absent, requests are observed without a count limit.
 #[derive(Clone, Debug, Default, clap::Args)]
 #[non_exhaustive]
 pub struct AuthoringAuthority {
-    /// Authoring requests this compile may send, 1 when absent: the plan and its evidence repair,
+    /// Optional limit on authoring requests this compile may send: the plan and its evidence repair,
     /// the native candidate and its repairs alike, counted where they leave (an ACP harness: its
     /// invocations). A request past it is refused before any byte leaves. Requires the
-    /// authoring model.
+    /// authoring model. Absent, no request count is imposed.
     #[arg(long, requires = "authoring_model", value_parser = clap::value_parser!(u32).range(1..))]
     pub authoring_max_calls: Option<u32>,
 }
 
 impl AuthoringAuthority {
-    /// The default authority: one authoring request.
+    /// The default authority: no request count.
     #[must_use]
     pub const fn new() -> Self {
         Self {
@@ -162,23 +176,34 @@ pub struct CompileCommand {
     pub args: CompileArgs,
     #[command(flatten)]
     pub authority: AuthoringAuthority,
+    #[command(flatten)]
+    pub capture: CaptureFlags,
 }
 
 impl CompileCommand {
     /// The compile flags beside the authority they run under.
     #[must_use]
     pub const fn new(args: CompileArgs, authority: AuthoringAuthority) -> Self {
-        Self { args, authority }
+        Self {
+            args,
+            authority,
+            capture: CaptureFlags::new(),
+        }
     }
 
     /// Compile once as the command line states it.
     #[must_use]
     pub fn run(&self) -> VerbOutput {
-        run_with(&self.args, &self.authority)
+        let output = run_with_capture(&self.args, &self.authority, &self.capture);
+        if self.capture.enabled {
+            let line = format!("{}\n", self.capture.status().summary());
+            let _ = std::io::Write::write_all(&mut std::io::stderr().lock(), line.as_bytes());
+        }
+        output
     }
 }
 
-/// Compile once under the default authority (one authoring request); only a Ready result with
+/// Compile once without an implicit request count; only a Ready result with
 /// an explicit destination writes files.
 #[must_use]
 pub fn run(args: &CompileArgs) -> VerbOutput {
@@ -189,6 +214,15 @@ pub fn run(args: &CompileArgs) -> VerbOutput {
 /// destination writes files.
 #[must_use]
 pub fn run_with(args: &CompileArgs, authority: &AuthoringAuthority) -> VerbOutput {
+    run_with_capture(args, authority, &CaptureFlags::new())
+}
+
+fn run_with_capture(
+    args: &CompileArgs,
+    authority: &AuthoringAuthority,
+    capture: &CaptureFlags,
+) -> VerbOutput {
+    capture.begin();
     if args.list {
         return render::listing(args.json);
     }
@@ -242,8 +276,12 @@ pub fn run_with(args: &CompileArgs, authority: &AuthoringAuthority) -> VerbOutpu
         None => intent_sha256(&effective_intent(args, cognition)),
     });
     let (request, note) = sidecar::replay(sha.as_deref(), args, request);
+    // Every compile of the intent carries the verdicts that rejected its bytes in earlier rounds.
+    let request = sidecar::carry(sha.as_deref(), request);
     let result = match (&resolved, &authoring_config) {
-        (Some(resolved), Some(config)) => authoring::compile(&request, args, config, resolved),
+        (Some(resolved), Some(config)) => {
+            authoring::compile(&request, args, config, resolved, capture)
+        }
         _ => compile(&request).map_err(|error| error.to_string()),
     };
     let outcome = match result {
@@ -253,28 +291,53 @@ pub fn run_with(args: &CompileArgs, authority: &AuthoringAuthority) -> VerbOutpu
         }
     };
     let note = sidecar::keep(sha.as_deref(), note, &outcome);
-    let mut written = None;
-    if outcome.status == CompileStatus::Ready
-        && let (Some(dest), Some(candidate)) = (dest, &outcome.candidate)
-    {
-        if let Err(error) = materialize(Path::new(dest), candidate, args.force) {
-            return render::failure("destination", &error.to_string(), exit::ENV, args.json);
-        }
-        written = Some(dest.as_str());
-        crate::metrics::record_if_enabled(
-            crate::metrics::EventKind::DraftCreated,
-            crate::metrics::Facts {
-                draft: Some(crate::metrics::DraftSource::Compile),
-                ..crate::metrics::Facts::none()
-            },
-        );
-    }
+    let declined = sidecar::decline(sha.as_deref(), &outcome);
+    let written = match write_ready(dest.map(String::as_str), &outcome, args) {
+        Ok(written) => written,
+        Err(failure) => return failure,
+    };
     // A named destination this compile did not write: what is there remains; only its
     // presence is read, never through a link, never its bytes.
     let existing = dest
         .filter(|path| written.is_none() && Path::new(path.as_str()).symlink_metadata().is_ok())
         .map(String::as_str);
-    render::outcome(&outcome, written, existing, note.as_ref(), args.json)
+    let notes = render::Notes {
+        plan: note.as_ref(),
+        declined: declined.as_ref(),
+    };
+    render::outcome(&outcome, written, existing, notes, args.json)
+}
+
+/// Only a Ready candidate with a named destination is written there, and counted as a draft;
+/// any other outcome writes nothing.
+fn write_ready<'a>(
+    dest: Option<&'a str>,
+    outcome: &CompileOutcome,
+    args: &CompileArgs,
+) -> Result<Option<&'a str>, VerbOutput> {
+    let (Some(dest), Some(candidate)) = (dest, &outcome.candidate) else {
+        return Ok(None);
+    };
+    if outcome.status != CompileStatus::Ready {
+        return Ok(None);
+    }
+    if let Err(error) = materialize(Path::new(dest), candidate, args.force) {
+        let message = error.to_string();
+        return Err(render::failure(
+            "destination",
+            &message,
+            exit::ENV,
+            args.json,
+        ));
+    }
+    crate::metrics::record_if_enabled(
+        crate::metrics::EventKind::DraftCreated,
+        crate::metrics::Facts {
+            draft: Some(crate::metrics::DraftSource::Compile),
+            ..crate::metrics::Facts::none()
+        },
+    );
+    Ok(Some(dest))
 }
 
 /// What a seated compile reads before any file is observed or any request sent: the authoring

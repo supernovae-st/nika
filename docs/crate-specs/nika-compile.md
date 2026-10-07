@@ -219,8 +219,9 @@ The pure public surface owns the shared relation:
 `surface::observed::equivalent_spellings(literal, observed)` returns observed
 canonical equivalents with different bytes, in observed order. Typed equalities
 and seat-written programs consume this same relation.
-`surface::observed::stated_spellings(clause, observed, columns)` binds each
-observed value to an actual canonically equivalent span of the clause. The span
+`nika_compile_clauses::spellings::stated_spellings(clause, observed, columns)` (ascended from
+`surface::observed` at the 15k prod-LOC wall, ADR-145: only the seats' spelling law reads it)
+binds each observed value to an actual canonically equivalent span of the clause. The span
 keeps its original bytes, including partly composed forms that are neither NFC
 nor NFD; enumerating those two normal forms alone misses valid statements.
 Letters, digits and combining marks cannot adjoin the span, and a column name
@@ -255,7 +256,7 @@ one site that makes a `RuleBinding::Synthesized`, whether the compile is fresh o
 recorded plan.
 
 For such a rule, the reader emits exact comparisons, rank keys and rank cuts (R4 A8, reader
-spec). `laws::with_decimal` puts `laws/order.jq` in front of any compute that calls these laws;
+spec). `laws::with_decimal` puts `nika_compile_fidelity::decimal::ORDER` in front of any compute that calls these laws;
 a rule that reads no number carries none.
 
 The plan record keeps the reader's unbound reading, byte for byte. A plan recorded before R4 A8
@@ -275,7 +276,7 @@ changed values in silence, with exit 0, in every candidate that decoded JSON:
 - a >u64 identifier (`123456789012345678901234567890`) became `1.2345678901234568e29`;
 - a fine decimal (`1.000000000000000001`) became `1.0`.
 
-The decode is now guarded (`laws::guarded_parse`, the `dguard` law of `laws/order.jq`). Every
+The decode is now guarded (`laws::guarded_parse`, the `dguard` law of `nika_compile_fidelity::decimal::ORDER`). Every
 number the next task may read or write keeps its exact value through the transport, or the run
 stops at `parse_source` before any effect, naming:
 - the number's path;
@@ -309,12 +310,18 @@ Other sources:
   This is a known limit, owned by the builtin.
 
 The laws are jq that the one runtime runs.
-- `laws/order.jq` is readable source, counted with this crate: Rust and jq together stay
+- `nika_compile_fidelity::decimal::ORDER` is readable source in `nika-compile-fidelity/src/decimal/order.jq`, counted with that member: Rust and jq together stay
   within the crate budget.
 - It carries no regular expression.
 - It defines nothing global: each guarded expression carries it in front.
 
 ## Observed fields and pending transformations
+
+The raw-kind observation may also carry `temporal` counts of masked date-time shapes for
+CSV/TSV columns and JSON/JSONL keys; nested shapes use the same bounded structure walk.
+The counts retain no timestamp or offset value, infer no timezone, and prove no valid instant.
+Mixed and unmatched sampled slots remain visible. The native author's existing observed-world
+context carries these counts; source identity, sampling coverage and replay guards stay intact.
 
 Source observation distinguishes absent, unreadable, empty, unknown and observed
 material. An observed field choice is grounded in that source; a partial sample
@@ -322,7 +329,8 @@ is not a complete schema. A missing field asks a closed clarification rather tha
 silently selecting another key or returning an empty result.
 
 Every source key a typed rule reads over one file is grounded by one law
-(`observed/grounding.rs`, R4 S1) on creation and replay alike, and the decision
+(`nika_compile_fidelity::grounding`, through the private `observed/grounding.rs`
+facade, R4 S1) on creation and replay alike, and the decision
 records exactly what it decided (`decision.grounding`: rule, key, source, revision,
 grade, whether every sampled record holds it, what binds it, admissibility, an open
 obligation). Grades: `declared` (a CSV/TSV header names the column), `observed_complete`
@@ -499,7 +507,8 @@ The ledger distinguishes a typed reading of the emitted program, a named element
 a program the human answered and a conversion the reader's own law states from
 words a step only restates (`label`) or words no law reads from the task's bytes
 (`unverified`). Label and unverified duties, clauses no plan element names, and
-the whole request for the first candidate of a WARM or COLD plan are pending.
+the whole request for the first candidate of a WARM or COLD plan, and for every
+replay of a record other than a HOT plan (below), are pending.
 A candidate with a pending duty is INCOMPLETE.
 
 A cardinality stated in the clause of a seat's verified program is claimed by
@@ -520,13 +529,36 @@ binding, not a chronological nonce or a grant of execution authority.
 (`nika_compile_reader::structure::restricts`). Serialized judgments in a saved
 plan or answers are data and are never accepted as active judgments.
 
-The ordinary `assemble` and `replay` entries pass no judgments and add no
-whole-request duty to a plan (a native record always carries one, below).
-Deterministically closed duties replay with zero calls.
-Cognition judges the remainder named in `decision.pending.open` using the
-current round's judge, or leaves it INCOMPLETE with a finding for each open
-clause. A regenerated candidate after a field answer is judged as the first
-candidate of its plan. A failed or abstaining judge settles nothing.
+`CompileRequest::with_declined` carries the `semantic_verification` attempts a
+host kept from earlier rounds of the same conversation (`CompileRequest::declined`,
+empty unless set). The core reads none of them and admits none as a judgment.
+Cognition's verifier repeats a rejection among them, with no call, when the same
+judge would be asked again on the same candidate bytes for the same request
+(`nika-compile-cognition`), so such an attempt can only keep those bytes from
+READY.
+
+The ordinary `assemble` entry passes no judgments and adds no whole-request duty
+to a plan. The core's `replay` passes no judgments either, and fails closed: only
+the reader's own HOT plan replays under its laws alone, and every other record (a
+model's COLD or WARM plan, a record with no strategy word or an unknown one)
+replays with its whole request pending on the bytes it emits, as a native record
+always does (below). With no judge in the round, such a replay is therefore
+INCOMPLETE with the pending-clause finding below, never READY: no judgment of the
+replayed bytes was made in the round. `replay_judged` adds the duty when its
+caller asks for it (`whole`). Cognition asks for it in the answer round of every
+record but a HOT plan's, so the whole request is judged again on the bytes that
+round replays, and for a regenerated candidate after a field answer, judged as the
+first candidate of its plan. Deterministically closed duties replay with
+zero calls. Cognition judges the remainder named in `decision.pending.open` using
+the current round's judge, or leaves it INCOMPLETE with a finding for each open
+clause (target `semantic_verification`): « The request states `<clause>` and
+`<why>`: no law reads from candidate `<sha12>` that it carries it, and no admitted
+judgment made in this compile settles it. Nothing is READY on a pending clause:
+it stays INCOMPLETE until an admitted judgment of these bytes against the whole
+request carries it. » `<why>` is « only the words of a step restate it », « a
+task carries words no law reads » or « no element of the plan names it »; the
+candidate is named by the first twelve characters of its sha256. A failed or
+abstaining judge settles nothing.
 
 A native record (strategy `native`, written by the native and sketch doors) is
 no plan (R4 A11, step 2). Its replay bakes the round's answers into the
@@ -559,9 +591,10 @@ contradicted write is never emitted. A structured destination, an unquoted objec
 literals or a transformation of one keeps its question.
 
 With attached authoring references, Escalate tries complete HOT and finite WARM judgments
-first, then gives the first open generation the native language card, original request,
-answers, observed world and selected references. It avoids a preliminary private-plan
-call that cannot consume that context. Native repair progress compares both candidate
+first, then gives the private Plan the admitted context, request, answers and observed world.
+When no Plan candidate remains, it may continue through Sketch within the same request
+authority and reduced repair allowance. Fresh CREATE never falls back to model-written
+source; `only` refuses it without a call. Native repair progress compares both candidate
 identity and diagnostics; changed candidates may use the remaining bounded attempts.
 A technical failure retains the request and round candidates instead of requesting a
 replacement intent. An optional initial output limit can increase after a reported
@@ -629,6 +662,16 @@ spellings a text equality matched (`decision.spellings`, a bounded sample law), 
 fresh observation cannot see (the unread tail, values that only appear at run): the use-time
 guards and number policies of the lowered program stay the last check.
 
+For a semantic Sketch outcome with a candidate and no grounding record of its
+own, `observed::record` records the literal reads recognized by
+`nika_compile_fidelity::grounding::semantic::facts`. The closed semantic plan
+stays undecorated. The existing basis law grades these facts again against the
+fresh observation: removing a recorded key or source withdraws the proposal;
+adding or reordering rows need not move its recorded basis. Missing fresh
+observation remains unjudged. Computed-only or otherwise unrecognized reads
+produce no recorded basis, never a claim that all reads hold. This bounded
+slice does not prove complete jq coverage or business correctness.
+
 ## Door cognition, knowledge and reproducibility
 
 `provenance.cognition` names the cognition an outcome used. `deterministicOnly`
@@ -647,6 +690,12 @@ remains separate. With no explicit level, the route retains its default.
 Per-call evidence distinguishes the configured level, transmitted request keys,
 reported model and reasoning-token usage; internal served effort stays unknown.
 
+`AuthoringPolicy::with_source_recovery` (any count, as typed, default 0) is the operator's
+explicit consent to the cognition crate's source recovery after the sketch door's
+exhaustion on a creation. It grants no request beyond the caller's authority, no
+permit and no Run; a host that offers it adds `recovery_requests` to the bound it
+shows before any call.
+
 Knowledge is attached only when named: `--knowledge` or `NIKA_KNOWLEDGE` for a
 snapshot, and on the CLI `--knowledge-pack` or `NIKA_KNOWLEDGE_PACK` for a pack
 composed for one request. There is no default location, and release archives
@@ -664,3 +713,140 @@ an authoring model. A model-assisted candidate is not reproducible across
 calls. Its recorded plan replays answer rounds with zero calls for duties the
 core closes from the bytes; its pending remainder is judged in that round or
 named INCOMPLETE. The reviewed bytes are what runs.
+
+
+## Semantic record of an accepted sketch (0.123 slice C-core)
+
+The sketch door no longer leaves a legacy native-source record. Its opaque plan is a closed,
+versioned **semantic record** (`semantic_record: 1`, `lowering: 1`, independent of the wire
+generations and the forensic summary; private format, not a secret: it travels on the visible
+wire). It holds exactly: the request basis `basis.caller` (the caller's own words, original,
+every initial answer including a clarification, money spans and `stated_money`, read at the
+compile's entry before any money is blanked) and `basis.read` (computed by
+`surface::semantic::request_basis` before any proposal: the effective words the door reads,
+its initial answers, the observed world's identity, every `Reading.seen` occurrence in order
+with repeats, the reader's floor, the obligation ledger and an explicit partial projection of
+`contract_of_request` whose unsupported portion stays named); optional `basis.world`, the
+complete historical host observation with its exact digest; the accepted graph
+(`{name, tasks, outputs?}`) and fills exactly as decoded at their producer; the settlement fields
+a native settlement reads (questions through a key allowlist, gaps, trigger); the pre-answer
+assembly identity; and `final` (the cumulative bound answers and the final candidate identity).
+`source` is that pre-answer assembly, labelled `source_is: pre_answer_assembly`, an observation
+no replay reads. No `strategy` word, judgment, journal or plan vocabulary is kept; any other key
+refuses the record. The cognition door builds the record and keeps it only when the core's own
+replay reproduces its final binding under the authoring request (no record otherwise, the round
+INCOMPLETE). The literal-conservation helpers of the edit door now live in
+`nika_compile_fidelity::literal` (moved unchanged; the core reached its line wall).
+
+Replay dispatches before every legacy door and before the apostrophe fold:
+`compile` first runs `surface::semantic::caller` on the raw request (the money recursion then
+compiles the normalized request without comparing it again). A record whose caller words,
+original, money or initial answers differ, that gains a clarification it never had (a
+replacement is a new basis), or that carries no caller basis is refused. Then the closed keys,
+versions and bound answers are checked (A0 ⊆ Ak ⊆ Ac, string maps only), `basis.read` is
+recomputed from the current request with only its initial answers, the graph is judged by
+`structural_laws_observed` using the current caller observation, the fills by
+`fills_from_json`/`complete_document` (the pure decode is
+`nika_compile_fidelity::sketch::replayed_observed`), and the bytes the core lowers must match
+`assembly_sha256`. The
+old final is always rebuilt under its bound answers and must match its identity; a new answer
+must answer a question that candidate asks and produces a new `final` binding, while the basis
+stays the one frozen at authoring. Every refusal is a static finding on `recorded_plan`: no
+record value or unknown key name is repeated, nothing is emitted, the stored source is never
+used and no model is asked. A gap keeps its duty at its position (`gap.N`): its words are
+repeated only when they are the request's own, and a replayed candidate with a gap is never
+READY whatever the gap's answer. Reconstruction is not satisfaction: the core replay keeps the
+whole request pending ([`native_pending`]) and is at most INCOMPLETE with zero calls; READY takes a
+judgment made, and counted, in that round. The rehearsal's answered paths read the same validated
+rebuild.
+
+Limitations: hashes are consistency checks, not producer authentication (a self-consistent
+forged record reassembles but cannot become READY without a current judgment, and Check still
+runs); the core cannot run the `nika_cap` reach laws (no dependency), so only the cognition
+replay re-runs them before any judgment; a question's label and reason are static, and only
+its placeholder key, answer type and a choice's bounded options (each option's key and label)
+are taken from the record; the trigger and a gap's words are repeated only when they are the
+request's own; historical native and Plan records keep their replay unchanged.
+
+### Guarded semantic replay and judgments (QUAL20 P2a–P2c)
+
+A semantic record replays only through `compile` / `compile_judged(raw, judgments)` on the raw
+request as the caller sent it: the caller is read once before any money is blanked, then the
+private path derives the request the door read (a clarification taken, folded) and replays it.
+The public `replay` and `replay_judged` refuse a semantic record with a static finding; legacy
+Plan, native and pending-transform records replay through them unchanged. `judgments` are the
+judgments a judge made in this round; each settles the whole request only under the binding the
+core recomputes from that request and the bytes it emits. This is data consistency for a trusted
+host, not an authentication of the judge (a Rust caller can build a matching `Judgment`), and
+never a permission or consent; no record, model text, HTTP body or Session state feeds it. The
+cognition door asks the judge with the request it derives itself; a derivation the core does not
+share leaves the round INCOMPLETE, never READY. The record's questions must be exactly the
+rebuilt candidate's open placeholders and are shown under static wording; the trigger, like a
+gap, is repeated only when it is the request's own words. A semantic record's money is read by
+`admitted::reading`, the one derivation the seats' door also uses: changed clarification words
+discard the host's admission, identical words keep it and are read blanked, and money stated on
+the door is re-read from the replacement. When judgments are supplied, the route names them
+("judgments supplied by the host"): their origin, never their authenticity or acceptance. The
+raw caller is checked by each entry that receives the raw request (the cognition entry,
+`compile_judged`, and the authoring door's own validation of its record); no check runs on the
+normalized request of the money recursion.
+
+## Answered endpoints and closed semantic replay
+
+An answered endpoint contributes its host only when a fetch URL or notify target reads the
+whole answered constant. When the HTTP permit list is absent, the core creates that list
+and re-emits the document only after checking its literal projection. A substring, another
+argument or an unused answer creates no such authority. This compile-time boundary does
+not authorize a Run.
+
+A plan carrying `semantic_record` stays in that closed format: the observation decorator
+adds no `observed_world`, `reasked` or `verified_transform` keys. Replay receives the current
+caller's observation separately and revalidates the graph and emitted bytes against it.
+Older non-semantic plans retain their existing observation recovery.
+
+
+### EDIT after Run: historical world, current sources
+
+New semantic records also keep `basis.world`: the complete bounded host observation and its
+exact digest (`{value, sha256}`), including sources a graph places below a stated bare name.
+Its request projection must still match the existing `basis.read.world_sha256`. An EDIT reassembles its base under that exact historical
+projection, checks its digest, assembly and final candidate bytes, and requires the current
+observation of every graph-declared read source and stated path outside its bound
+`nika:write` destinations to remain identical. Repeating a write-only destination in a revision
+("keep the same file") does not make its previous contents an input. A destination the graph
+also reads remains a source; dynamic paths still require an unchanged complete observation. The graph's
+structural laws are checked against the current observation as well. A write-only destination
+may therefore have been created or overwritten by Run without invalidating its saved program.
+The record survives journal serialization; no in-process cache supplies historical evidence.
+The EDIT request keeps its full current world for revision, judgments, rehearsal and Save.
+This reconstruction grants neither a write nor a Run and does not change money admission.
+
+Records lacking `basis.world` remain readable. When their current world no longer matches, only
+literal write-only destinations may be reconstructed as previously absent, and only when
+that single projection reproduces the stored world digest exactly. Changed sources, dynamic
+reads, a read/write overlap or an unrecoverable earlier destination remain refused; neither
+the digest nor the base is rewritten. CREATE answer replay still requires its current basis.
+After this bounded migration, a new revision carries the durable projection and can itself
+be revised after another Run, including after close/reopen.
+
+A dynamic/glob graph read whose coverage this identity projection cannot establish requires
+the complete world to remain unchanged; no unimplemented pattern matching is assumed.
+The existing durable owner withholds whole plans above 128 KiB, keeps at most 16 records
+within a 256 KiB table, and never truncates a world. Session keeps its 1 MiB journal-record
+limit. An oversized plan therefore has no durable program record; no continuation is claimed.
+
+### Shared explicit Run words
+
+`run_words` reads explicit access/cost options, the closed Run verb vocabulary,
+plain Run lines and inline inputs, and projects the question for a missing Run
+input. These pure functions moved unchanged from
+Onboard's `routing::run_options` and Session, beside the existing lexical `money`
+reader shared by Prepare and Run. `nika_onboard::routing::run_options` remains a
+compatible re-export. The actual access resolver, Session's budget and consent,
+workflow checks and execution stay with their existing owners; recognition grants
+no authority and performs no I/O.
+
+The exact decimal jq laws are owned by the unit's `nika-compile-fidelity::decimal`
+module. The assembler reuses its `ORDER` and `ARITHMETIC` text verbatim; assembly,
+transport guards and numerical behavior do not change. Both embedded jq sources
+remain included in the owning member's production size counter.

@@ -389,6 +389,7 @@ impl HarnessAdapter {
 #[derive(Debug, Clone)]
 pub struct SpawnedHarness {
     adapter: HarnessAdapter,
+    authoring: bool,
 }
 
 impl SpawnedHarness {
@@ -488,12 +489,23 @@ impl SpawnedHarness {
     /// Construct (INV-019).
     #[must_use]
     pub fn new(adapter: HarnessAdapter) -> Self {
-        Self { adapter }
+        Self {
+            adapter,
+            authoring: false,
+        }
+    }
+
+    pub(crate) fn for_authoring(mut self) -> Self {
+        self.authoring = true;
+        self
     }
 
     /// Spawn the adapter child — piped stdio · composed env ·
     /// kill-on-drop (a harness never outlives the task that asked).
-    fn spawn_child(&self) -> Result<tokio::process::Child, HarnessError> {
+    fn spawn_child(
+        &self,
+        cwd: Option<&std::path::Path>,
+    ) -> Result<tokio::process::Child, HarnessError> {
         let parent: BTreeMap<String, String> = std::env::vars().collect();
         let env = compose_env(&parent, &self.adapter.passthrough_env);
         let mut cmd = tokio::process::Command::new(&self.adapter.command);
@@ -510,6 +522,11 @@ impl SpawnedHarness {
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .kill_on_drop(true);
+        if let Some(cwd) = cwd {
+            cmd.current_dir(cwd);
+            #[cfg(unix)]
+            cmd.process_group(0);
+        }
         cmd.spawn().map_err(|e| HarnessError::Unavailable {
             reason: format!(
                 "adapter `{}`: cannot spawn `{}`: {e}",
@@ -740,7 +757,7 @@ impl AgentBackendDyn for SpawnedHarness {
         // refuses HERE, with the version named — never as a protocol
         // confusion three frames into a session.
         self.probe_version().await?;
-        let mut child = self.spawn_child()?;
+        let mut child = self.spawn_child(self.authoring.then_some(request.cwd.as_path()))?;
         let stdout = child.stdout.take().ok_or_else(|| HarnessError::Session {
             reason: "the child's stdout was not piped".to_owned(),
         })?;
@@ -750,7 +767,13 @@ impl AgentBackendDyn for SpawnedHarness {
         // The child rides INSIDE the stream's driver task: dropping the
         // stream drops the driver, the driver drops the child, and
         // kill_on_drop reaps it — the cancel-safety contract.
-        Ok(drive_with_child(stdout, stdin, request, child))
+        Ok(drive_with_child(
+            stdout,
+            stdin,
+            request,
+            child,
+            self.authoring,
+        ))
     }
 }
 
@@ -762,17 +785,41 @@ fn drive_with_child(
     stdin: tokio::process::ChildStdin,
     request: HarnessRequest,
     child: tokio::process::Child,
+    authoring: bool,
 ) -> HarnessEventStream {
-    let inner = drive(stdout, stdin, request);
+    let inner = if authoring {
+        crate::client::drive_profile(
+            stdout,
+            stdin,
+            request,
+            std::time::Duration::from_secs(crate::IDLE_TIMEOUT_SECS),
+            true,
+        )
+    } else {
+        drive(stdout, stdin, request)
+    };
+    #[cfg(unix)]
+    let group = authoring.then(|| child.id()).flatten();
     Box::pin(ChildStream {
         inner,
         _child: child,
+        #[cfg(unix)]
+        group,
     })
 }
 
 struct ChildStream {
     inner: HarnessEventStream,
     _child: tokio::process::Child,
+    #[cfg(unix)]
+    group: Option<u32>,
+}
+
+impl Drop for ChildStream {
+    fn drop(&mut self) {
+        #[cfg(unix)]
+        kill_probe_group(self.group);
+    }
 }
 
 impl futures_core::Stream for ChildStream {
@@ -1064,7 +1111,7 @@ else:
         let adapter =
             HarnessAdapter::new("ghost", "/nonexistent/ghost-bin-2026").expect("id is fine");
         let spawned = SpawnedHarness::new(adapter);
-        let err = spawned.spawn_child().expect_err("no such binary");
+        let err = spawned.spawn_child(None).expect_err("no such binary");
         let HarnessError::Unavailable { reason } = &err else {
             panic!("an absent binary is Unavailable, got {err:?}");
         };

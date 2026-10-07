@@ -16,6 +16,9 @@ use nix::unistd::{UnlinkatFlags, linkat, unlinkat};
 const DIR_MODE: Mode = Mode::from_bits_truncate(0o700);
 const FILE_MODE: Mode = Mode::from_bits_truncate(0o600);
 
+mod reserved_log;
+pub use reserved_log::ReservedLog;
+
 /// An opened directory whose child I/O stays relative to a held descriptor.
 ///
 /// Replacing any visible ancestor after construction cannot redirect later
@@ -182,6 +185,62 @@ impl OwnedDir {
                 | OFlag::O_NONBLOCK
                 | OFlag::O_CLOEXEC,
         )
+    }
+
+    /// [`Self::open_lock`], then take its exclusive lock, waiting at most `grace` while it only
+    /// looks held: a sibling thread spawning a child duplicates this process's descriptors until
+    /// the child's exec closes them, and a BSD `flock` rides the duplicate for that window. A
+    /// lock still held after `grace` belongs to another owner and is refused. The lock lasts as
+    /// long as the returned file.
+    ///
+    /// # Errors
+    /// [`Self::open_lock`]'s errors; another owner holds the lock; the lock call fails.
+    pub fn hold_lock(&self, name: &str, grace: std::time::Duration) -> io::Result<File> {
+        const STEP: std::time::Duration = std::time::Duration::from_millis(5);
+        let lock = self.open_lock(name)?;
+        let mut waited = std::time::Duration::ZERO;
+        loop {
+            match lock.try_lock() {
+                Ok(()) => return Ok(lock),
+                Err(std::fs::TryLockError::WouldBlock) if waited < grace => {
+                    std::thread::sleep(STEP);
+                    waited += STEP;
+                }
+                Err(error) => return Err(io::Error::other(error.to_string())),
+            }
+        }
+    }
+
+    /// The UTF-8 text of `name` below the directories `components` of this one, read from one
+    /// descriptor and never through a symlink: `None` when a directory on the way or the file
+    /// is absent. A file holding more than `cap` bytes is refused with `over`, never cut.
+    ///
+    /// # Errors
+    /// An unsafe child, a failed read, more than `cap` bytes (`over`), or bytes that are not
+    /// UTF-8.
+    pub fn read_capped_below(
+        &self,
+        components: &[&str],
+        name: &str,
+        cap: u64,
+        over: &str,
+    ) -> io::Result<Option<String>> {
+        let file = self
+            .open_below(components)
+            .and_then(|dir| dir.open_relative(Path::new(name)));
+        let mut file = match file {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        let capped = crate::read_capped(&mut file, cap)?;
+        let invalid = |why: &str| io::Error::new(io::ErrorKind::InvalidData, why.to_owned());
+        if capped.over {
+            return Err(invalid(over));
+        }
+        String::from_utf8(capped.bytes.to_vec())
+            .map(Some)
+            .map_err(|_| invalid("stream did not contain valid UTF-8"))
     }
 
     /// Read an optional UTF-8 regular file without following a symlink.
@@ -453,6 +512,59 @@ fn validate_component(value: &str) -> io::Result<()> {
     }
 }
 
+/// Open the file `path` names, without holding a root first: the parent the
+/// caller selected is resolved once (links above the final name are the
+/// caller's own), then held, and the final name is opened as a regular file,
+/// never through a link, without waiting for a FIFO peer; nothing is created.
+/// `None` when the parent or the file is absent; any other failure is
+/// returned, never an absence.
+///
+/// It is not for a root joined to an untrusted, multi-component relative
+/// path: every directory of that path would be resolved, links included.
+/// Open such descendants with [`OwnedDir::open_relative`] below a held root.
+///
+/// # Errors
+/// The path names no file, the parent cannot be resolved or held, or the
+/// final name is a link, a special file or cannot be opened.
+pub fn open_owned(path: &Path) -> io::Result<Option<File>> {
+    let name = path.file_name().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "owned file: the path names no file",
+        )
+    })?;
+    let parent = path.parent().filter(|p| !p.as_os_str().is_empty());
+    let resolved = match std::fs::canonicalize(parent.unwrap_or(Path::new("."))) {
+        Ok(resolved) => resolved,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+    };
+    match OwnedDir::open(&resolved).and_then(|dir| dir.open_relative(Path::new(name))) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        opened => opened.map(Some),
+    }
+}
+
+/// [`open_owned`], then at most `cap` bytes of UTF-8 from that one
+/// descriptor (`cap + 1` probed): a file holding more is refused, never cut.
+///
+/// # Errors
+/// [`open_owned`]'s errors, a failed read, more than `cap` bytes, or bytes
+/// that are not UTF-8.
+pub fn read_owned(path: &Path, cap: u64) -> io::Result<Option<String>> {
+    let Some(mut file) = open_owned(path)? else {
+        return Ok(None);
+    };
+    let capped = crate::read_capped(&mut file, cap)?;
+    let invalid = |why| io::Error::new(io::ErrorKind::InvalidData, why);
+    if capped.over {
+        return Err(invalid("over its byte cap"));
+    }
+    String::from_utf8(capped.bytes.to_vec())
+        .map(Some)
+        .map_err(|_| invalid("not UTF-8"))
+}
+
 fn io_error(error: nix::errno::Errno) -> io::Error {
     io::Error::from_raw_os_error(error as i32)
 }
@@ -461,6 +573,52 @@ fn io_error(error: nix::errno::Errno) -> io::Error {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+
+    /// A file opened by its path: a link above it is the caller's own, an
+    /// absent parent or file is `None`, the final name is never followed, a
+    /// special file never waited on, a read never cut.
+    #[test]
+    fn a_named_file_is_opened_below_its_resolved_parent_and_never_through_a_final_link() {
+        let root = tempfile::tempdir().expect("root");
+        std::fs::create_dir(root.path().join("real")).expect("real");
+        let link = root.path().join("link");
+        std::os::unix::fs::symlink(root.path().join("real"), &link).expect("ancestor link");
+        std::fs::write(link.join("key.pub"), "box").expect("file");
+        assert_eq!(
+            read_owned(&link.join("key.pub"), 3)
+                .expect("read")
+                .as_deref(),
+            Some("box")
+        );
+        assert!(
+            read_owned(&link.join("gone/key.pub"), 3)
+                .expect("absent parent")
+                .is_none()
+        );
+        assert!(
+            open_owned(&link.join("gone.pub"))
+                .expect("absent file")
+                .is_none()
+        );
+        std::os::unix::fs::symlink(link.join("key.pub"), link.join("alias.pub"))
+            .expect("final link");
+        assert!(
+            open_owned(&link.join("alias.pub")).is_err(),
+            "a final link is refused, not absent"
+        );
+        nix::unistd::mkfifo(&link.join("pipe"), Mode::from_bits_truncate(0o600)).expect("fifo");
+        assert!(
+            open_owned(&link.join("pipe")).is_err(),
+            "a special file, never waited on"
+        );
+        assert!(
+            read_owned(&link.join("key.pub"), 2).is_err(),
+            "over its cap"
+        );
+        std::fs::write(link.join("bytes.bin"), [0xff, 0xfe]).expect("bytes");
+        assert!(read_owned(&link.join("bytes.bin"), 8).is_err(), "not UTF-8");
+        assert!(open_owned(Path::new("/")).is_err(), "no file named");
+    }
 
     #[test]
     fn concurrent_appenders_keep_each_line_and_terminator_together() {
@@ -695,5 +853,64 @@ mod tests {
             "claim\nreceipt\n"
         );
         assert!(!outside.join("history.ndjson").exists());
+    }
+
+    /// A held lock is exclusive between two holders past the grace; a release lets the next one
+    /// take it.
+    #[test]
+    fn a_held_lock_refuses_a_second_holder_until_it_is_released() {
+        let root = tempfile::tempdir().expect("root");
+        let dir = OwnedDir::create(root.path(), &["held"]).expect("owned");
+        let grace = std::time::Duration::from_millis(50);
+        let first = dir.hold_lock("x.lock", grace).expect("first holder");
+        let refused = dir.hold_lock("x.lock", grace).expect_err("held elsewhere");
+        assert_eq!(refused.kind(), io::ErrorKind::Other, "{refused}");
+        drop(first);
+        dir.hold_lock("x.lock", grace).expect("released");
+    }
+
+    /// A capped text read below a held directory: absent is `None` (directory or file), the cap
+    /// refuses a larger file with the caller's words, never cuts it, and a link is never followed.
+    #[test]
+    fn a_capped_read_below_is_none_when_absent_and_refuses_beyond_its_cap() {
+        use std::os::unix::fs::symlink;
+        let root = tempfile::tempdir().expect("root");
+        let dir = OwnedDir::create(root.path(), &["held"]).expect("owned");
+        assert_eq!(
+            dir.read_capped_below(&["sub"], "f", 4, "big")
+                .expect("no dir"),
+            None
+        );
+        std::fs::create_dir(root.path().join("held/sub")).expect("sub");
+        assert_eq!(
+            dir.read_capped_below(&["sub"], "f", 4, "big")
+                .expect("no file"),
+            None
+        );
+        std::fs::write(root.path().join("held/sub/f"), "abcd").expect("four");
+        assert_eq!(
+            dir.read_capped_below(&["sub"], "f", 4, "big")
+                .expect("at the cap")
+                .as_deref(),
+            Some("abcd")
+        );
+        std::fs::write(root.path().join("held/sub/f"), "abcde").expect("five");
+        let over = dir
+            .read_capped_below(&["sub"], "f", 4, "big")
+            .expect_err("over");
+        assert_eq!(over.to_string(), "big");
+        assert_eq!(
+            std::fs::read_to_string(root.path().join("held/sub/f")).expect("kept"),
+            "abcde"
+        );
+        symlink(
+            root.path().join("held/sub/f"),
+            root.path().join("held/link"),
+        )
+        .expect("link");
+        assert!(
+            dir.read_capped_below(&[], "link", 9, "big").is_err(),
+            "a link is refused"
+        );
     }
 }

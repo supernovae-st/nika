@@ -801,14 +801,11 @@ pub fn production_runtime_with_emitter(
         ExecVerb::new(Arc::new(TokioShell::with_sandbox(sandbox))),
         Arc::clone(&invoke),
         InferVerb::new(registry, default_model),
-        seated(
-            AgentVerb::new(
-                agent_provider,
-                invoke,
-                Arc::clone(&dispatcher),
-                default_model,
-            ),
-            harness_seat,
+        AgentVerb::new(
+            agent_provider,
+            invoke,
+            Arc::clone(&dispatcher),
+            default_model,
         ),
         seams.clock,
         runtime_config
@@ -825,7 +822,9 @@ pub fn production_runtime_with_emitter(
     // Resolve `secrets:` from env/file at run start (MINOR-B · the sanctioned
     // store boundary). A miss leaves the secret unbound → NIKA-1702 (fail-
     // closed); the IFC governs where a resolved value may flow.
-    .with_secret_resolver(Arc::new(EnvFileSecretResolver)))
+    .with_secret_resolver(Arc::new(EnvFileSecretResolver))
+    // The seat holds the admitted project as its received-image room (P3 B4.5).
+    .with_seat(harness_seat)?)
 }
 
 /// The builtin plane production and simulated compositions share: the real
@@ -858,17 +857,6 @@ fn waived_operator_note() {
          journal + trace); the declared boundary still gates fs/net at the \
          builtin and fetch seams"
     );
-}
-
-/// Seat the verb (P3 B4.5) — the feature split, in one place.
-fn seated<P, T, D>(v: AgentVerb<P, T, D>, s: crate::harness_seat::Seat) -> AgentVerb<P, T, D> {
-    #[cfg(feature = "access-harness")]
-    return v.seated(s);
-    #[cfg(not(feature = "access-harness"))]
-    {
-        let crate::harness_seat::Seat = s;
-        v
-    }
 }
 
 /// The fully-resolved SIMULATED runtime spelling (the `nika test` plane ·
@@ -1198,6 +1186,31 @@ mod tests {
         assert_eq!(cloud_base_url(&empty, "openai"), None, "empty = absent");
         let unset = env(&[]);
         assert_eq!(cloud_base_url(&unset, "openai"), None);
+    }
+
+    #[test]
+    fn scaleway_env_ladder_does_not_consume_or_replace_openai() {
+        let lookup = |name: &str| match name {
+            "NIKA_SCALEWAY_API_KEY" => Some("scw-test-key".to_owned()),
+            "OPENAI_API_KEY" => Some("oa-test-key".to_owned()),
+            "NIKA_SCALEWAY_BASE_URL" => Some(
+                "https://api.scaleway.ai/11111111-2222-4333-8444-555555555555/v1/chat/completions"
+                    .to_owned(),
+            ),
+            _ => None,
+        };
+        let row =
+            nika_catalog::find_provider("scaleway").expect("catalog row loaded by config_from_env");
+        assert_eq!(
+            ladder_key(&lookup, row.id, row.env_var).as_deref(),
+            Some("scw-test-key")
+        );
+        assert_eq!(
+            ladder_key(&lookup, "openai", "OPENAI_API_KEY").as_deref(),
+            Some("oa-test-key")
+        );
+        assert!(cloud_base_url(&lookup, "scaleway").is_some());
+        assert!(cloud_base_url(&lookup, "openai").is_none());
     }
 
     #[test]

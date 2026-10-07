@@ -62,7 +62,7 @@ fn nothing_named_is_the_cli_default_and_a_host_names_its_own() {
     assert_eq!(pin.origin, KnowledgeOrigin::Embedded);
     assert_eq!(
         pin.manifest_sha256,
-        "b787fc53d6858db43d55958daaf02539fadcad4feeacc17b63c5aefcb92cc32b"
+        "b7f3861c55c785ba78fbf3fcfbb495ab79154b30f1bcb8483ce66018cc4659a9"
     );
     assert!(default.refusal().is_none());
     assert_eq!(default.knowledge_choice(), &KnowledgeChoice::Default);

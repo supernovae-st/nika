@@ -280,6 +280,7 @@ pub type nika_event::kind::EventClass::Output = T
 #[non_exhaustive] pub enum nika_event::kind::EventKind
 pub nika_event::kind::EventKind::AgentBudgetCheckpoint
 pub nika_event::kind::EventKind::AgentComposeChecked
+pub nika_event::kind::EventKind::AgentImageObserved
 pub nika_event::kind::EventKind::AgentNudge
 pub nika_event::kind::EventKind::AgentStalled
 pub nika_event::kind::EventKind::AgentToolsSelected
@@ -512,6 +513,7 @@ pub type nika_event::error::EventError::Output = T
 #[non_exhaustive] pub enum nika_event::prelude::EventKind
 pub nika_event::prelude::EventKind::AgentBudgetCheckpoint
 pub nika_event::prelude::EventKind::AgentComposeChecked
+pub nika_event::prelude::EventKind::AgentImageObserved
 pub nika_event::prelude::EventKind::AgentNudge
 pub nika_event::prelude::EventKind::AgentStalled
 pub nika_event::prelude::EventKind::AgentToolsSelected
@@ -1444,6 +1446,10 @@ impl<T> nika_error::traits::AsAny for nika_event::settlement::TerminalDiagnostic
 pub fn nika_event::settlement::TerminalDiagnostic::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_event::settlement::TerminalDiagnostic
 pub type nika_event::settlement::TerminalDiagnostic::Output = T
+pub const nika_event::settlement::OUTPUTS_BYTES_FIELD: &str
+pub const nika_event::settlement::OUTPUTS_FIELD: &str
+pub const nika_event::settlement::OUTPUTS_KEPT: usize
+pub const nika_event::settlement::OUTPUTS_WITHHELD_FIELD: &str
 pub mod nika_event::source_id
 pub fn nika_event::source_id::lf_normal_form(source: &str) -> alloc::borrow::Cow<'_, str>
 pub fn nika_event::source_id::sha256_hex(bytes: &[u8]) -> alloc::string::String
@@ -1646,6 +1652,7 @@ pub type nika_event::error::EventError::Output = T
 #[non_exhaustive] pub enum nika_event::EventKind
 pub nika_event::EventKind::AgentBudgetCheckpoint
 pub nika_event::EventKind::AgentComposeChecked
+pub nika_event::EventKind::AgentImageObserved
 pub nika_event::EventKind::AgentNudge
 pub nika_event::EventKind::AgentStalled
 pub nika_event::EventKind::AgentToolsSelected

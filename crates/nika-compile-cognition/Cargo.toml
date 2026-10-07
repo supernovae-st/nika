@@ -13,14 +13,16 @@ publish     = false  # member of the nika-onboard unit — never on crates.io al
 nika-compile        = { path = "../nika-compile", version = "0.122.0" }        # the deterministic core and its stated surface, one unit in several members (ADR-140)
 nika-compile-reader = { path = "../nika-compile-reader", version = "0.122.0" } # the frozen reader and typed plan
 nika-compile-fidelity = { path = "../nika-compile-fidelity", version = "0.122.0" } # candidate read-back, fidelity and sketch laws (ADR-141)
+nika-compile-seats = { path = "../nika-compile-seats", version = "0.122.0" } # the decision seats and the rehearsal port a host lends a preparation, with the reasoning record (ADR-146)
+nika-compile-clauses = { path = "../nika-compile-clauses", version = "0.122.0" } # how one clause of a request reads: the parts, the prohibition reading, the clause key, the stated spellings (ADR-145)
 nika-kernel = { path = "../nika-kernel", version = "0.122.0" } # explicit authoring provider seam
 nika-check  = { path = "../nika-check", version = "0.122.0" }  # the same pure Check core the native door judges a candidate with
 nika-pack   = { path = "../nika-pack", version = "0.122.0" }   # the card, the skeletons and the examples a seat is shown
 serde      = { workspace = true } # private semantic-plan decoder
 serde_json = { workspace = true } # the plan, the provenance, the schema
+sha2 = { workspace = true } # incremental identities in the existing authoring observer
 serde_yaml_bw = { workspace = true } # the sketch's document, emitted deterministically
 tokio      = { workspace = true } # bounded authoring timeout
-thiserror  = { workspace = true }
 # The transform verifier runs a seat's program on the seat's own example with the SAME jaq
 # stack and capability policy the runtime `nika:jq` installs (mirrored, as nika-check-analyzer
 # mirrors it: the layering hosts no shared engine below both).
@@ -28,6 +30,7 @@ jaq-core = { workspace = true }
 jaq-std  = { workspace = true }
 jaq-json = { workspace = true }
 nika-cap = { path = "../nika-cap", version = "0.122.0" }
+nika-providers = { path = "../nika-providers", version = "0.122.0", default-features = false } # the request counters and the call observer a seat runs under; the authority stays here
 unicode-normalization = { workspace = true, default-features = false } # the relation-canonical spelling probe compares texts under NFC (B24, prototype)
 
 [package.metadata.lore]

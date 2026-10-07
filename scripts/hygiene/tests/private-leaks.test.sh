@@ -24,16 +24,25 @@
 #      blocked legitimate work.
 set -uo pipefail
 
+# Hooks export Git-local paths. A disposable fixture must never inherit the
+# caller's index or worktree, even when several hygiene runs overlap.
+unset GIT_DIR GIT_INDEX_FILE GIT_WORK_TREE GIT_COMMON_DIR GIT_NAMESPACE \
+  GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_PREFIX
+
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 VECTOR="$ROOT/scripts/hygiene/check-private-leaks.sh"
 
-# A tracked file the vector reads, restored after every case.
-PROBE="$ROOT/crates/nika-error/src/lib.rs"
-BACKUP="$(mktemp)"
-cp "$PROBE" "$BACKUP"
-restore() { cp "$BACKUP" "$PROBE"; }
-trap 'restore; rm -f "$BACKUP"' EXIT
+# Mutate only a disposable tracked file. The real vector still sources the
+# real shared pattern list; its Git scan runs in this fixture, never ROOT.
+WORK="$(mktemp -d)" || exit 1
+trap 'rm -rf "$WORK"' EXIT
+mkdir -p "$WORK/crates/fixture/src" || exit 1
+git -C "$WORK" init -q || exit 1
+PROBE="$WORK/crates/fixture/src/lib.rs"
+restore() { printf '%s\n' '// public fixture' >"$PROBE"; }
+restore || exit 1
+git -C "$WORK" add -- crates/fixture/src/lib.rs || exit 1
 
 pass=0
 fail=0
@@ -41,7 +50,7 @@ fail=0
 expect() { # label, expected_rc, injected_line ("" = clean tree)
   local label="$1" want="$2" line="${3:-}"
   [ -n "$line" ] && printf '\n// %s\n' "$line" >>"$PROBE"
-  (cd "$ROOT" && bash "$VECTOR") >/dev/null 2>&1
+  (cd "$WORK" && bash "$VECTOR") >/dev/null 2>&1
   local got=$?
   restore
   if [ "$got" = "$want" ]; then
@@ -53,7 +62,7 @@ expect() { # label, expected_rc, injected_line ("" = clean tree)
   fi
 }
 
-expect "clean tree is green" 0 ""
+expect "clean tracked fixture is green" 0 ""
 expect "a dx/ path turns it red" 2 "see dx/journal/ for the studio chronicle"
 expect "a studio/ path turns it red" 2 "see studio/04-identity/brand/ for the palette"
 # A SYNTHETIC pole · the shape is what turns it red, not the document. Naming a

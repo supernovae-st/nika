@@ -16,6 +16,29 @@ pub fn model_admission_findings(
     workflow: &RawWorkflow,
     model_override: Option<&str>,
 ) -> Vec<String> {
+    model_admission_findings_over(workflow, model_override, &[])
+}
+
+/// The same judgments with effective operator endpoints injected by the host.
+/// Probes are observations of configuration, not authority to call a model.
+#[must_use]
+pub fn model_admission_findings_over(
+    workflow: &RawWorkflow,
+    model_override: Option<&str>,
+    probes: &[nika_providers::probe::ProviderProbe],
+) -> Vec<String> {
+    model_admission_findings_for_plan(workflow, model_override, probes, None)
+}
+
+/// The model law under the selected transport. Endpoint configuration cannot
+/// grant catalog ownership to a model on a different, selected harness path.
+#[must_use]
+pub fn model_admission_findings_for_plan(
+    workflow: &RawWorkflow,
+    model_override: Option<&str>,
+    probes: &[nika_providers::probe::ProviderProbe],
+    plan: Option<&nika_providers::ExecutionAccessPlan>,
+) -> Vec<String> {
     let effective = model_override.map(|model| nika_check::with_model_override(workflow, model));
     let workflow = effective.as_ref().unwrap_or(workflow);
     let report = nika_check::check(workflow);
@@ -31,7 +54,7 @@ pub fn model_admission_findings(
         } else {
             requirement.model.as_str()
         };
-        if let Some(refusal) = nika_providers::resolve_refusal(model) {
+        if let Some(refusal) = nika_providers::resolve_refusal_for_plan(model, probes, plan) {
             findings.push(format!("model `{model}`: {}", refusal.why));
         }
     }
@@ -51,6 +74,43 @@ pub fn model_admission_findings(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selected_transport_keeps_unused_api_configuration_out_of_harness_admission() {
+        use nika_providers::probe::{
+            AccessClass, ExecutionLocus, ProviderProbe, ProviderReadiness,
+        };
+
+        let wf = workflow("openai/deepseek-v4-flash-0731", 512, None);
+        let probes = [ProviderProbe::new(
+            "openai",
+            true,
+            false,
+            "",
+            false,
+            ProviderReadiness::new(
+                true,
+                false,
+                None,
+                None,
+                false,
+                ExecutionLocus::Remote,
+                AccessClass::Api,
+            ),
+            "https://compatible.example/v1/chat/completions",
+        )];
+        assert!(model_admission_findings_over(&wf, None, &probes).is_empty());
+        let plan = nika_providers::ExecutionAccessPlan::new(
+            std::collections::BTreeMap::new(),
+            Some("codex".into()),
+            Some("codex".into()),
+            None,
+        );
+        assert_eq!(
+            model_admission_findings_for_plan(&wf, None, &probes, Some(&plan)),
+            model_admission_findings(&wf, None),
+        );
+    }
 
     fn workflow(model: &str, tokens: u32, task_model: Option<&str>) -> RawWorkflow {
         let task_model = task_model.map_or_else(String::new, |m| format!(", model: {m}"));

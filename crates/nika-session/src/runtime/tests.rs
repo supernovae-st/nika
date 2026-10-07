@@ -87,10 +87,11 @@ pub(super) fn ready(kind: IntelligenceKind, locus: DataLocus) -> ResolvedSession
 }
 
 /// A session on a harness seat (words only): authoring stays deterministic.
-fn ready_with(dir: &Path, replies: Vec<&str>) -> SessionRuntime {
+pub(super) fn ready_with(dir: &Path, replies: Vec<&str>) -> SessionRuntime {
     let seated = ResolvedSessionIntelligence {
         kind: IntelligenceKind::Harness {
             seat: "codex".to_owned(),
+            transport: nika_types::access::HarnessTransport::Native,
         },
         model: None,
         locus: DataLocus::Remote {
@@ -394,9 +395,8 @@ fn the_review_reads_in_sections_and_meaning_holds_the_proposal() {
     // A yes lands the bytes: the status says saved, checked, not run.
     assert!(matches!(s.consent("yes"), TurnOutcome::Facts(ref t) if t.contains("applied")));
     assert!(
-        s.status_line().starts_with(
-            "Saved · checked · not active · nothing has run · `compiled-workflow.nika`"
-        ),
+        s.status_line()
+            .starts_with("Saved · no current Run result · `compiled-workflow.nika`"),
         "{}",
         s.status_line()
     );
@@ -1174,25 +1174,26 @@ fn a_finished_run_reads_as_a_result_and_proof_reads_its_trace() {
     let TurnOutcome::Facts(proof) = s.turn("/proof") else {
         panic!("a proof");
     };
-    assert!(proof.starts_with("Proof · "), "{proof}");
+    assert!(proof.starts_with("Proof · "), "the proof header");
     assert!(
         proof.contains("\n  workflow · compiled-workflow · bytes sha256 5d1bf591…0730"),
-        "{proof}"
+        "a line of the proof"
     );
     assert!(
         proof.contains("\n  chain · OK — 13 events · chain intact · head 1cf484e5…7f01"),
-        "{proof}"
+        "a line of the proof"
     );
     assert!(
         proof.contains("written · ./out/copie.md · 40 B · sha256 "),
-        "{proof}"
+        "a line of the proof"
     );
     assert!(
         proof.contains("does not prove · that the content is right"),
-        "{proof}"
+        "proof must distinguish trace integrity from business correctness"
     );
     assert!(
-        s.status_line().starts_with("Done · the run succeeded"),
+        s.status_line()
+            .starts_with("Last Run · Done · the run succeeded"),
         "{}",
         s.status_line()
     );
@@ -1374,6 +1375,9 @@ fn the_recovery_card_never_denies_what_a_model_may_have_received() {
     s.seat = crate::authoring::AuthoringSeat::Provider {
         model: "mistral/mistral-small-latest".to_owned(),
     };
+    s.intelligence.kind = IntelligenceKind::Api {
+        provider: "mistral".to_owned(),
+    };
     let provider = card(&mut s);
     assert!(
         provider.contains("No workflow output was written or Run requested; the selected model (mistral/mistral-small-latest) may have received this turn's context")
@@ -1385,6 +1389,11 @@ fn the_recovery_card_never_denies_what_a_model_may_have_received() {
     s.seat = crate::authoring::AuthoringSeat::Harness {
         seat: "codex".to_owned(),
         model: None,
+        transport: nika_types::access::HarnessTransport::Native,
+    };
+    s.intelligence.kind = IntelligenceKind::Harness {
+        seat: "codex".to_owned(),
+        transport: nika_types::access::HarnessTransport::Native,
     };
     let harness = card(&mut s);
     assert!(
@@ -1393,6 +1402,7 @@ fn the_recovery_card_never_denies_what_a_model_may_have_received() {
         "{harness}"
     );
     s.seat = crate::authoring::AuthoringSeat::Deterministic { why: None };
+    s.intelligence.kind = IntelligenceKind::None;
     s.intelligence.locus = DataLocus::None;
     let none = card(&mut s);
     assert!(
@@ -1415,11 +1425,57 @@ fn saving_a_new_proposal_clears_the_previous_run_status() {
         assert!(matches!(s.turn(COPY), TurnOutcome::Proposal { .. }));
         assert!(matches!(s.consent("yes"), TurnOutcome::Facts(_)));
         assert!(
-            s.status_line().contains("nothing has run"),
+            s.status_line().contains("no current Run result"),
             "{}",
             s.status_line()
         );
         assert!(s.lifecycle().rail().ends_with("Run ○"));
         assert!(!dir.path().join("out/copy.md").exists());
     }
+}
+
+/// A deadline is not a USD allowance or a request for a smaller goal. Use the real reading,
+/// then preserve the compiler's measured limit, unchanged goal and consent-free recovery replay.
+#[test]
+fn an_authoring_timeout_keeps_its_limit_without_an_allowance_or_goal_rewrite() {
+    use nika_onboard::compile::{AuthoringReceipt, CompileRequest, DiagnosticKind, compile};
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    s.intent.goal = Some(COPY.to_owned());
+    let reason = "An authorized authoring call timed out after its 180s limit. No retry occurred.";
+    let mut out = compile(&CompileRequest::create(UNSETTLED)).expect("outcome");
+    out.candidate = None;
+    out.questions.clear();
+    let mut diagnostic = out.diagnostics.first().expect("unsettled finding").clone();
+    diagnostic.kind = DiagnosticKind::Unknown;
+    diagnostic.target = "authoring_provider".to_owned();
+    diagnostic.message = reason.to_owned();
+    out.diagnostics = vec![diagnostic];
+    let mut receipt = AuthoringReceipt::new("ollama/qwen3.5:4b");
+    receipt.calls = 1;
+    receipt.context =
+        vec![serde_json::json!({"call": "plan", "result": {"failure_kind": "timeout"}})];
+    out.provenance.authoring = Some(receipt);
+    let reading = crate::authoring::Reading::of(out);
+    assert!(matches!(
+        &reading,
+        crate::authoring::Reading::BudgetExhausted(_)
+    ));
+    let round = crate::authoring::AuthoringRound::new(COPY);
+    let TurnOutcome::Facts(card) = s.settle(round, reading) else {
+        panic!("a timeout returns the recovery facts");
+    };
+    assert!(card.contains("The authoring model did not answer within the call's time limit"));
+    assert!(
+        card.contains(reason),
+        "timeout card must preserve the measured timeout reason"
+    );
+    assert!(card.contains("/intelligence"));
+    assert!(!card.contains("narrowing the request"));
+    assert!(!card.contains("authoring budget"));
+    assert_eq!(s.intent.goal.as_deref(), Some(COPY));
+    assert!(s.pending_proposal().is_none());
+    assert!(!dir.path().join(COPY_DEST).exists());
+    assert!(!dir.path().join("out/copy.md").exists());
+    assert!(matches!(s.turn("what happened?"), TurnOutcome::Facts(ref again) if again == &card));
 }

@@ -10,7 +10,8 @@
 //! same function. A door's own explicit values win over the environment's; a knowledge source under
 //! `off` is refused, never carried unread (only the native door reads knowledge). The explicit
 //! reasoning effort every seat asks for is resolved the same way, and every door bounds and builds
-//! one seat's policy through [`call_bounds`] and [`AuthoringConfig::policy`].
+//! one seat's policy through [`AuthoringConfig::policy`]. Route defaults belong to the host
+//! provider policy; [`call_bounds`] preserves the explicit legacy bounded-door defaults.
 //!
 //! The knowledge choice is typed ([`KnowledgeChoice`]) and every door resolves it alike: the
 //! first layer that says anything decides — the door's own explicit values, else the
@@ -34,28 +35,42 @@ use nika_compile::AuthoringReasoning;
 use crate::compile::{AuthoringPolicy, NativeMode};
 use crate::knowledge::TrustedIdentity;
 
-/// The output cap one authoring call gets when its operator names none, on every door.
+/// Legacy bounded-door default (including Serve); creation selects provider route defaults.
 pub const DEFAULT_MAX_TOKENS: u32 = 8192;
-/// The wait for one authoring call when its operator names none, on every door.
+/// Legacy bounded-door default wait (including Serve).
 pub const DEFAULT_CALL_TIMEOUT: Duration = Duration::from_secs(120);
 /// The wait for one call of a harness seat (the operator's own agent through ACP, which thinks
 /// and tools longer than one API call) when its operator names none.
 pub const HARNESS_CALL_TIMEOUT: Duration = Duration::from_secs(300);
-/// The largest output cap any door grants one authoring call.
+/// Legacy bounded-door output ceiling (including Serve), not a model capability.
 pub const MAX_OUTPUT_TOKENS: u32 = 32_768;
-/// The longest any door waits on one authoring call.
+/// Legacy bounded-door wait ceiling (including Serve), not a transport limit.
 pub const MAX_CALL_TIMEOUT: Duration = Duration::from_secs(600);
-/// The repair rounds a native candidate may buy when its operator names none, on every door.
+/// Legacy bounded-door repair default (including Serve); creation has no implicit count.
 pub const DEFAULT_REPAIRS: u32 = 3;
-/// The most repair rounds any door grants a native candidate.
+/// Legacy bounded-door repair ceiling (including Serve).
 pub const MAX_REPAIRS: u32 = 5;
 
-/// Check one authoring call's bounds as every door checks them: 1..=32768 output tokens and a
-/// wait above zero and at most 600 s.
+/// Check one completion's typed shape: positive output tokens and a positive transport wait.
+/// The selected route owns its output capacity and its deadline; this parser imposes neither.
 ///
 /// # Errors
 /// The bound out of range, in the words every door refuses it with.
 pub fn check_call_bounds(max_tokens: u32, timeout: Duration) -> Result<(), &'static str> {
+    if max_tokens == 0 {
+        return Err("authoring output tokens per call must be positive");
+    }
+    if timeout.is_zero() {
+        return Err("the authoring timeout per call must be above zero");
+    }
+    Ok(())
+}
+
+/// Preserve the existing bounded-door contract, including Serve's operator configuration.
+///
+/// # Errors
+/// An output count outside 1..=32768 or a wait outside the legacy (0, 600 s].
+pub fn check_legacy_call_bounds(max_tokens: u32, timeout: Duration) -> Result<(), &'static str> {
     if !(1..=MAX_OUTPUT_TOKENS).contains(&max_tokens) {
         return Err("authoring output tokens per call must be 1..=32768");
     }
@@ -65,9 +80,9 @@ pub fn check_call_bounds(max_tokens: u32, timeout: Duration) -> Result<(), &'sta
     Ok(())
 }
 
-/// One call's bounds: the operator's, else the doors' defaults ([`HARNESS_CALL_TIMEOUT`] for a
-/// harness seat), checked by [`check_call_bounds`]. The cap never depends on the reasoning
-/// effort: a call that runs out of it stays a failure.
+/// Compatibility bounds for legacy callers: explicit values or the historical defaults.
+/// CLI creation uses the provider-owned route policy instead. Checked by
+/// [`check_legacy_call_bounds`]; the reasoning effort never silently changes them.
 ///
 /// # Errors
 /// A bound out of range.
@@ -85,7 +100,7 @@ pub fn call_bounds(
         max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
         timeout.unwrap_or(default_timeout),
     );
-    check_call_bounds(bounds.0, bounds.1)?;
+    check_legacy_call_bounds(bounds.0, bounds.1)?;
     Ok(bounds)
 }
 
@@ -218,6 +233,8 @@ pub struct AuthoringSettings {
     pub knowledge_pack: Option<PathBuf>,
     /// A reasoning effort word (`low` · `high` · `max`).
     pub reasoning: Option<String>,
+    /// Source recovery rounds as a word (`0` · `1` · `2` · `3`): an explicit operator consent.
+    pub source_recovery: Option<String>,
     /// Knowledge turned off on this layer (`--no-knowledge`).
     pub knowledge_off: bool,
     /// The identity this layer trusts for the snapshot it names, from an embedder's own release
@@ -232,11 +249,11 @@ impl AuthoringSettings {
         Self::default()
     }
 
-    /// The words the environment names for an authoring seat: `NIKA_AUTHORING_STRATEGY`,
-    /// `NIKA_KNOWLEDGE`, `NIKA_KNOWLEDGE_EXCLUDE`, `NIKA_KNOWLEDGE_PACK`,
-    /// `NIKA_AUTHORING_REASONING` — a strategy word, directories, a corpus name and an effort
-    /// word, never a secret. Empty values name nothing; `NIKA_KNOWLEDGE=off` exactly is the
-    /// environment's word for knowledge off, which [`resolve`] reads on that layer alone.
+    /// The environment's words for an authoring seat: `NIKA_AUTHORING_STRATEGY`, `NIKA_KNOWLEDGE`,
+    /// `NIKA_KNOWLEDGE_EXCLUDE`, `NIKA_KNOWLEDGE_PACK`, `NIKA_AUTHORING_REASONING`,
+    /// `NIKA_AUTHORING_SOURCE_RECOVERY` — names and a count, never a secret. Empty values name
+    /// nothing; `NIKA_KNOWLEDGE=off` exactly is the environment's word for knowledge off, which
+    /// [`resolve`] reads on that layer alone.
     #[must_use]
     #[allow(clippy::disallowed_methods)] // strategy, directory, corpus and effort names, NON-secret
     pub fn from_env() -> Self {
@@ -247,6 +264,7 @@ impl AuthoringSettings {
             knowledge_exclude: text("NIKA_KNOWLEDGE_EXCLUDE"),
             knowledge_pack: text("NIKA_KNOWLEDGE_PACK").map(PathBuf::from),
             reasoning: text("NIKA_AUTHORING_REASONING"),
+            source_recovery: text("NIKA_AUTHORING_SOURCE_RECOVERY"),
             knowledge_off: false,
             knowledge_identity: None,
         }
@@ -341,7 +359,7 @@ impl AuthoringSettings {
             knowledge_pack: pack.map(Path::to_path_buf),
             reasoning: reasoning.map(str::to_owned),
             knowledge_off,
-            knowledge_identity: None,
+            ..Self::none()
         }
     }
 }
@@ -359,6 +377,8 @@ pub struct AuthoringConfig {
     pub choice: KnowledgeChoice,
     /// The explicit reasoning effort every seat asks for, when one is named.
     pub reasoning: Option<AuthoringReasoning>,
+    /// The source recovery rounds the operator named (0: none), each charged to the same seat.
+    pub source_recovery: u32,
 }
 
 impl AuthoringConfig {
@@ -376,6 +396,7 @@ impl AuthoringConfig {
     ) -> Result<AuthoringPolicy, &'static str> {
         check_call_bounds(max_tokens, timeout)?;
         let policy = AuthoringPolicy::new(model, max_tokens, timeout).with_native(self.strategy);
+        let policy = policy.with_source_recovery(self.source_recovery);
         Ok(match self.reasoning {
             Some(reasoning) => policy.with_reasoning(reasoning),
             None => policy,
@@ -456,6 +477,8 @@ pub enum ConfigError {
     },
     /// The reasoning effort word is none of the levels.
     UnknownReasoning(String),
+    /// The source recovery word is no non-negative u32 count, or names rounds under `off` or `only`.
+    SourceRecovery(String),
     /// Knowledge turned off beside a source on the same settings layer.
     ContradictoryKnowledge {
         /// The layer that says both.
@@ -481,6 +504,10 @@ impl std::fmt::Display for ConfigError {
             Self::UnknownReasoning(word) => write!(
                 f,
                 "`{word}` is not a reasoning effort — low · high · max (--authoring-reasoning · NIKA_AUTHORING_REASONING)"
+            ),
+            Self::SourceRecovery(w) => write!(
+                f,
+                "`{w}`: source recovery is a non-negative u32 count (0 off or only)"
             ),
             Self::ContradictoryKnowledge { layer } => write!(
                 f,
@@ -559,11 +586,15 @@ pub fn resolve(
             corpus: corpus.clone(),
         });
     }
+    let word = (explicit.source_recovery.as_deref()).or(env.source_recovery.as_deref());
+    let source_recovery =
+        AuthoringPolicy::recovery_rounds(word, strategy).map_err(ConfigError::SourceRecovery)?;
     Ok(AuthoringConfig {
         strategy,
         knowledge,
         choice,
         reasoning: reasoning(explicit, env)?,
+        source_recovery,
     })
 }
 
@@ -839,7 +870,7 @@ mod tests {
     }
 
     #[test]
-    fn every_door_bounds_one_call_alike_and_the_policy_carries_the_level() {
+    fn legacy_bounds_remain_explicit_while_creation_accepts_route_capacities() {
         let seconds = Duration::from_secs;
         assert_eq!(call_bounds(None, None, false), Ok((8192, seconds(120))));
         assert_eq!(call_bounds(None, None, true), Ok((8192, seconds(300))));
@@ -851,6 +882,19 @@ mod tests {
             let bounds = call_bounds(Some(tokens), Some(seconds(wait)), false);
             assert!(bounds.is_err(), "{tokens} {wait}");
         }
+        for tokens in [32_769, 131_072, 393_216, u32::MAX] {
+            assert_eq!(check_call_bounds(tokens, seconds(600)), Ok(()));
+            assert!(check_legacy_call_bounds(tokens, seconds(600)).is_err());
+        }
+        // Creation waits as long as the route asks; only the legacy door keeps its 600 s.
+        for wait in [601, 3_600, 86_400] {
+            assert_eq!(check_call_bounds(8192, seconds(wait)), Ok(()), "{wait}");
+            assert!(
+                check_legacy_call_bounds(8192, seconds(wait)).is_err(),
+                "{wait}"
+            );
+        }
+        assert!(check_call_bounds(8192, Duration::ZERO).is_err());
         let only = AuthoringSettings::none().with_strategy("only");
         let mut config = resolve(&only, &AuthoringSettings::none()).unwrap();
         let model = "deepseek/deepseek-v4-pro";
@@ -858,7 +902,8 @@ mod tests {
         assert_eq!(plain.native, NativeMode::Only);
         assert_eq!(
             (plain.reasoning, plain.samples, plain.repairs),
-            (None, 1, 3)
+            (None, 1, None),
+            "the policy's own default states no repair count"
         );
         config.reasoning = Some(AuthoringReasoning::Max);
         let max = config.policy(model, 8192, DEFAULT_CALL_TIMEOUT).unwrap();

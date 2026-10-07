@@ -936,13 +936,84 @@ pub type nika_trace::receipt::ReceiptAction::Output = T
 pub fn nika_trace::receipt::explain(file: &std::path::Path) -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::receipt::run(action: nika_trace::receipt::ReceiptAction) -> nika_cli_host::output::VerbOutput
 pub mod nika_trace::run_view
+#[non_exhaustive] pub struct nika_trace::run_view::KeptRun
+pub nika_trace::run_view::KeptRun::chain_head: core::option::Option<alloc::string::String>
+pub nika_trace::run_view::KeptRun::chain_len: core::option::Option<u64>
+pub nika_trace::run_view::KeptRun::execution: core::option::Option<alloc::string::String>
+pub nika_trace::run_view::KeptRun::exit: core::option::Option<u8>
+pub nika_trace::run_view::KeptRun::trace: core::option::Option<alloc::string::String>
+pub nika_trace::run_view::KeptRun::workflow: core::option::Option<alloc::string::String>
+pub nika_trace::run_view::KeptRun::workflow_sha256: core::option::Option<alloc::string::String>
+impl nika_trace::run_view::KeptRun
+pub fn nika_trace::run_view::KeptRun::ended(self, workflow: core::option::Option<&std::path::Path>, exit: u8, trace: core::option::Option<&std::path::Path>) -> Self
+pub fn nika_trace::run_view::KeptRun::from_value(value: &serde_json::value::Value) -> core::result::Result<Self, alloc::string::String>
+pub fn nika_trace::run_view::KeptRun::new() -> Self
+pub fn nika_trace::run_view::KeptRun::to_value(&self) -> serde_json::value::Value
+impl core::clone::Clone for nika_trace::run_view::KeptRun
+pub fn nika_trace::run_view::KeptRun::clone(&self) -> nika_trace::run_view::KeptRun
+impl core::cmp::Eq for nika_trace::run_view::KeptRun
+impl core::cmp::PartialEq for nika_trace::run_view::KeptRun
+pub fn nika_trace::run_view::KeptRun::eq(&self, other: &nika_trace::run_view::KeptRun) -> bool
+impl core::default::Default for nika_trace::run_view::KeptRun
+pub fn nika_trace::run_view::KeptRun::default() -> nika_trace::run_view::KeptRun
+impl core::fmt::Debug for nika_trace::run_view::KeptRun
+pub fn nika_trace::run_view::KeptRun::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_trace::run_view::KeptRun
+impl<D> owo_colors::OwoColorize for nika_trace::run_view::KeptRun
+impl<Q, K> equivalent::Equivalent<K> for nika_trace::run_view::KeptRun where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_trace::run_view::KeptRun::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_trace::run_view::KeptRun where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_trace::run_view::KeptRun::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_trace::run_view::KeptRun where U: core::convert::From<T>
+pub fn nika_trace::run_view::KeptRun::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::run_view::KeptRun where U: core::convert::Into<T>
+pub type nika_trace::run_view::KeptRun::Error = core::convert::Infallible
+pub fn nika_trace::run_view::KeptRun::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::run_view::KeptRun where U: core::convert::TryFrom<T>
+pub type nika_trace::run_view::KeptRun::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::run_view::KeptRun::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_trace::run_view::KeptRun where T: core::clone::Clone
+pub type nika_trace::run_view::KeptRun::Owned = T
+pub fn nika_trace::run_view::KeptRun::clone_into(&self, target: &mut T)
+pub fn nika_trace::run_view::KeptRun::to_owned(&self) -> T
+impl<T> core::any::Any for nika_trace::run_view::KeptRun where T: 'static + ?core::marker::Sized
+pub fn nika_trace::run_view::KeptRun::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::run_view::KeptRun where T: ?core::marker::Sized
+pub fn nika_trace::run_view::KeptRun::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::run_view::KeptRun where T: ?core::marker::Sized
+pub fn nika_trace::run_view::KeptRun::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_trace::run_view::KeptRun where T: core::clone::Clone
+pub unsafe fn nika_trace::run_view::KeptRun::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_trace::run_view::KeptRun
+pub fn nika_trace::run_view::KeptRun::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_trace::run_view::KeptRun where T: core::clone::Clone
+pub fn nika_trace::run_view::KeptRun::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_trace::run_view::KeptRun where T: 'static
+pub fn nika_trace::run_view::KeptRun::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::run_view::KeptRun where T: ?core::marker::Sized
+pub fn nika_trace::run_view::KeptRun::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::run_view::KeptRun::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::run_view::KeptRun
+impl<T> tracing::instrument::WithSubscriber for nika_trace::run_view::KeptRun
+impl<T> typenum::type_operators::Same for nika_trace::run_view::KeptRun
+pub type nika_trace::run_view::KeptRun::Output = T
+impl<T> zvariant::optional::NoneValue for nika_trace::run_view::KeptRun where T: core::default::Default
+pub type nika_trace::run_view::KeptRun::NoneType = T
+pub fn nika_trace::run_view::KeptRun::null_value() -> T
 #[non_exhaustive] pub struct nika_trace::run_view::RunFacts
 impl nika_trace::run_view::RunFacts
+pub fn nika_trace::run_view::RunFacts::completed_writes(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_trace::run_view::RunFacts::executions(&self) -> &[nika_types::id::ExecutionId]
 pub fn nika_trace::run_view::RunFacts::gate(&self, workflow: &std::path::Path, message: &str, mode: &str, gated: &[alloc::string::String]) -> alloc::string::String
+pub fn nika_trace::run_view::RunFacts::of(trace: &std::path::Path, raw: &str) -> core::option::Option<Self>
 pub fn nika_trace::run_view::RunFacts::pause_gate(&self) -> core::option::Option<(&str, &str, &str)>
 pub fn nika_trace::run_view::RunFacts::proof(&self, root: &std::path::Path) -> alloc::string::String
 pub fn nika_trace::run_view::RunFacts::read(trace: &std::path::Path) -> core::option::Option<Self>
 pub fn nika_trace::run_view::RunFacts::result(&self, root: &std::path::Path, workflow: &std::path::Path) -> alloc::string::String
+pub fn nika_trace::run_view::RunFacts::starts(&self) -> &[core::option::Option<alloc::string::String>]
+pub fn nika_trace::run_view::RunFacts::terminal(&self) -> core::option::Option<&str>
+pub fn nika_trace::run_view::RunFacts::unidentified(&self) -> usize
+pub fn nika_trace::run_view::RunFacts::workflow_sha256(&self) -> core::option::Option<&str>
 impl core::clone::Clone for nika_trace::run_view::RunFacts
 pub fn nika_trace::run_view::RunFacts::clone(&self) -> nika_trace::run_view::RunFacts
 impl core::default::Default for nika_trace::run_view::RunFacts
@@ -987,7 +1058,10 @@ impl<T> zvariant::optional::NoneValue for nika_trace::run_view::RunFacts where T
 pub type nika_trace::run_view::RunFacts::NoneType = T
 pub fn nika_trace::run_view::RunFacts::null_value() -> T
 pub fn nika_trace::run_view::human_size(bytes: u64) -> alloc::string::String
+pub fn nika_trace::run_view::hygiene_note(git_root: core::option::Option<&std::path::Path>) -> core::option::Option<alloc::string::String>
+pub fn nika_trace::run_view::last_run(root: &std::path::Path) -> alloc::string::String
 pub fn nika_trace::run_view::live_again(trace: &std::path::Path) -> core::option::Option<alloc::string::String>
+pub fn nika_trace::run_view::produced(root: &std::path::Path, workflow: &std::path::Path) -> core::option::Option<alloc::string::String>
 pub fn nika_trace::run_view::resumed_live(trace: &std::path::Path) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_trace::trace
 pub mod nika_trace::trace::action
@@ -1388,8 +1462,10 @@ pub type nika_trace::trace_verify::VerifyOptions::Output = T
 impl<T> zvariant::optional::NoneValue for nika_trace::trace_verify::VerifyOptions where T: core::default::Default
 pub type nika_trace::trace_verify::VerifyOptions::NoneType = T
 pub fn nika_trace::trace_verify::VerifyOptions::null_value() -> T
+pub const nika_trace::trace_verify::JOURNAL_BOUND: usize
 pub const nika_trace::trace_verify::VERIFY_VERSION: u32
 pub fn nika_trace::trace_verify::verify(trace: &str) -> nika_cli_host::output::VerbOutput
+pub fn nika_trace::trace_verify::verify_captured(trace: &str, raw: &str, opts: &nika_trace::trace_verify::VerifyOptions) -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::trace_verify::verify_many(traces: &[std::path::PathBuf]) -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::trace_verify::verify_many_with(traces: &[std::path::PathBuf], opts: &nika_trace::trace_verify::VerifyOptions) -> nika_cli_host::output::VerbOutput
 pub fn nika_trace::trace_verify::verify_with(trace: &str, opts: &nika_trace::trace_verify::VerifyOptions) -> nika_cli_host::output::VerbOutput

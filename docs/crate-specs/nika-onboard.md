@@ -1,5 +1,11 @@
 # nika-onboard — the onboarding surface (project bootstrap + stateless Compile)
 
+> Target direction amended 6 October 2026: [cooperative intent resolution](../architecture/ARCHITECTURE-0.123.md).
+> The implementation descriptions and dated measurements below retain their actual scope.
+> Historical HOT/WARM/COLD paths, BM25 selection and single-judge behavior are migration
+> seams, not requirements to preserve as the target product architecture. This note does
+> not claim that cooperative retrieval or incremental verification is implemented.
+
 > L4 · descended from the CLI authoring/bootstrap surface at the 15k
 > prod-LOC wall (2026-07-12 · the `nika-display`/`nika-dap`/`nika-tmpl`
 > precedents) — per D-2026-07-09-N1 this is the cli UNIT in a second
@@ -65,6 +71,22 @@ they name is refused (`ADMISSION_UNTRUSTED`). A named source that lacks trust or
 fails admission never falls back to the embedded release. An invalid embedded
 release also refuses with its typed cause; it is not treated as absent.
 
+`AuthoringSettings::source_recovery` (a host's field, else
+`NIKA_AUTHORING_SOURCE_RECOVERY`) names the operator's explicit source recovery
+rounds; `resolve` admits them through the compiler's closed parser
+(`AuthoringPolicy::recovery_rounds`: a non-negative `u32` count, and rounds only under
+`escalate` or `sketch`, whose sketch door can be exhausted), else
+`ConfigError::SourceRecovery` names the word. `AuthoringConfig::policy` carries the
+count to the one policy every door builds, so the CLI and the Session (and its TUI) read the
+same word; Serve's seat resolves only its named settings, never `from_env`.
+Zero or absence supplies no explicit recovery count. Under a policy with no repair
+count, an eligible stalled CREATE can nevertheless enter source recovery without
+a separate round count; an explicitly bounded policy requires positive recovery
+rounds. The same seat, request authority and judgment laws still apply. A host
+shows its actual allowance apart from an estimate: request-dependent or
+unrepresentable totals remain unknown. A legacy Session unknown-cost review names
+only the explicit recovery reservation added to its existing allowance.
+
 `knowledge` owns the strict admission of a Foundry knowledge release
 (`nika-knowledge-release/2`, profile `nika-knowledge-release-profile/r1`: the
 shared contract for producer and consumer, with common pinned vectors under
@@ -114,25 +136,15 @@ its one I/O caller, for the CLI and the Session alike.
 what a line states about a USD ceiling. Admission stays with the caller (Session's money
 gate); the reader grants nothing.
 
-## The Meaning projection (read by Session)
+## The Meaning projection (owned by Session)
 
-`compile::meaning` projects an outcome's obligation ledger
-(`provenance.decision.ledger`) into the Meaning view: each clause's fate
-(represented · needs an answer · external · not expressible · refused ·
-contradicted), its assurance (read from the task that carries it in the
-candidate's bytes, parsed by the one strict `nika_schema` law: strict mode, one
-anonymous file, and bytes it refuses carry no verb), the rendered view and a
-revision's delta. It is pure (an outcome or a ledger in, words out), never
-certifies coverage (a clause the compiler did not read is not listed, and the
-view says so) and renders « unavailable » without a ledger — words that name
-no host's protocol (`UNAVAILABLE`; a host adds its own way on). A ledger that is
-not a list, or an entry of an unknown or missing state, is never guessed and
-never silently dropped: the view says it could not read it and counts none of
-it as done (no « no clause » or « 0 waiting » over unread entries), and a delta
-over unread entries says they were not compared. It moved here from
-`nika-session` on 2026-09-28; `nika_session::meaning` re-exports it unchanged.
-Its tests and their three recorded outcomes live beside it
-(`src/compile/meaning/`).
+The Meaning view of an outcome's obligation ledger sat here as `compile::meaning` from
+2026-09-28 (moved from `nika-session`) until 2026-10-07, when it moved back to its only reader,
+`nika_session::meaning`, this crate then standing at its 15k prod-LOC wall. Its contract is
+written in `docs/crate-specs/nika-session.md`. This crate keeps the two verdict readings the view
+shares with the session, public: `compile::reading::judged_not_accepted` (the verifier answered
+the candidate and did not accept it) and `compile::round::last_verification` (the last semantic
+verification attempt an outcome records).
 
 ## The hallucination guard (read by Session)
 
@@ -142,8 +154,10 @@ field) is validated against the installed catalogs and the project's configurati
 this engine does not carry is corrected under the reply, never presented as real. It moved
 here from `nika-session` on 2026-09-29 (the `meaning` precedent · D8 headroom);
 `nika_session::guard` re-exports it unchanged. Its model check is
-`nika_providers::resolve_refusal`, the #320 MODELS-rung law: a pure resolution, so this
-crate still never calls a provider. Its tests live beside it (`src/guard.rs`).
+`nika_providers::resolve_refusal_over`, the #320 MODELS-rung law over injected
+host endpoint observations. `audit_over` preserves a configured OpenAI-compatible
+route; the existing `audit` wrapper retains conservative profile defaults. Both
+are pure resolutions: this crate still never calls a provider. Its tests live beside it (`src/guard.rs`).
 
 ## The automation rail (read by Session)
 
@@ -178,7 +192,22 @@ literal a human line is at one question's shape. It descended from
 `nika-session` on 2026-09-28 (C7 · descent 1) with its tests;
 `nika_session::authoring` re-exports all three at their old paths. `Reading` is
 `#[non_exhaustive]`: the session refuses a reading it does not know yet, never
-proposes it. Pure: nothing here calls, reads or decides for a host.
+proposes it. Pure: nothing here calls, reads or decides for a host. A refusal and a
+READY candidate aside, an outcome carrying the compiler's Applied `verify_held`
+finding reads as unsettled before anything else, before a question it still asks
+and before a provider finding: a judge call that later timed out or was refused only
+stopped the localization and settles nothing, and its words are the held ones
+(`held_words`, below), never those of a provider failure or an exhausted budget, nor a
+question about rejected bytes.
+
+`authoring_budget_headline` distinguishes a measured call deadline from a generic
+budget outcome. It names a time limit only when the last authoring call records
+`result.failure_kind = timeout`; missing evidence or any later result retains
+the budget headline, even if a diagnostic quotes an earlier timeout. Session
+keeps the compiler's actual reason beside this headline. The deadline diagnostic
+names its effective seconds; for Ollama it also suggests checking allocated
+context. This changes presentation only: no added retry, allowance, deadline or
+claim that the local server retained the complete input.
 
 What a host says of the compiler's own grammar lives here too (C10 · D-H):
 `human_reasons` keeps the reasons a human can act on (machine sentences
@@ -238,9 +267,9 @@ recovers by a zero-call replay (C10).
 (`KnowledgePin`: the declared version, the sha256 of the manifest bytes — the
 release's `SNAPSHOT_SHA256` — and of the rows, admitted through the strict door
 beside it) and the pure records a session stamps on a compile outcome: what it
-observed (`observed_in`: paths, states, kinds and column counts, never the
-names, and `world_sha256`, the identity of the whole observation attached), composed (`composed_record`: the pinned identity, the pack digest, each
-reference's bytes and sha256, whether the native door presented it and which
+observed (`observed_in`: paths, states, kinds, column counts and
+`world_sha256`, the identity of the whole observation attached), composed (`composed_record`: the pinned identity, the pack digest, each
+reference's bytes and sha256, whether a native or Plan call presented it and which
 calls carried it), carried (`carried_record`), presented (`presented_knowledge`)
 and the stamp beside the compiler's own record (`stamp`). It descended from
 `nika-session` on 2026-09-28 (C7 · D1); `nika_session::authoring::KnowledgePin`
@@ -286,10 +315,12 @@ Every executable text (the request, each answer, an EDIT's path, base, change
 and original) is kept with the sha256 of its exact original; `Capture` passes
 each through the host's redactor, so a text the redactor changed is kept as
 displayed and `RoundRecord::continuable` refuses it (`Unusable::Redacted` · also
-a text altered since). The continuation is kept whole only when the redactor
-leaves it unchanged and the record fits `ROUND_LIMIT` (256 KiB); otherwise only
-its sha256 and why it was withheld are kept, and a round still over the bound is
-not kept at all. At most `MAX_ANSWERS` (64) answers. A record carries no
+a text altered since). The continuation is kept whole when the redactor leaves
+it unchanged; a changed continuation is withheld with its identity and reason.
+Capture and replay impose no record-size or answer-count quota. `ROUND_LIMIT`
+and `MAX_ANSWERS` retain their historical values for source compatibility, not
+as current restrictions; old withheld records remain honestly unreadable.
+A record carries no
 account, admission, review, consent, question identity or monetary span: the
 host re-admits the request through its own gates, and the compiler judges the
 answers against the project as it is when the round continues.
@@ -317,6 +348,17 @@ record's rows are a names-free summary for display, never an identity). A round 
 keeps none; an attached observation the outcome did not record, or a record naming no
 identity (an older one), gives `None`, and a host keeps no basis rather than read another
 observation for it (C10).
+
+A semantic outcome keeps the bounded observation under
+`decision.session.observed.world`, since its closed plan has no `observed_world`.
+This intentionally discloses the observer's schema and sampled values in the
+semantic provenance, as the deterministic route already does in its plan; it
+is not a provider response capture. `compiled` recovers this world only when
+its digest equals both the host's attached identity and
+`plan.basis.read.world_sha256`. A missing world or any changed identity returns
+`None`; an injected `observed_world` does not provide a semantic fallback. The
+summary rows alone never reconstruct a request. No consent, money or execution
+authority is recreated by this recovery.
 
 ## Compile foundation
 
@@ -363,10 +405,14 @@ Check does not prove destination idempotency, external business outcome or
 approval freshness across executions; Run remains responsible for admission.
 
 `AuthoringPolicy::new(model, max_tokens, timeout)` with
-`CompileRequest::with_authoring_policy` permits one call through
+`CompileRequest::with_authoring_policy` selects authoring through
 `compile_with_provider(request, provider)`. The caller injects the existing
-kernel `ProviderInferDyn` seam. Limits are 1..8192 output tokens, at most 120
-seconds, and 32768 input-intent bytes. No retries occur. The provider returns a
+kernel `ProviderInferDyn` seam. The model, positive output-token limit and positive
+per-call timeout are explicit; the compiler imposes no global 8192-token,
+120-second or 32768-byte intent ceiling. The default is one sample and no repair
+count. Additional samples and explicit repair limits run as typed, under any
+request envelope the caller supplies. Repairs are recorded compiler calls, not
+permission for uncounted transport retries. The provider returns a
 closed private JSON semantic plan with exact intent excerpts, operation kinds,
 one effect-policy enum and unresolved regions. `intent.clarification` asks for
 a complete replacement request, explicitly superseding the earlier intent; the
@@ -380,24 +426,29 @@ excerpt nor model confidence is a proof of semantic equivalence. Independent
 qualification is still required.
 
 The default `compile` path never calls a provider; ambient keys never opt in.
-Exact skeletons, EDIT and support clauses the bounded grammar resolves stay
-deterministic even through the provider seam: an opted-in provider interprets
-only what the grammar cannot, and a grammar-resolved outcome keeps generation 1.
+Exact skeletons, structured edits and clauses the current deterministic paths
+fully resolve can retain direct paths through the provider seam; semantic edits
+and unresolved work can consult the selected seat. These historical routing
+paths are not a claim that the cooperative R5 target is implemented.
 The CLI opts in with `--authoring-model`, optional `--authoring-max-tokens`
-(default 8192) and `--authoring-timeout` (default 120 seconds, 300 for an ACP
-harness). Only then does its adapter use the established environment
+and `--authoring-timeout`. Absent explicit values, the effective provider route
+supplies completion capacity and per-call timeout through `completion_bounds`.
+Only then does its adapter use the established environment
 credential/endpoint ladder.
 
-The CLI sends one authoring request unless `--authoring-max-calls N`
-authorizes more; a repair or sample count is not that authority. A request
-past it is refused before any byte leaves. A direct API seat is counted per
+The CLI imposes no request-count bound when `--authoring-max-calls` is absent.
+An explicit `--authoring-max-calls N` is enforced; a repair or sample count does
+not expand it. A request past it is refused before any byte leaves. A direct API seat is counted per
 physical HTTP request on a single-attempt transport that follows no redirect,
 so a transport retry is a request too. An ACP harness is counted per
-invocation, and its own requests stay unknown. Repairs, samples, or an
-escalate or sketch strategy typed beyond what the authority can honor under
-the resolved strategy are refused before any request. So is a count the
-compiler would run as another: repairs above 5, samples outside 1 to 5, a
-grant of 0. A typed value the strategy cannot apply is recorded as ignored,
+invocation, and its own requests stay unknown. A typed strategy below its
+minimum calls is refused before any request. A known finite repair estimate
+beyond an explicit grant would be refused too, but no configuration that asks a
+model has one: the sketch door's judgment, like COLD's work, depends on the
+request. Request-dependent totals are unknown and the envelope checks
+each actual attempt. Zero samples or a request grant of zero refuse; positive
+sample counts and nonnegative repair counts have no smaller product maximum than
+their `u32` representation. A typed value the strategy cannot apply is recorded as ignored,
 never refused. A seated `--decision-model` is outside this authority: it
 keeps its own client. A `typesafe/<jev>` question is sent at most once,
 without protocol retries; a `provider/name` seat keeps its client’s protocol
@@ -407,11 +458,13 @@ The authoring receipt's `backend` carries the account (`authority`, whose
 `requested_model`, `observed_models`, `unreported_models` (responses that
 named no model) and `usage_complete`. No dollar ceiling is claimed.
 
-Serve is deterministic by default. `nika serve --authoring-model` seats its
-own native authoring: strategy `only`, at most `1 + repairs` logical calls per
-request, and the provider transport may resend a call's request up to three
-more times after a 429, 503 or 529. The CLI's `--authoring-max-calls` does
-not apply to it, and Serve has no physical request bound yet.
+Serve is deterministic without a native seat. A configured native seat defaults
+to `escalate`, one sample and route-qualified completion settings, with no
+implicit request count, repair count or whole-round deadline. Operator and
+request limits can bound it; a request can only narrow an operator limit.
+Separate invocation and physical-request envelopes count the work, including
+any provider retry, and refuse requests beyond an explicit grant. See the
+[Serve contract](nika-serve.md).
 
 One authoring conversation is several requests of the same intent with more
 answers each round. `CompileRequest::with_plan(plan)` replays the private plan
@@ -420,15 +473,21 @@ an earlier round produced (the exact `provenance.plan` value, which names its
 proposals and assembles that plan with the round's answers, so every answer
 round reaches the same candidate with zero provider and zero seat calls
 (`decision.route = ["replayed plan"]`, cognition `deterministicOnly`, no
-authoring receipt). A record that does not parse, is not anchored in the intent
-or still carries unknown work is a `recorded_plan` finding, never a candidate.
+authoring receipt). Every plan replayed this way but the reader's own HOT plan
+(a COLD or WARM plan, a record with no strategy word or an unknown one) keeps
+its whole request pending on those bytes: with no judge in the round it is
+INCOMPLETE, never READY, and a round under cognition judges it. A record that
+does not parse, is not anchored in the intent or still carries unknown work is
+a `recorded_plan` finding, never a candidate.
 `intent_sha256` is the key a transport files the record under (typographic
 apostrophes folded, as the reader sees the intent) and is recorded as
 `provenance.decision.intent_sha256` on every general-path outcome. The CLI
 records a settled plan under `.nika/compile/<sha>.plan.json` (a self-ignoring
 directory carrying the plan, the engine version and the intent hash, never the
 candidate or a key), replays it on any `--answer` round of the same intent
-under the same engine, and reads the intent again under `--fresh`.
+under the same engine, and reads the intent again under `--fresh`; the verdicts
+that rejected the intent's bytes (`.nika/compile/<sha>.declined.json`) ride every
+compile of the intent, `--fresh` included (see the CLI host spec).
 
 Deterministic outcomes retain the exact generation-1 wire shape. A provider
 attempt emits generation 2 with cognition `explicitProvider` and an
@@ -610,7 +669,93 @@ exit vocabulary.
 - **No CLI framework below the root**: `CanvasTheme` stays a plain enum
   here; the root mirrors it as its clap `ValueEnum`.
 
+## Authoring observation facade
+
+`compile::observe` re-exports the shared Cognition observer for a host's own
+compile future. It is the same callback before answer decoding, not a second
+provider tap. Borrowed Text and optional metadata are not persisted here; the
+host retains admission, privacy policy and any eventual capture lifecycle.
+
 ## Metrics
 
 Live numbers come from the projector — `scripts/crate-metrics.sh
 nika-onboard` (no hardcoded LOC anchor in this spec; nothing to drift).
+
+## Plan context presentation evidence
+
+`KnowledgePin::composed_record` recognizes presentation by a Plan call only when its journal
+entry carries this pack's digest and every reference receipt and attests a return
+(`result.stop_reason` is a string, with no `failure_kind`). `observed_in` checks the
+corresponding world digest. Refused, failed or unreturned prepared calls are not presented;
+those facts establish neither delivery nor cost. Receipts without the marker retain their
+previous wording. The native digest-based presentation path remains. This attribution
+proves neither a model's use of a reference nor a downstream Foundry benefit.
+
+## Conversation grammar and retained program evidence
+
+`routing::conversation` owns the pure, closed whole-line recognizers for cancel,
+why, meaning, last-failure and greeting acts, extracted without changing their
+vocabulary from Session. They do not classify arbitrary workflow intent. Session
+continues to export its existing function paths.
+
+`compile::program_records` re-exports the pure record codec from
+`nika_compile_fidelity::sketch::kept`. Session owns storage and the current
+admission; neither this facade nor a retained record restores authority. Program
+lookup binds the proposal or saved path as well as the exact program bytes.
+`round::compiled` verifies the host receipt against the complete attached observation
+and the semantic reading against its canonically scoped relevant-file identity;
+it never substitutes receipt summary rows for the observation.
+`KnowledgePin` counts `revision` and `revision-repair` among authoring calls that
+can present a pinned knowledge pack; the verification judge remains excluded from
+that attribution. The receipt test checks actual phase/digest attribution and
+does not claim that a model used or benefited from the knowledge.
+
+### Explicit Run words
+
+`routing::run_options` re-exports `nika_compile::run_words`, including the pure readers `is_run_verb`, `run_prefix`,
+`run_line_is_plain` and `inline_vars`, and the `input_question` projection, formerly
+private Session helpers. Their
+closed English/French vocabulary, money parser and input extraction are unchanged.
+Session retains Run checks, budgets and execution consent; these lexical functions
+perform no I/O and grant no authority.
+
+## Completion settings and creation
+
+`check_call_bounds` accepts a positive output count and a positive transport deadline.
+It imposes no global model output cap and no deadline ceiling (the route's own).
+CLI creation selects defaults through Providers' effective-route completion policy;
+explicit completion and repair counts remain typed values. Without a repair count,
+the compiler keeps its continuous preparation behavior. `call_bounds` and
+`check_legacy_call_bounds` retain the historical bounded-door contract for callers
+that select that compatibility API: 8192 default output tokens, 32768 maximum, and
+the existing timeouts. Serve uses `check_call_bounds` and the effective route's
+defaults. Its explicit operator grants and the separate Run limits remain enforced.
+
+`activity` reexports the shared Display presentation unchanged. Session and Compiler remain
+the producers of actual phases; no phase is inferred from an output string.
+
+The compile-reading owner also keeps the pure question, revision and syntax-gap prose used by
+Session. `compile::seat::preparation_policy` derives policy from the supplied route configuration
+and explicit continuous/bounded mode; it performs no I/O or intelligence selection. The activity
+bridge maps Compiler call events to Display's typed marks, keeping requested identity explicit.
+
+### Kept candidates awaiting judgment
+
+`compile::round::awaiting_judge` projects only the compiler's typed Applied `verify_resume` finding on an INCOMPLETE, candidate-less outcome carrying a settled plan. A questionless durable round may be continued when its plan is preserved exactly; the host must not treat restoring that evidence as a successful judgment. The compiler remains the only owner of semantic-record validation and the final verdict. `RoundWords` and `as_typed` retain their public paths through reexports of pure Display presentation; record parsing, hashes, bounds and replay remain here.
+
+`compile::round::contested_judgment` reads whether the last `semantic_verification` attempt of an outcome holds contested entries and no defect: the verifier did not accept the request, or found a part missing and then named no task failing it, and located nothing a repair could start from. `compile::round::verify_held` reads whether the outcome carries the compiler's Applied `verify_held` finding, which the compiler adds at every exit whose verdict declined the candidate's bytes and dropped its replayable record (a candidate held with no defect located, and a COLD, WARM or answer-round candidate whose located defects, rejection or abstention stayed unsettled): no record or continuation may replay those bytes to that verifier again. `compile::reading::held_words` says a candidate the verifier answered and did not accept (the outcome still carries it, and either function holds) by what the last verification found: « The workflow is built but not proposed: the verifier found a part missing that the repairs did not settle: « `<part>` »; nothing was written. » (the first part followed by « … » when several stay missing); « The workflow is built but not proposed: the verifier read it and abstained (it neither accepted nor rejected it); nothing was written. » for an abstention with nothing contested; otherwise « The workflow is built but not proposed: the verifier did not accept it and located no defect a repair could start from; nothing was written. ». Each is followed by the ways on: a correction, or `/intelligence` for another authoring model (which also judges unless a decision model is set), beside `/meaning`. These words offer no `continue`: no record replays those bytes, and a rejection the host carries (below) keeps the same verifier from being asked again on them. A held candidate keeps its bytes and no plan, so `awaiting_judge` never reads it as a kept round. None of these functions is a defect to repair from or a judgment, and none grants continuation.
+
+`compile::round::rejections` lists the verdicts of an outcome that rejected candidate bytes: every `semantic_verification` attempt of the outcome, in order, that names a candidate digest, is `declined` and `rejected`, never `settled`, and judged them (never a repeat with no call: `same_bytes_as` set, or `carried`). An abstention (`rejected: false`) is none, so a later round may still decide it. `compile::round::keep_rejections` keeps one verdict per candidate digest, judge (`seat`, `kind`), request and context (`context_sha256`: the same bytes rejected for a corrected request, other answers or another observed world are their own verdict), the latest found replacing an earlier one (it resumed a localization that one left unfinished, and holds every answer the judge gave those bytes), in order of first appearance, and says whether it added or replaced any. A host carries what it keeps into every later compile of the same request (`CompileRequest::with_declined`), where the compiler repeats that rejection with no call rather than ask the same judge again on the same bytes for the same whole request (another request's words are judged afresh); a carried verdict can only keep those bytes from READY.
+
+### Trial runs shown to the verifier
+
+In Session's authoring rounds, `compile::copy::native::Scoped` wraps the
+`compile::room::ObservedRoom` as the compile's rehearsal host. The room's report of a run keeps
+each input the run read and each output it read back, at most `PREVIEW_BOUND` (64 KiB) of each
+file, with whether the text is whole and whether the run itself wrote it. When the sketch door's
+verifier doubts a candidate, the compiler gives the configured verifier (the decision seat, or
+the authoring provider) the observation of the last completed run of those exact bytes, by
+default, as preparation context, and asks over it only when the run proves whole outputs. The
+copy door (`copy::qualify`) judges by exact bytes, and no verifier reads its runs. The room's
+isolation, receipts and bounds (`COPY_BOUND`, `PREVIEW_BOUND`) are unchanged and are not
+session-wide creation quotas; a trial run grants no live `.nika` Run authority.

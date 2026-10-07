@@ -833,6 +833,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "cap"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f125eb85b84a24c36b02ed1d22c9dd8632f53b3cde6e4d23512f94021030003"
+
+[[package]]
 name = "cast"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4344,6 +4350,7 @@ dependencies = [
  "nika-cadence",
  "nika-execution",
  "nika-fs",
+ "nika-providers",
  "nix 0.31.3",
  "serde_json",
  "sha2 0.10.9",
@@ -4356,6 +4363,7 @@ version = "0.122.0"
 dependencies = [
  "blake3",
  "bytes",
+ "nika-fs",
  "nika-kernel",
  "proptest",
  "tempfile",
@@ -4580,6 +4588,7 @@ name = "nika-cli"
 version = "0.122.0"
 dependencies = [
  "blake3",
+ "cap",
  "clap",
  "clap_complete",
  "expectrl",
@@ -4597,6 +4606,7 @@ dependencies = [
  "nika-display",
  "nika-error",
  "nika-event",
+ "nika-exec-runner",
  "nika-execution",
  "nika-fs",
  "nika-graph",
@@ -4726,6 +4736,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-compile-clauses"
+version = "0.122.0"
+dependencies = [
+ "nika-compile-reader",
+ "unicode-normalization",
+]
+
+[[package]]
 name = "nika-compile-cognition"
 version = "0.122.0"
 dependencies = [
@@ -4735,14 +4753,17 @@ dependencies = [
  "nika-cap",
  "nika-check",
  "nika-compile",
+ "nika-compile-clauses",
  "nika-compile-fidelity",
  "nika-compile-reader",
+ "nika-compile-seats",
  "nika-kernel",
  "nika-pack",
+ "nika-providers",
  "serde",
  "serde_json",
  "serde_yaml_bw",
- "thiserror 2.0.20",
+ "sha2 0.10.9",
  "tokio",
  "unicode-normalization",
 ]
@@ -4753,6 +4774,7 @@ version = "0.122.0"
 dependencies = [
  "csv",
  "jaq-core",
+ "nika-cap",
  "nika-check-analyzer",
  "nika-compile-reader",
  "nika-schema",
@@ -4765,6 +4787,20 @@ name = "nika-compile-reader"
 version = "0.122.0"
 dependencies = [
  "serde_json",
+]
+
+[[package]]
+name = "nika-compile-seats"
+version = "0.122.0"
+dependencies = [
+ "nika-compile",
+ "nika-compile-fidelity",
+ "nika-kernel",
+ "nika-pack",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "tokio",
 ]
 
 [[package]]
@@ -4847,6 +4883,7 @@ dependencies = [
  "nika-graph",
  "nika-schema",
  "nika-types",
+ "serde",
  "serde_json",
  "uuid",
 ]
@@ -4967,6 +5004,7 @@ dependencies = [
 name = "nika-harness"
 version = "0.122.0"
 dependencies = [
+ "base64 0.23.1",
  "futures-core",
  "miette",
  "nika-error",
@@ -4975,6 +5013,7 @@ dependencies = [
  "rustix 1.1.4",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "tempfile",
  "thiserror 2.0.20",
  "tokio",
@@ -5266,6 +5305,7 @@ dependencies = [
 name = "nika-providers"
 version = "0.122.0"
 dependencies = [
+ "blake3",
  "bytes",
  "futures-core",
  "jsonschema",
@@ -5277,6 +5317,7 @@ dependencies = [
  "proptest",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "tokio",
  "url",
 ]
@@ -5345,13 +5386,16 @@ dependencies = [
 name = "nika-runtime-laws"
 version = "0.122.0"
 dependencies = [
+ "bytes",
  "miette",
+ "nika-blob",
  "nika-cap",
  "nika-cel",
  "nika-check",
  "nika-dataflow",
  "nika-error",
  "nika-event",
+ "nika-fs",
  "nika-kernel",
  "nika-pack",
  "nika-sandbox-landlock",
@@ -5471,6 +5515,7 @@ dependencies = [
  "nika-builtin",
  "nika-check",
  "nika-event",
+ "nika-exec-runner",
  "nika-execution",
  "nika-fs",
  "nika-harness",
@@ -5495,10 +5540,9 @@ version = "0.122.0"
 dependencies = [
  "blake3",
  "nika-cadence",
- "nika-cap",
  "nika-catalog",
- "nika-check",
  "nika-cli-host",
+ "nika-compile",
  "nika-dap",
  "nika-display",
  "nika-error",
@@ -5511,6 +5555,7 @@ dependencies = [
  "nika-providers",
  "nika-runtime",
  "nika-schema",
+ "nika-session-change",
  "nika-source",
  "nika-trace",
  "nika-types",
@@ -5521,6 +5566,24 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.20",
  "tokio",
+]
+
+[[package]]
+name = "nika-session-change"
+version = "0.122.0"
+dependencies = [
+ "blake3",
+ "nika-cli-host",
+ "nika-display",
+ "nika-fs",
+ "nika-onboard",
+ "nika-schema",
+ "nika-source",
+ "nika-trace",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -5588,9 +5651,11 @@ dependencies = [
  "nika-display",
  "nika-fs",
  "nika-session",
+ "nika-trace",
  "nika-tui-view",
  "ratatui",
  "ratatui-textarea",
+ "serde_json",
  "sha2 0.10.9",
  "tokio",
  "unicode-width 0.2.2",

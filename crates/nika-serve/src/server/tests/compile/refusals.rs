@@ -6,7 +6,6 @@
 use std::fmt::Write as _;
 use std::sync::mpsc;
 
-use super::super::super::compile as door;
 use super::super::super::test_support::CaptureAction;
 use super::*;
 
@@ -338,7 +337,7 @@ async fn media_type_encoding_and_method_follow_the_other_body_doors() {
     server.stop().await.expect("clean stop");
 }
 
-fn bound_cases() -> Vec<(&'static str, String, String)> {
+fn former_bound_cases() -> Vec<(&'static str, String, String)> {
     let create = |intent: &str| {
         json!({"compile_version": 1, "mode": "create", "intent": intent}).to_string()
     };
@@ -369,79 +368,76 @@ fn bound_cases() -> Vec<(&'static str, String, String)> {
         .to_string()
     };
     let string_literal = |bytes: usize| format!("\"{}\"", "a".repeat(bytes - 2));
-    assert_eq!(
-        padded_source(door::MAX_COMPILE_SOURCE_BYTES).len(),
-        door::MAX_COMPILE_SOURCE_BYTES
-    );
+    assert_eq!(padded_source(512 * 1024).len(), 512 * 1024);
     vec![
         (
             "intent",
-            create(&"a".repeat(door::MAX_COMPILE_TEXT_BYTES)),
-            create(&"a".repeat(door::MAX_COMPILE_TEXT_BYTES + 1)),
+            create(&"a".repeat(4096)),
+            create(&"a".repeat(4096 + 1)),
         ),
         (
             // Bytes, not characters: 2049 two-byte letters are 4098 bytes.
             "intent bytes",
-            create(&"é".repeat(door::MAX_COMPILE_TEXT_BYTES / 2)),
-            create(&"é".repeat(door::MAX_COMPILE_TEXT_BYTES / 2 + 1)),
+            create(&"é".repeat(4096 / 2)),
+            create(&"é".repeat(4096 / 2 + 1)),
         ),
         (
             "change.text",
             json!({"compile_version": 1, "mode": "edit", "source": LITERAL_BASE,
-                   "change": {"text": "x".repeat(door::MAX_COMPILE_TEXT_BYTES)}})
+                   "change": {"text": "x".repeat(4096)}})
             .to_string(),
             json!({"compile_version": 1, "mode": "edit", "source": LITERAL_BASE,
-                   "change": {"text": "x".repeat(door::MAX_COMPILE_TEXT_BYTES + 1)}})
+                   "change": {"text": "x".repeat(4096 + 1)}})
             .to_string(),
         ),
         (
             "source",
-            edit_body(&padded_source(door::MAX_COMPILE_SOURCE_BYTES), "1"),
-            edit_body(&padded_source(door::MAX_COMPILE_SOURCE_BYTES + 1), "1"),
+            edit_body(&padded_source(512 * 1024), "1"),
+            edit_body(&padded_source((512 * 1024) + 1), "1"),
         ),
         (
             "answers",
-            answers(door::MAX_COMPILE_ANSWERS),
-            answers(door::MAX_COMPILE_ANSWERS + 1),
+            answers(64),
+            answers(64 + 1),
         ),
         (
             "answer key",
-            keyed(door::MAX_COMPILE_ANSWER_KEY_BYTES),
-            keyed(door::MAX_COMPILE_ANSWER_KEY_BYTES + 1),
+            keyed(256),
+            keyed(256 + 1),
         ),
         (
             "answer literal",
-            edit_body(LITERAL_BASE, &string_literal(door::MAX_COMPILE_LITERAL_BYTES)),
-            edit_body(LITERAL_BASE, &string_literal(door::MAX_COMPILE_LITERAL_BYTES + 1)),
+            edit_body(LITERAL_BASE, &string_literal(64 * 1024)),
+            edit_body(LITERAL_BASE, &string_literal((64 * 1024) + 1)),
         ),
         (
             "workflow_id",
-            named(door::MAX_COMPILE_NAME_BYTES),
-            named(door::MAX_COMPILE_NAME_BYTES + 1),
+            named(128),
+            named(128 + 1),
         ),
         (
             "set_constant.value",
             json!({"compile_version": 1, "mode": "edit", "source": LITERAL_BASE,
-                   "change": {"set_constant": {"name": "payload", "value": "a".repeat(door::MAX_COMPILE_LITERAL_BYTES - 2)}}})
+                   "change": {"set_constant": {"name": "payload", "value": "a".repeat((64 * 1024) - 2)}}})
                 .to_string(),
             json!({"compile_version": 1, "mode": "edit", "source": LITERAL_BASE,
-                   "change": {"set_constant": {"name": "payload", "value": "a".repeat(door::MAX_COMPILE_LITERAL_BYTES - 1)}}})
+                   "change": {"set_constant": {"name": "payload", "value": "a".repeat((64 * 1024) - 1)}}})
                 .to_string(),
         ),
         (
             "set_constant.name",
-            constant(door::MAX_COMPILE_NAME_BYTES),
-            constant(door::MAX_COMPILE_NAME_BYTES + 1),
+            constant(128),
+            constant(128 + 1),
         ),
     ]
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn every_bound_accepts_its_exact_limit_and_refuses_the_next_byte() {
+async fn content_beyond_former_field_quotas_reaches_the_compiler_intact() {
     let world = TestWorld::new();
     let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
     let server = world.start(backend.clone(), compile_limits()).await;
-    let exact = bound_cases();
+    let exact = former_bound_cases();
     for (bound, at_limit, beyond) in &exact {
         let accepted = server.request(&compile_request(at_limit)).await;
         assert_eq!(
@@ -449,13 +445,13 @@ async fn every_bound_accepts_its_exact_limit_and_refuses_the_next_byte() {
             "{bound} at its limit is authoring data"
         );
         assert!(accepted.json()["status"].is_string(), "{bound}");
-        let refused = server.request(&compile_request(beyond)).await;
-        assert_eq!(refused.status, 422, "{bound} beyond its limit");
-        assert_eq!(refused.json()["error"]["code"], "compile_limit", "{bound}");
-        assert!(
-            refused.body.len() < 320,
-            "{bound}: a refusal never returns the input"
+        let accepted = server.request(&compile_request(beyond)).await;
+        assert_eq!(
+            accepted.status, 200,
+            "{bound} beyond the former quota: {}",
+            accepted.body
         );
+        assert!(accepted.json()["status"].is_string(), "{bound}");
     }
     assert_eq!(backend.calls(), 0);
     server.stop().await.expect("clean stop");
@@ -465,23 +461,21 @@ async fn every_bound_accepts_its_exact_limit_and_refuses_the_next_byte() {
 async fn an_oversized_body_is_a_typed_413_declared_or_chunked() {
     let world = TestWorld::new();
     let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    // The listener would accept 2 MiB; the compile ceiling is the one that binds.
+    // The configured HTTP envelope is the only input-size boundary.
     let server = world.start(backend.clone(), compile_limits()).await;
+    let ceiling = compile_limits().max_body_bytes();
     let create = r#"{"compile_version":1,"mode":"create","intent":"hello"}"#;
-    let exact = format!(
-        "{create}{}",
-        " ".repeat(door::MAX_COMPILE_BODY_BYTES - create.len())
-    );
+    let exact = format!("{create}{}", " ".repeat(ceiling - create.len()));
     let accepted = server.request(&compile_request(&exact)).await;
     assert_eq!(accepted.status, 200, "{}", accepted.body);
     assert_eq!(accepted.json()["status"], "ready");
     let next_byte = server.request(&compile_request(&format!("{exact} "))).await;
     assert_eq!(next_byte.status, 413, "{}", next_byte.body);
     assert_eq!(next_byte.json()["error"]["code"], "body_too_large");
-    let padding = "a".repeat(door::MAX_COMPILE_BODY_BYTES);
+    let padding = "a".repeat(ceiling);
     let body =
         format!(r#"{{"compile_version":1,"mode":"create","intent":"hello","x":"{padding}"}}"#);
-    assert!(body.len() > door::MAX_COMPILE_BODY_BYTES && body.len() < 2 * 1024 * 1024);
+    assert!(body.len() > ceiling);
     let declared = server.request(&compile_request(&body)).await;
     assert_eq!(declared.status, 413, "{}", declared.body);
     assert_eq!(declared.json()["error"]["code"], "body_too_large");
@@ -489,12 +483,13 @@ async fn an_oversized_body_is_a_typed_413_declared_or_chunked() {
     // Exactly the ceiling, then one byte: the overflow is decided on the last frame,
     // so no unread upload is left behind when the listener answers and closes.
     let chunk = "a".repeat(64 * 1024);
-    assert_eq!(chunk.len() * 16, door::MAX_COMPILE_BODY_BYTES);
+    let chunks = ceiling / chunk.len();
+    assert_eq!(chunk.len() * chunks, ceiling);
     let mut chunked = format!(
         "POST /v1/compile HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nTransfer-Encoding: chunked\r\n{}\r\n",
         auth_header()
     );
-    for _ in 0..16 {
+    for _ in 0..chunks {
         let _ = write!(chunked, "{:x}\r\n{chunk}\r\n", chunk.len());
     }
     chunked.push_str("1\r\na\r\n0\r\n\r\n");
@@ -502,7 +497,7 @@ async fn an_oversized_body_is_a_typed_413_declared_or_chunked() {
     assert_eq!(streamed.status, 413, "{}", streamed.body);
     assert_eq!(streamed.json()["error"]["code"], "body_too_large");
 
-    // A listener configured BELOW the compile ceiling keeps its own lower bound.
+    // A listener configured with a smaller envelope keeps that explicit bound.
     let small = TestWorld::new();
     let small_server = small.start(backend.clone(), limits()).await;
     let over_listener = format!(

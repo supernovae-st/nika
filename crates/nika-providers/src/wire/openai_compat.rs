@@ -48,6 +48,9 @@ pub(crate) async fn infer_tracked<H>(
 where
     H: HttpPostDyn + Send + Sync + 'static,
 {
+    if rp.profile.id == "ollama" {
+        return super::ollama::infer(rp, request, sent, route, call).await;
+    }
     // Tool names carry Nika's `:`/`/` separators; the OpenAI function-calling
     // API rejects them (NIKA-463). The same map sanitizes on the way out and
     // restores the canonical id on the way back (the verb never sees the
@@ -169,6 +172,9 @@ pub(crate) async fn infer_stream<H>(
 where
     H: HttpPostDyn + Send + Sync + 'static,
 {
+    if rp.profile.id == "ollama" {
+        return super::ollama::infer_stream(rp, request).await;
+    }
     let names = ToolNameMap::from_tools(&request.tools);
     let http_req = build_request(rp, &request, true, &names)?;
     let http = rp.http.as_ref().ok_or_else(wiring_bug)?;

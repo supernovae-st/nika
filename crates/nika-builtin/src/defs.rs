@@ -190,6 +190,7 @@ fn file_defs() -> Vec<ToolDef> {
             }),
             &["path", "find", "replace"],
         ),
+        remove_file_def(),
         def(
             "glob",
             "Glob match · returns paths sorted lexicographically.",
@@ -216,6 +217,22 @@ fn file_defs() -> Vec<ToolDef> {
             &["pattern"],
         ),
     ]
+}
+
+/// `nika:remove_file` (builtins-v0.1.md `§nika:remove_file`): exactly
+/// `{ path: string }`, closed · no recursive, glob, force, missing-ok or
+/// destination option exists, so the schema admits no other key.
+fn remove_file_def() -> ToolDef {
+    let mut parameters = schema(
+        serde_json::json!({ "path": s("the ONE existing regular file to remove (never a directory, link or pattern)") }),
+        &["path"],
+    );
+    parameters["additionalProperties"] = serde_json::Value::Bool(false);
+    ToolDef::new(
+        "nika:remove_file",
+        "Remove ONE existing regular file · returns the requested path. Needs the tool grant and a permits.fs.write bound holding the exact path; reads no content and creates no directory. A missing name, a directory, a symlink or a special file fails; nothing is recursive or expanded, and a returned path is not proof of disk state.",
+        parameters,
+    )
 }
 
 fn hash_def() -> ToolDef {
@@ -722,10 +739,11 @@ mod tests {
         let defs = tool_defs();
         assert_eq!(
             defs.len(),
-            28,
-            "stdlib ships exactly 28 (22 Rams-swept + nika:compose ADR-096 + \
+            29,
+            "stdlib ships exactly 29 (22 Rams-swept + nika:compose ADR-096 + \
              nika:image_generate stdlib §Media + nika:tts_generate stdlib §Audio + \
-             nika:image_fx stdlib §Media + nika:decide spec 11 W-DEC)"
+             nika:image_fx stdlib §Media + nika:decide spec 11 W-DEC + \
+             nika:remove_file §nika:remove_file)"
         );
         let mut names: Vec<&str> = defs.iter().map(|d| d.name.as_str()).collect();
         names.sort_unstable();
@@ -733,6 +751,37 @@ mod tests {
         names.dedup();
         assert_eq!(names.len(), before, "no duplicate builtin names");
         assert!(defs.iter().all(|d| d.name.starts_with("nika:")));
+    }
+
+    #[test]
+    fn remove_file_discovery_is_exactly_one_required_path() {
+        let payload = tools_json();
+        assert_eq!(payload["tools_version"], 1);
+        let tool = payload["tools"]
+            .as_array()
+            .expect("tools array")
+            .iter()
+            .find(|tool| tool["name"] == "nika:remove_file")
+            .expect("nika:remove_file is discoverable");
+        let parameters = &tool["parameters"];
+        assert_eq!(parameters["required"], serde_json::json!(["path"]));
+        assert_eq!(parameters["additionalProperties"], false);
+        let keys: Vec<&str> = parameters["properties"]
+            .as_object()
+            .expect("properties")
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(keys, vec!["path"], "no option beside the one path");
+        assert_eq!(parameters["properties"]["path"]["type"], "string");
+        assert!(
+            payload["tools"]
+                .as_array()
+                .expect("tools")
+                .iter()
+                .all(|tool| tool["name"] != "nika:delete"),
+            "no alias of the removal"
+        );
     }
 
     #[test]
@@ -865,5 +914,60 @@ mod tests {
             desc.contains("tojson"),
             "schema must name the pre-pass not to take: {desc}"
         );
+    }
+
+    /// Every filesystem slot `nika_cap::unbound_fs_args` names is a declared parameter of that
+    /// builtin's model-facing definition: probing each definition with every declared parameter
+    /// set to an unstated path, the slots the query refuses have a declared root. Name parity
+    /// only: the runtime's reads and writes are not proven exhaustive by it.
+    #[test]
+    fn every_bound_filesystem_slot_is_a_declared_parameter() {
+        let tools = tools_json();
+        let mut covered: Vec<String> = Vec::new();
+        for tool in tools["tools"].as_array().expect("tools") {
+            let name = tool["name"].as_str().expect("name");
+            let declared: Vec<&str> = tool["parameters"]["properties"]
+                .as_object()
+                .map(|p| p.keys().map(String::as_str).collect())
+                .unwrap_or_default();
+            let probe: serde_json::Map<String, serde_json::Value> = declared
+                .iter()
+                .map(|key| ((*key).to_owned(), serde_json::json!("./unstated")))
+                .collect();
+            let args = serde_json::Value::Object(probe);
+            for finding in nika_cap::unbound_fs_args(name, Some(&args), &[], &[]) {
+                let slot = finding.split('`').nth(3).expect("a named slot");
+                let root = slot.split(['.', '[']).next().unwrap_or(slot);
+                assert!(
+                    declared.contains(&root),
+                    "{name}: `{slot}` is not a declared parameter ({declared:?})"
+                );
+                covered.push(format!("{name}.{root}"));
+            }
+        }
+        for expected in [
+            "nika:read.path",
+            "nika:grep.path",
+            "nika:glob.pattern",
+            "nika:write.path",
+            "nika:edit.path",
+            "nika:remove_file.path",
+            "nika:chart.out",
+            "nika:chart.data",
+            "nika:image_fx.input",
+            "nika:image_fx.out",
+            "nika:image_generate.output_dir",
+            "nika:image_generate.image",
+            "nika:image_generate.images",
+            "nika:image_generate.mask",
+            "nika:tts_generate.output_dir",
+            "nika:decide.bundle",
+            "nika:fetch.multipart",
+        ] {
+            assert!(
+                covered.iter().any(|c| c == expected),
+                "{expected} not probed: {covered:?}"
+            );
+        }
     }
 }

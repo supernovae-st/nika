@@ -13,373 +13,82 @@ use std::path::Path;
 
 use crate::snapshot::ProjectSnapshot;
 
+mod question;
+
+use question::{Ask, Phase};
+
+pub(crate) use nika_trace::run_view::last_run;
+
 /// The fact an input asks for, when it asks for one.
+///
+/// Only a closed engine question gets a fact: its form makes an engine
+/// entity — the workflows here, the builtins, the providers, the gallery, a
+/// workflow's verdict, a code, the last run, a word of the language — the
+/// subject of the question. A line that carries work (a path, a file, a URL,
+/// an inline structure, several sentences) is never a fact, whatever words
+/// it contains: understanding and authoring own it whole.
 #[must_use]
 pub fn answer(input: &str, snapshot: &ProjectSnapshot, root: &Path) -> Option<String> {
-    let lower = input.to_ascii_lowercase();
-    if let Some(code) = input
-        .split_whitespace()
-        .find(|w| w.starts_with("NIKA-"))
-        .map(|w| w.trim_end_matches(|c: char| !c.is_ascii_alphanumeric() && c != '-'))
-        && lower.contains("explain")
-    {
-        let out = nika_cli_host::explain::run(code, nika_cli_host::Theme::new(false, true, false));
-        return Some(out.text.trim_end().to_owned());
-    }
-    if (lower.contains("check") || lower.contains("valid"))
-        && let Some(name) = named_workflow(input, snapshot)
-    {
-        return Some(verdict(root, snapshot, &name));
-    }
-    if lower.contains("workflow")
-        && any(
-            &lower,
-            &["list", "which", "what", "here", "have", "exist", "show"],
-        )
-    {
-        return Some(snapshot.facts_lines().join("\n"));
-    }
-    if lower.contains("builtin")
-        || (lower.contains("tool") && any(&lower, &["which", "what", "list", "available"]))
-    {
-        let names = crate::guard::builtin_names();
-        return Some(format!(
-            "{} builtins this engine ships (`nika catalog --tools` for their arguments):\n  {}",
-            names.len(),
-            names.join(" · ")
-        ));
-    }
-    if lower.contains("provider")
-        || (lower.contains("model")
-            && any(&lower, &["which", "what", "list", "available", "support"]))
-    {
-        let ids: Vec<&str> = nika_providers::CANONICAL_IDS.to_vec();
-        return Some(format!(
-            "{} providers this binary drives (`nika catalog` for the models · `nika doctor` for this machine's paths):\n  {}",
-            ids.len(),
-            ids.join(" · ")
-        ));
-    }
-    if any(
-        &lower,
-        &[
-            "example",
-            "template",
-            "start from",
-            "which shape",
-            "scaffold",
-        ],
-    ) {
-        return Some(route(input));
-    }
-    if any(
-        &lower,
-        &[
-            "last run",
-            "latest run",
-            "previous run",
-            "what happened",
-            "did it run",
-            "the run",
-        ],
-    ) {
-        return Some(last_run(root));
-    }
-    vocabulary(&lower)
+    answer_in(input, snapshot, root, Phase::Idle)
 }
 
-/// The newest `.ndjson` under the store by mtime (name tie-break) — the
-/// raw file, since the fact reads its lines itself.
-fn newest_trace(store: &Path) -> Option<std::path::PathBuf> {
-    let mut traces: Vec<(std::time::SystemTime, std::path::PathBuf)> = std::fs::read_dir(store)
-        .ok()?
-        .filter_map(Result::ok)
-        .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|x| x == "ndjson"))
-        .filter_map(|p| {
-            std::fs::metadata(&p)
-                .and_then(|m| m.modified())
-                .ok()
-                .map(|t| (t, p))
-        })
-        .collect();
-    traces.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1)));
-    traces.into_iter().next().map(|(_, p)| p)
+/// The fact a line typed beside a waiting proposal asks for: only a strict
+/// catalog question (the workflows, builtins, providers, a code, the last
+/// run, a definition). Any other question is about the proposal and reads
+/// its bytes.
+#[must_use]
+pub(crate) fn answer_beside_proposal(
+    input: &str,
+    snapshot: &ProjectSnapshot,
+    root: &Path,
+) -> Option<String> {
+    answer_in(input, snapshot, root, Phase::BesideProposal)
 }
 
-/// The last run, read from its trace (the evidence), never from memory:
-/// the workflow, every task's outcome, the settlement.
-pub(crate) fn last_run(root: &Path) -> String {
-    let store = root.join(".nika").join("traces");
-    let Some(trace) = newest_trace(&store) else {
-        return "no run yet under this root (no trace in `.nika/traces/`)".to_owned();
-    };
-    let Ok(text) = std::fs::read_to_string(&trace) else {
-        return format!("the latest trace `{}` could not be read", trace.display());
-    };
-    let mut workflow = String::new();
-    let mut tasks: Vec<String> = Vec::new();
-    let mut settled: Option<String> = None;
-    for line in text.lines() {
-        let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
-            continue;
-        };
-        let kind = v.get("kind").and_then(|k| k.as_str()).unwrap_or("");
-        let field = |key: &str| -> String {
-            v.get("fields")
-                .and_then(|f| f.as_array())
-                .and_then(|rows| {
-                    rows.iter()
-                        .find(|r| r.get("key").and_then(|k| k.as_str()) == Some(key))
-                })
-                .and_then(|r| r.get("value"))
-                .map(|val| match val {
-                    serde_json::Value::String(s) => s.clone(),
-                    other => other.to_string(),
-                })
-                .unwrap_or_default()
-        };
-        match kind {
-            "workflow_started" => workflow = field("workflow"),
-            "task_completed" => tasks.push(format!(
-                "✔ {} · {} · {} ms",
-                field("task"),
-                field("note"),
-                field("duration_ms")
-            )),
-            "task_failed" => tasks.push(format!("✖ {} · {}", field("task"), field("error"))),
-            "task_skipped" => tasks.push(format!("○ {} · skipped", field("task"))),
-            "workflow_completed" => settled = Some("completed".to_owned()),
-            "workflow_failed" => settled = Some(format!("failed · {}", field("error"))),
-            "workflow_paused" => settled = Some("paused for a human answer".to_owned()),
-            _ => {}
+fn answer_in(input: &str, snapshot: &ProjectSnapshot, root: &Path, phase: Phase) -> Option<String> {
+    match question::ask(input, snapshot, phase)? {
+        Ask::Explain(code) => {
+            let out =
+                nika_cli_host::explain::run(&code, nika_cli_host::Theme::new(false, true, false));
+            Some(out.text.trim_end().to_owned())
         }
-    }
-    let settled = settled.unwrap_or_else(|| {
-        "no settlement line — the run may still be going, or was cut".to_owned()
-    });
-    format!(
-        "last run · `{workflow}` · {settled} · read from `{}`\n  {}",
-        trace.display(),
-        if tasks.is_empty() {
-            "no task line".to_owned()
-        } else {
-            tasks.join("\n  ")
+        Ask::Verdict(path) => Some(verdict(root, snapshot, &path)),
+        Ask::Workflows => Some(snapshot.facts_lines().join("\n")),
+        Ask::Builtins => {
+            let names = crate::guard::builtin_names();
+            Some(format!(
+                "{} builtins this engine ships (`nika catalog --tools` for their arguments):\n  {}",
+                names.len(),
+                names.join(" · ")
+            ))
         }
-    )
+        Ask::Providers => {
+            let ids: Vec<&str> = nika_providers::CANONICAL_IDS.to_vec();
+            Some(format!(
+                "{} providers this binary drives (`nika catalog` for the models · `nika doctor` for this machine's paths):\n  {}",
+                ids.len(),
+                ids.join(" · ")
+            ))
+        }
+        Ask::Gallery => Some(route(input)),
+        Ask::LastRun => Some(last_run(root)),
+        Ask::Vocabulary(asked) => vocabulary(&asked),
+    }
 }
 
-/// What Nika calls the words another tool taught — answered from the
-/// language itself, no model asked (the rival-tool persona's first wall).
-const VOCABULARY: &[(&str, &str)] = &[
-    (
-        "node",
-        "a `task` (a map entry under `tasks:` · one verb each) · the edges are `with:` bindings (data) and `after:` (order), never a canvas",
-    ),
-    (
-        "step",
-        "a `task` under `tasks:` (a map, never a list) · order is the DAG the bindings draw, not the file order",
-    ),
-    (
-        "job",
-        "a `task`, or a whole workflow file invoked as a child (`invoke: { workflow: ./child.nika }`)",
-    ),
-    (
-        "trigger",
-        "there is no trigger inside a workflow · a run is started by `nika run`, by `nika serve` (the resident firer) or by an armed cadence in the project file (`nika arm`)",
-    ),
-    (
-        "cron",
-        "an armed cadence in the project file (`nika arm` · `nika serve` fires it) · a workflow itself carries no schedule",
-    ),
-    (
-        "schedule",
-        "an armed cadence in the project file (`nika arm` · `nika serve` fires it) · a workflow itself carries no schedule",
-    ),
-    (
-        "webhook",
-        "`nika serve` is the resident door (authenticated loopback HTTP) · a workflow itself listens to nothing",
-    ),
-    (
-        "secret",
-        "`secrets:` at the envelope — store references only (`{ source: env, key: NAME }`), never a value · read as `${{ secrets.NAME }}` · reaches an effect only through an `egress:` door",
-    ),
-    (
-        "credential",
-        "`secrets:` at the envelope — store references only (`{ source: env, key: NAME }`), never a value · read as `${{ secrets.NAME }}`",
-    ),
-    (
-        "action",
-        "a builtin `nika:<name>` under `invoke:` (28 ship · `nika catalog --tools`) or an `mcp:<server>/<tool>` (`nika wire` adds a server)",
-    ),
-    (
-        "plugin",
-        "a builtin `nika:<name>` under `invoke:` or an MCP server (`mcp:<server>/<tool>` · `nika wire`)",
-    ),
-    (
-        "integration",
-        "an MCP server (`mcp:<server>/<tool>` under `invoke:` · `nika wire` adds one) or a builtin `nika:<name>`",
-    ),
-    (
-        "connection",
-        "an MCP server (`mcp:<server>/<tool>` under `invoke:` · `nika wire` adds one)",
-    ),
-    (
-        "variable",
-        "`inputs:` (caller-supplied · `--var k=v`) or `const:` (baked in the file) · read as `${{ inputs.x }}` / `${{ const.x }}` · `vars:` and `env:` are dead forms",
-    ),
-    (
-        "environment variable",
-        "a secret reference (`secrets: { NAME: { source: env, key: NAME } }`) · the environment is never read directly (`env:` is a dead form)",
-    ),
-    (
-        "output",
-        "`outputs:` at the envelope (`${{ tasks.x.output }}`) · a file lands through `nika:write` under a `permits.fs.write` grant",
-    ),
-    (
-        "artifact",
-        "a file landed by `nika:write` under a `permits.fs.write` grant · the run's evidence is the trace under `.nika/traces/`",
-    ),
-    (
-        "loop",
-        "`for_each: { items: … , max_parallel, fail_fast }` on a task · `${{ item }}` and `${{ index }}` inside",
-    ),
-    (
-        "condition",
-        "`when: \"${{ … }}\"` on a task (a CEL boolean) · `after: { x: failure }` routes on an outcome",
-    ),
-    (
-        "retry",
-        "`retry: { max_attempts, backoff_ms, backoff_strategy, jitter, on_codes }` on a task",
-    ),
-    (
-        "timeout",
-        "`timeout: \"30s\"` on a task (a duration string · max 24h)",
-    ),
-    (
-        "approval",
-        "a human gate · `invoke: { tool: \"nika:prompt\" }` pauses the run (exit 4) and `--resume <trace> --answer <task>=<value>` continues it",
-    ),
-    (
-        "human",
-        "a human gate · `invoke: { tool: \"nika:prompt\" }` pauses the run (exit 4) and `--resume` continues it",
-    ),
-    (
-        "pipeline",
-        "a workflow · one `.nika` file · nine envelope keys · `tasks:` a map · four verbs",
-    ),
-    (
-        "function",
-        "a `task` with one verb (`infer` · `exec` · `invoke` · `agent`) · a reusable one is a child workflow under `invoke: { workflow: … }`",
-    ),
-    (
-        "permits",
-        "the declared boundary: what the file may read (`fs.read`) · write (`fs.write`) · reach (`net.http`) · run (`exec`) · call (`tools`) · see (`env`) · absent = zero authority · a run refuses anything outside it · `nika check --infer-permits` writes the tightest block the body needs",
-    ),
-    (
-        "inputs",
-        "what the caller supplies at run time (`--var name=value`) · typed · a `default:` makes one a deployment knob · read as `${{ inputs.name }}`",
-    ),
-    (
-        "const",
-        "values baked in the file · read as `${{ const.name }}` · never a secret",
-    ),
-    (
-        "secrets",
-        "store references only (`{ source: env, key: NAME }`), never a value · read as `${{ secrets.NAME }}` · reaches an effect only through an `egress:` door",
-    ),
-    (
-        "tasks",
-        "the work: a map keyed by task id, one verb each (`infer` · `exec` · `invoke` · `agent`) · the order is the DAG the `with:` bindings and `after:` edges draw",
-    ),
-    (
-        "outputs",
-        "what the workflow returns (`name: ${{ tasks.x.output }}`) · the only place a task's output is read outside `with:`",
-    ),
-    (
-        "model",
-        "the default seat for every `infer` · `<provider>/<name>` · `mock/echo` rehearses offline · a task may name its own",
-    ),
-    (
-        "with",
-        "a task's bindings · `with: { name: \"${{ tasks.x.output }}\" }` IS the data edge · read inside the task as `${{ with.name }}`",
-    ),
-    (
-        "after",
-        "an order edge without data · `after: { x: success }` (or `failure` · `skipped` · `terminal` · `unwind`)",
-    ),
-    (
-        "infer",
-        "the verb for one model call · `prompt` (required) · `system` · `model` · `temperature` · `max_tokens` · `schema` for structured output",
-    ),
-    (
-        "exec",
-        "the verb for a process · `command: [\"prog\", \"arg\"]` (argv · no shell) or `shell: \"…\"` (the explicit door) · needs `permits.exec`",
-    ),
-    (
-        "invoke",
-        "the verb for a builtin (`nika:<name>`) · an MCP tool (`mcp:<server>/<tool>`) · or a child workflow (`workflow: ./x.nika`)",
-    ),
-    (
-        "agent",
-        "the verb for a governed multi-turn loop · `prompt` · `tools: [globs · default-deny]` · `max_turns` · `max_tokens_total`",
-    ),
-];
-
-fn vocabulary(lower: &str) -> Option<String> {
-    let asks = any(
-        lower,
-        &[
-            "what do you call",
-            "what is the word",
-            "is there a",
-            "how do i",
-            "equivalent",
-            "instead of",
-            "in nika",
-            "nika word",
-            "nika term",
-            "do you have",
-            "what is",
-            "what are",
-            "what does",
-            "meaning of",
-            "explain",
-        ],
-    );
-    if !asks {
-        return None;
-    }
-    let mut lines: Vec<String> = VOCABULARY
+/// The language's own meaning for each asked word, in the order asked.
+fn vocabulary(asked: &[&'static str]) -> Option<String> {
+    let lines: Vec<String> = asked
         .iter()
-        .filter(|(word, _)| {
-            let w = format!(" {word}");
-            lower.contains(&w) || lower.starts_with(word)
-        })
-        .map(|(word, meaning)| format!("{word} → {meaning}"))
+        .filter_map(|word| nika_vocab::glossary::entry(word))
+        .map(|(known, meaning)| format!("{known} → {meaning}"))
         .collect();
-    if lines.is_empty() {
-        return None;
-    }
-    lines.truncate(4);
-    Some(format!(
-        "what Nika calls it:\n  {}\n  (exact shapes: ask for the schema · `nika spec --canon`)",
-        lines.join("\n  ")
-    ))
-}
-
-fn any(lower: &str, words: &[&str]) -> bool {
-    words.iter().any(|w| lower.contains(w))
-}
-
-/// The workflow the input names, when the snapshot holds exactly one match.
-fn named_workflow(input: &str, snapshot: &ProjectSnapshot) -> Option<String> {
-    input
-        .split(|c: char| {
-            c.is_whitespace() || c == '`' || c == '"' || c == '\'' || c == ',' || c == '?'
-        })
-        .filter(|t| !t.is_empty())
-        .find_map(|t| snapshot.find(t).map(|w| w.path.clone()))
+    (!lines.is_empty()).then(|| {
+        format!(
+            "what Nika calls it:\n  {}\n  (exact shapes: ask for the schema · `nika spec --canon`)",
+            lines.join("\n  ")
+        )
+    })
 }
 
 /// The ONE facade's verdict on a workflow the snapshot holds.
@@ -442,7 +151,7 @@ fn tick(v: Option<bool>) -> &'static str {
     }
 }
 
-/// The ONE router's answer for an authoring intent.
+/// The ONE router's answer for an explicit gallery question.
 fn route(input: &str) -> String {
     match nika_onboard::routing::route_query(input) {
         nika_onboard::routing::RoutedEntry::Example(slug) => {
@@ -480,6 +189,245 @@ mod tests {
         )
         .expect("c");
         dir
+    }
+
+    /// A closed engine question is still answered for zero tokens, however
+    /// it is phrased around its entity.
+    #[test]
+    fn closed_engine_questions_still_answer_without_intelligence() {
+        let dir = tree();
+        let snap = ProjectSnapshot::observe(dir.path());
+        let root = dir.path();
+        for query in [
+            "examples",
+            "templates?",
+            "scaffolds",
+            "show examples",
+            "show me a template for fetching a URL",
+            "list the templates",
+            "which example fetches a url and summarizes it?",
+            "what shapes are available?",
+            "is there a template for invoices?",
+            "what kind of templates are there?",
+            "what's a good template for a digest?",
+            "montre-moi les templates",
+            "quels templates as-tu ?",
+            "can I see the templates?",
+        ] {
+            let reply =
+                answer(query, &snap, root).unwrap_or_else(|| panic!("{query}: no gallery fact"));
+            assert!(
+                reply.contains("nika compile") || reply.contains("closest shapes"),
+                "{query}: {reply}"
+            );
+        }
+    }
+
+    /// The catalog questions (inventory, builtins, providers, a verdict, the
+    /// last run, a word, a code) keep their fact in their usual phrasings.
+    #[test]
+    fn catalog_questions_still_answer_without_intelligence() {
+        let dir = tree();
+        let snap = ProjectSnapshot::observe(dir.path());
+        let root = dir.path();
+        for query in [
+            "which workflows are here?",
+            "what workflows do I have?",
+            "list my workflows",
+            "please show me the workflows in this project",
+            "which workflows are clean?",
+            "Hi. What workflows are here?",
+            "OK. list my workflows",
+            "liste les workflows",
+        ] {
+            let reply =
+                answer(query, &snap, root).unwrap_or_else(|| panic!("{query}: no inventory fact"));
+            assert!(reply.contains("alpha.nika"), "{query}: {reply}");
+        }
+        for query in [
+            "what tools are available?",
+            "list the builtins",
+            "Thanks! What tools are available?",
+            "liste les builtins",
+            "which tools ship with nika?",
+        ] {
+            let reply =
+                answer(query, &snap, root).unwrap_or_else(|| panic!("{query}: no builtins fact"));
+            assert!(reply.contains("nika:read"), "{query}: {reply}");
+        }
+        for query in [
+            "which models can I use?",
+            "what providers do you support?",
+            "what local models are supported?",
+            "quels providers sont supportés ?",
+            "Hi there! What providers do you support?",
+            "which LLM providers do you support?",
+        ] {
+            let reply =
+                answer(query, &snap, root).unwrap_or_else(|| panic!("{query}: no providers fact"));
+            assert!(
+                reply.contains("providers this binary drives"),
+                "{query}: {reply}"
+            );
+        }
+        for query in [
+            "check alpha.nika",
+            "is ./alpha.nika valid?",
+            "Is ALPHA valid?",
+            "check if alpha is valid",
+            "is the alpha workflow valid?",
+            "check alpha stp",
+            "can you check alpha for errors?",
+        ] {
+            let reply =
+                answer(query, &snap, root).unwrap_or_else(|| panic!("{query}: no verdict fact"));
+            assert!(reply.contains("`alpha.nika` · clean"), "{query}: {reply}");
+        }
+        for query in [
+            "did it run?",
+            "how did the last run go?",
+            "why did the last run fail?",
+            "did the last run succeed?",
+            "what went wrong in the last run?",
+            "what's the last run?",
+            "what’s the last run?",
+            "which tasks failed in the last run?",
+            "can you show me the last run?",
+        ] {
+            let reply =
+                answer(query, &snap, root).unwrap_or_else(|| panic!("{query}: no last run fact"));
+            assert!(reply.contains("no run yet"), "{query}: {reply}");
+        }
+        let vocab = answer("what is the nika word for a cron?", &snap, root).expect("word");
+        assert!(vocab.contains("cron →"), "{vocab}");
+        let plural = answer("what are triggers in nika?", &snap, root).expect("plural word");
+        assert!(plural.contains("trigger →"), "{plural}");
+        let pair = answer("how do I use environment variables?", &snap, root).expect("a pair");
+        assert!(pair.contains("environment variable →"), "{pair}");
+        for query in [
+            "can you explain NIKA-AUTH-006 to me?",
+            "Explain `NIKA-AUTH-006`.",
+            "explain this error: NIKA-AUTH-006",
+        ] {
+            let reply =
+                answer(query, &snap, root).unwrap_or_else(|| panic!("{query}: no code fact"));
+            assert!(reply.contains("NIKA-AUTH-006"), "{query}: {reply}");
+        }
+    }
+
+    /// Beside a waiting proposal a question is about the proposal: only the
+    /// strict catalog questions stay facts, the rest reads the proposal bytes.
+    #[test]
+    fn beside_a_proposal_only_catalog_questions_are_facts() {
+        let dir = tree();
+        let snap = ProjectSnapshot::observe(dir.path());
+        let root = dir.path();
+        for query in [
+            "which workflows are here?",
+            "what tools are available?",
+            "which providers are supported?",
+            "explain NIKA-AUTH-006",
+            "what happened in the last run?",
+            "what is permits?",
+            "what is a loop? and a retry?",
+        ] {
+            assert!(
+                answer_beside_proposal(query, &snap, root).is_some(),
+                "{query}"
+            );
+        }
+        let about_the_proposal: Vec<&str> = [
+            "is there a timeout?",
+            "is there a retry if the fetch fails?",
+            "can you show me an example of the output?",
+            "is alpha still valid?",
+            "how do I add a retry?",
+            "what does a loop do?",
+            "which template is this?",
+        ]
+        .into_iter()
+        .filter(|query| answer_beside_proposal(query, &snap, root).is_some())
+        .collect();
+        assert!(
+            about_the_proposal.is_empty(),
+            "the proposal owns {about_the_proposal:#?}"
+        );
+    }
+
+    /// A word of the catalog inside a job, a path or a file name is never a
+    /// catalog question: the line reaches understanding whole. Each line
+    /// below was intercepted by a substring before (template, workflow +
+    /// which, model + which, provider, the run, what is + output).
+    #[test]
+    fn engine_words_inside_work_or_paths_are_not_fact_questions() {
+        let dir = tree();
+        let snap = ProjectSnapshot::observe(dir.path());
+        let requests = [
+            "Each training form submission in ./submissions.json should produce a personal completion certificate for the person who submitted it. Fill the template in the same file with the submitter's name and the date part of their submission time.",
+            "Fill the template in ./source.json and write ./out/certificates.json",
+            "Start from ./template.json and write the filled document to ./out/result.json",
+            "Read ./example.json and write its total to ./out/total.json",
+            "Read https://example.com and summarize it in ./out/summary.md",
+            "Can you fill the template and save ./out/result.json?",
+            "Show ./template.json in the output report",
+            "Show example.json in the output report",
+            "Use this example to create my report",
+            "Fill the template with the revised title instead",
+            "Create a workflow which reads orders.csv and lists what each customer spent",
+            "Build a workflow that shows which invoices are overdue",
+            "Use a model to classify which tickets are urgent",
+            "Which model should summarize each ticket in tickets.json?",
+            "Read the providers in ./vendors.csv and list the ones we still pay",
+            "Compute the running total of the sales and write it to ./out/total.md",
+            "For each ticket, explain what is wrong with its output",
+            "What is the total of the invoices in ./invoices.csv?",
+            "Summarize the last run of each pipeline listed in ./runs.json",
+            "Check that every order in ./orders.csv is valid and write ./out/valid.json",
+            "List the tools mentioned in ./notes.md",
+            "Save {submission, to, text} rows for every submission",
+            "what does this workflow do?",
+            "tell me about the workflow",
+            "which tools does it use?",
+            "which model does it use?",
+            "is there a retry? add a retry of 3 to the fetch",
+            "shape the output as a table",
+            "can you show me an example of what it will write?",
+            "scaffold a workflow that emails me the weather every morning",
+            "template d'email pour relancer les clients en retard",
+            "show me some examples of overdue invoices",
+            "run the latest",
+            "start from a template and add a retry with 3 attempts",
+            "is a human approval required before the refund?",
+            "are any secrets sent to the model?",
+            "what's a cron? set a schedule for every monday at 9am",
+            "Do a loop over the orders and email each customer their total",
+            "are all the alpha outputs correct?",
+            "use a local model",
+            "can you use the builtins?",
+            "which model will you use?",
+            "which tools will you use?",
+            "can you scaffold a workflow that emails me the weather every morning?",
+            "can you shape the output as a markdown table?",
+            "the last run failed, run it again",
+            "did the last run fail? do it again",
+            "the template doesn't fit, I need one that also emails the report",
+            "can you give me some example invoices to test with?",
+            "use a built-in tool",
+            "can you find a template and build me a weekly digest workflow from it?",
+            "which template is this?",
+            "clean my workflows",
+            "what's a timeout? and add a timeout",
+            "as-tu un modèle d’email pour relancer les clients en retard ?",
+            "what is nika-0.123?",
+        ];
+        let intercepted: Vec<&str> = requests
+            .into_iter()
+            .filter(|request| answer(request, &snap, dir.path()).is_some())
+            .collect();
+        assert!(
+            intercepted.is_empty(),
+            "understanding owns {intercepted:#?}"
+        );
     }
 
     /// The facts answer without a model: the workflows, the builtins, the

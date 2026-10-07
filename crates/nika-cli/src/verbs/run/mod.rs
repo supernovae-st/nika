@@ -790,9 +790,13 @@ fn scoped_clean_gate(
     let (wf, report) =
         crate::verbs::check::overridden(wf, report, model_override, source.logical_path());
     if !report.is_clean()
-        || !crate::verbs::check::models_rung::unresolvable_models(&report, &wf)
-            .findings
-            .is_empty()
+        || !crate::verbs::check::models_rung::unresolvable_models_over(
+            &report,
+            &wf,
+            &nika_service_execution::access::provider_probes_env(),
+        )
+        .findings
+        .is_empty()
         || !nika_check::thinking_findings(&wf).is_empty()
         || !nika_check::capacity_findings(&wf).is_empty()
     {

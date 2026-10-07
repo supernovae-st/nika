@@ -6,8 +6,8 @@
 //! `openapi.json` holds the generation-1 contract every server publishes: the path, the request
 //! and the outcome. `openapi-native.json` is the generation-2 contract a server that seats native
 //! authoring adds to its live document, as an RFC 7386 merge patch over that whole document. Each
-//! bound and word in them is pinned by this module's tests to the constant the handler enforces,
-//! so the published contract cannot drift from the refusal.
+//! wire type and transport boundary is checked beside the handler; configured operator limits
+//! remain dynamic and are tested through the live door.
 
 use serde_json::{Map, Value};
 
@@ -70,11 +70,6 @@ mod tests {
     use nika_onboard::compile::{AuthoringCognition, COMPILE_WIRE_VERSION};
     use serde_json::json;
 
-    use super::super::{
-        MAX_COMPILE_ANSWER_KEY_BYTES, MAX_COMPILE_ANSWERS, MAX_COMPILE_BODY_BYTES,
-        MAX_COMPILE_LITERAL_BYTES, MAX_COMPILE_NAME_BYTES, MAX_COMPILE_SOURCE_BYTES,
-        MAX_COMPILE_TEXT_BYTES,
-    };
     use super::*;
 
     const DETERMINISTIC_ONLY: &str = AuthoringCognition::DeterministicOnly.word();
@@ -99,37 +94,26 @@ mod tests {
     }
 
     #[test]
-    fn every_generation_one_bound_and_word_is_the_enforced_constant() {
+    fn generation_one_publishes_the_transport_boundary_and_its_words() {
         let request = request();
         let properties = &request["properties"];
         assert_eq!(properties["compile_version"]["const"], COMPILE_WIRE_VERSION);
         assert_eq!(properties["cognition"]["const"], DETERMINISTIC_ONLY);
-        assert_eq!(properties["intent"]["maxLength"], MAX_COMPILE_TEXT_BYTES);
-        assert_eq!(
-            properties["workflow_id"]["maxLength"],
-            MAX_COMPILE_NAME_BYTES
-        );
-        assert_eq!(properties["source"]["maxLength"], MAX_COMPILE_SOURCE_BYTES);
+        for field in ["intent", "workflow_id", "source"] {
+            assert!(properties[field].get("maxLength").is_none());
+        }
         let change = &properties["change"]["properties"];
-        assert_eq!(change["text"]["maxLength"], MAX_COMPILE_TEXT_BYTES);
-        let constant = &change["set_constant"]["properties"];
-        assert_eq!(constant["name"]["maxLength"], MAX_COMPILE_NAME_BYTES);
-        let literal = MAX_COMPILE_LITERAL_BYTES.to_string();
+        assert!(change["text"].get("maxLength").is_none());
         assert!(
-            constant["value"]["description"]
-                .as_str()
-                .unwrap()
-                .contains(&literal)
+            change["set_constant"]["properties"]["name"]
+                .get("maxLength")
+                .is_none()
         );
         let answers = &properties["answers"];
-        assert_eq!(answers["maxProperties"], MAX_COMPILE_ANSWERS);
-        assert_eq!(
-            answers["propertyNames"]["maxLength"],
-            MAX_COMPILE_ANSWER_KEY_BYTES
-        );
-        assert!(answers["description"].as_str().unwrap().contains(&literal));
+        assert!(answers.get("maxProperties").is_none());
+        assert!(answers.get("propertyNames").is_none());
         let described = request["description"].as_str().unwrap();
-        assert!(described.contains(&MAX_COMPILE_BODY_BYTES.to_string()));
+        assert!(described.contains("configured HTTP body ceiling"));
         assert!(described.starts_with(&format!("Generation {COMPILE_WIRE_VERSION} ")));
         let outcome = outcome();
         assert_eq!(
@@ -143,7 +127,7 @@ mod tests {
     }
 
     #[test]
-    fn every_generation_two_bound_and_word_is_the_enforced_constant() {
+    fn generation_two_publishes_typed_limits_without_legacy_product_ceilings() {
         let schemas = native_schemas();
         let request = &schemas["CompileRequestV2"]["properties"];
         assert_eq!(
@@ -154,30 +138,29 @@ mod tests {
             request["cognition"]["enum"],
             json!([EXPLICIT_PROVIDER, DETERMINISTIC_ONLY])
         );
-        for field in ["intent", "original_intent"] {
-            assert_eq!(
-                request[field]["maxLength"], MAX_COMPILE_TEXT_BYTES,
-                "{field}"
-            );
+        for field in ["intent", "original_intent", "workflow_id", "source"] {
+            assert!(request[field].get("maxLength").is_none(), "{field}");
         }
-        assert_eq!(request["workflow_id"]["maxLength"], MAX_COMPILE_NAME_BYTES);
-        assert_eq!(request["source"]["maxLength"], MAX_COMPILE_SOURCE_BYTES);
         let token = format!("^[0-9a-f]{{{}}}$", super::super::v2::TOKEN_HEX);
         assert_eq!(request["replay_token"]["pattern"], token.as_str());
         let limits = &request["limits"]["properties"];
-        assert_eq!(limits["repairs"]["maximum"], 5);
-        assert_eq!(limits["max_tokens"]["maximum"], 32_768);
-        assert_eq!(limits["call_timeout_ms"]["maximum"], 600_000);
-        assert_eq!(limits["deadline_ms"]["maximum"], 3_600_000);
+        assert_eq!(limits["repairs"]["maximum"], u32::MAX);
+        assert_eq!(limits["max_tokens"]["maximum"], u32::MAX);
+        assert!(limits["call_timeout_ms"].get("maximum").is_none());
+        assert!(limits["deadline_ms"].get("maximum").is_none());
         let described = schemas["CompileRequestV2"]["description"].as_str().unwrap();
-        assert!(described.contains(&MAX_COMPILE_BODY_BYTES.to_string()));
-        // The replay store's per-round bound, where the operation and the header state it.
-        let kept = super::super::replay::MAX_ENTRY_BYTES.to_string();
+        assert!(described.contains("configured HTTP body ceiling"));
+        // The operation and header state default retention and the process boundary.
         let document = native(json!({}));
         let post = &document["paths"]["/v1/compile"]["post"];
-        assert!(post["description"].as_str().unwrap().contains(&kept));
         let header = &post["responses"]["200"]["headers"]["Nika-Compile-Replay"];
-        assert!(header["description"].as_str().unwrap().contains(&kept));
+        for described in [post, header] {
+            let description = described["description"].as_str().unwrap();
+            assert!(description.contains("no implicit count, size or expiry limit"));
+            assert!(description.contains("forgotten on restart"));
+            assert!(description.contains("explicit"));
+            assert!(!description.contains("2097152"));
+        }
         let outcome = &schemas["CompileOutcomeV2"]["properties"];
         assert_eq!(
             outcome["compile_version"]["const"],

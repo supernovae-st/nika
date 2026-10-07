@@ -267,10 +267,10 @@ fn validate_entry(path: &Path, name: &str, entry: &ServerEntry) -> Result<(), Pi
         && name
             .bytes()
             .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
-        && name.as_bytes()[0].is_ascii_lowercase();
+        && (name.as_bytes()[0].is_ascii_lowercase() || name.as_bytes()[0].is_ascii_digit());
     if !valid_name {
         return Err(corrupt(format!(
-            "server name `{name}` is not a valid mcp: id ([a-z][a-z0-9-]*)"
+            "server name `{name}` is not a valid mcp: id ([a-z0-9][a-z0-9-]*)"
         )));
     }
     match (&entry.command, &entry.url) {
@@ -855,5 +855,85 @@ mod tests {
             }
         }
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A fresh project whose format-1 registry holds `servers` (JSON members).
+    fn registry(tag: &str, servers: &str) -> PathBuf {
+        let dir = tmp(tag);
+        let path = dir.join(SERVERS_PATH);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(
+            &path,
+            format!(r#"{{"mcp_servers_format": 1, "servers": {{{servers}}}}}"#),
+        )
+        .unwrap();
+        dir
+    }
+
+    /// The `mcp:` server grammar `[a-z0-9][a-z0-9-]*` admits a digit-initial
+    /// name (`21st`, the single `0`); the entry keeps its command, argv and
+    /// default-deny network, and loading writes no pins. The letter-first
+    /// `postgres` is the unchanged control.
+    #[test]
+    fn a_digit_initial_server_name_loads_with_its_command_and_deny() {
+        for (i, name) in ["21st", "0", "0-a", "a-", "postgres"]
+            .into_iter()
+            .enumerate()
+        {
+            let dir = registry(
+                &format!("digit-initial-{i}"),
+                &format!(r#""{name}": {{"command": "never-run", "args": ["--stdio", "x"]}}"#),
+            );
+            let cfgs = load_server_configs(&dir).unwrap_or_else(|e| panic!("`{name}`: {e}"));
+            let expected = McpServerConfig::stdio(
+                name,
+                "never-run",
+                vec!["--stdio".to_owned(), "x".to_owned()],
+            );
+            assert_eq!(cfgs, vec![expected], "`{name}`");
+            assert_eq!(cfgs[0].network, NetPolicy::Deny, "`{name}`");
+            assert!(
+                !dir.join(PINS_PATH).exists(),
+                "loading `{name}` writes no pins"
+            );
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+    }
+
+    /// Names outside the grammar stay refused as a corrupt registry that
+    /// teaches the grammar: empty, a leading dash, uppercase, underscore,
+    /// non-ASCII, separators, padding, whitespace and control bytes.
+    #[test]
+    fn server_names_outside_the_grammar_stay_refused_and_teach_it() {
+        let names = [
+            "",
+            "-21st",
+            "21St",
+            "21_st",
+            "_",
+            "é",
+            "21st/child",
+            "21st:child",
+            " 21st",
+            "21st ",
+            "21 st",
+            "21\tst",
+            "21\x07st",
+        ];
+        for (i, name) in names.into_iter().enumerate() {
+            let key = serde_json::to_string(name).unwrap();
+            let dir = registry(
+                &format!("bad-name-{i}"),
+                &format!(r#"{key}: {{"command": "never-run"}}"#),
+            );
+            match load_server_configs(&dir) {
+                Err(PinError::Corrupt { why, .. }) => assert!(
+                    why.contains("[a-z0-9][a-z0-9-]*"),
+                    "{name:?} teaches the grammar: {why}"
+                ),
+                other => panic!("{name:?} must be refused as Corrupt: {other:?}"),
+            }
+            let _ = std::fs::remove_dir_all(&dir);
+        }
     }
 }

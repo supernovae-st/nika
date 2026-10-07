@@ -19,63 +19,13 @@
 //! occurs EXACTLY ONCE as a whole word (ambiguity skips with an honest
 //! note), and the file re-parses after (convergence IS the proof).
 
-use std::fmt::Write as _;
-
+use nika_migrate::{has_bare_exec, has_needs_key, rewrite_needs, wrap_bare_exec};
 use nika_schema::SchemaError;
 
-use nika_display::theme::{Role, Theme};
-
-/// One applied (or skipped) repair, for the summary.
-#[derive(Clone, Debug)]
-pub struct Repair {
-    /// The dead form the repair replaces (the summary's left side).
-    pub old: String,
-    /// The repaired form (the summary's right side).
-    pub new: String,
-    /// The ladder kind (`w1-map` · `w2-flow` · `d1-split` · …).
-    pub kind: &'static str,
-    /// Whether the repair landed (a skip stays retryable — a later
-    /// round's splice can make the token unique).
-    pub applied: bool,
-}
-
-impl Repair {
-    /// One APPLIED repair row (the 15k-wall constructor — the splice
-    /// site sets its own flag from the gate, hence not this).
-    #[must_use]
-    pub fn applied(old: &str, new: &str, kind: &'static str) -> Self {
-        Self {
-            old: old.to_owned(),
-            new: new.to_owned(),
-            kind,
-            applied: true,
-        }
-    }
-}
-
-/// Equivalence-or-stop diagnostics (W2 · D1) — rendered verbatim.
-#[derive(Clone, Debug)]
-pub struct StopNotes(pub Vec<String>);
-
-/// A round the loop REFUSED to commit: the transformed text no longer
-/// loaded as YAML (syntax or duplicate-key refusal) although the text it
-/// started from did. The round is
-/// rolled back to its savepoint (the file is never written from it) and
-/// this row says what was attempted and why it was refused — a typed
-/// refusal, never a silent write of a document `check` cannot read.
-///
-/// The invariant it enforces (2026-08-18): if `--fix` reports a repair,
-/// the document on disk parses at least as far as the document it
-/// replaced. Measured before the gate: the shipped 0.108.0 spliced a
-/// teaching sentence into a key, announced « 1 repair applied » and
-/// left YAML that no longer parsed.
-#[derive(Clone, Debug)]
-pub struct Refusal {
-    /// The repairs the round would have applied (`kind old → new` rows).
-    pub attempted: Vec<String>,
-    /// The parse failure the transformed text produced.
-    pub reason: String,
-}
+// Preserve the host's existing report paths; all repair decisions stay in this module.
+pub use nika_display::repair_render::{
+    Refusal, Repair, StopNotes, render_refusals, render_stops, summary,
+};
 
 /// Judge one round's transformation: `Some(refusal)` when `after` fails
 /// to load as YAML, including duplicate keys, while `before` did not — it broke
@@ -98,23 +48,6 @@ pub fn judge_round(before: &str, after: &str, attempted: Vec<String>) -> Option<
         return None;
     }
     yaml_broken(after).map(|reason| Refusal { attempted, reason })
-}
-
-/// Render the refusal rows (one per rolled-back round · refuse glyph).
-#[must_use]
-pub fn render_refusals(refusals: &[Refusal], theme: Theme) -> String {
-    let mut out = String::new();
-    for r in refusals {
-        let _ = writeln!(
-            out,
-            " {} {}  refused — {} · the repaired text does not parse ({}) · the file is unchanged",
-            theme.paint(Role::Bad, "✗"),
-            theme.paint(Role::Strong, "FIX"),
-            r.attempted.join(" · "),
-            r.reason,
-        );
-    }
-    out
 }
 
 /// Rounds cap — parse aborts at the first defect, so each parse-level
@@ -226,21 +159,6 @@ pub fn collect_typed_renames(
     report: &nika_check::CheckReport,
 ) -> Vec<(String, String, &'static str)> {
     nika_check::typed_renames(report)
-}
-
-/// Render the STOP diagnostic lines (verbatim W2/D1 notes · warn glyph).
-#[must_use]
-pub fn render_stops(stop_notes: &StopNotes, theme: Theme) -> String {
-    let mut stops = String::new();
-    for note in &stop_notes.0 {
-        let _ = writeln!(
-            stops,
-            " {} {}  {note}",
-            theme.paint(Role::Warn, "◼"),
-            theme.paint(Role::Strong, "STOP"),
-        );
-    }
-    stops
 }
 
 /// The R1 identity arm — `nika: v1` + `workflow: {id, description}` (or
@@ -468,55 +386,6 @@ pub fn try_w2_hoist(
     }
 }
 
-/// Per-repair lines + the closing verdict (count or the honest note).
-#[must_use]
-pub fn summary(repairs: &[Repair], applied: usize, theme: Theme) -> String {
-    let mut out = String::new();
-    for r in repairs {
-        if r.applied {
-            let _ = writeln!(
-                out,
-                " {} {}  {} `{}` → `{}`",
-                theme.paint(Role::Good, "✔"),
-                theme.paint(Role::Strong, "FIX"),
-                r.kind,
-                r.old,
-                r.new,
-            );
-        } else {
-            let _ = writeln!(
-                out,
-                " {} {}  {} `{}` → `{}` skipped — `{}` is not unique in the file \
-                 (a blind splice could rewrite the wrong site)",
-                theme.paint(Role::Dim, "○"),
-                theme.paint(Role::Strong, "FIX"),
-                r.kind,
-                r.old,
-                r.new,
-                r.old,
-            );
-        }
-    }
-    if applied == 0 {
-        let _ = writeln!(
-            out,
-            " {} {}  no machine-applicable repairs (typed rename suggestions only \
-             — structural findings stay yours)",
-            theme.paint(Role::Dim, "○"),
-            theme.paint(Role::Strong, "FIX"),
-        );
-    } else {
-        let plural = if applied == 1 { "repair" } else { "repairs" };
-        let _ = writeln!(
-            out,
-            " {} {}  {applied} {plural} applied · re-audit below",
-            theme.paint(Role::Good, "✔"),
-            theme.paint(Role::Strong, "FIX"),
-        );
-    }
-    out
-}
-
 /// Splice `old` → `new` when `old` occurs EXACTLY ONCE in `source` as a
 /// whole word — the byte surgery rides the shared
 /// [`nika_migrate::repair`] door; this wrapper keeps the CLI's repair
@@ -592,165 +461,6 @@ pub fn apply_prepass(source: &mut String, repairs: &mut Vec<Repair>, stop_notes:
                 .to_owned(),
         );
     }
-}
-
-fn indent_of(line: &str) -> &str {
-    line.split_at(line.len() - line.trim_start().len()).0
-}
-
-fn wrap_bare_exec(source: &str) -> Option<String> {
-    let mut changed = false;
-    let mut out = String::new();
-    for line in source.lines() {
-        if let Some(wrapped) = wrap_one_bare_exec(line) {
-            out.push_str(&wrapped);
-            changed = true;
-        } else {
-            out.push_str(line);
-        }
-        out.push('\n');
-    }
-    if !source.ends_with('\n') && out.ends_with('\n') {
-        out.pop();
-    }
-    changed.then_some(out)
-}
-
-fn wrap_one_bare_exec(line: &str) -> Option<String> {
-    let trimmed = line.trim_start();
-    let rest = trimmed.strip_prefix("exec:")?.trim();
-    if rest.is_empty()
-        || rest.starts_with('{')
-        || rest.starts_with('[')
-        || rest.starts_with('|')
-        || rest.starts_with('>')
-        || rest == "true"
-        || rest == "false"
-    {
-        return None;
-    }
-    let indent = indent_of(line);
-    let unquoted = rest.trim().trim_matches(|c| c == '"' || c == '\'');
-    if unquoted.is_empty() {
-        return None;
-    }
-    // Live dialect: argv for inert tokens, `shell:` for metacharacters.
-    // Writing both `command:` and `shell: true` is the 0.102 form and
-    // PARSE-019s (P08 · C13).
-    if unquoted
-        .chars()
-        .any(|c| matches!(c, '|' | ';' | '&' | '<' | '>' | '`' | '$' | '(' | ')'))
-    {
-        let escaped = unquoted.replace('\\', "\\\\").replace('"', "\\\"");
-        return Some(format!("{indent}exec:\n{indent}  shell: \"{escaped}\""));
-    }
-    let args: Vec<String> = unquoted
-        .split_whitespace()
-        .map(|w| format!("\"{w}\""))
-        .collect();
-    Some(format!(
-        "{indent}exec:\n{indent}  command: [{}]",
-        args.join(", ")
-    ))
-}
-
-fn has_bare_exec(source: &str) -> bool {
-    source.lines().any(|line| {
-        let t = line.trim_start();
-        t.strip_prefix("exec:").is_some_and(|rest| {
-            let rest = rest.trim();
-            !rest.is_empty()
-                && !rest.starts_with('{')
-                && !rest.starts_with('[')
-                && rest != "true"
-                && rest != "false"
-        })
-    })
-}
-
-fn rewrite_needs(source: &str) -> Option<String> {
-    let lines: Vec<&str> = source.lines().collect();
-    let mut changed = false;
-    let mut out = String::new();
-    for (i, line) in lines.iter().enumerate() {
-        if let Some(rewritten) = rewrite_one_needs(line) {
-            if sibling_has_after(&lines, i) {
-                out.push_str(line);
-            } else {
-                out.push_str(&rewritten);
-                changed = true;
-            }
-        } else {
-            out.push_str(line);
-        }
-        out.push('\n');
-    }
-    if !source.ends_with('\n') && out.ends_with('\n') {
-        out.pop();
-    }
-    changed.then_some(out)
-}
-
-fn rewrite_one_needs(line: &str) -> Option<String> {
-    let trimmed = line.trim_start();
-    let rest = trimmed.strip_prefix("needs:")?.trim();
-    let rest = rest.split('#').next().unwrap_or(rest).trim();
-    let inner = rest.strip_prefix('[')?.strip_suffix(']')?.trim();
-    if inner.is_empty() {
-        return None;
-    }
-    let mut ids = Vec::new();
-    for raw in inner.split(',') {
-        let id = raw.trim().trim_matches('"').trim_matches('\'').trim();
-        if id.is_empty()
-            || !id
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-        {
-            return None;
-        }
-        ids.push(id);
-    }
-    if ids.is_empty() {
-        return None;
-    }
-    let map = ids
-        .iter()
-        .map(|id| format!("{id}: success"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let indent = indent_of(line);
-    Some(format!("{indent}after: {{ {map} }}"))
-}
-
-fn sibling_has_after(lines: &[&str], idx: usize) -> bool {
-    let indent = indent_of(lines[idx]);
-    let same_key = |line: &str| {
-        let t = line.trim_start();
-        indent_of(line) == indent && t.starts_with("after:")
-    };
-    lines[..idx]
-        .iter()
-        .rev()
-        .take_while(|l| {
-            let t = l.trim();
-            t.is_empty() || t.starts_with('#') || indent_of(l).len() >= indent.len()
-        })
-        .any(|l| same_key(l))
-        || lines[idx + 1..]
-            .iter()
-            .take_while(|l| {
-                let t = l.trim();
-                t.is_empty() || t.starts_with('#') || indent_of(l).len() >= indent.len()
-            })
-            .any(|l| same_key(l))
-}
-
-fn has_needs_key(source: &str) -> bool {
-    source.lines().any(|line| {
-        let t = line.trim_start();
-        t.starts_with("needs:") && !t.starts_with("needs: #")
-    })
 }
 
 #[cfg(test)]
@@ -1096,5 +806,353 @@ mod tests {
         assert!(!source.contains("depends_on"), "{source}");
         assert!(!source.contains("after:"), "no edge is invented: {source}");
         assert_eq!(repairs.len(), 1, "{repairs:?}");
+    }
+
+    /// The prepass and repair-report byte oracle, through the unchanged host
+    /// paths (`apply_prepass`, the four prepass helpers, `render_refusals`,
+    /// `render_stops`, `summary`). Every expected digest below was captured by
+    /// running the immutable pre-move code on these same
+    /// inputs, never by the code under test.
+    mod ladder_oracle {
+        use sha2::{Digest as _, Sha256};
+
+        use super::*;
+        use crate::display::theme::Theme;
+
+        const SOURCES: [(&str, &str); 14] = [
+            ("bare_exec", "nika: a\ntasks:\n  t:\n    exec: echo hi\n"),
+            (
+                "metachar",
+                "nika: a\ntasks:\n  t:\n    exec: echo hi | wc -l\n",
+            ),
+            ("quoted", "nika: a\ntasks:\n  t:\n    exec: \"echo é ✨\"\n"),
+            (
+                "mapping",
+                "nika: a\ntasks:\n  t:\n    exec: { command: [true] }\n",
+            ),
+            (
+                "list_tasks",
+                "nika: a\ntasks:\n  - id: a\n    exec: ls -la\n",
+            ),
+            (
+                "needs_flow",
+                "nika: a\ntasks:\n  a:\n    exec: { command: [true] }\n  b:\n    needs: [a]\n    exec: { command: [true] }\n",
+            ),
+            (
+                "needs_two",
+                "nika: a\ntasks:\n  b:\n    needs: [a, c]\n    infer: { prompt: x }\n",
+            ),
+            (
+                "needs_block",
+                "nika: a\ntasks:\n  b:\n    needs:\n      - a\n    infer: { prompt: x }\n",
+            ),
+            (
+                "needs_scalar",
+                "nika: a\ntasks:\n  b:\n    needs: a\n    infer: { prompt: x }\n",
+            ),
+            (
+                "needs_empty",
+                "nika: a\ntasks:\n  b:\n    needs: []\n    infer: { prompt: x }\n",
+            ),
+            (
+                "needs_after",
+                "nika: a\ntasks:\n  b:\n    after: { c: success }\n    needs: [a]\n    infer: { prompt: x }\n",
+            ),
+            (
+                "both_crlf",
+                "nika: a\r\ntasks:\r\n  t:\r\n    needs: [a]\r\n    exec: echo hi\r\n",
+            ),
+            (
+                "unicode_ids",
+                "nika: é\ntasks:\n  tâche:\n    needs: [étape]\n    exec: echo « ✨ »\n",
+            ),
+            ("empty", ""),
+        ];
+
+        fn themes() -> [(&'static str, Theme); 5] {
+            [
+                ("plain", Theme::new(false, false, false)),
+                ("color", Theme::new(true, false, false)),
+                ("ascii", Theme::new(false, true, false)),
+                ("color_ascii", Theme::new(true, true, false)),
+                ("animate", Theme::new(true, false, true)),
+            ]
+        }
+
+        fn prepass_cases() -> Vec<(String, String)> {
+            let mut out = Vec::new();
+            for (name, source) in SOURCES {
+                let helpers = format!(
+                    "{:?}|{:?}|{:?}|{:?}",
+                    wrap_bare_exec(source),
+                    has_bare_exec(source),
+                    rewrite_needs(source),
+                    has_needs_key(source),
+                );
+                out.push((format!("prepass/{name}/helpers"), helpers));
+                let mut text = source.to_owned();
+                let mut repairs = Vec::new();
+                let mut stop_notes = StopNotes(Vec::new());
+                apply_prepass(&mut text, &mut repairs, &mut stop_notes);
+                out.push((
+                    format!("prepass/{name}/apply"),
+                    format!("{text}\n--\n{repairs:?}\n--\n{:?}", stop_notes.0),
+                ));
+            }
+            out
+        }
+
+        fn report_cases() -> Vec<(String, String)> {
+            let refusals = [
+                ("none", vec![]),
+                (
+                    "one",
+                    vec![Refusal {
+                        attempted: vec!["w1-map `envelope` → `map`".to_owned()],
+                        reason: "simple key expect ':'".to_owned(),
+                    }],
+                ),
+                (
+                    "two",
+                    vec![
+                        Refusal {
+                            attempted: vec![],
+                            reason: "duplicate key « tâche » \"x\" \\".to_owned(),
+                        },
+                        Refusal {
+                            attempted: vec!["a → b".to_owned(), "c ✨ → d".to_owned()],
+                            reason: "line one\nline two".to_owned(),
+                        },
+                    ],
+                ),
+            ];
+            let stops = [
+                ("none", StopNotes(vec![])),
+                (
+                    "two",
+                    StopNotes(vec![
+                        "`needs:` is foreign — rewrite it".to_owned(),
+                        "équipe \"x\" \\ ✨\nsecond".to_owned(),
+                    ]),
+                ),
+            ];
+            let repairs = vec![
+                Repair::applied("bare exec: string", "command: argv", "bare-exec"),
+                Repair {
+                    old: "needs: « é »".to_owned(),
+                    new: "after: { id: success }".to_owned(),
+                    kind: "needs-after",
+                    applied: false,
+                },
+                Repair::applied("tasks: list", "tasks: map keyed by task id", "w1-map"),
+            ];
+            let summaries = [
+                ("none", vec![], 0),
+                ("skipped", vec![repairs[1].clone()], 0),
+                ("mixed", repairs.clone(), 2),
+                ("overcount", repairs, 3),
+            ];
+            let mut out = Vec::new();
+            for (t, theme) in themes() {
+                for (r, rows) in &refusals {
+                    out.push((
+                        format!("report/refusals/{r}/{t}"),
+                        render_refusals(rows, theme),
+                    ));
+                }
+                for (s, notes) in &stops {
+                    out.push((format!("report/stops/{s}/{t}"), render_stops(notes, theme)));
+                }
+                for (s, rows, applied) in &summaries {
+                    out.push((
+                        format!("report/summary/{s}/{t}"),
+                        summary(rows, *applied, theme),
+                    ));
+                }
+            }
+            out
+        }
+
+        /// `(group, cases, sha256)` per leading two name segments, in order.
+        fn groups(cases: &[(String, String)]) -> Vec<(String, usize, String)> {
+            let mut out: Vec<(String, usize, Sha256)> = Vec::new();
+            for (name, text) in cases {
+                let key = name.splitn(3, '/').take(2).collect::<Vec<_>>().join("/");
+                if out.last().is_none_or(|(k, _, _)| *k != key) {
+                    out.push((key, 0, Sha256::new()));
+                }
+                if let Some((_, n, hasher)) = out.last_mut() {
+                    *n += 1;
+                    hasher.update(name.as_bytes());
+                    hasher.update([0]);
+                    hasher.update(text.len().to_string().as_bytes());
+                    hasher.update([0]);
+                    hasher.update(text.as_bytes());
+                }
+            }
+            out.into_iter()
+                .map(|(k, n, h)| (k, n, format!("{:x}", h.finalize())))
+                .collect()
+        }
+
+        /// `(group, cases, sha256)` captured from the pre-move code; never recomputed by the code under test.
+        const EXPECTED: &[(&str, usize, &str)] = &[
+            (
+                "prepass/bare_exec",
+                2,
+                "7430a48a526b1897cd1b88fd6200c908492ba69e6a07753c3050ad55186e0140",
+            ),
+            (
+                "prepass/metachar",
+                2,
+                "90e2e29a7c6c69d6da1e9de6ba384b5644a49ac3056cdac20e01448dc4e0c914",
+            ),
+            (
+                "prepass/quoted",
+                2,
+                "7171e3528a5dfd7730d5ba58611b0e364743206b322bb7b4fb413850747db5d4",
+            ),
+            (
+                "prepass/mapping",
+                2,
+                "0bcc698c83aefadc9dd7cc431a2b1f7b14bfdd552a40ea0a016d61deffbedb43",
+            ),
+            (
+                "prepass/list_tasks",
+                2,
+                "4c5dd211544b858fe63db3ddd7f0be824fd5a91fa05bfd6777a7b7a067dd76bb",
+            ),
+            (
+                "prepass/needs_flow",
+                2,
+                "714335c9a37f7465a5730eeb3807cd1d5a69edf9694ca26dc1b3164c3020cbc4",
+            ),
+            (
+                "prepass/needs_two",
+                2,
+                "2815640bafaa1ec6280f17e896be9afad89aaac0992b9e17e8079f3e9057ac7e",
+            ),
+            (
+                "prepass/needs_block",
+                2,
+                "fea2623eec21543bf321e84c26e92da3a84096709cb0f45d1e9580e58e2426b3",
+            ),
+            (
+                "prepass/needs_scalar",
+                2,
+                "12d2c982dd258b1a005c921c7a39d5c3bab241762673341f7a5f04f2a5fb7979",
+            ),
+            (
+                "prepass/needs_empty",
+                2,
+                "4e47a9bee228a8848e2d2dbc152d747e882cd1db831197821ad7f5fc56e30c22",
+            ),
+            (
+                "prepass/needs_after",
+                2,
+                "729695a1202075f5ce6b03725fb0a479f597b2428d3601781dd29a3f79d40f4c",
+            ),
+            (
+                "prepass/both_crlf",
+                2,
+                "e93ca9795ca7ec3fb605dbd35e2c90e9a22bfcb64b3931289b94b05de2945b69",
+            ),
+            (
+                "prepass/unicode_ids",
+                2,
+                "06fa81ac9acd9f920139e25cd0e9ebaeb5a547a1ff0fc419cc8f2dcfc6c4f4cd",
+            ),
+            (
+                "prepass/empty",
+                2,
+                "d310d185af7ed5c3184819b2bd8a32cb9dd39f9a05e7c48da01eccb5cd22f055",
+            ),
+            (
+                "report/refusals",
+                3,
+                "1f5a1efb65433b681bf7ace19c8e6df38e66aa4deeab98a8a4d603657b045d98",
+            ),
+            (
+                "report/stops",
+                2,
+                "9f6ac8239b5d77d184701ef41846cf496d162a7f3347c0d85e64198fb86aefe7",
+            ),
+            (
+                "report/summary",
+                4,
+                "17ca5d752c8a71c0d9b3f57c28fce17ef2801a422ecde74c6aaa489b0b80b1b8",
+            ),
+            (
+                "report/refusals",
+                3,
+                "8004da668ed351a1d816731b46fa692135c3daf18d1d89bb7e21d6f85a3547b4",
+            ),
+            (
+                "report/stops",
+                2,
+                "2b9d258d50a10fbc17d29b930541d14e8b0971602f01f5d0165cb509ce711a14",
+            ),
+            (
+                "report/summary",
+                4,
+                "57c189e4302668abaff53eb63f101305c9ce41e9a4138b1af5b93274cde7b8d6",
+            ),
+            (
+                "report/refusals",
+                3,
+                "0331c7395a0e852acf2e63acbddb05cc094bf1289346d85e403953293f7f5b6a",
+            ),
+            (
+                "report/stops",
+                2,
+                "6258abce7d6a891cc496970dff7160f6430dddd38985ed93c278a6e69ce35a6a",
+            ),
+            (
+                "report/summary",
+                4,
+                "6ba45aecd2f6d1a210f0cc7a19e7d4c952e7d8561e82e987acebd2a2927bf4a7",
+            ),
+            (
+                "report/refusals",
+                3,
+                "9eb87bd037511d3b46a3a565666fae333156c82ec7a5459f6b4aa55acc0c684e",
+            ),
+            (
+                "report/stops",
+                2,
+                "e3aaca34462fa513e19e2c8eb14342f228a53866fd12f8334a04065df07158a9",
+            ),
+            (
+                "report/summary",
+                4,
+                "13454e245428db99895291d32ac239f1bebd35b7e4ac123325526555cf2bea95",
+            ),
+            (
+                "report/refusals",
+                3,
+                "f2fea7701fd614b316dd370f85786d55b7563770b9cfe1f3a0d40a3074d07fae",
+            ),
+            (
+                "report/stops",
+                2,
+                "1b7751aff6c93e28cf56f6340e1702f8dac556a2cf49220ef3f0b5b2838987f2",
+            ),
+            (
+                "report/summary",
+                4,
+                "eeee4d00ed48be913e88272fec6e0186f5f462e3454b107b4354dc29b0d834cf",
+            ),
+        ];
+
+        #[test]
+        fn the_prepass_and_report_keep_the_pre_move_bytes() {
+            let mut cases = prepass_cases();
+            cases.extend(report_cases());
+            let want: Vec<(String, usize, String)> = EXPECTED
+                .iter()
+                .map(|(g, n, s)| ((*g).to_owned(), *n, (*s).to_owned()))
+                .collect();
+            assert_eq!(groups(&cases), want);
+        }
     }
 }

@@ -327,3 +327,63 @@ async fn protected_parent_is_not_captured_but_an_explicit_directory_read_is_refu
         sentinel
     );
 }
+
+/// A settled run's completed write advances only the bound destination: the source stays bound,
+/// and a foreign write or a source edit after that observation is drift again.
+#[tokio::test]
+async fn a_completed_write_advances_only_its_destination() {
+    let root = world(None);
+    let witness = before(root.path())
+        .await
+        .witness(CANDIDATE, &passed())
+        .await
+        .unwrap();
+    std::fs::write(root.path().join("out.txt"), OUTPUT).unwrap();
+    assert!(
+        witness
+            .drift(root.path(), None)
+            .unwrap()
+            .contains("appeared")
+    );
+    let next = witness.advanced(root.path(), &[TARGET.into()]).unwrap();
+    assert_eq!(
+        next.world()[0],
+        witness.world()[0],
+        "the source stays bound"
+    );
+    let rebound = (TARGET.to_owned(), Seen::File(Digest::of(OUTPUT.as_bytes())));
+    assert_eq!(next.world()[1], rebound);
+    assert_eq!(next.candidate_sha256(), witness.candidate_sha256());
+    assert!(next.drift(root.path(), None).is_none());
+    std::fs::write(root.path().join("out.txt"), "foreign bytes").unwrap();
+    assert!(next.drift(root.path(), None).unwrap().contains("changed"));
+    std::fs::write(root.path().join("out.txt"), OUTPUT).unwrap();
+    std::fs::write(root.path().join("in.txt"), "edited source").unwrap();
+    assert!(next.drift(root.path(), None).unwrap().contains("in.txt"));
+}
+
+/// No write, a source, an unbound or outside path, an absent destination, a witness without
+/// destinations, a target the request also reads: nothing advances.
+#[tokio::test]
+async fn only_a_present_bound_destination_advances() {
+    let root = world(None);
+    let witness = before(root.path())
+        .await
+        .witness(CANDIDATE, &passed())
+        .await
+        .unwrap();
+    assert!(witness.advanced(root.path(), &[]).is_err());
+    let absent = witness.advanced(root.path(), &[TARGET.into()]).unwrap_err();
+    assert!(absent.contains("absent"), "{absent}");
+    std::fs::write(root.path().join("out.txt"), OUTPUT).unwrap();
+    for wrong in [SOURCE, "./other.txt", "../out.txt"] {
+        let error = witness
+            .advanced(root.path(), &[TARGET.into(), wrong.into()])
+            .unwrap_err();
+        assert!(error.contains("no destination"), "{wrong}: {error}");
+    }
+    let synthetic = Witness::new(sha256(CANDIDATE), witness.world().to_vec());
+    assert!(synthetic.advanced(root.path(), &[TARGET.into()]).is_err());
+    let read_too = synthetic.writing(&[SOURCE.into()], &[SOURCE.into()]);
+    assert!(read_too.advanced(root.path(), &[SOURCE.into()]).is_err());
+}

@@ -60,11 +60,19 @@ impl HttpPostDyn for Wire {
                 "total_tokens": 10 + self.completion,
                 "prompt_cache_hit_tokens": 0, "prompt_cache_miss_tokens": 10})
         };
-        let body = serde_json::json!({
-            "id": "dynamic-fixture", "model": sent["model"],
-            "choices": [{"message": {"content": "observed"}, "finish_reason": "stop"}],
-            "usage": usage
-        });
+        let body = if req.url.ends_with("/api/chat") {
+            serde_json::json!({
+                "model": sent["model"], "message": {"role": "assistant", "content": "observed"},
+                "done": true, "done_reason": "stop",
+                "prompt_eval_count": 10, "eval_count": self.completion
+            })
+        } else {
+            serde_json::json!({
+                "id": "dynamic-fixture", "model": sent["model"],
+                "choices": [{"message": {"content": "observed"}, "finish_reason": "stop"}],
+                "usage": usage
+            })
+        };
         Ok(HttpResponse::new(
             200,
             std::collections::BTreeMap::new(),
@@ -108,7 +116,7 @@ fn owned_local_engine() -> String {
             let _ = stream.write_all(b"HTTP/1.0 404 Not Found\r\n\r\n");
         }
     });
-    format!("http://127.0.0.1:{port}/v1/chat/completions")
+    format!("http://127.0.0.1:{port}/api/chat")
 }
 
 /// A loopback endpoint nothing listens on: bound, then released.

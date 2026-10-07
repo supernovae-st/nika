@@ -1,45 +1,42 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Native authoring (treatment D of the A/B/C/D/E comparison): a strong seat writes the
-//! `.nika` candidate itself, from the authoring workspace's knowledge, and the compiler judges
-//! it as it judges any source — the strict parser, the pure Check, then deterministic fidelity
-//! laws that compare the candidate to the ORIGINAL request and the reader's floor (every
-//! source the request names is read, every destination written, every stated approval gates
-//! its effect through `nika:prompt`, no prohibited effect, no invented path or host) — and
-//! sends every refusal back as structured diagnostics for a bounded repair round. A candidate
-//! that survives is READY once its business questions are answered; one that does not is a
+//! The shared machinery of the semantic doors (the sketch door's creation and the semantic
+//! revision of a recorded base). No seat writes the `.nika`: it answers a graph and typed fills,
+//! and the compiler assembles the source from them. This module keeps what both doors share:
+//! the conversation and its strict answer decoding, the round journal and its record, the
+//! settlement of admitted questions and gaps, and the conclusion that judges the assembled
+//! candidate as any source — the strict parser, the pure Check, then the deterministic fidelity
+//! laws against the ORIGINAL request and the reader's floor (every source the request names is
+//! read, every destination written, every stated approval gates its effect through
+//! `nika:prompt`, no prohibited effect, no invented path or host). Refusals go back as
+//! structured diagnostics within the repair bound; a candidate that does not survive is a
 //! recorded failure with its last diagnostics, never a substitute. The seat never asks a human
 //! for jq, a glob or any internal syntax: those are the compiler's diagnostics, not questions.
 
 use super::knowledge::{self, Reference};
-use super::{AuthoringPolicy, CompileOutcome, CompileRequest, DiagnosticKind, Strategy};
+use super::{CompileOutcome, CompileRequest, DiagnosticKind, Strategy};
 use crate::fidelity::{self, Diagnostic};
 use crate::types::{EditChange, Input};
-use crate::{CompileDiagnostic, CompileError, CompileQuestion, CompileStatus, lexicon::Reading};
-use nika_kernel::ai::provider::{Message, ProviderInferDyn, Role};
+use crate::{CompileDiagnostic, CompileQuestion, CompileStatus, lexicon::Reading};
+use nika_kernel::ai::provider::{Message, Role};
 use serde_json::{Value, json};
 
 #[cfg(test)]
 use super::QuestionType;
 
 mod answer;
-mod ask;
-mod bounds;
 mod decode;
 mod journal;
+#[cfg(test)]
+mod response_recovery_tests;
 mod revision;
 pub(super) use answer::{Answer, Question};
 pub(super) use decode::{Shaped, decode};
 pub(super) use journal::record;
 
-fn schema() -> Value {
-    serde_json::from_str(include_str!("../../assets/native_answer_schema.json"))
-        .unwrap_or_else(|_| json!({"type": "object"}))
-}
-
 /// Whether a cold outcome calls for the native strategy: a question that hands the human a
-/// machine's problem (a rewrite, a jq expression, a glob), or a dead end (no candidate and
+/// machine's problem (a rewrite, a jq expression, a glob, a rule's unnamed source key), or a dead end (no candidate and
 /// nothing to answer). A cold outcome waiting on business values is not a failure.
 pub(super) fn escalates(out: &CompileOutcome) -> bool {
     // A refusal is the floor (a bypassed approval, a literal-only policy, an effect the words
@@ -56,11 +53,14 @@ pub(super) fn escalates(out: &CompileOutcome) -> bool {
     {
         return false;
     }
+    // A typed rule's source key the request never names (`const.rule_field_*`) is the author's to
+    // read from the observed world (a nested or derived value no observed key holds), not the
+    // human's: the sketch door may still ask a business question of its own.
     let machine = out.questions.iter().any(|q| {
         matches!(
             q.key.as_str(),
             "intent.clarification" | "const.rule_expression" | "const.source_glob"
-        )
+        ) || q.key.starts_with("const.rule_field_")
     });
     machine || (out.candidate.is_none() && out.questions.is_empty())
 }
@@ -137,6 +137,12 @@ pub(super) struct Talk {
     pub(super) messages: Vec<Message>,
     pub(super) rounds: Vec<Value>,
     pub(super) last: Option<Vec<Diagnostic>>,
+    /// The last finding set a reopening sent (evidence or the judge's): what the next
+    /// reopening's set is compared with. A fill's own repairs never reset it.
+    pub(super) reopened: Option<Vec<Diagnostic>>,
+    /// Under no repair count, every finding set this talk already answered: one met again is no
+    /// progress. `None` for a talk with a typed limit, whose count ends it.
+    pub(super) answered: Option<Vec<Vec<Diagnostic>>>,
     /// Exact malformed response repeated without progress; not an accepted candidate.
     last_decode: Option<String>,
     /// The last candidate the laws refused: the record keeps its text, so a refusal can be
@@ -145,8 +151,6 @@ pub(super) struct Talk {
     pub(super) route: Vec<String>,
     /// The values the human answered: a candidate may carry them without inventing them.
     pub(super) allowed: Vec<String>,
-    /// The keys the human answered: an ask never asks them again.
-    pub(super) answered: Vec<String>,
     /// The whole names the human typed for the read's source question: the laws read a stated
     /// source through them exactly as the assembler's emission does.
     pub(super) clarified: Vec<String>,
@@ -156,15 +160,20 @@ pub(super) struct Talk {
     /// The observed world of the stated files, when the host read one: a column, field, key
     /// or value name is stated there, never asked.
     pub(super) observed: Option<Value>,
-    /// The base and the change words of a revision in words: a stated path the change leaves
-    /// behind is waived only as `revision` proves it or the human disposes of it.
-    pub(super) revision: Option<(String, String)>,
     /// The receipts of the references and callables the system message carries, stamped on
     /// every call of the conversation's journal: what the seat was actually shown.
     pub(super) presented: Value,
 }
 
 impl Talk {
+    /// Under a policy with no repair count, remember every finding set answered from here on
+    /// (a bounded policy changes nothing).
+    pub(super) fn remember_under(&mut self, policy: &super::AuthoringPolicy) {
+        if policy.repairs.is_none() && self.answered.is_none() {
+            self.answered = Some(Vec::new());
+        }
+    }
+
     /// A conversation opened on the system message and the opening: no round yet, the
     /// answered values allowed, the observed world and the repair principles at hand.
     pub(super) fn open(
@@ -181,14 +190,14 @@ impl Talk {
             ],
             rounds: Vec::new(),
             last: None,
+            reopened: None,
+            answered: None,
             last_decode: None,
             refused: None,
             route,
             allowed,
-            answered: request.answers.keys().cloned().collect(),
             clarified: fidelity::clarified_sources(&request.answers),
             observed: request.knowledge.clone(),
-            revision: revision::of(request),
             presented: Value::Null,
             repairs: request
                 .authoring_knowledge
@@ -213,143 +222,11 @@ pub(super) fn cold(out: &mut CompileOutcome) -> Cold {
 
 /// What the cold round left when the native door opened: its report for the record, its
 /// questions and diagnostics, kept in case the door never judges a candidate.
+#[derive(Clone)]
 pub(super) struct Cold {
     pub(super) report: Value,
     pub(super) questions: Vec<CompileQuestion>,
     pub(super) diagnostics: Vec<CompileDiagnostic>,
-}
-
-/// What one round decided.
-enum Round {
-    /// The candidate passed every law.
-    Accepted(Box<Answer>, String),
-    /// No candidate, only business values or clauses for the human: they answer first, the
-    /// questions as admitted.
-    Asked(Box<Answer>, ask::Admitted),
-    /// The diagnostics went back to the seat.
-    Repair,
-    /// The seat repeated a refused candidate or malformed answer: stop honestly.
-    Stalled,
-    /// A terminal call/answer failure, or no authorized syntax repair remains.
-    Stop,
-}
-
-/// Author natively: the opening call, then at most `policy.repairs` repair calls. Completed
-/// syntax errors may receive feedback; every decoded candidate faces the same laws. The
-/// receipt and diagnostics retain every call, including any previous cold round.
-pub(super) async fn author<P: ProviderInferDyn>(
-    intent: &str,
-    reading: &Reading,
-    policy: &AuthoringPolicy,
-    provider: &P,
-    request: &CompileRequest,
-    mut route: Vec<String>,
-    mut out: CompileOutcome,
-    rehearsals: &mut super::rehearsal::Rehearsals<'_>,
-) -> Result<CompileOutcome, CompileError> {
-    let cold = cold(&mut out);
-    if floor_refuses(reading, &mut out) {
-        route.push("native: refused by the floor".to_owned());
-        super::record_route(&mut out, &route);
-        out.provenance.strategy = Some(Strategy::Native);
-        return Ok(out);
-    }
-    let Prelude {
-        references,
-        callables,
-        sent,
-        revision,
-        opening,
-        allowed,
-    } = prelude(intent, reading, request);
-    let mut talk = Talk::open(
-        format!(
-            "{}\n\n# Native answer transport\nPrefer candidate_lines: one physical YAML line per array element, preserving indentation and blank lines; an empty final element represents a final newline. Set candidate to the empty string in line mode. Otherwise send the complete candidate string with real newlines and an empty candidate_lines array. Populate exactly one representation. Never encode structural line breaks as HTML or symbols. Keep questions, gaps and notes as specified by the card.",
-            system_message(&references, &callables)
-        ),
-        opening.to_string(),
-        route,
-        allowed,
-        request,
-    );
-    talk.presented = json!(sent);
-    let (mut accepted, mut asked): (Option<Answer>, Option<(Answer, ask::Admitted)>) = (None, None);
-    let mut round_policy = policy.clone();
-    round_policy.max_tokens = policy.initial_max_tokens.unwrap_or(policy.max_tokens);
-    for round in 0..=policy.repairs.min(5) {
-        let exchanged = exchange(
-            round,
-            &mut talk,
-            intent,
-            reading,
-            &mut round_policy,
-            policy.max_tokens,
-            provider,
-            &mut out,
-        )
-        .await;
-        let result = match exchanged {
-            Round::Accepted(answer, text) => {
-                rehearse_accept(
-                    intent,
-                    reading,
-                    request,
-                    (answer, text),
-                    &mut talk,
-                    &mut out,
-                    rehearsals,
-                )
-                .await
-            }
-            other => other,
-        };
-        if stop_after(result, &mut accepted, &mut asked, &mut talk) {
-            break;
-        }
-    }
-    record(
-        &mut out,
-        request,
-        &cold,
-        &talk,
-        &sent,
-        accepted.as_ref(),
-        revision,
-    );
-    match asked {
-        Some((answer, admitted)) => ask::conclude(&answer, &admitted, &talk, &mut out),
-        None => conclude(
-            intent,
-            reading,
-            request,
-            accepted.as_ref(),
-            &talk,
-            cold,
-            &mut out,
-        ),
-    }
-    out.provenance.strategy = Some(Strategy::Native);
-    if accepted.is_some() {
-        out = super::verify::judged_native(intent, reading, policy, provider, request, out).await;
-    }
-    Ok(out)
-}
-
-/// Whether the existing conversation loop has reached its terminal decision.
-fn stop_after(
-    round: Round,
-    accepted: &mut Option<Answer>,
-    asked: &mut Option<(Answer, ask::Admitted)>,
-    talk: &mut Talk,
-) -> bool {
-    match round {
-        Round::Accepted(answer, _) => *accepted = Some(*answer),
-        Round::Asked(answer, admitted) => *asked = Some((*answer, admitted)),
-        Round::Repair => return false,
-        Round::Stalled => talk.route.push("native: no progress".to_owned()),
-        Round::Stop => {}
-    }
-    true
 }
 
 /// Every string scalar of a document, once: the literals a base candidate already carries.
@@ -388,11 +265,18 @@ pub(super) fn prelude<'a>(
     reading: &Reading,
     request: &'a CompileRequest,
 ) -> Prelude<'a> {
-    let mut references = knowledge::references(intent, 2);
+    // A qualified pack already carries the embedded recall, judged with it.
+    let mut references = if knowledge::folded(request) {
+        Vec::new()
+    } else {
+        knowledge::references(intent, 2)
+    };
     if let Some(pack) = &request.authoring_knowledge {
         references.extend(pack.references.iter().map(|r| Reference {
             id: r.id.clone(),
             kind: match r.kind.as_str() {
+                "skeleton" => "skeleton",
+                "family" => "family",
                 "pattern" => "pattern",
                 "block" => "block",
                 "example" => "example",
@@ -451,149 +335,6 @@ pub(super) fn prelude<'a>(
     }
 }
 
-/// One round: the call, the decoded answer, the judge's verdict, the journal entry, and the
-/// diagnostics sent back when the candidate is refused.
-async fn exchange<P: ProviderInferDyn>(
-    round: u32,
-    talk: &mut Talk,
-    intent: &str,
-    reading: &Reading,
-    policy: &mut AuthoringPolicy,
-    hard_max_tokens: u32,
-    provider: &P,
-    out: &mut CompileOutcome,
-) -> Round {
-    let role = if round == 0 {
-        "native"
-    } else {
-        "native-repair"
-    };
-    let before = super::receipt::journaled(out);
-    let response =
-        super::call_with_schema(policy, provider, role, talk.messages.clone(), schema(), out).await;
-    super::receipt::stamp_references(out, before, &talk.presented);
-    let Some(response) = response else {
-        talk.rounds.push(json!({"round": round, "call": "failed"}));
-        return Round::Stop;
-    };
-    if bounds::expand(&response, round, policy, hard_max_tokens, talk) {
-        return Round::Repair;
-    }
-    let (mut answer, text) = match decode::native(&response, round, policy, talk, out) {
-        Ok(answer) => answer,
-        Err(decision) => return decision,
-    };
-    if ask::only(&answer) {
-        return ask::round(round, answer, text, intent, talk);
-    }
-    revision::record_path_changes(
-        intent,
-        talk.revision.as_ref(),
-        &answer.candidate,
-        &mut answer.gaps,
-    );
-    let waived = revision::waivable(
-        intent,
-        talk.revision.as_ref(),
-        &answer.gaps,
-        &answer.candidate,
-    );
-    let mut diagnostics = judge(
-        intent,
-        reading,
-        &answer.candidate,
-        &answer.questions,
-        &talk.allowed,
-        &waived,
-        &talk.clarified,
-        talk.observed.as_ref(),
-    );
-    if let Some(diagnostic) = revision::duplicate_write(talk.revision.as_ref(), &answer.candidate) {
-        diagnostics.push(diagnostic);
-    }
-    talk.rounds
-        .push(journal::judged(round, &answer, &diagnostics));
-    if diagnostics.is_empty() {
-        return Round::Accepted(Box::new(answer), text);
-    }
-    send_back(answer.candidate, text, diagnostics, talk)
-}
-
-/// Materialize with the existing answer/default rules before a host sees the candidate.
-/// A refusal goes back through the same repair loop; invalid evidence never asks the author
-/// to repair a host. The final barrier covers any later change to these bytes.
-async fn rehearse_accept(
-    intent: &str,
-    reading: &Reading,
-    request: &CompileRequest,
-    proposed: (Box<Answer>, String),
-    talk: &mut Talk,
-    out: &mut CompileOutcome,
-    rehearsals: &mut super::rehearsal::Rehearsals<'_>,
-) -> Round {
-    let (answer, text) = proposed;
-    if !rehearsals.offered() {
-        return Round::Accepted(answer, text);
-    }
-    let mut materialized = crate::initial();
-    settle(
-        intent,
-        reading.plan.trigger.as_deref(),
-        &answer.candidate,
-        &answer.questions,
-        &answer.gaps,
-        request,
-        &mut materialized,
-    );
-    if !super::rehearsal::ready(&materialized) {
-        return Round::Accepted(answer, text);
-    }
-    let verdict = rehearsals.inspect(request, &materialized).await;
-    if let Some(entry) = talk.rounds.last_mut() {
-        entry["rehearsal"] = verdict.record;
-    }
-    match verdict.result {
-        super::rehearsal::Result::Proceed => Round::Accepted(answer, text),
-        super::rehearsal::Result::Repair(diagnostic) => {
-            if let Some(entry) = talk.rounds.last_mut() {
-                entry["diagnostics"] =
-                    json!([{"kind": diagnostic.kind, "message": diagnostic.message}]);
-            }
-            send_back(answer.candidate, text, vec![diagnostic], talk)
-        }
-        super::rehearsal::Result::Stop(reason) => {
-            if let Some(entry) = talk.rounds.last_mut() {
-                entry["diagnostics"] = json!([{"kind": "rehearsal_stopped", "message": reason}]);
-            }
-            crate::finding(out, DiagnosticKind::Unknown, "rehearsal", reason);
-            Round::Stop
-        }
-    }
-}
-
-/// A refused candidate or ask goes back to the seat with its diagnostics, within the repair
-/// budget; the same text refused for the same reasons is no progress.
-fn send_back(
-    candidate: String,
-    text: String,
-    diagnostics: Vec<Diagnostic>,
-    talk: &mut Talk,
-) -> Round {
-    let repeated =
-        talk.refused.as_ref() == Some(&candidate) && talk.last.as_ref() == Some(&diagnostics);
-    talk.refused = Some(candidate);
-    if repeated {
-        return Round::Stalled;
-    }
-    talk.messages.push(Message::text(Role::Assistant, text));
-    talk.messages.push(Message::text(
-        Role::User,
-        repair_message(&diagnostics, &talk.repairs),
-    ));
-    talk.last = Some(diagnostics);
-    Round::Repair
-}
-
 /// The end of the conversation: an accepted candidate settles; an exhausted budget is an
 /// honest technical finding, never a replacement request or a substitute workflow.
 pub(super) fn conclude(
@@ -613,7 +354,7 @@ pub(super) fn conclude(
         "authoring_native",
         journal::line(&talk.rounds),
     );
-    let mut route = talk.route.clone();
+    let mut route = continued(out, &talk.route);
     let judged = talk
         .rounds
         .iter()
@@ -681,30 +422,34 @@ pub(super) fn conclude(
     }
 }
 
+/// The route this outcome records: the steps it already holds, in their order (what the
+/// verifier decided of earlier bytes in this talk among them: a carried rejection, a repeat, a
+/// judgment), then each step of the talk's route it does not hold yet.
+fn continued(out: &CompileOutcome, talk: &[String]) -> Vec<String> {
+    let held: Vec<String> = (out.provenance.decision.as_ref())
+        .and_then(|decision| decision["route"].as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(str::to_owned)
+        .collect();
+    let mut at = 0;
+    let mut route = held.clone();
+    for step in talk {
+        match held[at..].iter().position(|kept| kept == step) {
+            Some(found) => at += found + 1,
+            None => route.push(step.clone()),
+        }
+    }
+    route
+}
+
 /// An exhausted budget, stated: never a replacement request or a substitute workflow.
 const EXHAUSTED: &str = "No candidate passed the checks within the repair budget; the original request, candidates and diagnostics are retained. No workflow was emitted. Inspect the last diagnostic before another bounded attempt.";
 
 pub(super) fn system_message(references: &[Reference], callables: &[Reference]) -> String {
     let mut text = format!("{}\n\n{}", knowledge::card(), knowledge::CONVENTIONS);
-    text.push_str("\n\n# Callable contracts (the stdlib page, cut)\n");
-    for callable in callables {
-        text.push_str(&callable.text);
-        text.push_str("\n\n");
-    }
-    text.push_str("\n# References recalled for this request (priors, never prisons)\n");
-    for reference in references {
-        text.push_str("## ");
-        text.push_str(&reference.id);
-        text.push('\n');
-        if reference.kind == "skeleton" {
-            text.push_str("```yaml\n");
-            text.push_str(&reference.text);
-            text.push_str("\n```\n\n");
-        } else {
-            text.push_str(&reference.text);
-            text.push_str("\n\n");
-        }
-    }
+    text.push_str(&knowledge::rendered(references, callables));
     text
 }
 
@@ -725,7 +470,7 @@ pub(super) fn repair_message(
     let mut principles: Vec<&str> = Vec::new();
     for code in diagnostics.iter().flat_map(|d| codes_in(&d.message)) {
         for line in repairs.get(&code).into_iter().flatten() {
-            if !principles.contains(&line.as_str()) && principles.len() < 6 {
+            if !principles.contains(&line.as_str()) {
                 principles.push(line);
             }
         }
@@ -757,8 +502,9 @@ const MACHINE_SLUGS: &str = include_str!("../../assets/machine_slugs.txt");
 /// world when the host read the file, never asked then.
 const STRUCTURE_SLUGS: &str = include_str!("../../assets/structure_slugs.txt");
 
-/// The observed world in one line — `./tickets.json: id, status, topic (status: closed | open)`
-/// — or None when the host read no stated file.
+/// The observed world in one line — `./tickets.json: id, status, topic (status: closed | open)`,
+/// with the nested names a file's structure states (`; movements[]: kind, part, qty`) — or None
+/// when the host read no stated file.
 fn observed_names(observed: Option<&Value>) -> Option<String> {
     let observed = observed?;
     let rows = observed
@@ -796,10 +542,29 @@ fn observed_names(observed: Option<&Value>) -> Option<String> {
             } else {
                 format!(" ({})", values.join("; "))
             };
-            Some(format!("{path}: {}{values}", columns.join(", ")))
+            let nested = (observed.get("kinds").and_then(|k| k.get(path)))
+                .and_then(nika_compile_fidelity::observed::names)
+                .map(|names| format!("; {names}"))
+                .unwrap_or_default();
+            Some(format!("{path}: {}{values}{nested}", columns.join(", ")))
         })
         .collect();
     (!lines.is_empty()).then(|| lines.join(" · "))
+}
+
+/// Every `path: key` of the observed world whose arrays or objects no complete nested structure
+/// covers (`nika_compile_fidelity::observed::uncovered`): the observation states no name below.
+fn uncovered(observed: Option<&Value>) -> Vec<String> {
+    let kinds = observed
+        .and_then(|o| o.get("kinds"))
+        .and_then(Value::as_object);
+    (kinds.into_iter().flatten())
+        .flat_map(|(path, entry)| {
+            nika_compile_fidelity::observed::uncovered(entry)
+                .into_iter()
+                .map(move |key| format!("{path}: {key}"))
+        })
+        .collect()
 }
 
 /// Phrases that leave a column or a field of a file open (FR · EN, folded, whole words): which
@@ -875,11 +640,11 @@ fn open_column(intent: &str, slug: &str, observed: Option<&Value>) -> Option<Vec
 }
 
 /// A candidate's questions, admitted: `const.<snake_slug>` keys only, each declared under
-/// `const:` in the candidate as a placeholder (an ask without a candidate declares none), at
-/// most eight; never a machine's construct; never a name the observed world states. A column
+/// `const:` in the candidate as a placeholder (an ask without a candidate declares none);
+/// never a machine's construct; never a name the observed world states. A column
 /// the request leaves open is admitted with its observed alternatives (`open_column`), the
 /// only answers the compiler takes.
-fn admitted_questions(
+pub(super) fn admitted_questions(
     intent: &str,
     candidate: &str,
     questions: &[Question],
@@ -894,7 +659,7 @@ fn admitted_questions(
         .cloned()
         .unwrap_or_default();
     let mut admitted = Vec::new();
-    for question in questions.iter().take(8) {
+    for question in questions {
         let Some(slug) = question.key.strip_prefix("const.") else {
             return Err(Diagnostic {
                 kind: "question",
@@ -922,8 +687,11 @@ fn admitted_questions(
         // unless the request leaves the column open among the observed ones (DIALOG-03,
         // 2026-09-24: « Additionne une colonne de ventes.csv » over `montant, autre`).
         let mut options = Vec::new();
+        // The premise holds only for what was observed: a key whose arrays or objects no
+        // complete nested structure covers states none of the names below it.
         if let Some(world) = world.as_deref()
             && STRUCTURE_SLUGS.lines().any(|s| slug.ends_with(s))
+            && uncovered(observed).is_empty()
         {
             let Some(offered) = open_column(intent, slug, observed) else {
                 return Err(Diagnostic {
@@ -1185,7 +953,6 @@ fn settle(
         .iter()
         .map(|g| g.trim())
         .filter(|g| !g.is_empty())
-        .take(revision::KEPT_GAPS)
         .collect();
     // A revision's gap the change proves superseded is recorded and applied, never asked; every
     // other gap stays for the human.
@@ -1260,6 +1027,10 @@ mod tests {
             QuestionType::Text,
         );
         assert!(escalates(&machine));
+        let mut field = outcome();
+        let label = "Which observed field does `list name` mean?";
+        crate::question(&mut field, "const.rule_field_1", label, QuestionType::Text);
+        assert!(escalates(&field));
         let mut business = outcome();
         crate::question(
             &mut business,
@@ -1324,6 +1095,88 @@ mod tests {
             &doc("${{ with.endpoint }}", "${{ const.crm_endpoint }}"),
             &[]
         ));
+    }
+
+    #[test]
+    fn business_questions_past_eight_are_kept_and_still_validated() {
+        let mut consts = serde_json::Map::new();
+        let mut questions = Vec::new();
+        for index in 0..9 {
+            let slug = format!("business_{index}");
+            consts.insert(slug.clone(), json!(""));
+            questions.push(Question {
+                key: format!("const.{slug}"),
+                label: format!("Business value {index}"),
+                answer_type: "text".to_owned(),
+                why: "not supplied".to_owned(),
+            });
+        }
+        let candidate = json!({"nika": "business", "const": consts, "tasks": {}}).to_string();
+        let admitted = admitted_questions("", &candidate, &questions, None).unwrap();
+        assert_eq!(admitted.len(), 9);
+        for ((actual, _), expected) in admitted.iter().zip(&questions) {
+            assert_eq!(actual.key, expected.key);
+        }
+        for key in ["model", "const.missing", "const.filter_expression"] {
+            let mut invalid = questions.clone();
+            invalid[8].key = key.to_owned();
+            assert!(
+                admitted_questions("", &candidate, &invalid, None).is_err(),
+                "{key}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_ninth_gap_survives_the_record_and_still_blocks_after_eight_dispositions() {
+        let gaps: Vec<String> = (1..=9)
+            .map(|n| format!("Business requirement {n}"))
+            .collect();
+        let intent = format!("Write hello to out.txt. {}", gaps.join(". "));
+        let request = CompileRequest::create(&intent);
+        let candidate = "nika: gap-record\npermits:\n  tools: [nika:write]\n  fs:\n    write: [out.txt]\ntasks:\n  save:\n    invoke:\n      tool: nika:write\n      args: {path: out.txt, content: hello}\n";
+        let mut out = outcome();
+        settle(&intent, None, candidate, &[], &gaps, &request, &mut out);
+        let record = out.provenance.plan.as_ref().unwrap();
+        assert_eq!(record["gaps"], json!(gaps));
+        assert_eq!(out.questions.len(), 9);
+        assert_ne!(out.status, CompileStatus::Ready);
+
+        let reopened: Value = serde_json::from_str(&record.to_string()).unwrap();
+        let mut request = request.with_plan(reopened);
+        for n in 1..=8 {
+            request = request.answer(format!("gap.{n}"), "\"drop\"");
+        }
+        let replay = crate::compile(&request).unwrap();
+        assert_eq!(replay.questions.len(), 1, "{replay:#?}");
+        assert_eq!(replay.questions[0].key, "gap.9");
+        assert!(replay.questions[0].label.contains(&gaps[8]));
+        assert!(replay.diagnostics.iter().any(|d| {
+            d.kind == DiagnosticKind::Missed && d.target == "gap" && d.message.contains(&gaps[8])
+        }));
+        assert_ne!(replay.status, CompileStatus::Ready);
+        assert_eq!(
+            replay.provenance.decision.as_ref().unwrap()["gap_dispositions"]
+                .as_array()
+                .unwrap()
+                .len(),
+            8
+        );
+
+        let disposed = crate::compile(&request.answer("gap.9", "\"drop\"")).unwrap();
+        assert!(disposed.questions.is_empty());
+        assert!(disposed.diagnostics.iter().all(|d| d.target != "gap"));
+        assert!(
+            disposed
+                .diagnostics
+                .iter()
+                .any(|d| d.target == "semantic_verification")
+        );
+        assert_eq!(
+            disposed.status,
+            CompileStatus::Incomplete,
+            "disposing gaps never replaces the fresh whole-request judgment"
+        );
     }
 
     #[test]

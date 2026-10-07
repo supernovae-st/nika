@@ -9,6 +9,10 @@ the seat's own example), the knowledge door (the Foundry snapshot recalled per i
 bounded decision seats. It is a size-cap member of the `nika-onboard` unit (ADR-140 ·
 D-2026-07-09-N1 · the ADR-137 and ADR-138 precedents): it depends on `nika-compile` and
 `nika-compile-reader` and `nika-compile-fidelity` and reads the core's stated `surface`; the core never depends back.
+The decision seats and the `Rehearse` port are owned by `nika-compile-seats` (ADR-146) and kept
+here at their historical `decide` and `rehearse` paths; how one clause of a request reads (the
+verifier's parts, the prohibition reading, the proposal merge's words) is owned by
+`nika-compile-clauses` (ADR-145).
 `nika-onboard` re-exports the unit at the paths every caller reads (`nika_onboard::compile`).
 
 Hosts can opt into `compile_with_cognition_rehearsed` and provide the existing `Rehearse`

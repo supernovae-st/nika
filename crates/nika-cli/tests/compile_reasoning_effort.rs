@@ -60,6 +60,9 @@ const COMPLETION: &str = r#"{"id":"b16","object":"chat.completion","model":"deep
 /// Where the schema instruction starts on a JSON-object seat's last user turn.
 const SCHEMA_INSTRUCTION: &str = "\n\nReply with ONLY a JSON value";
 
+/// The sketch door's own instruction after the opening on its first user turn.
+const SKETCH_TURN: &str = "\n\nAnswer with the SKETCH (call 1), not a file.";
+
 // ── The seam: the shared producer and the compiler's calls, dispatched bytes kept ──
 
 /// The kernel HTTP effect on the provider's own endpoint: every request the adapter dispatched,
@@ -130,17 +133,17 @@ fn observed() -> Value {
     json!({"observed": [{"path": "./data/tickets.csv", "kind": "csv", "columns": ["id", "customer", "reply"]}]})
 }
 
-/// One compile of `intent` under the producer's policy for `config`, the facts beside it.
+/// One compile of `intent` under the producer's policy for `config` and its repair allowance,
+/// the facts beside it.
 async fn authored(
     capture: &Arc<Capture>,
     config: &config::AuthoringConfig,
-    intent: &str,
-    cap: u32,
+    (intent, cap, repairs): (&str, u32, u32),
 ) -> CompileOutcome {
     let policy = config
         .policy(PRO, cap, Duration::from_secs(30))
         .expect("bounded")
-        .with_repairs(0);
+        .with_repairs(repairs);
     let request = CompileRequest::create(intent)
         .with_knowledge(observed())
         .with_authoring_policy(policy);
@@ -182,12 +185,15 @@ fn context(outcome: &CompileOutcome) -> Vec<Value> {
 
 /// A named max leaves the direct route as the two structural keys under the declared cap, small
 /// or large, beside the request and the facts the host observed; the receipt names the
-/// instruction and the schema the body carried, and reads the level back from those bytes.
+/// instruction and the schema the body carried, and reads the level back from those bytes. The
+/// sketch door's first call carries them (source-only authoring is retired for a new workflow);
+/// with no repair allowance its refused sketch is the one request.
 #[tokio::test]
 async fn a_named_max_leaves_with_the_request_its_facts_and_its_identities() {
     for cap in [2048, 16_384] {
         let capture = Arc::new(Capture::default());
-        let outcome = authored(&capture, &configured("only", Some("max")), TICKETS, cap).await;
+        let config = configured("sketch", Some("max"));
+        let outcome = authored(&capture, &config, (TICKETS, cap, 0)).await;
         let sent = capture.sent();
         assert_eq!(sent.len(), 1, "{cap}: {outcome:#?}");
         let (url, body) = &sent[0];
@@ -199,9 +205,12 @@ async fn a_named_max_leaves_with_the_request_its_facts_and_its_identities() {
         let call = &context(&outcome)[0];
         assert_eq!(call["instruction_sha256"], sha256(&text_of(body, "system")));
         let user = text_of(body, "user");
-        let (opening, instruction) = user
+        let (turn, instruction) = user
             .split_once(SCHEMA_INSTRUCTION)
             .expect("the schema instruction on the user turn");
+        let opening = turn
+            .strip_suffix(SKETCH_TURN)
+            .expect("the sketch door's own instruction");
         let opening: Value = serde_json::from_str(opening).expect("the opening's JSON");
         assert_eq!(opening["request"], TICKETS, "the request, whole");
         assert_eq!(opening["observed_world"], observed(), "the observed facts");
@@ -223,17 +232,20 @@ async fn a_named_max_leaves_with_the_request_its_facts_and_its_identities() {
     }
 }
 
-/// The escalating strategy asks max of its plan call and of the native call after it; the plan
-/// call carries the request as written.
+/// The escalating strategy asks max of its plan call and of the sketch call after it; the plan
+/// call carries the request as written. The sketch door takes one request more than the plan's
+/// bound once counted, so one repair is granted for it to open; its refused sketch ends the
+/// door with that allowance spent.
 #[tokio::test]
 async fn every_call_of_an_escalating_round_asks_the_named_level() {
     let capture = Arc::new(Capture::default());
-    let outcome = authored(&capture, &configured("escalate", Some("max")), FREE, 8192).await;
+    let config = configured("escalate", Some("max"));
+    let outcome = authored(&capture, &config, (FREE, 8192, 1)).await;
     let sent = capture.sent();
     assert_eq!(
         sent.len(),
         2,
-        "the plan, then the native call: {outcome:#?}"
+        "the plan, then the sketch call: {outcome:#?}"
     );
     for (_, body) in &sent {
         assert_eq!(body["thinking"], json!({"type": "enabled"}), "{body}");
@@ -246,16 +258,17 @@ async fn every_call_of_an_escalating_round_asks_the_named_level() {
         .iter()
         .map(|call| call["call"].clone())
         .collect();
-    assert_eq!(calls, [json!("plan"), json!("native")]);
+    assert_eq!(calls, [json!("plan"), json!("sketch")]);
 }
 
 /// Without a level the route keeps its own bytes (the bounded low under 8192 tokens, nothing
-/// above) and the receipt reads those bytes back, apart from the unset configuration.
+/// above) and the receipt reads those bytes back, apart from the unset configuration: the
+/// sketch door's one call.
 #[tokio::test]
 async fn without_a_level_the_direct_route_keeps_its_own_bytes() {
     for (cap, effort) in [(2048, json!("low")), (16_384, Value::Null)] {
         let capture = Arc::new(Capture::default());
-        let outcome = authored(&capture, &configured("only", None), TICKETS, cap).await;
+        let outcome = authored(&capture, &configured("sketch", None), (TICKETS, cap, 0)).await;
         let sent = capture.sent();
         assert_eq!(sent.len(), 1, "{cap}");
         let body = &sent[0].1;
@@ -287,8 +300,8 @@ async fn the_decision_call_asks_the_level_under_the_declared_cap_on_the_wire() {
         .expect("named");
     let capture = Arc::new(Capture::default());
     let provider = direct(&capture);
-    let choice =
-        ProviderChoice::new(&provider, PRO, Duration::from_secs(5)).with_reasoning(level, 16_384);
+    let choice = ProviderChoice::new(&provider, PRO, Duration::from_secs(5), 393_216)
+        .with_reasoning(level, 16_384);
     let _answer = choice.choose(&question).await;
     let sent = capture.sent();
     assert_eq!(sent.len(), 1);
@@ -298,12 +311,18 @@ async fn the_decision_call_asks_the_level_under_the_declared_cap_on_the_wire() {
 
     let capture = Arc::new(Capture::default());
     let provider = direct(&capture);
-    let choice = ProviderChoice::new(&provider, PRO, Duration::from_secs(5));
+    let choice = ProviderChoice::new(&provider, PRO, Duration::from_secs(5), 393_216);
     let _answer = choice.choose(&question).await;
     let sent = capture.sent();
     assert_eq!(sent.len(), 1);
-    assert_eq!(sent[0].1["max_tokens"].as_u64(), Some(256), "compatibility");
-    assert_eq!(sent[0].1["reasoning_effort"], "low");
+    assert_eq!(
+        sent[0].1["max_tokens"].as_u64(),
+        Some(393_216),
+        "the route's capacity, never a fixed choice ceiling"
+    );
+    // At its route's capacity the choice keeps the provider's own default level: the low
+    // effort only protected a cap too small for the thinking a reasoning route spends.
+    assert!(sent[0].1.get("reasoning_effort").is_none());
     assert!(sent[0].1.get("thinking").is_none());
 }
 
@@ -520,7 +539,11 @@ fn without_a_level_the_cli_sends_the_request_with_the_routes_own_bytes() {
     assert_eq!(bodies.len() as u64, prepared(&doc), "{doc}");
     for body in &bodies {
         assert_eq!(body["model"], "deepseek-v4-pro", "{body}");
-        assert_eq!(body["reasoning_effort"], "low", "{body}");
+        assert_eq!(body["max_tokens"], 16384, "{body}");
+        assert!(
+            body.get("reasoning_effort").is_none(),
+            "the short-answer low-effort default applies only up to 8192: {body}"
+        );
         assert!(body.get("thinking").is_none(), "{body}");
     }
     assert!(
@@ -532,7 +555,7 @@ fn without_a_level_the_cli_sends_the_request_with_the_routes_own_bytes() {
     assert_eq!(call["reasoning"]["configured"], Value::Null, "{doc}");
     assert_eq!(
         call["reasoning"]["transmitted"],
-        json!({"thinking": null, "effort": "low"}),
+        json!({"thinking": null, "effort": null}),
         "{doc}"
     );
 }
@@ -650,8 +673,15 @@ fn the_decision_seat_asks_the_named_level_or_keeps_its_own_call() {
     let doc = document(&compile(room.path(), &control, WARM, &decision, None));
     let bodies = control.bodies();
     assert_eq!(bodies.len(), 1, "{doc}");
-    assert_eq!(bodies[0]["max_tokens"].as_u64(), Some(256), "{doc}");
-    assert_eq!(bodies[0]["reasoning_effort"], "low", "{doc}");
+    // The seat asks its route's capacity (a loopback gateway: the unknown-route default), never
+    // a fixed choice ceiling, and so the provider's own default level.
+    let capacity = nika_providers::authoring::policy::AUTHORING_MAX_TOKENS;
+    assert_eq!(
+        bodies[0]["max_tokens"].as_u64(),
+        Some(u64::from(capacity)),
+        "{doc}"
+    );
+    assert!(bodies[0].get("reasoning_effort").is_none(), "{doc}");
     assert!(bodies[0].get("thinking").is_none(), "{doc}");
     let named = Recorder::start();
     let flags = with_word(&decision, Some("max"));
@@ -843,7 +873,9 @@ fn serve_asks_the_flag_over_the_environment_on_every_round() {
             assert_eq!(call["reasoning"]["configured"], Value::Null, "{doc}");
             let bodies = recorder.bodies();
             assert_eq!(bodies.len(), 1, "{doc}");
-            assert_eq!(bodies[0]["reasoning_effort"], "low", "{doc}");
+            // The plan asks more than a reasoning route's low-effort cap: no flag, no ambient,
+            // and so the provider's own default level.
+            assert_eq!(bodies[0]["reasoning_effort"], Value::Null, "{doc}");
             assert!(bodies[0].get("thinking").is_none(), "{doc}");
         }
         assert_eq!(terminate(&mut child), Some(0), "{case}");

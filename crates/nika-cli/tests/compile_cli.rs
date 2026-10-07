@@ -13,6 +13,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
+#[path = "compile_cli/capture.rs"]
+mod capture;
+#[path = "compile_cli/held.rs"]
+mod held;
+
 fn command(room: &Path) -> Command {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika"));
     cmd.env_clear()
@@ -78,6 +83,14 @@ impl LoopbackSeat {
                 next += 1;
                 if let Some(target) = text.strip_prefix("redirect ") {
                     redirect(&mut stream, target);
+                } else if let Some(blocks) = text.strip_prefix("anthropic ") {
+                    respond_anthropic(&mut stream, blocks);
+                } else if text == "hold" {
+                    // Received and counted, never answered: the connection stays open until
+                    // the seat is dropped.
+                    while !halt.load(Ordering::SeqCst) {
+                        std::thread::sleep(std::time::Duration::from_millis(20));
+                    }
                 } else if let Some(text) = text.strip_prefix("nomodel ") {
                     respond(&mut stream, text, None);
                 } else {
@@ -175,6 +188,29 @@ fn respond(stream: &mut TcpStream, text: &str, model: Option<&str>) {
     let _ = stream.flush();
 }
 
+/// A scripted `anthropic <content>` is answered on the Anthropic messages wire with exactly
+/// that JSON content array (text, empty text, thinking or tool blocks, in order).
+fn respond_anthropic(stream: &mut TcpStream, blocks: &str) {
+    let content: Value = serde_json::from_str(blocks).expect("scripted content array");
+    let body = serde_json::json!({
+        "id": "msg_loopback",
+        "type": "message",
+        "role": "assistant",
+        "model": "loopback-served-model",
+        "content": content,
+        "stop_reason": "end_turn",
+        "usage": {"input_tokens": 1000, "output_tokens": 200},
+    })
+    .to_string();
+    let head = format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        body.len()
+    );
+    let _ = stream.write_all(head.as_bytes());
+    let _ = stream.write_all(body.as_bytes());
+    let _ = stream.flush();
+}
+
 /// A scripted `redirect <status> <location>` is answered as that redirect, with no body: were it
 /// followed, the redirected request would reach this same seat and be counted in its log.
 fn redirect(stream: &mut TcpStream, target: &str) {
@@ -263,27 +299,28 @@ fn cold_authoring_is_bounded_and_ambient_credentials_do_not_opt_in() {
     assert!(result(&invalid)["error"].is_object());
 }
 
-/// The CLI defaults to escalation after the cold plan fails. Its receipt must include
-/// both phases and exactly the calls the seat received; an invalid candidate is never
-/// accepted. The seat is a scripted loopback, not the schema mock, so the calls are exact:
-/// the mock's plan may buy the cold round's evidence repair, and its native answer carries
-/// the same text (`mock`) in `candidate` AND `candidate_lines`, one candidate that is not a
-/// workflow. Here the first answer is not a plan and every later answer is ONE lossless
-/// candidate that is not a workflow, so each native round is judged and refused.
+/// The CLI defaults to escalation after the cold plan fails: the sketch door, never source
+/// generation. Its receipt must include both phases and exactly the calls the seat received;
+/// an invalid sketch is never accepted. The seat is a scripted loopback, so the calls are
+/// exact. The first answer is not a plan and every later answer is ONE well-formed sketch with
+/// no task, so each sketch round is judged and refused. The sketch door takes one request more
+/// than the plan's bound once counted: with no repair it opens nothing, and its own allowance is
+/// one less than the policy's.
 #[test]
 fn default_native_escalation_preserves_calls_and_honors_the_repair_bound() {
     let room = tempfile::tempdir().expect("room");
     let intent = "Review this customer request and harmonise the tone of the support reply";
     let not_a_plan = serde_json::json!({"not": "a plan"}).to_string();
-    let native_answer = serde_json::json!({
-        "candidate": "not a workflow",
+    let empty_sketch = serde_json::json!({
+        "name": "not-a-workflow",
+        "tasks": [],
         "questions": [],
         "gaps": [],
         "notes": ""
     })
     .to_string();
     for repairs in [0_u64, 1, 3] {
-        let seat = LoopbackSeat::start(vec![not_a_plan.clone(), native_answer.clone()]);
+        let seat = LoopbackSeat::start(vec![not_a_plan.clone(), empty_sketch.clone()]);
         let repairs_arg = repairs.to_string();
         let out = command(room.path())
             .env("NIKA_VLLM_BASE_URL", seat.base())
@@ -294,9 +331,9 @@ fn default_native_escalation_preserves_calls_and_honors_the_repair_bound() {
                 "vllm/loopback-seat",
                 "--authoring-repairs",
                 repairs_arg.as_str(),
-                // Typed repairs can need 62 requests under escalate (nv1b): granted in full.
+                // Typed repairs can need 66 requests under escalate (nv1b): granted in full.
                 "--authoring-max-calls",
-                "62",
+                "66",
                 "--authoring-timeout",
                 "2",
                 "--json",
@@ -312,7 +349,7 @@ fn default_native_escalation_preserves_calls_and_honors_the_repair_bound() {
         // Within the authority nothing is refused, and every request sent is one received.
         let backend = &provenance["authoring"]["backend"];
         let authority = &backend["authority"];
-        assert_eq!(authority["max_calls"], 62, "{doc}");
+        assert_eq!(authority["max_calls"], 66, "{doc}");
         assert_eq!(authority["source"], "--authoring-max-calls");
         assert_eq!(authority["http_requests"]["refused"], 0, "{doc}");
         assert_eq!(
@@ -332,11 +369,12 @@ fn default_native_escalation_preserves_calls_and_honors_the_repair_bound() {
             .iter()
             .map(|c| c["call"].as_str().expect("phase"))
             .collect();
-        // An answer that is not a plan ends the cold round at once (no anchoring repair).
-        let expected: &[&str] = if repairs == 0 {
-            &["plan", "native"]
-        } else {
-            &["plan", "native", "native-repair"]
+        // An answer that is not a plan ends the cold round at once (no anchoring repair); the
+        // repeated sketch stops on no progress, even with repairs left.
+        let expected: &[&str] = match repairs {
+            0 => &["plan"],
+            1 => &["plan", "sketch"],
+            _ => &["plan", "sketch", "sketch-repair"],
         };
         assert_eq!(phases, expected, "{doc}");
         assert_eq!(
@@ -348,28 +386,30 @@ fn default_native_escalation_preserves_calls_and_honors_the_repair_bound() {
             context.len(),
             "the receipt counts exactly the calls the seat received"
         );
+        // No round with no repair: the door never opened. Otherwise its rounds stay within the
+        // allowance the door is left (one less than the policy's) and none is accepted.
         let native = &provenance["decision"]["native"];
-        let rounds = native["rounds"].as_array().expect("native rounds");
-        assert!(rounds.len() as u64 <= 1 + repairs, "{doc}");
-        assert_eq!(native["accepted"], false);
-        assert_eq!(
-            rounds.len() + 1,
-            context.len(),
-            "the cold call remains counted"
-        );
-        // The repeated candidate stops on no progress, even with repairs left.
+        let rounds = if repairs == 0 {
+            assert!(native.is_null(), "the sketch door did not open: {doc}");
+            0
+        } else {
+            assert_eq!(native["accepted"], false, "{doc}");
+            native["rounds"].as_array().expect("sketch rounds").len()
+        };
+        assert!(rounds as u64 <= repairs, "{doc}");
+        assert_eq!(rounds + 1, context.len(), "the cold call remains counted");
         if repairs > 1 {
-            assert_eq!(rounds.len(), 2, "{doc}");
+            assert_eq!(rounds, 2, "{doc}");
         }
         assert_eq!(std::fs::read_dir(room.path()).expect("dir").count(), 0);
     }
 }
 
-/// `--authoring-model` alone authorizes ONE request: the escalation the default strategy would
-/// buy after the plan is refused before any byte leaves, and the outcome says so (the receipt's
-/// account and one human line), while the core's journal keeps the attempt it made.
+/// An explicit one-request authority stops escalation before any further byte leaves. The
+/// outcome states the refusal (the receipt's account and one human line), while the core's
+/// journal keeps its attempt. No flag means no request bound, exercised below.
 #[test]
-fn the_default_authority_sends_one_request_and_states_the_refusal() {
+fn an_explicit_single_request_authority_stops_and_states_the_refusal() {
     let room = tempfile::tempdir().expect("room");
     let intent = "Review this customer request and harmonise the tone of the support reply";
     let not_a_plan = serde_json::json!({"not": "a plan"}).to_string();
@@ -382,6 +422,8 @@ fn the_default_authority_sends_one_request_and_states_the_refusal() {
         "vllm/loopback-seat",
         "--authoring-timeout",
         "2",
+        "--authoring-max-calls",
+        "1",
     ];
     let json_out = command(room.path())
         .env("NIKA_VLLM_BASE_URL", seat.base())
@@ -398,7 +440,7 @@ fn the_default_authority_sends_one_request_and_states_the_refusal() {
     let authoring = &doc["provenance"]["authoring"];
     let authority = &authoring["backend"]["authority"];
     assert_eq!(authority["max_calls"], 1, "{doc}");
-    assert_eq!(authority["source"], "default: one request");
+    assert_eq!(authority["source"], "--authoring-max-calls");
     assert_eq!(
         authority["invocations"],
         serde_json::json!({"sent": 1, "refused": 1})
@@ -555,17 +597,80 @@ fn a_response_without_a_model_is_counted_as_unreported() {
         .output()
         .expect("CLI");
     let doc = result(&out);
-    assert_eq!(seat.bodies().len(), 1, "{doc}");
+    let received = seat.bodies().len();
+    assert_eq!(received, 3, "plan, sketch, then source recovery: {doc}");
     let backend = &doc["provenance"]["authoring"]["backend"];
     assert_eq!(backend["requested_model"], "vllm/loopback-seat");
     assert_eq!(backend["observed_models"], serde_json::json!([]), "{doc}");
-    assert_eq!(backend["unreported_models"], 1, "{doc}");
+    assert_eq!(backend["unreported_models"], received, "{doc}");
+    let authority = &backend["authority"];
+    assert_eq!(authority["max_calls"], Value::Null, "{doc}");
+    assert_eq!(authority["source"], "default: no request bound", "{doc}");
+    assert_eq!(
+        authority["invocations"],
+        serde_json::json!({"sent": received, "refused": 0})
+    );
+    assert_eq!(authority["http_requests"]["sent"], received, "{doc}");
+    let context = doc["provenance"]["authoring"]["context"]
+        .as_array()
+        .expect("context");
+    let phases: Vec<_> = context
+        .iter()
+        .map(|call| call["call"].as_str().expect("phase"))
+        .collect();
+    assert_eq!(phases, ["plan", "sketch", "source-recovery"]);
+    assert!(
+        context
+            .iter()
+            .all(|call| call["reasoning"]["response_model"].is_null())
+    );
 }
 
-/// Repairs, samples or a two-request strategy (only, escalate, sketch: a READY is judged) typed
-/// beyond the authority are refused before any request: the operator's explicit quality is never
-/// reduced in silence, and the number to authorize is named. Repairs under off are the verifier's
-/// and count too (nv1b); a typed native-only answer granted its judgment runs.
+/// COLD creation (off, escalate) follows every unstated computation: its count is unknown, so
+/// repairs or samples typed under it are never refused up front, and the counters refuse each
+/// request past the bound.
+#[test]
+fn cold_creation_is_never_refused_up_front_and_its_counters_keep_the_bound() {
+    let room = tempfile::tempdir().expect("room");
+    let intent = "Review this customer request and harmonise the tone of the support reply";
+    let answer =
+        serde_json::json!({"candidate": "not a workflow", "questions": [], "gaps": [], "notes": ""})
+            .to_string();
+    for typed in [
+        vec!["--authoring-repairs", "3"],
+        vec!["--authoring-samples", "2"],
+        vec!["--authoring-strategy", "off", "--authoring-repairs", "3"],
+    ] {
+        let seat = LoopbackSeat::start(vec![answer.clone()]);
+        let out = command(room.path())
+            .env("NIKA_VLLM_BASE_URL", seat.base())
+            .args(["compile", intent, "--authoring-model", "vllm/loopback-seat"])
+            .args(["--authoring-max-calls", "1"])
+            .args(&typed)
+            .arg("--json")
+            .output()
+            .expect("CLI");
+        let doc = result(&out);
+        assert_ne!(
+            doc["error"]["code"], "authoring_authority",
+            "{typed:?}: {doc}"
+        );
+        assert_eq!(
+            seat.bodies().len(),
+            1,
+            "the bound, then the counters: {typed:?}"
+        );
+    }
+}
+
+/// A typed strategy that needs more requests than the authority grants before its READY can be
+/// judged (escalate: the plan and its judgment; sketch: the sketch, its fills and their judgment)
+/// is refused before any request: the operator's explicit quality is never reduced in silence,
+/// and the number to authorize is named. Typed sketch repairs add no up-front count: the sketch
+/// door's judgment asks each part of a doubted request alone, so its count depends on the
+/// request, and only the strategy's own minimum is named. Source-only authoring is retired for a
+/// new workflow: under `only` the refusal names the semantic doors, before any request, whatever
+/// the authority.
 #[test]
 fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request() {
     let room = tempfile::tempdir().expect("room");
@@ -573,30 +678,23 @@ fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request
     let answer =
         serde_json::json!({"candidate": "not a workflow", "questions": [], "gaps": [], "notes": ""})
             .to_string();
+    let sketch = "the sketch strategy needs at least 3 authoring requests (the sketch, its fills, then their judgment): authorize --authoring-max-calls 3 or more";
     for (typed, needed) in [
-        (vec!["--authoring-repairs", "3"], "--authoring-max-calls 62"),
-        (vec!["--authoring-samples", "2"], "--authoring-max-calls 19"),
         (
-            vec!["--authoring-strategy", "off", "--authoring-repairs", "3"],
-            "--authoring-max-calls 56",
+            vec!["--authoring-strategy", "sketch", "--authoring-repairs", "3"],
+            sketch,
         ),
-        (
-            vec!["--authoring-strategy", "only"],
-            "--authoring-max-calls 2",
-        ),
-        (
-            vec!["--authoring-strategy", "sketch"],
-            "--authoring-max-calls 3",
-        ),
+        (vec!["--authoring-strategy", "sketch"], sketch),
         (
             vec!["--authoring-strategy", "escalate"],
-            "--authoring-max-calls 2",
+            "the escalate strategy needs at least 2 authoring requests (the plan, then its judgment): authorize --authoring-max-calls 2 or more",
         ),
     ] {
         let seat = LoopbackSeat::start(vec![answer.clone()]);
         let out = command(room.path())
             .env("NIKA_VLLM_BASE_URL", seat.base())
             .args(["compile", intent, "--authoring-model", "vllm/loopback-seat"])
+            .args(["--authoring-max-calls", "1"])
             .args(&typed)
             .arg("--json")
             .output()
@@ -604,15 +702,17 @@ fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request
         let doc = result(&out);
         assert_eq!(out.status.code(), Some(2), "{typed:?}: {doc}");
         assert_eq!(doc["error"]["code"], "authoring_authority", "{doc}");
-        let message = doc["error"]["message"].as_str().expect("message");
-        assert!(message.contains(needed), "{typed:?}: {message}");
+        assert_eq!(doc["error"]["message"], needed, "{typed:?}");
         assert!(
             seat.bodies().is_empty(),
             "no request before the refusal: {typed:?}"
         );
     }
-    // A typed count outside what the compiler runs is refused by the flag, never clamped.
-    for typed in [["--authoring-repairs", "9"], ["--authoring-samples", "0"]] {
+    // Repairs accept any u32; overflow and zero samples are refused by the flag, never clamped.
+    for typed in [
+        ["--authoring-repairs", "4294967296"],
+        ["--authoring-samples", "0"],
+    ] {
         let seat = LoopbackSeat::start(vec![answer.clone()]);
         let out = command(room.path())
             .env("NIKA_VLLM_BASE_URL", seat.base())
@@ -623,29 +723,86 @@ fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request
         assert_eq!(out.status.code(), Some(2), "{typed:?}");
         assert!(seat.bodies().is_empty(), "no request: {typed:?}");
     }
-    let seat = LoopbackSeat::start(vec![answer.clone()]);
+    // `only`, with or without the authority it once needed: retired, nothing sent.
+    for granted in [
+        &[][..],
+        &["--authoring-repairs", "0", "--authoring-max-calls", "2"][..],
+    ] {
+        let seat = LoopbackSeat::start(vec![answer.clone()]);
+        let out = command(room.path())
+            .env("NIKA_VLLM_BASE_URL", seat.base())
+            .args(["compile", intent, "--authoring-model", "vllm/loopback-seat"])
+            .args(["--authoring-strategy", "only"])
+            .args(granted)
+            .arg("--json")
+            .output()
+            .expect("CLI");
+        let doc = result(&out);
+        assert_eq!(out.status.code(), Some(2), "{granted:?}: {doc}");
+        assert_eq!(doc["status"], "refused", "{granted:?}: {doc}");
+        assert!(doc["candidate"].is_null(), "{doc}");
+        let retired = doc["diagnostics"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|d| {
+                d["target"] == "authoring_policy"
+                    && d["message"]
+                        .as_str()
+                        .is_some_and(|m| m.contains("(native: only) is retired"))
+            });
+        assert!(retired, "{granted:?}: {doc}");
+        assert!(
+            seat.bodies().is_empty(),
+            "no request under only: {granted:?}"
+        );
+    }
+}
+
+/// Typed sketch repairs under a bound that holds the strategy's minimum: the sketch door's
+/// judgment asks each part of a doubted request alone, so no count of its repairs is known before
+/// the request and none refuses them up front (no finite worst case); the counters keep the
+/// bound. The seat's answer is no sketch, so the door ends after its one request.
+#[test]
+fn typed_sketch_repairs_are_never_refused_up_front_and_the_counters_keep_the_bound() {
+    let room = tempfile::tempdir().expect("room");
+    let intent = "Review this customer request and harmonise the tone of the support reply";
+    let answer =
+        serde_json::json!({"candidate": "not a workflow", "questions": [], "gaps": [], "notes": ""})
+            .to_string();
+    let seat = LoopbackSeat::start(vec![answer]);
     let out = command(room.path())
         .env("NIKA_VLLM_BASE_URL", seat.base())
         .args(["compile", intent, "--authoring-model", "vllm/loopback-seat"])
-        .args([
-            "--authoring-strategy",
-            "only",
-            "--authoring-repairs",
-            "0",
-            "--authoring-max-calls",
-            "2",
-            "--json",
-        ])
+        .args(["--authoring-strategy", "sketch", "--authoring-repairs", "3"])
+        .args(["--authoring-max-calls", "3", "--authoring-timeout", "2"])
+        .arg("--json")
         .output()
         .expect("CLI");
     let doc = result(&out);
-    assert_eq!(seat.bodies().len(), 1, "{doc}");
+    assert_ne!(doc["error"]["code"], "authoring_authority", "{doc}");
+    let authority = &doc["provenance"]["authoring"]["backend"]["authority"];
+    assert_eq!(authority["max_calls"], 3, "{doc}");
+    assert_eq!(authority["source"], "--authoring-max-calls", "{doc}");
+    assert_eq!(authority["configured"]["strategy"], "sketch", "{doc}");
+    assert_eq!(authority["configured"]["repairs"], 3, "{doc}");
+    assert_eq!(authority["configured"]["worst_case"], Value::Null, "{doc}");
     assert_eq!(
-        doc["provenance"]["authoring"]["backend"]["authority"]["http_requests"]["refused"],
-        0
+        authority["http_requests"],
+        serde_json::json!({"sent": 1, "refused": 0, "unknown": null}),
+        "{doc}"
     );
-    // Repairs under off are the verifier's (nv1b): granted, nothing is refused, and the receipt
-    // counts them, never records them as ignored.
+    assert_eq!(seat.bodies().len(), 1, "{doc}");
+}
+
+/// Repairs under off belong to the verifier: the granted count is never ignored.
+#[test]
+fn granted_verifier_repairs_are_counted_instead_of_ignored() {
+    let room = tempfile::tempdir().expect("room");
+    let intent = "Review this customer request and harmonise the tone of the support reply";
+    let answer =
+        serde_json::json!({"candidate": "not a workflow", "questions": [], "gaps": [], "notes": ""})
+            .to_string();
     let seat = LoopbackSeat::start(vec![answer]);
     let out = command(room.path())
         .env("NIKA_VLLM_BASE_URL", seat.base())
@@ -660,7 +817,11 @@ fn a_typed_multiplicity_the_authority_cannot_honor_is_refused_before_any_request
     assert_eq!(seat.bodies().len(), 1, "{doc}");
     let configured = &doc["provenance"]["authoring"]["backend"]["authority"]["configured"];
     assert_eq!(configured["ignored"], serde_json::json!([]), "{doc}");
-    assert_eq!(configured["worst_case"], 56, "{doc}");
+    assert_eq!(configured["repairs"], 3, "{doc}");
+    // COLD follows every unstated computation: no finite count, the granted bound kept.
+    assert_eq!(configured["worst_case"], serde_json::Value::Null, "{doc}");
+    let authority = &doc["provenance"]["authoring"]["backend"]["authority"];
+    assert_eq!(authority["max_calls"], 56, "{doc}");
 }
 
 /// The authoring seat rides the PROVIDER client (the runtime's fixed endpoint allowlist,

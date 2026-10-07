@@ -11,8 +11,11 @@ use serde_json::json;
 pub(crate) async fn resume<P: ProviderInferDyn>(
     intent: &str,
     request: &CompileRequest,
-    policy: &AuthoringPolicy,
-    provider: &P,
+    (policy, provider, seat): (
+        &AuthoringPolicy,
+        &P,
+        Option<&dyn crate::decide::DecisionSeat>,
+    ),
     mut out: CompileOutcome,
 ) -> Result<CompileOutcome, CompileError> {
     let Some(record) = out.provenance.plan.clone() else {
@@ -66,11 +69,14 @@ pub(crate) async fn resume<P: ProviderInferDyn>(
             // Assembly consumes the verified field receipt; it never executes the workflow.
             out.provenance.plan = None;
             // The first candidate of the seat's plan (its first round suspended before any):
-            // the whole request is judged with the remainder, by the authoring provider
-            // through the journaled call (R4 A11).
-            let judges = (None, Some((policy, provider)));
+            // the whole request is judged with the remainder, by the decision seat the caller
+            // chose, else the authoring provider through the journaled call (R4 A11).
+            let judges = (seat, Some((policy, provider)));
             let verify = super::super::verify::replayed;
-            out = verify(intent, &verified, &assembly_request, judges, true, out).await?;
+            // No room is offered to a regeneration: it is judged on its bytes alone.
+            let mut unhosted = super::super::rehearsal::Rehearsals::new(None);
+            let request = &assembly_request;
+            out = verify(intent, &verified, request, judges, true, &mut unhosted, out).await?;
             let regeneration = kept_or_refused(&mut out, &verified);
             let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
             decision["transform_regeneration"] = regeneration;
@@ -125,6 +131,12 @@ fn regenerated(
 /// accepted only when the replay kept that record. A replay that refused it keeps its own
 /// findings; nothing claims the program, restores the record, or pretends the spent call away.
 fn kept_or_refused(out: &mut CompileOutcome, verified: &serde_json::Value) -> serde_json::Value {
+    // A candidate its judge did not accept is shown as held, never wiped as a refused replay.
+    let held = (out.diagnostics.iter())
+        .any(|d| d.kind == DiagnosticKind::Applied && d.target == "verify_held");
+    if held {
+        return json!({"accepted": false, "why": "the judge did not accept the candidate it makes"});
+    }
     let refused = out
         .diagnostics
         .iter()

@@ -13,9 +13,9 @@
 //!
 //! Order on entry (Codex `set_modes`, ratatui `try_init_with_options`):
 //! raw mode → bracketed paste → focus change (unix) → keyboard enhancement
-//! (probed) → the alternate screen (focus presentation only). On restore:
+//! (probed) → the alternate screen and mouse capture (full screen only). On restore:
 //! raw mode first ("it has more side effects", ratatui), then the alternate
-//! screen, the keyboard flags, focus change, bracketed paste, and the cursor
+//! screen after mouse capture ends, the keyboard flags, focus change, bracketed paste, and the cursor
 //! shown with its default shape.
 
 use std::io::{self, IsTerminal as _, Write as _};
@@ -23,8 +23,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use crossterm::cursor::{SetCursorStyle, Show};
 use crossterm::event::{
-    DisableBracketedPaste, DisableFocusChange, EnableBracketedPaste, EnableFocusChange,
-    KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+    DisableBracketedPaste, DisableFocusChange, DisableMouseCapture, EnableBracketedPaste,
+    EnableFocusChange, EnableMouseCapture, KeyboardEnhancementFlags, PopKeyboardEnhancementFlags,
+    PushKeyboardEnhancementFlags,
 };
 use crossterm::terminal::{
     EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode,
@@ -44,6 +45,7 @@ static PASTE: AtomicBool = AtomicBool::new(false);
 static FOCUS: AtomicBool = AtomicBool::new(false);
 static KITTY: AtomicBool = AtomicBool::new(false);
 static ALT: AtomicBool = AtomicBool::new(false);
+static MOUSE: AtomicBool = AtomicBool::new(false);
 /// The terminal's title was pushed (xterm title stack · `CSI 22;0 t`)
 /// before ours was set; the restore pops it (`CSI 23;0 t`) so the shell's
 /// own title returns, on the panic path too.
@@ -200,8 +202,7 @@ fn enter_modes(presentation: Presentation) -> io::Result<()> {
         KITTY.store(true, Ordering::SeqCst);
     }
     if presentation != Presentation::Inline {
-        crossterm::execute!(out, EnterAlternateScreen)?;
-        ALT.store(true, Ordering::SeqCst);
+        set_alternate_screen(true)?;
     }
     out.flush()
 }
@@ -220,10 +221,17 @@ pub fn set_alternate_screen(on: bool) -> io::Result<()> {
             ALT.store(true, Ordering::SeqCst);
         }
         (false, true) => {
+            if MOUSE.swap(false, Ordering::SeqCst) {
+                crossterm::execute!(out, DisableMouseCapture)?;
+            }
             crossterm::execute!(out, LeaveAlternateScreen)?;
             ALT.store(false, Ordering::SeqCst);
         }
         _ => {}
+    }
+    if on && !MOUSE.swap(true, Ordering::SeqCst) {
+        // Mark before writing so the owner also cleans up a partial enable.
+        crossterm::execute!(out, EnableMouseCapture)?;
     }
     out.flush()
 }
@@ -296,6 +304,9 @@ pub fn restore_everything() -> io::Result<()> {
     if RAW.swap(false, Ordering::SeqCst) || is_raw_mode_enabled().unwrap_or(false) {
         note(disable_raw_mode());
     }
+    if MOUSE.swap(false, Ordering::SeqCst) {
+        note(crossterm::execute!(out, DisableMouseCapture));
+    }
     if ALT.swap(false, Ordering::SeqCst) {
         note(crossterm::execute!(out, LeaveAlternateScreen));
     }
@@ -351,6 +362,7 @@ mod tests {
         assert!(!FOCUS.load(Ordering::SeqCst));
         assert!(!KITTY.load(Ordering::SeqCst));
         assert!(!ALT.load(Ordering::SeqCst));
+        assert!(!MOUSE.load(Ordering::SeqCst));
     }
 
     #[test]

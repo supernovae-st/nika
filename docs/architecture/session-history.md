@@ -29,6 +29,17 @@ An unfinished operation or a run request without an observation produces an
 uncertainty notice on reopen and an explicit note in the next model context.
 An I/O refusal while applying a proposal also retains its possible partial
 effect. Recovery never calls a model, applies a file, or starts a workflow.
+A successfully returned preparation response with an unknown price retains its billing
+observation without implying an unfinished operation. Unanswered or failed responses remain
+conservative uncertainty; older unknown-effect records still disclose a result or API charge.
+The notice remains anchored where that uncertainty was first recovered; reopening alone
+never appends it as a new latest failure. The replay separately tracks unreported effect
+uncertainty and an already reported unobserved Run, without adding serialized fields.
+A later successful operation does not reconcile an earlier effect or charge. The restore
+notice names that uncertainty as historical even after its dialogue note leaves the bounded
+recent window. A new interruption or newly reported unknown effect still receives a notice.
+The current constant outcome categories can distinguish another Run request awaiting its
+observation for this presentation only; no category grants execution or clears uncertainty.
 
 Previous proposals, gate answers and consumed identities do not regain
 authority. A person must request a fresh proposal, inspect it, and consent
@@ -44,6 +55,31 @@ The journal does not yet correlate an interrupted request with a particular
 job through an idempotent submission key. It therefore does not recover a run
 by guessing from the latest trace, nor promise automatic resume or exactly-once
 external effects. `observe_run` remains a host-supplied observation.
+
+A saved workflow that was rehearsed runs only over the world it was rehearsed on.
+When this session observes its own run of exactly those bytes settle as
+succeeded, each destination of the rehearsal that the run completed writing (a
+`nika:write` that settled, the same task's write permit and its output naming
+the path) is read again and bound to what it holds now. That lets the next
+explicit Run replace its own output. A source is never advanced. A permit
+without a completed write, a failed, paused or cancelled run, another
+workflow's bytes or a missing trace advance nothing. The write and that re-read
+are not atomic: a foreign write landing between them is bound as the run's
+own. Any change after the re-read, and any change to a source, still withdraws
+the rehearsal before the next Run.
+
+`observe_run_leg` additionally keeps the observed execution, source hash and
+receipt head/length in an optional versioned `last_run` value. Session owns its
+persistence; `nika_trace::run_view::KeptRun` is only an observation, with no
+history or authority. Reopen exposes it and repaints retained dialogue as history;
+it does not restore task rows, outputs, a file inventory or execution by itself.
+Inspecting any face of that retained Run asks the workspace to read and verify its
+journal. Only an accepted reading bound to that Run populates its recorded task
+and output views; an unavailable or unbound reading stays explicit. A resumed leg
+has its own execution and journal; no identity is inferred from a previous leg.
+Legacy absence stays absent. An unreadable kept value is preserved and reported,
+not repaired; a present null is refused. Older engines whose closed history
+format lacks `last_run` refuse new records rather than silently discarding it.
 
 ## Format and limits
 
@@ -67,15 +103,19 @@ snapshot or hidden reasoning is serialized.
 The local directory and files use `OwnedDir` and its private modes (0700/0600).
 Contained opens refuse symlinks and special files; opening a FIFO does not
 wait for another process to connect. The project tree receives no conversation
-file. Input is limited to 64 KiB, a record to 1 MiB, and a journal to 16 MiB;
-capacity is reserved before starting an operation. Reaching capacity refuses
-new work and preserves history. Automatic compaction, archive rotation,
-multiple named conversations and migration tooling are subsequent work.
+file. Inputs, records and total conversation history have no fixed byte quota.
+History is replayed one complete record at a time through the same integrity and
+transition checks; a truncated or corrupted journal is preserved and refused.
+Project state and consent history likewise have no product byte quota. Kept drafts
+retain their full redacted text instead of losing restore capability at a size threshold.
+The decoded state and consent list still occupy memory, and real storage failures
+remain visible. Streaming reads do not claim constant total memory. Automatic
+compaction, archive rotation and multiple named conversations remain subsequent work.
 
 ## Verification
 
 Runtime tests exercise reopen without inference, old-consent refusal, private
-redaction, blocked storage, corruption, limits and symlinks. Child processes
+redaction, blocked storage, corruption, large inputs/records/journals and symlinks. Child processes
 exercise writer exclusion, normal reopen and SIGKILL during inference. The
 terminal driver checks recovery and corruption exit behavior. The JSONL
 `session_script` example accepts an optional `home` for process-level tests;
@@ -89,3 +129,44 @@ the result and reopens without replaying the write or accepting old consent.
 These checks establish local conversation continuity on the tested platform.
 They do not qualify power-loss behavior, cloud replication, learned memory,
 cross-session retrieval, or transport parity.
+
+## Byte-bound program evidence
+
+The optional `Saved.programs` field adds semantic and source-revision
+records to the existing HOME history, with no parallel project file. It is
+omitted when absent, so pre-existing record digests are unchanged. Older
+engines whose strict `Saved` schema does not recognize it refuse newer history;
+no downgrade/reset is attempted. Unknown envelope versions remain opaque and
+unchanged in engines that know the field.
+
+Records are keyed by proposal identity or saved relative path plus exact final
+program bytes, carry a whole-plan digest,
+and are withheld if redaction changes them. The pure codec lives in
+`nika_compile_fidelity::sketch::kept` and is exposed through Onboard. It retains
+records without a fixed count, plan-size or envelope-size quota. A new Save at
+the same path supersedes that path's prior meaning; it cannot revive stale evidence.
+Reopen restores evidence and the
+last Save's relative file selection, never consent, a live proposal,
+Run permission or past Check verdict. EDIT reconstructs the exact base again
+and passes current observation and monetary admission. Equal program bytes at
+different paths cannot overwrite each other's meaning; retaining a new proposal
+does not alter the record for the last accepted Save.
+
+The optional `Saved.inference_checkpoint` carries separate complete numeric accounting or
+a completed unknown-cost report witness,
+not program evidence or renewed permission. The same versioned checkpoint must
+match the project record and its cost observation under the exclusive history
+lease. No interrupted operation or dispatch marker may remain. The providers
+owner restores it CLOSED or Uncertain, preserving the old total ceiling, settled
+charges, active/held exposure and attempt identities. Another call requires fresh
+explicit TOTAL Session admission through the canonical amendment. Older records
+without this checkpoint, mismatched copies and unknown formats cannot infer a
+new allowance. Old consent, proposals and Run permissions remain expired.
+
+A `nika/completed-cost-report@1` witness retains only a project-bound digest of complete
+CLOSED unknown-cost observations, never an admission account. Under the same exclusive,
+concordant, uninterrupted boundary, it allows Session to offer another fresh one-time
+cost review while retaining every old observation and monetary restriction. The exact
+legacy numeric-codec refusal is readable only under that strict report validation.
+Mixed observation families and incomplete scopes remain refused. Neither restoration
+nor a fresh budget statement accepts the next unknown-cost invocation.

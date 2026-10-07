@@ -22,17 +22,20 @@ use super::*;
 use crate::DataLocus;
 use crate::authoring::AuthoringContext;
 use crate::reasoner::{ProviderReasoner, ReasonError, Reply, test_transport};
-use crate::runtime::inference_tests::JUDGE_APPROVES;
 use crate::runtime::inference_tests::wire::{Peer, response};
+use crate::runtime::inference_tests::{CREATE_CALLS, authored};
 use crate::turn::{
     ConservativeFallback, ReasonerClassifier, RoutingMethod, SessionPhase, TurnAct, TurnClassifier,
     TurnContext, TurnDecision,
 };
 
-/// The one route whose catalog lists the three levels.
+/// A route whose catalog lists the three levels.
 const QUALIFIED: &str = "deepseek/deepseek-v4-pro";
-/// A route that lists no level of its own: an explicit level is refused there.
-const UNLISTED: &str = "deepseek/deepseek-flash";
+/// The exact Flash ID, whose catalog lists low, high and max of its own (CALIBRATION-01).
+const FLASH: &str = "deepseek/deepseek-flash";
+/// A route that lists no level of its own (a suffixed Flash name the catalog never qualifies): an
+/// explicit level is refused there.
+const UNLISTED: &str = "deepseek/deepseek-flash-0731";
 /// A line the label reads whole.
 const RAW: &str = "Explain this destination, without changing it.\nKeep my exact words.";
 
@@ -66,22 +69,28 @@ fn question() -> TurnContext {
 /// A session on the qualified route, opened naming no level, whose factory counts the fresh
 /// reasoners it builds.
 fn open(root: &Path, built: &Arc<AtomicUsize>) -> SessionRuntime {
+    open_on(root, built, QUALIFIED)
+}
+
+/// A session on `model`, opened naming no level, whose factory counts the fresh reasoners it
+/// builds on that same model.
+fn open_on(root: &Path, built: &Arc<AtomicUsize>, model: &'static str) -> SessionRuntime {
     let selected = ResolvedSessionIntelligence {
         kind: IntelligenceKind::Api {
             provider: "deepseek".into(),
         },
-        model: Some(QUALIFIED.into()),
+        model: Some(model.into()),
         locus: DataLocus::Metered {
             provider: "deepseek".into(),
         },
         ready: true,
         why: None,
     };
-    let mut s = SessionRuntime::open(root, selected, Box::new(seat(QUALIFIED)));
+    let mut s = SessionRuntime::open(root, selected, Box::new(seat(model)));
     let count = Arc::clone(built);
     s.factory = Some(Box::new(move |_| {
         count.fetch_add(1, Ordering::SeqCst);
-        Box::new(seat(QUALIFIED))
+        Box::new(seat(model))
     }));
     assert_eq!(
         s.authoring_context().reasoning(),
@@ -95,6 +104,31 @@ fn open(root: &Path, built: &Arc<AtomicUsize>) -> SessionRuntime {
 fn asks_max(body: &Value) {
     assert_eq!(body["thinking"]["type"], "enabled", "{body}");
     assert_eq!(body["reasoning_effort"], "max", "{body}");
+}
+
+/// The loopback's answer `text` on the exact Flash route, naming that model as the provider does
+/// (a Flash call answered as Pro would be contradictory usage, rightly refused).
+fn flash(text: &str) -> Value {
+    let mut answer = response(text);
+    answer["model"] = Value::from("deepseek-flash");
+    answer
+}
+
+/// The body asks `low` as the exact Flash model's two keys, on that model.
+fn asks_flash_low(body: &Value) {
+    assert_eq!(body["model"], "deepseek-flash", "{body}");
+    assert_eq!(body["thinking"]["type"], "enabled", "{body}");
+    assert_eq!(body["reasoning_effort"], "low", "{body}");
+}
+
+/// The body without the two effort keys.
+fn without_effort(body: &Value) -> Value {
+    let mut body = body.clone();
+    if let Some(keys) = body.as_object_mut() {
+        keys.remove("thinking");
+        keys.remove("reasoning_effort");
+    }
+    body
 }
 
 /// The body carries no effort key.
@@ -148,9 +182,16 @@ fn every_routed_label_and_turn_ask_the_level_the_session_holds_when_it_calls() {
 /// One label on the qualified route through the classifier under the shared allowance (a direct
 /// priced route is only ever called under one), asking `effort`, and its body.
 fn label_body(effort: Option<AuthoringReasoning>) -> Value {
-    let peer = Peer::start(vec![(200, response("DISCUSS"))]);
+    label_body_on(QUALIFIED, effort)
+}
+
+/// [`label_body`] on `model`.
+fn label_body_on(model: &str, effort: Option<AuthoringReasoning>) -> Value {
+    let mut answer = response("DISCUSS");
+    answer["model"] = Value::from(model.rsplit('/').next().unwrap_or(model));
+    let peer = Peer::start(vec![(200, answer)]);
     let _transport = test_transport::install(&peer.url);
-    let decision = ReasonerClassifier::new(Box::new(seat(QUALIFIED)))
+    let decision = ReasonerClassifier::new(Box::new(seat(model)))
         .asking(effort)
         .classify_with_admission(&question(), RAW, &account());
     assert_eq!(decision.method, RoutingMethod::Model, "{decision:?}");
@@ -171,6 +212,156 @@ fn a_label_asking_the_level_is_the_same_label_call_with_the_effort_keys_added() 
     keys.remove("thinking");
     keys.remove("reasoning_effort");
     assert_eq!(asked, before, "the same ceiling, temperature and words");
+}
+
+/// CALIBRATION-01 · the session's routed labels and conversational turn on the exact Flash ID ask
+/// `low` as two keys on the same calls: the same model, the label and turn ceilings (4096 and
+/// 8192), the same words and the same number of calls; naming none again sends the bytes it sent
+/// before, the keys alone removed.
+#[test]
+fn flash_low_rides_every_routed_label_and_turn_with_the_same_ceilings_and_words() {
+    let peer = Peer::start(vec![(200, flash("DISCUSS"))]);
+    let _transport = test_transport::install(&peer.url);
+    let dir = tempfile::tempdir().expect("root");
+    let built = Arc::new(AtomicUsize::new(0));
+    let mut s = open_on(dir.path(), &built, FLASH);
+    s.admit_money("budget 2 USD", false, false).expect("admit");
+    s.set_authoring_context(named("low"));
+    for raw in ["tell me more about it", "and then?"] {
+        assert_eq!(
+            s.classify(SessionPhase::Idle, raw).method,
+            RoutingMethod::Model
+        );
+    }
+    assert_eq!(
+        built.load(Ordering::SeqCst),
+        2,
+        "a fresh reasoner each routed turn"
+    );
+    s.reason_with_money(RAW, false).expect("the turn");
+    let bodies = peer.bodies();
+    assert_eq!(bodies.len(), 3, "two labels and one turn");
+    bodies.iter().for_each(asks_flash_low);
+    assert!(bodies[1].to_string().contains("and then?"), "{}", bodies[1]);
+    assert!(bodies[2].to_string().contains("Keep my exact words."));
+    assert_eq!(
+        (
+            &bodies[0]["max_tokens"],
+            &bodies[1]["max_tokens"],
+            &bodies[2]["max_tokens"]
+        ),
+        (&Value::from(4096), &Value::from(4096), &Value::from(8192)),
+        "the label and turn ceilings, unchanged by the level"
+    );
+    s.set_authoring_context(AuthoringContext::default());
+    s.classify(SessionPhase::Idle, "one more");
+    s.reason_with_money("and the turn", false)
+        .expect("the turn");
+    let bodies = peer.bodies();
+    assert_eq!((bodies.len(), built.load(Ordering::SeqCst)), (5, 3));
+    bodies[3..].iter().for_each(asks_none);
+    // One label alone, asking low then none: the same call, the two keys apart.
+    let asked = label_body_on(FLASH, Some(AuthoringReasoning::Low));
+    asks_flash_low(&asked);
+    let before = label_body_on(FLASH, None);
+    asks_none(&before);
+    assert_eq!(before["max_tokens"], 4096, "{before}");
+    assert_eq!(
+        without_effort(&asked),
+        before,
+        "the same ceiling, temperature and words"
+    );
+}
+
+/// CALIBRATION-01 · the semantic authoring calls and their current judgment on the exact Flash ID,
+/// through the Session's own turn: each asks `low`, the ceilings, the number of calls and the allowance's
+/// attempts are those of the same turn naming none, and `/details` says configured `low`, the keys
+/// read back from the bytes sent, and the effort served unknown.
+#[test]
+fn flash_low_rides_the_authoring_and_judgment_calls_with_the_same_caps_and_accounting() {
+    let mut seen = Vec::new();
+    for word in [Some("low"), None] {
+        let peer = Peer::start(authored(flash));
+        let _transport = test_transport::install(&peer.url);
+        let dir = tempfile::tempdir().expect("root");
+        std::fs::write(dir.path().join("entree.txt"), "A\n").expect("input");
+        let mut s = open_on(dir.path(), &Arc::new(AtomicUsize::new(0)), FLASH);
+        let settings = AuthoringSettings::none();
+        let settings = match word {
+            Some(word) => settings.with_reasoning(word),
+            None => settings,
+        };
+        s.set_authoring_context(AuthoringContext::from_settings(
+            &settings,
+            &AuthoringSettings::none(),
+        ));
+        let out = s.turn(&format!("{WORK} budget 2 USD."));
+        assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
+        let bodies = peer.bodies();
+        assert_eq!(
+            bodies.len(),
+            CREATE_CALLS,
+            "the plan, sketch and fill calls, then the judgment's"
+        );
+        let details = s.details();
+        if word.is_some() {
+            bodies.iter().for_each(asks_flash_low);
+            assert!(
+                details.contains("call · reasoning effort low configured · keys read back from the sent body: thinking enabled · effort low · effort served unknown"),
+                "{details}"
+            );
+        } else {
+            assert!(
+                bodies.iter().all(|b| b.get("thinking").is_none()),
+                "{bodies:?}"
+            );
+            assert!(!details.contains("reasoning effort"), "{details}");
+        }
+        // The calls the reading recorded, by role: the semantic CREATE, then one `judge_request`.
+        let outcome = s.last_outcome.as_ref().expect("the reading");
+        let calls: Vec<(String, Value)> = (outcome.provenance.authoring.as_ref())
+            .map(|receipt| {
+                (receipt.context.iter())
+                    .map(|call| {
+                        (
+                            call["call"].as_str().unwrap_or("?").to_owned(),
+                            call["reasoning"].clone(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let roles: Vec<&str> = calls.iter().map(|(call, _)| call.as_str()).collect();
+        assert_eq!(
+            roles,
+            ["plan", "sketch", "fill", "judge_request"],
+            "{calls:?}"
+        );
+        for (call, reasoning) in &calls {
+            if word.is_some() {
+                assert_eq!(reasoning["configured"], "low", "{call}");
+                assert_eq!(
+                    reasoning["transmitted"],
+                    serde_json::json!({"thinking": "enabled", "effort": "low"}),
+                    "{call}: the keys read back from the bytes sent"
+                );
+                assert_eq!(reasoning["served"], "unknown", "{call}");
+            } else {
+                assert_eq!(reasoning["configured"], Value::Null, "{call}");
+            }
+        }
+        let receipt = s.inference_receipt().expect("receipt").expect("account");
+        let caps: Vec<Value> = bodies.iter().map(|b| b["max_tokens"].clone()).collect();
+        seen.push((
+            roles.iter().map(|r| (*r).to_owned()).collect::<Vec<_>>(),
+            caps,
+            receipt.attempts.len(),
+        ));
+    }
+    assert_eq!(
+        seen[0], seen[1],
+        "the same roles, ceilings and accounting, the level apart"
+    );
 }
 
 /// A path the conversation cannot ask a level on, counting every call it receives.
@@ -244,32 +435,15 @@ fn a_path_that_cannot_carry_the_level_refuses_it_before_any_byte_or_call() {
 const WORK: &str =
     "Je veux que sortie.txt contienne exactement les octets présents dans entree.txt.";
 
-/// The native candidate the loopback answers: the copy fixture on this project's paths.
-fn native() -> String {
-    let fixture: Value =
-        serde_json::from_str(include_str!("../../tests/fixtures/compile/copy-fr.json"))
-            .expect("fixture");
-    let candidate = fixture["candidate"]
-        .as_str()
-        .expect("candidate")
-        .replace("./notes/brief.md", "./entree.txt")
-        .replace("./out/copie.md", "./sortie.txt");
-    serde_json::json!({"candidate": candidate, "questions": [], "gaps": [], "notes": "copy"})
-        .to_string()
-}
-
 #[test]
 fn details_says_the_named_effort_as_the_receipt_recorded_it_and_nothing_without_one() {
     for word in [Some("max"), None] {
-        let peer = Peer::start(vec![
-            (200, response(&native())),
-            (200, response(JUDGE_APPROVES)),
-        ]);
+        let peer = Peer::start(authored(response));
         let _transport = test_transport::install(&peer.url);
         let dir = tempfile::tempdir().expect("root");
         std::fs::write(dir.path().join("entree.txt"), "A\n").expect("input");
         let mut s = open(dir.path(), &Arc::new(AtomicUsize::new(0)));
-        let settings = AuthoringSettings::none().with_strategy("only");
+        let settings = AuthoringSettings::none();
         let settings = match word {
             Some(word) => settings.with_reasoning(word),
             None => settings,
@@ -281,7 +455,11 @@ fn details_says_the_named_effort_as_the_receipt_recorded_it_and_nothing_without_
         let out = s.turn(&format!("{WORK} budget 2 USD."));
         assert!(matches!(out, TurnOutcome::Proposal { .. }), "{out:?}");
         let bodies = peer.bodies();
-        assert_eq!(bodies.len(), 2, "one native call, then the judge's");
+        assert_eq!(
+            bodies.len(),
+            CREATE_CALLS,
+            "the plan, sketch and fill calls, then the judge's"
+        );
         let details = s.details();
         if word.is_some() {
             asks_max(&bodies[0]);
@@ -564,6 +742,6 @@ fn the_decision_seat_is_a_separate_backend_the_named_level_never_reaches() {
     let status = s.status();
     assert!(
         status.contains(" · reasoning effort max asked of every LLM call; the TypeSafe decision seat is a separate backend: no effort is sent to it"),
-        "{status}"
+        "status must distinguish LLM reasoning effort from the decision seat"
     );
 }

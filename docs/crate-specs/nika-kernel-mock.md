@@ -124,6 +124,11 @@ impl MockFs {
 // - write(path, contents) → Ok(()) (upsert)
 // - create_dir_all(path) → Ok(()) (no-op, dirs are implicit)
 // - remove_file(path) → Ok(()) or NotFound
+// - remove_regular_file(path) → Ok(()) for the exact stored file; NotFound when
+//   absent; InvalidData for an implicit directory (descendants kept) or a raw
+//   spelling naming no final file (empty, `/`, `file/`, `file/.`, `..`)
+//   checked before `Path` equality could read `file/` as `file`. The store holds
+//   no symlink or special node, so this proves bookkeeping, not confinement.
 ```
 
 Filesystem write methods return `Result<(), nika_kernel::fs::FsError>`.

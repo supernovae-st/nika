@@ -316,14 +316,9 @@ fn names_a_period(phrase: &str) -> bool {
 /// content (« "she said \"hi\"" »). The unnamed-destination law reads its connector through
 /// the same guard.
 pub(crate) fn quoted(before: &str) -> bool {
-    let escaped = |at: usize| before.get(..at).is_some_and(|b| b.ends_with('\\'));
-    let count = |c: char| {
-        before
-            .match_indices(c)
-            .filter(|(at, _)| !escaped(*at))
-            .count()
-    };
-    count('"') % 2 == 1 || count('`') % 2 == 1 || count('«') > count('»') || count('“') > count('”')
+    quote_states(before, false)
+        .last()
+        .is_some_and(|(_, _, _, after)| after)
 }
 
 /// The text with its quoted content blanked, marks included, every character replaced by
@@ -331,18 +326,60 @@ pub(crate) fn quoted(before: &str) -> bool {
 /// words by substring (a waiver, a bypass, an indecision) reads only what is stated outside
 /// quotes.
 pub(crate) fn unquoted(text: &str) -> String {
-    let mark = |c: char| matches!(c, '"' | '\'' | '`' | '«' | '“');
-    let blank =
-        |at: usize, c: char| quoted_at(text, at) || (mark(c) && quoted_at(text, at + c.len_utf8()));
-    (text.char_indices())
-        .map(|(at, c)| {
-            if blank(at, c) {
-                " ".repeat(c.len_utf8())
+    quote_states(text, true)
+        .flat_map(|(_, c, before, after)| {
+            if before || (matches!(c, '"' | '\'' | '`' | '«' | '“') && after) {
+                std::iter::repeat_n(' ', c.len_utf8())
             } else {
-                c.to_string()
+                std::iter::repeat_n(c, 1)
             }
         })
         .collect()
+}
+
+/// Each character's byte offset and quote state before/after it. All readers share this
+/// transition law; only literal readers include apostrophes, and only the mask blanks marks.
+fn quote_states(
+    text: &str,
+    single_literals: bool,
+) -> impl Iterator<Item = (usize, char, bool, bool)> + '_ {
+    // Track quote state once. Re-reading the entire prefix for every character
+    // made a long conversational input quadratic before it could reach a model.
+    let mut double = false;
+    let mut tick = false;
+    let mut angled: i64 = 0;
+    let mut curved: i64 = 0;
+    let mut single = false;
+    let mut previous: Option<char> = None;
+    let mut chars = text.char_indices().peekable();
+    std::iter::from_fn(move || {
+        let (at, c) = chars.next()?;
+        let before = double || tick || angled > 0 || curved > 0 || single;
+        if previous != Some('\\') {
+            match c {
+                '"' => double = !double,
+                '`' => tick = !tick,
+                '«' => angled += 1,
+                '»' => angled -= 1,
+                '“' => curved += 1,
+                '”' => curved -= 1,
+                _ => {}
+            }
+        }
+        if single_literals && c == '\'' {
+            let next = chars.peek().map(|(_, ch)| *ch);
+            single = if single {
+                !(previous.is_some_and(|p| !p.is_whitespace())
+                    && next.is_none_or(|n| !n.is_alphanumeric()))
+            } else {
+                previous.is_none_or(|p| p.is_whitespace() || matches!(p, '(' | '[' | ':'))
+                    && next.is_some_and(|n| !n.is_whitespace())
+            };
+        }
+        let after = double || tick || angled > 0 || curved > 0 || single;
+        previous = Some(c);
+        Some((at, c, before, after))
+    })
 }
 
 /// Whether a byte position of the text lies inside quoted content: the quotes [`quoted`]
@@ -352,32 +389,11 @@ pub(crate) fn unquoted(text: &str) -> String {
 /// (« don't », « n'écris », « l'envoie ») neither opens nor closes. What lies inside quotes
 /// is what the workflow writes, reads or matches, never an instruction to it.
 pub(crate) fn quoted_at(text: &str, pos: usize) -> bool {
-    let Some(before) = text.get(..pos) else {
-        return false;
-    };
-    if quoted(before) {
-        return true;
-    }
-    let mut open = false;
-    let mut prev: Option<char> = None;
-    let mut chars = text.char_indices().peekable();
-    while let Some((at, c)) = chars.next() {
-        if at >= pos {
-            break;
-        }
-        if c == '\'' {
-            let next = chars.peek().map(|(_, n)| *n);
-            if open {
-                open = !(prev.is_some_and(|p| !p.is_whitespace())
-                    && next.is_none_or(|n| !n.is_alphanumeric()));
-            } else {
-                open = prev.is_none_or(|p| p.is_whitespace() || matches!(p, '(' | '[' | ':'))
-                    && next.is_some_and(|n| !n.is_whitespace());
-            }
-        }
-        prev = Some(c);
-    }
-    open
+    text.is_char_boundary(pos)
+        && quote_states(text, true)
+            .take_while(|(at, ..)| *at < pos)
+            .last()
+            .is_some_and(|(_, _, _, after)| after)
 }
 
 /// Settle the sentence-final cadences once every sentence is read. The widest becomes the
@@ -822,5 +838,101 @@ mod head_tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod continuous_quote_tests {
+    use super::{quoted_at, unquoted};
+
+    // Independent pre-refactor oracle; do not delegate to the new transition iterator.
+    fn historical_quoted(before: &str) -> bool {
+        let escaped = |at: usize| before.get(..at).is_some_and(|b| b.ends_with('\\'));
+        let count = |c: char| {
+            before
+                .match_indices(c)
+                .filter(|(at, _)| !escaped(*at))
+                .count()
+        };
+        count('"') % 2 == 1
+            || count('`') % 2 == 1
+            || count('«') > count('»')
+            || count('“') > count('”')
+    }
+
+    fn historical_quoted_at(text: &str, pos: usize) -> bool {
+        let Some(before) = text.get(..pos) else {
+            return false;
+        };
+        if historical_quoted(before) {
+            return true;
+        }
+        let mut open = false;
+        let mut prev: Option<char> = None;
+        let mut chars = text.char_indices().peekable();
+        while let Some((at, c)) = chars.next() {
+            if at >= pos {
+                break;
+            }
+            if c == '\'' {
+                let next = chars.peek().map(|(_, n)| *n);
+                if open {
+                    open = !(prev.is_some_and(|p| !p.is_whitespace())
+                        && next.is_none_or(|n| !n.is_alphanumeric()));
+                } else {
+                    open = prev.is_none_or(|p| p.is_whitespace() || matches!(p, '(' | '[' | ':'))
+                        && next.is_some_and(|n| !n.is_whitespace());
+                }
+            }
+            prev = Some(c);
+        }
+        open
+    }
+
+    #[test]
+    fn incremental_quote_mask_preserves_the_existing_byte_offset_law() {
+        let fragments = [
+            "", "é", "a'", "'a", "\"", "`", "«", "»", "“", "”", "\\", " ", "[", ":", "don't",
+        ];
+        for a in fragments {
+            for b in fragments {
+                for c in fragments {
+                    let text = format!("{a}{b}{c}");
+                    let reference: String = text
+                        .char_indices()
+                        .map(|(at, ch)| {
+                            let mark = matches!(ch, '"' | '\'' | '`' | '«' | '“');
+                            if historical_quoted_at(&text, at)
+                                || (mark && historical_quoted_at(&text, at + ch.len_utf8()))
+                            {
+                                " ".repeat(ch.len_utf8())
+                            } else {
+                                ch.to_string()
+                            }
+                        })
+                        .collect();
+                    assert_eq!(unquoted(&text), reference, "{text:?}");
+                    assert_eq!(super::quoted(&text), historical_quoted(&text), "{text:?}");
+                    for at in 0..=text.len() + 1 {
+                        assert_eq!(
+                            quoted_at(&text, at),
+                            historical_quoted_at(&text, at),
+                            "{text:?} at {at}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_large_quote_mask_keeps_the_entire_tail_and_original_offsets() {
+        let head = "résumé ".repeat(10_000);
+        let text = format!("{head}«ignore this instruction» keep this instruction");
+        let masked = unquoted(&text);
+        assert_eq!(masked.len(), text.len());
+        assert!(masked.starts_with(&head));
+        assert!(!masked.contains("ignore this instruction"));
+        assert!(masked.ends_with(" keep this instruction"));
     }
 }

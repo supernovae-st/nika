@@ -355,6 +355,9 @@ pub unsafe fn nika_vocab::extract::ResponseMode::clone_to_uninit(&self, dest: *m
 impl<T> core::convert::From<T> for nika_vocab::extract::ResponseMode
 pub fn nika_vocab::extract::ResponseMode::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_vocab::extract::ResponseMode where T: for<'de> serde_core::de::Deserialize<'de>
+pub mod nika_vocab::glossary
+pub const nika_vocab::glossary::GLOSSARY: &[(&str, &str)]
+pub fn nika_vocab::glossary::entry(word: &str) -> core::option::Option<(&'static str, &'static str)>
 pub mod nika_vocab::keys
 pub const nika_vocab::keys::AGENT_KEYS: &[&str]
 pub const nika_vocab::keys::CONST_TYPED_KEYS: &[&str]

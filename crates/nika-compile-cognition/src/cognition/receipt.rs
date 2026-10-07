@@ -5,50 +5,26 @@
 //! authoring call makes, whatever its messages, and the call's journal entry (its role, the
 //! digests of what it was shown, its bounds, its result, its usage).
 
-use nika_compile::AuthoringReasoning;
 use nika_kernel::ai::provider::{
     ContentBlock, InferRequest, InferResponse, Message, ProviderError, ProviderInferDyn,
-    ReasoningEffort, ResponseFormat, Role,
+    ResponseFormat, Role, StopReason,
 };
 use serde_json::{Value, json};
 
+use super::{effort, reasoning_record};
 use crate::{
     AuthoringCognition, AuthoringPolicy, AuthoringReceipt, CompileOutcome, DiagnosticKind,
 };
 
-/// The provider level an authoring level names (R4 B16): the same word, or `None` for a level
-/// the provider seam does not know, which no call may silently drop.
-pub(crate) fn effort(reasoning: AuthoringReasoning) -> Option<ReasoningEffort> {
-    ReasoningEffort::parse(reasoning.word())
-}
-
-/// One call's reasoning, each fact apart (R4 B16): the level the policy configured, the keys the
-/// adapter read back from the body it dispatched (`unobserved` when it reports none, or when no
-/// response came), the effort the provider served internally (never observable here), the
-/// reasoning tokens it reported (null when unreported) and the model it named.
-pub(crate) fn reasoning_record(
-    configured: Option<AuthoringReasoning>,
-    response: Option<&InferResponse>,
-) -> Value {
-    let transmitted = response
-        .and_then(|r| r.reasoning_wire.as_ref())
-        .map_or_else(
-            || json!("unobserved"),
-            |wire| json!({"thinking": wire.thinking, "effort": wire.effort}),
-        );
-    json!({
-        "configured": configured.map(AuthoringReasoning::word),
-        "transmitted": transmitted,
-        "served": "unknown",
-        "reasoning_tokens": response
-            .filter(|r| r.usage_reported)
-            .and_then(|r| r.usage.reasoning_tokens),
-        "response_model": response.and_then(|r| r.gen_ai.response_model.clone()),
-    })
-}
+/// The observer of authoring calls, owned by the provider layer; this module produces its
+/// observations.
+pub(crate) use nika_providers::authoring::observe;
 
 /// One bounded call under any answer schema (the plan's, the transform's), accounted in the
-/// outcome's receipt: the raw response, or None with the finding recorded. Never retries.
+/// outcome's receipt: the raw response, or None with the finding recorded. It opens at the
+/// policy's initial output limit; a reported truncation below the hard ceiling asks the same
+/// call once more at the ceiling (`widened_to` on the cut call's entry), a second request
+/// journaled and charged like the first. Nothing else is retried.
 pub(super) async fn call_with_schema<P: ProviderInferDyn>(
     policy: &AuthoringPolicy,
     provider: &P,
@@ -57,8 +33,48 @@ pub(super) async fn call_with_schema<P: ProviderInferDyn>(
     schema: Value,
     out: &mut CompileOutcome,
 ) -> Option<InferResponse> {
+    let opening = opening_limit(policy, out);
+    let widen = opening < policy.max_tokens;
+    let kept = widen.then(|| (messages.clone(), schema.clone()));
+    let response = send(policy, provider, role, (messages, schema), opening, out).await?;
+    let Some((messages, schema)) = kept.filter(|_| response.stop_reason == StopReason::MaxTokens)
+    else {
+        return Some(response);
+    };
+    let receipt = out.provenance.authoring.as_mut();
+    if let Some(context) = receipt.and_then(|r| r.context.last_mut()) {
+        context["widened_to"] = json!(policy.max_tokens);
+    }
+    let ceiling = policy.max_tokens;
+    send(policy, provider, role, (messages, schema), ceiling, out).await
+}
+
+/// The output limit a call opens at: the policy's initial limit, or its hard ceiling when none
+/// is set or once this compile has widened a cut answer (its journal says so).
+fn opening_limit(policy: &AuthoringPolicy, out: &CompileOutcome) -> u32 {
+    let widened = (out.provenance.authoring.as_ref())
+        .is_some_and(|r| r.context.iter().any(|c| c.get("widened_to").is_some()));
+    match policy.initial_max_tokens {
+        Some(initial) if !widened => initial.min(policy.max_tokens),
+        _ => policy.max_tokens,
+    }
+}
+
+/// One request at the output limit `cap`, accounted in the outcome's receipt.
+async fn send<P: ProviderInferDyn>(
+    policy: &AuthoringPolicy,
+    provider: &P,
+    role: &'static str,
+    (messages, schema): (Vec<Message>, Value),
+    cap: u32,
+    out: &mut CompileOutcome,
+) -> Option<InferResponse> {
     let entry = context_entry(role, &messages, &schema);
-    let Some(request) = authoring_request(policy, messages, schema) else {
+    let prompt = observe::prompt(&messages);
+    let identity = |key: &str| entry[key].as_str().unwrap_or_default().to_owned();
+    let schema_sha256 = identity("schema_sha256");
+    let instruction_sha256 = identity("instruction_sha256");
+    let Some(request) = authoring_request(policy, messages, schema, cap) else {
         crate::finding(
             out,
             DiagnosticKind::Unknown,
@@ -75,11 +91,20 @@ pub(super) async fn call_with_schema<P: ProviderInferDyn>(
     receipt.calls += 1;
     receipt.context.push(entry);
     if let Some(context) = receipt.context.last_mut() {
-        context["max_output_tokens"] = json!(policy.max_tokens);
+        context["max_output_tokens"] = json!(cap);
         context["timeout_ms"] = json!(policy.timeout.as_millis());
     }
     let start = std::time::Instant::now();
-    let result = tokio::time::timeout(policy.timeout, provider.infer(request)).await;
+    let result = timed(policy, provider, role, request).await;
+    // The answer as received, before any decode, to a host's scope (a request never built above
+    // made no call and is not observed).
+    observe::emit(
+        role,
+        prompt.as_ref(),
+        &schema_sha256,
+        &instruction_sha256,
+        observe::answered(&result),
+    );
     if let Some(receipt) = out.provenance.authoring.as_mut() {
         let elapsed_ms = u64::try_from(start.elapsed().as_millis()).unwrap_or(u64::MAX);
         receipt.elapsed_ms = receipt.elapsed_ms.saturating_add(elapsed_ms);
@@ -119,7 +144,7 @@ pub(super) async fn call_with_schema<P: ProviderInferDyn>(
                 out,
                 DiagnosticKind::Unknown,
                 "authoring_provider",
-                "An authorized authoring call timed out. No retry occurred.",
+                timeout_message(policy),
             );
             return None;
         }
@@ -135,6 +160,33 @@ pub(super) async fn call_with_schema<P: ProviderInferDyn>(
             Some(receipt.output_tokens.unwrap_or(0) + response.usage.output_tokens);
     }
     Some(response)
+}
+
+/// The provider's answer within the policy's deadline, the call's activity told to a scope.
+async fn timed<P: ProviderInferDyn>(
+    policy: &AuthoringPolicy,
+    provider: &P,
+    role: &'static str,
+    request: InferRequest,
+) -> Result<Result<InferResponse, ProviderError>, tokio::time::error::Elapsed> {
+    let activity = observe::Activity::started(role, &policy.model);
+    let result = tokio::time::timeout(policy.timeout, provider.infer(request)).await;
+    if let Some(call) = activity {
+        call.finish();
+    }
+    result
+}
+
+fn timeout_message(policy: &AuthoringPolicy) -> String {
+    let local_hint = if policy.model.starts_with("ollama/") {
+        " Check the local model's allocated context before retrying; waiting longer does not prevent server-side input truncation."
+    } else {
+        ""
+    };
+    format!(
+        "An authorized authoring call timed out after its {}s limit. No retry occurred.{local_hint}",
+        policy.timeout.as_secs_f64()
+    )
 }
 
 /// The identity of what one answered call returned (its text blocks, by digest and length, and
@@ -272,15 +324,17 @@ fn context_entry(role: &str, messages: &[Message], schema: &Value) -> Value {
     })
 }
 
-/// The bounded JSON-schema request every authoring call makes, whatever its messages, with the
-/// policy's explicit reasoning effort; `None` when that effort has no provider level.
+/// The bounded JSON-schema request every authoring call makes, whatever its messages, at the
+/// output limit `cap` (never above the policy's ceiling), with the policy's explicit reasoning
+/// effort; `None` when that effort has no provider level.
 fn authoring_request(
     policy: &AuthoringPolicy,
     messages: Vec<Message>,
     schema: Value,
+    cap: u32,
 ) -> Option<InferRequest> {
     let mut infer = InferRequest::new(&policy.model, messages);
-    infer.max_tokens = Some(policy.max_tokens);
+    infer.max_tokens = Some(cap.min(policy.max_tokens));
     infer.timeout = Some(policy.timeout);
     infer.response_format = ResponseFormat::JsonSchema(schema);
     if let Some(reasoning) = policy.reasoning {

@@ -100,11 +100,30 @@ pub enum NudgeReason {
     ErrorStreak,
 }
 
-/// One observable loop decision. Payloads are small and owned — an
-/// observer may hold them past the callback.
+/// One observable loop decision. Payloads are owned; image observations contain
+/// metadata after storage, never inline bytes. An observer may retain the beat.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum AgentEvent {
+    /// Possibly effectful image activity; blocks automatic replay even without a result.
+    HarnessImageActivity {
+        /// Peer-local operation id.
+        tool_call_id: String,
+    },
+    /// Peer-reported media, independent of text output and permission evidence.
+    /// Published BEFORE storage starts: received bytes keep their receipt even if
+    /// the store is never heard from (`storage: unconfirmed`).
+    HarnessImageObserved {
+        /// The received image/path observation, not a verified saved file.
+        image: nika_kernel::ai::harness::HarnessImage,
+    },
+    /// The store's answer for the received bytes of one observed image.
+    HarnessImageStored {
+        /// Peer-local operation id of the observation it settles.
+        tool_call_id: String,
+        /// The stored blob, or why storing was refused.
+        stored: Result<nika_kernel::BlobMetadata, String>,
+    },
     /// The loop started: resolved model + the whitelisted universe size.
     RunStarted {
         /// Resolved model id.
@@ -211,6 +230,71 @@ pub enum AgentEvent {
         /// The grant law applied (the teaching one-liner).
         why: String,
     },
+}
+
+impl AgentEvent {
+    /// The received image of a `HarnessImageObserved` beat (metadata after storage).
+    #[must_use]
+    pub fn harness_image(&self) -> Option<&nika_kernel::ai::harness::HarnessImage> {
+        match self {
+            Self::HarnessImageObserved { image } => Some(image),
+            _ => None,
+        }
+    }
+
+    /// Whether this beat reports harness image activity: a possibly effectful
+    /// operation that an automatic retry must never replay.
+    #[must_use]
+    pub fn is_harness_image(&self) -> bool {
+        matches!(
+            self,
+            Self::HarnessImageActivity { .. }
+                | Self::HarnessImageObserved { .. }
+                | Self::HarnessImageStored { .. }
+        )
+    }
+
+    /// The receipt row of an image beat, stamped with its attempt and iteration.
+    #[must_use]
+    pub fn image_row(&self, attempt: u32, iteration: Option<u32>) -> Option<serde_json::Value> {
+        let image = self.harness_image()?.observation();
+        Some(serde_json::json!({"attempt": attempt, "iteration": iteration, "image": image}))
+    }
+
+    /// Record `event` in an ordered beat log: a `HarnessImageStored` answer settles
+    /// its observation in place (one row per image; an unanswered store keeps
+    /// `storage: unconfirmed`), anything else is appended.
+    pub fn record_into(log: &mut Vec<Self>, event: &Self) {
+        let settled = matches!(event, Self::HarnessImageStored { .. })
+            && log.iter_mut().rev().any(|seen| seen.settle_image(event));
+        if !settled {
+            log.push(event.clone());
+        }
+    }
+
+    /// Fold a later `HarnessImageStored` into this still-unsettled observation of
+    /// the same operation. Returns whether it was absorbed; anything else is left
+    /// untouched (a disposition never invents an observation).
+    pub fn settle_image(&mut self, later: &Self) -> bool {
+        let (
+            Self::HarnessImageObserved { image },
+            Self::HarnessImageStored {
+                tool_call_id,
+                stored,
+            },
+        ) = (self, later)
+        else {
+            return false;
+        };
+        if image.tool_call_id != *tool_call_id || image.storage() != "unconfirmed" {
+            return false;
+        }
+        match stored {
+            Ok(blob) => image.stored_blob = Some(blob.clone()),
+            Err(reason) => image.storage_failure = Some(reason.clone()),
+        }
+        true
+    }
 }
 
 /// The observer seam. Implementations MUST be cheap and non-blocking

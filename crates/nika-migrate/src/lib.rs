@@ -62,6 +62,7 @@ mod esplit;
 mod identity;
 mod lot3;
 mod predicates;
+mod prepass;
 pub mod repair;
 
 pub use d1::{D1Outcome, d1};
@@ -69,6 +70,7 @@ pub use esplit::{EsplitOutcome, esplit};
 pub use identity::{IdentityOutcome, identity};
 pub use lot3::{Lot3Outcome, lot3};
 pub use predicates::predicates;
+pub use prepass::{has_bare_exec, has_needs_key, rewrite_needs, wrap_bare_exec};
 
 /// Apply the W1 migration. `Some(new)` when the document changed,
 /// `None` when it is already in the new form (idempotence by contract).

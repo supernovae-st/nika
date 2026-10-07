@@ -199,6 +199,9 @@ just
 solo
 soltanto
 nur
+uniquement
+exactly
+exactement
 
 [topn_fillers]
 with

@@ -155,6 +155,8 @@ pub(crate) fn finalize_outputs(
             first_failure(records),
         )
     };
+    // The resolved map the run returns rides beside the settlement, bounded.
+    fields.extend(crate::secret::output_fields(outputs));
     let settlement = settle_run(records, snapshot, state, cause, error);
     emit_terminal(stamper, sink, &fields, &settlement);
     (ok, settlement)

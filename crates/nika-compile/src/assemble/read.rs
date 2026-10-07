@@ -20,6 +20,7 @@ use super::{
     Doc, Kind, emit_fan_out, emit_parse, emit_parse_lines, emit_source_columns, writes_csv,
 };
 use crate::bindings::{Bindings, Source};
+use crate::laws::{FOLD_DOCUMENTS, FOLD_TEXTS};
 use crate::ledger::Judgment;
 use crate::paths::Structured;
 use crate::plan::{EffectPolicy, EffectVerb, Op, Plan};
@@ -160,7 +161,7 @@ fn refuse(out: &mut CompileOutcome, why: &str) {
 
 /// One file is one read (parsed too when structured), its bytes read as an opaque envelope under
 /// the byte lowering; several files or a glob are a bounded fan-out whose batch is folded into
-/// one document with a heading per file, or, when the request distributes its draft, zipped into
+/// one document ([`emit_fold`]), or, when the request distributes its draft, zipped into
 /// `{path, text}` items.
 pub(super) fn emit_read(d: &mut Doc, plan: &Plan, b: &Bindings, lowering: CopyLowering) {
     match b.read.bound() {
@@ -187,4 +188,27 @@ pub(super) fn emit_read(d: &mut Doc, plan: &Plan, b: &Bindings, lowering: CopyLo
         Some(source @ (Source::Files(_) | Source::Glob(_))) => emit_fan_out(d, plan, b, source),
         Some(Source::Item) | None => {}
     }
+}
+
+/// The folded document of a read fan-out. A step that reads the whole corpus (language work
+/// or a computation) receives each text under a heading naming its path, as the rule question
+/// announces; read by no step, the document is the sources' own bytes one after the other,
+/// in item order. No path reaches that fold, so a copy invents no heading or separator.
+pub(super) fn emit_fold(
+    d: &mut Doc,
+    corpus_read: bool,
+    input: serde_json::Value,
+    mut with: serde_json::Value,
+) {
+    let (input, law) = if corpus_read {
+        (input, FOLD_DOCUMENTS)
+    } else {
+        if let Some(bound) = with.as_object_mut() {
+            bound.remove("paths");
+        }
+        (json!({"texts": input["texts"]}), FOLD_TEXTS)
+    };
+    let args = json!({"input": input, "expression": law});
+    d.tool("documents", "nika:jq", args, Some(with), false);
+    d.fact("document", "${{ tasks.documents.output }}", Kind::Corpus);
 }

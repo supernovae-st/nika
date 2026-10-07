@@ -44,6 +44,7 @@ pub mod dead_form;
 pub mod decode;
 pub mod duration;
 pub mod extract;
+pub mod glossary;
 pub mod keys;
 pub mod on_error;
 pub mod output_decl;

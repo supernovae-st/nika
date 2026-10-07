@@ -137,6 +137,45 @@ async fn a_metered_positive_ceiling_is_never_read_to_the_seat_as_work() {
     );
 }
 
+/// An interactive host that meters and shows its preparation itself: the admitted zero is the
+/// workflow Run's ceiling, recorded and never read as work, and the seats still prepare. Without
+/// the flag the legacy law holds, and a door that meters no seat keeps its own.
+#[tokio::test]
+async fn an_observed_preparation_keeps_its_seats_under_a_zero_run_ceiling() {
+    let request = format!("{INTENT} Budget: 0 USD.");
+    let provider = Recording::default();
+    let observed = admitted(&request).with_observed_preparation();
+    let out = compile_with_provider(&observed, &provider).await.unwrap();
+    let asked = provider.asked.lock().unwrap().clone();
+    assert!(!asked.is_empty(), "the seat prepares: {out:#?}");
+    assert!(
+        asked.iter().all(|a| !a.contains("Budget: 0 USD")),
+        "{asked:#?}"
+    );
+    let says = |out: &nika_compile::CompileOutcome, words: &str| {
+        (out.diagnostics.iter()).any(|d| d.target == "authoring_money" && d.message.contains(words))
+    };
+    assert!(says(&out, "bounds the workflow's Run"), "{out:#?}");
+    assert!(!says(&out, "no seat was consulted"), "{out:#?}");
+    let decision = out.provenance.decision.as_ref().unwrap();
+    assert_eq!(
+        decision["money"]["directives"][0]["text"], "Budget: 0 USD",
+        "{decision:#}"
+    );
+    // The legacy law: the same request without the flag sends nothing.
+    let provider = Recording::default();
+    let out = compile_with_provider(&admitted(&request), &provider)
+        .await
+        .unwrap();
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 0, "{out:#?}");
+    assert!(says(&out, "no seat was consulted"), "{out:#?}");
+    // A door that meters no seat keeps its law, observed or not.
+    let provider = Recording::default();
+    let unmetered = stated(&request).with_observed_preparation();
+    let out = compile_with_provider(&unmetered, &provider).await.unwrap();
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 0, "{out:#?}");
+}
+
 /// The request as a door that meters no seat sends it: its operator's money stated in words.
 fn stated(request: &str) -> CompileRequest {
     CompileRequest::create(request)
@@ -248,11 +287,23 @@ async fn a_skeleton_name_beside_its_ceiling_is_read_as_written_and_opens_no_seat
                     .with_hot_policy(hot)
             };
             let control = Provider::new(plan());
-            compile_with_provider(&seated("hello budget 0 USD"), &control)
+            let unbound = compile_with_provider(&seated("hello budget 0 USD"), &control)
                 .await
                 .unwrap();
             let seen = control.calls.load(Ordering::SeqCst);
-            assert!(seen > 0, "control {hot:?} {native:?}");
+            if native == NativeMode::Only {
+                // Source-only creation is retired: with no money the same bytes refuse with
+                // the migration and reach no seat; the money witness below keeps its own cause.
+                assert_eq!(seen, 0, "control {hot:?} {native:?}");
+                assert!(
+                    (unbound.diagnostics.iter())
+                        .any(|d| d.target == "authoring_policy"
+                            && d.message.contains("native: only")),
+                    "control {hot:?} {native:?}: {unbound:#?}"
+                );
+            } else {
+                assert!(seen > 0, "control {hot:?} {native:?}");
+            }
             for text in [
                 "hello budget 0 USD",
                 "01-hello budget 0 USD",
@@ -281,22 +332,80 @@ async fn a_skeleton_name_beside_its_ceiling_is_read_as_written_and_opens_no_seat
     }
 }
 
-/// A change a base's constant door cannot settle: the native seat revises the base.
+/// A change a base's constant door cannot settle: the semantic revision's seat reads it.
 const CHANGE: &str = "also greet the reader in French";
+
+/// The request the recorded base answers.
+const GREETING: &str = "Write the text hello to ./out/result.txt.";
+
+/// A seat for the recorded base: the sketch, then its fills, and an approving judge.
+struct Creator {
+    answers: Mutex<Vec<String>>,
+}
+
+impl ProviderInferDyn for Creator {
+    async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
+        let schema = match &request.response_format {
+            nika_kernel::ai::provider::ResponseFormat::JsonSchema(schema) => schema.clone(),
+            _ => serde_json::Value::Null,
+        };
+        let text = if let Some(keys) = schema["properties"]["choice"]["enum"].as_array() {
+            let approve = ["faithful", "carried"]
+                .into_iter()
+                .find(|key| keys.iter().any(|value| value == *key))
+                .unwrap_or("none");
+            serde_json::json!({"choice": approve}).to_string()
+        } else {
+            self.answers.lock().unwrap().remove(0)
+        };
+        Ok(InferResponse::new(
+            vec![ContentBlock::Text { text }],
+            TokenUsage::new(1, 1),
+            StopReason::EndTurn,
+        ))
+    }
+}
+
+/// A base a semantic record binds (a creation through the sketch door): the only base a change
+/// in words is revised from. A base without a record asks no seat at all, money or not.
+async fn recorded_base() -> (String, serde_json::Value) {
+    let graph = serde_json::json!({"name": "greeting", "tasks": [{"id": "save", "verb": "invoke",
+        "tool": "nika:write", "purpose": "save the greeting", "writes": ["./out/result.txt"]}],
+        "questions": [], "gaps": [], "notes": "graph"});
+    let fills = serde_json::json!({"fills": [{"task": "save", "field": "args.content",
+        "value": "hello"}], "notes": "fills"});
+    let seat = Creator {
+        answers: Mutex::new(vec![graph.to_string(), fills.to_string()]),
+    };
+    let request = CompileRequest::create(GREETING)
+        .with_authoring_policy(policy().with_native(NativeMode::Sketch));
+    let out = compile_with_provider(&request, &seat).await.unwrap();
+    assert_eq!(
+        out.status,
+        CompileStatus::Ready,
+        "HARNESS_INVALID base: {out:#?}"
+    );
+    let record = out
+        .provenance
+        .plan
+        .clone()
+        .expect("HARNESS_INVALID: record");
+    assert_eq!(record["semantic_record"], 1, "HARNESS_INVALID");
+    (out.candidate.unwrap(), record)
+}
 
 /// A revision states its operator's money in its change on a door that meters no seat: the
 /// directive is read as money, never as the change, and no seat revises the base under it. The
-/// same change with no money stated reaches the native seat (primary review of 73291db3d,
-/// hypothesis 2).
+/// same change with no money stated reaches the revision's seat (primary review of 73291db3d,
+/// hypothesis 2), on a base its semantic record binds.
 #[tokio::test]
 async fn a_ceiling_stated_in_a_revision_opens_no_seat() {
-    let base = nika_compile::compile(&CompileRequest::create("hello"))
-        .unwrap()
-        .candidate
-        .unwrap();
-    for native in [NativeMode::Escalate, NativeMode::Only] {
+    let (base, record) = recorded_base().await;
+    for native in [NativeMode::Escalate, NativeMode::Sketch] {
         let revision = |change: &str| {
             CompileRequest::edit(base.clone(), change)
+                .with_original_intent(GREETING)
+                .with_plan(record.clone())
                 .with_authoring_policy(policy().with_native(native))
         };
         let control = Provider::new(plan());
@@ -332,7 +441,8 @@ async fn a_ceiling_stated_in_a_revision_opens_no_seat() {
         assert_closed(&out, calls, "budget 0 USD", &format!("answered {native:?}"));
         // The request the base answered is words the seat reads beside the change: stated on
         // this door, its ceiling binds too, and the record says where it was read.
-        let original = || revision(CHANGE).with_original_intent("hello, budget 0 USD");
+        let original =
+            || revision(CHANGE).with_original_intent(format!("{GREETING} Budget 0 USD."));
         let control = Provider::new(plan());
         compile_with_provider(&original(), &control).await.unwrap();
         assert!(
@@ -344,7 +454,7 @@ async fn a_ceiling_stated_in_a_revision_opens_no_seat() {
             .await
             .unwrap();
         let calls = provider.calls.load(Ordering::SeqCst);
-        assert_closed(&out, calls, "budget 0 USD", &format!("original {native:?}"));
+        assert_closed(&out, calls, "Budget 0 USD", &format!("original {native:?}"));
         let decision = out.provenance.decision.as_ref().unwrap();
         assert_eq!(decision["money"]["directives"][0]["in"], "original_intent");
     }

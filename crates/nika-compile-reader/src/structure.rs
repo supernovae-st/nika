@@ -5,7 +5,8 @@
 //! HTTP request, not one per fine »). Neither needs an operation to carry it: context is
 //! realized by the material it describes, a structure law by the shape of the emitted
 //! workflow, and a law the shape breaks stays unresolved so that nothing is READY against it.
-//! Moved from nika-compile to the reader at the 15k prod-LOC wall (2026-09-22), unchanged.
+//! Moved from nika-compile to the reader at the 15k prod-LOC wall (2026-09-22), unchanged; the
+//! prohibition reading of a clause ascended to `nika-compile-clauses` (ADR-145).
 
 use super::rule_tokens::fold;
 

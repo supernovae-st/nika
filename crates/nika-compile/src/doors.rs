@@ -16,10 +16,13 @@ use super::{
     lexicon::{self, Reading},
     plan::Plan,
 };
+use nika_compile_fidelity::{literal::answered::grant_host, sketch::same_caller};
 use serde_json::{Value, json};
 
 mod answered_paths;
 pub use answered_paths::{AnsweredPaths, native_answered_paths};
+/// The source-anchored revision of a base no semantic record binds: one destination in place.
+pub(crate) mod import;
 
 /// The strict admission contract, the legacy one, or none.
 pub(crate) fn admit_hot(
@@ -135,8 +138,10 @@ pub fn record_ledger(out: &mut CompileOutcome, ledger: &super::ledger::Ledger) {
 /// word is kept as the outcome's strategy; the route says `replayed plan`. A record that
 /// does not parse, is not anchored in this intent or still carries unknown work is a
 /// finding on `recorded_plan`, never a candidate. A native record's candidate stays pending on
-/// its whole request (no law reads the seat's program): its READY takes a judgment made in the
-/// round ([`replay_judged`]).
+/// its whole request (no law reads the seat's program), and so does every other plan but the
+/// reader's own HOT plan (a model's COLD or WARM plan, a record with no strategy word or an
+/// unknown one): its READY takes a judgment of the replayed bytes made in the round
+/// ([`replay_judged`]), so a replay with no judge leaves it INCOMPLETE (R4 A11).
 ///
 /// # Errors
 /// Returns representation failures while replaying an admitted record through assembly.
@@ -146,7 +151,10 @@ pub fn replay(
     request: &CompileRequest,
     out: &mut CompileOutcome,
 ) -> Result<(), CompileError> {
-    replay_judged(intent, record, request, &[], false, out)
+    // Fail closed: only the reader's own HOT plan replays as its laws judge it.
+    let strategy = (record.get("strategy").and_then(Value::as_str)).and_then(Strategy::parse);
+    let pending = strategy != Some(Strategy::Hot);
+    replay_judged(intent, record, request, &[], pending, out)
 }
 
 /// The same replay under the judgments a judge made in THIS round (R4 A11): each settles its
@@ -169,11 +177,7 @@ pub fn replay_judged(
 ) -> Result<(), CompileError> {
     let folded = lexicon::fold_apostrophes(intent);
     let intent = folded.as_str();
-    if super::pending_transform::replay(intent, record, request, out) {
-        return Ok(());
-    }
-    if record.get("strategy").and_then(Value::as_str) == Some(Strategy::Native.word()) {
-        native_replay(intent, record, request, judgments, out);
+    if seat_record(intent, record, request, judgments, out) {
         return Ok(());
     }
     record_route(out, &["replayed plan".to_owned()]);
@@ -440,6 +444,36 @@ fn two_triggers(record: &Value, request: &CompileRequest, out: &mut CompileOutco
     }
 }
 
+/// A record no plan replay reads: a semantic record (first, whatever else it carries), a pending
+/// transform, a native record. `true` when one of them answered the round.
+fn seat_record(
+    intent: &str,
+    record: &Value,
+    request: &CompileRequest,
+    judgments: &[super::ledger::Judgment],
+    out: &mut CompileOutcome,
+) -> bool {
+    // A revision's bounded question: its answer round decides on the very base it was asked on.
+    if record.get("source_question").is_some() {
+        import::answered(intent, record, request, judgments, out);
+        return true;
+    }
+    if record.get("semantic_record").is_some() {
+        semantic_refusal(
+            out,
+            "it replays only through a compile of the caller's raw request",
+        );
+    } else if !super::pending_transform::replay(intent, record, request, out) {
+        let native =
+            record.get("strategy").and_then(Value::as_str) == Some(Strategy::Native.word());
+        if native {
+            native_replay(intent, record, request, judgments, out);
+        }
+        return native;
+    }
+    true
+}
+
 /// Replay a native record: the same candidate with this round's answers, zero calls. The seat
 /// wrote its program, so the whole request stays pending on the bytes this round finishes until a
 /// judgment made in this compile settles it ([`native_pending`], R4 A11 step 2).
@@ -457,6 +491,18 @@ pub(crate) fn native_replay(
             DiagnosticKind::Unknown,
             "recorded_plan",
             "The recorded native candidate was written for another request; compile the intent again without it.",
+        );
+        return;
+    }
+    // A source revision replays only on the base it revised, its substitution made again.
+    if let Err(why) = import::rebound(record, request) {
+        super::finding(
+            out,
+            DiagnosticKind::Unknown,
+            "recorded_plan",
+            format!(
+                "The recorded revision does not bind this base: {why}. Revise the workflow again without it."
+            ),
         );
         return;
     }
@@ -678,11 +724,17 @@ fn bake(source: &mut String, question: &Value, literal: &str, out: &mut CompileO
         let edited = crate::edit_source::emit(source.as_str(), &before, &after, slug)?;
         // An answered endpoint also grants its host: the boundary is the compiler's to
         // complete from the answer, never the seat's to guess.
-        if !grant_host(&mut after, &value) {
+        let before = crate::edit::literal_projection(&edited)?;
+        if !grant_host(&mut after, slug, &value) {
             return Some(edited);
         }
-        let before = crate::edit::literal_projection(&edited)?;
-        crate::edit_source::emit_at(&edited, &before, &after, &["permits", "net", "http"])
+        // A stated list is rewritten in place; an absent one has no slot, so the document is
+        // re-emitted whole under the literal-projection proof (its presentation may normalize).
+        if before.pointer("/permits/net/http").is_some() {
+            crate::edit_source::emit_at(&edited, &before, &after, &["permits", "net", "http"])
+        } else {
+            crate::edit::emit_preserving(&edited, &before, &after).ok()?
+        }
     });
     if let Some(edited) = baked {
         *source = edited;
@@ -702,24 +754,6 @@ fn bake(source: &mut String, question: &Value, literal: &str, out: &mut CompileO
         );
         false
     }
-}
-
-/// Add the host of an answered URL to `permits.net.http` when that list exists and lacks it.
-fn grant_host(after: &mut Value, value: &Value) -> bool {
-    let Some(host) = value.as_str().and_then(host_of) else {
-        return false;
-    };
-    let Some(list) = after
-        .pointer_mut("/permits/net/http")
-        .and_then(Value::as_array_mut)
-    else {
-        return false;
-    };
-    if list.iter().any(|h| h.as_str() == Some(host)) {
-        return false;
-    }
-    list.push(Value::String(host.to_owned()));
-    true
 }
 
 /// Complete the read or write boundary a seat left as its empty placeholder (`[""]`, the
@@ -768,24 +802,6 @@ fn grant_answered_paths(
         }
     }
     paths
-}
-
-/// The host of an `http(s)://` URL, without its port: the form `permits.net.http` lists (the
-/// assembler grants `url.host_str()`; the loopback declassification compares exact hosts).
-fn host_of(url: &str) -> Option<&str> {
-    let rest = url
-        .strip_prefix("https://")
-        .or_else(|| url.strip_prefix("http://"))?;
-    let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
-    let authority = &rest[..end];
-    let host = if authority.starts_with('[') {
-        authority
-            .find(']')
-            .map_or(authority, |close| &authority[..=close])
-    } else {
-        authority.split(':').next().unwrap_or(authority)
-    };
-    (!host.is_empty()).then_some(host)
 }
 
 /// Ask one recorded business question, mandatory.
@@ -865,33 +881,337 @@ fn seat_model(source: &mut String, request: &CompileRequest, out: &mut CompileOu
     }
 }
 
+/// The basis a door reads, before any proposal: its effective words and initial answers, the
+/// world's identity, every clause occurrence in order (repeats kept), the reader's floor, the
+/// ledger and the partial behavior contract (unsupported portion named). No candidate in it.
+#[must_use]
+pub fn request_basis(intent: &str, request: &CompileRequest) -> Value {
+    let mut basis = nika_compile_fidelity::sketch::read_basis(intent, &request.answers);
+    basis["world_sha256"] = json!(nika_compile_fidelity::observed::basis::of_request(
+        request.knowledge.as_ref(),
+        intent
+    ));
+    basis["ledger"] = super::ledger::Ledger::extract_reading(&lexicon::read(intent)).to_json();
+    basis
+}
+
+/// The caller's own request, before money is blanked or a clarification taken.
+fn caller_basis(request: &CompileRequest) -> Value {
+    let words = match &request.input {
+        super::Input::Create(text) => Some(text.as_str()),
+        super::Input::Edit { .. } => None,
+    };
+    let money: Vec<_> = request.money.iter().map(|r| [r.start, r.end]).collect();
+    json!({"input": words, "original_intent": request.original_intent, "answers": request.answers,
+           "money": money, "stated_money": request.stated_money})
+}
+
+/// Read at a compile's entry on the raw request: its caller basis; or the refused outcome when it
+/// replays a semantic record of another caller (words, original, money, an initial answer, or a
+/// clarification the record never had: a replacement is a new basis). No call, nothing emitted.
+///
+/// # Errors
+/// The refused outcome of a semantic record this caller cannot replay.
+pub fn caller(request: &CompileRequest) -> Result<Value, Box<CompileOutcome>> {
+    let now = caller_basis(request);
+    let Some(record) = (request.plan.as_ref()).filter(|r| r.get("semantic_record").is_some())
+    else {
+        return Ok(now);
+    };
+    // A revision binds its record by the base the record emitted, never by restated words (F).
+    if let super::Input::Edit { source, .. } = &request.input {
+        return match base_view(record, source, request) {
+            Ok(_) => Ok(now),
+            Err(why) => {
+                let mut out = super::initial();
+                stale_base(&mut out, why);
+                Err(Box::new(out))
+            }
+        };
+    }
+    let stored = &record["basis"]["caller"];
+    let same = same_caller(stored, &now, &request.answers);
+    if same {
+        return Ok(now);
+    }
+    let mut out = super::initial();
+    semantic_refusal(
+        &mut out,
+        "its caller's words, money or initial answers are not this request's",
+    );
+    Err(Box::new(out))
+}
+
+/// The answer round of a semantic record, reached only from a compile whose raw caller was
+/// read: the request the door read is derived as the door derived it (a clarification taken as
+/// the effective words, folded), then [`semantic_replay`]. `false` when the request carries no
+/// semantic record.
+pub(crate) fn semantic_round(
+    request: &CompileRequest,
+    judgments: &[super::ledger::Judgment],
+    out: &mut CompileOutcome,
+) -> bool {
+    let (Some(record), super::Input::Create(words)) = (request.plan.as_ref(), &request.input)
+    else {
+        return false;
+    };
+    if record.get("semantic_record").is_none() {
+        return false;
+    }
+    let mut assembly = request.clone();
+    let clarified = (assembly.answers.remove("intent.clarification"))
+        .and_then(|raw| serde_json::from_str::<String>(&raw).ok());
+    let intent = lexicon::fold_apostrophes(clarified.as_deref().unwrap_or(words));
+    semantic_replay(&intent, record, &assembly, judgments, out);
+    true
+}
+
+/// A revision of a base its semantic record binds ([`caller`] checked the pair), in the core
+/// (R4 F): the zero-call constant door over the base. When it changed a constant the record's
+/// final answers hold, the record is bound anew to the edited bytes, kept only if it replays
+/// to them exactly; any other result keeps no record. A change in words the door does not
+/// settle stays for the semantic revision, the base untouched.
+pub(crate) fn semantic_edit(
+    request: &CompileRequest,
+    out: &mut CompileOutcome,
+) -> Result<(), super::CompileError> {
+    let (super::Input::Edit { source, change }, Some(record)) =
+        (&request.input, request.plan.as_ref())
+    else {
+        return Ok(());
+    };
+    let mut plain = request.clone();
+    plain.plan = None;
+    super::edit(source, change, &plain, out)?;
+    let (Some(edited), Some(constant)) = (out.candidate.clone(), super::edit::operation(change))
+    else {
+        return Ok(());
+    };
+    let key = format!("const.{}", constant.name);
+    let literal =
+        (constant.literal_json.map(str::to_owned)).or_else(|| request.answers.get(&key).cloned());
+    let mut rebound = record.clone();
+    let (Some(literal), true) = (literal, rebound["final"]["answers"].get(&key).is_some()) else {
+        return Ok(());
+    };
+    if edited == *source {
+        return Ok(());
+    }
+    rebound["final"]["answers"][&key] = json!(literal);
+    rebound["final"]["candidate_sha256"] = json!(super::surface::sha256(&edited));
+    if base_view(&rebound, &edited, request).is_ok() {
+        out.provenance.plan = Some(rebound);
+    }
+    Ok(())
+}
+
+/// A revision whose base and semantic record are not a pair: static, the base kept as it is.
+fn stale_base(out: &mut CompileOutcome, why: &str) {
+    out.status = super::CompileStatus::Refused;
+    super::finding(
+        out,
+        DiagnosticKind::Refused,
+        "recorded_plan",
+        format!(
+            "The semantic record does not bind this base: {why}. The base is kept as it is, nothing was emitted and no authoring model was asked; revise a base with the record it was saved with."
+        ),
+    );
+}
+
+/// A semantic record's refusal: static, never a record value or key name repeated.
+fn semantic_refusal(out: &mut CompileOutcome, why: &str) {
+    record_route(out, &["replayed semantic record".to_owned()]);
+    super::finding(
+        out,
+        DiagnosticKind::Unknown,
+        "recorded_plan",
+        format!(
+            "The recorded sketch cannot be replayed: {why}. Nothing was emitted, its stored source is never used and no model was asked; compile the intent again without the record."
+        ),
+    );
+}
+
+/// Replay a semantic record: its graph and fills are emitted again under THIS request; its bound
+/// answers must still emit its final candidate; a new answer must answer a question that
+/// candidate asks, and binds anew; a gap stays an open duty; the stored source is never read and
+/// the whole request stays pending ([`native_pending`]). Any mismatch is a refusal.
+fn semantic_replay(
+    intent: &str,
+    record: &Value,
+    request: &CompileRequest,
+    judgments: &[super::ledger::Judgment],
+    out: &mut CompileOutcome,
+) {
+    out.provenance.strategy = Some(Strategy::Native);
+    let (view, bound) = match rebuilt(intent, record, request) {
+        Ok(rebuilt) => rebuilt,
+        Err(why) => return semantic_refusal(out, why),
+    };
+    let mut earlier = request.clone();
+    earlier.answers.clone_from(&bound);
+    let mut asked = super::initial();
+    apply_native(&view, &earlier, &mut asked);
+    let sha = |out: &CompileOutcome| json!(out.candidate.as_deref().map(super::surface::sha256));
+    let fresh = (request.answers.keys()).filter(|key| !bound.contains_key(*key));
+    if sha(&asked) != record["final"]["candidate_sha256"] {
+        return semantic_refusal(
+            out,
+            "its answers no longer emit the final candidate it binds",
+        );
+    }
+    if fresh
+        .into_iter()
+        .any(|k| !asked.questions.iter().any(|q| &q.key == k))
+    {
+        return semantic_refusal(out, "an answer of this round answers no question it asks");
+    }
+    // Origin only: judgments a host supplied, never their authenticity or their acceptance.
+    let mut route = vec!["replayed semantic record".to_owned()];
+    if !judgments.is_empty() {
+        route.push("judgments supplied by the host".to_owned());
+    }
+    record_route(out, &route);
+    native_apply(&view, request, out);
+    if !view["gaps"].as_array().is_none_or(Vec::is_empty)
+        && out.status == super::CompileStatus::Ready
+    {
+        out.status = super::CompileStatus::Incomplete;
+        super::finding(
+            out,
+            DiagnosticKind::Missed,
+            "recorded_plan",
+            "A clause the seat could not realize stays an open duty: a `gap` answer records a disposition, never its realization; nothing is READY.",
+        );
+    }
+    let mut kept = record.clone();
+    kept["final"] = json!({"answers": request.answers, "candidate_sha256": sha(out)});
+    out.provenance.plan = Some(kept);
+    native_pending(intent, request, judgments, out);
+}
+
+/// The record emitted again under this request, its answers held to A0 ⊆ Ak ⊆ Ac (the initial
+/// answers within the bound ones, the bound ones this round's), its basis recomputed from the
+/// request with only A0, its graph and fills completed by the sketch laws and lowered to bytes
+/// that must be the assembly it names: the view a native settlement reads, with the bound
+/// answers; or why the record does not replay.
+pub(crate) fn rebuilt(
+    intent: &str,
+    record: &Value,
+    request: &CompileRequest,
+) -> Result<(Value, std::collections::BTreeMap<String, String>), &'static str> {
+    let read = &record["basis"]["read"];
+    let (initial, bound) = nika_compile_fidelity::sketch::bound_answers(record, &request.answers)?;
+    let mut basis = request.clone();
+    basis.answers.retain(|key, _| initial.contains_key(key));
+    if request_basis(intent, &basis) != *read {
+        return Err("it was recorded for another request, answers, world or reading");
+    }
+    let allowed = nika_compile_fidelity::fidelity::allowed_values(&basis.answers);
+    let world = request.knowledge.as_ref();
+    let mut view =
+        nika_compile_fidelity::sketch::replayed_observed(record, intent, &allowed, world)?;
+    let source = serde_yaml_bw::to_string(&view["document"])
+        .map_err(|_| "its document is not representable")?;
+    if record["assembly_sha256"] != json!(super::surface::sha256(&source)) {
+        return Err("its graph and fills do not emit the candidate it names");
+    }
+    view["document"] = json!(source);
+    Ok((
+        json!({"source": view["document"], "questions": view["questions"], "gaps": view["gaps"],
+               "trigger": view["trigger"]}),
+        bound,
+    ))
+}
+
+/// The view a semantic record emits for the EDIT base it is paired with (R4 F): the record
+/// replays under its own effective words and final answers over its bound historical observation,
+/// with the current sources unchanged and current structural laws rechecked, and
+/// its emitted bytes must be exactly the base's and the record's final candidate. The words a
+/// caller restates are never trusted for the original request: the record's own are. Otherwise
+/// why the pairing is stale or tampered. No call, nothing emitted.
+pub(crate) fn base_view(
+    record: &Value,
+    base: &str,
+    request: &CompileRequest,
+) -> Result<(Value, std::collections::BTreeMap<String, String>), &'static str> {
+    let sha = |text: &str| json!(super::surface::sha256(text));
+    let (intent, answers) =
+        nika_compile_fidelity::sketch::bound_base(record, base, request.knowledge.as_ref())?;
+    let mut words = CompileRequest::create(intent);
+    words.answers = answers;
+    let world = nika_compile_fidelity::observed::basis::for_base(
+        request.knowledge.as_ref(),
+        intent,
+        &record["sketch"],
+        &record["basis"],
+    )
+    .ok_or("its recorded world cannot be reconstructed with the current sources")?;
+    words.knowledge = (!world.is_null()).then_some(world);
+    let (view, bound) = rebuilt(intent, record, &words)?;
+    words.answers.clone_from(&bound);
+    let mut emitted = super::initial();
+    apply_native(&view, &words, &mut emitted);
+    (emitted.candidate.as_deref().map(sha) == Some(sha(base)))
+        .then_some((view, bound))
+        .ok_or("its graph, fills and answers do not emit this base")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    /// The bake applies the answer and grants its host into a stated list (rewritten in place) or
+    /// into an absent one (the document re-emitted under the literal-projection proof), block or
+    /// flow; an answer no net argument reads grants nothing.
     #[test]
-    fn an_answered_url_grants_its_host_without_its_port() {
-        assert_eq!(
-            host_of("https://hooks.example.invalid/recap"),
-            Some("hooks.example.invalid")
-        );
-        assert_eq!(host_of("http://127.0.0.1:8793/hook"), Some("127.0.0.1"));
-        assert_eq!(host_of("http://[::1]:8080/x"), Some("[::1]"));
-        assert_eq!(host_of("./out/report.md"), None);
-        let mut doc = json!({"permits": {"net": {"http": []}}});
-        assert!(grant_host(
-            &mut doc,
-            &json!("https://hooks.example.invalid/recap")
-        ));
-        assert!(!grant_host(
-            &mut doc,
-            &json!("https://hooks.example.invalid/again")
-        ));
-        assert_eq!(
-            doc["permits"]["net"]["http"],
-            json!(["hooks.example.invalid"])
-        );
-        let mut none = json!({"permits": {}});
-        assert!(!grant_host(&mut none, &json!("https://x.invalid/")));
+    fn the_bake_grants_an_answered_host_into_a_stated_or_absent_list() {
+        let question = json!({"key": "const.endpoint", "label": "Where?", "answer_type": "text"});
+        let answer = "\"https://hooks.example.invalid/recap\"";
+        let send = |target: &str| {
+            format!(
+                "tasks:\n  send:\n    invoke:\n      tool: nika:notify\n      args: {{target: \"{target}\", message: hi}}\n"
+            )
+        };
+        let head = "nika: x\nconst:\n  endpoint: ''\n";
+        let whole = send("${{ const.endpoint }}");
+        let partial = send("${{ const.endpoint }}/x");
+        for (permits, tasks, granted) in [
+            (
+                "permits:\n  tools:\n  - nika:notify\n  net:\n    http: []\n",
+                &whole,
+                true,
+            ),
+            (
+                "permits: {tools: [\"nika:notify\"], net: {http: []}}\n",
+                &whole,
+                true,
+            ),
+            ("permits:\n  tools:\n  - nika:notify\n", &whole, true),
+            ("permits: {tools: [\"nika:notify\"]}\n", &whole, true),
+            ("permits:\n  tools:\n  - nika:notify\n", &partial, false),
+        ] {
+            let mut source = format!("{head}{permits}{tasks}");
+            let mut out = crate::surface::initial();
+            assert!(bake(&mut source, &question, answer, &mut out), "{out:#?}");
+            let doc: Value = serde_yaml_bw::from_str(&source).unwrap();
+            assert_eq!(
+                doc["const"]["endpoint"],
+                "https://hooks.example.invalid/recap"
+            );
+            assert_eq!(doc["tasks"]["send"]["invoke"]["args"]["message"], "hi");
+            let expected = if granted {
+                json!(["hooks.example.invalid"])
+            } else {
+                Value::Null
+            };
+            assert!(
+                doc["permits"]["net"]["http"] == expected,
+                "the answered host must match the expected HTTP grant"
+            );
+            assert!(
+                doc["permits"]["tools"] == json!(["nika:notify"]),
+                "answering the host must preserve the tool grant"
+            );
+        }
     }
 }

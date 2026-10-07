@@ -15,8 +15,9 @@
 //! executable text (the request, each answer, an EDIT's path, base, change and original) is
 //! kept with the sha256 of its exact original: a text the redactor changed is kept as
 //! displayed and never continued. The compiler's continuation is kept only when the redactor
-//! leaves it whole and it fits the bound; otherwise only its sha256 is kept and nothing
-//! continues.
+//! leaves it whole; otherwise only its sha256 is kept and nothing continues. Record size and
+//! settled-answer count impose no preparation quota. Historical `over_bound` records still
+//! cannot continue because the earlier engine did not keep their continuation.
 //!
 //! Record (JSON, schema 1, every key always written): `{"schema": 1, "request": <text>,
 //! "edit": null | {"path": null | <text>, "base": <text>, "change": <text>, "original": null
@@ -41,10 +42,11 @@ use super::{
 
 /// The round schema this engine writes and reads.
 pub const ROUND_SCHEMA: u64 = 1;
-/// The kept round's bound, serialized: far below a host journal's per-record bound. Over it,
-/// the continuation, knowledge and receipt are withheld; a round still over it is not kept.
+/// Historical serialized-round quota, retained for source compatibility only.
+/// Current capture and replay impose no record-size quota.
 pub const ROUND_LIMIT: usize = 256 * 1024;
-/// The most answers a kept round carries; a round with more is kept and never continued.
+/// Historical settled-answer quota, retained for source compatibility only.
+/// Current replay validates every answer without a count limit.
 pub const MAX_ANSWERS: usize = 64;
 
 /// A text as kept: as displayed (exact, or redacted), and the sha256 of its exact original.
@@ -230,7 +232,7 @@ pub struct KeptPlan {
     pub sha256: String,
     /// The continuation, when kept whole.
     pub value: Option<Value>,
-    /// Why it was withheld: `over_bound` · `redacted`.
+    /// Why it was withheld: `redacted`, or `over_bound` in historical records.
     pub withheld: Option<String>,
 }
 
@@ -308,7 +310,7 @@ pub enum Unusable {
     Withheld(String),
     /// A kept value no longer matches the sha256 recorded with it (damaged or edited).
     Altered(&'static str),
-    /// More answers than a round may carry.
+    /// Historical answer-count refusal, retained for source compatibility; no longer emitted.
     TooManyAnswers(usize),
     /// No question waited.
     NoQuestion,
@@ -333,7 +335,7 @@ impl std::fmt::Display for Unusable {
             Self::TooManyAnswers(n) => {
                 write!(
                     f,
-                    "it carries {n} answers; a round carries at most {MAX_ANSWERS}"
+                    "an earlier engine refused its {n} answers under a historical count limit"
                 )
             }
             Self::NoQuestion => write!(f, "no question waited in it"),
@@ -343,16 +345,13 @@ impl std::fmt::Display for Unusable {
 
 impl RoundRecord {
     /// Whether this round can be continued: every executable text exact, the continuation kept
-    /// whole (or never settled), at most [`MAX_ANSWERS`] answers, a question waiting.
+    /// whole (or never settled), every answer checked, a question or kept plan waiting.
     ///
     /// # Errors
     /// Why it cannot ([`Unusable`]).
     pub fn continuable(&self) -> Result<(), Unusable> {
         if !self.request.is_exact() {
             return Err(Unusable::Redacted("request"));
-        }
-        if self.answers.len() > MAX_ANSWERS {
-            return Err(Unusable::TooManyAnswers(self.answers.len()));
         }
         if self.answers.iter().any(|a| !a.literal.is_exact()) {
             return Err(Unusable::Redacted("answer"));
@@ -369,7 +368,7 @@ impl RoundRecord {
                 return Err(Unusable::Altered("continuation"));
             }
         }
-        if self.questions.is_empty() {
+        if self.questions.is_empty() && self.continuation.is_none() {
             return Err(Unusable::NoQuestion);
         }
         Ok(())
@@ -392,7 +391,7 @@ impl RoundRecord {
 
     /// The kept round in words — the request, the settled answers, the question that waited,
     /// the proposal it revises: evidence that names no host's protocol (a host adds its own way
-    /// on, as for `compile::meaning`).
+    /// on, as for `nika_session::meaning`).
     #[must_use]
     pub fn summary(&self) -> String {
         self.summary_as_typed(None)
@@ -693,40 +692,16 @@ impl RoundReading {
     /// Why the kept value cannot be read.
     pub fn words_as_typed(&self, typed: Option<&str>) -> Result<RoundWords, &str> {
         let record = self.record()?;
-        Ok(RoundWords {
-            summary: record.summary_as_typed(typed),
-            asked: record.pending().map(|q| q.why.clone()),
-            blocked: record.continuable().err().map(|why| why.to_string()),
-        })
+        Ok(RoundWords::new(
+            record.summary_as_typed(typed),
+            record.pending().map(|q| q.why.clone()),
+            record.continuable().err().map(|why| why.to_string()),
+        ))
     }
 }
 
-/// A request in words: « request », or « typed » as you typed it · rebuilt as « request » when a
-/// restatement rebuilt the sentence the human typed. A trailing line break is presentation and is
-/// never shown inside « »; the kept bytes stay as they were.
-#[must_use]
-pub fn as_typed(typed: Option<&str>, request: &str) -> String {
-    let request = request.trim_end();
-    match typed
-        .map(str::trim_end)
-        .filter(|typed| !typed.is_empty() && *typed != request)
-    {
-        Some(typed) => format!("« {typed} » as you typed it · rebuilt as « {request} »"),
-        None => format!("« {request} »"),
-    }
-}
-
-/// A kept round in words, evidence that names no host's protocol (a host adds its own way on).
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct RoundWords {
-    /// [`RoundRecord::summary`].
-    pub summary: String,
-    /// Why the compiler asked the question that waited, when one waited.
-    pub asked: Option<String>,
-    /// Why it cannot be continued ([`RoundRecord::continuable`]), `None` when it can.
-    pub blocked: Option<String>,
-}
+/// Pure kept-round words; validation remains with this module.
+pub use nika_display::front_door::round::{RoundWords, as_typed};
 
 /// The typed request a live round is: its EDIT (`(base, change, original)`, the request the
 /// base answered) or a CREATE of `intent`, every answer by key, the plan it replays once one
@@ -779,6 +754,10 @@ pub fn change_money(change: &str, admitted: bool) -> Vec<std::ops::Range<usize>>
 /// round given none keeps none, whatever an earlier round left in its plan; `None` when an
 /// attached observation was not recorded, or its record names no identity (an older record):
 /// that round's request cannot be rebuilt, and a host keeps no basis rather than read another.
+/// A semantic record keeps no observation of its own: its request is rebuilt from the one the
+/// host's record discloses (`decision.session.observed.world`) only when that observation is the
+/// one the host attached, with the exact scoped identity of the reading's stated paths
+/// (`basis.read.world_sha256`); anything else rebuilds nothing.
 #[must_use]
 pub fn compiled(request: CompileRequest, out: &CompileOutcome) -> Option<CompileRequest> {
     let record = out
@@ -789,8 +768,18 @@ pub fn compiled(request: CompileRequest, out: &CompileOutcome) -> Option<Compile
     let Some(attached) = record.filter(|record| record["attached"] == true) else {
         return Some(request);
     };
-    let world = out.provenance.plan.as_ref()?.get("observed_world")?;
-    (attached["world_sha256"].as_str()? == crate::knowledge::pin::world_sha256(world))
+    let plan = out.provenance.plan.as_ref()?;
+    let identity = attached["world_sha256"].as_str()?;
+    let world = if plan.get("semantic_record").is_some() {
+        let world = attached.get("world")?;
+        let words = plan["basis"]["read"]["effective"].as_str()?;
+        (plan["basis"]["read"]["world_sha256"]
+            == nika_compile_fidelity::observed::basis::of_request(Some(world), words))
+        .then_some(world)?
+    } else {
+        plan.get("observed_world")?
+    };
+    (identity == crate::knowledge::pin::world_sha256(world))
         .then(|| request.with_knowledge(world.clone()))
 }
 
@@ -1045,24 +1034,123 @@ impl<'r> Capture<'r> {
         (self.redact)(&text) == text
     }
 
-    /// The record value, bounded: over [`ROUND_LIMIT`] the continuation is withheld and the
-    /// knowledge and receipt dropped; a round still over it is not kept (`None`).
+    /// The complete record value, with no size quota. Redaction decisions made during capture
+    /// remain intact. The optional return type is retained for source compatibility.
     #[must_use]
-    pub fn finish(mut self) -> Option<Value> {
-        let within = |value: &Value| value.to_string().len() <= ROUND_LIMIT;
-        let value = self.record.to_value();
-        if within(&value) {
-            return Some(value);
-        }
-        if let Some(plan) = self.record.continuation.as_mut() {
-            plan.value = None;
-            plan.withheld = Some("over_bound".to_owned());
-        }
-        self.record.knowledge = None;
-        self.record.authoring_receipt = None;
-        Some(self.record.to_value()).filter(within)
+    pub fn finish(self) -> Option<Value> {
+        Some(self.record.to_value())
     }
 }
 
 #[cfg(test)]
 mod tests;
+
+/// Whether the last semantic verification of a kept candidate was judged and contested with no
+/// defect located: the verifier did not accept it and named nothing a repair could start from
+/// (R6), so nothing decided it. A contested entry beside a defect is no such judgment: the
+/// defect is what the verifier located.
+#[must_use]
+pub fn contested_judgment(out: &CompileOutcome) -> bool {
+    last_verification(out).is_some_and(|attempt| {
+        let named = |key: &str| attempt[key].as_array().is_some_and(|list| !list.is_empty());
+        named("contested") && !named("defects")
+    })
+}
+
+/// Whether the compiler held the outcome's candidate: its verifier answered those bytes and did
+/// not accept them (the applied `verify_held` finding). No record or continuation may replay them
+/// to that verifier again (R6); the bytes are at most shown.
+#[must_use]
+pub fn verify_held(out: &CompileOutcome) -> bool {
+    (out.diagnostics.iter()).any(|d| d.kind == DiagnosticKind::Applied && d.target == "verify_held")
+}
+
+/// The verdicts of `out` that rejected candidate bytes: each `semantic_verification` attempt
+/// whose judge answered its bytes and did not accept them (`declined` and `rejected`, never
+/// `settled`), every attempt of the outcome in order, not only the last. An abstention
+/// (`rejected` false) is none: a later round may still decide it. A repeat of an earlier
+/// verdict with no call (`same_bytes_as`, `carried`) is none either: the attempt that judged
+/// holds its answers. A host carries them into every later compile of the same request
+/// ([`CompileRequest::with_declined`]): that judge is never asked again on those bytes (R6), and
+/// a carried verdict can only keep them from READY.
+#[must_use]
+pub fn rejections(out: &CompileOutcome) -> Vec<Value> {
+    let attempts = (out.provenance.decision.as_ref())
+        .and_then(|decision| decision["semantic_verification"].as_array());
+    (attempts.into_iter().flatten())
+        .filter(|attempt| {
+            attempt["candidate_sha256"].is_string()
+                && attempt["declined"] == true
+                && attempt["rejected"] == true
+                && attempt["settled"] == false
+                && attempt["same_bytes_as"].is_null()
+                && attempt["carried"] != true
+        })
+        .cloned()
+        .collect()
+}
+
+/// Keep each verdict of `found`: one per candidate's bytes, judge, request and context (its
+/// `candidate_sha256`, its judge's `seat` and `kind`, its `request`, its `context_sha256`), in
+/// order. A later verdict of the same key replaces the kept one: it resumed a localization the
+/// kept one left unfinished, and holds every answer the judge gave those bytes.
+/// Whether anything was added or replaced.
+pub fn keep_rejections(kept: &mut Vec<Value>, found: Vec<Value>) -> bool {
+    // A rejection binds to the bytes, the judge, the request and the context it judged: the
+    // same bytes rejected again for a corrected request, other answers or another observed
+    // world are kept as their own verdict.
+    let key = |attempt: &Value| {
+        (
+            attempt["candidate_sha256"].clone(),
+            attempt["judge"]["seat"].clone(),
+            attempt["judge"]["kind"].clone(),
+            attempt["request"].clone(),
+            attempt["context_sha256"].clone(),
+        )
+    };
+    // The latest of `found` for each key, in order of first appearance.
+    let mut latest: Vec<Value> = Vec::new();
+    for attempt in found {
+        match latest.iter_mut().find(|held| key(held) == key(&attempt)) {
+            Some(held) => *held = attempt,
+            None => latest.push(attempt),
+        }
+    }
+    let mut changed = false;
+    for attempt in latest {
+        match kept.iter_mut().find(|held| key(held) == key(&attempt)) {
+            Some(held) if *held == attempt => {}
+            Some(held) => {
+                *held = attempt;
+                changed = true;
+            }
+            None => {
+                kept.push(attempt);
+                changed = true;
+            }
+        }
+    }
+    changed
+}
+
+/// The last semantic verification attempt the outcome records, when it records one. The
+/// session's Meaning view reads it too (`nika_session::meaning`).
+#[must_use]
+pub fn last_verification(out: &CompileOutcome) -> Option<&Value> {
+    (out.provenance.decision.as_ref())
+        .and_then(|decision| decision["semantic_verification"].as_array())
+        .and_then(|attempts| attempts.last())
+}
+
+/// A compiler-owned unjudged slot, never a candidate or permission to save or run.
+#[must_use]
+pub fn awaiting_judge(out: &CompileOutcome) -> bool {
+    out.status == crate::compile::CompileStatus::Incomplete
+        && out.candidate.is_none()
+        && out.provenance.strategy.is_some()
+        && out.provenance.plan.is_some()
+        && out
+            .diagnostics
+            .iter()
+            .any(|d| d.kind == DiagnosticKind::Applied && d.target == "verify_resume")
+}

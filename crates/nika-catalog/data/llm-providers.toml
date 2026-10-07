@@ -86,6 +86,28 @@ context_window_tokens = 128000
 max_output_tokens = 16384
 
 [[providers]]
+id = "scaleway"
+name = "Scaleway Generative APIs"
+aliases = []
+env_var = "SCALEWAY_API_KEY"
+requires_key = true
+default_model = "deepseek-v4-flash-0731"
+cheap_model = "deepseek-v4-flash-0731"
+description = "Scaleway-hosted models over OpenAI-compatible chat completions; credentials and endpoint are separate from OpenAI."
+api_dialect = "openai-chat"
+tags = ["function-calling", "structured-output"]
+# Exact wire id and service limits, not the publisher's 1M context.
+# https://www.scaleway.com/en/docs/generative-apis/reference-content/supported-models/
+# Reviewed 2026-08-14; read 2026-10-06: 256k context, 32k output.
+# Decimal k keeps these catalog bounds within the published limits.
+# No pricing, reasoning-effort or data-retention claim is inferred from the name.
+[[providers.models]]
+id = "deepseek-v4-flash-0731"
+model = "deepseek-v4-flash-0731"
+context_window_tokens = 256000
+max_output_tokens = 32000
+
+[[providers]]
 id = "mistral"
 name = "Mistral AI"
 aliases = []

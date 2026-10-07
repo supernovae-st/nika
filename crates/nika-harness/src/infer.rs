@@ -6,15 +6,19 @@
 //! An ACP speaker proves an agentic loop, not a one-shot inference
 //! contract. This module has one admitted adapter: `codex exec --json`,
 //! with `--output-schema` when the task needs JSON Schema. The accepted
-//! path is one turn, rejects every implicit tool item, and records only
+//! path runs under a measured pre-execution empty-tools profile
+//! (`tool_free`), is one turn, still rejects every implicit tool item
+//! (defense in depth, never the source of the guarantee), and records only
 //! the requested model identity. Numeric usage is parsed from the terminal
 //! `turn.completed` event as protocol evidence and never leaves this
 //! module.
 //!
 //! Admission ([`meet_infer_grade`]) reads the static row; execution
 //! re-attests the binary at spawn (#1253): `codex --version` must name the
-//! product and sit inside `CODEX_VERSION_PIN` before any prompt is written
-//! to its stdin. PATH presence admits a seat, it never proves one — a shim
+//! product and sit inside `CODEX_VERSION_PIN` and on a minor where the
+//! empty-tools profile was measured, and `codex <profile> features list`
+//! must show every disabled feature effectively off, before any prompt is
+//! written to its stdin. PATH presence admits a seat, it never proves one — a shim
 //! that only speaks the event shape is refused here, not believed.
 
 use std::collections::BTreeMap;
@@ -26,6 +30,8 @@ use std::io::Write as _;
 
 use serde_json::Value;
 use tokio::io::AsyncWriteExt;
+
+mod tool_free;
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(300);
 const MAX_EVENT_BYTES: usize = 8 * 1024 * 1024;
@@ -91,7 +97,7 @@ impl InferGradeAttestation {
             no_implicit_tools: true,
             structured_output: StructuredOutputGrade::JsonSchema,
             model_identity_observable: true,
-            proof: "scripted fake codex · one turn · tool-event refusal · schema argv · terminal usage · spawn-time --version identity",
+            proof: "measured codex-cli 0.160.1 pre-execution empty-tools profile (no command, web or file tool ran; code-mode exec refused at the router) · spawn-time --version identity on a measured minor · effective features list · scripted fake codex · one turn · tool-event refusal · schema argv · terminal usage",
         }
     }
 
@@ -262,11 +268,34 @@ impl CodexExec {
 
     /// Re-attest the binary at spawn (#1253). `<command> --version` runs with
     /// the same composed env as the one-shot, a null stdin, a bounded answer
-    /// and a deadline; the answer is judged by [`judge_identity`]. Nothing of
-    /// the request reaches the child before this passes.
+    /// and a deadline; the answer is judged by [`judge_identity`], then the
+    /// version must be a minor where [`tool_free`] was measured, and the
+    /// profile's effective feature states are read back from the same
+    /// binary. Nothing of the request reaches the child before this passes.
     async fn probe_identity(&self) -> Result<(u32, u32), InferGradeError> {
+        let (_, answer) = self.answer(&["--version".to_owned()], "--version").await?;
+        let seen = judge_identity(&self.command, &answer)?;
+        tool_free::admit_version(seen)?;
+        let mut args = tool_free::args();
+        args.extend(["features".to_owned(), "list".to_owned()]);
+        let (success, listing) = self.answer(&args, "features list").await?;
+        if !success {
+            return Err(refused(format!(
+                "spawn-time attestation of `{}`: the empty-tools profile was refused by \
+                 `features list` ({:?}); no prompt is sent",
+                self.command.display(),
+                listing.trim().lines().next().unwrap_or_default()
+            )));
+        }
+        tool_free::judge_features(&listing)?;
+        Ok(seen)
+    }
+
+    /// One bounded, prompt-free probe of the binary: exit success and the
+    /// combined stdout + stderr.
+    async fn answer(&self, args: &[String], what: &str) -> Result<(bool, String), InferGradeError> {
         let child = tokio::process::Command::new(&self.command)
-            .arg("--version")
+            .args(args)
             .env_clear()
             .envs(codex_env())
             .stdin(Stdio::null())
@@ -276,7 +305,7 @@ impl CodexExec {
             .spawn()
             .map_err(|e| {
                 execution(format!(
-                    "cannot spawn `{} --version`: {e}",
+                    "cannot spawn `{} {what}`: {e}",
                     self.command.display()
                 ))
             })?;
@@ -284,24 +313,26 @@ impl CodexExec {
             .await
             .map_err(|_| {
                 refused(format!(
-                    "spawn-time attestation of `{}`: `--version` did not answer in {}s",
+                    "spawn-time attestation of `{}`: `{what}` did not answer in {}s",
                     self.command.display(),
                     PROBE_TIMEOUT.as_secs()
                 ))
             })?
-            .map_err(|e| execution(format!("version probe wait: {e}")))?;
+            .map_err(|e| execution(format!("{what} probe wait: {e}")))?;
         if output.stdout.len() > MAX_PROBE_BYTES || output.stderr.len() > MAX_PROBE_BYTES {
             return Err(refused(format!(
-                "spawn-time attestation of `{}`: `--version` printed more than {MAX_PROBE_BYTES} bytes",
+                "spawn-time attestation of `{}`: `{what}` printed more than {MAX_PROBE_BYTES} bytes",
                 self.command.display()
             )));
         }
-        let answer = format!(
-            "{}\n{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
-        judge_identity(&self.command, &answer)
+        Ok((
+            output.status.success(),
+            format!(
+                "{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            ),
+        ))
     }
 
     async fn run(
@@ -323,6 +354,7 @@ impl CodexExec {
             .arg("--skip-git-repo-check")
             .arg("--color")
             .arg("never")
+            .args(tool_free::args())
             .arg("-C")
             .arg(scratch.path());
         if let Some(model) = codex_model_arg(&request.requested_model) {
@@ -673,6 +705,13 @@ fn parse_events(bytes: &[u8]) -> Result<Observed, InferGradeError> {
                         }
                     }
                     "reasoning" => {}
+                    // The disabled code-mode host announces that it fails
+                    // closed; only that exact notice is accepted.
+                    "error"
+                        if item
+                            .get("message")
+                            .and_then(Value::as_str)
+                            .is_some_and(|m| m.starts_with(tool_free::CODE_MODE_FAIL_CLOSED)) => {}
                     other => {
                         return Err(InferGradeError::Refused {
                             witness: format!(
@@ -736,14 +775,36 @@ mod tests {
 
     use super::*;
 
-    /// The real CLI's `--version` answer, scripted: every fixture below
-    /// passes the spawn-time attestation with it and exercises the exec
-    /// contract past it. [`scripted_codex_with`] swaps it out.
-    const VERSION_PRELUDE: &str =
-        r#"if [ "${1:-}" = --version ]; then printf '%s\n' 'codex-cli 0.153.4'; exit 0; fi"#;
+    /// The real CLI's `--version` answer on the measured minor and its
+    /// `features list` under the empty-tools profile, scripted: every
+    /// fixture below passes the spawn-time attestation with it and
+    /// exercises the exec contract past it. [`scripted_codex_with`] swaps
+    /// it out.
+    fn version_prelude() -> String {
+        prelude_listing("codex-cli 0.160.1", "false")
+    }
+
+    fn prelude_listing(version: &str, shell_tool_state: &str) -> String {
+        let listing: String = tool_free::DISABLED_FEATURES
+            .iter()
+            .map(|feature| {
+                let state = if *feature == "shell_tool" {
+                    shell_tool_state
+                } else {
+                    "false"
+                };
+                format!(" '{feature}  stable  {state}'")
+            })
+            .collect::<Vec<_>>()
+            .concat();
+        format!(
+            "if [ \"${{1:-}}\" = --version ]; then printf '%s\\n' '{version}'; exit 0; fi\n\
+             case \" $* \" in *' features list '*) printf '%s\\n'{listing}; exit 0;; esac"
+        )
+    }
 
     fn scripted_codex(body: &str) -> (tempfile::TempDir, PathBuf) {
-        scripted_codex_with(VERSION_PRELUDE, body)
+        scripted_codex_with(&version_prelude(), body)
     }
 
     fn scripted_codex_with(prelude: &str, body: &str) -> (tempfile::TempDir, PathBuf) {
@@ -813,6 +874,115 @@ mod tests {
         assert_eq!(proof.structured_output, StructuredOutputGrade::JsonSchema);
         assert!(proof.model_identity_observable);
         assert!(proof.proof.contains("scripted fake codex"));
+        assert!(proof.proof.contains("measured codex-cli 0.160.1"));
+    }
+
+    /// The pre-execution profile is on the argv the seat actually receives,
+    /// witnessed by the scripted seat itself: it refuses to answer unless
+    /// every `--disable` and `-c` of the profile reached it.
+    #[tokio::test]
+    async fn the_exec_argv_carries_the_whole_pre_execution_profile() {
+        let checks = tool_free::args()
+            .chunks(2)
+            .map(|pair| {
+                format!(
+                    "case \" $* \" in *' {} {} '*) ;; *) echo 'missing {} {}' >&2; exit 7;; esac\n",
+                    pair[0], pair[1], pair[0], pair[1]
+                )
+            })
+            .collect::<Vec<_>>()
+            .concat();
+        let body = format!(
+            "{checks}IFS= read -r _p\n\
+             printf '%s\\n' '{{\"type\":\"turn.started\"}}'\n\
+             printf '%s\\n' '{{\"type\":\"item.completed\",\"item\":{{\"id\":\"item_0\",\"type\":\"error\",\"message\":\"{} Code mode will fail closed.\"}}}}'\n\
+             printf '%s\\n' '{{\"type\":\"item.completed\",\"item\":{{\"id\":\"m\",\"type\":\"agent_message\",\"text\":\"ok\"}}}}'\n\
+             printf '%s\\n' '{{\"type\":\"turn.completed\",\"usage\":{{\"input_tokens\":1,\"output_tokens\":1}}}}'\n",
+            tool_free::CODE_MODE_FAIL_CLOSED
+        );
+        let (_dir, bin) = scripted_codex(&body);
+        let seat = meet_with_adapter(
+            "codex",
+            StructuredOutputGrade::Text,
+            Adapter::Codex(CodexExec::with_command(bin)),
+        )
+        .expect("meet");
+        let out = seat
+            .run(HarnessInferRequest::new("hi", "openai/gpt-5.5"))
+            .await
+            .expect("the profile reached the seat and its fail-closed notice is accepted");
+        assert_eq!(out.output, "ok");
+    }
+
+    /// Any other `error` item is still not an answer.
+    #[tokio::test]
+    async fn an_error_item_other_than_the_fail_closed_notice_refuses() {
+        let body = r#"
+IFS= read -r _prompt
+printf '%s\n' '{"type":"turn.started"}'
+printf '%s\n' '{"type":"item.completed","item":{"id":"e","type":"error","message":"Code Mode is available"}}'
+printf '%s\n' '{"type":"item.completed","item":{"id":"m","type":"agent_message","text":"no"}}'
+printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":1,"output_tokens":1}}'
+"#;
+        let (_dir, bin) = scripted_codex(body);
+        let seat = meet_with_adapter(
+            "codex",
+            StructuredOutputGrade::Text,
+            Adapter::Codex(CodexExec::with_command(bin)),
+        )
+        .expect("meet");
+        let err = seat
+            .run(HarnessInferRequest::new("hi", "openai/gpt-5.5"))
+            .await
+            .expect_err("an unknown error item refuses");
+        assert!(
+            err.to_string().contains("implicit tool item `error`"),
+            "{err}"
+        );
+    }
+
+    /// An unmeasured minor never receives the prompt: the refusal names the
+    /// version seen and the measured one, and the capture stays empty.
+    #[tokio::test]
+    async fn an_unmeasured_codex_minor_refuses_before_the_prompt() {
+        for version in ["codex-cli 0.161.0", "codex-cli 0.153.4"] {
+            let body = "cat > \"$(dirname \"$0\")/prompt-capture.txt\"\nexit 0";
+            let (dir, bin) = scripted_codex_with(&prelude_listing(version, "false"), body);
+            let seat = meet_with_adapter(
+                "codex",
+                StructuredOutputGrade::Text,
+                Adapter::Codex(CodexExec::with_command(bin)),
+            )
+            .expect("meet");
+            let err = seat
+                .run(HarnessInferRequest::new("hi", "openai/gpt-5.5"))
+                .await
+                .expect_err("unmeasured refuses");
+            let witness = err.to_string();
+            assert!(witness.contains("no measured pre-execution"), "{witness}");
+            assert!(witness.contains("0.160"), "{witness}");
+            assert!(!dir.path().join("prompt-capture.txt").exists(), "{version}");
+        }
+    }
+
+    /// A binary whose effective features keep the shell tool on refuses
+    /// before the prompt, whatever its version line says.
+    #[tokio::test]
+    async fn an_ineffective_profile_refuses_before_the_prompt() {
+        let body = "cat > \"$(dirname \"$0\")/prompt-capture.txt\"\nexit 0";
+        let (dir, bin) = scripted_codex_with(&prelude_listing("codex-cli 0.160.1", "true"), body);
+        let seat = meet_with_adapter(
+            "codex",
+            StructuredOutputGrade::Text,
+            Adapter::Codex(CodexExec::with_command(bin)),
+        )
+        .expect("meet");
+        let err = seat
+            .run(HarnessInferRequest::new("hi", "openai/gpt-5.5"))
+            .await
+            .expect_err("shell_tool on refuses");
+        assert!(err.to_string().contains("shell_tool=true"), "{err}");
+        assert!(!dir.path().join("prompt-capture.txt").exists());
     }
 
     #[tokio::test]
@@ -852,7 +1022,7 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":91,"cached_input
         assert!(out.usage_observed, "turn.completed usage was read");
         assert_eq!(
             out.attested_version,
-            (0, 153),
+            (0, 160),
             "the outcome carries what the seat answered at spawn, not the row"
         );
     }

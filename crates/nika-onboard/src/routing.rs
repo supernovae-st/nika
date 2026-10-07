@@ -4,6 +4,11 @@
 //! Read-only gallery discovery shared by MCP consumers. Compile does not use
 //! this probabilistic router: authoring resolves exact skeletons only.
 
+/// Closed conversational acts; these never classify an open workflow request.
+pub mod conversation;
+/// Explicit Run flags, read without choosing an execution path.
+pub use nika_compile::run_words as run_options;
+
 use crate::intent::RoutingOutcome;
 
 /// Where a plain-words query landed.

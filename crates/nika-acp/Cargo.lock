@@ -299,6 +299,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
+name = "base64"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac07cdecf99051d9a5238b80f35af32cdeba5b336e55d957b318b50137e18da5"
+
+[[package]]
 name = "bit-set"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1408,7 +1414,7 @@ version = "0.1.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96547c2556ec9d12fb1578c4eaf448b04993e7fb79cbaad930a656880a6bdfa0"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "bytes",
  "futures-channel",
  "futures-util",
@@ -1637,7 +1643,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8bdc5a74b0feeb5e6a1dc2dd08c34280a61e37668d10a6a3b27ad69d0fb9ce2e"
 dependencies = [
  "aho-corasick",
- "base64",
+ "base64 0.22.1",
  "bstr",
  "jaq-core",
  "jiff",
@@ -2007,6 +2013,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-blob"
+version = "0.122.0"
+dependencies = [
+ "blake3",
+ "bytes",
+ "nika-kernel",
+ "tokio",
+]
+
+[[package]]
 name = "nika-bm25"
 version = "0.122.0"
 
@@ -2225,6 +2241,7 @@ version = "0.122.0"
 name = "nika-harness"
 version = "0.122.0"
 dependencies = [
+ "base64 0.23.1",
  "futures-core",
  "miette",
  "nika-error",
@@ -2233,6 +2250,7 @@ dependencies = [
  "rustix",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "thiserror",
  "tokio",
@@ -2344,6 +2362,7 @@ dependencies = [
 name = "nika-providers"
 version = "0.122.0"
 dependencies = [
+ "blake3",
  "bytes",
  "futures-core",
  "nika-catalog",
@@ -2353,6 +2372,7 @@ dependencies = [
  "nika-types",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
  "url",
 ]
@@ -2399,13 +2419,16 @@ dependencies = [
 name = "nika-runtime-laws"
 version = "0.122.0"
 dependencies = [
+ "bytes",
  "miette",
+ "nika-blob",
  "nika-cap",
  "nika-cel",
  "nika-check",
  "nika-dataflow",
  "nika-error",
  "nika-event",
+ "nika-fs",
  "nika-kernel",
  "nika-sandbox-landlock",
  "nika-sandbox-seatbelt",
@@ -3137,7 +3160,7 @@ version = "0.12.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eddd3ca559203180a307f12d114c268abf583f59b03cb906fd0b3ff8646c1147"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "bytes",
  "futures-core",
  "futures-util",
@@ -3396,7 +3419,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af2c6921c8ce48fb1b052b457619d008834039d80325992ed3bc55bbe6c155ad"
 dependencies = [
  "annotate-snippets",
- "base64",
+ "base64 0.22.1",
  "encoding_rs_io",
  "granit-parser",
  "miette",
@@ -3490,7 +3513,7 @@ version = "3.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "76a5c54c7310e7b8b9577c286d7e399ddd876c3e12b3ed917a8aabc4b96e9e8c"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "bs58",
  "chrono",
  "hex",
@@ -3522,7 +3545,7 @@ version = "2.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e243647f07ad8fdbef8019c17df67dd4a1547b5cf0c1fe2b83728ff1ee3d4cc"
 dependencies = [
- "base64",
+ "base64 0.22.1",
  "indexmap 2.12.1",
  "itoa",
  "num-traits",

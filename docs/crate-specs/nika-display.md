@@ -39,6 +39,12 @@ an unfamiliar inline status reaches readers as uninterpreted data, which spec
 
 ## 1. Purpose
 
+`RunView::harness_media` projects image observations as a bounded sample with
+the observed total, terminal count and completeness. Missing or malformed
+evidence stays incomplete; a new attempt clears the previous sample. This is
+a pure fold of trace events: it never opens reported paths or reads stored
+images. The [TUI](nika-tui.md) displays these facts in task details.
+
 `nika-display` is the **run-comprehension surface**: everything between a
 stream of real `nika_event::Event` values and the text a human reads.
 The fold is pure (`RunView::apply` is the only mutation path), the render
@@ -70,7 +76,9 @@ pub mod shape    { bounded type-aware output summaries }
 pub mod snippet  { paint_span — rustc-grade span frames }
 pub mod vocab    { hint · arrow · at_least — the glyph/hint vocabulary }
 pub mod demo     { deterministic §3.3 storyboard streams (success · failure · …) }
-pub mod check_render::review { finding_rows · effect_rows — the rows a review shows of one report }
+pub mod check_render::review { finding_rows · effect_rows · plan_lines · plan_lines_in_order · task_face · external_effects }
+pub mod front_door { welcome and choice views · doctor human/JSON report cells }
+pub mod repair_render { Repair · StopNotes · Refusal · render_refusals · render_stops · summary }
 ```
 
 ## 4. Invariants
@@ -97,3 +105,66 @@ name, and the spend a run can reach from the report's cost envelope (no model ca
 nothing on inference, a model with no catalog price is unknown and never free, a missing
 token or iteration bound stays unbounded). Pure text over the report: the caller keeps the
 verdict, the path and every authority.
+
+## Passive operator views
+
+`front_door` also owns welcome/choice data views and their renderers, including
+`front_door::doctor` and its serializable `Finding`/`Level`. The host supplies
+resolved context, selected next actions, redacted facts and prepared doctor rows;
+these views use the existing `Theme` without collecting, choosing or persisting.
+`repair_render` owns repair report values and text, while the host applies and
+judges repairs. `check_render::review` owns the candidate plan lines and task faces
+formerly rendered by Session; parsing for presentation grants no authority.
+
+`external_effects(candidate, boundary)` renders the network hosts and programs
+declared by strictly parsed workflow bytes together with the check report's
+inferred requirements. It retains declared loopback hosts and names unresolved
+network or program requirements when the check is partial. This is the same
+pure renderer used by Session previews; it opens nothing and grants no permit.
+
+## Recorded terminal outputs
+
+`RunView::workflow_outputs()` returns the terminal frame's recorded outputs:
+`None` before a terminal, then `Outputs` with distinct absent, kept, oversized,
+withheld or unreadable states. A new start clears the earlier map. A failed
+run remains failed even when its terminal carries resolved values. The fold
+never reconstructs outputs from a current workflow or from task homonyms.
+
+## Data-location presentation
+
+`front_door::DataLocus` is a passive projection of the host's resolved data
+location and its explanatory line. It performs no lookup, persistence or
+admission. Session retains the provider/census resolution and re-exports the
+same `DataLocus` name, so existing presentation consumers retain their path.
+Subscription completion transport vocabulary lives separately in
+`nika-types::access::HarnessTransport`; neither projection grants Run access.
+
+`model_scope::decision_status` projects the host-observed decision-service name,
+selection origin, endpoint/deadline or refusal. It performs no selection, transport,
+admission or pricing; the host supplies every fact.
+
+The pure `activity` presentation owns `Phase`, `Activity` and the compatible text/typed sinks.
+They carry the producer's phase unchanged; no runtime, model call, execution state or authority
+is owned here. `nika_onboard::activity` and `nika_session::activity` preserve their old paths.
+
+`activity::CallMark` carries producer-reported call identity and lifecycle; the model is requested,
+not observed as served. Scoped presentation callbacks contain neither transport nor authority.
+`activity::call_activity` derives a compiler call's phase from its typed role alone: `repair`,
+`sketch-repair`, `fill-repair`, `native-repair` and `transform-repair` are Repairing, every role
+that starts with `judge` (the whole request, a clause, a part asked alone, the pointer that asks
+which task fails a part judged missing, an extra operation, one part over a trial run, a whole
+trial run) is Checking, and any other role is Authoring. The activity card names each role in
+plain words: `judge_request` and `judge_clause` « review your request », `judge_part` « review a
+part of your request », `judge_point` « find the step a missing part points to »,
+`judge_observed_part` « check one part against the trial run », `judge_observed` « review a
+trial run » and `judge_extra` « review the workflow »; a role it does not know is shown as it
+came, and the exact role stays in the event and the receipts.
+The front-door's Session help text is re-exported by Session without changing its public path.
+
+### Passive continuation and lifecycle words
+
+`front_door::round` formats the validated round facts supplied by its owner; `RoundWords` carries summary, asked and blocked text and grants no continuation authority. `front_door::recovery` formats recovery cards and the kept-unjudged notice. `front_door::status` formats an already selected proposal, gate or Run exit. None reads files, chooses a model, verifies a candidate, starts a call or changes Session state.
+
+`front_door::recovery::cannot_express` renders the host's already classified unfinished
+preparation and human-readable reasons. Session retains classification and all authoring,
+recovery, validation and authority decisions; Display performs no reading or dispatch.

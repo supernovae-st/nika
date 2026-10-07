@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# showcase · T1 starter · any team
+#
+# Create a scratch file, then remove exactly that file once it exists. The
+# write refuses to replace anything already at the path, and the removal
+# waits for that write to succeed: when the path is taken, nothing is
+# written and nothing is removed, so a file this workflow did not create
+# survives.
+#
+# Demonstrates ·
+#   - `nika:remove_file` · one existing regular file, by its exact path ·
+#     no recursion, no glob, no missing-ok
+#   - removal is a WRITE effect · the tool grant plus `fs.write` for the
+#     exact path · no `fs.read` grant at all
+#   - `overwrite: false` + `after: { publish: success }` · the removal runs
+#     only after this run's own publication succeeded
+#   - not a transaction · if the removal fails after the write, the file
+#     stays visible; nothing rolls back
+#
+# Run · nika run examples/remove-owned-file.nika
+
+nika: remove-owned-file
+permits:
+  tools: ["nika:write", "nika:remove_file"]
+  fs:
+    write: ["./out/remove-owned-file/scratch.txt"]
+tasks:
+  publish:
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "./out/remove-owned-file/scratch.txt"
+        content: "temporary scratch content"
+        overwrite: false
+  remove:
+    after: { publish: success }
+    invoke:
+      tool: "nika:remove_file"
+      args: { path: "./out/remove-owned-file/scratch.txt" }
+outputs:
+  removed: ${{ tasks.remove.output }}

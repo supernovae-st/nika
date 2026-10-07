@@ -21,6 +21,7 @@ nika-types       = { path = "../nika-types", version = "0.122.0" }        # Exec
 nika-providers   = { path = "../nika-providers", version = "0.122.0" }    # ProviderProbe — the access candidates the run gate judges
 nika-harness     = { path = "../nika-harness", version = "0.122.0" }      # build the operator-selected subscription seat
 nika-builtin     = { path = "../nika-builtin", version = "0.122.0" }      # the rehearsal's tool plane: the builtin dispatcher over its room
+nika-exec-runner = { path = "../nika-exec-runner", version = "0.122.0" }  # a rehearsal's isolated jq: one bounded, reaped helper process at a time (the tokio owner)
 nika-kernel      = { path = "../nika-kernel", version = "0.122.0" }       # the seams a rehearsal denies (shell · http · provider · tools · fs)
 nika-verb-exec   = { path = "../nika-verb-exec", version = "0.122.0" }    # the rehearsal runtime's four verbs, composed as production's
 nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.122.0" }

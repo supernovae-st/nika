@@ -85,11 +85,16 @@ fn an_answer_round_replays_the_recorded_plan() {
             "engine",
             "intent_sha256",
             "plan",
+            "resume",
             "strategy"
         ],
         "the record carries the plan, never the candidate or a key"
     );
     assert_eq!(record["compile_version"], 1);
+    assert_eq!(
+        record["resume"], false,
+        "an unanswered model is not a failed judgment"
+    );
     assert_eq!(record["engine"], doc["provenance"]["compiler_version"]);
     assert_eq!(record["intent_sha256"], sha);
     assert_eq!(record["strategy"], "hot");
@@ -326,6 +331,11 @@ fn skeletons_and_edits_record_nothing_and_a_missing_parent_is_created() {
     );
     assert!(!text.contains("provider/limit failure"), "{text}");
     assert!(text.contains("--fresh"), "{text}");
+    // `--fresh` reads the intent again, and never asks a judge again on bytes it rejected.
+    assert!(
+        text.contains("--fresh reads or samples the intent again, and a judge is still never asked again on bytes it rejected in an earlier round (kept there too)"),
+        "{text}"
+    );
     assert!(text.contains("-o, --output"), "{text}");
 }
 

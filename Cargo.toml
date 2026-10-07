@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-chart", "crates/nika-cadence", "crates/nika-arm", "crates/nika-kernel", "crates/nika-kernel-ai", "crates/nika-kernel-core", "crates/nika-kernel-runtime", "crates/nika-kernel-plugin", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-check", "crates/nika-check-analyzer", "crates/nika-check-wasm", "crates/nika-source", "crates/nika-store", "crates/nika-vocab", "crates/nika-lints", "crates/nika-graph", "crates/nika-bm25", "crates/nika-screen", "crates/nika-event", "crates/nika-extract", "crates/nika-exec-runner", "crates/nika-sandbox-seatbelt", "crates/nika-sandbox-landlock", "crates/nika-blob", "crates/nika-clock", "crates/nika-fs", "crates/nika-fx", "crates/nika-http", "crates/nika-ocr", "crates/nika-a11y", "crates/nika-input", "crates/nika-browser", "crates/nika-pack", "crates/nika-proof", "crates/nika-providers", "crates/nika-infer-local", "crates/nika-verb-infer", "crates/nika-verb-exec", "crates/nika-verb-invoke", "crates/nika-verb-agent", "crates/nika-builtin", "crates/nika-cel", "crates/nika-registry-client", "crates/nika-runtime", "crates/nika-runtime-laws", "crates/nika-execution", "crates/nika-service-execution", "crates/nika-cli", "crates/nika-cli-host", "crates/nika-session", "crates/nika-trace", "crates/nika-tui-core", "crates/nika-tui", "crates/nika-tui-view", "crates/nika-lsp", "crates/nika-mcp", "crates/nika-dap", "crates/nika-display", "crates/nika-onboard", "crates/nika-compile", "crates/nika-compile-reader", "crates/nika-compile-cognition", "crates/nika-compile-fidelity", "crates/nika-compile-trigger", "crates/nika-models", "crates/nika-cap", "crates/nika-pck-manifest", "crates/nika-tmpl", "crates/nika-migrate", "crates/nika-harness", "crates/nika-secret", "crates/nika-dataflow", "crates/nika-serve"]
+members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-chart", "crates/nika-cadence", "crates/nika-arm", "crates/nika-kernel", "crates/nika-kernel-ai", "crates/nika-kernel-core", "crates/nika-kernel-runtime", "crates/nika-kernel-plugin", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-check", "crates/nika-check-analyzer", "crates/nika-check-wasm", "crates/nika-source", "crates/nika-store", "crates/nika-vocab", "crates/nika-lints", "crates/nika-graph", "crates/nika-bm25", "crates/nika-screen", "crates/nika-event", "crates/nika-extract", "crates/nika-exec-runner", "crates/nika-sandbox-seatbelt", "crates/nika-sandbox-landlock", "crates/nika-blob", "crates/nika-clock", "crates/nika-fs", "crates/nika-fx", "crates/nika-http", "crates/nika-ocr", "crates/nika-a11y", "crates/nika-input", "crates/nika-browser", "crates/nika-pack", "crates/nika-proof", "crates/nika-providers", "crates/nika-infer-local", "crates/nika-verb-infer", "crates/nika-verb-exec", "crates/nika-verb-invoke", "crates/nika-verb-agent", "crates/nika-builtin", "crates/nika-cel", "crates/nika-registry-client", "crates/nika-runtime", "crates/nika-runtime-laws", "crates/nika-execution", "crates/nika-service-execution", "crates/nika-cli", "crates/nika-cli-host", "crates/nika-session", "crates/nika-session-change", "crates/nika-trace", "crates/nika-tui-core", "crates/nika-tui", "crates/nika-tui-view", "crates/nika-lsp", "crates/nika-mcp", "crates/nika-dap", "crates/nika-display", "crates/nika-onboard", "crates/nika-compile", "crates/nika-compile-reader", "crates/nika-compile-cognition", "crates/nika-compile-fidelity", "crates/nika-compile-trigger", "crates/nika-compile-clauses", "crates/nika-compile-seats", "crates/nika-models", "crates/nika-cap", "crates/nika-pck-manifest", "crates/nika-tmpl", "crates/nika-migrate", "crates/nika-harness", "crates/nika-secret", "crates/nika-dataflow", "crates/nika-serve"]
 # Excluded so cargo does not try to descend into untracked main-leftover
 # manifests under crates/ (the orphan working tree carries them but they
 # are not part of the diamond workspace).
@@ -35,7 +35,7 @@ homepage     = "https://supernovae.studio"
 # is the projector that reads this; refresh-status.sh + check-crate-specs.sh
 # query the projector (never re-hardcode the list). When a crate is admitted,
 # remove it from this array — one edit, here, period.
-wip = ["nika-chart", "nika-fx", "nika-proof", "nika-store", "nika-harness", "nika-execution", "nika-service-execution", "nika-serve", "nika-session", "nika-tui", "nika-tui-view"]
+wip = ["nika-chart", "nika-fx", "nika-proof", "nika-store", "nika-harness", "nika-execution", "nika-service-execution", "nika-serve", "nika-session", "nika-session-change", "nika-tui", "nika-tui-view"]
 # nika-pack · the embedded language pack (spec snapshot + manifest hashes ·
 # proposal branch feat/nika-pack · pure data · include_dir · zero I/O).
 layers.nika-chart = "L0"
@@ -110,6 +110,16 @@ layers.nika-compile-fidelity = "L4"
 # ADR-142 · 2026-09-30) · lateral L4→L4 edges nika-compile → nika-compile-trigger →
 # nika-compile-reader, never back.
 layers.nika-compile-trigger = "L4"
+# nika-compile-clauses · how one clause of a request reads above the reader (the parts a verifier
+# asks alone, the prohibition reading, the clause key, the stated spellings) · size-cap member of
+# the same unit (D-2026-07-09-N1 · ADR-145 · 2026-10-07) · lateral L4→L4 edges
+# nika-compile-cognition → nika-compile-clauses → nika-compile-reader, never back.
+layers.nika-compile-clauses = "L4"
+# nika-compile-seats · the decision seats and the rehearsal port a host lends a preparation, with
+# the reasoning record their calls share · size-cap member of the same unit (D-2026-07-09-N1 ·
+# ADR-146 · 2026-10-07) · lateral L4→L4 edges nika-compile-cognition → nika-compile-seats →
+# nika-compile, never back.
+layers.nika-compile-seats = "L4"
 # nika-models · the local-models unit (ONE canonical dir · Hub pull · serve
 # glue) · split from nika-cli's verbs/model 2026-07-12 (the crate-size cap ·
 # the nika-onboard/nika-display precedents).
@@ -127,6 +137,10 @@ layers.nika-mcp = "L4"
 # runtime over the installed engine — the snapshot, the chosen intelligence, the
 # context broker, the hallucination guard — never a workflow.
 layers.nika-session = "L4"
+# nika-session-change · the project change a proposal writes, its review, its outcome and the
+# consent record · size-cap member of the nika-session unit (D-2026-07-09-N1 · ADR-144 ·
+# 2026-10-06) · lateral L4→L4 edge nika-session → nika-session-change, never back.
+layers.nika-session-change = "L4"
 layers.nika-types = "L0"
 layers.nika-error = "L0"
 layers.nika-event = "L0"
@@ -397,6 +411,7 @@ futures-core  = "0.3"
 parking_lot   = "0.12"
 tokio         = { version = "1", features = ["rt", "macros", "time", "signal"] }   # signal: nika-cli L4 — `nika serve` (W5) stops clean on ctrl-c/SIGTERM (signal-hook-registry already vendored via the tree)
 rustix        = { version = "=1.1.4", default-features = false, features = ["std", "process"] } # safe waitid(WNOWAIT) on Linux/macOS; already locked
+cap           = { version = "=0.1.2" }   # nika-cli L4: the isolated jq helper caps its heap allocations (safe API over GlobalAlloc · keeps unsafe forbid · ROOT review control/e02-cap-dependency-review.root.json)
 globset       = "0.4"   # nika-fs L1 — FsList::glob matcher (literal_separator · MIT OR Unlicense)
 reqwest       = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip", "brotli", "deflate", "http2"] }   # nika-http L1 + nika-catalog-verify L4 — pin once (RUST_ENFORCEMENT §2) · rustls (no openssl) · transparent gzip/br/deflate decode + h2 ALPN (the web compresses · pure-Rust miniz_oxide/brotli-decompressor/h2 · zstd SKIPPED: C dep)
 url           = "2"     # nika-http L1 — SSRF URL parsing (also transitive via reqwest · pinned aligned)

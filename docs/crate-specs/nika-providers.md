@@ -85,6 +85,22 @@ auth: Bearer|XApiKey|None, env_key: NIKA_<PROVIDER>_API_KEY ladder, quirks }`,
 seeded from `nika-catalog::all_providers()`. Adding provider №15 (post-announce)
 = a canon.yaml row + a profile mapping — usually zero new wire code.
 
+Scaleway uses the existing OpenAI-compatible wire under the distinct `scaleway`
+prefix. `NIKA_SCALEWAY_API_KEY` (then `SCALEWAY_API_KEY`) and
+`NIKA_SCALEWAY_BASE_URL` configure only that provider. The default endpoint is
+`https://api.scaleway.ai/v1/chat/completions`; an operator can select their scoped
+`https://api.scaleway.ai/<project-uuid>/v1/chat/completions` endpoint explicitly.
+OpenAI configuration and its `openai/` model namespace remain independent.
+An explicit compatible endpoint on another origin can serve models beyond the
+profile's seed catalog. Paths and queries on the native origin, including a
+Scaleway project path, retain the native model-ownership check. This does not
+establish model availability, capability or price.
+Published endpoint forms: [Scaleway API](https://www.scaleway.com/en/developers/api/generative-apis)
+and [project-scoped requests](https://www.scaleway.com/en/docs/generative-apis/api-cli/using-generative-apis/).
+The catalog's exact `deepseek-v4-flash-0731` row is not an alias for DeepSeek's
+own service. No Scaleway tariff or reasoning-effort capability is inferred;
+observed usage remains separate from an unknown monetary estimate.
+
 ## §2 · Public API (as implemented · admission shape)
 
 ```rust
@@ -363,8 +379,21 @@ also names the origin (`CostReview::details`). Both read `&self`; neither
 changes the challenge, its nonce or any authority. The serialized challenge
 itself, the host's IPC with its own lane, keeps the exact route.
 
-`CostReview::for_session` applies the Session preparation bounds: at most seven
-requests, 32768 output tokens and 180 seconds per request. The displayed review
+`CostReview::for_session` retains the legacy bounded Session review: at most
+seven requests, 32768 output tokens and 180 seconds per request. These are
+compatibility allowance bounds, not a guarantee that every compiler strategy
+can finish within them. Interactive continuous preparation does not use this
+review as its default gate; its dispatch journal retains observed usage and
+unknown charges without creating an admission account.
+For callers that select the bounded review,
+`with_recovery_requests(n, worst_case)` adds exactly the requests an explicit
+source recovery reserves to that same review and account, and its question states
+the allowance they are added to and the configuration's theoretical worst case
+(nothing changes for `n = 0`; never a second account or a retry).
+`with_optional_recovery_requests(n, None)` states instead that no finite upper
+bound can be calculated, and the allowance still applies; the compiler's estimate
+(`authority::worst_case_of`) is `None` for every current creation strategy that
+asks a model. The displayed review
 and consuming admission use these same values. `CostReview::bounds()` answers
 the three together (requests, per-request output tokens, per-request deadline)
 so a host shows the owner's triple, which the confirmed choice enforces as
@@ -641,3 +670,118 @@ MAX. Buffered responses carry `ReasoningWire` read from the actual serialized
 body immediately before HTTP dispatch; this says what was transmitted, never
 what internal effort the server served. Streaming shares the admission and
 serialization law but does not add a buffered-response evidence field.
+
+### Closed numeric admission checkpoints
+
+`InferenceAdmission::checkpoint` captures the complete numeric ledger under
+`nika/inference-admission-checkpoint@1`: stable account identity, hashed canonical
+project binding, exact hashed route/tariff provenance, per-attempt identity,
+output bound, usage and provider identities, settled/active/held amounts and the
+old total ceiling. Checked arithmetic and phase/observation consistency are
+required on read. Metadata containing private endpoint material refuses capture;
+it is never redacted into a different accounting identity. The bounded envelope
+detects accidental corruption; it is not authentication against its file owner.
+
+`from_checkpoint` returns accounting CLOSED or Uncertain, never Open, together
+with the exact historical observation it supersedes. The host must prove a
+complete concordant durable boundary under exclusive ownership. A new explicit
+total ceiling uses the existing `amend`; it does not reset expenses or held
+reservations. Active attempts (including zero-priced ones) stay uncertain, and
+unknown-cost/unbudgeted observations cannot be converted into numeric authority.
+Changed tariff identities fail closed rather than reprice old usage.
+
+### Legacy report beside a fresh cost review
+
+`LegacyCostReport` reads a narrow old durable observation plus completed reviewed scopes.
+It projects their unchanged evidence and digest; it cannot construct `AttemptReceipt`,
+restore a numeric account, settle an unknown charge or amend an uncertain account.
+`CostReview::after_legacy` adds that retained exposure to the existing bounded one-time
+question. The host must bind the record, project and request to the candidate and check
+that witness again before `confirm`. A reservation recorded by old code is presented as
+a quote whose final charge and historical wire bound are unproved, never as a guaranteed
+TOTAL ceiling. Closed reviewed scopes are observations; newly uncertain/active scopes
+refuse another review. The original exposure remains visible when later evidence refuses.
+The account's dispatch note and post-dispatch refusal are projections owned here; their
+host still owns recording the boundary before transport.
+
+## Ollama native chat and context preservation
+
+The Ollama profile uses native `/api/chat` inside its existing provider owner,
+through the injected HTTP effect. Other OpenAI-compatible profiles retain their
+wire. Both buffered JSON and incremental NDJSON carry `truncate:false` and
+`shift:false`: a server implementing these native guards must refuse capacity
+overflow instead of dropping input or sliding the context. The per-call default
+`options.num_ctx` is 65,536; an explicit positive native `options.num_ctx` can
+replace it (up to 1,048,576). This requests capacity; it does not attest that the
+model/hardware supports it. The finite output bound follows `max_tokens`
+(default 4,096 if absent), and must be below the requested context capacity.
+Daemon configuration, model identity and caller deadlines are unchanged.
+
+Native JSON schema, auto/disabled tools, inline images, thinking text, stop
+sequences and reported token counters map into the existing kernel DTOs. A
+forced tool choice, numeric thinking budget, explicit unqualified reasoning
+effort or unsupported raw parameter refuses before dispatch. The native API
+supplies no request id: none is invented. Returned model identity is recorded
+as reported, separately from the selected model. Missing/invalid token counters
+remain unknown; no USD price is invented for local compute.
+
+NDJSON frames are bounded to 1 MiB, survive arbitrary byte splits and must
+include `done:true`. EOF, malformed/trailing records or a server error cannot
+produce a successful terminal event. HTTP and dispatch accounting use their
+existing owners; native Ollama refuses a catalog admission account lacking a
+qualified native settlement. No endpoint/model fallback is attempted. An HTTP
+failure retains its typed sanitized status; server-controlled error prose is
+not echoed. Native guards require server support (source reference: Ollama
+v0.24.0); adapter tests do not establish a live model or hardware qualification.
+
+### Completed unknown-cost reports after reopening
+
+`CompletedCostReport` reads only complete CLOSED unknown-cost observations in the
+owner's durable `nika/inference-cost-observation@2` form. It checks scope identity,
+request bounds, response model, completed attempts and aggregate consistency. It
+retains every original observation and its unknown invoice; it cannot restore an
+account, reconcile a charge, amend a ceiling or authorize transport.
+
+`nika/completed-cost-report@1` binds the unchanged observations' digest to the
+canonical project. The host requires concordant exclusive history with no interrupted
+operation before using that witness. Compatibility with the old numeric codec's exact
+"only a complete strict numeric account can be checkpointed" refusal is accepted only
+after the same complete report validation. Other errors, versions and corrupt records
+refuse. This is report compatibility, not a recovered numeric checkpoint.
+
+`CostReview::after_completed` displays the retained exposure beside a fresh one-time
+review. Its host binds the full durable record to the candidate before confirmation.
+Mixed histories (including decision-seat or no-budget observations) are deliberately
+refused by this reader: another owner's state and invoice are never silently ignored.
+Pure accounting checkpoint/diagnostic projections stay in Providers; the host retains
+I/O, exclusive ownership and all admission decisions.
+
+`admission::admit_unpriced_companion` checks the compatibility of an explicitly
+selected external decision service with a caller's account. No account means
+separate observation; a supplied account must remain open and unbudgeted. It
+creates no authority and consumes no allowance. The host owns the prior operator
+selection and durable observation; service pricing stays unknown.
+
+### Interactive preparation observations
+
+`authoring::preparation::PreparationCosts` composes the existing `DispatchJournal` around an
+interactive Session driver. It neither grants a Run nor mutates an admission account. Physical
+requests that crossed transport are retained on success, failure and cancellation; durable
+records use `route_identity::durable_calls`, preserve missing values and have no allowance.
+The `nika/preparation-cost-observation@1` record is evidence only and is never deserialized as
+execution or monetary authority. Legacy account and Run review schemas are unchanged.
+A usable wire response without a price remains an unknown charge, not an incomplete
+operation. The private dispatch journal keeps response success independently of cost coverage;
+failed or unanswered responses remain uncertain. No response-state inference uses model names,
+tariffs or token fields, and the existing durable cost schema is unchanged.
+
+### Interactive preparation cancellation
+
+`PreparationCosts::while_active` uses the existing `CancelCtx`, not execution authority.
+A pre-cancelled future is never polled; an in-flight cancellation drops the future and preserves
+every sent physical API request in `DispatchJournal`, with incomplete usage and unknown charges
+retained. A new host turn resets only its cancellation token, never the conversation's costs.
+It does not cancel Run, guarantee a provider refund, or manufacture subscription usage.
+
+Account-status and interrupted-dispatch prose remain pure projections in admission::summary.
+Their inputs are observations and host facts; none of these renderers grants or restores credit.

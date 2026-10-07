@@ -54,12 +54,19 @@ pub fn esplit(source: &str) -> EsplitOutcome;
 /// Apply the R5 predicate codemod (`succeeded`→`success` ·
 /// `failed`→`failure` in `after:` blocks). `None` = idempotent-clean.
 pub fn predicates(source: &str) -> Option<String>;
+
+/// Pure prepass helpers used by the host repair ladder.
+pub fn has_bare_exec(source: &str) -> bool;
+pub fn wrap_bare_exec(source: &str) -> Option<String>;
+pub fn has_needs_key(source: &str) -> bool;
+pub fn rewrite_needs(source: &str) -> Option<String>;
 ```
 
-Everything else in the crate (the line scanners, the surgery planner, the
-island/deps/with analysis, the flow/block value flippers) is private — the
-functions and the two verdict enums are the whole surface the `fix` verb
-names.
+The line scanners, surgery planner, island/deps/with analysis and flow/block
+value flippers stay private. The prepass helpers preserve the supported bare-exec
+and needs-list transformations moved from the host; a needs list with a sibling
+`after` remains unchanged. Detection is not a check verdict: applying a round,
+judging its result and rolling it back remain in the host repair ladder.
 
 ## 3 · Gates
 

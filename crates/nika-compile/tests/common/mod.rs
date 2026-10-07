@@ -288,6 +288,53 @@ pub(crate) fn short(jq: &str) -> String {
     out
 }
 
+/// Why the core names the whole request pending: no element of the plan names the request
+/// itself (R4 A11).
+pub(crate) const NAMED_BY_NO_ELEMENT: &str = "no element of the plan names it";
+
+/// The core's finding on a clause still pending on `candidate` (R4 A11): the request states it,
+/// `why` no law reads from these bytes that they carry it, and no admitted judgment made in the
+/// compile settles it.
+pub(crate) fn pending_finding(clause: &str, why: &str, candidate: &str) -> String {
+    let sha = nika_compile::surface::sha256(candidate);
+    format!(
+        "The request states `{clause}` and {why}: no law reads from candidate {} that it carries it, and no admitted judgment made in this compile settles it. Nothing is READY on a pending clause: it stays INCOMPLETE until an admitted judgment of these bytes against the whole request carries it.",
+        &sha[..12]
+    )
+}
+
+/// A model's plan (COLD, WARM) replayed with no judge (R4 A11, C3): INCOMPLETE on its whole
+/// request alone ([`held_for_its_judge`]), bound to the replayed bytes, and the core's one
+/// finding names that request pending on them. Nothing a record carries is a judgment.
+pub(crate) fn assert_waits_for_its_judge(out: &CompileOutcome, intent: &str) {
+    assert!(held_for_its_judge(out, intent), "{out:#?}");
+    let candidate = out.candidate.as_deref().unwrap_or_default();
+    let pending = &out.provenance.decision.as_ref().unwrap()["pending"];
+    let sha = nika_compile::surface::sha256(candidate);
+    assert_eq!(pending["candidate_sha256"], json!(sha), "{pending:#}");
+    let told: Vec<(nika_compile::DiagnosticKind, &str)> = (out.diagnostics.iter())
+        .filter(|finding| finding.target == "semantic_verification")
+        .map(|finding| (finding.kind, finding.message.as_str()))
+        .collect();
+    let whole = pending_finding(intent, NAMED_BY_NO_ELEMENT, candidate);
+    let unknown = nika_compile::DiagnosticKind::Unknown;
+    assert_eq!(told, [(unknown, whole.as_str())], "{out:#?}");
+}
+
+/// An answer round under this round's judge (R4 A11): the explicit approving double over a seat
+/// that settles no other choice, and no provider. The record's pending remainder (a model's
+/// whole request among it) is judged on the bytes the round writes, with no authoring call.
+pub(crate) async fn approved_round(request: &CompileRequest) -> CompileOutcome {
+    let judge = JudgedSeat::approving(&NoChoice);
+    let cognition = nika_compile_cognition::Cognition::<nika_compile_cognition::NoProvider> {
+        provider: None,
+        seat: Some(&judge),
+    };
+    nika_compile_cognition::compile_with_cognition(request, cognition)
+        .await
+        .unwrap()
+}
+
 /// An answer round's finish the laws admit, held for that round's judge (R4 A11, step 2): no law
 /// reads a native seat's program, so a round that permits no judge is INCOMPLETE on the whole
 /// request alone (`decision.pending`: the `intent` the core replayed, at its whole span), with a

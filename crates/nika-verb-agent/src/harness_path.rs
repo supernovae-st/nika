@@ -85,6 +85,7 @@ pub(crate) async fn run_on_harness(
     seat: &HarnessSeat,
     input: AgentInput,
     observer: &dyn AgentObserver,
+    images: Option<&Arc<dyn crate::spill::SpillStoreDyn>>,
 ) -> Result<AgentOutput, VerbAgentError> {
     if input.schema.is_some() {
         return Err(VerbAgentError::InvalidParam {
@@ -155,6 +156,12 @@ pub(crate) async fn run_on_harness(
                     observer,
                 )?;
             }
+            Some(Ok(HarnessEvent::ImageActivityObserved { tool_call_id })) => {
+                observer.on_event(&AgentEvent::HarnessImageActivity { tool_call_id });
+            }
+            Some(Ok(HarnessEvent::ImageObserved { image })) => {
+                store_image(*image, images, observer).await?;
+            }
             Some(Ok(HarnessEvent::Completed { outcome })) => {
                 return Ok(completed_output(*outcome));
             }
@@ -171,6 +178,40 @@ pub(crate) async fn run_on_harness(
             }
         }
     }
+}
+
+/// Persist only bytes received on the wire. The receipt is published BEFORE the
+/// store is awaited, so a cancelled put still leaves `storage: unconfirmed`; the
+/// store's answer follows as `HarnessImageStored`. A failed store is a permanent
+/// failure, never a second generation.
+async fn store_image(
+    mut image: nika_kernel::ai::harness::HarnessImage,
+    store: Option<&Arc<dyn crate::spill::SpillStoreDyn>>,
+    observer: &dyn AgentObserver,
+) -> Result<(), VerbAgentError> {
+    let Some(data) = image.data.take() else {
+        observer.on_event(&AgentEvent::HarnessImageObserved { image });
+        return Ok(());
+    };
+    let tool_call_id = image.tool_call_id.clone();
+    observer.on_event(&AgentEvent::HarnessImageActivity {
+        tool_call_id: tool_call_id.clone(),
+    });
+    observer.on_event(&AgentEvent::HarnessImageObserved { image });
+    let stored = match store {
+        Some(store) => store
+            .put(data, "image/png")
+            .await
+            .map_err(|error| format!("image bytes were received but could not be stored: {error}")),
+        None => Err("image bytes were received but no image blob store is configured".into()),
+    };
+    observer.on_event(&AgentEvent::HarnessImageStored {
+        tool_call_id,
+        stored: stored.clone(),
+    });
+    stored
+        .map(drop)
+        .map_err(|reason| harness_err(&HarnessError::Refused { reason }))
 }
 
 /// The witness `gate` label for one ask — what the bridge judged, in
@@ -196,9 +237,9 @@ fn gate_label(facts: &HarnessAskFacts) -> String {
 
 /// The terminal beat → the pre-shaped honest `AgentOutput` (extracted
 /// under the fn-length law): usage stays harness-reported-or-zero ·
-/// `model_resolved` stays None — the receipt records the REQUESTED
-/// model; an observed identity is the trace's fact, never reconciled
-/// here (A-2/A-7).
+/// `model_resolved` stays None (it is the requested name and a pricing key) ·
+/// the session model the harness REPORTED rides as `model_reported` with its
+/// provenance: ACP attests no response model, so nothing here is "served" (A-2/A-7).
 fn completed_output(outcome: nika_kernel::ai::harness::HarnessOutcome) -> AgentOutput {
     let mut out = AgentOutput::new(
         AgentValue::Text(outcome.output.clone()),
@@ -212,6 +253,8 @@ fn completed_output(outcome: nika_kernel::ai::harness::HarnessOutcome) -> AgentO
     if let Some(usage) = outcome.usage {
         out.usage = usage;
     }
+    out.model_reported = outcome.observed_model;
+    out.model_reported_source = outcome.observed_model_source;
     out
 }
 
@@ -322,6 +365,216 @@ mod tests {
     use nika_error::traits::NikaErrorCode as _;
     use nika_kernel::ai::harness::{HarnessEventStream, HarnessOutcome, PermissionReply};
 
+    async fn run_on_harness(
+        seat: &HarnessSeat,
+        input: AgentInput,
+        observer: &dyn AgentObserver,
+    ) -> Result<AgentOutput, VerbAgentError> {
+        super::run_on_harness(seat, input, observer, None).await
+    }
+
+    #[tokio::test]
+    async fn received_image_bytes_are_stored_beside_text_and_never_inlined() {
+        let blob = Arc::new(ReceivingImageStore::default());
+        let store: Arc<dyn crate::spill::SpillStoreDyn> = blob.clone();
+        let bytes = bytes::Bytes::from(vec![7; 1024 * 1024]);
+        let mut image = nika_kernel::ai::harness::HarnessImage::new("image-1");
+        image.data = Some(bytes.clone());
+        image.received_bytes = Some(bytes.len() as u64);
+        image.mime_type = Some("image/png".into());
+        image.sha256 = Some("wire-received-digest".into());
+        image.reported_saved_path = Some("/outside/not-to-be-opened.png".into());
+        let seat = seat_with(vec![
+            HarnessEvent::ImageObserved {
+                image: Box::new(image),
+            },
+            completed("unchanged text"),
+        ]);
+        let observer = VecObserver::default();
+        let out = super::run_on_harness(&seat, AgentInput::new("draw"), &observer, Some(&store))
+            .await
+            .unwrap();
+        assert_eq!(out.output, AgentValue::Text("unchanged text".into()));
+        let events = observer.0.lock().unwrap().clone();
+        let at = |pred: fn(&AgentEvent) -> bool| events.iter().position(pred).unwrap();
+        let receipt_at = at(|e| matches!(e, AgentEvent::HarnessImageObserved { .. }));
+        let stored = at(|e| matches!(e, AgentEvent::HarnessImageStored { .. }));
+        assert!(
+            receipt_at < stored,
+            "the receipt precedes the store's answer"
+        );
+        let mut receipt = events[receipt_at].clone();
+        let image = receipt.harness_image().unwrap().clone();
+        assert!(image.data.is_none(), "no bytes enter the observer/journal");
+        assert_eq!(image.observation()["storage"], "unconfirmed");
+        assert_eq!(image.observation()["file_verified"], false);
+        assert!(image.observation().to_string().len() < 1024);
+        assert!(
+            receipt.settle_image(&events[stored]),
+            "the answer settles its receipt"
+        );
+        let settled = receipt.harness_image().unwrap();
+        assert_eq!(settled.observation()["storage"], "stored");
+        let metadata = settled.stored_blob.clone().unwrap();
+        assert_eq!(metadata.size, bytes.len() as u64);
+        assert_eq!(metadata.hash, "fixture-blob");
+        assert_eq!(blob.0.lock().unwrap().as_ref(), Some(&bytes));
+        assert!(
+            !observer
+                .0
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|event| matches!(event, AgentEvent::PermissionJudged { .. }))
+        );
+    }
+
+    /// A store whose put never answers: the controlled stand-in for a put a
+    /// task timeout cancels. It records that the put was entered.
+    #[derive(Default)]
+    struct PendingImageStore(std::sync::atomic::AtomicBool);
+    impl crate::spill::SpillStoreDyn for PendingImageStore {
+        fn put(
+            &self,
+            _: bytes::Bytes,
+            _: &'static str,
+        ) -> Pin<
+            Box<
+                dyn Future<Output = Result<nika_kernel::BlobMetadata, nika_kernel::BlobError>>
+                    + Send
+                    + '_,
+            >,
+        > {
+            self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+            Box::pin(std::future::pending())
+        }
+    }
+
+    #[tokio::test]
+    async fn a_cancelled_put_keeps_the_received_receipt_with_unconfirmed_storage() {
+        let pending = Arc::new(PendingImageStore::default());
+        let store: Arc<dyn crate::spill::SpillStoreDyn> = pending.clone();
+        let mut image = nika_kernel::ai::harness::HarnessImage::new("image-1");
+        image.data = Some(bytes::Bytes::from_static(b"received"));
+        image.received_bytes = Some(8);
+        image.sha256 = Some("wire-received-digest".into());
+        let seat = seat_with(vec![
+            HarnessEvent::ImageObserved {
+                image: Box::new(image),
+            },
+            completed("never reached"),
+        ]);
+        let observer = VecObserver::default();
+        let mut cx = Context::from_waker(std::task::Waker::noop());
+        let mut run = Box::pin(super::run_on_harness(
+            &seat,
+            AgentInput::new("draw"),
+            &observer,
+            Some(&store),
+        ));
+        assert!(
+            run.as_mut().poll(&mut cx).is_pending(),
+            "the put never answers"
+        );
+        assert!(
+            pending.0.load(std::sync::atomic::Ordering::SeqCst),
+            "the put was entered"
+        );
+        drop(run); // the task timeout's cancellation
+        let events = observer.0.lock().unwrap();
+        let receipt = events
+            .iter()
+            .find_map(AgentEvent::harness_image)
+            .expect("the received bytes kept their receipt");
+        assert_eq!(receipt.received_bytes, Some(8));
+        assert_eq!(receipt.observation()["storage"], "unconfirmed");
+        assert_eq!(
+            receipt.observation()["received_sha256"],
+            "wire-received-digest"
+        );
+        assert!(receipt.data.is_none() && receipt.stored_blob.is_none());
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, AgentEvent::HarnessImageStored { .. })),
+            "no store answer is invented"
+        );
+        assert!(
+            events.iter().any(AgentEvent::is_harness_image),
+            "replay stays vetoed"
+        );
+    }
+
+    #[derive(Default)]
+    struct ReceivingImageStore(Mutex<Option<bytes::Bytes>>);
+    impl crate::spill::SpillStoreDyn for ReceivingImageStore {
+        fn put(
+            &self,
+            data: bytes::Bytes,
+            mime: &'static str,
+        ) -> Pin<
+            Box<
+                dyn Future<Output = Result<nika_kernel::BlobMetadata, nika_kernel::BlobError>>
+                    + Send
+                    + '_,
+            >,
+        > {
+            let size = data.len() as u64;
+            *self.0.lock().unwrap() = Some(data);
+            Box::pin(async move { Ok(nika_kernel::BlobMetadata::new("fixture-blob", mime, size)) })
+        }
+    }
+
+    struct RefusingImageStore;
+    impl crate::spill::SpillStoreDyn for RefusingImageStore {
+        fn put(
+            &self,
+            _: bytes::Bytes,
+            _: &'static str,
+        ) -> Pin<
+            Box<
+                dyn Future<Output = Result<nika_kernel::BlobMetadata, nika_kernel::BlobError>>
+                    + Send
+                    + '_,
+            >,
+        > {
+            Box::pin(async {
+                Err(nika_kernel::BlobError::Io {
+                    reason: "fixture refused".into(),
+                })
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn missing_or_failed_store_never_turns_received_image_into_success() {
+        let refused: Arc<dyn crate::spill::SpillStoreDyn> = Arc::new(RefusingImageStore);
+        for store in [None, Some(&refused)] {
+            let mut image = nika_kernel::ai::harness::HarnessImage::new("image-1");
+            image.data = Some(bytes::Bytes::from_static(b"fixture"));
+            image.received_bytes = Some(7);
+            let seat = seat_with(vec![
+                HarnessEvent::ImageObserved {
+                    image: Box::new(image),
+                },
+                completed("must not succeed"),
+            ]);
+            let observer = VecObserver::default();
+            let error = super::run_on_harness(&seat, AgentInput::new("draw"), &observer, store)
+                .await
+                .unwrap_err();
+            assert!(!error.is_transient());
+            let events = observer.0.lock().unwrap();
+            assert!(
+                events
+                    .iter()
+                    .any(|event| matches!(event, AgentEvent::HarnessImageActivity { .. }))
+            );
+            assert!(events.iter().any(|event| matches!(event, AgentEvent::HarnessImageObserved { image } if image.received_bytes == Some(7) && image.stored_blob.is_none() && image.data.is_none())));
+            assert!(events.iter().any(|event| matches!(event, AgentEvent::HarnessImageStored { stored: Err(reason), .. } if reason.contains("received"))));
+        }
+    }
+
     /// A scripted backend: plays a fixed event tape (permission
     /// verdicts are recorded by the reply closures the tape carries).
     struct TapeBackend {
@@ -355,6 +608,42 @@ mod tests {
     }
 
     use core::future::Future;
+
+    #[tokio::test]
+    async fn harness_image_is_observed_beside_unchanged_text_without_permission_fabrication() {
+        let mut image = nika_kernel::ai::harness::HarnessImage::new("image-1");
+        image.reported_saved_path = Some("/unverified.png".into());
+        let observer = VecObserver::default();
+        let seat = seat_with(vec![
+            HarnessEvent::ImageActivityObserved {
+                tool_call_id: "image-1".into(),
+            },
+            HarnessEvent::ImageObserved {
+                image: Box::new(image.clone()),
+            },
+            HarnessEvent::Completed {
+                outcome: Box::new(HarnessOutcome::new("unchanged text")),
+            },
+        ]);
+        let out = run_on_harness(&seat, AgentInput::new("draw"), &observer)
+            .await
+            .unwrap();
+        assert_eq!(out.output, AgentValue::Text("unchanged text".into()));
+        let events = observer.0.lock().unwrap();
+        assert!(matches!(
+            &events[0],
+            AgentEvent::HarnessImageActivity { .. }
+        ));
+        assert!(
+            matches!(&events[1], AgentEvent::HarnessImageObserved { image: seen } if seen == &image)
+        );
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, AgentEvent::PermissionJudged { .. })),
+            "a result is never an invented permission witness"
+        );
+    }
 
     /// A recording observer — the bridge's witness decisions under test.
     #[derive(Default)]
@@ -503,6 +792,36 @@ mod tests {
             "the pre-shaped None (pricing key absent)"
         );
         assert!(out.tools_cost_usd.is_none());
+        assert!(out.model_reported.is_none(), "no identity invented");
+        assert!(out.model_reported_source.is_none());
+    }
+
+    /// The identity the harness reported rides as observed, distinct from the
+    /// requested model, and is never written into the requested/pricing slot.
+    #[tokio::test]
+    async fn an_observed_identity_is_kept_apart_from_the_requested_model() {
+        for (observed, expected) in [(Some("gpt-observed"), Some("gpt-observed")), (None, None)] {
+            let mut outcome = HarnessOutcome::new("answer");
+            if let Some(model) = observed {
+                outcome = outcome.with_observed_model(model);
+                outcome.observed_model_source =
+                    Some(nika_kernel::ai::harness::ModelProvenance::ConfirmedSelection);
+            }
+            let seat = seat_with(vec![HarnessEvent::Completed {
+                outcome: Box::new(outcome),
+            }]);
+            let mut input = AgentInput::new("do it");
+            input.model = Some("openai/requested".to_owned());
+            let out = run_on_harness(&seat, input, &crate::NoopObserver)
+                .await
+                .expect("a completed tape succeeds");
+            assert_eq!(out.model_reported.as_deref(), expected);
+            assert_eq!(out.model_reported_source.is_some(), expected.is_some());
+            assert!(
+                out.model_resolved.is_none(),
+                "requested name is not a served claim"
+            );
+        }
     }
 
     /// B5 · inside the grants, the bridge answers `AllowOnce` itself and

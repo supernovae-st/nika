@@ -49,7 +49,7 @@ fn label_ceiling_reads_catalog_capability_without_guessing_names() {
         "deepseek/deepseek-reasoner",
         "openai/o3",
     ] {
-        assert_eq!(reasoner(model).label_ceiling(), 4096, "{model}");
+        assert_eq!(label_ceiling(model), 4096, "{model}");
     }
     for model in [
         "deepseek/deepseek-chat",
@@ -63,7 +63,7 @@ fn label_ceiling_reads_catalog_capability_without_guessing_names() {
         "deepseek-v4-pro",
         "mock/echo",
     ] {
-        assert_eq!(reasoner(model).label_ceiling(), 1024, "{model}");
+        assert_eq!(label_ceiling(model), 1024, "{model}");
     }
 }
 
@@ -107,7 +107,13 @@ fn explicit_infer_limit_is_never_raised_to_the_label_default() {
     let _http = test_transport::install(&peer.url);
     let account = account();
     reasoner(MODEL)
-        .infer("bounded", Some(64), Some(&account), None)
+        .infer(
+            "bounded",
+            Some(64),
+            Some(&account),
+            None,
+            ReplyPurpose::Chat,
+        )
         .unwrap();
     assert_eq!(peer.bodies()[0]["max_tokens"], 64);
     let receipt = account.snapshot().unwrap();
@@ -267,4 +273,116 @@ fn malformed_wire_or_label_never_causes_an_automatic_reask() {
         assert_eq!(result.act, TurnAct::Unknown);
         assert_eq!(peer.bodies().len(), 1);
     }
+}
+
+#[test]
+fn continuous_chat_uses_the_route_capacity_and_names_a_truncated_reply() {
+    let mut truncated = response("partial answer");
+    truncated["choices"][0]["finish_reason"] = json!("length");
+    let peer = Peer::start(vec![(200, response("complete answer")), (200, truncated)]);
+    let _http = test_transport::install(&peer.url);
+    let costs = PreparationCosts::default();
+    let _scope = costs.enter();
+    let mut seat = reasoner(MODEL);
+    assert_eq!(
+        seat.reason("explain the choice").unwrap().text,
+        "complete answer"
+    );
+    let reply = seat.reason("explain the rest").unwrap();
+    assert!(reply.text.starts_with("partial answer"));
+    assert!(reply.text.contains("Incomplete response"));
+    let capacity = completion_bounds(MODEL, false, provider_config());
+    let bodies = peer.bodies();
+    assert_eq!(bodies.len(), 2);
+    assert!(
+        bodies
+            .iter()
+            .all(|b| b["max_tokens"] == capacity.max_tokens)
+    );
+}
+
+#[test]
+fn nonempty_truncated_classifiers_never_invent_or_accept_an_act() {
+    for partial in ["DISCUSS", "DISCU", "Let me think"] {
+        for continuous in [false, true] {
+            for admitted in [false, true] {
+                let mut body = response(partial);
+                body["choices"][0]["finish_reason"] = json!("length");
+                let peer = Peer::start(vec![(200, body)]);
+                let _http = test_transport::install(&peer.url);
+                let costs = PreparationCosts::default();
+                let _scope = continuous.then(|| costs.enter());
+                let account = account();
+                let mut classifier = ReasonerClassifier::new(Box::new(reasoner(MODEL)));
+                let raw = "Explain this destination without changing it.";
+                let result = if admitted {
+                    classifier.classify_with_admission(&context(), raw, &account)
+                } else {
+                    classifier.classify(&context(), raw)
+                };
+                assert_eq!(result.method, RoutingMethod::Failed, "{partial}");
+                assert_eq!(result.act, TurnAct::Unknown, "{partial}");
+                assert!(
+                    result
+                        .note
+                        .as_ref()
+                        .is_some_and(|n| n.contains("truncated"))
+                );
+                let bodies = peer.bodies();
+                assert_eq!(bodies.len(), 1, "no automatic retry");
+                // Continuous preparation asks the route's capacity; only an explicit
+                // allowance keeps the historical label ceiling.
+                let asked = if continuous {
+                    completion_bounds(MODEL, false, provider_config()).max_tokens
+                } else {
+                    label_ceiling(MODEL)
+                };
+                assert_eq!(bodies[0]["max_tokens"], asked);
+                assert!(
+                    bodies[0]["messages"]
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .any(|m| m["content"].as_str().is_some_and(|text| text.contains(raw)))
+                );
+                if admitted {
+                    let receipt = account.snapshot().unwrap();
+                    assert_eq!(receipt.attempts.len(), 1);
+                    assert!(receipt.attempts[0].sent);
+                    assert_eq!(
+                        receipt.attempts[0].reserved,
+                        receipt.attempts[0].tariff.reserve(asked).unwrap()
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn continuous_scope_preserves_an_explicit_completion_ceiling_and_account() {
+    let peer = Peer::start(vec![(200, response("complete answer"))]);
+    let _http = test_transport::install(&peer.url);
+    let costs = PreparationCosts::default();
+    let _scope = costs.enter();
+    let account = account();
+    let reply = reasoner(MODEL)
+        .infer(
+            "bounded",
+            Some(64),
+            Some(&account),
+            None,
+            ReplyPurpose::Chat,
+        )
+        .unwrap();
+    assert_eq!(reply.text, "complete answer");
+    let bodies = peer.bodies();
+    assert_eq!(bodies.len(), 1);
+    assert_eq!(bodies[0]["max_tokens"], 64);
+    let receipt = account.snapshot().unwrap();
+    assert_eq!(receipt.attempts.len(), 1);
+    assert_eq!(
+        receipt.attempts[0].reserved,
+        receipt.attempts[0].tariff.reserve(64).unwrap()
+    );
 }

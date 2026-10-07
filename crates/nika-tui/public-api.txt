@@ -264,6 +264,7 @@ pub fn nika_tui::composer::Composer::paste(&mut self, text: &str)
 pub fn nika_tui::composer::Composer::render(&self, area: ratatui_core::layout::rect::Rect, buf: &mut ratatui_core::buffer::buffer::Buffer)
 pub fn nika_tui::composer::Composer::rows(&self, width: u16) -> u16
 pub fn nika_tui::composer::Composer::set_placeholder(&mut self, text: &str)
+pub fn nika_tui::composer::Composer::take(&mut self) -> alloc::string::String
 pub fn nika_tui::composer::Composer::text(&self) -> alloc::string::String
 impl core::default::Default for nika_tui::composer::Composer
 pub fn nika_tui::composer::Composer::default() -> Self
@@ -358,6 +359,7 @@ pub nika_tui::events::UiEvent::Closed
 pub nika_tui::events::UiEvent::FocusGained
 pub nika_tui::events::UiEvent::FocusLost
 pub nika_tui::events::UiEvent::Key(crossterm::event::KeyEvent)
+pub nika_tui::events::UiEvent::Mouse(crossterm::event::MouseEvent)
 pub nika_tui::events::UiEvent::Paste(alloc::string::String)
 pub nika_tui::events::UiEvent::Resize(u16, u16)
 pub nika_tui::events::UiEvent::Signal(nika_tui::events::Signal)
@@ -450,6 +452,7 @@ pub const nika_tui::events::POLL_SLICE: core::time::Duration
 pub mod nika_tui::model
 #[non_exhaustive] pub enum nika_tui::model::Beat
 pub nika_tui::model::Beat::Busy(alloc::string::String)
+pub nika_tui::model::Beat::Cancelled(alloc::string::String)
 pub nika_tui::model::Beat::Quit
 pub nika_tui::model::Beat::Rail(alloc::string::String)
 pub nika_tui::model::Beat::Say(nika_tui::model::Committed)
@@ -503,6 +506,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_tui::model::Beat
 impl<T> typenum::type_operators::Same for nika_tui::model::Beat
 pub type nika_tui::model::Beat::Output = T
 #[non_exhaustive] pub enum nika_tui::model::Kind
+pub nika_tui::model::Kind::Activity
 pub nika_tui::model::Kind::Banner
 pub nika_tui::model::Kind::Gate
 pub nika_tui::model::Kind::Human
@@ -621,6 +625,59 @@ impl<T> tracing::instrument::Instrument for nika_tui::model::Presentation
 impl<T> tracing::instrument::WithSubscriber for nika_tui::model::Presentation
 impl<T> typenum::type_operators::Same for nika_tui::model::Presentation
 pub type nika_tui::model::Presentation::Output = T
+#[non_exhaustive] pub enum nika_tui::model::Stopping
+pub nika_tui::model::Stopping::Requested
+pub nika_tui::model::Stopping::RunUnderway
+impl core::clone::Clone for nika_tui::model::Stopping
+pub fn nika_tui::model::Stopping::clone(&self) -> nika_tui::model::Stopping
+impl core::cmp::Eq for nika_tui::model::Stopping
+impl core::cmp::PartialEq for nika_tui::model::Stopping
+pub fn nika_tui::model::Stopping::eq(&self, other: &nika_tui::model::Stopping) -> bool
+impl core::fmt::Debug for nika_tui::model::Stopping
+pub fn nika_tui::model::Stopping::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_tui::model::Stopping
+impl core::marker::StructuralPartialEq for nika_tui::model::Stopping
+impl<D> owo_colors::OwoColorize for nika_tui::model::Stopping
+impl<Q, K> equivalent::Equivalent<K> for nika_tui::model::Stopping where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::model::Stopping::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui::model::Stopping where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::model::Stopping::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui::model::Stopping where U: core::convert::From<T>
+pub fn nika_tui::model::Stopping::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::model::Stopping where U: core::convert::Into<T>
+pub type nika_tui::model::Stopping::Error = core::convert::Infallible
+pub fn nika_tui::model::Stopping::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::model::Stopping where U: core::convert::TryFrom<T>
+pub type nika_tui::model::Stopping::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::model::Stopping::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::model::Stopping where T: core::clone::Clone
+pub type nika_tui::model::Stopping::Owned = T
+pub fn nika_tui::model::Stopping::clone_into(&self, target: &mut T)
+pub fn nika_tui::model::Stopping::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::model::Stopping where T: 'static + ?core::marker::Sized
+pub fn nika_tui::model::Stopping::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::model::Stopping where T: ?core::marker::Sized
+pub fn nika_tui::model::Stopping::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::model::Stopping where T: ?core::marker::Sized
+pub fn nika_tui::model::Stopping::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::model::Stopping where T: core::clone::Clone
+pub unsafe fn nika_tui::model::Stopping::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::model::Stopping
+pub fn nika_tui::model::Stopping::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::model::Stopping where T: core::clone::Clone
+pub fn nika_tui::model::Stopping::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::model::Stopping
+impl<T> nika_error::traits::AsAny for nika_tui::model::Stopping where T: 'static
+pub fn nika_tui::model::Stopping::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_tui::model::Stopping where T: core::marker::Copy
+pub fn nika_tui::model::Stopping::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::model::Stopping where T: ?core::marker::Sized
+pub fn nika_tui::model::Stopping::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::model::Stopping::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::model::Stopping
+impl<T> tracing::instrument::WithSubscriber for nika_tui::model::Stopping
+impl<T> typenum::type_operators::Same for nika_tui::model::Stopping
+pub type nika_tui::model::Stopping::Output = T
 #[non_exhaustive] pub enum nika_tui::model::Waiting
 pub nika_tui::model::Waiting::Choosing
 pub nika_tui::model::Waiting::Free
@@ -801,16 +858,25 @@ impl core::fmt::Debug for nika_tui::model::Script
 pub fn nika_tui::model::Script::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_tui::model::Script
 impl nika_tui::model::Conversation for nika_tui::model::Script
+pub fn nika_tui::model::Script::adopt(&mut self, _execution: &nika_types::id::ExecutionId, _proven: &nika_tui::session::acquire::Proven) -> bool
 pub fn nika_tui::model::Script::busy_label(&self, _line: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_tui::model::Script::cancel_pending(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
+pub fn nika_tui::model::Script::candidate(&self) -> core::option::Option<nika_tui::workspace::candidate::Proposed>
+pub fn nika_tui::model::Script::child(&mut self, _execution: &nika_types::id::ExecutionId, _task: &str, _relation: &nika_display::run_story::ChildRun) -> core::option::Option<nika_tui::session::acquire::ChildRead>
 pub fn nika_tui::model::Script::commands(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_tui::model::Script::fetch(&mut self, _execution: &nika_types::id::ExecutionId, _path: &str) -> core::option::Option<nika_tui::session::acquire::Fetched>
 pub fn nika_tui::model::Script::fresh_input_required(&self) -> bool
 pub fn nika_tui::model::Script::inspect(&mut self, _path: &str) -> core::option::Option<nika_tui::workspace::inspect::Inspected>
+pub fn nika_tui::model::Script::kept_run(&self) -> core::option::Option<core::result::Result<nika_trace::run_view::kept::KeptRun, alloc::string::String>>
 pub fn nika_tui::model::Script::open(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Script::perform(&mut self, _handoff: &nika_tui::model::Handoff) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Script::project(&self) -> core::option::Option<nika_tui::workspace::project::ProjectView>
+pub fn nika_tui::model::Script::prove(&mut self, _execution: &nika_types::id::ExecutionId) -> core::option::Option<nika_tui::session::acquire::Proven>
+pub fn nika_tui::model::Script::stopper(&mut self) -> core::option::Option<nika_tui::model::Stopper>
 pub fn nika_tui::model::Script::submit(&mut self, line: &str) -> nika_tui::model::Turn
+pub fn nika_tui::model::Script::submit_observed(&mut self, line: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>, seen: &nika_tui::session::feed::Seen) -> nika_tui::model::Turn
 pub fn nika_tui::model::Script::submit_with(&mut self, line: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>) -> nika_tui::model::Turn
+pub fn nika_tui::model::Script::withdraw_stopped(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 impl<D> owo_colors::OwoColorize for nika_tui::model::Script
 impl<Q, K> equivalent::Equivalent<K> for nika_tui::model::Script where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_tui::model::Script::equivalent(&self, key: &K) -> bool
@@ -968,39 +1034,67 @@ impl<T> tracing::instrument::WithSubscriber for nika_tui::model::UiState
 impl<T> typenum::type_operators::Same for nika_tui::model::UiState
 pub type nika_tui::model::UiState::Output = T
 pub trait nika_tui::model::Conversation: core::marker::Send
+pub fn nika_tui::model::Conversation::adopt(&mut self, _execution: &nika_types::id::ExecutionId, _proven: &nika_tui::session::acquire::Proven) -> bool
 pub fn nika_tui::model::Conversation::busy_label(&self, _line: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_tui::model::Conversation::cancel_pending(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
+pub fn nika_tui::model::Conversation::candidate(&self) -> core::option::Option<nika_tui::workspace::candidate::Proposed>
+pub fn nika_tui::model::Conversation::child(&mut self, _execution: &nika_types::id::ExecutionId, _task: &str, _relation: &nika_display::run_story::ChildRun) -> core::option::Option<nika_tui::session::acquire::ChildRead>
 pub fn nika_tui::model::Conversation::commands(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_tui::model::Conversation::fetch(&mut self, _execution: &nika_types::id::ExecutionId, _path: &str) -> core::option::Option<nika_tui::session::acquire::Fetched>
 pub fn nika_tui::model::Conversation::fresh_input_required(&self) -> bool
 pub fn nika_tui::model::Conversation::inspect(&mut self, _path: &str) -> core::option::Option<nika_tui::workspace::inspect::Inspected>
+pub fn nika_tui::model::Conversation::kept_run(&self) -> core::option::Option<core::result::Result<nika_trace::run_view::kept::KeptRun, alloc::string::String>>
 pub fn nika_tui::model::Conversation::open(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Conversation::perform(&mut self, handoff: &nika_tui::model::Handoff) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Conversation::project(&self) -> core::option::Option<nika_tui::workspace::project::ProjectView>
+pub fn nika_tui::model::Conversation::prove(&mut self, _execution: &nika_types::id::ExecutionId) -> core::option::Option<nika_tui::session::acquire::Proven>
+pub fn nika_tui::model::Conversation::stopper(&mut self) -> core::option::Option<nika_tui::model::Stopper>
 pub fn nika_tui::model::Conversation::submit(&mut self, line: &str) -> nika_tui::model::Turn
+pub fn nika_tui::model::Conversation::submit_observed(&mut self, line: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>, seen: &nika_tui::session::feed::Seen) -> nika_tui::model::Turn
 pub fn nika_tui::model::Conversation::submit_with(&mut self, line: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>) -> nika_tui::model::Turn
+pub fn nika_tui::model::Conversation::withdraw_stopped(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 impl nika_tui::model::Conversation for nika_tui::model::Script
+pub fn nika_tui::model::Script::adopt(&mut self, _execution: &nika_types::id::ExecutionId, _proven: &nika_tui::session::acquire::Proven) -> bool
 pub fn nika_tui::model::Script::busy_label(&self, _line: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_tui::model::Script::cancel_pending(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
+pub fn nika_tui::model::Script::candidate(&self) -> core::option::Option<nika_tui::workspace::candidate::Proposed>
+pub fn nika_tui::model::Script::child(&mut self, _execution: &nika_types::id::ExecutionId, _task: &str, _relation: &nika_display::run_story::ChildRun) -> core::option::Option<nika_tui::session::acquire::ChildRead>
 pub fn nika_tui::model::Script::commands(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_tui::model::Script::fetch(&mut self, _execution: &nika_types::id::ExecutionId, _path: &str) -> core::option::Option<nika_tui::session::acquire::Fetched>
 pub fn nika_tui::model::Script::fresh_input_required(&self) -> bool
 pub fn nika_tui::model::Script::inspect(&mut self, _path: &str) -> core::option::Option<nika_tui::workspace::inspect::Inspected>
+pub fn nika_tui::model::Script::kept_run(&self) -> core::option::Option<core::result::Result<nika_trace::run_view::kept::KeptRun, alloc::string::String>>
 pub fn nika_tui::model::Script::open(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Script::perform(&mut self, _handoff: &nika_tui::model::Handoff) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::Script::project(&self) -> core::option::Option<nika_tui::workspace::project::ProjectView>
+pub fn nika_tui::model::Script::prove(&mut self, _execution: &nika_types::id::ExecutionId) -> core::option::Option<nika_tui::session::acquire::Proven>
+pub fn nika_tui::model::Script::stopper(&mut self) -> core::option::Option<nika_tui::model::Stopper>
 pub fn nika_tui::model::Script::submit(&mut self, line: &str) -> nika_tui::model::Turn
+pub fn nika_tui::model::Script::submit_observed(&mut self, line: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>, seen: &nika_tui::session::feed::Seen) -> nika_tui::model::Turn
 pub fn nika_tui::model::Script::submit_with(&mut self, line: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>) -> nika_tui::model::Turn
+pub fn nika_tui::model::Script::withdraw_stopped(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 impl nika_tui::model::Conversation for nika_tui::session::Live
+pub fn nika_tui::session::Live::adopt(&mut self, execution: &nika_types::id::ExecutionId, proven: &nika_tui::session::acquire::Proven) -> bool
 pub fn nika_tui::session::Live::busy_label(&self, line: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_tui::session::Live::cancel_pending(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
+pub fn nika_tui::session::Live::candidate(&self) -> core::option::Option<nika_tui::workspace::candidate::Proposed>
+pub fn nika_tui::session::Live::child(&mut self, execution: &nika_types::id::ExecutionId, task: &str, relation: &nika_display::run_story::ChildRun) -> core::option::Option<nika_tui::session::acquire::ChildRead>
 pub fn nika_tui::session::Live::commands(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_tui::session::Live::fetch(&mut self, execution: &nika_types::id::ExecutionId, path: &str) -> core::option::Option<nika_tui::session::acquire::Fetched>
 pub fn nika_tui::session::Live::fresh_input_required(&self) -> bool
 pub fn nika_tui::session::Live::inspect(&mut self, path: &str) -> core::option::Option<nika_tui::workspace::inspect::Inspected>
+pub fn nika_tui::session::Live::kept_run(&self) -> core::option::Option<core::result::Result<nika_trace::run_view::kept::KeptRun, alloc::string::String>>
 pub fn nika_tui::session::Live::open(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::session::Live::perform(&mut self, handoff: &nika_tui::model::Handoff) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::session::Live::project(&self) -> core::option::Option<nika_tui::workspace::project::ProjectView>
+pub fn nika_tui::session::Live::prove(&mut self, execution: &nika_types::id::ExecutionId) -> core::option::Option<nika_tui::session::acquire::Proven>
+pub fn nika_tui::session::Live::stopper(&mut self) -> core::option::Option<nika_tui::model::Stopper>
 pub fn nika_tui::session::Live::submit(&mut self, line: &str) -> nika_tui::model::Turn
+pub fn nika_tui::session::Live::submit_observed(&mut self, line: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>, seen: &nika_tui::session::feed::Seen) -> nika_tui::model::Turn
 pub fn nika_tui::session::Live::submit_with(&mut self, line: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>) -> nika_tui::model::Turn
+pub fn nika_tui::session::Live::withdraw_stopped(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::model::demo_project() -> nika_tui::workspace::project::ProjectView
+pub type nika_tui::model::Stopper = alloc::boxed::Box<(dyn core::ops::function::Fn() -> nika_tui::model::Stopping + core::marker::Send)>
 pub mod nika_tui::render
 pub use nika_tui::render::SPINNER
 pub fn nika_tui::render::block_lines(block: &nika_tui::model::Committed, color: bool, ascii: bool) -> alloc::vec::Vec<ratatui_core::text::line::Line<'static>>
@@ -1010,12 +1104,330 @@ pub fn nika_tui::render::live_rows(state: &nika_tui::model::UiState, composer: &
 pub fn nika_tui::render::render_block(block: &nika_tui::model::Committed, color: bool, ascii: bool, buf: &mut ratatui_core::buffer::buffer::Buffer)
 pub fn nika_tui::render::wrapped_rows(lines: &[ratatui_core::text::line::Line<'_>], width: u16) -> u16
 pub mod nika_tui::session
+pub mod nika_tui::session::acquire
+#[non_exhaustive] pub struct nika_tui::session::acquire::ChildRead
+impl nika_tui::session::acquire::ChildRead
+pub fn nika_tui::session::acquire::ChildRead::compared(&self) -> &[(bool, alloc::string::String)]
+pub fn nika_tui::session::acquire::ChildRead::proven(&self) -> &nika_tui::session::acquire::Proven
+pub fn nika_tui::session::acquire::ChildRead::rows(&self) -> &[nika_display::state::TaskRow]
+impl core::clone::Clone for nika_tui::session::acquire::ChildRead
+pub fn nika_tui::session::acquire::ChildRead::clone(&self) -> nika_tui::session::acquire::ChildRead
+impl core::fmt::Debug for nika_tui::session::acquire::ChildRead
+pub fn nika_tui::session::acquire::ChildRead::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_tui::session::acquire::ChildRead
+impl<T, U> core::convert::Into<U> for nika_tui::session::acquire::ChildRead where U: core::convert::From<T>
+pub fn nika_tui::session::acquire::ChildRead::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::session::acquire::ChildRead where U: core::convert::Into<T>
+pub type nika_tui::session::acquire::ChildRead::Error = core::convert::Infallible
+pub fn nika_tui::session::acquire::ChildRead::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::session::acquire::ChildRead where U: core::convert::TryFrom<T>
+pub type nika_tui::session::acquire::ChildRead::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::session::acquire::ChildRead::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::session::acquire::ChildRead where T: core::clone::Clone
+pub type nika_tui::session::acquire::ChildRead::Owned = T
+pub fn nika_tui::session::acquire::ChildRead::clone_into(&self, target: &mut T)
+pub fn nika_tui::session::acquire::ChildRead::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::session::acquire::ChildRead where T: 'static + ?core::marker::Sized
+pub fn nika_tui::session::acquire::ChildRead::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::session::acquire::ChildRead where T: ?core::marker::Sized
+pub fn nika_tui::session::acquire::ChildRead::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::session::acquire::ChildRead where T: ?core::marker::Sized
+pub fn nika_tui::session::acquire::ChildRead::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::session::acquire::ChildRead where T: core::clone::Clone
+pub unsafe fn nika_tui::session::acquire::ChildRead::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::session::acquire::ChildRead
+pub fn nika_tui::session::acquire::ChildRead::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::session::acquire::ChildRead where T: core::clone::Clone
+pub fn nika_tui::session::acquire::ChildRead::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::session::acquire::ChildRead
+impl<T> nika_error::traits::AsAny for nika_tui::session::acquire::ChildRead where T: 'static
+pub fn nika_tui::session::acquire::ChildRead::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::session::acquire::ChildRead where T: ?core::marker::Sized
+pub fn nika_tui::session::acquire::ChildRead::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::session::acquire::ChildRead::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::session::acquire::ChildRead
+impl<T> tracing::instrument::WithSubscriber for nika_tui::session::acquire::ChildRead
+impl<T> typenum::type_operators::Same for nika_tui::session::acquire::ChildRead
+pub type nika_tui::session::acquire::ChildRead::Output = T
+#[non_exhaustive] pub struct nika_tui::session::acquire::Fetched
+impl nika_tui::session::acquire::Fetched
+pub fn nika_tui::session::acquire::Fetched::bytes(&self) -> core::option::Option<&[u8]>
+pub fn nika_tui::session::acquire::Fetched::missing(&self) -> bool
+pub fn nika_tui::session::acquire::Fetched::path(&self) -> &str
+pub fn nika_tui::session::acquire::Fetched::why(&self) -> core::option::Option<&str>
+pub fn nika_tui::session::acquire::Fetched::witness(&self) -> core::option::Option<&str>
+impl core::clone::Clone for nika_tui::session::acquire::Fetched
+pub fn nika_tui::session::acquire::Fetched::clone(&self) -> nika_tui::session::acquire::Fetched
+impl core::cmp::Eq for nika_tui::session::acquire::Fetched
+impl core::cmp::PartialEq for nika_tui::session::acquire::Fetched
+pub fn nika_tui::session::acquire::Fetched::eq(&self, other: &nika_tui::session::acquire::Fetched) -> bool
+impl core::fmt::Debug for nika_tui::session::acquire::Fetched
+pub fn nika_tui::session::acquire::Fetched::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui::session::acquire::Fetched
+impl<D> owo_colors::OwoColorize for nika_tui::session::acquire::Fetched
+impl<Q, K> equivalent::Equivalent<K> for nika_tui::session::acquire::Fetched where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::session::acquire::Fetched::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui::session::acquire::Fetched where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::session::acquire::Fetched::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui::session::acquire::Fetched where U: core::convert::From<T>
+pub fn nika_tui::session::acquire::Fetched::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::session::acquire::Fetched where U: core::convert::Into<T>
+pub type nika_tui::session::acquire::Fetched::Error = core::convert::Infallible
+pub fn nika_tui::session::acquire::Fetched::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::session::acquire::Fetched where U: core::convert::TryFrom<T>
+pub type nika_tui::session::acquire::Fetched::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::session::acquire::Fetched::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::session::acquire::Fetched where T: core::clone::Clone
+pub type nika_tui::session::acquire::Fetched::Owned = T
+pub fn nika_tui::session::acquire::Fetched::clone_into(&self, target: &mut T)
+pub fn nika_tui::session::acquire::Fetched::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::session::acquire::Fetched where T: 'static + ?core::marker::Sized
+pub fn nika_tui::session::acquire::Fetched::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::session::acquire::Fetched where T: ?core::marker::Sized
+pub fn nika_tui::session::acquire::Fetched::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::session::acquire::Fetched where T: ?core::marker::Sized
+pub fn nika_tui::session::acquire::Fetched::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::session::acquire::Fetched where T: core::clone::Clone
+pub unsafe fn nika_tui::session::acquire::Fetched::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::session::acquire::Fetched
+pub fn nika_tui::session::acquire::Fetched::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::session::acquire::Fetched where T: core::clone::Clone
+pub fn nika_tui::session::acquire::Fetched::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::session::acquire::Fetched
+impl<T> nika_error::traits::AsAny for nika_tui::session::acquire::Fetched where T: 'static
+pub fn nika_tui::session::acquire::Fetched::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::session::acquire::Fetched where T: ?core::marker::Sized
+pub fn nika_tui::session::acquire::Fetched::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::session::acquire::Fetched::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::session::acquire::Fetched
+impl<T> tracing::instrument::WithSubscriber for nika_tui::session::acquire::Fetched
+impl<T> typenum::type_operators::Same for nika_tui::session::acquire::Fetched
+pub type nika_tui::session::acquire::Fetched::Output = T
+#[non_exhaustive] pub struct nika_tui::session::acquire::Proven
+impl nika_tui::session::acquire::Proven
+pub fn nika_tui::session::acquire::Proven::exit(&self) -> core::option::Option<u64>
+pub fn nika_tui::session::acquire::Proven::terminal(&self) -> core::option::Option<&str>
+pub fn nika_tui::session::acquire::Proven::tier(&self) -> core::option::Option<&str>
+pub fn nika_tui::session::acquire::Proven::trace(&self) -> &str
+pub fn nika_tui::session::acquire::Proven::unbound(&self) -> &[alloc::string::String]
+pub fn nika_tui::session::acquire::Proven::verdict(&self) -> core::option::Option<&serde_json::value::Value>
+pub fn nika_tui::session::acquire::Proven::why(&self) -> core::option::Option<&str>
+pub fn nika_tui::session::acquire::Proven::witness(&self) -> core::option::Option<&str>
+impl core::clone::Clone for nika_tui::session::acquire::Proven
+pub fn nika_tui::session::acquire::Proven::clone(&self) -> nika_tui::session::acquire::Proven
+impl core::cmp::PartialEq for nika_tui::session::acquire::Proven
+pub fn nika_tui::session::acquire::Proven::eq(&self, other: &nika_tui::session::acquire::Proven) -> bool
+impl core::fmt::Debug for nika_tui::session::acquire::Proven
+pub fn nika_tui::session::acquire::Proven::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui::session::acquire::Proven
+impl<D> owo_colors::OwoColorize for nika_tui::session::acquire::Proven
+impl<T, U> core::convert::Into<U> for nika_tui::session::acquire::Proven where U: core::convert::From<T>
+pub fn nika_tui::session::acquire::Proven::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::session::acquire::Proven where U: core::convert::Into<T>
+pub type nika_tui::session::acquire::Proven::Error = core::convert::Infallible
+pub fn nika_tui::session::acquire::Proven::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::session::acquire::Proven where U: core::convert::TryFrom<T>
+pub type nika_tui::session::acquire::Proven::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::session::acquire::Proven::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::session::acquire::Proven where T: core::clone::Clone
+pub type nika_tui::session::acquire::Proven::Owned = T
+pub fn nika_tui::session::acquire::Proven::clone_into(&self, target: &mut T)
+pub fn nika_tui::session::acquire::Proven::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::session::acquire::Proven where T: 'static + ?core::marker::Sized
+pub fn nika_tui::session::acquire::Proven::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::session::acquire::Proven where T: ?core::marker::Sized
+pub fn nika_tui::session::acquire::Proven::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::session::acquire::Proven where T: ?core::marker::Sized
+pub fn nika_tui::session::acquire::Proven::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::session::acquire::Proven where T: core::clone::Clone
+pub unsafe fn nika_tui::session::acquire::Proven::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::session::acquire::Proven
+pub fn nika_tui::session::acquire::Proven::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::session::acquire::Proven where T: core::clone::Clone
+pub fn nika_tui::session::acquire::Proven::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::session::acquire::Proven
+impl<T> nika_error::traits::AsAny for nika_tui::session::acquire::Proven where T: 'static
+pub fn nika_tui::session::acquire::Proven::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::session::acquire::Proven where T: ?core::marker::Sized
+pub fn nika_tui::session::acquire::Proven::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::session::acquire::Proven::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::session::acquire::Proven
+impl<T> tracing::instrument::WithSubscriber for nika_tui::session::acquire::Proven
+impl<T> typenum::type_operators::Same for nika_tui::session::acquire::Proven
+pub type nika_tui::session::acquire::Proven::Output = T
+pub const nika_tui::session::acquire::FILE_CAP: u64
+pub const nika_tui::session::acquire::JOURNAL_CAP: u64
+pub mod nika_tui::session::feed
+#[non_exhaustive] pub enum nika_tui::session::feed::Observed
+pub nika_tui::session::feed::Observed::Activity(nika_display::activity::Activity)
+pub nika_tui::session::feed::Observed::Asked
+pub nika_tui::session::feed::Observed::Asked::look: core::option::Option<alloc::boxed::Box<nika_tui::workspace::inspect::Inspected>>
+pub nika_tui::session::feed::Observed::Asked::resume: bool
+pub nika_tui::session::feed::Observed::Asked::typed: bool
+pub nika_tui::session::feed::Observed::Asked::workflow: alloc::string::String
+pub nika_tui::session::feed::Observed::Frame(nika_display::run_story::RunFrame)
+impl core::fmt::Debug for nika_tui::session::feed::Observed
+pub fn nika_tui::session::feed::Observed::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_tui::session::feed::Observed
+impl<T, U> core::convert::Into<U> for nika_tui::session::feed::Observed where U: core::convert::From<T>
+pub fn nika_tui::session::feed::Observed::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::session::feed::Observed where U: core::convert::Into<T>
+pub type nika_tui::session::feed::Observed::Error = core::convert::Infallible
+pub fn nika_tui::session::feed::Observed::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::session::feed::Observed where U: core::convert::TryFrom<T>
+pub type nika_tui::session::feed::Observed::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::session::feed::Observed::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_tui::session::feed::Observed where T: 'static + ?core::marker::Sized
+pub fn nika_tui::session::feed::Observed::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::session::feed::Observed where T: ?core::marker::Sized
+pub fn nika_tui::session::feed::Observed::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::session::feed::Observed where T: ?core::marker::Sized
+pub fn nika_tui::session::feed::Observed::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_tui::session::feed::Observed
+pub fn nika_tui::session::feed::Observed::from(t: T) -> T
+impl<T> either::into_either::IntoEither for nika_tui::session::feed::Observed
+impl<T> nika_error::traits::AsAny for nika_tui::session::feed::Observed where T: 'static
+pub fn nika_tui::session::feed::Observed::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::session::feed::Observed where T: ?core::marker::Sized
+pub fn nika_tui::session::feed::Observed::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::session::feed::Observed::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::session::feed::Observed
+impl<T> tracing::instrument::WithSubscriber for nika_tui::session::feed::Observed
+impl<T> typenum::type_operators::Same for nika_tui::session::feed::Observed
+pub type nika_tui::session::feed::Observed::Output = T
+pub struct nika_tui::session::feed::Feed
+impl nika_tui::session::feed::Feed
+pub fn nika_tui::session::feed::Feed::new(busy: std::sync::mpsc::Sender<alloc::string::String>, seen: core::option::Option<nika_tui::session::feed::Seen>) -> Self
+impl core::clone::Clone for nika_tui::session::feed::Feed
+pub fn nika_tui::session::feed::Feed::clone(&self) -> nika_tui::session::feed::Feed
+impl core::fmt::Debug for nika_tui::session::feed::Feed
+pub fn nika_tui::session::feed::Feed::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_display::run_story::RunSink for nika_tui::session::feed::Feed
+pub fn nika_tui::session::feed::Feed::frame(&self, frame: nika_display::run_story::RunFrame)
+pub fn nika_tui::session::feed::Feed::said(&self, line: alloc::string::String)
+pub fn nika_tui::session::feed::Feed::unread(&self, _why: &'static str)
+impl<D> owo_colors::OwoColorize for nika_tui::session::feed::Feed
+impl<T, U> core::convert::Into<U> for nika_tui::session::feed::Feed where U: core::convert::From<T>
+pub fn nika_tui::session::feed::Feed::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::session::feed::Feed where U: core::convert::Into<T>
+pub type nika_tui::session::feed::Feed::Error = core::convert::Infallible
+pub fn nika_tui::session::feed::Feed::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::session::feed::Feed where U: core::convert::TryFrom<T>
+pub type nika_tui::session::feed::Feed::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::session::feed::Feed::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::session::feed::Feed where T: core::clone::Clone
+pub type nika_tui::session::feed::Feed::Owned = T
+pub fn nika_tui::session::feed::Feed::clone_into(&self, target: &mut T)
+pub fn nika_tui::session::feed::Feed::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::session::feed::Feed where T: 'static + ?core::marker::Sized
+pub fn nika_tui::session::feed::Feed::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::session::feed::Feed where T: ?core::marker::Sized
+pub fn nika_tui::session::feed::Feed::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::session::feed::Feed where T: ?core::marker::Sized
+pub fn nika_tui::session::feed::Feed::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::session::feed::Feed where T: core::clone::Clone
+pub unsafe fn nika_tui::session::feed::Feed::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::session::feed::Feed
+pub fn nika_tui::session::feed::Feed::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::session::feed::Feed where T: core::clone::Clone
+pub fn nika_tui::session::feed::Feed::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::session::feed::Feed
+impl<T> nika_error::traits::AsAny for nika_tui::session::feed::Feed where T: 'static
+pub fn nika_tui::session::feed::Feed::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::session::feed::Feed where T: ?core::marker::Sized
+pub fn nika_tui::session::feed::Feed::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::session::feed::Feed::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::session::feed::Feed
+impl<T> tracing::instrument::WithSubscriber for nika_tui::session::feed::Feed
+impl<T> typenum::type_operators::Same for nika_tui::session::feed::Feed
+pub type nika_tui::session::feed::Feed::Output = T
+pub struct nika_tui::session::feed::Gap
+impl nika_tui::session::feed::Gap
+pub fn nika_tui::session::feed::Gap::dropped(&self) -> usize
+pub fn nika_tui::session::feed::Gap::unread(&self) -> usize
+impl core::default::Default for nika_tui::session::feed::Gap
+pub fn nika_tui::session::feed::Gap::default() -> nika_tui::session::feed::Gap
+impl core::fmt::Debug for nika_tui::session::feed::Gap
+pub fn nika_tui::session::feed::Gap::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_tui::session::feed::Gap
+impl<T, U> core::convert::Into<U> for nika_tui::session::feed::Gap where U: core::convert::From<T>
+pub fn nika_tui::session::feed::Gap::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::session::feed::Gap where U: core::convert::Into<T>
+pub type nika_tui::session::feed::Gap::Error = core::convert::Infallible
+pub fn nika_tui::session::feed::Gap::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::session::feed::Gap where U: core::convert::TryFrom<T>
+pub type nika_tui::session::feed::Gap::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::session::feed::Gap::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_tui::session::feed::Gap where T: 'static + ?core::marker::Sized
+pub fn nika_tui::session::feed::Gap::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::session::feed::Gap where T: ?core::marker::Sized
+pub fn nika_tui::session::feed::Gap::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::session::feed::Gap where T: ?core::marker::Sized
+pub fn nika_tui::session::feed::Gap::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_tui::session::feed::Gap
+pub fn nika_tui::session::feed::Gap::from(t: T) -> T
+impl<T> either::into_either::IntoEither for nika_tui::session::feed::Gap
+impl<T> nika_error::traits::AsAny for nika_tui::session::feed::Gap where T: 'static
+pub fn nika_tui::session::feed::Gap::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::session::feed::Gap where T: ?core::marker::Sized
+pub fn nika_tui::session::feed::Gap::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::session::feed::Gap::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::session::feed::Gap
+impl<T> tracing::instrument::WithSubscriber for nika_tui::session::feed::Gap
+impl<T> typenum::type_operators::Same for nika_tui::session::feed::Gap
+pub type nika_tui::session::feed::Gap::Output = T
+impl<T> zvariant::optional::NoneValue for nika_tui::session::feed::Gap where T: core::default::Default
+pub type nika_tui::session::feed::Gap::NoneType = T
+pub fn nika_tui::session::feed::Gap::null_value() -> T
+pub struct nika_tui::session::feed::Seen
+impl nika_tui::session::feed::Seen
+pub fn nika_tui::session::feed::Seen::new(tx: std::sync::mpsc::SyncSender<nika_tui::session::feed::Observed>, gap: alloc::sync::Arc<nika_tui::session::feed::Gap>) -> Self
+impl core::clone::Clone for nika_tui::session::feed::Seen
+pub fn nika_tui::session::feed::Seen::clone(&self) -> nika_tui::session::feed::Seen
+impl core::fmt::Debug for nika_tui::session::feed::Seen
+pub fn nika_tui::session::feed::Seen::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_tui::session::feed::Seen
+impl<T, U> core::convert::Into<U> for nika_tui::session::feed::Seen where U: core::convert::From<T>
+pub fn nika_tui::session::feed::Seen::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::session::feed::Seen where U: core::convert::Into<T>
+pub type nika_tui::session::feed::Seen::Error = core::convert::Infallible
+pub fn nika_tui::session::feed::Seen::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::session::feed::Seen where U: core::convert::TryFrom<T>
+pub type nika_tui::session::feed::Seen::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::session::feed::Seen::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::session::feed::Seen where T: core::clone::Clone
+pub type nika_tui::session::feed::Seen::Owned = T
+pub fn nika_tui::session::feed::Seen::clone_into(&self, target: &mut T)
+pub fn nika_tui::session::feed::Seen::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::session::feed::Seen where T: 'static + ?core::marker::Sized
+pub fn nika_tui::session::feed::Seen::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::session::feed::Seen where T: ?core::marker::Sized
+pub fn nika_tui::session::feed::Seen::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::session::feed::Seen where T: ?core::marker::Sized
+pub fn nika_tui::session::feed::Seen::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::session::feed::Seen where T: core::clone::Clone
+pub unsafe fn nika_tui::session::feed::Seen::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::session::feed::Seen
+pub fn nika_tui::session::feed::Seen::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::session::feed::Seen where T: core::clone::Clone
+pub fn nika_tui::session::feed::Seen::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::session::feed::Seen
+impl<T> nika_error::traits::AsAny for nika_tui::session::feed::Seen where T: 'static
+pub fn nika_tui::session::feed::Seen::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::session::feed::Seen where T: ?core::marker::Sized
+pub fn nika_tui::session::feed::Seen::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::session::feed::Seen::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::session::feed::Seen
+impl<T> tracing::instrument::WithSubscriber for nika_tui::session::feed::Seen
+impl<T> typenum::type_operators::Same for nika_tui::session::feed::Seen
+pub type nika_tui::session::feed::Seen::Output = T
+pub const nika_tui::session::feed::QUEUE: usize
 #[non_exhaustive] pub enum nika_tui::session::Work
 pub nika_tui::session::Work::Resume
 pub nika_tui::session::Work::Resume::answer: alloc::string::String
 pub nika_tui::session::Work::Resume::trace: std::path::PathBuf
 pub nika_tui::session::Work::Resume::workflow: std::path::PathBuf
-pub nika_tui::session::Work::Run(nika_session::change::RunRequest)
+pub nika_tui::session::Work::Run(nika_session_change::change::RunRequest)
 impl core::clone::Clone for nika_tui::session::Work
 pub fn nika_tui::session::Work::clone(&self) -> nika_tui::session::Work
 impl core::fmt::Debug for nika_tui::session::Work
@@ -1059,20 +1471,32 @@ pub struct nika_tui::session::Live
 impl nika_tui::session::Live
 pub fn nika_tui::session::Live::new(cwd: std::path::PathBuf, census: nika_session::intelligence::IntelligenceCensus, kept: core::option::Option<nika_session::intelligence::UserIntelligencePreference>, home: core::option::Option<std::path::PathBuf>, factory: nika_session::runtime::ReasonerFactory, runners: nika_tui::session::Runners) -> Self
 pub fn nika_tui::session::Live::with_cost_host_evidence(self, evidence: nika_providers::admission::review::CostHostEvidence) -> Self
+pub fn nika_tui::session::Live::with_jq_helper(self, helper: nika_service_execution::rehearsal::isolated_jq::JqHelper) -> Self
 pub fn nika_tui::session::Live::with_run_review(self, runner: nika_tui::session::RunReviewed) -> Self
+pub fn nika_tui::session::Live::with_run_review_observed(self, runner: nika_tui::session::RunReviewedObserved) -> Self
+pub fn nika_tui::session::Live::with_run_tapped_observed(self, runner: nika_tui::session::RunTappedObserved) -> Self
 impl core::fmt::Debug for nika_tui::session::Live
 pub fn nika_tui::session::Live::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl nika_tui::model::Conversation for nika_tui::session::Live
+pub fn nika_tui::session::Live::adopt(&mut self, execution: &nika_types::id::ExecutionId, proven: &nika_tui::session::acquire::Proven) -> bool
 pub fn nika_tui::session::Live::busy_label(&self, line: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_tui::session::Live::cancel_pending(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
+pub fn nika_tui::session::Live::candidate(&self) -> core::option::Option<nika_tui::workspace::candidate::Proposed>
+pub fn nika_tui::session::Live::child(&mut self, execution: &nika_types::id::ExecutionId, task: &str, relation: &nika_display::run_story::ChildRun) -> core::option::Option<nika_tui::session::acquire::ChildRead>
 pub fn nika_tui::session::Live::commands(&self) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_tui::session::Live::fetch(&mut self, execution: &nika_types::id::ExecutionId, path: &str) -> core::option::Option<nika_tui::session::acquire::Fetched>
 pub fn nika_tui::session::Live::fresh_input_required(&self) -> bool
 pub fn nika_tui::session::Live::inspect(&mut self, path: &str) -> core::option::Option<nika_tui::workspace::inspect::Inspected>
+pub fn nika_tui::session::Live::kept_run(&self) -> core::option::Option<core::result::Result<nika_trace::run_view::kept::KeptRun, alloc::string::String>>
 pub fn nika_tui::session::Live::open(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::session::Live::perform(&mut self, handoff: &nika_tui::model::Handoff) -> alloc::vec::Vec<nika_tui::model::Beat>
 pub fn nika_tui::session::Live::project(&self) -> core::option::Option<nika_tui::workspace::project::ProjectView>
+pub fn nika_tui::session::Live::prove(&mut self, execution: &nika_types::id::ExecutionId) -> core::option::Option<nika_tui::session::acquire::Proven>
+pub fn nika_tui::session::Live::stopper(&mut self) -> core::option::Option<nika_tui::model::Stopper>
 pub fn nika_tui::session::Live::submit(&mut self, line: &str) -> nika_tui::model::Turn
+pub fn nika_tui::session::Live::submit_observed(&mut self, line: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>, seen: &nika_tui::session::feed::Seen) -> nika_tui::model::Turn
 pub fn nika_tui::session::Live::submit_with(&mut self, line: &str, busy: &std::sync::mpsc::Sender<alloc::string::String>) -> nika_tui::model::Turn
+pub fn nika_tui::session::Live::withdraw_stopped(&mut self) -> alloc::vec::Vec<nika_tui::model::Beat>
 impl<D> owo_colors::OwoColorize for nika_tui::session::Live
 impl<T, U> core::convert::Into<U> for nika_tui::session::Live where U: core::convert::From<T>
 pub fn nika_tui::session::Live::into(self) -> U
@@ -1133,11 +1557,13 @@ impl<T> tracing::instrument::Instrument for nika_tui::session::Runners
 impl<T> tracing::instrument::WithSubscriber for nika_tui::session::Runners
 impl<T> typenum::type_operators::Same for nika_tui::session::Runners
 pub type nika_tui::session::Runners::Output = T
-pub type nika_tui::session::RunOnce = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &nika_session::change::RunRequest) -> nika_tui::session::RunOutcome + core::marker::Send)>
+pub type nika_tui::session::RunOnce = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &nika_session_change::change::RunRequest) -> nika_tui::session::RunOutcome + core::marker::Send)>
 pub type nika_tui::session::RunOutcome = (u8, core::option::Option<std::path::PathBuf>)
 pub type nika_tui::session::RunResume = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &std::path::Path, &std::path::Path, &str) -> nika_tui::session::RunOutcome + core::marker::Send)>
-pub type nika_tui::session::RunReviewed = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &nika_session::change::RunRequest, &std::sync::mpsc::Sender<alloc::string::String>) -> nika_cli_host::lane::review::RunProgress + core::marker::Send)>
+pub type nika_tui::session::RunReviewed = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &nika_session_change::change::RunRequest, &std::sync::mpsc::Sender<alloc::string::String>) -> nika_cli_host::lane::review::RunProgress + core::marker::Send)>
+pub type nika_tui::session::RunReviewedObserved = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &nika_session_change::change::RunRequest, &dyn nika_display::run_story::RunSink) -> nika_cli_host::lane::review::RunProgress + core::marker::Send)>
 pub type nika_tui::session::RunTapped = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &nika_tui::session::Work, &std::sync::mpsc::Sender<alloc::string::String>) -> (u8, core::option::Option<std::path::PathBuf>, alloc::vec::Vec<alloc::string::String>) + core::marker::Send)>
+pub type nika_tui::session::RunTappedObserved = alloc::boxed::Box<(dyn core::ops::function::Fn(&std::path::Path, &nika_tui::session::Work, &dyn nika_display::run_story::RunSink) -> (u8, core::option::Option<std::path::PathBuf>, alloc::vec::Vec<alloc::string::String>) + core::marker::Send)>
 pub mod nika_tui::terminal
 #[non_exhaustive] pub enum nika_tui::terminal::NotATerminal
 pub nika_tui::terminal::NotATerminal::Dumb
@@ -1627,15 +2053,72 @@ impl<T> typenum::type_operators::Same for nika_tui::workspace::aside::Entry
 pub type nika_tui::workspace::aside::Entry::Output = T
 pub fn nika_tui::workspace::aside::lines(aside: &nika_tui::workspace::aside::Aside, width: u16, height: u16, ascii: bool, color: bool) -> alloc::vec::Vec<ratatui_core::text::line::Line<'static>>
 pub fn nika_tui::workspace::aside::lines_selecting(aside: &nika_tui::workspace::aside::Aside, width: u16, height: u16, ascii: bool, color: bool, selected: core::option::Option<usize>) -> alloc::vec::Vec<ratatui_core::text::line::Line<'static>>
+pub mod nika_tui::workspace::candidate
+#[non_exhaustive] pub struct nika_tui::workspace::candidate::Proposed
+impl nika_tui::workspace::candidate::Proposed
+pub fn nika_tui::workspace::candidate::Proposed::aside(&self) -> bool
+pub fn nika_tui::workspace::candidate::Proposed::face_lines(&self, face: nika_tui_view::workflow::Face, width: u16, ascii: bool, color: bool) -> (ratatui_core::text::line::Line<'static>, alloc::vec::Vec<ratatui_core::text::line::Line<'static>>)
+pub fn nika_tui::workspace::candidate::Proposed::id(&self) -> &nika_session_change::outcome::ProposalId
+pub fn nika_tui::workspace::candidate::Proposed::label(&self) -> alloc::string::String
+pub fn nika_tui::workspace::candidate::Proposed::path(&self) -> &str
+pub fn nika_tui::workspace::candidate::Proposed::witness(&self) -> core::option::Option<&str>
+impl core::clone::Clone for nika_tui::workspace::candidate::Proposed
+pub fn nika_tui::workspace::candidate::Proposed::clone(&self) -> nika_tui::workspace::candidate::Proposed
+impl core::cmp::Eq for nika_tui::workspace::candidate::Proposed
+impl core::cmp::PartialEq for nika_tui::workspace::candidate::Proposed
+pub fn nika_tui::workspace::candidate::Proposed::eq(&self, other: &Self) -> bool
+impl core::fmt::Debug for nika_tui::workspace::candidate::Proposed
+pub fn nika_tui::workspace::candidate::Proposed::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_tui::workspace::candidate::Proposed
+impl<Q, K> equivalent::Equivalent<K> for nika_tui::workspace::candidate::Proposed where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::candidate::Proposed::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui::workspace::candidate::Proposed where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::candidate::Proposed::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui::workspace::candidate::Proposed where U: core::convert::From<T>
+pub fn nika_tui::workspace::candidate::Proposed::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::workspace::candidate::Proposed where U: core::convert::Into<T>
+pub type nika_tui::workspace::candidate::Proposed::Error = core::convert::Infallible
+pub fn nika_tui::workspace::candidate::Proposed::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::workspace::candidate::Proposed where U: core::convert::TryFrom<T>
+pub type nika_tui::workspace::candidate::Proposed::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::workspace::candidate::Proposed::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::workspace::candidate::Proposed where T: core::clone::Clone
+pub type nika_tui::workspace::candidate::Proposed::Owned = T
+pub fn nika_tui::workspace::candidate::Proposed::clone_into(&self, target: &mut T)
+pub fn nika_tui::workspace::candidate::Proposed::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::workspace::candidate::Proposed where T: 'static + ?core::marker::Sized
+pub fn nika_tui::workspace::candidate::Proposed::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::workspace::candidate::Proposed where T: ?core::marker::Sized
+pub fn nika_tui::workspace::candidate::Proposed::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::workspace::candidate::Proposed where T: ?core::marker::Sized
+pub fn nika_tui::workspace::candidate::Proposed::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::workspace::candidate::Proposed where T: core::clone::Clone
+pub unsafe fn nika_tui::workspace::candidate::Proposed::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::workspace::candidate::Proposed
+pub fn nika_tui::workspace::candidate::Proposed::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::workspace::candidate::Proposed where T: core::clone::Clone
+pub fn nika_tui::workspace::candidate::Proposed::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::workspace::candidate::Proposed
+impl<T> nika_error::traits::AsAny for nika_tui::workspace::candidate::Proposed where T: 'static
+pub fn nika_tui::workspace::candidate::Proposed::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::workspace::candidate::Proposed where T: ?core::marker::Sized
+pub fn nika_tui::workspace::candidate::Proposed::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::workspace::candidate::Proposed::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::workspace::candidate::Proposed
+impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::candidate::Proposed
+impl<T> typenum::type_operators::Same for nika_tui::workspace::candidate::Proposed
+pub type nika_tui::workspace::candidate::Proposed::Output = T
 pub mod nika_tui::workspace::conversation
 #[non_exhaustive] pub struct nika_tui::workspace::conversation::Thread
 pub nika_tui::workspace::conversation::Thread::attached: alloc::vec::Vec<alloc::string::String>
+pub nika_tui::workspace::conversation::Thread::intelligence: core::option::Option<alloc::string::String>
 pub nika_tui::workspace::conversation::Thread::name: alloc::string::String
 pub nika_tui::workspace::conversation::Thread::on_screen: core::option::Option<alloc::string::String>
 pub nika_tui::workspace::conversation::Thread::project: alloc::string::String
 impl nika_tui::workspace::conversation::Thread
 pub fn nika_tui::workspace::conversation::Thread::attaching(self, reference: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_tui::workspace::conversation::Thread::new(project: impl core::convert::Into<alloc::string::String>, name: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_tui::workspace::conversation::Thread::seated(self, intelligence: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_tui::workspace::conversation::Thread::viewing(self, object: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_tui::workspace::conversation::Thread
 pub fn nika_tui::workspace::conversation::Thread::clone(&self) -> nika_tui::workspace::conversation::Thread
@@ -2145,6 +2628,231 @@ impl<T> tracing::instrument::Instrument for nika_tui::workspace::inspect::Inspec
 impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::inspect::Inspected
 impl<T> typenum::type_operators::Same for nika_tui::workspace::inspect::Inspected
 pub type nika_tui::workspace::inspect::Inspected::Output = T
+pub mod nika_tui::workspace::live
+#[non_exhaustive] pub enum nika_tui::workspace::live::Binding
+pub nika_tui::workspace::live::Binding::Other
+pub nika_tui::workspace::live::Binding::Same
+pub nika_tui::workspace::live::Binding::Unnamed
+pub nika_tui::workspace::live::Binding::Unseen
+pub nika_tui::workspace::live::Binding::Waiting
+impl core::clone::Clone for nika_tui::workspace::live::Binding
+pub fn nika_tui::workspace::live::Binding::clone(&self) -> nika_tui::workspace::live::Binding
+impl core::cmp::Eq for nika_tui::workspace::live::Binding
+impl core::cmp::PartialEq for nika_tui::workspace::live::Binding
+pub fn nika_tui::workspace::live::Binding::eq(&self, other: &nika_tui::workspace::live::Binding) -> bool
+impl core::fmt::Debug for nika_tui::workspace::live::Binding
+pub fn nika_tui::workspace::live::Binding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_tui::workspace::live::Binding
+impl core::marker::StructuralPartialEq for nika_tui::workspace::live::Binding
+impl<D> owo_colors::OwoColorize for nika_tui::workspace::live::Binding
+impl<Q, K> equivalent::Equivalent<K> for nika_tui::workspace::live::Binding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::live::Binding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui::workspace::live::Binding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::live::Binding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui::workspace::live::Binding where U: core::convert::From<T>
+pub fn nika_tui::workspace::live::Binding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::workspace::live::Binding where U: core::convert::Into<T>
+pub type nika_tui::workspace::live::Binding::Error = core::convert::Infallible
+pub fn nika_tui::workspace::live::Binding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::workspace::live::Binding where U: core::convert::TryFrom<T>
+pub type nika_tui::workspace::live::Binding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::workspace::live::Binding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::workspace::live::Binding where T: core::clone::Clone
+pub type nika_tui::workspace::live::Binding::Owned = T
+pub fn nika_tui::workspace::live::Binding::clone_into(&self, target: &mut T)
+pub fn nika_tui::workspace::live::Binding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::workspace::live::Binding where T: 'static + ?core::marker::Sized
+pub fn nika_tui::workspace::live::Binding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::workspace::live::Binding where T: ?core::marker::Sized
+pub fn nika_tui::workspace::live::Binding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::workspace::live::Binding where T: ?core::marker::Sized
+pub fn nika_tui::workspace::live::Binding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::workspace::live::Binding where T: core::clone::Clone
+pub unsafe fn nika_tui::workspace::live::Binding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::workspace::live::Binding
+pub fn nika_tui::workspace::live::Binding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::workspace::live::Binding where T: core::clone::Clone
+pub fn nika_tui::workspace::live::Binding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::workspace::live::Binding
+impl<T> nika_error::traits::AsAny for nika_tui::workspace::live::Binding where T: 'static
+pub fn nika_tui::workspace::live::Binding::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_tui::workspace::live::Binding where T: core::marker::Copy
+pub fn nika_tui::workspace::live::Binding::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::workspace::live::Binding where T: ?core::marker::Sized
+pub fn nika_tui::workspace::live::Binding::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::workspace::live::Binding::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::workspace::live::Binding
+impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::live::Binding
+impl<T> typenum::type_operators::Same for nika_tui::workspace::live::Binding
+pub type nika_tui::workspace::live::Binding::Output = T
+#[non_exhaustive] pub enum nika_tui::workspace::live::RunFace
+pub nika_tui::workspace::live::RunFace::Files
+pub nika_tui::workspace::live::RunFace::Outputs
+pub nika_tui::workspace::live::RunFace::Proof
+pub nika_tui::workspace::live::RunFace::Run
+impl nika_tui::workspace::live::RunFace
+pub const nika_tui::workspace::live::RunFace::ALL: [Self; 4]
+pub const fn nika_tui::workspace::live::RunFace::label(self) -> &'static str
+impl core::clone::Clone for nika_tui::workspace::live::RunFace
+pub fn nika_tui::workspace::live::RunFace::clone(&self) -> nika_tui::workspace::live::RunFace
+impl core::cmp::Eq for nika_tui::workspace::live::RunFace
+impl core::cmp::PartialEq for nika_tui::workspace::live::RunFace
+pub fn nika_tui::workspace::live::RunFace::eq(&self, other: &nika_tui::workspace::live::RunFace) -> bool
+impl core::default::Default for nika_tui::workspace::live::RunFace
+pub fn nika_tui::workspace::live::RunFace::default() -> nika_tui::workspace::live::RunFace
+impl core::fmt::Debug for nika_tui::workspace::live::RunFace
+pub fn nika_tui::workspace::live::RunFace::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_tui::workspace::live::RunFace
+impl core::marker::StructuralPartialEq for nika_tui::workspace::live::RunFace
+impl<D> owo_colors::OwoColorize for nika_tui::workspace::live::RunFace
+impl<Q, K> equivalent::Equivalent<K> for nika_tui::workspace::live::RunFace where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::live::RunFace::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui::workspace::live::RunFace where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::live::RunFace::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui::workspace::live::RunFace where U: core::convert::From<T>
+pub fn nika_tui::workspace::live::RunFace::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::workspace::live::RunFace where U: core::convert::Into<T>
+pub type nika_tui::workspace::live::RunFace::Error = core::convert::Infallible
+pub fn nika_tui::workspace::live::RunFace::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::workspace::live::RunFace where U: core::convert::TryFrom<T>
+pub type nika_tui::workspace::live::RunFace::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::workspace::live::RunFace::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::workspace::live::RunFace where T: core::clone::Clone
+pub type nika_tui::workspace::live::RunFace::Owned = T
+pub fn nika_tui::workspace::live::RunFace::clone_into(&self, target: &mut T)
+pub fn nika_tui::workspace::live::RunFace::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::workspace::live::RunFace where T: 'static + ?core::marker::Sized
+pub fn nika_tui::workspace::live::RunFace::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::workspace::live::RunFace where T: ?core::marker::Sized
+pub fn nika_tui::workspace::live::RunFace::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::workspace::live::RunFace where T: ?core::marker::Sized
+pub fn nika_tui::workspace::live::RunFace::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::workspace::live::RunFace where T: core::clone::Clone
+pub unsafe fn nika_tui::workspace::live::RunFace::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::workspace::live::RunFace
+pub fn nika_tui::workspace::live::RunFace::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::workspace::live::RunFace where T: core::clone::Clone
+pub fn nika_tui::workspace::live::RunFace::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::workspace::live::RunFace
+impl<T> nika_error::traits::AsAny for nika_tui::workspace::live::RunFace where T: 'static
+pub fn nika_tui::workspace::live::RunFace::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_tui::workspace::live::RunFace where T: core::marker::Copy
+pub fn nika_tui::workspace::live::RunFace::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::workspace::live::RunFace where T: ?core::marker::Sized
+pub fn nika_tui::workspace::live::RunFace::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::workspace::live::RunFace::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::workspace::live::RunFace
+impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::live::RunFace
+impl<T> typenum::type_operators::Same for nika_tui::workspace::live::RunFace
+pub type nika_tui::workspace::live::RunFace::Output = T
+impl<T> zvariant::optional::NoneValue for nika_tui::workspace::live::RunFace where T: core::default::Default
+pub type nika_tui::workspace::live::RunFace::NoneType = T
+pub fn nika_tui::workspace::live::RunFace::null_value() -> T
+#[non_exhaustive] pub enum nika_tui::workspace::live::Want
+pub nika_tui::workspace::live::Want::Child
+pub nika_tui::workspace::live::Want::Child::relation: nika_display::run_story::ChildRun
+pub nika_tui::workspace::live::Want::Child::task: alloc::string::String
+pub nika_tui::workspace::live::Want::File(alloc::string::String)
+pub nika_tui::workspace::live::Want::Proof
+impl core::clone::Clone for nika_tui::workspace::live::Want
+pub fn nika_tui::workspace::live::Want::clone(&self) -> nika_tui::workspace::live::Want
+impl core::cmp::Eq for nika_tui::workspace::live::Want
+impl core::cmp::PartialEq for nika_tui::workspace::live::Want
+pub fn nika_tui::workspace::live::Want::eq(&self, other: &nika_tui::workspace::live::Want) -> bool
+impl core::fmt::Debug for nika_tui::workspace::live::Want
+pub fn nika_tui::workspace::live::Want::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui::workspace::live::Want
+impl<D> owo_colors::OwoColorize for nika_tui::workspace::live::Want
+impl<Q, K> equivalent::Equivalent<K> for nika_tui::workspace::live::Want where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::live::Want::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui::workspace::live::Want where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::live::Want::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui::workspace::live::Want where U: core::convert::From<T>
+pub fn nika_tui::workspace::live::Want::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::workspace::live::Want where U: core::convert::Into<T>
+pub type nika_tui::workspace::live::Want::Error = core::convert::Infallible
+pub fn nika_tui::workspace::live::Want::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::workspace::live::Want where U: core::convert::TryFrom<T>
+pub type nika_tui::workspace::live::Want::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::workspace::live::Want::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui::workspace::live::Want where T: core::clone::Clone
+pub type nika_tui::workspace::live::Want::Owned = T
+pub fn nika_tui::workspace::live::Want::clone_into(&self, target: &mut T)
+pub fn nika_tui::workspace::live::Want::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui::workspace::live::Want where T: 'static + ?core::marker::Sized
+pub fn nika_tui::workspace::live::Want::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::workspace::live::Want where T: ?core::marker::Sized
+pub fn nika_tui::workspace::live::Want::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::workspace::live::Want where T: ?core::marker::Sized
+pub fn nika_tui::workspace::live::Want::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui::workspace::live::Want where T: core::clone::Clone
+pub unsafe fn nika_tui::workspace::live::Want::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui::workspace::live::Want
+pub fn nika_tui::workspace::live::Want::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_tui::workspace::live::Want where T: core::clone::Clone
+pub fn nika_tui::workspace::live::Want::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> either::into_either::IntoEither for nika_tui::workspace::live::Want
+impl<T> nika_error::traits::AsAny for nika_tui::workspace::live::Want where T: 'static
+pub fn nika_tui::workspace::live::Want::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::workspace::live::Want where T: ?core::marker::Sized
+pub fn nika_tui::workspace::live::Want::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::workspace::live::Want::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::workspace::live::Want
+impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::live::Want
+impl<T> typenum::type_operators::Same for nika_tui::workspace::live::Want
+pub type nika_tui::workspace::live::Want::Output = T
+#[non_exhaustive] pub struct nika_tui::workspace::live::LiveRun
+impl nika_tui::workspace::live::LiveRun
+pub fn nika_tui::workspace::live::LiveRun::binding(&self) -> nika_tui::workspace::live::Binding
+pub fn nika_tui::workspace::live::LiveRun::execution(&self) -> core::option::Option<nika_types::id::ExecutionId>
+pub fn nika_tui::workspace::live::LiveRun::label(&self) -> alloc::string::String
+pub fn nika_tui::workspace::live::LiveRun::lines(&self, face: nika_tui::workspace::live::RunFace, width: u16, ascii: bool, color: bool) -> (ratatui_core::text::line::Line<'static>, alloc::vec::Vec<ratatui_core::text::line::Line<'static>>)
+pub fn nika_tui::workspace::live::LiveRun::pinned(&self, project: &str) -> nika_tui::workspace::pinned::Pinned
+pub fn nika_tui::workspace::live::LiveRun::reported(&self) -> core::option::Option<nika_event::settlement::RunState>
+pub fn nika_tui::workspace::live::LiveRun::task(&self, id: &str) -> core::option::Option<nika_display::state::TaskState>
+pub fn nika_tui::workspace::live::LiveRun::whole(&self) -> bool
+pub fn nika_tui::workspace::live::LiveRun::workflow(&self) -> &str
+impl nika_tui::workspace::live::LiveRun
+pub fn nika_tui::workspace::live::LiveRun::wants(&self, face: nika_tui::workspace::live::RunFace) -> alloc::vec::Vec<nika_tui::workspace::live::Want>
+pub fn nika_tui::workspace::live::LiveRun::written(&self) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+impl core::cmp::Eq for nika_tui::workspace::live::LiveRun
+impl core::cmp::PartialEq for nika_tui::workspace::live::LiveRun
+pub fn nika_tui::workspace::live::LiveRun::eq(&self, other: &Self) -> bool
+impl core::fmt::Debug for nika_tui::workspace::live::LiveRun
+pub fn nika_tui::workspace::live::LiveRun::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_tui::workspace::live::LiveRun
+impl<Q, K> equivalent::Equivalent<K> for nika_tui::workspace::live::LiveRun where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::live::LiveRun::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_tui::workspace::live::LiveRun where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_tui::workspace::live::LiveRun::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_tui::workspace::live::LiveRun where U: core::convert::From<T>
+pub fn nika_tui::workspace::live::LiveRun::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui::workspace::live::LiveRun where U: core::convert::Into<T>
+pub type nika_tui::workspace::live::LiveRun::Error = core::convert::Infallible
+pub fn nika_tui::workspace::live::LiveRun::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui::workspace::live::LiveRun where U: core::convert::TryFrom<T>
+pub type nika_tui::workspace::live::LiveRun::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui::workspace::live::LiveRun::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_tui::workspace::live::LiveRun where T: 'static + ?core::marker::Sized
+pub fn nika_tui::workspace::live::LiveRun::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui::workspace::live::LiveRun where T: ?core::marker::Sized
+pub fn nika_tui::workspace::live::LiveRun::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui::workspace::live::LiveRun where T: ?core::marker::Sized
+pub fn nika_tui::workspace::live::LiveRun::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_tui::workspace::live::LiveRun
+pub fn nika_tui::workspace::live::LiveRun::from(t: T) -> T
+impl<T> either::into_either::IntoEither for nika_tui::workspace::live::LiveRun
+impl<T> nika_error::traits::AsAny for nika_tui::workspace::live::LiveRun where T: 'static
+pub fn nika_tui::workspace::live::LiveRun::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_tui::workspace::live::LiveRun where T: ?core::marker::Sized
+pub fn nika_tui::workspace::live::LiveRun::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_tui::workspace::live::LiveRun::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_tui::workspace::live::LiveRun
+impl<T> tracing::instrument::WithSubscriber for nika_tui::workspace::live::LiveRun
+impl<T> typenum::type_operators::Same for nika_tui::workspace::live::LiveRun
+pub type nika_tui::workspace::live::LiveRun::Output = T
+pub const nika_tui::workspace::live::EVENTS_KEPT: usize
+pub const nika_tui::workspace::live::FILES_READ: usize
 pub mod nika_tui::workspace::object
 #[non_exhaustive] pub enum nika_tui::workspace::object::Object
 pub nika_tui::workspace::object::Object::Shown

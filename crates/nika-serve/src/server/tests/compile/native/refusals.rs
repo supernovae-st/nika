@@ -4,7 +4,8 @@
 //! Native authoring's boundary (S09 B03–B23): typed refusals that reach no seat, replays that
 //! repeat their round or refuse, provider failures as fixed reasons, the withheld value, the
 //! call budget, the slot a stopped caller keeps paying for, the pinned snapshot, the bounded
-//! store, and a seat refused before the listener binds.
+//! store, and a seat refused before the listener binds. A creation is authored under the
+//! shared default strategy: the private plan, then the sketch door.
 
 use clap::Parser as _;
 use nika_kernel::secret::Secret;
@@ -21,10 +22,10 @@ const WITHHELD: &str = "sk-withheld-S06-0123456789abcdef";
 pub(super) fn operator(seat: &Seat) -> NativeAuthoring {
     NativeAuthoring::new(SEAT, seat.providers())
         .with_max_tokens(4096)
-        // 3 + repairs (nv1b): the candidate, its repair and the judge's two whole-request
-        // questions.
-        .with_max_calls(4)
+        .with_call_timeout(Duration::from_secs(120))
+        .with_deadline(Duration::from_secs(300))
         .with_repairs(1)
+        .with_max_calls(4)
 }
 
 fn edit(fields: &Value) -> String {
@@ -86,7 +87,12 @@ fn form_refusals() -> Vec<Case> {
     let repeated = |fields: &Value, from: &str, to: &str| fresh(fields).replace(from, to);
     vec![
         malformed(fresh(&json!({"original_intent": s}))),
-        malformed(fresh(&json!({"replay_token": token}))),
+        // A judged answer round of a round this server never kept: nothing to judge.
+        (
+            fresh(&json!({"replay_token": token})),
+            409,
+            "compile_replay_unavailable",
+        ),
         malformed(fresh(&json!({"cognition": "deterministicOnly"}))),
         malformed(replay(&token, &json!({"limits": {"repairs": 0}}))),
         malformed(replay(&token.to_uppercase(), &json!({}))),
@@ -116,7 +122,6 @@ fn form_refusals() -> Vec<Case> {
 
 /// Vocabulary, bounds and rounds, each with its own typed code.
 fn typed_refusals() -> Vec<Case> {
-    let long = format!("{SENTINEL}{}", "x".repeat(4096));
     let limit = |fields: &Value| (fresh(fields), 422, "compile_limit");
     let cognition = "compile_cognition_unsupported";
     vec![
@@ -142,12 +147,6 @@ fn typed_refusals() -> Vec<Case> {
         limit(&json!({"limits": {"call_timeout_ms": 0}})),
         limit(&json!({"limits": {"call_timeout_ms": 120_001}})),
         limit(&json!({"limits": {"deadline_ms": 300_001}})),
-        limit(&json!({"intent": long})),
-        (
-            edit(&json!({"original_intent": long})),
-            422,
-            "compile_limit",
-        ),
         (
             fresh(&json!({"answers": {"intent.clarification": SENTINEL}})),
             422,
@@ -159,6 +158,27 @@ fn typed_refusals() -> Vec<Case> {
             "compile_replay_unavailable",
         ),
     ]
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_large_intent_reaches_the_native_seat_without_a_field_quota_or_truncation() {
+    let world = TestWorld::new();
+    let seat = Seat::start(vec![Reply::Text(plan_answer(DRAFT, &[]))]);
+    // Only one request is needed to observe admission and its exact bytes. The outcome may
+    // remain incomplete; this fixture does not claim the seat understood the extra context.
+    let authoring = NativeAuthoring::new(SEAT, seat.providers()).with_max_calls(1);
+    let (server, backend) = start_native(&world, compile_limits(), authoring).await;
+    let intent = format!("{INTENT}\nContext: {}", "é".repeat(3000));
+    assert!(intent.len() > 4096);
+    let response = server
+        .request(&compile_request(&fresh(&json!({"intent": intent}))))
+        .await;
+    assert_eq!(response.status, 200, "{}", response.body);
+    let bodies = seat.bodies();
+    assert_eq!(bodies.len(), 1, "{}", response.body);
+    assert_eq!(message(&bodies[0], "user"), intent);
+    assert_eq!(backend.calls(), 0, "authoring never creates a Run");
+    server.stop().await.expect("clean stop");
 }
 
 /// Caller-named authority is an unknown field, whatever the name: no host is opened.
@@ -245,10 +265,7 @@ async fn generation_two_refusals_are_typed_echo_nothing_and_reach_no_seat() {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_replay_repeats_its_round_or_refuses_and_never_buys_a_call() {
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Text(native_answer(&candidate(
-        "mock/echo",
-        false,
-    )))]);
+    let seat = Seat::start(question_round());
     let (server, _backend) = start_native(&world, compile_limits(), operator(&seat)).await;
     let first = server.request(&compile_request(&fresh(&json!({})))).await;
     assert_eq!(first.status, 200, "{}", first.body);
@@ -305,10 +322,7 @@ async fn a_replay_repeats_its_round_or_refuses_and_never_buys_a_call() {
 
     // A kept round expires on its own clock; use never renews it.
     let brief = TestWorld::new();
-    let brief_seat = Seat::start(vec![Reply::Text(native_answer(&candidate(
-        "mock/echo",
-        false,
-    )))]);
+    let brief_seat = Seat::start(question_round());
     let (short, _short_backend) = start_native(
         &brief,
         compile_limits(),
@@ -331,12 +345,13 @@ async fn a_replay_repeats_its_round_or_refuses_and_never_buys_a_call() {
         expired.json()["error"]["code"],
         "compile_replay_unavailable"
     );
+    // The kept round's three requests (plan, sketch, fill), nothing after it.
     assert_eq!(
         brief_seat.calls(),
-        1,
+        3,
         "an expired round is refused, never regenerated"
     );
-    assert_eq!(seat.calls(), 1);
+    assert_eq!(seat.calls(), 3);
     short.stop().await.expect("clean stop");
     server.stop().await.expect("clean stop");
 }
@@ -393,11 +408,9 @@ async fn provider_failures_reach_the_document_as_fixed_reasons_and_a_withheld_va
 
     // A seat that echoes the operator's credential: the whole answer is refused.
     let world = TestWorld::new();
-    let echoed = candidate(RUN_MODEL, false).replace(
-        "inventing nothing",
-        &format!("inventing nothing, signed {WITHHELD}"),
-    );
-    let seat = Seat::start(vec![Reply::Text(native_answer(&echoed))]);
+    // The plan's draft detail is what the compiler reads and the document carries.
+    let echoed = plan_answer(&format!("{DRAFT}, signed {WITHHELD}"), &[]);
+    let seat = Seat::start(vec![Reply::Text(echoed)]);
     let authoring = operator(&seat)
         .with_repairs(0)
         .with_withheld(Secret::new(WITHHELD));
@@ -418,42 +431,62 @@ async fn provider_failures_reach_the_document_as_fixed_reasons_and_a_withheld_va
 
 #[tokio::test(flavor = "multi_thread")]
 async fn explicit_repair_preferences_run_within_the_grant_and_a_caller_can_narrow_them() {
-    let broken = native_answer("nika: broken\ntasks: {}\n");
-    let fixed = native_answer(&candidate(RUN_MODEL, false));
-    // The operator's one repair: the refused candidate, the repaired one, then its judgment
-    // (native step 1) — three calls.
+    use super::authority::{findings, held_findings, judged_repair, one_repair, verify_steps};
+    let answered = json!({"answers": {"model": RUN_MODEL}});
+    // The operator's one repair under its stated grant of 32: the plan, its judgment, the
+    // request's two parts asked alone, the task the missing one points to, the repair, the
+    // repaired plan's judgment — seven calls.
     let world = TestWorld::new();
-    let seat = Seat::start(vec![
-        Reply::Text(broken.clone()),
-        Reply::Text(fixed.clone()),
-        Reply::Text(JUDGE_APPROVES.to_owned()),
-    ]);
-    let (server, _backend) = start_native(&world, compile_limits(), operator(&seat)).await;
-    let response = server.request(&compile_request(&fresh(&json!({})))).await;
+    let seat = Seat::start(judged_repair());
+    let (server, _backend) = start_native(&world, compile_limits(), one_repair(&seat)).await;
+    let response = server.request(&compile_request(&fresh(&answered))).await;
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
     assert_eq!(
-        document["provenance"]["authoring"]["calls"], 3,
+        document["provenance"]["authoring"]["calls"], 7,
         "{document:#}"
     );
     assert_eq!(document["status"], "ready", "{document:#}");
-    assert_eq!(seat.calls(), 3);
+    assert_eq!(seat.calls(), 7);
+    let account = &document["provenance"]["authoring"]["backend"]["authority"];
+    assert_eq!(account["max_calls"], 32);
+    assert_eq!(account["configured"]["worst_case"], Value::Null);
     server.stop().await.expect("clean stop");
-    // The caller narrows to zero repairs: one call, the refused candidate stays refused.
+    // The caller narrows to zero repairs: the plan and the judge's four questions. The defect
+    // the judge locates stays unrepaired, named with its reason, and the declined bytes are
+    // held: still the document's candidate, never proposed, with no record a later round would
+    // replay to the same judge.
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Text(broken), Reply::Text(fixed)]);
-    let (server, _backend) = start_native(&world, compile_limits(), operator(&seat)).await;
-    let response = server
-        .request(&compile_request(&fresh(
-            &json!({"limits": {"repairs": 0, "max_tokens": 1024}}),
-        )))
-        .await;
+    let seat = Seat::start(judged_repair());
+    let (server, _backend) = start_native(&world, compile_limits(), one_repair(&seat)).await;
+    let mut narrowed = answered;
+    narrowed["limits"] = json!({"repairs": 0, "max_tokens": 1024});
+    let response = server.request(&compile_request(&fresh(&narrowed))).await;
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
-    assert_eq!(document["provenance"]["authoring"]["calls"], 1);
-    assert_ne!(document["status"], "ready");
-    assert_eq!(seat.calls(), 1);
+    assert_eq!(document["provenance"]["authoring"]["calls"], 5);
+    assert_eq!(document["status"], "incomplete", "{document:#}");
+    assert_eq!(seat.calls(), 5);
     assert_eq!(seat.bodies()[0]["max_tokens"].as_u64(), Some(1024));
+    let account = &document["provenance"]["authoring"]["backend"]["authority"];
+    assert_eq!(account["configured"]["worst_case"], Value::Null);
+    // The core's own word on the whole request it still holds pending, the judge's defect, then
+    // the marker of the held candidate.
+    let candidate = document["candidate"].as_str().expect("the held candidate");
+    assert_eq!(
+        findings(&document),
+        held_findings(candidate, 0),
+        "{document:#}"
+    );
+    assert_eq!(
+        verify_steps(&document),
+        ["verify: not ready", "verify: doubted, not replayable"]
+    );
+    assert_eq!(document["provenance"]["plan"], Value::Null, "{document:#}");
+    assert!(
+        response.header("nika-compile-replay").is_none(),
+        "nothing kept"
+    );
     server.stop().await.expect("clean stop");
 }
 
@@ -493,10 +526,7 @@ pub(super) fn wait_entered(seat: &Seat) {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_disconnected_or_expired_native_round_holds_its_slot_until_its_work_stops() {
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Parked(native_answer(&candidate(
-        "mock/echo",
-        false,
-    )))]);
+    let seat = Seat::start(vec![Reply::Parked(plan_answer(DRAFT, &[]))]);
     let (server, _backend) = start_native(&world, one_slot(), operator(&seat)).await;
     let mut caller = tokio::net::TcpStream::connect(server.address)
         .await
@@ -528,19 +558,29 @@ async fn a_disconnected_or_expired_native_round_holds_its_slot_until_its_work_st
     assert_eq!(seat.calls(), 1, "no later repair and no retry");
     server.stop().await.expect("clean stop");
 
-    // The operator's deadline stops the work: 408, and the slot returns with it.
+    // The operator's deadline stops the work the seat holds: 408, and the slot returns with it.
+    // The deadline leaves the plan request room to reach the seat on a loaded host, and the
+    // answer is awaited once the seat holds that request, so the 408 stops work that began.
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Parked(native_answer(&candidate(
-        "mock/echo",
-        false,
-    )))]);
-    let authoring = operator(&seat).with_deadline(Duration::from_millis(400));
+    let seat = Seat::start(vec![Reply::Parked(plan_answer(DRAFT, &[]))]);
+    let deadline = Duration::from_secs(3);
+    let authoring = operator(&seat).with_deadline(deadline);
     let (server, _backend) = start_native(&world, one_slot(), authoring).await;
     let started = std::time::Instant::now();
-    let expired = server.request(&compile_request(&fresh(&json!({})))).await;
+    let address = server.address;
+    let pending =
+        tokio::spawn(
+            async move { wire_request(address, &compile_request(&fresh(&json!({})))).await },
+        );
+    tokio::task::block_in_place(|| wait_entered(&seat));
+    let expired = pending.await.expect("the round answered");
     assert_eq!(expired.status, 408, "{}", expired.body);
     assert_eq!(expired.json()["error"]["code"], "compile_deadline_exceeded");
-    assert!(started.elapsed() < Duration::from_secs(10));
+    let elapsed = started.elapsed();
+    assert!(
+        elapsed >= deadline && elapsed < Duration::from_secs(10),
+        "{elapsed:?}"
+    );
     assert!(expired.header("nika-compile-replay").is_none());
     assert!(
         admitted_again(&server).await,
@@ -571,10 +611,7 @@ async fn a_native_round_outlives_the_request_deadline_that_still_bounds_generati
         let _resumed = parked_until.recv();
     });
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Parked(native_answer(&candidate(
-        "mock/echo",
-        false,
-    )))]);
+    let seat = Seat::start(vec![Reply::Parked(plan_answer(DRAFT, &[]))]);
     let (server, _backend) = start_native_parked(&world, limits, operator(&seat), Some(park)).await;
     // Generation 1 on a native server: the request deadline as before, the slot kept.
     let hello = r#"{"compile_version":1,"mode":"create","intent":"hello"}"#;
@@ -609,10 +646,7 @@ async fn a_native_round_outlives_the_request_deadline_that_still_bounds_generati
 async fn a_snapshot_changed_after_start_is_refused_before_the_seat() {
     let world = TestWorld::new();
     let foundry = Foundry::create(&world.root.path().join("knowledge"));
-    let seat = Seat::start(vec![Reply::Text(native_answer(&candidate(
-        "mock/echo",
-        false,
-    )))]);
+    let seat = Seat::start(question_round());
     let authoring = operator(&seat).with_knowledge_release(&foundry.snapshot, foundry.identity());
     let (server, _backend) = start_native(&world, compile_limits(), authoring).await;
     let first = server.request(&compile_request(&fresh(&json!({})))).await;
@@ -646,7 +680,8 @@ async fn a_snapshot_changed_after_start_is_refused_before_the_seat() {
         .await;
     assert_eq!(moved.status, 409, "{}", moved.body);
     assert_eq!(moved.json()["error"]["code"], "compile_context_changed");
-    assert_eq!(seat.calls(), 1, "a changed context never reaches the seat");
+    // The kept round's three requests; a changed context never reaches the seat.
+    assert_eq!(seat.calls(), 3, "a changed context never reaches the seat");
     server.stop().await.expect("clean stop");
 }
 
@@ -732,13 +767,31 @@ async fn knowledge_off_on_the_operators_layer_pins_nothing_and_contradicts_a_nam
     assert_eq!(seat.calls(), 0);
 }
 
+/// Repair work has no clause-independent request estimate. Explicit ceilings seat normally;
+/// the request envelopes enforce them when work actually reaches each call.
+#[tokio::test(flavor = "multi_thread")]
+async fn repair_preferences_and_positive_request_limits_seat_without_a_fictitious_estimate() {
+    let world = TestWorld::new();
+    let seat = Seat::start(Vec::new());
+    let seat_with = || NativeAuthoring::new(SEAT, seat.providers());
+    for authoring in [
+        seat_with().with_repairs(1),
+        seat_with().with_repairs(1).with_max_calls(1),
+        seat_with().with_repairs(100).with_max_calls(31),
+        seat_with().with_repairs(0),
+        seat_with(),
+    ] {
+        let described = format!("{authoring:?}");
+        let outcome = attached(&world, authoring).await;
+        assert!(outcome.is_ok(), "{described}: {outcome:?}");
+    }
+    assert_eq!(seat.calls(), 0);
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_full_store_refuses_a_fresh_round_before_it_spends() {
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Text(native_answer(&candidate(
-        "mock/echo",
-        false,
-    )))]);
+    let seat = Seat::start(question_round());
     let authoring = operator(&seat).with_replay(1, Duration::from_secs(60));
     let (server, _backend) = start_native(&world, compile_limits(), authoring).await;
     let first = server.request(&compile_request(&fresh(&json!({})))).await;
@@ -746,7 +799,8 @@ async fn a_full_store_refuses_a_fresh_round_before_it_spends() {
     let full = server.request(&compile_request(&fresh(&json!({})))).await;
     assert_eq!(full.status, 503, "{}", full.body);
     assert_eq!(full.json()["error"]["code"], "compile_replay_capacity");
-    assert_eq!(seat.calls(), 1, "refused before any call");
+    // The kept round's three requests; the second round is refused before any call.
+    assert_eq!(seat.calls(), 3, "refused before any call");
     server.stop().await.expect("clean stop");
 }
 
@@ -769,7 +823,7 @@ async fn an_invalid_seat_refuses_the_listener_before_it_binds() {
             "bound",
         ),
         (
-            NativeAuthoring::new(SEAT, providers()).with_max_tokens(32_769),
+            NativeAuthoring::new(SEAT, providers()).with_max_calls(0),
             "bound",
         ),
         (
@@ -777,15 +831,19 @@ async fn an_invalid_seat_refuses_the_listener_before_it_binds() {
             "bound",
         ),
         (
-            NativeAuthoring::new(SEAT, providers()).with_deadline(Duration::from_secs(3601)),
-            "bound",
-        ),
-        (
-            NativeAuthoring::new(SEAT, providers()).with_repairs(6),
+            NativeAuthoring::new(SEAT, providers()).with_deadline(Duration::ZERO),
             "bound",
         ),
         (
             NativeAuthoring::new(SEAT, providers()).with_replay(0, Duration::from_secs(1)),
+            "bound",
+        ),
+        (
+            NativeAuthoring::new(SEAT, providers()).with_replay(1, Duration::ZERO),
+            "bound",
+        ),
+        (
+            NativeAuthoring::new(SEAT, providers()).with_replay(1, Duration::MAX),
             "bound",
         ),
         (
@@ -913,8 +971,8 @@ fn the_flags_seat_only_what_the_operator_names() {
         "model: \"vllm/s06-seat\"",
         "max_tokens: 1024",
         "call_timeout: 30s",
-        "deadline: 90s",
-        "repairs: 0",
+        "deadline: Some(90s)",
+        "repairs: Some(0)",
     ] {
         assert!(described.contains(part), "{described}");
     }

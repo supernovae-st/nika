@@ -18,7 +18,9 @@ pub use nika_runtime::TaskStatus
 pub use nika_runtime::TerminalCause
 pub use nika_runtime::VecSink
 pub use nika_runtime::WorkflowSecretResolver
+pub use nika_runtime::effective_workflow
 pub use nika_runtime::engine_identity
+pub use nika_runtime::floor_refusal
 pub use nika_runtime::identity
 pub use nika_runtime::input_origins
 pub use nika_runtime::legal
@@ -1197,11 +1199,10 @@ pub type nika_runtime::WorkflowPause::Output = T
 pub fn nika_runtime::access_pin_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, probes: &[nika_providers::probe::ProviderProbe], access_pin: core::option::Option<&str>, model_override: core::option::Option<&str>) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
 pub fn nika_runtime::budget_floor_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, budget: core::option::Option<f64>, model_override: core::option::Option<&str>) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
 pub fn nika_runtime::budget_floor_refusal_bound(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, budget: core::option::Option<f64>, model_override: core::option::Option<&str>, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, seated_on_harness: bool) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
+pub fn nika_runtime::budget_floor_refusal_bound_over(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, budget: core::option::Option<f64>, model_override: core::option::Option<&str>, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, seated_on_harness: bool, probes: &[nika_providers::probe::ProviderProbe]) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
 pub fn nika_runtime::budget_floor_refusal_seated(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, budget: core::option::Option<f64>, model_override: core::option::Option<&str>, seated_on_harness: bool) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
 pub fn nika_runtime::capabilities_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_runtime::compose::RuntimeCapabilities
-pub fn nika_runtime::effective_workflow(wf: &nika_schema::raw::workflow::RawWorkflow, model_override: core::option::Option<&str>, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::option::Option<nika_schema::raw::workflow::RawWorkflow>
 pub fn nika_runtime::first_modelless_task(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<&str>
-pub fn nika_runtime::floor_refusal(floor: f64, budget: f64) -> core::option::Option<alloc::string::String>
 pub fn nika_runtime::modelless_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, plan: &nika_providers::plan::ExecutionAccessPlan) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
 pub fn nika_runtime::plan_refusal(plan: &nika_providers::plan::ExecutionAccessPlan) -> core::option::Option<nika_runtime_laws::errors::RuntimeError>
 pub fn nika_runtime::production_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_runtime_laws::sandbox_select::ComposeError>

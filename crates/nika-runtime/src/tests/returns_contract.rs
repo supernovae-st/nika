@@ -369,3 +369,98 @@ async fn text_only_tool_result_is_checked_as_text() -> TestResult {
     }
     Ok(())
 }
+
+/// The workflow `outputs:` map the terminal frame records, parsed: `None`
+/// when the frame carries no `outputs` field.
+fn recorded_outputs(terminal: &Event) -> TestResult<Option<Value>> {
+    text(terminal, "outputs")
+        .map(|json| serde_json::from_str(json).map_err(|error| error.to_string()))
+        .transpose()
+}
+
+/// The terminal frame records the map `RunOutcome` returns, by the
+/// workflow's own output name (`value`, never the task's), as one compact
+/// JSON object: present keys, nulls and the empty string kept as they are.
+#[tokio::test]
+async fn the_terminal_frame_records_the_resolved_outputs_map() -> TestResult {
+    for value in [
+        json!({"x": null}),
+        json!(17),
+        json!(""),
+        json!({"nested": [1, "é\"\n"]}),
+    ] {
+        let (outcome, sink, _) = run(&workflow(&value, None, ""), builtins()).await?;
+        assert_success(&outcome, &sink, &value)?;
+        let terminal = frame(&sink, EventKind::WorkflowCompleted);
+        let map = serde_json::to_value(&outcome.outputs).map_err(|error| error.to_string())?;
+        assert_eq!(recorded_outputs(terminal)?, Some(map), "{value}");
+    }
+    Ok(())
+}
+
+/// A run that fails keeps its verdict; the map it really resolved (the
+/// failed task's defined null) is recorded, not invented and not a success.
+#[tokio::test]
+async fn a_failed_run_records_its_partial_map_and_stays_failed() -> TestResult {
+    let (outcome, sink, _) = run(
+        &workflow(&json!({"x": 17}), Some(OPTIONAL_STRING), ""),
+        builtins(),
+    )
+    .await?;
+    assert_rejected(&outcome, &sink)?;
+    let terminal = frame(&sink, EventKind::WorkflowFailed);
+    assert_eq!(recorded_outputs(terminal)?, Some(json!({"value": null})));
+    Ok(())
+}
+
+/// A workflow declaring no `outputs:` records the empty map it resolved;
+/// a map at the cap is kept whole, one byte past it only its exact size.
+#[tokio::test]
+async fn an_empty_map_and_the_cap_are_recorded_exactly() -> TestResult {
+    let bare = "nika: no-outputs\nmodel: mock/echo\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  probe:\n    invoke:\n      tool: \"nika:jq\"\n      args: { input: 1, expression: \".\" }\n";
+    let (outcome, sink, _) = run(bare, builtins()).await?;
+    assert!(outcome.outputs.is_empty());
+    let terminal = frame(&sink, EventKind::WorkflowCompleted);
+    assert_eq!(recorded_outputs(terminal)?, Some(json!({})));
+    let cap = nika_event::settlement::OUTPUTS_KEPT;
+    // `{"value":"<n x>"}` is twelve bytes plus n.
+    let (outcome, sink, _) = run(
+        &workflow(&json!("x".repeat(cap - 12)), None, ""),
+        builtins(),
+    )
+    .await?;
+    let terminal = frame(&sink, EventKind::WorkflowCompleted);
+    let map = serde_json::to_value(&outcome.outputs).map_err(|error| error.to_string())?;
+    assert_eq!(recorded_outputs(terminal)?, Some(map));
+    let (_, sink, _) = run(
+        &workflow(&json!("x".repeat(cap - 11)), None, ""),
+        builtins(),
+    )
+    .await?;
+    let terminal = frame(&sink, EventKind::WorkflowCompleted);
+    assert_eq!(recorded_outputs(terminal)?, None, "no payload past the cap");
+    let size = i64::try_from(cap + 1).map_err(|error| error.to_string())?;
+    assert_eq!(
+        field(terminal, "outputs_bytes"),
+        Some(&FieldValue::Int(size))
+    );
+    Ok(())
+}
+
+/// A typed output that breaks its contract still fails the run with
+/// NIKA-VAR-009 / `OutputContract`; the observed map is recorded beside it.
+#[tokio::test]
+async fn an_output_contract_failure_stays_failed_with_its_map() -> TestResult {
+    let yaml = "nika: typed-outputs\nmodel: mock/echo\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  probe:\n    invoke:\n      tool: \"nika:jq\"\n      args: { input: \"17\", expression: \".\" }\noutputs:\n  value: { value: \"${{ tasks.probe.output }}\", type: integer }\n";
+    let (outcome, sink, _) = run(yaml, builtins()).await?;
+    assert!(!outcome.ok);
+    assert_eq!(outcome.settlement.state, RunState::Failed);
+    assert_eq!(
+        outcome.settlement.cause,
+        nika_event::settlement::RunCause::OutputContract
+    );
+    let terminal = frame(&sink, EventKind::WorkflowFailed);
+    assert_eq!(recorded_outputs(terminal)?, Some(json!({"value": "17"})));
+    assert!(text(terminal, "detail").is_some_and(|d| d.contains("NIKA-VAR-009")));
+    Ok(())
+}

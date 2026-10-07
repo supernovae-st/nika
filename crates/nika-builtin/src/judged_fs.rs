@@ -195,6 +195,27 @@ impl PinError {
     }
 }
 
+impl<F: FsReadDyn + FsWriteDyn> JudgedFs<'_, F> {
+    /// The judged regular removal (builtins-v0.1.md `§nika:remove_file`): the
+    /// WRITE boundary re-judged at removal time, UNWITNESSED (the dispatch
+    /// guard witnessed this op's one decision), then the backend's own
+    /// regular-only removal, never the raw `remove_file`.
+    ///
+    /// Two layers so a late refusal keeps its kind: the OUTER error is the
+    /// authority refusal itself (`NIKA-SEC-004`, never flattened into an
+    /// `FsError` the caller would report as the tool's own failure), the
+    /// INNER result is the permitted operation's outcome.
+    pub(crate) async fn remove_regular(
+        &self,
+        path: &Path,
+    ) -> Result<Result<(), FsError>, BuiltinFailure> {
+        self.boundary
+            .enforce_unwitnessed(self.inner, &path.to_string_lossy(), FsAccess::Write)
+            .await?;
+        Ok(self.inner.remove_regular_file(path).await)
+    }
+}
+
 impl<F: FsReadDyn> FsReadDyn for JudgedFs<'_, F> {
     async fn read(&self, path: &Path) -> Result<Bytes, FsError> {
         self.read_bytes(path).await
@@ -230,6 +251,13 @@ impl<F: FsWriteDyn> FsWriteDyn for JudgedFs<'_, F> {
 
     async fn remove_file(&self, path: &Path) -> Result<(), FsError> {
         self.inner.remove_file(path).await
+    }
+
+    /// Forwarded VERBATIM so a wrapped backend's regular-only removal is
+    /// reached, never the refusing default. The callable goes through
+    /// [`JudgedFs::remove_regular`], which re-judges the write boundary first.
+    async fn remove_regular_file(&self, path: &Path) -> Result<(), FsError> {
+        self.inner.remove_regular_file(path).await
     }
 }
 

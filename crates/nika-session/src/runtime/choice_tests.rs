@@ -32,6 +32,7 @@ fn an_unchosen_session_asks_in_context_and_resumes_the_waiting_line() {
         }],
         api_keys: vec![],
         locals: vec![],
+        provider_context: Vec::new(),
     };
     let factory: ReasonerFactory = Box::new(|resolved| match &resolved.kind {
         IntelligenceKind::None => Box::new(NoReasoner),
@@ -97,6 +98,93 @@ fn an_unchosen_session_asks_in_context_and_resumes_the_waiting_line() {
     assert!(UserIntelligencePreference::load(home.path()).is_some());
     // Chosen, the session never asks again on its own.
     assert!(matches!(s.turn(SMALL_TALK), TurnOutcome::Reply(_)));
+}
+
+/// The app category keeps both the pending request and the old choice until an app is named:
+/// `1` alone is asked again as a question (never an execution failure), while an app named
+/// explicitly that cannot answer here is still refused.
+#[test]
+fn an_ambiguous_app_choice_waits_without_saving_or_resuming() {
+    let dir = tree();
+    let home = tempfile::tempdir().expect("home");
+    let census = IntelligenceCensus {
+        seats: ["copilot", "claude-code", "gemini-cli"]
+            .map(|id| crate::intelligence::SeatSeen {
+                id: id.to_owned(),
+                product_present: true,
+                configured: id != "copilot",
+                answers_here: id != "gemini-cli",
+            })
+            .to_vec(),
+        api_keys: vec![],
+        locals: vec![],
+        provider_context: Vec::new(),
+    };
+    let selections = Arc::new(AtomicUsize::new(0));
+    let selected = Arc::clone(&selections);
+    let factory: ReasonerFactory = Box::new(move |resolved| {
+        if matches!(resolved.kind, IntelligenceKind::None) {
+            return Box::new(NoReasoner);
+        }
+        assert_eq!(
+            resolved.kind,
+            IntelligenceKind::Harness {
+                seat: "claude-code".into(),
+                transport: nika_types::access::HarnessTransport::Native,
+            }
+        );
+        assert_eq!(resolved.model.as_deref(), Some("claude-code/opus[1m]"));
+        selected.fetch_add(1, Ordering::SeqCst);
+        Box::new(ScriptedReasoner::new(vec!["seated".to_owned()]))
+    });
+    let mut s = SessionRuntime::open_unchosen(dir.path(), census, Some(home.path()), factory);
+    assert!(matches!(s.turn(SMALL_TALK), TurnOutcome::Ask(_)));
+    let unchosen = s.status();
+    for typed in ["1", " 1 "] {
+        let TurnOutcome::Ask(question) = s.choose(typed) else {
+            panic!("`{typed}` alone asks which app instead of refusing");
+        };
+        assert!(
+            question.starts_with("Which app should answer?")
+                && question.contains("1 <app>")
+                && question.contains("claude-code (sign-in seen) · copilot (no sign-in seen)"),
+            "{question}"
+        );
+        assert!(s.pending_choice() && !s.intelligence_chosen());
+        assert_eq!(s.interrupted.as_deref(), Some(SMALL_TALK));
+        assert_eq!(s.status(), unchosen, "intelligence and model untouched");
+    }
+    let TurnOutcome::Refusal(refused) = s.choose("1 gemini-cli") else {
+        panic!("an app named explicitly that cannot answer here is refused");
+    };
+    assert_eq!(refused.class, RefusalClass::IntelligenceRefused);
+    assert!(
+        refused.text.contains("cannot get an answer through it"),
+        "{}",
+        refused.text
+    );
+    assert_eq!(s.interrupted.as_deref(), Some(SMALL_TALK));
+    assert_eq!(selections.load(Ordering::SeqCst), 0);
+    assert!(UserIntelligencePreference::load(home.path()).is_none());
+    let TurnOutcome::Resumed { outcome, .. } = s.choose("1 claude-code/opus[1m]") else {
+        panic!("explicit app resumes the pending request");
+    };
+    assert!(matches!(*outcome, TurnOutcome::Reply(ref t) if t.contains("seated")));
+    assert_eq!(selections.load(Ordering::SeqCst), 1);
+    let kept = UserIntelligencePreference::load(home.path()).expect("named choice kept");
+    assert!(matches!(s.turn("/intelligence"), TurnOutcome::Ask(_)));
+    let seated = s.status();
+    assert!(matches!(s.choose("1"), TurnOutcome::Ask(_)));
+    assert_eq!(s.status(), seated, "the kept app and model stand");
+    assert_eq!(
+        UserIntelligencePreference::load(home.path()),
+        Some(kept.clone())
+    );
+    assert!(s.pending_choice());
+    assert!(matches!(s.choose("cancel"), TurnOutcome::Facts(_)));
+    assert!(!s.pending_choice());
+    assert_eq!(UserIntelligencePreference::load(home.path()), Some(kept));
+    assert_eq!(selections.load(Ordering::SeqCst), 1);
 }
 
 /// Choosing « no AI » in context resumes the line too: the honest refusal
@@ -321,10 +409,12 @@ fn a_kept_choice_that_cannot_answer_asks_in_context_and_resumes_the_line() {
         }],
         api_keys: vec!["mistral".to_owned()],
         locals: vec!["ollama".into()],
+        provider_context: Vec::new(),
     };
     let pref = UserIntelligencePreference::new(
         IntelligenceKind::Harness {
             seat: "gemini-cli".to_owned(),
+            transport: nika_types::access::HarnessTransport::Native,
         },
         None,
     );
@@ -398,6 +488,7 @@ fn unsettled_work_under_a_kept_unusable_choice_asks_in_context() {
     let pref = UserIntelligencePreference::new(
         IntelligenceKind::Harness {
             seat: "gemini-cli".to_owned(),
+            transport: nika_types::access::HarnessTransport::Native,
         },
         None,
     );
@@ -412,6 +503,7 @@ fn unsettled_work_under_a_kept_unusable_choice_asks_in_context() {
             }],
             api_keys: vec![],
             locals: vec![],
+            provider_context: Vec::new(),
         },
         &pref,
         None,
@@ -533,6 +625,7 @@ fn the_intelligence_can_be_rechosen_in_session() {
         }],
         api_keys: vec![],
         locals: vec![],
+        provider_context: Vec::new(),
     };
     let pref = UserIntelligencePreference::new(IntelligenceKind::None, None);
     let factory: ReasonerFactory = Box::new(|resolved| match &resolved.kind {
@@ -544,7 +637,16 @@ fn the_intelligence_can_be_rechosen_in_session() {
     let TurnOutcome::Ask(screen) = s.turn("/intelligence") else {
         panic!("asks");
     };
-    assert!(screen.contains("Choose which AI"), "{screen}");
+    for words in [
+        "Choose a connection",
+        "agent account",
+        "API",
+        "local model",
+        "no AI",
+        "/intelligence",
+    ] {
+        assert!(screen.contains(words), "{screen}");
+    }
     assert!(
         matches!(s.choose("2"), TurnOutcome::Refusal(ref r) if r.text.contains("previous choice stands"))
     );
@@ -568,7 +670,8 @@ fn the_intelligence_can_be_rechosen_in_session() {
     assert_eq!(
         back.kind,
         IntelligenceKind::Harness {
-            seat: "codex".to_owned()
+            seat: "codex".to_owned(),
+            transport: nika_types::access::HarnessTransport::Native,
         }
     );
 }
@@ -582,6 +685,7 @@ fn an_unserved_choice_refuses_with_its_fix() {
     let unserved = ResolvedSessionIntelligence {
         kind: IntelligenceKind::Harness {
             seat: "claude-code".to_owned(),
+            transport: nika_types::access::HarnessTransport::Native,
         },
         model: None,
         locus: DataLocus::Remote {
@@ -618,4 +722,88 @@ fn an_unserved_choice_refuses_with_its_fix() {
         matches!(s.turn(COPY), TurnOutcome::Proposal { .. }),
         "work compiles without the seat"
     );
+}
+
+/// A failed label before compilation must remain inspectable without exposing the seat's stderr.
+#[test]
+fn details_shows_a_failed_route_without_a_workflow_and_withholds_private_error_text() {
+    struct PrivateFailure;
+    impl crate::reasoner::SessionReasoner for PrivateFailure {
+        fn name(&self) -> String {
+            "fixture".into()
+        }
+        fn reason(
+            &mut self,
+            _: &str,
+        ) -> Result<crate::reasoner::Reply, crate::reasoner::ReasonError> {
+            Err(crate::reasoner::ReasonError::Seat("infer-grade seat `claude-code` failed: claude exited 69 · sk-private-token prompt-secret".into()))
+        }
+    }
+    let dir = tree();
+    let mut session = SessionRuntime::open(
+        dir.path(),
+        ready(IntelligenceKind::None, DataLocus::None),
+        Box::new(NoReasoner),
+    );
+    session.with_classifier(Box::new(crate::turn::ReasonerClassifier::new(Box::new(
+        PrivateFailure,
+    ))));
+    let decision = session.classify(crate::turn::SessionPhase::Idle, "my private input");
+    assert_eq!(decision.method, crate::turn::RoutingMethod::Failed);
+    assert!(session.last_outcome.is_none());
+    let TurnOutcome::Facts(details) = session.turn("/details") else {
+        panic!("local details");
+    };
+    assert!(details.contains("no workflow was read in this session yet"));
+    assert!(details.contains("routes: 1") && details.contains("Failed"));
+    assert!(details.contains("starts and is signed in"));
+    for private in ["sk-", "prompt-secret", "my private input", "exited 69"] {
+        assert!(
+            !details.contains(private),
+            "private diagnostic text must be withheld"
+        );
+    }
+    assert!(!dir.path().join(COPY_DEST).exists());
+    assert_eq!(
+        session.routes().len(),
+        1,
+        "details must not call the classifier"
+    );
+}
+
+/// A local refusal can be Failed without making even the classifier call.
+#[test]
+fn failed_before_call_is_inspectable_without_claiming_a_blank_model_answer() {
+    struct CountingClassifier(Arc<AtomicUsize>);
+    impl crate::turn::TurnClassifier for CountingClassifier {
+        fn classify(&mut self, _: &crate::turn::TurnContext, _: &str) -> crate::turn::TurnDecision {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            crate::turn::TurnDecision::new(
+                crate::turn::TurnAct::Discuss,
+                crate::turn::RoutingMethod::Model,
+            )
+        }
+    }
+    let dir = tree();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut session = SessionRuntime::open(
+        dir.path(),
+        ready(IntelligenceKind::None, DataLocus::None),
+        Box::new(NoReasoner),
+    );
+    session.with_classifier(Box::new(CountingClassifier(Arc::clone(&calls))));
+    session.set_authoring_context(crate::authoring::AuthoringContext::from_settings(
+        &nika_cli_host::compile::config::AuthoringSettings::none().with_reasoning("max"),
+        &nika_cli_host::compile::config::AuthoringSettings::none(),
+    ));
+    let decision = session.classify(crate::turn::SessionPhase::Idle, "change the destination");
+    assert_eq!(decision.method, crate::turn::RoutingMethod::Failed);
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let hint = SessionRuntime::unknown_route_text(crate::turn::SessionPhase::Idle, decision.method);
+    assert!(hint.contains("/details") && !hint.contains("blank"));
+    let details = session.details();
+    assert!(details.contains("Failed") && details.contains("refused or failed"));
+    assert!(!details.contains("answer failed") && !details.contains("model was asked"));
+    assert!(session.last_outcome.is_none());
+    assert!(!dir.path().join(COPY_DEST).exists());
 }

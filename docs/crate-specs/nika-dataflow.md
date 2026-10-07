@@ -40,6 +40,11 @@ event stream, retry/timeout, `on_error:`, the unwind lane, and every effect
 seam. This crate is asked a question and answers with a value; it never
 schedules, never emits, never waits.
 
+`TaskRecord::harness_media` carries the runtime's observed ACP image evidence
+beside the task result. It does not replace text output, enter the Outcome IR,
+or become an expression field. Receipt, storage and failure facts remain
+distinct; [runtime](nika-runtime.md) owns their settlement and storage effects.
+
 The split point is exactly that seam: everything above it answers *what does
 this value resolve to*, everything below answers *when does it run and what
 happened*.

@@ -250,6 +250,17 @@ impl KnownWorld {
     /// Read a reply: every named entity checked, every miss a finding.
     #[must_use]
     pub fn audit(&self, reply: &str) -> Vec<Finding> {
+        self.audit_over(reply, &[])
+    }
+
+    /// Audit model names against the host's effective endpoints. With no context, the
+    /// declared provider defaults remain the conservative interpretation.
+    #[must_use]
+    pub fn audit_over(
+        &self,
+        reply: &str,
+        probes: &[nika_providers::probe::ProviderProbe],
+    ) -> Vec<Finding> {
         let mut findings = Vec::new();
         let mut seen = BTreeSet::new();
         for token in tokens(reply) {
@@ -280,7 +291,7 @@ impl KnownWorld {
                 }
             } else if let Some((provider, model)) = token.split_once('/')
                 && looks_like_model(provider, model)
-                && let Some(refusal) = nika_providers::resolve_refusal(token)
+                && let Some(refusal) = nika_providers::resolve_refusal_over(token, probes)
                 && seen.insert(format!("p:{token}"))
             {
                 findings.push(Finding::Model {

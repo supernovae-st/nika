@@ -105,6 +105,9 @@ pub struct FireCtx {
     run: RunAdapter,
     /// The one shared owned-byte admission/execution boundary.
     service: ExecutionService,
+    /// Effective endpoints supplied by the host. Empty context preserves the
+    /// profile-default model law for existing embedders.
+    provider_probes: Vec<nika_providers::probe::ProviderProbe>,
 }
 
 /// A firing context could not bind its registry position to one beat.
@@ -259,6 +262,7 @@ impl FireCtx {
             wait: Box::new(os_wait),
             run,
             service: ExecutionService::default(),
+            provider_probes: Vec::new(),
         })
     }
 
@@ -273,6 +277,18 @@ impl FireCtx {
     #[must_use]
     pub fn with_execution_service(mut self, service: ExecutionService) -> Self {
         self.service = service;
+        self
+    }
+
+    /// Inject the host's effective provider endpoints for model admission.
+    /// These observations do not grant model, network or monetary authority;
+    /// the firing transaction never reads the process environment itself.
+    #[must_use]
+    pub fn with_provider_probes(
+        mut self,
+        probes: Vec<nika_providers::probe::ProviderProbe>,
+    ) -> Self {
+        self.provider_probes = probes;
         self
     }
 
@@ -1101,7 +1117,12 @@ fn admit_workflow(ctx: &FireCtx, beat: &Beat) -> std::io::Result<PinnedExecution
     let project = ctx.state.held_project()?;
     let admitted = ctx
         .service
-        .admit(&project, Path::new(&beat.workflow))
+        .admit_with_model_override_over(
+            &project,
+            Path::new(&beat.workflow),
+            None,
+            &ctx.provider_probes,
+        )
         .map_err(|error| {
             std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
@@ -1220,6 +1241,7 @@ mod tests {
             wait: Box::new(os_wait),
             run: RunAdapter::Execution(Rc::new(|_, _| RunUpshot::new(exit::OK, None))),
             service: ExecutionService::default(),
+            provider_probes: Vec::new(),
         }
     }
 

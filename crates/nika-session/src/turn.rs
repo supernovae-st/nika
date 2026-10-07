@@ -148,8 +148,8 @@ pub enum RoutingMethod {
     Model,
     /// No intelligence could judge: UNKNOWN, everything kept as is.
     Fallback,
-    /// The intelligence was asked and could not answer (a failed call, a
-    /// blank answer): UNKNOWN, everything kept as is, said as such.
+    /// Routing produced no usable label: a local refusal, a failed call, or
+    /// an unusable answer. UNKNOWN keeps everything as is.
     Failed,
 }
 
@@ -183,8 +183,8 @@ impl TurnDecision {
         }
     }
 
-    /// The intelligence was asked and could not answer: UNKNOWN, with the
-    /// failure's own words kept (bounded) for `/details` and the receipts.
+    /// No usable route: UNKNOWN, with the failure's own words kept (bounded)
+    /// internally for receipts; `/details` projects a closed diagnostic.
     #[must_use]
     pub fn failed(reason: &str) -> Self {
         let reason = reason.split_whitespace().collect::<Vec<_>>().join(" ");
@@ -384,7 +384,7 @@ impl RouteRecord {
         }
     }
 
-    /// The record's line (`/details`): the failure's words beside a FAILED route.
+    /// The record's line (`/details`): a closed diagnostic, never the raw failure text.
     #[must_use]
     pub fn line(&self) -> String {
         let mut line = format!(
@@ -393,10 +393,41 @@ impl RouteRecord {
         );
         if let Some(note) = &self.note {
             line.push_str(" · ");
-            line.push_str(note);
+            line.push_str(routing_failure_words(note));
         }
         line
     }
+}
+
+/// Notes may contain a native client's stderr. Render only closed, engine-owned words.
+/// A category is diagnostic evidence, never evidence that a model was called or billed.
+fn routing_failure_words(note: &str) -> &'static str {
+    let native_timeout = note
+        .strip_prefix("the seat could not answer: infer-grade seat `")
+        .and_then(|rest| rest.split_once("` failed: timed out after "))
+        .and_then(|(_, duration)| duration.strip_suffix(" ms"))
+        .is_some_and(|ms| !ms.is_empty() && ms.bytes().all(|c| c.is_ascii_digit()));
+    if native_timeout {
+        return "the local AI app reached its time limit; check whether it is still working before retrying";
+    }
+    if note.starts_with("no conversational intelligence") {
+        return "no intelligence is selected; choose one with `/intelligence`";
+    }
+    if note.starts_with("the paid-dispatch boundary was not recorded (")
+        || note == "selected classifier has no catalog admission seam"
+    {
+        return "routing admission was refused; review the selected intelligence and allowance before retrying";
+    }
+    if note.starts_with("the seat could not answer:") {
+        return "the local AI app could not answer; check that it starts and is signed in before retrying";
+    }
+    if note.starts_with("the provider could not answer:") {
+        return "the API or local provider refused or failed; review `/intelligence`, connection, credentials and the request time limit";
+    }
+    if note.starts_with("the session's runtime could not start:") {
+        return "the local session runtime could not start; restart Nika before retrying";
+    }
+    "routing was refused or failed; check the selected intelligence before retrying (private error text withheld)"
 }
 
 #[cfg(test)]
@@ -472,11 +503,63 @@ mod tests {
         assert!(record.line().contains("UNKNOWN") && record.note.is_none());
         let failed_record = RouteRecord::new(SessionPhase::Idle, "hello", &failed);
         assert!(
-            failed_record.line().ends_with(
-                "no conversational intelligence — the facts stay (`/intelligence` chooses a path)"
-            ),
+            failed_record
+                .line()
+                .ends_with("no intelligence is selected; choose one with `/intelligence`"),
             "{}",
             failed_record.line()
+        );
+    }
+
+    #[test]
+    fn routing_failure_projection_never_echoes_native_stderr_or_prompts() {
+        for note in [
+            "the seat could not answer: infer-grade seat `claude-code` failed: claude exited 69 · sk-private-token secret prompt",
+            "the provider could not answer: HTTP 500 https://user:password@host/private?token=secret · my prompt",
+            "the session's runtime could not start: /private/user/path token=private",
+            "unknown private diagnostic \u{1b}[2J sk-private-token",
+        ] {
+            let record = RouteRecord::new(
+                SessionPhase::Idle,
+                "private user input",
+                &TurnDecision::failed(note),
+            );
+            let visible = record.line();
+            assert!(visible.contains("Failed") && visible.contains(&record.raw_hash));
+            for secret in [
+                "sk-",
+                "secret prompt",
+                "https://",
+                "password",
+                "token=",
+                "my prompt",
+                "private user input",
+                "/private/user/path",
+                "\u{1b}",
+            ] {
+                assert!(!visible.contains(secret), "{visible}");
+            }
+        }
+    }
+
+    #[test]
+    fn only_the_owned_native_timeout_shape_is_shown_as_a_timeout() {
+        let timeout = "the seat could not answer: infer-grade seat `claude-code` failed: timed out after 180000 ms";
+        assert!(routing_failure_words(timeout).contains("reached its time limit"));
+        let stderr = "the seat could not answer: infer-grade seat `claude-code` failed: claude exited 69 · timed out after 180000 ms";
+        assert!(!routing_failure_words(stderr).contains("reached its time limit"));
+        for malformed in [
+            "timed out after secret ms",
+            "timed out after 180000 ms password=private",
+        ] {
+            let note = format!(
+                "the seat could not answer: infer-grade seat `claude-code` failed: {malformed}"
+            );
+            assert!(!routing_failure_words(&note).contains("reached its time limit"));
+        }
+        assert!(
+            routing_failure_words("selected classifier has no catalog admission seam")
+                .contains("admission was refused")
         );
     }
 

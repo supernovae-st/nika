@@ -9,6 +9,7 @@
 //! the raw kind of every sampled value, counted, never quoted. A sample is never a schema: it
 //! proves nothing about the unread rest of a file.
 
+use nika_compile_fidelity::observed::temporal_shapes;
 use serde_json::{Map, Value, json};
 
 /// The most rows a value set or a kind count is read from, and the most distinct values a column
@@ -32,7 +33,11 @@ pub struct Sample {
     /// `{"sampled": n, "keys": {key: {kind: count}}}` (with `"nonobject": n` for records that
     /// are no object): how many sampled values of each key are of each raw kind — `number`,
     /// `number_text`, `text`, `empty`, `null`, `boolean`, `array`, `object`, `absent`.
+    /// Optional `temporal` counts mask date-time digits; they prove no valid instant.
     pub kinds: Value,
+    /// The bounded nested key paths and kinds below the records' arrays and objects, with their
+    /// coverage (`nika_compile_fidelity::observed::nested`); `Value::Null` when there are none.
+    pub nested: Value,
 }
 
 /// A CSV or TSV head: its header columns and delimiter, the categorical values and the kinds of
@@ -48,6 +53,7 @@ pub fn csv(head: &str, tsv: bool) -> Sample {
         delimiter: Some(delimiter),
         values,
         kinds,
+        nested: Value::Null,
     }
 }
 
@@ -61,6 +67,7 @@ pub fn records(rows: &[Value]) -> Sample {
         delimiter: None,
         values: categorical(rows),
         kinds: record_kinds(rows),
+        nested: nika_compile_fidelity::observed::nested(rows, &kind),
     }
 }
 
@@ -74,28 +81,8 @@ pub fn jsonl(head: &str) -> Vec<Value> {
         .collect()
 }
 
-/// Whether `text` is a number the number-text law reads (`nika_compile_reader::text::
-/// NUMBER_TEXT`, the pattern the compiled jq tests): blanks around, an optional minus, `0` or
-/// digits without a leading zero, an optional fraction, an optional exponent (R4 A6), and a
-/// finite value; nothing else.
-#[must_use]
-pub fn number_text(text: &str) -> bool {
-    let body = text.trim_matches([' ', '\t']);
-    let unsigned = body.strip_prefix('-').unwrap_or(body);
-    let (mantissa, exponent) = unsigned
-        .split_once(['e', 'E'])
-        .map_or((unsigned, None), |(m, e)| (m, Some(e)));
-    let (whole, fraction) = mantissa
-        .split_once('.')
-        .map_or((mantissa, None), |(w, f)| (w, Some(f)));
-    let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
-    digits(whole)
-        && (whole == "0" || !whole.starts_with('0'))
-        && fraction.is_none_or(digits)
-        && exponent.is_none_or(|e| digits(e.strip_prefix(['+', '-']).unwrap_or(e)))
-        // An overflowing value is no number (`1e999`): the law tests finiteness too.
-        && body.parse::<f64>().is_ok_and(f64::is_finite)
-}
+// The observed-number law belongs to the shared observation owner.
+pub use nika_compile_fidelity::observed::basis::number_text;
 
 /// The header line's columns and the delimiter that cut it (the most frequent of `,` `;`
 /// `\t` `|` on the first line; a TSV is tab-cut).
@@ -266,21 +253,42 @@ fn csv_kinds(head: &str, delimiter: char, columns: &[String]) -> Value {
         .enumerate()
         .map(|(i, column)| (column.clone(), tally(rows.iter().map(|r| text_kind(r[i])))))
         .collect();
-    json!({"sampled": rows.len(), "keys": keys})
+    let temporal: Map<String, Value> = columns
+        .iter()
+        .enumerate()
+        .filter_map(|(i, key)| {
+            let formats = temporal_shapes(rows.iter().map(|r| Some(r[i])));
+            (!formats.is_null()).then(|| (key.clone(), formats))
+        })
+        .collect();
+    let mut out = json!({"sampled": rows.len(), "keys": keys});
+    if !temporal.is_empty() {
+        out["temporal"] = Value::Object(temporal);
+    }
+    out
 }
 
 /// The kinds of the sampled records, by key; a key a record lacks is `absent` there.
 fn record_kinds(rows: &[Value]) -> Value {
     let sampled = &rows[..rows.len().min(SAMPLE_ROWS)];
     let objects: Vec<&Map<String, Value>> = sampled.iter().filter_map(Value::as_object).collect();
+    let mut temporal = Map::new();
     let keys: Map<String, Value> = keys_of_rows(sampled)
         .into_iter()
         .map(|key| {
+            let formats =
+                temporal_shapes(objects.iter().map(|o| o.get(&key).and_then(Value::as_str)));
+            if !formats.is_null() {
+                temporal.insert(key.clone(), formats);
+            }
             let kinds = objects.iter().map(|o| o.get(&key).map_or("absent", kind));
             (key.clone(), tally(kinds))
         })
         .collect();
     let mut entry = json!({"sampled": sampled.len(), "keys": keys});
+    if !temporal.is_empty() {
+        entry["temporal"] = Value::Object(temporal);
+    }
     if objects.len() < sampled.len() {
         entry["nonobject"] = json!(sampled.len() - objects.len());
     }

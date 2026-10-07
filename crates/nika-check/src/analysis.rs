@@ -21,7 +21,7 @@
 //!   task blocks EVERY transitive dependent;
 //! - **write-write conflicts** (F-P15 · NEP-0014 law 1) — two tasks that
 //!   CAN run concurrently (incomparable) and both write the same STATIC
-//!   `nika:write`/`nika:edit` key (literal · resolved bare ref ·
+//!   `nika:write`/`nika:edit`/`nika:remove_file` key (literal · bare ref ·
 //!   identical immutable ref — [`static_write_key`]), compared under
 //!   LEXICAL normalization (`./out/x.md` ≡ `out//x.md` ≡
 //!   `out/d/../x.md` ≡ `out/x.md` — pure text, no filesystem claim; see
@@ -52,7 +52,7 @@ const WRITE_CONFLICT_CODE: &str = "NIKA-SEC-012";
 
 /// One write-write conflict (F-P15 · NEP-0014 law 1): two tasks
 /// incomparable in the DAG closure whose STATIC `nika:write` /
-/// `nika:edit` keys collide under lexical normalization, or a
+/// `nika:edit` / `nika:remove_file` keys collide lexically, or a
 /// `for_each` fan writing one constant path — the last-writer-wins
 /// race, refused at check.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -235,21 +235,19 @@ pub(super) fn read_dag(wf: &RawWorkflow, topo_waves: &[Vec<usize>]) -> DagRead {
 }
 
 /// `G_p` as downstream adjacency (producer → dependent), indices into
-/// `wf.tasks` — derived from the `with:`/`after:` boundary (the one edge
-/// computation). Unresolved targets are conformance errors and this
-/// pass only runs on conformant workflows — still skipped defensively.
+/// `wf.tasks` — the SCHEDULING edges of the one edge computation
+/// (`with:` refs ∪ group folds ∪ `after:`, never an `unwind` edge, which
+/// orders nothing). Unresolved targets are conformance errors; skipped.
 fn downstream_adjacency(tasks: &[Spanned<RawTask>]) -> Vec<Vec<usize>> {
-    let ids: BTreeMap<&str, usize> = tasks
+    let ids: BTreeMap<String, usize> = tasks
         .iter()
         .enumerate()
-        .map(|(i, t)| (t.value.id.value.as_str(), i))
+        .map(|(i, t)| (t.value.id.value.clone(), i))
         .collect();
     let mut down = vec![Vec::new(); tasks.len()];
-    for (i, task) in tasks.iter().enumerate() {
-        for producer in crate::analyzer::edges::producer_ids(&task.value) {
-            if let Some(&from) = ids.get(producer.as_str()) {
-                down[from].push(i);
-            }
+    for edge in crate::analyzer::edges::derive_edges(tasks, &ids) {
+        if edge.kind.is_scheduling() && down[edge.from].last() != Some(&edge.to) {
+            down[edge.from].push(edge.to);
         }
     }
     down
@@ -439,7 +437,7 @@ fn koenig_witness(
     (0..n).filter(|&i| z_left[i] && !z_right[i]).collect()
 }
 
-/// The STATIC write key of a task's `nika:write`/`nika:edit` target —
+/// The STATIC mutation key of a `nika:write`/`nika:edit`/`nika:remove_file` path —
 /// two equal keys provably denote the same runtime path:
 ///
 /// - a **literal** path (no template) — the key is the path;
@@ -465,7 +463,7 @@ fn static_write_key(wf: &RawWorkflow, task: &RawTask) -> Option<String> {
     };
     if !matches!(
         invoke.tool().map(|t| t.value.as_str()),
-        Some("nika:write" | "nika:edit")
+        Some("nika:write" | "nika:edit" | "nika:remove_file")
     ) {
         return None;
     }

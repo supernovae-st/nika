@@ -11,7 +11,8 @@ use crate::turn::{
     RouteRecord, RoutingMethod, SessionPhase, TurnAct, TurnClassifier, TurnContext, TurnDecision,
 };
 
-use super::SessionRuntime;
+use super::{SessionRuntime, authoring::DETERMINISTIC};
+use crate::authoring::{AuthoringContext, AuthoringRound, Reading, compile_in};
 
 impl SessionRuntime {
     /// Inject the bounded classifier a door holds (a decision seat, the
@@ -33,7 +34,9 @@ impl SessionRuntime {
             SessionPhase::GatePending
         } else if self.pending.is_some() {
             SessionPhase::ProposalPending
-        } else if self.authoring.is_some() || self.run_inputs.is_some() || self.activation.is_some()
+        } else if self.pending_question().is_some()
+            || self.run_inputs.is_some()
+            || self.activation.is_some()
         {
             SessionPhase::QuestionPending
         } else {
@@ -103,7 +106,7 @@ impl SessionRuntime {
             (Ok(_), None) => Ok(()),
         };
         // A paid label request may leave only after the record says it might.
-        let entered = if blocked || effort.is_err() {
+        let entered = if !asks || classifier.is_none() || effort.is_err() {
             Ok((None, false))
         } else {
             self.enter_dispatch(model.as_deref())
@@ -164,7 +167,7 @@ impl SessionRuntime {
                 "no intelligence is available to read what it means (`/intelligence` chooses one)"
             }
             RoutingMethod::Failed => {
-                "the intelligence could not read it (its answer failed or came back blank) — say it again, or in other words"
+                "routing could not obtain a usable label — `/details` shows the recorded failure; check it before trying again"
             }
             _ => "I could not tell what it means",
         };
@@ -187,7 +190,9 @@ impl SessionRuntime {
         // An engine fact answers first, deterministically and for zero
         // tokens (« what workflows are here? »): a closed set of engine
         // questions, not a reading of language.
-        if let Some(fact) = crate::facts::answer(raw, &self.snapshot, &self.snapshot.root) {
+        if let Some(fact) =
+            crate::facts::answer_beside_proposal(raw, &self.snapshot, &self.snapshot.root)
+        {
             return self.hold_pending(set, id, &fact);
         }
         let blocked = self.money_blocks_cognition();
@@ -266,7 +271,7 @@ impl SessionRuntime {
         id: crate::outcome::ProposalId,
         raw: &str,
     ) -> super::TurnOutcome {
-        let text = crate::facts::answer(raw, &self.snapshot, &self.snapshot.root)
+        let text = crate::facts::answer_beside_proposal(raw, &self.snapshot, &self.snapshot.root)
             .or_else(|| self.reason_about(&set.preview(), raw))
             .unwrap_or_else(|| set.effects_fact());
         self.hold_pending(set, id, &text)
@@ -293,9 +298,138 @@ impl SessionRuntime {
         );
         let prompt = crate::broker::ContextBroker::prompt(&bundle, &self.recent, &turn);
         let reply = self.reason_with_money(&prompt, false).ok()?;
-        let findings = self.known.audit(&reply.text);
+        let findings = self.known.audit_over(
+            &reply.text,
+            self.census
+                .as_ref()
+                .map_or(&[], |census| census.provider_context.as_slice()),
+        );
         let shown = crate::guard::KnownWorld::correct(&reply.text, &findings);
         self.remember(raw, &shown);
         Some(shown)
+    }
+}
+
+/// The question's last words outside admitted directives, after the compiler validated their
+/// exact spans. This is classification only: no money is parsed, admitted or rewritten here.
+pub(super) fn question_outside_money(intent: &str, money: &[std::ops::Range<usize>]) -> bool {
+    if money.is_empty() {
+        return intent.trim_end().ends_with('?');
+    }
+    intent
+        .char_indices()
+        .rev()
+        .find(|(at, c)| {
+            !money.iter().any(|span| span.contains(at))
+                && !c.is_whitespace()
+                && !matches!(*c, '.' | ',' | ';' | '!')
+        })
+        .is_some_and(|(_, c)| c == '?')
+}
+
+/// A line the reader does not settle once its admitted directives are blanked is routed as
+/// written (R4 A6): conversation stays conversation, unread work stays work.
+pub(super) fn as_written(
+    reading: Reading,
+    round: &AuthoringRound,
+    context: &AuthoringContext,
+    intent: &str,
+) -> Reading {
+    match reading {
+        // Only a reading already known not to be work can take the question fast path.
+        Reading::NotWork(out) if question_outside_money(intent, &round.money) => {
+            Reading::NotWork(out)
+        }
+        Reading::NotWork(out) | Reading::Unsettled(out) if !round.money.is_empty() => {
+            let mut written = round.clone();
+            written.money.clear();
+            match compile_in(&DETERMINISTIC, context, &written.request(), intent).map(Reading::of) {
+                Ok(Reading::NotWork(_)) => Reading::NotWork(out),
+                _ => Reading::Unsettled(out),
+            }
+        }
+        reading => reading,
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod endpoint_guard_tests {
+    use crate::intelligence::{IntelligenceCensus, IntelligenceKind, UserIntelligencePreference};
+    use crate::reasoner::ScriptedReasoner;
+    use crate::runtime::{SessionRuntime, TurnOutcome};
+    use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
+
+    #[test]
+    fn conversation_and_proposal_answers_keep_the_collected_endpoint_context() {
+        const ANSWER: &str = "Use `openai/deepseek-v4-flash-0731`.";
+        for (endpoint, refused) in [
+            ("https://api.openai.com/v1/chat/completions", true),
+            ("https://api.scaleway.ai/v1/chat/completions", false),
+        ] {
+            let root = tempfile::tempdir().expect("isolated project");
+            let mut census = IntelligenceCensus::empty();
+            census.api_keys.push("openai".to_owned());
+            census.provider_context.push(ProviderProbe::new(
+                "openai",
+                true,
+                true,
+                "NIKA_OPENAI_API_KEY",
+                true,
+                ProviderReadiness::new(
+                    true,
+                    true,
+                    None,
+                    None,
+                    false,
+                    ExecutionLocus::classify(
+                        Some(endpoint),
+                        "https://api.openai.com/v1/chat/completions",
+                    ),
+                    nika_types::access::AccessClass::Api,
+                ),
+                endpoint,
+            ));
+            let pref = UserIntelligencePreference::new(
+                IntelligenceKind::Api {
+                    provider: "openai".to_owned(),
+                },
+                Some("openai/gpt-4o-mini".to_owned()),
+            );
+            let mut session = SessionRuntime::open_with(
+                root.path(),
+                census,
+                &pref,
+                None,
+                Box::new(|_| Box::new(ScriptedReasoner::new(vec![ANSWER.into(), ANSWER.into()]))),
+            );
+            session.set_authoring_context(crate::authoring::AuthoringContext::from_settings(
+                &nika_cli_host::compile::config::AuthoringSettings::none(),
+                &nika_cli_host::compile::config::AuthoringSettings::none(),
+            ));
+            // Use the interactive preparation policy, as the TUI does. This
+            // scripted reasoner has no real model or metered account.
+            session.enable_continuous_preparation();
+            // Exercise the conversation owner directly; arbitrary open text first goes
+            // through the compiler router, which is outside this guard regression.
+            let TurnOutcome::Reply(conversation) =
+                session.converse_unrecorded("hello there, how are you today?")
+            else {
+                panic!("the conversational reply remains a reply");
+            };
+            let discussion = session
+                .reason_about("a proposal under review", "explain it")
+                .expect("the proposal discussion answered");
+            for shown in [conversation, discussion] {
+                assert_eq!(
+                    shown.contains("does not resolve in this binary"),
+                    refused,
+                    "{shown}"
+                );
+                if !refused {
+                    assert_eq!(shown, ANSWER);
+                }
+            }
+        }
     }
 }

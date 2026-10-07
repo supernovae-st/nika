@@ -120,6 +120,9 @@ fn a_pipe_is_the_concierge_and_the_tty_is_the_session() {
     session
         .expect("No AI in this conversation")
         .expect("the fourth path");
+    // The choice is typed at its own prompt: a line typed before the prompt is drawn is
+    // type-ahead, which the choice never takes as its answer.
+    session.expect("› ").expect("the choice prompt");
     session.send_line("4").expect("choose");
     session
         .expect("no conversational AI")
@@ -233,7 +236,7 @@ fn bare_nika_opens_the_renderer_and_nika_tui_zero_keeps_the_plain_loop() {
     // The status row is the workspace's own: the banner may already have
     // scrolled out of a small transcript region.
     session
-        .expect("workspace · F6 moves the keys")
+        .expect("workspace · F6 panel")
         .expect("the workspace drawn");
     session.send("/quit\r").expect("quit in raw mode");
     session.expect(Eof).expect("closes");
@@ -353,13 +356,23 @@ fn a_line_typed_after_the_gate_is_shown_answers_it_once() {
 /// Work the deterministic reader cannot settle: the Session asks its seat.
 const UNSETTLED: &str = "Read ./a.md and do something clever with it, then write ./b.md";
 
-/// The seat's candidate: no `infer` task, so no run model is asked and the round ends READY.
-const COPY_CANDIDATE: &str = "nika: clever-copy\npermits:\n  tools: [\"nika:read\", \"nika:write\"]\n  fs:\n    read: [\"./a.md\"]\n    write: [\"./b.md\"]\ntasks:\n  read_source:\n    invoke:\n      tool: \"nika:read\"\n      args: { path: \"./a.md\" }\n  write_result:\n    with: { content: \"${{ tasks.read_source.output }}\" }\n    invoke:\n      tool: \"nika:write\"\n      args: { path: \"./b.md\", content: \"${{ with.content }}\" }\n";
+/// The seat's sketch: read `./a.md`, write it to `./b.md`. No `infer` task, so no run model is
+/// asked, nothing is left to fill, and the round ends READY as `clever-copy`.
+fn copy_sketch() -> String {
+    serde_json::json!({"name": "clever-copy", "tasks": [
+        {"id": "read_source", "verb": "invoke", "tool": "nika:read", "purpose": "read_source",
+         "reads": ["./a.md"]},
+        {"id": "write_result", "verb": "invoke", "tool": "nika:write", "purpose": "write_result",
+         "writes": ["./b.md"], "with": [{"name": "text", "from": "read_source"}]},
+    ], "questions": [], "gaps": [], "notes": "read, write"})
+    .to_string()
+}
 
 /// A local seat on the loopback, keyless, on the OpenAI-compatible wire a `vllm` override
-/// speaks: a route label is new work, the native door gets [`COPY_CANDIDATE`], and the judge
-/// finds it faithful. The judge's FIRST call waits until released: while it is in flight Nika
-/// is still building, and no proposal exists yet.
+/// speaks, answering by the request's schema as the sketch door asks: a route label is new
+/// work, the sketch is [`copy_sketch`], its fills are none, and the judge finds it faithful. The
+/// judge's FIRST call waits until released: while it is in flight Nika is still building, and no
+/// proposal exists yet.
 struct LoopbackSeat {
     port: u16,
     entered: std::sync::mpsc::Receiver<()>,
@@ -381,20 +394,34 @@ impl LoopbackSeat {
                 let Some(body) = seat_request(&mut stream) else {
                     continue;
                 };
-                let answer = if body.contains("You route ONE line") {
-                    "NEW_WORK".to_owned()
-                } else if body.contains("unfaithful") {
+                let request: serde_json::Value =
+                    serde_json::from_str(&body).unwrap_or(serde_json::Value::Null);
+                let format = &request["response_format"];
+                let schema = if format["json_schema"]["schema"].is_object() {
+                    &format["json_schema"]["schema"]
+                } else {
+                    &format["schema"]
+                };
+                let properties = &schema["properties"];
+                let answer = if let Some(keys) = properties["choice"]["enum"].as_array() {
                     if !judged {
                         judged = true;
                         let _sent = arrived.send(());
                         let _released = released.recv();
                     }
-                    r#"{"choice":"faithful"}"#.to_owned()
+                    let approve = ["faithful", "carried"]
+                        .into_iter()
+                        .find(|key| keys.iter().any(|value| value == *key))
+                        .unwrap_or("none");
+                    serde_json::json!({"choice": approve}).to_string()
+                } else if properties.get("fills").is_some() {
+                    r#"{"fills":[],"notes":"no holes"}"#.to_owned()
+                } else if properties.get("tasks").is_some() {
+                    copy_sketch()
+                } else if body.contains("You route ONE line") {
+                    "NEW_WORK".to_owned()
                 } else {
-                    serde_json::json!({
-                        "candidate": COPY_CANDIDATE, "questions": [], "gaps": [], "notes": "copy",
-                    })
-                    .to_string()
+                    "{}".to_owned()
                 };
                 let reply = serde_json::json!({
                     "id": "chatcmpl-typeahead", "object": "chat.completion",
@@ -432,7 +459,7 @@ impl LoopbackSeat {
                 "NIKA_VLLM_BASE_URL".to_owned(),
                 format!("http://127.0.0.1:{}/v1", self.port),
             ),
-            ("NIKA_AUTHORING_STRATEGY".to_owned(), "only".to_owned()),
+            ("NIKA_AUTHORING_STRATEGY".to_owned(), "sketch".to_owned()),
         ]
     }
 }

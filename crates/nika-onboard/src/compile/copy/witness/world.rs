@@ -130,7 +130,7 @@ impl WorldBefore {
         if !moved.is_empty() {
             return Err(moved.join(" · "));
         }
-        Ok(Witness::new(self.candidate_sha256, self.world))
+        Ok(Witness::new(self.candidate_sha256, self.world).writing(&self.targets, &self.inputs))
     }
 
     fn before(&self, path: &str) -> Option<&Seen> {

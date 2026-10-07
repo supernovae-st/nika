@@ -421,6 +421,7 @@ pub const nika_compile_reader::lexicon::TWO_TRIGGERS: &str
 pub fn nika_compile_reader::lexicon::effect_words(lower: &str, columns: &[alloc::string::String]) -> alloc::vec::Vec<nika_compile_reader::plan::EffectVerb>
 pub fn nika_compile_reader::lexicon::fold_apostrophes(intent: &str) -> alloc::string::String
 pub fn nika_compile_reader::lexicon::read(intent: &str) -> nika_compile_reader::lexicon::Reading
+pub fn nika_compile_reader::lexicon::reads_a_head(word: &str) -> bool
 pub fn nika_compile_reader::lexicon::settle_retrieval(detail_lower: &str, options: &[nika_compile_reader::plan::Op]) -> core::option::Option<nika_compile_reader::plan::Op>
 pub fn nika_compile_reader::lexicon::slug(phrase: &str) -> alloc::string::String
 pub fn nika_compile_reader::lexicon::split_clauses(sentence: &str) -> alloc::vec::Vec<&str>
@@ -1522,6 +1523,7 @@ pub unsafe fn nika_compile_reader::rules::Then::clone_to_uninit(&self, dest: *mu
 impl<T> core::convert::From<T> for nika_compile_reader::rules::Then
 pub fn nika_compile_reader::rules::Then::from(t: T) -> T
 pub fn nika_compile_reader::rules::by_construction_tail(text: &str) -> bool
+pub fn nika_compile_reader::rules::exclusion_lead(word: &str) -> bool
 pub fn nika_compile_reader::rules::keeps_order(text: &str) -> bool
 pub fn nika_compile_reader::rules::line_filter(text: &str) -> core::option::Option<nika_compile_reader::rules::Rule>
 pub fn nika_compile_reader::rules::numeric_cue(phrase: &str) -> core::option::Option<nika_compile_reader::rules::Comparator>
@@ -1619,6 +1621,9 @@ pub fn nika_compile_reader::shape::structural(constraint: &str) -> bool
 pub fn nika_compile_reader::shape::triggered_span(intent: &str, trigger: &str) -> core::option::Option<(usize, usize)>
 pub fn nika_compile_reader::shape::without_distributive_tail(text: &str) -> &str
 pub mod nika_compile_reader::stages
+pub fn nika_compile_reader::stages::keep_lead(folded: &str) -> bool
+pub fn nika_compile_reader::stages::operation_word(folded: &str) -> bool
+pub fn nika_compile_reader::stages::restriction_word(folded: &str) -> bool
 pub mod nika_compile_reader::structure
 pub enum nika_compile_reader::structure::Law
 pub nika_compile_reader::structure::Law::NoModel
@@ -1683,17 +1688,5 @@ pub const nika_compile_reader::trigger_words::WEEKLY: &[&str]
 pub mod nika_compile_reader::unknowns
 pub fn nika_compile_reader::unknowns::bound_by_the_compiler(unknown: &str, plan: &nika_compile_reader::plan::Plan) -> core::option::Option<&'static str>
 pub mod nika_compile_reader::words
-pub const nika_compile_reader::words::CONVERSION_WORDS: &[&str]
-pub const nika_compile_reader::words::DATA_WORDS: &[&str]
-pub const nika_compile_reader::words::LANGUAGE_WORDS: &[&str]
-pub const nika_compile_reader::words::NUMBER_WORDS: &[&str]
-pub const nika_compile_reader::words::ONLY_WORDS: &[&str]
-pub const nika_compile_reader::words::SAME_COLUMNS: &[&str]
-pub const nika_compile_reader::words::SERIALIZE_VERBS: &[&str]
-pub fn nika_compile_reader::words::clause_key(text: &str) -> alloc::string::String
-pub fn nika_compile_reader::words::content_words(text: &str) -> impl core::iter::traits::iterator::Iterator<Item = alloc::string::String> + '_
 pub fn nika_compile_reader::words::day_part_compound(folded: &str) -> core::option::Option<(&'static str, &'static str)>
-pub fn nika_compile_reader::words::fold_words(text: &str) -> alloc::string::String
-pub fn nika_compile_reader::words::only_format_words(detail: &str) -> bool
 pub fn nika_compile_reader::words::recurrence(text: &str) -> core::option::Option<(usize, usize)>
-pub fn nika_compile_reader::words::serialization_draft(detail: &str) -> bool

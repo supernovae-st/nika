@@ -585,3 +585,5 @@ fn a_model_the_human_named_is_never_swapped_for_a_stronger_one() {
     assert_eq!(stronger(Some("deepseek/deepseek-flash")), None);
     assert_eq!(stronger(Some("deepseek/deepseek-v4-pro")), None);
 }
+
+mod stop;

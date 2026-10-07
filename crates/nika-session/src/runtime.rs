@@ -29,7 +29,11 @@ use crate::snapshot::ProjectSnapshot;
 mod answer;
 mod aside;
 mod authoring;
+mod candidate;
+mod connection_money;
+pub use candidate::Candidate;
 mod decision;
+mod declined;
 mod details;
 mod draft;
 mod durable;
@@ -51,6 +55,7 @@ mod restore;
 mod round;
 mod route;
 mod run_budget;
+mod unjudged;
 mod unknown_cost;
 
 pub use decision::{DecisionAnswer, decision_answer};
@@ -78,6 +83,8 @@ pub enum TurnOutcome {
     Reply(String),
     /// A fact from the engine (no model asked).
     Facts(String),
+    /// Preparation stopped; the conversation remains open and no new result is accepted.
+    Cancelled(String),
     /// The help card.
     Help(String),
     /// The human closed the session.
@@ -164,24 +171,7 @@ pub(crate) enum Need {
     Authoring,
 }
 
-/// The help card — the few survivors, and the law that everything meaningful is reachable in words.
-pub const HELP: &str = "text                 describe work to build (« read ./notes, draft a summary, write ./out/summary.md ») · Nika compiles it,
-                     asks what it cannot invent, shows the workflow, and writes it only when you say yes · consent is never a run
-run …                run the workflow you accepted, or one you name (« run brief.nika with a ceiling of 0.05 ») · a paused run asks you
-activate             declare the schedule your request asked for in nika.yaml (Nika asks the time zone, the missed policy, the ceiling) · declared is not active: a firer must run
-text                 ask, in words · these answer from the engine, no AI asked: your workflows · a file's verdict (« is X valid »)
-                     · the builtins · the providers · an example or template for a job · a code (« explain NIKA-… »)
-                     · what Nika calls a node, step, trigger, secret, action · the rest goes to your chosen intelligence, in words
-/intelligence        the AI this session reasons with · asks the first screen again, the next line is your answer
-/status              where you are: the project root, the intelligence and where your context goes, the authoring seat
-/why                 beside a question or a gate: what the answer is for, what it lets happen · nothing is consumed
-/meaning             what Nika kept of your request, clause by clause, from the compiler's own ledger · a proposal still waits
-/proof               after a run: what its trace records (chain · seal · boundary · task hashes) and what it does not prove · judged by `nika trace verify`, never a second walker
-/details             how the last workflow was built: the authoring backend and model, calls, tokens and time, the strategy, the decision seat, the engine and spec identity · advanced, on demand
-/show                while a proposal waits: print its exact bytes (the review shows the boundary)
-/help                this card
-/quit                close the session
-Name a workflow file in your question to let the session read it (only files under the root are ever read).";
+pub use nika_onboard::activity::SESSION_HELP as HELP;
 
 /// The slash commands the session answers, in the help card's order
 /// (the most used first, never alphabetical): a door completes them.
@@ -231,6 +221,8 @@ pub struct SessionRuntime {
     home: Option<PathBuf>,
     factory: Option<ReasonerFactory>,
     pending: Option<ProjectChangeSet>,
+    /// Identities already waiting before the live preparation; Stop never discards them.
+    preparation_before: durable::PreparationBefore,
     /// The source basis the compiler recorded for the pending proposal, judged at its yes (F4).
     basis: Option<fresh::ProposalBasis>,
     /// A rehearsed copy's proofs, and what this turn's rehearsals spent (`rehearsed.rs`).
@@ -239,6 +231,8 @@ pub struct SessionRuntime {
     restored_draft: Option<draft::Restored>,
     /// The authoring round kept when an earlier session closed: evidence, never authority.
     restored_round: Option<round::KeptRound>,
+    /// Program records kept in this project's conversation, never live authority.
+    programs: Option<serde_json::Value>,
     money: money_gate::MoneyState,
     unknown_cost: unknown_cost::UnknownCostState,
     pending_gate: Option<PendingGate>,
@@ -251,6 +245,8 @@ pub struct SessionRuntime {
     last_check_clean: Option<bool>,
     /// The trace the last observed run left (`/proof` reads it).
     last_trace: Option<PathBuf>,
+    /// The last observed run HOME history keeps (`KeptRun`): evidence, never authority.
+    kept_run: Option<serde_json::Value>,
     /// The authoring round whose question the next line answers.
     authoring: Option<AuthoringRound>,
     /// The proposal a revision's question set aside, with the reading it came from: it waits
@@ -265,7 +261,7 @@ pub struct SessionRuntime {
     authoring_context: crate::authoring::AuthoringContext,
     /// Where a truthful progress line goes while the compiler works
     /// (presentation only: it never carries workflow meaning).
-    progress: Option<ProgressHook>,
+    progress: crate::activity::Progress,
     /// A run request waiting on the values of the workflow's declared inputs.
     run_inputs: Option<authoring::RunInputs>,
     /// Whether the human chose (or kept) an intelligence. Opened without one,
@@ -283,6 +279,10 @@ pub struct SessionRuntime {
     /// The compiler's last reading of the request (its ledger is the
     /// Meaning view), kept while its question or proposal waits.
     last_outcome: Option<CompileOutcome>,
+    /// The verdicts that rejected candidate bytes in this goal's compiles, handed to every later
+    /// compile of the goal: no judge is asked again on bytes it rejected for the same request
+    /// (R6).
+    declined: declined::Declined,
     /// The schedule the pending proposal asked for (kept beside the
     /// program); becomes `last_trigger` when the human saves that program.
     pending_trigger: Option<TriggerRequirement>,
@@ -302,7 +302,8 @@ pub struct SessionRuntime {
 
 /// A door's sink for progress lines (« Working through this workflow… »);
 /// `Send` so the runtime may run a turn on a worker thread.
-pub type ProgressHook = Box<dyn Fn(&str) + Send>;
+pub type ProgressHook = crate::activity::TextHook;
+pub use crate::activity::ActivityHook;
 
 impl std::fmt::Debug for SessionRuntime {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -338,10 +339,12 @@ impl SessionRuntime {
             home: None,
             factory: None,
             pending: None,
+            preparation_before: durable::PreparationBefore::default(),
             basis: None,
             rehearsals: rehearsed::Rehearsals::default(),
             restored_draft: None,
             restored_round: None,
+            programs: None,
             money: money_gate::MoneyState::default(),
             unknown_cost: unknown_cost::UnknownCostState::default(),
             pending_gate: None,
@@ -351,12 +354,13 @@ impl SessionRuntime {
             last_workflow: None,
             last_check_clean: None,
             last_trace: None,
+            kept_run: None,
             authoring: None,
             revising: None,
             questions: question::Identities::default(),
             seat: AuthoringSeat::Deterministic { why: None },
             authoring_context: crate::authoring::AuthoringContext::default(),
-            progress: None,
+            progress: crate::activity::Progress::default(),
             run_inputs: None,
             chosen: true,
             interrupted: None,
@@ -365,6 +369,7 @@ impl SessionRuntime {
             classifier: None,
             routes: Vec::new(),
             last_outcome: None,
+            declined: declined::Declined::default(),
             pending_trigger: None,
             last_trigger: None,
             activation: None,
@@ -386,22 +391,15 @@ impl SessionRuntime {
             return "Needs your choice of intelligence · the request waits".to_owned();
         }
         if let Some(gate) = &self.pending_gate {
-            return format!(
-                "Waiting for your answer · `{}` paused at `{}`",
-                gate.workflow.display(),
-                gate.task
-            );
+            return nika_cli_host::display::front_door::status::gate(&gate.workflow, &gate.task);
         }
         if let Some(set) = &self.pending {
-            let files: Vec<String> = set
-                .changes
-                .iter()
-                .map(|c| format!("`{}`", c.path().display()))
-                .collect();
-            return format!(
-                "Ready for review · {} · nothing saved, nothing run",
-                files.join(" · ")
+            return nika_cli_host::display::front_door::status::proposal(
+                set.changes.iter().map(crate::change::ProjectChange::path),
             );
+        }
+        if self.judgment_waits() {
+            return unjudged::STATUS.into();
         }
         if let Some(question) = self.pending_question() {
             return format!("Needs one answer · {}", question.label);
@@ -413,28 +411,16 @@ impl SessionRuntime {
             return format!("Needs one value to declare the schedule · `{key}`");
         }
         if let Some((exit, _)) = &self.last_run {
-            let word = match exit {
-                0 => "Done · the run succeeded",
-                1 => "Done · the run failed",
-                2 => "Not run · the check refused",
-                3 => "Not run · the environment refused",
-                4 => "Paused · a gate waits",
-                130 => "Stopped · the run was interrupted",
-                _ => "Done · an unknown code",
-            };
-            return match &self.last_workflow {
-                Some(w) => format!("{word} · `{}`", w.display()),
-                None => word.to_owned(),
-            };
+            return nika_cli_host::display::front_door::status::run(
+                *exit,
+                self.last_workflow.as_deref(),
+            );
         }
         if let Some(w) = &self.last_workflow {
             if let Some(declared) = schedule::declared_state(&self.snapshot.root, w) {
                 return declared;
             }
-            return format!(
-                "Saved · checked · not active · nothing has run · `{}`",
-                w.display()
-            );
+            return format!("Saved · no current Run result · `{}`", w.display());
         }
         String::new()
     }
@@ -596,20 +582,17 @@ impl SessionRuntime {
     /// Where progress lines go while the compiler works under a seat: a
     /// door prints them; a remote host projects them. Presentation only.
     pub fn on_progress(&mut self, hook: ProgressHook) {
-        self.progress = Some(hook);
+        self.progress.on_text(hook);
+    }
+    /// Listen to the producer's typed phase without parsing presentation text.
+    pub fn on_activity(&mut self, hook: ActivityHook) {
+        self.progress.on_activity(hook);
     }
 
     /// One typed activity to the door, when one listens: the door prints
     /// its line (the plain loop) or draws it in the busy row (the renderer).
     pub(super) fn activity(&self, activity: &crate::activity::Activity) {
-        self.progress(&activity.line());
-    }
-
-    /// One truthful progress line to the door, when one listens.
-    pub(super) fn progress(&self, line: &str) {
-        if let Some(hook) = &self.progress {
-            hook(line);
-        }
+        self.progress.emit(activity);
     }
 
     /// Open a session that can re-choose its intelligence in-session:
@@ -680,8 +663,9 @@ impl SessionRuntime {
         }
         let pref = match census.choose(answer) {
             Ok(pref) => pref,
-            // The screen stays on the table with the line it holds: the
-            // next line is still a choice (a typo never loses a request).
+            // `1` alone names no app, so nothing was refused: it is asked again. A refusal
+            // keeps the screen and its line too (a typo never loses a request).
+            Err(why) if answer.trim() == "1" => return TurnOutcome::Ask(why),
             Err(why) => {
                 return TurnOutcome::Refusal(Refusal::new(
                     RefusalClass::IntelligenceRefused,
@@ -703,9 +687,10 @@ impl SessionRuntime {
         self.chosen = true;
         self.pending_choice = false;
         let notice = format!(
-            "{} · {kept}\n  {}",
+            "{} · {kept}\n  {}{}",
             self.intelligence_line(),
-            self.seat.line()
+            self.seat.line(),
+            self.connection_money()
         );
         // The line that waited resumes exactly as typed, under the choice.
         match self.interrupted.take() {
@@ -817,6 +802,9 @@ impl SessionRuntime {
         // An open authoring question owns the next line — before any
         // fact, digit or model reads it (`./notes` answers « which folder »);
         // its own protocol (`why` · `cancel` · a command) before any review.
+        if self.judgment_waits() {
+            return self.continue_judgment(input);
+        }
         if self.authoring.is_some() {
             if let Some(outcome) = self.question_protocol(input) {
                 return self.keep_revising(outcome);
@@ -906,10 +894,18 @@ impl SessionRuntime {
             // In words only: a reply never becomes a file (the compiler is
             // the ONE door to a workflow · ADR-125 wave 5 retired here).
             Ok(reply) => {
-                let findings = self.known.audit(&reply.text);
+                let findings = self.known.audit_over(
+                    &reply.text,
+                    self.census
+                        .as_ref()
+                        .map_or(&[], |census| census.provider_context.as_slice()),
+                );
                 let shown = KnownWorld::correct(&reply.text, &findings);
                 self.remember(input, &shown);
                 TurnOutcome::Reply(shown)
+            }
+            Err(ReasonError::Cancelled) => {
+                TurnOutcome::Cancelled(ReasonError::Cancelled.to_string())
             }
             Err(ReasonError::NoIntelligence) => TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::NoIntelligence,
@@ -1019,7 +1015,7 @@ impl SessionRuntime {
                 return TurnOutcome::Refusal(Refusal::new(class, text));
             }
         };
-        self.report_landed(set, &applied, id, basis.as_deref())
+        self.report_landed(set, &applied, &id, basis.as_deref())
     }
 
     /// The proposal waiting for a consent, when one is (its identity: the
@@ -1132,6 +1128,14 @@ impl SessionRuntime {
         // The trace's own frames, when the door left one this session can
         // read: the views below say what they prove, the line stays the fact.
         let facts = trace.and_then(|t| crate::run_view::RunFacts::read(&under(&root, t)));
+        // This session's own settled run moves its rehearsed proof past what it completed
+        // writing; anything else, a refused advance included, keeps the rehearsed world.
+        if let (0, Some(f), Some(workflow)) = (exit, &facts, self.last_workflow.clone())
+            && f.terminal() == Some("succeeded")
+            && let Some(sha) = f.workflow_sha256()
+        {
+            let _ = self.advance_rehearsal(&workflow, sha, &f.completed_writes());
+        }
         let line = self.observation_line(exit, trace, facts.is_none());
         self.last_trace = trace.map(Path::to_path_buf);
         if exit == 4
@@ -1272,65 +1276,21 @@ impl SessionRuntime {
             ),
             None => format!("run observed · exit {exit} · {meaning}"),
         };
-        let line = match self.trace_hygiene_note() {
+        // The trace's git hygiene, once per run, and what a green run left behind
+        // (`run_view::{hygiene_note, produced}`).
+        let line = match crate::run_view::hygiene_note(self.snapshot.git_root.as_deref()) {
             Some(note) => format!("{line}\n  {note}"),
             None => line,
         };
-        let line = match (exit, self.produced_line()) {
+        let produced = (self.last_workflow.as_ref())
+            .and_then(|w| crate::run_view::produced(&self.snapshot.root, w));
+        let line = match (exit, produced) {
             (0, Some(produced)) if with_produced => format!("{line}\n  {produced}"),
             _ => line,
         };
         self.last_run = Some((exit, line.clone()));
         self.remember("(run)", &line);
         line
-    }
-
-    /// What a green run left behind: the files the workflow's own boundary
-    /// lets it write (`permits.fs.write`, literal paths only) that exist
-    /// under the root now, with their sizes. The boundary is the claim; the
-    /// file on disk is the evidence; a glob is not a file.
-    fn produced_line(&self) -> Option<String> {
-        let workflow = self.last_workflow.as_ref()?;
-        let root = &self.snapshot.root;
-        let source = std::fs::read_to_string(root.join(workflow)).ok()?;
-        let wf = nika_schema::parse(
-            &source,
-            nika_schema::FileId::new(0),
-            nika_schema::ParseMode::Strict,
-        )
-        .ok()?;
-        let writes = wf.permits.as_ref()?.value.fs.as_ref()?.write.clone();
-        let mut produced = Vec::new();
-        for path in writes {
-            if path.contains(['*', '?', '[']) {
-                continue;
-            }
-            let Ok(meta) = std::fs::metadata(root.join(&path)) else {
-                continue;
-            };
-            if meta.is_file() {
-                let size = crate::run_view::human_size(meta.len());
-                produced.push(format!("{path} ({size})"));
-            }
-        }
-        (!produced.is_empty()).then(|| format!("produced · {}", produced.join(" · ")))
-    }
-
-    /// In a git repository whose `.gitignore` does not keep `.nika/traces/`
-    /// out, a run's trace (model outputs · file contents · 0600) would be
-    /// one `git add` away from a commit: say so once per run.
-    fn trace_hygiene_note(&self) -> Option<String> {
-        let root = self.snapshot.git_root.as_ref()?;
-        let ignored = std::fs::read_to_string(root.join(".gitignore"))
-            .map(|text| {
-                text.lines().any(|l| {
-                    l.trim().contains(".nika/traces") || l.trim() == ".nika" || l.trim() == ".nika/"
-                })
-            })
-            .unwrap_or(false);
-        (!ignored).then(|| {
-            "runs write `.nika/traces/` (model outputs · file contents · mode 0600) — not ignored by git here · `nika init` adds the line, or add `.nika/traces/` to `.gitignore`".to_owned()
-        })
     }
 
     fn intelligence_card(&self) -> String {
@@ -1399,6 +1359,9 @@ mod restore_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod route_tests;
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod semantic_basis_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod tests;

@@ -89,7 +89,7 @@ mod tests {
         // Providers router) and renamed nvidia-nim → nvidia: 32 → 33; the
         // 2026-07-06 local-rows fill gave the 5 local servers their catalog
         // face (ollama/lmstudio/llamacpp/localai/vllm): 33 → 38.
-        assert_eq!(ALL_PROVIDERS.len(), 38);
+        assert_eq!(ALL_PROVIDERS.len(), 39);
     }
 
     #[test]

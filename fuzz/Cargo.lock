@@ -2297,6 +2297,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 
 [[package]]
+name = "nika-blob"
+version = "0.122.0"
+dependencies = [
+ "blake3",
+ "bytes",
+ "nika-kernel",
+ "tokio",
+]
+
+[[package]]
 name = "nika-bm25"
 version = "0.122.0"
 
@@ -2549,6 +2559,7 @@ version = "0.122.0"
 name = "nika-harness"
 version = "0.122.0"
 dependencies = [
+ "base64 0.23.1",
  "futures-core",
  "miette",
  "nika-error",
@@ -2557,6 +2568,7 @@ dependencies = [
  "rustix",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "tempfile",
  "thiserror",
  "tokio",
@@ -2655,6 +2667,7 @@ dependencies = [
 name = "nika-providers"
 version = "0.122.0"
 dependencies = [
+ "blake3",
  "bytes",
  "futures-core",
  "nika-catalog",
@@ -2664,6 +2677,7 @@ dependencies = [
  "nika-types",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "tokio",
  "url",
 ]
@@ -2710,13 +2724,16 @@ dependencies = [
 name = "nika-runtime-laws"
 version = "0.122.0"
 dependencies = [
+ "bytes",
  "miette",
+ "nika-blob",
  "nika-cap",
  "nika-cel",
  "nika-check",
  "nika-dataflow",
  "nika-error",
  "nika-event",
+ "nika-fs",
  "nika-kernel",
  "nika-sandbox-landlock",
  "nika-sandbox-seatbelt",

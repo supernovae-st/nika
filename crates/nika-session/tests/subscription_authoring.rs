@@ -13,6 +13,8 @@
 //! Only the executable's bytes are scripted; no compiler outcome is injected.
 //! Child environments carry no credentials, and every executable is fixture-local.
 mod common;
+#[path = "subscription_authoring/unjudged.rs"]
+mod subscription_unjudged;
 use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -54,16 +56,23 @@ fn events(answer: &str, tool: bool) -> String {
         + "\n"
 }
 fn install_fixture(dir: &Path, scenario: &str) {
-    let answer = common::native_answer(&common::candidate("mock/echo", false));
+    if scenario.starts_with("unjudged") {
+        return subscription_unjudged::install(dir);
+    }
+    let answer = common::plan_answer();
     let answer = if scenario == "suffix" {
         format!("{answer} trailing {{\"second\":true}}")
     } else {
         answer
     };
-    let second = common::native_answer(&common::candidate("openai/gpt-4.1-mini", true));
-    // The second call is the judge of the answer round that finishes the native record (native
-    // step 2, the seat permitted as its judge); the fourth is the judgment of the READY revision
-    // (native step 1). Both are answered explicitly.
+    let second = json!({"supersedes": [], "adds": [common::CHANGE], "like": "./b.md",
+        "notes": "keep the first output and add a copy at the requested destination"})
+    .to_string();
+    // The first call is the private plan (semantic CREATE; the compiler assembles every clause
+    // and asks the runtime model); the second is its answer round's judge of the whole request
+    // over the replayed bytes (C3: a replayed model plan is judged whole in its round); the third
+    // names the typed addition and source destination (EDIT), never workflow YAML; the fourth
+    // judges the READY revision.
     for (name, text) in [
         ("one", answer),
         ("two", second),
@@ -102,6 +111,23 @@ if [ "$n" = 0 ] || [ {bad} = yes ]; then /bin/cat {one}; elif [ "$n" = 1 ] || [ 
     );
     std::fs::write(&bin, script).unwrap();
     std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+    if scenario == "codex-unmeasured" {
+        // A real-looking Codex on a minor where the empty-tools profile was
+        // never measured: the Session door must refuse it exactly as the
+        // CLI door does, before any prompt reaches it.
+        let codex = dir.join("bin/codex");
+        let script = format!(
+            r#"#!/bin/sh
+if [ "${{1:-}}" = --version ]; then printf '%s\n' 'codex-cli 0.161.0'; exit 0; fi
+printf '%s\n' "$@" > {observed}/codex-argv
+/bin/cat > {observed}/codex-prompt
+exit 9
+"#,
+            observed = shell(&observed),
+        );
+        std::fs::write(&codex, script).unwrap();
+        std::fs::set_permissions(&codex, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
 }
 fn run(scenario: &str) -> Value {
     let dir = tempfile::tempdir().unwrap();
@@ -132,7 +158,6 @@ fn run(scenario: &str) -> Value {
         )
         .env("HOME", dir.path().join("home"))
         .env("NIKA_KEYCHAIN", "off")
-        .env("NIKA_AUTHORING_STRATEGY", "only")
         .env(
             "SUBSCRIPTION_TEST_KNOWLEDGE_IDENTITY",
             json!({
@@ -219,6 +244,7 @@ fn receipt(report: &Path, observed: &Path) -> Value {
         .and_then(|s| s.parse::<usize>().ok())
         .unwrap_or(0);
     out["calls"] = json!(count);
+    out["codex_prompt_seen"] = json!(observed.join("codex-prompt").exists());
     out["availability_probes"] = json!(
         std::fs::read_to_string(observed.join("probes"))
             .unwrap_or_default()
@@ -266,6 +292,34 @@ fn step(out: TurnOutcome) -> Value {
         other => json!({"kind":"other","text":format!("{other:?}")}),
     }
 }
+fn assert_copied_write(base: &str, revised: &str) {
+    let parse = |source: &str| {
+        nika_schema::parse(
+            source,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("compiler emitted valid source")
+    };
+    let (base, revised) = (parse(base), parse(revised));
+    assert_eq!(
+        revised.tasks.len(),
+        base.tasks.len() + 1,
+        "one copied write"
+    );
+    assert_eq!(base.model.map(|m| m.value), revised.model.map(|m| m.value));
+    for task in base.tasks {
+        assert!(
+            revised
+                .tasks
+                .iter()
+                .any(|t| t.value.id.value == task.value.id.value),
+            "the original task {} remains",
+            task.value.id.value
+        );
+    }
+}
+
 #[test]
 #[ignore = "invoked by the isolated fixture parents only"]
 fn child() {
@@ -273,6 +327,14 @@ fn child() {
         return;
     };
     let root = std::env::var("SUBSCRIPTION_TEST_ROOT").unwrap();
+    if scenario.starts_with("unjudged") {
+        subscription_unjudged::child(Path::new(&root), &scenario);
+        return;
+    }
+    child_scenario(&scenario, &root);
+}
+
+fn child_scenario(scenario: &str, root: &str) {
     let none = scenario == "none";
     let mut resolved = ResolvedSessionIntelligence::resolve(
         &UserIntelligencePreference::new(IntelligenceKind::None, None),
@@ -281,13 +343,20 @@ fn child() {
     // Supply fixture availability through the public fields. This does not
     // claim to have probed an installed product or authenticated account.
     if !none {
-        let seat = if scenario == "codex-unavailable" {
+        let seat = if scenario == "codex-unmeasured" {
             "codex"
         } else {
             "claude-code"
         };
-        resolved.kind = IntelligenceKind::Harness { seat: seat.into() };
-        resolved.model = Some("anthropic/mechanical-requested".into());
+        resolved.kind = IntelligenceKind::Harness {
+            seat: seat.into(),
+            transport: nika_types::access::HarnessTransport::Native,
+        };
+        resolved.model = Some(if seat == "codex" {
+            "openai/mechanical-requested".into()
+        } else {
+            "anthropic/mechanical-requested".into()
+        });
         resolved.locus = DataLocus::Remote {
             product: seat.into(),
         };
@@ -297,7 +366,7 @@ fn child() {
             Box::new(NoReasoner)
         } else {
             Box::new(HarnessReasoner {
-                seat: if scenario == "codex-unavailable" {
+                seat: if scenario == "codex-unmeasured" {
                     "codex"
                 } else {
                     "claude-code"
@@ -305,8 +374,8 @@ fn child() {
                 .into(),
             })
         };
-    let mut session = SessionRuntime::open(Path::new(&root), resolved, reasoner);
-    session.set_authoring_context(authoring_context(&scenario));
+    let mut session = SessionRuntime::open(Path::new(root), resolved, reasoner);
+    session.set_authoring_context(authoring_context(scenario));
     session.with_classifier(Box::new(RouteOnly));
     let intent = if scenario == "money" {
         "Read ./a.md and do something clever with it, then write ./b.md; budget 10 USD"
@@ -320,7 +389,7 @@ fn child() {
     let mut old_rejected = false;
     let mut details_answer = String::new();
     let mut meaning_answer = Value::Null;
-    if matches!(scenario.as_str(), "route" | "no-knowledge") {
+    if matches!(scenario, "route" | "no-knowledge") {
         assert_eq!(steps[0]["kind"], "question", "{steps:?}");
         steps.push(step(session.turn("openai/gpt-4.1-mini")));
         details_answer = session.details();
@@ -328,9 +397,22 @@ fn child() {
         let old = session.pending_proposal().unwrap_or_else(|| {
             panic!("first proposal absent: {steps:#?}; meaning={meaning_answer}")
         });
+        let base = session.candidate().expect("original candidate").set.changes[0]
+            .content()
+            .to_owned();
         steps.push(step(session.consent(common::CHANGE)));
         let fresh = session.pending_proposal().expect("revised proposal");
-        assert_ne!(old, fresh);
+        assert_ne!(
+            old, fresh,
+            "typed addition must produce a new review: {steps:#?}"
+        );
+        let revised = session.candidate().expect("revised candidate").set.changes[0].content();
+        assert_ne!(
+            base, revised,
+            "review identity follows a real program change"
+        );
+        assert!(!base.contains("./c.md") && revised.contains("./c.md"));
+        assert_copied_write(&base, revised);
         old_rejected = matches!(session.consent_to(&old, "yes"), TurnOutcome::Refusal(_));
         assert_eq!(session.pending_proposal(), Some(fresh));
     }
@@ -354,11 +436,13 @@ fn subscription_authors_then_answers_and_revises_through_the_same_native_compile
     let out = run("route");
     assert_eq!(
         out["calls"], 4,
-        "question round, its answer round's judge, revision, judgment: {out:#}"
+        "the plan's question round, its answer round's judge, revision, judgment: {out:#}"
     );
     let judged = |n: usize| out["prompts"][n].as_str().unwrap().contains("unfaithful");
-    assert!(
-        !judged(0) && judged(1) && !judged(2) && judged(3),
+    let questions: Vec<bool> = (0..4).map(judged).collect();
+    assert_eq!(
+        questions,
+        [false, true, false, true],
         "{:#}",
         out["prompts"]
     );
@@ -424,7 +508,7 @@ fn missing_capability_refuses_and_no_intelligence_stays_deterministic() {
 }
 
 #[test]
-fn replay_retains_subscription_receipt_without_optional_knowledge() {
+fn a_replayed_round_states_its_own_judge_call_under_the_subscription_without_knowledge() {
     let out = run("no-knowledge");
     assert!(
         out["argv"]
@@ -435,17 +519,21 @@ fn replay_retains_subscription_receipt_without_optional_knowledge() {
     );
     assert_eq!(
         out["calls"], 4,
-        "question round, its answer round's judge, revision, judgment: {out:#}"
+        "the plan's question round, its answer round's judge, revision, judgment: {out:#}"
     );
-    // The answer round's receipt is its own now: its one call is the judge the subscription
-    // seat is permitted as (native step 2), never a receipt carried as if nothing was sent.
+    // The answer round replays the plan (the compiler assembled every clause) and judges the
+    // whole request over the replayed bytes in its own call (C3): its receipt is its own, the
+    // same subscription seat and that one call, never a carried receipt claiming zero calls.
     for text in [
         out["details_answer"].as_str().unwrap(),
         out["meaning_answer"]["text"].as_str().unwrap(),
     ] {
         assert!(text.contains("subscription claude-code"), "{text}");
         assert!(text.contains(" · 1 compiler calls · "), "{text}");
-        assert!(!text.contains("made zero calls"), "{text}");
+        assert!(
+            !text.contains("receipt carried from the authoring round"),
+            "{text}"
+        );
         assert!(text.contains("subscription invoice unknown"), "{text}");
     }
     assert_eq!(out["old_consent_rejected"], true);
@@ -460,14 +548,17 @@ fn a_monetary_ceiling_does_not_authorize_or_meter_a_subscription() {
 }
 
 #[test]
-fn codex_refuses_before_any_call_until_native_tools_can_be_disabled() {
-    let out = run("codex-unavailable");
+fn codex_on_an_unmeasured_minor_refuses_before_any_prompt() {
+    let out = run("codex-unmeasured");
     assert_eq!(out["calls"], 0, "no Codex or fallback call");
-    assert_eq!(out["steps"][0]["kind"], "refusal");
     assert!(
-        out["steps"][0]["text"]
-            .as_str()
-            .unwrap()
-            .contains("pre-execution tool disabling")
+        out["seat"].as_str().unwrap().contains("Harness"),
+        "the Session admits the native Codex seat like the CLI: {out:#}"
     );
+    let text = out.to_string();
+    assert!(
+        text.contains("no measured pre-execution empty-tools profile"),
+        "{out:#}"
+    );
+    assert_eq!(out["codex_prompt_seen"], false, "{out:#}");
 }

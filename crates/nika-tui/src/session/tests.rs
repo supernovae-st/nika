@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-//! The live conversation over the actual Session runtime: its one-time
-//! unknown-cost choice is a fresh spending question, and a retained Run review
-//! keeps its contract. Hermetic mechanics only: the stub route never answers
-//! and no socket opens, so no model, billing or UX is qualified here.
+//! The live conversation over the actual Session runtime: preparation is
+//! continuous (no cost question; cost is observed, unknown stays unknown),
+//! and a retained Run review keeps its own fresh cost question and contract.
+//! Hermetic mechanics only: the stub route never answers and no socket opens,
+//! so no model, billing or UX is qualified here.
 #![allow(clippy::expect_used, clippy::panic)]
 use super::*;
 use nika_cli_host::lane::{ChildSlot, drive_reviewed_child};
@@ -38,9 +39,9 @@ impl Drop for Room {
     }
 }
 
-/// The selected unpriced route: it opts into admission, so the Session asks
-/// its cost question, but carries no admission seam of its own. It counts
-/// every unmetered call, which must never happen.
+/// The selected unpriced route. Continuous preparation calls it with no cost
+/// question; it refuses every call and counts each one, so a test can tell a
+/// turn that reached it from one answered locally.
 struct Route(Arc<AtomicUsize>);
 
 impl SessionReasoner for Route {
@@ -120,6 +121,7 @@ fn run_live(room: &Room) -> Live {
             "fixture".to_owned(),
             FRAME.to_owned(),
         ];
+        // The story-only alias as the base consumers wrote it: it still compiles.
         drive_reviewed_child(Path::new("/bin/sh"), &args, root, busy, &slot)
     }));
     let _ = live.open();
@@ -158,106 +160,73 @@ fn waits(beats: &[Beat]) -> Option<Waiting> {
     })
 }
 
+/// Continuous preparation asks no cost question: an unpriced route is reached
+/// once for the line, nothing waits for a spending answer, the next line is not
+/// fresh-only, and what is said keeps the Run's own budget apart.
 #[test]
-fn the_session_cost_question_is_fresh_and_its_details_answer_nothing() {
-    let room = Room::new("details");
-    let unmetered = Arc::new(AtomicUsize::new(0));
-    let mut live = session_live(&room, &unmetered);
+fn continuous_preparation_asks_no_cost_question_and_keeps_run_apart() {
+    let room = Room::new("continuous");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut live = session_live(&room, &calls);
     assert!(!live.fresh_input_required());
-    let asked = live.submit("hello").beats;
-    let first = question(&asked);
+    let beats = live.submit("hello").beats;
     assert!(
-        first.starts_with("Fresh authoring cost decision · this request only;"),
-        "{first}"
+        said(&beats).iter().all(|(kind, _)| *kind != Kind::Question),
+        "{beats:?}"
     );
-    for fact in [
-        "USD cost is unknown",
-        "At most 7 requests",
-        "32768 output tokens",
-        "180 seconds",
-        "no hard cap is overridden",
-    ] {
-        assert!(first.contains(fact), "{fact}: {first}");
-    }
-    assert!(
-        first.ends_with("\nContinue once? yes / no / details"),
-        "{first}"
-    );
-    assert_eq!(first.matches("Continue once?").count(), 1, "{first}");
-    assert!(!first.contains("candidate"), "{first}");
+    assert_eq!(waits(&beats), Some(Waiting::Free));
+    assert!(!live.fresh_input_required());
     assert_eq!(
-        waits(&asked),
-        Some(Waiting::Question {
-            key: "unknown_cost".to_owned()
-        })
+        calls.load(Ordering::SeqCst),
+        1,
+        "reached once, without a gate"
     );
-    assert!(live.fresh_input_required());
+    let text = joined(&beats);
+    assert!(!text.contains("Continue once?"), "{text}");
+    assert!(text.contains("Run has its own budget"), "{text}");
     assert_eq!(
-        live.busy_label("yes").as_deref(),
-        Some("answering the fresh authoring cost question")
+        live.busy_label("hello again").as_deref(),
+        Some("working through your words")
     );
-    let details = question(&live.submit("details").beats);
-    for evidence in [
-        "candidate ",
-        "invocation session:",
-        "origin https://",
-        "host ",
-    ] {
-        assert!(details.contains(evidence), "{evidence}: {details}");
-    }
-    assert!(
-        !details.contains("endpoint "),
-        "the route is named by origin: {details}"
-    );
-    assert_eq!(
-        question(&live.submit(" DETAILS ").beats),
-        details,
-        "the same review, unchanged"
-    );
-    assert!(live.fresh_input_required(), "reading the details answered");
-    assert_eq!(unmetered.load(Ordering::SeqCst), 0);
 }
 
+/// With no decision waiting, an interruption after a preparation cancels
+/// nothing and sends nothing.
 #[test]
-fn an_interruption_cancels_the_session_choice_and_sends_nothing() {
+fn an_interruption_after_a_preparation_cancels_nothing_and_sends_nothing() {
     let room = Room::new("cancel");
-    let unmetered = Arc::new(AtomicUsize::new(0));
-    let mut live = session_live(&room, &unmetered);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut live = session_live(&room, &calls);
     let _ = live.submit("hello");
-    assert!(live.fresh_input_required());
-    let cancelled = live.cancel_pending();
-    let text = joined(&cancelled);
-    assert!(text.contains("cancelled; nothing sent"), "{text}");
-    assert_eq!(waits(&cancelled), Some(Waiting::Free));
-    assert!(!live.fresh_input_required());
     assert!(
         live.cancel_pending().is_empty(),
-        "a second interruption finds nothing to cancel"
+        "nothing waits: nothing to cancel"
     );
-    let late = joined(&live.submit("yes").beats);
-    assert!(late.contains("nothing waits for a yes or a no"), "{late}");
     assert!(!live.fresh_input_required());
-    assert_eq!(unmetered.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "the interruption sent nothing"
+    );
 }
 
+/// With nothing waiting, a bare yes (in either language) answers nothing and
+/// never reaches the route: no hidden approval survives a preparation.
 #[test]
-fn only_a_fresh_yes_after_the_question_reaches_the_admission_seam_once() {
+fn a_bare_yes_after_a_preparation_answers_nothing_and_calls_nothing() {
     let room = Room::new("yes");
-    let unmetered = Arc::new(AtomicUsize::new(0));
-    let mut live = session_live(&room, &unmetered);
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut live = session_live(&room, &calls);
     let _ = live.submit("hello");
-    // This route has no seam of its own: the Session's default seam refuses
-    // the one admitted call, so reaching it is the evidence of the approval.
-    let answered = joined(&live.submit("yes").beats);
-    assert!(answered.contains("no catalog admission seam"), "{answered}");
-    assert!(!live.fresh_input_required());
-    let again = joined(&live.submit("yes").beats);
-    assert!(again.contains("nothing waits for a yes or a no"), "{again}");
-    assert_eq!(
-        unmetered.load(Ordering::SeqCst),
-        0,
-        "an approval never falls back to an unmetered call"
-    );
+    for line in ["yes", "oui"] {
+        let late = joined(&live.submit(line).beats);
+        assert!(
+            late.contains("nothing waits for a yes or a no"),
+            "{line}: {late}"
+        );
+        assert!(!live.fresh_input_required());
+    }
+    assert_eq!(calls.load(Ordering::SeqCst), 1, "a yes is never sent");
 }
 
 #[test]
@@ -478,32 +447,35 @@ fn a_declined_run_review_is_not_run_and_nothing_carries() {
     );
 }
 
-/// The Session's own one-time choice reads the same grammar: an unknown line
-/// is asked again (never cancelled), `/help` is local, `oui` approves once,
-/// and the unknown-cost route is never called unmetered.
+/// After a preparation, `/help` is answered locally and calls nothing, while a
+/// new line of work is prepared again at once: no question stands between the
+/// human and the next attempt. An ambiguous line asks its routing label and reply.
 #[test]
-fn the_session_choice_asks_an_unknown_line_again_and_keeps_help_local() {
-    let room = Room::new("choice-unknown");
-    let unmetered = Arc::new(AtomicUsize::new(0));
-    let mut live = session_live(&room, &unmetered);
+fn help_stays_local_and_a_new_line_is_prepared_again_without_a_question() {
+    let room = Room::new("again");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut live = session_live(&room, &calls);
     let _ = live.submit("hello");
-    let again = question(&live.submit("peut-être").beats);
-    assert!(
-        again.contains("« peut-être » is not a yes or a no · nothing was sent"),
-        "{again}"
-    );
-    assert!(
-        again.ends_with("\nContinue once? yes / no / details"),
-        "{again}"
-    );
-    assert!(live.fresh_input_required());
     let help = joined(&live.submit("/help").beats);
     assert!(help.contains("/details"), "{help}");
-    assert!(live.fresh_input_required(), "/help cancelled the review");
-    let answered = joined(&live.submit("oui").beats);
-    assert!(answered.contains("no catalog admission seam"), "{answered}");
+    assert_eq!(calls.load(Ordering::SeqCst), 1, "/help reached the route");
+    let again = live.submit("peut-être").beats;
+    assert!(
+        said(&again).iter().all(|(kind, _)| *kind != Kind::Question),
+        "{again:?}"
+    );
+    assert!(joined(&again).contains("« peut-être »"), "{again:?}");
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        3,
+        "the greeting asked a reply; the new line asks its label and reply"
+    );
+    assert_eq!(
+        live.runtime.as_ref().expect("open runtime").routes().len(),
+        1,
+        "only the ambiguous line needed one routing decision"
+    );
     assert!(!live.fresh_input_required());
-    assert_eq!(unmetered.load(Ordering::SeqCst), 0);
 }
 
 /// The transcript an actual beginner produces at a Run review: a worried
@@ -600,20 +572,28 @@ fn yes_qualified_lines_never_approve_a_run_review() {
     }
 }
 
-/// Slash commands while the Session's own cost choice waits answer locally
-/// and keep it waiting; nothing reaches the unknown-cost route.
+/// Read-only slash commands after a preparation answer from the Session's own
+/// facts: each says something, none is a spending question, and none reaches
+/// the route.
 #[test]
-fn slash_commands_keep_the_session_choice_waiting() {
-    let room = Room::new("choice-slash");
-    let unmetered = Arc::new(AtomicUsize::new(0));
-    let mut live = session_live(&room, &unmetered);
+fn slash_commands_after_a_preparation_answer_locally() {
+    let room = Room::new("slash");
+    let calls = Arc::new(AtomicUsize::new(0));
+    let mut live = session_live(&room, &calls);
     let _ = live.submit("hello");
     for line in ["/help", "/status", "/details", "/why"] {
         let said = joined(&live.submit(line).beats);
         assert!(!said.is_empty(), "{line}: nothing said");
-        assert!(live.fresh_input_required(), "{line} ended the choice");
+        assert!(
+            !live.fresh_input_required(),
+            "{line} opened a spending question"
+        );
     }
-    assert_eq!(unmetered.load(Ordering::SeqCst), 0);
+    assert_eq!(
+        calls.load(Ordering::SeqCst),
+        1,
+        "a slash command reached the route"
+    );
 }
 
 /// A declined review has no effect: no reply, no trace, and the status line
@@ -628,7 +608,7 @@ fn a_declined_run_review_has_no_effect() {
         .as_ref()
         .map(SessionRuntime::status_line)
         .unwrap_or_default();
-    assert!(before.contains("nothing has run"), "{before}");
+    assert!(before.contains("no current Run result"), "{before}");
     let _ = live.submit("no");
     assert!(
         reply_of(&room).is_empty(),
@@ -673,3 +653,445 @@ fn the_authoring_projection_keeps_any_other_wording_whole() {
         "Fresh authoring cost decision · this request only; approving it never saves or runs anything\nA sentence the Session wrote.\nContinue once? yes / no / details"
     );
 }
+
+/// A run asked inside the turn is observed before its child exists: the
+/// request names the workflow and carries the look of its exact bytes at
+/// that moment; the frames the runner tells follow it on the same queue; a
+/// line that is no frame is counted, never queued. The runner here is a
+/// stub that tells three frames: no process, no model.
+#[test]
+fn a_run_is_observed_from_its_request_to_its_frames() {
+    use crate::session::feed::{Gap, Observed, Seen};
+    let room = Room::new("observed");
+    let source = "nika: two\npermits: {}\ntasks:\n  first:\n    invoke: { tool: \"nika:log\", args: { message: one } }\n";
+    std::fs::write(room.0.join("two.nika"), source).expect("workflow");
+    let none = UserIntelligencePreference::new(IntelligenceKind::None, None);
+    let frames = [
+        r#"{"correlation":null,"execution":{"uuid":"01a0ef11-0212-70de-a8b3-99de9427fccc"},"fields":[{"key":"workflow","value":"two"}],"id":{"uuid":"01a0ef11-03a1-73d9-a2bc-2548bdab1943"},"kind":"workflow_started","run":null,"timestamp":1}"#,
+        "not a frame",
+        r#"{"correlation":null,"execution":{"uuid":"01a0ef11-0212-70de-a8b3-99de9427fccc"},"fields":[{"key":"task","value":"first"}],"id":{"uuid":"01a0ef11-03a7-74fb-bba0-bfe19b901333"},"kind":"task_scheduled","run":null,"timestamp":2}"#,
+    ];
+    let mut live = Live::new(
+        room.0.clone(),
+        IntelligenceCensus::empty(),
+        Some(none),
+        None,
+        Box::new(|_| Box::new(ScriptedReasoner::new(Vec::new()))),
+        Runners {
+            run_once: Box::new(|_, _| panic!("no plain run")),
+            run_resume: Box::new(|_, _, _, _| panic!("no resume")),
+            // A story-only tap lent beside the typed one: the typed one wins.
+            run_tapped: Some(Box::new(|_, _, _| panic!("the typed runner goes first"))),
+        },
+    )
+    .with_run_tapped_observed(Box::new(move |_, _, sink| {
+        let mut story = nika_display::run_story::RunStory::default();
+        for line in frames {
+            story.tell(line, sink);
+        }
+        (0, None, story.lines)
+    }));
+    let _ = live.open();
+    let (busy, _said) = std::sync::mpsc::channel();
+    let (tx, rx) = std::sync::mpsc::sync_channel(16);
+    let gap = Arc::new(Gap::default());
+    let turn = live.submit_observed("run two.nika", &busy, &Seen::new(tx, Arc::clone(&gap)));
+    let seen: Vec<Observed> = rx.try_iter().collect();
+    let Some(Observed::Asked {
+        workflow,
+        resume,
+        typed,
+        look,
+    }) = seen.first()
+    else {
+        panic!("the request comes first: {seen:?}\n{}", joined(&turn.beats));
+    };
+    assert_eq!(
+        (workflow.as_str(), *resume, *typed),
+        ("two.nika", false, true)
+    );
+    let look = look
+        .as_ref()
+        .expect("the bytes were read when it was asked");
+    assert_eq!(
+        look.witness(),
+        Some(
+            nika_session::change::Witness::of(source.as_bytes())
+                .0
+                .as_str()
+        )
+    );
+    assert_eq!(seen.len(), 3, "the request and two frames: {seen:?}");
+    assert!(matches!(seen[1], Observed::Frame(_)) && matches!(seen[2], Observed::Frame(_)));
+    assert_eq!((gap.dropped(), gap.unread()), (0, 1));
+    assert!(
+        joined(&turn.beats).contains("run observed · exit 0"),
+        "{}",
+        joined(&turn.beats)
+    );
+}
+
+/// The story-only tap the base consumers lend (`Runners::run_tapped`) still
+/// runs inside the turn: its story reaches the busy row, no frame is typed,
+/// and the request says the run cannot be followed.
+#[test]
+fn a_story_only_tap_tells_its_story_and_no_frame() {
+    use crate::session::feed::{Gap, Observed, Seen};
+    let room = Room::new("story-only");
+    let source = "nika: two\npermits: {}\ntasks:\n  first:\n    invoke: { tool: \"nika:log\", args: { message: one } }\n";
+    std::fs::write(room.0.join("two.nika"), source).expect("workflow");
+    let none = UserIntelligencePreference::new(IntelligenceKind::None, None);
+    let mut live = Live::new(
+        room.0.clone(),
+        IntelligenceCensus::empty(),
+        Some(none),
+        None,
+        Box::new(|_| Box::new(ScriptedReasoner::new(Vec::new()))),
+        Runners {
+            run_once: Box::new(|_, _| panic!("no plain run")),
+            run_resume: Box::new(|_, _, _, _| panic!("no resume")),
+            run_tapped: Some(Box::new(|_, _, busy: &std::sync::mpsc::Sender<String>| {
+                let _ = busy.send("a line of the story".to_owned());
+                (0, None, vec!["a line of the story".to_owned()])
+            })),
+        },
+    );
+    let _ = live.open();
+    let (busy, said) = std::sync::mpsc::channel();
+    let (tx, rx) = std::sync::mpsc::sync_channel(16);
+    let gap = Arc::new(Gap::default());
+    let turn = live.submit_observed("run two.nika", &busy, &Seen::new(tx, Arc::clone(&gap)));
+    let seen: Vec<Observed> = rx.try_iter().collect();
+    assert!(
+        matches!(seen.as_slice(), [Observed::Asked { typed: false, .. }]),
+        "the request alone, untyped: {seen:?}\n{}",
+        joined(&turn.beats)
+    );
+    let heard: Vec<String> = said.try_iter().collect();
+    assert!(
+        heard.iter().any(|l| l == "a line of the story"),
+        "{heard:?}"
+    );
+    assert!(joined(&turn.beats).contains("a line of the story"));
+}
+
+/// Both review builders and both taps lent: a fresh run admitted by the
+/// Session goes to the typed review alone (the story-only review and the two
+/// taps panic if called), once, its request marked typed; a line the Session
+/// does not admit as a run reaches no runner at all.
+#[test]
+fn the_typed_review_goes_first_and_only_after_the_session_admits_the_run() {
+    use crate::session::feed::{Gap, Observed, Seen};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let room = Room::new("precedence");
+    let source = "nika: two\npermits: {}\ntasks:\n  first:\n    invoke: { tool: \"nika:log\", args: { message: one } }\n";
+    std::fs::write(room.0.join("two.nika"), source).expect("workflow");
+    let none = UserIntelligencePreference::new(IntelligenceKind::None, None);
+    let reviewed = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&reviewed);
+    let mut live = Live::new(
+        room.0.clone(),
+        IntelligenceCensus::empty(),
+        Some(none),
+        None,
+        Box::new(|_| Box::new(ScriptedReasoner::new(Vec::new()))),
+        Runners {
+            run_once: Box::new(|_, _| panic!("no plain run")),
+            run_resume: Box::new(|_, _, _, _| panic!("no resume")),
+            run_tapped: Some(Box::new(|_, _, _| panic!("the story tap is never first"))),
+        },
+    )
+    .with_run_tapped_observed(Box::new(|_, _, _| panic!("a fresh run is reviewed first")))
+    .with_run_review(Box::new(|_, _, _| panic!("the typed review goes first")))
+    .with_run_review_observed(Box::new(move |_, run, sink| {
+        counted.fetch_add(1, Ordering::SeqCst);
+        assert_eq!(run.workflow, Path::new("two.nika"));
+        sink.said("reviewed".to_owned());
+        nika_cli_host::lane::RunProgress::Complete((0, None, vec!["reviewed".to_owned()]))
+    }));
+    let _ = live.open();
+    let (busy, _said) = std::sync::mpsc::channel();
+    let (tx, rx) = std::sync::mpsc::sync_channel(16);
+    let gap = Arc::new(Gap::default());
+    let refused = live.submit_observed(
+        "run missing.nika",
+        &busy,
+        &Seen::new(tx.clone(), Arc::clone(&gap)),
+    );
+    assert_eq!(
+        reviewed.load(Ordering::SeqCst),
+        0,
+        "{}",
+        joined(&refused.beats)
+    );
+    assert!(rx.try_iter().next().is_none(), "nothing was asked");
+    let turn = live.submit_observed("run two.nika", &busy, &Seen::new(tx, Arc::clone(&gap)));
+    assert_eq!(
+        reviewed.load(Ordering::SeqCst),
+        1,
+        "{}",
+        joined(&turn.beats)
+    );
+    let seen: Vec<Observed> = rx.try_iter().collect();
+    assert!(
+        matches!(seen.first(), Some(Observed::Asked { typed: true, .. })),
+        "{seen:?}"
+    );
+    assert!(
+        joined(&turn.beats).contains("run observed · exit 0"),
+        "{}",
+        joined(&turn.beats)
+    );
+}
+
+#[test]
+fn an_explicit_run_pin_reaches_the_typed_cost_gate_and_cannot_be_replaced_while_waiting() {
+    let room = Room::new("run-pin");
+    std::fs::write(room.0.join("one.nika"), "nika: pinned\ntasks:\n  log:\n    invoke: { tool: \"nika:log\", args: { message: test } }\n").expect("workflow");
+    let reviewed = Arc::new(AtomicUsize::new(0));
+    let counted = Arc::clone(&reviewed);
+    let slot: ChildSlot = Arc::default();
+    let mut live = Live::new(
+        room.0.clone(),
+        IntelligenceCensus::empty(),
+        Some(UserIntelligencePreference::new(
+            IntelligenceKind::None,
+            None,
+        )),
+        None,
+        Box::new(|_| Box::new(ScriptedReasoner::new(Vec::new()))),
+        runners(),
+    )
+    .with_run_review_observed(Box::new(move |root, run, sink| {
+        counted.fetch_add(1, Ordering::SeqCst);
+        assert_eq!(run.access_pin.as_deref(), Some("mock"));
+        let args = vec![
+            "-c".into(),
+            "printf '%s\\n' \"$1\"; exec /bin/cat > reply.json".into(),
+            "fixture".into(),
+            FRAME.into(),
+        ];
+        nika_cli_host::lane::drive_reviewed_child_observed(
+            Path::new("/bin/sh"),
+            &args,
+            root,
+            sink,
+            &slot,
+        )
+    }));
+    let _ = live.open();
+    let refused = live.submit("run one.nika --access mock --access api");
+    assert_eq!(
+        reviewed.load(Ordering::SeqCst),
+        0,
+        "{}",
+        joined(&refused.beats)
+    );
+    let asked = live.submit("run one.nika --access mock --max-cost-usd 0.1");
+    assert_eq!(
+        reviewed.load(Ordering::SeqCst),
+        1,
+        "{}",
+        joined(&asked.beats)
+    );
+    assert!(joined(&asked.beats).contains("access mock (explicit)"));
+    assert!(live.fresh_input_required());
+    let _ = live.submit("run one.nika --access api");
+    assert_eq!(reviewed.load(Ordering::SeqCst), 1);
+    assert!(live.fresh_input_required());
+    assert!(
+        std::fs::read(room.0.join("reply.json"))
+            .unwrap_or_default()
+            .is_empty()
+    );
+    let text = joined(&live.submit("no").beats);
+    assert!(
+        text.contains("Run cost decision cancelled; nothing sent"),
+        "{text}"
+    );
+    assert!(
+        reply_of(&room).is_empty(),
+        "declining closes the child without authority"
+    );
+    assert_eq!(reviewed.load(Ordering::SeqCst), 1);
+    assert!(!live.fresh_input_required());
+}
+
+#[test]
+fn a_proposal_reply_label_does_not_predict_save_or_model_work() {
+    let room = Room::new("proposal-label");
+    std::fs::write(room.0.join("a.md"), "the exact source").expect("source");
+    let mut census = IntelligenceCensus::empty();
+    census.locals.push("ollama".into());
+    let mut live = Live::new(
+        room.0.clone(),
+        census,
+        Some(UserIntelligencePreference::new(
+            IntelligenceKind::Local {
+                provider: "ollama".into(),
+            },
+            None,
+        )),
+        None,
+        Box::new(|_| Box::new(ScriptedReasoner::new(Vec::new()))),
+        runners(),
+    );
+    let _ = live.open();
+    let proposed = live.submit("Read ./a.md and write it to ./b.md");
+    assert_eq!(
+        waits(&proposed.beats),
+        Some(Waiting::Proposal),
+        "{}",
+        joined(&proposed.beats)
+    );
+    for line in ["no", "/show", "write it to ./c.md instead", "yes"] {
+        assert_eq!(
+            live.busy_label(line).as_deref(),
+            Some("reviewing your reply")
+        );
+        assert!(!room.0.join("b.md").exists());
+    }
+    assert_eq!(live.busy_label(""), None);
+    let declined = live.submit("no");
+    assert_eq!(waits(&declined.beats), Some(Waiting::Free));
+    assert!(!room.0.join("b.md").exists());
+    assert!(
+        !std::fs::read_dir(&room.0)
+            .expect("files")
+            .flatten()
+            .any(|f| f.path().extension().is_some_and(|ext| ext == "nika"))
+    );
+}
+
+/// A reopened project: the workflow saved, no check and no run observed in
+/// this session, and the successful run an earlier session kept.
+fn reopened() -> (Lifecycle, String, Option<Result<KeptRun, String>>) {
+    let mut facts = LifecycleFacts::new();
+    facts.saved = true;
+    let kept = KeptRun::new().ended(Some(Path::new("reorder.nika")), 0, None);
+    (
+        Lifecycle::from_facts(&facts),
+        "Saved · no current Run result · `reorder.nika`".to_owned(),
+        Some(Ok(kept)),
+    )
+}
+
+/// The rail and status rows of the inline live area drawn at `width`, and
+/// the rows that live area takes.
+fn footer_rows(beats: [Beat; 2], width: u16) -> ([String; 2], u16) {
+    use ratatui::{Terminal, backend::TestBackend};
+    let mut state =
+        crate::model::UiState::new(crate::model::Presentation::Inline, false, (width, 12));
+    for beat in beats {
+        state.apply(beat);
+    }
+    let composer = crate::composer::Composer::new();
+    let rows = crate::render::live_rows(&state, &composer, width, 12);
+    let mut terminal = Terminal::new(TestBackend::new(width, 6)).expect("test terminal");
+    terminal
+        .draw(|frame| crate::render::draw_inline(frame, &state, &composer))
+        .expect("draw");
+    let buffer = terminal.backend().buffer();
+    let row = |y: u16| {
+        (0..width)
+            .map(|x| buffer[(x, y)].symbol().to_owned())
+            .collect::<String>()
+            .trim_end()
+            .to_owned()
+    };
+    ([row(0), row(1)], rows)
+}
+
+/// Reopened, the footer tells the success an earlier session kept from what
+/// this session observed: Checked and Run stay ○, the earlier stage is named
+/// beside Run, and the status row opens with it, so a 40-column row still
+/// reads it whole; the Session's words follow unchanged and no row is added.
+#[test]
+fn a_reopened_footer_tells_an_earlier_success_from_this_session() {
+    let (lifecycle, status, kept) = reopened();
+    let plain = [Beat::Rail(lifecycle.rail()), Beat::Status(status.clone())];
+    let told = footer_beats(lifecycle, status.clone(), kept.as_ref(), true);
+    let rail = "Draft ✓ · Saved ✓ · Checked ○ · Active ○ · Run ○ (earlier ✓)";
+    assert_eq!(told[0], Beat::Rail(rail.to_owned()));
+    let note = "last run ✓ exit 0 in an earlier session";
+    assert_eq!(told[1], Beat::Status(format!("{note} · {status}")));
+    let (wide, wide_rows) = footer_rows(told.clone(), 75);
+    assert_eq!(wide[0], rail);
+    assert!(
+        wide[1].starts_with(&format!("{note} · Saved · no current Run result")),
+        "{wide:?}"
+    );
+    let (narrow, narrow_rows) = footer_rows(told, 40);
+    assert_eq!(narrow, ["Draft ✓ · Saved ✓ · Checked ○ · Active ○", note]);
+    assert_eq!(wide_rows, footer_rows(plain.clone(), 75).1);
+    assert_eq!(narrow_rows, footer_rows(plain, 40).1);
+}
+
+/// The earlier run is told only while this session observed no run and only
+/// a choice waits; an exit other than 0 keeps its own stage and another
+/// workflow is named; an unreadable or exit-less record adds nothing.
+#[test]
+fn the_earlier_run_gives_way_to_a_run_or_a_question_here() {
+    let (lifecycle, status, kept) = reopened();
+    let unchanged = [Beat::Rail(lifecycle.rail()), Beat::Status(status.clone())];
+    let waits = footer_beats(lifecycle, status.clone(), kept.as_ref(), false);
+    assert_eq!(waits, unchanged);
+    let mut ran = LifecycleFacts::new();
+    ran.saved = true;
+    ran.run = RunFact::Exit(1);
+    let ran = Lifecycle::from_facts(&ran);
+    let done = "Done · the run failed · `reorder.nika`".to_owned();
+    assert_eq!(
+        footer_beats(ran, done.clone(), kept.as_ref(), true),
+        [Beat::Rail(ran.rail()), Beat::Status(done)]
+    );
+    let records = [
+        None,
+        Some(Err("unreadable".to_owned())),
+        Some(Ok(KeptRun::new())),
+    ];
+    for record in records {
+        let told = footer_beats(lifecycle, status.clone(), record.as_ref(), true);
+        assert_eq!(told, unchanged, "{record:?}");
+    }
+    let failed = KeptRun::new().ended(Some(Path::new("other.nika")), 1, None);
+    let told = footer_beats(lifecycle, status.clone(), Some(&Ok(failed)), true);
+    assert_eq!(
+        told[0],
+        Beat::Rail(format!("{} (earlier ×)", lifecycle.rail()))
+    );
+    assert_eq!(
+        told[1],
+        Beat::Status(format!(
+            "last run of `other.nika` × exit 1 in an earlier session · {status}"
+        ))
+    );
+    let alone = footer_beats(lifecycle, String::new(), kept.as_ref(), true);
+    let note = "last run of `reorder.nika` ✓ exit 0 in an earlier session";
+    assert_eq!(alone[1], Beat::Status(note.to_owned()));
+}
+
+/// Each turn arms its own stop from the Session's preparation token. It
+/// cancels that preparation, never a Run the same turn handed to its runner,
+/// and a Run of an earlier turn does not reach a later turn's stop. Arming
+/// calls no model and sends nothing.
+#[test]
+fn a_turn_stop_cancels_its_preparation_and_never_a_run() {
+    let room = Room::new("stopper");
+    let mut live = run_live(&room);
+    let stop = live.stopper().expect("an open runtime arms a stop");
+    assert_eq!(stop(), Stopping::Requested);
+    let stop = live.stopper().expect("each turn arms its own");
+    live.run_started.store(true, Ordering::Release);
+    assert_eq!(stop(), Stopping::RunUnderway);
+    assert_eq!(
+        stop(),
+        Stopping::RunUnderway,
+        "asked again, still not stopped"
+    );
+    let fresh = live.stopper().expect("a later turn");
+    assert_eq!(fresh(), Stopping::Requested);
+    assert!(!room.0.join("reply.json").exists(), "nothing ran");
+}
+
+mod last_turn;

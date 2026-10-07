@@ -2226,6 +2226,7 @@ pub const nika_cadence::schedule::MAX_SCHEDULE_CADENCE_BYTES: usize
 pub const nika_cadence::schedule::MAX_SCHEDULE_ID_BYTES: usize
 pub const nika_cadence::schedule::MAX_SCHEDULE_PAUSE_REASON_BYTES: usize
 pub const nika_cadence::schedule::MAX_SCHEDULE_WORKFLOW_BYTES: usize
+pub fn nika_cadence::schedule::when_json(when: &nika_cadence::schedule::ScheduleWhen) -> serde_json::value::Value
 pub mod nika_cadence::schedule_plan
 #[non_exhaustive] pub enum nika_cadence::schedule_plan::ScheduleDueVerdict
 pub nika_cadence::schedule_plan::ScheduleDueVerdict::CatchUp
@@ -2572,7 +2573,9 @@ pub fn nika_cadence::schedule_plan::ScheduleSlot::as_any(&self) -> &(dyn core::a
 impl<T> typenum::type_operators::Same for nika_cadence::schedule_plan::ScheduleSlot
 pub type nika_cadence::schedule_plan::ScheduleSlot::Output = T
 pub const nika_cadence::schedule_plan::MAX_SCHEDULE_PROJECTION_SLOTS: usize
+pub fn nika_cadence::schedule_plan::due_json(due: &nika_cadence::schedule_plan::ScheduleDueVerdict) -> serde_json::value::Value
 pub fn nika_cadence::schedule_plan::plan_schedule(definition: &nika_cadence::schedule::ScheduleDefinition, now: &jiff::zoned::Zoned, state: &nika_cadence::schedule_plan::ScheduleDecisionState, projection_limit: usize) -> core::result::Result<nika_cadence::schedule_plan::SchedulePlan, nika_cadence::schedule_plan::SchedulePlanError>
+pub fn nika_cadence::schedule_plan::slot_json(slot: &nika_cadence::schedule_plan::ScheduleSlot) -> serde_json::value::Value
 pub mod nika_cadence::tick
 #[non_exhaustive] pub enum nika_cadence::tick::ScheduleDecision
 pub nika_cadence::tick::ScheduleDecision::CatchUp

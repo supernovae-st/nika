@@ -207,7 +207,7 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   (INV-019) and matches the reader's enums with a wildcard arm. Five public types added
   after the split (`cardinality::{Bound, Measure}`, `shape::{LiteralLookup, Shape}`,
   `structure::Law`) are not yet `#[non_exhaustive]`: that ratchet is owed, not claimed.
-- `provenance.plan` (the recorded plan a sidecar replays with zero provider calls) is the
+- `provenance.plan` (the recorded plan a sidecar replays with no authoring call) is the
   reader's `Plan::to_json` / `Plan::from_json` pair. A canonical record replays every
   provided owned field without loss or coercion. Present malformed `rules` or `slots`,
   a defective element beside a valid one, and nested values that would otherwise be
@@ -293,7 +293,7 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   - A plain sort bound over observed numbers sorts by the key too.
   - An aggregate over a bound number (a sum, an average, a minimum, a maximum, with the
     rounding the request states) is lowered through the exact arithmetic laws
-    (`dsum_out`, `davg_out`, `dmin_out`, `dmax_out`, `laws/arithmetic.jq` in `nika-compile`):
+    (`dsum_out`, `davg_out`, `dmin_out`, `dmax_out`, `decimal/arithmetic.jq` in `nika-compile-fidelity`):
     the result is exact within a 1000-digit bound, an average with no finite expansion asks
     for a rounding, and a result no JSON number carries stops the run naming it. A count is
     unchanged.
@@ -413,6 +413,63 @@ while `nika-compile` stood at its wall; they ascended to `nika-compile-fidelity`
   unread part; `lexicon::compute_head` is its crate-private reading. Limits: closed word
   lists; a restriction phrased with none of these words reads as no restriction, and the
   judge's `no_operation` stays admissible for it.
+- **A pure prohibition asks no operation of its own (R4 A11).** Read above this crate since
+  2026-10-07, by `nika_compile_clauses::prohibition` (ADR-145, ascended from `structure` at the
+  15k prod-LOC wall); the words it reads stay here, public as `stages::{restriction_word,
+  keep_lead, operation_word}`, `rules::exclusion_lead` and `lexicon::reads_a_head` (never the
+  head type). `prohibition::pure_prohibition` reads a clause as a pure prohibition when it
+  forbids by negation alone (« never email the
+  customer », « need no time-zone conversion », « don't round the totals », « n'envoie pas
+  d'email au client », « never delete ./data/raw.csv », « do not drop any rows », « send no
+  email to the customer », « lösche die Datei nicht », « personne ne doit recevoir d'email »).
+  It reads the clause's words lowercased, with a path or a URL dropped (a literal, so « write
+  the sum to ./out/no.json » negates nothing, though the phrase holding it names a target), a
+  hyphenated word kept whole (« write the non-empty rows » negates nothing), a French elision
+  split (« n'envoie » reads « n », « envoie ») and an English negative contraction read as its
+  « not »; a comma, a semicolon, a colon or a joining word (« and », « then », « also »,
+  « but », « instead », « et », « puis », « mais », « y », « pero », « e », « ma », « und »,
+  « dann », « aber », « sondern », « mas » and their kin; never « or », which joins what one
+  negation forbids) opens a phrase. The clause needs a negation: a word of `NEGATIONS` (« not »,
+  « no », « never », « without », « nothing », « none » and their kin over the six languages,
+  each a word of `[restriction_words]`; « mai », Italian for never, is left out because it is
+  also the French month, and « no » reads « in the » in a clause holding a word only Portuguese
+  holds: « não », « em », « arquivo », « escreva »…), or the French « ne » or « n' » closed
+  later by « pas », « jamais », « rien », « aucun(e) », « plus », « personne » or « guère »
+  before any « que » (never « ne … que », which restricts to what follows), or negated by its
+  subject just before it (« personne », « rien », « aucun(e) », « nul(le) »). A word of
+  forgetting, failing, missing, neglecting or omitting (« forget », « oublie », « olvides »,
+  « vergiss », « dimenticare », « scordare », « esquecer » and their forms) within two words
+  after a negation, or before it in its phrase, makes it a demand, no prohibition (« don't
+  forget to write the summary », « no olvides … », « n'oublie pas … », « vergiss die Kopfzeile
+  nicht »). `prohibition::negated_demand` reads such a demand when nothing else in the clause
+  restricts (no other restriction word, keep or exclusion lead, structure law): the verifier
+  then frames the clause as no restriction at all. Every operation the clause states must be one
+  a negation of its phrase forbids, else it is a mixed clause, no prohibition. An operation is a
+  creation verb (« produce », « create », « generate », « build », « make », « prepare »,
+  « compose », « draft » and their kin), an effect or operation verb of the six languages
+  (« write », « save », « send », « delete », « read », « list », « export », « écris »,
+  « envoie », « escribe », « scrivi », « schreibe », « speichere », « lösche », « escreva »,
+  « salve », « apague » and their kin), a stage operation word, a keep lead, an exclusion lead
+  or a head the lexicon reads; a negation never counts as one. A negation forbids it when it
+  stands before it in the phrase (« never email »), stands for its object within two words
+  after it (« send no email », « make sure nobody … », « lösche nichts »: « no », « nothing »,
+  « none », « nobody », « rien », « aucun(e) », « nada », « nadie », « niente », « nessuno »,
+  « nichts », « kein… », « nenhum(a) » and their kin), or is a German « nicht », « nie » or
+  « niemals » closing the phrase (« lösche die Datei nicht »). So « produce the report without
+  sending an email », « do not email the customer and write the refusal to ./r.md » and
+  « speichere die nicht leeren Zeilen in ./out/b.csv » ask an operation, « keep rows that are
+  not cancelled » selects and « ignore the rows without an email » excludes. A phrase naming a
+  path with no negation of its own asks a target (« I never want emails, just the file
+  ./out/a.md »). Any other restriction word anywhere (« only », an exception, a condition: « if
+  a row has no email, skip it »; an Italian « mai » after a negation is its « never ») and any
+  structure law make it no prohibition either. `prohibition::states_operation` reads whether a
+  clause states an operation of its own or names a path, beside whatever law or negation it
+  states (« write the total to ./out/t.txt and nothing else » does, « nothing else » does not).
+  The verifier's pointer question never offers `omitted` (an operation no task performs) for a
+  pure prohibition, nor for a structure law that states no operation of its own: it is carried
+  by no task doing what it forbids. Every other clause may be found `omitted`, a context
+  sentence included. Limits: closed word lists; a prohibition phrased with none of these
+  negations reads as no prohibition, and `omitted` stays offered for it.
 - **The named gate asks with `request`, `seek` and `solicit` too.** Its asking
   verbs (`assets/gate_ask_verbs.txt`) hold « request human confirmation before writing » as
   « ask for human confirmation before writing » does: the write waits for a human's yes. The

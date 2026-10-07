@@ -27,9 +27,11 @@ nika-cli
 nika-cli-host
 nika-clock
 nika-compile
+nika-compile-clauses
 nika-compile-cognition
 nika-compile-fidelity
 nika-compile-reader
+nika-compile-seats
 nika-compile-trigger
 nika-dap
 nika-dataflow
@@ -74,6 +76,7 @@ nika-secret
 nika-serve
 nika-service-execution
 nika-session
+nika-session-change
 nika-source
 nika-store
 nika-tmpl

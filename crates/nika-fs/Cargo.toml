@@ -14,7 +14,7 @@ publish                = false  # Internal L1 effect crate (not a standalone cra
 nika-kernel = { path = "../nika-kernel", version = "0.122.0" }
 bytes       = { workspace = true }  # FsRead::read zero-copy payload (kernel trait surface)
 globset     = { workspace = true }  # FsList::glob matcher · literal_separator(true) semantics
-nix         = { workspace = true, features = ["fs", "dir"] } # descriptor-rooted owned directories (openat + nofollow)
+nix         = { workspace = true, features = ["fs", "dir", "user"] } # descriptor-rooted owned directories (openat + nofollow) · effective uid of reserved logs
 # tokio::fs is the production I/O backend; `fs` rides on top of the
 # workspace base feature set (rt · macros · time).
 # `sync`: the room ledger hands each registered blocking result back

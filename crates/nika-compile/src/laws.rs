@@ -62,14 +62,8 @@ pub(super) const SELECT_BY_KEY: &str = ". as $lookup | ($lookup.directory | from
 /// directory yields its keyed entry.
 pub const SELECT_BY_FIELD: &str = r#". as $l | ($l.directory | fromjson) | if type == "array" then (map(select(type == "object" and (.[$l.field] == $l.id or ((.[$l.field] | type) == "number" and (.[$l.field] | tostring) == $l.id)))) | . as $m | if all(.[]; . == $m[0]) then $m[0] else error("\($m | length) records have `\($l.field)` \($l.id) and they differ: no single record can be chosen, and input order is no reason to pick one") end) else .[$l.id] end"#;
 
-/// The exact decimal order laws (R4 A8) in the one jq the runtime runs: the exact order key, the
-/// rank cut and the transport guard (`laws/order.jq`, readable, counted with this crate).
-pub(super) const ORDER: &str = include_str!("laws/order.jq");
-
-/// The exact decimal arithmetic laws (R4 A8), after [`ORDER`]: bounded exact sums, averages and
-/// stated roundings, and the output rule that writes a result only where a JSON number carries it
-/// (`laws/arithmetic.jq`, readable, counted with this crate).
-pub(super) const ARITHMETIC: &str = include_str!("laws/arithmetic.jq");
+// Kept at the assembler's existing names; the exact decimal laws are owned with fidelity.
+pub(super) use nika_compile_fidelity::decimal::{ARITHMETIC, ORDER};
 
 /// The decode of a JSON source, guarded: every number the next task may read or write (all of
 /// them, or those under the named record fields) keeps its exact value through the JSON transport
@@ -116,6 +110,10 @@ pub(super) const ZIP: &str =
 
 /// The fold of a fan-out: one document with a heading per file, in item order.
 pub(super) const FOLD_DOCUMENTS: &str = ". as $r | [range(0; $r.texts | length) as $i | \"## \\($r.paths[$i])\\n\\n\\($r.texts[$i])\"] | join(\"\\n\\n\")";
+
+/// The fold of a fan-out no step reads: the sources' own bytes one after the other, in item
+/// order, nothing added between or around them.
+pub(super) const FOLD_TEXTS: &str = ".texts | join(\"\")";
 
 /// The deterministic count and totals of a computed result: `{count, totals}` where the
 /// totals sum every numeric column of an array of objects (identifier columns excluded),

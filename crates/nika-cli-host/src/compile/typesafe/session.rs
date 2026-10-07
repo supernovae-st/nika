@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The bounded decision seat a session may consult — one operator-selected `TypeSafe` System
+//! The typed decision seat a session may consult — one operator-selected `TypeSafe` System
 //! One seat (Jev), the SAME adapter `nika compile --decision-model` seats
 //! ([`super::TypesafeSeat`]).
 //!
@@ -13,18 +13,15 @@
 //!
 //! Consumption stays the compiler's: it asks only when its reading holds a finite ambiguity
 //! (WARM) — a HOT, support or deterministic reading never calls — and it revalidates the answer
-//! against the options it offered (NONE included). The seat is consulted only under an API model
-//! seat whose dispatch rides the session's no-budget observation: a numeric allowance, a zero
-//! allowance, an unknown-cost scope or a closed account is never charged with the seat's unknown
-//! cost, and a need met there is answered with a refusal the outcome records — never a claim of
-//! use. At most [`MAX_DECISION_CALLS`] calls per compile, one attempt each within the adapter's
-//! deadline; no retry.
+//! against the options it offered (NONE included). The host supplies its admission verdict;
+//! the decision service is never charged to the author's API allowance or subscription. Each
+//! need makes one attempt within the adapter's deadline, with no retry or implicit call cap.
+//! A finished compile closes its scope, retaining unresolved sends as Uncertain.
 //!
 //! Every attempt is journaled before its request can leave and settled after it; the journal
 //! rides the session's persisted `inference_observations` ([`DECISION_SCHEMA`]), outside any
 //! allowance and outside the no-budget priced subtotal: its cost is unknown, never zero.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use super::{Delivery, TypesafeSeat};
@@ -36,17 +33,14 @@ use serde_json::{Value, json};
 /// The environment name of the operator's decision-seat selection (a seat name, never a key).
 pub const DECISION_ENV: &str = "NIKA_SESSION_DECISION_MODEL";
 
-/// The calls one compile may make to the decision seat; the next need is refused unsent.
-pub const MAX_DECISION_CALLS: usize = 3;
-
 /// The schema of a decision-seat observation in `inference_observations`.
-pub const DECISION_SCHEMA: &str = "nika/session-decision-seat@1";
+pub const DECISION_SCHEMA: &str = "nika/session-decision-seat@2";
 
 /// The seat's cost, said every time it is recorded.
 const COST: &str = "unknown — the decision seat has no catalog tariff; never priced as zero; outside any Session allowance and the no-budget priced subtotal; invoice unknown";
 
 /// What the seat decides — and what it does not.
-const ROLE: &str = "compiler routing: which operation an ambiguous clause asks for (WARM), NONE allowed; never Foundry or knowledge selection, never authority";
+const ROLE: &str = "typed compiler decisions: clause reading, feasible-plan ranking, semantic verification (the whole request, then each part alone, the task a missing part points to, extra operations and the questions over a trial run); NONE allowed; never Foundry or knowledge selection, never authority";
 
 /// The operator-selected decision seat of one session. Its `Debug` names the seat and whether it
 /// is ready — never the key, never the journal.
@@ -147,19 +141,14 @@ impl DecisionSetup {
     /// The `/status` words: the seat, its endpoint and bounds — or its refusal.
     #[must_use]
     pub fn line(&self) -> String {
-        match &self.seat {
-            Ok(seat) => format!(
-                "decision seat {} ({}, operator-selected) · {} · compiler routing of an ambiguous clause, never knowledge selection · at most {MAX_DECISION_CALLS} call(s) per seated compile, one attempt each, {} s deadline, no retry · consulted only for a finite ambiguity under an API seat without a numeric allowance · cost unknown, never zero",
-                self.word,
-                self.source,
-                seat.endpoint_host(),
-                seat.timeout().as_secs()
-            ),
-            Err(why) => format!(
-                "decision seat {} ({}) · refused: {why}",
-                self.word, self.source
-            ),
-        }
+        nika_display::model_scope::decision_status(
+            &self.word,
+            self.source,
+            self.seat
+                .as_ref()
+                .map(|seat| (seat.endpoint_host(), seat.timeout().as_secs()))
+                .map_err(String::as_str),
+        )
     }
 
     /// One observation per compile that needed the seat, as the session persists them.
@@ -188,19 +177,17 @@ impl DecisionSetup {
                 (Err(why), _) => Err(why.clone()),
                 (Ok(_), verdict) => verdict,
             },
-            calls: AtomicUsize::new(0),
             journal: Arc::clone(&self.journal),
             entry: Mutex::new(None),
         }
     }
 }
 
-/// The capped, journaling seat the compiler sees for one compile.
+/// The journaling seat the compiler sees for one compile; consumption closes its scope.
 pub struct SessionSeat {
     word: String,
     seat: Option<Arc<TypesafeSeat>>,
     allowed: Result<(), String>,
-    calls: AtomicUsize,
     journal: Arc<Mutex<Vec<Value>>>,
     entry: Mutex<Option<usize>>,
 }
@@ -223,7 +210,8 @@ impl SessionSeat {
                 "selection": "operator-selected",
                 "unbudgeted": true,
                 "state": "Open",
-                "max_calls": MAX_DECISION_CALLS,
+                "max_calls": null,
+                "scope_ended": false,
                 "retries": 0,
                 "calls_sent": 0,
                 "unknown_calls": 0,
@@ -242,6 +230,25 @@ impl SessionSeat {
         let journal = self.journal.lock().ok()?;
         let index = (*self.entry.lock().ok()?)?;
         journal.get(index).cloned()
+    }
+
+    /// End this compile's scope without turning an unknown price into a zero charge.
+    #[must_use]
+    pub fn finish(self) -> Option<Value> {
+        self.close();
+        self.receipt()
+    }
+
+    fn close(&self) {
+        if self.receipt().is_some() {
+            self.record(|o| {
+                settle_state(o);
+                o["scope_ended"] = json!(true);
+                if o["state"] == "Open" {
+                    o["state"] = json!("Closed");
+                }
+            });
+        }
     }
 
     /// Record an attempt that never left, and return its error.
@@ -306,31 +313,26 @@ impl DecisionSeat for SessionSeat {
                     "not consulted: the seat is unavailable",
                 ));
             };
-            if self.calls.fetch_add(1, Ordering::SeqCst) >= MAX_DECISION_CALLS {
-                return Err(self.unsent(
-                    question,
-                    "capped",
-                    &format!(
-                        "reached its cap of {MAX_DECISION_CALLS} call(s) for this request; not sent"
-                    ),
-                ));
-            }
             // Journaled BEFORE the request can leave: an interruption leaves « may have been sent ».
-            let slot = self.record(|o| {
-                bump(o, "calls_sent");
-                bump(o, "unknown_calls");
-                let slot = push(
-                    o,
-                    json!({
-                        "question": question.id,
-                        "options": question.keys(),
-                        "sent": true,
-                        "outcome": "in_flight",
-                    }),
-                );
-                settle_state(o);
-                slot
-            });
+            let slot = self
+                .record(|o| {
+                    bump(o, "calls_sent");
+                    bump(o, "unknown_calls");
+                    let slot = push(
+                        o,
+                        json!({
+                            "question": question.id,
+                            "options": question.keys(),
+                            "sent": true,
+                            "outcome": "in_flight",
+                        }),
+                    );
+                    settle_state(o);
+                    slot
+                })
+                .ok_or_else(|| {
+                    DecisionError("decision journal unavailable; nothing sent".into())
+                })?;
             let result = seat.exchange(question).await;
             self.record(|o| {
                 let settled = match &result {
@@ -376,7 +378,7 @@ impl DecisionSeat for SessionSeat {
                     }),
                 };
                 let left = settled["sent"] == true;
-                if let (Some(slot), Some(attempts)) = (slot, o["attempts"].as_array_mut())
+                if let Some(attempts) = o["attempts"].as_array_mut()
                     && let Some(attempt) = attempts.get_mut(slot)
                 {
                     *attempt = settled;
@@ -392,5 +394,84 @@ impl DecisionSeat for SessionSeat {
                 .map(|exchange| exchange.answer)
                 .map_err(|failure| failure.error)
         })
+    }
+}
+
+impl Drop for SessionSeat {
+    fn drop(&mut self) {
+        self.close();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    #[allow(clippy::expect_used, clippy::panic, clippy::disallowed_methods)]
+    fn a_poisoned_journal_refuses_before_transport() {
+        let setup = DecisionSetup::with_key(
+            "typesafe/jev-test",
+            Some("fixture".into()),
+            Some("http://127.0.0.1:1"),
+        );
+        let shared = Arc::clone(&setup.journal);
+        assert!(
+            std::thread::spawn(move || {
+                let _guard = shared.lock().expect("journal");
+                panic!("synthetic poison");
+            })
+            .join()
+            .is_err()
+        );
+        let seat = setup.consult(Ok(()));
+        let question = ChoiceQuestion::new("q", "pick", json!({}), vec![]);
+        let result = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime")
+            .block_on(seat.choose(&question));
+        assert!(
+            matches!(result, Err(DecisionError(why)) if why == "decision journal unavailable; nothing sent")
+        );
+        assert_eq!(setup.observations()[0]["state"], "Uncertain");
+    }
+
+    /// The observation names every question the seat may decide, a pointer asked for any missing
+    /// part (never for a restriction alone) and the questions over a trial run among them; a
+    /// consultation the money law refuses records its question unsent.
+    #[test]
+    #[allow(clippy::expect_used)]
+    fn the_observation_names_every_question_the_seat_decides() {
+        let setup = DecisionSetup::with_key(
+            "typesafe/jev-test",
+            Some("fixture".into()),
+            Some("http://127.0.0.1:1"),
+        );
+        let seat = setup.consult(Err("the allowance is spent".into()));
+        let question = ChoiceQuestion::new("verify-point-0", "pick", json!({}), vec![]);
+        let result = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime")
+            .block_on(seat.choose(&question));
+        assert!(
+            matches!(&result, Err(DecisionError(why)) if why == "decision seat typesafe/jev-test not consulted: the allowance is spent"),
+            "{result:?}"
+        );
+        let observation = &setup.observations()[0];
+        assert_eq!(
+            observation["role"],
+            "typed compiler decisions: clause reading, feasible-plan ranking, semantic verification (the whole request, then each part alone, the task a missing part points to, extra operations and the questions over a trial run); NONE allowed; never Foundry or knowledge selection, never authority"
+        );
+        assert_eq!(
+            observation["attempts"],
+            json!([{"question": "verify-point-0", "sent": false, "outcome": "refused",
+                "error": "not consulted: the allowance is spent"}])
+        );
+        assert_eq!(
+            observation["refused"],
+            "not consulted: the allowance is spent"
+        );
+        assert_eq!(observation["calls_sent"], 0);
     }
 }

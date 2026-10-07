@@ -3,13 +3,13 @@
 | Field | Value |
 |---|---|
 | Status | **WIP → ADMISSION** (One Door · wave 4 · ADR-125). In `workspace.metadata.diamond.wip` until the 12 gates land (Gate 5 mutation and Gate 11 swarm owed). |
-| Layer | **L4 — interface** (the human's terminal) · a host runtime over the installed engine · **sync** on the terminal, one current-thread runtime per inference · lateral `nika-session → nika-cli-host` for the ONE probe and the ONE oracle facade (the ADR-124 precedent) · lateral `nika-session → nika-trace` for the run facts behind the result, gate and `/proof` views (never back). |
+| Layer | **L4 — interface** (the human's terminal) · a host runtime over the installed engine · **sync** on the terminal, one current-thread runtime per inference · lateral `nika-session → nika-cli-host` for the ONE probe and the ONE oracle facade (the ADR-124 precedent) · lateral `nika-session → nika-trace` for the run facts behind the result, gate and `/proof` views (never back) · `nika-session → nika-session-change` for the change set, its review, its outcome and the consent record (size-cap member · ADR-144 · never back). |
 | Sub-tier | L4-surface — bare `nika` on an interactive terminal (the `nika-tui` renderer by default · the plain loop with `--plain` or `NIKA_TUI=0`, and as the renderer's fallback · a pipe gets the concierge). The session opens on the human's request; the deterministic compiler and the engine facts answer with no choice made. The first line only an intelligence can answer asks, in context, how Nika should think with the human (an AI app they already have · an API · a local engine · none · in that order, in human words), resumes that line exactly as typed once chosen, and keeps the answer at `~/.nika/session-intelligence.json`. The session observes the project once, answers Nika facts from the engine, hands the chosen intelligence a minimal typed bundle, and reads every reply through the hallucination guard. |
-| Design | Eight modules, one law each: `identity` (the six laws + the language digest) — owned by `nika-onboard` since 2026-09-30 and re-exported here unchanged · `snapshot` (the proven root · the project file · the ONE walker) · `intelligence` (the census · the persisted choice · the resolution that refuses, never replaces · the data locus) · `reasoner` (ONE inference over the seat, the provider registry, or none — never a temporary workflow) · `broker` (the bundle: named files inside the root, bounded, redacted, with provenance · the environment never injected) · `guard` (builtins · models · codes · MCP servers · verbs · fields · claimed ignorance, corrected under the reply) — owned by `nika-onboard` since 2026-09-29 and re-exported here unchanged · `facts` (the workflows · the builtins · the providers · a verdict through the facade · a code through the ladder · a shape through the ONE router) · `change` (ADR-126 · the typed change set a reply proposes: previewed from the exact bytes the apply consumes · witnessed against stale targets · landed atomically only on the consent line · the real check after it lands · a run requested only on a clean check · the pending gate read from a paused trace) · `runtime` (the loop · the proposal · the consent · the run observed). Owns nothing the engine owns. |
+| Design | Eight modules, one law each: `identity` (the six laws + the language digest) — owned by `nika-onboard` since 2026-09-30 and re-exported here unchanged · `snapshot` (the proven root · the project file · the ONE walker) · `intelligence` (the census · the persisted choice · the resolution that refuses, never replaces · the data locus) · `reasoner` (ONE inference over the seat, the provider registry, or none — never a temporary workflow) · `broker` (the bundle: named files inside the root, bounded, redacted, with provenance · the environment never injected) · `guard` (builtins · models · codes · MCP servers · verbs · fields · claimed ignorance, corrected under the reply) — owned by `nika-onboard` since 2026-09-29 and re-exported here unchanged · `facts` (the workflows · the builtins · the providers · a verdict through the facade · a code through the ladder · a shape through the ONE router) · `change` (ADR-126 · the typed change set a reply proposes: previewed from the exact bytes the apply consumes · witnessed against stale targets · landed atomically only on the consent line · the real check after it lands · a run requested only on a clean check · the pending gate read from a paused trace) — owned by the size-cap member `nika-session-change` since 2026-10-06 with `review`, `outcome` and `consent`, and re-exported here unchanged (ADR-144) · `runtime` (the loop · the proposal · the consent · the run observed). Owns nothing the engine owns. |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (Diamond caps) |
 | IMPL | projected, never hand-typed: `scripts/crate-metrics.sh nika-session` (src LOC · largest file · unit and integration tests) |
 | Crate version | tracks workspace · License `AGPL-3.0-or-later` · Edition 2024 · Publish `false` (Foundation crate · ADR-022) |
-| ADRs | ADR-003 (12-gate admission) · **ADR-125 (the native session)** · **ADR-126 (project changes from the session)** · ADR-124 (the oracle facade the facts read) · ADR-122 / ADR-123 (the access plan and the layered verdicts the verdict fact carries) |
+| ADRs | ADR-003 (12-gate admission) · **ADR-125 (the native session)** · **ADR-126 (project changes from the session)** · ADR-144 (the change set's size-cap member) · ADR-124 (the oracle facade the facts read) · ADR-122 / ADR-123 (the access plan and the layered verdicts the verdict fact carries) |
 | Error range | **none user-facing** — `ReasonError` is the reasoner's refusal (no intelligence · the seat · the provider · the runtime) and `ChangeError` a change set's (outside the root · unnamed · stale · the file system), both spoken in the session as a refusal with its fix; the engine's own codes travel through the facts (`explain`) untouched. |
 | Reference | the one-door pack 08 (the session runtime) · 09 (knowledge and grounding) · 13 (the first run) · 15 (project changes · preview == apply · consent) · 27 (the system contract) · 37 (the context firewall) · `crates/nika-cli/src/verbs/session.rs` (the door) · `crates/nika-cli/tests/session_pty.rs` (the door on a real terminal) |
 
@@ -17,9 +17,16 @@
 
 ## What it must NOT own
 
-The workflow grammar · the builtin catalog · the model catalog · the error definitions · the check semantics · the runtime · the ARM semantics · the trace verification · what a run's trace proves · the project file grammar · the Meaning projection of the compiler's ledger · the round's pure law and its codec · the compiler's reasons in a human's words. It queries those authorities (`nika_pack` · `nika_builtin` · `nika_catalog` · `nika_error` · `nika_cli_host::oracle` · `nika_dap::inventory` · `nika_vocab::project` · `nika_onboard::routing` · `nika_trace::run_view` · `nika_onboard::compile::meaning` · `nika_onboard::compile::round` · `nika_onboard::compile::reading`).
+The workflow grammar · the builtin catalog · the model catalog · the error definitions · the check semantics · the runtime · the ARM semantics · the trace verification · what a run's trace proves · the project file grammar · the round's pure law and its codec · the compiler's reasons in a human's words. It queries those authorities (`nika_pack` · `nika_builtin` · `nika_catalog` · `nika_error` · `nika_cli_host::oracle` · `nika_dap::inventory` · `nika_vocab::project` · `nika_onboard::routing` · `nika_trace::run_view` · `nika_onboard::compile::round` · `nika_onboard::compile::reading`).
 
 ## Run facts: read here, owned by the trace reader
+
+The workspace also consumes `RunFacts::of` and the canonical captured verifier
+through its own `nika-trace` dependency. Session re-exports only `KeptRun` for
+`SessionRuntime::observe_run_leg`; `kept_run` and `kept_turns` expose retained
+observations. Session remains the sole history owner. Existing `observe_run`
+keeps its signature and supplies no inferred execution identity. See
+[history and downgrade limits](../architecture/session-history.md).
 
 The views of a run the session observed are read from the run's own
 journal, never from what the run printed. The reading and its three views
@@ -40,21 +47,91 @@ C9 (2026-09-28) no longer parsed a second time here. A private
 tests; `tests/fixtures/traces/copy.ndjson` stays here too, because the
 runtime's observation test reads it.
 
-## Meaning: shown here, owned beside the compiler's ledger
+## Meaning: owned here, its only reader
 
-The Meaning view (what survived of a request, clause by clause, from the
-compiler's own obligation ledger) is a pure projection of that ledger, so it
-lives in `nika_onboard::compile::meaning` since 2026-09-28, beside the
-`CompileOutcome` it reads; the move also brought this crate back under its
-production-LOC wall. `nika_session::meaning` stays a documented re-export of
-that module: the same types, functions and constant under the old path, which
-`tests/meaning_reexport.rs` compiles against as an external consumer. The
-candidate's bytes are read by the same strict `nika_schema` law as the
-review's. What stays here is the session's side: `/meaning` shows the view and
-holds a waiting proposal, and a revision's delta rides beside the revised
-proposal. The owner's « unavailable » line names no protocol; the session adds
-its own way on (the review above and `/show`). The three recorded outcomes its
-tests read moved with them.
+The Meaning view (what survived of a request, clause by clause, from the compiler's own
+obligation ledger) is a pure projection of that ledger. The session is its only reader, so it
+is owned here, `nika_session::meaning`: it sat beside the ledger in
+`nika_onboard::compile::meaning` from 2026-09-28, and moved back on 2026-10-07, once the
+onboarding surface stood at its 15k prod-LOC wall and this crate had room again (ADR-144). It
+reads the compiler's outcome and the two verdict readings it shares with the onboarding surface
+(`compile::reading::judged_not_accepted`, `compile::round::last_verification`) from there; the
+candidate's bytes are read by the same strict `nika_schema` law as the review's. `/meaning`
+shows the view and holds a waiting proposal, and a revision's delta rides beside the revised
+proposal. The « unavailable » line names no protocol; the session adds its own way on (the
+review above and `/show`).
+
+`meaning` projects an outcome's obligation ledger
+(`provenance.decision.ledger`) into the Meaning view: each clause's fate
+(represented · needs an answer · external · not expressible · refused ·
+contradicted), its assurance (read from the task that carries it in the
+candidate's bytes, parsed by the one strict `nika_schema` law: strict mode, one
+anonymous file, and bytes it refuses carry no verb), the rendered view and a
+revision's delta. It is pure (an outcome or a ledger in, words out), never
+certifies coverage (a clause the compiler did not read is not listed, and the
+view says so). With neither a ledger nor a semantic record it renders
+« unavailable » — words that name
+no host's protocol (`UNAVAILABLE`; a host adds its own way on). A ledger that is
+not a list, or an entry of an unknown or missing state, is never guessed and
+never silently dropped: the view says it could not read it and counts none of
+it as done (no « no clause » or « 0 waiting » over unread entries), and a delta
+over unread entries says they were not compared. It sat in
+`nika_onboard::compile::meaning` from 2026-09-28 and moved back here on 2026-10-07.
+Its tests and their three recorded outcomes live beside it (`src/meaning/`), and
+`tests/meaning_owner.rs` reads it as an external consumer.
+
+For a closed semantic record, `render` instead projects the reading ledger at
+`basis.read.ledger`: clauses are shown as read, without inventing a carrying task,
+a represented clause or a pending question. Gaps remain explicit; unreadable
+entries are disclosed. A Ready outcome states that the program was judged
+against the whole request, without assigning that judgment to each clause: the
+parts a doubted verdict asks alone locate defects as evidence, and the view
+does not present their answers as clause judgments.
+`clauses` and the existing delta API retain their realization-ledger contract.
+
+A candidate its verifier answered and did not accept (the outcomes `nika_onboard::compile::reading::held_words`
+reads so: the compiler's Applied `verify_held` finding, or a last
+verification contested with no defect, the candidate still shown) is said « the
+program was judged against the whole request: judged, not accepted » on the
+ledger's count line and in place of the reading's judgment. When the last
+verification repeats a rejection carried from an earlier round (`carried`), the
+view adds « the verdict comes from an earlier round, which judged these same
+bytes: the verifier was not asked again ». When the compiler kept neither a
+ledger nor a record (it dropped the record, so no round replays those bytes),
+`render` gives the request as the verifier judged it (« Meaning · your request as
+the verifier judged it »), from the verification that judged those bytes: the
+last attempt, or the earlier attempt of the compile it repeats with no call (its
+`same_bytes_as` index, on the same candidate digest). Each part that verification
+asked alone appears once, in order, with what it left: « missing » with the
+verifier's reason; for a contested part, « broken in the candidate's bytes
+(`<note>`), but the trial run shows it done for its inputs: nothing decided it »
+(without the note when the attempt kept none and a trial-run question answered
+`carried`), else « missing, then no task named that fails it: nothing decided
+it »; « not settled »; else its answer, a trial run's first (« carried in the
+trial run », « not exercised by the trial run », « carried », « superseded by a
+later part », « asks no operation of the workflow »). Each other finding follows
+once (an extra operation, a part never asked once a call got no answer), the
+whole request aside. The view ends with the count of parts asked alone, « judged,
+not accepted; nothing was written » and, for a carried verdict, which asked
+nothing in this compile, the earlier-round words; it lists what the verifier asked
+and claims no realization.
+
+## The change set: proposed here, owned by its member
+
+The project change a proposal writes (`change`), its factual review (`review`), the typed
+outcome a host renders (`outcome`) and the consent record (`consent`) live in the size-cap
+member `nika-session-change` since 2026-10-06 (ADR-144), placed below the session:
+`nika-session → nika-session-change`, never back. They formed a closed cluster: they named only
+each other inside this crate, apart from two aliases the move resolved (`crate::run_view` became
+`nika_trace::run_view`, `crate::ProposalId` the member's `outcome::ProposalId`). The move
+brought this crate back under its production-LOC wall. `nika_session::{change, consent, outcome,
+review}` are documented re-exports of the member's modules and the root re-exports
+(`ProjectChangeSet`, `ProposalId`, `ConsentRecord`, …) keep their paths:
+`tests/change_reexport.rs` compiles against them as an external consumer. What stays here is the
+session's side: when a set is proposed, previewed, consented to and applied, the rounds, the
+money gate and the history. The seams it reads across the boundary (the apply attempt, the
+check under a pinned access, the revision proposal, the candidate parse, the question's
+incarnation) were crate-private and are now public items of the member.
 
 ## Source basis at the yes (C9 · F4)
 
@@ -121,13 +198,55 @@ It has no model or firer and does not qualify live scheduled execution.
 
 ## Subscription authoring
 
+An explicit `1 acp:claude-code/<model>` choice uses ACP for conversation,
+classification and native Compiler authoring. The persisted harness transport
+is `acp`; older preferences without that field retain `native`. The selected
+transport must match the reasoner's authoring capability. No native or API
+fallback is permitted. Workflow execution access remains a separate Run choice.
+
+The initial ACP completion profile admits only the maintained
+`@agentclientprotocol/claude-agent-acp` 0.81.1 identity on the active connection,
+before `session/new`. Its audited options disable built-in tools, external MCP
+configuration and filesystem settings, allow one SDK turn and disable transcript
+persistence. The session uses a fresh scratch directory. Tool, permission,
+non-text output and incomplete stop reasons refuse the answer; EOF, timeout or
+cancellation never become a completed candidate. An error answer the adapter
+types as a lost sign-in (`error.data.errorKind` `authentication_failed`) is told
+as « ACP authoring unavailable: the app's sign-in has expired or was revoked; sign
+in again in that app, then retry; no fallback », in Nika's words, never the
+adapter's; any other error answer stays « transport ended before a complete
+answer ». This is adapter-specific
+capability admission, not a generic claim about ACP read-only modes. Codex
+over ACP still refuses: through `codex-acp` the user's MCP servers and the
+code-mode tools stay reachable whatever session configuration is passed, so no
+empty-tools profile is attested. The whole answer reaches Compiler validation;
+no JSON prefix is extracted.
+
+ACP uses the same selected Compiler policy as API authoring. Interactive preparation
+has no implicit total call, repair or monetary bound; callers using the historical
+bounded Session surface retain its policy and subscription monetary guards. The
+existing `harness_infer` receipt class carries an explicit
+`transport: acp`, preserving clarification replay. Configured/accepted session
+models are recorded separately from a responding model, which remains unknown.
+Token usage and the subscription invoice remain unknown; no zero-priced API
+allowance is created and no retained API account is erased. The requested token
+ceiling is recorded without claiming that ACP enforces it.
+
+
 The selected reasoner declares its subscription authoring capability separately
 from a provider model or catalog-backed admission. A supported harness sends
 native Compiler messages through `nika-harness::authoring::HarnessAuthoring`,
 which implements the kernel completion seam over the existing infer-grade
 transport. Session does not call the CLI compile adapter or select an API as a
 fallback. Supported adapters retain their explicitly selected adapter and model;
-an absent model retains the harness default. Unsupported model namespaces or
+an absent model retains the harness default. With multiple answer-capable apps
+present, `1` keeps the choice and any pending request open until the human names
+`1 <app>` or `1 <app>/<model>`; presence order and sign-in evidence never choose
+between them. `1` alone still chooses the app when exactly one can answer; only
+when several can, or none can, is it asked again as a question (which app, or
+route 2, 3 or 4) that keeps the pending request, never an execution refusal. An
+app named explicitly that cannot answer is still refused. The apps line labels each app `sign-in seen` or `no sign-in seen`: a
+home-file witness proves presence, not a live login. Unsupported model namespaces or
 unavailable/unsupported harness capabilities refuse visibly. No intelligence
 continues to compile deterministic requests without calling a model.
 
@@ -138,20 +257,36 @@ again (`AuthoringRound::absorb`, R4 A6): the same goal keeps its round, only a f
 answer binds, and a verified or pending transform is never carried to another source. Revisions retain
 the exact base bytes, original request and raw change. A failed edit keeps the
 previous proposal or saved workflow; Session never substitutes a model
-paraphrase as the source of a fresh Create request. The adapter passes
+paraphrase as the source of a fresh Create request. A saved-file revision binds
+its destination and original byte witness before compilation. Its proposal must
+update that same file over those bytes; a moved base refuses without proposing
+a new sibling file. Pending updates retain this target through further
+corrections and question continuations. Save still requires fresh consent.
+For an unsettled work line beside a saved workflow, Modify or Mixed revises it,
+NewWork starts a new creation, and failed, absent or unknown classification
+keeps the current state without authoring. This routing does not reinterpret
+lines already settled by the deterministic reader. The adapter passes
 the whole returned answer to Compiler validation, exposes no workflow tools,
-and accepts no tool-bearing answer. Codex authoring currently refuses before
-any call: its existing infer-grade boundary only rejects observed tool events
-after return, which does not prove pre-execution tool disabling. It may be
-admitted when that capability is attested; neither deterministic success nor
-an API is substituted. Supported one-shot adapters pass an explicit empty tool
-list. The transport retains its binary/version
-attestation, isolated scratch, tool restrictions and child cleanup. A call has
-a finite deadline capped at 600 seconds; Session defaults to 300 seconds for a
-subscription authoring call. Explicit thinking budgets are unsupported and
-refused; the native CLI does not enforce Compiler's requested token ceiling,
-which is recorded without claiming enforcement. Compiler's own bounded call
-and repair policy still applies. Cancellation or timeout accepts no answer.
+and accepts no tool-bearing answer. Native Codex authoring runs `codex exec`
+under a measured pre-execution empty-tools profile: every tool-bearing feature
+is disabled and hosted web search, sub-agents, skills and MCP servers are
+configured off before the turn starts. The profile is admitted only on the
+codex-cli minors where it was measured (0.160); at spawn the binary must name
+`codex-cli` on such a minor and `codex features list` under the same flags
+must read every disabled feature as off, otherwise the call refuses before
+any prompt, with no provider fallback. Observed tool events still reject the
+answer as a second check. The CLI's `codex/<model>` authoring seat uses this
+same transport, never the ACP agent. Supported one-shot adapters pass an
+explicit empty tool list. The transport retains its binary/version
+attestation, isolated scratch, tool restrictions and child cleanup. A call requires
+a positive finite deadline. The legacy bounded Session policy uses 300 seconds
+for subscription authoring; continuous preparation currently uses 600 seconds
+per call, not as a transport-wide maximum. Explicit thinking budgets are
+unsupported and refused; the native CLI does not enforce Compiler's requested
+token ceiling, which is recorded without claiming enforcement. Explicit request
+and repair limits still apply where selected; continuous preparation has no
+implicit count. Cancellation or timeout accepts no answer and does not prove
+that a sent request was unbilled.
 
 The Compiler's existing deterministic first step remains available even when
 the chosen harness cannot author. A settled deterministic request makes no
@@ -166,9 +301,22 @@ Compiler token totals remain absent rather than zero. `/meaning` displays this
 subscription evidence without labelling it a direct API or catalog price.
 Clarification replay carries the originating subscription receipt even without
 a knowledge snapshot and explicitly states that replay made zero calls.
-Subscription authorization is not billed-provider admission. Existing explicit
-monetary refusals remain in force; this connection adds neither an account nor
-an exemption from those guards. A proposal still requires fresh review and
+Subscription authorization is not billed-provider admission. An explicit
+subscription selection suspends a retained API allowance without clearing its
+identity, settlements, reservations or uncertainty. Only that selected subscription
+uses its normal non-API door; its invoice remains unknown and no API fallback is
+admitted. A saved selection has the same separation after reopening. For the
+historical bounded Session surface, returning to API requires a fresh total on
+the same complete account; historical uncertainty
+still cannot become a new numeric allowance. A USD ceiling stated while the
+subscription is selected blocks its cognition and is kept as a monetary restriction
+across reopening. Explicitly reselecting the subscription explains its unknown
+invoice and clears only this restriction, never API exposure. Invalid money,
+project zero and a pending gate still block cognition on that bounded surface.
+Continuous preparation observes the selected subscription's unknown invoice and
+retained API exposure without those monetary gates; this supplies no credit and
+changes no Run constraint. This adds no subscription account or numeric price.
+A proposal still requires fresh review and
 consent, revisions expire the old identity, and authoring grants no Save or Run.
 
 Every authoring round observes the files its request names under the session's
@@ -215,6 +363,13 @@ factory again. An injected classifier retains its route, and a real classifier's
 failed or unknown answer still binds nothing. Reaching review grants no consent.
 
 ## Monetary admission
+
+The Session inference rules in this section describe the historical bounded
+embedding surface. The interactive CLI and TUI use continuous preparation instead:
+earlier exposure remains evidence, while monetary constraints govern the separate
+Save/Run review and execution. The Run rules below apply to both surfaces. See
+[Continuous interactive preparation](#continuous-interactive-preparation) for the
+current interactive defaults.
 
 Session reads explicit monetary intent before the compiler, classifier or
 reasoner sees new work, including Prepare. Currency or a monetary anchor gives
@@ -330,13 +485,14 @@ to Run without pretending to meter authoring.
 
 Amendments change the total allowance without erasing settled or held exposure;
 questions, new factory instances, model changes and repairs never reset it.
-An uncertain account cannot reopen. After restart the previous aggregate cannot
-be proved: restored paid work requires an explicit new-scope reconfirmation and
-its previous invoice remains unknown. A ceiling stated after the restart (a
+An uncertain account cannot reopen. An old observation cannot prove the complete
+aggregate: its previous invoice remains unknown. A complete concordant checkpoint
+may restore a closed ledger as described below; the narrow legacy review below
+admits only a fresh unknown-cost invocation, never a recovered numeric allowance. A ceiling stated after the restart (a
 request's own directive, or a kept round's read again at `/restore`) belongs to
 that round: its answers state no money and keep it, never refused as the
-restored exposure, while Session inference stays blocked and new work stating
-no ceiling is still refused (C11). A bounded session never automatically
+restored exposure, while numeric Session inference stays blocked and new work stating
+no ceiling is still refused outside a fresh legacy cost review (C11). A bounded session never automatically
 changes the selected authoring model to a stronger one.
 
 Restoring a kept authoring round may replay its deterministic reading without
@@ -360,6 +516,12 @@ Run ceiling can replace it, and changed bytes require a fresh decision. Neither
 money nor Save grants a Run. File lookup resolves symlink aliases to the saved
 path and checks the exact byte witness. Ambiguous or changed identities refuse;
 independent files with identical bytes do not inherit each other's decisions.
+
+A saved-file revision without a new amount uses the same in-memory binding
+only when the resolved file and exact compiled base bytes agree. Ambiguous,
+stale or unreadable bindings refuse before cognition. With no binding, revision
+keeps the existing change-money/default law; this does not restore a saved
+ceiling across restart or alter Run's journal-based refusal below.
 
 The existing consent journal proves which files Save wrote but does not persist
 their monetary constraints. When an in-memory binding is unavailable, including
@@ -448,21 +610,59 @@ opens. Session and CLI compilation share the same TypeSafe adapter. Only finite
 compiler choices consult it; deterministic work makes no call, and NONE remains a
 valid outcome. The compiler validates the answer against its offered options.
 
-Each seated compile allows at most three decision calls, one attempt and a 20-second
-deadline each. This is compiler routing, not Foundry selection or execution authority.
-The seat is admitted only with an open unbudgeted API observation account; numeric
-allowances, zero, closed and unknown-cost scopes refuse the unpriced service visibly.
-Billing units are kept separately from tokens. Persisted observations identify sent,
-answered, refused and uncertain attempts, and keep unknown cost outside the priced
-DeepSeek subtotal. The pre-dispatch durable marker names the selected seat so an
-interruption cannot erase possible exposure. Model selection and credentials are
-operator configuration, not instructions taken from the workflow or retrieved context.
+Each finite choice makes one attempt with a 20-second deadline and no transport
+retry. Interactive preparation has no implicit three-call ceiling. The selected
+service accompanies API, native subscription and ACP authoring through the same
+compiler capability. It can read ambiguous clauses, rank feasible plans and judge semantic
+fidelity: the whole request first and, only when it doubts it, each part of the request
+alone, why a part it finds missing is missing (the task it points to, an operation no task
+performs, or no task after all), each part still open over a trial run of the same bytes when
+the sketch door made one in this Session, any extra operation, and then the whole request
+over that run (the [whole-request judgment](nika-compile-cognition.md)). A verdict is
+therefore one consultation when it carries the request; otherwise it is one per part of the
+request plus those follow-up questions, asked in sequence, each its own attempt under the
+deadline, and an attempt that fails or is refused ends that verdict's questions. Only a defect
+it locates goes to the author for repair, with the reason it gave; a doubt it does not locate
+is never repaired from and never proposed, and the candidate is held (below). Within one
+compile, the service is not asked again on bytes it already declined: its earlier verdict
+stands with no consultation. Session also carries the service's rejections into every later
+compile of the same goal (below), where a rejection of the same bytes for the same request
+stands with no consultation too; an abstention is not carried. The questions over a trial run
+carry the run's texts to the configured service as preparation context. The current adapter
+does not perform Foundry retrieval; that role belongs to the accepted
+[cooperative target](../architecture/ARCHITECTURE-0.123.md) and needs separate
+implementation and qualification. It grants no execution authority. In the current
+implementation, a caller that explicitly supplies a monetary account keeps its
+existing admission rules; an unpriced decision never consumes that allowance.
+Billing units remain separate from tokens, with cost and invoice unknown.
 
-The selected decision adapter and bounded journal are shared from
-`nika-cli-host::compile::typesafe::session`; `authoring::DecisionSetup` preserves
-its public path. Session retains its monetary admission decision and durable
-observation persistence. This is an ownership move within existing surface
-members, with no new provider, crate, retry or permission.
+`nika/session-decision-seat@2` retains every attempt and closes the scope when its
+compile ends; its `role` states what the seat decides, the whole-request judgment's
+questions included. Each attempt keeps its question id and offered keys (`task-<id>` and
+`part-<k>` among them), never the question's state or a trial run's texts.
+`scope_ended: true` means no further consultation of that scope, not
+that a price or successful workflow was proved. An unresolved send remains
+Uncertain even on cancellation. Old @1 records stay unchanged and visible. A new
+scope never reconciles an earlier uncertain charge, and reading observations
+never dispatches. The pre-dispatch durable marker remains the host's responsibility;
+an unavailable in-memory journal refuses before the decision transport starts.
+
+The configured verifier receives preparation trial observations by default. Session's
+sketch rounds may try a candidate in a sealed room on copies of the observed files. Every
+question over the run (a part asked again over it, its pointer, the whole request over it and
+its pointer) receives the texts the run read and the outputs it read back (currently at most
+64 KiB per file, with whole/partial and written-by-run markers); the verifier asks over a run
+only when it proves whole outputs. The decision service is used when selected, otherwise the
+authoring provider. The compiler binds the evidence to the exact candidate and records
+paths, sizes and sha256 rather than duplicate texts. The copy door continues to perform
+its deterministic qualification; making evidence available does not add a judge call.
+Workflow execution permissions belong to `.nika` and Run, not to this preparation context.
+
+The adapter and journal remain in `nika-cli-host::compile::typesafe::session`;
+`authoring::DecisionSetup` preserves its public path. Session owns persistence and
+the selected author/decision composition. No new provider, permission, retry or
+execution path is introduced. The obsolete `MAX_DECISION_CALLS` constant is removed;
+explicit limits of workflow execution and the CLI Compile callers are unchanged.
 
 ## Project context and preparation bounds
 
@@ -472,13 +672,22 @@ headers, keys and categorical values into the full original request, answers
 and revision context. The receipt separates attachment from presentation in a
 model call; a deterministic result or replay does not claim a presentation.
 
-The initial native output limit is 16384 tokens, with a 32768 hard ceiling and
-180 seconds per API call. Three repair rounds cover reported truncation and
-candidate diagnostics; they do not retry an uncertain transport. A fresh
-unknown-cost review covers at most seven provider requests: classification,
-two COLD steps, then the native candidate and its three repairs. Numeric
-allowances still reserve the actual worst-case call and never widen themselves.
-Execution keeps its separate review and permissions.
+The legacy bounded Session surface starts native output at 16384 tokens, with
+a 32768 ceiling, 180 seconds per API call and three repair rounds. Its
+`CostReview::for_session` compatibility review allows at most seven requests;
+this is an enforced allowance, not the continuous compiler's theoretical worst
+case, and it may stop preparation before completion. Reported truncation may
+spend a repair to widen output; an uncertain transport is not retried. Numeric
+allowances never widen themselves.
+
+The interactive CLI and TUI instead enable continuous preparation. Its selected
+route supplies the technical output ceiling and per-call deadline; no implicit
+request-count, repair-count or monetary review gates preparation. A stated
+workflow budget remains part of the separate Save/Run review and execution.
+Historical accounts, reservations and unknown charges remain observations,
+never new credit. Missing usage or prices stay unknown, and a configured model
+name is not evidence of the identity actually served. Explicit limits retained
+by bounded callers and workflow execution are unchanged.
 
 ## Configuration read when a door opens
 
@@ -492,6 +701,7 @@ a workflow, a reply or retrieved context.
 | `~/.nika/session-intelligence.json` | The kept choice (kind · model · time); a corrupt file reads as never chosen |
 | `NIKA_AUTHORING_STRATEGY` · `NIKA_KNOWLEDGE` · `NIKA_KNOWLEDGE_EXCLUDE` | The shared authoring configuration: a trusted named release or the embedded default is admitted and pinned when the context opens. Knowledge off attaches nothing; strategy off with no source is unread. `NIKA_KNOWLEDGE_PACK` is refused: a pack was composed for one request |
 | `NIKA_AUTHORING_REASONING` | The explicit reasoning effort every seated authoring call asks (`low` · `high` · `max`), through the same parser; a host's typed word outranks it |
+| `NIKA_AUTHORING_SOURCE_RECOVERY` | An optional explicit finite count of source recovery rounds, as a nonnegative integer. Positive rounds are refused under `off` or `only`; invalid words refuse. With a bounded repair policy, `0` or unset supplies no recovery rounds. Continuous preparation (`repairs: None`) can enter source recovery after an eligible structured failure even with `0` or unset, without an aggregate recovery count; provider failure, truncation and repeated diagnostics still end that attempt. Recovery uses the same selected seat and records its route in `/details`; its observed costs do not add a monetary confirmation. Explicitly bounded callers retain their allowance and count. |
 | `NIKA_SESSION_DECISION_MODEL` with `TYPESAFE_API_KEY` | The optional decision seat (`typesafe/<jev>` only) |
 | `NIKA_TUI` | `0` · `off` · `false` · `no` · `plain` keep bare `nika` on the plain loop |
 
@@ -665,3 +875,245 @@ run again, live (`run_view::live_again`, judged by the resume's own fold);
 nothing is said when the fold's plan carries every completion, which promises
 nothing more: the run serves a carried completion only while its definition and
 inputs are unchanged (C10 · Q8).
+
+## Passive candidate plan presentation
+
+`review::{plan_lines, plan_lines_in_order}` re-export the pure projections in
+`nika_display::check_render::review`, which also owns their task-face rendering.
+Session retains candidate identity, destination selection, consent, application
+and history; rendering candidate text does not approve or save it.
+
+## Semantic programs across revisions and reopen
+
+The proposal boundary retains the compiler's byte-bound semantic or source-revision
+record as evidence in the existing HOME conversation history (`Saved.programs`).
+Pending edits retrieve records by proposal identity and exact base bytes; saved-file
+edits require the saved relative path and those bytes. Equal bytes at distinct paths
+do not alias a request, and an unaccepted proposal cannot replace a saved record.
+The compiler reconstructs and judges the record under the current observation. A saved
+revision reads its original request from that record, not a later conversation goal.
+Records are bounded and redacted as a whole by `compile::program_records`; an
+unknown envelope is kept unchanged and grants nothing. A missing record keeps the
+compiler's explicit historical-source limitations. No second project store is added.
+
+An EDIT's base record is input to a fresh revision, not a replayed answer round:
+knowledge is composed again, current monetary admission applies, and the revision's
+settled record replaces the base as its continuation. History can restore the last
+file actually saved as a conversational selection, but no proposal, consent, Run
+permission or clean-check assertion. The separate concordant-checkpoint path below
+can restore numeric accounting closed; program evidence cannot. Save still targets the same
+file under its original byte witness. Hermetic loopback tests in
+`runtime/semantic_basis_tests.rs` exercise Save/reopen/revise and pending failure
+retention; these are protocol checks, not live provider qualification. The test also
+preserves the negative case where a reopened session has prior monetary exposure:
+a new allowance must not erase or replace that exposure. Retaining semantic evidence
+does not itself implement durable monetary-account resumption.
+
+The closed conversational acts (`is_cancel`, `is_why`, `is_meaning`,
+`is_what_happened`, `is_greeting`) are owned by
+`nika_onboard::routing::conversation` and re-exported under their existing Session
+paths. Their vocabulary and whole-line matching remain unchanged.
+
+### Resuming complete numeric accounting
+
+A new-format inference checkpoint is kept in both the project record and the
+completed conversation boundary. After `enable_history`, `restore_state` may
+restore its accounting CLOSED only when both values match, their project binding
+and exact cost observation validate, the exclusive history lease is held, and
+no interrupted operation or dispatch marker remains. Older observation-only
+records, corruption, missing/divergent copies and uncertain history still refuse
+paid continuation. The read never sends a request or renews a proposal or consent.
+
+Before another inference the human must restate a TOTAL Session ceiling. The
+provider owner's `amend` conserves prior settlement, holds and request identity;
+a default (including zero) cannot reconfirm it. Run admission remains separate.
+The exact observation superseded by the restored ledger is removed from the
+historical display list to avoid counting those same attempts twice.
+
+A turn without a recognized fresh ceiling keeps this restored account closed.
+Session records a fixed monetary-refusal reason on the account; the human
+diagnostic stays separate, so a private route in that diagnostic cannot make
+the otherwise complete numeric checkpoint unwritable. Dropping and reopening
+after this refusal preserves the same prior costs and request identity. It
+still requires a fresh total, for example `Budget: 10 USD.` as its own sentence;
+no amount is inferred from an ambiguous phrase and uncertain costs stay unknown.
+
+### Fresh invocation after a readable legacy cost report
+
+A restored pre-checkpoint numeric report is not a reconstructed account. In the narrow
+legacy form (one readable, internally consistent uncertain numeric observation, followed
+only by completed explicitly reviewed scopes), the selected HTTPS API may offer the
+existing one-time unknown-cost review even when its current route has a catalog tariff.
+The report's old allowance, original attempts, known estimate and retained unknown-charge
+reservation remain unchanged and visible. The quote is not a final charge or proof of the
+historical request bound; no TOTAL dollar guarantee covers that earlier charge.
+
+A stated budget alone never authorizes this exception. Only an explicit answer to the
+shown unknown-cost question admits its new invocation under the existing request, output,
+timeout, route and host-policy bounds. Zero, malformed/contradictory evidence, a gate,
+an old in-flight marker, a present checkpoint or unreadable host cap still refuses. The
+review witness includes the current project record and observations as well as the exact
+input, project, source bytes and selected route; a changed record cannot confirm the old
+question. Reconfirmation remains a durable restriction outside the confirmed invocation.
+
+The bounded account closes after that invocation and its observation joins the same
+project report exactly once. A subsequent request, revision or reopening needs a fresh
+review. A newly uncertain scope blocks this exception; it is never absorbed into the old
+report. Save and Run still require their separate acts. This is not numeric-ledger
+migration, invoice reconciliation or authority restored from conversation history.
+
+## Routing diagnostics without a compiled workflow
+
+`/details` exposes the current session's recorded routes even when no compiler
+outcome exists yet. A Failed route means that no usable label was obtained;
+it does not establish that a model was called, returned blank, or was billed.
+The visible route retains phase, act, method and the input hash. Private failure
+notes remain internal: the display projects only closed engine-authored guidance
+for missing intelligence, local admission refusal, AI-app/provider failure or a
+runtime failure. Only the exact native timeout form emitted by the harness is
+named as a timeout; quoted client stderr cannot establish that category. The
+routing diagnostic displays no raw stderr, prompt, endpoint, credential or
+private failure text.
+
+The compiler decision's route/seat/ledger/knowledge wording is the pure
+`nika_onboard::compile::reading::decision_words` projection beside the existing
+receipt wording. Session still owns when to display it and keeps every existing
+consent, accounting and dispatch boundary; diagnostics trigger no automatic retry.
+
+### Reopening a completed unknown-cost invocation
+
+For completed unknown-cost API scopes, Session may retain a
+`nika/completed-cost-report@1` witness in both durable stores. With the same exclusive
+history and concordance checks as numeric restoration, it enables only a new cost
+review. It restores no account, allowance or consent; monetary reconfirmation remains
+set. The review names the unchanged earlier exposure, and confirmation binds the full
+project record, observations, exact input and selected route. A stale record refuses
+before transport. Each later request or reopening needs a fresh explicit review, and
+only that invocation receives the existing bounded unknown-cost account.
+
+The old exact numeric-codec refusal string is compatible only when every observation
+is a complete CLOSED unknown-cost scope and both stores agree. Unknown/incomplete
+attempts, zero, gates, interrupted boundaries, arbitrary errors, missing history and
+mixed observation families remain refused. In particular this path does not interpret
+Jev's decision-seat records or discard no-budget observations. Qualification of the
+API-only TUI journey is separate from any decision-seat continuation. Save and Run
+remain separate human acts; previous observations are neither reset nor duplicated.
+
+### Continuous interactive preparation
+
+The plain interactive CLI and fullscreen TUI activate `enable_continuous_preparation` before
+opening history. Preparation has no implicit request-count, repair-count or monetary gate.
+The selected connection remains explicit; no API fallback is granted. Historical accounts,
+reservations and unknown charges remain evidence and never become fresh credit. Monetary
+directives in a proposed workflow still belong to its separate Save/Run review and execution.
+Callers using the existing bounded Session surface without this opt-in retain its old policy.
+
+Preparation observes physical API requests through the provider dispatch journal, including
+failed and cancelled requests, and persists its privacy-projected records. Missing prices or
+usage remain unknown; subscription and decision-service invoices are not fabricated. The
+configured direct DeepSeek route starts at 131072 output tokens and may widen to the pinned
+393216 technical limit; the existing transport timeout is 600 seconds per call. Other routes
+use their own qualified limits, never DeepSeek's because of a similar model name.
+
+### Interactive preparation stop and activity
+
+The host obtains `begin_preparation_turn()` before moving the conversation into a worker.
+Its fresh `CancelCtx` applies only to preparation; Run keeps its own cancellation and effects.
+The driver drops an API/subscription compile future when Stop is observed, retains the Session
+and cost journals, and accepts no result from that cancelled future. A sent remote request may
+still be billed. A new turn uses a new token without resetting historical exposure.
+`on_activity(ActivityHook)` carries the producer's typed `Activity`; `on_progress` remains a
+compatible text projection. This does not infer a model actually served from a configured name.
+
+A host calls `withdraw_cancelled_preparation` immediately after a stopped worker returns and
+before displaying or accepting its proposal. It withdraws only a new proposal or changed
+preparation round from that turn; the proposal/question that already waited, gates and Run
+authority are preserved. Stop wins at the proposal boundary and again at the host handoff.
+`TurnOutcome::Cancelled` keeps the Session available for the next human instruction.
+Each activity may carry a `CallMark` with the compiler ordinal, role, requested model and
+Started/Finished/Cancelled state. Finished means returned, not semantically accepted or billed.
+
+### Unjudged candidate continuation
+
+An INCOMPLETE result carrying the compiler's Applied `verify_resume` finding is kept as an authoring round, never as a Save proposal or Run permission. `continue` or `retry` replays its exact semantic record and asks the judge without regenerating the author candidate. A new correction discards that candidate and enters the existing request-restatement path. The round's answers, obligations and provenance remain durable under the existing exact-digest record. Reopening makes no model call; `/restore` arms this questionless round without proposing it, and an explicit continuation asks the judge. An altered or withheld record still refuses. Ordinary clarification rounds retain their existing replay protocol.
+
+The compiler leaves that finding only when the verifier's call on the whole request returned
+no admitted choice (the judge answered nothing), and the kept round says the candidate could
+not be judged (`JUDGMENT_KEPT`); an empty line, a run verb, `yes` and `save` repeat those
+words and change nothing.
+
+A candidate the verifier answered and declined (it rejected the bytes or abstained) is held
+instead when no defect was located: the compiler keeps its bytes as the INCOMPLETE outcome's
+preview, drops its replayable record and adds the Applied `verify_held` finding, worded by what
+held it; COLD, WARM and answer rounds add the same finding to a candidate whose located
+defects stayed unsettled. The authoring round then drops the plan it replayed, with the
+knowledge and receipt of the call that authored it, and keeps every answer
+(`AuthoringRound::absorb`; a revision's base record, its input, stays), so no later compile of
+the round replays that record. A later compile of the same request may author the same bytes
+again: the same verifier's rejection of them stands there with no consultation, because
+Session carries the goal's rejections (below), while an abstention may be decided by a new
+round. Session words it
+through `nika_onboard::compile::reading::held_words`, by what the last verification found: a
+part missing that the repairs did not settle, an abstention, or a rejection with no defect
+located (« The workflow is built but not proposed: the verifier did not accept it and located no
+defect a repair could start from; nothing was written. »); then a correction, or
+`/intelligence` for another authoring model (which also judges unless a decision model is set),
+with `/meaning` for what was understood. No `continue` is offered, and nothing is proposed to
+save or run. `Reading::of` reads a held outcome as unsettled before its questions and provider
+findings, so a held candidate whose judge call timed out or was refused while the verifier was
+locating its doubt still gets these words, never those of a provider failure or an exhausted
+budget.
+
+The Session keeps, in memory, the verdicts that rejected candidate bytes in its current goal's
+compiles (`nika_onboard::compile::round::rejections`, the latest per candidate digest, judge,
+request and context by `keep_rejections`; an abstention is never kept). Every later compile of
+that goal carries them
+(`CompileRequest::with_declined`): an authoring or answer round, the write-again after a
+located defect, the stronger seat's retry, a continuation, and a request read again with the
+human's words or a correction, whose restated goal takes the kept rejections with it. The
+compiler repeats a carried rejection, with no consultation (`carried: true` on its attempt),
+only for the same verifier, the same bytes, the same whole request and the same answers and
+observed world; its located defects are what the round's repair or reopening starts from, and
+a localization it left unfinished resumes with no question asked again: a restated or
+corrected request is another request, so the verifier is asked again
+on it, even on bytes it rejected under the earlier words. A compile of new work keeps its own
+verdicts and drops the earlier goal's; a reopened Session carries none from before it closed. A
+deterministic compile, when money blocks cognition, asks no verifier and carries none.
+
+An answer round replays and judges, never repairs. The replay of a model's record (COLD,
+WARM, native or sketch) leaves the whole request pending on the bytes it emits, so the round's
+verifier judges the whole request again. When the last verification of the replayed candidate
+holds a located defect (`defects`: a part the verifier pointed to a task for or found no task
+performing, or an extra operation it pointed to a task for), Session forgets the replayed plan
+once and compiles the request again under every answer already given, where the authoring
+round's own judgment and repairs run. A verifier that declined the replay without locating a
+defect gives no defect to write again from: the compiler drops the replay's record and its
+questions (`verify: doubted, not replayable`) and adds `verify_held`, Session forgets the
+replayed plan, and the human gets the words above, never a question about rejected bytes. A
+verifier that answered nothing leaves the whole request pending: the compiler keeps the
+record, and the human is told the workflow is built but not proposed because no judgment made
+in this round settled it. When money blocks cognition, an answer round compiles
+deterministically: the core's replay keeps the whole request pending for every record but the
+reader's own HOT plan, so such a round is INCOMPLETE, never READY. An unsettled round in an
+unmetered Session whose model the human did not name is tried once more with the provider's
+stronger model; after a held replay, that retry writes the workflow afresh under the answers
+already given instead of replaying the held bytes, and carries the goal's rejections.
+
+After a stopped creation with no saved workflow or live round, the retained goal remains
+context for a classified correction. The existing turn classifier sees the earlier goal:
+Modify/Mixed restates its exact words after « Original request: » and a line break, then
+« Correction (it takes precedence over the original where they differ; every other
+requirement stands): », a line break and the exact correction, so the correction takes
+precedence only over what it changes. The frame names no keep or exclusion lead and no
+restriction word, so the verifier's part it labels, the correction's first phrase, is judged
+for what it asks, never as a restriction; the restated goal takes the earlier goal's kept
+rejections, though its new words are judged afresh (above). NewWork is an independent CREATE;
+an unknown route preserves the goal and starts no authoring call. No cancelled candidate,
+Save consent or Run authority is restored. The combined request remains the goal even if
+its authoring fails, and the existing history restores it without asking a model. Compiler
+validation and fidelity still decide whether the resulting candidate answers that request.
+
+The intelligence census retains the same host probe's effective provider endpoints
+for the reply guard. Conversation and proposal discussion both pass these facts to
+`KnownWorld::audit_over`; missing context keeps the profile-default check. These
+facts grant no authority, contain no API key values, and are not model context.

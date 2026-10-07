@@ -257,10 +257,45 @@ fn the_legacy_monetary_marker_keeps_its_bytes_but_no_longer_promises_a_reconfirm
     let shown =
         crate::runtime::recovery::decision_for_display(crate::runtime::inference::RECONFIRM);
     assert!(!shown.contains("reconfirm"), "{shown}");
-    assert!(shown.contains("blocked"), "{shown}");
+    assert!(!shown.contains("blocked"), "{shown}");
+    assert!(
+        shown.contains("unknown charges") && shown.contains("historical record"),
+        "{shown}"
+    );
     assert_eq!(
         crate::runtime::recovery::decision_for_display("applied proposal 0123456789ab"),
         "applied proposal 0123456789ab"
+    );
+}
+
+/// Historical costs remain readable after reopen without claiming that preparation is blocked.
+#[test]
+fn continuous_reopen_preserves_the_legacy_decision_without_showing_a_present_block() {
+    let root = project();
+    let home = tempfile::tempdir().expect("home");
+    let marker = crate::runtime::inference::RECONFIRM.to_owned();
+    let (mut first, _) = open(root.path(), &[ANSWER]);
+    first.enable_continuous_preparation();
+    first.enable_history(home.path()).expect("fresh history");
+    first.intent.decisions.push(marker.clone());
+    let _ = first.turn("/status");
+    drop(first);
+    let (mut resumed, seen) = open(root.path(), &[ANSWER]);
+    resumed.enable_continuous_preparation();
+    resumed.enable_history(home.path()).expect("reopen");
+    assert!(resumed.intent.decisions.contains(&marker));
+    let shown = resumed.decision_lines().join("\n");
+    assert!(
+        shown.contains("unknown charges") && shown.contains("historical record"),
+        "{shown}"
+    );
+    assert!(
+        !shown.contains("blocked") && !shown.contains("reconfirm"),
+        "{shown}"
+    );
+    assert!(
+        seen.lock().expect("calls").is_empty(),
+        "reopen asked no model"
     );
 }
 
@@ -314,6 +349,31 @@ fn tree(root: &Path) -> Vec<(String, Vec<u8>)> {
     }
     out.sort();
     out
+}
+
+/// Large draft bytes survive close/reopen and can be reviewed again without a model call.
+#[test]
+fn a_large_pending_draft_is_kept_and_reproposed_without_losing_its_text() {
+    let root = project();
+    let home = tempfile::tempdir().expect("home");
+    let after = format!(
+        "nika: kept-update\n# {}\ntasks: {{}}\n",
+        "draft detail ".repeat(24_000)
+    );
+    assert!(after.len() > 256 * 1024);
+    closed_with_an_update(root.path(), home.path(), BASE, &after);
+    let (mut resumed, seen) = open(root.path(), &[ANSWER]);
+    resumed.enable_history(home.path()).expect("resume");
+    let draft = kept(&resumed);
+    assert_eq!(draft.files[0].text.as_deref(), Some(after.as_str()));
+    let _ = proposed(resumed.repropose_restored_draft());
+    let proposed_text = resumed.pending.as_ref().expect("proposal").changes[0].content();
+    assert_eq!(proposed_text, after);
+    assert_eq!(
+        std::fs::read_to_string(root.path().join(LANDED)).expect("original"),
+        BASE
+    );
+    assert!(seen.lock().expect("calls").is_empty());
 }
 
 const BASE: &str = "nika: kept-base\ntasks: {}\n";

@@ -26,11 +26,13 @@ pub(crate) mod choice;
 pub mod clients_registry;
 pub mod compile;
 pub(crate) mod context_envelope;
+pub mod context_redaction;
 pub use context_envelope::find_git_root;
 pub(crate) mod detect;
 pub mod doctor;
 pub mod door;
-pub mod experience;
+/// The experience contracts (state, router, preview), owned by the display crate.
+pub use nika_display::experience;
 pub mod explain;
 pub mod fix_ladder;
 pub(crate) mod git;

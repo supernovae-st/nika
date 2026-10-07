@@ -27,6 +27,30 @@ async fn judged_replay(request: &CompileRequest) -> (nika_compile::CompileOutcom
     (out, judge.judged.load(Ordering::SeqCst))
 }
 
+/// The questions a replayed COLD record asks its round's judge (R4 A11): the two clauses the
+/// program realizes, which no law reads from the bytes, then the whole request, pending again
+/// on the bytes the round replays; the whole request settles it.
+fn assert_replay_judged(out: &nika_compile::CompileOutcome) {
+    let decision = out.provenance.decision.as_ref().unwrap();
+    let attempt = &decision["semantic_verification"][0];
+    let asked: Vec<(&Value, &Value)> = (attempt["questions"].as_array().into_iter().flatten())
+        .map(|record| (&record["role"], &record["choice"]))
+        .collect();
+    let (clause, carried) = (json!("judge_clause"), json!("carried"));
+    let (whole, faithful) = (json!("judge_request"), json!("faithful"));
+    let want = [
+        (&clause, &carried),
+        (&clause, &carried),
+        (&whole, &faithful),
+    ];
+    assert_eq!(asked, want, "{attempt:#}");
+    assert_eq!(
+        attempt["settled_by"],
+        json!("verify-request"),
+        "{attempt:#}"
+    );
+}
+
 const SHARED: &str = "Read ./data/people.json (name, email), keep the people whose email domain appears more than once, and write them to ./out/shared.json";
 
 fn plan() -> Value {
@@ -92,7 +116,8 @@ async fn a_verified_program_runs_as_the_compute_task_and_replays_with_zero_calls
     assert_eq!(replayed.status, CompileStatus::Incomplete, "{replayed:#?}");
     assert_eq!(replayed.candidate, out.candidate);
     assert!(replayed.provenance.authoring.is_none());
-    // A round with a judge settles exactly that remainder, the two clauses, and is READY.
+    // A round with a judge settles that remainder, the two clauses, and the whole request a
+    // model's plan replays pending (C3): READY on the same bytes.
     let (judged_round, asked) = judged_replay(&request).await;
     assert_eq!(
         judged_round.status,
@@ -100,7 +125,8 @@ async fn a_verified_program_runs_as_the_compute_task_and_replays_with_zero_calls
         "{judged_round:#?}"
     );
     assert_eq!(judged_round.candidate, out.candidate);
-    assert_eq!(asked, 2);
+    assert_eq!(asked, 3);
+    assert_replay_judged(&judged_round);
 }
 
 #[tokio::test]
@@ -306,7 +332,7 @@ async fn a_field_answer_regenerates_once_and_the_verified_program_replays_withou
     assert!(record.get("pending_transform").is_none());
     assert!(record.get("verified_transform").is_some());
     // Q2: the verified record replays its bytes with zero calls, its remainder INCOMPLETE until
-    // a round's judge settles it.
+    // a round's judge settles it: its two clauses and the whole request (C3).
     let request = CompileRequest::create(SHARED).with_plan(record);
     let replay = compile(&request).unwrap();
     assert_eq!(replay.status, CompileStatus::Incomplete, "{replay:#?}");
@@ -318,7 +344,8 @@ async fn a_field_answer_regenerates_once_and_the_verified_program_replays_withou
         CompileStatus::Ready,
         "{judged_round:#?}"
     );
-    assert_eq!(asked, 2);
+    assert_eq!(asked, 3);
+    assert_replay_judged(&judged_round);
 }
 #[tokio::test]
 async fn provider_failure_keeps_the_answer_and_spends_a_durable_bounded_attempt() {

@@ -406,8 +406,13 @@ are NOT the duration source — a settle-time stamp pair would lie
 about a task that ran long before its settle slot). Record inserted at settle. Terminal: `WorkflowCompleted`
 iff zero unrecovered failures else `WorkflowFailed` (always-pattern
 tasks may have run after a failure · the verdict stands · spec 05).
-`outputs:` resolve after the terminal event from the records (an
-unresolvable output is omitted · the verdict unchanged).
+`outputs:` resolve from the records before the normal terminal frame
+(an unresolvable output is omitted). A typed-output mismatch can make that
+terminal fail under NIKA-VAR-009. The resolved map is recorded beside its
+settlement through `nika-runtime-laws::secret::output_fields`: at most 64 KiB
+of whole JSON, otherwise an exact byte count or a whole-map withheld marker.
+The secret sink withholds any map whose keys or values need scrubbing; the
+projection does not promote a failed run or change its ledger.
 
 ## 4 · Errors (NIKA-1700 range · Category::Runtime)
 
@@ -630,3 +635,43 @@ parent's remaining (law 6) and meets the same gates and guard against its own
 ledger. Internal retries (schema re-asks, provider re-sends) are judged once
 and counted on the ledger as they happen. The `unwind` cleanup lane meets the
 same guard, ledger and child budget (§3.8 · B11).
+
+## Harness media receipt side channel
+
+`TaskRecord.harness_media` records image observations with their existing agent
+attempt/iteration provenance. It is separate from `output`, the Outcome IR and
+the closed `tasks.<id>` expression field set. The existing agent-event owner
+emits each observation as its own bounded `agent_image_observed` frame;
+successful, failed and skipped terminals close the sequence with
+`harness_media_count` and carry no aggregate, so a large fan-out keeps every
+row without approaching the 1 MiB journal line. `RunOutcome.records` makes the
+observations available to embedders. A cached text output does not invent or
+reopen a media receipt. An image-activity observer beat blocks automatic retry,
+including explicit retry codes, without manufacturing permission evidence or
+overwriting spend facts.
+
+Both harness seating paths — the env-declared seat at composition and
+`Runtime::with_harness_backend` for the One Door plan's seat — attach the same
+store: `nika_runtime_laws::image_room::ImageRoom` over the admitted
+`sandbox_root`, held by descriptor (`OwnedDir`, no symlinked component). A
+refused anchor refuses the seat; there is no ambient fallback. Seating writes
+nothing. Each store operation takes a fresh finite room (`RootedFs` + its own
+`EffectLedger`, 6 MiB per image) below `.nika/blobs` and drains it before it
+answers, so the same `Runtime` runs again. An operation a timed-out task dropped
+is sealed at the drop; every wave joins such operations before the run can
+reach a terminal (pause, budget or operator abort, close), and `run` joins once
+more before returning on refusals and errors. No received-image write happens
+after the run terminal. Task terminals settled earlier in the same wave are not
+held for that join. Without a root no store is attached and a
+received image fails its task. Check, dry-run and the simulated composition do
+not persist images. The peer's savedPath never selects a read or write
+destination; the blob holds the bytes actually received, not proof of the
+peer's file.
+
+The agent-event buffer folds a `HarnessImageStored` answer into its observation,
+so each image keeps one frame whose `storage` is `stored`, `failed` or — when a
+timeout cancelled the put — `unconfirmed`. `model_served` keeps its
+response-attested meaning (`gen_ai.response.model`); a harness's session model
+rides the terminal as `model_reported` plus `model_reported_source`
+(`session_config` · `confirmed_selection` · `accepted_request` · `unspecified`).
+It is never served, never a pricing key, and a subscription seat stays unpriced.

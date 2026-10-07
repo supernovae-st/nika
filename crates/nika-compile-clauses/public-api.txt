@@ -1,0 +1,24 @@
+pub mod nika_compile_clauses
+pub mod nika_compile_clauses::parts
+pub fn nika_compile_clauses::parts::asks_an_operation(part: &str) -> bool
+pub fn nika_compile_clauses::parts::parts(intent: &str) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile_clauses::parts::restricts(part: &str) -> bool
+pub mod nika_compile_clauses::prohibition
+pub fn nika_compile_clauses::prohibition::negated_demand(text: &str) -> bool
+pub fn nika_compile_clauses::prohibition::pure_prohibition(text: &str) -> bool
+pub fn nika_compile_clauses::prohibition::states_operation(text: &str) -> bool
+pub mod nika_compile_clauses::spellings
+pub fn nika_compile_clauses::spellings::stated_spellings(clause: &str, observed: &[alloc::string::String], columns: &[alloc::string::String]) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
+pub mod nika_compile_clauses::words
+pub const nika_compile_clauses::words::CONVERSION_WORDS: &[&str]
+pub const nika_compile_clauses::words::DATA_WORDS: &[&str]
+pub const nika_compile_clauses::words::LANGUAGE_WORDS: &[&str]
+pub const nika_compile_clauses::words::NUMBER_WORDS: &[&str]
+pub const nika_compile_clauses::words::ONLY_WORDS: &[&str]
+pub const nika_compile_clauses::words::SAME_COLUMNS: &[&str]
+pub const nika_compile_clauses::words::SERIALIZE_VERBS: &[&str]
+pub fn nika_compile_clauses::words::clause_key(text: &str) -> alloc::string::String
+pub fn nika_compile_clauses::words::content_words(text: &str) -> impl core::iter::traits::iterator::Iterator<Item = alloc::string::String> + '_
+pub fn nika_compile_clauses::words::fold_words(text: &str) -> alloc::string::String
+pub fn nika_compile_clauses::words::only_format_words(detail: &str) -> bool
+pub fn nika_compile_clauses::words::serialization_draft(detail: &str) -> bool

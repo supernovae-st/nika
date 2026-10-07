@@ -29,8 +29,9 @@ currently shows the artifact viewers.
 
 ## 2. The viewers of the object in view
 
-The native workspace wires the four workflow faces. Artifact viewers remain library
-surfaces awaiting their Live owner. A viewer is a pure function: bytes or text, the facts the caller knows (`Meta`:
+The native workspace wires the four workflow faces and calls `artifact` for a
+run's settlement outputs and bounded current reads of files it reported writing.
+The Live host owns acquisition and provenance. A viewer is a pure function: bytes or text, the facts the caller knows (`Meta`:
 name, declared type, format word, size, dimensions, duration, digest, producer, provenance,
 availability, protected) and the cells offered (`Canvas`: width, glyph column, colour, bounds)
 become a `Rendered` (title, facts, styled lines, notes). It reads no file, clock or
@@ -39,10 +40,13 @@ default) and says what it cut.
 
 - `workflow` draws one of four faces of the workflow in view from typed facts its owner hands
   over (`Workflow`): the source with the verbs as syntax, the plan in run order
-  (`nika_session::review`), the graph drawn by `nika_display::wires` or listed by wave when a
-  drawing would lie, and the check (the four layers, VALID alone for a proposal judged on its
+  (`nika_session::review`), the graph drawn as shared `graph_cards` from the canonical
+  projection and checked waves, and the check (the four layers, VALID alone for a proposal judged on its
   source, every finding by its code and place, the hints as advisory). It never audits, judges
-  or reads a permit; the static plan and graph keep the verbs in the surrounding ink.
+  or reads a permit. Graph cards colour the task type as identity; their separate status
+  row is populated only by a caller observation. Static cards say `definition`. The existing
+  `nika_display::wires` validator gates simple connectors; exact typed dependency rows remain
+  visible when a drawing would cross, skip or crowd wires. No new DAG or run state is derived.
 - `artifact` classifies by declared type, then extension, then signature (`classify`; a
   disagreement is a note; a plain JSON declaration from `json_diff` reads as a JSON Patch) and
   shows JSON (a long document summarised by `nika_display::shape`), JSON Patch and merge patch
@@ -60,8 +64,9 @@ default) and says what it cut.
 - A control character or a bidirectional override reaches the screen as a visible mark, widths
   are measured by grapheme, facts and notes agree in number, and every view keeps its meaning
   under `NO_COLOR` and in the ASCII column (the engine's words included).
-- The artifact viewers have no on-terminal witness yet: the gallery example was not
-  recovered and no Live owner calls them.
+- Workspace PTYs exercise settlement output and Markdown file display through
+  the Live owner. This does not qualify every supported artifact format or a
+  stamped integrated build; the gallery example remains unrecovered.
 
 ## 3. Boundary
 
@@ -69,9 +74,10 @@ default) and says what it cut.
   tests are the only callers of `nika_cli_host::oracle::audit_source`, as the owner's stand-in,
   once per fixture.
 - A viewer takes its colour from a semantic role, through the crate's private `role::style`:
-  a copy of the renderer's own mapping, pinned by its test to the slot the CLI theme paints
-  (`nika_display::theme::Theme::paint`), as the renderer's copy is. This crate never depends on
-  `nika-tui`.
+  a copy of the renderer's product RGB mapping, with both members pinned to the same palette
+  values. The CLI retains its terminal-theme colours. Cards add a dark surface
+  background only with colour enabled; NO_COLOR retains borders and words. This crate never
+  depends on `nika-tui`.
 - The renderer paints a `Rendered` in the workspace object region, preparing it when
   the observation, face or width changes, never on a scroll key. The Live inspection
   owner supplies one parent-only audit and byte witness: unobserved imports, skills

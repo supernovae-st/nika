@@ -1,4 +1,5 @@
 pub mod nika_compile
+pub use nika_compile::Substituted
 pub use nika_compile::fold
 pub use nika_compile::stated_destinations
 pub use nika_compile::stated_sources
@@ -138,11 +139,13 @@ pub const nika_compile::money::INVALID: &str
 pub fn nika_compile::money::directives(request: &str) -> core::result::Result<nika_compile::money::Directives, &'static str>
 pub fn nika_compile::money::parse(input: &str) -> core::result::Result<nika_compile::money::ParsedMoney, &'static str>
 pub mod nika_compile::observation
+pub use nika_compile::observation::number_text
 #[non_exhaustive] pub struct nika_compile::observation::Sample
 pub nika_compile::observation::Sample::columns: alloc::vec::Vec<alloc::string::String>
 pub nika_compile::observation::Sample::common: core::option::Option<alloc::vec::Vec<alloc::string::String>>
 pub nika_compile::observation::Sample::delimiter: core::option::Option<char>
 pub nika_compile::observation::Sample::kinds: serde_json::value::Value
+pub nika_compile::observation::Sample::nested: serde_json::value::Value
 pub nika_compile::observation::Sample::values: alloc::vec::Vec<(alloc::string::String, serde_json::value::Value)>
 impl core::clone::Clone for nika_compile::observation::Sample
 pub fn nika_compile::observation::Sample::clone(&self) -> nika_compile::observation::Sample
@@ -182,11 +185,18 @@ impl<T> typenum::type_operators::Same for nika_compile::observation::Sample
 pub type nika_compile::observation::Sample::Output = T
 pub fn nika_compile::observation::csv(head: &str, tsv: bool) -> nika_compile::observation::Sample
 pub fn nika_compile::observation::jsonl(head: &str) -> alloc::vec::Vec<serde_json::value::Value>
-pub fn nika_compile::observation::number_text(text: &str) -> bool
 pub fn nika_compile::observation::records(rows: &[serde_json::value::Value]) -> nika_compile::observation::Sample
+pub mod nika_compile::run_words
+pub fn nika_compile::run_words::inline_vars(input: &str) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_compile::run_words::input_question(workflow: &std::path::Path, name: &str, remaining: usize) -> alloc::string::String
+pub fn nika_compile::run_words::is_run_verb(first: &str) -> bool
+pub fn nika_compile::run_words::parse(input: &str) -> core::option::Option<(alloc::string::String, core::option::Option<alloc::string::String>)>
+pub fn nika_compile::run_words::run_line_is_plain(lower: &str) -> bool
+pub fn nika_compile::run_words::run_prefix(input: &str) -> core::option::Option<alloc::string::String>
 pub mod nika_compile::surface
 pub mod nika_compile::surface::admitted
 pub fn nika_compile::surface::admitted::read(request: &nika_compile::CompileRequest) -> core::result::Result<core::option::Option<(nika_compile::CompileRequest, serde_json::value::Value)>, alloc::string::String>
+pub fn nika_compile::surface::admitted::reading(request: &nika_compile::CompileRequest) -> core::result::Result<(nika_compile::CompileRequest, core::option::Option<serde_json::value::Value>), alloc::string::String>
 pub fn nika_compile::surface::admitted::record(request: &nika_compile::CompileRequest, money: serde_json::value::Value, out: &mut nika_compile::CompileOutcome)
 pub fn nika_compile::surface::admitted::refused(why: &str) -> nika_compile::CompileOutcome
 pub fn nika_compile::surface::admitted::replacement(request: &nika_compile::CompileRequest, text: &str) -> core::result::Result<core::option::Option<(alloc::string::String, serde_json::value::Value)>, alloc::string::String>
@@ -251,7 +261,6 @@ pub fn nika_compile::surface::observed::equivalent_spellings(literal: &str, obse
 pub fn nika_compile::surface::observed::field_answer(request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome, key: &str, label: &str, columns: &[alloc::string::String]) -> core::option::Option<serde_json::value::Value>
 pub fn nika_compile::surface::observed::for_intent(world: core::option::Option<&serde_json::value::Value>, intent: &str) -> core::option::Option<alloc::vec::Vec<alloc::string::String>>
 pub fn nika_compile::surface::observed::record(request: &nika_compile::CompileRequest, out: &mut nika_compile::CompileOutcome)
-pub fn nika_compile::surface::observed::stated_spellings(clause: &str, observed: &[alloc::string::String], columns: &[alloc::string::String]) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub fn nika_compile::surface::observed::world(request: &nika_compile::CompileRequest) -> core::option::Option<&serde_json::value::Value>
 pub mod nika_compile::surface::pending_transform
 #[non_exhaustive] pub enum nika_compile::surface::pending_transform::PendingTransformError
@@ -348,6 +357,9 @@ impl<T> typenum::type_operators::Same for nika_compile::surface::pending_transfo
 pub type nika_compile::surface::pending_transform::PendingTransform::Output = T
 pub fn nika_compile::surface::pending_transform::invalid(out: &mut nika_compile::CompileOutcome, why: &str)
 pub fn nika_compile::surface::pending_transform::present(record: &serde_json::value::Value) -> bool
+pub mod nika_compile::surface::semantic
+pub fn nika_compile::surface::semantic::caller(request: &nika_compile::CompileRequest) -> core::result::Result<serde_json::value::Value, alloc::boxed::Box<nika_compile::CompileOutcome>>
+pub fn nika_compile::surface::semantic::request_basis(intent: &str, request: &nika_compile::CompileRequest) -> serde_json::value::Value
 pub mod nika_compile::surface::support
 #[non_exhaustive] pub struct nika_compile::surface::support::Plan
 impl core::clone::Clone for nika_compile::surface::support::Plan
@@ -1607,16 +1619,21 @@ pub nika_compile::AuthoringPolicy::max_tokens: u32
 pub nika_compile::AuthoringPolicy::model: alloc::string::String
 pub nika_compile::AuthoringPolicy::native: nika_compile::NativeMode
 pub nika_compile::AuthoringPolicy::reasoning: core::option::Option<nika_compile::AuthoringReasoning>
-pub nika_compile::AuthoringPolicy::repairs: u32
+pub nika_compile::AuthoringPolicy::repairs: core::option::Option<u32>
 pub nika_compile::AuthoringPolicy::samples: u32
+pub nika_compile::AuthoringPolicy::source_recovery: u32
 pub nika_compile::AuthoringPolicy::timeout: core::time::Duration
 impl nika_compile::AuthoringPolicy
 pub fn nika_compile::AuthoringPolicy::new(model: impl core::convert::Into<alloc::string::String>, max_tokens: u32, timeout: core::time::Duration) -> Self
+pub fn nika_compile::AuthoringPolicy::recovery_rounds(word: core::option::Option<&str>, strategy: nika_compile::NativeMode) -> core::result::Result<u32, alloc::string::String>
+pub const fn nika_compile::AuthoringPolicy::repair_limit(&self) -> core::option::Option<u32>
 pub fn nika_compile::AuthoringPolicy::with_initial_max_tokens(self, initial: u32) -> Self
 pub fn nika_compile::AuthoringPolicy::with_native(self, native: nika_compile::NativeMode) -> Self
 pub fn nika_compile::AuthoringPolicy::with_reasoning(self, reasoning: nika_compile::AuthoringReasoning) -> Self
 pub fn nika_compile::AuthoringPolicy::with_repairs(self, repairs: u32) -> Self
 pub fn nika_compile::AuthoringPolicy::with_samples(self, samples: u32) -> Self
+pub fn nika_compile::AuthoringPolicy::with_source_recovery(self, rounds: u32) -> Self
+pub fn nika_compile::AuthoringPolicy::with_unbounded_repairs(self) -> Self
 impl core::clone::Clone for nika_compile::AuthoringPolicy
 pub fn nika_compile::AuthoringPolicy::clone(&self) -> nika_compile::AuthoringPolicy
 impl core::fmt::Debug for nika_compile::AuthoringPolicy
@@ -1928,6 +1945,8 @@ pub nika_compile::CompileQuestion::label: alloc::string::String
 pub nika_compile::CompileQuestion::mandatory: bool
 pub nika_compile::CompileQuestion::options: alloc::vec::Vec<nika_compile::ChoiceOffer>
 pub nika_compile::CompileQuestion::why: alloc::string::String
+impl nika_compile::CompileQuestion
+pub fn nika_compile::CompileQuestion::literal_for(&self, line: &str) -> alloc::string::String
 impl core::clone::Clone for nika_compile::CompileQuestion
 pub fn nika_compile::CompileQuestion::clone(&self) -> nika_compile::CompileQuestion
 impl core::cmp::Eq for nika_compile::CompileQuestion
@@ -1973,10 +1992,12 @@ pub type nika_compile::CompileQuestion::Output = T
 pub nika_compile::CompileRequest::answers: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub nika_compile::CompileRequest::authoring: core::option::Option<nika_compile::AuthoringPolicy>
 pub nika_compile::CompileRequest::authoring_knowledge: core::option::Option<nika_compile::AuthoringKnowledge>
+pub nika_compile::CompileRequest::declined: alloc::vec::Vec<serde_json::value::Value>
 pub nika_compile::CompileRequest::hot: nika_compile::HotPolicy
 pub nika_compile::CompileRequest::input: nika_compile::surface::Input
 pub nika_compile::CompileRequest::knowledge: core::option::Option<serde_json::value::Value>
 pub nika_compile::CompileRequest::money: alloc::vec::Vec<core::ops::range::Range<usize>>
+pub nika_compile::CompileRequest::observed_preparation: bool
 pub nika_compile::CompileRequest::original_intent: core::option::Option<alloc::string::String>
 pub nika_compile::CompileRequest::plan: core::option::Option<serde_json::value::Value>
 pub nika_compile::CompileRequest::stated_money: bool
@@ -1989,8 +2010,10 @@ pub fn nika_compile::CompileRequest::set_constant(base_workflow: impl core::conv
 pub fn nika_compile::CompileRequest::with_admitted_money(self, spans: alloc::vec::Vec<core::ops::range::Range<usize>>) -> Self
 pub fn nika_compile::CompileRequest::with_authoring_knowledge(self, pack: nika_compile::AuthoringKnowledge) -> Self
 pub fn nika_compile::CompileRequest::with_authoring_policy(self, policy: nika_compile::AuthoringPolicy) -> Self
+pub fn nika_compile::CompileRequest::with_declined(self, attempts: alloc::vec::Vec<serde_json::value::Value>) -> Self
 pub fn nika_compile::CompileRequest::with_hot_policy(self, hot: nika_compile::HotPolicy) -> Self
 pub fn nika_compile::CompileRequest::with_knowledge(self, snapshot: serde_json::value::Value) -> Self
+pub fn nika_compile::CompileRequest::with_observed_preparation(self) -> Self
 pub fn nika_compile::CompileRequest::with_original_intent(self, intent: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_compile::CompileRequest::with_plan(self, plan: serde_json::value::Value) -> Self
 pub fn nika_compile::CompileRequest::with_replaced_input(self, text: impl core::convert::Into<alloc::string::String>) -> Self
@@ -2210,6 +2233,7 @@ pub const nika_compile::COMPILE_WIRE_VERSION: u32
 pub fn nika_compile::basis(decision: core::option::Option<&serde_json::value::Value>, fresh: core::option::Option<&serde_json::value::Value>, intent: &str) -> nika_compile::Basis
 pub fn nika_compile::basis_for(request: &nika_compile::CompileRequest, decision: core::option::Option<&serde_json::value::Value>, fresh: core::option::Option<&serde_json::value::Value>) -> nika_compile::Basis
 pub fn nika_compile::compile(request: &nika_compile::CompileRequest) -> core::result::Result<nika_compile::CompileOutcome, nika_compile::CompileError>
+pub fn nika_compile::compile_judged(request: &nika_compile::CompileRequest, judgments: &[nika_compile::surface::Judgment]) -> core::result::Result<nika_compile::CompileOutcome, nika_compile::CompileError>
 pub fn nika_compile::finding(out: &mut nika_compile::CompileOutcome, kind: nika_compile::DiagnosticKind, target: &str, message: impl core::convert::Into<alloc::string::String>)
 pub fn nika_compile::finish(source: alloc::string::String, out: &mut nika_compile::CompileOutcome)
 pub fn nika_compile::initial() -> nika_compile::CompileOutcome
@@ -2222,3 +2246,5 @@ pub fn nika_compile::question(out: &mut nika_compile::CompileOutcome, key: &str,
 pub fn nika_compile::retrieve(query: &str, k: usize) -> alloc::vec::Vec<nika_compile::Hit>
 pub fn nika_compile::retrieve_by_ops(ops: &[&str], k: usize) -> alloc::vec::Vec<nika_compile::Hit>
 pub fn nika_compile::revise_intent(request: &nika_compile::CompileRequest) -> core::option::Option<alloc::string::String>
+pub fn nika_compile::source_revision(request: &nika_compile::CompileRequest, stated: &serde_json::value::Value) -> nika_compile::CompileOutcome
+pub fn nika_compile::substitute(base: &str, path: &str, by: &str) -> core::result::Result<nika_compile_fidelity::sketch::import::Substituted, alloc::string::String>

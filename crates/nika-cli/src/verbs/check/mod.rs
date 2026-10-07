@@ -186,7 +186,9 @@ mod budget;
 pub(crate) mod energy;
 pub(crate) mod models_rung;
 mod project;
-use models_rung::{VerdictLayers, capacity_findings, thinking_findings, unresolvable_models};
+#[cfg(test)]
+use models_rung::unresolvable_models;
+use models_rung::{VerdictLayers, capacity_findings, thinking_findings, unresolvable_models_over};
 
 use nika_display::check_render::{RepairTarget, render};
 #[cfg(test)]
@@ -438,7 +440,13 @@ fn run_source_with_profile_and_slots(
     let slot_only = allow_slot_only
         && !report.slot_findings.is_empty()
         && report.findings.iter().all(|finding| finding.kind == "slot")
-        && unresolvable_models(&report, &wf).findings.is_empty()
+        && unresolvable_models_over(
+            &report,
+            &wf,
+            &nika_service_execution::access::provider_probes_env(),
+        )
+        .findings
+        .is_empty()
         && thinking_findings(&wf).is_empty()
         && capacity_findings(&wf).is_empty()
         && skills.findings.is_empty();
@@ -517,7 +525,8 @@ pub fn run_snapshot_export(path: &str, theme: Theme) -> VerbOutput {
         Err(error) => return snapshot_export_refusal(&error, crate::verbs::exit::ENV),
     };
     let service = nika_execution::ExecutionService::default();
-    let admitted = match service.admit(&project, &root) {
+    let probes = nika_service_execution::access::provider_probes_env();
+    let admitted = match service.admit_with_model_override_over(&project, &root, None, &probes) {
         Ok(admitted) => admitted,
         Err(error) => {
             let code = if matches!(&error, nika_execution::ExecutionError::Io { .. }) {
@@ -595,47 +604,7 @@ fn snapshot_export_refusal(message: &str, code: u8) -> VerbOutput {
 }
 
 fn snapshot_project(path: &str) -> Result<(nika_fs::OwnedDir, std::path::PathBuf), String> {
-    let cwd = std::env::current_dir().map_err(|error| error.to_string())?;
-    let authored = std::path::Path::new(path);
-    let absolute = if authored.is_absolute() {
-        authored.to_path_buf()
-    } else {
-        cwd.join(authored)
-    };
-    let absolute = lexical_snapshot_path(&absolute);
-    let (project_root, logical_root) = absolute.strip_prefix(&cwd).map_or_else(
-        |_| {
-            let parent = absolute
-                .parent()
-                .ok_or_else(|| format!("`{path}` has no project directory"))?;
-            let name = absolute
-                .file_name()
-                .ok_or_else(|| format!("`{path}` has no workflow filename"))?;
-            Ok::<_, String>((parent.to_path_buf(), std::path::PathBuf::from(name)))
-        },
-        |relative| Ok((cwd, relative.to_path_buf())),
-    )?;
-    let project = nika_fs::OwnedDir::open(&project_root)
-        .map_err(|error| format!("cannot hold project `{}`: {error}", project_root.display()))?;
-    Ok((project, logical_root))
-}
-
-pub(crate) fn lexical_snapshot_path(path: &std::path::Path) -> std::path::PathBuf {
-    let mut normalized = std::path::PathBuf::new();
-    for component in path.components() {
-        match component {
-            std::path::Component::Prefix(prefix) => normalized.push(prefix.as_os_str()),
-            std::path::Component::RootDir => {
-                normalized.push(std::path::Path::new(std::path::MAIN_SEPARATOR_STR));
-            }
-            std::path::Component::CurDir => {}
-            std::path::Component::ParentDir => {
-                normalized.pop();
-            }
-            std::path::Component::Normal(part) => normalized.push(part),
-        }
-    }
-    normalized
+    nika_cli_host::source::execution_project(path).map(|(project, root, _)| (project, root))
 }
 
 /// The MODELS rung's fold + the four layers (wave 2), computed ONCE

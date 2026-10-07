@@ -21,6 +21,7 @@ nika-cap    = { path = "../nika-cap", version = "0.122.0" }  # ExecPermit — th
 nika-dap     = { path = "../nika-dap", version = "0.122.0" }  # the drift scan's one code home
 annotate-snippets = { workspace = true }                       # painted spans (rustc-grade frames through the Theme seam)
 anstyle     = { workspace = true }                             # Role→Style mapping for the snippet renderer
+serde       = { workspace = true }                             # passive front-door views keep their existing serialized form
 serde_json  = { workspace = true }                             # the shape reader parses task output JSON
 uuid        = { workspace = true }                             # deterministic demo EventIds
 

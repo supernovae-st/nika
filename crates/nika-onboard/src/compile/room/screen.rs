@@ -3,8 +3,9 @@
 
 //! The screen a candidate passes before any room exists. Every task is read, whether or not it
 //! could run: a verb other than `invoke:`, a nested workflow, a tool a template names, a tool
-//! outside the surface a rehearsal runs, a jq or convert step and any `extract:` (no data bound
-//! is established for them), and a `secrets:` block are refused, each in its own words. Every
+//! outside the surface a rehearsal runs, a convert step and any `extract:` (no data bound is
+//! established for them), a jq step unless the host evaluates jq in a bounded process of its
+//! own, and a `secrets:` block are refused, each in its own words. Every
 //! path a literal or a constant names must stay in the room, and a read must name an observed
 //! input or one of the candidate's own outputs. A path known only at run time passes: the room
 //! itself confines it. Last, the amplifying value forms described in `arguments` are refused
@@ -53,8 +54,18 @@ pub(super) struct Screened {
     pub(super) tasks: Vec<String>,
 }
 
-/// Screen `candidate` over the observed `inputs`.
+/// Screen `candidate` over the observed `inputs`, for a host that evaluates no `nika:jq`.
+#[cfg(test)]
 pub(super) fn screen(candidate: &str, inputs: &[String]) -> Result<Screened, Refused> {
+    screen_with(candidate, inputs, false)
+}
+
+/// Screen `candidate` over the observed `inputs`; `jq` when the host evaluates `nika:jq`.
+pub(super) fn screen_with(
+    candidate: &str,
+    inputs: &[String],
+    jq: bool,
+) -> Result<Screened, Refused> {
     let workflow =
         nika_schema::parse(candidate, FileId::new(0), ParseMode::Strict).map_err(|error| {
             Refused::new(
@@ -79,7 +90,7 @@ pub(super) fn screen(candidate: &str, inputs: &[String]) -> Result<Screened, Ref
     };
     let mut reads = Vec::new();
     for task in &workflow.tasks {
-        if let Some(read) = screen_task(&workflow, &task.value, &mut screened.outputs)? {
+        if let Some(read) = screen_task(&workflow, &task.value, &mut screened.outputs, jq)? {
             reads.push(read);
         }
         screened.tasks.push(task.value.id.value.clone());
@@ -102,6 +113,7 @@ fn screen_task(
     workflow: &RawWorkflow,
     task: &RawTask,
     outputs: &mut Vec<Output>,
+    jq: bool,
 ) -> Result<Option<(String, String)>, Refused> {
     let id = task.id.value.as_str();
     if !task.extract.is_empty() {
@@ -130,7 +142,7 @@ fn screen_task(
         }
         RawInvokeTarget::Tool(tool) => tool.value.as_str(),
     };
-    admitted(id, tool)?;
+    admitted(id, tool, jq)?;
     if tool != "nika:read" && tool != "nika:write" {
         return Ok(None);
     }
@@ -158,8 +170,9 @@ fn screen_task(
     Ok(None)
 }
 
-/// Whether `tool` is one a rehearsal runs, refused in the words of what it reaches for.
-fn admitted(id: &str, tool: &str) -> Result<(), Refused> {
+/// Whether `tool` is one a rehearsal runs (`nika:jq` only when the host evaluates it), refused in
+/// the words of what it reaches for.
+fn admitted(id: &str, tool: &str, jq: bool) -> Result<(), Refused> {
     if tool.contains("${{") {
         return Err(Refused::new(
             Refusal::Surface,
@@ -167,6 +180,7 @@ fn admitted(id: &str, tool: &str) -> Result<(), Refused> {
         ));
     }
     match tool {
+        "nika:jq" if jq => Ok(()),
         "nika:jq" | "nika:convert" => Err(bounded(id, &format!("runs {tool}"))),
         "nika:fetch" => Err(effect(id, "the network", "a rehearsal opens no socket")),
         "nika:notify" => Err(effect(

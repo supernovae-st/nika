@@ -260,8 +260,10 @@ fn restart_from_the_crash_image(root: &Path, home: &Path, peer: &HeldPeer) {
     let mut resumed = open_unpriced(root);
     let conversation = resumed.enable_history(home).unwrap().unwrap();
     assert!(
-        conversation.contains("interrupted operation: its result may be unknown"),
-        "{conversation}"
+        conversation.contains(
+            "historical unresolved operation: an earlier result or charge remains uncertain"
+        ),
+        "restore must name unresolved historical exposure"
     );
     let record = resumed.restore_state().unwrap();
     assert!(
@@ -455,8 +457,10 @@ fn restart_without_a_budget(root: &Path, home: &Path, peer: &HeldPeer) {
     let mut resumed = open(root);
     let conversation = resumed.enable_history(home).unwrap().unwrap();
     assert!(
-        conversation.contains("interrupted operation: its result may be unknown"),
-        "{conversation}"
+        conversation.contains(
+            "historical unresolved operation: an earlier result or charge remains uncertain"
+        ),
+        "restore must name unresolved historical exposure"
     );
     let record = resumed.restore_state().unwrap();
     assert!(
@@ -623,7 +627,7 @@ fn a_private_route_is_recorded_by_its_origin_at_the_dispatch_boundary() {
     let status = resumed.status();
     assert!(
         status.contains("1 paid dispatch(es) left without a recorded settlement"),
-        "{status}"
+        "status must retain the unsettled paid dispatch"
     );
 }
 
@@ -804,7 +808,10 @@ fn an_unreadable_durable_observation_stays_fail_closed_and_visible() {
         "an unreadable entry may have been billed"
     );
     let status = s.status();
-    assert!(status.contains(named), "{status}");
+    assert!(
+        status.contains(named),
+        "restored unreadable cost evidence must remain visible"
+    );
     let live = tempfile::tempdir().unwrap();
     let mut s = open(live.path());
     s.unknown_cost.observations.push(Value::Null);
@@ -814,7 +821,10 @@ fn an_unreadable_durable_observation_stays_fail_closed_and_visible() {
         "live, it may have been billed as well"
     );
     let status = s.status();
-    assert!(status.contains(named), "{status}");
+    assert!(
+        status.contains(named),
+        "live unreadable cost evidence must remain visible"
+    );
 }
 
 /// C11 F2 r3 · a live round with no open question still owes the one-time review for words only
@@ -840,3 +850,7 @@ fn a_question_less_live_round_owes_the_review_for_words_but_not_for_a_question()
     asked_cost(&s.turn("make it shorter"));
     assert!(peer.bodies().is_empty(), "nothing was sent");
 }
+
+mod stop;
+
+mod continuation;

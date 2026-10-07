@@ -36,9 +36,7 @@ fn first_call(document: &Value) -> Value {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_named_level_rides_the_round_and_an_unqualified_route_sends_nothing() {
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Text(native_answer(&candidate(
-        RUN_MODEL, false,
-    )))]);
+    let seat = Seat::start(vec![Reply::Text(plan_answer(DRAFT, &[]))]);
     let control = NativeAuthoring::new(PRO, deepseek(&seat)).with_repairs(0);
     let (server, _) = start_native(&world, compile_limits(), control).await;
     let response = server.request(&compile_request(&fresh(&json!({})))).await;
@@ -47,10 +45,11 @@ async fn a_named_level_rides_the_round_and_an_unqualified_route_sends_nothing() 
     let bodies = seat.bodies();
     assert_eq!(bodies.len(), 1, "{document:#}");
     assert_eq!(bodies[0]["model"], "deepseek-v4-pro");
-    assert_eq!(bodies[0]["max_tokens"].as_u64(), Some(8192));
-    assert_eq!(
-        bodies[0]["reasoning_effort"], "low",
-        "the route's own bytes"
+    assert_eq!(bodies[0]["max_tokens"].as_u64(), Some(16_384));
+    assert!(
+        bodies[0].get("reasoning_effort").is_none(),
+        "the default capacity does not select the short-answer effort: {}",
+        bodies[0]
     );
     assert!(bodies[0].get("thinking").is_none(), "{}", bodies[0]);
     assert!(
@@ -62,7 +61,7 @@ async fn a_named_level_rides_the_round_and_an_unqualified_route_sends_nothing() 
     assert_eq!(call["reasoning"]["configured"], Value::Null, "{call:#}");
     assert_eq!(
         call["reasoning"]["transmitted"],
-        json!({"thinking": null, "effort": "low"}),
+        json!({"thinking": null, "effort": null}),
         "{call:#}"
     );
     assert_eq!(call["reasoning"]["served"], "unknown", "{call:#}");
@@ -92,6 +91,37 @@ async fn a_named_level_rides_the_round_and_an_unqualified_route_sends_nothing() 
         assert!(!said.contains("authorize sufficient max_calls"), "{said}");
         server.stop().await.expect("clean stop");
     }
+}
+
+/// An explicit short-answer cap still selects the route's existing low-effort behavior;
+/// the receipt reports those dispatched bytes without claiming the served effort is known.
+#[tokio::test(flavor = "multi_thread")]
+async fn an_explicit_short_answer_keeps_the_route_effort_and_its_wire_receipt() {
+    let world = TestWorld::new();
+    let seat = Seat::start(vec![Reply::Text(plan_answer(DRAFT, &[]))]);
+    let control = NativeAuthoring::new(PRO, deepseek(&seat))
+        .with_repairs(0)
+        .with_max_tokens(8192);
+    let (server, _) = start_native(&world, compile_limits(), control).await;
+    let response = server.request(&compile_request(&fresh(&json!({})))).await;
+    assert_eq!(response.status, 200, "{}", response.body);
+    let document = response.json();
+    let bodies = seat.bodies();
+    assert_eq!(bodies.len(), 1, "{document:#}");
+    assert_eq!(bodies[0]["model"], "deepseek-v4-pro");
+    assert_eq!(bodies[0]["max_tokens"], 8192);
+    assert_eq!(bodies[0]["reasoning_effort"], "low");
+    assert!(bodies[0].get("thinking").is_none(), "{}", bodies[0]);
+    assert!(message(&bodies[0], "user").contains(INTENT));
+    let call = first_call(&document);
+    assert_eq!(call["reasoning"]["configured"], Value::Null, "{call:#}");
+    assert_eq!(
+        call["reasoning"]["transmitted"],
+        json!({"thinking": null, "effort": "low"}),
+        "{call:#}"
+    );
+    assert_eq!(call["reasoning"]["served"], "unknown", "{call:#}");
+    server.stop().await.expect("clean stop");
 }
 
 /// A word outside low · high · max (case and spelling exact) refuses the seat before the listener

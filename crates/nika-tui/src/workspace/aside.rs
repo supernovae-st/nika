@@ -196,6 +196,27 @@ pub fn lines_selecting(
     color: bool,
     selected: Option<usize>,
 ) -> Vec<Line<'static>> {
+    lines_anchored(
+        aside,
+        width,
+        height,
+        ascii,
+        color,
+        selected,
+        selected.unwrap_or(0),
+    )
+}
+
+/// Keep the list's scroll anchor even while another region has the keyboard.
+pub(crate) fn lines_anchored(
+    aside: &Aside,
+    width: u16,
+    height: u16,
+    ascii: bool,
+    color: bool,
+    selected: Option<usize>,
+    anchor: usize,
+) -> Vec<Line<'static>> {
     let (width, height) = (usize::from(width), usize::from(height));
     let (sep, cut) = marks(ascii);
     let dim = role::style(Role::Dim, color);
@@ -221,10 +242,8 @@ pub fn lines_selecting(
         .as_deref()
         .map(|n| wrap(n, width, cut))
         .unwrap_or_default();
-    let footer = usize::from(!aside.complete) + note.len();
-    let room = height.saturating_sub(out.len() + footer);
     let count = aside.entries.len();
-    let (start, end) = window(count, room, selected);
+    let (start, end) = entry_window(aside, width, height, ascii, anchor);
     if start > 0 {
         out.push(Line::from(Span::styled(format!("  +{start} above"), dim)));
     }
@@ -255,6 +274,52 @@ pub fn lines_selecting(
     }
     out.truncate(height);
     out
+}
+
+/// The renderer and pointer share the exact listing window, including note rows.
+fn entry_window(
+    aside: &Aside,
+    width: usize,
+    height: usize,
+    ascii: bool,
+    anchor: usize,
+) -> (usize, usize) {
+    let (_, cut) = marks(ascii);
+    let note_rows = aside
+        .note
+        .as_deref()
+        .map_or(0, |note| wrap(note, width, cut).len());
+    let footer = usize::from(!aside.complete) + note_rows;
+    window(
+        aside.entries.len(),
+        height.saturating_sub(2 + footer),
+        Some(anchor),
+    )
+}
+
+/// The entry actually painted at a local row. Headers, omitted-count rows and
+/// footers never alias a file. The right edge is excluded by the caller.
+pub(crate) fn entry_at(
+    aside: &Aside,
+    width: u16,
+    height: u16,
+    ascii: bool,
+    anchor: usize,
+    row: u16,
+) -> Option<usize> {
+    if row >= height {
+        return None;
+    }
+    let (start, end) = entry_window(
+        aside,
+        usize::from(width),
+        usize::from(height),
+        ascii,
+        anchor,
+    );
+    let first = 2 + usize::from(start > 0);
+    let index = start.checked_add(usize::from(row).checked_sub(first)?)?;
+    (index < end).then_some(index)
 }
 
 /// One entry's row, `width` cells: the open marker, the indent, the glyph,
@@ -317,6 +382,40 @@ mod tests {
             ],
             true,
         )
+    }
+
+    #[test]
+    fn pointer_rows_follow_the_rendered_window_without_opening_headers_or_notes() {
+        let aside = Aside::new(
+            "many",
+            Tab::Files,
+            (0..30)
+                .map(|n| Entry::new(Icon::File, format!("unique-{n:02}")))
+                .collect(),
+            false,
+        )
+        .noting("one note");
+        for height in [0, 1, 2, 3, 4, 8, 20] {
+            for anchor in [0, 7, 29] {
+                let rows = lines_anchored(&aside, 24, height, false, false, None, anchor);
+                for row in 0..height {
+                    let hit = entry_at(&aside, 24, height, false, anchor, row);
+                    let text = rows
+                        .get(usize::from(row))
+                        .map(ToString::to_string)
+                        .unwrap_or_default();
+                    if let Some(index) = hit {
+                        assert!(
+                            text.contains(&format!("unique-{index:02}")),
+                            "{row}: {text}"
+                        );
+                    } else {
+                        assert!(!text.contains("unique-"), "visible entry missed: {text}");
+                    }
+                }
+                assert_eq!(entry_at(&aside, 24, height, false, anchor, height), None);
+            }
+        }
     }
 
     #[test]

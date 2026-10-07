@@ -185,6 +185,48 @@ pub type nika_runtime_laws::identity::EngineIdentity::Output = T
 pub const nika_runtime_laws::identity::MACHINE_PROTOCOL_VERSION: u32
 pub const nika_runtime_laws::identity::MACHINE_SNAPSHOT_FORMAT_VERSION: u32
 pub const fn nika_runtime_laws::identity::engine_identity() -> &'static nika_runtime_laws::identity::EngineIdentity
+pub mod nika_runtime_laws::image_room
+pub struct nika_runtime_laws::image_room::ImageRoom
+impl nika_runtime_laws::image_room::ImageRoom
+pub async fn nika_runtime_laws::image_room::ImageRoom::drain_dropped(&self)
+pub fn nika_runtime_laws::image_room::ImageRoom::open(root: &std::path::Path) -> core::io::error::Result<Self>
+pub fn nika_runtime_laws::image_room::ImageRoom::pending_drains(&self) -> usize
+impl core::fmt::Debug for nika_runtime_laws::image_room::ImageRoom
+pub fn nika_runtime_laws::image_room::ImageRoom::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_kernel_core::io::blob::BlobStoreDyn for nika_runtime_laws::image_room::ImageRoom
+pub async fn nika_runtime_laws::image_room::ImageRoom::delete(&self, hash: &str) -> core::result::Result<(), nika_kernel_core::io::blob::BlobError>
+pub async fn nika_runtime_laws::image_room::ImageRoom::exists(&self, hash: &str) -> bool
+pub async fn nika_runtime_laws::image_room::ImageRoom::get(&self, hash: &str) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::blob::BlobError>
+pub async fn nika_runtime_laws::image_room::ImageRoom::put(&self, data: bytes::bytes::Bytes, mime_type: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>
+pub async fn nika_runtime_laws::image_room::ImageRoom::stat(&self, hash: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>
+impl<D> owo_colors::OwoColorize for nika_runtime_laws::image_room::ImageRoom
+impl<T, U> core::convert::Into<U> for nika_runtime_laws::image_room::ImageRoom where U: core::convert::From<T>
+pub fn nika_runtime_laws::image_room::ImageRoom::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime_laws::image_room::ImageRoom where U: core::convert::Into<T>
+pub type nika_runtime_laws::image_room::ImageRoom::Error = core::convert::Infallible
+pub fn nika_runtime_laws::image_room::ImageRoom::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime_laws::image_room::ImageRoom where U: core::convert::TryFrom<T>
+pub type nika_runtime_laws::image_room::ImageRoom::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime_laws::image_room::ImageRoom::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_runtime_laws::image_room::ImageRoom where T: 'static + ?core::marker::Sized
+pub fn nika_runtime_laws::image_room::ImageRoom::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime_laws::image_room::ImageRoom where T: ?core::marker::Sized
+pub fn nika_runtime_laws::image_room::ImageRoom::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime_laws::image_room::ImageRoom where T: ?core::marker::Sized
+pub fn nika_runtime_laws::image_room::ImageRoom::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_runtime_laws::image_room::ImageRoom
+pub fn nika_runtime_laws::image_room::ImageRoom::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_runtime_laws::image_room::ImageRoom where T: 'static
+pub fn nika_runtime_laws::image_room::ImageRoom::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_runtime_laws::image_room::ImageRoom
+pub type nika_runtime_laws::image_room::ImageRoom::Output = T
+impl<TraitVariantBlanketType> nika_kernel_core::io::blob::BlobStore for nika_runtime_laws::image_room::ImageRoom where TraitVariantBlanketType: nika_kernel_core::io::blob::BlobStoreDyn
+pub async fn nika_runtime_laws::image_room::ImageRoom::delete(&self, hash: &str) -> core::result::Result<(), nika_kernel_core::io::blob::BlobError>
+pub async fn nika_runtime_laws::image_room::ImageRoom::exists(&self, hash: &str) -> bool
+pub async fn nika_runtime_laws::image_room::ImageRoom::get(&self, hash: &str) -> core::result::Result<bytes::bytes::Bytes, nika_kernel_core::io::blob::BlobError>
+pub async fn nika_runtime_laws::image_room::ImageRoom::put(&self, data: bytes::bytes::Bytes, mime_type: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>
+pub async fn nika_runtime_laws::image_room::ImageRoom::stat(&self, hash: &str) -> core::result::Result<nika_kernel_core::io::blob::BlobMetadata, nika_kernel_core::io::blob::BlobError>
+pub const nika_runtime_laws::image_room::IMAGE_MAX_BYTES: u64
 pub mod nika_runtime_laws::integrity
 pub struct nika_runtime_laws::integrity::ValueTaint<'a>
 impl<'a> nika_runtime_laws::integrity::ValueTaint<'a>
@@ -221,6 +263,9 @@ pub mod nika_runtime_laws::resume_fields::fields
 pub const nika_runtime_laws::resume_fields::fields::DEF_HASH: &str
 pub const nika_runtime_laws::resume_fields::fields::INPUT_HASH: &str
 pub const nika_runtime_laws::resume_fields::fields::OUTPUT: &str
+pub mod nika_runtime_laws::retry
+pub fn nika_runtime_laws::retry::delay_ms(cfg: &nika_vocab::retry::RetryConfig, attempt: u32, rand_unit: f64) -> u64
+pub fn nika_runtime_laws::retry::rand_unit(seed: u64, task_id: &str, attempt: u32) -> f64
 pub mod nika_runtime_laws::sandbox_select
 pub use nika_runtime_laws::sandbox_select::SandboxPolicy
 pub use nika_runtime_laws::sandbox_select::SandboxPolicyParseError
@@ -371,6 +416,7 @@ impl<T> nika_error::traits::AsAny for nika_runtime_laws::secret::RedactingSink<'
 pub fn nika_runtime_laws::secret::RedactingSink<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_runtime_laws::secret::RedactingSink<'a>
 pub type nika_runtime_laws::secret::RedactingSink<'a>::Output = T
+pub fn nika_runtime_laws::secret::output_fields(outputs: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> alloc::vec::Vec<(&'static str, nika_types::resource::Value)>
 pub fn nika_runtime_laws::secret::scrub_outputs(outputs: &mut alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, resolved: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>)
 pub mod nika_runtime_laws::stamp
 pub use nika_runtime_laws::stamp::<<nika_event::stamp::*>>

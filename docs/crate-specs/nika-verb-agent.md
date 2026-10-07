@@ -372,3 +372,45 @@ seam — they shipped this arc; the loop verb is gated on this one decision.
               · CHANGELOG). 100+ tests GREEN across the 5 engine crates ·
               the §5 OPEN question is RESOLVED.
 ```
+
+## ACP media beside the unchanged result
+
+The harness path persists received image bytes through the injected kernel blob
+store, then publishes metadata through `AgentObserver`. The independent setter
+`with_harness_image_store` reuses the existing blob bridge; it does not enable
+native ReAct tool-result spill. `agent.output` remains the final text. Missing or
+failed image storage returns a permanent failure with received-but-unstored
+metadata, without claiming completion or automatically regenerating the image.
+A media observation is not a whitelist verdict or `PermissionJudged` witness;
+existing permission asks still pass the same bridge. Native Codex authoring
+remains unavailable until its separate pre-execution no-tools requirement is
+attested.
+
+The current Codex ACP wire repeats nonempty base64 in both content and rawOutput,
+with an additional optional savedPath/uri. `nika-harness` admits up to four images,
+16 tracked operations, and 8 MiB **total encoded** payload per delegated turn
+(at most 6 MiB decoded). Its 18 MiB per-line transport bound allows the two
+copies and JSON metadata. Journal/trace bounds remain 1 MiB. Overflow refuses
+without truncation. PNG requires matching ACP content, valid base64 and a
+nonzero PNG header; this is not full pixel decoding. Path-only reports have no
+invented MIME, bytes or digest and perform no storage. Conflicts, failures,
+incomplete operations or unsettled image turns refuse; activity blocks automatic
+retry. Input vision remains outside the text-only harness request contract.
+
+`AgentEvent::harness_image` and `AgentEvent::is_harness_image` let the runtime
+read an image beat and veto a replay without re-matching variants.
+
+Received bytes publish `HarnessImageObserved` (`storage: unconfirmed`) BEFORE the
+store is awaited; the store's answer follows as `HarnessImageStored { tool_call_id,
+stored }`. `AgentEvent::settle_image` folds that answer into the still-unsettled
+observation of the same operation. A put cancelled by a task timeout therefore
+keeps a truthful receipt with `storage: unconfirmed`; no answer is invented.
+`AgentEvent::record_into` applies that fold to an ordered beat log (the
+runtime's buffer) and `AgentEvent::image_row` stamps a receipt row with its
+attempt and iteration.
+
+A harness outcome's session model rides `AgentOutput.model_reported` with
+`model_reported_source` (the `ModelProvenance`), separate from `model_resolved`
+(the requested name and pricing key, still `None` for a harness-built output).
+It is a reported configuration or selection, never a served-model attestation;
+an absent report stays `None`, never the request.

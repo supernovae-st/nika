@@ -36,6 +36,9 @@ pub(super) fn report(
         Attempt::NeverAttempted => ("never_attempted", None),
         Attempt::Completed { elapsed_ms } => ("completed", Some(elapsed_ms)),
         Attempt::Stopped { elapsed_ms } => ("stopped", Some(elapsed_ms)),
+        // The rehearsal's enums are non-exhaustive across the member boundary (ADR-146): a kind
+        // this record does not know is named unknown, never one of the kinds above.
+        _ => ("unknown", None),
     };
     let decision = match result {
         Result::Proceed => json!({"kind": "proceed"}),
@@ -62,7 +65,8 @@ pub(super) fn report(
         "failure": observation.failure.as_ref().map(|failure| json!({
             "task": failure.task, "code": failure.code,
             "cause": match failure.cause { RecordedCause::Engine => "engine", RecordedCause::VerbError => "verb_error",
-                RecordedCause::Timeout => "timeout", RecordedCause::RetryExhausted => "retry_exhausted" },
+                RecordedCause::Timeout => "timeout", RecordedCause::RetryExhausted => "retry_exhausted",
+                _ => "unknown" },
         })),
     })
 }
@@ -78,6 +82,7 @@ fn outcome(outcome: &Rehearsal) -> Value {
             message,
         } => json!({"kind": "failed", "task": task, "code": code, "message": message}),
         Rehearsal::NotRun { reason } => json!({"kind": "not_run", "reason": reason}),
+        _ => json!({"kind": "unknown"}),
     }
 }
 
@@ -88,6 +93,8 @@ fn final_state(state: &FinalState) -> Value {
         FinalState::Unreadable => json!({"kind": "unreadable"}),
         FinalState::File { digest, held } => json!({"kind": "file", "bytes": digest.bytes,
             "sha256": digest.sha256, "text": held.text(),
-            "coverage": match held { Held::Whole(_) => "complete", Held::Preview(_) => "prefix", Held::NotText => "not_text" }}),
+            "coverage": match held { Held::Whole(_) => "complete", Held::Preview(_) => "prefix", Held::NotText => "not_text",
+                _ => "unknown" }}),
+        _ => json!({"kind": "unknown"}),
     }
 }

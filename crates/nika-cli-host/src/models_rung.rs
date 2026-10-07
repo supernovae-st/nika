@@ -189,6 +189,29 @@ pub fn unresolvable_models(
     report: &nika_check::CheckReport,
     wf: &nika_schema::raw::RawWorkflow,
 ) -> ModelsAudit {
+    unresolvable_models_over(report, wf, &[])
+}
+
+/// The MODELS rung over injected effective provider endpoints. Catalog model
+/// ownership does not describe an operator's compatible gateway.
+#[must_use]
+pub fn unresolvable_models_over(
+    report: &nika_check::CheckReport,
+    wf: &nika_schema::raw::RawWorkflow,
+    probes: &[nika_providers::probe::ProviderProbe],
+) -> ModelsAudit {
+    unresolvable_models_for_plan(report, wf, probes, None)
+}
+
+/// Judge the MODELS rung on the selected transport, keeping API endpoint
+/// overrides out of the catalog judgment for a selected harness path.
+#[must_use]
+pub fn unresolvable_models_for_plan(
+    report: &nika_check::CheckReport,
+    wf: &nika_schema::raw::RawWorkflow,
+    probes: &[nika_providers::probe::ProviderProbe],
+    plan: Option<&ExecutionAccessPlan>,
+) -> ModelsAudit {
     let mut audit = ModelsAudit::new(Vec::new(), 0, 0);
     for m in &report.requirements.models {
         // A TEMPLATED `model:` is not a static fact — its value arrives
@@ -219,7 +242,7 @@ pub fn unresolvable_models(
         // The ONE law, shared with the MCP lane (#320 follow-up: the two
         // machine surfaces consult the same fn beside the resolver —
         // they cannot drift apart again).
-        if let Some(refusal) = nika_providers::resolve_refusal(judged) {
+        if let Some(refusal) = nika_providers::resolve_refusal_for_plan(judged, probes, plan) {
             // A via-default refusal names BOTH halves: the template
             // the author wrote and the default that was judged.
             let why = if via_default {
@@ -364,6 +387,49 @@ mod tests {
     use nika_providers::resolve_access::PinRefusal;
 
     use super::*;
+
+    fn custom_openai_probe() -> nika_providers::probe::ProviderProbe {
+        use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
+        ProviderProbe::new(
+            "openai",
+            true,
+            true,
+            "OPENAI_API_KEY",
+            true,
+            ProviderReadiness::new(
+                true,
+                true,
+                None,
+                None,
+                false,
+                ExecutionLocus::Remote,
+                nika_types::access::AccessClass::Api,
+            ),
+            "https://api.scaleway.ai/11111111-2222-4333-8444-555555555555/v1/chat/completions",
+        )
+    }
+
+    #[test]
+    fn configured_compat_endpoint_changes_only_model_ownership_finding() {
+        let wf = nika_schema::parse(
+            "nika: custom\nmodel: openai/deepseek-v4-flash-0731\ntasks:\n  say:\n    infer: { prompt: hi, max_tokens: 512 }\n",
+            nika_schema::FileId::new(0), nika_schema::ParseMode::Strict).expect("fixture");
+        let report = nika_check::check(&wf);
+        assert!(!unresolvable_models(&report, &wf).findings.is_empty());
+        let probes = [custom_openai_probe()];
+        assert!(
+            unresolvable_models_over(&report, &wf, &probes)
+                .findings
+                .is_empty()
+        );
+        assert!(nika_catalog::find_pricing_for("openai/deepseek-v4-flash-0731").is_none());
+        let selected = plan(Some("codex"), Some("codex"), None);
+        assert_eq!(
+            unresolvable_models_for_plan(&report, &wf, &probes, Some(&selected)).findings,
+            unresolvable_models(&report, &wf).findings,
+            "the chosen harness cannot inherit the API route's catalog exemption"
+        );
+    }
 
     fn plan(
         pin: Option<&str>,

@@ -10,7 +10,7 @@
 //! reads it at open). What was pending at close never regains authority
 //! (ADR-133): the record says what it was, the door says it expired.
 
-use std::io::{self, Read as _};
+use std::io::{self, BufReader};
 use std::path::{Path, PathBuf};
 
 use nika_fs::OwnedDir;
@@ -19,8 +19,6 @@ use serde::{Deserialize, Serialize};
 /// The record's name under the project's `.nika/`.
 pub const STATE_FILE: &str = "session-state.json";
 const NIKA_DIR: &str = ".nika";
-/// The most bytes a reader takes from the record (a bound, not a quota).
-const MAX_STATE_BYTES: u64 = 1024 * 1024;
 
 /// What waits for the human, as it was when the record was written. A
 /// proposal is never here: nothing is written before its consent, and it
@@ -67,6 +65,10 @@ pub struct SessionState {
     /// Cost observations only; never restores an account, review or consent.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub inference_observations: Vec<serde_json::Value>,
+    /// Numeric ledger (restored closed), or completed cost report (no account); each is
+    /// versioned and read only under concordant exclusive history.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inference_checkpoint: Option<serde_json::Value>,
 }
 
 impl SessionState {
@@ -84,6 +86,7 @@ impl SessionState {
             unresolved: Vec::new(),
             pending: None,
             inference_observations: Vec::new(),
+            inference_checkpoint: None,
         }
     }
 
@@ -91,28 +94,17 @@ impl SessionState {
     /// no session ever wrote one there.
     ///
     /// # Errors
-    /// A record beyond 1 MiB, of another format, or that is not this
-    /// record; the file system's refusal. Nothing is rewritten.
+    /// A record of another format, malformed data, or the file system's refusal.
+    /// Nothing is rewritten; accumulated Session state has no fixed byte quota.
     pub fn load(root: &Path) -> io::Result<Option<Self>> {
-        let dir = match OwnedDir::open(root).and_then(|dir| dir.open_below(&[NIKA_DIR])) {
-            Ok(dir) => dir,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-            Err(error) => return Err(error),
-        };
-        let file = match dir.open_relative(Path::new(STATE_FILE)) {
+        let file = match OwnedDir::open(root)
+            .and_then(|dir| dir.open_relative(&Path::new(NIKA_DIR).join(STATE_FILE)))
+        {
             Ok(file) => file,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
             Err(error) => return Err(error),
         };
-        let mut text = String::new();
-        file.take(MAX_STATE_BYTES + 1).read_to_string(&mut text)?;
-        if text.len() as u64 > MAX_STATE_BYTES {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidData,
-                "the session record exceeds 1 MiB",
-            ));
-        }
-        let state: Self = serde_json::from_str(&text)?;
+        let state: Self = serde_json::from_reader(BufReader::new(file))?;
         if state.version != Self::VERSION {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -183,6 +175,23 @@ mod tests {
         assert!(
             !text.contains("\"pending\"") && !text.contains("\"goal\""),
             "an absent value is absent, not null: {text}"
+        );
+    }
+
+    #[test]
+    fn accumulated_state_roundtrips_beyond_the_old_mebibyte_quota() {
+        let root = tempfile::tempdir().expect("root");
+        let mut state = SessionState::new("2026-10-06T00:00:00Z".to_owned());
+        state.goal = Some("An original requirement. ".repeat(50_000));
+        state
+            .decisions
+            .push("preserve every requirement".to_owned());
+        state.save(root.path()).expect("large state saved");
+        let path = root.path().join(NIKA_DIR).join(STATE_FILE);
+        assert!(std::fs::metadata(path).expect("record").len() > 1024 * 1024);
+        assert_eq!(
+            SessionState::load(root.path()).expect("reopen"),
+            Some(state)
         );
     }
 

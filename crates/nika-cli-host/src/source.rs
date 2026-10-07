@@ -14,6 +14,61 @@ use nika_source::{SourceNameKind, classify_path, path_file_name, retired_rename_
 use crate::output::VerbOutput;
 use crate::repair::repair_target_for_path;
 
+/// Hold the project directory for a workflow path and return its logical
+/// snapshot path plus the display root. Paths within the launch directory
+/// retain that project root; outside paths use their containing directory.
+/// Lexical normalization preserves the existing symlink policy rather than
+/// resolving the workflow through the filesystem before descriptor capture.
+///
+/// # Errors
+/// Returns the unchanged acquisition reason when the launch directory cannot
+/// be read, the path lacks a directory or filename, or the project cannot be held.
+pub fn execution_project(
+    file: &str,
+) -> Result<(nika_fs::OwnedDir, std::path::PathBuf, std::path::PathBuf), String> {
+    let cwd = std::env::current_dir().map_err(|error| error.to_string())?;
+    let path = std::path::Path::new(file);
+    let absolute = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        cwd.join(path)
+    };
+    let absolute = lexical_snapshot_path(&absolute);
+    let (display_root, root) = absolute.strip_prefix(&cwd).map_or_else(
+        |_| {
+            let parent = absolute
+                .parent()
+                .ok_or_else(|| format!("`{file}` has no project directory"))?;
+            let name = absolute
+                .file_name()
+                .ok_or_else(|| format!("`{file}` has no workflow filename"))?;
+            Ok::<_, String>((parent.to_path_buf(), std::path::PathBuf::from(name)))
+        },
+        |relative| Ok((cwd.clone(), relative.to_path_buf())),
+    )?;
+    let project = nika_fs::OwnedDir::open(&display_root)
+        .map_err(|error| format!("cannot hold project `{}`: {error}", display_root.display()))?;
+    Ok((project, root, display_root))
+}
+
+fn lexical_snapshot_path(path: &std::path::Path) -> std::path::PathBuf {
+    let mut normalized = std::path::PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::Prefix(prefix) => normalized.push(prefix.as_os_str()),
+            std::path::Component::RootDir => {
+                normalized.push(std::path::Path::new(std::path::MAIN_SEPARATOR_STR));
+            }
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                normalized.pop();
+            }
+            std::path::Component::Normal(part) => normalized.push(part),
+        }
+    }
+    normalized
+}
+
 #[derive(Clone)]
 pub struct RunSource {
     logical_path: std::sync::Arc<str>,
@@ -162,6 +217,33 @@ fn open_program_file(path: &str) -> Result<std::fs::File, VerbOutput> {
 mod tests {
     use super::*;
     use crate::output::exit;
+
+    #[test]
+    fn execution_project_keeps_launch_root_for_relative_paths() {
+        let cwd = std::env::current_dir().expect("launch directory");
+        let (_, root, display_root) = execution_project("not-created/../workflow.nika")
+            .expect("only the project descriptor is opened");
+        assert_eq!(display_root, cwd);
+        assert_eq!(root, std::path::Path::new("workflow.nika"));
+        let (_, stdin_root, stdin_display) = execution_project("-").expect("stdin project");
+        assert_eq!(stdin_root, std::path::Path::new("-"));
+        assert_eq!(stdin_display, cwd);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn snapshot_normalization_remains_lexical_and_clamps_at_root() {
+        use std::path::Path;
+
+        assert_eq!(
+            lexical_snapshot_path(Path::new("/project/link/../workflow.nika")),
+            Path::new("/project/workflow.nika")
+        );
+        assert_eq!(
+            lexical_snapshot_path(Path::new("/../../workflow.nika")),
+            Path::new("/workflow.nika")
+        );
+    }
 
     #[test]
     fn capture_accepts_canonical_program_and_rejects_retired_and_project() {

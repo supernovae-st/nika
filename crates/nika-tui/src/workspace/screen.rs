@@ -12,7 +12,7 @@ use nika_display::theme::Role;
 use ratatui::Frame;
 use ratatui::buffer::Buffer;
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::text::Line;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use super::aside::{self, Aside};
@@ -24,7 +24,7 @@ use super::object::{self, Object, Paint};
 use super::pinned::{self, Pinned};
 use crate::composer::Composer;
 use crate::model::UiState;
-use crate::render::{live_rows, render_live, render_transcript};
+use crate::render::{activity_marker, live_rows, render_live, render_transcript, wrapped_rows};
 use crate::visual::role;
 
 /// Everything one workspace frame shows, as the Session projects it.
@@ -35,7 +35,7 @@ pub struct Screen {
     pub place: Place,
     /// What the active project holds (the aside).
     pub aside: Aside,
-    /// What the centre shows.
+    /// What the preview on the right shows.
     pub object: Object,
     /// The conversation the composer writes to.
     pub thread: Thread,
@@ -97,6 +97,13 @@ pub fn draw(
         return false;
     };
     let (ascii, color) = (paint.ascii, paint.color);
+    let area = frame.area();
+    frame
+        .buffer_mut()
+        .set_style(area, role::surface(color, false));
+    frame
+        .buffer_mut()
+        .set_style(geometry.header, role::surface(color, true));
     header::render(
         &screen.place,
         geometry.header,
@@ -106,29 +113,40 @@ pub fn draw(
     );
     let selected = (focus.region == Region::Aside).then_some(focus.selected);
     if let Some(area) = geometry.aside {
+        frame
+            .buffer_mut()
+            .set_style(area, role::surface(color, true));
         let [list, edge] =
             Layout::horizontal([Constraint::Min(1), Constraint::Length(1)]).areas(area);
-        let rows = aside::lines_selecting(
+        let rows = aside::lines_anchored(
             &screen.aside,
             list.width,
             list.height,
             ascii,
             color,
             selected,
+            focus.selected,
         );
         frame.render_widget(Paragraph::new(rows), list);
-        rule_column(edge, ascii, color, frame.buffer_mut());
+        rule_column(
+            edge,
+            ascii,
+            color,
+            focus.region == Region::Aside,
+            frame.buffer_mut(),
+        );
     } else if selected.is_some() {
         // The width folds the aside: while it holds the keys it stands over
         // the object, which returns as soon as the keys leave it.
         let area = geometry.object;
-        let rows = aside::lines_selecting(
+        let rows = aside::lines_anchored(
             &screen.aside,
             area.width,
             area.height,
             ascii,
             color,
             selected,
+            focus.selected,
         );
         frame.render_widget(Paragraph::new(rows), area);
     }
@@ -141,7 +159,26 @@ pub fn draw(
             focus.scroll,
         );
     }
-    panel(frame, screen, &geometry, paint, state, composer);
+    if focus.region == Region::Object {
+        frame.buffer_mut().set_style(
+            Rect::new(
+                geometry.object.x,
+                geometry.object.y,
+                geometry.object.width,
+                1,
+            ),
+            ratatui::style::Style::default().add_modifier(ratatui::style::Modifier::UNDERLINED),
+        );
+    }
+    panel(
+        frame,
+        screen,
+        &geometry,
+        paint,
+        state,
+        composer,
+        focus.region,
+    );
     if let (Some(run), Some(area)) = (&screen.pinned, geometry.pinned) {
         let row = pinned::line(run, area.width, ascii, color);
         frame.render_widget(Paragraph::new(row), area);
@@ -159,40 +196,126 @@ fn panel(
     paint: Paint,
     state: &UiState,
     composer: &Composer,
+    focused: Region,
 ) {
     let (ascii, color) = (paint.ascii, paint.color);
-    let mut area = geometry.conversation;
+    let area = geometry.conversation;
     if !geometry.stacked {
-        // The rule, then one blank column so no word touches it.
-        let [edge, _, rest] = Layout::horizontal([
-            Constraint::Length(1),
+        // The rule follows a free gutter at the right edge, beside the preview.
+        let [_, _, edge] = Layout::horizontal([
             Constraint::Length(1),
             Constraint::Min(1),
+            Constraint::Length(1),
         ])
         .areas(area);
-        rule_column(edge, ascii, color, frame.buffer_mut());
-        area = rest;
+        rule_column(
+            edge,
+            ascii,
+            color,
+            focused != Region::Aside,
+            frame.buffer_mut(),
+        );
     }
-    let live = live_rows(state, composer, area.width, area.height.saturating_sub(2));
-    let [title, transcript, context, bottom] = Layout::vertical([
-        Constraint::Length(1),
-        Constraint::Min(0),
-        Constraint::Length(1),
-        Constraint::Length(live),
-    ])
-    .areas(area);
-    let heading = conversation::title(&screen.thread, title.width, ascii, color, geometry.stacked);
-    frame.render_widget(Paragraph::new(heading), title);
+    let [title, transcript, context, bottom] = panel_areas(
+        geometry,
+        state,
+        composer,
+        screen.thread.intelligence.as_deref(),
+    );
+    let marker = activity_marker(state);
+    let prefix = marker.as_ref().map_or(0, |mark| {
+        u16::try_from(mark.width() + 1).unwrap_or(u16::MAX)
+    });
+    let mut heading = conversation::title(
+        &screen.thread,
+        title.width.saturating_sub(prefix),
+        ascii,
+        color,
+        geometry.stacked,
+    );
+    if let Some(marker) = marker {
+        heading.spans.splice(0..0, [marker, Span::raw(" ")]);
+    }
+    let heading = if focused == Region::Conversation {
+        heading.style(
+            ratatui::style::Style::default().add_modifier(ratatui::style::Modifier::UNDERLINED),
+        )
+    } else {
+        heading
+    };
+    let mut title_lines = vec![heading];
+    if title.height > 1 {
+        title_lines.push(preparation_line(
+            screen.thread.intelligence.as_deref(),
+            color,
+        ));
+    }
+    frame.render_widget(
+        Paragraph::new(title_lines).wrap(ratatui::widgets::Wrap { trim: false }),
+        title,
+    );
     render_transcript(frame, state, transcript);
     let with = conversation::context(&screen.thread, context.width, ascii, color);
     frame.render_widget(Paragraph::new(with), context);
     render_live(frame, state, composer, bottom);
 }
 
+/// The selection is for preparation, not evidence that this model answered a turn.
+fn preparation_line(intelligence: Option<&str>, color: bool) -> Line<'static> {
+    let seat = intelligence.unwrap_or("not selected - /intelligence to choose; asked when needed");
+    Line::from(vec![
+        Span::styled("Prepare with: ", role::style(Role::VerbAgent, color)),
+        Span::styled(seat.to_owned(), role::style(Role::Dim, color)),
+    ])
+}
+
+/// The exact conversation rectangles, shared by painting and scroll bounds.
+pub(crate) fn panel_areas(
+    geometry: &Geometry,
+    state: &UiState,
+    composer: &Composer,
+    intelligence: Option<&str>,
+) -> [Rect; 4] {
+    let area = if geometry.stacked {
+        geometry.conversation
+    } else {
+        // One left inset, then the content, a free gutter and the separator.
+        let region = geometry.conversation;
+        Rect::new(
+            region.x + 1,
+            region.y,
+            region.width.saturating_sub(3),
+            region.height,
+        )
+    };
+    let base_heading = if area.height >= 12 { 3 } else { 1 };
+    // Keep the existing live budget: a model label must not displace activity or typing.
+    let live = live_rows(
+        state,
+        composer,
+        area.width,
+        area.height.saturating_sub(base_heading + 1),
+    );
+    let heading = intelligence.map_or(base_heading, |_| {
+        let needed = wrapped_rows(&[preparation_line(intelligence, false)], area.width) + 1;
+        // Leave the context row and at least one transcript row beside the live area.
+        needed
+            .max(base_heading)
+            .min(area.height.saturating_sub(live + 2).max(1))
+    });
+    Layout::vertical([
+        Constraint::Length(heading),
+        Constraint::Min(0),
+        Constraint::Length(1),
+        Constraint::Length(live),
+    ])
+    .areas(area)
+}
+
 /// A dim vertical rule filling the one-column `area`.
-fn rule_column(area: Rect, ascii: bool, color: bool, buf: &mut Buffer) {
+fn rule_column(area: Rect, ascii: bool, color: bool, active: bool, buf: &mut Buffer) {
     let glyph = if ascii { "|" } else { "│" };
-    let style = role::style(Role::Dim, color);
+    let style = role::style(if active { Role::Accent } else { Role::Dim }, color);
     for y in area.top()..area.bottom() {
         buf.set_line(area.x, y, &Line::styled(glyph, style), area.width);
     }
@@ -271,9 +394,10 @@ mod tests {
         paint: Paint,
         focus: &Focus,
     ) -> (bool, Vec<String>, ratatui::buffer::Buffer) {
-        let mut state = UiState::new(Presentation::Focus, false, (width, height));
+        let mut state = UiState::new(Presentation::Workspace, false, (width, height));
         // One glyph column for the whole frame: the caller sets both from its theme.
         state.ascii = paint.ascii;
+        state.color = paint.color;
         let mut script = Script::demo();
         for beat in script.open() {
             state.apply(beat);
@@ -335,6 +459,96 @@ mod tests {
     }
 
     #[test]
+    fn a_short_pinned_workspace_keeps_the_question_visible() {
+        let (_, rows) = draw_at(&screen(welcome()), 60, 16, paint(false));
+        assert!(
+            rows.iter()
+                .any(|row| row.contains("Which file holds the notes")),
+            "{rows:#?}"
+        );
+        assert!(rows.iter().any(|row| row.contains("reply")), "{rows:#?}");
+    }
+
+    #[test]
+    fn the_conversation_is_between_the_project_and_the_larger_preview() {
+        let view = screen(Object::Shown {
+            icon: Icon::Workflow,
+            name: "release.nika".to_owned(),
+            lines: vec!["preview content".to_owned()],
+        });
+        let (_, rows, buffer) = draw_focused(
+            &view,
+            120,
+            40,
+            Paint {
+                color: true,
+                ..paint(false)
+            },
+            &Focus::composing(),
+        );
+        let middle: String = rows[2].chars().skip(21).take(47).collect();
+        let right: String = rows[2].chars().skip(68).collect();
+        assert!(middle.contains("release checklist"), "{middle}");
+        assert!(right.contains("release.nika"), "{right}");
+        assert_eq!(
+            buffer[(22, 2)].fg,
+            role::style(Role::Accent, true)
+                .fg
+                .expect("accent foreground")
+        );
+        let geometry = Geometry::of(Rect::new(0, 0, 120, 40), true).expect("fits");
+        let conversation = geometry.conversation;
+        let gutter = geometry.object.x - 2;
+        assert!(
+            (conversation.y..conversation.bottom()).all(|y| buffer[(gutter, y)].symbol() == " ")
+        );
+        assert!(
+            (conversation.y..conversation.bottom())
+                .any(|y| buffer[(gutter - 1, y)].symbol() == "╯")
+        );
+        let (_, _, plain) = draw_focused(&view, 120, 40, paint(false), &Focus::composing());
+        assert_eq!(plain[(22, 2)].fg, ratatui::style::Color::Reset);
+    }
+
+    #[test]
+    fn a_busy_conversation_marks_its_title_and_returns_to_idle() {
+        let view = screen(welcome());
+        let mut state = UiState::new(Presentation::Workspace, true, (120, 40));
+        let composer = Composer::new();
+        let geometry = Geometry::of(Rect::new(0, 0, 120, 40), true).expect("fits");
+        let title = panel_areas(
+            &geometry,
+            &state,
+            &composer,
+            view.thread.intelligence.as_deref(),
+        )[0];
+        let mut terminal = Terminal::new(TestBackend::new(120, 40)).expect("terminal");
+        let paint = Paint {
+            color: true,
+            ..paint(false)
+        };
+        for working in [true, false] {
+            state.busy = working.then(|| "DeepSeek is working".to_owned());
+            state.spinner = working.then_some(1);
+            terminal
+                .draw(|frame| {
+                    draw(frame, &view, paint, &Focus::composing(), &state, &composer);
+                })
+                .expect("draw");
+            let buffer = terminal.backend().buffer();
+            let text: String = (title.x..title.right())
+                .map(|x| buffer[(x, title.y)].symbol())
+                .collect();
+            assert!(text.contains("release checklist"), "{text}");
+            if let Some(marker) = activity_marker(&state) {
+                assert!(text.starts_with(marker.content.as_ref()), "{text}");
+            } else {
+                assert!(text.starts_with("◌ "), "{text}");
+            }
+        }
+    }
+
+    #[test]
     fn the_welcome_mark_leaves_the_composer_its_rows() {
         let screen = screen(welcome());
         for ((width, height), size) in [((80, 24), Size::Compact), ((120, 40), Size::Board)] {
@@ -342,7 +556,7 @@ mod tests {
             let mark = size.lines();
             let middle = mark[mark.len() / 2].trim();
             let at = find(&rows, middle).expect("mark drawn");
-            let words = find(&rows, "Describe the work you want to automate.").expect("words");
+            let words = find(&rows, "Describe the work you want to").expect("words");
             assert!(at < words, "{width}x{height}");
             let composer = find(&rows, "Message to studio").expect("composer");
             assert!(words < composer || width >= 100, "{width}x{height}");
@@ -393,6 +607,278 @@ mod tests {
     }
 
     #[test]
+    fn the_selected_model_stays_visible_in_ascii_chrome() {
+        let mut view = screen(welcome());
+        view.thread.intelligence = Some("deepseek/chosen - deepseek API, metered".into());
+        let (_, rows) = draw_at(&view, 120, 40, paint(true));
+        let model =
+            find(&rows, "Prepare with: deepseek/chosen").expect("selected model is visible");
+        assert!(rows[model].is_ascii(), "{}", rows[model]);
+        assert!(rows[model + 1].is_ascii(), "{}", rows[model + 1]);
+        view.thread.intelligence = Some("private/été·beta - app account".into());
+        let (_, rows) = draw_at(&view, 120, 40, paint(true));
+        assert!(
+            rows.iter().any(|row| row.contains("private/été·beta")),
+            "model bytes stay intact"
+        );
+    }
+
+    #[test]
+    fn a_compact_open_preview_keeps_the_exact_selection_activity_and_draft() {
+        for (width, height) in [(60, 18), (80, 24)] {
+            for ascii in [true, false] {
+                for model in [
+                    "claude-code/claude-fable-5-1[1m]",
+                    "deepseek/private-été·beta",
+                ] {
+                    let mut view = screen(Object::Shown {
+                        icon: Icon::Workflow,
+                        name: "release.nika".into(),
+                        lines: vec!["saved workflow".into()],
+                    });
+                    view.thread.intelligence = Some(format!("{model} - selected for preparation"));
+                    let mut state = UiState::new(Presentation::Workspace, false, (width, height));
+                    state.ascii = ascii;
+                    state.busy = Some("checking files locally".into());
+                    let mut composer = Composer::new();
+                    composer.paste("draft stays here");
+                    let geometry =
+                        Geometry::of(Rect::new(0, 0, width, height), true).expect("fits");
+                    let selected = panel_areas(
+                        &geometry,
+                        &state,
+                        &composer,
+                        view.thread.intelligence.as_deref(),
+                    );
+                    let before = panel_areas(&geometry, &state, &composer, None);
+                    assert_eq!(
+                        selected[3], before[3],
+                        "the live area does not move or shrink"
+                    );
+                    assert!(
+                        selected[1].height >= 1,
+                        "the conversation keeps a visible row"
+                    );
+                    let mut terminal =
+                        Terminal::new(TestBackend::new(width, height)).expect("terminal");
+                    terminal
+                        .draw(|frame| {
+                            assert!(draw(
+                                frame,
+                                &view,
+                                paint(ascii),
+                                &Focus::composing(),
+                                &state,
+                                &composer
+                            ));
+                        })
+                        .expect("draw");
+                    let buffer = terminal.backend().buffer();
+                    let rows: Vec<String> = (0..height)
+                        .map(|y| (0..width).map(|x| buffer[(x, y)].symbol()).collect())
+                        .collect();
+                    for visible in [
+                        "studio",
+                        "release.nika",
+                        "Prepare with:",
+                        model,
+                        "checking files locally",
+                        "draft stays here",
+                    ] {
+                        assert!(
+                            rows.iter().any(|row| row.contains(visible)),
+                            "{width}x{height} {visible}: {rows:#?}"
+                        );
+                    }
+                    assert!(rows.last().expect("rows").contains("#043"));
+                    assert!(!rows.iter().any(|row| row.contains("AI  ")));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_compact_preview_keeps_the_composer_under_a_wrapped_verifier_line() {
+        // A selection the session projects: author, connection and a selected
+        // decision seat. It wraps in the title; the live area and the draft keep their rows.
+        let line = "deepseek/deepseek-chat - deepseek API, metered; verifier: typesafe/jev-1.13.0 (selected)";
+        for (width, height) in [(60, 18), (80, 24)] {
+            let mut view = screen(welcome());
+            view.thread.intelligence = Some(line.into());
+            let mut state = UiState::new(Presentation::Workspace, false, (width, height));
+            state.ascii = true;
+            let mut composer = Composer::new();
+            composer.paste("draft stays here");
+            let geometry = Geometry::of(Rect::new(0, 0, width, height), true).expect("fits");
+            let selected = panel_areas(&geometry, &state, &composer, Some(line));
+            let before = panel_areas(&geometry, &state, &composer, None);
+            assert_eq!(
+                selected[3], before[3],
+                "{width}x{height}: the live area keeps its rows"
+            );
+            assert!(
+                selected[1].height >= 1,
+                "{width}x{height}: a transcript row remains"
+            );
+            let mut terminal = Terminal::new(TestBackend::new(width, height)).expect("terminal");
+            terminal
+                .draw(|frame| {
+                    let focus = Focus::composing();
+                    assert!(draw(frame, &view, paint(true), &focus, &state, &composer));
+                })
+                .expect("draw");
+            let buffer = terminal.backend().buffer();
+            let rows: Vec<String> = (0..height)
+                .map(|y| (0..width).map(|x| buffer[(x, y)].symbol()).collect())
+                .collect();
+            for visible in [
+                "Prepare with:",
+                "verifier:",
+                "typesafe/jev-1.13.0",
+                "draft stays here",
+            ] {
+                assert!(
+                    rows.iter().any(|row| row.contains(visible)),
+                    "{width}x{height} {visible}: {rows:#?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_open_preview_keeps_the_status_navigation_selection_and_the_draft() {
+        // The Session's leads, as a narrow status row must keep them.
+        const FAILED: &str = "Last Run · Done · the run failed";
+        const EARLIER: &str = "last run ✓ exit 0 in an earlier session";
+        let cases = [
+            (FAILED, format!("{FAILED} · `release.nika`"), 0),
+            (
+                EARLIER,
+                format!("{EARLIER} · Saved · no current Run result · `release.nika`"),
+                0,
+            ),
+            (FAILED, format!("{FAILED} · `release.nika`"), 3),
+        ];
+        for (width, height) in [(60, 18), (80, 24), (100, 32), (120, 40), (180, 48)] {
+            for ascii in [false, true] {
+                for (lead, status, scroll) in &cases {
+                    let mut view = screen(Object::Shown {
+                        icon: Icon::Workflow,
+                        name: "release.nika".into(),
+                        lines: vec!["saved workflow".into()],
+                    });
+                    // Idle: no paused run is pinned beside this frame.
+                    view.pinned = None;
+                    view.thread.intelligence = Some(
+                        "scaleway/chosen - scaleway API, metered; verifier: same model".into(),
+                    );
+                    let mut state = UiState::new(Presentation::Workspace, false, (width, height));
+                    state.ascii = ascii;
+                    state.status.clone_from(status);
+                    state.transcript.push(crate::model::Committed::new(
+                        crate::model::Kind::Reply,
+                        (0..80)
+                            .map(|n| format!("reply line {n:03}"))
+                            .collect::<Vec<_>>()
+                            .join("\n"),
+                    ));
+                    state.focus_scroll = *scroll;
+                    let mut composer = Composer::new();
+                    composer.paste("keep my draft");
+                    let mut terminal =
+                        Terminal::new(TestBackend::new(width, height)).expect("terminal");
+                    terminal
+                        .draw(|frame| {
+                            assert!(draw(
+                                frame,
+                                &view,
+                                paint(ascii),
+                                &Focus::composing(),
+                                &state,
+                                &composer
+                            ));
+                        })
+                        .expect("draw");
+                    let buffer = terminal.backend().buffer();
+                    let rows: Vec<String> = (0..height)
+                        .map(|y| (0..width).map(|x| buffer[(x, y)].symbol()).collect())
+                        .collect();
+                    let shown = rows.join("\n");
+                    let way = if *scroll > 0 {
+                        "click chat; End: latest"
+                    } else {
+                        "wheel"
+                    };
+                    for visible in [
+                        "Prepare with:",
+                        "scaleway/chosen",
+                        "verifier:",
+                        "same model",
+                        *lead,
+                        "/intelligence",
+                        way,
+                        "keep my draft",
+                    ] {
+                        assert!(
+                            shown.contains(visible),
+                            "{width}x{height} {visible}: {shown}"
+                        );
+                    }
+                    assert!(!shown.contains("Idle"), "{width}x{height}: {shown}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn intelligence_choices_remain_visible_below_a_long_scrolled_menu() {
+        use crate::model::{Beat, Committed, Kind, Waiting};
+        for (width, height) in [(60, 18), (80, 24), (120, 40)] {
+            for ascii in [true, false] {
+                let view = screen(welcome());
+                let mut state = UiState::new(Presentation::Workspace, false, (width, height));
+                state.ascii = ascii;
+                state.waiting = Waiting::Choosing;
+                let menu = nika_session::intelligence::IntelligenceCensus::empty().first_screen();
+                state.apply(Beat::Say(Committed::new(Kind::Reply, menu)));
+                let composer = Composer::new();
+                let mut terminal =
+                    Terminal::new(TestBackend::new(width, height)).expect("terminal");
+                terminal
+                    .draw(|frame| {
+                        assert!(draw(
+                            frame,
+                            &view,
+                            paint(ascii),
+                            &Focus::composing(),
+                            &state,
+                            &composer
+                        ));
+                    })
+                    .expect("draw");
+                let buffer = terminal.backend().buffer();
+                let rows: Vec<String> = (0..height)
+                    .map(|y| (0..width).map(|x| buffer[(x, y)].symbol()).collect())
+                    .collect();
+                let choices = rows
+                    .iter()
+                    .find(|row| {
+                        ["1 account", "2 API", "3 local", "4 no AI"]
+                            .iter()
+                            .all(|choice| row.contains(choice))
+                    })
+                    .expect("the fixed hint names all four choices together");
+                assert!(
+                    !choices.contains("Prepare with:"),
+                    "the cue does not claim a model answered"
+                );
+                assert!(rows.iter().any(|row| row.contains("cancel")), "{rows:#?}");
+                assert_eq!(state.focus_scroll, 0, "no manual scroll needed");
+            }
+        }
+    }
+
+    #[test]
     fn the_keyboard_selects_in_the_aside_and_scrolls_the_object() {
         use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
         use ratatui::style::Modifier;
@@ -408,7 +894,7 @@ mod tests {
         assert!(room.aside_shown && room.aside_entries == 3 && room.object_lines == 60);
         let mut focus = Focus::composing();
         let press = |code| KeyEvent::new(code, KeyModifiers::NONE);
-        focus.handle(press(KeyCode::F(6)), room);
+        focus.handle(KeyEvent::new(KeyCode::F(6), KeyModifiers::SHIFT), room);
         focus.handle(press(KeyCode::Down), room);
         let (_, rows, buffer) = draw_focused(&screen, 120, 40, paint(false), &focus);
         // The aside holds the first 20 columns at 120 (its rule is the 21st).
@@ -436,8 +922,8 @@ mod tests {
             .expect("open row");
         let (ox, oy) = (x, u16::try_from(opened).expect("y"));
         assert!(!buffer[(ox, oy)].modifier.contains(Modifier::REVERSED));
-        // The object scrolls when it has the keys; its title row stays.
-        focus.handle(press(KeyCode::F(6)), room);
+        // Backwards from the aside wraps to the preview; its title row stays.
+        focus.handle(KeyEvent::new(KeyCode::F(6), KeyModifiers::SHIFT), room);
         focus.handle(press(KeyCode::PageDown), room);
         let (_, rows, _) = draw_focused(&screen, 120, 40, paint(false), &focus);
         assert!(find(&rows, "⑂ release.nika").is_some());

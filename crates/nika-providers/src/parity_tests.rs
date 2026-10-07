@@ -74,7 +74,10 @@ const GEMINI_TOOL: &str = r#"{"responseId":"g_t","modelVersion":"gemini-test","c
     [{"content":{"parts":[{"functionCall":{"name":"get_weather","args":{"city":"Paris"}}}]},
     "finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":3,"candidatesTokenCount":2}}"#;
 
-fn tool_call_fixture(wire: WireFormat) -> &'static str {
+fn tool_call_fixture(id: &str, wire: WireFormat) -> &'static str {
+    if id == "ollama" {
+        return r#"{"model":"ollama-test","message":{"tool_calls":[{"id":"tc_1","function":{"name":"get_weather","arguments":{"city":"Paris"}}}]},"done":true,"done_reason":"stop","prompt_eval_count":3,"eval_count":2}"#;
+    }
     match wire {
         WireFormat::Anthropic => ANTHROPIC_TOOL,
         WireFormat::Gemini => GEMINI_TOOL,
@@ -100,7 +103,10 @@ fn request_with_tool() -> InferRequest {
     req
 }
 
-fn ok_fixture(wire: WireFormat) -> &'static str {
+fn ok_fixture(id: &str, wire: WireFormat) -> &'static str {
+    if id == "ollama" {
+        return r#"{"model":"ollama-test","message":{"content":"parity"},"done":true,"done_reason":"stop","prompt_eval_count":2,"eval_count":1}"#;
+    }
     match wire {
         WireFormat::Anthropic => ANTHROPIC_OK,
         WireFormat::Gemini => GEMINI_OK,
@@ -108,7 +114,10 @@ fn ok_fixture(wire: WireFormat) -> &'static str {
     }
 }
 
-fn sse_fixture(wire: WireFormat) -> &'static str {
+fn sse_fixture(id: &str, wire: WireFormat) -> &'static str {
+    if id == "ollama" {
+        return r#"{"model":"ollama-test","message":{"content":"parity"},"done":true,"done_reason":"stop","prompt_eval_count":2,"eval_count":1}"#;
+    }
     match wire {
         WireFormat::Anthropic => ANTHROPIC_SSE,
         WireFormat::Gemini => GEMINI_SSE,
@@ -139,7 +148,7 @@ fn wired_http_profiles() -> Vec<(&'static str, WireFormat, bool)> {
 #[tokio::test]
 async fn every_wired_profile_infers_with_attributed_gen_ai() {
     for (id, wire, requires_key) in wired_http_profiles() {
-        let fake = FakeHttp::with_json(200, ok_fixture(wire));
+        let fake = FakeHttp::with_json(200, ok_fixture(id, wire));
         let rp = resolve_on(&fake, id, requires_key);
         let resp = rp
             .infer(request())
@@ -160,14 +169,18 @@ async fn every_wired_profile_infers_with_attributed_gen_ai() {
             resp.gen_ai.response_model.is_some(),
             "[{id}] gen_ai.response_model populated"
         );
-        assert!(resp.request_id.is_some(), "[{id}] request id kept");
+        assert_eq!(
+            resp.request_id.is_some(),
+            id != "ollama",
+            "[{id}] only a supplied request id is kept"
+        );
     }
 }
 
 #[tokio::test]
 async fn every_wired_profile_streams_deltas_then_exactly_one_done() {
     for (id, wire, requires_key) in wired_http_profiles() {
-        let fake = FakeHttp::with_stream(200, sse_fixture(wire), 9);
+        let fake = FakeHttp::with_stream(200, sse_fixture(id, wire), 9);
         let rp = resolve_on(&fake, id, requires_key);
         let events = collect(
             rp.infer_stream(request())
@@ -366,7 +379,7 @@ async fn json_mode_encodes_per_dialect_across_every_wired_profile() {
     for (id, wire, requires_key) in wired_http_profiles() {
         let mut req = request();
         req.response_format = ResponseFormat::Json;
-        let fake = FakeHttp::with_json(200, ok_fixture(wire));
+        let fake = FakeHttp::with_json(200, ok_fixture(id, wire));
         let rp = resolve_on(&fake, id, requires_key);
         let result = rp.infer(req).await;
 
@@ -396,10 +409,15 @@ async fn json_mode_encodes_per_dialect_across_every_wired_profile() {
                 let body: serde_json::Value =
                     serde_json::from_slice(sent[0].body.as_ref().expect("request body"))
                         .expect("request body is json");
-                assert_eq!(
-                    body["response_format"]["type"], "json_object",
-                    "[{id}] openai-compat json mode → response_format.type=json_object"
-                );
+                if id == "ollama" {
+                    assert_eq!(body["format"], "json");
+                    assert!(body.get("response_format").is_none());
+                } else {
+                    assert_eq!(
+                        body["response_format"]["type"], "json_object",
+                        "[{id}] openai-compat json mode → response_format.type=json_object"
+                    );
+                }
             }
             WireFormat::Gemini => {
                 result.unwrap_or_else(|e| panic!("[{id}] json mode must infer: {e}"));
@@ -429,7 +447,7 @@ async fn every_wired_profile_parses_a_tool_call_consistently() {
     // parsed input object, and `StopReason::ToolUse`. A divergence on any one
     // provider is an engine bug, not a provider quirk.
     for (id, wire, requires_key) in wired_http_profiles() {
-        let fake = FakeHttp::with_json(200, tool_call_fixture(wire));
+        let fake = FakeHttp::with_json(200, tool_call_fixture(id, wire));
         let rp = resolve_on(&fake, id, requires_key);
         let resp = rp
             .infer(request_with_tool())
@@ -475,7 +493,7 @@ async fn every_wired_profile_carries_the_transport_deadline() {
         let is_local = matches!(id, "ollama" | "lmstudio" | "llamacpp" | "localai" | "vllm");
 
         // (a) no task timeout → the per-class default rides the request.
-        let fake = FakeHttp::with_json(200, ok_fixture(wire));
+        let fake = FakeHttp::with_json(200, ok_fixture(id, wire));
         let rp = resolve_on(&fake, id, requires_key);
         rp.infer(request())
             .await
@@ -493,7 +511,7 @@ async fn every_wired_profile_carries_the_transport_deadline() {
 
         // (b) task timeout declared → it WINS on every wire (the 408-at-30s
         // class: a `timeout: "7m"` task must never die at the transport).
-        let fake = FakeHttp::with_json(200, ok_fixture(wire));
+        let fake = FakeHttp::with_json(200, ok_fixture(id, wire));
         let rp = resolve_on(&fake, id, requires_key);
         let mut req = request();
         req.timeout = Some(task_budget);
@@ -509,7 +527,7 @@ async fn every_wired_profile_carries_the_transport_deadline() {
         // (c) STREAMING carries only an EXPLICIT budget (a generation
         // legitimately outlives any fixed total · the idle-read guard
         // reaps stalls) — None when the task declares none.
-        let fake = FakeHttp::with_stream(200, sse_fixture(wire), 16);
+        let fake = FakeHttp::with_stream(200, sse_fixture(id, wire), 16);
         let rp = resolve_on(&fake, id, requires_key);
         let _ = collect(
             rp.infer_stream(request())
@@ -523,7 +541,7 @@ async fn every_wired_profile_carries_the_transport_deadline() {
             "[{id}] streaming without a task budget carries no total deadline"
         );
 
-        let fake = FakeHttp::with_stream(200, sse_fixture(wire), 16);
+        let fake = FakeHttp::with_stream(200, sse_fixture(id, wire), 16);
         let rp = resolve_on(&fake, id, requires_key);
         let mut req = request();
         req.timeout = Some(task_budget);

@@ -37,6 +37,20 @@ use nika_types::resource::{KeyValue, Value as FieldValue};
 use crate::event::Event;
 use crate::kind::EventKind;
 
+/// The companion field a run's normal close records its resolved workflow
+/// `outputs:` map in: one compact JSON object, whole, within
+/// [`OUTPUTS_KEPT`] bytes. It rides the terminal frame beside the
+/// settlement; it is never part of [`RunSettlement`].
+pub const OUTPUTS_FIELD: &str = "outputs";
+/// The companion field naming the exact JSON size of an outputs map larger
+/// than [`OUTPUTS_KEPT`]: its payload is not recorded, not even a prefix.
+pub const OUTPUTS_BYTES_FIELD: &str = "outputs_bytes";
+/// The companion field (`true`) saying the outputs map was withheld whole:
+/// neither its keys nor its values are recorded, nor why.
+pub const OUTPUTS_WITHHELD_FIELD: &str = "outputs_withheld";
+/// The most bytes of compact JSON an outputs map is recorded within.
+pub const OUTPUTS_KEPT: usize = 64 * 1024;
+
 /// The run's state at settlement — the ONE vocabulary every door speaks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

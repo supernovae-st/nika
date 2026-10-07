@@ -434,3 +434,19 @@ operation. The compatibility free functions still resolve names under the
 supplied directory; project-facing review and reconciliation use the lease.
 These guarantees preserve acquired file custody, not authenticity against an
 owner capable of rewriting the journal's contents.
+
+## Bounded verify context
+
+The trace verifier's custody candidates, anchor sidecar and writer lease use
+held regular-file descriptors: custody files are capped at 64 KiB each and 256
+candidates, sidecars at `MAX_ARTIFACT_BYTES`, leases at 4 KiB. The lease read and
+lock probe share a descriptor; no file is created. A refused read is not absence.
+The caller-selected parent may resolve through a link; the final name is never
+followed. These changes concern the verify path, not the separate evidence-pack
+candidate reader.
+
+`anchor::tier::AnchorTier` is now non-exhaustive and adds `Unavailable(String)`.
+An acquisition/read failure reports ANCHOR UNAVAILABLE, the attained SEALED tier
+and ENV exit, without claiming forgery. Captured oversize, invalid UTF-8, malformed
+or cryptographically invalid content retains its `Gap` classification. External
+matches must handle future variants without projecting them as success.

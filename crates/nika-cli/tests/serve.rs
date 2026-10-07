@@ -476,6 +476,15 @@ fn read_seat_request(stream: &mut std::net::TcpStream) -> Option<(serde_json::Va
 
 #[cfg(unix)]
 fn seat(text: String, park_first: bool) -> Seat {
+    seat_with(move |_| text.clone(), park_first)
+}
+
+/// [`seat`] whose answer depends on the request: `answer` reads each body.
+#[cfg(unix)]
+fn seat_with(
+    answer: impl Fn(&serde_json::Value) -> String + Send + 'static,
+    park_first: bool,
+) -> Seat {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("seat");
     let port = listener.local_addr().expect("seat address").port();
     let bodies = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -494,6 +503,7 @@ fn seat(text: String, park_first: bool) -> Seat {
             let Some((body, authorization)) = read_seat_request(&mut stream) else {
                 continue;
             };
+            let text = answer(&body);
             seen.lock().expect("bodies").push(body);
             presented.lock().expect("headers").push(authorization);
             if park_first && index == 0 {
@@ -659,7 +669,11 @@ fn an_invalid_native_seat_refuses_before_binding() {
     let address = listener.local_addr().expect("address").to_string();
     for (flags, why) in [
         (["--authoring-model", "claude-code/default"], "harness"),
-        (["--authoring-repairs", "9"], "repair rounds must be 0..=5"),
+        // Repair counts run as typed; a zero output bound is still no seat.
+        (
+            ["--authoring-max-tokens", "0"],
+            "authoring output tokens per call must be positive",
+        ),
     ] {
         let mut args = vec![
             "serve",
@@ -697,6 +711,55 @@ fn an_invalid_native_seat_refuses_before_binding() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// The native route of a creation, as the seat sees it: the private plan gets the whole-source
+/// answer the plan door refuses (not a closed plan), then the sketch door's sketch (read, a
+/// rewrite by inference, write), its one fill (the rewrite's prompt) and an approving judge. The
+/// rewrite's purpose carries `echo` when given (a value the server must withhold).
+#[cfg(unix)]
+fn native_answer(echo: Option<&'static str>) -> impl Fn(&serde_json::Value) -> String + Send {
+    move |request| {
+        let format = &request["response_format"];
+        let schema = if format["json_schema"]["schema"].is_object() {
+            &format["json_schema"]["schema"]
+        } else {
+            &format["schema"]
+        };
+        let properties = &schema["properties"];
+        if let Some(keys) = properties["choice"]["enum"].as_array() {
+            let approve = ["faithful", "carried"]
+                .into_iter()
+                .find(|key| keys.iter().any(|value| value == *key))
+                .unwrap_or("none");
+            serde_json::json!({"choice": approve}).to_string()
+        } else if properties.get("fills").is_some() {
+            serde_json::json!({"fills": [{"task": "transform", "field": "prompt",
+                "value": "Rewrite this text in a clever way, inventing nothing: ${{ with.text }}"}],
+                "notes": "one hole"})
+            .to_string()
+        } else if properties.get("tasks").is_some() {
+            let mut purpose = "Rewrite this text in a clever way, inventing nothing".to_owned();
+            if let Some(echo) = echo {
+                purpose = format!("{purpose}, signed {echo}");
+            }
+            serde_json::json!({"name": "clever-rewrite", "tasks": [
+                {"id": "read_source", "verb": "invoke", "tool": "nika:read",
+                 "purpose": "read_source", "reads": ["./a.md"]},
+                {"id": "transform", "verb": "infer", "purpose": purpose,
+                 "with": [{"name": "text", "from": "read_source"}]},
+                {"id": "write_result", "verb": "invoke", "tool": "nika:write",
+                 "purpose": "write_result", "writes": ["./b.md"],
+                 "with": [{"name": "content", "from": "transform"}]},
+            ], "questions": [], "gaps": [], "notes": "read, rewrite, write"})
+            .to_string()
+        } else {
+            serde_json::json!({
+                "candidate": native_candidate(), "questions": [], "gaps": [], "notes": "s06",
+            })
+            .to_string()
+        }
+    }
+}
+
 /// A native finish a deterministicOnly answer round held for its judge (native step 2): the
 /// whole request still open, the finding naming the judge to permit, and the answer baked into
 /// the candidate kept as the preview.
@@ -718,16 +781,13 @@ fn assert_held(replayed: &serde_json::Value, answer: &str) {
 }
 
 /// The real binary, a real Bearer, a controlled seat: the operator's flag seats it, a caller
-/// opts in, the kept round replays with zero calls (held for a judge it did not permit), and
-/// nothing is run or written.
+/// opts in, the native route authors (the plan refused, then the sketch and its fill), the kept
+/// round replays with zero calls (held for a judge it did not permit), and nothing is run or
+/// written.
 #[cfg(unix)]
 #[test]
 fn serve_authors_natively_over_http_only_for_an_explicit_caller() {
-    let answer = serde_json::json!({
-        "candidate": native_candidate(), "questions": [], "gaps": [], "notes": "s06",
-    })
-    .to_string();
-    let seat = seat(answer, false);
+    let seat = seat_with(native_answer(None), false);
     let bodies = std::sync::Arc::clone(&seat.bodies);
     let dir = project("native-http", DAILY_3AM, &[("doctor.nika", TRUE)]);
     secure_token(&dir);
@@ -740,8 +800,12 @@ fn serve_authors_natively_over_http_only_for_an_explicit_caller() {
         &[
             "--authoring-model",
             "vllm/s06-seat",
+            // The sketch door follows a refused plan only with a repair to spend, under
+            // escalate's worst case for it (see the SIGTERM test).
             "--authoring-repairs",
-            "0",
+            "1",
+            "--authoring-max-calls",
+            "32",
             "--authoring-max-tokens",
             "2048",
         ],
@@ -763,7 +827,7 @@ fn serve_authors_natively_over_http_only_for_an_explicit_caller() {
     assert_eq!(status, 200, "{body}");
     assert_eq!(bodies.lock().expect("bodies").len(), 0);
 
-    // An explicit caller: one call under the operator's model and bound.
+    // An explicit caller: the plan, the sketch and its fill, under the operator's model and bound.
     let fresh = serde_json::json!({
         "compile_version": 2, "mode": "create", "cognition": "explicitProvider",
         "intent": NATIVE_INTENT,
@@ -777,7 +841,7 @@ fn serve_authors_natively_over_http_only_for_an_explicit_caller() {
         document["provenance"]["authoring"]["model"],
         "vllm/s06-seat"
     );
-    assert_eq!(document["provenance"]["authoring"]["calls"], 1);
+    assert_eq!(document["provenance"]["authoring"]["calls"], 3);
     let token_line = head
         .lines()
         .find_map(|l| l.strip_prefix("nika-compile-replay:"))
@@ -786,9 +850,11 @@ fn serve_authors_natively_over_http_only_for_an_explicit_caller() {
         .to_owned();
     {
         let received = bodies.lock().expect("bodies");
-        assert_eq!(received.len(), 1);
-        assert_eq!(received[0]["model"], "s06-seat");
-        assert_eq!(received[0]["max_tokens"].as_u64(), Some(2048));
+        assert_eq!(received.len(), 3);
+        for body in received.iter() {
+            assert_eq!(body["model"], "s06-seat");
+            assert_eq!(body["max_tokens"].as_u64(), Some(2048));
+        }
     }
     // The answer round: the kept plan, zero calls. A deterministicOnly caller permits no judge,
     // so the finish is held for one (native step 2): INCOMPLETE, the candidate its preview.
@@ -802,7 +868,7 @@ fn serve_authors_natively_over_http_only_for_an_explicit_caller() {
     assert_eq!(status, 200, "{body}");
     let replayed: serde_json::Value = serde_json::from_str(&body).expect("replayed");
     assert_held(&replayed, "mistral/mistral-small-latest");
-    assert_eq!(bodies.lock().expect("bodies").len(), 1, "zero calls");
+    assert_eq!(bodies.lock().expect("bodies").len(), 3, "zero calls");
     assert!(!dir.join("b.md").exists() && !dir.join(".nika/traces").exists());
     assert!(
         !dir.join("clever-rewrite.nika").exists(),
@@ -821,15 +887,7 @@ fn serve_authors_natively_over_http_only_for_an_explicit_caller() {
 fn the_key_the_environment_resolves_for_the_seat_is_withheld() {
     const PREFERRED: &str = "synthetic-S19-preferred-key-424242";
     const CONVENTIONAL: &str = "synthetic-S19-conventional-key-777777";
-    let echoing = native_candidate().replace(
-        "inventing nothing",
-        &format!("inventing nothing, signed {PREFERRED}"),
-    );
-    let answer = serde_json::json!({
-        "candidate": echoing, "questions": [], "gaps": [], "notes": "s19",
-    })
-    .to_string();
-    let seat = seat(answer, false);
+    let seat = seat_with(native_answer(Some(PREFERRED)), false);
     let dir = project("native-precedence", DAILY_3AM, &[("doctor.nika", TRUE)]);
     secure_token(&dir);
     let address = free_address();
@@ -841,7 +899,9 @@ fn the_key_the_environment_resolves_for_the_seat_is_withheld() {
             "--authoring-model",
             "mistral/s19-seat",
             "--authoring-repairs",
-            "0",
+            "1",
+            "--authoring-max-calls",
+            "32",
         ],
         &[
             ("NIKA_MISTRAL_BASE_URL", base.as_str()),
@@ -862,8 +922,8 @@ fn the_key_the_environment_resolves_for_the_seat_is_withheld() {
     assert!(!head.contains("nika-compile-replay"), "nothing kept");
     assert_eq!(
         *seat.authorizations.lock().expect("headers"),
-        vec![format!("Bearer {PREFERRED}")],
-        "the environment's own precedence chose the key sent"
+        vec![format!("Bearer {PREFERRED}"); 3],
+        "the environment's own precedence chose the key sent, on each of the route's calls"
     );
     assert_eq!(terminate(&mut child), Some(0));
     let _ = std::fs::remove_dir_all(dir);
@@ -891,9 +951,11 @@ fn serve_stops_a_pending_native_round_on_sigterm_without_a_repair() {
             "vllm/s06-seat",
             "--authoring-repairs",
             "1",
-            // 3 + repairs (nv1b): the candidate, its repair and the judge's two questions.
+            // Escalate's worst case for one repair, or serve refuses the seat before binding:
+            // 2 plan requests + 2 attempts of 12 questions (8 clause, 2 whole, 2 transform)
+            // + 2 repair calls, then the sketch door's 2 + 2 judged.
             "--authoring-max-calls",
-            "4",
+            "32",
         ],
         &[("NIKA_VLLM_BASE_URL", base.as_str())],
     );

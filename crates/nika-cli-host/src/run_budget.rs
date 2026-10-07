@@ -106,13 +106,14 @@ pub fn preflight_bound(
     };
     let effective = effective_cost(wf, model_override, bindings);
     let cost = effective.as_ref().unwrap_or(&report.cost);
-    if let Some(err) = nika_runtime::budget_floor_refusal_bound(
+    if let Some(err) = nika_runtime::budget_floor_refusal_bound_over(
         wf,
         report,
         Some(budget),
         model_override,
         bindings,
         seated_on_harness,
+        &nika_service_execution::access::provider_probes_env(),
     ) {
         crate::run_protocol::emit_diagnostic(&err.to_string(), output_json);
         return Err(exit::FILE);

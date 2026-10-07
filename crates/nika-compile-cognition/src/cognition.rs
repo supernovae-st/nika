@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! One compiler, three internal resolutions, and a probabilistic frontend before a
-//! deterministic backend.
+//! One compiler, one loop of actions, and a probabilistic frontend before a deterministic
+//! backend (R1 · A1: [`agenda`] picks the next action from what the request still lacks).
 //!
-//! HOT: the deterministic reader consumed every clause AND the strict admission
-//! contract holds (explicit objects, no coordinated residue, nothing unknown); zero
-//! seat calls. WARM: a finite set of admissible readings or proposals, settled by an
-//! explicit bounded decision seat that may answer NONE. COLD: one or several
-//! explicitly authorized generative proposals of a private semantic plan, never
-//! source or permits, each accountable for every region of the request.
+//! The historical names stay those of the mechanisms. HOT: the reader consumed every clause
+//! under the strict admission contract; with a judge selected its plan is CHECKED before READY.
+//! WARM: finite admissible readings settled by a bounded decision seat that may answer NONE,
+//! then checked. COLD: explicitly authorized proposals of a private semantic plan, never source
+//! or permits, each accountable for every region of the request; a computation the plan's typed
+//! stages cannot state sends it to the sketch door next, with no program round to exhaust first.
 //! Deterministic policy facts (prohibitions, gates, indecision, contradictions,
 //! bounds, approval bypasses) are the floor under every proposal, and every
 //! strategy ends in the same deterministic assembler and the same Check.
@@ -28,12 +28,12 @@ use super::{
     admit_hot, intent_sha256, lexical_rest_is_explicit, plan_record, record_ledger,
     record_retrieval, record_route, replay, unresolved,
 };
-use nika_kernel::ai::provider::{
-    ContentBlock, InferRequest, InferResponse, Message, ProviderInferDyn, Role,
-};
+use nika_kernel::ai::provider::{InferRequest, InferResponse, Message, ProviderInferDyn, Role};
 use serde_json::{Value, json};
 
 mod admitted;
+mod agenda;
+use agenda::Action;
 mod instructions;
 use instructions::INSTRUCTIONS;
 mod backstops;
@@ -41,17 +41,25 @@ mod forensic;
 pub(super) mod knowledge;
 mod native;
 mod proposal;
-mod receipt;
+pub(crate) mod receipt;
 mod rehearsal;
+/// The reasoning a call is asked for and the record of what it reported, owned with the
+/// decision seats that ask them too (ADR-146).
+pub(crate) use nika_compile_seats::reasoning::{effort, reasoning_record};
 use receipt::call_with_schema;
-pub(crate) use receipt::{effort, reasoning_record};
 mod sketch;
 mod transform;
 mod verify;
-use proposal::{Proposal, decode, merge};
+#[cfg(test)]
+use nika_compile_seats::objects::UNCLOSED_RETRIES;
+/// The JSON objects of a seat's text, owned with the seats since the ADR-146 descent.
+pub(super) use nika_compile_seats::objects::{
+    Objects, answer_objects, answer_shaped, digests, first_json_object, record_objects,
+    syntax_target,
+};
+use proposal::{Composition, Merged, Proposal, decode, merged};
 pub(super) use proposal::{ProposedRegion, nullable_default};
-pub(crate) use transform::MAX_CALLS as TRANSFORM_QUESTIONS;
-pub(crate) use verify::{CLAUSE_QUESTIONS, WHOLE_QUESTIONS};
+pub(crate) use verify::WHOLE_QUESTIONS;
 
 /// The explicit cognition a caller permits for one request. Absent seats are not consent.
 #[derive(Clone, Copy)]
@@ -131,40 +139,37 @@ async fn revise<P: ProviderInferDyn>(
         && deterministic.provenance.strategy == Some(Strategy::Native)
     {
         let provider = (request.authoring.as_ref())
-            .filter(|policy| policy_bounded(policy, &folded))
+            .filter(|policy| policy_bounded(policy))
             .zip(cognition.provider);
         let judges = (cognition.seat, provider);
-        return Box::pin(verify::replayed(
-            &folded,
-            record,
-            request,
-            judges,
-            false,
-            super::initial(),
-        ))
-        .await;
+        let round = super::initial();
+        let replayed = verify::replayed(&folded, record, request, judges, false, rehearsals, round);
+        return Box::pin(replayed).await;
     }
     let unresolved = deterministic
         .diagnostics
         .iter()
         .any(|d| d.target == "change_request");
+    // A new change to the bytes a source revision wrote: its record is no answer round of this
+    // change; it binds those bytes (the core checks it) and states the words they answer.
+    let next_turn = (request.plan.as_ref()).is_some_and(|record| {
+        !record["source_revision"].is_null()
+            && super::revise_intent(request).is_none_or(|folded| {
+                record["intent_sha256"].as_str()
+                    != Some(nika_compile::intent_sha256(&folded).as_str())
+            })
+    });
     let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider) else {
         return Ok(deterministic);
     };
-    if !unresolved || policy.native == NativeMode::Off {
+    if !(unresolved || next_turn) || policy.native == NativeMode::Off {
         return Ok(deterministic);
     }
     let Some(folded) = super::revise_intent(request) else {
         return Ok(deterministic);
     };
     let mut out = super::initial();
-    if !policy_bounded(policy, &folded) {
-        super::finding(
-            &mut out,
-            DiagnosticKind::Missed,
-            "authoring_policy",
-            POLICY_BOUNDS,
-        );
+    if unbounded(policy, &mut out) {
         return Ok(out);
     }
     let reading = lexicon::read(&folded);
@@ -177,15 +182,14 @@ async fn revise<P: ProviderInferDyn>(
         );
         return Ok(out);
     }
-    Box::pin(native::author(
-        &folded,
-        &reading,
-        policy,
-        provider,
+    // A change in words to a base no semantic record binds (a historical, native or manual
+    // source) is kept as it is, never revised from source (R4 F); a record-bound base is revised
+    // at the entry ([`semantic_replayed`]). One destination it writes may still be replaced in
+    // place (the source-anchored revision); anything else keeps the base with its limitation.
+    Box::pin(sketch::revise::source(
         request,
-        vec![forensic::EDIT_NATIVE.to_owned()],
-        out,
-        rehearsals,
+        policy,
+        (provider, cognition.seat),
     ))
     .await
 }
@@ -217,6 +221,11 @@ pub async fn compile_with_cognition_rehearsed<P: ProviderInferDyn>(
     cognition: Cognition<'_, P>,
     host: Option<&dyn crate::rehearse::Rehearse>,
 ) -> Result<CompileOutcome, CompileError> {
+    // The caller's own request, read before money or a clarification changes it (slice C).
+    let caller = match nika_compile::surface::semantic::caller(request) {
+        Ok(caller) => caller,
+        Err(refused) => return Ok(*refused),
+    };
     let admitted::Money {
         reading,
         record,
@@ -231,8 +240,21 @@ pub async fn compile_with_cognition_rehearsed<P: ProviderInferDyn>(
     } else {
         cognition
     };
-    let mut rehearsals = rehearsal::Rehearsals::new(host);
-    let mut out = compile_inner(&reading, seats, &mut rehearsals).await?;
+    let mut rehearsals = rehearsal::Rehearsals::new(host).serving(rehearsal::Serves {
+        caller: caller.clone(),
+        raw: request.clone(),
+        reading: reading.clone(),
+    });
+    let mut out = if request
+        .plan
+        .as_ref()
+        .is_some_and(|r| r.get("semantic_record").is_some())
+    {
+        Box::pin(semantic_replayed(request, &reading, seats, &mut rehearsals)).await?
+    } else {
+        compile_inner(&reading, seats, &mut rehearsals).await?
+    };
+    sketch::bind_caller(caller, request, &mut out);
     rehearsals.finish(&reading, &mut out).await;
     if let Some(money) = record {
         admitted::record(
@@ -245,6 +267,33 @@ pub async fn compile_with_cognition_rehearsed<P: ProviderInferDyn>(
     nika_compile::surface::observed::record(request, &mut out);
     forensic::record(request, offered, &mut out);
     Ok(out)
+}
+
+/// An answer round of a semantic record (slice C), before every shortcut: the request the
+/// door read is derived from `reading` as `compile_inner` derives it (a clarification taken,
+/// folded), only to bind this round's judge; the record replays from the raw request alone.
+async fn semantic_replayed<P: ProviderInferDyn>(
+    raw: &CompileRequest,
+    reading: &CompileRequest,
+    cognition: Cognition<'_, P>,
+    rehearsals: &mut rehearsal::Rehearsals<'_>,
+) -> Result<CompileOutcome, CompileError> {
+    let Input::Create(words) = &reading.input else {
+        // A revision of a base its record binds (R4 F): the core, then the semantic revision.
+        let seat = (reading.authoring.as_ref())
+            .filter(|p| super::revise_intent(reading).is_some() && policy_bounded(p))
+            .zip(cognition.provider);
+        return Box::pin(sketch::revise::edit(raw, reading, seat, cognition.seat)).await;
+    };
+    let mut assembly = reading.clone();
+    let clarified = (assembly.answers.remove("intent.clarification"))
+        .and_then(|raw| serde_json::from_str::<String>(&raw).ok());
+    let intent = lexicon::fold_apostrophes(clarified.as_deref().unwrap_or(words));
+    let provider = (reading.authoring.as_ref())
+        .filter(|policy| policy_bounded(policy))
+        .zip(cognition.provider);
+    let judges = (cognition.seat, provider);
+    verify::semantic((raw, &intent, &assembly), judges, rehearsals).await
 }
 
 async fn compile_inner<P: ProviderInferDyn>(
@@ -292,9 +341,8 @@ async fn compile_inner<P: ProviderInferDyn>(
         &effective_intent,
         request,
         &assembly_request,
-        cognition,
+        (cognition, rehearsals),
         out,
-        rehearsals,
     ))
     .await
 }
@@ -303,9 +351,8 @@ async fn resolve_create<P: ProviderInferDyn>(
     intent: &str,
     request: &CompileRequest,
     assembly_request: &CompileRequest,
-    cognition: Cognition<'_, P>,
+    (cognition, rehearsals): (Cognition<'_, P>, &mut rehearsal::Rehearsals<'_>),
     mut out: CompileOutcome,
-    rehearsals: &mut rehearsal::Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     // An answer round replays the plan its previous round produced: no reading, no seat,
     // no proposal, the same candidate.
@@ -322,25 +369,27 @@ async fn resolve_create<P: ProviderInferDyn>(
         if record.get("pending_transform").is_some() {
             replay(intent, record, assembly_request, &mut out)?;
             if let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider) {
-                if !policy_bounded(policy, intent) {
-                    super::finding(
-                        &mut out,
-                        DiagnosticKind::Missed,
-                        "authoring_policy",
-                        POLICY_BOUNDS,
-                    );
+                if unbounded(policy, &mut out) {
                     return Ok(out);
                 }
-                return transform::resume(intent, assembly_request, policy, provider, out).await;
+                let seats = (policy, provider, cognition.seat);
+                return transform::resume(intent, assembly_request, seats, out).await;
             }
             return Ok(out);
         }
         // The remainder a record leaves unverified is judged in this round, or named (R4 A11).
         let provider = (request.authoring.as_ref())
-            .filter(|policy| policy_bounded(policy, intent))
+            .filter(|policy| policy_bounded(policy))
             .zip(cognition.provider);
         let judges = (cognition.seat, provider);
-        return verify::replayed(intent, record, assembly_request, judges, false, out).await;
+        // Every plan but the reader's own HOT plan (a model's COLD or WARM plan, a record with no
+        // strategy word or an unknown one) is READY only on a judgment of the whole request over
+        // the bytes this round replays (R4 A11): no judgment a record carries counts, and an
+        // answer changes the bytes. Fail closed.
+        let strategy = record.get("strategy").and_then(Value::as_str);
+        let pending = strategy != Some(Strategy::Hot.word());
+        let request = assembly_request;
+        return verify::replayed(intent, record, request, judges, pending, rehearsals, out).await;
     }
     // The exact grammar keeps its zero-call, fail-closed path when a provider is permitted.
     if let Ok(Some(plan)) = super::support::resolve(intent) {
@@ -356,26 +405,17 @@ async fn resolve_create<P: ProviderInferDyn>(
         reading.columns = columns;
     }
     backstop(intent, &mut reading.plan);
-    route_create(
-        intent,
-        request,
-        assembly_request,
-        cognition,
-        reading,
-        out,
-        rehearsals,
-    )
-    .await
+    let seats = (cognition, rehearsals);
+    route_create(intent, request, assembly_request, seats, reading, out).await
 }
 
 async fn route_create<P: ProviderInferDyn>(
     intent: &str,
     request: &CompileRequest,
     assembly_request: &CompileRequest,
-    cognition: Cognition<'_, P>,
+    (cognition, rehearsals): (Cognition<'_, P>, &mut rehearsal::Rehearsals<'_>),
     reading: Reading,
     mut out: CompileOutcome,
-    rehearsals: &mut rehearsal::Rehearsals<'_>,
 ) -> Result<CompileOutcome, CompileError> {
     // An effect the request's own words both ask for and prohibit stays the human's (R4 S0):
     // no seat reads it to choose a side, whatever the strategy. The outcome is the deterministic
@@ -391,441 +431,485 @@ async fn route_create<P: ProviderInferDyn>(
         return super::compile(&read_as);
     }
     let mut route = Vec::new();
-    // The deterministic door judges the reading with its stated rules promoted: a rule
-    // carries its own constraint, and the words inside it are its literals. The reading
-    // itself keeps its constraints: they are the policy floor a seat's proposal inherits.
-    // The ablation and the arena's treatment D: straight to the native candidate, before the
-    // deterministic door and without the private plan, under the same bounds as COLD.
-    if let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider)
-        && matches!(policy.native, NativeMode::Only | NativeMode::Sketch)
-    {
-        if !policy_bounded(policy, intent) {
+    // Source-only CREATE is retired: whatever seat is offered, a fresh request under `only` sends
+    // nothing and names the semantic doors. The reader's own floor refusal keeps its cause.
+    if (request.authoring.as_ref()).is_some_and(|policy| policy.native == NativeMode::Only) {
+        if !native::floor_refuses(&reading, &mut out) {
             super::finding(
                 &mut out,
-                DiagnosticKind::Missed,
+                DiagnosticKind::Refused,
                 "authoring_policy",
-                POLICY_BOUNDS,
+                ONLY_RETIRED,
             );
-            return Ok(out);
+            out.status = crate::CompileStatus::Refused;
         }
-        if policy.native == NativeMode::Sketch {
-            route.push(forensic::NATIVE_SKETCH.to_owned());
-            // Boxed: the seat doors are rare and large; they must not grow every compile future.
-            return Box::pin(sketch::author(
-                intent,
-                &reading,
-                policy,
-                provider,
-                assembly_request,
-                route,
-                out,
-            ))
-            .await;
-        }
-        route.push(forensic::NATIVE_ONLY.to_owned());
-        return Box::pin(native::author(
-            intent,
-            &reading,
-            policy,
-            provider,
-            assembly_request,
-            route,
-            out,
-            rehearsals,
-        ))
-        .await;
+        route.push(forensic::ONLY_RETIRED.to_owned());
+        record_route(&mut out, &route);
+        return Ok(out);
     }
+    // What the request still lacks after the reader decides the next action (R1 · A1). The
+    // deterministic door judges the reading with its stated rules promoted; the reading itself
+    // keeps its constraints, the policy floor a seat's proposal inherits. The sketch policy names
+    // its composer before the reader is admitted.
+    let selected = agenda::Selected::of(
+        request,
+        cognition.provider.is_some(),
+        cognition.seat.is_some(),
+    );
+    let mut missing = agenda::Missing {
+        untyped: reading.unresolved.len() + reading.soft_constraints.len(),
+        ..agenda::Missing::default()
+    };
     let mut admitted = reading.clone();
     super::shape::promote_stated_rules(&mut admitted.plan, intent);
-    match admit_hot(intent, &admitted, request.hot) {
-        Ok(()) => {
-            route.push("hot".to_owned());
-            record_route(&mut out, &route);
-            return settle(Strategy::Hot, &admitted.plan, intent, assembly_request, out);
-        }
-        Err(why) => route.push(format!("hot rejected: {}", why.reasons().join("; "))),
-    }
-    choose_create(
-        intent,
-        request,
-        assembly_request,
-        cognition,
-        reading,
-        route,
-        out,
-        rehearsals,
-    )
-    .await
-}
-
-async fn choose_create<P: ProviderInferDyn>(
-    intent: &str,
-    request: &CompileRequest,
-    assembly_request: &CompileRequest,
-    cognition: Cognition<'_, P>,
-    mut reading: Reading,
-    mut route: Vec<String>,
-    mut out: CompileOutcome,
-    rehearsals: &mut rehearsal::Rehearsals<'_>,
-) -> Result<CompileOutcome, CompileError> {
-    // WARM on lexical ambiguity: every clause is known; a few carry a finite set of readings
-    // and the rest of the reading is strictly explicit.
-    if reading.unresolved.is_empty()
-        && !reading.ambiguous.is_empty()
-        && request.hot != HotPolicy::Off
-        && let Some(seat) = cognition.seat
-        && lexical_rest_is_explicit(intent, &{
-            let mut admitted = reading.clone();
-            super::shape::promote_stated_rules(&mut admitted.plan, intent);
-            admitted
-        })
-    {
-        out.provenance.cognition = AuthoringCognition::ExplicitDecision;
-        let mut records = Vec::new();
-        let mut settled_all = true;
-        for (index, ambiguity) in reading.ambiguous.iter().enumerate() {
-            let options = ambiguity
-                .options
-                .iter()
-                .map(|op| ChoiceOption::new(op.word(), op.definition()))
-                .collect();
-            let question = ChoiceQuestion::new(
-                format!("clause-{index}"),
-                "Which operation does this clause of the request ask for? Judge the clause in the context of the whole request; an option you cannot support from the text is not a fit.",
-                json!({"request": intent, "clause": ambiguity.clause, "object": ambiguity.detail}),
-                options,
-            );
-            let answer = seat.choose(&question).await;
-            let admitted = match &answer {
-                Ok(answer) => {
-                    super::decide::admit(&question, answer).map(|()| answer.choice.clone())
-                }
-                Err(error) => Err(error.clone()),
-            };
-            records.push(match (&answer, &admitted) {
-                (Ok(answer), Ok(_)) => super::decide::record(&question, Ok(answer)),
-                (_, Err(error)) | (Err(error), _) => super::decide::record(&question, Err(error)),
-            });
-            match admitted {
-                Ok(choice) if choice != NONE_OPTION => {
-                    if let Some(op) = Op::parse(&choice) {
-                        reading.plan.push_step(Step::new(
-                            op,
-                            ambiguity.clause.clone(),
-                            ambiguity.detail.clone(),
-                            Vec::new(),
-                        ));
-                    }
-                }
-                Ok(_) => {
-                    settled_all = false;
-                    reading.unresolved.push(ambiguity.clause.clone());
-                }
-                Err(error) => {
-                    settled_all = false;
-                    reading.unresolved.push(ambiguity.clause.clone());
-                    super::finding(&mut out, DiagnosticKind::Unknown, "decision_seat", error.0);
-                }
+    if !(selected.author && selected.native == NativeMode::Sketch) {
+        match admit_hot(intent, &admitted, request.hot) {
+            Ok(()) => {
+                route.push("hot".to_owned());
+                missing.composed = true;
             }
+            Err(why) => route.push(format!("hot rejected: {}", why.reasons().join("; "))),
         }
-        out.provenance.decision = Some(json!({"seat": seat.name(), "questions": records}));
-        if settled_all {
-            route.push("warm".to_owned());
-            record_route(&mut out, &route);
-            return verify::judged_warm(intent, &reading.plan, seat, assembly_request, out).await;
-        }
-        route.push("warm: none".to_owned());
-        reading.ambiguous.clear();
+        missing.choices = reading.unresolved.is_empty()
+            && !reading.ambiguous.is_empty()
+            && request.hot != HotPolicy::Off
+            && lexical_rest_is_explicit(intent, &admitted);
     }
-    author_create(
-        intent,
-        request,
-        assembly_request,
-        cognition,
-        reading,
-        route,
-        out,
-        rehearsals,
-    )
-    .await
-}
-
-async fn author_create<P: ProviderInferDyn>(
-    intent: &str,
-    request: &CompileRequest,
-    assembly_request: &CompileRequest,
-    cognition: Cognition<'_, P>,
-    reading: Reading,
-    mut route: Vec<String>,
-    mut out: CompileOutcome,
-    rehearsals: &mut rehearsal::Rehearsals<'_>,
-) -> Result<CompileOutcome, CompileError> {
-    // COLD: explicitly authorized generative proposals, constrained by the deterministic facts.
-    if let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider) {
-        if !policy_bounded(policy, intent) {
-            super::finding(
-                &mut out,
-                DiagnosticKind::Missed,
-                "authoring_policy",
-                POLICY_BOUNDS,
-            );
-            return Ok(out);
+    let action = agenda::next(missing, selected);
+    agenda::record(&mut out, missing, action);
+    let seats = (cognition, rehearsals);
+    match action {
+        Action::Assemble => {
+            record_route(&mut out, &route);
+            settle(Strategy::Hot, &admitted.plan, intent, assembly_request, out)
         }
-        // HOT and finite WARM judgments keep their place. Open generation starts with
-        // the attached knowledge instead of first paying for a plan that cannot read it.
-        if policy.native == NativeMode::Escalate
-            && request
-                .authoring_knowledge
-                .as_ref()
-                .is_some_and(|pack| !pack.references.is_empty())
-        {
-            route.push(forensic::NATIVE_INFORMED.to_owned());
-            return Box::pin(native::author(
+        Action::Check => {
+            route.push(agenda::READER_CHECKED.to_owned());
+            let plan = admitted.plan;
+            let checked = check(
                 intent,
-                &reading,
-                policy,
-                provider,
+                plan,
                 assembly_request,
+                seats.0,
+                &reading,
                 route,
                 out,
-                rehearsals,
-            ))
-            .await;
+            );
+            Box::pin(checked).await
         }
-        route.push(format!("cold: {} sample(s)", policy.samples.clamp(1, 5)));
-        let cold = sampled(
+        Action::Settle => {
+            let state = (missing, selected);
+            let settled =
+                choose_create(intent, assembly_request, seats, reading, state, route, out);
+            Box::pin(settled).await
+        }
+        _ => {
+            let composed = compose(action, intent, assembly_request, seats, reading, route, out);
+            Box::pin(composed).await
+        }
+    }
+}
+
+/// The Check action: a judge reads a whole plan before it can be READY (R1). The author, when
+/// selected, repairs what the judge finds missing (the COLD verifier's loop, `strategy: cold`);
+/// a decision seat alone judges and holds (WARM's verifier, `strategy: warm`).
+async fn check<P: ProviderInferDyn>(
+    intent: &str,
+    plan: Plan,
+    request: &CompileRequest,
+    cognition: Cognition<'_, P>,
+    reading: &Reading,
+    route: Vec<String>,
+    mut out: CompileOutcome,
+) -> Result<CompileOutcome, CompileError> {
+    record_route(&mut out, &route);
+    if let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider) {
+        if unbounded(policy, &mut out) {
+            return Ok(out);
+        }
+        out.provenance.cognition = AuthoringCognition::ExplicitProvider;
+        return judged(
             intent,
+            plan,
             policy,
             provider,
             cognition.seat,
-            &reading,
-            assembly_request,
-            route.clone(),
+            reading,
+            request,
             out,
         )
-        .await?;
-        // The private plan is not the language's ceiling: a cold round that ends without a
-        // candidate, or hands the human a machine's problem, escalates to a native candidate.
-        if cold
-            .provenance
-            .plan
-            .as_ref()
-            .is_some_and(|record| record.get("pending_transform").is_some())
-        {
-            return Ok(cold);
-        }
-        if policy.native == NativeMode::Escalate && native::escalates(&cold) {
-            let mut route = route;
-            route.push(forensic::NATIVE_ESCALATED.to_owned());
-            return Box::pin(native::author(
-                intent,
-                &reading,
-                policy,
-                provider,
-                assembly_request,
-                route,
-                cold,
-                rehearsals,
-            ))
-            .await;
-        }
-        return Ok(cold);
+        .await;
     }
-    route.push("needs cognition".to_owned());
-    record_route(&mut out, &route);
-    unresolved(&reading, &mut out);
-    Ok(out)
+    let Some(seat) = cognition.seat else {
+        return settle(Strategy::Hot, &plan, intent, request, out);
+    };
+    out.provenance.cognition = AuthoringCognition::ExplicitDecision;
+    Box::pin(verify::judged_warm(intent, &plan, seat, request, out)).await
 }
 
-const POLICY_BOUNDS: &str = "Authoring requires an explicit model, 1..32768 output tokens, a timeout up to 600 seconds, and an intent no larger than 32768 bytes.";
+/// A plan's computations through the transform seat, then the COLD verifier: the judge reads the
+/// assembled candidate and the author repairs a concrete defect.
+#[allow(clippy::too_many_arguments)] // the COLD verifier's own state, threaded once
+async fn judged<P: ProviderInferDyn>(
+    intent: &str,
+    mut plan: Plan,
+    policy: &AuthoringPolicy,
+    provider: &P,
+    seat: Option<&dyn DecisionSeat>,
+    reading: &Reading,
+    request: &CompileRequest,
+    mut out: CompileOutcome,
+) -> Result<CompileOutcome, CompileError> {
+    // A computation the typed stages could not state asks the seat for a verified program
+    // (treatment B), once, on the plan that will be assembled: the seat's own example is the
+    // test, the runtime's jq the judge, the receipt counts the call.
+    if let Some(mut pending) =
+        transform::synthesize(intent, &mut plan, policy, provider, request, &[], &mut out).await
+    {
+        pending.answer(request, &mut out);
+        pending.suspend(&plan, &mut out);
+        return Ok(out);
+    }
+    Box::pin(verify::judged_cold(
+        intent, plan, policy, provider, seat, reading, request, out,
+    ))
+    .await
+}
 
-/// The bounds every seat call honors: an explicit model, a bounded answer, a bounded wait,
-/// a request the seat can hold.
-fn policy_bounded(policy: &AuthoringPolicy, intent: &str) -> bool {
+/// The author composes (A1): the attached knowledge qualified by the decision seat first, then
+/// the sketch door or the private plan as the action names. The qualification record and what
+/// the candidate kept of the shown references ride the outcome.
+async fn compose<P: ProviderInferDyn>(
+    action: Action,
+    intent: &str,
+    request: &CompileRequest,
+    (cognition, rehearsals): (Cognition<'_, P>, &mut rehearsal::Rehearsals<'_>),
+    reading: Reading,
+    mut route: Vec<String>,
+    mut out: CompileOutcome,
+) -> Result<CompileOutcome, CompileError> {
+    let (Some(policy), Some(provider), false) = (
+        &request.authoring,
+        cognition.provider,
+        action == Action::Ask,
+    ) else {
+        route.push("needs cognition".to_owned());
+        record_route(&mut out, &route);
+        unresolved(&reading, &mut out);
+        return Ok(out);
+    };
+    if unbounded(policy, &mut out) {
+        return Ok(out);
+    }
+    let qualified = knowledge::qualified(intent, request, cognition.seat).await;
+    let shown = qualified
+        .as_ref()
+        .map_or(request, |(qualified, _)| qualified);
+    let seats = (provider, cognition.seat, rehearsals);
+    let mut done = if action == Action::Sketch {
+        route.push(forensic::NATIVE_SKETCH.to_owned());
+        // Boxed: the seat doors are rare and large; they must not grow every compile future.
+        Box::pin(sketch::author(
+            intent, &reading, policy, seats, shown, route, out,
+        ))
+        .await?
+    } else {
+        Box::pin(author_create(
+            intent, policy, seats, shown, reading, route, out,
+        ))
+        .await?
+    };
+    if let Some((qualified, record)) = qualified {
+        knowledge::traced(&qualified, record, &mut done);
+    }
+    Ok(done)
+}
+
+/// The Settle action (WARM's mechanism): every clause is known, a few carry a finite set of
+/// readings and the rest is strictly explicit; the decision seat settles each. A settled plan is
+/// checked (the author, when selected, repairs it); readings the seat leaves open go back to the
+/// loop, which hands them to a composer.
+async fn choose_create<P: ProviderInferDyn>(
+    intent: &str,
+    request: &CompileRequest,
+    (cognition, rehearsals): (Cognition<'_, P>, &mut rehearsal::Rehearsals<'_>),
+    mut reading: Reading,
+    (mut missing, selected): (agenda::Missing, agenda::Selected),
+    mut route: Vec<String>,
+    mut out: CompileOutcome,
+) -> Result<CompileOutcome, CompileError> {
+    if let Some(seat) = cognition.seat {
+        out.provenance.cognition = AuthoringCognition::ExplicitDecision;
+        let (records, settled_all, refused) =
+            settle_readings(intent, seat, &mut reading, &mut out).await;
+        let mut decision = out.provenance.decision.take().unwrap_or_else(|| json!({}));
+        decision["seat"] = json!(seat.name());
+        decision["questions"] = json!(records);
+        out.provenance.decision = Some(decision);
+        if settled_all {
+            route.push("warm".to_owned());
+            if let (Some(policy), Some(provider)) = (&request.authoring, cognition.provider)
+                && policy_bounded(policy)
+            {
+                route.push(agenda::SETTLED_CHECKED.to_owned());
+                record_route(&mut out, &route);
+                let plan = reading.plan.clone();
+                let checked = judged(
+                    intent,
+                    plan,
+                    policy,
+                    provider,
+                    Some(seat),
+                    &reading,
+                    request,
+                    out,
+                );
+                return Box::pin(checked).await;
+            }
+            record_route(&mut out, &route);
+            let judged = verify::judged_warm(intent, &reading.plan, seat, request, out);
+            return Box::pin(judged).await;
+        }
+        route.push(
+            if refused {
+                "warm: refused"
+            } else {
+                "warm: none"
+            }
+            .to_owned(),
+        );
+        reading.ambiguous.clear();
+    }
+    missing.settled = true;
+    missing.untyped = reading.unresolved.len() + reading.soft_constraints.len();
+    let action = agenda::next(missing, selected);
+    agenda::record(&mut out, missing, action);
+    compose(
+        action,
+        intent,
+        request,
+        (cognition, rehearsals),
+        reading,
+        route,
+        out,
+    )
+    .await
+}
+
+/// Each open reading put to the seat as one closed choice: the records, whether every reading
+/// settled, and whether the compiler refused a settlement ([`refused_search`]).
+async fn settle_readings(
+    intent: &str,
+    seat: &dyn DecisionSeat,
+    reading: &mut Reading,
+    out: &mut CompileOutcome,
+) -> (Vec<Value>, bool, bool) {
+    let (mut records, mut settled_all, mut refused) = (Vec::new(), true, false);
+    for (index, ambiguity) in reading.ambiguous.iter().enumerate() {
+        let options = ambiguity
+            .options
+            .iter()
+            .map(|op| ChoiceOption::new(op.word(), op.definition()))
+            .collect();
+        let question = ChoiceQuestion::new(
+            format!("clause-{index}"),
+            "Which operation does this clause of the request ask for? Judge the clause in the context of the whole request; an option you cannot support from the text is not a fit.",
+            json!({"request": intent, "clause": ambiguity.clause, "object": ambiguity.detail}),
+            options,
+        );
+        let answer = seat.choose(&question).await;
+        let admitted = match &answer {
+            Ok(answer) => super::decide::admit(&question, answer).map(|()| answer.choice.clone()),
+            Err(error) => Err(error.clone()),
+        };
+        records.push(match (&answer, &admitted) {
+            (Ok(answer), Ok(_)) => super::decide::record(&question, Ok(answer)),
+            (_, Err(error)) | (Err(error), _) => super::decide::record(&question, Err(error)),
+        });
+        match admitted {
+            Ok(choice) if choice != NONE_OPTION => match Op::parse(&choice) {
+                Some(op) if refused_search(op, ambiguity, &mut reading.unresolved, out) => {
+                    (settled_all, refused) = (false, true);
+                }
+                Some(op) => reading.plan.push_step(Step::new(
+                    op,
+                    ambiguity.clause.clone(),
+                    ambiguity.detail.clone(),
+                    Vec::new(),
+                )),
+                None => {}
+            },
+            Ok(_) => {
+                settled_all = false;
+                reading.unresolved.push(ambiguity.clause.clone());
+            }
+            Err(error) => {
+                settled_all = false;
+                reading.unresolved.push(ambiguity.clause.clone());
+                super::finding(out, DiagnosticKind::Unknown, "decision_seat", error.0);
+            }
+        }
+    }
+    (records, settled_all, refused)
+}
+
+/// A seat's `search` cannot apply an identifier its clause names in one structured file: no
+/// stated term binds the search and its grep matches substrings (`W-5` in `W-50`), while a
+/// `lookup` selects that one record. The compiler, never the seat, refuses that settlement:
+/// the seat's answer stays on record, the clause stays unresolved under the compiler's name.
+fn refused_search(
+    op: Op,
+    ambiguity: &lexicon::Ambiguity,
+    unresolved: &mut Vec<String>,
+    out: &mut CompileOutcome,
+) -> bool {
+    let detail = &ambiguity.detail;
+    let literals = crate::paths::literals(detail);
+    let [crate::paths::PathShape::File(path)] = literals.as_slice() else {
+        return false;
+    };
+    let Some(id) = crate::shape::identifier(detail).filter(|_| op == Op::Search) else {
+        return false;
+    };
+    if crate::paths::Structured::of(path).is_none() {
+        return false;
+    }
+    unresolved.push(ambiguity.clause.clone());
+    super::finding(
+        out,
+        DiagnosticKind::Unknown,
+        "retrieval_choice",
+        format!(
+            "The decision seat chose `search` for « {detail} », but a search cannot select the record `{id}` of `{path}` exactly; the clause stays unresolved."
+        ),
+    );
+    true
+}
+
+/// The Plan action (COLD's mechanism): explicitly authorized generative proposals of a private
+/// plan, constrained by the deterministic facts. The attached knowledge is context the plan reads
+/// (`knowledge::plan_context`), never a route of its own.
+async fn author_create<P: ProviderInferDyn>(
+    intent: &str,
+    policy: &AuthoringPolicy,
+    (provider, seat, rehearsals): (
+        &P,
+        Option<&dyn DecisionSeat>,
+        &mut rehearsal::Rehearsals<'_>,
+    ),
+    assembly_request: &CompileRequest,
+    reading: Reading,
+    mut route: Vec<String>,
+    out: CompileOutcome,
+) -> Result<CompileOutcome, CompileError> {
+    route.push(format!("cold: {} sample(s)", policy.samples));
+    let mut found: Option<Composition> = None;
+    let cold = sampled(
+        intent,
+        policy,
+        provider,
+        seat,
+        &reading,
+        assembly_request,
+        route.clone(),
+        out,
+        &mut found,
+    )
+    .await?;
+    Box::pin(after_cold(
+        intent,
+        &reading,
+        policy,
+        (provider, seat, rehearsals),
+        assembly_request,
+        route,
+        cold,
+        found,
+    ))
+    .await
+}
+
+/// What follows a COLD round: a pending transform waits for its answer; branches the plan could not
+/// keep apart go to the sketch door that represents them, with the same request, answers, floor
+/// and receipt; under Escalate, a round that ends without a candidate or hands the human a
+/// machine's problem escalates to the same sketch door (the private plan is not the language's
+/// ceiling), never to source generation; otherwise the round's own outcome.
+#[allow(clippy::too_many_arguments)] // the cold round's inputs, its outcome and its composition
+async fn after_cold<P: ProviderInferDyn>(
+    intent: &str,
+    reading: &Reading,
+    policy: &AuthoringPolicy,
+    (provider, decision, rehearsals): (
+        &P,
+        Option<&dyn DecisionSeat>,
+        &mut rehearsal::Rehearsals<'_>,
+    ),
+    assembly_request: &CompileRequest,
+    route: Vec<String>,
+    cold: CompileOutcome,
+    found: Option<Composition>,
+) -> Result<CompileOutcome, CompileError> {
+    let pending = cold
+        .provenance
+        .plan
+        .as_ref()
+        .is_some_and(|record| record.get("pending_transform").is_some());
+    if pending {
+        return Ok(cold);
+    }
+    let why = match found {
+        Some(composition) if cold.candidate.is_none() && cold.questions.is_empty() => {
+            sketch::Escalation::Composition(composition)
+        }
+        _ if policy.native == NativeMode::Escalate && native::escalates(&cold) => {
+            sketch::Escalation::Plan
+        }
+        _ => return Ok(cold),
+    };
+    let request = assembly_request;
+    Box::pin(sketch::compose(
+        intent,
+        reading,
+        policy,
+        (provider, decision, rehearsals),
+        request,
+        route,
+        cold,
+        &why,
+    ))
+    .await
+}
+
+/// Why a fresh CREATE under `only` sends no request.
+const ONLY_RETIRED: &str = "Source-only authoring (native: only) is retired for a new workflow: no model writes whole source. Use native: escalate (the default: the private plan, then the sketch door when the plan cannot carry the request) or native: sketch (the structure, then its typed fills); the compiler writes the source. No request was sent and no candidate was assembled.";
+
+const POLICY_BOUNDS: &str = "Authoring requires an explicit model, a positive sample count, a positive output-token limit (an initial one within it) and a positive timeout.";
+
+/// Whether `policy` fails the bounds every seat call honors ([`policy_bounded`]), said in `out`.
+fn unbounded(policy: &AuthoringPolicy, out: &mut CompileOutcome) -> bool {
+    let unbounded = !policy_bounded(policy);
+    if unbounded {
+        super::finding(
+            out,
+            DiagnosticKind::Missed,
+            "authoring_policy",
+            POLICY_BOUNDS,
+        );
+    }
+    unbounded
+}
+
+/// The bounds every seat call honors: an explicit model, a positive answer limit and a positive
+/// wait. What a route can hold (its output cap, its context, its deadline) is its own technical
+/// limit, the host's and the provider's to answer, never a compiler ceiling on the request.
+fn policy_bounded(policy: &AuthoringPolicy) -> bool {
     !policy.model.trim().is_empty()
-        && (1..=32_768).contains(&policy.max_tokens)
+        && policy.samples > 0
+        && policy.max_tokens > 0
         && policy
             .initial_max_tokens
             .is_none_or(|initial| (1..=policy.max_tokens).contains(&initial))
         && !policy.timeout.is_zero()
-        && policy.timeout <= std::time::Duration::from_secs(600)
-        && intent.len() <= 32_768
-}
-
-/// The first complete JSON object of a seat's text — the text itself when it is one, else
-/// the balanced `{…}` it carries (a seat that wraps its answer in prose or a fence is not a
-/// lost call). None when the text carries no balanced object.
-pub(super) fn first_json_object(text: &str) -> Option<&str> {
-    let trimmed = text.trim();
-    if trimmed.starts_with('{') && trimmed.ends_with('}') {
-        return Some(trimmed);
-    }
-    balanced_object(text, 0)?.ok().map(|range| &text[range])
-}
-
-/// The unclosed braces a scan retries after, before it stops judging.
-const UNCLOSED_RETRIES: usize = 64;
-
-/// What the complete JSON objects of a seat's text come to, judged by the answer's own shape.
-pub(super) enum Objects<'a> {
-    /// No complete, non-empty JSON object: the text keeps its syntax path.
-    None,
-    /// The one answer to read (the first object when none is an answer), and the objects
-    /// beside it that cannot be answers: kept by digest, never read.
-    One {
-        answer: &'a str,
-        unread: Vec<&'a str>,
-    },
-    /// Two or more different answers, which the journal keeps by digest: none is read.
-    Two(Vec<&'a str>),
-    /// An object that never closes beside a complete one, or unclosed braces past the retry
-    /// bound: undecided, never read as one answer. The complete objects, by digest.
-    Undecided(Vec<&'a str>),
-}
-
-/// Every complete JSON object of a seat's text, an identical repetition once; prose, template
-/// braces and empty objects are skipped. `is_answer` is the answer's own shape: two answers are
-/// never resolved by reading the first, and an example that cannot be one never kills it.
-pub(super) fn answer_objects(text: &str, is_answer: impl Fn(&str) -> bool) -> Objects<'_> {
-    let mut objects: Vec<&str> = Vec::new();
-    let (mut from, mut retries, mut undecided) = (0, 0, false);
-    while let Some(group) = balanced_object(text, from) {
-        match group {
-            Ok(range) => {
-                let object = &text[range.clone()];
-                let empty = object[1..object.len() - 1].trim().is_empty();
-                if !empty
-                    && !objects.contains(&object)
-                    && serde_json::from_str::<serde::de::IgnoredAny>(object).is_ok()
-                {
-                    objects.push(object);
-                }
-                from = range.end;
-            }
-            Err(start) => {
-                // A brace that opens like an object (`{` then `"`) and never closes may be a
-                // cut answer.
-                undecided |= text[start + 1..].trim_start().starts_with('"');
-                retries += 1;
-                if retries > UNCLOSED_RETRIES {
-                    undecided = true;
-                    break;
-                }
-                from = start + 1;
-            }
-        }
-    }
-    let Some(&first) = objects.first() else {
-        return Objects::None;
-    };
-    if undecided {
-        return Objects::Undecided(objects);
-    }
-    let answers: Vec<&str> = objects
-        .iter()
-        .copied()
-        .filter(|object| is_answer(object))
-        .collect();
-    let answer = match answers.as_slice() {
-        [] => first,
-        [answer] => answer,
-        _ => return Objects::Two(answers),
-    };
-    let unread = objects
-        .into_iter()
-        .filter(|object| *object != answer)
-        .collect();
-    Objects::One { answer, unread }
-}
-
-/// Whether an object is shaped like an answer of type `T`: it decodes as one, or it carries one
-/// of the `keys` only such an answer carries. A defect (an unknown key, a null field) never
-/// turns a competing answer into an example.
-pub(super) fn answer_shaped<T: serde::de::DeserializeOwned>(object: &str, keys: &[&str]) -> bool {
-    serde_json::from_str::<T>(object).is_ok()
-        || serde_json::from_str::<serde_json::Map<String, Value>>(object)
-            .is_ok_and(|map| keys.iter().any(|key| map.contains_key(*key)))
-}
-
-/// Objects by digest and length, as the journals keep them.
-pub(super) fn digests(objects: &[&str]) -> Value {
-    objects
-        .iter()
-        .map(|object| json!({"sha256": knowledge::sha256(object), "bytes": object.len()}))
-        .collect()
-}
-
-/// Objects of a seat's text recorded on the call that returned them, under `field`: the unread
-/// ones beside an answer, the competitors of a refused text. Never read, never silent.
-pub(super) fn record_objects(out: &mut CompileOutcome, field: &str, objects: &[&str]) {
-    if objects.is_empty() {
-        return;
-    }
-    if let Some(call) = out
-        .provenance
-        .authoring
-        .as_mut()
-        .and_then(|receipt| receipt.context.last_mut())
-    {
-        call[field] = digests(objects);
-    }
-}
-
-/// The group the syntax path judges when no complete object is JSON: the first closed brace
-/// group that opens like a JSON object (`{` then `"`), so template or prose braces beside a
-/// broken answer are never the target of its diagnostic. None when no group opens so.
-pub(super) fn syntax_target(text: &str) -> Option<&str> {
-    let (mut from, mut retries) = (0, 0);
-    while let Some(group) = balanced_object(text, from) {
-        match group {
-            Ok(range) if text[range.start + 1..].trim_start().starts_with('"') => {
-                return Some(&text[range]);
-            }
-            Ok(range) => from = range.end,
-            Err(start) if retries < UNCLOSED_RETRIES => {
-                retries += 1;
-                from = start + 1;
-            }
-            Err(_) => return None,
-        }
-    }
-    None
-}
-
-/// The balanced `{…}` opening at the first `{` at or after byte `from` (braces inside JSON
-/// strings ignored), as a byte range; `Err(start)` when that brace never closes, None when no
-/// brace opens.
-fn balanced_object(text: &str, from: usize) -> Option<Result<std::ops::Range<usize>, usize>> {
-    let start = from + text.get(from..)?.find('{')?;
-    let mut depth: i32 = 0;
-    let mut in_string = false;
-    let mut escaped = false;
-    for (i, ch) in text[start..].char_indices() {
-        if in_string {
-            match ch {
-                '\\' if !escaped => {
-                    escaped = true;
-                    continue;
-                }
-                '"' if !escaped => in_string = false,
-                _ => {}
-            }
-            escaped = false;
-            continue;
-        }
-        match ch {
-            '"' => in_string = true,
-            '{' => depth += 1,
-            '}' => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(Ok(start..start + i + ch.len_utf8()));
-                }
-            }
-            _ => {}
-        }
-    }
-    Some(Err(start))
 }
 
 fn settle(
@@ -885,10 +969,11 @@ fn settle_judged(
     Ok(out)
 }
 
-/// The messages of the opening authoring call: the instructions, then the request.
-fn opening(intent: &str) -> Vec<Message> {
+/// The messages of the opening authoring call: the instructions followed by the context the
+/// compiler was given ([`knowledge::plan_context`]), then the request alone as the user's words.
+fn opening(intent: &str, context: &knowledge::PlanContext) -> Vec<Message> {
     vec![
-        Message::text(Role::System, INSTRUCTIONS),
+        Message::text(Role::System, format!("{INSTRUCTIONS}\n\n{}", context.text)),
         Message::text(Role::User, intent),
     ]
 }
@@ -907,14 +992,21 @@ fn counterexample(defect: &proposal::Unanchored) -> String {
 /// own answer and the verifier's counterexample go back as the conversation, and the
 /// repaired proposal is judged by the same merge as any other: a repair changes letters,
 /// never what the seat may propose. A repair the provider fails leaves the original
-/// proposal to the merge, which refuses it as before; the failure stays recorded.
+/// proposal to the merge, which refuses it as before; the failure stays recorded. Both calls
+/// carry the same opening, its context and its stamp: the repair adds only the answer and the
+/// counterexample.
 async fn propose<P: ProviderInferDyn>(
     intent: &str,
     policy: &AuthoringPolicy,
     provider: &P,
+    context: &knowledge::PlanContext,
     out: &mut CompileOutcome,
 ) -> Option<Proposal> {
-    let (proposal, text) = call(policy, provider, "plan", opening(intent), out).await?;
+    let opened = opening(intent, context);
+    let before = receipt::journaled(out);
+    let called = call(policy, provider, "plan", opened.clone(), out).await;
+    knowledge::stamp_plan(out, before, context, &[]);
+    let (proposal, text) = called?;
     let Some(defect) = proposal::unanchored(intent, &proposal) else {
         return Some(proposal);
     };
@@ -929,10 +1021,13 @@ async fn propose<P: ProviderInferDyn>(
             proposal::excerpt_head(&defect.evidence)
         ),
     );
-    let mut messages = opening(intent);
+    let mut messages = opened;
     messages.push(Message::text(Role::Assistant, text));
     messages.push(Message::text(Role::User, counterexample(&defect)));
-    match call(policy, provider, "repair", messages, out).await {
+    let before = receipt::journaled(out);
+    let called = call(policy, provider, "repair", messages, out).await;
+    knowledge::stamp_plan(out, before, context, &[]);
+    match called {
         Some((repaired, _)) => Some(repaired),
         None => Some(proposal),
     }
@@ -949,10 +1044,9 @@ async fn call<P: ProviderInferDyn>(
     out: &mut CompileOutcome,
 ) -> Option<(Proposal, String)> {
     let response = call_with_schema(policy, provider, role, messages, plan_schema(), out).await?;
-    let text = match response.content.as_slice() {
-        [ContentBlock::Text { text }] => text.clone(),
-        _ => String::new(),
-    };
+    let text = crate::decide::answer_text(&response)
+        .unwrap_or_default()
+        .to_owned();
     decode(&response, out).map(|proposal| (proposal, text))
 }
 
@@ -982,6 +1076,7 @@ async fn sampled<P: ProviderInferDyn>(
     request: &CompileRequest,
     mut route: Vec<String>,
     mut out: CompileOutcome,
+    found: &mut Option<Composition>,
 ) -> Result<CompileOutcome, CompileError> {
     let mut accepted: Vec<(usize, Plan)> = Vec::new();
     let mut rejected: Vec<CompileOutcome> = Vec::new();
@@ -991,10 +1086,20 @@ async fn sampled<P: ProviderInferDyn>(
     let mut output_tokens: Option<u64> = None;
     let mut elapsed_ms = 0;
     let mut context: Vec<Value> = Vec::new();
-    for index in 0..policy.samples.clamp(1, 5) as usize {
+    // One context for every sample: the same request, reading and attachments.
+    let prepared = knowledge::plan_context(intent, reading, request);
+    for index in 0..policy.samples as usize {
         let mut scratch = super::initial();
-        let proposal = propose(intent, policy, provider, &mut scratch).await;
-        let plan = proposal.and_then(|p| merge(intent, p, reading, &mut scratch));
+        let proposal = propose(intent, policy, provider, &prepared, &mut scratch).await;
+        let merged = proposal.map(|p| merged(intent, p, reading, &mut scratch));
+        let needs_sketch = matches!(merged, Some(Merged::NeedsSketch(_)));
+        let plan = match merged {
+            Some(Merged::NeedsSketch(composition)) => {
+                found.get_or_insert(composition);
+                None
+            }
+            other => other.and_then(Merged::into_plan),
+        };
         if let Some(receipt) = &scratch.provenance.authoring {
             calls += receipt.calls;
             elapsed_ms += receipt.elapsed_ms;
@@ -1012,20 +1117,36 @@ async fn sampled<P: ProviderInferDyn>(
             .filter(|d| d.kind != DiagnosticKind::Applied)
             .map(|d| d.message.clone())
             .collect();
+        let authority_spent = scratch
+            .provenance
+            .authoring
+            .as_ref()
+            .is_some_and(|receipt| {
+                receipt
+                    .context
+                    .iter()
+                    .any(|call| call["result"]["failure_kind"] == "admission_refused")
+            });
         records.push(json!({
             "sample": index,
             "calls": scratch.provenance.authoring.as_ref().map_or(0, |r| r.calls),
             "accepted": plan.is_some(),
+            "needs_sketch": needs_sketch,
             "signature": plan.as_ref().map(compose::signature),
             "findings": findings,
         }));
         match plan {
             Some(plan) => accepted.push((index, plan)),
+            // A lawful composition is not a refusal: its findings are not reported as one.
+            None if needs_sketch => {}
             None => rejected.push(scratch),
+        }
+        if authority_spent {
+            break;
         }
     }
     // Every call beyond one per sample is a repair: the route says how many were bought.
-    let repairs = calls.saturating_sub(policy.samples.clamp(1, 5));
+    let repairs = calls.saturating_sub(u32::try_from(records.len()).unwrap_or(u32::MAX));
     if repairs > 0 {
         route.push(format!("cold: repair {repairs}"));
     }
@@ -1142,7 +1263,7 @@ async fn sampled<P: ProviderInferDyn>(
     decision["feasible_count"] = json!(feasible.len());
     decision["selected_candidate"] = json!(chosen);
     decision["compose"] = json!({
-        "cap": compose::CAP,
+        "cap": null,
         "pattern_dimensions": composition.dimensions.iter().map(compose::Dimension::to_json).collect::<Vec<_>>(),
     });
     if let Some(record) = warm_record {
@@ -1151,19 +1272,18 @@ async fn sampled<P: ProviderInferDyn>(
     decision["route"] = json!(route);
     out.provenance.decision = Some(decision);
     if let Some(candidate) = selected {
-        let mut plan = candidate.plan.clone();
-        // A computation the typed stages could not state asks the seat for a verified
-        // program (treatment B), once, on the plan that will be assembled: the seat's own
-        // example is the test, the runtime's jq the judge, the receipt counts the call.
-        if let Some(mut pending) =
-            transform::synthesize(intent, &mut plan, policy, provider, request, &[], &mut out).await
-        {
-            pending.answer(request, &mut out);
-            pending.suspend(&plan, &mut out);
+        let plan = candidate.plan.clone();
+        // The plan's own observed limit (R5): a computation its typed stages cannot state. Where
+        // the sketch door may serve, it composes the request next, the program one typed fill,
+        // rather than a separate program round whose refusal would escalate anyway.
+        let sketch = policy.native == NativeMode::Escalate && policy.repairs != Some(0);
+        if sketch && transform::unstated(intent, &plan, request) {
+            route.push(agenda::PLAN_LIMIT.to_owned());
+            record_route(&mut out, &route);
+            out.provenance.plan = Some(plan_record(&plan, Some(Strategy::Cold)));
             return Ok(out);
         }
-        return verify::judged_cold(intent, plan, policy, provider, seat, reading, request, out)
-            .await;
+        return judged(intent, plan, policy, provider, seat, reading, request, out).await;
     }
     if seat_declined {
         // The seat said none of the readings is faithful: a human settles the disagreement.
@@ -1227,172 +1347,6 @@ async fn sampled<P: ProviderInferDyn>(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{Objects, UNCLOSED_RETRIES, answer_objects, first_json_object};
-    use nika_kernel::ai::provider::{ContentBlock, InferResponse, StopReason, TokenUsage};
-
-    const A: &str = r#"{"steps": [], "note": "a {brace} and a \" quote in a string"}"#;
-    const B: &str = r#"{"steps": [{"op": "read"}]}"#;
-    const EXAMPLE: &str = r#"{"status": "paid"}"#;
-
-    /// The answer's own type, for these tests: an object that carries `steps`.
-    fn is_plan(object: &str) -> bool {
-        serde_json::from_str::<serde_json::Value>(object).is_ok_and(|v| v.get("steps").is_some())
-    }
-
-    fn read(text: &str) -> Option<&str> {
-        match answer_objects(text, is_plan) {
-            Objects::One { answer, .. } => Some(answer),
-            _ => None,
-        }
-    }
-
-    #[test]
-    fn one_answer_is_read_through_prose_repetitions_templates_and_examples() {
-        for text in [
-            A.to_owned(),
-            format!("Sure!\n```json\n{A}\n```"),
-            // The same answer twice, bare or in prose, is one answer.
-            format!("{A}\n{A}"),
-            format!("Draft {A} final {A}"),
-            // Template braces, an empty object and a closing prose brace are not answers.
-            format!("{A}\nIt reads ${{{{ with.content }}}}, keeps permits: {{}}, ends {{name}}"),
-            format!("It uses ${{{{ with.content }}}} before the answer:\n{A}"),
-            // An example that cannot be an answer never kills the one answer.
-            format!("For example {EXAMPLE}, then {A}"),
-            format!("{A} then {{ an unclosed prose brace"),
-        ] {
-            assert_eq!(read(&text), Some(A), "{text}");
-        }
-        let beside_example = format!("E.g. {EXAMPLE}: {A}");
-        let Objects::One { unread, .. } = answer_objects(&beside_example, is_plan) else {
-            panic!("one answer beside an example");
-        };
-        assert_eq!(unread, [EXAMPLE], "kept by digest, never read");
-        assert_eq!(
-            first_json_object(&format!("Sure!\n```json\n{A}\n```")),
-            Some(A)
-        );
-    }
-
-    #[test]
-    fn two_answers_or_one_beside_a_cut_object_are_never_resolved_by_reading_the_first() {
-        for text in [
-            format!("Draft {A} final {B}"),
-            format!("{A}\n{B}"),
-            format!("```json\n{B}\n```\n```json\n{A}\n```"),
-            format!("{A} then {{ an unclosed brace, then {B}"),
-        ] {
-            assert!(
-                matches!(answer_objects(&text, is_plan), Objects::Two(ref objects) if objects.len() == 2),
-                "{text}"
-            );
-        }
-        for text in [
-            // A competitor that opens like an object and never closes, after or before.
-            format!("Draft:\n{A}\nFinal:\n{{\"steps\": [{{\"op\": \"write\""),
-            format!("Draft:\n{{ \"steps\": [\nFinal:\n{A}"),
-            // Past the retry bound, the rest of the text is not judged: never one answer.
-            format!("{A}{}", " {".repeat(UNCLOSED_RETRIES + 1)),
-        ] {
-            assert!(
-                matches!(answer_objects(&text, is_plan), Objects::Undecided(ref objects) if objects == &[A]),
-                "{text}"
-            );
-        }
-        assert_eq!(
-            read(&format!("{A}{}", " {".repeat(UNCLOSED_RETRIES))),
-            Some(A)
-        );
-        // Without a complete object, the text keeps its syntax path.
-        assert!(matches!(
-            answer_objects("{\"steps\": !}", is_plan),
-            Objects::None
-        ));
-        assert!(matches!(
-            answer_objects("no object", is_plan),
-            Objects::None
-        ));
-    }
-
-    #[test]
-    fn a_cold_plan_is_read_beside_an_example_and_never_beside_another_plan() {
-        let plan = r#"{"steps":[],"effects":[],"obligations":[],"constraints":[],"unknowns":[]}"#;
-        let other = r#"{"steps":[{"op":"draft","detail":"x","evidence":"x"}],"effects":[],"obligations":[],"constraints":[],"unknowns":[]}"#;
-        let response = |text: String| {
-            InferResponse::new(
-                vec![ContentBlock::Text { text }],
-                TokenUsage::new(1, 1),
-                StopReason::EndTurn,
-            )
-        };
-        let mut out = crate::initial();
-        let two = response(format!("Plan A:\n{plan}\nPlan B:\n{other}"));
-        assert!(super::proposal::decode(&two, &mut out).is_none());
-        assert!(
-            out.diagnostics
-                .iter()
-                .any(|d| d.message.contains("two plans")),
-            "{out:#?}"
-        );
-        let mut out = crate::initial();
-        let one = response(format!("Plan:\n{plan}\nFor example {EXAMPLE}."));
-        assert!(super::proposal::decode(&one, &mut out).is_some());
-    }
-
-    /// An outcome whose receipt holds one call, as `call_with_schema` leaves it.
-    fn called() -> crate::CompileOutcome {
-        let mut out = crate::initial();
-        let mut receipt = crate::AuthoringReceipt::new("mock/authoring".to_owned());
-        receipt.context.push(serde_json::json!({"call": "plan"}));
-        out.provenance.authoring = Some(receipt);
-        out
-    }
-
-    #[test]
-    fn a_competitor_with_a_defect_is_still_a_competitor_and_its_digest_is_kept() {
-        use super::proposal::Proposal;
-        let plan = r#"{"steps":[],"effects":[],"obligations":[],"constraints":[],"unknowns":[]}"#;
-        // An unknown key or a null field keeps it from decoding, never from competing.
-        for rival in [
-            r#"{"steps":[{"op":"draft","detail":"x","evidence":"x"}],"confidence":0.9}"#,
-            r#"{"steps":null,"effects":[]}"#,
-        ] {
-            assert!(
-                super::answer_shaped::<Proposal>(rival, &["steps"]),
-                "{rival}"
-            );
-            let text = format!("Draft:\n{plan}\nFinal:\n{rival}");
-            assert!(
-                matches!(answer_objects(&text, |o| super::answer_shaped::<Proposal>(o, &["steps"])), Objects::Two(ref o) if o == &[plan, rival]),
-                "{text}"
-            );
-            let mut out = called();
-            let response = InferResponse::new(
-                vec![ContentBlock::Text { text }],
-                TokenUsage::new(1, 1),
-                StopReason::EndTurn,
-            );
-            assert!(super::proposal::decode(&response, &mut out).is_none());
-            let call = &out.provenance.authoring.as_ref().unwrap().context[0];
-            assert_eq!(call["competing_objects"], super::digests(&[plan, rival]));
-        }
-        // An object that carries none of a plan's keys and does not decode is an example.
-        assert!(!super::answer_shaped::<Proposal>(EXAMPLE, &["steps"]));
-    }
-
-    #[test]
-    fn the_syntax_path_judges_the_broken_answer_never_a_template() {
-        let broken = r#"{"steps": !}"#;
-        for text in [
-            format!("It uses ${{{{ with.content }}}}, then {broken}"),
-            format!("{{name}} {broken} {{{{ x }}}}"),
-            broken.to_owned(),
-        ] {
-            assert_eq!(super::syntax_target(&text), Some(broken), "{text}");
-        }
-        for text in ["{{ a }} {name}", "{\"steps\": [", "no object"] {
-            assert_eq!(super::syntax_target(text), None, "{text}");
-        }
-    }
-}
+mod retrieval_choice_tests;
+#[cfg(test)]
+mod tests;

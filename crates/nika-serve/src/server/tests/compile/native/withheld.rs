@@ -11,12 +11,10 @@ use nika_kernel::secret::Secret;
 use super::refusals::operator;
 use super::*;
 
-/// A candidate for [`INTENT`] whose infer prompt carries `text`.
+/// The private plan for [`INTENT`] whose draft detail carries `text`: the field the compiler
+/// reads into the document it answers.
 fn echoing(text: &str) -> String {
-    native_answer(&candidate(RUN_MODEL, false).replace(
-        "inventing nothing",
-        &format!("inventing nothing, signed {text}"),
-    ))
+    plan_answer(&format!("{DRAFT}, signed {text}"), &[])
 }
 
 async fn answered_with(authoring: NativeAuthoring) -> WireResponse {

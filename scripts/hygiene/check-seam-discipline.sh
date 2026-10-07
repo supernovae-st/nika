@@ -154,11 +154,11 @@ for crate in "${SCANNED_CRATES[@]}"; do
         violation_log+="$(echo "$hits" | head -3 | sed 's/^/    /')\n"
       fi
     done
-    # `tests.rs` is excluded by basename and a `#[cfg(test)]`-declared module
-    # file by declaration, mirroring `rs_prod_files` — the same rule clippy's
-    # own scoping uses, and the same one the four sibling ratchets apply.
+    # `tests.rs` and tests/ descendants are excluded like `rs_prod_files`;
+    # test-only modules elsewhere are excluded by declaration. The shared
+    # inventory omits tests/ before computing the declared-module list.
   done < <(find "$src_dir" -name '*.rs' 2>/dev/null \
-    | grep -vE '(^|/)tests\.rs$' | drop_test_only_files)
+    | grep -vE '(^|/)tests(/|\.rs$)' | drop_test_only_files)
 done
 
 if [ "$violations" -gt 0 ]; then

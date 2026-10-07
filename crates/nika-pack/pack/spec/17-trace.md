@@ -119,7 +119,7 @@ re-meant:
 `checkpoint_written` · `cost_incurred` · `infer_chunk` ·
 `permit_checked` · `lift` · `run_sealed` ·
 `agent_tools_selected` · `agent_nudge` · `agent_stalled` ·
-`agent_compose_checked` · `agent_budget_checkpoint`
+`agent_compose_checked` · `agent_budget_checkpoint` · `agent_image_observed`
 
 Per-task terminal frames carry the task's witness fields (the observed
 `task_completed`: `task` · `note` · `duration_ms` · `def_hash` ·
@@ -202,6 +202,30 @@ limits for an individual oversized row, a task output or the whole journal;
 it never truncates rows to manufacture complete evidence. Inline tables
 remain valid. An older verifier can ignore the new kind and still check
 the chain; an older item reader may report the paged table as unrecorded.
+
+### Harness image observations (additive)
+
+`agent_image_observed` is diagnostic Agent-class evidence, never a task
+terminal, permission decision, invoice or proof of a peer's saved file. Each
+frame carries `task`, `attempt`, optional `iteration`, and `harness_image`: one
+compact JSON observation with source, received-byte digest/size/MIME, the
+local blob locator when stored, and `storage`: `stored`, `failed`, `none`
+(path-only) or `unconfirmed` (bytes received, no store answer observed, for
+instance a cancelled task; a blob may or may not exist). It carries no inline
+image payload. A peer-reported savedPath stays a claim, never file authority.
+
+A task terminal (completed, failed or skipped) carries `harness_media_count`,
+closing the image sequence of that observation leg; it carries no aggregate of
+the rows, so a large fan-out keeps every observation in its own bounded frame.
+A reader claiming complete image evidence checks the count against the frames
+it folded; a missing count after frames, a mismatch or a malformed frame leaves
+the evidence incomplete. A UI sample names the exact total and any missing
+evidence. Existing 1 MiB journal-line limits are unchanged.
+
+A harness task terminal MAY carry `model_reported` and `model_reported_source`
+(`session_config` · `confirmed_selection` · `accepted_request` ·
+`unspecified`): the session model the harness reported. It is not
+`model_served`, which stays a response attestation.
 
 ## The permit witness (normative · REQUIRED · NEP-0007)
 

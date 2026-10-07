@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+use serde_json::Value;
 use std::collections::BTreeMap;
 
 /// One stateless authoring request. Answers belong to this request, never a chat session.
@@ -30,6 +31,13 @@ pub struct CompileRequest {
     /// The operator states money in the words the compiler reads, on a door that meters no
     /// seat (R4 B15) — see [`Self::with_stated_money`].
     pub stated_money: bool,
+    /// The host meters and shows this preparation's authoring and decision calls itself: an
+    /// admitted ceiling bounds the workflow's Run, never the preparation — see
+    /// [`Self::with_observed_preparation`].
+    pub observed_preparation: bool,
+    /// The verdicts that rejected candidate bytes in earlier rounds of the same conversation, as
+    /// the host kept them — see [`Self::with_declined`].
+    pub declined: Vec<serde_json::Value>,
 }
 
 /// One reference a knowledge snapshot recalled for the seat: its kind (`pattern` · `block` ·
@@ -111,12 +119,14 @@ impl CompileRequest {
     }
     /// Replay the private semantic plan a previous round produced for the SAME intent:
     /// `plan` is the exact `provenance.plan` value of that outcome. The compiler then skips
-    /// reading, decision seats and generative proposals entirely and assembles this plan
-    /// with the request's answers, so every answer round of one authoring conversation
-    /// reaches the same candidate with zero provider calls. The caller guarantees the
-    /// intent is unchanged; the intent's sha256 is recorded in provenance either way. A
-    /// plan that does not parse, is not anchored in the intent or still carries unknown
-    /// work is a finding, never a candidate. Skeletons, `hello` and EDIT ignore it.
+    /// reading and generative proposals and assembles this plan with the request's answers,
+    /// so every answer round of one authoring conversation reaches the same candidate with no
+    /// authoring call. Every plan but the reader's own HOT plan is READY only on a judgment of
+    /// the replayed bytes made in the round: the round's judge (its decision seat, else its
+    /// authoring provider) is asked, and a round with no judge stays INCOMPLETE. The caller
+    /// guarantees the intent is unchanged; the intent's sha256 is recorded in provenance
+    /// either way. A plan that does not parse, is not anchored in the intent or still carries
+    /// unknown work is a finding, never a candidate. Skeletons, `hello` and EDIT ignore it.
     #[must_use]
     pub fn with_plan(mut self, plan: serde_json::Value) -> Self {
         self.plan = Some(plan);
@@ -166,6 +176,26 @@ impl CompileRequest {
         self.stated_money = true;
         self
     }
+    /// The host meters and shows every authoring and decision call of this preparation itself
+    /// (an interactive door with its own journal): a monetary ceiling the caller admitted is the
+    /// workflow Run's — recorded, read by no seat as work, enforced where the workflow runs —
+    /// and no longer closes the seats that prepare it. Without it an admitted zero opens no
+    /// seat; a door that meters no seat ([`Self::with_stated_money`]) keeps its own law.
+    #[must_use]
+    pub fn with_observed_preparation(mut self) -> Self {
+        self.observed_preparation = true;
+        self
+    }
+    /// Carry the verdicts that rejected candidate bytes in earlier rounds of the same
+    /// conversation (each a `semantic_verification` attempt of an earlier outcome, `rejected`
+    /// true): a judge of this compile is never asked again on bytes it already rejected (R6);
+    /// the verifier repeats that verdict with no call. Data the host kept, never a judgment that
+    /// carries anything: a carried verdict can only keep bytes from READY.
+    #[must_use]
+    pub fn with_declined(mut self, attempts: Vec<serde_json::Value>) -> Self {
+        self.declined = attempts;
+        self
+    }
     /// The same request with `text` as its complete input: a clarification or any replacement
     /// the caller answered. The monetary spans it admitted index the bytes it read, so they stay
     /// only when `text` is those very bytes; a replacement never inherits them, whatever its own
@@ -195,6 +225,8 @@ impl CompileRequest {
             original_intent: None,
             money: Vec::new(),
             stated_money: false,
+            observed_preparation: false,
+            declined: Vec::new(),
         }
     }
 
@@ -220,6 +252,8 @@ impl CompileRequest {
             original_intent: None,
             money: Vec::new(),
             stated_money: false,
+            observed_preparation: false,
+            declined: Vec::new(),
         }
     }
 
@@ -256,6 +290,8 @@ impl CompileRequest {
             original_intent: None,
             money: Vec::new(),
             stated_money: false,
+            observed_preparation: false,
+            declined: Vec::new(),
         }
     }
 
@@ -341,6 +377,26 @@ pub struct CompileQuestion {
     pub mandatory: bool,
     /// The admissible answers of a [`QuestionType::Choice`] question; empty for any other.
     pub options: Vec<ChoiceOffer>,
+}
+
+impl CompileQuestion {
+    /// Read an answer line under this question's shape. Literal accepts any JSON;
+    /// Text and Choice accept a JSON string or the trimmed line as a string.
+    #[must_use]
+    pub fn literal_for(&self, line: &str) -> String {
+        let line = line.trim();
+        let already = match self.answer_type {
+            QuestionType::Literal => serde_json::from_str::<Value>(line).is_ok(),
+            QuestionType::Choice | QuestionType::Text => {
+                matches!(serde_json::from_str::<Value>(line), Ok(Value::String(_)))
+            }
+        };
+        if already {
+            line.to_owned()
+        } else {
+            Value::String(line.to_owned()).to_string()
+        }
+    }
 }
 
 /// What happened to a requested part of authoring.
@@ -449,8 +505,8 @@ impl Strategy {
     }
 }
 
-/// When the native strategy (a seat-written candidate judged by the parser, the Check and the
-/// fidelity laws) is engaged for a free intent.
+/// When a seat's semantic door (the sketch and its fills; the compiler writes the source) joins
+/// the private plan for a free intent; a revision may still be written by the native seat.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum NativeMode {
@@ -459,10 +515,10 @@ pub enum NativeMode {
     #[default]
     Off,
     /// After the private plan ends without a candidate, fails the fidelity laws or hands
-    /// the human a machine's problem (a rewrite, a jq expression, a glob).
+    /// the human a machine's problem (a rewrite, a jq expression, a glob): the sketch door.
     Escalate,
-    /// Straight to the native candidate, before the deterministic door and without the
-    /// private plan (the ablation, and the arena's treatment D).
+    /// Retired for a creation: no request is sent and the outcome names `escalate` or `sketch`;
+    /// a revision and the replay of a recorded source keep the native door.
     Only,
     /// Straight to the sketch door: the seat proposes structure (tasks, edges, gates, the
     /// stated paths and hosts), judged before a word is written; then fills the typed holes;
@@ -529,17 +585,45 @@ impl AuthoringReasoning {
 pub struct AuthoringPolicy {
     pub model: String,
     pub max_tokens: u32,
-    /// Optional first native output limit, within `max_tokens`. A reported truncation
-    /// can raise it using the existing repair count, never beyond the hard ceiling.
+    /// Optional first output limit of each authoring call, within `max_tokens`. A reported
+    /// truncation below the hard ceiling asks the same call once more at `max_tokens`
+    /// (one more request, journaled and charged to the same authority), never beyond it.
     pub initial_max_tokens: Option<u32>,
     pub timeout: std::time::Duration,
     pub samples: u32,
     pub native: NativeMode,
-    pub repairs: u32,
+    /// The repair rounds a candidate may buy: `Some(n)`, a limit the caller selected, run as
+    /// typed; `None` (the default), no count: the rounds end on success, on no progress (a set
+    /// of findings already answered), on a refused or failed call (the request authority, the
+    /// provider) or when the caller stops the compile.
+    pub repairs: Option<u32>,
     /// The explicit reasoning effort every authoring and decision call asks for (R4 B16).
     pub reasoning: Option<AuthoringReasoning>,
+    /// Source recovery rounds an operator explicitly configured (default 0: none), as typed.
+    pub source_recovery: u32,
 }
 impl AuthoringPolicy {
+    /// After the sketch door spends its repairs on a CREATE without an accepted candidate, let
+    /// the same seat write the whole source up to `rounds` times, as typed, each answer judged
+    /// as any candidate and charged to the same request authority. Never a default.
+    #[must_use]
+    pub fn with_source_recovery(mut self, rounds: u32) -> Self {
+        self.source_recovery = rounds;
+        self
+    }
+    /// The source recovery rounds an operator's word names under `strategy` (none named: 0): any
+    /// count, as typed, and rounds only where the sketch door opens (`escalate`, `sketch`).
+    ///
+    /// # Errors
+    /// The word itself, when it is no count or names rounds under `off` or `only`.
+    pub fn recovery_rounds(word: Option<&str>, strategy: NativeMode) -> Result<u32, String> {
+        let Some(word) = word else { return Ok(0) };
+        let rounds = word.trim().parse::<u32>().ok();
+        let opens = !matches!(strategy, NativeMode::Off | NativeMode::Only);
+        rounds
+            .filter(|n| *n == 0 || opens)
+            .ok_or_else(|| word.to_owned())
+    }
     /// Ask every authoring and decision call for this reasoning effort (R4 B16): sent only on a
     /// route whose catalog qualifies it, refused before any request elsewhere. The output cap
     /// stays the policy's own.
@@ -554,24 +638,38 @@ impl AuthoringPolicy {
         self.native = native;
         self
     }
-    /// Start native generation below the hard output limit; a completed truncation may
-    /// use a repair to increase it. Zero or a value above `max_tokens` is refused.
+    /// Start each authoring call below the hard output limit; a reported truncation asks the
+    /// same call once more at `max_tokens`. Zero or a value above `max_tokens` is refused.
     #[must_use]
     pub fn with_initial_max_tokens(mut self, initial: u32) -> Self {
         self.initial_max_tokens = Some(initial);
         self
     }
-    /// How many repair rounds a native candidate may buy (0..=5, default 3): one call each.
+    /// A caller-selected limit on the repair rounds a candidate may buy, run as typed: one
+    /// call each. Without it the policy states no count ([`Self::with_unbounded_repairs`]).
     #[must_use]
     pub fn with_repairs(mut self, repairs: u32) -> Self {
-        self.repairs = repairs.min(5);
+        self.repairs = Some(repairs);
         self
     }
-    /// Ask for `samples` independent proposals (1..=5) and keep the one the others agree
-    /// with most; disagreement is recorded, never voted away. Each sample is one call.
+    /// No count bounds the repair rounds (the default): they end on success, on no progress,
+    /// on a refused or failed call, or when the caller stops the compile.
+    #[must_use]
+    pub fn with_unbounded_repairs(mut self) -> Self {
+        self.repairs = None;
+        self
+    }
+    /// The repair limit the caller selected, `None` when it selected none.
+    #[must_use]
+    pub const fn repair_limit(&self) -> Option<u32> {
+        self.repairs
+    }
+    /// Ask for `samples` independent proposals, as typed, and keep the one the others agree
+    /// with most; disagreement is recorded, never voted away. Each sample is one call under
+    /// the caller's request authority. Zero is invalid, never silently raised to one.
     #[must_use]
     pub fn with_samples(mut self, samples: u32) -> Self {
-        self.samples = samples.clamp(1, 5);
+        self.samples = samples;
         self
     }
     /// Permit one call with an explicit model, output-token cap and timeout.
@@ -585,8 +683,9 @@ impl AuthoringPolicy {
             timeout,
             samples: 1,
             native: NativeMode::default(),
-            repairs: 3,
+            repairs: None,
             reasoning: None,
+            source_recovery: 0,
         }
     }
 }

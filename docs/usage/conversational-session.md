@@ -204,6 +204,31 @@ the deterministic compiler no longer settles the request alone. Nika then asks
 you to choose an AI and writes the workflow with it. Review that proposal the
 same way: the saved workflow can still compute its results without a model.
 
+Before Nika proposes a workflow an AI wrote, a verifier compares it with your
+whole request: the decision model when one is selected, otherwise the AI that
+wrote it. When the verifier doubts the workflow, it is asked about each part of
+your request alone and, for a part it finds missing, which step fails it or
+whether no step performs it. A prohibition such as « need no time-zone
+conversion » is never a step to add: the verifier can only name a step that
+breaks it. Nika repairs the workflow from a defect the verifier points to that
+way, and proposes nothing until the verifier accepts it. A doubt that points to
+no defect is never repaired from: Nika says the workflow is built but not
+proposed, writes nothing, and names what can decide it, a correction or another
+model with `/intelligence`. While you keep working on the same request in the
+session, a workflow the verifier rejected is not put to it again, even when a
+later attempt writes the very same workflow: its rejection stands. A correction
+changes the request, so the verifier judges the corrected request afresh. When
+the verifier abstains, neither accepting nor rejecting the workflow, Nika holds
+it the same way, and a later attempt may ask the verifier again. During
+preparation, the configured verifier also reads what the workflow read and wrote
+when Nika tried it on copies of your files: when that trial run wrote every
+output it was read for, it can settle the parts the verifier left open that
+your files exercise, then the whole request when they exercise every part of
+it. A case your files never exercise stays undecided, and a trial run never
+clears a defect the verifier found in the workflow itself. When the verifier
+could not answer at all, Nika keeps the workflow unproposed; when it offers
+`continue`, that asks the verifier again.
+
 ## A result that depends on the model: summarize notes
 
 Add a notes file to the same folder:
@@ -282,6 +307,21 @@ clause by clause.
 
 ## Inspect the result
 
+In the workspace, the run object has Run, Outputs, Files and Proof faces. Focus
+that region with `F6`, use Left/Right to change face, and `r` to read again.
+Outputs are the resolved values recorded beside the run's terminal settlement. Files shows up to eight
+files the run reported writing, read now (at most 1 MiB each). Those current
+bytes are not certified as the bytes written by the run.
+
+Proof captures up to 8 MiB of the journal and verifies those bytes. It shows
+separately whether execution, source and receipt match the selected run. A
+missing or conflicting identity stays unbound; a seal declared by the run is
+not a verified signature. The verdict checks the record, not business success.
+A refused or unavailable read stays visible; use `nika trace verify` for a
+journal above the workspace's interactive cap.
+Custody key files must themselves be regular files; a linked key file is
+refused as unavailable, even when its parent directory is a link.
+
 After a run, the Session lists what the run produced and read, the model usage
 it recorded, and the path of its trace.
 
@@ -320,28 +360,35 @@ instead proposes it again against the current project, as described above.
 Neither path restores consent, Run authority or a spending allowance.
 
 Reopening restores the conversation's goal, decisions, open questions and
-recent turns. Earlier approvals and approval answers do not carry over, and
+recent turns. The workspace repaints retained turns as history and reopens the
+last observed run as evidence. Opening Run, Outputs or Files reads and verifies
+its journal. When that reading belongs to the run and the host accepts it, the
+view shows recorded task rows, outputs and reported file names. Files are read
+now; an older journal may have no outputs map. A refused or unbound reading
+leaves the missing information explicit, and Proof keeps its verdict and reason.
+Nothing is replayed. Earlier approvals and approval answers do not carry over, and
 neither does a ceiling agreed for a saved file. To run a workflow saved in an
 earlier Session, name its ceiling:
 `run compiled-workflow.nika with a ceiling of 0.25`.
 
-## Spending
+## Spending and continued preparation
 
-- With no amount stated, the Session puts no allowance on authoring. On routes
-  the catalog prices exactly, such as DeepSeek's native endpoints, each
-  authoring call is recorded with its catalog cost estimate. Other routes are
-  not observed that way.
-- To bound authoring, state an amount in the request, for example
-  `… budget 0.50 dollars`. On an exactly priced route, each call reserves its
-  worst case at the catalog price, and the Session sends nothing the amount
-  cannot cover. Routes it cannot price that way are refused before any paid
-  call: other providers, custom gateways, streaming, tools, subscriptions and
-  unpriced local computation.
-- Authoring with a provider model is bounded per call: 180 seconds, an initial
-  limit of 16,384 output tokens that can rise to 32,768 after a truncation, and
-  at most three repairs. A call whose delivery is uncertain is not replayed.
-- Catalog estimates are not invoices. Your provider's bill is the reference.
-- The run ceiling is separate from authoring (see above).
+The interactive CLI and TUI keep chat, workflow creation, revision and repair
+open without an implicit total call, repair, token or spending allowance.
+Reported and unknown costs remain visible. Reopening preserves earlier exposure
+without treating it as fresh credit or asking for a new creation allowance.
+
+One provider request still has its selected route's completion capacity and
+transport deadline. These are not a total Session budget. Ordinary continuous
+chat requests the route's full output capacity; a provider-reported truncated
+reply is explicitly shown as incomplete. User Stop remains available. A numeric
+constraint for a workflow belongs to its separate Save/Run review and execution;
+it must not silently become a limit on designing or discussing that workflow.
+
+Catalog estimates are not invoices. The installed provider and model must support
+the selected operation; an unavailable service is reported without fabricating a
+result. The lower-level bounded embedding APIs retain their explicitly selected
+contracts; they do not describe the interactive preparation defaults.
 
 **Run provider limits in 0.121.0.** A price shown in the model catalog is not
 enough to admit an OpenAI-compatible API route automatically. The qualified
@@ -367,7 +414,7 @@ startup file as your key. The walkthroughs above need none of them.
 
 | Variable | Effect |
 |---|---|
-| `NIKA_AUTHORING_STRATEGY` | When the model writes the workflow itself: `escalate` (default), `only`, `sketch` or `off` |
+| `NIKA_AUTHORING_STRATEGY` | Compatibility routing: `escalate` (default) starts with Plan and can continue through Sketch and eligible recovery; `sketch` starts with Sketch; `off` keeps the older Plan route. Rust assembles the semantic proposal. `only` remains for historical paths and is refused for a new CREATE |
 | `NIKA_KNOWLEDGE` | An optional Foundry release root; the environment carries no trusted identity, so a named root is refused with `ADMISSION_UNTRUSTED`. Unset uses the embedded release; the exact word `off` disables knowledge |
 | `NIKA_KNOWLEDGE_EXCLUDE` | A corpus whose examples are never recalled from the selected release, including the embedded default |
 | `NIKA_SESSION_DECISION_MODEL` | An optional decision model; only `typesafe/<model>` (Jev) is supported, with `TYPESAFE_API_KEY` |
@@ -392,14 +439,37 @@ falls back to the embedded release. A release that changes after it was pinned
 is also refused before authoring. `/details` records what was actually presented,
 separately from the release available to the Session.
 
-**Jev.** The decision model is consulted only when the compiler faces a finite
-choice it cannot settle alone. For example: does a clause ask for a search, a
-lookup or neither? The compiler checks the answer against the options it
-offered. A compile makes at most three such calls, 20 seconds each, with no
-retry. They happen only under an API authoring model with no stated spending
-amount. Their cost is unknown and recorded separately, never counted as zero.
-Jev does not select knowledge, write workflows or grant permissions. TypeSafe
-is a third-party service with its own account and terms.
+**Jev.** The selected decision model answers finite compiler questions: interpreting
+an ambiguous clause, ranking feasible plans and judging fidelity to the request. It
+judges the whole request first. Only when it doubts the workflow does it answer more:
+one question per part of the request, then, as needed, which step fails a part it found
+missing, which step does something the request does not ask, and what a trial run
+produced. The compiler validates every answer against the offered options; an abstention
+or failed consultation is not a successful judgment. Within one compilation, a workflow
+it declined is not put to it again, and a workflow it rejected is not put to it again for
+the rest of that request's rounds in the session: its earlier answer stands. The current
+adapter makes one attempt per consultation, with a 20-second deadline and no transport
+retry, so a doubted workflow takes several consultations in sequence. Interactive
+preparation has no implicit three-call ceiling. The same compiler capability accompanies
+API, native subscription and ACP authors; this wiring does not establish equal end-to-end
+qualification for every provider. Usage is recorded separately, and unknown monetary cost
+remains unknown.
+
+**Trial runs.** While it prepares a workflow, Nika may try it in a sealed room on
+copies of your files. The configured verifier receives the relevant trial inputs and
+results by default, as ordinary preparation context, with no separate sharing switch or
+confirmation. The current room retains up to 64 KiB per file and explicitly marks partial
+observations; a partial result, or an output the run did not write, does not prove a whole
+output. The decision model when selected, otherwise the authoring model, receives this
+evidence once it doubts the workflow. Records retain paths, sizes and digests rather than
+duplicating the texts. This preparation does not start the workflow's live Run; its
+`.nika` execution rules remain separate.
+
+The current adapter does not perform Foundry retrieval. Cooperative knowledge
+search and qualification are part of the accepted
+[0.123 target](../architecture/ARCHITECTURE-0.123.md), still requiring implementation
+and qualification. Jev does not write workflows or grant execution authority.
+TypeSafe is a third-party service with its own account and terms.
 
 ## Limits
 

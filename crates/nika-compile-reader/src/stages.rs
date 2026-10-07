@@ -160,7 +160,8 @@ static ON_WORDS: LazyLock<Vec<&str>> = LazyLock::new(|| table("on_words"));
 static RESTRICTION_WORDS: LazyLock<Vec<&str>> = LazyLock::new(|| table("restriction_words"));
 
 /// A folded word that restricts the material or conditions an operation (R4 A11).
-pub(crate) fn restriction_word(folded: &str) -> bool {
+#[must_use]
+pub fn restriction_word(folded: &str) -> bool {
     RESTRICTION_WORDS.contains(&folded)
 }
 
@@ -301,7 +302,8 @@ pub(crate) fn lead_stage(text: &str, columns: &[String]) -> Option<Shape> {
 
 /// A word that states a stage of its own (a count, a sort, a rank, a removal of duplicates, a
 /// join, a rename): never a word the lead of a filter drops (R4 F1).
-pub(crate) fn operation_word(folded: &str) -> bool {
+#[must_use]
+pub fn operation_word(folded: &str) -> bool {
     [
         &COUNT_VERBS,
         &SORT_VERBS,
@@ -324,7 +326,8 @@ pub(crate) fn lead_word(folded: &str) -> bool {
 }
 
 /// A verb that keeps the rows it describes (« keep », « garde », « conserva », « behalte »).
-pub(crate) fn keep_lead(folded: &str) -> bool {
+#[must_use]
+pub fn keep_lead(folded: &str) -> bool {
     KEEP_LEADS.contains(&folded)
 }
 
@@ -867,7 +870,10 @@ mod tests {
             "keep_leads",
             "keep keeps garde gardez garder conserve conservez conserver retain retains retiens retenez select selects take prends prenez ne n conserva mantieni manten behalte behalten",
         ),
-        ("only_words", "only que seulement just solo soltanto nur"),
+        (
+            "only_words",
+            "only que seulement just solo soltanto nur uniquement exactly exactement",
+        ),
         (
             "topn_fillers",
             "with having by avec au a aux con por per dal dalla del della mit plus most the value values valeur valeurs first d'abord en premier primero prima zuerst primeiro",

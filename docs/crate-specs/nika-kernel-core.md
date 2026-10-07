@@ -69,6 +69,36 @@ without touching operation counters, including the Send backend's generated
 base implementation. These are interface/default checks, not real IO or
 runtime cancellation tests.
 
+`FsWrite::remove_regular_file(path)` is a second provided method on the same
+terms, also present on `FsWriteDyn`. It removes only the regular file the path
+names: an absent name is `FsError::NotFound`, a symlink as the final name is
+`SymlinkRefused` (neither the link nor its target is touched), and a
+directory, a special node or a path that names no final file (empty, root,
+`.`, `..`, a trailing separator) is `InvalidData`. The file's content is never
+opened or read and no parent is created. It is distinct from `remove_file`,
+whose raw unlink of any non-directory name, symlinks included, is unchanged.
+
+The default returns `FsError::Io` immediately without invoking any other
+method. Backends implementing only the three required methods remain
+source-compatible and refuse regular-only removals until they override it;
+they must never approximate it with `metadata` (which follows links) followed
+by `remove_file`. Backend wrappers must forward the method, or they keep the
+refusing default even when their inner backend implements it. The trait adds
+no new error variant, type or code, and no workflow builtin is attached to it
+by this addition.
+
+Implementations classify the final name and then unlink it: two steps, not
+an atomic compare-and-remove of one inode. A name substituted between them may
+be removed in its place, a substituted symlink being unlinked, never followed.
+Dropping the future does not prove the removal stopped. No transaction,
+rollback, durability or retry is implied.
+
+`io/fs/remove_default_tests.rs` defines separate base and Send backends with
+only the three required methods and checks, by immediate polling, that the new
+method refuses on both (and on the Send backend's generated base
+implementation) with every operation counter still zero, then that the three
+required operations remain callable.
+
 ## HTTP attempt capability
 
 The additive default-false `HttpPost::supports_single_attempt()` attests that

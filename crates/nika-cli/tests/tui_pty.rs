@@ -19,6 +19,13 @@
 //! viewport anchors on a cursor-position report (`ESC[6n`, answered here
 //! with row 24), and raw mode reads Enter as `\r`.
 
+#[path = "../../nika-tui/tests/qa_support/vt.rs"]
+#[allow(
+    dead_code,
+    reason = "the inline suite reads part of the shared VT screen"
+)]
+mod vt;
+
 use std::io::Write as _;
 use std::path::Path;
 use std::process::Command;
@@ -157,7 +164,7 @@ fn the_renderer_takes_a_sentence_to_a_file_and_gives_the_terminal_back() {
         .expect("the proposal names the file it would write");
     // The diff renderer skips the cell the two prompts share: assert on the
     // word, never on the whole prompt.
-    session.expect("apply?").expect("the consent prompt");
+    session.expect("Save?").expect("the consent prompt");
     session.send("oui\r").expect("consent");
     session
         .expect("compiled-workflow.nika")
@@ -397,7 +404,7 @@ fn a_resize_while_a_proposal_waits_redraws_the_consent_prompt() {
         .send("Lis ./notes/brief.md et écris-le dans ./out/copie.md\r")
         .expect("the intent");
     answer_until(&mut session, &tee, 24, "compiled-workflow.nika");
-    answer_until(&mut session, &tee, 24, "apply?");
+    answer_until(&mut session, &tee, 24, "Save?");
     assert!(
         tee.saw("· action required"),
         "the title says « action required » while the consent waits"
@@ -409,7 +416,7 @@ fn a_resize_while_a_proposal_waits_redraws_the_consent_prompt() {
             .expect("resize");
         // The inline viewport re-anchors on a fresh cursor report, then
         // draws the same waiting state at the new size.
-        answer_until(&mut session, &tee, rows, "apply?");
+        answer_until(&mut session, &tee, rows, "Save?");
     }
     session.send("non\r").expect("discard");
     answer_until(&mut session, &tee, 40, "nika ›");
@@ -853,12 +860,20 @@ fn ascii_keeps_the_renderer_in_its_twins_and_plain_keeps_the_loop() {
             "--ascii never reached the renderer ({probe:?}): {ascii:?}"
         );
     }
-    for twin in [
-        "describe work - /help - Ctrl+T switches the view",
-        "\x1b]0;nika - ",
-    ] {
-        assert!(ascii.contains(twin), "no ASCII twin `{twin}`: {ascii:?}");
-    }
+    // Ratatui may position each word separately; the complete hint must be
+    // visible on the reconstructed screen, not contiguous in the raw stream.
+    let mut screen = vt::Screen::new(80, 24);
+    screen.feed(ascii.as_bytes());
+    let hint = "describe work - /help - Run: run <file>.nika";
+    assert!(
+        screen.contains(hint),
+        "no complete ASCII hint `{hint}` on screen:\n{}",
+        screen.text()
+    );
+    assert!(
+        ascii.contains("\x1b]0;nika - "),
+        "no ASCII OSC title: {ascii:?}"
+    );
     assert!(!ascii.contains("nika ›"), "the Unicode prompt: {ascii:?}");
     // The Session's words at open: what the plain loop says before its
     // prompt (the banner and its notices) and the fresh lifecycle rail.
@@ -877,4 +892,64 @@ fn ascii_keeps_the_renderer_in_its_twins_and_plain_keeps_the_loop() {
         strays.is_empty(),
         "--ascii wrote {strays:?}, which no word of the Session carries: {ascii:?}"
     );
+}
+
+/// A second workspace cannot claim the first session's history. Its refusal
+/// remains on the normal terminal after restoration and leaves the holder usable.
+#[test]
+fn a_locked_history_refusal_survives_fullscreen_exit_and_preserves_its_owner() {
+    let (project, home) = rig("locked-history");
+    let (mut owner, owner_tee) = spawn_sized(project.path(), home.path(), 120, 40);
+    answer_until(&mut owner, &owner_tee, 40, "nika ›");
+    owner.send("/hel").expect("type without submitting");
+    let (mut refused, tee) = spawn_sized_with(
+        project.path(),
+        home.path(),
+        120,
+        40,
+        &[("NIKA_TUI", "workspace")],
+    );
+    answer_until(
+        &mut refused,
+        &tee,
+        40,
+        "cannot exclusively open conversation history",
+    );
+    refused
+        .expect(Eof)
+        .expect("refusal needs no keypress to close");
+    assert_ne!(
+        exit_code(&mut refused),
+        0,
+        "an opening refusal is a failed exit"
+    );
+    // One diagnostic may span several PTY reads; logging adds a wrapper per read.
+    let text = tee
+        .text()
+        .lines()
+        .filter_map(|line| {
+            line.strip_prefix("read: \"")
+                .and_then(|s| s.strip_suffix('"'))
+        })
+        .collect::<String>()
+        .replace("\\u{1b}", "\x1b");
+    let restored = text
+        .rfind("\x1b[?1049l")
+        .expect("alternate screen restored");
+    let diagnostic = text
+        .rfind("nika: session could not open:")
+        .unwrap_or_else(|| panic!("visible refusal: {text:?}"));
+    assert!(
+        restored < diagnostic,
+        "refusal is printed after restoration: {text:?}"
+    );
+    assert!(tee.saw("\x1b[?2004l") && tee.saw("\x1b[?25h"));
+    // Complete the draft typed before the rejected sibling opened.
+    owner.send("p\r").expect("holder still has its draft");
+    answer_until(&mut owner, &owner_tee, 40, "/intelligence");
+    owner
+        .send("/quit\r")
+        .expect("close the original owner normally");
+    owner.expect(Eof).expect("owner closes");
+    assert_eq!(exit_code(&mut owner), 0);
 }

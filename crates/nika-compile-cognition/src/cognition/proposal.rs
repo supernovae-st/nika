@@ -15,12 +15,14 @@ use crate::words::{
     serialization_draft,
 };
 use crate::{CompileOutcome, DiagnosticKind, QuestionType, lexicon::Reading};
-use nika_kernel::ai::provider::{ContentBlock, InferResponse, StopReason};
+use nika_kernel::ai::provider::{InferResponse, StopReason};
 use serde::Deserialize;
 
 mod effects;
 mod material;
+mod occurrences;
 mod seat_rules;
+pub(super) use occurrences::{Composition, Merged, merged};
 pub(super) use seat_rules::told;
 
 #[derive(Deserialize)]
@@ -317,12 +319,8 @@ fn overlap_fold(text: &str) -> String {
 }
 
 pub(super) fn decode(response: &InferResponse, out: &mut CompileOutcome) -> Option<Proposal> {
-    let text = match response.content.as_slice() {
-        [ContentBlock::Text { text }]
-            if text.len() <= 65_536 && response.stop_reason == StopReason::EndTurn =>
-        {
-            text
-        }
+    let text = match crate::decide::answer_text(response) {
+        Some(text) if text.len() <= 65_536 => text,
         _ if response.stop_reason == StopReason::MaxTokens => {
             // A reasoning seat spends part of its output cap on its reasoning: 16 of 52
             // gpt-5-mini proposals stopped at exactly 4000 output tokens (eco-60, 2026-09-22).
@@ -336,7 +334,7 @@ pub(super) fn decode(response: &InferResponse, out: &mut CompileOutcome) -> Opti
                 DiagnosticKind::Unknown,
                 "authoring_provider",
                 format!(
-                    "The seat stopped at {spent} output cap before the plan was complete (a reasoning seat spends part of the cap on its reasoning). Raise --authoring-max-tokens (up to 32768) or seat a model that reasons less; nothing partial was assembled."
+                    "The seat stopped at {spent} output cap before the plan was complete (a reasoning seat spends part of the cap on its reasoning). Raise --authoring-max-tokens within the route's output capacity, or seat a model that reasons less; nothing partial was assembled."
                 ),
             );
             return None;
@@ -945,7 +943,7 @@ pub(super) fn only_a_place_and_a_law(detail: &str) -> bool {
 /// The proposal joins the deterministic reading; deterministic facts win every disagreement,
 /// and the proposal must account for every region of the request.
 #[allow(clippy::too_many_lines)] // one validation walk over steps, effects, obligations, regions
-pub(super) fn merge(
+fn merge(
     intent: &str,
     proposal: Proposal,
     reading: &Reading,

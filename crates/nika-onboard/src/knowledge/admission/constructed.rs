@@ -508,7 +508,12 @@ fn an_admitted_snapshot_presents_its_bytes_after_its_root_is_gone() {
 #[test]
 fn removing_realizes_edges_keeps_patterns_and_removes_blocks_from_the_pack() {
     use super::super::bundled;
-    let issued = bundled::identity().expect("issued");
+    let issued = super::TrustedIdentity::new(
+        "b787fc53d6858db43d55958daaf02539fadcad4feeacc17b63c5aefcb92cc32b",
+        "policy-r",
+        "d0471eeb904416dd411fde12244918771a5578ae1526f1e0a775b5d421087f36",
+    )
+    .expect("issued R3");
     let original = bundled::admit(Some(&issued)).expect("admitted");
     let mut files: Files = bundled::FILES
         .into_iter()

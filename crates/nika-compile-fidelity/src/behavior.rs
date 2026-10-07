@@ -59,6 +59,7 @@ use std::collections::BTreeMap;
 use nika_compile_reader::rules::NumberPolicy;
 
 mod accounting;
+mod composed;
 mod evaluate;
 mod formats;
 mod numbers;
@@ -73,7 +74,8 @@ pub use accounting::{Admission, Axis, Budget, Limits, Usage};
 pub use formats::{Coverage, Format};
 pub use numbers::Decimal;
 pub use pipeline::{
-    Aggregate, Filter, Naming, OnEmpty, Operand, Pipeline, Sort, Stages, Step, Test,
+    Aggregate, Arith, Derived, Filter, Naming, OnEmpty, Operand, Pipeline, Sort, Stages, Step,
+    Term, Test,
 };
 pub use provenance::{Production, Provenance, Written, contract_of_request, read_request};
 pub use requested::{contract_of, pipeline_of};
@@ -780,3 +782,6 @@ mod selection_tests;
 
 #[cfg(test)]
 mod copy_tests;
+
+#[cfg(test)]
+mod composed_tests;

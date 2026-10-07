@@ -5,10 +5,11 @@
 //!
 //! A fresh native round that leaves a native plan is kept here under an unpredictable token,
 //! beside the exact input it answered; the plan never travels through the caller. A later
-//! zero-call round presents the token and repeats that input. Bounded in entries and in bytes
-//! per entry, owned by ONE bound server (a restart forgets every token), expiring on the
-//! monotonic clock and never renewed by use. This is not a deduplication of paid work: a lost
-//! first answer leaves no token, and a new fresh round may spend again.
+//! zero-call round presents the token and repeats that input. No implicit entry, byte or
+//! lifetime quota: the whole input and plan are kept by ONE bound server (a restart forgets
+//! every token). An operator may explicitly limit entries and lifetime; an explicit expiry
+//! uses the monotonic clock and is never renewed by use. This is not a deduplication of paid
+//! work: a lost first answer leaves no token, and a new fresh round may spend again.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -19,14 +20,11 @@ use serde_json::Value;
 
 use super::v2::{Input, TOKEN_HEX};
 
-/// The most bytes one kept round holds: its input and its plan.
-pub(super) const MAX_ENTRY_BYTES: usize = 2 * 1024 * 1024;
-
 /// The kept rounds of one bound server.
 pub(in crate::server) struct Replays {
     inner: Mutex<Inner>,
-    capacity: usize,
-    ttl: Duration,
+    capacity: Option<usize>,
+    ttl: Option<Duration>,
 }
 
 #[derive(Default)]
@@ -38,9 +36,15 @@ struct Inner {
 
 /// One kept round: the exact input it answered and the plan it produced.
 pub(super) struct Entry {
-    expires: Instant,
+    kept_at: Instant,
     pub(super) input: Input,
     pub(super) plan: Value,
+}
+
+impl Entry {
+    fn live_at(&self, ttl: Option<Duration>, now: Instant) -> bool {
+        ttl.is_none_or(|ttl| now.saturating_duration_since(self.kept_at) < ttl)
+    }
 }
 
 /// A place held for the round a fresh request may leave, taken before any provider call:
@@ -48,7 +52,7 @@ pub(super) struct Entry {
 pub(super) struct Reservation(Option<Arc<Replays>>);
 
 impl Replays {
-    pub(super) fn new(capacity: usize, ttl: Duration) -> Arc<Self> {
+    pub(super) fn new(capacity: Option<usize>, ttl: Option<Duration>) -> Arc<Self> {
         Arc::new(Self {
             inner: Mutex::new(Inner::default()),
             capacity,
@@ -60,24 +64,37 @@ impl Replays {
         self.inner.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Hold a place for one round, or `None` when every place is kept or held. Expired
-    /// rounds are forgotten first: a later replay of their token refuses, never regenerates.
+    /// Hold a place for one round, or `None` when an explicit capacity is full. Rounds past
+    /// an explicit lifetime are forgotten first: a later replay refuses, never regenerates.
     pub(super) fn reserve(self: &Arc<Self>) -> Option<Reservation> {
         let mut inner = self.lock();
-        let now = Instant::now();
-        inner.entries.retain(|_, entry| entry.expires > now);
-        if inner.entries.len() + inner.reserved >= self.capacity {
+        if self.ttl.is_some() {
+            let now = Instant::now();
+            inner
+                .entries
+                .retain(|_, entry| entry.live_at(self.ttl, now));
+        }
+        if self
+            .capacity
+            .is_some_and(|capacity| inner.entries.len().saturating_add(inner.reserved) >= capacity)
+        {
             return None;
         }
-        inner.reserved += 1;
+        inner.reserved = inner.reserved.checked_add(1)?;
         Some(Reservation(Some(Arc::clone(self))))
     }
 
     /// The kept round a token names while it lives; its lifetime is never extended.
+    /// Forget the round `token` names: a candidate its judge did not accept is never replayed
+    /// to that judge again through it.
+    pub(super) fn forget(&self, token: &str) {
+        self.lock().entries.remove(token);
+    }
+
     pub(super) fn get(&self, token: &str) -> Option<Arc<Entry>> {
         let mut inner = self.lock();
         let entry = Arc::clone(inner.entries.get(token)?);
-        if entry.expires > Instant::now() {
+        if entry.live_at(self.ttl, Instant::now()) {
             return Some(entry);
         }
         inner.entries.remove(token);
@@ -95,17 +112,16 @@ impl Replays {
 }
 
 impl Reservation {
-    /// Keep this round under a new token. `None` — no replay promise — when the round exceeds
-    /// the per-entry bound or no randomness was available; the answer itself is unaffected.
+    /// Keep this whole round under a new token. `None` — no replay promise — only when no
+    /// randomness was available; the answer itself is unaffected.
     pub(super) fn keep(mut self, input: Input, plan: Value) -> Option<String> {
         let replays = self.0.take()?;
-        let bytes = input.bytes() + plan.to_string().len();
-        let token = (bytes <= MAX_ENTRY_BYTES).then(token).flatten();
+        let token = token();
         let mut inner = replays.lock();
         inner.reserved = inner.reserved.saturating_sub(1);
         let token = token?;
         let entry = Entry {
-            expires: Instant::now() + replays.ttl,
+            kept_at: Instant::now(),
             input,
             plan,
         };
@@ -151,7 +167,7 @@ mod tests {
 
     #[test]
     fn a_kept_round_is_found_by_its_token_only_and_holds_its_place() {
-        let replays = Replays::new(2, Duration::from_secs(60));
+        let replays = Replays::new(Some(2), Some(Duration::from_secs(60)));
         let token = replays
             .reserve()
             .expect("a place")
@@ -177,7 +193,7 @@ mod tests {
 
     #[test]
     fn an_expired_round_is_forgotten_and_frees_its_place() {
-        let replays = Replays::new(1, Duration::from_millis(30));
+        let replays = Replays::new(Some(1), Some(Duration::from_millis(30)));
         let token = replays
             .reserve()
             .expect("a place")
@@ -190,14 +206,58 @@ mod tests {
     }
 
     #[test]
-    fn a_round_beyond_the_entry_bound_leaves_no_token_and_no_hold() {
-        let replays = Replays::new(1, Duration::from_secs(60));
-        let big = "x".repeat(MAX_ENTRY_BYTES);
-        let kept = replays
+    fn a_round_beyond_two_mib_keeps_its_whole_input_and_plan() {
+        let replays = defaults();
+        let big = "x".repeat(2 * 1024 * 1024 + 1);
+        let plan = serde_json::json!({"large": big, "last": "end of plan"});
+        let token = replays
             .reserve()
             .expect("a place")
-            .keep(input(&big), serde_json::json!({}));
-        assert!(kept.is_none());
-        assert!(replays.reserve().is_some(), "the hold was released");
+            .keep(input(&big), plan.clone())
+            .expect("the whole round is kept");
+        let kept = replays.get(&token).expect("the token resolves");
+        assert_eq!(kept.input, input(&big));
+        assert_eq!(kept.plan, plan);
+        assert_eq!(replays.held(), (1, 0));
+    }
+
+    fn defaults() -> Arc<Replays> {
+        let config = super::super::native::NativeAuthoring::new(
+            "vllm/fixture",
+            nika_providers::ProvidersConfig::new(),
+        );
+        super::super::native::Seat::open(&config)
+            .expect("the default seat opens without provider calls")
+            .replays
+    }
+
+    #[test]
+    fn default_retention_keeps_more_than_thirty_two_rounds_without_expiry() {
+        let replays = defaults();
+        let mut tokens = Vec::new();
+        for index in 0..65 {
+            tokens.push(
+                replays
+                    .reserve()
+                    .expect("a place without an implicit count")
+                    .keep(
+                        input(&format!("request {index}")),
+                        serde_json::json!({"index": index}),
+                    )
+                    .expect("kept"),
+            );
+        }
+        // Model time beyond both former TTLs without a wall-clock wait or renewing a token.
+        let later = Instant::now() + Duration::from_secs(2 * 24 * 3600);
+        let held = replays.reserve().expect("no implicit expiry or count");
+        assert_eq!(replays.held(), (65, 1));
+        for (index, token) in tokens.iter().enumerate() {
+            let kept = replays.get(token).expect("every round still resolves");
+            assert!(kept.live_at(replays.ttl, later), "no default expiry");
+            assert_eq!(kept.input, input(&format!("request {index}")));
+            assert_eq!(kept.plan, serde_json::json!({"index": index}));
+        }
+        drop(held);
+        assert_eq!(replays.held(), (65, 0));
     }
 }

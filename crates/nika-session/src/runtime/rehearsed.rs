@@ -31,7 +31,7 @@ use nika_onboard::compile::copy::{
     words::{held_words, rehearsed_lines},
 };
 use nika_onboard::compile::rehearse::Rehearse;
-use nika_onboard::compile::room::ObservedRoom;
+use nika_onboard::compile::room::{JqHelper, ObservedRoom};
 
 use super::{SessionRuntime, TurnOutcome};
 use crate::authoring::{AuthoringError, AuthoringRound};
@@ -63,6 +63,8 @@ pub(super) struct Rehearsals {
     pending: Option<(ProposalId, Proof)>,
     revising: Option<SuspendedProof>,
     saved: Option<(PathBuf, Result<Witness, String>)>,
+    /// The helper the host named to run `nika:jq` in the observed room.
+    jq: Option<JqHelper>,
     #[cfg(test)]
     host: Option<std::sync::Arc<TestHost>>,
 }
@@ -103,6 +105,14 @@ impl Rehearsals {
         self.native = None;
     }
 
+    /// The words of the proof bound to `id`, pending or suspended by a revision.
+    pub(super) fn lines_of(&self, id: &ProposalId) -> Option<&str> {
+        let pending = (self.pending.as_ref()).filter(|(proven, _)| proven == id);
+        let suspended = (self.revising.as_ref()).filter(|s| &s.id == id);
+        let proof = pending.map(|(_, p)| p).or(suspended.map(|s| &s.proof))?;
+        Some(proof.lines.as_str())
+    }
+
     /// Expire pending authority without erasing already spent rehearsal usage.
     pub(super) fn expire_pending(&mut self) {
         self.pending = None;
@@ -111,9 +121,15 @@ impl Rehearsals {
     }
 }
 
-/// The observed room over a world's root: the production host.
-fn room(world: &Path) -> Box<dyn Rehearse> {
-    Box::new(ObservedRoom::new(world))
+/// The observed room over a world's root: the production host, its `nika:jq` steps run by `jq`
+/// when the host named a helper and screened before any room otherwise. Its observations are
+/// preparation context for the configured verifier; they grant no live run authority.
+fn room(world: &Path, jq: Option<&JqHelper>) -> Box<dyn Rehearse> {
+    let room = ObservedRoom::new(world);
+    Box::new(match jq {
+        Some(helper) => room.with_jq_helper(helper.clone()),
+        None => room,
+    })
 }
 
 impl SessionRuntime {
@@ -160,7 +176,7 @@ impl SessionRuntime {
         if let Some(host) = self.rehearsals.host.as_ref() {
             return host(&self.snapshot.root);
         }
-        room(&self.snapshot.root)
+        room(&self.snapshot.root, self.rehearsals.jq.as_ref())
     }
 
     /// The copy door over a creation round that compiled Ready. `Ok(None)` when it is no closed
@@ -205,7 +221,10 @@ impl SessionRuntime {
                 return copy::qualify(&request, &round.intent, root, &*host, &scratch, allowance);
             }
         }
-        copy::qualify(&request, &round.intent, root, &room, &scratch, allowance)
+        let jq = self.rehearsals.jq.as_ref();
+        // The copy door judges by exact bytes: no verifier reads its runs.
+        let host = |world: &Path| room(world, jq);
+        copy::qualify(&request, &round.intent, root, &host, &scratch, allowance)
     }
 
     /// Bind the selection to the proposal `id`, describe it as the one awaiting consent, and make
@@ -381,6 +400,28 @@ impl SessionRuntime {
         )))
     }
 
+    /// After a settled successful run of `workflow`, its bytes `ran_sha256`, that completed the
+    /// writes `written`: the saved proof of that file and those bytes advances over them
+    /// ([`Witness::advanced`]). An error keeps the previous proof for the next run to judge.
+    pub(super) fn advance_rehearsal(
+        &mut self,
+        workflow: &Path,
+        ran_sha256: &str,
+        written: &[String],
+    ) -> Result<(), String> {
+        let Some((path, Ok(witness))) = &self.rehearsals.saved else {
+            return Err("no rehearsal proves a saved workflow".to_owned());
+        };
+        if !same_file(&self.snapshot.root, path, workflow)
+            || ran_sha256 != witness.candidate_sha256()
+        {
+            return Err("the run is not of the rehearsed workflow's bytes".to_owned());
+        }
+        let next = witness.advanced(&self.snapshot.root, written)?;
+        self.rehearsals.saved = Some((path.clone(), Ok(next)));
+        Ok(())
+    }
+
     /// A change said at a rehearsed proposal: the proposal waits as it was, with its own proof.
     /// None when no rehearsal proves it: the caller keeps its set.
     pub(super) fn rehearsed_change(&mut self, set: &ProjectChangeSet) -> Option<TurnOutcome> {
@@ -468,6 +509,12 @@ impl SessionRuntime {
         } else {
             "\nSaved · checked · not active · nothing has run\n  say « run it » to run it once (a ceiling is announced first)"
         }
+    }
+
+    /// Run the observed room's `nika:jq` steps through `helper`: a bounded process of the binary
+    /// that hosts this session, named by that host. Without one a jq step is never rehearsed.
+    pub fn with_jq_helper(&mut self, helper: JqHelper) {
+        self.rehearsals.jq = Some(helper);
     }
 
     /// A test's rehearsal host in place of the observed room.

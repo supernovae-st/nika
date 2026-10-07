@@ -16,15 +16,17 @@ use super::*;
 use crate::server::openapi;
 
 /// The request body schema of `POST /v1/compile`, as a JSON pointer into the document.
-const REQUEST: &str = "/paths/~1v1~1compile/post/requestBody/content/application~1json/schema";
+pub(super) const REQUEST: &str =
+    "/paths/~1v1~1compile/post/requestBody/content/application~1json/schema";
 /// The 200 answer schema of `POST /v1/compile`.
-const ANSWER: &str = "/paths/~1v1~1compile/post/responses/200/content/application~1json/schema";
+pub(super) const ANSWER: &str =
+    "/paths/~1v1~1compile/post/responses/200/content/application~1json/schema";
 /// The replay header's schema.
 const TOKEN: &str = "/paths/~1v1~1compile/post/responses/200/headers/Nika-Compile-Replay/schema";
 
 /// A validator for the schema at `pointer`: the whole document is its root, so every
 /// `$ref` resolves inside the published contract and nowhere else.
-fn schema_at(document: &Value, pointer: &str) -> jsonschema::Validator {
+pub(super) fn schema_at(document: &Value, pointer: &str) -> jsonschema::Validator {
     let mut root = document.clone();
     root["$ref"] = json!(format!("#{pointer}"));
     jsonschema::options()
@@ -41,7 +43,7 @@ fn assert_valid(validator: &jsonschema::Validator, instance: &Value, what: &str)
     assert!(errors.is_empty(), "{what}: {errors:?}");
 }
 
-async fn served(server: &TestServer) -> (String, Value) {
+pub(super) async fn served(server: &TestServer) -> (String, Value) {
     let response = server.request(&get_request("/v1/openapi.json")).await;
     assert_eq!(response.status, 200, "{}", response.body);
     let document = response.json();
@@ -49,7 +51,7 @@ async fn served(server: &TestServer) -> (String, Value) {
 }
 
 /// Validate a request against the published schema, send it, validate the live answer.
-async fn exchange(
+pub(super) async fn exchange(
     server: &TestServer,
     request: &jsonschema::Validator,
     answer: &jsonschema::Validator,
@@ -125,21 +127,48 @@ async fn a_default_server_serves_the_committed_contract_and_refuses_generation_t
     server.stop().await.expect("clean stop");
 }
 
+/// A source revision is READY only after its distinct judge; both writes and the base model stay.
+fn assert_judged_revision(revised: &Value, seat: &Seat) {
+    assert_eq!(revised["status"], "ready", "{revised:#}");
+    assert_eq!(revised["provenance"]["authoring"]["calls"], 2);
+    assert!(
+        revised["provenance"]["decision"]["semantic_verification"]
+            .as_array()
+            .is_some_and(|judgments| !judgments.is_empty()),
+        "{revised:#}"
+    );
+    let source = revised["candidate"].as_str().expect("a judged revision");
+    assert!(source.contains("./b.md") && source.contains("./c.md") && source.contains(RUN_MODEL));
+    assert_eq!(
+        seat.calls(),
+        5,
+        "the source revision and its judge both reached the seat"
+    );
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn a_native_server_publishes_generation_two_and_its_live_payloads_validate() {
     let world = TestWorld::new();
-    let seat = Seat::start(vec![Reply::Text(native_answer(&candidate(
-        "mock/echo",
-        false,
-    )))]);
+    // A kept question round for creation, then typed revision links and their own judge.
+    let mut script = question_round();
+    script.extend([
+        Reply::Text(copy_revision_answer()),
+        Reply::Text(JUDGE_APPROVES.to_owned()),
+    ]);
+    let seat = Seat::start(script);
     let (server, _backend) = start_native(&world, compile_limits(), operator(&seat)).await;
     let (_, document) = served(&server).await;
     assert_eq!(document, openapi::live(true));
     parity_cases_validate(&server, &document).await;
     let (request, answer) = (schema_at(&document, REQUEST), schema_at(&document, ANSWER));
-    // A fresh round: one logical call, generation 2, a kept round's token.
+    // A fresh round: the plan, the sketch and its fill, generation 2, a kept round's token.
     let first = exchange(&server, &request, &answer, &fresh(&json!({}))).await;
     assert_eq!(first.json()["compile_version"], 2);
+    assert_eq!(
+        seat.calls(),
+        3,
+        "plan, sketch and fill; model question still open"
+    );
     for (field, invalid) in [
         ("/provenance/authoring/backend/host", json!(false)),
         (
@@ -157,6 +186,15 @@ async fn a_native_server_publishes_generation_two_and_its_live_payloads_validate
         (
             "/provenance/authoring/backend/authority/http_requests/sent",
             json!(-1),
+        ),
+        // A bound is positive, or null when none was configured.
+        (
+            "/provenance/authoring/backend/authority/max_calls",
+            json!(0),
+        ),
+        (
+            "/provenance/authoring/backend/authority/max_calls",
+            json!("4"),
         ),
         (
             "/provenance/authoring/backend/observed_models",
@@ -178,6 +216,7 @@ async fn a_native_server_publishes_generation_two_and_its_live_payloads_validate
     let answers = json!({"answers": {"model": RUN_MODEL}});
     let replayed = exchange(&server, &request, &answer, &replay(&token, &answers)).await;
     assert_eq!(replayed.json()["compile_version"], 1);
+    assert_eq!(seat.calls(), 3, "the deterministic replay calls no seat");
     // Generation-1 replay keeps decision evidence and its public type. Without
     // this schema field generated SDK types erase an actually observed record.
     let replay_doc = replayed.json();
@@ -191,10 +230,12 @@ async fn a_native_server_publishes_generation_two_and_its_live_payloads_validate
     // A revision in words, and a generation-2 skeleton that needs no call.
     let revision = json!({
         "compile_version": 2, "mode": "edit", "cognition": "explicitProvider",
-        "source": candidate(RUN_MODEL, false), "change": {"text": "also keep a copy in ./c.md"},
+        "source": candidate(RUN_MODEL, false), "change": {"text": CHANGE},
         "original_intent": INTENT, "limits": {"repairs": 0, "max_tokens": 1024},
     });
-    exchange(&server, &request, &answer, &revision.to_string()).await;
+    let revised = exchange(&server, &request, &answer, &revision.to_string()).await;
+    let revised = revised.json();
+    assert_judged_revision(&revised, &seat);
     let skeleton = exchange(
         &server,
         &request,
@@ -205,8 +246,8 @@ async fn a_native_server_publishes_generation_two_and_its_live_payloads_validate
     assert_eq!(skeleton.json()["compile_version"], 1);
     assert_eq!(
         seat.calls(),
-        2,
-        "the fresh round and the revision, nothing else"
+        5,
+        "the fresh round's three, the revision and its judgment, nothing else"
     );
     server.stop().await.expect("clean stop");
 }
@@ -244,7 +285,6 @@ fn refused_requests() -> Vec<(String, &'static str)> {
             "compile_version_unsupported",
         ),
         (fresh(&json!({"cognition": "deterministicOnly"})), malformed),
-        (fresh(&json!({"replay_token": token})), malformed),
         (
             replay(&token, &json!({"limits": {"repairs": 0}})),
             malformed,
@@ -275,7 +315,7 @@ fn refused_requests() -> Vec<(String, &'static str)> {
             "compile_limit",
         ),
         (
-            fresh(&json!({"limits": {"deadline_ms": 3_600_001}})),
+            fresh(&json!({"limits": {"deadline_ms": 0}})),
             "compile_limit",
         ),
     ];
@@ -362,30 +402,27 @@ async fn the_published_nesting_ceiling_is_the_enforced_one() {
 }
 
 #[test]
-fn the_published_ceilings_are_the_ones_a_seat_is_validated_against() {
+fn large_explicit_bounds_are_not_refused_by_legacy_product_ceilings() {
     let document = openapi::live(true);
-    let limits = &document["components"]["schemas"]["CompileRequestV2"]["properties"]["limits"];
-    let max = |name: &str| limits["properties"][name]["maximum"].as_u64().expect(name);
+    let limits = &document["components"]["schemas"]["CompileRequestV2"]["properties"]["limits"]["properties"];
     let seated =
         |authoring: NativeAuthoring| crate::server::compile::Seat::open(&authoring).is_ok();
     let at = || NativeAuthoring::new(SEAT, ProvidersConfig::new());
-    let repairs = u32::try_from(max("repairs")).expect("u32");
-    let tokens = u32::try_from(max("max_tokens")).expect("u32");
-    assert!(
-        seated(at().with_max_calls(repairs + 3).with_repairs(repairs))
-            && !seated(at().with_max_calls(repairs + 4).with_repairs(repairs + 1))
-    );
-    assert!(seated(at().with_max_tokens(tokens)) && !seated(at().with_max_tokens(tokens + 1)));
-    let call = max("call_timeout_ms");
-    assert!(seated(at().with_call_timeout(Duration::from_millis(call))));
-    assert!(!seated(
-        at().with_call_timeout(Duration::from_millis(call + 1))
+    assert!(seated(at().with_max_tokens(393_216)));
+    assert!(seated(at().with_call_timeout(Duration::from_secs(3601))));
+    assert!(seated(at().with_deadline(Duration::from_secs(86_400))));
+    assert!(seated(at().with_repairs(100)));
+    assert!(seated(
+        at().with_replay(2048, Duration::from_secs(7 * 86_400))
     ));
-    let deadline = max("deadline_ms");
-    assert!(seated(at().with_deadline(Duration::from_millis(deadline))));
-    assert!(!seated(
-        at().with_deadline(Duration::from_millis(deadline + 1))
-    ));
+    assert!(!seated(at().with_max_tokens(0)));
+    assert!(!seated(at().with_call_timeout(Duration::ZERO)));
+    assert!(!seated(at().with_deadline(Duration::ZERO)));
+    assert!(!seated(at().with_max_calls(0)));
+    assert_eq!(limits["max_tokens"]["maximum"], u32::MAX);
+    assert_eq!(limits["repairs"]["maximum"], u32::MAX);
+    assert!(limits["call_timeout_ms"].get("maximum").is_none());
+    assert!(limits["deadline_ms"].get("maximum").is_none());
 }
 
 #[test]

@@ -39,6 +39,14 @@ impl DiskBlobStore {
     pub fn max_size(&self) -> u64;             // configured cap (default 500 MiB)
 }
 impl BlobStoreDyn for DiskBlobStore { put · get · exists · stat · delete }
+
+pub struct FsBlobStore<F> { /* injected Fs + relative root + max_size */ }
+impl<F> FsBlobStore<F> {
+    pub fn new(fs: Arc<F>, root: impl Into<PathBuf>, max: u64) -> Result<Self, BlobError>;
+}
+impl<F: FsReadDyn + FsWriteDyn + FsMetaDyn> BlobStoreDyn for FsBlobStore<F> {
+    put · get · exists · stat · delete
+}
 ```
 
 Implementation targets the `BlobStoreDyn` trait-variant companion (the
@@ -84,13 +92,38 @@ CAS cancel-safety (kernel contract): a dropped `put` leaves at most a
 temp file nobody addresses — existing blobs are never corrupted because
 partial content hashes differently.
 
+### Descriptor-rooted storage
+
+For storage below a project that may contain symlinks, the composition owner
+injects `nika_fs::RootedFs` into `FsBlobStore` through the existing kernel Fs
+traits. `nika-blob` has no production dependency on `nika-fs`. The relative
+root is validated without I/O; neither this adapter nor its constructor
+opens a provider-reported path. `DiskBlobStore` remains the ambient-path
+adapter for callers that already control its directory, and does not supply
+the rooted guarantee.
+
+The injected owner holds the project directory descriptor, walks each parent
+and shard without following symlinks, and publishes bytes exclusively and
+atomically. An occupied blob is accepted only after a pinned read matches
+the submitted bytes. The MIME sidecar is atomically replaced; replacing a
+final symlink changes that directory entry, never its target. Pinned reads
+and regular-only deletion refuse final symlinks. No refusal falls back to an
+ambient operation. The kernel Fs traits alone do not guarantee these
+properties: production composition must select the rooted atomic owner and
+provide its finite aggregate budget and seal/drain lifecycle.
+
+`tests/filesystem_contract.rs` covers real disposable directories, links at
+`.nika`, the blob root and shard, blob and MIME links, a project path replaced
+after its descriptor was admitted, CAS collisions, missing MIME, and input
+bounds. These tests exercise the real filesystem owner, not a mock.
+
 ## 4. The 12 gates
 
 | Gate | Status | Evidence |
 |---|---|---|
 | 1 SPEC | ✅ | this file |
 | 2 TDD | ✅ | `tests/blob_contract.rs` authored first · RED (todo! skeleton) → GREEN |
-| 3 IMPL | ✅ | ~393 LOC src (live · `scripts/crate-metrics.sh nika-blob`) · zero unwrap/expect in src |
+| 3 IMPL | ✅ | ~606 LOC src (live · `scripts/crate-metrics.sh nika-blob`) · zero unwrap/expect in src |
 | 4 CLIPPY 0 | ✅ | `cargo clippy --workspace --all-targets -- -D warnings` GREEN |
 | 5 MUTATION ≥90% | ✅ | `cargo mutants -p nika-blob` · 38 mutants · **33 caught / 33 viable = 100%** (5 unviable). Survivors killed across the arc: the `500*1024*1024` cap arithmetic (→ `max_size()` accessor + exact-value test) · the two stat sidecar guards `!s.trim().is_empty()` + `e.kind()==NotFound` (→ empty-sidecar + dir-sidecar boundary tests) |
 | 6 PROPERTY | ✅ | put→get roundtrip on arbitrary 1..2048-byte payloads · cross-store hash determinism (48 cases) |
@@ -117,6 +150,7 @@ stable handle workflows pass between tasks.
 | `bytes` | kernel put/get payloads | ✓ |
 | `tokio` (`fs`) | the storage backend | L1+ ✓ |
 | dev: `proptest` · `tempfile` | Gate 6 + tempdir fixtures | dev-only |
+| dev: `nika-fs` | Real descriptor-rooted integration fixtures | dev-only |
 
 deny.toml `tokio` wrapper extended with nika-blob. blake3 added to
 `[workspace.dependencies]` (RUST_ENFORCEMENT §2 pin-once). No `infer`

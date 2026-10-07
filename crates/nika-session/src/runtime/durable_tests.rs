@@ -508,33 +508,7 @@ fn corrupt_and_truncated_journals_are_refused_without_changing_their_bytes() {
     }
 }
 
-#[test]
-fn an_oversized_journal_and_oversized_input_are_refused_before_reasoning() {
-    let root = project();
-    let home = tempfile::tempdir().expect("home");
-    let (mut first, seen) = open(root.path(), &[ANSWER]);
-    first.enable_history(home.path()).expect("fresh history");
-    assert!(matches!(
-        first.turn(&"x".repeat(64 * 1024 + 1)),
-        TurnOutcome::Refusal(_)
-    ));
-    assert!(seen.lock().expect("record").is_empty());
-    drop(first);
-    let journal = history_dir(home.path(), root.path()).join("events.ndjson");
-    let file = std::fs::OpenOptions::new()
-        .write(true)
-        .open(&journal)
-        .expect("journal");
-    file.set_len(16 * 1024 * 1024 + 1)
-        .expect("oversized sparse fixture");
-    drop(file);
-    let (mut resumed, _) = open(root.path(), &[ANSWER]);
-    assert!(resumed.enable_history(home.path()).is_err());
-    assert_eq!(
-        std::fs::metadata(&journal).expect("retained journal").len(),
-        16 * 1024 * 1024 + 1
-    );
-}
+mod history_capacity_tests;
 
 #[cfg(unix)]
 #[test]
@@ -1288,7 +1262,10 @@ fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() 
     let TurnOutcome::GateAsk { id: gate, question } = first.observe_run(4, Some(&trace)) else {
         panic!("a pause with a gate asks");
     };
-    assert!(question.contains("Ship it?"), "{question}");
+    assert!(
+        question.contains("Ship it?"),
+        "the pending gate must retain its recorded question"
+    );
     let state = crate::state::SessionState::load(root.path())
         .expect("readable")
         .expect("written at the observation");
@@ -1348,6 +1325,9 @@ fn a_paused_run_leaves_its_gate_in_the_record_and_a_fresh_runtime_waits_on_it() 
 /// The kept-draft suite: evidence across a close, re-proposal, and the record's schema.
 mod draft_tests;
 
+/// The last observed run kept across a close: evidence, never authority.
+mod last_run_tests;
+
 /// A stale question in either durable store must not be projected as active
 /// after reopening and observing an unrelated local run. Opening never writes.
 #[test]
@@ -1396,3 +1376,5 @@ fn restored_questions_expire_from_both_stores_without_rewriting_evidence() {
         );
     }
 }
+
+mod recovery_notice_tests;

@@ -45,6 +45,21 @@ pub fn run_args(root: &Path, workflow: &Path, ceiling: f64, vars: &[String]) -> 
     }
     args
 }
+/// Build a Run with the human's explicit access unchanged, also for monetary review.
+#[must_use]
+pub fn run_args_with_access(
+    root: &Path,
+    workflow: &Path,
+    ceiling: f64,
+    vars: &[String],
+    pin: Option<&str>,
+) -> Vec<String> {
+    let mut args = run_args(root, workflow, ceiling, vars);
+    if let Some(pin) = pin {
+        args.extend(["--access".into(), pin.into()]);
+    }
+    args
+}
 #[must_use]
 pub fn resume_args(root: &Path, workflow: &Path, trace: &Path, answer: &str) -> Vec<String> {
     vec![
@@ -56,4 +71,32 @@ pub fn resume_args(root: &Path, workflow: &Path, trace: &Path, answer: &str) -> 
         "--answer".into(),
         answer.into(),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_run_carries_exactly_the_explicit_pin_without_changing_inputs_or_budget() {
+        let root = Path::new("/project");
+        let workflow = Path::new("one.nika");
+        let vars = vec!["name=value with spaces".into()];
+        let plain = run_args(root, workflow, 0.25, &vars);
+        assert_eq!(
+            run_args_with_access(root, workflow, 0.25, &vars, None),
+            plain
+        );
+        for pin in [
+            "codex",
+            "claude-code",
+            "mock",
+            "an-invalid-pin-is-not-erased",
+        ] {
+            let args = run_args_with_access(root, workflow, 0.25, &vars, Some(pin));
+            assert_eq!(&args[..plain.len()], &plain);
+            assert_eq!(&args[plain.len()..], &["--access", pin]);
+            assert_eq!(args.iter().filter(|s| *s == "--access").count(), 1);
+        }
+    }
 }

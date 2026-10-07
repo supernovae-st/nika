@@ -129,10 +129,12 @@ fn a_column_renamed_before_the_yes_withdraws_the_proposal_with_no_effect() {
     assert!(
         why.text
             .contains("`./data/input.csv` no longer has `amount_usd`: it has id, amount, status"),
-        "{}",
-        why.text
+        "renamed source column must be identified"
     );
-    assert!(why.text.contains("nothing was written"), "{}", why.text);
+    assert!(
+        why.text.contains("nothing was written"),
+        "stale refusal must say nothing was written"
+    );
     untouched(root.path());
     assert!(s.pending_proposal().is_none(), "withdrawn, never pending");
     assert_eq!(s.intent.goal.as_deref(), Some(REQUEST), "the goal stays");
@@ -156,12 +158,15 @@ fn compatible_data_keeps_the_basis_and_lands_the_reviewed_bytes() {
         let bytes = pending_bytes(&s);
         std::fs::write(root.path().join("data/input.csv"), fresh).expect("fresh data");
         let report = facts(s.consent("yes"));
-        assert!(report.contains("applied"), "{report}");
+        assert!(
+            report.contains("applied"),
+            "consent must report the applied proposal"
+        );
         assert!(
             report.contains(
                 "sources judged again before writing: 2 recorded fact(s) of `./data/input.csv` hold"
             ),
-            "{report}"
+            "report must name the revalidated source facts"
         );
         assert_eq!(
             std::fs::read_to_string(root.path().join(LANDED)).expect("landed"),
@@ -182,8 +187,7 @@ fn a_vanished_source_or_a_value_no_longer_a_number_withdraws_the_proposal() {
     assert!(
         why.text
             .contains("`./data/input.csv` is absent now: `amount_usd` cannot be read from it"),
-        "{}",
-        why.text
+        "missing source must be identified"
     );
     untouched(root.path());
 
@@ -197,8 +201,7 @@ fn a_vanished_source_or_a_value_no_longer_a_number_withdraws_the_proposal() {
         why.text.contains(
             "`amount_usd` in `./data/input.csv` now has sampled values that are not numbers (text 1)"
         ),
-        "{}",
-        why.text
+        "nonnumeric source value must be identified"
     );
     untouched(root.path());
 }
@@ -253,7 +256,10 @@ fn the_request_said_again_over_the_renamed_column_lands() {
     );
     assert!(preview.contains(LANDED), "{preview}");
     let report = facts(s.consent("yes"));
-    assert!(report.contains("applied"), "{report}");
+    assert!(
+        report.contains("applied"),
+        "consent must report the applied proposal"
+    );
     assert_eq!(
         std::fs::read_to_string(root.path().join(LANDED)).expect("landed"),
         bytes
@@ -303,8 +309,7 @@ fn an_amended_proposal_is_judged_by_the_basis_of_its_bytes() {
     let why = refused(s.consent_to(&amended, "yes"));
     assert!(
         why.text.contains("no longer has `amount_usd`"),
-        "{}",
-        why.text
+        "restored proposal must report the changed column"
     );
     untouched(root.path());
 }
@@ -326,9 +331,12 @@ fn a_kept_proposal_whose_request_gives_the_same_bytes_again_lands() {
     let report = facts(again.consent("yes"));
     assert!(
         report.contains("source basis derived again before writing"),
-        "{report}"
+        "report must name source basis reconstruction"
     );
-    assert!(report.contains("2 recorded fact(s)"), "{report}");
+    assert!(
+        report.contains("2 recorded fact(s)"),
+        "report must count the recorded facts"
+    );
     assert_eq!(
         std::fs::read_to_string(root.path().join(LANDED)).expect("landed"),
         bytes
@@ -359,8 +367,7 @@ fn a_kept_source_dependent_proposal_that_cannot_be_derived_again_is_withdrawn() 
     assert!(
         why.text.contains("reads `./data/input.csv`")
             && why.text.contains("its sources cannot be judged"),
-        "{}",
-        why.text
+        "refusal must explain that sources cannot be judged"
     );
     untouched(root.path());
 }
@@ -379,10 +386,13 @@ fn a_source_independent_proposal_lands_with_freshness_said_unjudged() {
     again.enable_history(home.path()).expect("history");
     proposal(again.turn("/restore"));
     let report = facts(again.consent("yes"));
-    assert!(report.contains("applied"), "{report}");
+    assert!(
+        report.contains("applied"),
+        "restored consent must report application"
+    );
     assert!(
         report.contains("it reads no project file") && !report.contains("hold"),
-        "{report}"
+        "a proposal with no source read must not invent source facts"
     );
 }
 
@@ -416,15 +426,14 @@ fn an_answered_column_holds_for_its_request_and_moves_with_its_source() {
             let why = refused(s.consent("yes"));
             assert!(
                 why.text.contains("was withdrawn") && why.text.contains("price"),
-                "{}",
-                why.text
+                "changed price must withdraw the proposal"
             );
             assert!(!root.path().join(LANDED).exists(), "nothing written");
         } else {
             let report = facts(s.consent("yes"));
             assert!(
                 report.contains("applied") && report.contains("hold"),
-                "{report}"
+                "unchanged price must preserve application and source facts"
             );
         }
         assert!(seen.lock().expect("record").is_empty(), "no model");
@@ -463,15 +472,14 @@ fn an_answer_over_an_absent_source_holds_only_for_the_request_that_compiled_it()
             let why = refused(s.consent("yes"));
             assert!(
                 why.text.contains("was withdrawn") && why.text.contains("`status`"),
-                "{}",
-                why.text
+                "changed status must withdraw the proposal"
             );
             assert!(!root.path().join(LANDED).exists(), "nothing written");
         } else {
             let report = facts(s.consent("yes"));
             assert!(
                 report.contains("applied") && report.contains("of `./orders.csv` hold"),
-                "{report}"
+                "unchanged status must preserve application and source facts"
             );
         }
         assert!(seen.lock().expect("record").is_empty(), "no model");
@@ -533,6 +541,9 @@ fn an_answer_round_keeps_its_own_observation_apart_from_the_one_it_continued() {
         "its exact bytes"
     );
     let report = facts(s.consent("yes"));
-    assert!(report.contains("of `./orders.csv` hold"), "{report}");
+    assert!(
+        report.contains("of `./orders.csv` hold"),
+        "report must identify the Orders source facts"
+    );
     assert!(seen.lock().expect("record").is_empty(), "no model");
 }

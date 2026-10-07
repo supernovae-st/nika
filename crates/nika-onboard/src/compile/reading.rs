@@ -11,11 +11,11 @@
 
 use std::fmt::Write as _;
 
+#[cfg(test)]
+use super::QuestionType;
 use serde_json::Value;
 
-use super::{
-    AuthoringReceipt, CompileOutcome, CompileQuestion, CompileStatus, DiagnosticKind, QuestionType,
-};
+use super::{AuthoringReceipt, CompileOutcome, CompileQuestion, CompileStatus, DiagnosticKind};
 
 /// The compiler's question for a whole replacement request (its own key).
 pub const CLARIFICATION_KEY: &str = "intent.clarification";
@@ -29,19 +29,7 @@ pub const CLARIFICATION_KEY: &str = "intent.clarification";
 /// asks of a choice), else as one string.
 #[must_use]
 pub fn literal_for(question: &CompileQuestion, line: &str) -> String {
-    let line = line.trim();
-    let already = match question.answer_type {
-        QuestionType::Literal => serde_json::from_str::<Value>(line).is_ok(),
-        QuestionType::Choice | QuestionType::Text => {
-            matches!(serde_json::from_str::<Value>(line), Ok(Value::String(_)))
-        }
-        _ => false,
-    };
-    if already {
-        line.to_owned()
-    } else {
-        Value::String(line.to_owned()).to_string()
-    }
+    question.literal_for(line)
 }
 
 /// What one compile outcome means for the conversation — a closed reading of the compiler's
@@ -56,7 +44,9 @@ pub enum Reading {
     Questions(CompileOutcome),
     /// Work was read but not settled under this seat's policy (the
     /// compiler says so): a wider policy may settle it, or the human
-    /// rephrases. How the compiler tried is its own business.
+    /// rephrases. How the compiler tried is its own business. A candidate
+    /// the compiler held for its verifier (`verify_held`) reads here too,
+    /// whatever a later call met: [`held_words`] says it.
     Unsettled(CompileOutcome),
     /// Nothing recognizable as work: no route, no plan, no question.
     NotWork(CompileOutcome),
@@ -79,6 +69,13 @@ impl Reading {
         }
         if out.status == CompileStatus::Ready && out.candidate.is_some() {
             return Self::Ready(out);
+        }
+        // A candidate the compiler held (its verifier answered those bytes and did not accept
+        // them) is read as held before anything else: a judge call that later timed out or was
+        // refused stopped the localization, it settles nothing, and the outcome's words are the
+        // held ones (`held_words`), never a recovery or a question about rejected bytes.
+        if super::round::verify_held(&out) {
+            return Self::Unsettled(out);
         }
         // `intent.clarification` is the compiler asking for a whole new
         // request: not a hole a line fills but a reading a seat may settle —
@@ -156,90 +153,8 @@ pub fn reasons(out: &CompileOutcome) -> Vec<String> {
         .collect()
 }
 
-/// The compiler's reasons a human can act on: its machine sentences (the
-/// plan's own vocabulary, an unmapped part with nothing after the colon)
-/// dropped, duplicates folded, the rest verbatim.
-#[must_use]
-pub fn human_reasons(reasons: Vec<String>) -> Vec<String> {
-    let mut kept: Vec<String> = Vec::new();
-    for reason in reasons {
-        let r = reason.trim();
-        let machine = r.contains("semantic plan") || r.ends_with(": .") || r.ends_with(':');
-        if machine || r.is_empty() {
-            continue;
-        }
-        let said = human_reason(r);
-        if kept.contains(&said) {
-            continue;
-        }
-        kept.push(said);
-    }
-    kept
-}
-
-/// One compiler reason in the human's words — the compiler's fidelity
-/// grammar is a closed set (« Candidate N is not feasible: … », « dropped
-/// the recognized operation `x` (evidence) », « the path `p` is no longer
-/// carried … », « the literal `v` is not in the request »); any other line
-/// is kept as the compiler said it.
-fn human_reason(raw: &str) -> String {
-    let r = raw.trim().trim_end_matches('.');
-    // A cut answer is the seat's output limit, an internal cause: its command-line advice
-    // (`--authoring-max-tokens`) is no gesture a conversation has, and the request is not at
-    // fault.
-    if r.contains("--authoring-max-tokens") {
-        let tokens: String = r
-            .chars()
-            .skip_while(|c| !c.is_ascii_digit())
-            .take_while(char::is_ascii_digit)
-            .collect();
-        let limit = if tokens.is_empty() {
-            "its output limit".to_owned()
-        } else {
-            format!("its {tokens}-token output limit")
-        };
-        return format!(
-            "the model's answer was cut at {limit} before it was complete — an internal limit of this attempt, not a problem with your request"
-        );
-    }
-    let r = match r.find("is not feasible: ") {
-        Some(at) if r.starts_with("Candidate ") => &r[at + "is not feasible: ".len()..],
-        _ => r,
-    };
-    let quoted = |s: &str| -> Option<(String, String)> {
-        let start = s.find('`')?;
-        let end = s[start + 1..].find('`')? + start + 1;
-        Some((s[start + 1..end].to_owned(), s[end + 1..].to_owned()))
-    };
-    if let Some(rest) = r.strip_prefix("dropped the recognized operation ")
-        && let Some((op, tail)) = quoted(rest)
-    {
-        let evidence = tail
-            .trim()
-            .trim_start_matches('(')
-            .trim_end_matches(')')
-            .trim_end_matches(',')
-            .trim();
-        return if evidence.is_empty() {
-            format!("the draft lost the « {op} » step")
-        } else {
-            format!("the draft lost « {evidence} » (the {op} step)")
-        };
-    }
-    if let Some(rest) = r.strip_prefix("the path ")
-        && let Some((path, tail)) = quoted(rest)
-        && tail.contains("no longer carried")
-    {
-        return format!("the draft dropped « {path} »: nothing reads or writes it any more");
-    }
-    if let Some(rest) = r.strip_prefix("the literal ")
-        && let Some((value, tail)) = quoted(rest)
-        && tail.contains("not in the request")
-    {
-        return format!("the draft invented a value (« {value} ») your request never gave");
-    }
-    r.to_owned()
-}
+/// Passive wording of already selected findings; never used to decide compiler state.
+pub use nika_display::front_door::reasons::human_reasons;
 
 /// How many clauses the compiler's ledger records for this reading (« recorded N
 /// requirements »): a count, never a verification; `None` when it carries no ledger.
@@ -520,5 +435,166 @@ pub fn reasoning_words(call: &Value) -> Option<String> {
     ))
 }
 
+/// The budget headline: a deadline only when the last call records a timeout, otherwise generic.
+#[must_use]
+pub fn authoring_budget_headline(receipt: Option<&AuthoringReceipt>) -> &'static str {
+    match receipt.and_then(|a| a.context.last()) {
+        Some(call) if call["result"]["failure_kind"] == "timeout" => {
+            "The authoring model did not answer within the call's time limit"
+        }
+        _ => "I couldn't finish a workflow I trust within the authoring budget",
+    }
+}
+
+/// The compiler decision's route, seat, ledger and knowledge provenance, as recorded.
+/// Pure projection shared by hosts; no inference or execution claim is added.
+pub fn decision_words(decision: &Value, text: &mut String) {
+    // The compiler records its route as the list of doors it tried.
+    let route = match decision.get("route") {
+        Some(Value::String(route)) => route.clone(),
+        Some(Value::Array(steps)) => steps
+            .iter()
+            .filter_map(Value::as_str)
+            .collect::<Vec<_>>()
+            .join(" → "),
+        _ => "none recorded".to_owned(),
+    };
+    let _ = write!(text, "\n  decision: route {route}");
+    if let Some(seat) = decision.pointer("/seat/model").and_then(Value::as_str) {
+        let _ = write!(text, " · seat {seat}");
+    }
+    let ledger = decision
+        .get("ledger")
+        .and_then(Value::as_array)
+        .map_or(0, Vec::len);
+    if ledger > 0 {
+        let _ = write!(
+            text,
+            " · ledger {ledger} clause{}",
+            if ledger == 1 { "" } else { "s" }
+        );
+    }
+    if let Some(record) = decision.pointer("/session/authoring") {
+        crate::knowledge::pin::knowledge_lines(record, text);
+    }
+}
+
 #[cfg(test)]
 mod tests;
+
+/// How a human answers a question, abandons it or asks why: the raw key stays out of the human's
+/// line (« why? » names it, with what the value is for); the prompt that follows (`reply ›`) says
+/// whose turn it is.
+const REPLY_HINT: &str = "\n  reply on the next line · `cancel` drops this · `why?` explains";
+
+/// Ask for a syntax clause in words, with the ordinary reply hint.
+#[must_use]
+pub fn syntax_prompt(clause: &str) -> String {
+    format!("{}{REPLY_HINT}", syntax_question(clause))
+}
+
+/// The question as the human reads it ([`question_words`]), then how to answer or abandon it.
+#[must_use]
+pub fn question_text(question: &CompileQuestion, reasons: &[String]) -> String {
+    format!("{}{REPLY_HINT}", question_words(question, reasons))
+}
+
+/// The card when nothing could be built, in the reading's own truth: a
+/// seat's draft the compiler's fidelity check refused is an AUTHORING
+/// failure (another attempt may hold every part), never a language gap;
+/// the deterministic reader's unsupported clause is a gap in what Nika
+/// can express. Neither is the human's ambiguity (mandate: a compiler gap
+/// is never presented as user ambiguity, nor an authoring failure as a gap).
+/// The way on after a revision that could not settle: an authoring failure (a seat tried and
+/// failed on Nika's side) keeps the base and the change — the same words try again; a reading
+/// the compiler could not settle asks for the change in other words. Never « describe the whole
+/// automation again »: the base and the original request are kept.
+#[must_use]
+pub fn revision_way(out: &CompileOutcome) -> &'static str {
+    if matches!(
+        out.provenance.cognition,
+        crate::compile::AuthoringCognition::ExplicitProvider
+    ) {
+        "an authoring step failed on Nika's side: your change is kept — send it again unchanged for another attempt, or `/intelligence` for another model"
+    } else {
+        "say the change another way"
+    }
+}
+
+/// The honest incomplete when the rule stays code after the human's words
+/// (or the clause is not in the request as quoted): the way on, no syntax.
+#[must_use]
+pub fn syntax_incomplete(clause: Option<&str>) -> String {
+    let what = clause.map_or("this step".to_owned(), |c| format!("« {c} »"));
+    format!(
+        "I read this as work but cannot build {what} from your words yet: it would need a rule I can only write as code, and I never ask you for code.\n  · say the step differently — what to keep, what to compute, over which column, and where to write it\n  · or `cancel` and describe the work again\n  nothing was written"
+    )
+}
+
+/// A candidate the verifier judged and rejected, with no defect it could locate: shown, never
+/// proposed, and never asked again of the same verifier on the same bytes.
+const DOUBTED: &str = "The workflow is built but not proposed: the verifier did not accept it and located no defect a repair could start from; nothing was written.";
+
+/// A candidate the verifier read and neither accepted nor rejected.
+const ABSTAINED: &str = "The workflow is built but not proposed: the verifier read it and abstained (it neither accepted nor rejected it); nothing was written.";
+
+/// The ways on from a candidate its verifier did not accept: a correction, or another authoring
+/// model, which also judges unless a decision model is set.
+const HELD_NEXT: &str = "\n  describe a correction, or `/intelligence` for another authoring model (it also judges unless a decision model is set) · `/meaning` shows what was understood";
+
+/// Whether the verifier answered `out`'s candidate and did not accept it: the compiler held it
+/// (its applied `verify_held` finding), or its last verification contested it with no defect.
+/// Such a candidate is shown, never proposed, never replayed to the same verifier. The session's
+/// Meaning view reads it too (`nika_session::meaning`).
+#[must_use]
+pub fn judged_not_accepted(out: &CompileOutcome) -> bool {
+    out.candidate.is_some()
+        && (crate::compile::round::verify_held(out)
+            || crate::compile::round::contested_judgment(out))
+}
+
+/// What a candidate its verifier did not accept says, by what the last verification found: the
+/// parts it found missing that no repair settled (the first named), a rejection with no defect
+/// located, or an abstention; then the ways on.
+fn not_accepted_words(out: &CompileOutcome) -> String {
+    let attempt = crate::compile::round::last_verification(out);
+    let defects: Vec<&str> = (attempt.and_then(|a| a["defects"].as_array()).into_iter())
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect();
+    let abstained = attempt.is_some_and(|a| a["declined"] == true && a["rejected"] == false);
+    let said = match defects.as_slice() {
+        [part] => format!(
+            "The workflow is built but not proposed: the verifier found a part missing that the repairs did not settle: « {part} »; nothing was written."
+        ),
+        [first, ..] => format!(
+            "The workflow is built but not proposed: the verifier found parts missing that the repairs did not settle: « {first} »…; nothing was written."
+        ),
+        [] if abstained && !crate::compile::round::contested_judgment(out) => ABSTAINED.to_owned(),
+        [] => DOUBTED.to_owned(),
+    };
+    format!("{said}{HELD_NEXT}")
+}
+
+/// A native finish held for its round's judge (R4 A11 step 2), in words: the seat's program kept
+/// as the preview while the whole request stays open (`decision.pending.open`), waiting for a
+/// judge its round can permit — never an authoring failure nor a gap in the language. A candidate
+/// its verifier answered and did not accept (the compiler's applied `verify_held` finding, or a
+/// last verification that contested it with no defect) is said by what the verifier found
+/// instead, its ways on a correction or another authoring model.
+pub fn held_words(out: &CompileOutcome, has_model: bool) -> Option<String> {
+    if judged_not_accepted(out) {
+        return Some(not_accepted_words(out));
+    }
+    let open = (out.provenance.decision.as_ref()).and_then(|d| d.pointer("/pending/open"));
+    open.and_then(serde_json::Value::as_array)
+        .filter(|open| !open.is_empty() && out.candidate.is_some())?;
+    let why = if has_model {
+        "no judgment made in this round settled it; nothing was written.\n  state the request again for another attempt, or `/intelligence` for another model"
+    } else {
+        "this session has no authoring model to judge it; nothing was written.\n  `/intelligence` chooses one, then state the request again"
+    };
+    Some(format!(
+        "The workflow is built but not proposed: the seat wrote this program, and only a judge this round can permit settles it against your whole request — {why} · `/meaning` shows what was understood"
+    ))
+}

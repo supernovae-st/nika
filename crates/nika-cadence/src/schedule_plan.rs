@@ -14,6 +14,7 @@ use jiff::civil::DateTime;
 use jiff::tz::TimeZone;
 use jiff::{Timestamp, Zoned};
 use nika_error::prelude::{NikaCode, NikaErrorCode, codes};
+use serde_json::{Value, json};
 
 use crate::due::{MISSED_SLOTS_CAP, ON_TIME_WINDOW};
 use crate::firing::SlotId;
@@ -638,6 +639,380 @@ fn complete_plan(
     }
 }
 
+/// The existing API/status shape of an already judged due value; the planner keeps authority.
+#[must_use]
+pub fn due_json(due: &ScheduleDueVerdict) -> Value {
+    match due {
+        ScheduleDueVerdict::ScheduledOnTime { slot } => {
+            json!({"kind": "scheduled", "slot": slot_json(slot)})
+        }
+        ScheduleDueVerdict::CatchUp { slot, missed_slots } => json!({
+            "kind": "catch_up", "slot": slot_json(slot), "missedSlots": missed_slots
+        }),
+        ScheduleDueVerdict::SkippedMissed { slot, missed_slots } => json!({
+            "kind": "skipped_missed", "slot": slot_json(slot), "missedSlots": missed_slots
+        }),
+        ScheduleDueVerdict::SkippedTooLate {
+            slot,
+            lateness_seconds,
+            maximum_seconds,
+        } => json!({
+            "kind": "skipped_too_late", "slot": slot_json(slot),
+            "latenessSeconds": lateness_seconds, "maximumSeconds": maximum_seconds
+        }),
+        ScheduleDueVerdict::PausedInactive {
+            reason,
+            pause_until,
+        } => json!({
+            "kind": "paused", "reason": reason, "pauseUntil": pause_until
+        }),
+        ScheduleDueVerdict::OnceConsumed {
+            slot_id,
+            scheduled_for,
+        } => json!({
+            "kind": "once_consumed", "slotId": slot_id.as_str(),
+            "scheduledFor": scheduled_for.to_string()
+        }),
+        ScheduleDueVerdict::NotDue => json!({"kind": "not_due"}),
+    }
+}
+
+/// The existing API/status shape of a canonical slot, preserving its civil/shift evidence.
+#[must_use]
+pub fn slot_json(slot: &ScheduleSlot) -> Value {
+    json!({
+        "slotId": slot.id().as_str(),
+        "scheduledFor": slot.scheduled_for().to_string(),
+        "requestedCivil": slot.requested_civil().map(|civil| civil.to_string()),
+        "shift": shift_word(slot.shift()),
+    })
+}
+
+const fn shift_word(value: Shift) -> &'static str {
+    match value {
+        Shift::Exact => "exact",
+        Shift::AdvancedFirstValid => "advanced_first_valid",
+        Shift::FoldedFirst => "folded_first",
+    }
+}
+
 #[cfg(test)]
 #[path = "schedule_plan/tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod json_oracle_tests {
+    //! The schedule JSON byte oracle: every expected string below was captured
+    //! by running the immutable pre-move Serve projections
+    //! (`nika-serve` `schedule_http::{when_json, due_json, slot_json}`) on these
+    //! same values, never by the projections under test. It covers the three
+    //! current `ScheduleWhen`, seven `ScheduleDueVerdict` and three `Shift`
+    //! variants, nulls and the exact timestamp forms.
+
+    use super::*;
+    use crate::schedule::when_json;
+
+    fn slot(
+        id: SlotId,
+        scheduled_for: Timestamp,
+        requested_civil: Option<DateTime>,
+        shift: Shift,
+    ) -> ScheduleSlot {
+        ScheduleSlot {
+            id,
+            scheduled_for,
+            requested_civil,
+            shift,
+        }
+    }
+
+    const SLOT_A: &str = "0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0";
+    const SLOT_B: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    fn at(text: &str) -> Timestamp {
+        text.parse().expect("timestamp")
+    }
+
+    fn id(text: &str) -> SlotId {
+        SlotId::from_wire(text).expect("slot id")
+    }
+
+    fn slots() -> Vec<(&'static str, ScheduleSlot)> {
+        let civil: DateTime = "2026-03-29T02:30:00".parse().expect("civil");
+        vec![
+            (
+                "exact",
+                slot(
+                    id(SLOT_A),
+                    at("2099-09-01T07:00:00Z"),
+                    Some(civil),
+                    Shift::Exact,
+                ),
+            ),
+            (
+                "advanced",
+                slot(
+                    id(SLOT_A),
+                    at("2026-03-29T01:00:00Z"),
+                    Some(civil),
+                    Shift::AdvancedFirstValid,
+                ),
+            ),
+            (
+                "folded",
+                slot(
+                    id(SLOT_B),
+                    at("2026-10-25T00:30:00.123456789Z"),
+                    Some("2026-10-25T02:30:00.5".parse().expect("civil")),
+                    Shift::FoldedFirst,
+                ),
+            ),
+            (
+                "absolute",
+                slot(id(SLOT_B), at("1970-01-01T00:00:00Z"), None, Shift::Exact),
+            ),
+        ]
+    }
+
+    fn whens() -> Vec<(&'static str, ScheduleWhen)> {
+        vec![
+            (
+                "once",
+                ScheduleWhen::Once {
+                    at: at("2099-09-01T07:00:00Z"),
+                },
+            ),
+            (
+                "once_nanos",
+                ScheduleWhen::Once {
+                    at: at("2026-03-29T01:30:00.000000001Z"),
+                },
+            ),
+            (
+                "cadence",
+                ScheduleWhen::Cadence {
+                    expression: "0 9 * * *".to_owned(),
+                },
+            ),
+            (
+                "cadence_escaped",
+                ScheduleWhen::Cadence {
+                    expression: "*/5 * * * * « é » \"q\" \\".to_owned(),
+                },
+            ),
+            ("webhook", ScheduleWhen::Webhook),
+        ]
+    }
+
+    fn dues() -> Vec<(String, ScheduleDueVerdict)> {
+        let mut out = Vec::new();
+        for (s, slot) in slots() {
+            out.push((
+                format!("scheduled/{s}"),
+                ScheduleDueVerdict::ScheduledOnTime { slot: slot.clone() },
+            ));
+            out.push((
+                format!("catch_up/{s}"),
+                ScheduleDueVerdict::CatchUp {
+                    slot: slot.clone(),
+                    missed_slots: 3,
+                },
+            ));
+            out.push((
+                format!("skipped_missed/{s}"),
+                ScheduleDueVerdict::SkippedMissed {
+                    slot: slot.clone(),
+                    missed_slots: u32::MAX,
+                },
+            ));
+            out.push((
+                format!("skipped_too_late/{s}"),
+                ScheduleDueVerdict::SkippedTooLate {
+                    slot,
+                    lateness_seconds: u64::MAX,
+                    maximum_seconds: 0,
+                },
+            ));
+        }
+        out.push((
+            "paused".to_owned(),
+            ScheduleDueVerdict::PausedInactive {
+                reason: "maintenance « é » \"q\" \\ \n".to_owned(),
+                pause_until: "2099-01-01T00:00:00Z".to_owned(),
+            },
+        ));
+        out.push((
+            "paused_empty".to_owned(),
+            ScheduleDueVerdict::PausedInactive {
+                reason: String::new(),
+                pause_until: String::new(),
+            },
+        ));
+        out.push((
+            "once_consumed".to_owned(),
+            ScheduleDueVerdict::OnceConsumed {
+                slot_id: id(SLOT_A),
+                scheduled_for: at("2099-09-01T07:00:00.25Z"),
+            },
+        ));
+        out.push(("not_due".to_owned(), ScheduleDueVerdict::NotDue));
+        out
+    }
+
+    fn cases() -> Vec<(String, String)> {
+        let mut out = Vec::new();
+        for (w, when) in whens() {
+            let v = when_json(&when);
+            out.push((format!("when/{w}/compact"), v.to_string()));
+            out.push((format!("when/{w}/pretty"), format!("{v:#}")));
+        }
+        for (s, slot) in slots() {
+            out.push((format!("slot/{s}"), slot_json(&slot).to_string()));
+        }
+        for (d, due) in dues() {
+            out.push((format!("due/{d}"), due_json(&due).to_string()));
+        }
+        out
+    }
+
+    /// `(case, JSON)` captured from the pre-move Serve projections; never recomputed here.
+    const EXPECTED: &[(&str, &str)] = &[
+        (
+            "when/once/compact",
+            "{\"at\":\"2099-09-01T07:00:00Z\",\"kind\":\"once\"}",
+        ),
+        (
+            "when/once/pretty",
+            "{\n  \"at\": \"2099-09-01T07:00:00Z\",\n  \"kind\": \"once\"\n}",
+        ),
+        (
+            "when/once_nanos/compact",
+            "{\"at\":\"2026-03-29T01:30:00.000000001Z\",\"kind\":\"once\"}",
+        ),
+        (
+            "when/once_nanos/pretty",
+            "{\n  \"at\": \"2026-03-29T01:30:00.000000001Z\",\n  \"kind\": \"once\"\n}",
+        ),
+        (
+            "when/cadence/compact",
+            "{\"expression\":\"0 9 * * *\",\"kind\":\"cadence\"}",
+        ),
+        (
+            "when/cadence/pretty",
+            "{\n  \"expression\": \"0 9 * * *\",\n  \"kind\": \"cadence\"\n}",
+        ),
+        (
+            "when/cadence_escaped/compact",
+            "{\"expression\":\"*/5 * * * * « é » \\\"q\\\" \\\\\",\"kind\":\"cadence\"}",
+        ),
+        (
+            "when/cadence_escaped/pretty",
+            "{\n  \"expression\": \"*/5 * * * * « é » \\\"q\\\" \\\\\",\n  \"kind\": \"cadence\"\n}",
+        ),
+        ("when/webhook/compact", "{\"kind\":\"webhook\"}"),
+        ("when/webhook/pretty", "{\n  \"kind\": \"webhook\"\n}"),
+        (
+            "slot/exact",
+            "{\"requestedCivil\":\"2026-03-29T02:30:00\",\"scheduledFor\":\"2099-09-01T07:00:00Z\",\"shift\":\"exact\",\"slotId\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0\"}",
+        ),
+        (
+            "slot/advanced",
+            "{\"requestedCivil\":\"2026-03-29T02:30:00\",\"scheduledFor\":\"2026-03-29T01:00:00Z\",\"shift\":\"advanced_first_valid\",\"slotId\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0\"}",
+        ),
+        (
+            "slot/folded",
+            "{\"requestedCivil\":\"2026-10-25T02:30:00.5\",\"scheduledFor\":\"2026-10-25T00:30:00.123456789Z\",\"shift\":\"folded_first\",\"slotId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+        ),
+        (
+            "slot/absolute",
+            "{\"requestedCivil\":null,\"scheduledFor\":\"1970-01-01T00:00:00Z\",\"shift\":\"exact\",\"slotId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+        ),
+        (
+            "due/scheduled/exact",
+            "{\"kind\":\"scheduled\",\"slot\":{\"requestedCivil\":\"2026-03-29T02:30:00\",\"scheduledFor\":\"2099-09-01T07:00:00Z\",\"shift\":\"exact\",\"slotId\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0\"}}",
+        ),
+        (
+            "due/catch_up/exact",
+            "{\"kind\":\"catch_up\",\"missedSlots\":3,\"slot\":{\"requestedCivil\":\"2026-03-29T02:30:00\",\"scheduledFor\":\"2099-09-01T07:00:00Z\",\"shift\":\"exact\",\"slotId\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0\"}}",
+        ),
+        (
+            "due/skipped_missed/exact",
+            "{\"kind\":\"skipped_missed\",\"missedSlots\":4294967295,\"slot\":{\"requestedCivil\":\"2026-03-29T02:30:00\",\"scheduledFor\":\"2099-09-01T07:00:00Z\",\"shift\":\"exact\",\"slotId\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0\"}}",
+        ),
+        (
+            "due/skipped_too_late/exact",
+            "{\"kind\":\"skipped_too_late\",\"latenessSeconds\":18446744073709551615,\"maximumSeconds\":0,\"slot\":{\"requestedCivil\":\"2026-03-29T02:30:00\",\"scheduledFor\":\"2099-09-01T07:00:00Z\",\"shift\":\"exact\",\"slotId\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0\"}}",
+        ),
+        (
+            "due/scheduled/advanced",
+            "{\"kind\":\"scheduled\",\"slot\":{\"requestedCivil\":\"2026-03-29T02:30:00\",\"scheduledFor\":\"2026-03-29T01:00:00Z\",\"shift\":\"advanced_first_valid\",\"slotId\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0\"}}",
+        ),
+        (
+            "due/catch_up/advanced",
+            "{\"kind\":\"catch_up\",\"missedSlots\":3,\"slot\":{\"requestedCivil\":\"2026-03-29T02:30:00\",\"scheduledFor\":\"2026-03-29T01:00:00Z\",\"shift\":\"advanced_first_valid\",\"slotId\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0\"}}",
+        ),
+        (
+            "due/skipped_missed/advanced",
+            "{\"kind\":\"skipped_missed\",\"missedSlots\":4294967295,\"slot\":{\"requestedCivil\":\"2026-03-29T02:30:00\",\"scheduledFor\":\"2026-03-29T01:00:00Z\",\"shift\":\"advanced_first_valid\",\"slotId\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0\"}}",
+        ),
+        (
+            "due/skipped_too_late/advanced",
+            "{\"kind\":\"skipped_too_late\",\"latenessSeconds\":18446744073709551615,\"maximumSeconds\":0,\"slot\":{\"requestedCivil\":\"2026-03-29T02:30:00\",\"scheduledFor\":\"2026-03-29T01:00:00Z\",\"shift\":\"advanced_first_valid\",\"slotId\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0\"}}",
+        ),
+        (
+            "due/scheduled/folded",
+            "{\"kind\":\"scheduled\",\"slot\":{\"requestedCivil\":\"2026-10-25T02:30:00.5\",\"scheduledFor\":\"2026-10-25T00:30:00.123456789Z\",\"shift\":\"folded_first\",\"slotId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}",
+        ),
+        (
+            "due/catch_up/folded",
+            "{\"kind\":\"catch_up\",\"missedSlots\":3,\"slot\":{\"requestedCivil\":\"2026-10-25T02:30:00.5\",\"scheduledFor\":\"2026-10-25T00:30:00.123456789Z\",\"shift\":\"folded_first\",\"slotId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}",
+        ),
+        (
+            "due/skipped_missed/folded",
+            "{\"kind\":\"skipped_missed\",\"missedSlots\":4294967295,\"slot\":{\"requestedCivil\":\"2026-10-25T02:30:00.5\",\"scheduledFor\":\"2026-10-25T00:30:00.123456789Z\",\"shift\":\"folded_first\",\"slotId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}",
+        ),
+        (
+            "due/skipped_too_late/folded",
+            "{\"kind\":\"skipped_too_late\",\"latenessSeconds\":18446744073709551615,\"maximumSeconds\":0,\"slot\":{\"requestedCivil\":\"2026-10-25T02:30:00.5\",\"scheduledFor\":\"2026-10-25T00:30:00.123456789Z\",\"shift\":\"folded_first\",\"slotId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}",
+        ),
+        (
+            "due/scheduled/absolute",
+            "{\"kind\":\"scheduled\",\"slot\":{\"requestedCivil\":null,\"scheduledFor\":\"1970-01-01T00:00:00Z\",\"shift\":\"exact\",\"slotId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}",
+        ),
+        (
+            "due/catch_up/absolute",
+            "{\"kind\":\"catch_up\",\"missedSlots\":3,\"slot\":{\"requestedCivil\":null,\"scheduledFor\":\"1970-01-01T00:00:00Z\",\"shift\":\"exact\",\"slotId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}",
+        ),
+        (
+            "due/skipped_missed/absolute",
+            "{\"kind\":\"skipped_missed\",\"missedSlots\":4294967295,\"slot\":{\"requestedCivil\":null,\"scheduledFor\":\"1970-01-01T00:00:00Z\",\"shift\":\"exact\",\"slotId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}",
+        ),
+        (
+            "due/skipped_too_late/absolute",
+            "{\"kind\":\"skipped_too_late\",\"latenessSeconds\":18446744073709551615,\"maximumSeconds\":0,\"slot\":{\"requestedCivil\":null,\"scheduledFor\":\"1970-01-01T00:00:00Z\",\"shift\":\"exact\",\"slotId\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}}",
+        ),
+        (
+            "due/paused",
+            "{\"kind\":\"paused\",\"pauseUntil\":\"2099-01-01T00:00:00Z\",\"reason\":\"maintenance « é » \\\"q\\\" \\\\ \\n\"}",
+        ),
+        (
+            "due/paused_empty",
+            "{\"kind\":\"paused\",\"pauseUntil\":\"\",\"reason\":\"\"}",
+        ),
+        (
+            "due/once_consumed",
+            "{\"kind\":\"once_consumed\",\"scheduledFor\":\"2099-09-01T07:00:00.25Z\",\"slotId\":\"0f1e2d3c4b5a69788796a5b4c3d2e1f00f1e2d3c4b5a69788796a5b4c3d2e1f0\"}",
+        ),
+        ("due/not_due", "{\"kind\":\"not_due\"}"),
+    ];
+
+    #[test]
+    fn schedule_projections_keep_the_pre_move_bytes() {
+        let want: Vec<(String, String)> = EXPECTED
+            .iter()
+            .map(|(n, t)| ((*n).to_owned(), (*t).to_owned()))
+            .collect();
+        assert_eq!(cases(), want);
+    }
+}

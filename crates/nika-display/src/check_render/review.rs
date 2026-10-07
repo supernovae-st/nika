@@ -6,6 +6,192 @@
 //! what the workflow reaches when it runs and the spend it can reach. Pure text over the
 //! report, no theme and no I/O: the caller keeps the verdict, the path and every authority.
 
+// Candidate task faces share this pure review owner; consent and file placement stay callers.
+use nika_schema::raw::{RawAction, RawInvokeTarget};
+use nika_schema::{FileId, ParseMode};
+
+/// What one task does, in the review's words: the verb and the tool or
+/// model it names (`default_model` stands in for an `infer` without its
+/// own). From the parser, never from prose.
+#[must_use]
+pub fn task_face(task: &nika_schema::raw::RawTask, default_model: Option<&str>) -> String {
+    let what = match &task.action {
+        RawAction::Infer(infer) => match infer
+            .model
+            .as_ref()
+            .map(|m| m.value.as_str())
+            .or(default_model)
+        {
+            Some(model) => format!("infer · {model}"),
+            None => "infer · (no model named)".to_owned(),
+        },
+        RawAction::Exec(_) => "exec · runs a program".to_owned(),
+        RawAction::Agent(_) => "agent · a bounded multi-turn loop".to_owned(),
+        RawAction::Invoke(invoke) => match &invoke.target {
+            RawInvokeTarget::Tool(tool) => builtin_face(&tool.value),
+            RawInvokeTarget::Workflow(_) => "invoke · another workflow".to_owned(),
+        },
+        _ => "(a verb this review does not name)".to_owned(),
+    };
+    let each = if task.for_each.is_some() {
+        " · for each item"
+    } else {
+        ""
+    };
+    format!("{what}{each}")
+}
+
+/// A builtin's face in the review's words: what it does, never its id —
+/// `jq`, `glob` or `assert` are machine words to the human who asked for
+/// a brief, and `/show` keeps the bytes. A tool this review does not
+/// know (an MCP tool, a builtin newer than this list) keeps its id.
+fn builtin_face(tool: &str) -> String {
+    match tool {
+        "nika:read" => "reads a file",
+        "nika:write" => "writes a file",
+        "nika:edit" => "edits a file",
+        "nika:glob" => "lists files",
+        "nika:grep" => "searches text",
+        "nika:jq" => "shapes the data",
+        "nika:json_diff" => "compares data",
+        "nika:json_merge_patch" => "merges data",
+        "nika:validate" => "validates data",
+        "nika:assert" => "checks a condition",
+        "nika:decide" => "decides a branch",
+        "nika:done" => "marks the work done",
+        "nika:prompt" => "asks a human",
+        "nika:fetch" => "fetches from the web",
+        "nika:notify" => "sends a notification",
+        "nika:emit" => "emits an event",
+        "nika:log" => "logs a line",
+        "nika:wait" => "waits",
+        "nika:date" => "reads the clock",
+        "nika:uuid" => "makes an id",
+        "nika:hash" => "hashes data",
+        "nika:convert" => "converts a document",
+        "nika:compose" => "composes a document",
+        "nika:inspect" => "inspects a workflow",
+        "nika:chart" => "draws a chart",
+        "nika:image_generate" => "generates an image",
+        "nika:image_fx" => "transforms an image",
+        "nika:tts_generate" => "speaks text aloud",
+        _ => tool,
+    }
+    .to_owned()
+}
+
+/// What the workflow reaches outside the project: the network hosts and
+/// programs the bytes DECLARE (the boundary the human accepts, default-deny)
+/// joined with the check's inferred floor. The floor alone would print
+/// « none » for a loopback webhook: the inference leaves a loopback host
+/// out by design (the SSRF floor) while the candidate names it. A face the
+/// check could not pin is said so, never folded into « none ».
+#[must_use]
+pub fn external_effects(
+    candidate: &str,
+    boundary: Option<&nika_check::EffectivePermits>,
+) -> String {
+    let declared = nika_schema::parse(candidate, FileId::new(0), ParseMode::Strict)
+        .ok()
+        .and_then(|wf| wf.permits.map(|p| p.value));
+    let mut hosts: Vec<String> = declared
+        .as_ref()
+        .and_then(|p| p.net.as_ref())
+        .map(|net| net.http.clone())
+        .unwrap_or_default();
+    let mut exec = declared.as_ref().and_then(|p| p.exec.clone());
+    let mut unpinned = Vec::new();
+    if let Some(boundary) = boundary {
+        if let Some(net) = &boundary.needed.net {
+            for host in &net.http {
+                if !hosts.contains(host) {
+                    hosts.push(host.clone());
+                }
+            }
+        }
+        if exec.is_none() {
+            exec.clone_from(&boundary.needed.exec);
+        }
+        if boundary.partial.net && hosts.is_empty() {
+            unpinned.push("a network host the check could not pin");
+        }
+        if boundary.partial.exec && exec.is_none() {
+            unpinned.push("a program the check could not pin");
+        }
+    }
+    let mut external = Vec::new();
+    if !hosts.is_empty() {
+        external.push(format!("network · {}", hosts.join(" · ")));
+    }
+    match exec {
+        Some(nika_cap::ExecPermit::Any) => external.push("runs any program".to_owned()),
+        Some(nika_cap::ExecPermit::Programs(p)) if !p.is_empty() => {
+            external.push(format!("runs · {}", p.join(" · ")));
+        }
+        _ => {}
+    }
+    external.extend(unpinned.into_iter().map(str::to_owned));
+    if external.is_empty() {
+        "none".to_owned()
+    } else {
+        external.join(" · ")
+    }
+}
+
+/// The candidate's tasks in order — one line each: the id, the verb, the
+/// tool or model it names, whether it runs per item. From the parser,
+/// never from prose.
+#[must_use]
+pub fn plan_lines(candidate: &str) -> Vec<String> {
+    plan_lines_in_order(candidate, &[])
+}
+
+/// [`plan_lines`] in RUN order: the check's waves (indices into the file's
+/// tasks) first, then anything the waves left out in file order. The file
+/// lists its tasks alphabetically; a human reads what runs first, first.
+#[must_use]
+pub fn plan_lines_in_order(candidate: &str, waves: &[Vec<usize>]) -> Vec<String> {
+    let Ok(wf) = nika_schema::parse(candidate, FileId::new(0), ParseMode::Strict) else {
+        return vec!["(the candidate does not parse; the check below says why)".to_owned()];
+    };
+    let mut order: Vec<usize> = waves
+        .iter()
+        .flatten()
+        .copied()
+        .filter(|i| *i < wf.tasks.len())
+        .collect();
+    for i in 0..wf.tasks.len() {
+        if !order.contains(&i) {
+            order.push(i);
+        }
+    }
+    let default_model = wf.model.as_ref().map(|m| m.value.clone());
+    order
+        .iter()
+        .enumerate()
+        .filter_map(|(n, i)| wf.tasks.get(*i).map(|t| (n, t)))
+        .map(|(i, task)| {
+            let task = &task.value;
+            format!(
+                "  {}. {} · {}",
+                i + 1,
+                task.value_id(),
+                task_face(task, default_model.as_deref())
+            )
+        })
+        .collect()
+}
+
+trait TaskId {
+    fn value_id(&self) -> &str;
+}
+
+impl TaskId for nika_schema::raw::RawTask {
+    fn value_id(&self) -> &str {
+        &self.id.value
+    }
+}
+
 /// The report's first findings (`code · message`, at most eight) and hints (`kind · advice`, at
 /// most four), in the report's order.
 #[must_use]

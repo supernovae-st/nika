@@ -28,10 +28,10 @@ fn sales(root: &Path) {
     .expect("fixture");
 }
 
-/// The native-first context the root's live attempt ran under, observing `root`.
+/// The default context (escalate: semantic CREATE, the private plan first), observing `root`.
 fn context(root: &Path) -> AuthoringContext {
     AuthoringContext::from_settings(
-        &nika_cli_host::compile::config::AuthoringSettings::none().with_strategy("only"),
+        &nika_cli_host::compile::config::AuthoringSettings::none(),
         &nika_cli_host::compile::config::AuthoringSettings::none(),
     )
     .with_project_root(root.to_path_buf())
@@ -182,7 +182,7 @@ fn without_a_project_root_nothing_is_observed() {
     let dir = tempfile::tempdir().unwrap();
     sales(dir.path());
     let context = AuthoringContext::from_settings(
-        &nika_cli_host::compile::config::AuthoringSettings::none().with_strategy("only"),
+        &nika_cli_host::compile::config::AuthoringSettings::none(),
         &nika_cli_host::compile::config::AuthoringSettings::none(),
     );
     let _ = compile_in_with_admission(
@@ -202,7 +202,7 @@ fn the_session_budget_and_its_review_are_one_bound() {
     assert_eq!(policy.initial_max_tokens, Some(AUTHORING_INITIAL_TOKENS));
     const { assert!(AUTHORING_INITIAL_TOKENS < AUTHORING_MAX_TOKENS) };
     assert_eq!(policy.timeout, AUTHORING_TIMEOUT);
-    assert_eq!(policy.repairs, AUTHORING_REPAIRS);
+    assert_eq!(policy.repair_limit(), Some(AUTHORING_REPAIRS));
     assert_eq!(
         session_policy(MODEL, true, NativeMode::Escalate).timeout,
         std::time::Duration::from_secs(300),
@@ -226,7 +226,10 @@ fn the_session_budget_and_its_review_are_one_bound() {
 
 #[test]
 fn a_hot_copy_observes_the_source_without_claiming_model_presentation() {
-    let peer = Peer::start(vec![]);
+    // The reader composes the copy; the selected author checks it as its judge before READY (R1):
+    // every closed choice it is asked is answered with the approval it offers.
+    let approve = |choice: &str| (200, response(&json!({"choice": choice}).to_string()));
+    let peer = Peer::start(vec![approve("faithful"), approve("only_requested")]);
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
     sales(dir.path());
@@ -239,7 +242,7 @@ fn a_hot_copy_observes_the_source_without_claiming_model_presentation() {
         &InferenceAdmission::unbudgeted(),
     )
     .expect("hot copy");
-    assert!(peer.bodies().is_empty());
+    assert!(!peer.bodies().is_empty(), "the judge was asked");
     let observed = &out.provenance.decision.expect("record")["session"]["observed"];
     assert_eq!(observed["attached"], true);
     assert_eq!(observed["presented"], false);
@@ -366,10 +369,7 @@ fn a_money_blocked_deterministic_round_still_observes_the_project() {
 /// names, and the session's context keeps that root.
 #[test]
 fn a_seated_session_round_is_told_the_project_under_its_own_root() {
-    let peer = Peer::start(vec![
-        (200, response(&native())),
-        (200, response(JUDGE_APPROVES)),
-    ]);
+    let peer = Peer::start(authored(response));
     let _transport = test_transport::install(&peer.url);
     let dir = tempfile::tempdir().unwrap();
     let mut s = open(dir.path());

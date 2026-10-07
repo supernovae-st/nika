@@ -134,6 +134,16 @@ The `view_gallery` example and the dev-dependency it required were not recovered
 decision text and measurements above describe the 2026-09-30 split. Artifact viewers
 remain library surfaces awaiting a Live owner and an on-terminal witness.
 
+## Amendment 2026-10-03 · run outputs and current files
+
+The later run-result slice gives the artifact viewers a Live owner:
+`workspace::live::faces` calls `nika_tui_view::artifact` for settlement outputs
+and bounded current reads of reported writes. Acquisition remains in the host;
+the member stays pure and the dependency direction is unchanged. The earlier
+measurements and unrecovered gallery remain historical facts. Workspace PTYs
+cover an output and a Markdown file, not every viewer format, the full workspace
+journey or a stamped integrated build.
+
 ## Related
 
 - ADR-139 (the terminal renderer), ADR-137, ADR-138, ADR-140 and ADR-141 (the size-cap member

@@ -11,12 +11,14 @@ use nika_compile::surface::literal_projection;
 use nika_compile::{
     CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind, HotPolicy, Strategy, compile,
 };
-use nika_compile_cognition::compile_with_provider;
+use nika_compile_cognition::{
+    Cognition, NoProvider, compile_with_cognition, compile_with_provider,
+};
 use serde_json::{Value, json};
 use std::sync::atomic::Ordering;
 
 mod common;
-use common::{Provider, keys, policy};
+use common::{JudgedSeat, NoChoice, Provider, keys, policy};
 
 const J02: &str = "Résume mes notes dans un fichier.";
 const MODEL: (&str, &str) = ("model", r#""deepseek/deepseek-chat""#);
@@ -33,6 +35,25 @@ fn round(intent: &str, plan: Option<&Value>, answers: &[(&str, &str)]) -> Compil
         request = request.answer(*key, *literal);
     }
     compile(&request).unwrap()
+}
+
+/// The same answer round under this round's judge (R4 A11): a model plan's whole request,
+/// pending on the bytes every round replays, is judged on the bytes this round writes.
+async fn judged_round(
+    intent: &str,
+    plan: &Value,
+    answers: &[(&str, &str)],
+    judge: &JudgedSeat<'_>,
+) -> CompileOutcome {
+    let mut request = CompileRequest::create(intent).with_plan(plan.clone());
+    for (key, literal) in answers {
+        request = request.answer(*key, *literal);
+    }
+    let cognition = Cognition::<NoProvider> {
+        provider: None,
+        seat: Some(judge),
+    };
+    compile_with_cognition(&request, cognition).await.unwrap()
 }
 
 fn recorded(out: &CompileOutcome) -> Value {
@@ -316,9 +337,25 @@ async fn a_cold_plan_that_drops_the_write_keeps_the_readers_write_and_its_questi
         planned_writes(&first),
         [("un fichier".to_owned(), "dans un fichier".to_owned())]
     );
-    // The answer round replays the seat's plan with zero calls and writes the answered file.
-    let done = round(INTENT, Some(&recorded(&first)), &[MODEL, PATH]);
+    // A model plan's whole request is judged on the bytes of the round that replays it (its
+    // first candidate is the answer round's): a replay with no judge holds those bytes for
+    // that judge, INCOMPLETE on the whole request alone (R4 A11) ...
+    let record = recorded(&first);
+    let pending = round(INTENT, Some(&record), &[MODEL, PATH]);
+    common::assert_waits_for_its_judge(&pending, INTENT);
+    // ... and the answer round under a judge replays the plan with no author call, judges the
+    // whole request of the bytes it writes, and writes the answered file. The record it keeps
+    // is the plan it replayed: no judgment rides it, so the next round judges again.
+    let judge = JudgedSeat::approving(&NoChoice);
+    let done = judged_round(INTENT, &record, &[MODEL, PATH], &judge).await;
     assert_eq!(done.status, CompileStatus::Ready, "{done:#?}");
+    assert_eq!(done.candidate, pending.candidate, "{done:#?}");
+    assert_eq!(
+        judge.judged.load(Ordering::SeqCst),
+        1,
+        "the whole request, once"
+    );
+    assert_eq!(done.provenance.plan.as_ref(), Some(&record), "{done:#?}");
     let doc = document(&done);
     assert_eq!(
         doc["permits"]["fs"],

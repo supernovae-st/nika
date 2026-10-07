@@ -12,16 +12,8 @@
 
 use std::path::Path;
 use std::sync::mpsc::{Receiver, Sender, channel};
-use std::time::Duration;
 
-use nika_kernel::ai::provider::{
-    ContentBlock, InferRequest, InferResponse, ProviderError, ProviderInferDyn, StopReason,
-    TokenUsage,
-};
-use nika_onboard::compile::{
-    AuthoringPolicy, CompileOutcome, CompileRequest, NativeMode, QuestionType, compile,
-    compile_with_provider, intent_sha256,
-};
+use nika_onboard::compile::{CompileOutcome, CompileRequest, QuestionType, compile, intent_sha256};
 use serde_json::{Value, json};
 
 use super::inference_tests::JUDGE_APPROVES;
@@ -291,8 +283,9 @@ fn the_original_reply_binds_the_destination_it_names_not_the_sentence() {
     assert_eq!(sent.len(), 1, "{sent:?}");
     assert!(sent[0].contains("«Destination file path»"), "{}", sent[0]);
     assert!(sent[0].contains("«Écris dans sortie.txt.»"), "{}", sent[0]);
-    // The round that finished the seat's record asked its judge once, over the bound bytes.
-    assert_eq!(judge.requests(), 1);
+    // The round that finished the seat's record asked its judge over the bound bytes: the whole
+    // request, then its one part over the round's trial run of them.
+    assert_eq!(judge.requests(), 2);
     assert!(judge.peer.bodies()[0].to_string().contains("sortie.txt"));
     // Nothing lands before consent, and consent is never a run.
     assert!(workflows(root.path()).is_empty());
@@ -306,7 +299,7 @@ fn the_original_reply_binds_the_destination_it_names_not_the_sentence() {
         !root.path().join("sortie.txt").exists(),
         "consent saved, nothing ran"
     );
-    assert_eq!(judge.requests(), 1, "a consent asks no judge");
+    assert_eq!(judge.requests(), 2, "a consent asks no judge");
 }
 
 /// The same act in English, and a destination with a space — whole, or inside quotes.
@@ -336,7 +329,11 @@ fn an_english_reply_and_a_path_with_spaces_bind_verbatim() {
         let TurnOutcome::Proposal { .. } = s.turn(line) else {
             panic!("{line}: a proposal");
         };
-        assert_eq!(judge.requests(), 1, "{line}");
+        assert_eq!(
+            judge.requests(),
+            2,
+            "{line}: the whole request, its part over the run"
+        );
         let source = candidate(&s);
         assert!(
             source.contains(&format!("destination_path: \"{value}\"")),
@@ -424,7 +421,11 @@ fn an_ambiguous_invented_or_partial_value_binds_nothing() {
     assert_eq!(judge.requests(), 0, "nothing bound, nothing judged");
     assert!(matches!(s.turn("sortie.txt"), TurnOutcome::Proposal { .. }));
     assert_eq!(prompts.try_iter().count(), 0, "one token is its own value");
-    assert_eq!(judge.requests(), 1);
+    assert_eq!(
+        judge.requests(),
+        2,
+        "the whole request, its part over the run"
+    );
     assert!(candidate(&s).contains("write: [\"sortie.txt\"]"));
 }
 
@@ -460,7 +461,11 @@ fn a_piece_cut_out_of_a_token_binds_nothing() {
         "{source}"
     );
     assert_eq!(prompts.try_iter().count(), 3);
-    assert_eq!(judge.requests(), 1, "only the finishing round is judged");
+    assert_eq!(
+        judge.requests(),
+        2,
+        "only the finishing round is judged, its part over the run"
+    );
 }
 
 /// A failed reading, and a spending limit that refuses the reading before any call:
@@ -713,54 +718,56 @@ outputs:
   total: "${{ tasks.compute_total.output }}"
 "#;
 
-/// The native seat's stand-in: every call returns the draft that asks the column in words.
-struct ColumnSeat(String);
-
-impl ProviderInferDyn for ColumnSeat {
-    async fn infer(&self, _: InferRequest) -> Result<InferResponse, ProviderError> {
-        Ok(InferResponse::new(
-            vec![ContentBlock::Text {
-                text: self.0.clone(),
-            }],
-            TokenUsage::new(100, 50),
-            StopReason::EndTurn,
-        ))
-    }
+/// DIALOG-03 through the sketch door (the compiler's own semantic shape,
+/// `compile_observed_choice.rs`), authored through the Session's own compile path over `root`
+/// (the project observation the answer round reads again): read, parse, sum the asked column,
+/// write the total; the compiler admits the open column as a closed choice among the observed
+/// columns and records it for the answer round. The compiler writes the source.
+fn semantic_column_outcome(root: &Path) -> CompileOutcome {
+    let edge = |name: &str, from: &str| json!([{"name": name, "from": from}]);
+    let graph = json!({"name": "sum-column-to-total", "tasks": [
+        {"id": "read_source", "verb": "invoke", "tool": "nika:read", "reads": ["ventes.csv"],
+         "purpose": "the sales"},
+        {"id": "parse_source", "verb": "invoke", "tool": "nika:convert",
+         "with": edge("document", "read_source"), "purpose": "parse"},
+        {"id": "compute_total", "verb": "invoke", "tool": "nika:jq",
+         "with": edge("records", "parse_source"), "purpose": "sum the column"},
+        {"id": "write_total", "verb": "invoke", "tool": "nika:write", "writes": ["total.txt"],
+         "with": edge("content", "compute_total"), "purpose": "the total"}
+    ], "outputs": [{"name": "total", "from": "compute_total"}],
+       "questions": [{"key": "const.sum_column", "label": "Quelle colonne additionner ?",
+           "answer_type": "text", "why": "La demande ne dit pas quelle colonne."}],
+       "gaps": [], "notes": "the column is the human's"});
+    let fills = json!({"fills": [
+        {"task": "parse_source", "field": "args", "value": {"from": "csv", "to": "json"}},
+        {"task": "compute_total", "field": "expression",
+         "value": "([.[][\"${{ const.sum_column }}\"] | tonumber] | add // 0) as $total | ($total | tostring) + \"\\n\""}
+    ], "notes": "two holes"});
+    let peer = Peer::start(vec![
+        (200, response(&graph.to_string())),
+        (200, response(&fills.to_string())),
+    ]);
+    let _transport = test_transport::install(&peer.url);
+    let context = crate::authoring::AuthoringContext::from_settings(
+        &nika_cli_host::compile::config::AuthoringSettings::none().with_strategy("sketch"),
+        &nika_cli_host::compile::config::AuthoringSettings::none(),
+    )
+    .with_project_root(root.to_path_buf());
+    let seat = crate::authoring::AuthoringSeat::Provider {
+        model: "deepseek/deepseek-v4-pro".to_owned(),
+    };
+    crate::authoring::compile_in_with_admission(
+        &seat,
+        &context,
+        &CompileRequest::create(OPEN),
+        OPEN,
+        &nika_providers::InferenceAdmission::unbudgeted(),
+    )
+    .expect("the sketch door answers")
 }
 
-/// DIALOG-03 through the real native door: the compiler's own judge admits the open column as
-/// a closed choice among the observed columns and records it for the answer round.
-fn native_column_outcome() -> CompileOutcome {
-    let draft = json!({
-        "candidate": COLUMN_SEAT,
-        "questions": [{
-            "key": "const.sum_column",
-            "label": "Quelle colonne additionner ?",
-            "answer_type": "text",
-            "why": "La demande ne dit pas quelle colonne.",
-        }],
-        "gaps": [],
-        "notes": "the column is the human's",
-    });
-    let world = json!({"observed": [{"path": "ventes.csv", "kind": "csv", "delimiter": ",", "columns": ["montant", "autre"]}]});
-    let policy = AuthoringPolicy::new("mock/authoring", 4096, Duration::from_secs(2))
-        .with_native(NativeMode::Only)
-        .with_repairs(1);
-    let request = CompileRequest::create(OPEN)
-        .with_knowledge(world)
-        .with_authoring_policy(policy);
-    let seat = ColumnSeat(draft.to_string());
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("runtime");
-    runtime
-        .block_on(Box::pin(compile_with_provider(&request, &seat)))
-        .expect("the native door answers")
-}
-
-/// An observed-column choice in the record shape the native door writes (`recorded`): the
-/// seat's question, its observed file's columns as the offers.
+/// An observed-column choice in the historical native record shape (`recorded`), valid history
+/// an answer round still replays: the seat's question, its observed file's columns as the offers.
 fn column_record(intent: &str, path: &str, label: &str, why: &str, columns: &[&str]) -> Value {
     let options: Vec<Value> = columns
         .iter()
@@ -821,12 +828,13 @@ fn baked(s: &SessionRuntime, column: &str) -> bool {
         .any(|l| l.trim_start().starts_with("sum_column:") && l.contains(&format!("\"{column}\"")))
 }
 
-/// DIALOG-03 end to end: the real native door asks the open column among the observed ones,
+/// DIALOG-03 end to end: the real sketch door asks the open column among the observed ones,
 /// the original reply binds the offered key it names through one bounded reading, said
 /// beside the proposal, the candidate bakes that key, and nothing lands before consent.
 #[test]
 fn the_original_reply_binds_the_offered_column_it_names() {
-    let out = native_column_outcome();
+    let root = column_world("ventes.csv", VENTES);
+    let out = semantic_column_outcome(root.path());
     let question = out
         .questions
         .iter()
@@ -844,21 +852,30 @@ fn the_original_reply_binds_the_offered_column_it_names() {
         .plan
         .clone()
         .expect("the door records its round");
-    assert_eq!(
-        record["questions"],
-        french_record()["questions"],
-        "the fixtures below replay the door's own record shape"
+    // The semantic record settles the same question the historical native records below carry
+    // (they replay as valid history): the same key, label, closed type and observed offers.
+    let (asked, historical) = (
+        &record["settlement"]["questions"][0],
+        &french_record()["questions"][0],
+    );
+    for field in ["key", "label", "answer_type", "options"] {
+        assert_eq!(asked[field], historical[field], "{field}: {record:#}");
+    }
+    assert!(
+        (asked["why"].as_str().unwrap_or_default())
+            .starts_with(historical["why"].as_str().unwrap_or("?")),
+        "{record:#}"
     );
     // Before: the whole sentence as the choice's key.
     assert_eq!(
         crate::authoring::literal_for(question, MONTANT),
         "\"La colonne montant.\""
     );
-    let root = column_world("ventes.csv", VENTES);
     let (mut s, prompts, judge) = seated(root.path(), vec![Ok("montant")]);
     assert_eq!(wait_on(&mut s, OPEN, &out), "const.sum_column");
-    let TurnOutcome::Proposal { id, preview } = s.turn(MONTANT) else {
-        panic!("the offered column binds: {:?}", s.routes());
+    let out = s.turn(MONTANT);
+    let TurnOutcome::Proposal { id, preview } = out else {
+        panic!("the offered column binds: {out:?} · {:?}", s.routes());
     };
     assert_eq!(judge.requests(), 1);
     assert!(

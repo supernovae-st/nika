@@ -240,6 +240,45 @@ additive constants, and the crate keeps no jaq dependency.
 
 ---
 
+### 3.5 Task-bound filesystem arguments (0.123 compiler slice A2)
+
+`unbound_fs_args(tool, args, reads, writes) -> Vec<String>` is a pure query over one
+call and its task's stated reach. It returns findings for recognized, present filesystem
+slots that do not match the appropriate read/write list; `edit.path` must match both.
+Primary slots and directions come from `builtin_effect`; the same owner also checks
+`image_fx.input`, `chart.data.path`, `image_generate.image`/`images[]`/`mask`, string
+`decide.bundle` and `fetch.multipart[].path`. Present nonliteral, empty or malformed
+recognized slots are findings rather than silently omitted. Inline chart rows, an inline
+decision bundle and text multipart parts do not acquire filesystem meaning.
+
+Matching folds one leading `./` and otherwise compares exact text. A glob slot is matched
+as its stated pattern, and `output_dir` as the stated directory; this is not glob inclusion,
+general lexical normalization, filesystem resolution or a permits query. The helper does
+not independently enumerate the chart's derived `.vl.json` sibling; its existing derivation
+remains `chart_vl_sibling`. Findings name rules/slots without repeating proposed path values.
+
+Before fills, the Sketch door in `nika-compile-cognition` uses `required_fs_directions` to
+check unconditional read/write reach and `unbound_fs_args` to check graph-derived filesystem
+arguments. After fills, it checks present recognized filesystem arguments again before
+candidate serialization. Optional slots and inline data are not made mandatory.
+This query neither grants authority nor changes `builtin_effect`, inference or runtime
+enforcement. It is not a complete argument validator, an exhaustive census of runtime I/O,
+or an interpretation of arbitrary MCP arguments. Required arguments, callable shapes,
+Check, request fidelity and runtime admission retain their existing owners.
+
+### 3.6 Regular file removal (`nika:remove_file`)
+
+`builtin_effect("nika:remove_file")` is the exact-path filesystem write
+`Fs { path_arg: "path", reads: false, writes: true, recursive: false,
+walk_root: false }`, and the coarse effect vocabulary names it `write` +
+`tools`: a read grant never covers it and no directory walk is implied. The
+static shape rule refuses, before templating, a non-object argument set, a
+non-string `path`, and a literal path that names no regular file (empty, a
+trailing separator, a final `.` or `..`, a root or prefix without a file
+name); a templated path is deferred to the runtime's identical raw-shape
+check. The rule is lexical: wildcard-looking characters and a POSIX
+backslash are ordinary name characters, and nothing is trimmed.
+
 ## 4. Module structure with LOC estimates
 
 ```
@@ -455,6 +494,9 @@ should be a single pass given the crate's size (~490 LOC).
 ---
 
 ## 10. Consumers (downstream)
+
+- **`nika-compile-cognition`** — the Sketch and fill phases call `unbound_fs_args` with
+  each task’s own reads/writes; global permits do not substitute for that task binding.
 
 - **`nika-schema`** (L0) — re-exports the types at the same module path
   (§6 Step 4); `check/permits_fit.rs` and `check/infer_permits.rs` become

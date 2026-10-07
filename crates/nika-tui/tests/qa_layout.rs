@@ -19,8 +19,8 @@ mod qa_support;
 
 use qa_support::vt::Screen;
 use qa_support::{
-    ANSWER, APPLY, FREE, FREE_HINT, GATE, GATE_HINT, JOURNEY, PROPOSAL, QUESTION, REPLY, SIZES,
-    Term, assert_restored, exit_code,
+    ANSWER, APPLY, FREE, FREE_HINT, GATE, GATE_HINT, JOURNEY, PROPOSAL, QUESTION, REPLY, SAVED,
+    SIZES, Term, assert_restored, exit_code,
 };
 
 /// Two `Ctrl+C` from an idle prompt: the terminal comes back with 130.
@@ -156,7 +156,7 @@ fn without_colour_no_hue_is_painted_and_the_marks_remain() {
 }
 
 /// With colour the gate and its prompt wear the warning slot and the busy
-/// marker the accent: the theme's ANSI-16 slots, never a named hue.
+/// marker the accent from the workspace RGB product palette.
 #[test]
 fn with_colour_the_gate_wears_the_warning_slot() {
     let mut term = Term::proto(&["--color"], 80, 24);
@@ -164,11 +164,11 @@ fn with_colour_the_gate_wears_the_warning_slot() {
     term.walk(&JOURNEY[..4]);
     let hues = term.screen.hues();
     assert!(
-        hues.contains("38;5;3"),
+        hues.contains("38;2;242;193;125"),
         "no warning hue at the gate: {hues:?}"
     );
     assert!(
-        hues.contains("38;5;6"),
+        hues.contains("38;2;140;177;255"),
         "no accent on the busy marker: {hues:?}"
     );
     leave(&mut term);
@@ -188,7 +188,7 @@ fn a_forced_colour_under_no_color_is_the_colour_the_terminal_sees() {
     term.walk(&JOURNEY[..4]);
     let hues = term.screen.hues();
     assert!(
-        hues.contains("38;5;3"),
+        hues.contains("38;2;242;193;125"),
         "no warning hue at the gate: {hues:?}"
     );
     leave(&mut term);
@@ -287,6 +287,28 @@ fn a_width_shrink_keeps_the_waiting_proposal_on_screen() {
         "the proposal waiting for consent left the screen\n{}",
         term.dump()
     );
+    leave(&mut term);
+}
+
+/// The full-screen view keeps the candidate across sizes: a proposal waiting for consent when the
+/// terminal shrinks below the workspace's minimum (50x14) and grows back is the same proposal
+/// on screen afterwards, and the consent typed then saves it.
+#[test]
+fn a_waiting_proposal_outlives_a_resize_and_its_consent_saves_it() {
+    let mut term = Term::proto(&["--focus"], 120, 40);
+    term.wait_prompt(FREE);
+    term.walk(&JOURNEY[..2]);
+    term.resize(50, 14);
+    term.wait_until("the consent prompt at 50x14", |screen| {
+        screen.row_starting(APPLY).is_some() && screen.lines().len() == 14
+    });
+    term.resize(120, 40);
+    term.wait_until("the same proposal back at 120x40", |screen| {
+        screen.contains(PROPOSAL) && screen.row_starting(APPLY).is_some()
+    });
+    term.send("yes\r");
+    term.wait_until("the proposal saved", |screen| screen.contains(SAVED));
+    term.wait_prompt(FREE);
     leave(&mut term);
 }
 

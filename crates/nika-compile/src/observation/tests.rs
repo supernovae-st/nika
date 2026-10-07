@@ -172,3 +172,112 @@ fn an_empty_or_partial_sample_does_not_claim_a_complete_schema() {
     assert_eq!(jsonl("{\"id\":1}\n{\"status\":").len(), 1);
     assert_eq!(records(&jsonl("\n")).common, Some(Vec::new()));
 }
+
+#[test]
+fn a_record_holding_collections_keeps_their_nested_key_paths_and_kinds_only() {
+    let doc = json!({"stock": [{"part": "P1", "on_hand": "3"}], "movements": [{"qty": 2}]});
+    let sample = records(std::slice::from_ref(&doc));
+    assert_eq!(sample.columns, ["movements", "stock"]);
+    assert_eq!(sample.nested["complete"], true);
+    // The number-text law reads nested texts as it reads a record's own.
+    assert_eq!(
+        sample.nested["paths"]["stock[].on_hand"],
+        json!({"number_text": 1})
+    );
+    assert_eq!(
+        sample.nested["paths"]["movements[].qty"],
+        json!({"number": 1})
+    );
+    assert!(
+        !sample.nested.to_string().contains("P1"),
+        "{}",
+        sample.nested
+    );
+    assert_eq!(records(&[json!({"id": 1})]).nested, serde_json::Value::Null);
+    assert_eq!(csv("a,b\n1,2\n", false).nested, serde_json::Value::Null);
+}
+
+#[test]
+fn temporal_metadata_counts_flat_csv_and_json_slots_without_values() {
+    let sample = records(&[
+        json!({"at": "2042-11-28T07:36"}),
+        json!({"at": "2042-11-28T07:36:00Z"}),
+        json!({"at": "private"}),
+        json!({"at": null}),
+        json!({}),
+        json!(false),
+    ]);
+    assert_eq!(
+        sample.kinds["temporal"]["at"],
+        json!({"sampled": 5, "matched": 2,
+        "formats": {"9999-99-99T99:99": 1, "9999-99-99T99:99:99Z": 1}})
+    );
+    assert_eq!(sample.kinds["sampled"], 6);
+    assert_eq!(sample.kinds["keys"]["at"]["absent"], 1);
+    assert!(sample.kinds["instants"].is_null());
+    let csv = csv(
+        "at,id\n2042-11-28T07:36,one\n2042-11-28T08:36,two\n,three\n",
+        false,
+    );
+    assert_eq!(
+        csv.kinds["temporal"]["at"],
+        json!({"sampled": 3, "matched": 2,
+        "formats": {"9999-99-99T99:99": 2}})
+    );
+    assert!(csv.kinds["temporal"]["id"].is_null());
+    assert!(!sample.kinds.to_string().contains("2042"));
+    assert!(!csv.kinds.to_string().contains("2042"));
+}
+
+#[test]
+fn temporal_nested_shapes_keep_the_existing_sampling_boundary_and_mixed_counts() {
+    let mut punches = vec![json!({"at": "2042-11-28T07:36"}); 198];
+    punches.extend([
+        json!({"at": null}),
+        json!({}),
+        json!({"at": "2042-11-28T07:36Z"}),
+    ]);
+    let sample = records(&[json!({"punches": punches, "meta": {"at": "2042-11-28T07:36+04:00"}})]);
+    assert_eq!(sample.nested["complete"], false);
+    assert_eq!(
+        sample.nested["collections"]["punches[]"],
+        json!({"elements": 201, "sampled": 200})
+    );
+    assert_eq!(
+        sample.nested["temporal"]["punches[].at"],
+        json!({"sampled": 199, "matched": 198,
+        "formats": {"9999-99-99T99:99": 198}})
+    );
+    assert_eq!(
+        sample.nested["temporal"]["meta.at"]["formats"],
+        json!({"9999-99-99T99:99+99:99": 1})
+    );
+    assert_eq!(
+        sample.nested["paths"]["punches[].at"],
+        json!({"text": 198, "null": 1})
+    );
+    assert!(!sample.nested.to_string().contains("2042"));
+    assert!(sample.nested["instants"].is_null());
+    let mut flat = vec![json!({"at": "plain"}); 200];
+    flat.push(json!({"at": "2042-11-28T07:36Z"}));
+    assert!(records(&flat).kinds["temporal"].is_null());
+}
+
+#[test]
+fn temporal_metadata_does_not_cross_the_nested_depth_or_path_bound() {
+    let deep = records(&[json!({"a": {"b": {"c": {"d": {"at": "2042-11-28T07:36"}}}}})]);
+    assert_eq!(deep.nested["complete"], false);
+    assert!(deep.nested["temporal"].is_null());
+    let many: serde_json::Map<String, serde_json::Value> = (0..65)
+        .map(|i| (format!("p{i:02}"), json!("2042-11-28T07:36")))
+        .collect();
+    let wide = records(&[json!({"meta": many})]);
+    assert_eq!(wide.nested["complete"], false);
+    assert_eq!(
+        wide.nested["temporal"]
+            .as_object()
+            .map(serde_json::Map::len),
+        Some(64)
+    );
+    assert!(wide.nested["temporal"]["meta.p64"].is_null());
+}
