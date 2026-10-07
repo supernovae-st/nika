@@ -544,8 +544,10 @@ const HELD_NEXT: &str = "\n  describe a correction, or `/intelligence` for anoth
 
 /// Whether the verifier answered `out`'s candidate and did not accept it: the compiler held it
 /// (its applied `verify_held` finding), or its last verification contested it with no defect.
-/// Such a candidate is shown, never proposed, never replayed to the same verifier.
-pub(crate) fn judged_not_accepted(out: &CompileOutcome) -> bool {
+/// Such a candidate is shown, never proposed, never replayed to the same verifier. The session's
+/// Meaning view reads it too (`nika_session::meaning`).
+#[must_use]
+pub fn judged_not_accepted(out: &CompileOutcome) -> bool {
     out.candidate.is_some()
         && (crate::compile::round::verify_held(out)
             || crate::compile::round::contested_judgment(out))

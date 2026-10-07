@@ -391,7 +391,7 @@ impl RoundRecord {
 
     /// The kept round in words — the request, the settled answers, the question that waited,
     /// the proposal it revises: evidence that names no host's protocol (a host adds its own way
-    /// on, as for `compile::meaning`).
+    /// on, as for `nika_session::meaning`).
     #[must_use]
     pub fn summary(&self) -> String {
         self.summary_as_typed(None)
@@ -1133,8 +1133,10 @@ pub fn keep_rejections(kept: &mut Vec<Value>, found: Vec<Value>) -> bool {
     changed
 }
 
-/// The last semantic verification attempt the outcome records, when it records one.
-pub(crate) fn last_verification(out: &CompileOutcome) -> Option<&Value> {
+/// The last semantic verification attempt the outcome records, when it records one. The
+/// session's Meaning view reads it too (`nika_session::meaning`).
+#[must_use]
+pub fn last_verification(out: &CompileOutcome) -> Option<&Value> {
     (out.provenance.decision.as_ref())
         .and_then(|decision| decision["semantic_verification"].as_array())
         .and_then(|attempts| attempts.last())

@@ -52,12 +52,10 @@ pub mod facts;
 #[doc(inline)]
 pub use nika_onboard::guard;
 pub mod intelligence;
-/// The Meaning view — what survived of a request, clause by clause, read from
-/// the compiler's obligation ledger — is owned beside that ledger since
-/// 2026-09-28: `nika_onboard::compile::meaning`. This path is kept for source
-/// compatibility and names the very same items (types, functions, constant).
-#[doc(inline)]
-pub use nika_onboard::compile::meaning;
+/// The Meaning view: what survived of a request, clause by clause, read from the
+/// compiler's obligation ledger. Owned here again since 2026-10-07, the session being its
+/// only reader (it sat in `nika_onboard::compile::meaning` from 2026-09-28).
+pub mod meaning;
 /// The automation rail (DRAFT · SAVED · CHECKED · ACTIVE · RUN, each at its own stage) is
 /// owned beside the other engine-knowledge words since 2026-09-29: `nika_onboard::lifecycle`.
 /// This path is kept for source compatibility and names the very same items (types,

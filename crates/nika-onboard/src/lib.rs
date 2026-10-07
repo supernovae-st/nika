@@ -48,9 +48,6 @@ pub mod compile {
     /// what the assembler's two exact copies did when rehearsed in the observed room (the session
     /// calls it before it proposes).
     pub mod copy;
-    /// The Meaning view of an outcome's obligation ledger — what survived of the request,
-    /// clause by clause — owned beside the ledger it reads (the session re-exports it).
-    pub mod meaning;
     /// What one outcome means for a conversation, and the literal a line is at one of its
     /// questions (the session re-exports it).
     pub mod reading;

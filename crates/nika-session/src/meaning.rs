@@ -15,9 +15,13 @@
 //! is the request as the compiler read it, and its gaps, never a clause's
 //! carrier (its program was judged against the whole request).
 //!
-//! Owned here, beside the ledger it projects (moved from `nika-session`
-//! 2026-09-28, whose `nika_session::meaning` re-exports this module). Pure:
-//! an outcome or a ledger in, words out.
+//! Owned here by the session, its only reader: it moved back from
+//! `nika_onboard::compile::meaning` on 2026-10-07, where it sat beside the
+//! ledger since 2026-09-28, once the onboarding surface stood at its 15k
+//! prod-LOC wall. It reads the compiler's outcome and the two verdict readings
+//! it shares with the session (`reading::judged_not_accepted`,
+//! `round::last_verification`) from the onboarding surface. Pure: an outcome
+//! or a ledger in, words out.
 
 use std::fmt::Write as _;
 
@@ -25,7 +29,7 @@ use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
 use nika_schema::{FileId, ParseMode};
 use serde_json::Value;
 
-use super::CompileOutcome;
+use nika_onboard::compile::{CompileOutcome, CompileStatus, reading, round};
 
 /// One clause's fate.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -228,11 +232,11 @@ enum Judged {
 
 impl Judged {
     fn of(out: &CompileOutcome) -> Self {
-        if out.status == super::CompileStatus::Ready {
+        if out.status == CompileStatus::Ready {
             Self::Ready
-        } else if !super::reading::judged_not_accepted(out) {
+        } else if !reading::judged_not_accepted(out) {
             Self::Pending
-        } else if super::round::last_verification(out).is_some_and(|a| a["carried"] == true) {
+        } else if round::last_verification(out).is_some_and(|a| a["carried"] == true) {
             Self::Carried
         } else {
             Self::NotAccepted
@@ -420,7 +424,7 @@ fn ledger_view(ledger: &Value, candidate: Option<&str>, not_accepted: Option<&st
 /// verdict comes from.
 fn render_judged(out: &CompileOutcome) -> String {
     let unrecorded = Value::Null;
-    let last = super::round::last_verification(out).unwrap_or(&unrecorded);
+    let last = round::last_verification(out).unwrap_or(&unrecorded);
     let attempt = judging(out, last);
     let listed = |key: &str| -> Vec<&str> {
         (attempt[key].as_array().into_iter().flatten())
@@ -621,7 +625,7 @@ mod tests {
 
     fn fixture(name: &str) -> Value {
         let path = format!(
-            "{}/src/compile/meaning/fixtures/{name}.json",
+            "{}/src/meaning/fixtures/{name}.json",
             env!("CARGO_MANIFEST_DIR")
         );
         serde_json::from_str(&std::fs::read_to_string(path).expect("fixture")).expect("json")
@@ -974,7 +978,7 @@ mod tests {
     /// said only of a READY program. A deterministic ledger keeps its view.
     #[test]
     fn a_semantic_record_is_shown_as_read_and_judged_whole_never_carried() {
-        use crate::compile::{CompileRequest, CompileStatus, compile};
+        use nika_onboard::compile::{CompileRequest, compile};
         let effective = "from inventory.json keep the items whose stock is under 8, sorted by sku";
         let mut out = compile(&CompileRequest::create("chain")).expect("compiles");
         out.provenance.decision = Some(serde_json::json!({}));
@@ -1023,7 +1027,7 @@ mod tests {
         held.candidate = Some("nika: held\ntasks: {}\n".to_owned());
         nika_compile::finding(
             &mut held,
-            crate::compile::DiagnosticKind::Applied,
+            nika_onboard::compile::DiagnosticKind::Applied,
             "verify_held",
             "held after a doubt",
         );
@@ -1069,7 +1073,7 @@ mod tests {
     /// its count line; with no verification readable the parts are none.
     #[test]
     fn a_candidate_its_verifier_did_not_accept_is_shown_as_the_verifier_judged_it() {
-        use crate::compile::{CompileRequest, CompileStatus, DiagnosticKind, compile};
+        use nika_onboard::compile::{CompileRequest, DiagnosticKind, compile};
         let request =
             "Read ./a.csv, keep the paid rows, sum the amount, round it and write ./b.json";
         let mut out = compile(&CompileRequest::create("chain")).expect("compiles");
@@ -1148,7 +1152,7 @@ mod tests {
     /// comes from, as a kept ledger's count line does.
     #[test]
     fn a_repeated_or_carried_verdict_is_shown_from_the_attempt_that_judged_its_bytes() {
-        use crate::compile::{CompileRequest, CompileStatus, DiagnosticKind, compile};
+        use nika_onboard::compile::{CompileRequest, DiagnosticKind, compile};
         const FOOTER: &str = "\n  this lists the parts the verifier asked alone; a part it did not ask is not here — if something you asked is missing, say it again in its own words";
         const PART: &str = "keep the paid rows";
         let request = "Read ./a.csv, keep the paid rows and write ./b.json";

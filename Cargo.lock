@@ -5540,6 +5540,7 @@ dependencies = [
  "nika-cadence",
  "nika-catalog",
  "nika-cli-host",
+ "nika-compile",
  "nika-dap",
  "nika-display",
  "nika-error",

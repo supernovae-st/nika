@@ -48,5 +48,6 @@ workspace = true
 
 [dev-dependencies]
 nika-error = { path = "../nika-error", version = "0.122.0" } # cost::Cost — the reasoning-effort tests assert the typed cost
+nika-compile = { path = "../nika-compile", version = "0.122.0" } # finding — the Meaning view's tests record the compiler's own verify_held finding on an outcome
 nika-onboard = { path = "../nika-onboard", version = "0.122.0", features = ["test-support"] } # the synthetic release the strict knowledge door admits
 tempfile = { workspace = true }

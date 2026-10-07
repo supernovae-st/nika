@@ -17,7 +17,7 @@
 
 ## What it must NOT own
 
-The workflow grammar · the builtin catalog · the model catalog · the error definitions · the check semantics · the runtime · the ARM semantics · the trace verification · what a run's trace proves · the project file grammar · the Meaning projection of the compiler's ledger · the round's pure law and its codec · the compiler's reasons in a human's words. It queries those authorities (`nika_pack` · `nika_builtin` · `nika_catalog` · `nika_error` · `nika_cli_host::oracle` · `nika_dap::inventory` · `nika_vocab::project` · `nika_onboard::routing` · `nika_trace::run_view` · `nika_onboard::compile::meaning` · `nika_onboard::compile::round` · `nika_onboard::compile::reading`).
+The workflow grammar · the builtin catalog · the model catalog · the error definitions · the check semantics · the runtime · the ARM semantics · the trace verification · what a run's trace proves · the project file grammar · the round's pure law and its codec · the compiler's reasons in a human's words. It queries those authorities (`nika_pack` · `nika_builtin` · `nika_catalog` · `nika_error` · `nika_cli_host::oracle` · `nika_dap::inventory` · `nika_vocab::project` · `nika_onboard::routing` · `nika_trace::run_view` · `nika_onboard::compile::round` · `nika_onboard::compile::reading`).
 
 ## Run facts: read here, owned by the trace reader
 
@@ -47,21 +47,74 @@ C9 (2026-09-28) no longer parsed a second time here. A private
 tests; `tests/fixtures/traces/copy.ndjson` stays here too, because the
 runtime's observation test reads it.
 
-## Meaning: shown here, owned beside the compiler's ledger
+## Meaning: owned here, its only reader
 
-The Meaning view (what survived of a request, clause by clause, from the
-compiler's own obligation ledger) is a pure projection of that ledger, so it
-lives in `nika_onboard::compile::meaning` since 2026-09-28, beside the
-`CompileOutcome` it reads; the move also brought this crate back under its
-production-LOC wall. `nika_session::meaning` stays a documented re-export of
-that module: the same types, functions and constant under the old path, which
-`tests/meaning_reexport.rs` compiles against as an external consumer. The
-candidate's bytes are read by the same strict `nika_schema` law as the
-review's. What stays here is the session's side: `/meaning` shows the view and
-holds a waiting proposal, and a revision's delta rides beside the revised
-proposal. The owner's « unavailable » line names no protocol; the session adds
-its own way on (the review above and `/show`). The three recorded outcomes its
-tests read moved with them.
+The Meaning view (what survived of a request, clause by clause, from the compiler's own
+obligation ledger) is a pure projection of that ledger. The session is its only reader, so it
+is owned here, `nika_session::meaning`: it sat beside the ledger in
+`nika_onboard::compile::meaning` from 2026-09-28, and moved back on 2026-10-07, once the
+onboarding surface stood at its 15k prod-LOC wall and this crate had room again (ADR-144). It
+reads the compiler's outcome and the two verdict readings it shares with the onboarding surface
+(`compile::reading::judged_not_accepted`, `compile::round::last_verification`) from there; the
+candidate's bytes are read by the same strict `nika_schema` law as the review's. `/meaning`
+shows the view and holds a waiting proposal, and a revision's delta rides beside the revised
+proposal. The « unavailable » line names no protocol; the session adds its own way on (the
+review above and `/show`).
+
+`meaning` projects an outcome's obligation ledger
+(`provenance.decision.ledger`) into the Meaning view: each clause's fate
+(represented · needs an answer · external · not expressible · refused ·
+contradicted), its assurance (read from the task that carries it in the
+candidate's bytes, parsed by the one strict `nika_schema` law: strict mode, one
+anonymous file, and bytes it refuses carry no verb), the rendered view and a
+revision's delta. It is pure (an outcome or a ledger in, words out), never
+certifies coverage (a clause the compiler did not read is not listed, and the
+view says so). With neither a ledger nor a semantic record it renders
+« unavailable » — words that name
+no host's protocol (`UNAVAILABLE`; a host adds its own way on). A ledger that is
+not a list, or an entry of an unknown or missing state, is never guessed and
+never silently dropped: the view says it could not read it and counts none of
+it as done (no « no clause » or « 0 waiting » over unread entries), and a delta
+over unread entries says they were not compared. It sat in
+`nika_onboard::compile::meaning` from 2026-09-28 and moved back here on 2026-10-07.
+Its tests and their three recorded outcomes live beside it (`src/meaning/`), and
+`tests/meaning_owner.rs` reads it as an external consumer.
+
+For a closed semantic record, `render` instead projects the reading ledger at
+`basis.read.ledger`: clauses are shown as read, without inventing a carrying task,
+a represented clause or a pending question. Gaps remain explicit; unreadable
+entries are disclosed. A Ready outcome states that the program was judged
+against the whole request, without assigning that judgment to each clause: the
+parts a doubted verdict asks alone locate defects as evidence, and the view
+does not present their answers as clause judgments.
+`clauses` and the existing delta API retain their realization-ledger contract.
+
+A candidate its verifier answered and did not accept (the outcomes `nika_onboard::compile::reading::held_words`
+reads so: the compiler's Applied `verify_held` finding, or a last
+verification contested with no defect, the candidate still shown) is said « the
+program was judged against the whole request: judged, not accepted » on the
+ledger's count line and in place of the reading's judgment. When the last
+verification repeats a rejection carried from an earlier round (`carried`), the
+view adds « the verdict comes from an earlier round, which judged these same
+bytes: the verifier was not asked again ». When the compiler kept neither a
+ledger nor a record (it dropped the record, so no round replays those bytes),
+`render` gives the request as the verifier judged it (« Meaning · your request as
+the verifier judged it »), from the verification that judged those bytes: the
+last attempt, or the earlier attempt of the compile it repeats with no call (its
+`same_bytes_as` index, on the same candidate digest). Each part that verification
+asked alone appears once, in order, with what it left: « missing » with the
+verifier's reason; for a contested part, « broken in the candidate's bytes
+(`<note>`), but the trial run shows it done for its inputs: nothing decided it »
+(without the note when the attempt kept none and a trial-run question answered
+`carried`), else « missing, then no task named that fails it: nothing decided
+it »; « not settled »; else its answer, a trial run's first (« carried in the
+trial run », « not exercised by the trial run », « carried », « superseded by a
+later part », « asks no operation of the workflow »). Each other finding follows
+once (an extra operation, a part never asked once a call got no answer), the
+whole request aside. The view ends with the count of parts asked alone, « judged,
+not accepted; nothing was written » and, for a carried verdict, which asked
+nothing in this compile, the earlier-round words; it lists what the verifier asked
+and claims no realization.
 
 ## The change set: proposed here, owned by its member
 
