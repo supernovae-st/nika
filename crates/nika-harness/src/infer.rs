@@ -7,7 +7,7 @@
 //! contract. This module has one admitted adapter: `codex exec --json`,
 //! with `--output-schema` when the task needs JSON Schema. The accepted
 //! path runs under a measured pre-execution empty-tools profile
-//! ([`tool_free`]), is one turn, still rejects every implicit tool item
+//! (`tool_free`), is one turn, still rejects every implicit tool item
 //! (defense in depth, never the source of the guarantee), and records only
 //! the requested model identity. Numeric usage is parsed from the terminal
 //! `turn.completed` event as protocol evidence and never leaves this
