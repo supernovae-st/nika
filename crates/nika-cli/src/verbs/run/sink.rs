@@ -145,6 +145,17 @@ pub(super) fn spawn_spinner<W: Write + Send + 'static>(
     })
 }
 
+impl FoldSink<std::io::Stderr> {
+    /// A fold on stderr that takes the process-wide stderr lock one write at
+    /// a time, never for the run: the Ctrl-C notices and the egress journal
+    /// write stderr from their own threads while the run works, and a fold
+    /// holding the lock kept them waiting until the run ended (a second
+    /// Ctrl-C could not abort).
+    pub(super) fn on_stderr(theme: Theme, mode: RenderMode) -> Self {
+        Self::new(std::io::stderr(), theme, mode)
+    }
+}
+
 impl<W: Write> FoldSink<W> {
     /// Wrap a writer + the resolved theme + the render mode. `Live` does the
     /// in-place repaint (TTY); `Plain`/`Quiet` fold silently for the caller's
@@ -467,6 +478,28 @@ mod tests {
             line.ends_with(&head),
             "the head is printed whole, byte-comparable against trace verify's"
         );
+    }
+
+    #[test]
+    fn a_fold_on_stderr_leaves_stderr_to_other_threads() {
+        // `--output json` and `nika test` fold on stderr for a whole run;
+        // the Ctrl-C notices and the egress journal write it meanwhile.
+        let fold = FoldSink::on_stderr(Theme::new(false, true, false), RenderMode::Plain);
+        let (wrote, written) = std::sync::mpsc::channel();
+        std::thread::Builder::new()
+            .name("nika-test-stderr-writer".to_owned())
+            .spawn(move || {
+                let _ = std::io::stderr().write_all(b"");
+                let _ = wrote.send(());
+            })
+            .expect("writer thread");
+        assert!(
+            written
+                .recv_timeout(std::time::Duration::from_secs(5))
+                .is_ok(),
+            "another thread writes stderr while the fold lives"
+        );
+        drop(fold);
     }
 
     /// #1587 — a workspace run is not a rehearsal to own: the plain close
