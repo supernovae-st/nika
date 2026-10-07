@@ -1086,6 +1086,9 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::compile::ObserveFlags
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::compile::ObserveFlags
 impl<T> typenum::type_operators::Same for nika_cli_host::compile::ObserveFlags
 pub type nika_cli_host::compile::ObserveFlags::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli_host::compile::ObserveFlags where T: core::default::Default
+pub type nika_cli_host::compile::ObserveFlags::NoneType = T
+pub fn nika_cli_host::compile::ObserveFlags::null_value() -> T
 pub fn nika_cli_host::compile::authoring_http() -> core::result::Result<impl nika_kernel_core::io::http::HttpPostDyn, nika_kernel_core::io::http::HttpError>
 pub fn nika_cli_host::compile::authoring_http_with_deadline(deadline: core::time::Duration) -> core::result::Result<impl nika_kernel_core::io::http::HttpPostDyn, nika_kernel_core::io::http::HttpError>
 pub fn nika_cli_host::compile::decision_seat_note(model: &str) -> &'static str
