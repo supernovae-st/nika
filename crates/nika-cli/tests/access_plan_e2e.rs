@@ -43,13 +43,50 @@ outputs:
 
 /// A `codex exec --json` that answers one turn and never reads a key.
 /// #1253 · spawn-time attestation asks `--version` before any stdin: the
-/// shim must prove itself (product + pinned version) like the real seat.
+/// shim must prove itself (product + a minor where the pre-execution
+/// empty-tools profile was measured) and read every disabled feature back
+/// as `false` under that profile, like the real seat.
 const FAKE_CODEX: &str = r#"#!/bin/sh
 set -eu
 if [ "${1-}" = "--version" ]; then
-    printf '%s\n' 'codex-cli 0.153.4'
+    printf '%s\n' 'codex-cli 0.160.1'
     exit 0
 fi
+case " $* " in *" features list "*)
+    cat <<'FEATURES'
+shell_tool stable false
+apps stable false
+plugins stable false
+remote_plugin stable false
+browser_use stable false
+browser_use_external stable false
+browser_use_full_cdp_access stable false
+computer_use stable false
+in_app_browser stable false
+in_app_local_automation stable false
+image_generation stable false
+view_image stable false
+multi_agent stable false
+multi_agent_v2 stable false
+skill_search stable false
+skill_mcp_dependency_install stable false
+tool_suggest stable false
+sleep_tool stable false
+hooks stable false
+goals stable false
+code_mode stable false
+code_mode_only stable false
+code_mode_host stable false
+workspace_dependencies stable false
+tool_call_mcp_elicitation stable false
+memories stable false
+request_permissions_tool stable false
+standalone_web_search stable false
+worktrees stable false
+realtime_conversation stable false
+FEATURES
+    exit 0;;
+esac
 if [ "${1-}" = login ] && [ "${2-}" = status ]; then
     exit 0
 fi

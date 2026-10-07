@@ -64,12 +64,10 @@ impl HarnessAuthoring {
                     .for_authoring(),
             )
         } else {
-            // A read-only sandbox and rejection of tool events after return do
-            // not prevent native shell/tool execution. Do not start authoring
-            // until this adapter has an attested pre-execution no-tools mode.
-            if adapter == "codex" {
-                return Err("subscription authoring `codex` is unavailable: pre-execution tool disabling is not attested; read-only scratch and post-return tool-event rejection are insufficient; no provider fallback".into());
-            }
+            // One rule for every door: the native seat is the infer-grade row.
+            // Codex starts only under its measured pre-execution empty-tools
+            // profile, re-attested at spawn (measured minor, effective
+            // features); an unmeasured version refuses before any prompt.
             let seat = meet_infer_grade(adapter, StructuredOutputGrade::JsonSchema)
                 .map_err(|e| e.to_string())?;
             Connection::Native(seat)
@@ -102,7 +100,7 @@ impl HarnessAuthoring {
             "observed": observed, "cost_basis": "subscription-backed/unknown",
             "billed_cost_usd": null, "numeric_usage_reported": false,
             "tools_exposed": if self.adapter == "codex" {
-                "read-only scratch; tool events reject the answer; pre-execution tool disable not attested"
+                "none executable; measured pre-execution empty-tools profile (shell, web, apps, MCP, skills, sub-agents, images disabled; code-mode exec fails closed); tool events reject the answer"
             } else {
                 "none; empty native tool list; tool or permission events refuse the answer"
             },
@@ -169,6 +167,75 @@ pub fn model_argument(adapter: &str, model: Option<&str>) -> Result<String, Stri
     Ok(format!("{prefix}/{name}"))
 }
 
+/// Codex sends `--output-schema` as a strict response format: every object must
+/// list all of its properties as required and forbid additional ones (measured
+/// on codex-cli 0.160.1: « 'required' is required to include every key in
+/// properties »). A schema outside that dialect is stated in words instead, as
+/// the ACP transport does, and the Compiler still validates the whole answer.
+/// Rewriting optional fields as required would change the contract, so it is
+/// never done here.
+fn schema_route(
+    adapter: &str,
+    prompt: String,
+    schema: Option<Value>,
+) -> (String, Option<Value>, Option<bool>) {
+    match schema {
+        Some(schema) if adapter == "codex" && !strict_dialect(&schema) => (
+            format!(
+                "{prompt}\n\nAnswer with ONLY one JSON object, with no prose before or after \
+                 and no code fence, that matches this JSON Schema:\n{schema}"
+            ),
+            None,
+            Some(false),
+        ),
+        Some(schema) => (prompt, Some(schema), Some(true)),
+        None => (prompt, None, None),
+    }
+}
+
+/// Whether a schema node and every subschema it holds fit the strict
+/// response-format dialect: each node is typed (`type`, `anyOf` or `$ref`),
+/// and each object lists all its properties as required and sets
+/// `additionalProperties: false` (both refusals measured on codex-cli 0.160.1).
+fn strict_dialect(schema: &Value) -> bool {
+    let Value::Object(node) = schema else {
+        return false;
+    };
+    if !["type", "anyOf", "$ref"]
+        .iter()
+        .any(|k| node.contains_key(*k))
+    {
+        return false;
+    }
+    if let Some(properties) = node.get("properties") {
+        let Value::Object(properties) = properties else {
+            return false;
+        };
+        let required: Vec<&str> = node
+            .get("required")
+            .and_then(Value::as_array)
+            .map(|r| r.iter().filter_map(Value::as_str).collect())
+            .unwrap_or_default();
+        if properties.keys().any(|k| !required.contains(&k.as_str()))
+            || node.get("additionalProperties") != Some(&Value::Bool(false))
+            || !properties.values().all(strict_dialect)
+        {
+            return false;
+        }
+    }
+    let nested = |key: &str| match node.get(key) {
+        None => true,
+        Some(Value::Array(all)) => all.iter().all(strict_dialect),
+        Some(Value::Object(map)) if key == "$defs" || key == "definitions" => {
+            map.values().all(strict_dialect)
+        }
+        Some(one) => strict_dialect(one),
+    };
+    ["items", "anyOf", "$defs", "definitions"]
+        .into_iter()
+        .all(nested)
+}
+
 fn fold(messages: &[Message]) -> Result<(Option<String>, String), ProviderError> {
     let mut system = Vec::new();
     let mut prompt = Vec::new();
@@ -210,13 +277,15 @@ impl ProviderInferDyn for HarnessAuthoring {
             ResponseFormat::JsonSchema(schema) => Some(schema.clone()),
             _ => None,
         };
+        let (prompt, schema, schema_enforced) = schema_route(&self.adapter, prompt, schema);
         let native = HarnessInferRequest::new(prompt, &self.wire_model)
             .with_system(system)
             .with_schema(schema)
             .with_timeout(Some(timeout));
         self.record(
             json!({"status": "invoking", "requested_model": self.requested_model,
-            "max_tokens_requested": request.max_tokens, "timeout_ms": timeout.as_millis()}),
+            "max_tokens_requested": request.max_tokens, "timeout_ms": timeout.as_millis(),
+            "schema_enforced_by_harness": schema_enforced}),
         )?;
         let call = tokio::time::timeout(timeout, async {
             match &self.seat {
@@ -288,10 +357,53 @@ mod tests {
         );
         assert!(model_argument("codex", Some("anthropic/chosen")).is_err());
         assert!(HarnessAuthoring::meet("kimi-code", None).is_err());
-        let error = HarnessAuthoring::meet("codex", None).unwrap_err();
-        assert!(error.contains("pre-execution tool disabling"), "{error}");
+        let codex = HarnessAuthoring::meet("codex", None).expect("attested native profile");
+        let receipt = codex.descriptor().expect("descriptor");
+        assert!(
+            receipt["tools_exposed"]
+                .as_str()
+                .is_some_and(|t| t.contains("pre-execution empty-tools profile")),
+            "{receipt}"
+        );
         assert!(HarnessAuthoring::meet("claude-code", None).is_ok());
     }
+    #[test]
+    fn a_codex_schema_outside_the_strict_dialect_is_stated_in_words() {
+        let loose = json!({"type": "object", "required": ["a"],
+            "properties": {"a": {"type": "string"}, "b": {"type": "string"}}});
+        let (prompt, schema, enforced) = schema_route("codex", "P".into(), Some(loose.clone()));
+        assert!(schema.is_none());
+        assert_eq!(enforced, Some(false));
+        assert!(prompt.starts_with("P\n\nAnswer with ONLY one JSON object"));
+        assert!(prompt.ends_with(&loose.to_string()));
+        let strict = json!({"type": "object", "required": ["a"], "additionalProperties": false,
+            "properties": {"a": {"type": "array", "items": {"type": "object",
+                "required": ["x"], "additionalProperties": false,
+                "properties": {"x": {"type": "string"}}}}}});
+        let (prompt, schema, enforced) = schema_route("codex", "P".into(), Some(strict.clone()));
+        assert_eq!(
+            (prompt.as_str(), schema, enforced),
+            ("P", Some(strict), Some(true))
+        );
+        let nested_loose = json!({"type": "object", "required": ["a"], "additionalProperties": false,
+            "properties": {"a": {"type": "object", "properties": {"x": {"type": "string"}}}}});
+        assert!(!strict_dialect(&nested_loose));
+        let untyped = json!({"type": "object", "required": ["a"], "additionalProperties": false,
+            "properties": {"a": {"type": "array", "items": {"type": "object",
+                "required": ["value"], "additionalProperties": false,
+                "properties": {"value": {}}}}}});
+        assert!(
+            !strict_dialect(&untyped),
+            "an untyped value node is not strict"
+        );
+        let (_, schema, _) = schema_route("claude-code", "P".into(), Some(loose.clone()));
+        assert_eq!(
+            schema,
+            Some(loose),
+            "other adapters keep their native schema flag"
+        );
+    }
+
     #[test]
     fn messages_keep_order_and_complete_answer_contract() {
         let (system, prompt) = fold(&[

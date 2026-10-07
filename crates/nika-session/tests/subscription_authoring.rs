@@ -111,6 +111,23 @@ if [ "$n" = 0 ] || [ {bad} = yes ]; then /bin/cat {one}; elif [ "$n" = 1 ] || [ 
     );
     std::fs::write(&bin, script).unwrap();
     std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+    if scenario == "codex-unmeasured" {
+        // A real-looking Codex on a minor where the empty-tools profile was
+        // never measured: the Session door must refuse it exactly as the
+        // CLI door does, before any prompt reaches it.
+        let codex = dir.join("bin/codex");
+        let script = format!(
+            r#"#!/bin/sh
+if [ "${{1:-}}" = --version ]; then printf '%s\n' 'codex-cli 0.161.0'; exit 0; fi
+printf '%s\n' "$@" > {observed}/codex-argv
+/bin/cat > {observed}/codex-prompt
+exit 9
+"#,
+            observed = shell(&observed),
+        );
+        std::fs::write(&codex, script).unwrap();
+        std::fs::set_permissions(&codex, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
 }
 fn run(scenario: &str) -> Value {
     let dir = tempfile::tempdir().unwrap();
@@ -227,6 +244,7 @@ fn receipt(report: &Path, observed: &Path) -> Value {
         .and_then(|s| s.parse::<usize>().ok())
         .unwrap_or(0);
     out["calls"] = json!(count);
+    out["codex_prompt_seen"] = json!(observed.join("codex-prompt").exists());
     out["availability_probes"] = json!(
         std::fs::read_to_string(observed.join("probes"))
             .unwrap_or_default()
@@ -325,7 +343,7 @@ fn child_scenario(scenario: &str, root: &str) {
     // Supply fixture availability through the public fields. This does not
     // claim to have probed an installed product or authenticated account.
     if !none {
-        let seat = if scenario == "codex-unavailable" {
+        let seat = if scenario == "codex-unmeasured" {
             "codex"
         } else {
             "claude-code"
@@ -348,7 +366,7 @@ fn child_scenario(scenario: &str, root: &str) {
             Box::new(NoReasoner)
         } else {
             Box::new(HarnessReasoner {
-                seat: if scenario == "codex-unavailable" {
+                seat: if scenario == "codex-unmeasured" {
                     "codex"
                 } else {
                     "claude-code"
@@ -530,15 +548,17 @@ fn a_monetary_ceiling_does_not_authorize_or_meter_a_subscription() {
 }
 
 #[test]
-fn codex_refuses_before_any_call_until_native_tools_can_be_disabled() {
-    let out = run("codex-unavailable");
+fn codex_on_an_unmeasured_minor_refuses_before_any_prompt() {
+    let out = run("codex-unmeasured");
     assert_eq!(out["calls"], 0, "no Codex or fallback call");
-    assert_eq!(out["steps"][0]["kind"], "refusal");
     assert!(
-        out["steps"][0]["text"]
-            .as_str()
-            .unwrap()
-            .contains("pre-execution tool disabling"),
+        out["seat"].as_str().unwrap().contains("Harness"),
+        "the Session admits the native Codex seat like the CLI: {out:#}"
+    );
+    let text = out.to_string();
+    assert!(
+        text.contains("no measured pre-execution empty-tools profile"),
         "{out:#}"
     );
+    assert_eq!(out["codex_prompt_seen"], false, "{out:#}");
 }

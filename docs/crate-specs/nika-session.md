@@ -217,8 +217,10 @@ in again in that app, then retry; no fallback », in Nika's words, never the
 adapter's; any other error answer stays « transport ended before a complete
 answer ». This is adapter-specific
 capability admission, not a generic claim about ACP read-only modes. Codex
-keeps its existing authoring refusal until pre-execution tool disabling is
-attested. The whole answer reaches Compiler validation; no JSON prefix is extracted.
+over ACP still refuses: through `codex-acp` the user's MCP servers and the
+code-mode tools stay reachable whatever session configuration is passed, so no
+empty-tools profile is attested. The whole answer reaches Compiler validation;
+no JSON prefix is extracted.
 
 ACP uses the same selected Compiler policy as API authoring. Interactive preparation
 has no implicit total call, repair or monetary bound; callers using the historical
@@ -265,12 +267,17 @@ NewWork starts a new creation, and failed, absent or unknown classification
 keeps the current state without authoring. This routing does not reinterpret
 lines already settled by the deterministic reader. The adapter passes
 the whole returned answer to Compiler validation, exposes no workflow tools,
-and accepts no tool-bearing answer. Codex authoring currently refuses before
-any call: its existing infer-grade boundary only rejects observed tool events
-after return, which does not prove pre-execution tool disabling. It may be
-admitted when that capability is attested; neither deterministic success nor
-an API is substituted. Supported one-shot adapters pass an explicit empty tool
-list. The transport retains its binary/version
+and accepts no tool-bearing answer. Native Codex authoring runs `codex exec`
+under a measured pre-execution empty-tools profile: every tool-bearing feature
+is disabled and hosted web search, sub-agents, skills and MCP servers are
+configured off before the turn starts. The profile is admitted only on the
+codex-cli minors where it was measured (0.160); at spawn the binary must name
+`codex-cli` on such a minor and `codex features list` under the same flags
+must read every disabled feature as off, otherwise the call refuses before
+any prompt, with no provider fallback. Observed tool events still reject the
+answer as a second check. The CLI's `codex/<model>` authoring seat uses this
+same transport, never the ACP agent. Supported one-shot adapters pass an
+explicit empty tool list. The transport retains its binary/version
 attestation, isolated scratch, tool restrictions and child cleanup. A call requires
 a positive finite deadline. The legacy bounded Session policy uses 300 seconds
 for subscription authoring; continuous preparation currently uses 600 seconds

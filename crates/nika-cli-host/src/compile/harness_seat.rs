@@ -12,6 +12,12 @@
 //! the harness asks for is DENIED — authoring is tool-free by contract — and the receipt names
 //! the backend, the adapter, the observed model, whether usage was reported and the cost basis
 //! (a subscription: no token meter is fabricated).
+//!
+//! Codex is the exception, and the same rule the Session door applies: its ACP adapter has no
+//! attested pre-execution empty-tools profile (measured: through codex-acp the shell, file and
+//! MCP tools ran without one permission ask), so `codex/<model>` seats the native infer-grade
+//! transport under its measured profile instead, never the ACP agent.
+use nika_harness::authoring::HarnessAuthoring;
 use nika_harness::{SpawnedHarness, seat_from_id};
 use nika_kernel::ai::harness::{
     AgentBackendDyn, HarnessEvent, HarnessOutcome, HarnessRequest, PermissionDecision,
@@ -24,15 +30,21 @@ use nika_types::access::HarnessRuntime;
 use serde_json::{Value, json};
 use std::sync::Mutex;
 
-/// One harness seat for the length of a compile: one ACP session per authoring call.
+/// One harness seat for the length of a compile: one ACP session per authoring call, or the
+/// native tool-free transport where ACP has no attested empty-tools profile (Codex).
 pub(super) struct HarnessSeat {
-    seat: SpawnedHarness,
+    seat: Backend,
     runtime: HarnessRuntime,
     requested_model: Option<String>,
     cwd: std::path::PathBuf,
     /// What each call observed: the model the harness named, whether it reported usage, the
     /// tool asks denied.
     observed: Mutex<Vec<Value>>,
+}
+
+enum Backend {
+    Acp(Box<SpawnedHarness>),
+    Native(Box<HarnessAuthoring>),
 }
 
 impl HarnessSeat {
@@ -58,7 +70,13 @@ impl HarnessSeat {
                     .join(" · ")
             )
         })?;
-        let seat = seat_from_id(id)?.ok_or_else(|| format!("harness `{id}`: no adapter row"))?;
+        let seat = if runtime.id == "codex" {
+            Backend::Native(Box::new(HarnessAuthoring::meet(runtime.id, Some(spec))?))
+        } else {
+            Backend::Acp(Box::new(
+                seat_from_id(id)?.ok_or_else(|| format!("harness `{id}`: no adapter row"))?,
+            ))
+        };
         let cwd = std::env::current_dir()
             .map_err(|e| format!("harness seat: no working directory: {e}"))?;
         let requested_model = match model.trim() {
@@ -76,6 +94,12 @@ impl HarnessSeat {
 
     /// The receipt's backend descriptor: the addendum's fields, observed where observable.
     pub(super) fn descriptor(&self) -> Value {
+        if let Backend::Native(native) = &self.seat {
+            return native.descriptor().unwrap_or_else(|why| {
+                json!({"kind": "harness_infer", "adapter": self.runtime.id,
+                    "observed_error": why})
+            });
+        }
         let observed = self.observed.lock().map(|o| o.clone()).unwrap_or_default();
         json!({
             "kind": "acp_harness",
@@ -185,6 +209,10 @@ fn json_object(text: &str) -> Option<&str> {
 
 impl ProviderInferDyn for HarnessSeat {
     async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
+        let seat = match &self.seat {
+            Backend::Native(native) => return native.infer(request).await,
+            Backend::Acp(seat) => seat,
+        };
         let schema = match &request.response_format {
             ResponseFormat::JsonSchema(schema) => Some(schema),
             _ => None,
@@ -203,8 +231,7 @@ impl ProviderInferDyn for HarnessSeat {
         let refusal = |why: String| ProviderError::Other {
             reason: format!("harness `{}`: {why}", self.runtime.id),
         };
-        let mut stream = self
-            .seat
+        let mut stream = seat
             .run_agent(session)
             .await
             .map_err(|e| refusal(e.to_string()))?;
@@ -276,5 +303,24 @@ mod tests {
         assert!(HarnessSeat::names_a_harness("kimi-code/kimi-k2"));
         assert!(!HarnessSeat::names_a_harness("xai/grok-4"));
         assert!(!HarnessSeat::names_a_harness("claude-code"));
+    }
+
+    #[test]
+    fn codex_seats_the_native_tool_free_transport_never_the_acp_agent() {
+        let seat = HarnessSeat::meet("codex/gpt-6-astra").expect("native codex row");
+        assert!(matches!(seat.seat, Backend::Native(_)));
+        let receipt = seat.descriptor();
+        assert_eq!(receipt["kind"], "harness_infer", "{receipt}");
+        assert_eq!(
+            receipt["forwarded_model"], "openai/gpt-6-astra",
+            "{receipt}"
+        );
+        assert!(
+            receipt["tools_exposed"]
+                .as_str()
+                .is_some_and(|t| t.contains("pre-execution empty-tools profile")),
+            "{receipt}"
+        );
+        assert!(HarnessSeat::meet("codex/anthropic/x").is_err());
     }
 }

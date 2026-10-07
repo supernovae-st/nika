@@ -1162,9 +1162,13 @@ mod tests {
         }
         .with_model(resolved.model.clone());
         let authoring = crate::authoring::AuthoringSeat::from_reasoner(&reasoner, &resolved);
+        // The Session door applies the CLI's rule: the native Codex seat is
+        // admitted under its measured pre-execution empty-tools profile.
         assert!(
-            matches!(authoring, crate::authoring::AuthoringSeat::Unavailable { why }
-            if why.contains("pre-execution tool disabling is not attested"))
+            matches!(&authoring, crate::authoring::AuthoringSeat::Harness { seat, model, transport }
+            if seat == "codex" && *model == resolved.model
+                && *transport == nika_types::access::HarnessTransport::Native),
+            "{authoring:?}"
         );
     }
 
