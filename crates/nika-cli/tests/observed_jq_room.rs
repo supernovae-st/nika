@@ -423,7 +423,9 @@ async fn a_wrong_count_observed_in_the_room_is_repaired_by_reconnecting_the_filt
     let asked = author.asked.lock().unwrap().clone();
     assert_eq!(
         asked,
-        ["sketch", "fills", "sketch", "fills", "judge"],
+        [
+            "sketch", "fills", "sketch", "fills", "judge", "judge", "judge", "judge"
+        ],
         "{asked:?}"
     );
     let usage = &out.provenance.decision.as_ref().unwrap()["rehearsal"]["usage"];
@@ -482,6 +484,8 @@ fn nika_compile_surface_sha256(text: &str) -> String {
 const SESSION_INTENT: &str = "read ./in/input.json, count the rows where status is paid, write the count to ./out/result.json as a small JSON object";
 
 /// A phrasing the sketch door authors but the behavioural judge cannot read a count from.
+// A judge that accepts the whole request is asked each stated part again over the trial
+// run it was shown (the trailing `judge` calls of every journey below).
 const UNJUDGED_INTENT: &str = "tell me how many entries of ./in/input.json are marked paid and store that number in ./out/result.json";
 
 /// A scripted loopback seat: an Ollama native `/api/chat` endpoint (the only dialect the local
@@ -672,7 +676,9 @@ fn in_session_a_wrong_count_is_repaired_before_it_is_proposed_and_the_run_writes
     // proposal shows what the reconnected candidate wrote on a copy.
     assert_eq!(
         seat.asked(),
-        ["sketch", "fills", "sketch", "fills", "judge"],
+        [
+            "sketch", "fills", "sketch", "fills", "judge", "judge", "judge", "judge"
+        ],
         "{proposal}"
     );
     assert!(
@@ -749,7 +755,11 @@ fn in_session_an_unjudged_phrasing_shows_the_wrong_result_it_cannot_repair() {
     until(&mut s, "nika ›");
     s.send_line("/quit").unwrap();
     let _ = s.get_process_mut().wait();
-    assert_eq!(seat.asked(), ["sketch", "fills", "judge"], "{proposal}");
+    assert_eq!(
+        seat.asked(),
+        ["sketch", "fills", "judge", "judge"],
+        "{proposal}"
+    );
     assert!(
         proposal.contains(r#"excerpt "{\"count\":2}""#),
         "{proposal}"
@@ -857,7 +867,9 @@ fn in_the_tui_a_wrong_count_is_repaired_before_it_is_proposed_and_the_run_writes
     // Semantic: the disconnected graph was rehearsed and refused before any proposal.
     assert_eq!(
         seat.asked(),
-        ["sketch", "fills", "sketch", "fills", "judge"],
+        [
+            "sketch", "fills", "sketch", "fills", "judge", "judge", "judge", "judge"
+        ],
         "{}",
         squash(&proposal)
     );
@@ -950,7 +962,7 @@ fn in_the_tui_an_unjudged_phrasing_shows_the_wrong_result_it_cannot_repair() {
     // Semantic: one sketch, no repair; the candidate shown wrote 2 and was declined.
     assert_eq!(
         seat.asked(),
-        ["sketch", "fills", "judge"],
+        ["sketch", "fills", "judge", "judge"],
         "{}",
         squash(&proposal)
     );
