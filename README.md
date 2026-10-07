@@ -424,7 +424,7 @@ repositories drive this engine without adding to its authority.
 [Editor extension](https://marketplace.visualstudio.com/items?itemName=supernovae.nika) ·
 [Open specification](https://github.com/supernovae-st/nika-spec) ·
 [Registry](https://github.com/supernovae-st/nika-registry) ·
-[Roadmap](https://github.com/orgs/supernovae-st/projects/3) ·
+[Planning archive](https://github.com/orgs/supernovae-st/projects/3) ·
 [Website](https://nika.sh)
 
 Nika is usable today and pre-1.0. The engine is
