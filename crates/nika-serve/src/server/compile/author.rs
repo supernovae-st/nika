@@ -163,7 +163,20 @@ pub(super) async fn handle(
         Err(error) => return error.into_response(),
     };
     match request.action {
-        Action::Author(bounds) => fresh(&state, seat, request.input, request.answers, bounds).await,
+        Action::Author(bounds) => {
+            let round = (request.input, request.answers, bounds);
+            fresh(&state, seat, round, None).await
+        }
+        Action::Judge(token, bounds) => {
+            let Some(kept) = seat.replays.get(&token) else {
+                return replay_unavailable().into_response();
+            };
+            if kept.input != request.input {
+                return input_changed().into_response();
+            }
+            let round = (request.input, request.answers, bounds);
+            fresh(&state, seat, round, Some((token, kept.plan.clone()))).await
+        }
         Action::Replay(token) => {
             replay(
                 &state,
@@ -178,12 +191,14 @@ pub(super) async fn handle(
     }
 }
 
+/// A round under the operator's seat: a fresh authoring round, or, with `kept` (a kept round's
+/// token and plan), that plan replayed with these answers and judged by the seat, with no
+/// authoring call. A judged candidate the seat did not accept forgets that token.
 async fn fresh(
     state: &Arc<AppState>,
     seat: Arc<Seat>,
-    input: Input,
-    answers: Answers,
-    bounds: Bounds,
+    (input, answers, bounds): (Input, Answers, Bounds),
+    kept: Option<(String, serde_json::Value)>,
 ) -> Response<ResponseBody> {
     let Ok(permit) = Arc::clone(&state.compile_slots).try_acquire_owned() else {
         return super::busy().into_response();
@@ -212,11 +227,17 @@ async fn fresh(
         let _permit = permit;
         #[cfg(test)]
         super::super::test_support::before_compile(&before_compile);
+        let (judged, plan) = kept.unzip();
         let authored = run(
             &runtime,
             &stop,
-            author(&seat, &input, &answers, bounds, &stop),
+            author(&seat, (&input, &answers, plan.as_ref()), bounds, &stop),
         );
+        if let Some(judged) = judged.as_deref()
+            && authored.as_ref().is_ok_and(held)
+        {
+            seat.replays.forget(judged);
+        }
         conclude(&seat, authored, input, place)
     });
     // Past the deadline and its handoff the caller hears « stopped »: the work, if it has not
@@ -234,11 +255,18 @@ async fn fresh(
     }
 }
 
-/// The fresh round itself: the core under the seat's policy, the pack beside the card.
+/// Whether the round's judge did not accept its candidate (the core's `verify_held` finding).
+fn held(outcome: &CompileOutcome) -> bool {
+    (outcome.diagnostics.iter()).any(|d| {
+        d.kind == nika_onboard::compile::DiagnosticKind::Applied && d.target == "verify_held"
+    })
+}
+
+/// The round itself: the core under the seat's policy, the pack beside the card; with a kept
+/// `plan`, that plan replayed and judged, no pack read (no authoring call reads one).
 async fn author(
     seat: &Seat,
-    input: &Input,
-    answers: &Answers,
+    (input, answers, plan): (&Input, &Answers, Option<&serde_json::Value>),
     bounds: Bounds,
     stop: &Stop,
 ) -> Result<CompileOutcome, Refusal> {
@@ -254,7 +282,10 @@ async fn author(
         None => policy.with_unbounded_repairs(),
     };
     let mut request = input.request(answers).with_authoring_policy(policy);
-    if let Some((snapshot, exclude)) = seat.context()? {
+    if let Some(plan) = plan {
+        seat.context()?;
+        request = request.with_plan(plan.clone());
+    } else if let Some((snapshot, exclude)) = seat.context()? {
         let intent = match input {
             Input::Create { intent, .. } => Some(intent.clone()),
             Input::Revise { .. } => revise_intent(&request),

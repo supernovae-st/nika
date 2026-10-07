@@ -285,7 +285,6 @@ fn refused_requests() -> Vec<(String, &'static str)> {
             "compile_version_unsupported",
         ),
         (fresh(&json!({"cognition": "deterministicOnly"})), malformed),
-        (fresh(&json!({"replay_token": token})), malformed),
         (
             replay(&token, &json!({"limits": {"repairs": 0}})),
             malformed,

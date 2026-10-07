@@ -85,6 +85,12 @@ impl Replays {
     }
 
     /// The kept round a token names while it lives; its lifetime is never extended.
+    /// Forget the round `token` names: a candidate its judge did not accept is never replayed
+    /// to that judge again through it.
+    pub(super) fn forget(&self, token: &str) {
+        self.lock().entries.remove(token);
+    }
+
     pub(super) fn get(&self, token: &str) -> Option<Arc<Entry>> {
         let mut inner = self.lock();
         let entry = Arc::clone(inner.entries.get(token)?);

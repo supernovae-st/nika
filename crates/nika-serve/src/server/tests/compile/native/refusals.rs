@@ -87,7 +87,12 @@ fn form_refusals() -> Vec<Case> {
     let repeated = |fields: &Value, from: &str, to: &str| fresh(fields).replace(from, to);
     vec![
         malformed(fresh(&json!({"original_intent": s}))),
-        malformed(fresh(&json!({"replay_token": token}))),
+        // A judged answer round of a round this server never kept: nothing to judge.
+        (
+            fresh(&json!({"replay_token": token})),
+            409,
+            "compile_replay_unavailable",
+        ),
         malformed(fresh(&json!({"cognition": "deterministicOnly"}))),
         malformed(replay(&token, &json!({"limits": {"repairs": 0}}))),
         malformed(replay(&token.to_uppercase(), &json!({}))),

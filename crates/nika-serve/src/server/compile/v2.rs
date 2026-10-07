@@ -173,6 +173,9 @@ pub(super) enum Action {
     Author(Bounds),
     /// A zero-call round of the plan a kept round's token names.
     Replay(String),
+    /// The plan a kept round's token names, replayed with this round's answers and judged by
+    /// the operator's seat within these bounds: its judge calls, never an authoring call.
+    Judge(String, Bounds),
 }
 
 /// A judged generation-2 request.
@@ -216,6 +219,7 @@ pub(super) fn parse(body: &[u8], operator: Bounds) -> Result<Request, ApiError> 
     let input = input(&mode, intent, workflow_id, source, change, original_intent)?;
     let action = match (fresh, replay_token, limits) {
         (true, None, _) => Action::Author(bounds),
+        (true, Some(token), _) if is_token(&token) => Action::Judge(token, bounds),
         (false, Some(token), None) if is_token(&token) => Action::Replay(token),
         _ => return Err(malformed()),
     };
@@ -406,7 +410,7 @@ pub(super) fn malformed() -> ApiError {
     ApiError::new(
         StatusCode::UNPROCESSABLE_ENTITY,
         "malformed_compile_request",
-        "use compile_version 2 with cognition explicitProvider (create {intent} or edit {source, change}; a text change also carries original_intent) or deterministicOnly with the replay_token of that round; unknown fields, null values, duplicate keys (literals included) and wrong types are refused",
+        "use compile_version 2 with cognition explicitProvider (create {intent} or edit {source, change}; a text change also carries original_intent; a kept round's replay_token judges its answer round) or deterministicOnly with that token; unknown fields, null values, duplicate keys (literals included) and wrong types are refused",
     )
 }
 
@@ -414,7 +418,7 @@ fn unsupported_cognition() -> ApiError {
     ApiError::new(
         StatusCode::UNPROCESSABLE_ENTITY,
         "compile_cognition_unsupported",
-        "generation 2 authors with explicitProvider under this server's own seat, or replays a kept round with deterministicOnly; no other cognition is served",
+        "generation 2 authors with explicitProvider under this server's own seat (which also judges a kept round's replay), or replays a kept round with deterministicOnly; no other cognition is served",
     )
 }
 

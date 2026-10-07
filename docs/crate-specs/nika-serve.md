@@ -169,6 +169,7 @@ configured HTTP body ceiling.
 | operator seat | ONE direct provider model (a harness seat, an unknown provider or a missing key refuses startup) · the shared default strategy `escalate`, one sample, no decision seat · completion capacity and per-call timeout follow `nika_providers::authoring::policy::completion_bounds` for the effective provider endpoint; explicit token and call-timeout values must be positive. No implicit request count, repair count or whole-round deadline; explicitly selected limits are honored, with a positive clock-representable deadline · optional Foundry snapshot opened, verified and pinned (manifest and rows sha256) at attach through the shared `nika_cli_host::compile::{config, knowledge}` · replay storage has no implicit count, size or lifetime quota; `NativeAuthoring::with_replay(entries, ttl)` selects positive explicit count and clock-representable lifetime limits · all validated in `BoundServer::attach` before bind (`ServerError::NativeAuthoring`) |
 | fresh request | `{compile_version: 2, cognition: "explicitProvider", mode: "create", intent, workflow_id?, answers?, limits?}` or `mode: "edit"` with `source` and `change` (a `change.text` requires `original_intent`; `set_constant` refuses it; `workflow_id` is create-only) · `limits: {max_calls?, repairs?, max_tokens?, call_timeout_ms?, deadline_ms?}` may only narrow the operator's bounds (above → `422 compile_limit`, never clamped) · `answers["intent.clarification"]` → `422 compile_new_intent_required` |
 | replay request | the same input repeated byte for byte with `cognition: "deterministicOnly"` and `replay_token` (64 lowercase hex); no `limits` · zero provider calls |
+| judged answer round | the same input with `cognition: "explicitProvider"`, `replay_token` and the round's `answers` (`limits` may narrow): the kept plan replayed with the answers, the operator's seat asked only to judge the replayed bytes (its judge calls, `compile_version` 2, never an authoring call); a candidate the seat does not accept is held and its token forgotten (a later request with it answers `409 compile_replay_unavailable`) |
 | shape policy | the generation-1 policy plus: a literal that repeats an object key at any depth (or nests 128 or more arrays/objects deep, the JSON parser's recursion ceiling) → `422 malformed_compile_request`; caller-named model, endpoint, credential, path, snapshot, strategy or plan fields are unknown fields |
 | answer | 200 with the core's unchanged `outcome_document` (`compile_version` 2 iff a call happened; a skeleton, a structured constant or a replay answers 1) · `Cache-Control: no-store` · a fresh round that leaves a native plan carries `Nika-Compile-Replay: <token>` |
 | knowledge | every generation-2 round reopens the pinned snapshot and compares its manifest and rows (`409 compile_context_changed` before any call); a fresh round composes the pack for its intent (a revision's `original_intent` + change) and records the identity with the snapshot directory and files root removed; `pack_sha256` and the instruction sha256 in the receipt name what the seat read |
@@ -199,7 +200,10 @@ candidate no admitted judgment was made of: it is withdrawn and its native plan 
 The `semantic_verification` findings and `provenance.decision.semantic_verification`
 carry each verification attempt as the core records it. A held outcome keeps no plan, so
 it carries no `Nika-Compile-Replay` token and no replay presents those bytes again; a
-kept round's replay (`deterministicOnly`) makes no call, so it asks no verifier either.
+kept round's replay (`deterministicOnly`) makes no call, so it asks no verifier either,
+and the judged answer round (`explicitProvider` with the token) asks the operator's seat to
+judge the replayed bytes with no authoring call, forgetting the token when the seat does not
+accept them.
 Serve keeps no conversation between rounds: a request sent again after a held outcome is a
 fresh compile that carries no earlier verdict (`CompileRequest::declined` stays empty), so
 nothing keeps its verifier from judging the same bytes again if the new round authors them.
@@ -231,7 +235,8 @@ generation 1 only and publishes the same HTTP-body boundary as the handler. A na
 merges the generation-2 contract into it (RFC 7386, from
 `src/server/compile/openapi-native.json`): the request is `oneOf`
 `CompileRequest` · `CompileRequestV2` (compile_version 2; cognition
-`explicitProvider` or `deterministicOnly` + `replay_token`; `limits` bounded
+`explicitProvider` (with a kept round's `replay_token`, its judged answer round) or
+`deterministicOnly` + `replay_token`; `limits` bounded
 by their numeric representation and narrowed dynamically against the selected seat; the create/edit and
 fresh/replay pairings as `if`/`then` rules; `additionalProperties: false`),
 the 200 answer is `oneOf` `CompileOutcome` · `CompileOutcomeV2` (its

@@ -25,6 +25,7 @@ mod lifecycle;
 mod openapi;
 mod reasoning;
 mod refusals;
+mod replayed;
 mod withheld;
 
 /// Work the deterministic reader reads but cannot settle.
