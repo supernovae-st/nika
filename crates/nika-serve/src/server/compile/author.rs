@@ -12,7 +12,9 @@
 //! — is checked before the work begins, raced against it, and checked again before every
 //! provider call; an outcome that arrives once the round must stop is never answered or kept.
 //! The work revalidates the pinned snapshot, composes the pack for the request's intent (host
-//! paths stripped from the recorded identity), and calls the seat's provider through a gate
+//! paths stripped from the recorded identity), reads the caller's admitted observation, tries
+//! candidates on its trial inputs, has a seated decision model judge, and calls the seat's
+//! provider through a gate
 //! that counts both model invocations and physical requests under the operator's explicit
 //! authority, with no redirect or uncounted resend, and hands the core fixed safe reasons. The answer is the
 //! core's own document; a document that carries a withheld value is refused whole. No job,
@@ -29,8 +31,10 @@ use hyper::{Response, StatusCode};
 use nika_kernel::ai::provider::{InferRequest, InferResponse, ProviderError, ProviderInferDyn};
 use nika_onboard::compile::authority::{Seat as CountedSeat, Wire};
 use nika_onboard::compile::{
-    Cognition, CompileOutcome, Strategy, compile_with_cognition, outcome_document, revise_intent,
+    Cognition, CompileOutcome, Strategy, compile_with_cognition_rehearsed, outcome_document,
+    revise_intent,
 };
+use nika_onboard::remote_door::trial::TrialProject;
 use nika_providers::ProviderRegistry;
 use serde_json::value::RawValue;
 use tokio::time::Instant;
@@ -40,6 +44,7 @@ use super::super::error::{ApiError, ResponseBody, ServerError, once_body};
 use super::native::{ContextChanged, Seat};
 use super::replay::Reservation;
 use super::v2::{self, Action, Bounds, CLARIFICATION, Input};
+use nika_onboard::remote_door::decision::Judge;
 
 /// The header that carries a kept round's token (S09). Never logged, never reflected.
 pub(super) const REPLAY_HEADER: HeaderName = HeaderName::from_static("nika-compile-replay");
@@ -162,6 +167,10 @@ pub(super) async fn handle(
         Ok(request) => request,
         Err(error) => return error.into_response(),
     };
+    if seat.trials.is_none() && request.input.trial().is_some() {
+        let refusal = nika_onboard::compile::remote::Refusal::TrialShape;
+        return v2::refused(refusal).into_response();
+    }
     match request.action {
         Action::Author(bounds) => {
             let round = (request.input, request.answers, bounds);
@@ -315,11 +324,28 @@ async fn author(
         provider: CountedSeat::new(provider, Arc::clone(&invocations)),
         stop: stop.clone(),
     };
+    let decision = (seat.decision.as_ref()).map(|d| d.resolve(&seat.providers));
+    let decision = decision
+        .transpose()
+        .map_err(|_| Refusal::Machinery)?
+        .flatten();
+    let decision = decision.map(|provider| Gate {
+        provider,
+        stop: stop.clone(),
+    });
+    let limits = (bounds.call_timeout, bounds.max_tokens);
+    let judge = (seat.decision.as_ref())
+        .and_then(|d| d.judge(decision.as_ref(), limits, seat.authoring.reasoning));
     let cognition = Cognition {
         provider: Some(&gate),
-        seat: None,
+        seat: judge.as_ref().map(Judge::seat),
     };
-    let mut outcome = Box::pin(compile_with_cognition(&request, cognition))
+    let room =
+        (seat.trials.as_ref().zip(input.trial())).map(|(jq, trial)| TrialProject::room(trial, jq));
+    let room = room.transpose().map_err(|_| Refusal::Machinery)?;
+    let host =
+        (room.as_ref()).map(|(_, room)| room as &dyn nika_onboard::compile::rehearse::Rehearse);
+    let mut outcome = Box::pin(compile_with_cognition_rehearsed(&request, cognition, host))
         .await
         .map_err(|_| Refusal::Machinery)?;
     if let Some(receipt) = outcome.provenance.authoring.as_mut() {
@@ -329,6 +355,10 @@ async fn author(
         backend["observed_models"] = serde_json::json!(gate.provider.observed());
         backend["unreported_models"] = serde_json::json!(gate.provider.unreported());
         backend["authority"] = authority.record(&invocations, Some(&requests));
+        if let Some(decision) = &seat.decision {
+            let note = nika_cli_host::compile::decision_seat_note(&decision.model());
+            decision.stamp(&mut backend, note);
+        }
         receipt.backend = Some(backend);
     }
     Ok(outcome)

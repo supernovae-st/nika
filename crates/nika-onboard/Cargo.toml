@@ -13,6 +13,8 @@ nika-compile-fidelity = { path = "../nika-compile-fidelity", version = "0.122.0"
 nika-event = { path = "../nika-event", version = "0.122.0" } # shared knowledge byte identities
 nika-compile = { path = "../nika-compile", version = "0.122.0" }
 nika-compile-cognition = { path = "../nika-compile-cognition", version = "0.122.0" } # the seats' doors (ADR-140) · re-exported under `compile` beside the core
+nika-compile-seats = { path = "../nika-compile-seats", version = "0.122.0" } # remote — the observation and trial-input laws a remote door admits by
+nika-types = { path = "../nika-types", version = "0.122.0" } # HarnessRuntime — a harness never seats a remote door's decision model
 nika-pack    = { path = "../nika-pack", version = "0.122.0" }    # templates · examples (the scaffold corpus)
 nika-builtin = { path = "../nika-builtin", version = "0.122.0" } # tools_json — the builtin names the guard trusts (`guard` · from nika-session 2026-09-29)
 nika-error   = { path = "../nika-error", version = "0.122.0" }   # codes::lookup — the numeric registry the guard trusts
@@ -35,6 +37,7 @@ nika-kernel            = { path = "../nika-kernel", version = "0.122.0" }
 nika-runtime           = { path = "../nika-runtime", version = "0.122.0" }
 nika-service-execution = { path = "../nika-service-execution", version = "0.122.0" }
 tokio                  = { workspace = true }
+tempfile               = { workspace = true } # the scratch project a remote door's trial room is built from (`remote_door::trial`)
 
 [target.'cfg(unix)'.dependencies]
 rustix = { workspace = true, features = ["fs"] } # the knowledge door's collection on held directory descriptors (openat · fstatat · no follow, no unsafe)
@@ -46,7 +49,6 @@ test-support = []
 [dev-dependencies]
 # The reader plan used by the copy witnesses.
 nika-compile-reader   = { path = "../nika-compile-reader", version = "0.122.0" }
-tempfile = { workspace = true }
 
 [package.metadata.lore]
 daemon        = "forgeron"

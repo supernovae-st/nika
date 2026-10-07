@@ -25,7 +25,7 @@ nika-compile          = { path = "../nika-compile", version = "0.122.0" }       
 nika-compile-fidelity = { path = "../nika-compile-fidelity", version = "0.122.0" } # behavior — the behavioural judge's run a rehearsal report is mapped to
 nika-kernel           = { path = "../nika-kernel", version = "0.122.0" }           # the provider seam a decision seat asks through, never a vendor
 nika-pack             = { path = "../nika-pack", version = "0.122.0" }             # the skeletons and the stdlib page the shelf cuts a seat's references from
-serde      = { workspace = true } # IgnoredAny · DeserializeOwned: the answer-shape probes of a seat's text
+serde      = { workspace = true } # IgnoredAny · DeserializeOwned: a seat's answer shapes; a remote door's repeated-key law
 serde_json = { workspace = true } # the closed choice's state, schema and provenance record
 thiserror  = { workspace = true }
 tokio      = { workspace = true } # the single decision call's bound

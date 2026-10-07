@@ -1792,6 +1792,7 @@ impl nika_serve::NativeAuthoring
 pub fn nika_serve::NativeAuthoring::new(model: impl core::convert::Into<alloc::string::String>, providers: nika_providers::registry::ProvidersConfig) -> Self
 pub const fn nika_serve::NativeAuthoring::with_call_timeout(self, timeout: core::time::Duration) -> Self
 pub const fn nika_serve::NativeAuthoring::with_deadline(self, deadline: core::time::Duration) -> Self
+pub fn nika_serve::NativeAuthoring::with_decision_model(self, model: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_serve::NativeAuthoring::with_knowledge(self, dir: impl core::convert::Into<std::path::PathBuf>, exclude_corpus: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_serve::NativeAuthoring::with_knowledge_release(self, dir: impl core::convert::Into<std::path::PathBuf>, identity: nika_onboard::knowledge::admission::TrustedIdentity) -> Self
 pub const fn nika_serve::NativeAuthoring::with_max_calls(self, max_calls: u32) -> Self
@@ -1799,6 +1800,7 @@ pub const fn nika_serve::NativeAuthoring::with_max_tokens(self, tokens: u32) -> 
 pub fn nika_serve::NativeAuthoring::with_reasoning(self, word: impl core::convert::Into<alloc::string::String>) -> Self
 pub const fn nika_serve::NativeAuthoring::with_repairs(self, repairs: u32) -> Self
 pub const fn nika_serve::NativeAuthoring::with_replay(self, entries: usize, ttl: core::time::Duration) -> Self
+pub fn nika_serve::NativeAuthoring::with_trials(self, jq: nika_service_execution::rehearsal::isolated_jq::JqHelper) -> Self
 pub fn nika_serve::NativeAuthoring::with_withheld(self, secret: nika_kernel_core::infra::secret::Secret) -> Self
 pub fn nika_serve::NativeAuthoring::without_knowledge(self) -> Self
 impl core::clone::Clone for nika_serve::NativeAuthoring
@@ -3822,6 +3824,7 @@ impl nika_serve::NativeAuthoring
 pub fn nika_serve::NativeAuthoring::new(model: impl core::convert::Into<alloc::string::String>, providers: nika_providers::registry::ProvidersConfig) -> Self
 pub const fn nika_serve::NativeAuthoring::with_call_timeout(self, timeout: core::time::Duration) -> Self
 pub const fn nika_serve::NativeAuthoring::with_deadline(self, deadline: core::time::Duration) -> Self
+pub fn nika_serve::NativeAuthoring::with_decision_model(self, model: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_serve::NativeAuthoring::with_knowledge(self, dir: impl core::convert::Into<std::path::PathBuf>, exclude_corpus: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_serve::NativeAuthoring::with_knowledge_release(self, dir: impl core::convert::Into<std::path::PathBuf>, identity: nika_onboard::knowledge::admission::TrustedIdentity) -> Self
 pub const fn nika_serve::NativeAuthoring::with_max_calls(self, max_calls: u32) -> Self
@@ -3829,6 +3832,7 @@ pub const fn nika_serve::NativeAuthoring::with_max_tokens(self, tokens: u32) -> 
 pub fn nika_serve::NativeAuthoring::with_reasoning(self, word: impl core::convert::Into<alloc::string::String>) -> Self
 pub const fn nika_serve::NativeAuthoring::with_repairs(self, repairs: u32) -> Self
 pub const fn nika_serve::NativeAuthoring::with_replay(self, entries: usize, ttl: core::time::Duration) -> Self
+pub fn nika_serve::NativeAuthoring::with_trials(self, jq: nika_service_execution::rehearsal::isolated_jq::JqHelper) -> Self
 pub fn nika_serve::NativeAuthoring::with_withheld(self, secret: nika_kernel_core::infra::secret::Secret) -> Self
 pub fn nika_serve::NativeAuthoring::without_knowledge(self) -> Self
 impl core::clone::Clone for nika_serve::NativeAuthoring

@@ -22,6 +22,7 @@ use crate::NativeAuthoring;
 mod authority;
 mod judged;
 mod lifecycle;
+mod observed;
 mod openapi;
 mod reasoning;
 mod refusals;

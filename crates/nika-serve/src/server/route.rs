@@ -115,7 +115,12 @@ pub(crate) async fn handle(
     let response = if path == "/health" && request.method() == Method::GET {
         json_response(
             StatusCode::OK,
-            &HealthResponse::current(true, state.native.is_some(), state.cost_review.is_some()),
+            &HealthResponse::current(
+                true,
+                (state.native.as_ref())
+                    .map(|seat| (seat.decision.is_some(), seat.trials.is_some())),
+                state.cost_review.is_some(),
+            ),
         )
     } else if path.starts_with("/v1/") || review_path(path).is_some() {
         protected(request, state).await

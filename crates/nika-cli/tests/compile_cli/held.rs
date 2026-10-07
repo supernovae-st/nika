@@ -106,11 +106,14 @@ fn a_held_answer_round_removes_the_record_and_the_next_round_authors_again() {
         kept["resume"], false,
         "an open question is no failed judgment"
     );
-    // Round 2: replayed (no authoring call), judged and held.
+    // Round 2: replayed (no authoring call), tried, judged and held. Nothing stays open after the
+    // part and the extra question, so the judge is asked over the trial run too: a run it finds
+    // consistent would settle the doubt; one that did not exercise the part keeps it.
     let doubt = [
         r#"{"choice":"unfaithful"}"#,
         r#"{"choice":"carried"}"#,
         r#"{"choice":"only_requested"}"#,
+        r#"{"choice":"unexercised"}"#,
     ]
     .map(str::to_owned);
     let (out, doc, bodies) = compile(room.path(), &doubt, &["--answer", ANSWER]);
@@ -129,6 +132,7 @@ fn a_held_answer_round_removes_the_record_and_the_next_round_authors_again() {
             vec!["faithful", "unfaithful", "none"],
             vec!["carried", "missing", "none"],
             vec!["only_requested", "task-save", "none"],
+            vec!["consistent", "unexercised", "part-0", "task-save", "none"],
         ]
     );
     let (part, _) = judged(&bodies[1]).expect("the part asked alone");
@@ -154,15 +158,18 @@ fn a_held_answer_round_removes_the_record_and_the_next_round_authors_again() {
     );
     // Round 3: nothing left to replay: the answer round authors again, then its judge reads its
     // own candidate, never the held bytes.
+    // Faithful as a whole, then its part carried over the trial run.
     let mut fresh = authored("write_greeting");
-    fresh.push(r#"{"choice":"faithful"}"#.to_owned());
+    for choice in ["faithful", "carried"] {
+        fresh.push(format!(r#"{{"choice":"{choice}"}}"#));
+    }
     let (out, doc, bodies) = compile(room.path(), &fresh, &["--answer", ANSWER]);
     assert_eq!(out.status.code(), Some(0), "{doc}");
     let shas: Vec<Option<String>> = bodies.iter().map(judged_sha).collect();
     assert_eq!(
         shas.len(),
-        3,
-        "the sketch, its fills, the whole request: {doc}"
+        4,
+        "the sketch, its fills, the whole request, its part over the trial run: {doc}"
     );
     assert_eq!(shas[..2], [None, None], "authoring calls first: {doc}");
     let judged_fresh = shas[2].clone().expect("the whole request judged");
@@ -199,7 +206,7 @@ fn a_round_that_authors_the_held_bytes_again_never_asks_their_judge() {
     .map(str::to_owned);
     let (out, doc, bodies) = compile(room.path(), &doubt, &["--answer", ANSWER]);
     assert_eq!(out.status.code(), Some(2), "{doc}");
-    assert_eq!(bodies.len(), 3, "the request, its part, the extra question");
+    assert_eq!(bodies.len(), 4, "request, part, extra question, run");
     let held = judged_sha(&bodies[0]).expect("the held bytes");
     assert_eq!(applied(&doc, "verify_held"), [HELD], "{doc}");
     let judged = doc["provenance"]["decision"]["semantic_verification"][0].clone();
@@ -220,15 +227,19 @@ fn a_round_that_authors_the_held_bytes_again_never_asks_their_judge() {
         vec!["--answer", ANSWER],
         vec!["--answer", ANSWER, "--fresh"],
     ] {
-        // The sketch and its fills of round 1 again: the same bytes, never asked of the judge.
+        // The sketch and its fills of round 1 again: the same bytes. Their whole-request verdict
+        // is never asked again; the binary tries them on a scratch copy, and the judge is asked
+        // only what it never got: the trial run (the verifier's resumed localization).
         let (out, doc, bodies) = compile(room.path(), &authored("save"), &extra);
         assert_eq!(out.status.code(), Some(2), "{extra:?}: {doc}");
         assert_eq!(doc["status"], "incomplete", "{doc}");
         let shas: Vec<Option<String>> = bodies.iter().map(judged_sha).collect();
-        assert_eq!(
-            shas,
-            [None, None],
-            "the sketch and its fills, no judge question"
+        assert_eq!(shas[..2], [None, None], "the sketch and its fills first");
+        assert!(
+            shas[2..]
+                .iter()
+                .all(|sha| sha.as_deref() == Some(held.as_str())),
+            "only the held bytes are judged: {shas:?}"
         );
         let candidate = doc["candidate"].as_str().expect("the held preview");
         assert_eq!(
@@ -241,49 +252,73 @@ fn a_round_that_authors_the_held_bytes_again_never_asks_their_judge() {
             .as_array()
             .expect("the attempts");
         assert_eq!(attempts.len(), 1, "{doc}");
-        let carried = &attempts[0];
-        assert_eq!(carried["carried"], true);
-        assert_eq!(carried["same_bytes_as"], Value::Null);
-        assert_eq!(carried["questions"], json!([]));
-        for count in ["attempted", "returned", "consumed"] {
-            assert_eq!(carried[count], 0, "{count}");
-        }
+        let resumed = &attempts[0];
+        let asked: Vec<&str> = (resumed["questions"].as_array().into_iter().flatten())
+            .skip(judged["questions"].as_array().map_or(0, Vec::len))
+            .filter_map(|q| q["role"].as_str())
+            .collect();
+        assert!(
+            asked.iter().all(|role| *role == "judge_observed"),
+            "nothing but the trial run is asked again: {asked:?}"
+        );
         for field in [
             "judge",
             "candidate_sha256",
             "defects",
-            "notes",
             "doubt",
-            "unknown",
-            "contested",
-            "unsettled",
             "declined",
             "rejected",
-            "settled",
-            "stopped",
             "whole_asked",
             "request",
         ] {
-            assert_eq!(carried[field], judged[field], "{field}");
+            assert_eq!(resumed[field], judged[field], "{field}");
         }
         let route = &doc["provenance"]["decision"]["route"];
-        let steps = (route.as_array().into_iter().flatten()).filter_map(Value::as_str);
-        assert_eq!(
-            steps
-                .filter(|step| step.starts_with("verify:"))
-                .collect::<Vec<_>>(),
-            [
-                "verify: same bytes, rejected in an earlier round",
-                "verify: not ready, candidate held"
-            ],
-            "{doc}"
-        );
+        let steps: Vec<&str> = (route.as_array().into_iter().flatten())
+            .filter_map(Value::as_str)
+            .filter(|step| step.starts_with("verify:"))
+            .collect();
+        let last = steps.last().copied();
+        assert!(steps[0].starts_with("verify: same bytes"), "{doc}");
+        assert_eq!(last, Some("verify: not ready, candidate held"), "{doc}");
         assert_eq!(doc["written"], Value::Null, "{doc}");
         assert_eq!(doc.get("declined_record_error"), None, "{doc}");
-        assert_eq!(kept_declined(room.path()), kept, "kept once");
+        let kept_now = kept_declined(room.path());
+        let declined = kept_now["declined"].as_array().expect("the kept verdicts");
+        assert!(
+            declined
+                .iter()
+                .all(|v| v["candidate_sha256"] == held.as_str()),
+            "only the held bytes' verdicts are kept: {kept_now}"
+        );
     }
     assert!(
         !room.path().join("out").exists(),
         "nothing was written or run"
+    );
+}
+
+/// The binary tries a seated free-intent candidate before it is READY, as the Session does: on a
+/// scratch copy of the stated world, its trial report beside the judgment, the project untouched.
+#[test]
+fn a_seated_compile_tries_its_candidate_on_a_scratch_copy_before_it_is_ready() {
+    let room = tempfile::tempdir().expect("room");
+    let mut script = authored("write_greeting");
+    // The whole request faithful, then its part asked again over the trial run it was shown.
+    script.push(r#"{"choice":"faithful"}"#.to_owned());
+    script.push(r#"{"choice":"carried"}"#.to_owned());
+    let (out, doc, _) = compile(room.path(), &script, &["--answer", ANSWER]);
+    assert_eq!(out.status.code(), Some(0), "{doc}");
+    assert_eq!(doc["status"], "ready", "{doc}");
+    let reports = &doc["provenance"]["decision"]["rehearsal"]["reports"];
+    let report = &reports[0];
+    assert_eq!(report["attempt"], "completed", "{doc}");
+    assert_eq!(report["outcome"]["kind"], "passed", "{doc}");
+    assert_eq!(report["finals"][0]["path"], "./out/result.txt", "{doc}");
+    assert_eq!(report["finals"][0]["state"]["text"], "hello", "{doc}");
+    assert_eq!(report["room"]["cleaned"], true, "{doc}");
+    assert!(
+        !room.path().join("out").exists(),
+        "the trial ran on a scratch copy: the project is untouched"
     );
 }

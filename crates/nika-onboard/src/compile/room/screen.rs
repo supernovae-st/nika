@@ -50,6 +50,8 @@ pub(super) struct Output {
 #[derive(Debug)]
 pub(super) struct Screened {
     pub(super) inputs: Vec<(String, String)>,
+    /// The inputs (as the room spells them) the candidate only writes: copied when present.
+    pub(super) write_only: Vec<String>,
     pub(super) outputs: Vec<Output>,
     pub(super) tasks: Vec<String>,
 }
@@ -85,6 +87,7 @@ pub(super) fn screen_with(
         .collect::<Result<Vec<_>, Refused>>()?;
     let mut screened = Screened {
         inputs,
+        write_only: Vec::new(),
         outputs: Vec::new(),
         tasks: Vec::new(),
     };
@@ -95,6 +98,13 @@ pub(super) fn screen_with(
         }
         screened.tasks.push(task.value.id.value.clone());
     }
+    // A stated path the candidate only writes is its destination (a reader may have taken
+    // « save ./out/x as … » for a source): absent, it is no input to copy.
+    let (outputs, read) = (&screened.outputs, &reads);
+    let write_only = (screened.inputs.iter()).filter(|(_, input)| {
+        !read.iter().any(|(_, at)| at == input) && outputs.iter().any(|output| output.at == *input)
+    });
+    screened.write_only = write_only.map(|(_, at)| at.clone()).collect();
     for (path, at) in reads {
         let observed = screened.inputs.iter().any(|(_, input)| *input == at);
         if !observed && !screened.outputs.iter().any(|output| output.at == at) {

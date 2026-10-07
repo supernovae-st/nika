@@ -11,8 +11,10 @@ use nika_kernel::ai::provider::ProviderInferDyn;
 use nika_kernel::http::HttpPostDyn;
 use nika_onboard::compile::authority::{Authority, Envelope, Seat, Wire, usage_complete};
 use nika_onboard::compile::{
-    Cognition, CompileError, CompileOutcome, CompileRequest, NoProvider, compile_with_cognition,
+    Cognition, CompileError, CompileOutcome, CompileRequest, NoProvider,
+    compile_with_cognition_rehearsed,
     decide::{DecisionSeat, ProviderChoice},
+    rehearse::Rehearse,
 };
 use std::{sync::Arc, time::Duration};
 
@@ -97,7 +99,9 @@ fn stamp_backend(
 
 /// What the receipt states about a seated decision model's own client: a `typesafe/<jev>` seat
 /// sends each question once; a `provider/name` seat keeps its provider client's protocol retries.
-fn decision_seat_note(model: &str) -> &'static str {
+/// Every door that seats a decision model (the CLI, Serve) states it in these words.
+#[must_use]
+pub fn decision_seat_note(model: &str) -> &'static str {
     if model.starts_with("typesafe/") {
         "outside this authority: its own single-attempt client"
     } else {
@@ -107,13 +111,16 @@ fn decision_seat_note(model: &str) -> &'static str {
 
 /// Compile under the seats the flags name. The caps are every door's (the operator's, else the
 /// selected route's technical capacity and deadline), and never move with the effort; the
-/// decision call asks the same effort under the declared authoring cap (R4 B16).
+/// decision call asks the same effort under the declared authoring cap (R4 B16). With a
+/// rehearsal `host` (the observed room over the working directory), each final candidate is
+/// tried on a scratch copy of its stated inputs, as the Session tries it: a failed or missing
+/// trial is evidence the judge reads and the repairs start from, never a READY.
 pub(super) fn compile(
     request: &CompileRequest,
     args: &super::CompileArgs,
-    config: &config::AuthoringConfig,
-    authority: &Authority,
+    (config, authority): (&config::AuthoringConfig, &Authority),
     capture_flags: &super::CaptureFlags,
+    host: Option<&dyn Rehearse>,
 ) -> Result<CompileOutcome, String> {
     let providers = nika_runtime::compose::config_from_env();
     let (request, (max_tokens, timeout)) = with_policy(request, args, config, providers.clone())?;
@@ -166,7 +173,7 @@ pub(super) fn compile(
         let keys = keys.iter().flatten().map(|key| key.expose());
         let keys = keys.chain(typesafe.as_ref().map(super::typesafe::TypesafeSeat::key));
         let scope = (args.authoring_model.as_deref(), max_tokens, timeout);
-        let work = seated(&request, harness.as_ref(), provider.as_ref(), seat);
+        let work = seated(&request, (harness.as_ref(), provider.as_ref()), seat, host);
         let outcome =
             super::capture::cli_observe(capture_flags, keys, harness.is_none(), scope, work).await;
         let mut outcome = outcome.map_err(|e| e.to_string())?;
@@ -207,38 +214,41 @@ pub(super) fn compile(
 /// host's stack frame stays small (`clippy::large_futures`) whatever the outcome grows to.
 async fn seated<H: ProviderInferDyn, P: ProviderInferDyn>(
     request: &CompileRequest,
-    harness: Option<&H>,
-    provider: Option<&P>,
+    (harness, provider): (Option<&H>, Option<&P>),
     seat: Option<&dyn DecisionSeat>,
+    host: Option<&dyn Rehearse>,
 ) -> Result<CompileOutcome, CompileError> {
     match (harness, provider) {
         (Some(harness), _) => {
-            Box::pin(compile_with_cognition(
+            Box::pin(compile_with_cognition_rehearsed(
                 request,
                 Cognition {
                     provider: Some(harness),
                     seat,
                 },
+                host,
             ))
             .await
         }
         (None, Some(provider)) => {
-            Box::pin(compile_with_cognition(
+            Box::pin(compile_with_cognition_rehearsed(
                 request,
                 Cognition {
                     provider: Some(provider),
                     seat,
                 },
+                host,
             ))
             .await
         }
         (None, None) => {
-            Box::pin(compile_with_cognition::<NoProvider>(
+            Box::pin(compile_with_cognition_rehearsed::<NoProvider>(
                 request,
                 Cognition {
                     provider: None,
                     seat,
                 },
+                host,
             ))
             .await
         }
@@ -283,10 +293,10 @@ fn provider_registry(
 #[cfg(feature = "access-harness")]
 fn harness_seat(
     args: &super::CompileArgs,
-) -> Result<Option<super::harness_seat::HarnessSeat>, String> {
+) -> Result<Option<nika_harness::compile_seat::HarnessSeat>, String> {
     Ok(match args.authoring_model.as_deref() {
-        Some(model) if super::harness_seat::HarnessSeat::names_a_harness(model) => {
-            Some(super::harness_seat::HarnessSeat::meet(model)?)
+        Some(model) if nika_harness::compile_seat::HarnessSeat::names_a_harness(model) => {
+            Some(nika_harness::compile_seat::HarnessSeat::meet(model)?)
         }
         _ => None,
     })

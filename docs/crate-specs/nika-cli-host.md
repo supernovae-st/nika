@@ -105,6 +105,28 @@ The resident arguments provide `Default`; dispatch and seating remain in their
 existing owners. `compile::authoring_http` shares the single-attempt authoring
 transport with the resident door.
 
+`nika compile <intent> --observe-only` (an `ObserveFlags` field beside
+`CaptureFlags` on `CompileCommand`; the `CompileArgs` literal is unchanged)
+prints `nika_onboard::remote_door::document`: `{observation_version: 1,
+intent_sha256, observed_world, trial_inputs}` — `compile::observe::world` under
+the working directory, unchanged, and the text of the files it read — then
+stops: no compile, no seat, nothing written, refused beside a destination, a
+base, answers or a seat. A remote door admits it by
+`nika_onboard::compile::remote` (the seats crate's law).
+`serve_args::NativeAuthoringArgs` carries `--decision-model` (requires
+`--authoring-model`); `compile::decision_seat_note` is the receipt wording both
+doors share; `typesafe::seat` opens a System One seat for a door that keeps it
+for many rounds, with its key to withhold, never to print.
+
+Trials. `CompileCommand.trials` (an `ObservedRoom`, `#[arg(skip)]`; the `nika`
+binary names the working directory's room with itself as the jq helper, as the
+Session does) makes a seated free-intent compile pass the core
+`compile_with_cognition_rehearsed` that room: each final candidate is tried on
+a scratch copy of its stated inputs (no provider, network, process or gate; the
+originals untouched), the report reaches the judge and the repairs, and a
+failed or missing trial is never READY. The library entries `run` and
+`run_with` name no room and try nothing.
+
 `compile::config` preserves the authoring configuration API as a re-export of
 `nika_onboard::compile_config`. The shared parser, constants, typed errors and
 their tests have one owner beside the authoring facade; existing import paths

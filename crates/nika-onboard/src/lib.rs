@@ -44,6 +44,9 @@ pub mod compile {
         compile_with_provider, decide, observe, rehearse,
     };
     pub use nika_compile_fidelity::sketch::kept as program_records;
+    /// What a door that holds no project admits from its caller's engine (`observed_world` ·
+    /// `trial_inputs`).
+    pub use nika_compile_seats::remote;
     /// The closed copy door: a request that is exactly a text file copied as is, qualified by
     /// what the assembler's two exact copies did when rehearsed in the observed room (the session
     /// calls it before it proposes).
@@ -74,6 +77,7 @@ pub mod lifecycle;
 pub mod project_file;
 pub mod recipes;
 pub mod rehearsal;
+pub mod remote_door;
 pub mod routing;
 pub mod wizard;
 
