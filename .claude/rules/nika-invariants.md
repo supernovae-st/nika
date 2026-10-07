@@ -2,7 +2,7 @@
 
 ## Crate structure
 
-- Crate count : **not the invariant** (ruled D-2026-07-21-N1). ADR-037 (accepted 2026-04-17) revised the stale 40-42 target to **50-90 · cap 100 unchanged** — a planning horizon, never a gate. The count invariants are **collapse-vs-publish** (below), the **layer contract** (`docs/architecture/crate-layer-registry.md`), and the **15k prod-LOC wall**; the live count is PROJECTED (`scripts/crate-metrics.sh` · hygiene vector 2), never hand-typed. + **11 Connectome crates** (1 L2 orchestrator `nika-connectome` + **10 L1 satellite crates** · autodesc split per ADR-042) — separate count, the **2.0** Connectome era. Satellites · `hnsw, bm25, rrf, rerank, fsrs, rdfs-reasoner, temporal, graph-algos, autodesc-minimal, autodesc-full`. Phase-M climb · cognition in the 2.0 era · specs at `docs/crate-specs/nika-<sat>.md`. See ADR-004 + ADR-042 + `BLUEPRINT_2036.md`.
+- Crate count : **not the invariant** (ruled D-2026-07-21-N1). ADR-037 (accepted 2026-04-17) revised the stale 40-42 target to **50-90 · cap 100 unchanged** — a planning horizon, never a gate. The count invariants are **collapse-vs-publish** (below), the **layer contract** (`docs/architecture/crate-layer-registry.md`), and the **15k prod-LOC wall**; the live count is PROJECTED (`scripts/crate-metrics.sh` · hygiene vector 2), never hand-typed. + **11 Connectome crates** (1 L2 orchestrator `nika-connectome` + **10 L1 satellite crates** · autodesc split per ADR-042) — planned cluster; the **whole Connectome (memory + cognition) lands before 1.0**, per [ROADMAP.md](../../ROADMAP.md) (D-2026-07-22-N1). Satellites · `hnsw, bm25, rrf, rerank, fsrs, rdfs-reasoner, temporal, graph-algos, autodesc-minimal, autodesc-full`. Phase-M climb · memory and cognition in the same pre-1.0 scope · specs at `docs/crate-specs/nika-<sat>.md`. See ADR-004 + ADR-042 + `BLUEPRINT_2036.md`.
 
 ## Collapse-vs-publish principle (decision RULE locked · cluster collapses = QUEUED proposals)
 
@@ -104,8 +104,10 @@ pub struct InferResponse {
 }
 ```
 
-These hooks allow the Connectome + agent-v2 to land in the 2.0 era (amended
-D-2026-06-20-N1 · was "post-v0.90") **without breaking change** to the public API.
+These hooks are intended to preserve public API compatibility as memory and
+cognition are added. The whole Connectome belongs to the pre-1.0 launch scope
+in [ROADMAP.md](../../ROADMAP.md); a hook declaration alone does not prove
+implementation or qualification.
 
 ## 28+ sacred invariants (inherited)
 
