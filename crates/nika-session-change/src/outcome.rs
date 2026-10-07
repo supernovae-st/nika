@@ -12,8 +12,9 @@ use crate::change::{ChangeError, Witness};
 
 /// The identity of one proposal: the witness of the exact preview the
 /// human saw. A consent names it; a consent naming another proposal is
-/// stale and applies nothing.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+/// stale and applies nothing. It serializes as its full hex digest.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize)]
+#[serde(transparent)]
 pub struct ProposalId(String);
 
 impl ProposalId {
@@ -38,7 +39,7 @@ impl fmt::Display for ProposalId {
 
 /// The identity of one paused gate: the trace that paused and the task
 /// that asked. An answer names it; the same gate answers once.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, serde::Serialize)]
 pub struct GateId {
     /// The paused trace (the resume handle).
     pub trace: PathBuf,

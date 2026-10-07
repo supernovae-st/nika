@@ -1,0 +1,214 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! The one precedence, the one routing and the snapshot, over the real compiler and the real
+//! check: every host reads the same waiting state with its identity, a line answers only what
+//! was shown, and the work names the candidate, the saved workflow and the last run exactly.
+
+use std::path::{Path, PathBuf};
+
+use super::NOTHING_SHOWN;
+use crate::outcome::{GateId, ProposalId, RefusalClass};
+use crate::runtime::TurnOutcome;
+use crate::runtime::tests::{COPY, COPY_DEST, ready_with, tree};
+use crate::work::{CONTRACT, Landing, RunEnd, Stage, Waiting};
+use crate::world::Reach;
+
+/// A check-clean workflow that pauses at a human gate (the runtime suite's own shape).
+const GATE: &str = "nika: gate\npermits: { fs: { read: [\"./draft.md\"], write: [\"./final.md\"] }, tools: [\"nika:read\", \"nika:prompt\", \"nika:write\"] }\ntasks:\n  read_draft:\n    invoke: { tool: \"nika:read\", args: { path: \"./draft.md\" } }\n  approve:\n    invoke: { tool: \"nika:prompt\", args: { mode: confirm, message: \"Write final.md?\" } }\n  write_final:\n    after: { approve: success }\n    with: { go: \"${{ tasks.approve.output }}\", text: \"${{ tasks.read_draft.output }}\" }\n    when: \"${{ with.go == true }}\"\n    invoke: { tool: \"nika:write\", args: { path: \"./final.md\", content: \"${{ with.text }}\" } }\n";
+/// The event a run paused at that gate leaves in its trace.
+const PAUSED: &str = "{\"kind\":\"workflow_paused\",\"fields\":[{\"key\":\"task\",\"value\":\"approve\"},{\"key\":\"mode\",\"value\":\"confirm\"},{\"key\":\"message\",\"value\":\"Write final.md?\"}]}\n";
+
+fn proposal(outcome: TurnOutcome) -> ProposalId {
+    let TurnOutcome::Proposal { id, .. } = outcome else {
+        panic!("a proposal: {outcome:?}");
+    };
+    id
+}
+
+#[test]
+fn a_fresh_session_waits_for_nothing_and_holds_no_work() {
+    let dir = tree();
+    let s = ready_with(dir.path(), vec![]);
+    assert_eq!(s.waiting(), Waiting::Free);
+    let work = s.work();
+    assert_eq!(work.contract, CONTRACT);
+    assert_eq!(work.root, s.snapshot.root);
+    assert_eq!(work.waiting, Waiting::Free);
+    assert!(work.candidate.is_none() && work.saved.is_none() && work.run.is_none());
+    assert_eq!(work.rail.draft, Stage::Pending);
+}
+
+#[test]
+fn a_consent_answers_the_proposal_shown_and_nothing_unseen_is_saved() {
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    let id = proposal(s.turn(COPY));
+    assert_eq!(
+        s.waiting(),
+        Waiting::Consent {
+            proposal: id.clone()
+        }
+    );
+
+    let work = s.work();
+    let candidate = work.candidate.expect("the candidate under review");
+    assert_eq!(candidate.proposal, id);
+    assert!(!candidate.aside && !candidate.run_after_save);
+    let [file] = candidate.files.as_slice() else {
+        panic!("one workflow: {:?}", candidate.files);
+    };
+    assert_eq!(file.path, PathBuf::from(COPY_DEST));
+    assert_eq!(file.landing, Landing::Create);
+    let audit = file.audit.as_ref().expect("audited");
+    assert!(audit.clean, "{:?}", audit.findings);
+    assert_eq!(
+        audit.world.reach,
+        Reach::Local,
+        "a copy between project files reaches no service: {:?}",
+        audit.world
+    );
+    assert_eq!(work.rail.draft, Stage::Done);
+
+    let TurnOutcome::Refusal(unseen) = s.submit("yes", &Waiting::Free) else {
+        panic!("nothing shown, nothing consented");
+    };
+    assert_eq!(unseen.class, RefusalClass::WrongState);
+    assert_eq!(unseen.text, NOTHING_SHOWN);
+    assert!(!dir.path().join(COPY_DEST).exists());
+    assert_eq!(
+        s.waiting(),
+        Waiting::Consent {
+            proposal: id.clone()
+        }
+    );
+
+    let other = Waiting::Consent {
+        proposal: ProposalId::of("another preview"),
+    };
+    let TurnOutcome::Refusal(stale) = s.submit("yes", &other) else {
+        panic!("stale");
+    };
+    assert_eq!(stale.class, RefusalClass::StaleRevision, "{stale}");
+    assert!(!dir.path().join(COPY_DEST).exists());
+
+    let shown = s.waiting();
+    assert!(
+        matches!(s.submit("yes", &shown), TurnOutcome::Facts(ref t) if t.contains("applied")),
+        "the consent shown lands the set"
+    );
+    assert!(dir.path().join(COPY_DEST).is_file());
+    assert_eq!(s.waiting(), Waiting::Free);
+    let work = s.work();
+    let saved = work.saved.expect("saved");
+    assert_eq!(saved.workflow, PathBuf::from(COPY_DEST));
+    assert_eq!(saved.check_clean, Some(true));
+    assert_eq!(
+        (work.rail.saved, work.rail.checked),
+        (Stage::Done, Stage::Done)
+    );
+    assert!(
+        matches!(s.submit("yes", &shown), TurnOutcome::Refusal(_)),
+        "a repeated line never applies twice"
+    );
+}
+
+#[test]
+fn a_declining_line_still_declines_when_no_proposal_was_shown() {
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    proposal(s.turn(COPY));
+    assert!(
+        matches!(s.submit("no", &Waiting::Free), TurnOutcome::Facts(ref t) if t.contains("discarded")),
+        "leaving or declining applies nothing, shown or not"
+    );
+    assert_eq!(s.waiting(), Waiting::Free);
+    assert!(!dir.path().join(COPY_DEST).exists());
+}
+
+#[test]
+fn a_gate_answer_names_the_gate_shown_and_the_run_keeps_its_identity() {
+    let dir = tree();
+    std::fs::write(dir.path().join("draft.md"), "the draft\n").expect("draft");
+    std::fs::write(dir.path().join("gate.nika"), GATE).expect("gate");
+    let mut s = ready_with(dir.path(), vec![]);
+    assert!(matches!(
+        s.turn("run gate.nika"),
+        TurnOutcome::RunRequested { .. }
+    ));
+    let store = dir.path().join(".nika").join("traces");
+    std::fs::create_dir_all(&store).expect("store");
+    let trace = store.join("paused.ndjson");
+    std::fs::write(&trace, PAUSED).expect("trace");
+    let TurnOutcome::GateAsk { id, .. } = s.observe_run(4, Some(&trace)) else {
+        panic!("the gate is asked");
+    };
+    assert_eq!(s.waiting(), Waiting::Gate { gate: id.clone() });
+    let run = s.work().run.expect("the paused run");
+    assert!(run.current);
+    assert_eq!(run.end, Some(RunEnd::Paused));
+    assert_eq!(
+        run.trace.as_deref(),
+        Some(trace.display().to_string().as_str())
+    );
+    assert_eq!(s.work().rail.run, Stage::Paused);
+
+    let elsewhere = Waiting::Gate {
+        gate: GateId::new(Path::new("other.ndjson"), "approve"),
+    };
+    let TurnOutcome::Refusal(stale) = s.submit("yes", &elsewhere) else {
+        panic!("another gate is stale");
+    };
+    assert_eq!(stale.class, RefusalClass::StaleRevision, "{stale}");
+    let shown = s.waiting();
+    let TurnOutcome::ResumeRequested { answer, .. } = s.submit("yes", &shown) else {
+        panic!("the shown gate resumes");
+    };
+    assert_eq!(answer, "approve=true");
+    assert_eq!(s.waiting(), Waiting::Free);
+}
+
+#[test]
+fn a_run_before_the_last_save_is_kept_but_never_the_current_result() {
+    let dir = tree();
+    std::fs::write(dir.path().join("draft.md"), "the draft\n").expect("draft");
+    std::fs::write(dir.path().join("gate.nika"), GATE).expect("gate");
+    let mut s = ready_with(dir.path(), vec![]);
+    assert!(matches!(
+        s.turn("run gate.nika"),
+        TurnOutcome::RunRequested { .. }
+    ));
+    let _ = s.observe_run(1, None);
+    let run = s.work().run.expect("observed");
+    assert!(run.current);
+    assert_eq!(run.end, Some(RunEnd::Failed));
+
+    let id = proposal(s.turn(COPY));
+    assert!(matches!(
+        s.submit("yes", &Waiting::Consent { proposal: id }),
+        TurnOutcome::Facts(_)
+    ));
+    let run = s.work().run.expect("still kept as evidence");
+    assert!(
+        !run.current,
+        "a new Save makes the earlier run evidence, not this revision's result"
+    );
+    assert_eq!(run.end, Some(RunEnd::Failed));
+    assert_eq!(s.work().rail.run, Stage::Pending);
+}
+
+#[test]
+fn the_snapshot_serializes_with_its_contract_and_waiting_kind() {
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    let id = proposal(s.turn(COPY));
+    let json = serde_json::to_value(s.work()).expect("serializes");
+    assert_eq!(json["contract"], CONTRACT);
+    assert_eq!(json["waiting"]["kind"], "consent");
+    assert_eq!(json["waiting"]["proposal"], id.as_str());
+    assert_eq!(json["candidate"]["files"][0]["landing"], "create");
+    assert_eq!(
+        json["candidate"]["files"][0]["audit"]["world"]["reach"],
+        "local"
+    );
+}

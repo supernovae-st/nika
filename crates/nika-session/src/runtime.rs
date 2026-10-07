@@ -57,6 +57,8 @@ mod route;
 mod run_budget;
 mod unjudged;
 mod unknown_cost;
+mod work;
+pub use work::NOTHING_SHOWN;
 
 pub use decision::{DecisionAnswer, decision_answer};
 use decision::{is_gate_token, is_no, is_yes, local_command_of};
@@ -1258,17 +1260,8 @@ impl SessionRuntime {
     }
 
     fn observation_line(&mut self, exit: u8, trace: Option<&Path>, with_produced: bool) -> String {
-        let meaning = match exit {
-            0 => "succeeded",
-            1 => "the workflow failed",
-            2 => "refused before running (findings)",
-            3 => "refused by the environment",
-            4 => {
-                "paused for a human answer — `nika run <file> --resume <trace> --answer <task>=<value>` continues it"
-            }
-            130 => "interrupted before it finished (Ctrl+C) — the trace shows what ran",
-            _ => "ended with an unknown code",
-        };
+        // The run door's exit codes have one reading, shared with the work snapshot.
+        let meaning = crate::work::RunEnd::of(exit).meaning();
         let line = match trace {
             Some(t) => format!(
                 "run observed · exit {exit} · {meaning} · trace `{}`",

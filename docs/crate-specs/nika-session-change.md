@@ -52,6 +52,24 @@ those paths as an external consumer.
   proposal's identity, every path with the witness of the bytes it was previewed over and of the
   bytes it lands), what landed, when. One JSON object per line.
 
+Two typed readings joined these modules on 2026-10-08, so every host reads the same facts:
+
+- `world` — where a workflow's exact bytes reach, from the check's data journey over those bytes:
+  files, an exact loopback host (a service on this machine, such as a contract server or a test
+  sink), a public host (a connected service), a documentation or floor-refused host (no service),
+  an MCP tool or a program (destination undetermined). Hosts are judged by the floor's own
+  predicates (`nika_types::net`). The reach is `local`, `local_services`, `connected` or
+  `undetermined`; every `WorkflowAudit` carries it, and unaudited bytes claim none. It is a
+  declared reading: the trace witnesses file and tool permits per operation, not network
+  destinations, so a run does not turn it into an observation.
+- `work` — the work a session holds, typed once for every host (contract
+  `nika/session-work@0`, serializable): `Waiting` names what the next line answers with the
+  identity an answer names (a proposal, a gate); `Work` is one snapshot of the request, the
+  candidate's files with their witnesses, audits and reach, the saved workflow, the last observed
+  run (`current` only for the run of the workflow saved last in this session) and the rail.
+  `RunEnd` is the one reading of the run door's exit codes. It grants nothing: consents,
+  answers and runs still go through the session's own doors.
+
 ## 3. Boundary
 
 - The member owns no conversation, round, money gate or history: the session decides when a set
