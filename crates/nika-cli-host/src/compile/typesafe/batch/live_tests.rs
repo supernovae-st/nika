@@ -401,9 +401,9 @@ fn the_services_capacity_refusals_under_the_operators_seat() {
 
 /// ONE further request of the same diagnosis (ignored by default: it is paid): one question
 /// alone, 26400 synthetic words, 1.3 times the single question the first diagnosis saw answered
-/// with 31991 reported input tokens. A refusal says the 32k longest-question capacity is refused,
-/// an answer near 32k tokens that the service cut the state, an answer near 41.6k (the first
-/// answer's tokens per word) that no 32k cut applies to one question alone.
+/// with 31991 reported input tokens. It records which outcome the service gives: a refusal, an
+/// answer reporting input tokens near 32k, or one near 41.6k (the first answer's tokens per
+/// word). A reported count is an observation; it does not show whether the service cut the state.
 #[test]
 #[ignore = "a real TypeSafe seat, by env: sends a paid request"]
 fn one_question_past_the_longest_question_capacity_under_the_operators_seat() {
