@@ -118,9 +118,10 @@ pub(super) async fn after<P: ProviderInferDyn>(
         let allowance =
             (policy.repairs.zip(rounds)).map(|(r, n)| r.saturating_add(n.saturating_add(2)));
         let seats = (provider, decision, &mut *rehearsals);
-        match examine(door, seats, talk, settled, limits, allowance).await {
+        let room = (allowance, super::Exit::Withdraw);
+        match examine(door, seats, talk, settled, limits, room).await {
             Step::Done(out) | Step::Withdrawn(out, _) => return kept(out, &history),
-            Step::Reopen(mut out, defects) => {
+            Step::Reopen(mut out, defects, _) => {
                 if !more || !reopen(talk, defects.clone(), AGAIN) {
                     evidence::refuse(&mut out, stop_reason(more, &defects, (SPENT, REPEATED)));
                     return kept(out, &history);

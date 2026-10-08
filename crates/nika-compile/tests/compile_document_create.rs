@@ -806,3 +806,186 @@ async fn the_machine_document_carries_the_settled_record_and_a_continuation_none
     let decided = &held["provenance"]["decision"]["document_create"];
     assert!(decided["candidate_sha256"].is_null(), "{decided:#}");
 }
+
+// ── A document the judge finds lacking: the unoffered preview, its attempts and its repairs ───
+
+/// The option each verifier question offers when it approves: the whole request, a clause or
+/// part, an observed run, the extra-operation question and the task question.
+const APPROVALS: [&str; 5] = [
+    "faithful",
+    "carried",
+    "consistent",
+    "only_requested",
+    "no_task",
+];
+
+/// A judge double over the scripted author: a candidate whose bytes carry `marker` is refused
+/// and its defect located (the whole request `unfaithful`, each part `missing`, a task question
+/// with the first task offered, else `omitted`); any other candidate is approved. A scripted
+/// verdict proves the door's exits, never a model's judgment.
+struct Localizing<'a> {
+    author: &'a Author,
+    marker: &'static str,
+}
+
+impl ProviderInferDyn for Localizing<'_> {
+    async fn infer(&self, request: InferRequest) -> Result<InferResponse, ProviderError> {
+        let ResponseFormat::JsonSchema(schema) = &request.response_format else {
+            return self.author.infer(request).await;
+        };
+        let keys = (schema["properties"]["choice"]["enum"].as_array())
+            .cloned()
+            .unwrap_or_default();
+        let Some(approval) = APPROVALS.iter().find(|a| keys.iter().any(|k| k == *a)) else {
+            return self.author.infer(request).await;
+        };
+        let shown: String = (request.messages.iter())
+            .map(|m| text(&m.content))
+            .collect();
+        let offered = |key: &str| keys.iter().find(|k| *k == key);
+        let task = |k: &&Value| k.as_str().is_some_and(|k| k.starts_with("task-"));
+        let refusal = (offered("unfaithful").or_else(|| offered("missing")))
+            .or_else(|| keys.iter().find(task))
+            .or_else(|| offered("omitted"))
+            .and_then(Value::as_str);
+        let key = match refusal {
+            Some(refused) if shown.contains(self.marker) => refused,
+            _ => approval,
+        };
+        Ok(InferResponse::new(
+            vec![ContentBlock::Text {
+                text: json!({"choice": key}).to_string(),
+            }],
+            TokenUsage::new(1, 1),
+            StopReason::EndTurn,
+        ))
+    }
+}
+
+/// The rich-control document with its first comment marked: the same workflow, other bytes.
+fn drafted(mark: &str) -> String {
+    let marked = format!("# {mark}: header comment kept byte for byte");
+    RICH.replacen("# header comment kept byte for byte", &marked, 1)
+}
+
+/// The rich-control request under `escalate` with `repairs`, judged by [`Localizing`].
+async fn judged(author: &Author, repairs: u32) -> CompileOutcome {
+    let judge = Localizing {
+        author,
+        marker: "draft-",
+    };
+    let cognition = Cognition {
+        provider: Some(&judge),
+        seat: None,
+    };
+    let policy = policy(NativeMode::Escalate).with_repairs(repairs);
+    let request = CompileRequest::create(RICH_INTENT).with_authoring_policy(policy);
+    compile_with_cognition_composed(&request, cognition, None, None)
+        .await
+        .unwrap()
+}
+
+fn route(out: &CompileOutcome) -> Vec<String> {
+    (decision(out)["route"].as_array().into_iter().flatten())
+        .filter_map(|step| step.as_str().map(str::to_owned))
+        .collect()
+}
+
+fn verdicts(out: &CompileOutcome) -> Vec<Value> {
+    (decision(out)["semantic_verification"].as_array())
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// The judge's draft as COLD kept it: INCOMPLETE, shown with its Check preview, never offered,
+/// its replayable record, questions and boundary dropped, and the held finding said.
+fn assert_kept_preview(out: &CompileOutcome, shown: &str) {
+    assert_eq!(
+        out.status,
+        CompileStatus::Incomplete,
+        "{:#?}",
+        out.diagnostics
+    );
+    assert_eq!(
+        out.candidate.as_deref(),
+        Some(shown),
+        "the draft stays shown"
+    );
+    assert!(out.check_preview.is_some(), "its Check preview stays");
+    assert!(out.provenance.plan.is_none(), "no replay of doubted bytes");
+    assert!(out.questions.is_empty() && out.requested_boundary.is_none());
+    assert!(
+        (out.diagnostics.iter()).any(|d| d.target == "verify_held"),
+        "{:#?}",
+        out.diagnostics
+    );
+}
+
+#[tokio::test]
+async fn a_document_the_judge_finds_lacking_past_its_rounds_stays_the_unoffered_preview() {
+    let first = drafted("draft-one");
+    let author = Author::new(vec![written(&first)]);
+    let out = judged(&author, 0).await;
+    assert_eq!(author.count(), 1);
+    assert_kept_preview(&out, &first);
+    let route = route(&out);
+    for step in ["verify: not ready", "verify: doubted, not replayable"] {
+        assert!(route.iter().any(|s| s == step), "{step}: {route:?}");
+    }
+    let verdicts = verdicts(&out);
+    assert_eq!(verdicts.len(), 1, "{verdicts:#?}");
+    assert!(
+        (verdicts[0]["defects"].as_array()).is_some_and(|d| !d.is_empty()),
+        "a located defect: {verdicts:#?}"
+    );
+}
+
+#[tokio::test]
+async fn the_same_document_again_is_the_second_attempt_and_no_progress() {
+    let first = drafted("draft-one");
+    let author = Author::new(vec![written(&first), written(&first)]);
+    let out = judged(&author, 2).await;
+    assert_eq!(author.count(), 2);
+    let verdicts = verdicts(&out);
+    assert_eq!(verdicts.len(), 2, "{verdicts:#?}");
+    let attempts = (
+        verdicts[0]["attempt"].clone(),
+        verdicts[1]["attempt"].clone(),
+    );
+    assert_eq!(attempts, (json!(0), json!(1)), "{verdicts:#?}");
+    assert_eq!(verdicts[1]["same_bytes_as"], 0, "{verdicts:#?}");
+    let route = route(&out);
+    for step in ["verify: repair 1", "native: no progress"] {
+        assert!(route.iter().any(|s| s == step), "{step}: {route:?}");
+    }
+    assert_kept_preview(&out, &first);
+}
+
+#[tokio::test]
+async fn a_repair_from_the_judge_is_named_and_the_repaired_document_is_ready() {
+    let author = Author::new(vec![written(&drafted("draft-one")), written(RICH)]);
+    let out = judged(&author, 1).await;
+    assert_eq!(out.status, CompileStatus::Ready, "{:#?}", out.diagnostics);
+    assert_eq!(out.candidate.as_deref(), Some(RICH));
+    assert_eq!(roles(&out)[..1], ["document"], "{:?}", roles(&out));
+    assert!(roles(&out).iter().any(|r| r == "document-repair"));
+    let route = route(&out);
+    assert!(route.iter().any(|s| s == "verify: repair 1"), "{route:?}");
+    let verdicts = verdicts(&out);
+    assert_eq!(verdicts.len(), 2, "{verdicts:#?}");
+    assert_eq!(verdicts[1]["attempt"], 1, "{verdicts:#?}");
+}
+
+#[tokio::test]
+async fn the_same_defects_in_new_bytes_end_the_door_with_the_preview_kept() {
+    let second = drafted("draft-two");
+    let author = Author::new(vec![written(&drafted("draft-one")), written(&second)]);
+    let out = judged(&author, 3).await;
+    assert_eq!(author.count(), 2, "no reopening after the same defects");
+    assert_kept_preview(&out, &second);
+    let route = route(&out);
+    assert!(
+        route.iter().any(|s| s == "native: no progress"),
+        "{route:?}"
+    );
+}

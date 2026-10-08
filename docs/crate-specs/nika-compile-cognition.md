@@ -566,7 +566,8 @@ judge outvotes it there; a verdict that declined nothing may be asked again.
   COLD's repairs end on it (`verify: no progress`); the sketch door reopens nothing from its
   defects and withdraws the candidate whatever count is left (`native: no progress`), its
   findings counting a repair for each verdict this compile recorded before it, as at any
-  sketch withdrawal; a revision never reopens its fills from it. A verdict carried from an
+  sketch withdrawal; the document door reopens nothing either and keeps the candidate as the
+  preview (below); a revision never reopens its fills from it. A verdict carried from an
   earlier round is not: its located defects are what COLD's first repair, the sketch door's
   reopening and a revision's reopening start from, with no judge call on those bytes, and the
   repaired bytes are judged.
@@ -589,6 +590,15 @@ judge outvotes it there; a verdict that declined nothing may be asked again.
   under a judge asks it on the same candidate, with no new authoring call (a replay with no
   judge judges nothing). » A revision and `judged_native` withdraw that candidate with its
   record (`withdrawn`), as they do a candidate whose defects end the repairs.
+- **The document door** (a fresh CREATE's default route) ends a candidate whose judged defects
+  end its rounds as COLD does (`verify::kept`), never withdrawn: when its rounds are spent,
+  when the verdict repeats on the same bytes, or when the judge locates the same defects in the
+  repaired bytes (both `native: no progress`), the candidate stays INCOMPLETE and kept as the
+  preview with its Check preview, its findings counting the repairs made from the judge's
+  defects; a doubted verdict drops the replayable record, the questions and the requested
+  boundary, routes `verify: doubted, not replayable` and adds the Applied `verify_held`
+  finding. Each reopening from the judge's defects is routed `verify: repair N` (N: the verdicts
+  this compile recorded), as COLD routes its own repairs.
 
 The `verify_held` finding says what held the candidate (`held_text`), one of:
 
@@ -629,7 +639,8 @@ answer (refused by the call bound, or failed: the receipt says which); nothing a
 asked of that judge. Next: another round, or a larger call bound. »
 
 Each attempt's record (`decision.semantic_verification[]`) carries the judge (`seat`, `kind`),
-`attempted`, `returned` and `consumed`, `usage`, `reference`, its `questions`, `defects`,
+`attempt` (the verdicts this compile recorded before it: the repairs that preceded it, at every
+door), `attempted`, `returned` and `consumed`, `usage`, `reference`, its `questions`, `defects`,
 `unknown`, `doubt`, `contested`, `unsettled`, `notes`, `settled_by`, `candidate_sha256`,
 `declined`, `rejected` and `settled` (booleans; `settled`: no defect, no unknown, nothing
 contested), `stopped`, `whole_asked`, `request` (the whole request when it was asked, else

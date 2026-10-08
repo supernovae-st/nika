@@ -2,10 +2,11 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The exits of a judged candidate that is not READY: withdrawn with its replayable record, held
-//! (judged and not accepted: shown at most, never offered, never replayed to that judge) or kept
-//! unjudged for a round that replays it under a judge, with the words each exit says. Split from
-//! `verify.rs` at the file-LOC cap (2026-10-07); the exits are unchanged and keep their paths
-//! (`verify::{withdrawn, held, preserve_unjudged, HELD_TARGET}`).
+//! (judged and not accepted: shown at most, never offered, never replayed to that judge), kept as
+//! the preview where the document door's repairs end (as COLD keeps its own) or kept unjudged for
+//! a round that replays it under a judge, with the words each exit says. Split from `verify.rs`
+//! at the file-LOC cap (2026-10-07); the exits keep their paths
+//! (`verify::{withdrawn, held, kept, preserve_unjudged, HELD_TARGET}`).
 
 use super::{Verdict, blocked, route};
 use crate::{CompileOutcome, CompileStatus, DiagnosticKind};
@@ -26,6 +27,21 @@ pub(in crate::cognition) fn withdrawn(
     out.questions.clear();
     out.provenance.plan = None;
     blocked(&mut out, verdict, repairs);
+    out
+}
+
+/// A judged candidate whose located defects end the document door's repairs, kept as COLD keeps
+/// its draft: INCOMPLETE, shown as the preview, never offered, the `repairs` named; a doubted
+/// verdict drops the replayable record, questions and boundary (`unreplayed`, as COLD's own).
+pub(in crate::cognition) fn kept(
+    mut out: CompileOutcome,
+    verdict: &Verdict,
+    repairs: usize,
+) -> CompileOutcome {
+    route(&mut out, "verify: not ready");
+    out.status = CompileStatus::Incomplete;
+    blocked(&mut out, verdict, repairs);
+    super::unreplayed(&mut out, verdict);
     out
 }
 

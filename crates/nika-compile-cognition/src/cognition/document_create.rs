@@ -23,8 +23,8 @@ use super::native::{
 };
 use super::rehearsal::Rehearsals;
 use super::sketch::{
-    Step, call, diagnostics_record, evidence, examine, next_round, reopen, repair, stop_reason,
-    within,
+    Exit, Step, call, diagnostics_record, evidence, examine, judged_attempts, next_round, reopen,
+    repair, stop_reason, within,
 };
 use super::{AuthoringPolicy, CompileOutcome, CompileRequest, Strategy};
 use crate::decide::DecisionSeat;
@@ -278,15 +278,29 @@ pub(super) async fn author<P: ProviderInferDyn>(
         };
         let door = (intent, reading, policy, request);
         let (next, seats) = (next_round(&talk), (provider, decision, &mut *rehearsals));
-        match examine(door, seats, &mut talk, done, (next, last_round), attempts).await {
+        // A document whose judged defects end the rounds stays the preview (COLD's exit).
+        let room = (attempts, Exit::Keep);
+        match examine(door, seats, &mut talk, done, (next, last_round), room).await {
             Step::Done(judged) | Step::Withdrawn(judged, _) => return Ok(judged),
-            Step::Reopen(mut judged, defects) => {
+            Step::Reopen(mut judged, defects, verdict) => {
                 if within(last_round, next) && reopen(&mut talk, defects.clone(), AGAIN) {
+                    if verdict.is_some() {
+                        // A repair from the judge's verdict, named as COLD names its own.
+                        let repair = format!("verify: repair {}", judged_attempts(&judged));
+                        super::verify::route(&mut judged, &repair);
+                    }
                     // The judge's calls belong to the door's one journal.
                     (out.provenance.authoring).clone_from(&judged.provenance.authoring);
                     (out.provenance.decision).clone_from(&judged.provenance.decision);
                     last = Some(made);
                     continue;
+                }
+                if let Some(verdict) = verdict {
+                    // The judge located the same defects again: no progress, the bytes kept.
+                    let repairs = judged_attempts(&judged).saturating_sub(1);
+                    let mut kept = super::verify::kept(judged, &verdict, repairs);
+                    super::verify::route(&mut kept, "native: no progress");
+                    return Ok(kept);
                 }
                 let why = stop_reason(within(last_round, next), &defects, (SPENT, REPEATED));
                 evidence::refuse(&mut judged, why);

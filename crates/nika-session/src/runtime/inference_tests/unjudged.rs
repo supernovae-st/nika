@@ -253,8 +253,8 @@ fn steps<'a>(decision: &'a Value, prefix: &str) -> Vec<&'a str> {
 /// judge question follows the replay's three; the written-again attempt repeats that verdict
 /// with no call (`carried`), and its located defect asks the document's repair, an authoring
 /// call. The repair writes the same bytes again: a repeat within the compile, no call and no
-/// progress, so the door stops. Nothing is proposed or written, and the human is told what
-/// stopped it.
+/// progress, so the door stops and holds them: shown, never proposed, nothing written, and the
+/// human is told which part stays missing.
 #[test]
 fn a_write_again_that_reproduces_the_held_bytes_never_asks_their_judge() {
     let peer = Peer::start(first_script());
@@ -283,7 +283,10 @@ fn a_write_again_that_reproduces_the_held_bytes_never_asks_their_judge() {
     };
     assert_eq!(words, NO_PROGRESS);
     let outcome = s.last_outcome.as_ref().expect("the written-again outcome");
-    assert!(outcome.candidate.is_none(), "withdrawn, never offered");
+    assert!(
+        outcome.candidate.is_some(),
+        "held as the preview, never offered"
+    );
     let decision = outcome.provenance.decision.as_ref().expect("decision");
     let attempts = decision["semantic_verification"]
         .as_array()
@@ -318,23 +321,25 @@ fn a_write_again_that_reproduces_the_held_bytes_never_asks_their_judge() {
             "native: no progress"
         ]
     );
-    // The verifier's steps stay on the route: the carried verdict, then its repeat.
-    let verify = steps(decision, "verify:");
+    // The verifier's steps stay on the route: the carried verdict, the repair it opened, its
+    // repeat on the same bytes, then the held exit.
     assert_eq!(
-        verify[..2],
+        steps(decision, "verify:"),
         [
             "verify: same bytes, rejected in an earlier round",
-            "verify: same bytes, earlier verdict stands"
-        ],
-        "{verify:?}"
+            "verify: repair 1",
+            "verify: same bytes, earlier verdict stands",
+            "verify: not ready",
+            "verify: doubted, not replayable"
+        ]
     );
     assert!(s.pending_proposal().is_none());
     assert!(!dir.path().join("sortie.txt").exists(), "never run");
     assert!(!dir.path().join("compiled-workflow.nika").exists());
 }
 /// What the session says when the written-again bytes are the held ones: the verdict carried
-/// from the replay stands, and the one repair from its defect wrote them again.
-const NO_PROGRESS: &str = "Nika could not finish building this automation — an authoring step failed on Nika's side (below), not because of how you asked; nothing was written.\n  what stopped it:\n    · The judge compared the whole request with the candidate's bytes: it does not carry « Je veux que sortie.txt contienne exactement les octets présents dans entree.txt (the judge points to the task write_output) ». 1 repair(s) from that defect did not settle it; nothing is READY. Next: a stronger authoring model, or a restatement of that part\n  your request is kept as the goal: send it again unchanged for another attempt, or `/intelligence` for another model · `/meaning` shows what was understood";
+/// from the replay stands, the one repair from its defect wrote them again, and they stay held.
+const NO_PROGRESS: &str = "The workflow is built but not proposed: the verifier found a part missing that the repairs did not settle: « Je veux que sortie.txt contienne exactement les octets présents dans entree.txt »; nothing was written.\n  describe a correction, or `/intelligence` for another authoring model (it also judges unless a decision model is set) · `/meaning` shows what was understood";
 /// What the session says of a candidate its verifier judged and rejected with no defect located
 /// (`nika_onboard`'s held words): built, shown, never proposed, nothing written; a correction or
 /// another authoring model, which also judges unless a decision model is set, can decide it.

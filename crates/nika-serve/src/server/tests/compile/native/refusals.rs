@@ -432,7 +432,7 @@ async fn provider_failures_reach_the_document_as_fixed_reasons_and_a_withheld_va
 
 #[tokio::test(flavor = "multi_thread")]
 async fn explicit_repair_preferences_run_within_the_grant_and_a_caller_can_narrow_them() {
-    use super::authority::{findings, judged_repair, one_repair, verify_steps, withdrawn_findings};
+    use super::authority::{findings, held_findings, judged_repair, one_repair, verify_steps};
     let answered = json!({});
     // The operator's one repair under its stated grant of 32: the document, its judgment, the
     // request's two parts asked alone, the task the missing one points to, the repair, the
@@ -455,8 +455,8 @@ async fn explicit_repair_preferences_run_within_the_grant_and_a_caller_can_narro
     server.stop().await.expect("clean stop");
     // The caller narrows to zero repairs: the document and the judge's four questions. The defect
     // the judge locates stays unrepaired, named with its reason, and the declined bytes are
-    // withdrawn: never the document's candidate, never proposed, with no record a later round
-    // would replay to the same judge.
+    // held: still the document's candidate, never proposed, with no record a later round would
+    // replay to the same judge.
     let world = TestWorld::new();
     let seat = Seat::start(judged_repair());
     let (server, _backend) = start_native(&world, compile_limits(), one_repair(&seat)).await;
@@ -471,10 +471,17 @@ async fn explicit_repair_preferences_run_within_the_grant_and_a_caller_can_narro
     assert_eq!(seat.bodies()[0]["max_tokens"].as_u64(), Some(1024));
     let account = &document["provenance"]["authoring"]["backend"]["authority"];
     assert_eq!(account["configured"]["worst_case"], Value::Null);
-    // The door's journal, then the judge's defect no repair was granted for.
-    assert_eq!(document["candidate"], Value::Null, "{document:#}");
-    assert_eq!(findings(&document), withdrawn_findings(0), "{document:#}");
-    assert_eq!(verify_steps(&document), ["verify: not ready"]);
+    // The door's journal, the judge's defect no repair was granted for, then the marker of the
+    // held candidate.
+    assert!(
+        document["candidate"].is_string(),
+        "the held candidate: {document:#}"
+    );
+    assert_eq!(findings(&document), held_findings(0), "{document:#}");
+    assert_eq!(
+        verify_steps(&document),
+        ["verify: not ready", "verify: doubted, not replayable"]
+    );
     assert_eq!(document["provenance"]["plan"], Value::Null, "{document:#}");
     assert!(
         response.header("nika-compile-replay").is_none(),

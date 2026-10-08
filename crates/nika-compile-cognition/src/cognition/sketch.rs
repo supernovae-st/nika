@@ -37,6 +37,7 @@ mod recover_tests;
 /// The semantic revision of a base its record binds, beside the door it reuses.
 pub(super) mod revise;
 use super::rehearsal::Rehearsals;
+use super::verify::Verdict;
 use evidence::Evidence;
 
 /// The seat's first answer: the sketch, its business questions, the clauses no task realizes.
@@ -811,12 +812,13 @@ pub(super) async fn author<P: ProviderInferDyn>(
         // Every exhaustion (no accepted pair, spent evidence, a withdrawal) meets one recovery.
         let door = (intent, reading, policy, request);
         let (next, seats) = (next_round(&talk), (provider, decision, &mut *rehearsals));
+        let room = (attempts, Exit::Withdraw);
         let ended = match accepted {
             None => (done, Vec::new()),
-            Some(_) => match examine(door, seats, &mut talk, done, (next, last), attempts).await {
+            Some(_) => match examine(door, seats, &mut talk, done, (next, last), room).await {
                 Step::Done(answer) => return Ok(answer),
                 Step::Withdrawn(done, defects) => (done, defects),
-                Step::Reopen(mut done, defects) => {
+                Step::Reopen(mut done, defects, _) => {
                     if within(last, next) && reopen(&mut talk, defects.clone(), SKETCH_AGAIN) {
                         // The judge's calls, when it was asked, belong to the door's one journal.
                         (out.provenance.authoring).clone_from(&done.provenance.authoring);
@@ -861,25 +863,34 @@ pub(super) fn stop_reason(
     format!("{repeated} Same findings: {}.", named.join("; "))
 }
 
-/// Where one settled candidate leads: the door's answer, a reopening from these defects, or a
-/// withdrawal past the last round from the defects the whole-request judgment demonstrated.
+/// Where one settled candidate leads: the door's answer, a reopening from these defects (with the
+/// verdict when the whole-request judgment located them), or the door's [`Exit`] past the last
+/// round from the defects that judgment demonstrated.
 pub(super) enum Step {
     Done(CompileOutcome),
-    Reopen(CompileOutcome, Vec<Diagnostic>),
+    Reopen(CompileOutcome, Vec<Diagnostic>, Option<Box<Verdict>>),
     Withdrawn(CompileOutcome, Vec<Diagnostic>),
 }
 
+/// How a door ends a candidate whose judged defects end its repairs: the sketch door withdraws
+/// it (its recovery may follow), the document door keeps it as COLD keeps the default draft.
+pub(super) enum Exit {
+    Withdraw,
+    Keep,
+}
+
 /// One settled candidate faces its evidence (journalled in the attempt's record and the talk),
-/// then, when nothing there refuses it, the whole-request judgment. Round `next` is the one a
-/// reopening would spend; past `last` (`None`: no count) a refusal withdraws the candidate. The
-/// room admits `attempts` rehearsals in all (`None`: one per candidate produced).
+/// then, when nothing there refuses it, the whole-request judgment, whose record names the
+/// verdicts this compile made before it. Round `next` is the one a reopening would spend; past
+/// `last` (`None`: no count) a refusal ends the candidate by `exit`. The room admits `attempts`
+/// rehearsals in all (`None`: one per candidate produced).
 pub(super) async fn examine<P: ProviderInferDyn>(
     (intent, reading, policy, request): (&str, &Reading, &AuthoringPolicy, &CompileRequest),
     (provider, decision, rehearsals): (&P, Option<&dyn DecisionSeat>, &mut Rehearsals<'_>),
     talk: &mut Talk,
     mut done: CompileOutcome,
     (next, last): (u32, Option<u32>),
-    attempts: Option<u32>,
+    (attempts, exit): (Option<u32>, Exit),
 ) -> Step {
     let (found, record) = evidence::examined(rehearsals, request, intent, &done, attempts).await;
     if !record.is_null() {
@@ -898,11 +909,12 @@ pub(super) async fn examine<P: ProviderInferDyn>(
             evidence::refuse(&mut done, reason);
             Step::Done(done)
         }
-        Evidence::Defect(defect) => Step::Reopen(done, vec![defect]),
+        Evidence::Defect(defect) => Step::Reopen(done, vec![defect], None),
         Evidence::Unoffered | Evidence::Open | Evidence::Holds | Evidence::Unknown => {
             // The run the evidence just made of these exact bytes, when it completed: the
             // observation a disagreement of the judge asks for.
             let observed = (done.candidate.as_deref()).and_then(|c| rehearsals.observed(c));
+            let attempt = judged_attempts(&done);
             let verdict = super::verify::native_verdict(
                 intent,
                 reading,
@@ -910,7 +922,7 @@ pub(super) async fn examine<P: ProviderInferDyn>(
                 (provider, decision),
                 request,
                 done,
-                0,
+                attempt,
                 observed.as_ref(),
             );
             match verdict.await {
@@ -924,13 +936,16 @@ pub(super) async fn examine<P: ProviderInferDyn>(
                         Step::Done(super::verify::preserve_unjudged(judged, &verdict))
                     } else if verdict.same_bytes_as.is_some() || !within(last, next) {
                         // The same bytes again are no progress, whatever count is left (R6).
-                        let mut withdrawn = super::verify::withdrawn(judged, &verdict, repairs);
+                        let mut ended = match exit {
+                            Exit::Withdraw => super::verify::withdrawn(judged, &verdict, repairs),
+                            Exit::Keep => super::verify::kept(judged, &verdict, repairs),
+                        };
                         if verdict.same_bytes_as.is_some() {
-                            super::verify::route(&mut withdrawn, "native: no progress");
+                            super::verify::route(&mut ended, "native: no progress");
                         }
-                        Step::Withdrawn(withdrawn, defects)
+                        Step::Withdrawn(ended, defects)
                     } else {
-                        Step::Reopen(judged, defects)
+                        Step::Reopen(judged, defects, Some(Box::new(verdict)))
                     }
                 }
             }
@@ -939,7 +954,7 @@ pub(super) async fn examine<P: ProviderInferDyn>(
 }
 
 /// How many whole-request verdicts this compile recorded, the last one included.
-fn judged_attempts(out: &CompileOutcome) -> usize {
+pub(super) fn judged_attempts(out: &CompileOutcome) -> usize {
     (out.provenance.decision.as_ref())
         .and_then(|decision| decision["semantic_verification"].as_array())
         .map_or(0, Vec::len)
@@ -957,7 +972,7 @@ pub(super) fn next_round(talk: &Talk) -> u32 {
 /// The judge's defects as the repair reads them: the parts of the request the bytes miss, each
 /// with the reason the judge gave (the task it points to, or no task performing it) after
 /// [`REASON`].
-fn judge_defects(verdict: &super::verify::Verdict) -> Vec<Diagnostic> {
+fn judge_defects(verdict: &Verdict) -> Vec<Diagnostic> {
     (verdict.defects.iter())
         .map(|defect| {
             let reason = (verdict.notes.iter())

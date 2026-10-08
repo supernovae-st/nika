@@ -92,10 +92,15 @@ pub(super) fn findings(document: &Value) -> Vec<(String, String, String)> {
         .collect()
 }
 
-/// The findings of a document withdrawn with [`judged_repair`]'s defect unsettled after
-/// `repairs` repairs: the door's journal of its rounds (one per repair after the first, each
-/// document accepted by the evidence laws), then the judge's defect.
-pub(super) fn withdrawn_findings(repairs: usize) -> Vec<(String, String, String)> {
+/// The `verify_held` finding of a candidate the judge declined with a located defect: that
+/// verifier is not asked again on these bytes, in this compile or in a later round that carries
+/// the verdict (the server passes no declined verdict from one request to the next).
+pub(super) const HELD_DEFECTS: &str = "The candidate was judged and not accepted: the parts named above stay missing. It is shown, never offered, and nothing was written; this verifier is not asked again on these bytes, in this compile or in a later round that carries this verdict. A correction of the request, another authoring model or another verifier can decide it.";
+
+/// The findings of a document held with [`judged_repair`]'s defect unsettled after `repairs`
+/// repairs: the door's journal of its rounds (one per repair after the first, each document
+/// accepted by the evidence laws), the judge's defect, then the held marker.
+pub(super) fn held_findings(repairs: usize) -> Vec<(String, String, String)> {
     let finding =
         |kind: &str, target: &str, message: String| (kind.to_owned(), target.to_owned(), message);
     let rounds = repairs + 1;
@@ -116,6 +121,7 @@ pub(super) fn withdrawn_findings(repairs: usize) -> Vec<(String, String, String)
             "semantic_verification",
             unrepaired_finding(repairs),
         ),
+        finding("applied", "verify_held", HELD_DEFECTS.to_owned()),
     ]
 }
 
@@ -383,7 +389,7 @@ async fn a_default_round_repairs_a_judged_defect_without_an_implicit_count() {
     );
     assert_eq!(
         verify_steps(&document),
-        ["verify: judged (authoring_provider)"]
+        ["verify: repair 1", "verify: judged (authoring_provider)"]
     );
     server.stop().await.expect("clean stop");
 }

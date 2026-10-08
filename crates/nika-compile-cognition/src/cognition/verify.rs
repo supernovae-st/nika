@@ -52,7 +52,7 @@ mod held;
 use faithful::{Pointed, whole};
 use grounding::grounding;
 use held::held_text;
-pub(super) use held::{HELD_TARGET, held, preserve_unjudged, withdrawn};
+pub(super) use held::{HELD_TARGET, held, kept, preserve_unjudged, withdrawn};
 use nika_compile_clauses::parts::{parts, restricts};
 
 /// Who judges a candidate: a decision seat the caller permits (its calls and usage are its own,
