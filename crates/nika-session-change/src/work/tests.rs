@@ -3,9 +3,11 @@
 
 use std::path::{Path, PathBuf};
 
+use nika_onboard::compile::{CompileRequest, CompileStatus, DiagnosticKind, compile};
+
 use super::{
-    Audit, CONTRACT, Candidate, Landing, Rail, Request, RequestedRun, Run, RunEnd, Saved, Stage,
-    Waiting, Work,
+    Audit, Authoring, AuthoringStatus, CONTRACT, Candidate, Landing, NoteKind, Rail, Request,
+    RequestedRun, Run, RunEnd, Saved, Stage, Waiting, Work,
 };
 use crate::change::{
     ProjectChange, ProjectChangeSet, RunRequest, Witness, WorkflowAudit, check_on_disk,
@@ -305,4 +307,67 @@ fn a_document_revision_is_read_from_its_record_with_each_component_witnessed() {
     // A record that names no mode or no candidate is no revision.
     assert!(DocumentRevision::of(&serde_json::json!({"mode": "operations"}), &[]).is_none());
     assert!(DocumentRevision::of(&serde_json::json!({}), &[]).is_none());
+}
+
+#[test]
+fn the_compilers_last_word_keeps_its_status_questions_notes_and_candidate_bytes() {
+    let ready = compile(&CompileRequest::create(
+        "Read ./notes/brief.md and write it to ./out/copy.md",
+    ))
+    .expect("compiles");
+    let source = ready.candidate.as_deref().expect("a Ready candidate");
+    let seen = Authoring::of(&ready);
+    assert_eq!(seen.status, AuthoringStatus::Ready);
+    assert!(seen.questions.is_empty(), "{:?}", seen.questions);
+    assert_eq!(seen.candidate, Some(Witness::of(source.as_bytes())));
+    assert_eq!(seen.diagnostics.len(), ready.diagnostics.len());
+    for (note, diagnostic) in seen.diagnostics.iter().zip(&ready.diagnostics) {
+        assert_eq!(note.kind, NoteKind::from(diagnostic.kind));
+        assert_eq!(
+            (&note.target, &note.message),
+            (&diagnostic.target, &diagnostic.message)
+        );
+    }
+
+    let asking = compile(&CompileRequest::create("aggregate-by-key")).expect("compiles");
+    let seen = Authoring::of(&asking);
+    assert_eq!(seen.status, AuthoringStatus::Incomplete);
+    let keys: Vec<&str> = asking.questions.iter().map(|q| q.key.as_str()).collect();
+    assert!(!keys.is_empty(), "the skeleton asks its values");
+    assert_eq!(
+        seen.questions, keys,
+        "every question, by key, in the compiler's order"
+    );
+}
+
+#[test]
+fn every_compiler_status_and_note_kind_has_one_name_on_the_wire() {
+    let statuses = [
+        (CompileStatus::Ready, AuthoringStatus::Ready, "ready"),
+        (
+            CompileStatus::Incomplete,
+            AuthoringStatus::Incomplete,
+            "incomplete",
+        ),
+        (CompileStatus::Refused, AuthoringStatus::Refused, "refused"),
+    ];
+    for (status, named, wire) in statuses {
+        assert_eq!(AuthoringStatus::from(status), named);
+        assert_eq!(serde_json::to_value(named).expect("serializes"), wire);
+    }
+    let kinds = [
+        (DiagnosticKind::Applied, NoteKind::Applied, "applied"),
+        (DiagnosticKind::Missed, NoteKind::Missed, "missed"),
+        (DiagnosticKind::Unknown, NoteKind::Unknown, "unknown"),
+        (
+            DiagnosticKind::RequiresHuman,
+            NoteKind::RequiresHuman,
+            "requires_human",
+        ),
+        (DiagnosticKind::Refused, NoteKind::Refused, "refused"),
+    ];
+    for (kind, named, wire) in kinds {
+        assert_eq!(NoteKind::from(kind), named);
+        assert_eq!(serde_json::to_value(named).expect("serializes"), wire);
+    }
 }

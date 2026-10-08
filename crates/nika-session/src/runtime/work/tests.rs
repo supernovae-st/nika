@@ -11,12 +11,13 @@ use nika_onboard::compile::{CompileRequest, compile};
 
 use super::{GATE_NOT_SHOWN, NOTHING_SHOWN, VALUE_NOT_SHOWN};
 use crate::authoring::AuthoringRound;
+use crate::change::Witness;
 use crate::intelligence::{DataLocus, IntelligenceKind, ResolvedSessionIntelligence};
 use crate::outcome::{GateId, ProposalId, RefusalClass};
 use crate::reasoner::NoReasoner;
-use crate::runtime::tests::{COPY, COPY_DEST, ready_with, tree};
+use crate::runtime::tests::{COPY, COPY_DEST, UNSETTLED, ready, ready_with, tree};
 use crate::runtime::{SessionRuntime, TurnOutcome};
-use crate::work::{CONTRACT, Landing, RunEnd, Stage, Waiting};
+use crate::work::{AuthoringStatus, CONTRACT, Landing, NoteKind, RunEnd, Stage, Waiting};
 use crate::world::Reach;
 
 /// A check-clean workflow that pauses at a human gate (the runtime suite's own shape).
@@ -41,6 +42,7 @@ fn a_fresh_session_waits_for_nothing_and_holds_no_work() {
     assert_eq!(work.root, s.snapshot.root);
     assert_eq!(work.waiting, Waiting::Free);
     assert!(work.candidate.is_none() && work.saved.is_none() && work.run.is_none());
+    assert!(work.authoring.is_none(), "nothing compiled yet");
     assert_eq!(work.rail.draft, Stage::Pending);
 }
 
@@ -504,4 +506,90 @@ fn a_workflow_only_run_is_never_shown_saved_on_the_rail() {
     ));
     let rail = s.lifecycle().rail();
     assert!(rail.starts_with("Draft ✓ · Saved ✓ · Checked ✓"), "{rail}");
+}
+
+/// A request whose model the compiler cannot invent (the runtime suite's own shape).
+const DRAFT: &str = "Read ./notes/brief.md, draft a 3-bullet summary of it and write the summary to ./out/summary.md";
+
+#[test]
+fn the_compilers_last_word_names_the_bytes_of_the_candidate_under_review() {
+    let dir = tree();
+    let mut s = ready_with(dir.path(), vec![]);
+    let _ = proposal(s.turn(COPY));
+    let work = s.work();
+    let authoring = work.authoring.expect("the compiler's last word");
+    let kept = s
+        .last_outcome
+        .as_ref()
+        .expect("the outcome the session kept");
+    assert_eq!(authoring.status, AuthoringStatus::Ready);
+    assert!(authoring.questions.is_empty(), "{:?}", authoring.questions);
+    assert_eq!(
+        authoring.candidate,
+        (kept.candidate.as_deref()).map(|source| Witness::of(source.as_bytes()))
+    );
+    let json = serde_json::to_value(s.work()).expect("serializes");
+    assert_eq!(json["authoring"]["status"], "ready");
+    assert_eq!(
+        json["authoring"]["candidate"],
+        authoring.candidate.as_ref().map_or("", |w| w.0.as_str())
+    );
+}
+
+#[test]
+fn a_question_the_compiler_asks_is_named_beside_what_waits() {
+    let dir = tree();
+    let mut s = literal(dir.path());
+    let TurnOutcome::Question { key, .. } = s.turn(DRAFT) else {
+        panic!("the compiler asks the model it cannot invent");
+    };
+    let work = s.work();
+    assert!(matches!(&work.waiting, Waiting::Question { key: waiting, .. } if *waiting == key));
+    let authoring = work.authoring.expect("the compiler's last word");
+    assert_eq!(authoring.status, AuthoringStatus::Incomplete);
+    assert!(
+        authoring.questions.contains(&key),
+        "{:?}",
+        authoring.questions
+    );
+}
+
+#[test]
+fn work_the_compiler_cannot_settle_keeps_its_reasons_in_the_snapshot() {
+    let dir = tree();
+    let mut s = SessionRuntime::open(
+        dir.path(),
+        ready(IntelligenceKind::None, DataLocus::None),
+        Box::new(NoReasoner),
+    );
+    let TurnOutcome::Facts(text) = s.turn(UNSETTLED) else {
+        panic!("no seat: an honest incomplete");
+    };
+    assert!(
+        text.starts_with("I read this as work but cannot build it yet"),
+        "{text}"
+    );
+    let work = s.work();
+    assert_eq!(work.waiting, Waiting::Free);
+    let authoring = work
+        .authoring
+        .expect("the reasons stay readable after the card");
+    let kept = s
+        .last_outcome
+        .as_ref()
+        .expect("the outcome the session kept");
+    assert_ne!(authoring.status, AuthoringStatus::Ready);
+    assert!(authoring.candidate.is_none(), "nothing was built");
+    assert_eq!(authoring.diagnostics.len(), kept.diagnostics.len());
+    assert!(
+        authoring
+            .diagnostics
+            .iter()
+            .any(|note| note.kind != NoteKind::Applied),
+        "what stopped it is named: {:?}",
+        authoring.diagnostics
+    );
+    for (note, diagnostic) in authoring.diagnostics.iter().zip(&kept.diagnostics) {
+        assert_eq!(note.message, diagnostic.message, "carried as written");
+    }
 }

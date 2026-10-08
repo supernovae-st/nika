@@ -3,8 +3,9 @@
 
 //! The work a session holds, typed once for every host (ADR-133 · the portable session): what
 //! the next line answers, with the identity an answer names, and one snapshot of the request,
-//! the candidate under review, the saved workflow, the run requested last and the last observed
-//! run, each workflow with the reach its exact bytes declare. The session builds
+//! the compiler's last word on it, the candidate under review, the saved workflow, the run
+//! requested last and the last observed run, each workflow with the reach its exact bytes
+//! declare. The session builds
 //! it from its own state; a terminal, the plain loop or a remote door renders it and decides
 //! nothing from it. It serializes so a remote door can carry the same facts, and it grants
 //! nothing: a consent, an answer or a run still goes through the session's own doors.
@@ -16,6 +17,8 @@
 use std::path::PathBuf;
 
 use serde::Serialize;
+
+use nika_onboard::compile::{CompileDiagnostic, CompileOutcome, CompileStatus, DiagnosticKind};
 
 use crate::change::{ProjectChange, ProjectChangeSet, Witness, WorkflowAudit};
 use crate::outcome::{GateId, ProposalId, QuestionId};
@@ -87,6 +90,8 @@ pub struct Work {
     pub root: PathBuf,
     /// The request as the session keeps it.
     pub request: Request,
+    /// The compiler's last word on the request, when the session holds one ([`Work::with_authoring`]).
+    pub authoring: Option<Authoring>,
     /// What the next line answers.
     pub waiting: Waiting,
     /// The candidate under review, when one is.
@@ -122,6 +127,116 @@ impl Request {
             goal,
             decisions,
             unresolved,
+        }
+    }
+}
+
+/// The compiler's last word on the request: whether a candidate is ready and, when none is,
+/// what it applied, missed or could not tell. The session reads it from its last authoring
+/// round and re-derives nothing, so a host can show why nothing is ready rather than a generic
+/// failure. Ready is a compiler status, never a consent and never a run.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct Authoring {
+    /// The compiler's status.
+    pub status: AuthoringStatus,
+    /// The semantic holes the compiler asks, by key, in its order.
+    pub questions: Vec<String>,
+    /// What happened to each part of the request, in the compiler's order and words.
+    pub diagnostics: Vec<AuthoringNote>,
+    /// The witness of the candidate bytes the compiler built, proposed or not.
+    pub candidate: Option<Witness>,
+}
+
+impl Authoring {
+    /// What a host shows of a compile outcome; the candidate's bytes stay with the session.
+    #[must_use]
+    pub fn of(outcome: &CompileOutcome) -> Self {
+        Self {
+            status: outcome.status.into(),
+            questions: outcome.questions.iter().map(|q| q.key.clone()).collect(),
+            diagnostics: outcome.diagnostics.iter().map(AuthoringNote::of).collect(),
+            candidate: (outcome.candidate.as_deref()).map(|source| Witness::of(source.as_bytes())),
+        }
+    }
+}
+
+/// The compiler's status, as this contract names it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum AuthoringStatus {
+    /// A candidate exists, every question is answered and its preview is clean.
+    Ready,
+    /// A value, a clarification or an unsupported part remains.
+    Incomplete,
+    /// A compiler policy refused the request.
+    Refused,
+    /// A status this contract version does not name yet: shown as unknown, never guessed.
+    Other,
+}
+
+impl From<CompileStatus> for AuthoringStatus {
+    fn from(status: CompileStatus) -> Self {
+        match status {
+            CompileStatus::Ready => Self::Ready,
+            CompileStatus::Incomplete => Self::Incomplete,
+            CompileStatus::Refused => Self::Refused,
+            _ => Self::Other,
+        }
+    }
+}
+
+/// What happened to one part of the request, in the compiler's words.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[non_exhaustive]
+pub struct AuthoringNote {
+    /// What happened to it.
+    pub kind: NoteKind,
+    /// The request fragment or hole it concerns.
+    pub target: String,
+    /// The compiler's explanation, carried as written and never parsed.
+    pub message: String,
+}
+
+impl AuthoringNote {
+    fn of(diagnostic: &CompileDiagnostic) -> Self {
+        Self {
+            kind: diagnostic.kind.into(),
+            target: diagnostic.target.clone(),
+            message: diagnostic.message.clone(),
+        }
+    }
+}
+
+/// What happened to a part of the request.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum NoteKind {
+    /// Applied as asked.
+    Applied,
+    /// Not applied.
+    Missed,
+    /// The compiler does not know the requested semantics.
+    Unknown,
+    /// A value or a clarification must come from the human.
+    RequiresHuman,
+    /// A compiler policy refused it.
+    Refused,
+    /// A kind this contract version does not name yet: shown as unknown, never guessed.
+    Other,
+}
+
+impl From<DiagnosticKind> for NoteKind {
+    fn from(kind: DiagnosticKind) -> Self {
+        match kind {
+            DiagnosticKind::Applied => Self::Applied,
+            DiagnosticKind::Missed => Self::Missed,
+            DiagnosticKind::Unknown => Self::Unknown,
+            DiagnosticKind::RequiresHuman => Self::RequiresHuman,
+            DiagnosticKind::Refused => Self::Refused,
+            _ => Self::Other,
         }
     }
 }
@@ -589,6 +704,7 @@ impl Work {
             contract: CONTRACT,
             root,
             request,
+            authoring: None,
             waiting,
             candidate,
             saved,
@@ -596,6 +712,13 @@ impl Work {
             run,
             rail,
         }
+    }
+
+    /// The same snapshot with the compiler's last word on the request.
+    #[must_use]
+    pub fn with_authoring(mut self, authoring: Option<Authoring>) -> Self {
+        self.authoring = authoring;
+        self
     }
 }
 

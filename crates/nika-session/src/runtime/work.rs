@@ -9,7 +9,7 @@
 use super::{SessionRuntime, TurnOutcome};
 use crate::change::{ProjectChange, ProjectChangeSet};
 use crate::outcome::{Refusal, RefusalClass};
-use crate::work::{Candidate, DocumentRevision, Request, Run, Saved, Waiting, Work};
+use crate::work::{Authoring, Candidate, DocumentRevision, Request, Run, Saved, Waiting, Work};
 
 /// Said when a line arrives while a proposal waits but the host showed none: nothing that
 /// was not seen is consented.
@@ -118,9 +118,9 @@ impl SessionRuntime {
         }
     }
 
-    /// The work as every host reads it: the request, what waits, the candidate under review
-    /// with its audits and reach, the workflow saved last, the run requested last with the reach
-    /// of its bytes, the last observed run and the rail.
+    /// The work as every host reads it: the request and the compiler's last word on it, what
+    /// waits, the candidate under review with its audits and reach, the workflow saved last, the
+    /// run requested last with the reach of its bytes, the last observed run and the rail.
     /// Reading it audits nothing, reads no file and decides nothing.
     #[must_use]
     pub fn work(&self) -> Work {
@@ -161,6 +161,7 @@ impl SessionRuntime {
             run,
             (&self.lifecycle()).into(),
         )
+        .with_authoring(self.last_outcome.as_ref().map(Authoring::of))
     }
 }
 

@@ -182,9 +182,11 @@ proposal shown, a declining or leaving line still declines and any other line is
 `NOTHING_SHOWN`: nothing is consented that was not seen. `work()` builds the typed snapshot
 (`nika_session_change::work`) from the session's own state; it audits nothing, reads no file and
 decides nothing. The reach it shows for the requested run and the saved workflow comes from the
-check that cleared the run request or landed the consent, kept beside them when they happen. The CLI plain loop routes through these since 2026-10-08; the terminal
-renderer keeps its own copy of the precedence until its host adapter switches (the Run cost
-review it holds is still outside the session).
+check that cleared the run request or landed the consent, kept beside them when they happen. Its
+`authoring` is the last compile outcome the session keeps, read as the compiler wrote it, so a
+failed or unfinished creation stays explainable after its card. The CLI plain loop and the
+terminal renderer route through these since 2026-10-08; the Run cost review the renderer holds
+is still outside the session.
 
 ## Exact schedule activation
 
