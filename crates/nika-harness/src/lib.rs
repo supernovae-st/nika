@@ -31,6 +31,7 @@ mod media;
 mod oneshot;
 pub mod probe;
 pub mod registry;
+pub mod run_acp;
 pub mod spawn;
 pub mod wire;
 
@@ -47,4 +48,5 @@ pub use probe::{
     probe_adapters, probe_adapters_sync,
 };
 pub use registry::{AdapterRow, AuthProbe, DISABLE_ENV, registry, registry_with};
+pub use run_acp::{AcpOneShotRefused, meet_acp_one_shot};
 pub use spawn::{HarnessAdapter, SpawnedHarness, compose_env};
