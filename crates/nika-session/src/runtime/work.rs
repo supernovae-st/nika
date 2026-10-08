@@ -131,6 +131,13 @@ impl SessionRuntime {
                     TurnOutcome::Refusal(Refusal::new(RefusalClass::StaleRevision, VALUE_NOT_SHOWN))
                 }
             }
+            // The evidence beside the one-time cost decision is read, never a turn: nothing is
+            // recorded, answered or reviewed again.
+            Waiting::CostChoice
+                if super::decision_answer(line) == super::DecisionAnswer::Details =>
+            {
+                self.cost_choice_evidence()
+            }
             // The one-time cost decision reads its answer in a turn, as does a free line.
             _ => self.turn(line),
         }

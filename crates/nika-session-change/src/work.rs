@@ -86,6 +86,15 @@ pub enum Waiting {
     },
 }
 
+impl Waiting {
+    /// A spending decision: only a line typed after it was shown may answer it, so a host never
+    /// hands it a line typed ahead (a run's cost review, the one-time cost decision).
+    #[must_use]
+    pub fn requires_fresh_input(&self) -> bool {
+        matches!(self, Self::RunReview { .. } | Self::CostChoice)
+    }
+}
+
 /// One snapshot of the work, for every host.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[non_exhaustive]
