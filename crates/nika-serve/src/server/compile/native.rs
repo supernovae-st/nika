@@ -64,15 +64,12 @@ impl NativeAuthoring {
         Self {
             model,
             providers,
-            bounds: Bounds {
-                max_tokens: route.max_tokens,
-                initial_tokens: route.initial_tokens,
-                call_timeout: route.timeout,
-                deadline: None,
-                repairs: None,
-                max_calls: None,
-                grant: "operator: NativeAuthoring::with_max_calls",
-            },
+            bounds: Bounds::route(
+                route.max_tokens,
+                route.initial_tokens,
+                route.timeout,
+                "operator: NativeAuthoring::with_max_calls",
+            ),
             named: config::AuthoringSettings::none(),
             replay_entries: None,
             replay_ttl: None,
@@ -435,7 +432,7 @@ fn bounds(config: &NativeAuthoring) -> Result<Bounds, NativeAuthoringError> {
             "an explicit kept-round lifetime must be positive and representable by the clock",
         );
     }
-    if bounds.authority().is_err() {
+    if super::v2::authority(bounds).is_err() {
         return refuse("authoring max_calls must be positive");
     }
     Ok(bounds)
