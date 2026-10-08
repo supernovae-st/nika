@@ -1179,7 +1179,13 @@ admitted component of the lent catalogue by identity with its receipt. The docum
 judged, settled, examined and repaired as any candidate; on READY its native record is bound
 to the final bytes (`plan.document`: version, candidate digest, effective request, a null
 base, mode, component receipts), which a later change in words revises as an EDIT, never as
-an answer round of the creation. No Plan or Sketch round has to fail first. `sketch` keeps
+an answer round of the creation. A gap the author first declares in a repair round, after a
+refusal, while the laws accept the rest of the document (R7), is not accepted unasked. It is
+told back once with the refusal it followed (`nika_compile_seats::repairs::gaps_after_refusal`),
+whose findings name the remedies the engine supports, while the policy still grants a round.
+Declared again, or with no round left, it is accepted, and the door surfaces it for the human to
+dispose of (`gap.N`). A gap declared before any refusal stays the author's. No Plan or Sketch
+round has to fail first. `sketch` keeps
 the sketch door and `off` the private Plan, which Rust assembles; a reading the reader
 composes whole is still checked by a judge. Whole-source recovery remains the sketch door's
 eligible CREATE recovery described above, and whole source remains available for supported

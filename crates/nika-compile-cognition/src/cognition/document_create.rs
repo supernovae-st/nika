@@ -36,6 +36,7 @@ use nika_compile_seats::foundry::document::{
     self,
     create::{Made, language, made, record},
 };
+use nika_compile_seats::repairs;
 use nika_kernel::ai::provider::{Message, ProviderInferDyn, Role};
 use serde_json::{Value, json};
 
@@ -121,7 +122,9 @@ fn round_entry(
 
 /// The author's rounds until a document passes the judge: each answer made and judged, a refusal
 /// repaired, a repeat no progress; a failed call or an answer off the wire ends them. `last`
-/// keeps the last document the door made, for operations over it.
+/// keeps the last document the door made, for operations over it. A gap first declared after a
+/// refusal is told back once with that refusal while a round is left (R7); declared again, it is
+/// accepted, and the door surfaces it.
 async fn draft<P: ProviderInferDyn>(
     (intent, reading, policy): (&str, &Reading, &AuthoringPolicy),
     (provider, catalog): (&P, Option<&dyn ComponentCatalog>),
@@ -130,22 +133,28 @@ async fn draft<P: ProviderInferDyn>(
     out: &mut CompileOutcome,
 ) -> Option<(Answer, Made)> {
     let mut round = next_round(talk);
+    // The gaps declared before any refusal, and whether a later one was told back already.
+    let (mut honest, mut told) = (Vec::new(), false);
     while within(policy.repairs, round) {
         let role = if round == 0 {
             "document"
         } else {
             "document-repair"
         };
+        let refusal = talk.last.clone().unwrap_or_default();
         let schema = answer_schema();
         let called = call::<DocumentAnswer, P>(talk, round, role, schema, policy, provider, out);
         let (answer, text) = called.await?;
+        if refusal.is_empty() {
+            honest.extend(answer.gaps.iter().cloned());
+        }
         let stated = made(answer.written(), &answer.operations, last.as_ref(), catalog);
         let (found, made) = match stated {
             Ok(made) => {
                 let (allowed, clarified) = (&talk.allowed, &talk.clarified);
                 let questions = &answer.questions;
                 let observed = talk.observed.as_ref();
-                let found = judge(
+                let mut found = judge(
                     intent,
                     reading,
                     &made.source,
@@ -155,6 +164,10 @@ async fn draft<P: ProviderInferDyn>(
                     clarified,
                     observed,
                 );
+                if found.is_empty() && !told && within(policy.repairs, round + 1) {
+                    found = repairs::gaps_after_refusal(&answer.gaps, &honest, &refusal);
+                    told = !found.is_empty();
+                }
                 talk.rounds
                     .push(round_entry(round, &answer, Ok(&made), &found));
                 (found, Some(made))

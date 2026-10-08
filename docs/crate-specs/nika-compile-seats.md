@@ -97,7 +97,9 @@ as an external consumer.
   judge rejected keeps each rejection of them once per judge, context and request, so every
   round that replays it, whatever host resends it, repeats the rejection with no call; with no
   rejection to carry, or for a semantic record whose closed format holds none, the record is
-  dropped).
+  dropped) and `gaps_after_refusal` (each gap a repair round's answer declares for the first
+  time after a refusal, told back as a finding that carries the refusal it followed, whose
+  findings name the remedies the engine supports; the caller tells them once, then accepts).
 - `objects` — the JSON objects of a seat's text (`first_json_object`, `answer_objects` and
   `Objects`, `answer_shaped`, `syntax_target`), descended from the doors on 2026-10-07.
 - `shelf` — the references an authoring seat reads beside its card (`Reference`, `references`:

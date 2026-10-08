@@ -1256,3 +1256,91 @@ async fn an_unjudged_document_is_withdrawn_with_its_record_kept_for_a_later_roun
         "{route:?}"
     );
 }
+
+/// A notifier whose request states its POST, the loopback address included (R7, K3).
+/// Its POST is stated as the live stock leg stated it (in French), which no effect law of the
+/// reader names: only the author's own gap could drop it.
+const STOCK_INTENT: &str = "A workflow named stock-notifier. Declare team as a required string input. A nika:jq task named report returns team as one object, puis effectue exactement un POST JSON de ce rapport vers le sink local http://127.0.0.1:65409/notifications/stock avec nika:fetch.";
+/// The POST, as the author declares it a gap once its first document was refused.
+const STOCK_GAP: &str = "puis effectue exactement un POST JSON de ce rapport vers le sink local http://127.0.0.1:65409/notifications/stock avec nika:fetch";
+
+/// The notifier as the author writes it, its fetch granted `http`: a loopback host passes the
+/// SSRF floor only under its exact literal grant.
+fn stock(http: &str) -> String {
+    format!(
+        r#"nika: stock-notifier
+inputs:
+  team: {{ type: string, required: true }}
+permits:
+  tools: ["nika:jq", "nika:fetch"]
+  net: {{ http: [{http}] }}
+tasks:
+  report:
+    invoke: {{ tool: "nika:jq", args: {{ input: {{ team: "${{{{ inputs.team }}}}" }}, expression: "." }} }}
+  send:
+    with: {{ payload: "${{{{ tasks.report.output }}}}" }}
+    invoke: {{ tool: "nika:fetch", args: {{ url: "http://127.0.0.1:65409/notifications/stock", method: POST, headers: {{ content-type: application/json }}, body: "${{{{ with.payload }}}}" }} }}
+"#
+    )
+}
+
+/// The notifier with its POST dropped and declared a gap.
+fn dropped() -> String {
+    let source = "nika: stock-notifier\ninputs:\n  team: { type: string, required: true }\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  report:\n    invoke: { tool: \"nika:jq\", args: { input: { team: \"${{ inputs.team }}\" }, expression: \".\" } }\n";
+    json!({"candidate": source, "candidate_lines": [], "operations": [], "questions": [],
+        "gaps": [STOCK_GAP], "notes": "scripted"})
+    .to_string()
+}
+
+/// A gap the author first declares after a refusal is told back once with that refusal (R7,
+/// K3): the first document is refused (the SSRF floor holds the loopback host without its exact
+/// grant), the repair drops the POST as a gap, and the next round is asked to keep it, the
+/// refusal named. Restored under the exact grant, the POST is judged as usual by the round's
+/// judge. Declared again instead, the gap is accepted and surfaced (INCOMPLETE, its disposition
+/// asked), with no further round.
+#[tokio::test]
+async fn a_gap_first_declared_after_a_refusal_is_told_back_once_with_its_refusal() {
+    let request =
+        CompileRequest::create(STOCK_INTENT).with_authoring_policy(policy(NativeMode::Escalate));
+    let restored = stock("\"127.0.0.1\"");
+    let author = Author::new(vec![written(&stock("")), dropped(), written(&restored)]);
+    let out = create(&request, &author).await;
+    door_first(&out, &author);
+    assert_eq!(author.count(), 3, "{:?}", roles(&out));
+    let told = author.calls.lock().unwrap()[2].last.clone();
+    assert!(
+        told.contains("declared a gap only after the document was refused"),
+        "{told}"
+    );
+    assert!(
+        told.contains(STOCK_GAP) && told.contains("127.0.0.1"),
+        "{told}"
+    );
+    assert_eq!(out.status, CompileStatus::Ready, "{:#?}", out.diagnostics);
+    let candidate = out.candidate.as_deref().expect("the candidate");
+    assert_eq!(candidate, restored);
+    let doc = checked(candidate);
+    assert_eq!(doc["permits"]["net"]["http"], json!(["127.0.0.1"]));
+    let attempts = decision(&out)["semantic_verification"].clone();
+    let judged = (attempts.as_array().into_iter().flatten())
+        .any(|a| a["candidate_sha256"] == json!(sha256(candidate)));
+    assert!(judged, "the round's judge read these bytes: {attempts:#}");
+
+    let author = Author::new(vec![written(&stock("")), dropped(), dropped(), dropped()]);
+    let out = create(&request, &author).await;
+    assert_eq!(
+        author.count(),
+        3,
+        "no round after the repeat: {:?}",
+        roles(&out)
+    );
+    assert_ne!(out.status, CompileStatus::Ready, "{:#?}", out.diagnostics);
+    let surfaced =
+        (out.diagnostics.iter()).any(|d| d.target == "gap" && d.message.contains(STOCK_GAP));
+    assert!(surfaced, "{:#?}", out.diagnostics);
+    assert!(
+        out.questions.iter().any(|q| q.key == "gap.1"),
+        "{:#?}",
+        out.questions
+    );
+}
