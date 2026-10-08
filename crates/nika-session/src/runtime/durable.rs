@@ -83,6 +83,13 @@ impl SessionRuntime {
         self.consented.clone_from(&self.last_workflow);
         self.recent.clone_from(&history.state.recent);
         self.kept_run.clone_from(&history.state.last_run);
+        // This conversation's own explicit choice resumes, servable or not (its fix said): never
+        // the operator's default instead, unless the opener named another, which replaces it.
+        let opener = self.conversation.is_some();
+        let kept = (history.state.selection.clone()).and_then(|v| serde_json::from_value(v).ok());
+        if !opener && let Some(pref) = kept {
+            self.adopt(pref);
+        }
         self.restored_draft = history.state.pending.clone().map(Restored::from_raw);
         self.money.reconfirm |= history.restored && history.monetary_seen;
         if self.money.reconfirm {
@@ -111,6 +118,12 @@ impl SessionRuntime {
             text
         });
         self.history = HistoryMode::Active(Box::new(history));
+        // The opener's selection replaced the kept one: recorded now, so it is what resumes next.
+        if opener {
+            let _recorded = self.recorded(Operation::Choice, "(the opener's selection)", |s| {
+                TurnOutcome::Facts(s.intelligence_line())
+            });
+        }
         Ok(notice)
     }
 
@@ -829,6 +842,7 @@ impl SessionRuntime {
             programs: self.programs.clone(),
             inference_checkpoint: self.account_checkpoint(),
             last_run: self.kept_run.clone(),
+            selection: (self.conversation.as_ref()).and_then(|p| serde_json::to_value(p).ok()),
         }
     }
 

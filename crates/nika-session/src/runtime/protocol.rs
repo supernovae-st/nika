@@ -129,7 +129,9 @@ impl SessionRuntime {
                 None if owned => self.beside(input, QUESTION_WAITS)?,
                 None => TurnOutcome::Facts(crate::facts::last_run(&self.snapshot.root)),
             },
-            _ if owned || TURN_SERVED.contains(&input) => return None,
+            _ if owned || TURN_SERVED.contains(&input) || input.starts_with("/intelligence ") => {
+                return None;
+            }
             _ => TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::WrongState,
                 unserved_command(input)?,

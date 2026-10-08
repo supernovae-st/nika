@@ -299,6 +299,9 @@ pub struct SessionRuntime {
     interrupted: Option<String>,
     /// The first screen is on the table: the NEXT line is a choice.
     pending_choice: bool,
+    /// This conversation's own explicit choice (named by its opener, chosen in it or kept by
+    /// its history): it holds here only, never written as the operator's default.
+    conversation: Option<UserIntelligencePreference>,
     /// The last recovery card (a turn that could not be finished), kept so
     /// « what happened? » repeats it without a call.
     last_recovery: Option<String>,
@@ -397,6 +400,7 @@ impl SessionRuntime {
             chosen: true,
             interrupted: None,
             pending_choice: false,
+            conversation: None,
             last_recovery: None,
             classifier: None,
             routes: Vec::new(),
@@ -655,12 +659,33 @@ impl SessionRuntime {
         session
     }
 
-    /// The answer to the first screen asked in-session (`/intelligence`):
-    /// the choice is judged, kept under the home when one exists, and the
-    /// reasoner rebuilt — refused with its fix when this machine cannot
-    /// serve it, and the previous choice stands.
-    fn choose_unrecorded(&mut self, answer: &str) -> TurnOutcome {
+    /// The opener named this conversation's intelligence (`pref`, the one it opened with): it
+    /// holds here only, is recorded in the conversation's history and replaces a choice that
+    /// history kept. Nothing is written as the operator's default.
+    pub fn hold_for_conversation(&mut self, pref: UserIntelligencePreference) {
+        self.conversation = Some(pref);
+    }
+
+    /// Hold `pref` as this conversation's intelligence: resolved against the census, servable or
+    /// not (its fix said, never replaced), the reasoner rebuilt. Nothing is written.
+    fn adopt(&mut self, pref: UserIntelligencePreference) {
         let (Some(census), Some(factory)) = (&self.census, &self.factory) else {
+            return;
+        };
+        let resolved = ResolvedSessionIntelligence::resolve(&pref, census);
+        self.reasoner = factory(&resolved);
+        self.intelligence = resolved;
+        self.refresh_seat();
+        self.chosen = true;
+        self.conversation = Some(pref);
+    }
+
+    /// The answer to the first screen asked in-session (`/intelligence`, or `/intelligence
+    /// <words>` at once): the choice is judged, held for this conversation only and the reasoner
+    /// rebuilt; refused with its fix when this census cannot read it, the previous choice standing.
+    fn choose_unrecorded(&mut self, answer: &str) -> TurnOutcome {
+        let answer = (answer.trim().strip_prefix("/intelligence ")).map_or(answer, str::trim);
+        let (Some(census), Some(_)) = (&self.census, &self.factory) else {
             self.pending_choice = false;
             self.interrupted = None;
             return TurnOutcome::Refusal(Refusal::new(
@@ -710,21 +735,10 @@ impl SessionRuntime {
                 ));
             }
         };
-        let resolved = ResolvedSessionIntelligence::resolve(&pref, census);
-        let kept = match &self.home {
-            Some(home) => pref
-                .save(home)
-                .map(|()| "kept")
-                .unwrap_or("holds for this session only"),
-            None => "holds for this session only",
-        };
-        self.reasoner = factory(&resolved);
-        self.intelligence = resolved;
-        self.refresh_seat();
-        self.chosen = true;
+        self.adopt(pref);
         self.pending_choice = false;
         let notice = format!(
-            "{} · {kept}\n  {}{}",
+            "{} · holds for this conversation\n  {}{}",
             self.intelligence_line(),
             self.seat.line(),
             self.connection_money()
@@ -823,6 +837,7 @@ impl SessionRuntime {
             .new_turn(self.authoring.is_some() || self.revising.is_some());
         match input {
             "/quit" | "/exit" => return TurnOutcome::Quit,
+            _ if input.starts_with("/intelligence ") => return self.choose_unrecorded(input),
             "/intelligence" => {
                 return match &self.census {
                     Some(census) => {

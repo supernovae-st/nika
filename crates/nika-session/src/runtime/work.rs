@@ -238,6 +238,10 @@ impl SessionRuntime {
         let decision = (context.decision())
             .map(|seat| DecisionSeat::new(seat.model().to_owned(), seat.refusal().map(Into::into)));
         let effort = context.reasoning().map(|level| level.word().to_owned());
+        let selected = match self.conversation {
+            Some(_) => selected.for_conversation(),
+            None => selected,
+        };
         let selected = self.intelligence_chosen().then_some(selected);
         Intelligence::new(selected, author, decision, effort)
     }
