@@ -334,6 +334,12 @@ async fn run_line(served: &Served, session: &str, snapshot: &Value, line: &str) 
 }
 
 async fn close(served: Served, session: &str) {
+    close_session(&served, session).await;
+    stop(served).await;
+}
+
+/// Close the Session through its own door: its `closed` reply.
+async fn close_session(served: &Served, session: &str) {
     let closed = format!(
         "DELETE /v1/sessions/{session} HTTP/1.1\r\nHost: test\r\n{}Connection: close\r\n\r\n",
         auth_header()
@@ -343,6 +349,10 @@ async fn close(served: Served, session: &str) {
         (closed.status, closed.json()["frame"].clone()),
         (200, "closed".into())
     );
+}
+
+/// Stop the server and join it.
+async fn stop(served: Served) {
     served.shutdown.send(()).ok();
     served.join.await.expect("join").expect("clean stop");
 }
@@ -423,8 +433,10 @@ async fn a_seated_session_saves_then_runs_exactly_the_saved_bytes_once_as_a_job(
     let run = &ran["snapshot"]["work"]["run"];
     assert_eq!(run["workflow"], path.as_str(), "{run}");
     assert_eq!(run["end"], serde_json::json!({"end": "succeeded"}), "{run}");
-    close(served, &session).await;
+    // The log ends with the Session's own `closed`: read whole before the server stops.
+    close_session(&served, &session).await;
     let log = events.await.expect("events");
+    stop(served).await;
     assert_eq!(log.status, 200);
     let frames = frames(&log.body);
     let notes: Vec<&str> = (frames.iter())
@@ -585,8 +597,7 @@ async fn a_run_admits_only_the_bytes_the_session_checked() {
         [(WORKFLOW.to_owned(), Some(0.25))],
         "exactly the checked bytes, once"
     );
-    served.shutdown.send(()).ok();
-    served.join.await.expect("join").expect("clean stop");
+    stop(served).await;
 }
 
 /// A Session job still queued when the resident stops keeps its requested ceiling: the record
