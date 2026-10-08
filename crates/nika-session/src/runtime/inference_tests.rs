@@ -33,6 +33,8 @@ mod observed_project;
 mod question_budget;
 mod question_identity;
 mod read_only;
+/// A recorded workflow takes a change its graph refuses over its whole document.
+mod recorded_fallback;
 mod recovery;
 mod restart;
 mod revision_question;

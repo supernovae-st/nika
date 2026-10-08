@@ -305,7 +305,15 @@ async fn semantic_replayed<P: ProviderInferDyn>(
         let seat = (reading.authoring.as_ref())
             .filter(|p| super::revise_intent(reading).is_some() && policy_bounded(p))
             .zip(cognition.provider);
-        return Box::pin(sketch::revise::edit(raw, reading, seat, cognition.seat)).await;
+        let lent = rehearsals.catalog();
+        return Box::pin(sketch::revise::edit(
+            raw,
+            reading,
+            seat,
+            cognition.seat,
+            lent,
+        ))
+        .await;
     };
     let mut assembly = reading.clone();
     let clarified = (assembly.answers.remove("intent.clarification"))

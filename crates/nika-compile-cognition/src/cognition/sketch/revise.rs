@@ -122,6 +122,7 @@ pub(in crate::cognition) async fn edit<P: ProviderInferDyn>(
     reading: &CompileRequest,
     seat: Option<(&AuthoringPolicy, &P)>,
     decision: Option<&dyn DecisionSeat>,
+    catalog: Option<&dyn ComponentCatalog>,
 ) -> Result<CompileOutcome, CompileError> {
     let core = nika_compile::compile(raw)?;
     let unresolved = core
@@ -132,7 +133,7 @@ pub(in crate::cognition) async fn edit<P: ProviderInferDyn>(
         unresolved && policy.native != crate::cognition::NativeMode::Off
     };
     match seat.filter(open) {
-        Some((policy, provider)) => revise(reading, policy, (provider, decision)).await,
+        Some((policy, provider)) => revise(reading, policy, (provider, decision), catalog).await,
         None => Ok(core),
     }
 }
@@ -395,6 +396,7 @@ async fn revise<P: ProviderInferDyn>(
     request: &CompileRequest,
     policy: &AuthoringPolicy,
     (provider, decision): (&P, Option<&dyn DecisionSeat>),
+    catalog: Option<&dyn ComponentCatalog>,
 ) -> Result<CompileOutcome, CompileError> {
     let mut out = crate::initial();
     let (
@@ -448,9 +450,13 @@ async fn revise<P: ProviderInferDyn>(
             }
             Linked::Refused(why) => {
                 native::record(&mut out, &revising, &cold, &talk, &sent, None, shown);
-                refuse(&mut out, &why);
-                out.provenance.strategy = Some(Strategy::Native);
-                return Ok(out);
+                // The fixed graph cannot carry this change: the same change is stated over the
+                // complete document of the same base, its record kept as the new bytes' history
+                // and the refused links rounds kept paid and journaled in this very outcome.
+                let seats = (policy, provider, decision);
+                return Ok(
+                    recorded_over_document(&revising, base, seats, catalog, out, &why).await,
+                );
             }
         };
     let contract = Contract {
@@ -620,8 +626,51 @@ fn revisable(base: &str) -> bool {
 pub(in crate::cognition) async fn source<P: ProviderInferDyn>(
     request: &CompileRequest,
     policy: &AuthoringPolicy,
-    (provider, decision): (&P, Option<&dyn DecisionSeat>),
+    seats: (&P, Option<&dyn DecisionSeat>),
     catalog: Option<&dyn ComponentCatalog>,
+) -> Result<CompileOutcome, CompileError> {
+    source_from(request, policy, seats, (catalog, true), crate::initial()).await
+}
+
+/// A recorded base's change its fixed graph refused, stated over the complete document of the
+/// same base with the request it answers known: operations only (its links were just refused),
+/// in the outcome that already holds the links rounds. The base's record stays the new bytes'
+/// history (`revised_record`) and the refused rounds stay journaled (`recorded_attempt`).
+async fn recorded_over_document<P: ProviderInferDyn>(
+    revising: &CompileRequest,
+    base: &Value,
+    (policy, provider, decision): (&AuthoringPolicy, &P, Option<&dyn DecisionSeat>),
+    catalog: Option<&dyn ComponentCatalog>,
+    mut out: CompileOutcome,
+    why: &[String],
+) -> CompileOutcome {
+    let attempt = out.provenance.decision.take();
+    let seats = (provider, decision);
+    let over = source_from(revising, policy, seats, (catalog, false), out);
+    let mut done = match Box::pin(over).await {
+        Ok(done) => done,
+        Err(error) => {
+            let mut refused = crate::initial();
+            refuse(&mut refused, &[error.to_string()]);
+            refused
+        }
+    };
+    let journal = done.provenance.decision.get_or_insert_with(|| json!({}));
+    journal["recorded_attempt"] = json!({"refused": why, "journal": attempt});
+    if let Some(plan) = done.provenance.plan.as_mut() {
+        plan["revised_record"] = base.clone();
+    }
+    done
+}
+
+/// [`source`] in an outcome that may already account for earlier calls; `links` says whether
+/// destination links may still be offered.
+async fn source_from<P: ProviderInferDyn>(
+    request: &CompileRequest,
+    policy: &AuthoringPolicy,
+    (provider, decision): (&P, Option<&dyn DecisionSeat>),
+    (catalog, links): (Option<&dyn ComponentCatalog>, bool),
+    mut out: CompileOutcome,
 ) -> Result<CompileOutcome, CompileError> {
     let kept = || {
         let mut out = historical();
@@ -642,8 +691,7 @@ pub(in crate::cognition) async fn source<P: ProviderInferDyn>(
     // Destination links need the request the base answers and a destination it writes; any
     // other change is stated over the complete document.
     let original = source_original(request);
-    let destinations = original.is_some() && revisable(base);
-    let mut out = crate::initial();
+    let destinations = links && original.is_some() && revisable(base);
     let intent = nika_compile::revise_intent(request).unwrap_or_default();
     let reading = lexicon::read(&intent);
     let cold = cold(&mut out);
