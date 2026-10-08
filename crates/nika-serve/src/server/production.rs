@@ -741,5 +741,4 @@ mod tests {
 }
 
 #[cfg(test)]
-#[path = "production_cost_tests.rs"]
 mod cost_tests;
