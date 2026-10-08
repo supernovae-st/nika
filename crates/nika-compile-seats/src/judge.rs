@@ -62,10 +62,13 @@ pub fn state(intent: &str, request: &CompileRequest, candidate: &str) -> Value {
 }
 
 /// A revision the compiler applied over the complete document (its record says so) is judged as
-/// the base with exactly the change: the base shown whole, whatever request it answers.
+/// the base with exactly the change: the base shown whole, whatever request it answers. A round
+/// replaying that revision's record reads the same mode from the record, so its judge is shown
+/// the same context the rejection the record carries was bound to (A3).
 pub fn over_document(base: &mut Value, request: &CompileRequest, out: &CompileOutcome) {
-    let applied = (out.provenance.decision.as_ref())
-        .is_some_and(|decision| decision.get("document_revision").is_some());
+    let revised = |record: &Value| record.get("document_revision").is_some();
+    let applied = out.provenance.decision.as_ref().is_some_and(revised)
+        || request.plan.as_ref().is_some_and(revised);
     if let (true, Some(revision), Input::Edit { source, .. }) =
         (applied, base.get_mut("revision"), &request.input)
     {

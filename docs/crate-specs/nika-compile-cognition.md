@@ -574,15 +574,44 @@ judge outvotes it there; a verdict that declined nothing may be asked again.
 - **COLD, WARM and the answer rounds** (`replayed`, `semantic`) settle the candidate again at
   their not-ready exits with the judgments the verdict made, so a clause the judge carried stays
   settled and the whole request stays pending unless it was carried; the candidate stays as the
-  core leaves it, INCOMPLETE and kept as the preview. A doubted verdict there also drops the
-  replayable record (`provenance.plan`), the questions and the requested boundary, routes
-  `verify: doubted, not replayable` and adds the Applied `verify_held` finding; a verdict that
-  declined nothing keeps the record and its questions, so a later round asks its judge again.
+  core leaves it, INCOMPLETE and kept as the preview. A doubted verdict there also clears the
+  questions and the requested boundary and keeps the replayable record (`provenance.plan`) with
+  every rejection of these bytes inside it (`declined`, by `carry_declined`, held by
+  `nika_compile_seats::repairs` since this crate's size cap), routes
+  `verify: doubted, not replayable` and adds the Applied `verify_held` finding. A round that
+  replays that record, whatever host resends it, repeats each carried rejection with no call
+  (`judged_before` reads the record's `declined` beside `CompileRequest::declined`), so that
+  judge is never asked again on those bytes, while another judge may decide them with no
+  authoring call; a rejection the round only repeated (carried, or the same bytes again) is
+  kept too, once per judge, context and request, so the record keeps it however often it
+  replays.
+  An abstention keeps no record (an abstention is never carried), nor does a sketch door's
+  semantic record, whose closed format holds no rejection: dropped, it is never replayed to
+  that judge. The replay shows its judge the context the rejection was bound to: a revision
+  over the whole document is shown its base whole there too (`over_document`, with the judge's
+  `state` held by `nika_compile_seats::judge` since this crate's size cap, reads the replayed
+  record's own `document_revision`); another base, request, answers, world or contract asks
+  again. A verdict that declined nothing keeps the record and its questions, so a later round
+  asks its judge again. Each replay names the refusal of its own room (`unobserved`), never
+  one carried from an earlier round.
 - **The sketch door** (its source recovery included), **the revisions and `judged_native`** hold
   a doubted candidate with no defect located (`verify::held`): INCOMPLETE, its bytes and Check
-  preview kept as the preview, its questions and requested boundary cleared, its record dropped,
-  the verdict's findings and the Applied `verify_held` finding; the route says
-  `verify: not ready, candidate held`. When the verdict located no defect and declined nothing
+  preview kept as the preview, its questions and requested boundary cleared, its record kept
+  with its rejection inside it (as above), the verdict's findings and the Applied `verify_held`
+  finding; the route says `verify: not ready, candidate held`. When no trial of these bytes ran
+  because the rehearsal room refused them before any attempt (`Rehearsals::refused`: a
+  source-only `NotRun` with the host's `Refusal` class), the attempt records it
+  (`"unobserved": {"refusal", "reason"}`, the room's words) and the `verify_held` finding names
+  it; the `unsettled` reason stays `no trial run of these exact bytes exists in this compile`.
+  A doubt only a run could decide (every `unsettled` reason the lack of a whole run), rejected
+  with no defect located, on bytes the room refused for a construct the workflow chose (a data
+  bound or a tool outside the rehearsal's surface) reopens the author once instead (A2): the
+  `rehearsal_refused` finding carries the room's words and asks for an equivalent workflow the
+  room runs, keeping every requested operation, path, threshold, order, output and permit, with
+  the verdict (route `verify: trial refused, restated`); the restated bytes are rehearsed and
+  judged as any candidate. The reopening follows the door's progress rule: the same refusal
+  again (or no round left) reopens nothing and the candidate is held as above. A refusal for an
+  effect, a path, the world or the host is no construct the workflow chose: held. When the verdict located no defect and declined nothing
   (its calls failed, were refused, or returned nothing admissible), the sketch door withdraws
   the candidate but keeps its replayable record (`preserve_unjudged`, route
   `verify: unjudged, record kept`), with the Applied `verify_resume` finding: « The candidate
@@ -595,10 +624,11 @@ judge outvotes it there; a verdict that declined nothing may be asked again.
   when the verdict repeats on the same bytes, or when the judge locates the same defects in the
   repaired bytes (both `native: no progress`), the candidate stays INCOMPLETE and kept as the
   preview with its Check preview, its findings counting the repairs made from the judge's
-  defects; a doubted verdict drops the replayable record, the questions and the requested
-  boundary, routes `verify: doubted, not replayable` and adds the Applied `verify_held`
-  finding. Each reopening from the judge's defects is routed `verify: repair N` (N: the verdicts
-  this compile recorded), as COLD routes its own repairs.
+  defects; a doubted verdict clears the questions and the requested boundary, keeps the record
+  with its rejection inside it, routes `verify: doubted, not replayable` and adds the Applied
+  `verify_held` finding. Each reopening from the judge's defects is routed `verify: repair N`
+  (N: the verdicts this compile recorded), as COLD routes its own repairs; the room's refusal
+  reopens it as the sketch door does (A2, above), and a candidate held there is held, not kept.
 
 The `verify_held` finding says what held the candidate (`held_text`), one of:
 
@@ -716,9 +746,10 @@ the round's policy is bounded.
   candidate kept as the preview. Nothing is repaired in an answer round; under a host that
   offers a room, its trial precedes its judgment (above), so a doubt its parts do not locate is
   asked over that run, and stays doubted there only when no whole run exists. A doubted
-  verdict also drops the round's replayable record, its questions and its requested boundary
-  (`verify: doubted, not replayable`) and adds the Applied `verify_held` finding, so no later
-  round replays that record; a judge that declined nothing keeps the record.
+  verdict also clears its questions and its requested boundary and keeps the record with its
+  rejection inside it (`verify: doubted, not replayable`), with the Applied `verify_held`
+  finding, so a later round replaying that record repeats the rejection with no call; a judge
+  that declined nothing keeps the record as it is.
 - With no judge permitted, the round is INCOMPLETE and the core's finding names the judge to
   permit.
 

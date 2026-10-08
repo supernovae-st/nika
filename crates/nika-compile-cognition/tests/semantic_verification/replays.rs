@@ -5,9 +5,10 @@
 //! nothing it or the request carries is a judgment. A model's plan (COLD) replays with its whole
 //! request pending again on the replayed bytes: the round's judge is asked the remainder the
 //! core names (the clause no law reads), then the whole request, and only a faithful whole
-//! request is READY; with no judge the round stays INCOMPLETE naming them. A judge that declines
-//! the bytes drops the record, so they are never replayed to it again; a judge whose call got no
-//! answer declined nothing and keeps the record for a later round.
+//! request is READY; with no judge the round stays INCOMPLETE naming them. A judge that rejects
+//! the bytes leaves the record with that rejection inside it, so every later round replaying it
+//! repeats the rejection with no call, however often it replays; an abstention drops the record;
+//! a judge whose call got no answer declined nothing and keeps the record for a later round.
 use super::*;
 use nika_compile_cognition::{Cognition, NoProvider, compile_with_cognition};
 
@@ -72,7 +73,37 @@ async fn answered_by(record: &Value, verdict: JudgeVerdict) -> (CompileOutcome, 
 /// it, then the whole request unfaithful and each part missing with the task it names: defects,
 /// each with its reason. An abstaining judge settles nothing: the clause, each part, whether a
 /// task does more than asked and the whole request stay unknown. Either way the judge declined
-/// these bytes: they stay the preview, never offered, and no record replays them to it again.
+/// these bytes: they stay the preview, never offered, and never replayed to it again (a refusal
+/// rides the record it keeps; an abstention drops the record).
+/// A model's plan record its judge rejected replays any number of times and never asks that
+/// judge again (A3): each answer round repeats the rejection the record carries with no call,
+/// and returns the record, its rejections still inside it, for the next round. The plan door
+/// rebuilds the record of the plan it replays; the rejections ride the rebuilt record too.
+#[tokio::test]
+async fn a_rejected_plan_record_replays_twice_and_asks_its_judge_nothing_either_time() {
+    let (record, candidate) = judged_record().await;
+    let (first, authored, asked) = answered_by(&record, refuse).await;
+    assert!(
+        authored == 0 && asked > 0,
+        "the judge rejects once: {first:#?}"
+    );
+    assert!(record_as_declined(&first), "{first:#?}");
+    let mut kept = first.provenance.plan.clone().unwrap_or_default();
+    for round in 1..=2 {
+        let (out, authored, asked) = answered_by(&kept, refuse).await;
+        assert_eq!((authored, asked), (0, 0), "round {round}: {out:#?}");
+        assert_eq!(
+            out.status,
+            CompileStatus::Incomplete,
+            "round {round}: {out:#?}"
+        );
+        assert_eq!(out.candidate.as_deref(), Some(candidate.as_str()));
+        assert_eq!(attempt(&out)["carried"], true, "round {round}: {out:#?}");
+        assert!(record_as_declined(&out), "round {round}: {out:#?}");
+        kept = out.provenance.plan.clone().unwrap_or_default();
+    }
+}
+
 #[tokio::test]
 async fn an_answer_round_whose_judge_refuses_the_remainder_is_incomplete() {
     let (record, candidate) = judged_record().await;
@@ -111,7 +142,7 @@ async fn an_answer_round_whose_judge_refuses_the_remainder_is_incomplete() {
         assert_eq!(authored, 0, "{out:#?}");
         assert_eq!(judged(&out), roles, "{out:#?}");
         assert_eq!(asked, roles.len());
-        assert!(out.provenance.plan.is_none(), "{named}: {out:#?}");
+        assert!(record_as_declined(&out), "{named}: {out:#?}");
         assert_eq!(held(&out), [words], "{out:#?}");
         let route = out.provenance.decision.as_ref().unwrap()["route"].to_string();
         assert!(route.contains("verify: doubted, not replayable"), "{route}");
@@ -348,7 +379,7 @@ async fn a_cold_answer_round_is_ready_only_on_a_faithful_whole_request() {
         let open = (&recorded["contested"], &recorded["unknown"]);
         assert_eq!(open, (contested, unknown), "{recorded:#}");
         assert_eq!(recorded["settled_by"], Value::Null, "{recorded:#}");
-        assert!(out.provenance.plan.is_none(), "{answer}: {out:#?}");
+        assert!(record_as_declined(&out), "{answer}: {out:#?}");
         assert_eq!(held(&out), [words], "{answer}: {out:#?}");
     }
 }

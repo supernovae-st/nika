@@ -569,6 +569,7 @@ async fn a_replayed_record_the_judge_doubts_is_never_replayed_again() {
     let ids: Vec<String> = doubting.questions().into_iter().map(|q| q.id).collect();
     assert_eq!(ids, ["verify-request", "verify-part-0", "verify-extra"]);
     assert_eq!(replayed.status, CompileStatus::Incomplete, "{replayed:#?}");
+    // A semantic record's closed format holds no rejection: it is dropped, never replayed to it.
     assert_eq!(replayed.provenance.plan, None);
     let doubted = ["verify: not ready", "verify: doubted, not replayable"];
     assert_eq!(verify_route(&replayed), doubted);
@@ -587,6 +588,73 @@ async fn a_replayed_record_the_judge_doubts_is_never_replayed_again() {
     assert!(kept.provenance.plan.is_some(), "{kept:#?}");
     assert_eq!(verify_route(&kept), ["verify: not ready"]);
     assert_eq!(author.calls(), 2);
+}
+
+/// Why a room refused every candidate, before any attempt.
+const REFUSED: &str = "the candidate needs an effect a rehearsal denies";
+
+/// A room that refuses every candidate before any attempt, for an effect.
+struct Refusing;
+
+impl crate::rehearse::Rehearse for Refusing {
+    fn bound(&self) -> Duration {
+        Duration::from_secs(1)
+    }
+    fn rehearse<'a>(
+        &'a self,
+        candidate: &'a str,
+        inputs: &'a [String],
+    ) -> crate::rehearse::RehearsalFuture<'a> {
+        self.rehearse_reading(candidate, inputs, &[])
+    }
+    fn rehearse_reading<'a>(
+        &'a self,
+        candidate: &'a str,
+        _inputs: &'a [String],
+        _targets: &'a [String],
+    ) -> crate::rehearse::RehearsalFuture<'a> {
+        use crate::rehearse::{Attempt, EffectCounts, Observation, Refusal, Rehearsal};
+        let reason = REFUSED.to_owned();
+        let sha = nika_compile::surface::sha256(candidate);
+        let report = crate::rehearse::RehearsalReport::new(
+            Rehearsal::NotRun { reason },
+            Attempt::NeverAttempted,
+            EffectCounts::none(),
+            sha,
+        )
+        .with_observation(Observation::refused(Refusal::Effect));
+        Box::pin(async move { report })
+    }
+}
+
+/// The answer round of a kept semantic record under a room that refuses its bytes (A4): the
+/// doubting judge's verdict names that refusal, the round's own, on its attempt and in the
+/// held words; the record, whose closed format holds no rejection, is dropped.
+#[tokio::test]
+async fn a_semantic_answer_round_names_the_refusal_of_its_own_room() {
+    let (author, judge) = (Author::new(answers()), Judge::new([Err("unavailable")]));
+    let request = CompileRequest::create(INTENT).with_authoring_policy(policy());
+    let out = compile(request.clone(), &author, &judge).await;
+    let record = out.provenance.plan.expect("unjudged bytes are kept");
+    let doubting = Judge::new(UNLOCATED);
+    let cognition = Cognition {
+        provider: Some(&author),
+        seat: Some(&doubting),
+    };
+    let replay = request.with_plan(record);
+    let replayed = crate::compile_with_cognition_rehearsed(&replay, cognition, Some(&Refusing))
+        .await
+        .unwrap();
+    assert_eq!(replayed.status, CompileStatus::Incomplete, "{replayed:#?}");
+    let verified = verification(&replayed).last().cloned().unwrap_or_default();
+    let unobserved = json!({"refusal": crate::rehearse::Refusal::Effect.word(), "reason": REFUSED});
+    assert_eq!(verified["unobserved"], unobserved, "{verified:#}");
+    let held = (replayed.diagnostics.iter()).find(|d| d.target == "verify_held");
+    assert!(
+        held.is_some_and(|d| d.message.contains(REFUSED)),
+        "{replayed:#?}"
+    );
+    assert_eq!(replayed.provenance.plan, None);
 }
 
 /// A request of two parts, each a write a task of its own does.

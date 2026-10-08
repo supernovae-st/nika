@@ -259,3 +259,50 @@ async fn a_carried_revision_rejection_binds_to_its_base_and_contract() {
         assert_eq!(attempts(&out)[0]["carried"], json!(false), "{case}");
     }
 }
+
+/// The answer round of a revision over the whole document replays its record (A3): its judge is
+/// shown the context the door's verdict showed it, the base whole over the document, read from
+/// the record's own revision mode. A rejection the record carries is repeated with no call for
+/// the same base, change and request; another base, or a record of another contract (a revision
+/// not over the document), is another context and is asked: reuse is bound to the exact context.
+#[tokio::test]
+async fn a_replayed_document_revision_is_judged_in_the_context_its_rejection_binds() {
+    let base = "nika: base\ntasks: {}\n";
+    let revising = |base: &str, record: &Value| {
+        let mut request = CompileRequest::edit(base, "Keep three days instead of two")
+            .with_original_intent(INTENT);
+        request.plan = Some(record.clone());
+        request
+    };
+    let mut shown = ready();
+    shown.provenance.decision = Some(json!({"document_revision": {"mode": "operations"}}));
+    let first = revising(base, &json!({}));
+    let (out, _) = declined(judged_under(&doubting(), &first, shown).await);
+    let earlier = attempts(&out)[0].clone();
+    let over = json!({"strategy": "native", "document_revision": {"mode": "operations"},
+        "declined": [earlier.clone()]});
+    let unrevised = json!({"strategy": "native", "declined": [earlier]});
+    let cases = [
+        ("the same base", revising(base, &over), 0),
+        (
+            "another base",
+            revising("nika: other\ntasks: {}\n", &over),
+            1,
+        ),
+        ("another contract", revising(base, &unrevised), 1),
+    ];
+    let plan = crate::lexicon::read(INTENT).plan;
+    for (case, request, calls) in cases {
+        let mut settled = ready();
+        let whole = json!({"clause": INTENT, "witness": null, "spans": [[0, INTENT.len()]]});
+        settled.provenance.decision = Some(json!({"pending": {"open": [whole]}}));
+        let approving = Approving::default();
+        let policy = policy();
+        let judge = Judge::Provider(&policy, &approving);
+        let mut out = crate::initial();
+        let on = (INTENT, &request, &plan);
+        let verdict = verdict_on(on, &settled, &judge, None, &mut out).await;
+        assert_eq!(approving.told.lock().unwrap().len(), calls, "{case}");
+        assert_eq!(verdict.carried, calls == 0, "{case}");
+    }
+}

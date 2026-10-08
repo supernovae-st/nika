@@ -193,6 +193,17 @@ fn attempts(out: &CompileOutcome) -> Vec<Value> {
         .unwrap_or_default()
 }
 
+/// Whether the outcome's record is kept with the judge's rejection of its shown bytes inside it.
+fn carries_rejection(out: &CompileOutcome) -> bool {
+    let shown = crate::cognition::knowledge::sha256(out.candidate.as_deref().unwrap_or_default());
+    (out.provenance.plan.as_ref())
+        .and_then(|record| record["declined"].as_array())
+        .is_some_and(|declined| {
+            (declined.iter())
+                .any(|a| a["candidate_sha256"] == shown.as_str() && a["rejected"] == true)
+        })
+}
+
 /// The verification steps of the route the decision records, in order.
 fn verify_route(out: &CompileOutcome) -> Vec<String> {
     let decision = out.provenance.decision.as_ref().unwrap();
@@ -325,7 +336,7 @@ async fn a_defect_set_met_again_in_another_order_ends_the_repairs() {
         "verify: doubted, not replayable",
     ];
     assert_eq!(verify_route(&out), steps);
-    assert_eq!(out.provenance.plan, None);
+    assert!(carries_rejection(&out), "{out:#?}");
     // Beside the core's own pending findings, the verifier names each defect with its note.
     let defects = [unsettled_defect(SUM, 1), unsettled_defect(READ, 1)];
     assert_eq!(judged_findings(&out), defects);
@@ -502,7 +513,8 @@ async fn a_rejection_carried_from_an_earlier_round_seeds_a_repair() {
         "verify: doubted, not replayable",
     ];
     assert_eq!(verify_route(&out), steps);
-    assert_eq!(out.provenance.plan, None);
+    // The carried rejection now rides the record too: a replay of it asks the judge nothing.
+    assert!(carries_rejection(&out), "{out:#?}");
     let defects = [unsettled_defect(READ, 0), unsettled_defect(SUM, 0)];
     assert_eq!(judged_findings(&out), defects);
     assert_eq!(findings(&out).1, [HELD_DEFECTS]);
@@ -588,7 +600,7 @@ const HELD: &str = "The candidate was judged and not accepted, with no defect a 
 /// nothing more and keeps the record: a later round asks it; the core names both clauses
 /// pending, the verifier each one unknown and why it stopped.
 #[tokio::test]
-async fn a_doubted_cold_round_keeps_no_record_and_an_unanswered_one_keeps_it() {
+async fn a_doubted_cold_round_carries_its_rejection_and_an_unanswered_one_keeps_its_record() {
     let doubted: &[(&str, Result<&str, &str>)] = &[
         ("verify-clause-0", Ok("carried")),
         ("verify-request", Ok("unfaithful")),
@@ -644,7 +656,7 @@ async fn a_doubted_cold_round_keeps_no_record_and_an_unanswered_one_keeps_it() {
             assert!(kept.is_empty(), "{kept:?}");
         } else {
             steps.push("verify: doubted, not replayable");
-            assert_eq!(out.provenance.plan, None);
+            assert!(carries_rejection(&out), "{out:#?}");
             assert_eq!(attempt["doubt"], json!(["unfaithful"]), "{attempt:#}");
             assert_eq!(attempt["contested"], json!([intent()]), "{attempt:#}");
             let flags = (
@@ -702,7 +714,7 @@ impl DecisionSeat for Warm {
 /// A WARM candidate the seat doubts with no defect located is never READY and keeps no
 /// replayable record; one whose whole-request call failed keeps it.
 #[tokio::test]
-async fn a_doubted_warm_round_keeps_no_record_and_an_unanswered_one_keeps_it() {
+async fn a_doubted_warm_round_carries_its_rejection_and_an_unanswered_one_keeps_its_record() {
     for (request, replayable) in [(Ok("unfaithful"), false), (Err("unavailable"), true)] {
         let seat = Warm {
             request,
@@ -732,7 +744,7 @@ async fn a_doubted_warm_round_keeps_no_record_and_an_unanswered_one_keeps_it() {
             let localized = ["verify-part-0", "verify-extra"];
             assert_eq!(asked[2..], localized, "{asked:?}");
             steps.push("verify: doubted, not replayable");
-            assert_eq!(out.provenance.plan, None);
+            assert!(carries_rejection(&out), "{out:#?}");
             assert_eq!(findings(&out).1, [HELD]);
         }
         assert_eq!(verify_route(&out), steps);
@@ -822,7 +834,9 @@ async fn a_doubted_cold_round_asks_no_question_and_an_unanswered_one_keeps_them(
             out.requested_boundary.is_some(),
             out.provenance.plan.is_some(),
         );
-        assert_eq!(flags, (kept, kept), "{verdict:?}");
+        // A doubted round keeps its record too, with the rejection inside it.
+        assert_eq!(flags, (kept, true), "{verdict:?}");
+        assert!(kept || carries_rejection(&out), "{verdict:?}");
         assert_eq!(verify_route(&out).last().map(String::as_str), Some(last));
         let held: &[&str] = if kept { &[] } else { &[HELD] };
         assert_eq!(findings(&out).1, held, "{verdict:?}");

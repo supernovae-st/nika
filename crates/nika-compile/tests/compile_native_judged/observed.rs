@@ -44,7 +44,7 @@ pub(super) const JUDGE: &str = "mock/typed-judge";
 
 /// How much of each text the room keeps as its evidence, and what the run wrote.
 #[derive(Clone, Copy)]
-enum Kept {
+pub(super) enum Kept {
     Whole,
     /// Only the first half of each text, as a preview cut at the room's bound would be.
     Half,
@@ -103,7 +103,7 @@ impl Rehearse for Room {
 
 /// The room's report of one completed run of `candidate`: what it copied in and read back, each
 /// receipt agreeing with the bytes it spent.
-fn ran(candidate: &str, kept: Kept) -> RehearsalReport {
+pub(super) fn ran(candidate: &str, kept: Kept) -> RehearsalReport {
     let input = Digest::of(TICKETS_IN.as_bytes());
     let written = Digest::of(OPEN_OUT.as_bytes());
     let mut observed = Observation::none();
@@ -418,6 +418,12 @@ async fn a_declined_rehearsal_shows_the_judge_no_run_and_holds_the_doubted_reque
     assert_eq!(attempt["unsettled"], json!([NO_TRIAL]), "{attempt:#}");
     assert_eq!(attempt["unknown"], json!([]), "{attempt:#}");
     assert_eq!(attempt["settled_by"], Value::Null, "{attempt:#}");
+    // Why no run exists: the room's refusal before any attempt, its class and words (A4).
+    let reason = "declined before an attempt";
+    let unobserved = json!({"refusal": Refusal::Effect.word(), "reason": reason});
+    assert_eq!(attempt["unobserved"], unobserved, "{attempt:#}");
+    let held = findings(&out, "verify_held");
+    assert!(held[0].contains(reason), "{held:?}");
     let told = findings(&out, "semantic_verification");
     assert_eq!(told, [contested_whole(NO_TRIAL)], "{told:?}");
 }

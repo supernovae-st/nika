@@ -285,10 +285,15 @@ pub(super) async fn author<P: ProviderInferDyn>(
             Step::Done(judged) | Step::Withdrawn(judged, _) => return Ok(judged),
             Step::Reopen(mut judged, defects, verdict) => {
                 if within(last_round, next) && reopen(&mut talk, defects.clone(), AGAIN) {
-                    if verdict.is_some() {
-                        // A repair from the judge's verdict, named as COLD names its own.
+                    if let Some(verdict) = &verdict {
+                        // A repair from the judge's verdict, named as COLD names its own; or
+                        // bytes the room runs, restated after its refusal (A2).
                         let repair = format!("verify: repair {}", judged_attempts(&judged));
-                        super::verify::route(&mut judged, &repair);
+                        let restated = verdict
+                            .defects
+                            .is_empty()
+                            .then_some(super::verify::RESTATED);
+                        super::verify::route(&mut judged, restated.unwrap_or(&repair));
                     }
                     // The judge's calls belong to the door's one journal.
                     (out.provenance.authoring).clone_from(&judged.provenance.authoring);
@@ -297,6 +302,10 @@ pub(super) async fn author<P: ProviderInferDyn>(
                     continue;
                 }
                 if let Some(verdict) = verdict {
+                    // The room's refusal again, or no round left: held, as with no host.
+                    if verdict.defects.is_empty() {
+                        return Ok(super::verify::preserve_unjudged(judged, &verdict));
+                    }
                     // The judge located the same defects again: no progress, the bytes kept.
                     let repairs = judged_attempts(&judged).saturating_sub(1);
                     let mut kept = super::verify::kept(judged, &verdict, repairs);

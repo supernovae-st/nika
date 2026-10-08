@@ -571,7 +571,14 @@ async fn a_cold_repair_writing_the_declined_bytes_again_asks_the_judge_nothing()
         .collect();
     assert_eq!(held, [HELD_DEFECTS], "{out:#?}");
     assert!(out.candidate.is_some(), "the preview stays: {out:#?}");
-    assert!(out.provenance.plan.is_none(), "{out:#?}");
+    // The record stays with the judge's rejection of the shown bytes inside it.
+    let record = out.provenance.plan.as_ref().expect("the record is kept");
+    let shown = nika_compile::surface::sha256(out.candidate.as_deref().unwrap_or_default());
+    let declined = record["declined"].as_array().cloned().unwrap_or_default();
+    assert!(
+        (declined.iter()).any(|a| a["candidate_sha256"] == shown.as_str()),
+        "{record:#}"
+    );
 }
 
 /// What a candidate held on located defects offers, as the verifier states it.
@@ -685,5 +692,12 @@ async fn a_cold_round_carrying_an_earlier_rejection_asks_the_judge_nothing() {
     ];
     assert_eq!(verify_route(&second), steps, "{second:#?}");
     assert_eq!(told(&second), held, "{second:#?}");
-    assert!(second.provenance.plan.is_none(), "{second:#?}");
+    // The carried rejection rides the record kept: a replay of it asks the judge nothing.
+    let record = second.provenance.plan.as_ref().expect("the record is kept");
+    let declined = record["declined"].as_array().cloned().unwrap_or_default();
+    let repeated = &attempts(&second)[0]["candidate_sha256"];
+    assert!(
+        (declined.iter()).any(|a| &a["candidate_sha256"] == repeated),
+        "{record:#}"
+    );
 }

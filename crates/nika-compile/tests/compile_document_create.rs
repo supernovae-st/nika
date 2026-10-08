@@ -901,7 +901,8 @@ fn verdicts(out: &CompileOutcome) -> Vec<Value> {
 }
 
 /// The judge's draft as COLD kept it: INCOMPLETE, shown with its Check preview, never offered,
-/// its replayable record, questions and boundary dropped, and the held finding said.
+/// its questions and boundary dropped, its replayable record kept with the judge's rejection of
+/// these bytes inside it (a replay never asks that judge again), and the held finding said.
 fn assert_kept_preview(out: &CompileOutcome, shown: &str) {
     assert_eq!(
         out.status,
@@ -915,7 +916,13 @@ fn assert_kept_preview(out: &CompileOutcome, shown: &str) {
         "the draft stays shown"
     );
     assert!(out.check_preview.is_some(), "its Check preview stays");
-    assert!(out.provenance.plan.is_none(), "no replay of doubted bytes");
+    let record = out.provenance.plan.as_ref().expect("the record is kept");
+    let sha = sha256(shown);
+    let declined = record["declined"].as_array().expect("its rejections");
+    assert!(
+        (declined.iter()).any(|a| a["candidate_sha256"] == sha.as_str() && a["rejected"] == true),
+        "the rejection of the shown bytes rides the record: {record:#}"
+    );
     assert!(out.questions.is_empty() && out.requested_boundary.is_none());
     assert!(
         (out.diagnostics.iter()).any(|d| d.target == "verify_held"),

@@ -260,8 +260,8 @@ async fn the_cold_round_holds_no_obligation_and_tells_the_reading() {
 /// judge finds it missing, with no task performing it, a defect the COLD door repairs from; the
 /// repair writes the same bytes and names the same defect, which is no progress, so the repairs
 /// end and the duty stays pending. The in-data reading is told beside it (a role any step
-/// consumes hides no clause, D2 check); the judge declined these bytes, so no record replays
-/// them.
+/// consumes hides no clause, D2 check); the judge declined these bytes, so the record keeps that
+/// rejection inside it and no replay asks the judge again.
 #[tokio::test]
 async fn the_removal_reaches_the_judge_as_a_pending_duty() {
     let (out, refused) = keeping_every_duplicate().await;
@@ -274,7 +274,13 @@ async fn the_removal_reaches_the_judge_as_a_pending_duty() {
         .map(|d| d.message.as_str())
         .collect();
     assert_eq!(dedup, [told.as_str()], "{out:#?}");
-    assert!(out.provenance.plan.is_none(), "{:#?}", out.provenance.plan);
+    let record = out.provenance.plan.clone().expect("the record is kept");
+    let declined = record["declined"].as_array().cloned().unwrap_or_default();
+    let shown = nika_compile::surface::sha256(out.candidate.as_deref().unwrap_or_default());
+    assert!(
+        (declined.iter()).any(|a| a["candidate_sha256"] == shown.as_str()),
+        "{record:#}"
+    );
     let decision = out.provenance.decision.clone().unwrap_or_default();
     let attempts = decision["semantic_verification"].as_array().cloned();
     let attempts = attempts.unwrap_or_default();

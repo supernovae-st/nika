@@ -13,6 +13,7 @@ use super::native::{self, Answer, Question, Shaped, Talk, judge};
 use super::stop_reason;
 use super::{AuthoringPolicy, CompileOutcome, CompileRequest, DiagnosticKind, Filled};
 use super::{Rehearsals, Step, diagnostics_record, evidence, examine, next_round, reopen, repair};
+use crate::cognition::verify;
 use crate::{CompileDiagnostic, decide::DecisionSeat, fidelity::Diagnostic, lexicon::Reading};
 use nika_kernel::ai::provider::{ContentBlock, Message, ProviderInferDyn, Role};
 use serde_json::{Value, json};
@@ -121,10 +122,18 @@ pub(super) async fn after<P: ProviderInferDyn>(
         let room = (allowance, super::Exit::Withdraw);
         match examine(door, seats, talk, settled, limits, room).await {
             Step::Done(out) | Step::Withdrawn(out, _) => return kept(out, &history),
-            Step::Reopen(mut out, defects, _) => {
+            Step::Reopen(mut out, defects, verdict) => {
+                let restating = verdict.filter(|v| v.defects.is_empty());
                 if !more || !reopen(talk, defects.clone(), AGAIN) {
+                    // The room's refusal again, or no round left: held, as with no host.
+                    if let Some(verdict) = restating {
+                        return kept(verify::preserve_unjudged(out, &verdict), &history);
+                    }
                     evidence::refuse(&mut out, stop_reason(more, &defects, (SPENT, REPEATED)));
                     return kept(out, &history);
+                }
+                if restating.is_some() {
+                    verify::route(&mut out, verify::RESTATED);
                 }
                 done.provenance.authoring = out.provenance.authoring;
                 done.provenance.decision = out.provenance.decision;

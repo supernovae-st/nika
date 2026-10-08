@@ -10,7 +10,9 @@ use nika_compile_fidelity::behavior::{
 use serde_json::{Value, json};
 
 use crate::fidelity::Diagnostic;
-use crate::rehearse::{Attempt, Rehearsal, RehearsalReport, Rehearse, judged_run, trial_shown};
+use crate::rehearse::{
+    Attempt, Refusal, Rehearsal, RehearsalReport, Rehearse, judged_run, trial_shown,
+};
 use crate::{CompileOutcome, CompileRequest, CompileStatus, DiagnosticKind};
 use nika_compile_seats::foundry::ComponentCatalog;
 
@@ -42,6 +44,16 @@ struct Checked {
     run: Run,
     spent_before: Usage,
     room_bytes: u64,
+    /// The room's refusal of these bytes before any attempt, when the report was one.
+    refused: Option<Refused>,
+}
+
+/// The room's refusal of one candidate's exact bytes before any attempt: a source-only
+/// [`Rehearsal::NotRun`] whose host named its [`Refusal`] class, and the host's words.
+#[derive(Clone, Debug)]
+pub(super) struct Refused {
+    pub(super) refusal: Refusal,
+    pub(super) reason: String,
 }
 
 /// The journal and consumption of one invocation, and what its host lends the preparation (a
@@ -159,6 +171,15 @@ impl<'a> Rehearsals<'a> {
         let run = judged_run("observed", &report, &inputs, &targets, &declared);
         let result = classify(candidate, &report, &run.end);
         let entry = crate::rehearse::record::report(&report, bound, &run, &decided(&result));
+        let refused = match (&report.outcome, report.observation.refusal) {
+            (Rehearsal::NotRun { reason }, Some(refusal))
+                if matches!(report.attempt, Attempt::NeverAttempted) =>
+            {
+                let reason = reason.clone();
+                Some(Refused { refusal, reason })
+            }
+            _ => None,
+        };
         let spent_before = self.usage;
         self.usage = self.usage.plus(&run.usage);
         self.records.push(entry);
@@ -171,6 +192,7 @@ impl<'a> Rehearsals<'a> {
             run,
             spent_before,
             room_bytes: report.observation.bounds.room_bytes,
+            refused,
         });
         verdict
     }
@@ -218,6 +240,17 @@ impl<'a> Rehearsals<'a> {
         let proceeded = matches!(last.verdict.result, Result::Proceed);
         let shown = last.candidate == candidate && completed && proceeded;
         shown.then(|| trial_shown(&super::knowledge::sha256(candidate), &last.run))
+    }
+
+    /// Why no run of exactly `candidate` exists, when this call's last report was the room's
+    /// refusal of those bytes before any attempt; `None` for another candidate, a run that
+    /// began, or no host.
+    pub(super) fn refused(&self, candidate: &str) -> Option<&Refused> {
+        let last = self
+            .last
+            .as_ref()
+            .filter(|last| last.candidate == candidate)?;
+        last.refused.as_ref()
     }
 
     /// The trial an answer round judges over (R6, A1): bytes READY but for that judgment run once

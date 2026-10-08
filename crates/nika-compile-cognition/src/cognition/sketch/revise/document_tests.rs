@@ -124,6 +124,8 @@ struct Seat {
     revisions: std::sync::Mutex<Vec<Value>>,
     roles: std::sync::Mutex<Vec<String>>,
     asked: std::sync::Mutex<Vec<String>>,
+    /// Whether the judge rejects the whole request (`unfaithful`) and locates nothing.
+    doubting: bool,
 }
 
 impl Seat {
@@ -136,7 +138,21 @@ impl Seat {
             revisions: std::sync::Mutex::new(revisions),
             roles: std::sync::Mutex::new(Vec::new()),
             asked: std::sync::Mutex::new(Vec::new()),
+            doubting: false,
         }
+    }
+
+    /// The same seat, its judge rejecting the whole request with no part located.
+    fn doubting(revision: Value) -> Self {
+        Self {
+            doubting: true,
+            ..Self::new(revision)
+        }
+    }
+
+    /// How many judge calls it answered.
+    fn judged(&self) -> usize {
+        self.roles().iter().filter(|role| *role == "judge").count()
     }
 
     /// The last message of each revision call, in order.
@@ -182,7 +198,9 @@ impl nika_kernel::ai::provider::ProviderInferDyn for Seat {
         } else {
             self.roles.lock().expect("roles").push("judge".to_owned());
             let keys = schema["properties"]["choice"]["enum"].to_string();
-            let choice = if keys.contains("\"faithful\"") {
+            let choice = if keys.contains("\"faithful\"") && self.doubting {
+                "unfaithful"
+            } else if keys.contains("\"faithful\"") {
                 "faithful"
             } else if keys.contains("\"only_requested\"") {
                 "only_requested"
@@ -541,4 +559,52 @@ async fn a_change_to_a_created_documents_bytes_is_revised_with_its_request_known
         original.contains(created) && original.contains(change),
         "{original}"
     );
+}
+
+/// A revision over the whole document its judge rejected with no part located is held with its
+/// record, the rejection inside it (A3). Sent back with the same base and change, that record is
+/// the base's record: the door revises again (one revision call) and, landing on the same bytes,
+/// shows the judge the same context (the base whole, over the document), so the rejection the
+/// record carries is repeated with no judge call; under another observed world the context
+/// differs and the judge is asked again: reuse is bound to the exact context, never
+/// unconditional.
+#[tokio::test]
+async fn a_held_document_revision_sent_back_asks_its_judge_nothing_on_the_same_bytes() {
+    let base = rich();
+    let change = "Rehearse the failure path by default";
+    let edit = || {
+        operations(&[json!({"op": "set", "path": "/inputs/drill/default",
+            "value_json": "true", "component": "", "version": "", "bindings_json": ""})])
+    };
+    let seat = Seat::doubting(edit());
+    let held = revised(base, change, None, &seat).await;
+    assert_eq!(held.status, crate::CompileStatus::Incomplete, "{held:#?}");
+    assert!(seat.judged() > 0, "{held:#?}");
+    let record = held
+        .provenance
+        .plan
+        .clone()
+        .expect("the rejected record is kept");
+    let declined = record["declined"].as_array().cloned().unwrap_or_default();
+    assert!(!declined.is_empty(), "{record:#}");
+    // The same base, change and request: one revision call, and no judge call on the same bytes.
+    let again = Seat::doubting(edit());
+    let replayed = revised(base, change, Some(record.clone()), &again).await;
+    assert_eq!(again.roles(), ["revision"], "{replayed:#?}");
+    assert_eq!(replayed.candidate, held.candidate, "the same bytes");
+    let verified = &replayed.provenance.decision.as_ref().unwrap()["semantic_verification"];
+    assert_eq!(verified[0]["carried"], true, "{verified:#}");
+    // Another observed world: another context, so the judge is asked.
+    let elsewhere = Seat::doubting(edit());
+    let mut request = crate::CompileRequest::edit(base, change).with_authoring_policy(policy());
+    request.plan = Some(record);
+    let request = request.with_knowledge(json!({"observed": []}));
+    let cognition = crate::Cognition {
+        provider: Some(&elsewhere),
+        seat: None,
+    };
+    let asked = crate::compile_with_cognition_composed(&request, cognition, None, Some(&Shelf))
+        .await
+        .expect("compiles");
+    assert!(elsewhere.judged() > 0, "{asked:#?}");
 }

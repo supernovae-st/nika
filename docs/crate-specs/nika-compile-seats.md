@@ -92,6 +92,12 @@ as an external consumer.
   the base it revises, as history, never as its first statement) and `over_document` (a revision
   applied over the complete document, by its decision or by the record a round replays, shows
   the base whole). The verifier that asks the questions and weighs the answers stays there.
+- `repairs` — the laws that end the verifier's work: `progressed` (a defect set is progress
+  when it names a new part or narrows the last set) and `carry_declined` (the record of bytes a
+  judge rejected keeps each rejection of them once per judge, context and request, so every
+  round that replays it, whatever host resends it, repeats the rejection with no call; with no
+  rejection to carry, or for a semantic record whose closed format holds none, the record is
+  dropped).
 - `objects` — the JSON objects of a seat's text (`first_json_object`, `answer_objects` and
   `Objects`, `answer_shaped`, `syntax_target`), descended from the doors on 2026-10-07.
 - `shelf` — the references an authoring seat reads beside its card (`Reference`, `references`:

@@ -36,8 +36,9 @@ mod recover;
 mod recover_tests;
 /// The semantic revision of a base its record binds, beside the door it reuses.
 pub(super) mod revise;
-use super::rehearsal::Rehearsals;
+use super::rehearsal::{Refused, Rehearsals};
 use super::verify::Verdict;
+use crate::rehearse::Refusal;
 use evidence::Evidence;
 
 /// The seat's first answer: the sketch, its business questions, the clauses no task realizes.
@@ -818,16 +819,15 @@ pub(super) async fn author<P: ProviderInferDyn>(
             Some(_) => match examine(door, seats, &mut talk, done, (next, last), room).await {
                 Step::Done(answer) => return Ok(answer),
                 Step::Withdrawn(done, defects) => (done, defects),
-                Step::Reopen(mut done, defects, _) => {
-                    if within(last, next) && reopen(&mut talk, defects.clone(), SKETCH_AGAIN) {
-                        // The judge's calls, when it was asked, belong to the door's one journal.
-                        (out.provenance.authoring).clone_from(&done.provenance.authoring);
-                        (out.provenance.decision).clone_from(&done.provenance.decision);
-                        first = next;
-                        continue;
+                Step::Reopen(done, defects, verdict) => {
+                    match reopened(&mut talk, &mut out, (done, defects, verdict), (last, next)) {
+                        Reopened::Again => {
+                            first = next;
+                            continue;
+                        }
+                        Reopened::Held(held) => return Ok(held),
+                        Reopened::Ended(done, defects) => (done, defects),
                     }
-                    evidence::refuse(&mut done, refused_reason(within(last, next), &defects));
-                    (done, defects)
                 }
             },
         };
@@ -835,6 +835,46 @@ pub(super) async fn author<P: ProviderInferDyn>(
         let recovered = recover::after(door, seats, &mut talk, (&opened, &sent), ended);
         return Ok(Box::pin(recovered).await);
     }
+}
+
+/// What the sketch door does with a reopening its judge asked for ([`Step::Reopen`]).
+enum Reopened {
+    /// Reopened in the same talk, the judge's calls kept in the door's one journal: the next
+    /// round starts.
+    Again,
+    /// Held as it is: a restatement the room's refusal asked for, refused again or with no
+    /// round left, as with no host.
+    Held(CompileOutcome),
+    /// Ended with its defects, for the door's recovery.
+    Ended(CompileOutcome, Vec<Diagnostic>),
+}
+
+/// The reopening the judge asked for, taken while a round is left (`last`, `next`) and the talk
+/// accepts it; a restatement the room's refusal asked for (a verdict with no defect, A2) routes
+/// [`RESTATED`](super::verify::RESTATED). Else a restatement is held, as with no host, and
+/// defects end the rounds, refused with why.
+fn reopened(
+    talk: &mut Talk,
+    out: &mut CompileOutcome,
+    (mut done, defects, verdict): (CompileOutcome, Vec<Diagnostic>, Option<Box<Verdict>>),
+    (last, next): (Option<u32>, u32),
+) -> Reopened {
+    let restating = verdict.filter(|v| v.defects.is_empty());
+    if within(last, next) && reopen(talk, defects.clone(), SKETCH_AGAIN) {
+        if restating.is_some() {
+            super::verify::route(&mut done, super::verify::RESTATED);
+        }
+        // The judge's calls, when it was asked, belong to the door's one journal.
+        (out.provenance.authoring).clone_from(&done.provenance.authoring);
+        (out.provenance.decision).clone_from(&done.provenance.decision);
+        return Reopened::Again;
+    }
+    // The room's refusal again, or no round left: held, as with no host.
+    if let Some(verdict) = restating {
+        return Reopened::Held(super::verify::preserve_unjudged(done, &verdict));
+    }
+    evidence::refuse(&mut done, refused_reason(within(last, next), &defects));
+    Reopened::Ended(done, defects)
 }
 
 const EVIDENCE_SPENT: &str =
@@ -930,12 +970,23 @@ pub(super) async fn examine<P: ProviderInferDyn>(
             match verdict.await {
                 Ok(judged) => Step::Done(judged),
                 Err(judged) => {
-                    let (judged, verdict) = *judged;
+                    let (mut judged, mut verdict) = *judged;
+                    // Why no run of these bytes exists, when the room refused them (A4).
+                    let refused = (judged.candidate.as_deref()).and_then(|c| rehearsals.refused(c));
+                    if let Some(refused) = refused {
+                        super::verify::unobserved(&mut judged, &mut verdict, refused);
+                    }
                     let defects = judge_defects(&verdict);
                     // The repairs the judge's earlier verdicts already opened in this talk.
                     let repairs = judged_attempts(&judged).saturating_sub(1);
                     if verdict.defects.is_empty() {
-                        Step::Done(super::verify::preserve_unjudged(judged, &verdict))
+                        match restated(&verdict, refused) {
+                            // Bytes the room runs, restated from its words (A2).
+                            Some(obstacle) => {
+                                Step::Reopen(judged, vec![obstacle], Some(Box::new(verdict)))
+                            }
+                            None => Step::Done(super::verify::preserve_unjudged(judged, &verdict)),
+                        }
                     } else if verdict.same_bytes_as.is_some() || !within(last, next) {
                         // The same bytes again are no progress, whatever count is left (R6).
                         let mut ended = match exit {
@@ -954,6 +1005,22 @@ pub(super) async fn examine<P: ProviderInferDyn>(
         }
     }
 }
+
+/// The restatement a refused trial asks for (A2): the judge rejected the whole request without
+/// locating a part, only a run of these exact bytes could decide it, and the room refused to run
+/// them before any attempt for a construct the workflow chose (a data bound, a tool outside the
+/// rehearsal's surface), never an effect, a path or a world the request itself names.
+fn restated(verdict: &Verdict, refused: Option<&Refused>) -> Option<Diagnostic> {
+    let avoidable = |r: &&Refused| matches!(r.refusal, Refusal::DataBounds | Refusal::Surface);
+    let refused = refused.filter(avoidable)?;
+    (verdict.rejected() && verdict.waits_for_a_run()).then(|| Diagnostic {
+        kind: "rehearsal_refused",
+        message: format!("{RESTATE} {}.", refused.reason),
+    })
+}
+
+/// What a restatement the room's refusal asks for tells the author, before the room's words.
+const RESTATE: &str = "The verifier rejected the whole request without locating a part of it; only a run of these exact bytes can decide it, and the rehearsal room refused to run them before any attempt. Restate an equivalent workflow the room runs: keep every requested operation, path, threshold, order, output and permit, and change only the construct the room refused:";
 
 /// How many whole-request verdicts this compile recorded, the last one included.
 pub(super) fn judged_attempts(out: &CompileOutcome) -> usize {

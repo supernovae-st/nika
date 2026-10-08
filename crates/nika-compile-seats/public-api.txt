@@ -3829,6 +3829,7 @@ pub fn nika_compile_seats::remote::relative(path: &str) -> core::option::Option<
 pub fn nika_compile_seats::remote::repeats_a_key(literal: &str) -> bool
 pub fn nika_compile_seats::remote::stated(intent: &str) -> alloc::vec::Vec<alloc::string::String>
 pub mod nika_compile_seats::repairs
+pub fn nika_compile_seats::repairs::carry_declined(out: &mut nika_compile::types::CompileOutcome)
 pub fn nika_compile_seats::repairs::progressed(seen: &[alloc::vec::Vec<alloc::string::String>], key: &[alloc::string::String]) -> bool
 pub mod nika_compile_seats::shelf
 pub struct nika_compile_seats::shelf::Reference
