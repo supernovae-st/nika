@@ -55,6 +55,7 @@ mod restore;
 mod review;
 mod round;
 mod route;
+mod run_admission;
 mod run_budget;
 mod unjudged;
 mod unknown_cost;
@@ -62,7 +63,7 @@ mod work;
 pub use work::{GATE_NOT_SHOWN, NOTHING_SHOWN, REVIEW_NOT_SHOWN, VALUE_NOT_SHOWN};
 
 pub use decision::{DecisionAnswer, decision_answer};
-use decision::{is_gate_token, is_no, is_yes, local_command_of};
+use decision::{is_gate_token, is_no, is_save_and_run, is_yes, local_command_of};
 use run_budget::ceiling_in;
 mod schedule;
 
@@ -328,7 +329,7 @@ pub struct SessionRuntime {
     /// (presentation only: it never carries workflow meaning).
     progress: crate::activity::Progress,
     /// A run request waiting on the values of the workflow's declared inputs.
-    run_inputs: Option<authoring::RunInputs>,
+    run_inputs: Option<run_admission::RunInputs>,
     /// Whether the human chose (or kept) an intelligence. Opened without one,
     /// the session works from the engine's facts and the deterministic
     /// compiler, and asks the first screen only when a turn needs more.
@@ -941,7 +942,7 @@ impl SessionRuntime {
         }
         // A consent word with nothing pending answers nothing: it is neither
         // work to build nor a question, and it never reaches a model.
-        if is_yes(input) || is_no(input) {
+        if is_yes(input) || is_no(input) || is_save_and_run(input) {
             return TurnOutcome::Refusal(Refusal::new(
                 RefusalClass::WrongState,
                 "nothing waits for a yes or a no here — a proposal asks `apply? ›` first · describe the outcome you want, or `/help`",
@@ -1097,13 +1098,20 @@ impl SessionRuntime {
                 "discarded · nothing was written · ask again for the change when ready".to_owned(),
             );
         }
-        if !is_yes(answer) {
+        // `save & run` saves as `yes` does, then asks its one run (`landed.rs`); `yes` saves only.
+        let (mut set, and_run) = (set, is_save_and_run(answer));
+        if !and_run && !is_yes(answer) {
             // Not a protocol token: open language. Its act is a bounded
             // decision over the typed state and the RAW line (the door's
             // classifier, the session's intelligence, else UNKNOWN) —
             // never a word list, never a consent.
             return self.consent_money_route(set, &id, answer);
         }
+        let run = match and_run.then(|| set.save_run()) {
+            Some(Err(why)) => return self.hold_pending(set, id, why),
+            line => line.and_then(Result::ok),
+        };
+        set.run = set.run.filter(|_| and_run);
         // The sources the proposal was built on are judged again before anything lands (F4).
         let basis = match self.basis_at_yes(&set, &id) {
             Ok(note) => note,
@@ -1128,7 +1136,7 @@ impl SessionRuntime {
                 return TurnOutcome::Refusal(Refusal::new(class, text));
             }
         };
-        self.report_landed(set, &applied, &id, basis.as_deref())
+        self.report_landed(&set, &applied, &id, basis.as_deref(), run)
     }
 
     /// The proposal waiting for a consent, when one is (its identity: the
@@ -1139,7 +1147,7 @@ impl SessionRuntime {
     }
 
     /// A consent that names the proposal it answers — a remote host, a
-    /// reconnect (ADR-133): refused as stale when another proposal waits,
+    /// reconnect (ADR-133): refused as stale when another proposal or a run's cost review waits,
     /// as already consumed when that proposal was decided, as the wrong
     /// state when none is pending. Never applied twice.
     pub fn consent_to(&mut self, id: &ProposalId, answer: &str) -> TurnOutcome {
@@ -1196,7 +1204,7 @@ impl SessionRuntime {
     }
 
     /// An answer that names the gate it decides (ADR-133): refused as
-    /// stale when another gate waits, as already consumed when that gate
+    /// stale when another gate or a run's cost review waits, as already consumed when that gate
     /// was answered, as the wrong state when none waits. The same gate
     /// answers once.
     pub fn answer_gate_for(&mut self, id: &GateId, line: &str) -> TurnOutcome {
@@ -1465,6 +1473,9 @@ mod restore_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod route_tests;
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod save_run_tests;
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod semantic_basis_tests;

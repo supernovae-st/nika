@@ -299,6 +299,11 @@ fn run_once(
     theme: Theme,
 ) -> (u8, Option<std::path::PathBuf>) {
     let file = root.join(&run.workflow).display().to_string();
+    // Bound to the bytes and the world (children, skills) the Session checked, as a machine
+    // lane's child is (`--expect-source`, `--expect-world`): this capture runs, or nothing does.
+    let mut host = nika_cli_host::lane::RunHostOptions::from(None)
+        .with_expected_source(Some(run.expected_source()));
+    host.expected_world = Some(run.expected_world());
     let verdict = crate::verbs::run::run_verdict(
         &file,
         false,
@@ -316,9 +321,7 @@ fn run_once(
         Some(run.max_cost_usd),
         false,
         false,
-        // Bound to the bytes the Session checked: this capture runs, or nothing does.
-        nika_cli_host::lane::RunHostOptions::from(None)
-            .with_expected_source(Some(run.expected_source())),
+        host,
     );
     (verdict.code, verdict.trace)
 }

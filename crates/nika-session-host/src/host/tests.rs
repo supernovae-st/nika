@@ -644,3 +644,75 @@ fn a_restarted_session_is_another_incarnation_and_restores_without_authority() {
         "a ledger lives with its incarnation"
     );
 }
+
+/// A run door that keeps every run request it is asked for and observes each one ending at 0.
+#[derive(Clone, Default)]
+struct Kept(Arc<Mutex<Vec<RunRequest>>>);
+
+impl Kept {
+    fn runs(&self) -> Vec<RunRequest> {
+        self.0.lock().expect("runs").clone()
+    }
+}
+
+impl RunDoor for Kept {
+    fn run(&mut self, _root: &Path, run: &RunRequest, _sink: &dyn RunSink) -> RunStep {
+        self.0.lock().expect("runs").push(run.clone());
+        RunStep::Observed {
+            exit: 0,
+            trace: None,
+            leg: None,
+        }
+    }
+
+    fn resume(&mut self, _: &Path, _: &Path, _: &Path, _: &str, _: &dyn RunSink) -> RunStep {
+        RunStep::NotStarted {
+            why: "no resume here".to_owned(),
+        }
+    }
+
+    fn answer_review(&mut self, _approve: bool, _sink: &dyn RunSink) -> RunStep {
+        RunStep::NotStarted {
+            why: "no review here".to_owned(),
+        }
+    }
+}
+
+/// `save & run` through the host every door shares: the proposal shown lands, and its one run
+/// reaches the run door once, bound to the very bytes it saved and their world. The command
+/// replayed answers from the record and asks no second run; `yes` asks none.
+#[test]
+fn save_and_run_reaches_the_run_door_once_for_the_bytes_it_saved() {
+    use nika_session::change::Witness;
+    let root = world();
+    let door = Kept::default();
+    let host =
+        SessionHost::start(runtime(root.path()), Box::new(door.clone()), Vec::new()).expect("host");
+    assert_eq!(kinds(&settle(&host, "c-1", COPY)), ["proposal"]);
+    let shown = handle(&host);
+    let settled = match host.dispatch(submit("c-2", &shown, "save & run")) {
+        Dispatch::Accepted { command, .. } => json(&host.wait_result(&command).expect("settled")),
+        other => panic!("not accepted: {other:?}"),
+    };
+    assert_eq!(kinds(&settled), ["run_requested", "facts"], "{settled}");
+    let runs = door.runs();
+    assert_eq!(runs.len(), 1, "one run");
+    let saved = std::fs::read(root.path().join(&runs[0].workflow)).expect("saved bytes");
+    assert_eq!(runs[0].bytes.as_deref(), Some(&Witness::of(&saved)));
+    assert!(
+        runs[0].closure.is_some(),
+        "bound to the world its check judged"
+    );
+    let replay = reply(host.dispatch(submit("c-2", &shown, "save & run")));
+    assert_eq!(replay["replayed"], true);
+    assert_eq!(replay["outcomes"], settled["outcomes"]);
+    assert_eq!(door.runs().len(), 1, "a replay never runs again");
+
+    let other = world();
+    let door = Kept::default();
+    let host = SessionHost::start(runtime(other.path()), Box::new(door.clone()), Vec::new())
+        .expect("host");
+    assert_eq!(kinds(&settle(&host, "c-1", COPY)), ["proposal"]);
+    assert_eq!(kinds(&settle(&host, "c-2", "yes")), ["facts"]);
+    assert!(door.runs().is_empty(), "Save only asks no run");
+}
