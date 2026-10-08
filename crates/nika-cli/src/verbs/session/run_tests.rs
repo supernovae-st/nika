@@ -262,3 +262,90 @@ fn the_plain_session_runner_refuses_an_explicit_bad_pin_without_a_fallback() {
     assert_eq!(recovered.events.len(), 1, "no task may start: {raw}");
     assert_eq!(recovered.events[0].kind, nika_event::EventKind::RunSealed);
 }
+
+/// A parent that calls `./child.nika`, granting the one write its child makes.
+const PARENT: &str = "nika: drift-parent\npermits:\n  fs: { write: [\"./out/child.txt\"] }\n  tools: [\"nika:write\"]\ntasks:\n  call:\n    invoke: { workflow: \"./child.nika\" }\n";
+/// The child: one write, its only effect.
+const CHILD: &str = "nika: drift-child\npermits:\n  fs: { write: [\"./out/child.txt\"] }\n  tools: [\"nika:write\"]\ntasks:\n  write:\n    invoke: { tool: \"nika:write\", args: { path: \"./out/child.txt\", content: \"checked child\" } }\n";
+/// A workflow whose agent reads one skill.
+const SKILLED: &str = "nika: drift-skill\nmodel: mock/echo\npermits:\n  fs:\n    read: [\"skills/review/SKILL.md\"]\ntasks:\n  review:\n    agent: { prompt: checked-skill-ran, skills: [\"skills/review/SKILL.md\"] }\noutputs:\n  said: ${{ tasks.review.output }}\n";
+const SKILL: &str = "---\nname: review\ndescription: Review a draft.\n---\nBe careful.\n";
+
+/// The traces a run left under `root`.
+fn traces(root: &Path) -> usize {
+    std::fs::read_dir(root.join(".nika/traces")).map_or(0, Iterator::count)
+}
+
+/// [`request`] for `workflow`, once the Session's check judged its whole world.
+fn checked_world(root: &Path, workflow: &str) -> RunRequest {
+    let run = request(root, workflow);
+    assert!(
+        run.closure.is_some(),
+        "the check judged the world of {workflow}"
+    );
+    run
+}
+
+/// The plain door runs only the world the Session checked: a child rewritten after the check
+/// while its parent is unchanged runs nothing and writes nothing; the checked child back in place
+/// runs exactly once.
+#[test]
+fn a_child_changed_after_the_check_runs_nothing() {
+    let root = tempfile::tempdir().expect("project");
+    let _cwd = crate::cwd::enter(root.path()).expect("isolated cwd");
+    let child = root.path().join("child.nika");
+    std::fs::write(root.path().join("parent.nika"), PARENT).expect("parent");
+    std::fs::write(&child, CHILD).expect("child");
+    let run = checked_world(root.path(), "parent.nika");
+    std::fs::write(&child, CHILD.replace("checked child", "changed child")).expect("rewritten");
+    let output = root.path().join("out/child.txt");
+    let (code, trace) = run_once(root.path(), &run, theme());
+    assert_eq!(code, exit::ENV, "another world is refused before any task");
+    assert!(trace.is_none(), "nothing ran, so no trace");
+    assert!(!output.exists(), "nothing was written");
+    assert_eq!(traces(root.path()), 0);
+    std::fs::write(&child, CHILD).expect("the checked child again");
+    // A request that recorded no world runs nothing, whatever stands on disk.
+    let unbound = RunRequest {
+        closure: None,
+        ..run.clone()
+    };
+    assert_eq!(run_once(root.path(), &unbound, theme()).0, exit::ENV);
+    assert!(!output.exists(), "nothing was written");
+    let (code, trace) = run_once(root.path(), &run, theme());
+    assert_eq!(code, exit::OK);
+    assert!(trace.is_some(), "its own trace");
+    assert_eq!(
+        std::fs::read_to_string(&output).expect("its one write"),
+        "checked child"
+    );
+    assert_eq!(
+        traces(root.path()),
+        2,
+        "executed exactly once: the parent's trace and its child's"
+    );
+}
+
+/// The same for a skill the workflow's agent reads: rewritten after the check while the workflow
+/// is unchanged, nothing runs; the checked skill back in place runs exactly once.
+#[test]
+fn a_skill_changed_after_the_check_runs_nothing() {
+    let root = tempfile::tempdir().expect("project");
+    let _cwd = crate::cwd::enter(root.path()).expect("isolated cwd");
+    let skill = root.path().join("skills/review/SKILL.md");
+    std::fs::create_dir_all(root.path().join("skills/review")).expect("skills");
+    std::fs::write(&skill, SKILL).expect("skill");
+    std::fs::write(root.path().join("skilled.nika"), SKILLED).expect("workflow");
+    let run = checked_world(root.path(), "skilled.nika");
+    std::fs::write(&skill, SKILL.replace("careful", "reckless")).expect("rewritten");
+    let (code, trace) = run_once(root.path(), &run, theme());
+    assert_eq!(code, exit::ENV, "another world is refused before any task");
+    assert!(trace.is_none(), "nothing ran, so no trace");
+    assert_eq!(traces(root.path()), 0);
+    std::fs::write(&skill, SKILL).expect("the checked skill again");
+    let (code, trace) = run_once(root.path(), &run, theme());
+    assert_eq!(code, exit::OK);
+    let evidence = std::fs::read_to_string(trace.expect("its own trace")).expect("trace");
+    assert!(evidence.contains("checked-skill-ran"), "{evidence}");
+    assert_eq!(traces(root.path()), 1, "executed exactly once");
+}
