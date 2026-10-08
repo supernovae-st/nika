@@ -18,8 +18,11 @@ pub fn validate_selection(
     }
     match transport {
         HarnessTransport::Native => {},
-        HarnessTransport::Acp if adapter == "claude-code" => {},
-        _ => return Err("this ACP authoring adapter has no attested pre-execution empty-tools profile; choose explicitly another connection; no fallback".into()),
+        // An audited completion profile: Claude Code (no tools at all) or Codex (tool
+        // surfaces closed and read back at spawn; `apply_patch` confined to the scratch, a
+        // tool beat refusing the answer).
+        HarnessTransport::Acp if super::acp::Profile::for_seat(adapter).is_some() => {},
+        _ => return Err("this ACP authoring adapter has no audited completion profile; choose explicitly another connection; no fallback".into()),
     }
     super::model_argument(adapter, model)
 }

@@ -238,10 +238,17 @@ in again in that app, then retry; no fallback », in Nika's words, never the
 adapter's; any other error answer stays « transport ended before a complete
 answer ». This is adapter-specific
 capability admission, not a generic claim about ACP read-only modes. Codex
-over ACP still refuses: through `codex-acp` the user's MCP servers and the
-code-mode tools stay reachable whatever session configuration is passed, so no
-empty-tools profile is attested. The whole answer reaches Compiler validation;
-no JSON prefix is extracted.
+over ACP runs under its own completion profile (`@agentclientprotocol/codex-acp`
+1.13.1 with its bundled codex 0.156.1), which is not an empty-tools profile.
+Before the adapter starts, every tool-bearing feature, the plugins and every
+MCP server the user configuration defines are disabled through `CODEX_CONFIG`
+and read back on the exact bundled binary (`CODEX_PATH`). The session mode
+codex-acp names `read-only` is applied and read back before the prompt; its
+actual per-turn sandbox is `workspaceWrite` limited to the scratch directory,
+with the network off and every approval denied. `apply_patch` stays callable
+inside that scratch, which is removed after the call, and any tool beat
+refuses the answer; the receipt names that residue. The whole answer reaches
+Compiler validation; no JSON prefix is extracted.
 
 ACP uses the same selected Compiler policy as API authoring. Interactive preparation
 has no implicit total call, repair or monetary bound; callers using the historical
