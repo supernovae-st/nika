@@ -116,7 +116,8 @@ fn fence(text: &str) -> String {
 
 /// An admitted row in full: its role and what it means, its kind, id and title, its provenance,
 /// its whole contract (the row as admitted, canonical JSON) and, when its kind keeps its text in
-/// a body file, that file's whole text.
+/// a body file, that file's exact bytes between the fences: a body ending in a line break closes
+/// its own last line, and one that does not is said so, its fence on a line of its own.
 #[must_use]
 pub fn entry_text(
     row: &Value,
@@ -145,10 +146,14 @@ pub fn entry_text(
             .is_some_and(|extension| extension == "md");
         let language = if markdown { "markdown" } else { "yaml" };
         let fenced = fence(body);
+        let (said, closing) = if body.ends_with('\n') {
+            ("", "")
+        } else {
+            (" (it ends without a line break)", "\n")
+        };
         let _ = writeln!(
             text,
-            "{file}:\n{fenced}{language}\n{}\n{fenced}",
-            body.trim_end()
+            "{file}, exactly{said}:\n{fenced}{language}\n{body}{closing}{fenced}"
         );
     }
     text.trim_end().to_owned()

@@ -57,10 +57,28 @@ fn a_block_is_presented_whole_as_a_component_with_its_provenance() {
         "{text}"
     );
     assert!(text.contains(r#""confidence":0.85"#), "{text}");
-    assert!(text.ends_with(&format!(
-        "blocks/total.nika:\n```yaml\n{}\n```",
-        body.trim_end()
-    )));
+    assert!(text.ends_with(&format!("blocks/total.nika, exactly:\n```yaml\n{body}```")));
+}
+
+#[test]
+fn a_body_is_presented_byte_for_byte_its_last_line_breaks_included() {
+    let row = json!({"id": "example:kept", "kind": "example", "title": "Kept"});
+    // A body ending in a kept block scalar: its blank last lines are content.
+    let kept = "nika: kept\nconst:\n  note: |+\n    hello\n\n\n";
+    let text = entry_text(&row, &[], Some(("examples/kept.nika", kept)));
+    assert!(
+        text.ends_with(&format!("examples/kept.nika, exactly:\n```yaml\n{kept}```")),
+        "{text}"
+    );
+    // A body without a final line break is said so, never given one silently.
+    let bare = "nika: bare";
+    let text = entry_text(&row, &[], Some(("examples/bare.nika", bare)));
+    assert!(
+        text.ends_with(
+            "examples/bare.nika, exactly (it ends without a line break):\n```yaml\nnika: bare\n```"
+        ),
+        "{text}"
+    );
 }
 
 #[test]
@@ -88,8 +106,7 @@ fn a_body_holding_fences_is_fenced_longer() {
     let text = entry_text(&row, &[], Some(("skills/aggregate.md", body)));
     assert!(
         text.ends_with(&format!(
-            "skills/aggregate.md:\n````markdown\n{}\n````",
-            body.trim_end()
+            "skills/aggregate.md, exactly:\n````markdown\n{body}````"
         )),
         "{text}"
     );
