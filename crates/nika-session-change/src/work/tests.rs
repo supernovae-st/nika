@@ -389,21 +389,15 @@ fn the_calls_receipt_is_carried_as_reported_and_unknown_usage_stays_unknown() {
     assert_eq!(json["backend"]["observed_model"], "author-model-served");
 }
 
-/// Each call's receipt passes through the allowlist: exact recorded facts, unknown usage kept
-/// unknown, a failed call's engine kind, and nothing of its prompt, answer, proposed object,
-/// served model name or error text, even when the receipt holds them.
-#[test]
-fn each_call_is_projected_through_the_allowlist_and_never_its_text() {
-    let mut outcome = compile(&CompileRequest::create(
-        "Read ./notes/brief.md and write it to ./out/copy.md",
-    ))
-    .expect("compiles");
+/// A receipt of three recorded calls: an answered `document` call carrying everything a context
+/// entry may hold (its proposed object, the served model name, references by id), a
+/// `document-repair` that timed out with a malformed digest and free text where an identifier
+/// belongs, and a `revision` cut at its output limit with unreported usage.
+fn three_recorded_calls(instruction: &str, schema: &str) -> AuthoringReceipt {
     let mut receipt = AuthoringReceipt::new("acme/author-model");
     receipt.calls = 2;
     receipt.elapsed_ms = 900;
     receipt.input_tokens = Some(1_000);
-    let instruction = "a".repeat(64);
-    let schema = "0123456789abcdef".repeat(4);
     receipt.context = vec![
         serde_json::json!({
             "call": "document", "instruction_sha256": instruction, "schema_sha256": schema,
@@ -417,16 +411,36 @@ fn each_call_is_projected_through_the_allowlist_and_never_its_text() {
             "proposed": {"decoded": true, "object": {"tasks": "SECRET-PLAN-TEXT"}},
         }),
         serde_json::json!({
-            "call": "repair", "instruction_sha256": "NOT A DIGEST", "schema_sha256": schema,
+            "call": "document-repair", "instruction_sha256": "NOT A DIGEST", "schema_sha256": schema,
             "message_bytes": 512, "max_output_tokens": 4_096, "timeout_ms": 600_000,
             "elapsed_ms": 200, "result": {"failure_kind": "timeout"},
             "reasoning": {"configured": "high; drop table", "reasoning_tokens": null},
             "error": "provider said: SECRET-ERROR-TEXT",
         }),
+        serde_json::json!({
+            "call": "revision", "message_bytes": 128,
+            "result": {"stop_reason": "MaxTokens", "usage_reported": false,
+                       "input_tokens": null, "output_tokens": null},
+        }),
     ];
+    receipt
+}
+
+/// Each call's receipt passes through the allowlist: exact recorded facts, unknown usage kept
+/// unknown, a failed call's engine kind, and nothing of its prompt, answer, proposed object,
+/// served model name or error text, even when the receipt holds them.
+#[test]
+fn each_call_is_projected_through_the_allowlist_and_never_its_text() {
+    let mut outcome = compile(&CompileRequest::create(
+        "Read ./notes/brief.md and write it to ./out/copy.md",
+    ))
+    .expect("compiles");
+    let instruction = "a".repeat(64);
+    let schema = "0123456789abcdef".repeat(4);
+    let receipt = three_recorded_calls(&instruction, &schema);
     outcome.provenance.authoring = Some(receipt);
     let calls = Authoring::of(&outcome).calls.expect("the receipt rides");
-    let [answered, failed] = calls.per_call.as_slice() else {
+    let [answered, failed, revised] = calls.per_call.as_slice() else {
         panic!("one projection per recorded call: {:?}", calls.per_call);
     };
     assert_eq!(answered.call.as_deref(), Some("document"));
@@ -457,7 +471,11 @@ fn each_call_is_projected_through_the_allowlist_and_never_its_text() {
     assert_eq!(answered.reasoning_effort.as_deref(), Some("high"));
     assert_eq!(answered.reasoning_tokens, None, "unreported, never zero");
 
-    assert_eq!(failed.call.as_deref(), Some("repair"));
+    assert_eq!(
+        failed.call.as_deref(),
+        Some("document-repair"),
+        "the real role, whole"
+    );
     assert_eq!(
         failed.instruction_sha256, None,
         "a malformed digest is not projected"
@@ -468,6 +486,15 @@ fn each_call_is_projected_through_the_allowlist_and_never_its_text() {
     assert_eq!(failed.usage_reported, None, "the receipt does not say");
     assert_eq!((failed.input_tokens, failed.output_tokens), (None, None));
     assert_eq!(failed.reasoning_effort, None, "only an identifier passes");
+
+    assert_eq!(revised.call.as_deref(), Some("revision"));
+    assert_eq!(revised.stop_reason.as_deref(), Some("MaxTokens"));
+    assert_eq!(revised.usage_reported, Some(false));
+    assert_eq!(
+        (revised.input_tokens, revised.output_tokens),
+        (None, None),
+        "unreported usage stays unknown"
+    );
 
     // The totals stay the receipt's own: nothing is summed from the calls.
     assert_eq!((calls.calls, calls.elapsed_ms), (2, 900));

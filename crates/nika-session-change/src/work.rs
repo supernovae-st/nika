@@ -361,13 +361,17 @@ impl AuthoringCall {
     }
 }
 
-/// An engine-written identifier (a role, a stop reason, a failure kind, an effort word): ASCII
-/// letters and underscores only, at most 40 of them. Anything else is not projected.
+/// An engine-written identifier (a role such as `document-repair`, a stop reason, a failure
+/// kind, an effort word): ASCII letters, digits, `_` and `-` only, starting with a letter, at most
+/// 40 of them. Anything else (a space, punctuation, free text) is not projected.
 fn name(value: &serde_json::Value) -> Option<String> {
     value
         .as_str()
         .filter(|s| {
-            (1..=40).contains(&s.len()) && s.chars().all(|c| c.is_ascii_alphabetic() || c == '_')
+            (1..=40).contains(&s.len())
+                && s.starts_with(|c: char| c.is_ascii_alphabetic())
+                && s.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-'))
         })
         .map(str::to_owned)
 }
