@@ -14,7 +14,24 @@ use super::super::{
     ChoiceAnswer, ChoiceFuture, ChoiceOption, ChoiceQuestion, DecisionError, DecisionSeat,
     ProviderChoice,
 };
-use super::ChoiceBatch;
+use super::{Bound, ChoiceBatch, WrittenKeys, bind};
+
+/// A reply keyed by id binds each asked id to its one answer, nothing to an id answered twice or
+/// not at all, and lists the ids nobody asked once each, in the order first written.
+#[test]
+fn a_keyed_reply_binds_by_id_and_records_what_nobody_asked() {
+    let text = r#"{"z": 1, "a": 2, "b": 3, "a": 4, "y": 5, "z": 6}"#;
+    let written: WrittenKeys = serde_json::from_str(text).unwrap();
+    assert_eq!(written.keys, ["z", "a", "b", "a", "y", "z"]);
+    let reply: Value = serde_json::from_str(text).unwrap();
+    let (bound, unasked) = bind(&["a", "b", "c"], reply.as_object().unwrap(), &written);
+    assert_eq!(
+        bound,
+        [Bound::Repeated, Bound::Answer(&json!(3)), Bound::Unanswered]
+    );
+    assert_eq!(unasked, ["z", "y"]);
+    assert!(serde_json::from_str::<WrittenKeys>("[1, 2]").is_err());
+}
 
 /// The shared reference, then each question's own words.
 const REFERENCE: &str = "REFERENCE: how the compiler writes.\n\nJudge ONE clause.";

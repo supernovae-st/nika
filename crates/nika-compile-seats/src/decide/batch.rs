@@ -14,7 +14,7 @@
 
 use std::{
     borrow::Cow,
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     future::Future,
     pin::Pin,
     task::{Context, Poll},
@@ -192,7 +192,8 @@ impl ChoiceBatch {
 
     /// The item ids this batch asks more than once: an answer keyed by id cannot tell their
     /// questions apart, so no request may carry them.
-    pub(super) fn repeated(&self) -> BTreeSet<&str> {
+    #[must_use]
+    pub fn repeated(&self) -> BTreeSet<&str> {
         let mut seen = BTreeSet::new();
         (self.items.iter())
             .map(|item| item.question.id.as_str())
@@ -376,57 +377,105 @@ pub(super) fn decoded_items(
     })?;
     let value: Value = serde_json::from_str(text)
         .map_err(|e| DecisionError(format!("the seat answer is not JSON: {e}")))?;
-    let (Some(answer), Ok(Named(named))) = (value.as_object(), serde_json::from_str(text)) else {
+    let (Some(answer), Ok(written)) = (value.as_object(), serde_json::from_str(text)) else {
         return Err(DecisionError(
             "the seat answer is not one object of item keys".to_owned(),
         ));
     };
-    let item = |question: &ChoiceQuestion| {
-        let id = question.id.as_str();
-        match (
-            named.iter().filter(|key| *key == id).count(),
-            answer.get(id),
-        ) {
-            (0, _) => Err("the seat left this item without an answer".to_owned()),
-            (1, Some(Value::String(key))) if question.keys().contains(key) => Ok(key.clone()),
-            (1, Some(Value::String(key))) => Err(format!(
-                "the seat chose `{key}` for this item, which it did not offer"
-            )),
-            (1, _) => Err("the seat answered this item with no key".to_owned()),
-            _ => Err("the seat answered this item more than once".to_owned()),
-        }
-    };
-    Ok((batch.items.iter())
-        .map(|entry| item(&entry.question).map_err(DecisionError))
+    let ids: Vec<&str> = (batch.items.iter())
+        .map(|item| item.question.id.as_str())
+        .collect();
+    let (bound, _) = bind(&ids, answer, &written);
+    Ok((batch.items.iter().zip(bound))
+        .map(|(item, bound)| {
+            match bound {
+                Bound::Answer(Value::String(key)) if item.question.keys().contains(key) => {
+                    Ok(key.clone())
+                }
+                Bound::Answer(Value::String(key)) => Err(format!(
+                    "the seat chose `{key}` for this item, which it did not offer"
+                )),
+                Bound::Answer(_) => Err("the seat answered this item with no key".to_owned()),
+                Bound::Unanswered => Err("the seat left this item without an answer".to_owned()),
+                Bound::Repeated => Err("the seat answered this item more than once".to_owned()),
+            }
+            .map_err(DecisionError)
+        })
         .collect())
 }
 
-/// The keys of one JSON object in the order written, repeats kept (a parsed map keeps one).
-struct Named(Vec<String>);
+/// How a reply keyed by item id binds to one id it was asked for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Bound<'r> {
+    /// The reply answers it exactly once: that value.
+    Answer(&'r Value),
+    /// The reply carries no answer under it.
+    Unanswered,
+    /// The reply answers it more than once (a parsed map would keep one silently): nothing.
+    Repeated,
+}
 
-impl<'de> serde::Deserialize<'de> for Named {
+/// The keys of one JSON object in the order written, repeats kept (a parsed map keeps one):
+/// what a reply keyed by item id really named.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct WrittenKeys {
+    /// Every key, in the order written.
+    pub keys: Vec<String>,
+}
+
+impl<'de> serde::Deserialize<'de> for WrittenKeys {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        deserializer.deserialize_map(NamedVisitor)
+        deserializer.deserialize_map(KeysVisitor)
     }
 }
 
-struct NamedVisitor;
+struct KeysVisitor;
 
-impl<'de> serde::de::Visitor<'de> for NamedVisitor {
-    type Value = Named;
+impl<'de> serde::de::Visitor<'de> for KeysVisitor {
+    type Value = WrittenKeys;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str("one JSON object")
     }
 
-    fn visit_map<M: serde::de::MapAccess<'de>>(self, mut map: M) -> Result<Named, M::Error> {
+    fn visit_map<M: serde::de::MapAccess<'de>>(self, mut map: M) -> Result<WrittenKeys, M::Error> {
         let mut keys = Vec::new();
         while let Some(key) = map.next_key::<String>()? {
             map.next_value::<serde::de::IgnoredAny>()?;
             keys.push(key);
         }
-        Ok(Named(keys))
+        Ok(WrittenKeys { keys })
     }
+}
+
+/// Bind a reply keyed by item id (`reply`, whose keys were `written`) to the `asked` ids, by id,
+/// never by position: each asked id's binding in order, and the ids the reply answers that no one
+/// asked, recorded and never assigned.
+#[must_use]
+pub fn bind<'r>(
+    asked: &[&str],
+    reply: &'r Map<String, Value>,
+    written: &WrittenKeys,
+) -> (Vec<Bound<'r>>, Vec<String>) {
+    let mut times: BTreeMap<&str, usize> = BTreeMap::new();
+    for key in &written.keys {
+        *times.entry(key.as_str()).or_default() += 1;
+    }
+    let bound = (asked.iter())
+        .map(|id| match (times.get(id), reply.get(*id)) {
+            (Some(1), Some(value)) => Bound::Answer(value),
+            (None | Some(0 | 1), _) => Bound::Unanswered,
+            _ => Bound::Repeated,
+        })
+        .collect();
+    let unasked = (times.keys())
+        .filter(|key| !asked.contains(key))
+        .map(|key| (*key).to_owned());
+    let mut unasked: Vec<String> = unasked.collect();
+    unasked.sort_by_key(|key| written.keys.iter().position(|k| k == key));
+    (bound, unasked)
 }
 
 #[cfg(test)]

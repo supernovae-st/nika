@@ -135,7 +135,8 @@ pub type ChoiceFuture<'a> =
 
 mod batch;
 pub use batch::{
-    BatchFuture, BatchItem, Carried, ChoiceBatch, closed_choices, decoded_each, each_alone,
+    BatchFuture, BatchItem, Bound, Carried, ChoiceBatch, WrittenKeys, bind, closed_choices,
+    decoded_each, each_alone,
 };
 
 /// A bounded decision capability. Vendor-neutral by construction.
