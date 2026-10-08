@@ -2093,6 +2093,11 @@ pub fn nika_onboard::knowledge::Snapshot::rows_sha256(&self) -> alloc::string::S
 pub fn nika_onboard::knowledge::Snapshot::version(&self) -> core::option::Option<&str>
 impl core::fmt::Debug for nika_onboard::knowledge::Snapshot
 pub fn nika_onboard::knowledge::Snapshot::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_compile_seats::foundry::component::ComponentCatalog for nika_onboard::knowledge::Snapshot
+pub fn nika_onboard::knowledge::Snapshot::entries(&self) -> alloc::vec::Vec<serde_json::value::Value>
+pub fn nika_onboard::knowledge::Snapshot::reference(&self, id: &str) -> core::option::Option<nika_compile::types::KnowledgeReference>
+pub fn nika_onboard::knowledge::Snapshot::release(&self) -> nika_compile_seats::foundry::component::Release
+pub fn nika_onboard::knowledge::Snapshot::resolve(&self, reference: &nika_compile_seats::foundry::component::ComponentRef) -> core::result::Result<nika_compile_seats::foundry::component::Component, nika_compile_seats::foundry::component::Unresolved>
 impl<D> owo_colors::OwoColorize for nika_onboard::knowledge::Snapshot
 impl<T, U> core::convert::Into<U> for nika_onboard::knowledge::Snapshot where U: core::convert::From<T>
 pub fn nika_onboard::knowledge::Snapshot::into(self) -> U
